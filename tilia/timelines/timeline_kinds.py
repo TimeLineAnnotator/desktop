@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class TimelineKind(Enum):
     HIERARCHY_TIMELINE = "hierarchy"
     MARKER_TIMELINE = "marker"

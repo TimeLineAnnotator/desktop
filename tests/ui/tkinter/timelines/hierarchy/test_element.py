@@ -8,6 +8,5 @@ from tilia.ui.tkinter.timelines.hierarchy import HierarchyTkUI, HierarchyTimelin
 
 
 class TestHierarchyTkUI:
-
     def test_constructor(self, hrui_params_mock):
         pass

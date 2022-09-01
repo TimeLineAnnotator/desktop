@@ -40,6 +40,7 @@ class InvalidComponentKindError(Exception):
 class TimelineComponent(ABC):
     """Interface for objects that compose a timeline. E.g. the Hierarchy class
     in HierarchyTimelines."""
+
     def __init__(self, timeline: Timeline):
         self.timeline = timeline
         self.id = timeline.get_id_for_component()
@@ -333,8 +334,6 @@ class Timeline(ABC):
     def get_current_playback_time(self):
         return self.collection.get_current_playback_time()
 
-
-
     def __repr__(self):
         return tilia.repr.default_repr(self)
 
@@ -343,6 +342,7 @@ def log_object_creation(func: Callable) -> Callable:
     """Wraps an object's __init__ method to log a "Starting x creation..."
     message after method call and a "Created x." message after method call.
     Where x is the object's __repr__."""
+
     def wrapper(self, *args, **kwargs):
         logger.debug(f"Creating {self.__class__.__name__} with {args=}, {kwargs=}...")
         result = func(self, *args, **kwargs)
@@ -354,8 +354,9 @@ def log_object_creation(func: Callable) -> Callable:
 
 def log_object_deletion(func: Callable) -> Callable:
     """Wraps an object's delete or destroy method to log a "Starting x deletion..."
-        message after method call and a "Deleted x." message after method call.
-        Where x is the object's __repr__."""
+    message after method call and a "Deleted x." message after method call.
+    Where x is the object's __repr__."""
+
     def wrapper(self, *args, **kwargs):
         logger.debug(f"Deleting {self.__class__.__name__}...")
         result = func(self, *args, **kwargs)

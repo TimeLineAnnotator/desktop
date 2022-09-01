@@ -6,6 +6,7 @@ class MeasureLength:
     """A type for displaying measure lengths as 'measure number'.'beat number'.
     Something like this is necessary for calcuting the length in measure of
     timeline components."""
+
     sort_index: tuple[int, int] = field(init=False)
     measure_part: int
     beat_part: int

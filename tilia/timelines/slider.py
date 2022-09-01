@@ -24,10 +24,7 @@ class SliderTimeline(Timeline):
         """Nothing to do. Must impement abstract method."""
 
     def to_dict(self) -> dict:
-        return {
-            'components': {},
-            'kind': self._kind.name
-        }
+        return {"components": {}, "kind": self._kind.name}
 
     def clear(self, _=True):
         """Nothing to do."""

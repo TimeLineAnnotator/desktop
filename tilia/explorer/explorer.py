@@ -526,7 +526,9 @@ class Explorer(Subscriber):
             ]
         )
 
-    def on_subscribed_event(self, event_name: str, *args: tuple, **kwargs: dict) -> None:
+    def on_subscribed_event(
+        self, event_name: str, *args: tuple, **kwargs: dict
+    ) -> None:
         match event_name:
             case "EXPLORER: SEARCH":
                 do_search(*args)

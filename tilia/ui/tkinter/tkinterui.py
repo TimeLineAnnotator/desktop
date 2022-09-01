@@ -62,7 +62,7 @@ class TkinterUI(Subscriber):
 
     SUBSCRIPTIONS = [
         EventName.UI_REQUEST_WINDOW_INSPECTOR,
-        EventName.MENU_OPTION_FILE_LOAD_MEDIA
+        EventName.MENU_OPTION_FILE_LOAD_MEDIA,
     ]
 
     def __init__(self, app: TiLiA):
@@ -105,7 +105,9 @@ class TkinterUI(Subscriber):
         self.root.title(globals_.APP_NAME)
         self.root.iconbitmap(globals_.APP_ICON_PATH)
 
-        self.root.protocol("WM_DELETE_WINDOW", lambda: events.post(EventName.APP_REQUEST_TO_CLOSE))
+        self.root.protocol(
+            "WM_DELETE_WINDOW", lambda: events.post(EventName.APP_REQUEST_TO_CLOSE)
+        )
 
     def _setup_menus(self):
         self.menus = TkinterUIMenus(self, self.root)
@@ -117,7 +119,6 @@ class TkinterUI(Subscriber):
     @property
     def timeline_total_size(self):
         return self.timeline_width + 2 * self.timeline_padx
-
 
     def _create_timeline_ui_collection(self):
         timelines_scrollbar = tk.Scrollbar(self.hscrollbar_frame, orient=tk.HORIZONTAL)
@@ -151,7 +152,6 @@ class TkinterUI(Subscriber):
         self.bottom_frame.pack(fill="x")
         self.hscrollbar_frame.pack(fill="x")
         self.main_frame.pack(fill="both", expand=True)
-
 
     def on_request_window(self, kind: WindowKind):
         if kind == WindowKind.INSPECTOR:
@@ -209,7 +209,9 @@ class TkinterUI(Subscriber):
     ) -> None:
         event_to_callback = {
             EventName.MENU_OPTION_FILE_LOAD_MEDIA: self.on_menu_file_load_media,
-            EventName.UI_REQUEST_WINDOW_INSPECTOR: lambda: self.on_request_window(WindowKind.INSPECTOR)
+            EventName.UI_REQUEST_WINDOW_INSPECTOR: lambda: self.on_request_window(
+                WindowKind.INSPECTOR
+            ),
         }
 
         event_to_callback[event_name]()
@@ -322,7 +324,7 @@ class TkinterUIMenus(tk.Menu):
 
         self.file_menu.add_command(
             label="New...",
-            command=lambda: events.post(EventName.FILE_REQUEST_NEW_FILE, save_as=False)
+            command=lambda: events.post(EventName.FILE_REQUEST_NEW_FILE, save_as=False),
         )
         self.file_menu.add_command(
             label="Open...",
@@ -348,13 +350,15 @@ class TkinterUIMenus(tk.Menu):
         )
         self.file_menu.add_separator()
         self.goto_menu = tk.Menu(tearoff=0)
-        self.file_menu.add_cascade(label="Go to...", menu=self.goto_menu, underline=0, state="disabled")
+        self.file_menu.add_cascade(
+            label="Go to...", menu=self.goto_menu, underline=0, state="disabled"
+        )
         self.goto_menu.add_command(
             label="Measure..",
             command=lambda: GoToMeasureWindow(),
             underline=0,
-            accelerator="Ctrl+G", state="disabled"
-
+            accelerator="Ctrl+G",
+            state="disabled",
         )
         # self.goto_menu.add_command(label='Time..', underline=0, accelerator='Ctrl+Shift+G')
 
@@ -366,20 +370,23 @@ class TkinterUIMenus(tk.Menu):
             label="Undo",
             # command=event_handlers.on_ctrlz,
             underline=0,
-            accelerator="Ctrl + Z", state="disabled"
+            accelerator="Ctrl + Z",
+            state="disabled",
         )
         self.edit_menu.add_command(
             label="Redo",
             # command=event_handlers.on_ctrly,
             underline=0,
-            accelerator="Ctrl + Y", state="disabled"
+            accelerator="Ctrl + Y",
+            state="disabled",
         )
         self.edit_menu.add_separator()
         self.edit_menu.add_command(
             label="Metadata...",
             # command=event_handlers.on_metadata,
             command=lambda: logger.debug(f"Menu callback not implemented yet."),
-            underline=0, state="disabled"
+            underline=0,
+            state="disabled",
         )
         # self.edit_menu.add_command(label='Clear timeline', command=event_handlers.on_cleartimeline, underline=0)
 
@@ -387,28 +394,36 @@ class TkinterUIMenus(tk.Menu):
         self.timelines_menu = tk.Menu(self, tearoff=0)
         self.add_cascade(label="Timelines", menu=self.timelines_menu, underline=0)
 
-
         self.timelines_menu.add_timelines = tk.Menu(self.timelines_menu, tearoff=0)
 
         for kind in TimelineKind:
             self.timelines_menu.add_timelines.add_command(
-                label=kind.value.capitalize(), command=lambda kind_=kind: events.post(EventName.APP_ADD_TIMELINE, kind_), underline=0
+                label=kind.value.capitalize(),
+                command=lambda kind_=kind: events.post(
+                    EventName.APP_ADD_TIMELINE, kind_
+                ),
+                underline=0,
             )
 
         self.timelines_menu.add_cascade(
-            label="Add...", menu=self.timelines_menu.add_timelines, underline=0, state='disabled'
+            label="Add...",
+            menu=self.timelines_menu.add_timelines,
+            underline=0,
+            state="disabled",
         )
 
         self.timelines_menu.add_command(
             label="Manage...",
             underline=0,
-            command=lambda: globals_.APP.timeline_manager(), state="disabled"
+            command=lambda: globals_.APP.timeline_manager(),
+            state="disabled",
         )
 
         self.timelines_menu.add_command(
             label="Clear all",
             underline=0,
-            command=lambda: globals_.TIMELINE_COLLECTION.ask_clear_all(), state="disabled"
+            command=lambda: globals_.TIMELINE_COLLECTION.ask_clear_all(),
+            state="disabled",
         )
 
         # VIEW MENU
@@ -427,12 +442,14 @@ class TkinterUIMenus(tk.Menu):
         self.view_menu.add_command(
             label="Zoom in",
             accelerator="Ctrl + +",
-            command=lambda: events.post(EventName.REQUEST_ZOOM_IN), state="disabled"
+            command=lambda: events.post(EventName.REQUEST_ZOOM_IN),
+            state="disabled",
         )
         self.view_menu.add_command(
             label="Zoom out",
             accelerator="Ctrl + -",
-            command=lambda: events.post(EventName.REQUEST_ZOOM_OUT), state="disabled"
+            command=lambda: events.post(EventName.REQUEST_ZOOM_OUT),
+            state="disabled",
         )
 
         # DEVELOPMENT WINDOW OPTION
@@ -446,11 +463,12 @@ class TkinterUIMenus(tk.Menu):
         # HELP MENU
         self.help_menu = tk.Menu(self, tearoff=0)
         self.add_cascade(label="Help", menu=self.help_menu, underline=0)
+        self.help_menu.add_command(label="Help...", state="disabled", underline=0)
         self.help_menu.add_command(
-            label="Help...", state="disabled", underline=0
-        )
-        self.help_menu.add_command(
-            label="About...", underline=0, command=lambda: AboutWindow(), state="disabled"
+            label="About...",
+            underline=0,
+            command=lambda: AboutWindow(),
+            state="disabled",
         )
 
         class AboutWindow(AppWindow):

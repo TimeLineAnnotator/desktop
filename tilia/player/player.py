@@ -39,6 +39,7 @@ class NoMediaLoadedError(AppException):
 
 class Player(Subscriber, ABC):
     """Interface for media playback engines."""
+
     update_interval = 100
 
     def __init__(self):
@@ -239,6 +240,7 @@ class Player(Subscriber, ABC):
 
 class VlcPlayer(Player):
     """Handles video playback. Depends on an existing installation of VLC."""
+
     def __init__(self):
         super().__init__()
 

@@ -31,6 +31,7 @@ class Inspector(events.Subscriber):
     Keeps track of selected inspectable and listens for a deselect inspectable event to allow for
     correct updating.
     """
+
     _instanced = False
     KIND = WindowKind.INSPECTOR
 
@@ -213,7 +214,9 @@ class Inspector(events.Subscriber):
             EventName.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.uicomplex_id
         )
 
-    def on_subscribed_event(self, event_name: str, *args: tuple, **kwargs: dict) -> None:
+    def on_subscribed_event(
+        self, event_name: str, *args: tuple, **kwargs: dict
+    ) -> None:
         if event_name == EventName.INSPECTABLE_ELEMENT_SELECTED:
             self.on_timeline_component_selected(*args)
         elif event_name == EventName.INSPECTABLE_ELEMENT_DESELECTED:

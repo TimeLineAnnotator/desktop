@@ -570,7 +570,6 @@ class TkEventHandler:
             lambda _: events.post(EventName.DEBUG_SELECTED_ELEMENTS),
         ),
         ("<Delete>", on_delete),
-
         (
             "<Control-i>",
             lambda _: events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR),

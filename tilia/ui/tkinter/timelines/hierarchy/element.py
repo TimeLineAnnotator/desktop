@@ -464,7 +464,9 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         else:
             logger.debug(f"Dragging to x='{x}'.")
 
-        self.tl_component.on_ui_changes_start_or_end_time(self.timeline_ui.get_time_by_x(drag_x), self.drag_data["extremity"])
+        self.tl_component.on_ui_changes_start_or_end_time(
+            self.timeline_ui.get_time_by_x(drag_x), self.drag_data["extremity"]
+        )
         self.update_position()
         print(f"{self.tl_component.start=}")
         print(f"{self.tl_component.end=}")
@@ -540,4 +542,3 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
             logger.debug(f"Attribute edited is '{attr}'")
 
             setattr(self, attr, value)
-

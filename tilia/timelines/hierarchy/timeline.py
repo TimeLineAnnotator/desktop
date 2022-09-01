@@ -71,6 +71,7 @@ class HierarchyTimeline(Timeline):
 
 class ParentChildRelation(NamedTuple):
     """Named tuple to facilitate the handling of parent and children attribute of hierarchies."""
+
     parent: Hierarchy | HierarchyTkUI
     children: list[Hierarchy | HierarchyTkUI]
 
@@ -93,7 +94,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
     def _make_parent_child_relation(self, relation: ParentChildRelation):
         """Changes parent and child atributes of the units
         that are arguments of the relation as to end with the parent/child
-        structure given. """
+        structure given."""
 
         logging.debug(f"Processing parent/child relation '{relation}'")
 
@@ -332,7 +333,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     f"Can't split: time '{time}' is not inside unit '{unit}' boundaries."
                 )
 
-        def _get_new_children_for_unit_to_split_parent(unit_to_split, left_unit, right_unit):
+        def _get_new_children_for_unit_to_split_parent(
+            unit_to_split, left_unit, right_unit
+        ):
             new_children = unit_to_split.parent.children.copy() + [
                 left_unit,
                 right_unit,
@@ -366,7 +369,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             self._make_parent_child_relation(
                 ParentChildRelation(
                     parent=unit_to_split.parent,
-                    children=_get_new_children_for_unit_to_split_parent(unit_to_split, left_unit, right_unit),
+                    children=_get_new_children_for_unit_to_split_parent(
+                        unit_to_split, left_unit, right_unit
+                    ),
                 )
             )
 
@@ -375,14 +380,22 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             self._make_parent_child_relation(
                 ParentChildRelation(
                     parent=left_unit,
-                    children=[child for child in unit_to_split.children if child.start < split_time]
+                    children=[
+                        child
+                        for child in unit_to_split.children
+                        if child.start < split_time
+                    ],
                 )
             )
 
             self._make_parent_child_relation(
                 ParentChildRelation(
                     parent=right_unit,
-                    children=[child for child in unit_to_split.children if child.start >= split_time]
+                    children=[
+                        child
+                        for child in unit_to_split.children
+                        if child.start >= split_time
+                    ],
                 )
             )
 
@@ -458,7 +471,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if previous_parent:
             self._make_parent_child_relation(
                 ParentChildRelation(
-                    parent=previous_parent, children=previous_parent.children + [merger_unit]
+                    parent=previous_parent,
+                    children=previous_parent.children + [merger_unit],
                 )
             )
 
@@ -480,7 +494,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             self.timeline.record_state(StateAction.DELETE, component)
 
         self.timeline.request_delete_ui_for_component(component)
-        
+
         if isinstance(component, Subscriber):
             component.unsubscribe_from_all()
 
@@ -492,10 +506,15 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         """Create unit of level 1 encompassing whole audio"""
         logging.debug(f"Creating starting hierarchy for timeline '{self.timeline}'")
         self.timeline.create_timeline_component(
-            kind=ComponentKind.HIERARCHY, start=0, end=self.timeline.get_media_length(), level=1
+            kind=ComponentKind.HIERARCHY,
+            start=0,
+            end=self.timeline.get_media_length(),
+            level=1,
         )
 
-    def _update_parent_child_relation_after_deletion(self, component: Hierarchy) -> None:
+    def _update_parent_child_relation_after_deletion(
+        self, component: Hierarchy
+    ) -> None:
         logger.debug(f"Updating component's parent/children relation after deletion...")
 
         if not component.parent:
@@ -505,13 +524,17 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 child.parent = None
             return
 
-        component_parent_new_children = [h for h in component.parent.children if h != component]
+        component_parent_new_children = [
+            h for h in component.parent.children if h != component
+        ]
 
         if component.children:
             component_parent_new_children += component.children()
 
         logger.debug(f"Parent's new children are {component_parent_new_children}")
 
-        self._make_parent_child_relation(ParentChildRelation(parent=component.parent,
-                                                             children=component_parent_new_children))
-
+        self._make_parent_child_relation(
+            ParentChildRelation(
+                parent=component.parent, children=component_parent_new_children
+            )
+        )

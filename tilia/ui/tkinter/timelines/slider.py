@@ -7,7 +7,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tilia.ui.tkinter.timelines.common import TkTimelineUICollection, TimelineUIElementManager, TimelineCanvas
+    from tilia.ui.tkinter.timelines.common import (
+        TkTimelineUICollection,
+        TimelineUIElementManager,
+        TimelineCanvas,
+    )
 
 from tilia import events
 from tilia.events import EventName, Subscriber
@@ -32,25 +36,23 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
     TROUGH_WIDTH = 10
     LINE_WEIGHT = 3
 
-    TROUGH_DEFAULT_COLOR = '#FF0000'
+    TROUGH_DEFAULT_COLOR = "#FF0000"
 
-    LINE_DEFAULT_COLOR = '#000000'
+    LINE_DEFAULT_COLOR = "#000000"
 
-    SUBSCRIPTIONS = [
-        EventName.PLAYER_AUDIO_TIME_CHANGE
-    ]
+    SUBSCRIPTIONS = [EventName.PLAYER_AUDIO_TIME_CHANGE]
 
     def __init__(
-            self,
-            *args,
-            timeline_ui_collection: TkTimelineUICollection,
-            element_manager: TimelineUIElementManager,
-            canvas: TimelineCanvas,
-            toolbar: None,
-            name: str,
-            height: int = DEFAULT_HEIGHT,
-            is_visible: bool = True,
-            **kwargs
+        self,
+        *args,
+        timeline_ui_collection: TkTimelineUICollection,
+        element_manager: TimelineUIElementManager,
+        canvas: TimelineCanvas,
+        toolbar: None,
+        name: str,
+        height: int = DEFAULT_HEIGHT,
+        is_visible: bool = True,
+        **kwargs,
     ):
         super().__init__(
             *args,
@@ -72,18 +74,17 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
         self.line = self.canvas.create_line(
             *self.get_line_coords(),
             fill=self.LINE_DEFAULT_COLOR,
-            width=self.LINE_WEIGHT
+            width=self.LINE_WEIGHT,
         )
 
         self.trough = self.canvas.create_oval(
             *self.get_trough_coords(),
             fill=self.TROUGH_DEFAULT_COLOR,
-            tags='canHDrag',
-            width=0
+            tags="canHDrag",
+            width=0,
         )
 
         self.dragging = False
-
 
     @property
     def x(self):
@@ -103,8 +104,7 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
             self.on_audio_time_change(*args)
 
     def update_trough_position(self) -> None:
-        self.canvas.coords(self.trough,
-                           *self.get_trough_coords())
+        self.canvas.coords(self.trough, *self.get_trough_coords())
 
     def get_trough_coords(self) -> tuple:
         return (
@@ -114,9 +114,7 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
             self.height / 2 + (self.LINE_WEIGHT + self.TROUGH_HEIGHT) / 2,
         )
 
-    def on_click(
-            self, x: int, _, clicked_item_id: int, **_kw
-    ) -> None:
+    def on_click(self, x: int, _, clicked_item_id: int, **_kw) -> None:
         """Redirects self._process_element_click using the appropriate ui element. Note that, in the
         case of shared canvas drawings (as in HierarchyTkUI markers), it
         will call the method more than once."""
@@ -184,5 +182,7 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
             self._x = self.get_x_by_time(time)
             self.update_trough_position()
 
-    def get_ui_for_component(self, kind: UIElementKind, component: TimelineComponent, *args, **kwargs):
+    def get_ui_for_component(
+        self, kind: UIElementKind, component: TimelineComponent, *args, **kwargs
+    ):
         """No components in SliderTimeline. Must implement abstract method."""

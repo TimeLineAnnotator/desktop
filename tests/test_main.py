@@ -26,24 +26,21 @@ def tlwui_builder(tilia_mock):
 
 
 class TestFileManager:
-
     def test_constructor(self, tilia_mock):
         FileManager(tilia_mock)
 
     def test_open(self, monkeypatch, file_manager):
 
         # TODO remove hardcoded path
-        file_manager._app.ui.get_file_open_path.return_value = 'C:\\Programação\\musan_pre_separation\\tests\\test_file.tla'
+        file_manager._app.ui.get_file_open_path.return_value = (
+            "C:\\Programação\\musan_pre_separation\\tests\\test_file.tla"
+        )
         file_manager.open()
 
 
 class TestTimelineWithUIBuilder:
-
     def test_create_slider_timeline_no_error(self, tilia_mock, tlwui_builder):
-        tlwui_builder.create_timeline(TimelineKind.SLIDER_TIMELINE, name='test')
+        tlwui_builder.create_timeline(TimelineKind.SLIDER_TIMELINE, name="test")
 
     def test_create_hierarchy_timelin_no_error(self, tilia_mock, tlwui_builder):
-        tlwui_builder.create_timeline(TimelineKind.HIERARCHY_TIMELINE, name='test')
-
-
-
+        tlwui_builder.create_timeline(TimelineKind.HIERARCHY_TIMELINE, name="test")

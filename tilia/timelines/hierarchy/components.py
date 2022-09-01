@@ -42,7 +42,7 @@ class Hierarchy(TimelineComponent):
     COPYABLE_ATTRS = ["label", "formal_type", "formal_function", "comments", "color"]
     COPY_HELPER_ATTRS = ["level"]
 
-    #serializer attributes
+    # serializer attributes
     SERIALIZABLE_BY_VALUE = [
         "start",
         "end",
@@ -101,7 +101,9 @@ class Hierarchy(TimelineComponent):
         self.timeline.on_request_delete_component(self)
         self.ui.delete()
 
-    def on_ui_changes_start_or_end_time(self, time: float, extremity: StartOrEnd) -> None:
+    def on_ui_changes_start_or_end_time(
+        self, time: float, extremity: StartOrEnd
+    ) -> None:
         logger.debug(f"Changing {self} {extremity.value} to {time}")
         setattr(self, extremity.value, time)
 
@@ -109,7 +111,9 @@ class Hierarchy(TimelineComponent):
         class HierarchyRightClickMenu(tk.Menu):
             def __init__(self, unit):
                 super().__init__(tearoff=0)
-                self.add_command(label="Change unit color", command=unit.ask_change_color)
+                self.add_command(
+                    label="Change unit color", command=unit.ask_change_color
+                )
                 self.add_command(label="Reset unit color", command=unit.reset_color)
 
         def __repr__(self):
@@ -126,6 +130,7 @@ class Hierarchy(TimelineComponent):
 # noinspection PyUnresolvedReferences,PySuperArguments
 class OldCopyPaster:
     """Kept for easy reference. Will be deleted soon."""
+
     def receive_paste(self, copy_dict: dict[str:Any], no_record=False):
 
         if not no_record:

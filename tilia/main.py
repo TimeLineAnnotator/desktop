@@ -20,6 +20,7 @@ import json
 from datetime import datetime
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from tilia.ui import TimelineUICollection
 
@@ -29,7 +30,6 @@ from tilia import globals_
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.globals_ import UserInterfaceKind
 from tilia.files import TiliaFile, MediaMetadata
-
 
 
 import os
@@ -57,7 +57,7 @@ class TiLiA(Subscriber):
                 EventName.FILE_REQUEST_TO_LOAD_MEDIA,
                 EventName.APP_ADD_TIMELINE,
                 EventName.FILE_REQUEST_NEW_FILE,
-                EventName.APP_REQUEST_TO_CLOSE
+                EventName.APP_REQUEST_TO_CLOSE,
             ]
         )
 
@@ -100,7 +100,9 @@ class TiLiA(Subscriber):
     def current_playback_time(self):
         return self._player.current_time
 
-    def on_subscribed_event(self, event_name: str, *args: tuple, **kwargs: dict) -> None:
+    def on_subscribed_event(
+        self, event_name: str, *args: tuple, **kwargs: dict
+    ) -> None:
         if event_name == EventName.FILE_REQUEST_TO_LOAD_MEDIA:
             self.on_request_to_load_media(*args)
         elif event_name == EventName.APP_ADD_TIMELINE:
@@ -135,7 +137,7 @@ class TiLiA(Subscriber):
         return next(self._id_counter)
 
     def _initial_file_setup(self):
-        self._timeline_with_ui_builder.create_timeline(TimelineKind.SLIDER_TIMELINE, '')
+        self._timeline_with_ui_builder.create_timeline(TimelineKind.SLIDER_TIMELINE, "")
 
     def _change_player_according_to_extension(self, extension: str) -> None:
         if (
@@ -189,18 +191,16 @@ class TiLiA(Subscriber):
             components = timeline.pop("components")
             self._timeline_with_ui_builder.create_timeline(kind, name, components)
 
-
-
         logger.info(f"Loaded file.")
 
     def on_add_timeline(self, kind: TimelineKind):
         """Not functional yet."""
         if kind != TimelineKind.HIERARCHY_TIMELINE:
             raise NotImplementedError
-        name = self.ui.ask_string(title='Name for new timeline', prompt='Choose name for new timeline')
+        name = self.ui.ask_string(
+            title="Name for new timeline", prompt="Choose name for new timeline"
+        )
         self._timeline_with_ui_builder.create_timeline(kind, name)
-
-
 
 
 class FileManager(Subscriber):
@@ -248,7 +248,6 @@ class FileManager(Subscriber):
             self._ask_save_if_necessary()
         except UserCancelledOpenError:
             return
-
 
         self._app.clear_app()
 
@@ -307,7 +306,9 @@ class FileManager(Subscriber):
         logger.debug(f"Updating file media path to '{media_path}'")
         self._file.media_path = media_path
 
-    def on_subscribed_event(self, event_name: str, *args: tuple, **kwargs: dict) -> None:
+    def on_subscribed_event(
+        self, event_name: str, *args: tuple, **kwargs: dict
+    ) -> None:
         if event_name == EventName.PLAYER_MEDIA_LOADED:
             self.on_media_loaded(*args)
         elif event_name == EventName.FILE_REQUEST_TO_SAVE:

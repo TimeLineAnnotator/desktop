@@ -439,7 +439,9 @@ class ExplorerResultsWindow(tk.Toplevel):
         region = self.tree.identify("region", event.x, event.y)
         if not region == "heading":
             item = self.tree.focus()
-            events.post(events.EventName.EXPLORER_LOAD_MEDIA, self.tree.item(item, "text"))
+            events.post(
+                events.EventName.EXPLORER_LOAD_MEDIA, self.tree.item(item, "text")
+            )
 
     def _build_tree(self) -> None:
         for col in self.headers:

@@ -72,7 +72,6 @@ class TimelineCollection:
                 f"Can't remove timeline '{timeline}' from {self}: not in self._timelines."
             )
 
-
     def serialize_timelines(self):
         logger.debug(f"Serializing all timelines...")
         return {tl.id: tl.to_dict() for tl in self._timelines}
@@ -93,7 +92,6 @@ class TimelineCollection:
             timeline.ui.delete()
             self._remove_from_timelines(timeline)
 
-
     def from_dict(self, timelines_dict: dict[dict]) -> None:
         for _, tl_dict in timelines_dict.items():
             tl_kind = TimelineKind[tl_dict.pop("kind")]
@@ -104,6 +102,7 @@ class TimelineCollection:
 class TimelineCollectionOldMethods:
     """Old timeline collection methods kept here for ease of reference.
     Will be removed soon."""
+
     def load_timeline(self, tl_type: str, tl_dict: dict) -> None:
         def _update_main_objects_collection_key_name(tl_dict) -> dict:
             if "main_objects" in tl_dict.keys():

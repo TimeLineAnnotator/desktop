@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 LOGGER = logging.getLogger()
 
+
 class StateSavable:
     """Objects that can be saved in file."""
 

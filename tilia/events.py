@@ -14,6 +14,7 @@ from abc import ABC
 from abc import abstractmethod
 from typing import Optional
 
+
 class EventName(Enum):
     UI_REQUEST_WINDOW_INSPECTOR = auto()
     ADD_RANGE_BUTTON = auto()

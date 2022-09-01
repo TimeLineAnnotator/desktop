@@ -42,7 +42,9 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
     TOOLBAR_CLASS = HierarchyTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyTkUI}
-    COMPONENT_KIND_TO_UIELEMENT_KIND = {ComponentKind.HIERARCHY: UIElementKind.HIERARCHY_TKUI}
+    COMPONENT_KIND_TO_UIELEMENT_KIND = {
+        ComponentKind.HIERARCHY: UIElementKind.HIERARCHY_TKUI
+    }
 
     SUBSCRIPTIONS = [
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP,
@@ -55,7 +57,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN,
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE,
         EventName.INSPECTOR_WINDOW_CLOSED,
-        EventName.INSPECTOR_WINDOW_OPENED
+        EventName.INSPECTOR_WINDOW_OPENED,
     ]
 
     def __init__(
@@ -193,7 +195,9 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         self.toolbar.increment_visible_timeline_counter()
         pass
 
-    def on_subscribed_event(self, event_name: str, *args: tuple, **kwargs: dict) -> None:
+    def on_subscribed_event(
+        self, event_name: str, *args: tuple, **kwargs: dict
+    ) -> None:
         if event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD:
             self.on_create_unit_below_button()
         elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE:
@@ -394,7 +398,9 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
     def on_inspector_window_opened(self):
         for element in self.element_manager.get_selected_elements():
-            logger.debug(f"Notifying inspector of previsously selected elements on {self}...")
+            logger.debug(
+                f"Notifying inspector of previsously selected elements on {self}..."
+            )
             self.post_inspectable_selected_event(element)
 
 
