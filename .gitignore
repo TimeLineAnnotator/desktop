@@ -1,0 +1,6 @@
+/.eggs/README.txt
+/.eggs/
+/.idea/
+/venv/
+/tilia.egg-info/
+/.pytest_cache/
