@@ -157,6 +157,8 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         self._timeline_uis = set()
         self._select_order = []
 
+        self._timeline_collection = None  # will be set by TiLiA
+
     def on_scrollbar_move(self, *args):
         for timeline in self._timeline_uis:
             timeline.canvas.xview(*args)
@@ -210,6 +212,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         timeline_ui.delete()
         self._remove_from_timeline_uis_set(timeline_ui)
         self._remove_from_timeline_ui_select_order(timeline_ui)
+        self._delete_timeline_ui_toolbar_if_necessary(timeline_ui)
 
     def _add_to_timeline_uis_set(self, timeline_ui: TimelineTkUI) -> None:
         logger.debug(f"Adding timeline ui '{timeline_ui}' to {self}.")
@@ -428,6 +431,16 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
     def get_timeline_total_size(self):
         return self._app_ui.timeline_total_size
+
+    def _delete_timeline_ui_toolbar_if_necessary(self, deleted_timeline_ui: TimelineTkUI):
+        logger.debug(f"Checking if it is necessary to delete {deleted_timeline_ui} toolbar.")
+        existing_timeline_uis_of_same_kind = [tlui for tlui in self._timeline_uis if type(tlui) == type(deleted_timeline_ui)]
+        if not existing_timeline_uis_of_same_kind:
+            logger.debug(f"No more timelines of same kind. Deleting toolbar.")
+            deleted_timeline_ui.toolbar.delete()
+            self._toolbars.remove(deleted_timeline_ui.toolbar)
+        else:
+            logger.debug(f"There are still timelines of the same kind. Do not delete toolbar.")
 
 
 class TimelineTkUIElement(TimelineUIElement, ABC):
@@ -998,6 +1011,10 @@ class TimelineToolbar(tk.LabelFrame):
         """Decrements visible count and hides timelines if count reaches zero."""
         self._increment_decrement_timelines_count(False)
         self._show_display_according_to_visible_timelines_count()
+
+    def delete(self):
+        logger.debug(f"Deleting timeline toolbar {self}.")
+        self.destroy()
 
 
 class ToolTip(object):

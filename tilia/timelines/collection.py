@@ -30,12 +30,13 @@ from tilia.timelines.slider import SliderTimeline
 
 class TimelineCollection:
     """Collection of Timeline objects. Handles timeline creation
-    and handles timelines request for global data (e.g. media length).
+    and handles timelines request for "global" data (e.g. media length).
     """
 
     def __init__(self, app: TiLiA):
         self._app = app
         self._timelines = []
+        self._timeline_ui_collection = None  # will be set by TiLiA
 
     def create_timeline(self, timeline_kind: TimelineKind, **kwargs) -> Timeline:
         if timeline_kind == TimelineKind.HIERARCHY_TIMELINE:
@@ -58,6 +59,11 @@ class TimelineCollection:
 
     def _create_slider_timeline(self):
         return SliderTimeline(self, None, TimelineKind.SLIDER_TIMELINE)
+
+    def delete_timeline(self, timeline: Timeline):
+        logger.debug(f"Deleting timeline {timeline}")
+        timeline.delete()
+        self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
 
     def _add_to_timelines(self, timeline: Timeline) -> None:
         logger.debug(f"Adding component '{timeline}' to {self}.")
