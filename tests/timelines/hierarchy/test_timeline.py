@@ -81,6 +81,16 @@ class TestHierarchyTimeline:
 
         assert len(tl.component_manager._components) == 1
 
+    # TEST CREATE
+    def test_delete_hierarchy(self, tl):
+        unit1 = tl.create_timeline_component(
+            ComponentKind.HIERARCHY, 0, 1, 1
+        )
+
+        tl.on_request_delete_component(unit1)
+
+        assert not tl.component_manager._components
+
     # TEST SERIALIZE
     def test_serialize_unit(self, tl_with_ui):
         unit_kwargs = {
@@ -266,6 +276,8 @@ class TestHierarchyTimelineComponentManager:
         component_manager.create_unit_below(parent)
 
         assert parent.children[0] == child.parent
+
+
 
     # TEST CLEAR
     def test_clear(self, tl):
