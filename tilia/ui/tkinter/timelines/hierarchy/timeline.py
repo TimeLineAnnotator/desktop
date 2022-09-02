@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import EventName
 from tilia.misc_enums import IncreaseOrDecrease
+from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia.ui.tkinter.timelines.common import (
@@ -34,7 +35,7 @@ from tilia.ui.element_kinds import UIElementKind
 
 class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
-    DEFAULT_HEIGHT = 220
+    DEFAULT_HEIGHT = 150
     CANVAS_CLASS = tk.Canvas
     LABEL_WIDTH = 15
     LINE_WEIGHT = 3
@@ -49,7 +50,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     SUBSCRIPTIONS = [
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP,
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT,
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD,
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE,
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE,
@@ -59,6 +59,8 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         EventName.INSPECTOR_WINDOW_CLOSED,
         EventName.INSPECTOR_WINDOW_OPENED,
     ]
+
+    TIMELINE_KIND = TimelineKind.HIERARCHY_TIMELINE
 
     def __init__(
         self,
@@ -93,30 +95,11 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         self._height = height
         self.name = name
 
-        self._setup_canvas()
         self._setup_line_and_label()
-
-        # TODO - initialize vertical line
-        # if globals_.settings["GENERAL"]["show_vertical_playhedad"]:
-        #     self.draw_vertical_line()
 
         self._setup_visiblity(is_visible)
 
-        # update selection order
-        # self.collection.select_order.append(self)
-
         self.timeline = None
-
-    def _setup_canvas(self):
-        self.canvas.config(scrollregion=self.canvas.bbox("all"))
-        # self.canvas.config(xscrollcommand=self.on_hscrollbar) # TODO fix this config
-        self.canvas.bind(
-            "<Configure>",
-            lambda event: self.canvas.configure(scrollregion=self.canvas.bbox("all")),
-        )
-
-        # TODO collection should do mouse binding
-        # self.canvas.bind("<MouseWheel>", self.collection.on_mouse_wheel)
 
     def _setup_line_and_label(self):
         self.line = self.canvas.create_rectangle(
@@ -403,6 +386,8 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             )
             self.post_inspectable_selected_event(element)
 
+    def __repr__(self):
+        return f"{type(self).__name__}({self.name}|{id(self)})"
 
 # noinspection PyUnresolvedReferences,PyAttributeOutsideInit
 class TimelineUIOldMethods:
@@ -475,29 +460,6 @@ class TimelineUIOldMethods:
             if isinstance(self, HasRightClickMenu):
                 self.show_right_click_menu(event)
 
-    def select_by_id(self, canvas_id: int) -> None:
-        """Selects a object given by canvas_id"""
-        obj = self.get_element_by_attribute("canvas_id", canvas_id)
-
-        if obj:
-            self.timeline.select_object(obj)
-        # if isinstance(obj, Selectable) and obj not in self.selected_objects:
-        #     # noinspection PyTypeChecker
-        #     self.select_object(obj)
-        # elif isinstance(obj, ClickProxy) and obj.proxied not in self.selected_objects:
-        #     self.select_object(obj.proxied)
-
-    def deselect_by_id(self, canvas_id: int) -> None:
-        try:
-            obj = self.find_by_attribute(canvas_id, "canvas_id")[0]
-        except IndexError:
-            # is not a canvas_id of a TimelineObjects()
-            return
-
-        # if isinstance(obj, ClickProxy):
-        #     obj = obj.proxied
-        self.deselect_object(obj)
-
     def ask_change_label_text(self):
         new_label = tk.simpledialog.askstring(
             "Insert new timeline label",
@@ -531,9 +493,6 @@ class TimelineUIOldMethods:
         self.canvas.tag_raise(self.label_bg)
         self.canvas.tag_raise(self.label_in_canvas)
 
-    def redraw(self):
-        """Subclasses must implement specific redrawing"""
-        self.create_bounding_points()
 
     def rearrange_label(self):
         logger.debug(f"Rearranging label on {self}")
@@ -541,43 +500,6 @@ class TimelineUIOldMethods:
         self.canvas.tag_raise(self.label_in_canvas)
         self.update_vline_position(globals_.CURRENT_TIME)
 
-    def destroy(self):
-        """Deletes timeline"""
-        self.clear()
-        self.canvas.destroy()
-        # Collectable.delete(self)
-        # self.collection.select_order.remove(self)
-
-    def delete_multiple_by_id(self, canvas_ids: list, no_record: bool = False):
-        """Default behavior is to call delete_single for each canvas_id.
-        May be overridden by specific timeline (e.g. as in the BeatTimeline)"""
-
-        if not no_record:
-            self.main_object_collection.state_stack.record("multiple object delete")
-
-        for canvas_id in canvas_ids:
-            self.delete_single_by_id(canvas_id, no_record=True)
-
-    def delete_single_by_id(self, canvas_id: str, no_record: bool = False):
-        """Deletes object associated with canvas_id"""
-
-        if not no_record:
-            self.main_object_collection.state_stack.record("object delete")
-
-        try:
-            obj = self.find_by_attribute(canvas_id, "canvas_id")[0]
-            if obj:
-                self.delete_object(obj, no_record=no_record)
-        except IndexError:
-            return  # obj already deleted
-
-    def delete_by_id(self, canvas_ids: list[str]):
-        """Passes delete request to delete_single or to delete_multiple"""
-        logger.debug(f"Deleting {canvas_ids=} at {self}")
-        if len(canvas_ids) == 1:
-            self.delete_single_by_id(canvas_ids[0], no_record=True)
-        else:
-            self.delete_multiple_by_id(canvas_ids)
 
     class TimelineRightClickMenu(tk.Menu):
         def __init__(self, timeline, *args, **kwargs):
@@ -595,31 +517,6 @@ class TimelineUIOldMethods:
         """Handles double-clicking"""
         super(HierarchyTimeline, self).on_double_click(canvas_id, _1, _2)
         self.collection.update_vlines_position(globals_.CURRENT_TIME)
-
-    def on_drag(self, canvas_x, canvas_y):
-        """Handles mouse drag"""
-        BoxSelectable.on_drag(self, canvas_x, canvas_y)
-
-    def on_release(self):
-        """Handles mouse release"""
-        BoxSelectable.on_release(self)
-
-    def _nudge_with_arrow_key(self, direction):
-        """Legacy use of the arrows keys to nudge markers"""
-        import tilia.markers as markers
-
-        if self.selected_class == markers.HierarchyMarker:
-            left_nudge = -0.1
-            right_nudge = 0.1
-
-            if direction.lower() == "right":
-                delta = right_nudge
-            elif direction.lower() == "left":
-                delta = left_nudge
-
-            for obj in self.selected_objects:
-                # noinspection PyUnboundLocalVariable
-                obj.pos += delta
 
     def on_shift_arrow_key(self, direction):
         """Adds unit to selection according to direction"""
@@ -717,20 +614,8 @@ class TimelineUIOldMethods:
             self.deselect_all()
             self.select_object(unit_to_select)
 
-    def hdrag_start(self, canvas_id: int, event):
-        """Refactored. Must implement abstract method"""
-
-    def hdrag_setlimits(self):
-        """Refactored. Must implement abstract method"""
-
-    def hdrag(self, canvas_x):
-        """Refactored. Must implement abstract method"""
-
-    def hdrag_stop(self, event=None):
-        """Refactored. Must implement abstract method"""
-
     def redraw(self):
-        super(HierarchyTimeline, self).redraw()
+        super().redraw()
         self.draw(redraw=True)
         self.units.redraw()
         self.arrange_fixed_elements()
@@ -738,14 +623,6 @@ class TimelineUIOldMethods:
     def arrange_fixed_elements(self):
         self.canvas.tag_raise(self.line.canvas_id)
         self.rearrange_label()
-
-    def to_dict(self):
-        """Saves timeline to dict"""
-        return {
-            **OldTimeline.to_dict(self),
-            **utils.ExtraSavableAttributes.to_dict(self),
-            **HasObjectCollection.to_dict(self),
-        }
 
     def ask_change_height(self):
         new_height = tk.simpledialog.askinteger(
