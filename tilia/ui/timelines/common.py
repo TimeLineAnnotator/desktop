@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from tilia.timelines.timeline_kinds import TimelineKind
+
 if TYPE_CHECKING:
     from tilia.timelines.common import TimelineComponent
 
@@ -19,7 +21,7 @@ class TimelineUICollection(ABC):
     Interface for TimelineUI.
     Not not up to date as to what methods are needed."""
     @abstractmethod
-    def create_timeline_ui(self, timeline_kind: str, name: str) -> TimelineUI:
+    def create_timeline_ui(self, timeline_kind: TimelineKind, name: str) -> TimelineUI:
         ...
 
     @abstractmethod
