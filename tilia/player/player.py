@@ -52,6 +52,7 @@ class Player(Subscriber, ABC):
         events.subscribe(EventName.PLAYER_REQUEST_TO_LOAD_MEDIA, self)
 
         logger.debug("Creating Player...")
+        self.media_loaded = False
         self.media_length = 1.0
         self.playback_start = 0.0
         self.playback_end = 0.0
@@ -91,6 +92,9 @@ class Player(Subscriber, ABC):
             self.media_length,
             self.playback_length,
         )
+
+        self.media_loaded = True
+
         events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, 0.0)
 
         logger.info(
@@ -99,13 +103,14 @@ class Player(Subscriber, ABC):
 
     def unload_media(self):
         self._engine_unload_media()
+        self.media_loaded = False
         self.media_length = 1.0
         self.current_time = 0.0
         self.media_path = ""
         self.playing = False
         self.paused = False
 
-    def play_pause(self) -> None:
+    def play_pause(self) -> bool:
         """Plays or pauses the current song.
         Returns the paused state after the call."""
 
@@ -150,6 +155,12 @@ class Player(Subscriber, ABC):
 
         events.post(EventName.PLAYER_STOPPED)
         events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+
+    def on_request_to_seek(self, time: float):
+        if self.media_loaded:
+            self.seek(time)
+        else:
+            logger.debug(f"No media loaded. No need to seek.")
 
     def seek(self, time: float) -> None:
         self._engine_seek(time)
@@ -227,7 +238,7 @@ class Player(Subscriber, ABC):
         event_to_callback = {
             EventName.PLAYER_REQUEST_TO_PLAYPAUSE: self.play_pause,
             EventName.PLAYER_REQUEST_TO_STOP: self.stop,
-            EventName.PLAYER_REQUEST_TO_SEEK: self.seek,
+            EventName.PLAYER_REQUEST_TO_SEEK: self.on_request_to_seek,
             EventName.PLAYER_REQUEST_TO_UNLOAD_MEDIA: self.unload_media,
             EventName.PLAYER_REQUEST_TO_LOAD_MEDIA: self.load_media,
         }
