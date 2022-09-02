@@ -4,6 +4,8 @@ import os
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
+from tilia.misc_enums import InOrOut
+
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
         TimelineComponent,
@@ -55,13 +57,13 @@ class TimelineCanvas(tk.Canvas):
 
     @log_object_creation
     def __init__(
-        self,
-        parent: tk.Frame,
-        scrollbar: tk.Scrollbar,
-        width: int,
-        left_margin_width: int,
-        height: int,
-        initial_name: str,
+            self,
+            parent: tk.Frame,
+            scrollbar: tk.Scrollbar,
+            width: int,
+            left_margin_width: int,
+            height: int,
+            initial_name: str,
     ):
         super().__init__(
             parent,
@@ -131,12 +133,14 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT,
     ]
 
+    ZOOM_SCALE_FACTOR = 0.1
+
     def __init__(
-        self,
-        app_ui: TkinterUI,
-        frame: tk.Frame,
-        scrollbar: tk.Scrollbar,
-        toolbar_frame: tk.Frame,
+            self,
+            app_ui: TkinterUI,
+            frame: tk.Frame,
+            scrollbar: tk.Scrollbar,
+            toolbar_frame: tk.Frame,
     ):
         super().__init__(subscriptions=self.SUBSCRIPTIONS)
         self._app_ui = app_ui
@@ -164,6 +168,10 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
     @property
     def timeline_width(self):
         return self._app_ui.timeline_width
+
+    @timeline_width.setter
+    def timeline_width(self, value):
+        self._app_ui.timeline_width = value
 
     def create_timeline_ui(self, kind: TimelineKind, name: str) -> TimelineTkUI:
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
@@ -274,7 +282,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         return {type(toolbar) for toolbar in self._toolbars}
 
     def get_toolbar_for_timeline_ui(
-        self, toolbar_type: type(TimelineToolbar)
+            self, toolbar_type: type(TimelineToolbar)
     ) -> TimelineToolbar | None:
 
         if not toolbar_type:
@@ -310,7 +318,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         )
 
     def on_subscribed_event(
-        self, event_name: str, *args: tuple, **kwargs: dict
+            self, event_name: str, *args: tuple, **kwargs: dict
     ) -> None:
         if event_name == EventName.CANVAS_LEFT_CLICK:
             self._on_timeline_ui_click(*args, **kwargs)
@@ -321,17 +329,24 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT:
             # split event should not be sent to all timelines
             self._on_hierarchy_timeline_split_button()
+        elif event_name == EventName.REQUEST_ZOOM_IN:
+            self.zoomer(InOrOut.IN)
+        elif event_name == EventName.REQUEST_ZOOM_OUT:
+            self.zoomer(InOrOut.OUT)
 
     def _on_timeline_ui_click(
-        self,
-        canvas: tk.Canvas,
-        x: int,
-        y: int,
-        clicked_item_id: int,
-        modifier: ModifierEnum,
+            self,
+            canvas: tk.Canvas,
+            x: int,
+            y: int,
+            clicked_item_id: int,
+            modifier: ModifierEnum,
     ) -> None:
 
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
+
+        if modifier == ModifierEnum.NONE:
+            self.deselect_all_elements_in_timeline_uis()
 
         if clicked_timeline_ui:
             self._send_to_top_of_select_order(clicked_timeline_ui)
@@ -374,18 +389,28 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             if tl_ui.TIMELINE_KIND in classes:
                 return tl_ui
 
+    def zoomer(self, direction: InOrOut):
+        if direction == InOrOut.IN:
+            self.timeline_width *= 1 + self.ZOOM_SCALE_FACTOR
+        else:
+            self.timeline_width *= 1 + self.ZOOM_SCALE_FACTOR
+
+    def deselect_all_elements_in_timeline_uis(self):
+        for timeline_ui in self._timeline_uis:
+            timeline_ui.deselect_all_elements()
+
 
 class TimelineTkUIElement(TimelineUIElement, ABC):
     """Interface for the tkinter ui objects corresponding to to a TimelineComponent instance.
     E.g.: the HierarchyTkUI in the ui element corresponding to the Hierarchy timeline component."""
 
     def __init__(
-        self,
-        *args,
-        tl_component: TimelineComponent,
-        timeline_ui: TimelineUI,
-        canvas: tk.Canvas,
-        **kwargs,
+            self,
+            *args,
+            tl_component: TimelineComponent,
+            timeline_ui: TimelineUI,
+            canvas: tk.Canvas,
+            **kwargs,
     ):
         super().__init__(
             *args, tl_component=tl_component, timeline_ui=timeline_ui, **kwargs
@@ -410,7 +435,7 @@ class TimelineUIElementManager:
 
     @log_object_creation
     def __init__(
-        self, element_kinds_to_classes: dict[UIElementKind : type(TimelineTkUIElement)]
+            self, element_kinds_to_classes: dict[UIElementKind: type(TimelineTkUIElement)]
     ):
 
         self._elements = set()
@@ -423,13 +448,13 @@ class TimelineUIElementManager:
         return [kind for kind, _ in self._element_kinds_to_classes.items()]
 
     def create_element(
-        self,
-        kind: UIElementKind,
-        component: TimelineComponent,
-        timeline_ui: TimelineTkUI,
-        canvas: TimelineCanvas,
-        *args,
-        **kwargs,
+            self,
+            kind: UIElementKind,
+            component: TimelineComponent,
+            timeline_ui: TimelineTkUI,
+            canvas: TimelineCanvas,
+            *args,
+            **kwargs,
     ):
         self._validate_element_kind(kind)
         element_class = self._get_element_class_by_kind(kind)
@@ -457,25 +482,25 @@ class TimelineUIElementManager:
         return self._get_element_from_set_by_attribute(element_set, attr_name, value)
 
     def get_elements_by_attribute(
-        self, attr_name: str, value: Any, kind: UIElementKind
+            self, attr_name: str, value: Any, kind: UIElementKind
     ) -> list:
         element_set = self._get_element_set_by_kind(kind)
         return self._get_elements_from_set_by_attribute(element_set, attr_name, value)
 
     def get_elements_by_condition(
-        self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
+            self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
     ) -> list:
         element_set = self._get_element_set_by_kind(kind)
         return [e for e in element_set if condition(e)]
 
     def get_element_by_condition(
-        self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
+            self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
     ) -> TimelineComponentUI:
         element_set = self._get_element_set_by_kind(kind)
         return next((e for e in element_set if condition(e)), None)
 
     def get_existing_values_for_attribute(
-        self, attr_name: str, kind: UIElementKind
+            self, attr_name: str, kind: UIElementKind
     ) -> set:
         element_set = self._get_element_set_by_kind(kind)
         return set([getattr(cmp, attr_name) for cmp in element_set])
@@ -488,7 +513,7 @@ class TimelineUIElementManager:
         return {elmt for elmt in self._elements if isinstance(elmt, cmp_class)}
 
     def _get_element_class_by_kind(
-        self, kind: UIElementKind
+            self, kind: UIElementKind
     ) -> type(TimelineUIElement):
         self._validate_element_kind(kind)
         return self._element_kinds_to_classes[kind]
@@ -499,13 +524,13 @@ class TimelineUIElementManager:
 
     @staticmethod
     def _get_element_from_set_by_attribute(
-        cmp_list: set, attr_name: str, value: Any
+            cmp_list: set, attr_name: str, value: Any
     ) -> Any | None:
         return next((e for e in cmp_list if getattr(e, attr_name) == value), None)
 
     @staticmethod
     def _get_elements_from_set_by_attribute(
-        cmp_list: set, attr_name: str, value: Any
+            cmp_list: set, attr_name: str, value: Any
     ) -> list:
         return [e for e in cmp_list if getattr(e, attr_name) == value]
 
@@ -560,7 +585,7 @@ class TimelineUIElementManager:
 
     @staticmethod
     def get_canvas_drawings_ids_from_elements(
-        elements: list[TimelineUIElement],
+            elements: list[TimelineUIElement],
     ) -> list[int]:
         drawings_ids = []
         for element in elements:
@@ -579,6 +604,15 @@ class TimelineUIElementManager:
 
     def get_all_elements(self):
         return self._elements
+
+    def update_elements_postion(self) -> None:
+        """
+        Calls the update_position method on all manager's elements.
+        Should be called when zooming, for instance.
+        """
+
+        for element in self._elements:
+            element.update_position()
 
 
 @runtime_checkable
@@ -627,18 +661,18 @@ class TimelineTkUI(TimelineUI, ABC):
     """
 
     def __init__(
-        self,
-        *args,
-        timeline_ui_collection: TkTimelineUICollection,
-        timeline_ui_element_manager: TimelineUIElementManager,
-        component_kinds_to_classes: dict[UIElementKind : type(TimelineTkUIElement)],
-        component_kinds_to_ui_element_kinds: dict[ComponentKind:UIElementKind],
-        canvas: TimelineCanvas,
-        toolbar: TimelineToolbar,
-        name: str,
-        height: int,
-        is_visible: bool,
-        **kwargs,
+            self,
+            *args,
+            timeline_ui_collection: TkTimelineUICollection,
+            timeline_ui_element_manager: TimelineUIElementManager,
+            component_kinds_to_classes: dict[UIElementKind: type(TimelineTkUIElement)],
+            component_kinds_to_ui_element_kinds: dict[ComponentKind:UIElementKind],
+            canvas: TimelineCanvas,
+            toolbar: TimelineToolbar,
+            name: str,
+            height: int,
+            is_visible: bool,
+            **kwargs,
     ):
         super().__init__(
             *args,
@@ -655,7 +689,7 @@ class TimelineTkUI(TimelineUI, ABC):
         self.toolbar = toolbar
 
     def get_ui_for_component(
-        self, component_kind: ComponentKind, component: TimelineComponent, **kwargs
+            self, component_kind: ComponentKind, component: TimelineComponent, **kwargs
     ):
         return self.element_manager.create_element(
             self.component_kinds_to_ui_element_kinds[component_kind],
@@ -666,15 +700,13 @@ class TimelineTkUI(TimelineUI, ABC):
         )
 
     def on_click(
-        self, x: int, y: int, clicked_item_id: int, modifier: ModifierEnum
+            self, x: int, y: int, clicked_item_id: int, modifier: ModifierEnum
     ) -> None:
         """Redirects self._process_element_click using the appropriate ui element. Note that, in the
         case of shared canvas drawings (as in HierarchyTkUI markers), it
         will call the method more than once."""
 
         logger.debug(f"Processing click on {self}...")
-        if modifier == ModifierEnum.NONE:
-            self.deselect_all_elements()
 
         if not clicked_item_id:
             logger.debug(f"No canvas item was clicked.")
@@ -684,7 +716,7 @@ class TimelineTkUI(TimelineUI, ABC):
         logger.debug(f"Processed click on {self}.")
 
     def _process_canvas_item_click(
-        self, x: int, y: int, clicked_item_id: int, modifier: ModifierEnum
+            self, x: int, y: int, clicked_item_id: int, modifier: ModifierEnum
     ) -> None:
 
         owes_clicked_item = lambda e: clicked_item_id in e.canvas_drawings_ids
@@ -701,22 +733,22 @@ class TimelineTkUI(TimelineUI, ABC):
             self._process_ui_element_click(clicked_element, clicked_item_id)
 
     def _process_ui_element_click(
-        self, clicked_element: TimelineComponentUI, clicked_item_id: int
+            self, clicked_element: TimelineComponentUI, clicked_item_id: int
     ) -> None:
 
         logger.debug(f"Processing click on ui element '{clicked_element}'...")
 
         if (
-            isinstance(clicked_element, Selectable)
-            and clicked_item_id in clicked_element.selection_triggers
+                isinstance(clicked_element, Selectable)
+                and clicked_item_id in clicked_element.selection_triggers
         ):
             self._select_element(clicked_element)
         else:
             logger.debug(f"Element is not selectable.")
 
         if (
-            isinstance(clicked_element, LeftClickable)
-            and clicked_item_id in clicked_element.left_click_triggers
+                isinstance(clicked_element, LeftClickable)
+                and clicked_item_id in clicked_element.left_click_triggers
         ):
             clicked_element.on_left_click(clicked_item_id)
         else:
@@ -744,7 +776,7 @@ class TimelineTkUI(TimelineUI, ABC):
         )
 
     def _log_and_get_elements_for_button_processing(
-        self, action_str_for_log: str
+            self, action_str_for_log: str
     ) -> list[TimelineTkUIElement] | None:
         """Gets selected elements to start with button click processing.
         Logs process start and if there is nothing to do, if that is the case.
@@ -797,16 +829,16 @@ class TimelineTkUI(TimelineUI, ABC):
     def get_x_by_time(self, time: float) -> int:
 
         return (
-            (time / self.timeline_ui_collection.get_media_length())
-            * self.get_timeline_width()
-        ) + self.get_left_margin_x()
+                       (time / self.timeline_ui_collection.get_media_length())
+                       * self.get_timeline_width()
+               ) + self.get_left_margin_x()
 
     # noinspection PyUnresolvedReferences
     def get_time_by_x(self, x: int) -> float:
         return (
-            (x - self.get_left_margin_x())
-            * self.timeline_ui_collection.get_media_length()
-            / self.timeline_ui_collection.get_timeline_width()
+                (x - self.get_left_margin_x())
+                * self.timeline_ui_collection.get_media_length()
+                / self.timeline_ui_collection.get_timeline_width()
         )
 
     # noinspection PyUnresolvedReferences
