@@ -151,11 +151,15 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         self._toolbars = set()
 
         self.scrollbar = scrollbar
-        # self.scrollbar.config(command=self.scroll_x) # TODO fix this config
+        self.scrollbar.config(command=self.on_scrollbar_move)
         self.scrollbar.pack(fill="x", expand=True)
 
         self._timeline_uis = set()
         self._select_order = []
+
+    def on_scrollbar_move(self, *args):
+        for timeline in self._timeline_uis:
+            timeline.canvas.xview(*args)
 
     @property
     def left_margin_x(self):
@@ -398,17 +402,30 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         else:
             self.timeline_width *= 1 - self.ZOOM_SCALE_FACTOR
 
-        self._update_timeline_uis_element_positions()
+        self._update_timelines_after_zoom()
 
-        # TODO center view at appropriate point
+
 
     def deselect_all_elements_in_timeline_uis(self):
         for timeline_ui in self._timeline_uis:
             timeline_ui.deselect_all_elements()
 
-    def _update_timeline_uis_element_positions(self):
+    def _update_timelines_after_zoom(self):
         for tl_ui in self._timeline_uis:
+            tl_ui.canvas.config(scrollregion=(
+                0,
+                0,
+                self.get_timeline_total_size(),
+                tl_ui.height)
+            )
+
             tl_ui.update_elements_position()
+
+            # TODO center view at appropriate point
+
+
+    def get_timeline_total_size(self):
+        return self._app_ui.timeline_total_size
 
 
 class TimelineTkUIElement(TimelineUIElement, ABC):

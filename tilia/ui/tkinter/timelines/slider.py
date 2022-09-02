@@ -107,8 +107,11 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
         elif event_name == EventName.PLAYER_AUDIO_TIME_CHANGE:
             self.on_audio_time_change(*args)
 
-    def update_trough_position(self) -> None:
+    def _update_trough_position(self) -> None:
         self.canvas.coords(self.trough, *self.get_trough_coords())
+
+    def _update_line_position(self) -> None:
+        self.canvas.coords(self.line, *self.get_line_coords())
 
     def get_trough_coords(self) -> tuple:
         return (
@@ -168,7 +171,7 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
             logger.debug(f"Dragging to x='{drag_x}'.")
 
         self.x = drag_x
-        self.update_trough_position()
+        self._update_trough_position()
 
     def end_drag(self):
         logger.debug(f"Ending drag of {self}.")
@@ -184,9 +187,13 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
     def on_audio_time_change(self, time: float) -> None:
         if not self.dragging:
             self._x = self.get_x_by_time(time)
-            self.update_trough_position()
+            self._update_trough_position()
 
     def get_ui_for_component(
         self, kind: UIElementKind, component: TimelineComponent, *args, **kwargs
     ):
         """No components in SliderTimeline. Must implement abstract method."""
+
+    def update_elements_position(self):
+        self._update_trough_position()
+        self._update_line_position()
