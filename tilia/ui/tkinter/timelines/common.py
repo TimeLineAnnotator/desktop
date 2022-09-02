@@ -232,40 +232,6 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
         return class_
 
-    # noinspection PyUnresolvedReferences
-    def create_hierarchy_timeline_ui(self, name: str) -> HierarchyTimelineTkUI:
-
-        logger.debug("Importing module for creating hierarchy timeline Tkinter UI...")
-        hierarchytl_module = importlib.import_module(
-            "tilia.ui.tkinter.timelines.hierarchy"
-        )
-        logger.debug(f"Got module {hierarchytl_module}.")
-
-        canvas = self.create_timeline_canvas(
-            name, hierarchytl_module.HierarchyTimelineTkUI.DEFAULT_HEIGHT
-        )
-
-        toolbar = self.get_toolbar_for_timeline_ui(
-            hierarchytl_module.HierarchyTimelineToolbar
-        )
-
-        element_manager = TimelineUIElementManager(
-            hierarchytl_module.HierarchyTimelineTkUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
-        )
-
-        return hierarchytl_module.HierarchyTimelineTkUI(
-            timeline_ui_collection=self,
-            element_manager=element_manager,
-            canvas=canvas,
-            toolbar=toolbar,
-            name=name,
-        )
-
-    def create_slider_timeline_ui(self) -> SliderTimelineTkUI:
-        logger.debug("Importing module for creating slider timeline Tkinter UI...")
-        slidertl_module = importlib.import_module("tilia.ui.tkinter.timelines.slider")
-        logger.debug(f"Got module {slidertl_module}.")
-
     def create_timeline_canvas(self, name: str, starting_height: int):
         return TimelineCanvas(
             self.frame,
