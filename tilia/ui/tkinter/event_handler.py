@@ -5,7 +5,6 @@ from tilia.events import EventName
 from tilia.ui.tkinter.modifier_enum import ModifierEnum
 
 
-
 class TkEventHandler:
     DEFAULT_CANVAS_BINDINGS = [
         # NEW BINDINGS
@@ -69,4 +68,3 @@ def on_click(event, modifier: ModifierEnum):
         clicked_item_id,
         modifier=modifier,
     )
-

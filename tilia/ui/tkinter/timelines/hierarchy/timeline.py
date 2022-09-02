@@ -213,8 +213,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
         self.toolbar.process_visiblity_change(is_visible)
 
-
-
     @staticmethod
     def _swap_components_with_uis_in_relation(
         relation: ParentChildRelation,
@@ -471,13 +469,11 @@ class TimelineUIOldMethods:
         self.canvas.tag_raise(self.label_bg)
         self.canvas.tag_raise(self.label_in_canvas)
 
-
     def rearrange_label(self):
         logger.debug(f"Rearranging label on {self}")
         self.canvas.tag_raise(self.label_bg)
         self.canvas.tag_raise(self.label_in_canvas)
         self.update_vline_position(globals_.CURRENT_TIME)
-
 
     class TimelineRightClickMenu(tk.Menu):
         def __init__(self, timeline, *args, **kwargs):

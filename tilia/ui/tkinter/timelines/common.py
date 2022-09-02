@@ -227,7 +227,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         Sends given timeline to top of selecting order.
         Ui commands (e.g. button clicks) are send to topmost timeline
          of the appropriate type on the select order.
-         """
+        """
 
         # TODO give user some visual feedback as to what timeline ui is currently selected
         logger.debug(f"Sending {tl_ui} to top of select order.")
@@ -300,7 +300,9 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         return self._app_ui.timeline_total_size
 
     def _get_timeline_ui_by_canvas(self, canvas):
-        return next((tlui for tlui in self._timeline_uis if tlui.canvas == canvas), None)
+        return next(
+            (tlui for tlui in self._timeline_uis if tlui.canvas == canvas), None
+        )
 
     def _get_toolbar_by_type(self, canvas):
         return next(
@@ -342,7 +344,6 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
                 f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
             )
 
-
     def _on_delete_press(self):
         for timeline_ui in self._timeline_uis:
             timeline_ui.on_delete_press()
@@ -361,7 +362,9 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         return self._app_ui.timeline_width
 
     def _on_hierarchy_timeline_split_button(self) -> None:
-        first_hierarchy_timeline_ui = self._get_first_from_select_order_by_kinds([TimelineKind.HIERARCHY_TIMELINE])
+        first_hierarchy_timeline_ui = self._get_first_from_select_order_by_kinds(
+            [TimelineKind.HIERARCHY_TIMELINE]
+        )
 
         if first_hierarchy_timeline_ui:
             first_hierarchy_timeline_ui.on_split_button()
