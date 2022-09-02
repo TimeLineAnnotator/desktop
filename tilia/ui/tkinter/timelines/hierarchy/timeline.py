@@ -95,19 +95,9 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         self._height = height
         self.name = name
 
-        self._setup_line_and_label()
-
         self._setup_visiblity(is_visible)
 
         self.timeline = None
-
-    def _setup_line_and_label(self):
-        self.line = self.canvas.create_rectangle(
-            self.collection.left_margin_x,
-            self.height - self.LINE_YOFFSET,
-            self.collection.right_margin_x,
-            self.height - self.LINE_YOFFSET + self.LINE_WEIGHT,
-        )
 
     def get_timeline_height(self):
         return self._height
