@@ -409,7 +409,6 @@ class TkinterUIMenus(tk.Menu):
             label="Add...",
             menu=self.timelines_menu.add_timelines,
             underline=0,
-            state="disabled",
         )
 
         self.timelines_menu.add_command(
