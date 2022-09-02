@@ -19,7 +19,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .windows.inspector import Inspector
+from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
 
 
@@ -155,7 +155,7 @@ class TkinterUI(Subscriber):
 
     def on_request_window(self, kind: WindowKind):
         if kind == WindowKind.INSPECTOR:
-            self._windows[WindowKind.INSPECTOR] = Inspector(self.root)
+            self._windows[WindowKind.INSPECTOR] = Inspect(self.root)
 
     def get_id(self) -> int:
         return self._app.get_id()
@@ -433,7 +433,7 @@ class TkinterUIMenus(tk.Menu):
             label="Window", menu=self.view_window_menu, underline=0
         )
         self.view_window_menu.add_command(
-            label="Inspector",
+            label="Inspect",
             command=lambda: events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR),
             underline=0,
         )

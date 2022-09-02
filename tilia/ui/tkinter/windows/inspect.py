@@ -1,5 +1,5 @@
 """
-Defines the Inspector class.
+Defines the Inspect class.
 A window that allows the user to sse the relevant attributes of a TimelineComponent or its
 UI.
 """
@@ -24,7 +24,7 @@ PADY = 5
 MIN_UPDATE_TIME = 0.1
 
 
-class Inspector(events.Subscriber):
+class Inspect(events.Subscriber):
     """
     A window that allows the user to sse the relevant attributes of a TimelineComponent or its UI.
     Listens for a inspectable element selected event and updates according to a dict send alongside it.
@@ -37,7 +37,7 @@ class Inspector(events.Subscriber):
 
     def __init__(self, parent):
 
-        if Inspector._instanced:
+        if Inspect._instanced:
             raise UniqueWindowDuplicate(self.KIND)
 
         super().__init__(
@@ -51,7 +51,7 @@ class Inspector(events.Subscriber):
         self.uicomplex_id = ""
         self.toplevel = tk.Toplevel(parent)
         self.toplevel.transient(parent)
-        self.toplevel.title("Inspector")
+        self.toplevel.title("Inspect")
         self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
         self.toplevel.focus()
         # self.toplevel.geometry(f"+{int(musan_globals.ROOT.winfo_screenwidth() - 400)}+{int(musan_globals.ROOT.winfo_screenheight() / 2)}")
@@ -63,7 +63,7 @@ class Inspector(events.Subscriber):
         self.inspector_frame.pack()
         self.display_not_selected_frame()
 
-        Inspector._instanced = True
+        Inspect._instanced = True
 
         events.post(EventName.INSPECTOR_WINDOW_OPENED)
 
@@ -71,7 +71,7 @@ class Inspector(events.Subscriber):
         self.unsubscribe_from_all()
         self.toplevel.destroy()
         events.post(EventName.INSPECTOR_WINDOW_CLOSED)
-        Inspector._instanced = False
+        Inspect._instanced = False
 
     def display_not_selected_frame(self):
         tk.Label(
@@ -142,7 +142,7 @@ class Inspector(events.Subscriber):
             try:
                 widget = self.field_widgets[field_name]
             except KeyError:
-                logging.warning(f"Inspector has no field named {field_name}")
+                logging.warning(f"Inspect has no field named {field_name}")
                 continue
 
             widget.config(state="normal")
