@@ -740,10 +740,40 @@ class TimelineTkUI(TimelineUI, ABC):
             element.id,
         )
 
+    def _log_and_get_elements_for_button_processing(
+        self, action_str_for_log: str
+    ) -> list[TimelineTkUIElement] | None:
+        """Gets selected elements to start with button click processing.
+        Logs process start and if there is nothing to do, if that is the case.
+        If timeline is not is_visible or there are no selected elements, there is nothing to do"""
+
+        logging.debug(f"Processing {action_str_for_log} button click in {self}...")
+
+        if not self.visible:
+            logging.debug(f"TimelineUI is not is_visible, nothing to do.")
+
+        selected_elements = self.element_manager.get_selected_elements()
+
+        if not selected_elements:
+            logging.debug(f"No element is selected. Nothing to do.")
+            return None
+
+        return selected_elements
+
     def on_delete_press(self):
         selected_elements = self.element_manager.get_selected_elements()
         for element in selected_elements.copy():
             self.timeline.on_request_delete_component(element.tl_component)
+
+    def delete_selected_elements(self):
+        selected_elements = self._log_and_get_elements_for_button_processing("delete")
+        if not selected_elements:
+            return
+
+        selected_tl_components = [e.tl_component for e in selected_elements]
+
+        for component in selected_tl_components:
+            self.timeline.on_request_delete_component(component)
 
     def delete_element(self, element: TimelineTkUIElement):
         self.element_manager.delete_element(element)
