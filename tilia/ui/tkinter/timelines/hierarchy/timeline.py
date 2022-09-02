@@ -213,25 +213,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
         self.toolbar.process_visiblity_change(is_visible)
 
-    def _log_and_get_elements_for_button_processing(
-        self, action_str_for_log: str
-    ) -> list[HierarchyTkUI] | None:
-        """Gets selected elements to start with button click processing.
-        Logs process start and if there is nothing to do, if that is the case.
-        If timeline is not is_visible or there are no selected elements, there is nothing to do"""
 
-        logging.debug(f"Processing {action_str_for_log} button click in {self}...")
-
-        if not self.visible:
-            logging.debug(f"TimelineUI is not is_visible, nothing to do.")
-
-        selected_elements = self.element_manager.get_selected_elements()
-
-        if not selected_elements:
-            logging.debug(f"No element is selected. Nothing to do.")
-            return None
-
-        return selected_elements
 
     @staticmethod
     def _swap_components_with_uis_in_relation(
@@ -342,13 +324,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         selected_tl_components = [e.tl_component for e in selected_elements]
 
     def on_delete_button(self):
-        selected_elements = self._log_and_get_elements_for_button_processing("delete")
-        if not selected_elements:
-            return
-
-        selected_tl_components = [e.tl_component for e in selected_elements]
-
-        raise NotImplementedError
+        self.delete_selected_elements()
 
     def get_previous_marker_x_by_x(self, x: int) -> None | int:
         all_marker_xs = self.get_all_elements_boundaries()
@@ -384,10 +360,12 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             logger.debug(
                 f"Notifying inspector of previsously selected elements on {self}..."
             )
+            # noinspection PyTypeChecker
             self.post_inspectable_selected_event(element)
 
     def __repr__(self):
         return f"{type(self).__name__}({self.name}|{id(self)})"
+
 
 # noinspection PyUnresolvedReferences,PyAttributeOutsideInit
 class TimelineUIOldMethods:
