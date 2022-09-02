@@ -6,6 +6,8 @@ Pretty simple, so it doesn't need its own package.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from tilia.timelines.timeline_kinds import TimelineKind
+
 if TYPE_CHECKING:
     from tilia.ui.tkinter.timelines.common import (
         TkTimelineUICollection,
@@ -41,6 +43,8 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
     LINE_DEFAULT_COLOR = "#000000"
 
     SUBSCRIPTIONS = [EventName.PLAYER_AUDIO_TIME_CHANGE]
+
+    TIMELINE_KIND = TimelineKind.SLIDER_TIMELINE
 
     def __init__(
         self,
