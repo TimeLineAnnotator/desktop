@@ -15,9 +15,15 @@ class TimelineComponentUI:
 
 
 class TimelineUICollection(ABC):
+    """
+    Interface for TimelineUI.
+    Not not up to date as to what methods are needed."""
     @abstractmethod
     def create_timeline_ui(self, timeline_kind: str, name: str) -> TimelineUI:
         ...
+
+    @abstractmethod
+    def get_id(self) -> int: ...
 
 
 class TimelineUI:
