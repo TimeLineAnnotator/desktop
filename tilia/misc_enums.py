@@ -14,3 +14,8 @@ class SingleOrMultiple(Enum):
 class IncreaseOrDecrease(Enum):
     INCREASE = 1
     DECREASE = -1
+
+
+class InOrOut(Enum):
+    IN = 1
+    OUT = -1
