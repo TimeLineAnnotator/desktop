@@ -21,8 +21,9 @@ from datetime import datetime
 
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
-    from tilia.ui import TimelineUICollection
+    from tilia.ui.timelines.common import TimelineUICollection
 
 from unittest.mock import MagicMock
 
@@ -129,7 +130,8 @@ class TiLiA(Subscriber):
 
         self._initial_file_setup()
 
-    def on_request_to_close(self):
+    @staticmethod
+    def on_request_to_close():
         """TODO should ask to save if file was modified."""
         sys.exit()
 
