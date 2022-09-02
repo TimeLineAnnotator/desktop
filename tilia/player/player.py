@@ -158,15 +158,11 @@ class Player(Subscriber, ABC):
 
     def on_request_to_seek(self, time: float):
         if self.media_loaded:
-            self.seek(time)
+            self._engine_seek(time)
         else:
             logger.debug(f"No media loaded. No need to seek.")
-
-    def seek(self, time: float) -> None:
-        self._engine_seek(time)
-        self.current_time = time
-        globals_.CURRENT_TIME = time
-        events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+            self.current_time = time
+            events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
 
     def _start_play_loop(self):
         threading.Thread(target=self._play_loop).start()
