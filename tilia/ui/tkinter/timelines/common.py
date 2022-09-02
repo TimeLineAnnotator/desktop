@@ -304,6 +304,8 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         else:
             logger.debug(f"No previous toolbar of same type, creating new toolbar.")
             new_toolbar = toolbar_type(self.toolbar_frame)
+            self._toolbars.add(new_toolbar)
+
             return new_toolbar
 
     def _get_toolbar_from_toolbars_by_type(self, type_: type(TimelineToolbar)):
