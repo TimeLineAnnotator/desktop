@@ -442,13 +442,11 @@ class TkinterUIMenus(tk.Menu):
             label="Zoom in",
             accelerator="Ctrl + +",
             command=lambda: events.post(EventName.REQUEST_ZOOM_IN),
-            state="disabled",
         )
         self.view_menu.add_command(
             label="Zoom out",
             accelerator="Ctrl + -",
             command=lambda: events.post(EventName.REQUEST_ZOOM_OUT),
-            state="disabled",
         )
 
         # DEVELOPMENT WINDOW OPTION

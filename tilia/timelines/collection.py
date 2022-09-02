@@ -202,10 +202,6 @@ class TimelineCollectionOldMethods:
             timeline = self.find_by_canvas(event.widget)
             canvas_id = next(iter(timeline.canvas.find_withtag(tk.CURRENT)), None)
             timeline.on_right_click(canvas_id, event)
-        elif event_name == "REQUEST_ZOOM_IN":
-            self.zoomer("in")
-        elif event_name == "REQUEST_ZOOM_OUT":
-            self.zoomer("out")
         elif event_name == "PLAYER: STOPPED":
             self.update_vlines_position(0)
         elif event_name == "PLAYER: CURRENT TIME CHANGE":

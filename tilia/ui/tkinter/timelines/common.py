@@ -131,6 +131,8 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         EventName.KEY_PRESS_DELETE,
         EventName.DEBUG_SELECTED_ELEMENTS,
         EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT,
+        EventName.REQUEST_ZOOM_IN,
+        EventName.REQUEST_ZOOM_OUT
     ]
 
     ZOOM_SCALE_FACTOR = 0.1
@@ -171,6 +173,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
     @timeline_width.setter
     def timeline_width(self, value):
+        logger.debug(f"Changing to timeline widht to {value}.")
         self._app_ui.timeline_width = value
 
     def create_timeline_ui(self, kind: TimelineKind, name: str) -> TimelineTkUI:
@@ -330,9 +333,9 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             # split event should not be sent to all timelines
             self._on_hierarchy_timeline_split_button()
         elif event_name == EventName.REQUEST_ZOOM_IN:
-            self.zoomer(InOrOut.IN)
+            self.zoomer(InOrOut.IN, *args)
         elif event_name == EventName.REQUEST_ZOOM_OUT:
-            self.zoomer(InOrOut.OUT)
+            self.zoomer(InOrOut.OUT, *args)
 
     def _on_timeline_ui_click(
             self,
@@ -389,15 +392,23 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             if tl_ui.TIMELINE_KIND in classes:
                 return tl_ui
 
-    def zoomer(self, direction: InOrOut):
+    def zoomer(self, direction: InOrOut, mouse_x: int):
         if direction == InOrOut.IN:
             self.timeline_width *= 1 + self.ZOOM_SCALE_FACTOR
         else:
-            self.timeline_width *= 1 + self.ZOOM_SCALE_FACTOR
+            self.timeline_width *= 1 - self.ZOOM_SCALE_FACTOR
+
+        self._update_timeline_uis_element_positions()
+
+        # TODO center view at appropriate point
 
     def deselect_all_elements_in_timeline_uis(self):
         for timeline_ui in self._timeline_uis:
             timeline_ui.deselect_all_elements()
+
+    def _update_timeline_uis_element_positions(self):
+        for tl_ui in self._timeline_uis:
+            tl_ui.update_elements_position()
 
 
 class TimelineTkUIElement(TimelineUIElement, ABC):
@@ -774,6 +785,9 @@ class TimelineTkUI(TimelineUI, ABC):
             element.get_inspector_dict(),
             element.id,
         )
+
+    def update_elements_position(self) -> None:
+        self.element_manager.update_elements_postion()
 
     def _log_and_get_elements_for_button_processing(
             self, action_str_for_log: str

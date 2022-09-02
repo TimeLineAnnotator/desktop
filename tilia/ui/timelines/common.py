@@ -71,3 +71,7 @@ class TimelineUIElement(ABC):
         self.tl_component = tl_component
         self.timeline_ui = timeline_ui
         self.id = timeline_ui.get_id()
+
+    @abstractmethod
+    def update_position(self) -> None:
+        return None
