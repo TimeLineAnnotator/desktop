@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from tilia.ui.tkinter.tkinterui import TkinterUI
     from tilia.ui.tkinter.timelines.slider import SliderTimelineTkUI
 
-import importlib
 import logging
 
 logger = logging.getLogger(__name__)
@@ -129,6 +128,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         EventName.CANVAS_LEFT_CLICK,
         EventName.KEY_PRESS_DELETE,
         EventName.DEBUG_SELECTED_ELEMENTS,
+        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT,
     ]
 
     def __init__(
@@ -148,8 +148,8 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         # self.scrollbar.config(command=self.scroll_x) # TODO fix this config
         self.scrollbar.pack(fill="x", expand=True)
 
-        self.timeline_uis = set()
-        self.select_order = []
+        self._timeline_uis = set()
+        self._select_order = []
 
     @property
     def left_margin_x(self):
@@ -165,7 +165,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
     def timeline_width(self):
         return self._app_ui.timeline_width
 
-    def create_timeline_ui(self, kind: TimelineKind, name: str) -> TimelineUI:
+    def create_timeline_ui(self, kind: TimelineKind, name: str) -> TimelineTkUI:
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
 
         canvas = self.create_timeline_canvas(name, timeline_class.DEFAULT_HEIGHT)
@@ -187,28 +187,55 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         self.grid_canvas(tl_ui.canvas, self._get_last_grid_row_number())
 
         self._add_to_timeline_uis_set(tl_ui)
+        self._add_to_timeline_ui_select_order(tl_ui)
 
         return tl_ui
 
-    def delete_timeline_ui(self, timeline: TimelineTkUI):
-        timeline.delete()
-        self._remove_from_timeline_uis_set(timeline)
+    def delete_timeline_ui(self, timeline_ui: TimelineTkUI):
+        timeline_ui.delete()
+        self._remove_from_timeline_uis_set(timeline_ui)
+        self._remove_from_timeline_ui_select_order(timeline_ui)
 
     def _add_to_timeline_uis_set(self, timeline_ui: TimelineTkUI) -> None:
         logger.debug(f"Adding timeline ui '{timeline_ui}' to {self}.")
-        self.timeline_uis.add(timeline_ui)
+        self._timeline_uis.add(timeline_ui)
 
     def _remove_from_timeline_uis_set(self, timeline_ui: TimelineTkUI) -> None:
         logger.debug(f"Removing timeline ui '{timeline_ui}' to {self}.")
         try:
-            self.timeline_uis.remove(timeline_ui)
+            self._timeline_uis.remove(timeline_ui)
         except ValueError:
             raise ValueError(
                 f"Can't remove timeline ui '{timeline_ui}' from {self}: not in self.timeline_uis."
             )
 
+    def _add_to_timeline_ui_select_order(self, tl_ui: TimelineTkUI) -> None:
+        logger.debug(f"Inserting timeline into {self} select order.")
+        self._select_order.insert(0, tl_ui)
+
+    def _remove_from_timeline_ui_select_order(self, tl_ui: TimelineTkUI) -> None:
+        logger.debug(f"Removing timeline from {self} select order.")
+        try:
+            self._select_order.remove(tl_ui)
+        except ValueError:
+            raise ValueError(
+                f"Can't remove timeline ui '{tl_ui}' from select order: not in select order."
+            )
+
+    def _send_to_top_of_select_order(self, tl_ui: TimelineTkUI):
+        """
+        Sends given timeline to top of selecting order.
+        Ui commands (e.g. button clicks) are send to topmost timeline
+         of the appropriate type on the select order.
+         """
+
+        # TODO give user some visual feedback as to what timeline ui is currently selected
+        logger.debug(f"Sending {tl_ui} to top of select order.")
+        self._select_order.remove(tl_ui)
+        self._select_order.insert(0, tl_ui)
+
     def _get_last_grid_row_number(self):
-        return len([tlui for tlui in self.timeline_uis if tlui.visible])
+        return len([tlui for tlui in self._timeline_uis if tlui.visible])
 
     def grid_canvas(self, canvas: tk.Canvas, row_number: int) -> None:
         canvas.grid(row=row_number, column=0, sticky="ew")
@@ -273,7 +300,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         return self._app_ui.timeline_total_size
 
     def _get_timeline_ui_by_canvas(self, canvas):
-        return next((tlui for tlui in self.timeline_uis if tlui.canvas == canvas), None)
+        return next((tlui for tlui in self._timeline_uis if tlui.canvas == canvas), None)
 
     def _get_toolbar_by_type(self, canvas):
         return next(
@@ -284,13 +311,16 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         self, event_name: str, *args: tuple, **kwargs: dict
     ) -> None:
         if event_name == EventName.CANVAS_LEFT_CLICK:
-            self._on_click(*args, **kwargs)
+            self._on_timeline_ui_click(*args, **kwargs)
         elif event_name == EventName.KEY_PRESS_DELETE:
             self._on_delete_press()
         elif event_name == EventName.DEBUG_SELECTED_ELEMENTS:
             self._on_debug_selected_elements()
+        elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT:
+            # split event should not be sent to all timelines
+            self._on_hierarchy_timeline_split_button()
 
-    def _on_click(
+    def _on_timeline_ui_click(
         self,
         canvas: tk.Canvas,
         x: int,
@@ -302,6 +332,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
 
         if clicked_timeline_ui:
+            self._send_to_top_of_select_order(clicked_timeline_ui)
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about left click."
             )
@@ -311,12 +342,13 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
                 f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
             )
 
+
     def _on_delete_press(self):
-        for timeline_ui in self.timeline_uis:
+        for timeline_ui in self._timeline_uis:
             timeline_ui.on_delete_press()
 
     def _on_debug_selected_elements(self):
-        for timeline_ui in self.timeline_uis:
+        for timeline_ui in self._timeline_uis:
             timeline_ui.debug_selected_elements()
 
     def get_id(self) -> int:
@@ -327,6 +359,17 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
     def get_timeline_width(self):
         return self._app_ui.timeline_width
+
+    def _on_hierarchy_timeline_split_button(self) -> None:
+        first_hierarchy_timeline_ui = self._get_first_from_select_order_by_kinds([TimelineKind.HIERARCHY_TIMELINE])
+
+        if first_hierarchy_timeline_ui:
+            first_hierarchy_timeline_ui.on_split_button()
+
+    def _get_first_from_select_order_by_kinds(self, classes: list[TimelineKind]):
+        for tl_ui in self._select_order:
+            if tl_ui.TIMELINE_KIND in classes:
+                return tl_ui
 
 
 class TimelineTkUIElement(TimelineUIElement, ABC):
