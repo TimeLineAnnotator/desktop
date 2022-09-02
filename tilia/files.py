@@ -142,7 +142,7 @@ class MediaMetadata:
 class TiliaFile:
     file_path: str = ""
     media_path: str = ""
-    media_metadata: dict = None
+    media_metadata: MediaMetadata = None
     timelines: dict = None
     app_name: str = globals_.APP_NAME
     version: str = globals_.VERSION
