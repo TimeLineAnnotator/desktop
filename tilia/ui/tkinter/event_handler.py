@@ -5,6 +5,13 @@ from tilia.events import EventName
 from tilia.ui.tkinter.modifier_enum import ModifierEnum
 
 
+def on_mouse_wheel(event: tk.Event):
+    if event.delta > 1:
+        events.post(EventName.REQUEST_ZOOM_IN, event.widget.canvasx(event.x))
+    elif event.delta < 1:
+        events.post(EventName.REQUEST_ZOOM_OUT, event.widget.canvasx(event.x))
+
+
 class TkEventHandler:
     DEFAULT_CANVAS_BINDINGS = [
         # NEW BINDINGS
@@ -42,6 +49,9 @@ class TkEventHandler:
             "<Control-i>",
             lambda _: events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR),
         ),
+        ("<MouseWheel>", on_mouse_wheel),
+        ("<Button-4>", on_mouse_wheel),
+        ("<Button-5>", on_mouse_wheel)
     ]
 
     def __init__(self, root: tk.Tk):
@@ -53,7 +63,7 @@ class TkEventHandler:
             self.root.bind_class("Canvas", sequence, callback)
 
 
-def on_click(event, modifier: ModifierEnum):
+def on_click(event: tk.Event, modifier: ModifierEnum):
     """Handles mouse click"""
     canvas = event.widget
     canvas_x = canvas.canvasx(event.x)
@@ -68,3 +78,5 @@ def on_click(event, modifier: ModifierEnum):
         clicked_item_id,
         modifier=modifier,
     )
+
+
