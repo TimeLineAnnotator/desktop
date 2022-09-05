@@ -16,6 +16,7 @@ from typing import Optional
 
 
 class EventName(Enum):
+    UI_REQUEST_WINDOW_DEVELOPMENT = auto()
     TIMELINES_REQUEST_TO_HIDE_TIMELINE = auto()
     TIMELINES_REQUEST_TO_SHOW_TIMELINE = auto()
     TIMELINES_REQUEST_TO_CLEAR_TIMELINE = auto()
