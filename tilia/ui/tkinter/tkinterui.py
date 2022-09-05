@@ -36,7 +36,7 @@ from typing import Callable
 from tilia import globals_, events
 from ...player import player_ui
 from .event_handler import TkEventHandler
-from .timelines.common import TkTimelineUICollection, TimelineTkUI
+from .timelines.common import TkTimelineUICollection
 from ...events import EventName, Subscriber
 
 
@@ -178,7 +178,8 @@ class TkinterUI(Subscriber):
     def get_media_length(self):
         return self._app.media_length
 
-    def on_menu_file_load_media(self):
+    @staticmethod
+    def on_menu_file_load_media():
         media_path = file.choose_media_file()
         # TODO validate media path
 
@@ -443,7 +444,7 @@ class TkinterUIMenus(tk.Menu):
         self.timelines_menu.add_command(
             label="Clear all",
             underline=0,
-            command=lambda: globals_.TIMELINE_COLLECTION.ask_clear_all(),
+            command=lambda: events.post(EventName.TIMELINES_REQUEST_TO_CLEAR_ALL_TIMELINES),
             state="disabled",
         )
 
@@ -475,7 +476,7 @@ class TkinterUIMenus(tk.Menu):
         if globals_.DEVELOPMENT_MODE:
             self.view_window_menu.add_command(
                 label="Development",
-                command=lambda: globals_.APP.start_dev_window(),
+                command=lambda: events.post(EventName.UI_REQUEST_WINDOW_DEVELOPMENT),
                 underline=0,
             )
 
@@ -486,7 +487,7 @@ class TkinterUIMenus(tk.Menu):
         self.help_menu.add_command(
             label="About...",
             underline=0,
-            command=lambda: AboutWindow(),
+            command=lambda: events.post(EventName.UI_REQUEST_WINDOW_ABOUT),
             state="disabled",
         )
 
@@ -495,11 +496,10 @@ class TkinterUIMenus(tk.Menu):
                 super(AboutWindow, self).__init__()
                 self.title(f"{globals_.APP_NAME}")
                 tk.Label(self, text=globals_.APP_NAME).pack()
-                tk.Label(self, text=f"Version {globals_.CURRENT_VERSION}").pack()
-                tk.Label(self, text="Copyright © 2022").pack()
-                tk.Label(self, text="Felipe D. Martins").pack()
-                tk.Label(self, text="+55 11 976-542-100").pack()
-                tk.Label(self, text="felipe.martins4@hotmail.com").pack()
+                tk.Label(self, text=f"Version {globals_.VERSION}").pack()
+                # TODO add licensing information
+                tk.Label(self, text="Felipe Defensor").pack()
+                tk.Label(self, text="https://github.com/FelipeDefensor/TiLiA").pack()
 
 
 def get_curr_screen_geometry():
@@ -519,7 +519,7 @@ def get_curr_screen_geometry():
     return geometry
 
 
-def get_startup_geometry(starting_width):
+def get_startup_geometry():
     """
     Uses get_curr_screen_geometry to return initial window size in tkinter's geometry format.
     """
