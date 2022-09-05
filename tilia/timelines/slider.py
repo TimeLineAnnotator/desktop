@@ -12,10 +12,13 @@ from tilia.events import Subscriber, EventName
 from tilia.timelines.common import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class SliderTimeline(Timeline):
 
-    SERIALIZABLE_BY_UI_VALUE = []
+    SERIALIZABLE_BY_UI_VALUE = ["is_visible", "display_position", "height"]
     SERIALIZABLE_BY_VALUE = []
 
     KIND = TimelineKind.SLIDER_TIMELINE
@@ -24,7 +27,16 @@ class SliderTimeline(Timeline):
         """Nothing to do. Must impement abstract method."""
 
     def to_dict(self) -> dict:
-        return {"components": {}, "kind": self._kind.name}
+        logger.debug(f"Serializing {self}...")
+        result = {}
+
+        for attr in self.SERIALIZABLE_BY_UI_VALUE:
+            result[attr] = getattr(self.ui, attr)
+
+        result["kind"] = self._kind.name
+        result["components"] = {}
+
+        return result
 
     def clear(self, _=True):
         """Nothing to do."""

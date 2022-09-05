@@ -51,7 +51,7 @@ class TkEventHandler:
         ),
         ("<MouseWheel>", on_mouse_wheel),
         ("<Button-4>", on_mouse_wheel),
-        ("<Button-5>", on_mouse_wheel)
+        ("<Button-5>", on_mouse_wheel),
     ]
 
     def __init__(self, root: tk.Tk):
@@ -78,5 +78,3 @@ def on_click(event: tk.Event, modifier: ModifierEnum):
         clicked_item_id,
         modifier=modifier,
     )
-
-

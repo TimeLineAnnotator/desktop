@@ -236,12 +236,12 @@ class TimelineComponentManager:
 
 class Timeline(ABC):
     """Interface for timelines.
-    Is composed of a ComponentManager, which actually implements most of the timeline component operations, and functions
+    Is composed of a ComponentManager, which implements most of the timeline component operations and functions
     to pass global information (e.g. media length) to timeline components. Keeps a reference to its ui, which is a
     TimelineUI object."""
 
     SERIALIZABLE_BY_VALUE = []
-    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible"]
+    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "display_position"]
 
     def __init__(
         self,

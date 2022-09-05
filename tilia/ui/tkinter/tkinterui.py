@@ -4,10 +4,11 @@ The TkinterUI is responsible for high-level control of the GUI.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .windows.common import AppWindow
 from .windows.gotomeasure import GoToMeasureWindow
+from .windows.manage_timelines import ManageTimelines
 from .. import file
 from ...exceptions import UserCancelledSaveError, UserCancelledOpenError
 from ...timelines.timeline_kinds import TimelineKind
@@ -35,7 +36,7 @@ from typing import Callable
 from tilia import globals_, events
 from ...player import player_ui
 from .event_handler import TkEventHandler
-from .timelines.common import TkTimelineUICollection
+from .timelines.common import TkTimelineUICollection, TimelineTkUI
 from ...events import EventName, Subscriber
 
 
@@ -62,6 +63,7 @@ class TkinterUI(Subscriber):
 
     SUBSCRIPTIONS = [
         EventName.UI_REQUEST_WINDOW_INSPECTOR,
+        EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
         EventName.MENU_OPTION_FILE_LOAD_MEDIA,
     ]
 
@@ -156,6 +158,16 @@ class TkinterUI(Subscriber):
     def on_request_window(self, kind: WindowKind):
         if kind == WindowKind.INSPECTOR:
             self._windows[WindowKind.INSPECTOR] = Inspect(self.root)
+        elif kind == WindowKind.MANAGE_TIMELINES:
+            self._windows[WindowKind.MANAGE_TIMELINES] = ManageTimelines(
+                self, self.get_timeline_info_for_manage_timelines_window()
+            )
+
+    def get_timeline_info_for_manage_timelines_window(self) -> list[tuple[int, str]]:
+        return [
+            (tlui.timeline.id, str(tlui))
+            for tlui in sorted(self.timeline_ui_collection.get_timeline_uis(), key=lambda t: t.timeline.id)
+        ]
 
     def get_id(self) -> int:
         return self._app.get_id()
@@ -212,9 +224,17 @@ class TkinterUI(Subscriber):
             EventName.UI_REQUEST_WINDOW_INSPECTOR: lambda: self.on_request_window(
                 WindowKind.INSPECTOR
             ),
+            EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES: lambda: self.on_request_window(
+                WindowKind.MANAGE_TIMELINES
+            ),
         }
 
         event_to_callback[event_name]()
+
+    def get_timeline_ui_attribute_by_id(self, id_: int, attribute: str) -> Any:
+        return self.timeline_ui_collection.get_timeline_ui_attribute_by_id(
+            id_, attribute
+        )
 
 
 class AppToolbarsFrame(tk.Frame):
@@ -414,8 +434,7 @@ class TkinterUIMenus(tk.Menu):
         self.timelines_menu.add_command(
             label="Manage...",
             underline=0,
-            command=lambda: globals_.APP.timeline_manager(),
-            state="disabled",
+            command=lambda: events.post(EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES),
         )
 
         self.timelines_menu.add_command(

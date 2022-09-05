@@ -95,8 +95,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         self._height = height
         self.name = name
 
-        self._setup_visiblity(is_visible)
-
         self.timeline = None
 
     def get_timeline_height(self):
@@ -194,14 +192,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             self.on_delete_button()
         elif event_name == EventName.INSPECTOR_WINDOW_OPENED:
             self.on_inspector_window_opened()
-
-    def _setup_visiblity(self, is_visible: bool):
-        self.is_visible = is_visible
-
-        if not self.is_visible:
-            self.make_invisible()
-
-        self.toolbar.process_visiblity_change(is_visible)
 
     @staticmethod
     def _swap_components_with_uis_in_relation(

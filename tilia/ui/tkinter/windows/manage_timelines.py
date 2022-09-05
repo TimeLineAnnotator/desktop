@@ -1,29 +1,53 @@
+import tkinter as tk
+from typing import TYPE_CHECKING
 
-class ManageTimelines(tk.Toplevel, Unique):
-    def __init__(self, items: list, update_action: Callable):
+from tilia import events
+from tilia.events import EventName
+from tilia.misc_enums import UpOrDown
+
+if TYPE_CHECKING:
+    from tilia.ui.tkinter.tkinterui import TkinterUI
+
+import logging
+
+
+
+logger = logging.getLogger(__name__)
+
+
+class ManageTimelines:
+    def __init__(
+        self, app_ui, timeline_ids_and_display_strings: list[tuple[int, str]]
+    ):
         """
-        Window with options to change order, toggle visibility
+        Window that allow user to change the order, toggle visibility
         and delete timelines.
         """
-        LOGGER.info("Creating ManageTimelines.")
-        if not items:
-            app_globals.APP.display_error(
-                "No timelines to manage. Add some timelines via Timelines > Add..."
-            )
-            return
-        Unique.__init__(self)
-        tk.Toplevel.__init__(self)
+        logger.debug(f"Opening manage timelines window... ")
 
-        # defaults for AppWindow, can't import due to circular dependency
-        self.transient(app_globals.APP.parent)
-        self.protocol("WM_DELETE_WINDOW", self.on_close)
-        self.title("Timeline settings")
+        self._app_ui = app_ui
 
-        self.items = items
-        self.update_action = update_action
-        self.outer_frame = tk.Frame(self)
+        self._toplevel = tk.Toplevel()
+        self._toplevel.title("Manage timelines")
+        self._toplevel.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        # right frame creation
+        # TODO make transient in relation to main window
+
+        logger.debug(f"Existing timelines ids and display strings are {timeline_ids_and_display_strings}")
+        self.tl_ids_and_strings = timeline_ids_and_display_strings
+
+        self._setup_widgets()
+
+        # element binding
+        self.list_box.bind("<<ListboxSelect>>", self.on_select)
+
+        self.initial_config()
+
+    def _setup_widgets(self):
+
+        self.outer_frame = tk.Frame(self._toplevel)
+
+        # create right frame
         self.right_frame = tk.Frame(self.outer_frame)
         self.up_button = tk.Button(
             self.right_frame, text="▲", width=3, command=self.move_up
@@ -32,13 +56,13 @@ class ManageTimelines(tk.Toplevel, Unique):
             self.right_frame, text="▼", width=3, command=self.move_down
         )
         self.delete_button = tk.Button(
-            self.right_frame, text="Delete", command=self.ask_delete_timeline
+            self.right_frame, text="Delete", command=self.on_delete_button
         )
-        self.clear_button = tk.Button(
-            self.right_frame, text="Clear", command=self.ask_clear_timeline
-        )
+        # self.clear_button = tk.Button(
+        #     self.right_frame, text="Clear", command=self.on_clear_button
+        # ) TODO implement clear button
 
-        # checkbox creation
+        # create checkbox
         self.visible_checkbox_var = tk.BooleanVar()
         self.visible_checkbox = tk.Checkbutton(
             self.right_frame,
@@ -49,15 +73,18 @@ class ManageTimelines(tk.Toplevel, Unique):
             command=self.on_checkbox,
         )
 
-        # element griding and packing
+        # grid and pack elements
         self.up_button.grid(column=1, row=0, sticky=tk.EW)
         self.down_button.grid(column=1, row=1, sticky=tk.EW)
         self.visible_checkbox.grid(column=1, row=2, sticky=tk.EW)
         self.delete_button.grid(column=1, row=3, sticky=tk.EW)
-        self.clear_button.grid(column=1, row=4, sticky=tk.EW)
+        # self.clear_button.grid(column=1, row=4, sticky=tk.EW)
 
         self.list_box = tk.Listbox(self.outer_frame, width=40, activestyle="none")
-        self.list_box.insert("end", *self.items)
+        self.list_box.insert(
+            "end",
+            *[display_str for _, display_str in self.tl_ids_and_strings],
+        )
 
         self.scrollbar = tk.Scrollbar(self.outer_frame, orient=tk.VERTICAL)
         self.scrollbar.config(command=self.list_box.yview)
@@ -67,14 +94,8 @@ class ManageTimelines(tk.Toplevel, Unique):
         self.list_box.pack(expand=True, side=tk.LEFT)
         self.scrollbar.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
 
-        self.grid_columnconfigure(0, weight=1)
+        self._toplevel.grid_columnconfigure(0, weight=1)
         self.outer_frame.pack(expand=True)
-
-        # element binding
-        self.list_box.bind("<<ListboxSelect>>", self.on_select)
-
-        # setting initial focus and default values
-        self.initial_config()
 
     def initial_config(self) -> None:
         """Set focus to window and select first element"""
@@ -86,10 +107,12 @@ class ManageTimelines(tk.Toplevel, Unique):
         """Updates checkbox to reflect visibility status of the selected timeline"""
         item = self.list_box.get(self.list_box.curselection())
         index = self.list_box.index(self.list_box.curselection())
-        LOGGER.debug(f"Selected {item} at index {index}")
-        is_vsbl = app_globals.APP.timeline_collection.find_by_collection_id(
-            item[2]
-        ).visible
+        logger.debug(f"Selected manage timelines item '{item}' at index '{index}'")
+
+        selected_timeline_id = self.tl_ids_and_strings[index][0]
+
+        is_vsbl = self._app_ui.get_timeline_ui_attribute_by_id(selected_timeline_id, 'visible')
+
         if is_vsbl:
             self.visible_checkbox.select()
         else:
@@ -114,57 +137,69 @@ class ManageTimelines(tk.Toplevel, Unique):
         """Move timeline up"""
         item = self.list_box.get(self.list_box.curselection())
         index = self.list_box.index(self.list_box.curselection())
-        LOGGER.info(f"Moving {item[2]} up.")
         if index == 0:
-            pass  # already at top
-        else:
-            self.list_box.delete(self.list_box.curselection())
-            self.list_box.insert(index - 1, item)
-            self.list_box.activate(index - 1)
-            self.list_box.select_set(index - 1)
+            logger.debug(f"Item is already at top.")
+            return
 
-        self.sort_list()
-        self.update_action()
+        timeline_id = self.tl_ids_and_strings[index][0]
+        self.move_listbox_item(index, item, UpOrDown.UP)
+        events.post(EventName.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER, timeline_id)
 
     def move_down(self):
         """Move timeline down"""
         item = self.list_box.get(self.list_box.curselection())
         index = self.list_box.index(self.list_box.curselection())
-        LOGGER.info(f"Moving {item[2]} down.")
         if index == self.list_box.index("end") - 1:
-            pass  # already at bottom
-        else:
-            self.list_box.delete(self.list_box.curselection())
-            self.list_box.insert(index + 1, item)
-            self.list_box.activate(index + 1)
-            self.list_box.select_set(index + 1)
+            logger.debug(f"Item is already at bottom.")
+            return  # already at bottom
 
-        self.sort_list()
-        self.update_action()
+        timeline_id = self.tl_ids_and_strings[index][0]
+        self.move_listbox_item(index, item, UpOrDown.DOWN)
+        events.post(EventName.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER, timeline_id)
 
-    def sort_list(self):
-        self.items = self.list_box.get(0, "end")
+    def move_listbox_item(self, index: int, item: str, direction: UpOrDown) -> None:
 
-    def ask_delete_timeline(self):
-        item = self.list_box.get(self.list_box.curselection())
+        self.list_box.delete(index, index)
+
+        index_difference = direction.value * -1
+        self.list_box.insert(index + index_difference, item)
+        self.list_box.activate(index + index_difference)
+        self.list_box.select_set(index + index_difference)
+
+        self.move_item_in_ids_and_display_string_order(index, direction)
+
+    def move_item_in_ids_and_display_string_order(self, index, direction):
+
+        (
+            self.tl_ids_and_strings[index],
+            self.tl_ids_and_strings[index - direction.value]
+        ) = (
+            self.tl_ids_and_strings[index - direction.value],
+            self.tl_ids_and_strings[index]
+        )
+
+
+    def on_delete_button(self):
         index = self.list_box.index(self.list_box.curselection())
-        timeline_id = self.list_box.get(index)[2]
-        if messagebox.askquestion(
-                "Delete timeline", f"Are you sure you want to delete timeline {item}?"
-        ) == 'yes':
-            app_globals.APP.timeline_collection.remove_by_id(timeline_id)
-        self.list_box.delete(index)
-        self.initial_config()
+        timeline_id = self.tl_ids_and_strings[index][0]
 
-    def ask_clear_timeline(self):
-        item = self.list_box.get(self.list_box.curselection())
-        index = self.list_box.index(self.list_box.curselection())
-        timeline_id = self.list_box.get(index)[2]
-        if messagebox.askquestion(
-                "Delete timeline", f"Are you sure you want to clear timeline {item}?"
-        ) == 'yes':
-            app_globals.APP.timeline_collection.clear_by_id(timeline_id)
+        events.post(EventName.TIMELINES_REQUEST_TO_DELETE_TIMELINE, timeline_id)
+
+        self.update_tl_ids_and_strings()
+
+
+    def on_clear_button(self):
+        raise NotImplementedError
 
     def on_close(self):
-        Unique.delete(self)
-        self.destroy()
+        self._toplevel.destroy()
+
+    def update_tl_ids_and_strings(self):
+        self.tl_ids_and_strings = self._app_ui.get_timeline_info_for_manage_timelines_window()
+        self.list_box.delete(0, "end")
+        self.list_box.insert(
+            "end",
+            *[display_str for _, display_str in self.tl_ids_and_strings],
+        )
+
+

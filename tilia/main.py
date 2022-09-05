@@ -72,9 +72,14 @@ class TiLiA(Subscriber):
         self.ui = get_ui(ui_kind, self)
 
         self._timeline_collection = TimelineCollection(self)
+        self._timeline_ui_collection = self.ui.get_timeline_ui_collection()
+
+        self._associate_timeline_and_timeline_ui_collections(
+            self._timeline_collection, self._timeline_ui_collection
+        )
 
         self._timeline_with_ui_builder = TimelineWithUIBuilder(
-            self._timeline_collection, self.ui.get_timeline_ui_collection()
+            self._timeline_collection, self._timeline_ui_collection
         )
 
         self._player = player.PygamePlayer()
@@ -92,6 +97,13 @@ class TiLiA(Subscriber):
     # noinspection PyProtectedMember
     def _code_for_dev(self):
         """Use this to execute code before the ui mainloop runs."""
+        # self._timeline_with_ui_builder.create_timeline(
+        #     TimelineKind.HIERARCHY_TIMELINE, "HTL1"
+        # )
+        #
+        # self._timeline_with_ui_builder.create_timeline(
+        #     TimelineKind.HIERARCHY_TIMELINE, "HTL2"
+        # )
 
     @property
     def media_length(self):
@@ -189,7 +201,10 @@ class TiLiA(Subscriber):
 
         for _, timeline in file.timelines.items():
             kind = TimelineKind[timeline.pop("kind")]
-            name = ""  # TODO forgot to serialize timeline name! Fix this!
+            try:
+                name = timeline.pop("name")
+            except KeyError:
+                name = ""
             components = timeline.pop("components")
             self._timeline_with_ui_builder.create_timeline(kind, name, components)
 
@@ -203,6 +218,14 @@ class TiLiA(Subscriber):
             title="Name for new timeline", prompt="Choose name for new timeline"
         )
         self._timeline_with_ui_builder.create_timeline(kind, name)
+
+    @staticmethod
+    def _associate_timeline_and_timeline_ui_collections(
+        timeline_collection: TimelineCollection,
+        timeline_ui_collection: TimelineUICollection,
+    ):
+        timeline_ui_collection._timeline_collection = timeline_collection
+        timeline_collection._timeline_ui_collection = timeline_ui_collection
 
 
 class FileManager(Subscriber):

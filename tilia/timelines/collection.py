@@ -3,7 +3,7 @@ Defines the TimelineCollection class, which compose the TiLiA class.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -82,6 +82,16 @@ class TimelineCollection:
         logger.debug(f"Serializing all timelines...")
         return {tl.id: tl.to_dict() for tl in self._timelines}
 
+    def get_timeline_by_id(self, id_: int) -> Timeline:
+        return next((e for e in self._timelines if e.id == id_), None)
+
+    def get_timeline_atttibute_by_id(self, id_: int, attribute: str) -> Any:
+        timeline = self.get_timeline_by_id(id_)
+        return getattr(timeline, attribute)
+
+    def get_timeline_ids(self):
+        return [tl.id for tl in self._timelines]
+
     def get_id(self):
         return self._app.get_id()
 
@@ -91,15 +101,22 @@ class TimelineCollection:
     def get_current_playback_time(self):
         return self._app.current_playback_time
 
+    def has_slider_timeline(self):
+        return any([isinstance(SliderTimeline, tl) for tl in self._timelines])
+
     def clear(self):
         logger.debug(f"Clearing timeline collection...")
         for timeline in self._timelines.copy():
             timeline.delete()
-            timeline.ui.delete()
             self._remove_from_timelines(timeline)
+            self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
 
     def from_dict(self, timelines_dict: dict[dict]) -> None:
-        for _, tl_dict in timelines_dict.items():
+        sort_attribute = ["display_position"]
+
+        sorted_timelines_dict = sorted(timelines_dict.items(), key=lambda _, tl_dict: getattr(tl_dict, sort_attribute))
+
+        for _, tl_dict in sorted_timelines_dict:
             tl_kind = TimelineKind[tl_dict.pop("kind")]
             self.create_timeline(tl_kind, **tl_dict)
 

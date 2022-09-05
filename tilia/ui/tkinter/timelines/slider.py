@@ -197,3 +197,6 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
     def update_elements_position(self):
         self._update_trough_position()
         self._update_line_position()
+
+    def __str__(self):
+        return f"{self.TIMELINE_KIND.value.capitalize()} Timeline"

@@ -33,7 +33,7 @@ from tilia import events
 class HierarchyTimeline(Timeline):
 
     SERIALIZABLE_BY_VALUE = []
-    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name"]
+    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
 
     def __init__(
         self,
