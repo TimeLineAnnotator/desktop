@@ -135,7 +135,9 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         EventName.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER,
         EventName.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER,
         EventName.TIMELINES_REQUEST_TO_DELETE_TIMELINE,
-        EventName.TIMELINES_REQUEST_TO_CLEAR_TIMELINE
+        EventName.TIMELINES_REQUEST_TO_CLEAR_TIMELINE,
+        EventName.TIMELINES_REQUEST_TO_SHOW_TIMELINE,
+        EventName.TIMELINES_REQUEST_TO_HIDE_TIMELINE
 
     ]
 
@@ -164,12 +166,6 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
         self._timeline_collection = None  # will be set by the TiLiA object
 
-    def hide_timeline_ui(self, timeline_ui: TimelineTkUI):
-
-        # hide timeline
-
-        if timeline_ui.toolbar:
-            timeline_ui.toolbar.process_visiblity_change(is_visible)
 
     def on_scrollbar_move(self, *args):
         for timeline in self._timeline_uis:
@@ -277,13 +273,16 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         logger.debug(f"Current display order is {self._display_order}.")
 
         prev_display_index = self._display_order.index(tl_ui)
-        tl_ui.canvas.grid_forget()
-        tl_ui.canvas.grid(row=prev_display_index - direction.value, column=0, sticky="ew")
+        if tl_ui.is_visible:
+            tl_ui.canvas.grid_forget()
+            tl_ui.canvas.grid(row=prev_display_index - direction.value, column=0, sticky="ew")
 
         tl_ui_to_swap = self._display_order[prev_display_index - direction.value]
         logger.debug(f"Swaping with timeline {tl_ui_to_swap}")
-        tl_ui_to_swap.canvas.grid_forget()
-        tl_ui_to_swap.canvas.grid(row=prev_display_index, column=0, sticky="ew")
+
+        if tl_ui_to_swap.is_visible:
+            tl_ui_to_swap.canvas.grid_forget()
+            tl_ui_to_swap.canvas.grid(row=prev_display_index, column=0, sticky="ew")
 
         (
             self._display_order[prev_display_index],
@@ -321,6 +320,23 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         )  # needed so scrollregion is right. Don't know why.
         # Do we need to do this every time a timeline is created?
         self.frame.update()  # TODO check if this is necessary
+
+    @staticmethod
+    def hide_timeline_ui(timeline_ui: TimelineTkUI):
+
+        timeline_ui.canvas.grid_forget()
+        timeline_ui.is_visible = False
+
+        if timeline_ui.toolbar:
+            timeline_ui.toolbar.process_visiblity_change(False)
+
+    def show_timeline_ui(self, timeline_ui: TimelineTkUI):
+
+        timeline_ui.canvas.grid(row=self.get_timeline_display_position(timeline_ui), column=0, sticky='ew')
+        timeline_ui.is_visible = True
+
+        if timeline_ui.toolbar:
+            timeline_ui.toolbar.process_visiblity_change(True)
 
     @staticmethod
     def get_timeline_ui_class_from_kind(kind: TimelineKind) -> type(TimelineTkUI):
@@ -414,6 +430,10 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             self._on_request_to_delete_timeline(*args)
         elif event_name == EventName.TIMELINES_REQUEST_TO_CLEAR_TIMELINE:
             raise NotImplementedError
+        elif event_name == EventName.TIMELINES_REQUEST_TO_SHOW_TIMELINE:
+            self.on_request_to_show_timeline(*args)
+        elif event_name == EventName.TIMELINES_REQUEST_TO_HIDE_TIMELINE:
+            self.on_request_to_hide_timeline(*args)
 
 
     def _on_timeline_ui_click(
@@ -539,6 +559,25 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         return tk.messagebox.askyesno(
                     "Delete timeline?", f"Are you sure you want to delete timeline {str(timeline_ui)}?"
         )
+
+    def on_request_to_hide_timeline(self, id_: int) -> None:
+        timeline_ui = self._get_timeline_ui_by_id(id_)
+        logger.debug(f"User requested to hide timeline {timeline_ui}")
+        if not timeline_ui.is_visible:
+            logger.debug(f"Timeline is already hidden.")
+        else:
+            logger.debug(f"Hiding timeline.")
+            self.hide_timeline_ui(timeline_ui)
+
+    def on_request_to_show_timeline(self, id_: int) -> None:
+        timeline_ui = self._get_timeline_ui_by_id(id_)
+        logger.debug(f"User requested to show timeline {timeline_ui}")
+        if timeline_ui.is_visible:
+            logger.debug(f"Timeline is already visible.")
+        else:
+            logger.debug(f"Making timeline visible.")
+            self.show_timeline_ui(timeline_ui)
+        pass
 
 
 class TimelineTkUIElement(TimelineUIElement, ABC):

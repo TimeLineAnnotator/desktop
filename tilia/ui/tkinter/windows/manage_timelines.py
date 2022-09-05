@@ -70,7 +70,7 @@ class ManageTimelines:
             variable=self.visible_checkbox_var,
             onvalue=True,
             offvalue=False,
-            command=self.on_checkbox,
+            command=self.on_checkbox_value_change,
         )
 
         # grid and pack elements
@@ -111,27 +111,24 @@ class ManageTimelines:
 
         selected_timeline_id = self.tl_ids_and_strings[index][0]
 
-        is_vsbl = self._app_ui.get_timeline_ui_attribute_by_id(selected_timeline_id, 'visible')
+        is_visible = self._app_ui.get_timeline_ui_attribute_by_id(selected_timeline_id, 'is_visible')
 
-        if is_vsbl:
+        if is_visible:
             self.visible_checkbox.select()
         else:
             self.visible_checkbox.deselect()
 
-    def on_checkbox(self):
+    def on_checkbox_value_change(self):
         """Toggles visibility of selected timeline"""
-        checkbox_value = self.visible_checkbox_var.get()
-        i = int(self.list_box.curselection()[0])
-        timeline_id = self.list_box.get(i)[2]
+        index = self.list_box.index(self.list_box.curselection())
+        selected_timeline_id = self.tl_ids_and_strings[index][0]
 
-        if checkbox_value:
-            app_globals.APP.timeline_collection.find_by_collection_id(
-                timeline_id
-            ).make_visible()
+        is_checked = self.visible_checkbox_var.get()
+
+        if is_checked:
+            events.post(EventName.TIMELINES_REQUEST_TO_SHOW_TIMELINE, selected_timeline_id)
         else:
-            app_globals.APP.timeline_collection.find_by_collection_id(
-                timeline_id
-            ).make_invisible()
+            events.post(EventName.TIMELINES_REQUEST_TO_HIDE_TIMELINE, selected_timeline_id)
 
     def move_up(self):
         """Move timeline up"""
