@@ -210,7 +210,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         if toolbar:
             toolbar.on_timeline_create()
 
-        self.grid_canvas(tl_ui.canvas, self._get_last_grid_row_number())
+        self.grid_timeline_ui_canvas(tl_ui.canvas, self._get_last_grid_row_number())
 
         self._add_to_timeline_uis_set(tl_ui)
         self._add_to_timeline_ui_select_order(tl_ui)
@@ -312,14 +312,10 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
     def _get_last_grid_row_number(self):
         return len(self._display_order)
 
-    def grid_canvas(self, canvas: tk.Canvas, row_number: int) -> None:
+    @staticmethod
+    def grid_timeline_ui_canvas(canvas: tk.Canvas, row_number: int) -> None:
         logger.debug(f"Griding canvas at row '{row_number}'")
         canvas.grid(row=row_number, column=0, sticky="ew")
-        self.frame.grid_columnconfigure(
-            0, weight=1
-        )  # needed so scrollregion is right. Don't know why.
-        # Do we need to do this every time a timeline is created?
-        self.frame.update()  # TODO check if this is necessary
 
     @staticmethod
     def hide_timeline_ui(timeline_ui: TimelineTkUI):

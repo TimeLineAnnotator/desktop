@@ -125,7 +125,7 @@ class TkinterUI(Subscriber):
     def _create_timeline_ui_collection(self):
         timelines_scrollbar = tk.Scrollbar(self.hscrollbar_frame, orient=tk.HORIZONTAL)
         self.timeline_ui_collection = TkTimelineUICollection(
-            self, self.scroll_frame, timelines_scrollbar, self.timelines_toolbar_frame
+            self, self.inner_timelines_frame, timelines_scrollbar, self.timelines_toolbar_frame
         )
 
     def get_timeline_ui_collection(self):
@@ -141,8 +141,11 @@ class TkinterUI(Subscriber):
             self.main_frame
         )
 
-        self.timelines_frame = tk.Frame(self.main_frame)
-        self.scroll_frame = ScrollableFrame(self.timelines_frame, bg="blue")
+        self.outer_timelines_frame = tk.Frame(self.main_frame)
+        self.inner_timelines_frame = ScrollableFrame(self.outer_timelines_frame, bg="blue")
+        self.inner_timelines_frame.grid_columnconfigure(
+            0, weight=1
+        )
 
         self.bottom_frame = tk.Frame(self.main_frame)
         self.hscrollbar_frame = tk.Frame(self.main_frame)
@@ -150,7 +153,7 @@ class TkinterUI(Subscriber):
         # pack frames
         self.app_toolbars_frame.pack(fill="x")
         self.timelines_toolbar_frame.pack(fill="x")
-        self.timelines_frame.pack(fill="both", expand=True)
+        self.outer_timelines_frame.pack(fill="both", expand=True)
         self.bottom_frame.pack(fill="x")
         self.hscrollbar_frame.pack(fill="x")
         self.main_frame.pack(fill="both", expand=True)
