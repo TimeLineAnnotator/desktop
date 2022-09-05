@@ -211,6 +211,9 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             name=name,
         )
 
+        if toolbar:
+            toolbar.on_timeline_create()
+
         self.grid_canvas(tl_ui.canvas, self._get_last_grid_row_number())
 
         self._add_to_timeline_uis_set(tl_ui)
@@ -1125,6 +1128,10 @@ class TimelineToolbar(tk.LabelFrame):
     def on_timeline_delete(self):
         """Decrements visible count and hides timelines if count reaches zero."""
         self._increment_decrement_timelines_count(False)
+        self._show_display_according_to_visible_timelines_count()
+
+    def on_timeline_create(self):
+        self._increment_decrement_timelines_count(True)
         self._show_display_according_to_visible_timelines_count()
 
     def delete(self):
