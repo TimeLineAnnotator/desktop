@@ -147,8 +147,8 @@ class TiLiA(Subscriber):
         """TODO should ask to save if file was modified."""
         sys.exit()
 
-    def get_id(self) -> int:
-        return next(self._id_counter)
+    def get_id(self) -> str:
+        return str(next(self._id_counter))
 
     def _initial_file_setup(self):
         self._timeline_with_ui_builder.create_timeline(TimelineKind.SLIDER_TIMELINE, "")

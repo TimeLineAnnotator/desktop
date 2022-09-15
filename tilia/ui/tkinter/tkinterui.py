@@ -64,7 +64,7 @@ class TkinterUI(Subscriber):
     SUBSCRIPTIONS = [
         EventName.UI_REQUEST_WINDOW_INSPECTOR,
         EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
-        EventName.MENU_OPTION_FILE_LOAD_MEDIA,
+        EventName.MENU_OPTION_FILE_LOAD_MEDIA
     ]
 
     def __init__(self, app: TiLiA):
@@ -172,7 +172,10 @@ class TkinterUI(Subscriber):
             for tlui in sorted(self.timeline_ui_collection.get_timeline_uis(), key=lambda t: t.timeline.id)
         ]
 
-    def get_id(self) -> int:
+    def get_elements_for_pasting(self):
+        return self._app.get_elements_for_pasting()
+
+    def get_id(self) -> str:
         return self._app.get_id()
 
     def get_media_length(self):
@@ -230,7 +233,7 @@ class TkinterUI(Subscriber):
             ),
             EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES: lambda: self.on_request_window(
                 WindowKind.MANAGE_TIMELINES
-            ),
+            )
         }
 
         event_to_callback[event_name]()
