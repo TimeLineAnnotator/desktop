@@ -3,19 +3,22 @@ Defines the tkinter ui corresponding a HierarchyTimeline.
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import EventName
 from tilia.misc_enums import IncreaseOrDecrease
+
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.tkinter.timelines.hierarchy.copy_paste_manager import HierarchyTimelineCopyPasteManager
 
 if TYPE_CHECKING:
     from tilia.ui.tkinter.timelines.common import (
         TkTimelineUICollection,
         TimelineUIElementManager,
-        TimelineCanvas,
-    )
+        TimelineCanvas )
+    from tilia.timelines.hierarchy.components import Hierarchy
 
 import logging
 
@@ -23,11 +26,12 @@ logger = logging.getLogger(__name__)
 import tkinter as tk
 
 from tilia import globals_, utils, events
-from tilia.timelines.hierarchy.timeline import HierarchyTimeline, ParentChildRelation
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline, logger
+from tilia.timelines.hierarchy.common import ParentChildRelation, process_parent_child_relation
 from tilia.ui.tkinter.timelines.common import TimelineTkUI
 from tilia.ui.tkinter.timelines.hierarchy import (
     HierarchyTimelineToolbar,
-    HierarchyTkUI,
+    HierarchyTkUI
 )
 
 from tilia.ui.element_kinds import UIElementKind
@@ -42,6 +46,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     LINE_YOFFSET = 3
 
     TOOLBAR_CLASS = HierarchyTimelineToolbar
+    COPY_PASTE_MANGER_CLASS = HierarchyTimelineCopyPasteManager
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyTkUI}
     COMPONENT_KIND_TO_UIELEMENT_KIND = {
         ComponentKind.HIERARCHY: UIElementKind.HIERARCHY_TKUI
@@ -67,6 +72,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         *args,
         timeline_ui_collection: TkTimelineUICollection,
         element_manager: TimelineUIElementManager,
+        copy_paste_manager: HierarchyTimelineCopyPasteManager,
         canvas: TimelineCanvas,
         toolbar: HierarchyTimelineToolbar,
         name: str,
@@ -79,6 +85,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             *args,
             timeline_ui_collection=timeline_ui_collection,
             timeline_ui_element_manager=element_manager,
+            copy_paste_manager=copy_paste_manager,
             component_kinds_to_classes=self.ELEMENT_KINDS_TO_ELEMENT_CLASSES,
             component_kinds_to_ui_element_kinds=self.COMPONENT_KIND_TO_UIELEMENT_KIND,
             canvas=canvas,
@@ -100,35 +107,58 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     def get_timeline_height(self):
         return self._height
 
-    def create_hierarchy_ui(self, *args, **kwargs) -> HierarchyTkUI:
-
-        start, end, level = args
-
-        return HierarchyTkUI(
-            self, self.canvas, start, end, level, self.height, **kwargs
-        )
-
     def rearrange_canvas_drawings(self):
         for element in self.element_manager.get_all_elements():
-            if element.tl_component.parent and not element.tl_component.children:
-                self.rearrange_upward_hierarchies_stacking_order(element)
+            if not element.tl_component.parent and element.tl_component.children:
+                self.rearrange_descendants_drawings_stacking_order(element)
 
-    def rearrange_upward_hierarchies_stacking_order(
-        self, element: HierarchyTkUI
-    ) -> None:
-        if parent_ui := element.tl_component.parent.ui:
-            lowest_element_drawing_id = (
-                self.element_manager.get_lowest_element_from_id_list(
-                    list(element.canvas_drawings_ids), self.canvas
-                )
+        for element in self.element_manager.get_all_elements():
+            print(f'{element} -> {element.canvas_drawings_ids}')
+
+        print(self.canvas.find_all())
+
+    def rearrange_descendants_drawings_stacking_order(self, element: HierarchyTkUI):
+        logger.debug(f"Rearranging descendants of {element}...")
+
+        def get_element_and_descendants(parent: HierarchyTkUI):
+            is_in_branch = lambda e: e.tl_component.start >= parent.tl_component.start and e.tl_component.end <= parent.tl_component.end
+            elements_in_branch = self.element_manager.get_elements_by_condition(is_in_branch, kind=UIElementKind.HIERARCHY_TKUI)
+            return elements_in_branch
+
+        def get_drawings_to_arrange(elements: set[HierarchyTkUI]):
+            _drawings_to_lower = set()
+            for element in elements:
+                _drawings_to_lower.add(element.rect_id)
+                _drawings_to_lower.add(element.label_id)
+                _drawings_to_lower.add(element.comments_ind_id)
+
+            return _drawings_to_lower
+
+        def get_lowest_in_stacking_order(ids: set, canvas: tk.Canvas) -> int:
+            ids_in_order = [id_ for id_ in canvas.find_all() if id_ in ids]
+            return ids_in_order[0]
+
+        element_and_descendants = get_element_and_descendants(element)
+        logger.debug(f"Element and descendants are: {element_and_descendants}")
+        element_and_descendants_levels = sorted({e.level for e in element_and_descendants}, reverse=True)
+        logger.debug(f"Element and descendants span levels: {element_and_descendants_levels}")
+
+        for level in element_and_descendants_levels[:-1]:
+            logger.debug(f"Rearranging level {level}")
+            elements_in_level = {e for e in element_and_descendants if e.level == level}
+            logger.debug(f"Elements in level are: {elements_in_level}")
+
+            lowest_drawing_in_lower_elements = get_lowest_in_stacking_order(
+                get_drawings_to_arrange({e for e in element_and_descendants if e.level < level}),
+                self.canvas
             )
 
-            # lower parents canvas drawings
-            self.canvas.tag_lower(parent_ui.rect_id, lowest_element_drawing_id)
-            self.canvas.tag_lower(parent_ui.label_id, lowest_element_drawing_id)
-            self.canvas.tag_lower(parent_ui.comments_ind_id, lowest_element_drawing_id)
+            for element in elements_in_level:
+                logger.debug(f"Lowering drawings '{element.canvas_drawings_ids}' of element '{element}'")
+                self.canvas.tag_lower(element.rect_id, lowest_drawing_in_lower_elements)
+                self.canvas.tag_lower(element.label_id, lowest_drawing_in_lower_elements)
+                self.canvas.tag_lower(element.comments_ind_id, lowest_drawing_in_lower_elements)
 
-            self.rearrange_upward_hierarchies_stacking_order(parent_ui)
 
     def get_markerid_at_x(self, x: int):
         starts_or_ends_at_time = lambda u: u.start_x == x or u.end_x == x
@@ -203,6 +233,11 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         )
 
     def update_parent_child_relation(self, relation: ParentChildRelation) -> None:
+
+        def get_lowest_in_stacking_order(ids: list, canvas: tk.Canvas) -> int:
+            ids_in_order = [id_ for id_ in canvas.find_all() if id_ in ids]
+            return ids_in_order[0]
+
         logging.debug(
             f"Arranging elements in {self} to parent/child relation '{relation}'"
         )
@@ -218,7 +253,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             self.element_manager.get_canvas_drawings_ids_from_elements(children_uis)
         )
 
-        lowest_child_drawing_id = self.element_manager.get_lowest_element_from_id_list(
+        lowest_child_drawing_id = get_lowest_in_stacking_order(
             children_canvas_drawings_ids, self.canvas
         )
 
@@ -340,6 +375,87 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             )
             # noinspection PyTypeChecker
             self.post_inspectable_selected_event(element)
+
+    def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
+
+        def get_descendants(parent: HierarchyTkUI):
+            is_in_branch = lambda \
+                e: e.tl_component.start >= parent.tl_component.start and e.tl_component.end <= parent.tl_component.end
+            elements_in_branch = self.element_manager.get_elements_by_condition(is_in_branch,
+                                                                                kind=UIElementKind.HIERARCHY_TKUI)
+            elements_in_branch.remove(parent)
+            return elements_in_branch
+
+        def paste_with_children_into_element(paste_data_: dict, element_: HierarchyTkUI):
+            logger.debug(f"Pasting with children into element '{element_}' with paste data = {paste_data_}'")
+            self.copy_paste_manager.paste_into_element(element_, paste_data_)
+
+            if 'children' in paste_data_:
+                children_of_element = []
+                for child_paste_data in paste_data_['children']:
+                    child_component = create_child_from_paste_data(
+                        element_,
+                        paste_data_['support_by_component_value']['start'],
+                        paste_data_['support_by_component_value']['end'],
+                        child_paste_data)
+
+                    if child_paste_data.get('children', None):
+                        paste_with_children_into_element(child_paste_data, child_component.ui)
+
+                    children_of_element.append(child_component)
+
+                parent_child_relation = ParentChildRelation(parent=element_.tl_component, children=children_of_element)
+                self._swap_components_with_uis_in_relation(parent_child_relation)
+                process_parent_child_relation(parent_child_relation)
+
+        def create_child_from_paste_data(
+                new_parent: HierarchyTkUI,
+                previous_parent_start: float,
+                previous_parent_end: float,
+                child_paste_data_: dict
+        ):
+            logger.debug(f"Creating child for '{new_parent}' from paste data '{child_paste_data_}'")
+            new_parent_length = new_parent.tl_component.end - new_parent.tl_component.start
+            prev_parent_length = previous_parent_end - previous_parent_start
+            scale_factor = new_parent_length / prev_parent_length
+            # logger.debug(f"Scale factor between previous and new parents is '{scale_factor}'")
+
+            relative_child_start = child_paste_data_['support_by_component_value']['start'] - previous_parent_start
+            # logger.debug(f"Child start relative to previous parent is '{relative_child_start}'")
+            new_child_start = (relative_child_start * scale_factor) + new_parent.tl_component.start
+            logger.debug(f"New child start is '{new_child_start}'")
+
+            relative_child_end = child_paste_data_['support_by_component_value']['end'] - previous_parent_end
+            # logger.debug(f"Child end relative to previous parent is '{relative_child_end}'")
+            new_child_end = (relative_child_end * scale_factor) + new_parent.tl_component.end
+            logger.debug(f"New child end is '{new_child_end}'")
+            
+            return self.timeline.create_timeline_component(
+                kind=ComponentKind.HIERARCHY,
+                start=new_child_start,
+                end=new_child_end,
+                level=child_paste_data_['support_by_component_value']['level'],
+                **child_paste_data_['by_element_value'],
+                **child_paste_data_['by_component_value']
+            )
+
+        logger.debug(f"Pasting with children into selected elements...")
+        selected_elements = self.element_manager.get_selected_elements()
+        logger.debug(f"Selected elements are: {selected_elements}")
+
+        self.copy_paste_manager.validate_paste_with_children(paste_data, selected_elements)
+
+        for element in selected_elements:
+            logger.debug(f"Deleting previous descendants of '{element}'")
+            # delete previous descendants
+            descendants = get_descendants(element)
+            for descendant in descendants:
+                self.timeline.on_request_to_delete_component(descendant.tl_component)
+
+            # create children according to paste data
+            paste_with_children_into_element(paste_data[0], element)
+
+
 
     def __repr__(self):
         return f"{type(self).__name__}({self.name}|{id(self)})"
@@ -587,3 +703,5 @@ class TimelineUIOldMethods:
             self.canvas.update()
             self.height = new_height
             self.redraw()
+
+
