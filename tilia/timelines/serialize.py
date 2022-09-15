@@ -129,7 +129,7 @@ def _set_serializable_by_id_or_id_list(component, serialized_component: dict) ->
 
 
 def _substitute_ids_for_reference_to_components(
-    id_to_component: dict[int, Serializable]
+    id_to_component: dict[str, Serializable]
 ) -> None:
 
     for id_, component in id_to_component.items():
