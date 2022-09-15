@@ -21,6 +21,7 @@ from datetime import datetime
 
 from typing import TYPE_CHECKING
 
+from tilia.clipboard import Clipboard
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineUICollection
@@ -83,6 +84,7 @@ class TiLiA(Subscriber):
         )
 
         self._player = player.PygamePlayer()
+        self._clipboard = Clipboard()
 
         self._media_metadata = MediaMetadata()
 
@@ -186,6 +188,12 @@ class TiLiA(Subscriber):
     def get_media_title(self):
         return self._media_metadata.title
 
+    def get_elements_for_pasting(self):
+        logger.debug(f"Getting clipboard contents for pasting...")
+        elements = self._clipboard.get_contents_for_pasting()
+        logger.debug(f"Got '{elements}'")
+        return elements
+
     def clear_app(self):
         logger.info(f"Clearing app..")
         self._timeline_collection.clear()
@@ -211,7 +219,6 @@ class TiLiA(Subscriber):
         logger.info(f"Loaded file.")
 
     def on_add_timeline(self, kind: TimelineKind):
-        """Not functional yet."""
         if kind != TimelineKind.HIERARCHY_TIMELINE:
             raise NotImplementedError
         name = self.ui.ask_string(
