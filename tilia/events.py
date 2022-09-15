@@ -16,6 +16,11 @@ from typing import Optional
 
 
 class EventName(Enum):
+    KEY_PRESS_CONTROL_SHIFT_V = auto()
+    UI_REQUEST_TO_DISPLAY_ERROR = auto()
+    KEY_PRESS_CONTROL_V = auto()
+    KEY_PRESS_CONTROL_C = auto()
+    TIMELINE_COMPONENT_COPIED = auto()
     UI_REQUEST_WINDOW_ABOUT = auto()
     TIMELINES_REQUEST_TO_CLEAR_ALL_TIMELINES = auto()
     UI_REQUEST_WINDOW_DEVELOPMENT = auto()
@@ -112,7 +117,7 @@ class Event:
     def detach(self, subscriber: object):
         self.subscribers.remove(subscriber)
 
-    def notify(self, *args: tuple, **kwargs: dict):
+    def notify(self, *args, **kwargs):
         logger.debug(f"Notifying subscribers about event '{self.name}'...")
         if self.subscribers:
             for subscriber in self.subscribers.copy():
