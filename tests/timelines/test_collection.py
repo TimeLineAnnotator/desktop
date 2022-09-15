@@ -32,6 +32,7 @@ class TestTimelineCollection:
 
     def test_clear(self):
         tlcoll = TimelineCollection(MagicMock())
+        tlcoll._timeline_ui_collection = MagicMock()
         tl2 = tlcoll.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
         tl2.ui = MagicMock()
 
