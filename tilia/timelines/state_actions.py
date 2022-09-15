@@ -4,6 +4,7 @@ from enum import Enum
 
 
 class StateAction(Enum):
+    PASTE = "PASTE"
     MERGE = "MERGE"
     CLEAR_TIMELINE = "CLEAR COMPONENT MANAGER"
     SPLIT = "SPLIT"
