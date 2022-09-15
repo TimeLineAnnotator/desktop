@@ -11,6 +11,9 @@ class Clipboard(Subscriber):
         super().__init__(subscriptions=[EventName.TIMELINE_COMPONENT_COPIED])
         self._contents = []
 
+    def get_contents_for_pasting(self):
+        return self._contents
+
     def on_subscribed_event(
         self, event_name: EventName, *args: tuple, **kwargs: dict
     ) -> None:
