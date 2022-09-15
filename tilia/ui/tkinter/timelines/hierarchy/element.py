@@ -256,12 +256,6 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         self.canvas.coords(self.start_marker, *self.get_marker_coords(StartOrEnd.START))
         self.canvas.coords(self.end_marker, *self.get_marker_coords(StartOrEnd.END))
 
-    def set_comments(self, comments: str) -> None:
-        self.canvas.itemconfig(
-            self.comments_ind_id,
-            text=self.COMMENTS_INDICATOR_CHAR if comments else "",
-        )
-
     def draw_unit(self) -> int:
         coords = self.get_unit_coords()
         logger.debug(f"Drawing hierarchy rectangle with {coords} ans {self.color=}")
