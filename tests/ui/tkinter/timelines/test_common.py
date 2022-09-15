@@ -25,12 +25,16 @@ def tkui_mock():
 
 @pytest.fixture
 def tlui_coll(tkui_mock):
-    return TkTimelineUICollection(
-            tkui_mock,
-            tk.Frame(),
-            tk.Scrollbar(),
-            tk.Frame()
-        )
+    _tlui_coll = TkTimelineUICollection(
+        tkui_mock,
+        tk.Frame(),
+        tk.Scrollbar(),
+        tk.Frame()
+    )
+    yield _tlui_coll
+    _tlui_coll.unsubscribe_from_all()
+
+
 
 
 class TestTkTimelineUICollection:
@@ -44,6 +48,8 @@ class TestTkTimelineUICollection:
         )
 
         assert tlui_coll._app_ui == tkui_mock
+
+        tlui_coll.unsubscribe_from_all()
 
     def test_create_timeline_ui_hierarchy_timeline(self, tlui_coll):
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
@@ -74,6 +80,7 @@ class TestTkTimelineUICollection:
 
     def test_delete_timeline_ui(self, tlui_coll):
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
+        tlui_coll._delete_timeline_ui_toolbar_if_necessary = lambda _: None
 
         tlui = tlui_coll.create_timeline_ui(TimelineKind.HIERARCHY_TIMELINE, 'test')
 
@@ -81,6 +88,7 @@ class TestTkTimelineUICollection:
 
         assert not tlui_coll._timeline_uis
         assert not tlui_coll._select_order
+        assert not tlui_coll._display_order
 
     def test_update_select_order(self, tlui_coll):
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
