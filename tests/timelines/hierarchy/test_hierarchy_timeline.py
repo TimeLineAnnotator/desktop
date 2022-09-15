@@ -11,8 +11,8 @@ from tilia.timelines.hierarchy.components import HierarchyOperationError, Hierar
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
     HierarchyTimeline,
-    ParentChildRelation,
 )
+from tilia.timelines.hierarchy.common import ParentChildRelation
 
 # noinspection PyProtectedMember
 from tilia.timelines.serialize import serialize_component, _deserialize_component
@@ -23,7 +23,7 @@ from tilia.ui.tkinter.timelines.common import (
     TkTimelineUICollection,
 )
 from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineTkUI, HierarchyTkUI
-
+from tilia.ui.tkinter.timelines.hierarchy.copy_paste_manager import HierarchyTimelineCopyPasteManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ def tl_with_ui() -> HierarchyTimeline:
     tlui_coll_mock.get_id = lambda: next(id_counter)
 
     component_manager = HierarchyTLComponentManager()
+    copy_paste_manager = HierarchyTimelineCopyPasteManager()
     timeline = HierarchyTimeline(tl_coll_mock, component_manager)
 
     timeline.ui = HierarchyTimelineTkUI(
@@ -47,6 +48,7 @@ def tl_with_ui() -> HierarchyTimeline:
         element_manager=TimelineUIElementManager(
             HierarchyTimelineTkUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
         ),
+        copy_paste_manager=copy_paste_manager,
         canvas=MagicMock(),
         toolbar=MagicMock(),
         name="",
@@ -87,7 +89,7 @@ class TestHierarchyTimeline:
             ComponentKind.HIERARCHY, 0, 1, 1
         )
 
-        tl.on_request_delete_component(unit1)
+        tl.on_request_to_delete_component(unit1)
 
         assert not tl.component_manager._components
 
@@ -277,8 +279,6 @@ class TestHierarchyTimelineComponentManager:
 
         assert parent.children[0] == child.parent
 
-
-
     # TEST CLEAR
     def test_clear(self, tl):
         _ = tl.create_timeline_component(
@@ -290,8 +290,6 @@ class TestHierarchyTimelineComponentManager:
         _ = tl.create_timeline_component(
             ComponentKind.HIERARCHY, start=0.2, end=0.3, level=3
         )
-
-        serialized_components = tl.component_manager.serialize_components()
 
         tl.component_manager.clear()
 
@@ -771,3 +769,35 @@ class TestHierarchyTimelineComponentManager:
         assert {dsu.level for dsu in tl_with_ui.component_manager._components} == {
             u.level for u in [unit1, unit2, unit3]
         }
+
+    def test_deserialize_components_with_children(self, tl_with_ui):
+        tl_with_ui.ui.update_parent_child_relation = lambda _: None
+        tl_with_ui.ui.rearrange_canvas_drawings = lambda: None
+
+        unit1 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0.0, end=0.3, level=1
+        )
+        unit2 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0.1, end=0.2, level=2
+        )
+        unit3 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0.2, end=0.3, level=3
+        )
+
+        tl_with_ui.component_manager._make_parent_child_relation(
+            ParentChildRelation(parent=unit1, children=[unit2, unit3])
+        )
+
+
+        serialized_components = tl_with_ui.component_manager.serialize_components()
+
+        tl_with_ui.component_manager.clear()
+
+        tl_with_ui.component_manager.deserialize_components(serialized_components)
+
+        dsrl_unit1, dsrl_unit2, dsrl_unit3 = sorted(list(tl_with_ui.component_manager._components), key=lambda x: x.start)
+
+        assert dsrl_unit2 in dsrl_unit1.children
+        assert dsrl_unit3 in dsrl_unit1.children
+        assert dsrl_unit2.parent == dsrl_unit1
+        assert dsrl_unit3.parent == dsrl_unit1
