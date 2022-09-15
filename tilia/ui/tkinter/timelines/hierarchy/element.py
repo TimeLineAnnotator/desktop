@@ -171,7 +171,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
 
     @property
     def formal_type(self):
-        return self.tl_component.formal_function
+        return self.tl_component.formal_type
 
     @formal_type.setter
     def formal_type(self, value):
@@ -179,24 +179,11 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
             f"{self} is setting the value of attribute 'formal_type' of its timeline component..."
         )
         logger.debug(f"... to '{value}'.")
-        self.tl_component.formal_function = value
+        self.tl_component.formal_type = value
 
     @property
-    def canvas_drawings_ids(self):
-        return (
-            self.rect_id,
-            self.label_id,
-            self.comments_ind_id,
-            self.start_marker,
-            self.end_marker,
-        )
-
-    def _setup_color(self, color: str):
-        logger.debug(f"Setting up unit color with {color=}")
-        if not color:
-            self._color = self.get_default_level_color(self.level)
-        else:
-            self._color = color
+    def children(self):
+        return self.tl_component.children
 
     @property
     def color(self):
@@ -219,6 +206,13 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         logger.debug(f"Got color '{level_color}'")
         return level_color
 
+    def _setup_color(self, color: str):
+        logger.debug(f"Setting up unit color with {color=}")
+        if not color:
+            self._color = self.get_default_level_color(self.level)
+        else:
+            self._color = color
+
     # noinspection PyTypeChecker
     def process_color_before_level_change(self, new_level: int) -> None:
         logger.debug(f"Updating unit ui color...")
@@ -228,6 +222,16 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         else:
             logger.debug("Changing unit color to new level color.")
             self.color = self.get_default_level_color(new_level)
+
+    @property
+    def canvas_drawings_ids(self):
+        return (
+            self.rect_id,
+            self.label_id,
+            self.comments_ind_id,
+            self.start_marker,
+            self.end_marker,
+        )
 
     def update_position(self):
 
