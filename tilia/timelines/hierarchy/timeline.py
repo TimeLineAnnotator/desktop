@@ -6,27 +6,26 @@ from __future__ import annotations
 
 import logging
 
+from .common import process_parent_child_relation, ParentChildRelation
 from ..state_actions import StateAction
 from tilia.timelines.component_kinds import ComponentKind
 from ...events import EventName, Subscriber
 from tilia.timelines.timeline_kinds import TimelineKind
 
 logger = logging.getLogger(__name__)
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
-    from tilia.ui.tkinter.timelines.hierarchy import HierarchyTkUI
 
 from .components import (
     Hierarchy,
-    HierarchyOperationError,
+    HierarchyOperationError, logger,
 )
 from tilia.timelines.common import (
     Timeline,
     TimelineComponentManager,
-    log_object_creation,
-)
+    log_object_creation, )
 from tilia import events
 
 
@@ -69,13 +68,6 @@ class HierarchyTimeline(Timeline):
         self.ui.update_parent_child_relation(relation)
 
 
-class ParentChildRelation(NamedTuple):
-    """Named tuple to facilitate the handling of parent and children attribute of hierarchies."""
-
-    parent: Hierarchy | HierarchyTkUI
-    children: list[Hierarchy | HierarchyTkUI]
-
-
 class HierarchyTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.HIERARCHY]
 
@@ -92,21 +84,12 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         self.timeline.ui.rearrange_canvas_drawings()
 
     def _make_parent_child_relation(self, relation: ParentChildRelation):
-        """Changes parent and child atributes of the units
-        that are arguments of the relation as to end with the parent/child
-        structure given."""
+        """
+        Calls process_parent_child_relation and notifies timeline UI so it
+        updates the ui for the involved components.
+        """
 
-        logging.debug(f"Processing parent/child relation '{relation}'")
-
-        parent, children = relation
-
-        logging.debug(f"Clearing children list of {parent}.")
-        parent.children = []
-        for child in children:
-            logging.debug(f"Appending {child} to children list.")
-            parent.children.append(child)
-            logging.debug(f"Setting {parent} as parent of {child}")
-            child.parent = parent
+        process_parent_child_relation(relation)
 
         self.timeline.update_ui_with_parent_child_relation(relation)
 
@@ -400,8 +383,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             )
 
         # TODO pass attributes to early unit
-        # copy_dict = self.copy()
-        # left_unit.receive_paste(copy_dict)
+        # copy_data = self.copy()
+        # left_unit.receive_paste(copy_data)
 
     def merge(self, units_to_merge: list[Hierarchy]):
         def _validate_at_least_two_units(units: list[Hierarchy]) -> None:
@@ -538,3 +521,5 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 parent=component.parent, children=component_parent_new_children
             )
         )
+
+
