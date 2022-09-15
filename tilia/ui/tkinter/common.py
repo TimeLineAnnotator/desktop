@@ -1,4 +1,6 @@
+import tkinter
 import tkinter as tk
+import tkinter.messagebox
 
 
 class LabelAndEntry(tk.Frame):
@@ -18,15 +20,5 @@ class LabelAndEntry(tk.Frame):
         self.linked_attr = attr_to_link
 
 
-class LabelAndLabel(tk.Frame):
-    """Create a tk.Label() pair and grid them side on row 0 of
-    widget 'parent'."""
-
-    def __init__(self, parent, title, row, column=0, value=""):
-        super(LabelAndLabel, self).__init__(parent)
-        label_text = title + ":"
-        self.label = tk.Label(self, text=label_text)
-        self.label.grid(row=0, column=0, sticky="W")
-        self.label2 = tk.Label(self, text=value, anchor="w")
-        self.label2.grid(row=0, column=1, sticky="EW")
-        self.entry_txt = ""
+def display_error(title: str, message: str) -> None:
+    tkinter.messagebox.showerror(title, message)
