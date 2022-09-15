@@ -25,6 +25,7 @@ def tl_with_ui() -> SliderTimeline:
         timeline_ui_collection=tlui_coll_mock,
         element_manager=MagicMock(),
         canvas=MagicMock(),
+        copy_paste_manager=None,
         toolbar=None,
         name="",
     )
@@ -34,7 +35,7 @@ def tl_with_ui() -> SliderTimeline:
 
 @pytest.fixture
 def tl() -> SliderTimeline:
-    timeline = SliderTimeline(MagicMock(), None)
+    timeline = SliderTimeline(MagicMock(), None, None)
 
     timeline.ui = MagicMock()
     yield timeline
