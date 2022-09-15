@@ -1,7 +1,6 @@
 """
 Contains classes that relate to file and state management:
     - AutoSaver (not reimplemented yet);
-    - Clipboard (not reimplemented yet);
     - UndoRedoStack and UndoRedoManager (not reimplemented yet);
     - MediaMetadata;
     - TiliaFile (centralizes informations that pertain to the .tla file).
@@ -90,29 +89,6 @@ class AutoSaver:
         )
         for path in paths_by_creation_date[:amount]:
             os.remove(path)
-
-
-class Clipboard:
-    def __init__(self):
-        self._contents = []
-
-    def clipboard_class(self):
-        if isinstance(self._contents, list):
-            return type(self._contents[0])
-        elif isinstance(self._contents, object):
-            return type(self._contents)
-
-    def clipboard_cardinality(self) -> SingleOrMultiple:
-        if len(self._contents) == 1:
-            return SingleOrMultiple.SINGLE
-        else:
-            return SingleOrMultiple.MULTIPLE
-
-    def clipboard_type(self):
-        if not self._contents:
-            return None
-        else:
-            return self.clipboard_class(), self.clipboard_cardinality()
 
 
 @dataclass
