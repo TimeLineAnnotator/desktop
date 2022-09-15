@@ -92,7 +92,7 @@ class TimelineCollection:
     def get_timeline_ids(self):
         return [tl.id for tl in self._timelines]
 
-    def get_id(self):
+    def get_id(self) -> str:
         return self._app.get_id()
 
     def get_media_length(self):
