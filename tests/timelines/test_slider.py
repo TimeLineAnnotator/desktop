@@ -25,7 +25,6 @@ def tl_with_ui() -> SliderTimeline:
         timeline_ui_collection=tlui_coll_mock,
         element_manager=MagicMock(),
         canvas=MagicMock(),
-        copy_paste_manager=None,
         toolbar=None,
         name="",
     )

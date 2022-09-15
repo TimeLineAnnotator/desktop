@@ -198,10 +198,6 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
         self._update_trough_position()
         self._update_line_position()
 
-    @staticmethod
-    def get_copy_data_from_selected_elements():
-        return []
-
     @property
     def has_selected_elements(self):
         return False

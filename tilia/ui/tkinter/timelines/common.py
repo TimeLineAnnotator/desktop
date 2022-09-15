@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
-from tilia.exceptions import AppException
-from tilia.timelines.state_actions import StateAction
+import tilia.ui.tkinter.timelines.copy_paste
+from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
@@ -37,6 +36,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.common import InvalidComponentKindError, log_object_creation
 from tilia.ui.tkinter.modifier_enum import ModifierEnum
 from tilia.misc_enums import InOrOut, UpOrDown
+from tilia.ui.tkinter.timelines.copy_paste import get_copy_data_from_elements, paste_into_element, CopyAttributes, Copyable
 
 
 @runtime_checkable
@@ -49,15 +49,6 @@ class Inspectable(Protocol):
 
     def get_inspector_dict(self) -> dict[str:Any]:
         ...
-
-
-class CopyError(AppException):
-    pass
-
-
-class PasteError(AppException):
-    pass
-
 
 class TimelineCanvas(tk.Canvas):
     """Interface for the canvas that composes a timeline.
@@ -209,11 +200,6 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
         toolbar = self.get_toolbar_for_timeline_ui(timeline_class.TOOLBAR_CLASS)
 
-        if timeline_class.COPY_PASTE_MANGER_CLASS:
-            copy_paste_manager = timeline_class.COPY_PASTE_MANGER_CLASS()
-        else:
-            copy_paste_manager = None
-
         element_manager = TimelineUIElementManager(
             timeline_class.ELEMENT_KINDS_TO_ELEMENT_CLASSES
         )
@@ -221,7 +207,6 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         tl_ui = timeline_class(
             timeline_ui_collection=self,
             element_manager=element_manager,
-            copy_paste_manager=copy_paste_manager,
             canvas=canvas,
             toolbar=toolbar,
             name=name,
@@ -888,13 +873,13 @@ class TimelineTkUI(TimelineUI, ABC):
     TIMELINE_KIND = None
     TOOLBAR_CLASS = None
     COPY_PASTE_MANGER_CLASS = None
+    DEFAULT_COPY_ATTRIBUTES = CopyAttributes([], [], [], [])
 
     def __init__(
             self,
             *args,
             timeline_ui_collection: TkTimelineUICollection,
             timeline_ui_element_manager: TimelineUIElementManager,
-            copy_paste_manager: CopyPasteManager,
             component_kinds_to_classes: dict[UIElementKind: type(TimelineTkUIElement)],
             component_kinds_to_ui_element_kinds: dict[ComponentKind:UIElementKind],
             canvas: TimelineCanvas,
@@ -915,7 +900,6 @@ class TimelineTkUI(TimelineUI, ABC):
 
         self.component_kinds_to_ui_element_kinds = component_kinds_to_ui_element_kinds
         self.element_manager = timeline_ui_element_manager
-        self.copy_paste_manager = copy_paste_manager
         self.component_kinds_to_classes = component_kinds_to_classes
         self.canvas = canvas
         self.toolbar = toolbar
@@ -1082,28 +1066,30 @@ class TimelineTkUI(TimelineUI, ABC):
             print("--- Component attributes ---")
             pprint(element.tl_component.__dict__)
 
+    def validate_copy(self, elements: list[TimelineUIElement]) -> None:
+        """Can be overwritten by subcalsses to implement validation"""
+        pass
+
+    def validate_paste(self, paste_data: dict, elements_to_receive_paste: list[TimelineUIElement]) -> None:
+        """Can be overwritten by subcalsses to implement validation"""
+        if len(paste_data) > 1:
+            raise CopyError("Can't paste more than one copied item at the same time.")
+
     def get_copy_data_from_selected_elements(self):
-        copy_data = []
         selected_elements = self.element_manager.get_selected_elements()
 
-        self.copy_paste_manager.validate_copy(selected_elements)
+        self.validate_copy(selected_elements)
 
-        for element in selected_elements:
-            copy_data.append(self.copy_paste_manager.get_copy_data_for_element(element))
-
-        return copy_data
+        return get_copy_data_from_elements([(el, el.DEFAULT_COPY_ATTRIBUTES) for el in selected_elements if isinstance(el, Copyable)])
 
     def paste_into_selected_elements(self, paste_data: list[dict] | dict):
 
         selected_elements = self.element_manager.get_selected_elements()
 
-        self.copy_paste_manager.validate_paste(paste_data, selected_elements)
+        self.validate_paste(paste_data, selected_elements)
 
-        if len(paste_data) == 1:
-            for element in self.element_manager.get_selected_elements():
-                self.copy_paste_manager.paste_into_element(element, paste_data[0])
-        else:
-            raise NotImplementedError # TODO where is a good place to put this check?
+        for element in self.element_manager.get_selected_elements():
+            paste_into_element(element, paste_data[0])
 
     # noinspection PyUnresolvedReferences
     def get_x_by_time(self, time: float) -> int:
@@ -1312,76 +1298,3 @@ def create_tool_tip(widget, text):
     widget.bind("<Leave>", leave)
 
 
-class CopyPasteManager:
-    """
-    Manages copy and pasting.
-
-    Obs.: Is this class really necessary?
-    Wouldn't it be asier to just
-    """
-
-    @staticmethod
-    def _get_copy_data_for_element(
-            element: TimelineUIElement,
-            element_kind: UIElementKind,
-            copy_attrs: CopyAttributes
-    ) -> dict:
-        """TODO"""
-
-        by_element_value = {}
-        for attr in copy_attrs.by_element_value:
-            by_element_value[attr] = getattr(element, attr)
-
-        by_component_value = {}
-        for attr in copy_attrs.by_component_value:
-            by_component_value[attr] = getattr(element.tl_component, attr)
-
-        support_by_element_value = {}
-        for attr in copy_attrs.support_by_element_value:
-            support_by_element_value[attr] = getattr(element, attr)
-
-        support_by_component_value = {}
-        for attr in copy_attrs.support_by_component_value:
-            support_by_component_value[attr] = getattr(element.tl_component, attr)
-
-        copy_data = {
-            "element_kind": element_kind,
-            "by_element_value": by_element_value,
-            "by_component_value": by_component_value,
-            "support_by_element_value": support_by_element_value,
-            "support_by_component_value": support_by_component_value
-        }
-
-        return copy_data
-
-    @staticmethod
-    def paste_into_element(element: TimelineUIElement, paste_data: dict[str:Any], no_record=False):
-        """Element should validate paste before calling this method"""
-        if not no_record:
-            events.post(EventName.RECORD_STATE, StateAction.PASTE)
-
-        logger.debug(f'{element} is receiving paste...')
-
-        for attr, value in paste_data['by_element_value'].items():
-            logger.debug(f"Pasting '{attr}' with value= '{value}'.")
-            setattr(element, attr, value)
-
-        for attr, value in paste_data['by_component_value'].items():
-            logger.debug(f"Pasting '{attr}' with value='{value}'.")
-            setattr(element.tl_component, attr, value)
-
-    def validate_copy(self, elements: list[TimelineUIElement]) -> None:
-        """Can be overwriteen by subcalsses to implement validation"""
-        pass
-
-    def validate_paste(self, paste_data: dict, elements_to_receive_paste: list[TimelineUIElement]) -> None:
-        """Can be overwriteen by subcalsses to implement validation"""
-        pass
-
-
-@dataclass
-class CopyAttributes:
-    by_element_value: list[str]
-    by_component_value: list[str]
-    support_by_element_value: list[str]
-    support_by_component_value: list[str]

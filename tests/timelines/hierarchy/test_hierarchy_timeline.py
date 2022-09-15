@@ -23,7 +23,6 @@ from tilia.ui.tkinter.timelines.common import (
     TkTimelineUICollection,
 )
 from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineTkUI, HierarchyTkUI
-from tilia.ui.tkinter.timelines.hierarchy.copy_paste_manager import HierarchyTimelineCopyPasteManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,6 @@ def tl_with_ui() -> HierarchyTimeline:
     tlui_coll_mock.get_id = lambda: next(id_counter)
 
     component_manager = HierarchyTLComponentManager()
-    copy_paste_manager = HierarchyTimelineCopyPasteManager()
     timeline = HierarchyTimeline(tl_coll_mock, component_manager)
 
     timeline.ui = HierarchyTimelineTkUI(
@@ -48,7 +46,6 @@ def tl_with_ui() -> HierarchyTimeline:
         element_manager=TimelineUIElementManager(
             HierarchyTimelineTkUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
         ),
-        copy_paste_manager=copy_paste_manager,
         canvas=MagicMock(),
         toolbar=MagicMock(),
         name="",

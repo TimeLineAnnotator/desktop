@@ -6,12 +6,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import tilia.ui.tkinter.timelines.copy_paste
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import EventName
 from tilia.misc_enums import IncreaseOrDecrease
 
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.tkinter.timelines.hierarchy.copy_paste_manager import HierarchyTimelineCopyPasteManager
 
 if TYPE_CHECKING:
     from tilia.ui.tkinter.timelines.common import (
@@ -34,6 +34,7 @@ from tilia.ui.tkinter.timelines.hierarchy import (
     HierarchyTkUI
 )
 
+from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError, Copyable, get_copy_data_from_element
 from tilia.ui.element_kinds import UIElementKind
 
 
@@ -46,7 +47,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     LINE_YOFFSET = 3
 
     TOOLBAR_CLASS = HierarchyTimelineToolbar
-    COPY_PASTE_MANGER_CLASS = HierarchyTimelineCopyPasteManager
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyTkUI}
     COMPONENT_KIND_TO_UIELEMENT_KIND = {
         ComponentKind.HIERARCHY: UIElementKind.HIERARCHY_TKUI
@@ -72,7 +72,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         *args,
         timeline_ui_collection: TkTimelineUICollection,
         element_manager: TimelineUIElementManager,
-        copy_paste_manager: HierarchyTimelineCopyPasteManager,
         canvas: TimelineCanvas,
         toolbar: HierarchyTimelineToolbar,
         name: str,
@@ -85,7 +84,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             *args,
             timeline_ui_collection=timeline_ui_collection,
             timeline_ui_element_manager=element_manager,
-            copy_paste_manager=copy_paste_manager,
             component_kinds_to_classes=self.ELEMENT_KINDS_TO_ELEMENT_CLASSES,
             component_kinds_to_ui_element_kinds=self.COMPONENT_KIND_TO_UIELEMENT_KIND,
             canvas=canvas,
@@ -376,6 +374,19 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             # noinspection PyTypeChecker
             self.post_inspectable_selected_event(element)
 
+    def validate_copy(self, elements: list[Copyable]) -> None:
+        if len(elements) > 1:
+            raise CopyError(f"Can't copy more than one hierarchy at once.")
+
+    @staticmethod
+    def validate_paste_with_children(paste_data: list[dict], elements_to_receive_paste: list[HierarchyTkUI]) -> None:
+        for element in elements_to_receive_paste:
+            if len(paste_data) > 1:
+                raise PasteError("Can't paste more than one Hierarchy at the same time.")
+            elif element.level != int(paste_data[0]["support_by_component_value"]["level"]):
+                raise PasteError(
+                    "Can't paste all of unit's attributes (including children) into unit of different level.")
+
     def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
 
         def get_descendants(parent: HierarchyTkUI):
@@ -388,7 +399,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
         def paste_with_children_into_element(paste_data_: dict, element_: HierarchyTkUI):
             logger.debug(f"Pasting with children into element '{element_}' with paste data = {paste_data_}'")
-            self.copy_paste_manager.paste_into_element(element_, paste_data_)
+            tilia.ui.tkinter.timelines.copy_paste.paste_into_element(element_, paste_data_)
 
             if 'children' in paste_data_:
                 children_of_element = []
@@ -443,7 +454,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         selected_elements = self.element_manager.get_selected_elements()
         logger.debug(f"Selected elements are: {selected_elements}")
 
-        self.copy_paste_manager.validate_paste_with_children(paste_data, selected_elements)
+        self.validate_paste_with_children(paste_data, selected_elements)
 
         for element in selected_elements:
             logger.debug(f"Deleting previous descendants of '{element}'")
@@ -455,7 +466,26 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             # create children according to paste data
             paste_with_children_into_element(paste_data[0], element)
 
+    def get_copy_data_from_selected_elements(self):
+        selected_elements = self.element_manager.get_selected_elements()
 
+        self.validate_copy(selected_elements)
+
+        return self.get_copy_data_from_hierarchy_uis(selected_elements)
+
+    @staticmethod
+    def get_copy_data_from_hierarchy_uis(hierarchy_uis: list[HierarchyTkUI]):
+
+        copy_data = []
+        for ui in hierarchy_uis:
+            ui_data = get_copy_data_from_element(ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES)
+
+            if ui.tl_component.children:
+                ui_data["children"] = [get_copy_data_from_element(child.ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES) for child in
+                                         ui.tl_component.children]
+
+            copy_data.append(ui_data)
+        return copy_data
 
     def __repr__(self):
         return f"{type(self).__name__}({self.name}|{id(self)})"

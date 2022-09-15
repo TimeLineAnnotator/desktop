@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import tilia.utils.color
 from tilia.events import EventName
 from tilia.misc_enums import StartOrEnd
+from ..copy_paste import CopyAttributes
 
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineTkUI
@@ -78,6 +79,13 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         "Formal function": "formal_function",
         "Formal type": "formal_type",
     }
+
+    DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
+        by_element_value=["label", "color"],
+        by_component_value=["formal_type", "formal_function", "comments"],
+        support_by_element_value=[],
+        support_by_component_value=["start", "end", "level"],
+    )
 
     RIGHT_CLICK_OPTIONS = ["Edit", "Copy", "Paste", "Delete"]
 
