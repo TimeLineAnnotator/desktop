@@ -211,6 +211,7 @@ class TimelineComponentManager:
         )
 
     def delete_component(self, component: TimelineComponent, record=True) -> None:
+        logger.debug(f"Deleting component '{component}'")
         if record:
             self.timeline.record_state(StateAction.DELETE, component)
 
@@ -285,7 +286,7 @@ class Timeline(ABC):
             f"Recording timeline state before action '{state_action_to_be_performed}' by '{actor}'."
         )
 
-    def on_request_delete_component(self, component: TimelineComponent) -> None:
+    def on_request_to_delete_component(self, component: TimelineComponent) -> None:
         self._validate_delete_component(component)
         self.component_manager.delete_component(component)
 
