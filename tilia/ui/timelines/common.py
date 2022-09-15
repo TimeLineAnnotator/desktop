@@ -26,10 +26,8 @@ class TimelineUICollection(ABC):
         ...
 
     @abstractmethod
-    def get_id(self) -> int:
+    def get_id(self) -> str:
         ...
-
-
 
 
 class TimelineUI:
@@ -60,7 +58,7 @@ class TimelineUI:
         logger.debug(f"Setting {self} timeline as {value}")
         self._timeline = value
 
-    def get_id(self) -> int:
+    def get_id(self) -> str:
         return self.timeline_ui_collection.get_id()
 
 
@@ -75,5 +73,9 @@ class TimelineUIElement(ABC):
         self.id = timeline_ui.get_id()
 
     @abstractmethod
-    def update_position(self) -> None:
-        return None
+    def update_position(self) -> None: ...
+
+    @property
+    @abstractmethod
+    def canvas_drawings_ids(self) -> tuple[int]: ...
+
