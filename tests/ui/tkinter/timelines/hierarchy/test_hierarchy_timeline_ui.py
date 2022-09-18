@@ -18,6 +18,8 @@ from tilia.ui.tkinter.timelines.copy_paste import PasteError
 
 import logging
 
+from tilia.undo_manager import UndoManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -85,6 +87,11 @@ def hierarchy_tlui(mock_tluicoll):
 
     return htlui
 
+@pytest.fixture
+def undo_manager() -> UndoManager:
+    _um = UndoManager()
+    yield _um
+    _um.unsubscribe_from_all()
 
 def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
     stacking_order = canvas.find_all()
@@ -468,5 +475,90 @@ class TestHierarchyTimelineTkUI:
         with pytest.raises(PasteError):
             tl_with_ui.ui.paste_with_children_into_selected_elements([copy_data, copy_data])
 
+
+    ######################
+    ### TEST UNDO/REDO ###
+    ######################
+
+
+
+    def test_undo_label_edited_via_inspector_twice(self, tl_with_ui, undo_manager):
+
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
+
+        hrc1.ui.on_inspector_field_edited('Label', 'initial value', hrc1.ui.id)
+        hrc1.ui.on_inspector_field_edited('Label', 'other value', hrc1.ui.id)
+
+        undo_manager.undo()
+
+        assert list(tl_with_ui.component_manager._components)[0].ui.label == ''
+
+    def test_undo_label_edited_via_inspector(self, tl_with_ui, undo_manager):
+
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
+
+        hrc1.ui.on_inspector_field_edited('Label', 'initial value', hrc1.ui.id)
+
+        undo_manager.undo()
+
+        assert list(tl_with_ui.component_manager._components)[0].ui.label == ''
+
+    def test_undo_label_edited_via_inspector_thrice(self, tl_with_ui, undo_manager):
+
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
+
+        hrc1.ui.on_inspector_field_edited('Label', 'initial value', hrc1.ui.id)
+        hrc1.ui.on_inspector_field_edited('Label', 'other value', hrc1.ui.id)
+        hrc1.ui.on_inspector_field_edited('Label', 'some other value', hrc1.ui.id)
+
+        undo_manager.undo()
+
+        assert list(tl_with_ui.component_manager._components)[0].ui.label == ''
+
+    def test_undo_two_attributes_edited_via_inspector(self, tl_with_ui, undo_manager):
+
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
+
+        hrc1.ui.on_inspector_field_edited('Label', 'initial value', hrc1.ui.id)
+        hrc1.ui.on_inspector_field_edited('Formal function', 'initial value', hrc1.ui.id)
+
+        undo_manager.undo()
+
+        assert list(tl_with_ui.component_manager._components)[0].ui.label == 'initial value'
+        assert list(tl_with_ui.component_manager._components)[0].ui.formal_function == ''
+
+        undo_manager.undo()
+
+        assert list(tl_with_ui.component_manager._components)[0].ui.label == ''
+        assert list(tl_with_ui.component_manager._components)[0].ui.formal_function == ''
+
+
+    def test_redo_label_edited_via_inspector(self, tl_with_ui, undo_manager):
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
+
+        hrc1.ui.on_inspector_field_edited('Label', 'initial value', hrc1.ui.id)
+
+        undo_manager.undo()
+        undo_manager.redo()
+
+        assert list(tl_with_ui.component_manager._components)[0].ui.label == 'initial value'
+
+    def test_redo_twice_property_edited_via_inspector(self, tl_with_ui, undo_manager):
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
+
+        hrc1.ui.on_inspector_field_edited('Label', 'initial value', hrc1.ui.id)
+        hrc1.ui.on_inspector_field_edited('Comments', 'some comments', hrc1.ui.id)
+
+        undo_manager.undo()
+        undo_manager.undo()
+        undo_manager.redo()
+
+        assert list(tl_with_ui.component_manager._components)[0].ui.label == 'initial value'
+        assert list(tl_with_ui.component_manager._components)[0].ui.comments == ''
+
+        undo_manager.redo()
+
+        assert list(tl_with_ui.component_manager._components)[0].ui.label == 'initial value'
+        assert list(tl_with_ui.component_manager._components)[0].ui.comments == 'some comments'
 
 
