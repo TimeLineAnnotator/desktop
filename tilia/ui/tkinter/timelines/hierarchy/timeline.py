@@ -110,10 +110,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             if not element.tl_component.parent and element.tl_component.children:
                 self.rearrange_descendants_drawings_stacking_order(element)
 
-        for element in self.element_manager.get_all_elements():
-            print(f'{element} -> {element.canvas_drawings_ids}')
-
-        print(self.canvas.find_all())
 
     def rearrange_descendants_drawings_stacking_order(self, element: HierarchyTkUI):
         logger.debug(f"Rearranging descendants of {element}...")
@@ -473,21 +469,24 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
         return self.get_copy_data_from_hierarchy_uis(selected_elements)
 
-    @staticmethod
-    def get_copy_data_from_hierarchy_uis(hierarchy_uis: list[HierarchyTkUI]):
+    def get_copy_data_from_hierarchy_uis(self, hierarchy_uis: list[HierarchyTkUI]):
 
         copy_data = []
         for ui in hierarchy_uis:
-            ui_data = get_copy_data_from_element(ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES)
+            copy_data.append(self.get_copy_data_from_hierarchy_ui(ui))
 
-            if ui.tl_component.children:
-                ui_data["children"] = [get_copy_data_from_element(child.ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES) for child in
-                                         ui.tl_component.children]
-
-            copy_data.append(ui_data)
         return copy_data
 
-    def __repr__(self):
+    def get_copy_data_from_hierarchy_ui(self, hierarchy_ui: HierarchyTkUI):
+        ui_data = get_copy_data_from_element(hierarchy_ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES)
+
+        if hierarchy_ui.tl_component.children:
+            ui_data["children"] = [self.get_copy_data_from_hierarchy_ui(child.ui) for child in
+                                   hierarchy_ui.tl_component.children]
+
+        return ui_data
+
+    def __repr__(self) -> str:
         return f"{type(self).__name__}({self.name}|{id(self)})"
 
 

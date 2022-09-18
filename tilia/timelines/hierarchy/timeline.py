@@ -67,6 +67,12 @@ class HierarchyTimeline(Timeline):
     def update_ui_with_parent_child_relation(self, relation: ParentChildRelation):
         self.ui.update_parent_child_relation(relation)
 
+    def restore_state(self, state: dict, action: StateAction):
+        self.component_manager.deserialize_components(state['components'])
+
+    def get_state(self) -> dict:
+        return self.to_dict()
+
 
 class HierarchyTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.HIERARCHY]
@@ -113,7 +119,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_create_unit_below(unit)
 
         # record previous state
-        events.post(EventName.RECORD_STATE, self, StateAction.CREATE_UNIT_BELOW, unit)
+        events.post(EventName.RECORD_STATE, self.timeline, StateAction.CREATE_UNIT_BELOW)
 
         # create new child
         created_unit = self.timeline.create_timeline_component(
@@ -162,7 +168,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_change_level(unit, new_level)
 
         if record:
-            events.post(EventName.RECORD_STATE, self, StateAction.CHANGE_LEVEL, unit)
+            events.post(EventName.RECORD_STATE, self.timeline, StateAction.CHANGE_LEVEL)
 
         # change color
         unit.ui.process_color_before_level_change(new_level)
@@ -246,7 +252,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_no_boundary_crossing(start_time, end_time)
 
         if record:
-            events.post(EventName.RECORD_STATE, self, StateAction.GROUP, units_to_group)
+            events.post(EventName.RECORD_STATE, self.timeline, StateAction.GROUP)
 
         has_same_parent = lambda u: u.parent == _get_previous_common_parent(
             units_to_group
@@ -329,7 +335,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_split(unit_to_split, split_time)
 
         if record:
-            events.post(EventName.RECORD_STATE, self, StateAction.SPLIT, unit_to_split)
+            events.post(EventName.RECORD_STATE, self.timeline, StateAction.SPLIT)
 
         self.delete_component(unit_to_split, record=False)
 
@@ -430,7 +436,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
             return units + units_between
 
-        events.post(EventName.RECORD_STATE, self, StateAction.MERGE, units_to_merge)
+        events.post(EventName.RECORD_STATE, self.timeline, StateAction.MERGE)
 
         _validate_common_parent(units_to_merge)
         _validate_at_least_two_units(units_to_merge)
@@ -440,7 +446,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_at_same_level(units_to_merge)
 
         for unit in units_to_merge:
-            self.delete_component(unit)
+            self.delete_component(unit, record=False)
 
         merger_unit = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
@@ -474,7 +480,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
     def delete_component(self, component: Hierarchy, record=True) -> None:
         if record:
-            self.timeline.record_state(StateAction.DELETE, component)
+            events.post(EventName.RECORD_STATE, self.timeline, StateAction.COMPONENT_DELETE)
 
         self.timeline.request_delete_ui_for_component(component)
 
