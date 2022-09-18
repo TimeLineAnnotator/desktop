@@ -225,7 +225,7 @@ class TimelineComponentManager:
     def clear(self):
         logging.debug(f"Clearing component manager '{self}'...")
         for component in self._components.copy():
-            self.delete_component(component)
+            self.delete_component(component, record=False)
 
     def serialize_components(self):
         logger.debug(f"Serializing components on '{self}.'")
@@ -323,6 +323,9 @@ class Timeline(ABC):
         result["kind"] = self._kind.name
 
         return result
+
+    def restore_state(self, action: StateAction, state: dict):
+        raise NotImplementedError
 
     def get_id_for_component(self) -> int:
         id_ = self.collection.get_id()
