@@ -16,6 +16,8 @@ from typing import Optional
 
 
 class EventName(Enum):
+    REQUEST_TO_REDO = auto()
+    REQUEST_TO_UNDO = auto()
     KEY_PRESS_CONTROL_SHIFT_V = auto()
     UI_REQUEST_TO_DISPLAY_ERROR = auto()
     KEY_PRESS_CONTROL_V = auto()
