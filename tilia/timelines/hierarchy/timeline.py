@@ -61,8 +61,7 @@ class HierarchyTimeline(Timeline):
         self.component_manager.split(unit_to_split, time)
 
     def merge(self, units: list[Hierarchy]) -> None:
-        units_to_merge = self.component_manager.get_units_to_merge_from_unit_list(units)
-        self.component_manager.merge(units_to_merge)
+        self.component_manager.merge(units)
 
     def update_ui_with_parent_child_relation(self, relation: ParentChildRelation):
         self.ui.update_parent_child_relation(relation)
