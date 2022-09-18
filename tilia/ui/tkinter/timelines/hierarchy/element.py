@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import tilia.utils.color
 from tilia.events import EventName
 from tilia.misc_enums import StartOrEnd
+from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
 
 if TYPE_CHECKING:
@@ -474,8 +475,6 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
             self.timeline_ui.get_time_by_x(drag_x), self.drag_data["extremity"]
         )
         self.update_position()
-        print(f"{self.tl_component.start=}")
-        print(f"{self.tl_component.end=}")
 
     def end_drag(self):
         logger.debug(f"Ending drag of {self}.")
@@ -531,7 +530,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         else:
             logger.debug(f"End marker '{self.end_marker}' is shared, will not delete")
 
-    def get_inspector_dict(self):
+    def get_inspector_dict(self) -> dict:
         return {
             "Label": self.label,
             "Start": self.tl_component.start,
@@ -543,8 +542,24 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
 
     def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int):
         if inspected_id == self.id:
+
+
             logger.debug(f"Processing inspector field edition for {self}...")
+
             attr = self.FIELD_NAME_TO_ATTRIBUTES_NAME[field_name]
-            logger.debug(f"Attribute edited is '{attr}'")
+
+            events.post(
+                EventName.RECORD_STATE,
+                self.timeline_ui.timeline,
+                StateAction.ATTRIBUTE_EDIT_VIA_INSPECTOR,
+                no_repeat=True,
+                repeat_identifier=f"{attr}_{self.id}",
+            )
+
+            logger.debug(f"Attribute edited is '{attr}'.")
+            logger.debug(f"New value is '{value}'.")
 
             setattr(self, attr, value)
+
+
+
