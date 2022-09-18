@@ -11,7 +11,9 @@ from tilia.timelines.timeline_kinds import TimelineKind
 @pytest.fixture
 def tilia_mock():
     tilia_mock_ = TiLiA(ui_kind=UserInterfaceKind.MOCK)
-    return tilia_mock_
+    yield tilia_mock_
+    tilia_mock_._undo_manager.unsubscribe_from_all()
+    tilia_mock_._player.unsubscribe_from_all()
 
 
 @pytest.fixture
