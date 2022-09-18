@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from tilia.clipboard import Clipboard
+from tilia.undo_manager import UndoManager
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineUICollection
@@ -85,6 +86,7 @@ class TiLiA(Subscriber):
 
         self._player = player.PygamePlayer()
         self._clipboard = Clipboard()
+        self._undo_manager = UndoManager()
 
         self._media_metadata = MediaMetadata()
 
