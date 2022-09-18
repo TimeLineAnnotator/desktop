@@ -54,7 +54,9 @@ class TkEventHandler:
         ("<Button-5>", on_mouse_wheel),
         ("<Control-c>", lambda _: events.post(EventName.KEY_PRESS_CONTROL_C)),
         ("<Control-v>", lambda _: events.post(EventName.KEY_PRESS_CONTROL_V)),
-        ("<Control-V>", lambda _: events.post(EventName.KEY_PRESS_CONTROL_SHIFT_V))
+        ("<Control-V>", lambda _: events.post(EventName.KEY_PRESS_CONTROL_SHIFT_V)),
+        ("<Control-z>", lambda _: events.post(EventName.REQUEST_TO_UNDO)),
+        ("<Control-y>", lambda _: events.post(EventName.REQUEST_TO_REDO))
     ]
 
     def __init__(self, root: tk.Tk):
