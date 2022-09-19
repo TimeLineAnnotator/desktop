@@ -422,16 +422,18 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         if len(elements) > 1:
             raise CopyError(f"Can't copy more than one hierarchy at once.")
 
-    @staticmethod
-    def validate_paste_with_children(paste_data: list[dict], elements_to_receive_paste: list[HierarchyTkUI]) -> None:
-        for element in elements_to_receive_paste:
-            if len(paste_data) > 1:
-                raise PasteError("Can't paste more than one Hierarchy at the same time.")
-            elif element.level != int(paste_data[0]["support_by_component_value"]["level"]):
-                raise PasteError(
-                    "Can't paste all of unit's attributes (including children) into unit of different level.")
+
 
     def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
+
+        def validate_paste_with_children(paste_data_: list[dict],
+                                         elements_to_receive_paste: list[HierarchyTkUI]) -> None:
+            for element in elements_to_receive_paste:
+                if len(paste_data_) > 1:
+                    raise PasteError("Can't paste more than one Hierarchy at the same time.")
+                elif element.level != int(paste_data_[0]["support_by_component_value"]["level"]):
+                    raise PasteError(
+                        "Can't paste all of unit's attributes (including children) into unit of different level.")
 
         def get_descendants(parent: HierarchyTkUI):
             is_in_branch = lambda \
@@ -498,7 +500,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         selected_elements = self.element_manager.get_selected_elements()
         logger.debug(f"Selected elements are: {selected_elements}")
 
-        self.validate_paste_with_children(paste_data, selected_elements)
+        validate_paste_with_children(paste_data, selected_elements)
 
         for element in selected_elements:
             logger.debug(f"Deleting previous descendants of '{element}'")
