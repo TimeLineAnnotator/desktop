@@ -10,6 +10,7 @@ import tilia.ui.tkinter.timelines.copy_paste
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import EventName
 from tilia.misc_enums import IncreaseOrDecrease, Side
+from tilia.timelines.state_actions import StateAction
 
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -423,7 +424,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             raise CopyError(f"Can't copy more than one hierarchy at once.")
 
 
-
     def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
 
         def validate_paste_with_children(paste_data_: list[dict],
@@ -502,12 +502,14 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
         validate_paste_with_children(paste_data, selected_elements)
 
+        events.post(EventName.RECORD_STATE, self.timeline, StateAction.PASTE)
+
         for element in selected_elements:
             logger.debug(f"Deleting previous descendants of '{element}'")
             # delete previous descendants
             descendants = get_descendants(element)
             for descendant in descendants:
-                self.timeline.on_request_to_delete_component(descendant.tl_component)
+                self.timeline.on_request_to_delete_component(descendant.tl_component, record=False)
 
             # create children according to paste data
             paste_with_children_into_element(paste_data[0], element)
