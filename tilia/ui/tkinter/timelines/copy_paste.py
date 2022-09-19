@@ -71,10 +71,7 @@ def get_copy_data_from_element(
     return copy_data
 
 
-def paste_into_element(element: TimelineUIElement, paste_data: dict[str:Any], no_record=False):
-    """Element should validate paste before calling this method"""
-    if not no_record:
-        events.post(EventName.RECORD_STATE, StateAction.PASTE)
+def paste_into_element(element: TimelineUIElement, paste_data: dict[str:Any]):
 
     logger.debug(f'{element} is receiving paste...')
 
