@@ -286,9 +286,9 @@ class Timeline(ABC):
             f"Recording timeline state before action '{state_action_to_be_performed}' by '{actor}'."
         )
 
-    def on_request_to_delete_component(self, component: TimelineComponent) -> None:
+    def on_request_to_delete_component(self, component: TimelineComponent, record=True) -> None:
         self._validate_delete_component(component)
-        self.component_manager.delete_component(component)
+        self.component_manager.delete_component(component, record=record)
 
     def request_delete_ui_for_component(self, component: TimelineComponent) -> None:
         self.ui.delete_element(component.ui)
