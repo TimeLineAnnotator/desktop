@@ -4,6 +4,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
+from tilia.timelines.state_actions import StateAction
 from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError
 
 if TYPE_CHECKING:
@@ -1107,6 +1108,8 @@ class TimelineTkUI(TimelineUI, ABC):
         selected_elements = self.element_manager.get_selected_elements()
 
         self.validate_paste(paste_data, selected_elements)
+
+        events.post(EventName.RECORD_STATE, self.timeline, StateAction.PASTE)
 
         for element in self.element_manager.get_selected_elements():
             paste_into_element(element, paste_data[0])
