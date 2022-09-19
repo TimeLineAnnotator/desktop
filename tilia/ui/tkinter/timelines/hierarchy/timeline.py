@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import tilia.ui.tkinter.timelines.copy_paste
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import EventName
-from tilia.misc_enums import IncreaseOrDecrease
+from tilia.misc_enums import IncreaseOrDecrease, Side
 
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -333,6 +333,54 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     def on_delete_button(self):
         self.delete_selected_elements()
 
+    def on_side_arrow_press(self, side: Side):
+
+        def _get_next_element_in_same_level(elm):
+            is_later_at_same_level = lambda h: h.tl_component.start > elm.tl_component.start and h.tl_component.level == elm.tl_component.level
+            later_elements = self.element_manager.get_elements_by_condition(is_later_at_same_level,
+                                                                           UIElementKind.HIERARCHY_TKUI)
+            if later_elements:
+                return sorted(later_elements, key=lambda x: x.tl_component.start)[0]
+            else:
+                return None
+
+        def _get_previous_element_in_same_level(elm):
+            is_earlier_at_same_level = lambda h: h.tl_component.start < elm.tl_component.start and h.tl_component.level == elm.tl_component.level
+            earlier_elements = self.element_manager.get_elements_by_condition(is_earlier_at_same_level,
+                                                                           UIElementKind.HIERARCHY_TKUI)
+            if earlier_elements:
+                return sorted(earlier_elements, key=lambda x: x.tl_component.start)[-1]
+            else:
+                return None
+
+        def _deselect_all_but_last():
+            ordered_selected_elements = sorted(self.element_manager.get_selected_elements(), key=lambda x: x.tl_component.start)
+            if len(ordered_selected_elements) > 1:
+                for element in ordered_selected_elements[:-1]:
+                    self.element_manager.deselect_element(element)
+
+        if not self.has_selected_elements:
+            logger.debug(f"User pressed left arrow but no elements were selected.")
+            return
+
+        _deselect_all_but_last()
+        selected_element = self.element_manager.get_selected_elements()[0]
+        if side == Side.RIGHT:
+            element_to_select = _get_next_element_in_same_level(selected_element)
+        elif side == Side.LEFT:
+            element_to_select = _get_previous_element_in_same_level(selected_element)
+        else:
+            raise ValueError(f"Invalid side '{side}'.")
+
+        if element_to_select:
+            self.element_manager.deselect_element(selected_element)
+            self.element_manager.select_element(element_to_select)
+        elif side == Side.RIGHT:
+            logger.debug(f"Selected element is last element in level. Can't select next.")
+        else:
+            logger.debug(f"Selected element is first element in level. Can't select previous.")
+
+
     def get_previous_marker_x_by_x(self, x: int) -> None | int:
         all_marker_xs = self.get_all_elements_boundaries()
         earlier_marker_xs = [x_ for x_ in all_marker_xs if x_ < x]
@@ -494,17 +542,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 class TimelineUIOldMethods:
     # -------------------OLD METHODS----------------------
 
-    def on_hscrollbar(self, *args):
-        # TODO: Refactor, I think it is redundant to do this on every timeline. Will research.
-        # In the meantime, figure out what to do about collection attribute
-        self.collection.scrollbar.set(*args)
-        try:
-            if globals_.settings["GENERAL"]["freeze_timeline_labels"]:
-                self.update_freezed_label_position()
-        except TypeError:
-            # testing
-            pass
-
     def update_freezed_label_position(self) -> None:
         self.canvas.coords(
             self.label_bg,
@@ -523,31 +560,6 @@ class TimelineUIOldMethods:
     def reset_label_position(self):
         self.canvas.coords(self.label_bg, *self._default_label_bg_coords)
         self.canvas.coords(self.label_in_canvas, *self._default_label_coords)
-
-    def make_visible(self):
-        self.grid_canvas()
-        if isinstance(self, HasToolbar):
-            self.show_toolbar()
-
-    def make_invisible(self, change_visibility=True):
-        self.canvas.grid_remove()
-        if change_visibility:
-            self.visible = False
-        if isinstance(self, HasToolbar):
-            # noinspection PyUnresolvedReferences
-            self.update_toolbar()
-
-    def update_toolbar(self):
-        toolbar_should_be_visible = False
-        # TODO - how to not violate the law of demeter here?
-        for timeline in self.collection.objects:
-            if isinstance(timeline, type(self)) and timeline.visible:
-                toolbar_should_be_visible = True
-
-        if not toolbar_should_be_visible:
-            self.hide_toolbar()
-        else:
-            self.show_toolbar()
 
     def on_right_click(self, canvas_id: int, event: tk.Event) -> None:
         """Handles right-clicking inside of timeline"""
@@ -712,12 +724,6 @@ class TimelineUIOldMethods:
         if unit_to_select:
             self.deselect_all()
             self.select_object(unit_to_select)
-
-    def redraw(self):
-        super().redraw()
-        self.draw(redraw=True)
-        self.units.redraw()
-        self.arrange_fixed_elements()
 
     def arrange_fixed_elements(self):
         self.canvas.tag_raise(self.line.canvas_id)

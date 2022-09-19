@@ -4,7 +4,6 @@ import os
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
-import tilia.ui.tkinter.timelines.copy_paste
 from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError
 
 if TYPE_CHECKING:
@@ -35,7 +34,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.common import InvalidComponentKindError, log_object_creation
 from tilia.ui.tkinter.modifier_enum import ModifierEnum
-from tilia.misc_enums import InOrOut, UpOrDown
+from tilia.misc_enums import InOrOut, UpOrDown, Side
 from tilia.ui.tkinter.timelines.copy_paste import get_copy_data_from_elements, paste_into_element, CopyAttributes, Copyable
 
 
@@ -131,6 +130,9 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
     SUBSCRIPTIONS = [
         EventName.CANVAS_LEFT_CLICK,
         EventName.KEY_PRESS_DELETE,
+        EventName.KEY_PRESS_ENTER,
+        EventName.KEY_PRESS_LEFT,
+        EventName.KEY_PRESS_RIGHT,
         EventName.KEY_PRESS_CONTROL_C,
         EventName.KEY_PRESS_CONTROL_V,
         EventName.DEBUG_SELECTED_ELEMENTS,
@@ -411,6 +413,9 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         event_to_callback = {
             EventName.CANVAS_LEFT_CLICK: lambda: self._on_timeline_ui_click(*args, **kwargs),
             EventName.KEY_PRESS_DELETE: self._on_delete_press,
+            EventName.KEY_PRESS_ENTER: self._on_enter_press,
+            EventName.KEY_PRESS_LEFT: lambda: self._on_side_arrow_press(Side.LEFT),
+            EventName.KEY_PRESS_RIGHT: lambda: self._on_side_arrow_press(Side.RIGHT),
             EventName.KEY_PRESS_CONTROL_C: self._on_request_to_copy,
             EventName.KEY_PRESS_CONTROL_V: self._on_request_to_paste,
             EventName.KEY_PRESS_CONTROL_SHIFT_V: self._on_request_to_paste_with_children,
@@ -458,6 +463,21 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
     def _on_delete_press(self):
         for timeline_ui in self._timeline_uis:
             timeline_ui.on_delete_press()
+
+    def _on_enter_press(self):
+        if any([tlui.has_selected_elements for tlui in self._timeline_uis]):
+            events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR)
+
+    def _on_side_arrow_press(self, side: Side):
+
+        @runtime_checkable
+        class AcceptsArrowPress(Protocol):
+            def on_side_arrow_press(self, side): ...
+
+        for timeline_ui in self._timeline_uis:
+            if isinstance(timeline_ui, AcceptsArrowPress):
+                timeline_ui.on_side_arrow_press(side)
+
 
     def _on_request_to_copy(self):
 

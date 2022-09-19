@@ -16,6 +16,9 @@ from typing import Optional
 
 
 class EventName(Enum):
+    KEY_PRESS_RIGHT = auto()
+    KEY_PRESS_LEFT = auto()
+    KEY_PRESS_ENTER = auto()
     REQUEST_TO_REDO = auto()
     REQUEST_TO_UNDO = auto()
     KEY_PRESS_CONTROL_SHIFT_V = auto()
@@ -132,6 +135,7 @@ class Event:
 
 active_events = set()
 
+_subscribers_to_subscriptions = {}
 
 for event_name in EventName:
     active_events.add(Event(event_name))
@@ -167,6 +171,7 @@ def unsubscribe(event_name: EventName, subscriber):
 
 def find_event_by_name(event_name: EventName):
     return next(e for e in active_events if e.name == event_name)
+
 
 
 class Subscriber(ABC):
