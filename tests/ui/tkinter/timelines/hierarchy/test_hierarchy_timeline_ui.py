@@ -303,9 +303,9 @@ class TestHierarchyTimelineTkUI:
 
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
 
-        copy_data = tilia.ui.tkinter.timelines.copy_paste.get_copy_data_from_element(hrc1.ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES)
+        copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc1.ui])
         tl_with_ui.ui._select_element(hrc2.ui)
-        tl_with_ui.ui.paste_into_selected_elements([copy_data])
+        tl_with_ui.ui.paste_into_selected_elements(copy_data)
 
         assert_are_copies(hrc1, hrc2)
 
@@ -451,12 +451,12 @@ class TestHierarchyTimelineTkUI:
             ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
         )
 
-        copy_data = tilia.ui.tkinter.timelines.copy_paste.get_copy_data_from_element(hrc3.ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES)
+        copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc3.ui])
 
         tl_with_ui.ui._select_element(hrc4.ui)
 
         with pytest.raises(PasteError):
-            tl_with_ui.ui.paste_with_children_into_selected_elements([copy_data])
+            tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
     def test_paste_with_children_paste_two_elements_raises_error(self, tl_with_ui):
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
@@ -468,12 +468,12 @@ class TestHierarchyTimelineTkUI:
             ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
         )
 
-        copy_data = tilia.ui.tkinter.timelines.copy_paste.get_copy_data_from_element(hrc3.ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES)
+        copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc3.ui, hrc4.ui])
 
         tl_with_ui.ui._select_element(hrc4.ui)
 
         with pytest.raises(PasteError):
-            tl_with_ui.ui.paste_with_children_into_selected_elements([copy_data, copy_data])
+            tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
 
     ######################
@@ -560,5 +560,68 @@ class TestHierarchyTimelineTkUI:
 
         assert list(tl_with_ui.component_manager._components)[0].ui.label == 'initial value'
         assert list(tl_with_ui.component_manager._components)[0].ui.comments == 'some comments'
+
+    def test_undo_paste(self, tl_with_ui, undo_manager):
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc1')
+        hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc2')
+
+        copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc1.ui])
+
+        tl_with_ui.ui._select_element(hrc2.ui)
+        tl_with_ui.ui.paste_into_selected_elements(copy_data)
+
+        undo_manager.undo()
+
+        assert 'hrc2' in [h.ui.label for h in tl_with_ui.component_manager._components]
+
+    def test_redo_paste(self, tl_with_ui, undo_manager):
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc1')
+        hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc2')
+
+        copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc1.ui])
+
+        tl_with_ui.ui._select_element(hrc2.ui)
+        tl_with_ui.ui.paste_into_selected_elements(copy_data)
+
+        undo_manager.undo()
+        undo_manager.redo()
+
+        assert 'hrc2' not in [h.ui.label for h in tl_with_ui.component_manager._components]
+
+    def test_undo_paste_with_children(self, tl_with_ui, undo_manager):
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc1')
+        hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2, label='hrc2')
+        hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 1, 2, 2, label='hrc3')
+
+        hrc2.children = [hrc1]
+        hrc1.parent = hrc2
+
+        copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc2.ui])
+
+        tl_with_ui.ui._select_element(hrc3.ui)
+        tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
+
+        undo_manager.undo()
+
+        assert len(tl_with_ui.component_manager._components) == 3
+
+    def test_redo_paste_with_children(self, tl_with_ui, undo_manager):
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc1')
+        hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2, label='hrc2')
+        hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 1, 2, 2, label='hrc3')
+
+        hrc2.children = [hrc1]
+        hrc1.parent = hrc2
+
+        copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc2.ui])
+
+        tl_with_ui.ui._select_element(hrc3.ui)
+        tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
+
+        undo_manager.undo()
+        undo_manager.redo()
+
+        assert len(tl_with_ui.component_manager._components) == 4
+
 
 
