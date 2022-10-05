@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
+from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
 from tilia.timelines.state_actions import StateAction
-from tilia.ui.tkinter.common import display_right_click_menu
 from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError
 
 if TYPE_CHECKING:
@@ -50,6 +50,7 @@ class Inspectable(Protocol):
 
     def get_inspector_dict(self) -> dict[str:Any]:
         ...
+
 
 class TimelineCanvas(tk.Canvas):
     """Interface for the canvas that composes a timeline.
@@ -520,21 +521,24 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         # noinspection PyUnboundLocalVariable
         events.post(EventName.TIMELINE_COMPONENT_COPIED, copied_components)
 
-    def _on_request_to_paste(self):
+    def get_elements_for_pasting(self) -> list[dict]:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
 
         if not clipboard_elements:
             raise PasteError("Can't paste: got no elements from clipboard.")
+
+        return clipboard_elements
+
+    def _on_request_to_paste(self) -> None:
+
+        clipboard_elements = self.get_elements_for_pasting()
 
         for timeline_ui in self._timeline_uis:
             if timeline_ui.has_selected_elements:
                 timeline_ui.paste_into_selected_elements(clipboard_elements)
 
-    def _on_request_to_paste_with_children(self):
-        clipboard_elements = self._app_ui.get_elements_for_pasting()
-
-        if not clipboard_elements:
-            raise PasteError("Can't paste: got no elements from clipboard.")
+    def _on_request_to_paste_with_children(self) -> None:
+        clipboard_elements = self.get_elements_for_pasting()
 
         for timeline_ui in self._timeline_uis:
             if timeline_ui.has_selected_elements and timeline_ui.TIMELINE_KIND == TimelineKind.HIERARCHY_TIMELINE:
@@ -1162,7 +1166,7 @@ class TimelineTkUI(TimelineUI, ABC):
         if len(paste_data) > 1:
             raise CopyError("Can't paste more than one copied item at the same time.")
 
-    def get_copy_data_from_selected_elements(self):
+    def get_copy_data_from_selected_elements(self) -> list[dict]:
         selected_elements = self.element_manager.get_selected_elements()
 
         self.validate_copy(selected_elements)
@@ -1387,3 +1391,41 @@ def create_tool_tip(widget, text):
     widget.bind("<Leave>", leave)
 
 
+class RightClickOption(Enum):
+    SEPARATOR = auto()
+    PASS = auto()
+    INCREASE_LEVEL = auto()
+    DECREASE_LEVEL = auto()
+    CHANGE_COLOR = auto()
+    EDIT = auto()
+    COPY = auto()
+    PASTE = auto()
+    PASTE_WITH_ALL_ATTRIBUTES = auto()
+    DELETE = auto()
+
+
+def display_right_click_menu(x: int, y: int, options: list[tuple[str, RightClickOption]]) -> None:
+
+    class RightClickMenu:
+        def __init__(
+                self,
+                x: int,
+                y: int,
+                options: list[tuple[str, RightClickOption]]
+        ):
+            self.tk_menu = tk.Menu(tearoff=False)
+            self.register_options(options)
+            self.tk_menu.tk_popup(x, y)
+
+        def register_options(self, options: list[tuple[str, RightClickOption]]):
+
+            for option in options:
+                if option[1] == RightClickOption.SEPARATOR:
+                    self.tk_menu.add_separator()
+                else:
+                    self.tk_menu.add_command(
+                        label=option[0],
+                        command=lambda _option=option[1]: events.post(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, _option)
+                    )
+
+    RightClickMenu(x, y, options)
