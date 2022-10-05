@@ -3,6 +3,7 @@ Defines the ui corresponding to a Hierarchy object.
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import tilia.utils.color
@@ -10,12 +11,12 @@ from tilia.events import EventName
 from tilia.misc_enums import StartOrEnd
 from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
-from ...common import display_right_click_menu, RightClickMenuOptions
+from tilia.ui.tkinter.timelines.common import RightClickOption
 
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineTkUI
     from tilia.timelines.hierarchy.components import Hierarchy
-    from tilia.ui.tkinter.timelines.common import TimelineCanvas, Inspectable
+    from tilia.ui.tkinter.timelines.common import TimelineCanvas, RightClickOption
 
 import logging
 
@@ -90,28 +91,28 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
     )
 
     RIGHT_CLICK_OPTIONS = [
-        "Edit...",
-        RightClickMenuOptions.SEPARATOR,
-        "Increase level",
-        "Decrease level",
-        "Change color...",
-        RightClickMenuOptions.SEPARATOR,
-        "Copy",
-        "Paste",
-        "Paste w/ all attributes",
-        RightClickMenuOptions.SEPARATOR,
-        "Delete",
+        ("Edit...", RightClickOption.EDIT),
+        ('', RightClickOption.SEPARATOR),
+        ("Increase level", RightClickOption.INCREASE_LEVEL),
+        ("Decrease level", RightClickOption.DECREASE_LEVEL),
+        ("Change color...", RightClickOption.CHANGE_COLOR),
+         ('', RightClickOption.SEPARATOR),
+        ("Copy", RightClickOption.COPY),
+        ("Paste", RightClickOption.PASTE),
+        ("Paste w/ all attributes", RightClickOption.PASTE_WITH_ALL_ATTRIBUTES),
+          ('', RightClickOption.SEPARATOR),
+        ("Delete", RightClickOption.DELETE),
     ]
 
     @log_object_creation
     def __init__(
-        self,
-        unit: Hierarchy,
-        timeline_ui: HierarchyTimelineTkUI,
-        canvas: tk.Canvas,
-        label: str = "",
-        color: str = "",
-        **_,
+            self,
+            unit: Hierarchy,
+            timeline_ui: HierarchyTimelineTkUI,
+            canvas: tk.Canvas,
+            label: str = "",
+            color: str = "",
+            **_,
     ):
 
         super().__init__(
@@ -137,11 +138,11 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
 
     @classmethod
     def create(
-        cls,
-        unit: Hierarchy,
-        timeline_ui: HierarchyTimelineTkUI,
-        canvas: TimelineCanvas,
-        **kwargs,
+            cls,
+            unit: Hierarchy,
+            timeline_ui: HierarchyTimelineTkUI,
+            canvas: TimelineCanvas,
+            **kwargs,
     ) -> HierarchyTkUI:
 
         return HierarchyTkUI(unit, timeline_ui, canvas, **kwargs)
@@ -307,9 +308,9 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
 
         x0 = self.start_x + self.XOFFSET
         y0 = (
-            tl_height
-            - self.YOFFSET
-            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
+                tl_height
+                - self.YOFFSET
+                - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
         )
         x1 = self.end_x - self.XOFFSET
 
@@ -338,7 +339,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         self.canvas.delete(self.comments_ind_id)
         self._delete_markers_if_not_shared()
 
-    def draw_markers(self):
+    def draw_markers(self) -> tuple[int, int]:
         """If there are already markers at start or end position,
         uses them instead"""
 
@@ -371,7 +372,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         )
 
     def get_marker_coords(
-        self, marker_extremity: StartOrEnd
+            self, marker_extremity: StartOrEnd
     ) -> tuple[float, float, float, float]:
 
         draw_h = self.timeline_ui.get_timeline_height() - self.MARKER_YOFFSET
@@ -425,8 +426,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         self.timeline_ui.display_right_click_menu_for_element(
             x, y, self.RIGHT_CLICK_OPTIONS
         )
-        events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
-        # TODO make it unsubscribe to the option at the correct moment
+        self.timeline_ui.listen_to_hierarchy_ui_right_click_menu(self)
 
     def _get_extremity_from_marker_id(self, marker_id: int):
         if marker_id == self.start_marker:
@@ -566,7 +566,6 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
 
     def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int):
         if inspected_id == self.id:
-
             logger.debug(f"Processing inspector field edition for {self}...")
 
             attr = self.FIELD_NAME_TO_ATTRIBUTES_NAME[field_name]
