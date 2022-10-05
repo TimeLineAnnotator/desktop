@@ -31,7 +31,7 @@ class Copyable(Protocol):
 
 def get_copy_data_from_elements(
         elements: list[tuple[Copyable, CopyAttributes]]
-):
+) -> list[dict]:
     copy_data = []
     for element, kind, copy_attrs in elements:
         copy_data.append(get_copy_data_from_element(element, copy_attrs))
