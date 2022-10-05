@@ -122,16 +122,13 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
         )
 
     def on_click(self, x: int, _, clicked_item_id: int, **_kw) -> None:
-        """Redirects self._process_element_click using the appropriate ui element. Note that, in the
-        case of shared canvas drawings (as in HierarchyTkUI markers), it
-        will call the method more than once."""
 
         logger.debug(f"Processing click on {self}...")
 
         if not clicked_item_id:
             logger.debug(f"No canvas item was clicked.")
         elif clicked_item_id == self.line:
-            logger.debug(f"Line was cliked. Nothind to do.")
+            logger.debug(f"Line was cliked. Nothing to do.")
         elif clicked_item_id == self.trough:
             self.prepare_to_drag()
 
