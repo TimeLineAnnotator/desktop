@@ -322,6 +322,8 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         if not selected_elements:
             return
 
+        self.paste_into_selected_elements(self.collection.get_elements_for_pasting())
+
     def on_paste_unit_with_children_button(self):
         selected_elements = self._log_and_get_elements_for_button_processing(
             "paste with children"
@@ -329,7 +331,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         if not selected_elements:
             return
 
-        selected_tl_components = [e.tl_component for e in selected_elements]
+        self.paste_with_children_into_selected_elements(self.collection.get_elements_for_pasting())
 
     def on_delete_button(self):
         self.delete_selected_elements()
