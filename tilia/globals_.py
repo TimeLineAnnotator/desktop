@@ -1,4 +1,5 @@
 import os
+import sys
 from enum import Enum, auto
 
 APP_NAME = "TiLiA"
@@ -20,6 +21,13 @@ DEFAULT_WINDOW_WIDTH = 1200
 DEFAULT_WINDOW_HEIGHT = 700
 
 IMG_DIR = os.path.join("ui", "img")
+
+if sys.platform == "linux":
+    USER_OS = 'LINUX'
+elif sys.platform == "darwin":
+    USER_OS = 'MACOS'
+elif sys.platform == "win32":
+    USER_OS = 'WINDOWS'
 
 
 class UserInterfaceKind(Enum):

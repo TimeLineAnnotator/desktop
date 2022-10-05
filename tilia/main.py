@@ -101,13 +101,9 @@ class TiLiA(Subscriber):
     # noinspection PyProtectedMember
     def _code_for_dev(self):
         """Use this to execute code before the ui mainloop runs."""
-        # self._timeline_with_ui_builder.create_timeline(
-        #     TimelineKind.HIERARCHY_TIMELINE, "HTL1"
-        # )
-        #
-        # self._timeline_with_ui_builder.create_timeline(
-        #     TimelineKind.HIERARCHY_TIMELINE, "HTL2"
-        # )
+        self._timeline_with_ui_builder.create_timeline(
+            TimelineKind.HIERARCHY_TIMELINE, "HTL1"
+        )
 
     @property
     def media_length(self):

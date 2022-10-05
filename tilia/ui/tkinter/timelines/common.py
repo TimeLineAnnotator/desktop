@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
 from tilia.timelines.state_actions import StateAction
+from tilia.ui.tkinter.common import display_right_click_menu
 from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError
 
 if TYPE_CHECKING:
@@ -130,6 +131,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
     SUBSCRIPTIONS = [
         EventName.CANVAS_LEFT_CLICK,
+        EventName.CANVAS_RIGHT_CLICK,
         EventName.KEY_PRESS_DELETE,
         EventName.KEY_PRESS_ENTER,
         EventName.KEY_PRESS_LEFT,
@@ -412,7 +414,8 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             self, event_name: str, *args, **kwargs
     ) -> None:
         event_to_callback = {
-            EventName.CANVAS_LEFT_CLICK: lambda: self._on_timeline_ui_click(*args, **kwargs),
+            EventName.CANVAS_LEFT_CLICK: lambda: self._on_timeline_ui_left_click(*args, **kwargs),
+            EventName.CANVAS_RIGHT_CLICK: lambda: self._on_timeline_ui_right_click(*args, **kwargs),
             EventName.KEY_PRESS_DELETE: self._on_delete_press,
             EventName.KEY_PRESS_ENTER: self._on_enter_press,
             EventName.KEY_PRESS_LEFT: lambda: self._on_side_arrow_press(Side.LEFT),
@@ -436,7 +439,28 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
         event_to_callback[event_name]()
 
-    def _on_timeline_ui_click(
+    def _on_timeline_ui_right_click(
+            self,
+            canvas: tk.Canvas,
+            x: int,
+            y: int,
+            clicked_item_id: int,
+            modifier: ModifierEnum,
+    ) -> None:
+
+        clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
+
+        if clicked_timeline_ui:
+            logger.debug(
+                f"Notifying timeline ui '{clicked_timeline_ui}' about right click."
+            )
+            clicked_timeline_ui.on_click(x, y, clicked_item_id, button=Side.RIGHT, modifier=modifier)
+        else:
+            raise ValueError(
+                f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
+            )
+
+    def _on_timeline_ui_left_click(
             self,
             canvas: tk.Canvas,
             x: int,
@@ -455,7 +479,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about left click."
             )
-            clicked_timeline_ui.on_click(x, y, clicked_item_id, modifier=modifier)
+            clicked_timeline_ui.on_click(x, y, clicked_item_id, button=Side.LEFT, modifier=modifier)
         else:
             raise ValueError(
                 f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
@@ -877,6 +901,20 @@ class LeftClickable(Protocol):
         ...
 
 
+@runtime_checkable
+class RightClickable(Protocol):
+    """
+    Interface for objects that respond to right-clicks
+    Used, for instance, to display a right_click_menu.
+    """
+
+    right_click_triggers: tuple[int, ...]
+
+    def on_right_click(self, x: float, y: float, clicked_item_id: int) -> None:
+        ...
+
+
+
 class TimelineTkUI(TimelineUI, ABC):
     """
     Interface for the ui of a Timeline object.
@@ -908,7 +946,7 @@ class TimelineTkUI(TimelineUI, ABC):
             name: str,
             height: int,
             is_visible: bool,
-            **kwargs,
+            **kwargs
     ):
         super().__init__(
             *args,
@@ -916,7 +954,7 @@ class TimelineTkUI(TimelineUI, ABC):
             height=height,
             is_visible=is_visible,
             name=name,
-            **kwargs,
+            **kwargs
         )
 
         self.component_kinds_to_ui_element_kinds = component_kinds_to_ui_element_kinds
@@ -951,24 +989,35 @@ class TimelineTkUI(TimelineUI, ABC):
         )
 
     def on_click(
-            self, x: int, y: int, clicked_item_id: int, modifier: ModifierEnum
+            self, x: int, y: int, clicked_item_id: int,
+            button: Side, modifier: ModifierEnum
     ) -> None:
-        """Redirects self._process_element_click using the appropriate ui element. Note that, in the
-        case of shared canvas drawings (as in HierarchyTkUI markers), it
-        will call the method more than once."""
+        """
+        Calls self._process_element_click with the clicked ui element
+        as an argument.
+        """
 
         logger.debug(f"Processing click on {self}...")
 
         if not clicked_item_id:
             logger.debug(f"No canvas item was clicked.")
-        else:
-            self._process_canvas_item_click(x, y, clicked_item_id, modifier)
+            return
+
+        clicked_elements = self._get_clicked_element(clicked_item_id)
+
+        if not clicked_elements:
+            logger.debug(f"No ui element was clicked.")
+            return
+
+        for clicked_element in clicked_elements:
+            if button == Side.LEFT:
+                self._process_ui_element_left_click(clicked_element, clicked_item_id)
+            elif button == Side.RIGHT:
+                self._process_ui_element_right_click(x, y, clicked_element, clicked_item_id)
 
         logger.debug(f"Processed click on {self}.")
 
-    def _process_canvas_item_click(
-            self, x: int, y: int, clicked_item_id: int, modifier: ModifierEnum
-    ) -> None:
+    def _get_clicked_element(self, clicked_item_id: int) -> list[TimelineUIElement]:
 
         owns_clicked_item = lambda e: clicked_item_id in e.canvas_drawings_ids
 
@@ -976,14 +1025,10 @@ class TimelineTkUI(TimelineUI, ABC):
             owns_clicked_item, kind=UIElementKind.ANY
         )
 
-        if not clicked_elements:
-            logger.debug(f"No ui element was clicked.")
-            return
+        return clicked_elements
 
-        for clicked_element in clicked_elements:
-            self._process_ui_element_click(clicked_element, clicked_item_id)
 
-    def _process_ui_element_click(
+    def _process_ui_element_left_click(
             self, clicked_element: TimelineComponentUI, clicked_item_id: int
     ) -> None:
 
@@ -1005,7 +1050,24 @@ class TimelineTkUI(TimelineUI, ABC):
         else:
             logger.debug(f"Element is not left clickable.")
 
+
+
         logger.debug(f"Processed click on ui element '{clicked_element}'.")
+
+    @staticmethod
+    def _process_ui_element_right_click(
+            x: float, y: float,
+            clicked_element: TimelineComponentUI,
+            clicked_item_id: int
+    ) -> None:
+
+        if (
+                isinstance(clicked_element, RightClickable)
+                and clicked_item_id in clicked_element.right_click_triggers
+        ):
+            clicked_element.on_right_click(x, y, clicked_item_id)
+        else:
+            logger.debug(f"Element is not right clickable.")
 
     def _select_element(self, element: Selectable):
 
@@ -1023,6 +1085,10 @@ class TimelineTkUI(TimelineUI, ABC):
                 events.post(EventName.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
             self.element_manager.deselect_element(element)
+
+    def display_right_click_menu_for_element(self, canvas_x: float, canvas_y: float, options: list[str]):
+        display_right_click_menu(self.canvas.winfo_rootx() + int(canvas_x),
+                                 self.canvas.winfo_rooty() + int(canvas_y), options)
 
     @staticmethod
     def post_inspectable_selected_event(element: Inspectable):
@@ -1047,7 +1113,7 @@ class TimelineTkUI(TimelineUI, ABC):
         logging.debug(f"Processing {action_str_for_log} button click in {self}...")
 
         if not self.visible:
-            logging.debug(f"TimelineUI is not is_visible, nothing to do.")
+            logging.debug(f"TimelineUI is not visible, nothing to do.")
 
         selected_elements = self.element_manager.get_selected_elements()
 

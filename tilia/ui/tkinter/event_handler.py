@@ -1,5 +1,6 @@
 import tkinter as tk
 import tilia.events as events
+from tilia import globals_
 
 from tilia.events import EventName
 from tilia.ui.tkinter.modifier_enum import ModifierEnum
@@ -12,23 +13,30 @@ def on_mouse_wheel(event: tk.Event):
         events.post(EventName.REQUEST_ZOOM_OUT, event.widget.canvasx(event.x))
 
 
+if globals_.USER_OS == 'WINDOWS' or 'LINUX':
+    right_click_keysym = '<ButtonPress-3>'
+else:
+    right_click_keysym = '<ButtonPress-2>'
+
+
 DEFAULT_CANVAS_BINDINGS = [
     ######################
     ### MOUSE BINDINGS ###
     ######################
 
-    ("<ButtonPress-1>", lambda e: on_click(e, modifier=ModifierEnum.NONE)),
+    ("<ButtonPress-1>", lambda e: on_left_click(e, modifier=ModifierEnum.NONE)),
+    (right_click_keysym, lambda e: on_right_click(e, modifier=ModifierEnum.NONE)),
     (
         "<Shift-ButtonPress-1>",
-        lambda e: on_click(e, modifier=ModifierEnum.SHIFT),
+        lambda e: on_left_click(e, modifier=ModifierEnum.SHIFT),
     ),
     (
         "<Control-ButtonPress-1>",
-        lambda e: on_click(e, modifier=ModifierEnum.CONTROL),
+        lambda e: on_left_click(e, modifier=ModifierEnum.CONTROL),
     ),
     (
         "<Control-ButtonPress-1>",
-        lambda e: on_click(e, modifier=ModifierEnum.CONTROL),
+        lambda e: on_left_click(e, modifier=ModifierEnum.CONTROL),
     ),
     (
         "<B1-Motion>",
@@ -87,7 +95,7 @@ class TkEventHandler:
             self.root.bind_class("Canvas", sequence, callback)
 
 
-def on_click(event: tk.Event, modifier: ModifierEnum):
+def on_left_click(event: tk.Event, modifier: ModifierEnum):
     """Handles mouse click"""
     canvas = event.widget
     canvas_x = canvas.canvasx(event.x)
@@ -96,6 +104,23 @@ def on_click(event: tk.Event, modifier: ModifierEnum):
 
     events.post(
         EventName.CANVAS_LEFT_CLICK,
+        canvas,
+        canvas_x,
+        canvas_y,
+        clicked_item_id,
+        modifier=modifier,
+    )
+
+
+def on_right_click(event: tk.Event, modifier: ModifierEnum):
+    """Handles mouse click"""
+    canvas = event.widget
+    canvas_x = canvas.canvasx(event.x)
+    canvas_y = canvas.canvasx(event.y)
+    clicked_item_id = next(iter(canvas.find_withtag(tk.CURRENT)), None)
+
+    events.post(
+        EventName.CANVAS_RIGHT_CLICK,
         canvas,
         canvas_x,
         canvas_y,

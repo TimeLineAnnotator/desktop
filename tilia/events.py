@@ -9,13 +9,14 @@ the subscriber gets notified through a call to its subscriber_react method.
 import logging
 from enum import Enum, auto
 
-
 from abc import ABC
 from abc import abstractmethod
 from typing import Optional
 
 
 class EventName(Enum):
+    CANVAS_RIGHT_CLICK = auto()
+    RIGHT_CLICK_MENU_OPTION_CLICK = auto()
     KEY_PRESS_RIGHT = auto()
     KEY_PRESS_LEFT = auto()
     KEY_PRESS_ENTER = auto()
@@ -97,7 +98,6 @@ class EventName(Enum):
     REQUEST_TIMELINE_FRONTEND__RESET_TIMELINE_SIZE = auto()
     REQUEST_ZOOM_IN = auto()
     REQUEST_ZOOM_OUT = auto()
-    RIGHT_BUTTON_CLICK = auto()
     SEEK_TO_OBJECT_BFR = auto()
     SELECTED_OBJECT = auto()
     SPLIT_RANGE_BUTTON = auto()

@@ -10,6 +10,7 @@ from tilia.events import EventName
 from tilia.misc_enums import StartOrEnd
 from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
+from ...common import display_right_click_menu, RightClickMenuOptions
 
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineTkUI
@@ -88,7 +89,19 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         support_by_component_value=["start", "end", "level"],
     )
 
-    RIGHT_CLICK_OPTIONS = ["Edit", "Copy", "Paste", "Delete"]
+    RIGHT_CLICK_OPTIONS = [
+        "Edit...",
+        RightClickMenuOptions.SEPARATOR,
+        "Increase level",
+        "Decrease level",
+        "Change color...",
+        RightClickMenuOptions.SEPARATOR,
+        "Copy",
+        "Paste",
+        "Paste w/ all attributes",
+        RightClickMenuOptions.SEPARATOR,
+        "Delete",
+    ]
 
     @log_object_creation
     def __init__(
@@ -404,6 +417,17 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         events.subscribe(EventName.TIMELINE_LEFT_BUTTON_DRAG, self)
         events.subscribe(EventName.TIMELINE_LEFT_BUTTON_RELEASE, self)
 
+    @property
+    def right_click_triggers(self) -> tuple[int, ...]:
+        return self.rect_id, self.label_id, self.comments_ind_id
+
+    def on_right_click(self, x: float, y: float, _) -> None:
+        self.timeline_ui.display_right_click_menu_for_element(
+            x, y, self.RIGHT_CLICK_OPTIONS
+        )
+        events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
+        # TODO make it unsubscribe to the option at the correct moment
+
     def _get_extremity_from_marker_id(self, marker_id: int):
         if marker_id == self.start_marker:
             return StartOrEnd.START
@@ -543,7 +567,6 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
     def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int):
         if inspected_id == self.id:
 
-
             logger.debug(f"Processing inspector field edition for {self}...")
 
             attr = self.FIELD_NAME_TO_ATTRIBUTES_NAME[field_name]
@@ -560,6 +583,3 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
             logger.debug(f"New value is '{value}'.")
 
             setattr(self, attr, value)
-
-
-
