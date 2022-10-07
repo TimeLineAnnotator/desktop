@@ -13,13 +13,14 @@ from tilia.misc_enums import IncreaseOrDecrease, Side
 from tilia.timelines.state_actions import StateAction
 
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.tkinter.common import ask_for_color
+from tilia.ui.tkinter.timelines.common import RightClickOption
 
 if TYPE_CHECKING:
     from tilia.ui.tkinter.timelines.common import (
         TkTimelineUICollection,
         TimelineUIElementManager,
-        TimelineCanvas )
-    from tilia.timelines.hierarchy.components import Hierarchy
+        TimelineCanvas)
 
 import logging
 
@@ -40,7 +41,6 @@ from tilia.ui.element_kinds import UIElementKind
 
 
 class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
-
     DEFAULT_HEIGHT = 150
     CANVAS_CLASS = tk.Canvas
     LABEL_WIDTH = 15
@@ -69,16 +69,16 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     TIMELINE_KIND = TimelineKind.HIERARCHY_TIMELINE
 
     def __init__(
-        self,
-        *args,
-        timeline_ui_collection: TkTimelineUICollection,
-        element_manager: TimelineUIElementManager,
-        canvas: TimelineCanvas,
-        toolbar: HierarchyTimelineToolbar,
-        name: str,
-        height: int = DEFAULT_HEIGHT,
-        is_visible: bool = True,
-        **kwargs,
+            self,
+            *args,
+            timeline_ui_collection: TkTimelineUICollection,
+            element_manager: TimelineUIElementManager,
+            canvas: TimelineCanvas,
+            toolbar: HierarchyTimelineToolbar,
+            name: str,
+            height: int = DEFAULT_HEIGHT,
+            is_visible: bool = True,
+            **kwargs,
     ):
 
         super().__init__(
@@ -111,13 +111,14 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             if not element.tl_component.parent and element.tl_component.children:
                 self.rearrange_descendants_drawings_stacking_order(element)
 
-
     def rearrange_descendants_drawings_stacking_order(self, element: HierarchyTkUI):
         logger.debug(f"Rearranging descendants of {element}...")
 
         def get_element_and_descendants(parent: HierarchyTkUI):
-            is_in_branch = lambda e: e.tl_component.start >= parent.tl_component.start and e.tl_component.end <= parent.tl_component.end
-            elements_in_branch = self.element_manager.get_elements_by_condition(is_in_branch, kind=UIElementKind.HIERARCHY_TKUI)
+            is_in_branch = lambda \
+                e: e.tl_component.start >= parent.tl_component.start and e.tl_component.end <= parent.tl_component.end
+            elements_in_branch = self.element_manager.get_elements_by_condition(is_in_branch,
+                                                                                kind=UIElementKind.HIERARCHY_TKUI)
             return elements_in_branch
 
         def get_drawings_to_arrange(elements: set[HierarchyTkUI]):
@@ -153,7 +154,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
                 self.canvas.tag_lower(element.rect_id, lowest_drawing_in_lower_elements)
                 self.canvas.tag_lower(element.label_id, lowest_drawing_in_lower_elements)
                 self.canvas.tag_lower(element.comments_ind_id, lowest_drawing_in_lower_elements)
-
 
     def get_markerid_at_x(self, x: int):
         starts_or_ends_at_time = lambda u: u.start_x == x or u.end_x == x
@@ -192,7 +192,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         pass
 
     def on_subscribed_event(
-        self, event_name: str, *args: tuple, **kwargs: dict
+            self, event_name: str, *args: tuple, **kwargs: dict
     ) -> None:
         if event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD:
             self.on_create_unit_below_button()
@@ -209,18 +209,20 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT:
             self.on_paste_unit_button()
         elif (
-            event_name
-            == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN
+                event_name
+                == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN
         ):
             self.on_paste_unit_with_children_button()
         elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE:
             self.on_delete_button()
         elif event_name == EventName.INSPECTOR_WINDOW_OPENED:
             self.on_inspector_window_opened()
+        elif event_name == EventName.RIGHT_CLICK_MENU_OPTION_CLICK:
+            self.on_right_click_menu_option_click(*args)
 
     @staticmethod
     def _swap_components_with_uis_in_relation(
-        relation: ParentChildRelation,
+            relation: ParentChildRelation,
     ) -> ParentChildRelation:
 
         return ParentChildRelation(
@@ -317,14 +319,14 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         logging.debug(f"Requesting timeline to merge {selected_components}.")
         self.timeline.merge(selected_components)
 
-    def on_paste_unit_button(self):
+    def on_paste_unit_button(self) -> None:
         selected_elements = self._log_and_get_elements_for_button_processing("paste")
         if not selected_elements:
             return
 
         self.paste_into_selected_elements(self.collection.get_elements_for_pasting())
 
-    def on_paste_unit_with_children_button(self):
+    def on_paste_unit_with_children_button(self) -> None:
         selected_elements = self._log_and_get_elements_for_button_processing(
             "paste with children"
         )
@@ -339,25 +341,28 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     def on_side_arrow_press(self, side: Side):
 
         def _get_next_element_in_same_level(elm):
-            is_later_at_same_level = lambda h: h.tl_component.start > elm.tl_component.start and h.tl_component.level == elm.tl_component.level
+            is_later_at_same_level = lambda \
+                h: h.tl_component.start > elm.tl_component.start and h.tl_component.level == elm.tl_component.level
             later_elements = self.element_manager.get_elements_by_condition(is_later_at_same_level,
-                                                                           UIElementKind.HIERARCHY_TKUI)
+                                                                            UIElementKind.HIERARCHY_TKUI)
             if later_elements:
                 return sorted(later_elements, key=lambda x: x.tl_component.start)[0]
             else:
                 return None
 
         def _get_previous_element_in_same_level(elm):
-            is_earlier_at_same_level = lambda h: h.tl_component.start < elm.tl_component.start and h.tl_component.level == elm.tl_component.level
+            is_earlier_at_same_level = lambda \
+                h: h.tl_component.start < elm.tl_component.start and h.tl_component.level == elm.tl_component.level
             earlier_elements = self.element_manager.get_elements_by_condition(is_earlier_at_same_level,
-                                                                           UIElementKind.HIERARCHY_TKUI)
+                                                                              UIElementKind.HIERARCHY_TKUI)
             if earlier_elements:
                 return sorted(earlier_elements, key=lambda x: x.tl_component.start)[-1]
             else:
                 return None
 
         def _deselect_all_but_last():
-            ordered_selected_elements = sorted(self.element_manager.get_selected_elements(), key=lambda x: x.tl_component.start)
+            ordered_selected_elements = sorted(self.element_manager.get_selected_elements(),
+                                               key=lambda x: x.tl_component.start)
             if len(ordered_selected_elements) > 1:
                 for element in ordered_selected_elements[:-1]:
                     self.element_manager.deselect_element(element)
@@ -383,6 +388,64 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         else:
             logger.debug(f"Selected element is first element in level. Can't select previous.")
 
+    def listen_to_hierarchy_ui_right_click_menu(self, hierarchy: HierarchyTkUI) -> None:
+        events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
+        # TODO make it unsubscribe to the option at the correct moment
+        self.right_clicked_hierarchy = hierarchy
+        print(f'listening to menu of {self.right_clicked_hierarchy}')
+
+    def on_right_click_menu_option_click(self, option: RightClickOption):
+        option_to_callback = {
+            RightClickOption.INCREASE_LEVEL: self.right_click_menu_increase_level,
+            RightClickOption.DECREASE_LEVEL: self.right_click_menu_decrease_level,
+            RightClickOption.CREATE_UNIT_BELOW: self.right_click_menu_decrease_level,
+            RightClickOption.EDIT: self.right_click_menu_edit,
+            RightClickOption.CHANGE_COLOR: self.right_click_menu_change_color,
+            RightClickOption.RESET_COLOR: self.right_click_menu_reset_color,
+            RightClickOption.COPY: self.right_click_menu_copy,
+            RightClickOption.PASTE: self.right_click_menu_paste,
+            RightClickOption.PASTE_WITH_ALL_ATTRIBUTES: self.right_click_menu_paste_with_all_attributes,
+            RightClickOption.DELETE: self.right_click_menu_delete
+        }
+        print(f'will perform {option} on {self.right_clicked_hierarchy}')
+        option_to_callback[option]()
+
+    def right_click_menu_increase_level(self) -> None:
+        self.timeline.change_level_by_amount(1, self.right_clicked_hierarchy.tl_component)
+
+    def right_click_menu_decrease_level(self) -> None:
+        self.timeline.change_level_by_amount(-1, self.right_clicked_hierarchy.tl_component)
+
+    def right_click_menu_edit(self) -> None:
+        self.deselect_all_elements()
+        self._select_element(self.right_clicked_hierarchy)
+        events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR)
+
+    def right_click_menu_change_color(self) -> None:
+        if color := ask_for_color(self.right_clicked_hierarchy.color):
+            self.right_clicked_hierarchy.color = color
+
+    def right_click_menu_reset_color(self) -> None:
+        self.right_clicked_hierarchy.reset_color()
+
+    def right_click_menu_copy(self) -> None:
+        events.post(
+            EventName.TIMELINE_COMPONENT_COPIED,
+            self.get_copy_data_from_hierarchy_uis([self.right_clicked_hierarchy])
+        )
+
+    def right_click_menu_paste(self) -> None:
+        self.element_manager.deselect_all_elements()
+        self.element_manager.select_element(self.right_clicked_hierarchy)
+        self.paste_into_selected_elements(self.collection.get_elements_for_pasting())
+
+    def right_click_menu_paste_with_all_attributes(self) -> None:
+        self.element_manager.deselect_all_elements()
+        self.element_manager.select_element(self.right_clicked_hierarchy)
+        self.paste_with_children_into_selected_elements(self.collection.get_elements_for_pasting())
+
+    def right_click_menu_delete(self) -> None:
+        self.timeline.on_request_to_delete_component(self.right_clicked_hierarchy.tl_component)
 
     def get_previous_marker_x_by_x(self, x: int) -> None | int:
         all_marker_xs = self.get_all_elements_boundaries()
@@ -425,7 +488,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         if len(elements) > 1:
             raise CopyError(f"Can't copy more than one hierarchy at once.")
 
-
     def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
 
         def validate_paste_with_children(paste_data_: list[dict],
@@ -439,7 +501,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
         def get_descendants(parent: HierarchyTkUI):
             is_in_branch = lambda \
-                e: e.tl_component.start >= parent.tl_component.start and e.tl_component.end <= parent.tl_component.end
+                    e: e.tl_component.start >= parent.tl_component.start and e.tl_component.end <= parent.tl_component.end
             elements_in_branch = self.element_manager.get_elements_by_condition(is_in_branch,
                                                                                 kind=UIElementKind.HIERARCHY_TKUI)
             elements_in_branch.remove(parent)
@@ -488,7 +550,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             # logger.debug(f"Child end relative to previous parent is '{relative_child_end}'")
             new_child_end = (relative_child_end * scale_factor) + new_parent.tl_component.end
             logger.debug(f"New child end is '{new_child_end}'")
-            
+
             return self.timeline.create_timeline_component(
                 kind=ComponentKind.HIERARCHY,
                 start=new_child_start,
@@ -744,5 +806,3 @@ class TimelineUIOldMethods:
             self.canvas.update()
             self.height = new_height
             self.redraw()
-
-
