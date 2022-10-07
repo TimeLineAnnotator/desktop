@@ -1392,10 +1392,12 @@ def create_tool_tip(widget, text):
 
 
 class RightClickOption(Enum):
+    RESET_COLOR = auto()
     SEPARATOR = auto()
     PASS = auto()
     INCREASE_LEVEL = auto()
     DECREASE_LEVEL = auto()
+    CREATE_UNIT_BELOW = auto()
     CHANGE_COLOR = auto()
     EDIT = auto()
     COPY = auto()
