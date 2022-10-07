@@ -96,6 +96,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         ("Increase level", RightClickOption.INCREASE_LEVEL),
         ("Decrease level", RightClickOption.DECREASE_LEVEL),
         ("Change color...", RightClickOption.CHANGE_COLOR),
+        ("Reset color", RightClickOption.RESET_COLOR),
          ('', RightClickOption.SEPARATOR),
         ("Copy", RightClickOption.COPY),
         ("Paste", RightClickOption.PASTE),
@@ -235,6 +236,9 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
             self._color = self.get_default_level_color(self.level)
         else:
             self._color = color
+
+    def reset_color(self) -> None:
+        self.color= self.get_default_level_color(self.level)
 
     # noinspection PyTypeChecker
     def process_color_before_level_change(self, new_level: int) -> None:
