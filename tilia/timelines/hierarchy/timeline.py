@@ -58,6 +58,9 @@ class HierarchyTimeline(Timeline):
 
     def split(self, time: float) -> None:
         unit_to_split = self.component_manager.get_unit_to_split(time)
+        if not unit_to_split:
+            logger.debug(f"No hierarchy at the current playback level. Can not split.")
+            return
         self.component_manager.split(unit_to_split, time)
 
     def merge(self, units: list[Hierarchy]) -> None:
