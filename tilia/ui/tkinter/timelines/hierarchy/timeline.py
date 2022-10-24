@@ -13,7 +13,7 @@ from tilia.misc_enums import IncreaseOrDecrease, Side
 from tilia.timelines.state_actions import StateAction
 
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.tkinter.common import ask_for_color
+from tilia.ui.tkinter.common import ask_for_color, ask_for_int, ask_for_string
 from tilia.ui.tkinter.timelines.common import RightClickOption
 
 if TYPE_CHECKING:
@@ -98,13 +98,14 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
         self.collection = timeline_ui_collection
 
-        self._height = height
-        self.name = name
+        self._name = name
 
         self.timeline = None
 
+        self.right_clicked_hierarchy = None
+
     def get_timeline_height(self):
-        return self._height
+        return self.height
 
     def rearrange_canvas_drawings(self):
         for element in self.element_manager.get_all_elements():
@@ -219,6 +220,8 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             self.on_inspector_window_opened()
         elif event_name == EventName.RIGHT_CLICK_MENU_OPTION_CLICK:
             self.on_right_click_menu_option_click(*args)
+        elif event_name == EventName.RIGHT_CLICK_MENU_NEW:
+            self.on_right_click_menu_new()
 
     @staticmethod
     def _swap_components_with_uis_in_relation(
@@ -389,13 +392,16 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             logger.debug(f"Selected element is first element in level. Can't select previous.")
 
     def listen_to_hierarchy_ui_right_click_menu(self, hierarchy: HierarchyTkUI) -> None:
-        events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
-        # TODO make it unsubscribe to the option at the correct moment
         self.right_clicked_hierarchy = hierarchy
-        print(f'listening to menu of {self.right_clicked_hierarchy}')
+        logger.debug(f"{self} is listening for right menu option clicks...")
+
+    def on_right_click_menu_new(self) -> None:
+        self.unsubscribe([EventName.RIGHT_CLICK_MENU_OPTION_CLICK, EventName.RIGHT_CLICK_MENU_NEW])
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
         option_to_callback = {
+            RightClickOption.CHANGE_TIMELINE_HEIGHT: self.right_click_menu_change_timeline_height,
+            RightClickOption.CHANGE_TIMELINE_NAME: self.right_click_menu_change_timeline_name,
             RightClickOption.INCREASE_LEVEL: self.right_click_menu_increase_level,
             RightClickOption.DECREASE_LEVEL: self.right_click_menu_decrease_level,
             RightClickOption.CREATE_UNIT_BELOW: self.right_click_menu_decrease_level,
@@ -407,8 +413,19 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             RightClickOption.PASTE_WITH_ALL_ATTRIBUTES: self.right_click_menu_paste_with_all_attributes,
             RightClickOption.DELETE: self.right_click_menu_delete
         }
-        print(f'will perform {option} on {self.right_clicked_hierarchy}')
         option_to_callback[option]()
+
+    def right_click_menu_change_timeline_height(self) -> None:
+        height = ask_for_int('Change timeline height', 'Insert new timeline height', initialvalue=self.height)
+        if height:
+            logger.debug(f"User requested new timeline height of '{height}'")
+            self._change_height(height)
+
+    def right_click_menu_change_timeline_name(self) -> None:
+        name = ask_for_string('Change timeline name', 'Insert new timeline name', initialvalue=self.name)
+        if name:
+            logger.debug(f"User requested new timeline name of '{name}'")
+            self._change_name(name)
 
     def right_click_menu_increase_level(self) -> None:
         self.timeline.change_level_by_amount(1, self.right_clicked_hierarchy.tl_component)

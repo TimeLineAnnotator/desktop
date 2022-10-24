@@ -2,6 +2,7 @@ import tkinter
 import tkinter as tk
 import tkinter.colorchooser
 import tkinter.messagebox
+import tkinter.simpledialog
 
 
 class LabelAndEntry(tk.Frame):
@@ -25,5 +26,13 @@ def display_error(title: str, message: str) -> None:
     tkinter.messagebox.showerror(title, message)
 
 
-def ask_for_color(starting_color: str) -> str:
+def ask_for_color(starting_color: str) -> str | None:
     return tk.colorchooser.askcolor(title="Choose unit color", color=starting_color)[1]
+
+
+def ask_for_string(title: str, prompt: str, initialvalue: str) -> str | None:
+    return tk.simpledialog.askstring(title, prompt, initialvalue=initialvalue)
+
+
+def ask_for_int(title: str, prompt: str, initialvalue: int) -> int | None:
+    return tk.simpledialog.askinteger(title, prompt, initialvalue=initialvalue)

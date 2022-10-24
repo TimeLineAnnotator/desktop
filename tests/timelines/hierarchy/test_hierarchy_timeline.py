@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, ANY, patch
 import itertools
 import logging
 
+from tilia.events import EventName
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.common import InvalidComponentKindError
 from tilia.timelines.component_kinds import ComponentKind

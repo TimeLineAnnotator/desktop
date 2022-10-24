@@ -88,13 +88,7 @@ class TimelineCanvas(tk.Canvas):
 
         self._label_width = left_margin_width
 
-        self.label_bg = self.create_rectangle(
-            *self._get_label_bg_coords, fill="white", width=0
-        )
-
-        self.label_in_canvas = self.create_text(
-            self._get_label_coords, anchor="nw", text=initial_name
-        )
+        self._setup_label(initial_name)
 
         self.config(scrollregion=(0, 0, width, height))
         self.config(xscrollcommand=scrollbar.set)
@@ -110,6 +104,21 @@ class TimelineCanvas(tk.Canvas):
                 tag, "<Enter>", lambda x, name=cursor_name: self.config(cursor=name)
             )
             self.tag_bind(tag, "<Leave>", lambda x: self.config(cursor=""))
+
+    def _setup_label(self, initial_name: str):
+        self.label_bg = self.create_rectangle(
+            *self._get_label_bg_coords, fill="white", width=0
+        )
+
+        self.label_in_canvas = self.create_text(
+            self._get_label_coords, anchor="nw", text=initial_name
+        )
+
+    def update_label(self, new_name: str):
+        self.itemconfig(self.label_in_canvas, text=new_name)
+
+    def update_height(self, new_height: int):
+        self.config(height=new_height)
 
     @property
     def _get_label_coords(self):
@@ -969,6 +978,16 @@ class TimelineTkUI(TimelineUI, ABC):
 
         self._setup_visiblity(is_visible)
 
+
+    def _change_name(self, name: str):
+        self.name = name
+        self.canvas.update_label(name)
+
+    def _change_height(self, height: int):
+        self.height = height
+        self.canvas.update_height(height)
+        self.update_elements_position()
+
     # noinspection PyUnresolvedReferences
     @property
     def display_position(self):
@@ -1004,7 +1023,10 @@ class TimelineTkUI(TimelineUI, ABC):
         logger.debug(f"Processing click on {self}...")
 
         if not clicked_item_id:
-            logger.debug(f"No canvas item was clicked.")
+            if button == Side.LEFT:
+                logger.debug(f"No canvas item was clicked.")
+            else:
+                self.display_right_click_menu_for_timeline(x, y)
             return
 
         clicked_elements = self._get_clicked_element(clicked_item_id)
@@ -1058,8 +1080,8 @@ class TimelineTkUI(TimelineUI, ABC):
 
         logger.debug(f"Processed click on ui element '{clicked_element}'.")
 
-    @staticmethod
     def _process_ui_element_right_click(
+            self,
             x: float, y: float,
             clicked_element: TimelineComponentUI,
             clicked_item_id: int
@@ -1069,6 +1091,7 @@ class TimelineTkUI(TimelineUI, ABC):
                 isinstance(clicked_element, RightClickable)
                 and clicked_item_id in clicked_element.right_click_triggers
         ):
+            events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
             clicked_element.on_right_click(x, y, clicked_item_id)
         else:
             logger.debug(f"Element is not right clickable.")
@@ -1090,9 +1113,28 @@ class TimelineTkUI(TimelineUI, ABC):
 
             self.element_manager.deselect_element(element)
 
-    def display_right_click_menu_for_element(self, canvas_x: float, canvas_y: float, options: list[str]):
+    def display_right_click_menu_for_element(self, canvas_x: float, canvas_y: float, options: list[tuple[str, RightClickOption]]):
+        events.post(EventName.RIGHT_CLICK_MENU_NEW)
+        events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
+
         display_right_click_menu(self.canvas.winfo_rootx() + int(canvas_x),
                                  self.canvas.winfo_rooty() + int(canvas_y), options)
+
+        events.subscribe(EventName.RIGHT_CLICK_MENU_NEW, self)
+
+    def display_right_click_menu_for_timeline(self, canvas_x: float, canvas_y: float):
+        RIGHT_CLICK_OPTIONS = [
+            ("Change timeline name...", RightClickOption.CHANGE_TIMELINE_NAME),
+            ("Change timeline height...", RightClickOption.CHANGE_TIMELINE_HEIGHT)
+        ]
+
+        events.post(EventName.RIGHT_CLICK_MENU_NEW)
+        events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
+
+        display_right_click_menu(self.canvas.winfo_rootx() + int(canvas_x),
+                                 self.canvas.winfo_rooty() + int(canvas_y), RIGHT_CLICK_OPTIONS)
+
+        events.subscribe(EventName.RIGHT_CLICK_MENU_NEW, self)
 
     @staticmethod
     def post_inspectable_selected_event(element: Inspectable):
@@ -1101,7 +1143,7 @@ class TimelineTkUI(TimelineUI, ABC):
             type(element),
             element.INSPECTOR_FIELDS,
             element.get_inspector_dict(),
-            element.id,
+            element.id
         )
 
     def update_elements_position(self) -> None:
@@ -1392,6 +1434,8 @@ def create_tool_tip(widget, text):
 
 
 class RightClickOption(Enum):
+    CHANGE_TIMELINE_NAME = auto()
+    CHANGE_TIMELINE_HEIGHT = auto()
     RESET_COLOR = auto()
     SEPARATOR = auto()
     PASS = auto()

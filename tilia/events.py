@@ -15,6 +15,7 @@ from typing import Optional
 
 
 class EventName(Enum):
+    RIGHT_CLICK_MENU_NEW = auto()
     CANVAS_RIGHT_CLICK = auto()
     RIGHT_CLICK_MENU_OPTION_CLICK = auto()
     KEY_PRESS_RIGHT = auto()
@@ -194,6 +195,7 @@ class Subscriber(ABC):
 
     def unsubscribe(self, subscriptions: list | set) -> None:
         for event_str in subscriptions:
+            logger.debug(f"Unsubscribing {self} from {event_str}.")
             unsubscribe(event_str, self)
             self._subs.remove(event_str)
 
