@@ -456,6 +456,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             y: int,
             clicked_item_id: int,
             modifier: ModifierEnum,
+            double: bool
     ) -> None:
 
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
@@ -464,7 +465,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about right click."
             )
-            clicked_timeline_ui.on_click(x, y, clicked_item_id, button=Side.RIGHT, modifier=modifier)
+            clicked_timeline_ui.on_click(x, y, clicked_item_id, button=Side.RIGHT, modifier=modifier, double=double)
         else:
             raise ValueError(
                 f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
@@ -477,6 +478,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             y: int,
             clicked_item_id: int,
             modifier: ModifierEnum,
+            double: bool
     ) -> None:
 
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
@@ -489,7 +491,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about left click."
             )
-            clicked_timeline_ui.on_click(x, y, clicked_item_id, button=Side.LEFT, modifier=modifier)
+            clicked_timeline_ui.on_click(x, y, clicked_item_id, button=Side.LEFT, modifier=modifier, double=double)
         else:
             raise ValueError(
                 f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
@@ -1012,13 +1014,13 @@ class TimelineTkUI(TimelineUI, ABC):
         )
 
     def on_click(
-            self, x: int, y: int, clicked_item_id: int,
-            button: Side, modifier: ModifierEnum
+            self, x: int,
+            y: int,
+            clicked_item_id: int,
+            button: Side,
+            modifier: ModifierEnum,
+            double: bool
     ) -> None:
-        """
-        Calls self._process_element_click with the clicked ui element
-        as an argument.
-        """
 
         logger.debug(f"Processing click on {self}...")
 
@@ -1035,9 +1037,12 @@ class TimelineTkUI(TimelineUI, ABC):
             logger.debug(f"No ui element was clicked.")
             return
 
-        for clicked_element in clicked_elements:
+        for clicked_element in clicked_elements:  # clicked item might be owned by more than on element
             if button == Side.LEFT:
-                self._process_ui_element_left_click(clicked_element, clicked_item_id)
+                if not double:
+                    self._process_ui_element_left_click(clicked_element, clicked_item_id)
+                else:
+                    self._process_ui_element_double_left_click(clicked_element, clicked_item_id)
             elif button == Side.RIGHT:
                 self._process_ui_element_right_click(x, y, clicked_element, clicked_item_id)
 
@@ -1058,7 +1063,7 @@ class TimelineTkUI(TimelineUI, ABC):
             self, clicked_element: TimelineComponentUI, clicked_item_id: int
     ) -> None:
 
-        logger.debug(f"Processing click on ui element '{clicked_element}'...")
+        logger.debug(f"Processing left click on ui element '{clicked_element}'...")
 
         if (
                 isinstance(clicked_element, Selectable)
@@ -1079,6 +1084,30 @@ class TimelineTkUI(TimelineUI, ABC):
 
 
         logger.debug(f"Processed click on ui element '{clicked_element}'.")
+
+    def _process_ui_element_double_left_click(
+            self, clicked_element: TimelineComponentUI, clicked_item_id: int
+    ) -> None:
+
+        logger.debug(f"Processing double click on ui element '{clicked_element}'...")
+
+
+        if (
+                isinstance(clicked_element, Selectable)
+                and clicked_item_id in clicked_element.selection_triggers
+        ):
+            self._select_element(clicked_element)
+        else:
+            logger.debug(f"Element is not selectable.")
+
+        if (
+                isinstance(clicked_element, DoubleLeftClickable)
+                and clicked_item_id in clicked_element.double_left_click_triggers
+        ):
+            clicked_element.on_double_left_click(clicked_item_id)
+        else:
+            logger.debug(f"Element is not double clickable.")
+
 
     def _process_ui_element_right_click(
             self,
