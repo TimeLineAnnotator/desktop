@@ -869,10 +869,10 @@ class TimelineUIElementManager:
 
         return drawings_ids
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return default_repr(self)
 
-    def get_all_elements(self):
+    def get_all_elements(self) -> set:
         return self._elements
 
     def update_elements_postion(self) -> None:
@@ -904,10 +904,10 @@ class Selectable(Protocol):
 @runtime_checkable
 class LeftClickable(Protocol):
     """
-    Interface for objects that respond to left-clicks (independent of selection).
+    Interface for objects that respond to left clicks (independent of selection).
     Used, for instance, to trigger dragging of a hierarchy ui boundary marker.
-    Left clickable must 'left_cilck_trigger', a list of the canvas drawing ids
-    that count for triggering its on_left_click method.
+    Left clickable must have the property 'left_click_triggers',
+    a list of the canvas drawing ids that count for triggering its on_left_click method.
     """
 
     left_click_triggers: tuple[int, ...]
@@ -919,8 +919,8 @@ class LeftClickable(Protocol):
 @runtime_checkable
 class RightClickable(Protocol):
     """
-    Interface for objects that respond to right-clicks
-    Used, for instance, to display a right_click_menu.
+    Interface for objects that respond to right clicks
+    Used, for instance, to display a right click menu.
     """
 
     right_click_triggers: tuple[int, ...]
@@ -928,6 +928,20 @@ class RightClickable(Protocol):
     def on_right_click(self, x: float, y: float, clicked_item_id: int) -> None:
         ...
 
+
+@runtime_checkable
+class DoubleLeftClickable(Protocol):
+    """
+    Interface for objects that respond to double left clicks (independent of selection).
+    Used, for instance, to trigger dragging of a hierarchy ui boundary marker.
+    Left clickable must 'double_left_cilck_triggers', a list of the canvas drawing ids
+    that count for triggering its on_double_left_click method.
+    """
+
+    double_left_click_triggers: tuple[int, ...]
+
+    def on_double_left_click(self, clicked_item_id: int) -> None:
+        ...
 
 
 class TimelineTkUI(TimelineUI, ABC):
