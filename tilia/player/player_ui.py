@@ -16,7 +16,6 @@ class PlayerUI(tk.Frame, Subscriber):
         tk.Frame.__init__(self, parent)
         Subscriber.__init__(self)
 
-        events.subscribe(EventName.PLAYER_REQUEST_TO_SEEK, self)
         events.subscribe(EventName.PLAYER_AUDIO_TIME_CHANGE, self),
         events.subscribe(EventName.PLAYER_MEDIA_LOADED, self),
         events.subscribe(EventName.PLAYER_STOPPED, self),
@@ -92,11 +91,6 @@ class PlayerUI(tk.Frame, Subscriber):
     def on_player_unpaused(self):
         pass
 
-    def on_request_seek(self, audio_time: float) -> None:
-        self.time_label.config(
-            text=f"{self.format_media_time(audio_time)}/{self.media_length_str}"
-        )
-
     def on_media_load(self, _1, _2, playback_length) -> None:
         self.media_length_str = self.format_media_time(playback_length)
         self.time_label.config(text=f"00:00/{self.media_length_str}")
@@ -113,7 +107,6 @@ class PlayerUI(tk.Frame, Subscriber):
         self, event_name: EventName, *args: tuple, **kwargs: dict
     ) -> None:
         name_to_callback = {
-            EventName.PLAYER_REQUEST_TO_SEEK: self.on_request_seek,
             EventName.PLAYER_AUDIO_TIME_CHANGE: self.on_new_audio_time,
             EventName.PLAYER_MEDIA_LOADED: self.on_media_load,
             EventName.PLAYER_STOPPED: self.on_player_stop,

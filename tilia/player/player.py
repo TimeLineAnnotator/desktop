@@ -48,6 +48,7 @@ class Player(Subscriber, ABC):
         events.subscribe(EventName.PLAYER_REQUEST_TO_PLAYPAUSE, self),
         events.subscribe(EventName.PLAYER_REQUEST_TO_STOP, self),
         events.subscribe(EventName.PLAYER_REQUEST_TO_SEEK, self),
+        events.subscribe(EventName.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, self),
         events.subscribe(EventName.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self),
         events.subscribe(EventName.PLAYER_REQUEST_TO_LOAD_MEDIA, self)
 
@@ -156,13 +157,18 @@ class Player(Subscriber, ABC):
         events.post(EventName.PLAYER_STOPPED)
         events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
 
-    def on_request_to_seek(self, time: float):
+    def on_request_to_seek(self, time: float, if_paused: bool = False) -> None:
+
+        if if_paused and self.playing:
+            logger.debug(f"Media is playing. Will not seek.")
+            return
+
         if self.media_loaded:
             self._engine_seek(time)
         else:
             logger.debug(f"No media loaded. No need to seek.")
-            self.current_time = time
-            events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+        self.current_time = time
+        events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
 
     def _start_play_loop(self):
         threading.Thread(target=self._play_loop).start()
@@ -235,6 +241,7 @@ class Player(Subscriber, ABC):
             EventName.PLAYER_REQUEST_TO_PLAYPAUSE: self.play_pause,
             EventName.PLAYER_REQUEST_TO_STOP: self.stop,
             EventName.PLAYER_REQUEST_TO_SEEK: self.on_request_to_seek,
+            EventName.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING: lambda _: self.on_request_to_seek(*args, if_paused=True),
             EventName.PLAYER_REQUEST_TO_UNLOAD_MEDIA: self.unload_media,
             EventName.PLAYER_REQUEST_TO_LOAD_MEDIA: self.load_media,
         }
