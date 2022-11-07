@@ -24,19 +24,18 @@ DEFAULT_CANVAS_BINDINGS = [
     ### MOUSE BINDINGS ###
     ######################
 
-    ("<ButtonPress-1>", lambda e: on_left_click(e, modifier=ModifierEnum.NONE)),
-    (right_click_keysym, lambda e: on_right_click(e, modifier=ModifierEnum.NONE)),
+    ("<ButtonPress-1>", lambda e: on_left_click(e, modifier=ModifierEnum.NONE, double=False)),
     (
         "<Shift-ButtonPress-1>",
-        lambda e: on_left_click(e, modifier=ModifierEnum.SHIFT),
+        lambda e: on_left_click(e, modifier=ModifierEnum.SHIFT, double=False),
     ),
     (
         "<Control-ButtonPress-1>",
-        lambda e: on_left_click(e, modifier=ModifierEnum.CONTROL),
+        lambda e: on_left_click(e, modifier=ModifierEnum.CONTROL, double=False),
     ),
     (
         "<Control-ButtonPress-1>",
-        lambda e: on_left_click(e, modifier=ModifierEnum.CONTROL),
+        lambda e: on_left_click(e, modifier=ModifierEnum.CONTROL, double=False),
     ),
     (
         "<B1-Motion>",
@@ -50,6 +49,8 @@ DEFAULT_CANVAS_BINDINGS = [
         "<ButtonRelease-1>",
         lambda _: events.post(EventName.TIMELINE_LEFT_BUTTON_RELEASE),
     ),
+    ('<Double-Button-1>', lambda e: on_left_click(e, modifier=ModifierEnum.NONE, double=True)),
+    (right_click_keysym, lambda e: on_right_click(e, modifier=ModifierEnum.NONE, double=False)),
     ("<MouseWheel>", on_mouse_wheel),
     ("<Button-4>", on_mouse_wheel),
     ("<Button-5>", on_mouse_wheel),
@@ -70,7 +71,6 @@ DEFAULT_CANVAS_BINDINGS = [
         "<Control-i>",
         lambda _: events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR),
     ),
-
     ("<Control-c>", lambda _: events.post(EventName.KEY_PRESS_CONTROL_C)),
     ("<Control-v>", lambda _: events.post(EventName.KEY_PRESS_CONTROL_V)),
     ("<Control-V>", lambda _: events.post(EventName.KEY_PRESS_CONTROL_SHIFT_V)),
@@ -95,7 +95,7 @@ class TkEventHandler:
             self.root.bind_class("Canvas", sequence, callback)
 
 
-def on_left_click(event: tk.Event, modifier: ModifierEnum):
+def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     """Handles mouse click"""
     canvas = event.widget
     canvas_x = canvas.canvasx(event.x)
@@ -109,10 +109,11 @@ def on_left_click(event: tk.Event, modifier: ModifierEnum):
         canvas_y,
         clicked_item_id,
         modifier=modifier,
+        double=double
     )
 
 
-def on_right_click(event: tk.Event, modifier: ModifierEnum):
+def on_right_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     """Handles mouse click"""
     canvas = event.widget
     canvas_x = canvas.canvasx(event.x)
@@ -126,4 +127,5 @@ def on_right_click(event: tk.Event, modifier: ModifierEnum):
         canvas_y,
         clicked_item_id,
         modifier=modifier,
+        double=double
     )
