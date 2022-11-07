@@ -423,6 +423,14 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         events.subscribe(EventName.TIMELINE_LEFT_BUTTON_RELEASE, self)
 
     @property
+    def double_left_click_triggers(self) -> tuple[int, ...]:
+        return self.rect_id, self.comments_ind_id, self.label_id
+
+    def on_double_left_click(self, _) -> None:
+        events.post(EventName.PLAYER_REQUEST_TO_SEEK, self.tl_component.start)
+        print('DOUBLE!!!')
+
+    @property
     def right_click_triggers(self) -> tuple[int, ...]:
         return self.rect_id, self.label_id, self.comments_ind_id
 
@@ -514,21 +522,22 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
             ]
         )
 
-    def on_select(self):
+    def on_select(self) -> None:
         self.display_as_selected()
+        events.post(EventName.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, self.tl_component.start)
 
-    def on_deselect(self):
+    def on_deselect(self) -> None:
         self.display_as_deselected()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"GUI for {self.tl_component}"
 
-    def display_as_selected(self):
+    def display_as_selected(self) -> None:
         self.canvas.itemconfig(
             self.rect_id, fill=self.shaded_color, width=1, outline="black"
         )
 
-    def display_as_deselected(self):
+    def display_as_deselected(self) -> None:
         self.canvas.itemconfig(self.rect_id, fill=self.color, width=0, outline="")
 
     def marker_is_shared(self, marker_id: int) -> bool:
@@ -541,7 +550,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
     def request_delete_to_component(self):
         self.tl_component.receive_delete_request_from_ui()
 
-    def _delete_markers_if_not_shared(self):
+    def _delete_markers_if_not_shared(self) -> None:
         logger.debug(f"Deleting markers if they aren't shared...")
 
         if not self.marker_is_shared(self.start_marker):
