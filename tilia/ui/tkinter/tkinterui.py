@@ -4,14 +4,31 @@ The TkinterUI is responsible for high-level control of the GUI.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any
+from collections import OrderedDict
+from typing import TYPE_CHECKING, Any, Callable
+import sys
+import tkinter as tk
+import tkinter.font
+import tkinter.filedialog
+import tkinter.messagebox
+import tkinter.simpledialog
+import traceback
 
+
+from tilia import globals_, events
+from tilia.player import player_ui
+from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
+from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.events import EventName, Subscriber
+from .event_handler import TkEventHandler
+from .timelines.common import TkTimelineUICollection
 from .windows.common import AppWindow
 from .windows.gotomeasure import GoToMeasureWindow
 from .windows.manage_timelines import ManageTimelines
+from .windows.metadata import MetadataWindow
+from .windows.inspect import Inspect
+from .windows.kinds import WindowKind
 from .. import file
-from ...exceptions import UserCancelledSaveError, UserCancelledOpenError
-from ...timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia.main import TiLiA
@@ -20,27 +37,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .windows.inspect import Inspect
-from .windows.kinds import WindowKind
 
-
-import sys
-import tkinter as tk
-import tkinter.font
-import tkinter.filedialog
-import tkinter.messagebox
-import tkinter.simpledialog
-import traceback
-from typing import Callable
-
-from tilia import globals_, events
-from ...player import player_ui
-from .event_handler import TkEventHandler
-from .timelines.common import TkTimelineUICollection
-from ...events import EventName, Subscriber
-
-
-def handle_exception(exc_type, exc_value, exc_traceback):
+def handle_exception(exc_type, exc_value, exc_traceback) -> None:
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
@@ -64,6 +62,7 @@ class TkinterUI(Subscriber):
     SUBSCRIPTIONS = [
         EventName.UI_REQUEST_WINDOW_INSPECTOR,
         EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
+        EventName.UI_REQUEST_WINDOW_METADATA,
         EventName.MENU_OPTION_FILE_LOAD_MEDIA
     ]
 
@@ -165,6 +164,19 @@ class TkinterUI(Subscriber):
             self._windows[WindowKind.MANAGE_TIMELINES] = ManageTimelines(
                 self, self.get_timeline_info_for_manage_timelines_window()
             )
+        elif kind == WindowKind.METADATA:
+            self._windows[WindowKind.METADATA] = MetadataWindow(
+                self,
+                self._app.media_metadata,
+                self.get_metadata_non_editable_fields()
+            )
+
+    def get_metadata_non_editable_fields(self) -> dict[str]:
+
+        return OrderedDict({
+            'media length': self._app.media_length,
+            'media path': self._app.get_media_path()
+        })
 
     def get_timeline_info_for_manage_timelines_window(self) -> list[tuple[int, str]]:
         return [
@@ -233,6 +245,9 @@ class TkinterUI(Subscriber):
             ),
             EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES: lambda: self.on_request_window(
                 WindowKind.MANAGE_TIMELINES
+            ),
+            EventName.UI_REQUEST_WINDOW_METADATA: lambda: self.on_request_window(
+                WindowKind.METADATA
             )
         }
 
@@ -389,6 +404,13 @@ class TkinterUIMenus(tk.Menu):
         )
         # self.goto_menu.add_command(label='Time..', underline=0, accelerator='Ctrl+Shift+G')
 
+        self.file_menu.add_separator()
+        self.file_menu.add_command(
+            label="Media metadata...",
+            command=lambda: events.post(EventName.UI_REQUEST_WINDOW_METADATA),
+            underline=0
+        )
+
         # EDIT MENU
         self.edit_menu = tk.Menu(self, tearoff=0)
         self.add_cascade(label="Edit", menu=self.edit_menu, underline=0)
@@ -407,14 +429,7 @@ class TkinterUIMenus(tk.Menu):
             accelerator="Ctrl + Y",
             state="disabled",
         )
-        self.edit_menu.add_separator()
-        self.edit_menu.add_command(
-            label="Metadata...",
-            # command=event_handlers.on_metadata,
-            command=lambda: logger.debug(f"Menu callback not implemented yet."),
-            underline=0,
-            state="disabled",
-        )
+
         # self.edit_menu.add_command(label='Clear timeline', command=event_handlers.on_cleartimeline, underline=0)
 
         # TIMELINES MENU

@@ -17,6 +17,7 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import json
+from collections import OrderedDict
 from datetime import datetime
 
 from typing import TYPE_CHECKING
@@ -29,11 +30,10 @@ if TYPE_CHECKING:
 
 from unittest.mock import MagicMock
 
-from tilia import globals_
+from tilia import globals_, events
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.globals_ import UserInterfaceKind
-from tilia.files import TiliaFile, MediaMetadata
-
+from tilia.files import TiliaFile, create_new_media_metadata
 
 import os
 import sys
@@ -61,6 +61,8 @@ class TiLiA(Subscriber):
                 EventName.APP_ADD_TIMELINE,
                 EventName.FILE_REQUEST_NEW_FILE,
                 EventName.APP_REQUEST_TO_CLOSE,
+                EventName.METADATA_FIELD_EDITED,
+                EventName.METADATA_NEW_FIELDS,
             ]
         )
 
@@ -88,7 +90,7 @@ class TiLiA(Subscriber):
         self._clipboard = Clipboard()
         self._undo_manager = UndoManager()
 
-        self._media_metadata = MediaMetadata()
+        self._media_metadata = create_new_media_metadata()
 
         logger.info("TiLiA started.")
 
@@ -101,13 +103,22 @@ class TiLiA(Subscriber):
     # noinspection PyProtectedMember
     def _code_for_dev(self):
         """Use this to execute code before the ui mainloop runs."""
-        self._timeline_with_ui_builder.create_timeline(
-            TimelineKind.HIERARCHY_TIMELINE, "HTL1"
-        )
+
+        # self.on_request_to_load_media(
+        #     r"C:\Música e musicologia\Outros\Sonatas do Mozart\Piano Sonata No -12 in F - K332 - I - Allegro.ogg")
+        #
+        # self._timeline_with_ui_builder.create_timeline(
+        #     TimelineKind.HIERARCHY_TIMELINE, "HTL1"
+        # )
+
 
     @property
     def media_length(self):
         return self._player.media_length
+
+    @property
+    def media_metadata(self):
+        return self._media_metadata
 
     @property
     def current_playback_time(self):
@@ -124,6 +135,10 @@ class TiLiA(Subscriber):
             self.on_request_new_file()
         elif event_name == EventName.APP_REQUEST_TO_CLOSE:
             self.on_request_to_close()
+        elif event_name == EventName.METADATA_FIELD_EDITED:
+            self.on_metadata_field_edited(*args)
+        elif event_name == EventName.METADATA_NEW_FIELDS:
+            self.on_metadata_new_fields(*args)
 
     def on_request_to_load_media(self, media_path: str):
         import os
@@ -150,7 +165,7 @@ class TiLiA(Subscriber):
     def get_id(self) -> str:
         return str(next(self._id_counter))
 
-    def _initial_file_setup(self):
+    def _initial_file_setup(self) -> None:
         self._timeline_with_ui_builder.create_timeline(TimelineKind.SLIDER_TIMELINE, "")
 
     def _change_player_according_to_extension(self, extension: str) -> None:
@@ -164,27 +179,24 @@ class TiLiA(Subscriber):
         else:
             raise ValueError(f"Media file extension '{extension}' is not supported.")
 
-    def _change_to_audio_player_if_necessary(self):
+    def _change_to_audio_player_if_necessary(self) -> None:
         if isinstance(self._player, player.VlcPlayer):
             self._player.destroy()
             self._player = player.PygamePlayer()
 
-    def _change_to_video_player_if_necessary(self):
+    def _change_to_video_player_if_necessary(self) -> None:
         if isinstance(self._player, player.PygamePlayer):
             self._player.destroy()
             self._player = player.VlcPlayer()
 
-    def get_media_metadata_as_dict(self):
-        return dataclasses.asdict(self._media_metadata)
-
-    def get_timelines_as_dict(self):
+    def get_timelines_as_dict(self) -> dict:
         return self._timeline_collection.serialize_timelines()
 
-    def get_media_path(self):
+    def get_media_path(self) -> str:
         return self._player.media_path
 
-    def get_media_title(self):
-        return self._media_metadata.title
+    def get_media_title(self) -> str:
+        return self._media_metadata['title']
 
     def get_elements_for_pasting(self):
         logger.debug(f"Getting clipboard contents for pasting...")
@@ -192,7 +204,7 @@ class TiLiA(Subscriber):
         logger.debug(f"Got '{elements}'")
         return elements
 
-    def clear_app(self):
+    def clear_app(self) -> None:
         logger.info(f"Clearing app..")
         self._timeline_collection.clear()
         self._file_manager.clear()
@@ -216,7 +228,7 @@ class TiLiA(Subscriber):
 
         logger.info(f"Loaded file.")
 
-    def on_add_timeline(self, kind: TimelineKind):
+    def on_add_timeline(self, kind: TimelineKind) -> None:
         if kind != TimelineKind.HIERARCHY_TIMELINE:
             raise NotImplementedError
         name = self.ui.ask_string(
@@ -232,6 +244,19 @@ class TiLiA(Subscriber):
         timeline_ui_collection._timeline_collection = timeline_collection
         timeline_collection._timeline_ui_collection = timeline_ui_collection
 
+    def on_metadata_field_edited(self, field_name: str, value: str) -> None:
+        self._media_metadata[field_name] = value
+
+    def on_metadata_new_fields(self, field_list: list[str]) -> None:
+
+        new_metadata = OrderedDict({key: '' for key in field_list})
+
+        for field in field_list:
+            if field in self._media_metadata:
+                new_metadata[field] = self._media_metadata[field]
+
+        self._media_metadata = new_metadata
+
 
 class FileManager(Subscriber):
     JSON_CONFIG = {"indent": 2}
@@ -243,7 +268,6 @@ class FileManager(Subscriber):
 
     def __init__(self, app: TiLiA, file: TiliaFile = None):
         super().__init__(subscriptions=self.SUBSCRIPTIONS)
-        # self.auto_saver = AutoSaver() # TODO reimplement autosaver
         self._file_is_modified = False
         self._app = app
 
@@ -297,9 +321,9 @@ class FileManager(Subscriber):
 
         self._app.clear_app()
 
-        self._open_file_path(file_path)
+        self._open_file_by_path(file_path)
 
-    def _open_file_path(self, file_path: str):
+    def _open_file_by_path(self, file_path: str):
         logger.debug(f"Opening file path {file_path}.")
 
         with open(file_path, "r", encoding="utf-8") as file:
@@ -326,7 +350,7 @@ class FileManager(Subscriber):
 
     def _get_save_parameters(self, save_as: bool) -> dict:
         return {
-            "media_metadata": self._app.get_media_metadata_as_dict(),
+            "media_metadata": dict(self._app.media_metadata),
             "timelines": self._app.get_timelines_as_dict(),
             "media_path": self._app.get_media_path(),
             "file_path": self._get_file_path(save_as),
@@ -355,9 +379,9 @@ class FileManager(Subscriber):
     def get_default_filename(self) -> str:
         return f"{self._app.get_media_title()} {datetime.now().strftime('%d-%m-%Y %H%M%S')}"
 
-    def clear(self):
+    def clear(self) -> None:
         logger.debug(f"Clearing file manager...")
-        self._file = TiliaFile(media_metadata=MediaMetadata())
+        self._file = TiliaFile()
 
 
 class TimelineWithUIBuilder:

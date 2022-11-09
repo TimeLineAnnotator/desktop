@@ -36,3 +36,15 @@ def ask_for_string(title: str, prompt: str, initialvalue: str) -> str | None:
 
 def ask_for_int(title: str, prompt: str, initialvalue: int) -> int | None:
     return tk.simpledialog.askinteger(title, prompt, initialvalue=initialvalue)
+
+
+def destroy_children_recursively(widget: tk.Widget | tk.Toplevel) -> None:
+    """Recursively destroys all children of 'widget'"""
+    children = widget.winfo_children()
+
+    for item in children:
+        if item.winfo_children():
+            children.extend(item.winfo_children())
+
+    for child in children:
+        child.destroy()

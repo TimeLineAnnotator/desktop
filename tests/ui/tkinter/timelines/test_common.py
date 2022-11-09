@@ -98,11 +98,11 @@ class TestTkTimelineUICollection:
 
         assert tlui_coll._select_order[0] == tlui2
 
-        events.post(EventName.CANVAS_LEFT_CLICK, tlui1.canvas, 0, 0, 0, None)
+        events.post(EventName.CANVAS_LEFT_CLICK, tlui1.canvas, 0, 0, 0, None, double=False)
 
         assert tlui_coll._select_order[0] == tlui1
 
-        events.post(EventName.CANVAS_LEFT_CLICK, tlui2.canvas, 0, 0, 0, None)
+        events.post(EventName.CANVAS_LEFT_CLICK, tlui2.canvas, 0, 0, 0, None, double=False)
 
         assert tlui_coll._select_order[0] == tlui2
 

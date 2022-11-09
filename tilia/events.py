@@ -15,6 +15,9 @@ from typing import Optional
 
 
 class EventName(Enum):
+    METADATA_NEW_FIELDS = auto()
+    METADATA_WINDOW_OPENED = None
+    METADATA_FIELD_EDITED = auto()
     UI_REQUEST_WINDOW_METADATA = auto()
     PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING = auto()
     RIGHT_CLICK_MENU_NEW = auto()
