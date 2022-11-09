@@ -29,7 +29,7 @@ from tilia.events import Subscriber, EventName
 from tilia.exceptions import AppException
 
 
-class MediaLoadFailedError(AppException):
+class MediaLoadError(AppException):
     pass
 
 
@@ -110,6 +110,9 @@ class Player(Subscriber, ABC):
         self.media_path = ""
         self.playing = False
         self.paused = False
+        logger.info(
+            f"Media unloaded succesfully."
+        )
 
     def play_pause(self) -> bool:
         """Plays or pauses the current song.
@@ -259,7 +262,7 @@ class VlcPlayer(Player):
         super().__init__()
 
         self.vlc_instance = vlc.Instance()
-        self.media_player = self.vlc_instance.media_player()
+        self.media_player = self.vlc_instance.media_player_new()
 
         self.player_window = tk.Toplevel()
         self.player_window.geometry("800x600")
@@ -282,6 +285,8 @@ class VlcPlayer(Player):
         time.sleep(0.5)  # must wait so pause works
         self.media_player.pause()
         self._media_length = self.media_player.get_length() / 1000
+        if not self._media_length:
+            raise MediaLoadError
         self._engine_seek(0.0)
 
     def _engine_get_media_length(self) -> float:
@@ -306,7 +311,7 @@ class VlcPlayer(Player):
         return self.media_player.get_position() * self._media_length
 
     def _engine_exit(self):
-        self.media_player.destroy()
+        self.player_window.destroy()
 
 
 class PygamePlayer(Player):
@@ -318,7 +323,8 @@ class PygamePlayer(Player):
         super().__init__()
 
         # Initialize Pygame Mixer
-        pygame.init()
+        pygame.mixer.init()
+        pygame.display.init()
 
         # Set a pygame event for tracking if the song has ended
         self.endevent = pygame.USEREVENT + 1
@@ -358,7 +364,7 @@ class PygamePlayer(Player):
         try:
             pygame.mixer.music.load(media_path)
         except pygame.error as err:
-            raise MediaLoadFailedError(f"pygame.error: {err}")
+            raise MediaLoadError(f"pygame.error: {err}")
 
     def _engine_get_current_time(self):
         """Update current time to match playback slider position"""
@@ -397,4 +403,5 @@ class PygamePlayer(Player):
         return pygame.mixer.Sound(self.media_path).get_length()
 
     def _engine_exit(self):
-        pygame.quit()
+        pygame.mixer.quit()
+        pygame.display.quit()
