@@ -21,7 +21,7 @@ def pygame_player_notloaded():
 
 @pytest.fixture
 def pygame_player(pygame_player_notloaded, request):
-    pygame_player_notloaded.load_media(r'..\testaudio_1.' + request.param)
+    pygame_player_notloaded.load_media(r'testaudio_1.' + request.param)
     yield pygame_player_notloaded
 
 
@@ -41,7 +41,7 @@ def vlc_player_notloaded():
 
 @pytest.fixture
 def vlc_player(vlc_player_notloaded, request):
-    vlc_player_notloaded.load_media(r'..\testvideo_1.' + request.param)
+    vlc_player_notloaded.load_media(r'testvideo_1.' + request.param)
     yield vlc_player_notloaded
 
 
@@ -63,7 +63,7 @@ class TestPygamePlayer:
     @pytest.mark.parametrize('file_format', AUDIO_FORMATS)
     def test_media_load(self, file_format):
         player = PygamePlayer()
-        media_path = r'..\testaudio_1.' + file_format
+        media_path = r'testaudio_1.' + file_format
         player.load_media(media_path)
         assert player.media_path == media_path
         player.destroy()
@@ -151,7 +151,7 @@ class TestVlcPlayer:
     @pytest.mark.parametrize('file_format', VIDEO_FORMATS)
     def test_media_load(self, vlc_player_notloaded, file_format):
         player = vlc_player_notloaded
-        media_path = r'..\testvideo_1.' + file_format
+        media_path = 'testvideo_1.' + file_format
         player.load_media(media_path)
         assert player.media_path == media_path
         player.destroy()
