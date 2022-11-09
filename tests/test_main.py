@@ -2,8 +2,9 @@ import pytest
 
 from tilia import events
 from tilia.events import EventName
-from tilia.globals_ import UserInterfaceKind
+from tilia.globals_ import UserInterfaceKind, NATIVE_VIDEO_FORMATS, NATIVE_AUDIO_FORMATS
 from tilia.main import TiLiA, FileManager
+from tilia.player import player
 from tilia.timelines.timeline_kinds import TimelineKind
 
 
@@ -25,6 +26,21 @@ def file_manager(tilia_mock):
 def tlwui_builder(tilia_mock):
     # noinspection PyProtectedMember
     return tilia_mock._timeline_with_ui_builder
+
+class TestTilia:
+    def test_change_player_according_to_extension(self, tilia_mock):
+        tilia_mock._change_player_according_to_extension(NATIVE_VIDEO_FORMATS[0])
+        assert isinstance(tilia_mock._player, player.VlcPlayer)
+
+        tilia_mock._change_player_according_to_extension(NATIVE_AUDIO_FORMATS[0])
+        assert isinstance(tilia_mock._player, player.PygamePlayer)
+
+        tilia_mock._change_player_according_to_extension(NATIVE_VIDEO_FORMATS[0])
+        assert isinstance(tilia_mock._player, player.VlcPlayer)
+
+        tilia_mock._change_player_according_to_extension(NATIVE_AUDIO_FORMATS[0])
+        assert isinstance(tilia_mock._player, player.PygamePlayer)
+
 
 
 class TestFileManager:
