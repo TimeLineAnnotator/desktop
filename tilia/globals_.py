@@ -11,7 +11,7 @@ USER_INTERFACE_TYPE = "TKINTER"
 
 NATIVE_AUDIO_FORMATS = ["ogg"]
 SUPPORTED_AUDIO_FORMATS = ["mp3", "wav"]
-NATIVE_VIDEO_FORMATS = ["mp4", "mkv"]
+NATIVE_VIDEO_FORMATS = ["mp4", "mkv", "m4a"]
 FFMPEG_PATH = "C:\\ffmpeg\\bin\\ffmpeg.exe"
 
 DEFAULT_TIMELINE_WIDTH = 400
