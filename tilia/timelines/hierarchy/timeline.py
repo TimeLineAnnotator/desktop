@@ -295,10 +295,12 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             ParentChildRelation(parent=grouping_unit, children=grouping_unit_children)
         )
 
+        previous_parent_new_children = [c for c in previous_common_parent.children if c not in units_to_group] + [grouping_unit]
+
         if previous_common_parent:
             self._make_parent_child_relation(
                 ParentChildRelation(
-                    parent=previous_common_parent, children=[grouping_unit]
+                    parent=previous_common_parent, children=previous_parent_new_children
                 )
             )
 
@@ -520,7 +522,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         ]
 
         if component.children:
-            component_parent_new_children += component.children()
+            component_parent_new_children += component.children
 
         logger.debug(f"Parent's new children are {component_parent_new_children}")
 
