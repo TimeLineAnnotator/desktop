@@ -326,7 +326,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
 
         return (
             x1 + self.COMMENTS_INDICATOR_XOFFSET,
-            y0 + self.COMMENTS_INDICATOR_YOFFSET,
+            y0 + self.COMMENTS_INDICATOR_YOFFSET
         )
 
     def get_label_coords(self):
