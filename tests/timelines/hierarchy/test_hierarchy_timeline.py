@@ -500,6 +500,50 @@ class TestHierarchyTimelineComponentManager:
         assert not hrc1.parent == hrc3 or hrc2.parent == hrc3
         assert hrc1.parent == hrc3.children[0]
 
+
+    def test_group_two_units_with_parent_that_has_parent(self, tl):
+        hrc1 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=0.4, level=4
+        )
+        hrc2 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=0.4, level=3
+        )
+
+        hrc3 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=0.1, level=1
+        )
+
+        hrc4 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.1, end=0.2, level=1
+        )
+
+        hrc5 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.2, end=0.3, level=1
+        )
+
+        hrc6 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.3, end=0.4, level=1
+        )
+
+        tl.component_manager._make_parent_child_relation(
+            ParentChildRelation(parent=hrc1, children=[hrc2])
+        )
+
+        tl.component_manager._make_parent_child_relation(
+            ParentChildRelation(parent=hrc2, children=[hrc3, hrc4, hrc5, hrc6])
+        )
+
+
+        tl.component_manager.group([hrc3, hrc4])
+
+        assert hrc3.parent == hrc4.parent
+        assert hrc3.parent.parent == hrc2
+        assert hrc5.parent == hrc2
+        assert hrc6.parent == hrc2
+        assert hrc3.parent in hrc2.children
+        assert hrc5 in hrc2.children
+        assert hrc6 in hrc2.children
+
     # TEST SPLIT
     def test_get_unit_for_split_from_single_unit(self, tl):
         hrc1 = tl.component_manager.create_component(
