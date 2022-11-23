@@ -217,7 +217,9 @@ class TiLiA(Subscriber):
         if file.media_path:
             self.on_request_to_load_media(file.media_path)
 
-        for _, timeline in file.timelines.items():
+        file_copy = dataclasses.asdict(file)  # must copy so keys don't get popped in passed file
+
+        for _, timeline in file_copy['timelines'].items():
             kind_str = timeline.pop("kind")
             if kind_str not in IMPLEMENTED_TIMELINE_KINDS:
                 logger.debug(f"Timeline kind '{kind_str} is not implemented.")
@@ -332,9 +334,9 @@ class FileManager(Subscriber):
 
     def open(self):
         logger.debug(f"Processing open file request.")
+        self.ask_save_if_necessary()
+        logger.debug(f"Getting path of file to open.")
         try:
-            self.ask_save_if_necessary()
-            logger.debug(f"Getting path of file to open.")
             file_path = self._app.ui.get_file_open_path()
             logger.debug(f"Got path {file_path}")
         except UserCancelledOpenError:
