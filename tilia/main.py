@@ -23,6 +23,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from tilia.clipboard import Clipboard
+from tilia.timelines.hash_timelines import hash_timeline_collection_data
 from tilia.undo_manager import UndoManager
 
 if TYPE_CHECKING:
@@ -293,10 +294,16 @@ class FileManager(Subscriber):
             if tl['kind'] == TimelineKind.SLIDER_TIMELINE.name:
                 current_file_data['timelines'] = {}
 
-        for key in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION:
-            if not current_file_data[key] == getattr(self._file, key):
+        for attr in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION:
+            if attr == 'timelines':
+                saved_file_hash = hash_timeline_collection_data(self._file.timelines)
+                current_file_hash = hash_timeline_collection_data(current_file_data['timelines'])
+                if saved_file_hash != current_file_hash:
+                    return True
+            elif current_file_data[attr] != getattr(self._file, attr):
                 return True
         return False
+
 
     def _update_file(self, **kwargs) -> None:
         for keyword, value in kwargs.items():
