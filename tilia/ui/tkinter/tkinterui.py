@@ -417,17 +417,15 @@ class TkinterUIMenus(tk.Menu):
 
         self.edit_menu.add_command(
             label="Undo",
-            # command=event_handlers.on_ctrlz,
+            command=lambda: events.post(EventName.REQUEST_TO_UNDO),
             underline=0,
-            accelerator="Ctrl + Z",
-            state="disabled",
+            accelerator="Ctrl + Z"
         )
         self.edit_menu.add_command(
             label="Redo",
-            # command=event_handlers.on_ctrly,
+            command=lambda: events.post(EventName.REQUEST_TO_REDO),
             underline=0,
-            accelerator="Ctrl + Y",
-            state="disabled",
+            accelerator="Ctrl + Y"
         )
 
         # self.edit_menu.add_command(label='Clear timeline', command=event_handlers.on_cleartimeline, underline=0)
