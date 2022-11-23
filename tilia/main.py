@@ -2,7 +2,7 @@
 Entry point for the application.
 
 Defines a TiLiA object which is composed, among other things, of instances of the following classes:
-    - FileManager, which handles file processing (open, save, new, etc...);
+    - FileManager, which handles _file processing (open, save, new, etc...);
     - TimelineWithUIBuilder, which handles request to create timelines and their uis;
     - Player, which handles the playing of;
     - UI (currently a TkinterUI), which handles the GUI as a whole;
@@ -150,6 +150,8 @@ class TiLiA(Subscriber):
 
         self._player.load_media(media_path)
 
+        self._media_metadata['media length'] = self.media_length
+
     def on_request_new_file(self) -> None:
         try:
             self._file_manager.new()
@@ -178,7 +180,7 @@ class TiLiA(Subscriber):
         elif extension in globals_.NATIVE_VIDEO_FORMATS:
             self._change_to_video_player_if_necessary()
         else:
-            raise ValueError(f"Media file extension '{extension}' is not supported.")
+            raise ValueError(f"Media _file extension '{extension}' is not supported.")
 
     def _change_to_audio_player_if_necessary(self) -> None:
         if isinstance(self._player, player.VlcPlayer):
@@ -213,12 +215,12 @@ class TiLiA(Subscriber):
         logger.info(f"App cleared.")
 
     def load_file(self, file: TiliaFile) -> None:
-        logger.info(f"Loading file '{file}'...")
+        logger.info(f"Loading _file '{file}'...")
 
         if file.media_path:
             self.on_request_to_load_media(file.media_path)
 
-        file_copy = dataclasses.asdict(file)  # must copy so keys don't get popped in passed file
+        file_copy = dataclasses.asdict(file)  # must copy so keys don't get popped in passed _file
 
         for _, timeline in file_copy['timelines'].items():
             kind_str = timeline.pop("kind")
@@ -233,7 +235,7 @@ class TiLiA(Subscriber):
             components = timeline.pop("components")
             self._timeline_with_ui_builder.create_timeline(kind, name, components)
 
-        logger.info(f"Loaded file.")
+        logger.info(f"Loaded _file.")
 
     def on_add_timeline(self, kind: TimelineKind) -> None:
         if kind != TimelineKind.HIERARCHY_TIMELINE:
@@ -307,11 +309,11 @@ class FileManager(Subscriber):
 
     def _update_file(self, **kwargs) -> None:
         for keyword, value in kwargs.items():
-            logger.debug(f"Updating file paramenter '{keyword}' to '{value}'")
+            logger.debug(f"Updating _file paramenter '{keyword}' to '{value}'")
             setattr(self._file, keyword, value)
 
     def save(self, save_as: bool) -> None:
-        logger.info(f"Saving file...")
+        logger.info(f"Saving _file...")
         self._file.file_path = self._get_file_path(save_as)
         try:
             save_params = self._get_save_parameters()
@@ -327,7 +329,7 @@ class FileManager(Subscriber):
         logger.info(f"File saved.")
 
     def new(self):
-        logger.debug(f"Processing new file request.")
+        logger.debug(f"Processing new _file request.")
         try:
             self._file_manager.ask_save_if_necessary()
         except UserCancelledOpenError:
@@ -337,12 +339,12 @@ class FileManager(Subscriber):
 
         self._file = TiliaFile()
 
-        logger.info(f"New file created.")
+        logger.info(f"New _file created.")
 
     def open(self):
-        logger.debug(f"Processing open file request.")
+        logger.debug(f"Processing open _file request.")
         self.ask_save_if_necessary()
-        logger.debug(f"Getting path of file to open.")
+        logger.debug(f"Getting path of _file to open.")
         try:
             file_path = self._app.ui.get_file_open_path()
             logger.debug(f"Got path {file_path}")
@@ -354,7 +356,7 @@ class FileManager(Subscriber):
         self._open_file_by_path(file_path)
 
     def _open_file_by_path(self, file_path: str):
-        logger.debug(f"Opening file path {file_path}.")
+        logger.debug(f"Opening _file path {file_path}.")
 
         with open(file_path, "r", encoding="utf-8") as file:
             file_dict = json.load(file)
@@ -369,13 +371,13 @@ class FileManager(Subscriber):
         response = self._app.ui.ask_save_changes()
 
         if response:
-            logger.debug("User chose to save file before opening.")
+            logger.debug("User chose to save _file before opening.")
             self.save(save_as=False)
         elif response is False:
-            logger.debug("User chose not to save file before opening.")
+            logger.debug("User chose not to save _file before opening.")
             pass
         elif response is None:
-            logger.debug("User cancelled file open.")
+            logger.debug("User cancelled _file open.")
             raise UserCancelledOpenError()
 
     def _get_save_parameters(self) -> dict:
@@ -387,7 +389,7 @@ class FileManager(Subscriber):
         }
 
     def on_media_loaded(self, media_path: str, *_) -> None:
-        logger.debug(f"Updating file media path to '{media_path}'")
+        logger.debug(f"Updating _file media path to '{media_path}'")
         self._file.media_path = media_path
 
     def on_subscribed_event(
@@ -410,7 +412,7 @@ class FileManager(Subscriber):
         return f"{self._app.get_media_title()} {datetime.now().strftime('%d-%m-%Y %H%M%S')}"
 
     def clear(self) -> None:
-        logger.debug(f"Clearing file manager...")
+        logger.debug(f"Clearing _file manager...")
         self._file = TiliaFile()
 
 
