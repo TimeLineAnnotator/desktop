@@ -42,7 +42,7 @@ from threading import Thread
 from tilia.player import player
 from tilia.events import Subscriber, EventName
 
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.timeline_kinds import TimelineKind, IMPLEMENTED_TIMELINE_KINDS
 from tilia.timelines.collection import TimelineCollection
 from tilia.ui.tkinter.tkinterui import TkinterUI
 
@@ -218,7 +218,11 @@ class TiLiA(Subscriber):
             self.on_request_to_load_media(file.media_path)
 
         for _, timeline in file.timelines.items():
-            kind = TimelineKind[timeline.pop("kind")]
+            kind_str = timeline.pop("kind")
+            if kind_str not in IMPLEMENTED_TIMELINE_KINDS:
+                logger.debug(f"Timeline kind '{kind_str} is not implemented.")
+                continue
+            kind = TimelineKind[kind_str]
             try:
                 name = timeline.pop("name")
             except KeyError:
