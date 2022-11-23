@@ -37,7 +37,7 @@ class MetadataWindow:
     _instanced = False
     KIND = WindowKind.METADATA
 
-    NON_EDITABLE_FIELDS = ['media path', 'audio length']
+    NON_EDITABLE_FIELDS = ['media path', 'media length']
     SEPARATE_WINDOW_FIELDS = ['notes']
 
     def __init__(self, app_ui, media_metadata: OrderedDict, non_editable_fields: OrderedDict):
@@ -93,7 +93,7 @@ class MetadataWindow:
 
 
         for field_name, value in self._non_editable_fields.items():
-            left_widget = tk.Label(self._toplevel, text=field_name)
+            left_widget = tk.Label(self._toplevel, text=field_name.capitalize())
             right_widget = tk.Text(self._toplevel, height=1, borderwidth=0, width=40)
             right_widget.insert(1.0, value)
             right_widget.config(state='disabled', font=('Arial', 9), bg='#F0F0F0')
