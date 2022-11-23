@@ -2,6 +2,7 @@ import pytest
 
 from tilia import events
 from tilia.events import EventName
+from tilia.files import TiliaFile
 from tilia.globals_ import UserInterfaceKind, NATIVE_VIDEO_FORMATS, NATIVE_AUDIO_FORMATS
 from tilia.main import TiLiA, FileManager
 from tilia.player import player
@@ -76,7 +77,36 @@ class TestFileManager:
             ('test_field3', 'c')
         ]
 
+    def test_is_file_modified(self, tilia_mock, file_manager):
 
+        empty_file = TiliaFile()
+        empty_file_save_params = {}
+        for attr in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION:
+            empty_file_save_params[attr] = getattr(empty_file, attr)
+        file_manager._get_save_parameters = lambda: empty_file_save_params
+
+        assert not file_manager.is_file_modified
+
+
+        file_manager._get_save_parameters = lambda: modified_save_params
+
+        import copy
+        modified_save_params = copy.deepcopy(empty_file_save_params)
+        modified_save_params['timelines'] = {'0': 'tldata0', '1': 'tldata1'}
+
+        assert file_manager.is_file_modified
+
+        modified_save_params = copy.deepcopy(empty_file_save_params)
+        modified_save_params['media_metadata']['title'] = 'modified title'
+        assert file_manager.is_file_modified
+
+        modified_save_params = copy.deepcopy(empty_file_save_params)
+        modified_save_params['media_metadata'].pop('title')
+        assert file_manager.is_file_modified
+
+        modified_save_params = copy.deepcopy(empty_file_save_params)
+        modified_save_params['media_path'] = 'modified path'
+        assert file_manager.is_file_modified
 
 class TestTimelineWithUIBuilder:
     def test_create_slider_timeline_no_error(self, tilia_mock, tlwui_builder):

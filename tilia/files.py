@@ -50,7 +50,7 @@ class TiliaFile:
     file_path: str = ""
     media_path: str = ""
     media_metadata: OrderedDict = field(default_factory=create_new_media_metadata)
-    timelines: dict = None
+    timelines: dict = field(default_factory=lambda: {})
     app_name: str = globals_.APP_NAME
     version: str = globals_.VERSION
 

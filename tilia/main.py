@@ -140,7 +140,7 @@ class TiLiA(Subscriber):
         elif event_name == EventName.METADATA_NEW_FIELDS:
             self.on_metadata_new_fields(*args)
 
-    def on_request_to_load_media(self, media_path: str):
+    def on_request_to_load_media(self, media_path: str) -> None:
         import os
 
         extension = os.path.splitext(media_path)[1][1:]
@@ -149,7 +149,7 @@ class TiLiA(Subscriber):
 
         self._player.load_media(media_path)
 
-    def on_request_new_file(self):
+    def on_request_new_file(self) -> None:
         try:
             self._file_manager.new()
         except UserCancelledSaveError:
@@ -157,9 +157,9 @@ class TiLiA(Subscriber):
 
         self._initial_file_setup()
 
-    @staticmethod
-    def on_request_to_close():
-        """TODO should ask to save if file was modified."""
+    def on_request_to_close(self) -> None:
+        self._file_manager.ask_save_if_necessary()
+
         sys.exit()
 
     def get_id(self) -> str:
@@ -270,15 +270,31 @@ class FileManager(Subscriber):
         EventName.FILE_REQUEST_TO_OPEN,
     ]
 
+    FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION = ['media_metadata', 'timelines', 'media_path']
+
     def __init__(self, app: TiLiA, file: TiliaFile = None):
         super().__init__(subscriptions=self.SUBSCRIPTIONS)
-        self._file_is_modified = False
         self._app = app
 
         if not file:
             self._file = TiliaFile()
         else:
             self._file = file
+
+    @property
+    def is_file_modified(self):
+
+        current_file_data = self._get_save_parameters()
+
+        if len(current_file_data['timelines']) == 1:
+            tl = list(current_file_data['timelines'].values())[0]
+            if tl['kind'] == TimelineKind.SLIDER_TIMELINE.name:
+                current_file_data['timelines'] = {}
+
+        for key in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION:
+            if not current_file_data[key] == getattr(self._file, key):
+                return True
+        return False
 
     def _update_file(self, **kwargs) -> None:
         for keyword, value in kwargs.items():
@@ -287,8 +303,9 @@ class FileManager(Subscriber):
 
     def save(self, save_as: bool) -> None:
         logger.info(f"Saving file...")
+        self._file.file_path = self._get_file_path(save_as)
         try:
-            save_params = self._get_save_parameters(save_as)
+            save_params = self._get_save_parameters()
         except UserCancelledSaveError:
             return
 
@@ -303,7 +320,7 @@ class FileManager(Subscriber):
     def new(self):
         logger.debug(f"Processing new file request.")
         try:
-            self._ask_save_if_necessary()
+            self._file_manager.ask_save_if_necessary()
         except UserCancelledOpenError:
             return
 
@@ -316,7 +333,7 @@ class FileManager(Subscriber):
     def open(self):
         logger.debug(f"Processing open file request.")
         try:
-            self._ask_save_if_necessary()
+            self.ask_save_if_necessary()
             logger.debug(f"Getting path of file to open.")
             file_path = self._app.ui.get_file_open_path()
             logger.debug(f"Got path {file_path}")
@@ -336,8 +353,8 @@ class FileManager(Subscriber):
         self._file = TiliaFile(**file_dict)
         self._app.load_file(self._file)
 
-    def _ask_save_if_necessary(self):
-        if not self._file_is_modified:
+    def ask_save_if_necessary(self) -> None:
+        if not self.is_file_modified:
             return
 
         response = self._app.ui.ask_save_changes()
@@ -352,12 +369,12 @@ class FileManager(Subscriber):
             logger.debug("User cancelled file open.")
             raise UserCancelledOpenError()
 
-    def _get_save_parameters(self, save_as: bool) -> dict:
+    def _get_save_parameters(self) -> dict:
         return {
             "media_metadata": dict(self._app.media_metadata),
             "timelines": self._app.get_timelines_as_dict(),
             "media_path": self._app.get_media_path(),
-            "file_path": self._get_file_path(save_as),
+            "file_path": self._file.file_path,
         }
 
     def on_media_loaded(self, media_path: str, *_) -> None:
