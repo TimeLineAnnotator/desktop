@@ -85,7 +85,7 @@ class TimelineCollection:
     def get_timeline_by_id(self, id_: int) -> Timeline:
         return next((e for e in self._timelines if e.id == id_), None)
 
-    def get_timeline_atttibute_by_id(self, id_: int, attribute: str) -> Any:
+    def get_timeline_attribute_by_id(self, id_: int, attribute: str) -> Any:
         timeline = self.get_timeline_by_id(id_)
         return getattr(timeline, attribute)
 
