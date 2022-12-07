@@ -590,6 +590,7 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1 not in tl.component_manager._components
         assert len(tl.component_manager._components) == 2
 
+
     def test_split_unit_with_parent(self, tl):
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=1, level=1
@@ -608,6 +609,26 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1 not in hrc2.children
         assert len(tl.component_manager._components) == 3
         assert len(hrc2.children) == 2
+
+    def test_split_unit_passes_attributes(self, tl):
+        """Does not test for passing of ui attributes."""
+        hrc1 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=1, level=1, comments='test comment'
+        )
+        hrc2 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY,
+            timeline=tl,
+            start=0.0,
+            end=1,
+            level=2,
+        )
+
+
+        tl.component_manager._make_parent_child_relation(
+            ParentChildRelation(parent=hrc2, children=[hrc1])
+        )
+
+        assert hrc2.children[0].comments == 'test comment'
 
     def test_split_unit_with_children(self, tl):
         hrc1 = tl.component_manager.create_component(

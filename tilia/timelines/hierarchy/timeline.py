@@ -327,7 +327,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 )
 
         def _get_new_children_for_unit_to_split_parent(
-            unit_to_split, left_unit, right_unit
+                unit_to_split, left_unit, right_unit
         ):
             new_children = unit_to_split.parent.children.copy() + [
                 left_unit,
@@ -368,7 +368,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 )
             )
 
-        # pass previous children to
+        # pass previous children to new units
         if unit_to_split.children:
             self._make_parent_child_relation(
                 ParentChildRelation(
@@ -392,9 +392,25 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 )
             )
 
-        # TODO pass attributes to early unit
-        # copy_data = self.copy()
-        # left_unit.receive_paste(copy_data)
+
+        UI_ATTRIBUTES_TO_PASS_ON = [
+            'label',
+            'color'
+
+        ]
+
+        TL_COMPONENT_ATTRIBUTES_TO_PASS_ON = [
+            'comments'
+        ]
+
+        for attr in UI_ATTRIBUTES_TO_PASS_ON:
+            setattr(left_unit.ui, attr, getattr(unit_to_split.ui, attr))
+            setattr(right_unit.ui, attr, getattr(unit_to_split.ui, attr))
+
+        for attr in TL_COMPONENT_ATTRIBUTES_TO_PASS_ON:
+            setattr(left_unit, attr, getattr(unit_to_split, attr))
+            setattr(right_unit, attr, getattr(unit_to_split, attr))
+
 
     def merge(self, units_to_merge: list[Hierarchy]):
         def _validate_at_least_two_units(units: list[Hierarchy]) -> None:
