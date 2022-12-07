@@ -37,7 +37,7 @@ class MetadataWindow:
     _instanced = False
     KIND = WindowKind.METADATA
 
-    NON_EDITABLE_FIELDS = ['media path', 'media length']
+    NON_EDITABLE_FIELDS = ['media_path', 'media length']
     SEPARATE_WINDOW_FIELDS = ['notes']
 
     def __init__(self, app_ui, media_metadata: OrderedDict, non_editable_fields: OrderedDict):

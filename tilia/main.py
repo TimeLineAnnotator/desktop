@@ -389,7 +389,7 @@ class FileManager(Subscriber):
         }
 
     def on_media_loaded(self, media_path: str, *_) -> None:
-        logger.debug(f"Updating _file media path to '{media_path}'")
+        logger.debug(f"Updating _file media_path to '{media_path}'")
         self._file.media_path = media_path
 
     def on_subscribed_event(
