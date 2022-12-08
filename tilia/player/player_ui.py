@@ -5,8 +5,8 @@ import logging
 logger = logging.getLogger(__name__)
 from typing import Literal
 
-from tilia.events import Event, subscribe
-from tilia import globals_
+from tilia.events import Event, subscribe, unsubscribe_from_all
+from tilia import globals_, events
 
 
 class PlayerUI(tk.Frame):
@@ -99,4 +99,4 @@ class PlayerUI(tk.Frame):
 
     def destroy(self):
         tk.Frame.destroy(self)
-        unsubscribe_from_all(self)()
+        unsubscribe_from_all(self)
