@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, ANY, patch
 import itertools
 import logging
 
-from tilia.events import EventName
+from tilia.events import Event
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.common import InvalidComponentKindError
 from tilia.timelines.component_kinds import ComponentKind
@@ -580,34 +580,39 @@ class TestHierarchyTimelineComponentManager:
 
         assert unit_for_split is hrc1
 
-    def test_split_unit_without_parent(self, tl):
-        hrc1 = tl.component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=1, level=1
+    def test_split_unit_without_parent(self, tl_with_ui):
+        hrc1 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0.0, end=1, level=1
         )
 
-        tl.component_manager.split(hrc1, 0.5)
+        tl_with_ui.component_manager.split(hrc1, 0.5)
 
-        assert hrc1 not in tl.component_manager._components
-        assert len(tl.component_manager._components) == 2
+        assert hrc1 not in tl_with_ui.component_manager._components
+        assert len(tl_with_ui.component_manager._components) == 2
 
+    @patch(
+        "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
+    )
+    def test_split_unit_with_parent(self, update_ui_parent_child_mock, tl_with_ui):
 
-    def test_split_unit_with_parent(self, tl):
-        hrc1 = tl.component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=1, level=1
+        update_ui_parent_child_mock.return_value = None
+
+        hrc1 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0.0, end=1, level=1
         )
-        hrc2 = tl.component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=1, level=2
+        hrc2 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0.0, end=1, level=2
         )
 
-        tl.component_manager._make_parent_child_relation(
+        tl_with_ui.component_manager._make_parent_child_relation(
             ParentChildRelation(parent=hrc2, children=[hrc1])
         )
 
-        tl.component_manager.split(hrc1, 0.5)
+        tl_with_ui.component_manager.split(hrc1, 0.5)
 
-        assert hrc1 not in tl.component_manager._components
+        assert hrc1 not in tl_with_ui.component_manager._components
         assert hrc1 not in hrc2.children
-        assert len(tl.component_manager._components) == 3
+        assert len(tl_with_ui.component_manager._components) == 3
         assert len(hrc2.children) == 2
 
     def test_split_unit_passes_attributes(self, tl):
@@ -630,24 +635,30 @@ class TestHierarchyTimelineComponentManager:
 
         assert hrc2.children[0].comments == 'test comment'
 
-    def test_split_unit_with_children(self, tl):
-        hrc1 = tl.component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=0.5, level=1
+    @patch(
+        "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
+    )
+    def test_split_unit_with_children(self, update_ui_parent_child_mock, tl_with_ui):
+
+        update_ui_parent_child_mock.return_value = None
+
+        hrc1 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0.0, end=0.5, level=1
         )
-        hrc2 = tl.component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=tl, start=0.5, end=1, level=1
+        hrc2 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0.5, end=1, level=1
         )
-        hrc3 = tl.component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=tl, start=0, end=1, level=2
+        hrc3 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, start=0, end=1, level=2
         )
 
-        tl.component_manager._make_parent_child_relation(
+        tl_with_ui.component_manager._make_parent_child_relation(
             ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
         )
 
-        tl.component_manager.split(hrc3, 0.5)
+        tl_with_ui.component_manager.split(hrc3, 0.5)
 
-        assert len(tl.component_manager._components) == 4
+        assert len(tl_with_ui.component_manager._components) == 4
         assert hrc1.parent
         assert hrc2.parent
         assert hrc1.parent != hrc2.parent
