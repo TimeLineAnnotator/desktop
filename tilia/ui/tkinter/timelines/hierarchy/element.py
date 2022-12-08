@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import tilia.utils.color
-from tilia.events import EventName
+from tilia.events import Event, subscribe, unsubscribe
 from tilia.misc_enums import StartOrEnd
 from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
@@ -33,7 +33,7 @@ from tilia.timelines.common import (
 from tilia.ui.tkinter.timelines.common import TimelineTkUIElement
 
 
-class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
+class HierarchyTkUI(TimelineTkUIElement):
     """Ignores extra kwargs. In that way we may simply forward the kwargs from given to the component, regardless of whether they will be used."""
 
     WIDTH = 0
@@ -119,8 +119,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
         super().__init__(
             tl_component=unit,
             timeline_ui=timeline_ui,
-            canvas=canvas,
-            subscriptions=[EventName.TIMELINE_LEFT_CLICK],
+            canvas=canvas
         )
 
         self.tl_component = unit
@@ -397,13 +396,6 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
             draw_h,
         )
 
-    def on_subscribed_event(self, event_name: str, *args, **kwargs) -> None:
-        if event_name == EventName.TIMELINE_LEFT_BUTTON_DRAG:
-            self.drag(*args)
-        elif event_name == EventName.TIMELINE_LEFT_BUTTON_RELEASE:
-            self.end_drag()
-        elif event_name == EventName.INSPECTOR_FIELD_EDITED:
-            self.on_inspector_field_edited(*args)
 
     MIN_DRAG_GAP = 4
     DRAG_PROXIMITY_LIMIT = MARKER_WIDTH / 2 + MIN_DRAG_GAP
@@ -419,15 +411,15 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
     def on_left_click(self, marker_id: int) -> None:
         extremity = self._get_extremity_from_marker_id(marker_id)
         self.make_drag_data(extremity)
-        events.subscribe(EventName.TIMELINE_LEFT_BUTTON_DRAG, self)
-        events.subscribe(EventName.TIMELINE_LEFT_BUTTON_RELEASE, self)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
 
     @property
     def double_left_click_triggers(self) -> tuple[int, ...]:
         return self.rect_id, self.comments_ind_id, self.label_id
 
     def on_double_left_click(self, _) -> None:
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK, self.tl_component.start)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.tl_component.start)
         print('DOUBLE!!!')
 
     @property
@@ -515,16 +507,12 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
     def end_drag(self):
         logger.debug(f"Ending drag of {self}.")
         self.drag_data = {}
-        self.unsubscribe(
-            [
-                EventName.TIMELINE_LEFT_BUTTON_DRAG,
-                EventName.TIMELINE_LEFT_BUTTON_RELEASE,
-            ]
-        )
+        unsubscribe(Event.TIMELINE_LEFT_BUTTON_DRAG, self)
+        unsubscribe(Event.TIMELINE_LEFT_BUTTON_RELEASE, self)
 
     def on_select(self) -> None:
         self.display_as_selected()
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, self.tl_component.start)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, self.tl_component.start)
 
     def on_deselect(self) -> None:
         self.display_as_deselected()
@@ -584,7 +572,7 @@ class HierarchyTkUI(TimelineTkUIElement, events.Subscriber):
             attr = self.FIELD_NAME_TO_ATTRIBUTES_NAME[field_name]
 
             events.post(
-                EventName.RECORD_STATE,
+                Event.RECORD_STATE,
                 self.timeline_ui.timeline,
                 StateAction.ATTRIBUTE_EDIT_VIA_INSPECTOR,
                 no_repeat=True,

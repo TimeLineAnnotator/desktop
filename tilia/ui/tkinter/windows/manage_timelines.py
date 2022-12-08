@@ -2,7 +2,7 @@ import tkinter as tk
 from typing import TYPE_CHECKING
 
 from tilia import events
-from tilia.events import EventName
+from tilia.events import Event
 from tilia.misc_enums import UpOrDown
 
 if TYPE_CHECKING:
@@ -126,9 +126,9 @@ class ManageTimelines:
         is_checked = self.visible_checkbox_var.get()
 
         if is_checked:
-            events.post(EventName.TIMELINES_REQUEST_TO_SHOW_TIMELINE, selected_timeline_id)
+            events.post(Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, selected_timeline_id)
         else:
-            events.post(EventName.TIMELINES_REQUEST_TO_HIDE_TIMELINE, selected_timeline_id)
+            events.post(Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, selected_timeline_id)
 
     def move_up(self):
         """Move timeline up"""
@@ -140,7 +140,7 @@ class ManageTimelines:
 
         timeline_id = self.tl_ids_and_strings[index][0]
         self.move_listbox_item(index, item, UpOrDown.UP)
-        events.post(EventName.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER, timeline_id)
+        events.post(Event.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER, timeline_id)
 
     def move_down(self):
         """Move timeline down"""
@@ -152,7 +152,7 @@ class ManageTimelines:
 
         timeline_id = self.tl_ids_and_strings[index][0]
         self.move_listbox_item(index, item, UpOrDown.DOWN)
-        events.post(EventName.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER, timeline_id)
+        events.post(Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER, timeline_id)
 
     def move_listbox_item(self, index: int, item: str, direction: UpOrDown) -> None:
 
@@ -180,7 +180,7 @@ class ManageTimelines:
         index = self.list_box.index(self.list_box.curselection())
         timeline_id = self.tl_ids_and_strings[index][0]
 
-        events.post(EventName.TIMELINES_REQUEST_TO_DELETE_TIMELINE, timeline_id)
+        events.post(Event.TIMELINES_REQUEST_TO_DELETE_TIMELINE, timeline_id)
 
         self.update_tl_ids_and_strings()
 

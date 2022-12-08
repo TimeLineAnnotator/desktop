@@ -12,7 +12,7 @@ import pandas as pd
 
 import tilia.globals_ as globals_
 import tilia.events as events
-from tilia.events import Subscriber
+from tilia.events import Event
 
 from tilia.explorer.explorer_gui import ExplorerGUI, ExplorerTkGUI
 
@@ -513,38 +513,32 @@ def search_tlobjects_in_files(
     return final_formatted_result, final_audio_info
 
 
-class Explorer(Subscriber):
+class Explorer:
     def __init__(self):
         self.curr_audio_index = -1
         self.audio_info = None
-        super().__init__(
-            [
-                "EXPLORER: SEARCH",
-                "EXPLORER: LOAD MEDIA",
-                "EXPLORER: PLAY",
-                "EXPLORER: AUDIO INFO FROM SEARCH RESULT",
-            ]
+        events.subscribe(self, "EXPLORER: SEARCH", do_search)
+        events.subscribe(self, "EXPLORER: LOAD MEDIA", self.on_explorer_load_media)
+        events.subscribe(self, "EXPLORER: PLAY", self.on_explorer_play)
+        events.subscribe(self, "EXPLORER: AUDIO INFO FROM SEARCH RESULT", self.on_explorer_audio_info_from_search_result)
+        
+    def on_explorer_load_media(self, audio_index: int):
+        self.curr_audio_index = audio_index
+        curr_audio = self.audio_info[self.curr_audio_index]
+        events.post(
+            "PLAYER: LOAD MEDIA",
+            curr_audio["audio_path"],
+            curr_audio["start"],
+            curr_audio["end"],
         )
-
-    def on_subscribed_event(
-        self, event_name: str, *args: tuple, **kwargs: dict
-    ) -> None:
-        match event_name:
-            case "EXPLORER: SEARCH":
-                do_search(*args)
-            case "EXPLORER: LOAD MEDIA":
-                self.curr_audio_index = args[0]
-                curr_audio = self.audio_info[self.curr_audio_index]
-                events.post(
-                    "PLAYER: LOAD MEDIA",
-                    curr_audio["audio_path"],
-                    curr_audio["start"],
-                    curr_audio["end"],
-                )
-            case "EXPLORER: PLAY":
-                events.post(events.EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
-            case "EXPLORER: AUDIO INFO FROM SEARCH RESULT":
-                self.audio_info = args[0]
+        
+    def on_explorer_play(self):
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
+        
+    def on_explorer_audio_info_from_search_result(self, audio_info):
+        self.audio_info = audio_info
+    
+        
 
 
 def do_search(
@@ -572,8 +566,8 @@ def do_search(
         file_data_to_add,
     )
 
-    events.post(events.EventName.EXPLORER_AUDIO_INFO_FROM_SEARCH_RESULT, audio_info)
-    events.post(events.EventName.EXPLORER_DISPLAY_SEARCH_RESULTS, search_result)
+    events.post(events.EventEXPLORER_AUDIO_INFO_FROM_SEARCH_RESULT, audio_info)
+    events.post(events.EventEXPLORER_DISPLAY_SEARCH_RESULTS, search_result)
 
 
 def main():

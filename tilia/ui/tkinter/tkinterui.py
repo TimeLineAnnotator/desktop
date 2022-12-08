@@ -19,7 +19,7 @@ from tilia import globals_, events
 from tilia.player import player_ui
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.events import EventName, Subscriber
+from tilia.events import Event, subscribe
 from .event_handler import TkEventHandler
 from .timelines.common import TkTimelineUICollection
 from .windows.common import AppWindow
@@ -49,7 +49,7 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
     print(exc_value)
 
 
-class TkinterUI(Subscriber):
+class TkinterUI:
     """
     Responsible for high-level control of the GUI:
         - Instances the tk.TK object;
@@ -59,15 +59,12 @@ class TkinterUI(Subscriber):
         - Keeps 'global' interface data such as window and timeline dimensions.
     """
 
-    SUBSCRIPTIONS = [
-        EventName.UI_REQUEST_WINDOW_INSPECTOR,
-        EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
-        EventName.UI_REQUEST_WINDOW_METADATA,
-        EventName.MENU_OPTION_FILE_LOAD_MEDIA
-    ]
-
     def __init__(self, app: TiLiA):
-        super().__init__(subscriptions=self.SUBSCRIPTIONS)
+
+        subscribe(self, Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media)
+        subscribe(self, Event.UI_REQUEST_WINDOW_INSPECTOR, lambda: self.on_request_window(WindowKind.INSPECTOR))
+        subscribe(self, Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES, lambda: self.on_request_window(WindowKind.MANAGE_TIMELINES))
+        subscribe(self, Event.UI_REQUEST_WINDOW_METADATA, lambda: self.on_request_window(WindowKind.METADATA))
 
         logger.debug("Starting TkinterUI...")
 
@@ -107,7 +104,7 @@ class TkinterUI(Subscriber):
         self.root.iconbitmap(globals_.APP_ICON_PATH)
 
         self.root.protocol(
-            "WM_DELETE_WINDOW", lambda: events.post(EventName.APP_REQUEST_TO_CLOSE)
+            "WM_DELETE_WINDOW", lambda: events.post(Event.APP_REQUEST_TO_CLOSE)
         )
 
     def _setup_menus(self):
@@ -198,7 +195,7 @@ class TkinterUI(Subscriber):
         media_path = file.choose_media_file()
         # TODO validate media path
 
-        events.post(EventName.FILE_REQUEST_TO_LOAD_MEDIA, media_path)
+        events.post(Event.FILE_REQUEST_TO_LOAD_MEDIA, media_path)
 
     @staticmethod
     def get_file_save_path(initial_filename: str) -> str | None:
@@ -235,23 +232,6 @@ class TkinterUI(Subscriber):
     def ask_string(title: str, prompt: str) -> str:
         return tk.simpledialog.askstring(title, prompt=prompt)
 
-    def on_subscribed_event(
-        self, event_name: EventName, *args: tuple, **kwargs: dict
-    ) -> None:
-        event_to_callback = {
-            EventName.MENU_OPTION_FILE_LOAD_MEDIA: self.on_menu_file_load_media,
-            EventName.UI_REQUEST_WINDOW_INSPECTOR: lambda: self.on_request_window(
-                WindowKind.INSPECTOR
-            ),
-            EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES: lambda: self.on_request_window(
-                WindowKind.MANAGE_TIMELINES
-            ),
-            EventName.UI_REQUEST_WINDOW_METADATA: lambda: self.on_request_window(
-                WindowKind.METADATA
-            )
-        }
-
-        event_to_callback[event_name]()
 
     def get_timeline_ui_attribute_by_id(self, id_: int, attribute: str) -> Any:
         return self.timeline_ui_collection.get_timeline_ui_attribute_by_id(
@@ -281,7 +261,7 @@ class AppToolbarsFrame(tk.Frame):
         #     globals_.settings["GENERAL"][
         #         "freeze_timeline_labels"
         #     ] = caller.variable.get()
-        #     events.post(EventName.FREEZE_LABELS_SET)
+        #     events.post(Event.FREEZE_LABELS_SET)
         #
         # self.freeze_labels_toolbar = CheckboxItem(
         #     label="Freeze labels",
@@ -366,29 +346,29 @@ class TkinterUIMenus(tk.Menu):
 
         self.file_menu.add_command(
             label="New...",
-            command=lambda: events.post(EventName.FILE_REQUEST_NEW_FILE, save_as=False),
+            command=lambda: events.post(Event.FILE_REQUEST_NEW_FILE, save_as=False),
         )
         self.file_menu.add_command(
             label="Open...",
-            command=lambda: events.post(EventName.FILE_REQUEST_TO_OPEN),
+            command=lambda: events.post(Event.FILE_REQUEST_TO_OPEN),
             underline=0,
         )
         self.file_menu.add_command(
             label="Save",
-            command=lambda: events.post(EventName.FILE_REQUEST_TO_SAVE, save_as=False),
+            command=lambda: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=False),
             accelerator="Ctrl+S",
             underline=0,
         )
         self.file_menu.add_command(
             label="Save as...",
-            command=lambda: events.post(EventName.FILE_REQUEST_TO_SAVE, save_as=True),
+            command=lambda: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=True),
             accelerator="Ctrl+Shift+S",
             underline=5,
         )
         self.file_menu.add_command(
             label="Load media file...",
             underline=0,
-            command=lambda: events.post(EventName.MENU_OPTION_FILE_LOAD_MEDIA),
+            command=lambda: events.post(Event.MENU_OPTION_FILE_LOAD_MEDIA),
         )
         self.file_menu.add_separator()
         self.goto_menu = tk.Menu(tearoff=0)
@@ -407,7 +387,7 @@ class TkinterUIMenus(tk.Menu):
         self.file_menu.add_separator()
         self.file_menu.add_command(
             label="Media metadata...",
-            command=lambda: events.post(EventName.UI_REQUEST_WINDOW_METADATA),
+            command=lambda: events.post(Event.UI_REQUEST_WINDOW_METADATA),
             underline=0
         )
 
@@ -417,13 +397,13 @@ class TkinterUIMenus(tk.Menu):
 
         self.edit_menu.add_command(
             label="Undo",
-            command=lambda: events.post(EventName.REQUEST_TO_UNDO),
+            command=lambda: events.post(Event.REQUEST_TO_UNDO),
             underline=0,
             accelerator="Ctrl + Z"
         )
         self.edit_menu.add_command(
             label="Redo",
-            command=lambda: events.post(EventName.REQUEST_TO_REDO),
+            command=lambda: events.post(Event.REQUEST_TO_REDO),
             underline=0,
             accelerator="Ctrl + Y"
         )
@@ -440,7 +420,7 @@ class TkinterUIMenus(tk.Menu):
             self.timelines_menu.add_timelines.add_command(
                 label=kind.value.capitalize(),
                 command=lambda kind_=kind: events.post(
-                    EventName.APP_ADD_TIMELINE, kind_
+                    Event.APP_ADD_TIMELINE, kind_
                 ),
                 underline=0,
             )
@@ -454,13 +434,13 @@ class TkinterUIMenus(tk.Menu):
         self.timelines_menu.add_command(
             label="Manage...",
             underline=0,
-            command=lambda: events.post(EventName.UI_REQUEST_WINDOW_MANAGE_TIMELINES),
+            command=lambda: events.post(Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES),
         )
 
         self.timelines_menu.add_command(
             label="Clear all",
             underline=0,
-            command=lambda: events.post(EventName.TIMELINES_REQUEST_TO_CLEAR_ALL_TIMELINES),
+            command=lambda: events.post(Event.TIMELINES_REQUEST_TO_CLEAR_ALL_TIMELINES),
             state="disabled",
         )
 
@@ -473,26 +453,26 @@ class TkinterUIMenus(tk.Menu):
         )
         self.view_window_menu.add_command(
             label="Inspect",
-            command=lambda: events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR),
+            command=lambda: events.post(Event.UI_REQUEST_WINDOW_INSPECTOR),
             underline=0,
         )
         self.view_menu.add_separator()
         self.view_menu.add_command(
             label="Zoom in",
             accelerator="Ctrl + +",
-            command=lambda: events.post(EventName.REQUEST_ZOOM_IN),
+            command=lambda: events.post(Event.REQUEST_ZOOM_IN),
         )
         self.view_menu.add_command(
             label="Zoom out",
             accelerator="Ctrl + -",
-            command=lambda: events.post(EventName.REQUEST_ZOOM_OUT),
+            command=lambda: events.post(Event.REQUEST_ZOOM_OUT),
         )
 
         # DEVELOPMENT WINDOW OPTION
         if globals_.DEVELOPMENT_MODE:
             self.view_window_menu.add_command(
                 label="Development",
-                command=lambda: events.post(EventName.UI_REQUEST_WINDOW_DEVELOPMENT),
+                command=lambda: events.post(Event.UI_REQUEST_WINDOW_DEVELOPMENT),
                 underline=0,
             )
 
@@ -503,7 +483,7 @@ class TkinterUIMenus(tk.Menu):
         self.help_menu.add_command(
             label="About...",
             underline=0,
-            command=lambda: events.post(EventName.UI_REQUEST_WINDOW_ABOUT),
+            command=lambda: events.post(Event.UI_REQUEST_WINDOW_ABOUT),
             state="disabled",
         )
 

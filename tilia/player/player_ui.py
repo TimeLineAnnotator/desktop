@@ -5,22 +5,20 @@ import logging
 logger = logging.getLogger(__name__)
 from typing import Literal
 
-import tilia.events as events
-from tilia.events import Subscriber, EventName
+from tilia.events import Event, subscribe
 from tilia import globals_
 
 
-class PlayerUI(tk.Frame, Subscriber):
+class PlayerUI(tk.Frame):
     def __init__(self, parent):
         logger.debug("Creating PlayerUI...")
-        tk.Frame.__init__(self, parent)
-        Subscriber.__init__(self)
+        super().__init__(parent)
 
-        events.subscribe(EventName.PLAYER_AUDIO_TIME_CHANGE, self),
-        events.subscribe(EventName.PLAYER_MEDIA_LOADED, self),
-        events.subscribe(EventName.PLAYER_STOPPED, self),
-        events.subscribe(EventName.PLAYER_PAUSED, self)
-        events.subscribe(EventName.PLAYER_UNPAUSED, self)
+        subscribe(self, Event.PLAYER_AUDIO_TIME_CHANGE, self.on_new_audio_time)
+        subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_load)
+        subscribe(self, Event.PLAYER_STOPPED, self.on_player_stop)
+        subscribe(self, Event.PLAYER_PAUSED, lambda: self.change_playpause_icon("play"))
+        subscribe(self, Event.PLAYER_UNPAUSED, lambda: self.change_playpause_icon("pause"))
 
         self.media_length_str = ""
 
@@ -44,13 +42,13 @@ class PlayerUI(tk.Frame, Subscriber):
             self.controls,
             image=self.play_btn_img,
             borderwidth=0,
-            command=lambda: events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE),
+            command=lambda: events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE),
         )
         self.stop_btn = tk.Button(
             self.controls,
             image=self.stop_btn_img,
             borderwidth=0,
-            command=lambda: events.post(EventName.PLAYER_REQUEST_TO_STOP),
+            command=lambda: events.post(Event.PLAYER_REQUEST_TO_STOP),
         )
 
         # grid player buttons
@@ -101,17 +99,4 @@ class PlayerUI(tk.Frame, Subscriber):
 
     def destroy(self):
         tk.Frame.destroy(self)
-        self.unsubscribe_from_all()
-
-    def on_subscribed_event(
-        self, event_name: EventName, *args: tuple, **kwargs: dict
-    ) -> None:
-        name_to_callback = {
-            EventName.PLAYER_AUDIO_TIME_CHANGE: self.on_new_audio_time,
-            EventName.PLAYER_MEDIA_LOADED: self.on_media_load,
-            EventName.PLAYER_STOPPED: self.on_player_stop,
-            EventName.PLAYER_PAUSED: lambda: self.change_playpause_icon("play"),
-            EventName.PLAYER_UNPAUSED: lambda: self.change_playpause_icon("pause"),
-        }
-
-        name_to_callback[event_name](*args, **kwargs)
+        unsubscribe_from_all(self)()

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from tilia.events import Subscriber, EventName
+from tilia.events import Event, subscribe
 
 import logging
 
@@ -21,15 +21,13 @@ class CanRestoreState(Protocol):
         ...
 
 
-class UndoManager(Subscriber):
-    SUBSCRIPTIONS = [
-        EventName.RECORD_STATE,
-        EventName.REQUEST_TO_REDO,
-        EventName.REQUEST_TO_UNDO,
-    ]
+class UndoManager:
 
-    def __init__(self):
-        super().__init__(subscriptions=self.SUBSCRIPTIONS)
+    def __init__(self) -> None:
+        subscribe(self, Event.RECORD_STATE, self.on_record_state)
+        subscribe(self, Event.REQUEST_TO_UNDO, self.undo)
+        subscribe(self, Event.REQUEST_TO_REDO, self.redo)
+
         self.stack = []
         self.max_size = 10
         self.pos = -1
@@ -40,17 +38,6 @@ class UndoManager(Subscriber):
         self.last_timeline = None
         self.last_repeat_id = ''
         # self.obj_to_save = obj_to_save # __init__ had an object to save parameter
-
-    def on_subscribed_event(
-        self, event_name: EventName, *args: tuple, **kwargs: dict
-    ) -> None:
-
-        if event_name == EventName.RECORD_STATE:
-            self.on_record_state(*args, **kwargs)
-        elif event_name == EventName.REQUEST_TO_UNDO:
-            self.undo()
-        elif event_name == EventName.REQUEST_TO_REDO:
-            self.redo()
 
     def on_record_state(
         self,

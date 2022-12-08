@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import tilia.ui.tkinter.timelines.copy_paste
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import EventName
+from tilia.events import Event, subscribe, unsubscribe
 from tilia.misc_enums import IncreaseOrDecrease, Side
 from tilia.timelines.state_actions import StateAction
 
@@ -40,7 +40,7 @@ from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError, Copyabl
 from tilia.ui.element_kinds import UIElementKind
 
 
-class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
+class HierarchyTimelineTkUI(TimelineTkUI):
     DEFAULT_HEIGHT = 150
     CANVAS_CLASS = tk.Canvas
     LABEL_WIDTH = 15
@@ -52,19 +52,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     COMPONENT_KIND_TO_UIELEMENT_KIND = {
         ComponentKind.HIERARCHY: UIElementKind.HIERARCHY_TKUI
     }
-
-    SUBSCRIPTIONS = [
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE,
-        EventName.INSPECTOR_WINDOW_CLOSED,
-        EventName.INSPECTOR_WINDOW_OPENED,
-    ]
 
     TIMELINE_KIND = TimelineKind.HIERARCHY_TIMELINE
 
@@ -92,9 +79,22 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
             name=name,
             height=height,
             is_visible=is_visible,
-            subscriptions=self.SUBSCRIPTIONS,
-            **kwargs,
+            **kwargs
         )
+
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD, self.on_create_unit_below_button)
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE,
+                  lambda: self.on_change_level_button(IncreaseOrDecrease.INCREASE))
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE,
+                  lambda: self.on_change_level_button(IncreaseOrDecrease.DECREASE))
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP, self.on_group_button)
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT, self.on_split_button)
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE, self.on_merge_button)
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT, self.on_paste_unit_button)
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN,
+                  self.on_paste_unit_with_children_button)
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE, self.on_delete_button)
+        subscribe(self, Event.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
 
         self.collection = timeline_ui_collection
 
@@ -191,37 +191,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     def _increment_toolbar_counter(self):
         self.toolbar.increment_visible_timeline_counter()
         pass
-
-    def on_subscribed_event(
-            self, event_name: str, *args: tuple, **kwargs: dict
-    ) -> None:
-        if event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD:
-            self.on_create_unit_below_button()
-        elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE:
-            self.on_change_level_button(IncreaseOrDecrease.INCREASE)
-        elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE:
-            self.on_change_level_button(IncreaseOrDecrease.DECREASE)
-        elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP:
-            self.on_group_button()
-        elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT:
-            self.on_split_button()
-        elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE:
-            self.on_merge_button()
-        elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT:
-            self.on_paste_unit_button()
-        elif (
-                event_name
-                == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN
-        ):
-            self.on_paste_unit_with_children_button()
-        elif event_name == EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE:
-            self.on_delete_button()
-        elif event_name == EventName.INSPECTOR_WINDOW_OPENED:
-            self.on_inspector_window_opened()
-        elif event_name == EventName.RIGHT_CLICK_MENU_OPTION_CLICK:
-            self.on_right_click_menu_option_click(*args)
-        elif event_name == EventName.RIGHT_CLICK_MENU_NEW:
-            self.on_right_click_menu_new()
 
     @staticmethod
     def _swap_components_with_uis_in_relation(
@@ -395,8 +364,6 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
         self.right_clicked_hierarchy = hierarchy
         logger.debug(f"{self} is listening for right menu option clicks...")
 
-    def on_right_click_menu_new(self) -> None:
-        self.unsubscribe([EventName.RIGHT_CLICK_MENU_OPTION_CLICK, EventName.RIGHT_CLICK_MENU_NEW])
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
         option_to_callback = {
@@ -436,7 +403,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
     def right_click_menu_edit(self) -> None:
         self.deselect_all_elements()
         self._select_element(self.right_clicked_hierarchy)
-        events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR)
+        events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
 
     def right_click_menu_change_color(self) -> None:
         if color := ask_for_color(self.right_clicked_hierarchy.color):
@@ -447,7 +414,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
     def right_click_menu_copy(self) -> None:
         events.post(
-            EventName.TIMELINE_COMPONENT_COPIED,
+            Event.TIMELINE_COMPONENT_COPIED,
             self.get_copy_data_from_hierarchy_uis([self.right_clicked_hierarchy])
         )
 
@@ -583,7 +550,7 @@ class HierarchyTimelineTkUI(TimelineTkUI, events.Subscriber):
 
         validate_paste_with_children(paste_data, selected_elements)
 
-        events.post(EventName.RECORD_STATE, self.timeline, StateAction.PASTE)
+        events.post(Event.RECORD_STATE, self.timeline, StateAction.PASTE)
 
         for element in selected_elements:
             logger.debug(f"Deleting previous descendants of '{element}'")

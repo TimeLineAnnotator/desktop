@@ -5,7 +5,7 @@ import logging
 from collections import OrderedDict
 
 from tilia import events
-from tilia.events import EventName
+from tilia.events import Event
 from tilia.ui.tkinter.windows import WindowKind, UniqueWindowDuplicate
 from tilia.ui.tkinter.common import destroy_children_recursively
 
@@ -61,7 +61,7 @@ class MetadataWindow:
 
         MetadataWindow._instanced = True
 
-        events.post(EventName.METADATA_WINDOW_OPENED)
+        events.post(Event.METADATA_WINDOW_OPENED)
 
     def setup_widgets(self) -> None:
 
@@ -155,7 +155,7 @@ class MetadataWindow:
         field_name = self.widgets_to_varnames[var_name]
         entry = self.fieldnames_to_widgets[field_name]
         events.post(
-            EventName.METADATA_FIELD_EDITED, field_name, entry.get()
+            Event.METADATA_FIELD_EDITED, field_name, entry.get()
         )
 
     def destroy(self):
@@ -213,7 +213,7 @@ class EditMetadataFieldsWindow(tk.Toplevel):
     def on_save(self) -> None:
         new_metadata_fields = self.get_metadata_fields_from_widget()
         self.metadata_window.update_metadata_fields(new_metadata_fields)
-        events.post(EventName.METADATA_NEW_FIELDS, new_metadata_fields)
+        events.post(Event.METADATA_NEW_FIELDS, new_metadata_fields)
         self.destroy()
 
     def get_metadata_fields_from_widget(self):
@@ -241,7 +241,7 @@ class NotesWindow(tk.Toplevel):
         if self.scrolled_text.edit_modified():
 
             events.post(
-                EventName.METADATA_FIELD_EDITED,
+                Event.METADATA_FIELD_EDITED,
                 'notes',
                 self.scrolled_text.get(1.0, 'end-1c')
             )

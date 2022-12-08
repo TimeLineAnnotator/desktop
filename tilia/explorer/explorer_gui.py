@@ -6,12 +6,14 @@ from typing import Callable, Literal, Optional
 import tilia.globals_ as globals_
 
 import tkinter as tk
+import pandas as pd
 
 # noinspection PyPep8Naming
 import tkinter.font as tkFont
 import tkinter.ttk as ttk
 
-import tilia.events as events
+from tilia import events
+from tilia.events import subscribe
 import tilia.player.player_ui as player_ui
 from tilia.explorer.explorer_types import MeasureLength
 
@@ -118,7 +120,7 @@ class ExplorerGUI:
     pass
 
 
-class ExplorerTkGUI(events.Subscriber, ExplorerGUI):
+class ExplorerTkGUI(ExplorerGUI):
     ADD_CONDITION_BUTTON_TEXT = "Add..."
     SEARCH_BUTTON_TEXT = "Search..."
     COLUMN_ORDER = [
@@ -144,7 +146,7 @@ class ExplorerTkGUI(events.Subscriber, ExplorerGUI):
     DEFAULT_TLOBJECTS_CONDITIONS = [("end", "<", "15"), ("level", "=", "2")]
 
     def __init__(self, parent: tk.Tk | tk.Toplevel):
-        super().__init__(["EXPLORER: DISPLAY SEARCH RESULTS"])
+        subscribe(self, "EXPLORER: DISPLAY SEARCH RESULTS", self.on_explorer_display_search_results)
         self._setup_widgets(parent)
         self.tlobjects_condition_frames = []
         self.file_condition_frames = []
@@ -299,17 +301,15 @@ class ExplorerTkGUI(events.Subscriber, ExplorerGUI):
 
         return [cdt_frame.get_conditions() for cdt_frame in cdt_frame_list]
 
-    def on_subscribed_event(self, event_name: str, args: tuple, kwargs: dict) -> None:
-        if event_name == "EXPLORER: DISPLAY SEARCH RESULTS":
-            df = args[0]
+    def on_explorer_display_search_results(self, df: pd.Dataframe):
+        df["start"] = df["start"].map(
+            lambda x: time.strftime("%M:%S", time.gmtime(x))
+        )
+        df["end"] = df["end"].map(lambda x: time.strftime("%M:%S", time.gmtime(x)))
+        ExplorerResultsWindow(
+            list(df), list(df.itertuples(index=False)), df.index.values.tolist()
+        )
 
-            df["start"] = df["start"].map(
-                lambda x: time.strftime("%M:%S", time.gmtime(x))
-            )
-            df["end"] = df["end"].map(lambda x: time.strftime("%M:%S", time.gmtime(x)))
-            ExplorerResultsWindow(
-                list(df), list(df.itertuples(index=False)), df.index.values.tolist()
-            )
 
 
 def get_attr_by_displayname(displayname: str) -> str:
@@ -440,7 +440,7 @@ class ExplorerResultsWindow(tk.Toplevel):
         if not region == "heading":
             item = self.tree.focus()
             events.post(
-                events.EventName.EXPLORER_LOAD_MEDIA, self.tree.item(item, "text")
+                events.EventEXPLORER_LOAD_MEDIA, self.tree.item(item, "text")
             )
 
     def _build_tree(self) -> None:

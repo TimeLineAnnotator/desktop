@@ -25,7 +25,7 @@ import pygame
 
 import tilia.globals_ as globals_
 import tilia.events as events
-from tilia.events import Subscriber, EventName
+from tilia.events import Event, subscribe
 from tilia.exceptions import AppException
 
 
@@ -37,7 +37,7 @@ class NoMediaLoadedError(AppException):
     pass
 
 
-class Player(Subscriber, ABC):
+class Player(ABC):
     """Interface for media playback engines."""
 
     update_interval = 100
@@ -45,12 +45,13 @@ class Player(Subscriber, ABC):
     def __init__(self):
         super(Player, self).__init__()
 
-        events.subscribe(EventName.PLAYER_REQUEST_TO_PLAYPAUSE, self),
-        events.subscribe(EventName.PLAYER_REQUEST_TO_STOP, self),
-        events.subscribe(EventName.PLAYER_REQUEST_TO_SEEK, self),
-        events.subscribe(EventName.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, self),
-        events.subscribe(EventName.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self),
-        events.subscribe(EventName.PLAYER_REQUEST_TO_LOAD_MEDIA, self)
+        subscribe(self, Event.PLAYER_REQUEST_TO_PLAYPAUSE, self.play_pause)
+        subscribe(self, Event.PLAYER_REQUEST_TO_STOP, self.stop)
+        subscribe(self, Event.PLAYER_REQUEST_TO_SEEK, self.on_request_to_seek)
+        subscribe(self, Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING,
+                  lambda *args: self.on_request_to_seek(*args, if_paused=True))
+        subscribe(self, Event.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self.unload_media)
+        subscribe(self, Event.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media)
 
         logger.debug("Creating Player...")
         self.media_loaded = False
@@ -88,7 +89,7 @@ class Player(Subscriber, ABC):
         globals_.MEDIA_LENGTH = self.playback_length
 
         events.post(
-            EventName.PLAYER_MEDIA_LOADED,
+            Event.PLAYER_MEDIA_LOADED,
             self.media_path,
             self.media_length,
             self.playback_length,
@@ -96,7 +97,7 @@ class Player(Subscriber, ABC):
 
         self.media_loaded = True
 
-        events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, 0.0)
+        events.post(Event.PLAYER_AUDIO_TIME_CHANGE, 0.0)
 
         logger.info(
             f"Media loaded succesfully: path='{self.media_path}' length='{self.media_length}'"
@@ -128,24 +129,24 @@ class Player(Subscriber, ABC):
             self.paused = False
             self.playing = True
             self._start_play_loop()
-            events.post(EventName.PLAYER_UNPAUSED)
+            events.post(Event.PLAYER_UNPAUSED)
 
         elif self.paused:
             self._engine_unpause()
             self.paused = False
             self._start_play_loop()
-            events.post(EventName.PLAYER_UNPAUSED)
+            events.post(Event.PLAYER_UNPAUSED)
 
         else:
             self._engine_pause()
             self.paused = True
-            events.post(EventName.PLAYER_PAUSED)
+            events.post(Event.PLAYER_PAUSED)
 
         return self.paused
 
     def stop(self):
         """Stops music playback and resets slider position"""
-        events.post(EventName.PLAYER_STOPPING)
+        events.post(Event.PLAYER_STOPPING)
         logger.debug("Stopping media playback.")
         if not self.playing:
             return
@@ -157,8 +158,8 @@ class Player(Subscriber, ABC):
         self._engine_seek(self.playback_start)
         self.current_time = self.playback_start
 
-        events.post(EventName.PLAYER_STOPPED)
-        events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+        events.post(Event.PLAYER_STOPPED)
+        events.post(Event.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
 
     def on_request_to_seek(self, time: float, if_paused: bool = False) -> None:
 
@@ -171,7 +172,7 @@ class Player(Subscriber, ABC):
         else:
             logger.debug(f"No media loaded. No need to seek.")
         self.current_time = time
-        events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+        events.post(Event.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
 
     def _start_play_loop(self):
         threading.Thread(target=self._play_loop).start()
@@ -179,7 +180,7 @@ class Player(Subscriber, ABC):
     def _play_loop(self) -> None:
         while self.playing and not self.paused:
             self.current_time = self._engine_get_current_time() - self.playback_start
-            events.post(EventName.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+            events.post(Event.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
             if self.current_time >= self.playback_length:
                 self.stop()
             time.sleep(self.update_interval / 1000)
@@ -190,7 +191,7 @@ class Player(Subscriber, ABC):
 
     def destroy(self):
         self.unload_media()
-        self.unsubscribe_from_all()
+        events.unsubscribe_from_all(self)
         self._engine_exit()
 
     def sounding(self):
@@ -236,20 +237,6 @@ class Player(Subscriber, ABC):
     @abstractmethod
     def _engine_exit(self) -> float:
         ...
-
-    def on_subscribed_event(
-        self, event_name: EventName, *args: tuple, **kwargs: dict
-    ) -> None:
-        event_to_callback = {
-            EventName.PLAYER_REQUEST_TO_PLAYPAUSE: self.play_pause,
-            EventName.PLAYER_REQUEST_TO_STOP: self.stop,
-            EventName.PLAYER_REQUEST_TO_SEEK: self.on_request_to_seek,
-            EventName.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING: lambda _: self.on_request_to_seek(*args, if_paused=True),
-            EventName.PLAYER_REQUEST_TO_UNLOAD_MEDIA: self.unload_media,
-            EventName.PLAYER_REQUEST_TO_LOAD_MEDIA: self.load_media,
-        }
-
-        event_to_callback[event_name](*args, **kwargs)
 
     def __repr__(self):
         return f"{type(self)}-{id(self)}"

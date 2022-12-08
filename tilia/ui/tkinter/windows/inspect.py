@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 
 from tilia import events
-from tilia.events import EventName
+from tilia.events import Event, subscribe
 from tilia.timelines.common import TimelineComponent
 from tilia.ui.tkinter.windows.exceptions import UniqueWindowDuplicate
 from tilia.ui.tkinter.windows.kinds import WindowKind
@@ -24,7 +24,7 @@ PADY = 5
 MIN_UPDATE_TIME = 0.1
 
 
-class Inspect(events.Subscriber):
+class Inspect:
     """
     A window that allows the user to sse the relevant attributes of a TimelineComponent or its UI.
     Listens for a inspectable element selected event and updates according to a dict send alongside it.
@@ -40,12 +40,8 @@ class Inspect(events.Subscriber):
         if Inspect._instanced:
             raise UniqueWindowDuplicate(self.KIND)
 
-        super().__init__(
-            subscriptions=[
-                EventName.INSPECTABLE_ELEMENT_SELECTED,
-                EventName.INSPECTABLE_ELEMENT_DESELECTED,
-            ]
-        )
+        subscribe(self, Event.INSPECTABLE_ELEMENT_SELECTED, self.on_timeline_component_selected)
+        subscribe(self, Event.INSPECTABLE_ELEMENT_DESELECTED, self.on_timeline_component_deselected)
 
         self.inspected_objects_stack = []
         self.uicomplex_id = ""
@@ -65,12 +61,12 @@ class Inspect(events.Subscriber):
 
         Inspect._instanced = True
 
-        events.post(EventName.INSPECTOR_WINDOW_OPENED)
+        events.post(Event.INSPECTOR_WINDOW_OPENED)
 
     def destroy(self):
-        self.unsubscribe_from_all()
+        unsubscribe_from_all(self)()
         self.toplevel.destroy()
-        events.post(EventName.INSPECTOR_WINDOW_CLOSED)
+        events.post(Event.INSPECTOR_WINDOW_CLOSED)
         Inspect._instanced = False
 
     def display_not_selected_frame(self):
@@ -211,17 +207,10 @@ class Inspect(events.Subscriber):
         field_name = self.var_widgets[var_name]
         entry = self.field_widgets[field_name]
         events.post(
-            EventName.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.uicomplex_id
+            Event.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.uicomplex_id
         )
-
-    def on_subscribed_event(
-        self, event_name: str, *args: tuple, **kwargs: dict
-    ) -> None:
-        if event_name == EventName.INSPECTABLE_ELEMENT_SELECTED:
-            self.on_timeline_component_selected(*args)
-        elif event_name == EventName.INSPECTABLE_ELEMENT_DESELECTED:
-            self.on_timeline_component_deselected(*args)
-
+        
+        
 
 class LabelAndEntry(tk.Frame):
     """Create a tk.Label(), tk.Entry() pair and a associated tk.StrVar()"""

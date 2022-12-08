@@ -1,11 +1,22 @@
+"""
+Implements a subscriber/publisher sytem for the app.
+A Subscriber subclass may subscribe to events with a certain EventName via the Subscriber constructor (or the subscriber function).
+Every time an event to which the subscriber has subscriber is posted via the 'post' function,
+the subscriber gets notified through a call to its subscriber_react method.
+"""
+
+
 import logging
 from enum import Enum, auto
-from typing import Callable, Any
+
+from abc import ABC
+from abc import abstractmethod
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-class Event(Enum):
+class EventName(Enum):
     METADATA_NEW_FIELDS = auto()
     METADATA_WINDOW_OPENED = None
     METADATA_FIELD_EDITED = auto()
@@ -108,82 +119,98 @@ class Event(Enum):
     TIMELINE_PREPARING_TO_DRAG = auto()
 
 
-events_to_subscribers = {}
-subscribers_to_events = {}
+class Event:
+    def __init__(self, event_name: EventName):
+        self.name = event_name
+        self.subscribers = set()
 
-for event in Event:
-    events_to_subscribers[event] = {}
+    def attach(self, subscriber: object):
+        self.subscribers.add(subscriber)
 
+    def detach(self, subscriber: object):
+        self.subscribers.remove(subscriber)
 
-def post(event: Event, *args, **kwargs) -> None:
-    logger.debug(f"Posting event {event.name} with {args=} and {kwargs=}.")
-
-    for subscriber, callback in events_to_subscribers[event].copy().items():
-        logger.debug(f"    Notifying {subscriber}...")
-        callback(*args, **kwargs)
-    logger.debug(f"Notified subscribers about event '{event}'.")
-
-
-def subscribe(subscriber: Any, event: Event, callback: Callable) -> None:
-
-    events_to_subscribers[event][subscriber] = callback
-
-    if subscriber not in subscribers_to_events.keys():
-        subscribers_to_events[subscriber] = [event]
-    else:
-        subscribers_to_events[subscriber].append(event)
+    def notify(self, *args, **kwargs):
+        logger.debug(f"Notifying subscribers about event '{self.name}'...")
+        if self.subscribers:
+            for subscriber in self.subscribers.copy():
+                logger.debug(f"Notifying {subscriber}...")
+                subscriber.on_subscribed_event(self.name, *args, **kwargs)
+            logger.debug(f"Notified subscribers about event '{self.name}'.")
+        else:
+            logger.debug(f"No subscribers attached to event.")
 
 
-def unsubscribe(event: Event, subscriber: Any) -> None:
+active_events = set()
 
+_subscribers_to_subscriptions = {}
+
+for event_name in EventName:
+    active_events.add(Event(event_name))
+
+
+def post(event_name: EventName, *args, **kwargs) -> None:
     try:
-        events_to_subscribers[event].pop(subscriber)
-    except KeyError:
-        logger.debug(f"Can't unsubscribe. '{subscriber} is a subscriber of {event}'")
-        return
-
-    subscribers_to_events[subscriber].remove(event)
-
-
-def unsubscribe_from_all(subscriber: Any) -> None:
-
-    if subscriber not in subscribers_to_events.keys():
-        return
-
-    for event in subscribers_to_events[subscriber]:
-        unsubscribe(event, subscriber)
+        logger.debug(f"Posting event {event_name.name} with {args=} and {kwargs=}.")
+        event = find_event_by_name(event_name)
+        event.notify(*args, **kwargs)
+    except StopIteration:
+        raise ValueError(f"No event named {event_name.name}. Can't post.")
 
 
-def main():
+def subscribe(event_name: EventName, subscriber):
+    try:
+        event = find_event_by_name(event_name)
+    except StopIteration:
+        raise ValueError(f"Can't subscribe: no registered event named {event_name}. ")
 
-    def callback1(*args, **kwargs):
-        print(f'Executing callback 1 with {args=} and {kwargs=}')
-
-    def callback2(*args, **kwargs):
-        print(f'Executing callback 2 with {args=} and {kwargs=}')
-
-    subscriber1 = 'sub1'
-    subscriber2 = 'sub2'
-
-    subscribe(subscriber1, Event.METADATA_FIELD_EDITED, callback1)
-    subscribe(subscriber2, Event.METADATA_FIELD_EDITED, callback2)
-    subscribe(subscriber1, Event.PLAYER_REQUEST_TO_SEEK, callback1)
-    subscribe(subscriber2, Event.PLAYER_REQUEST_TO_SEEK, callback2)
-    unsubscribe(Event.METADATA_FIELD_EDITED, subscriber1)
-    unsubscribe(Event.METADATA_FIELD_EDITED, subscriber2)
-    unsubscribe(Event.PLAYER_REQUEST_TO_SEEK, subscriber1)
-    unsubscribe(Event.PLAYER_REQUEST_TO_SEEK, subscriber2)
-    subscribe(subscriber1, Event.METADATA_FIELD_EDITED, callback1)
-    subscribe(subscriber2, Event.METADATA_FIELD_EDITED, callback2)
-    subscribe(subscriber1, Event.PLAYER_REQUEST_TO_SEEK, callback1)
-    subscribe(subscriber2, Event.PLAYER_REQUEST_TO_SEEK, callback2)
-
-    post(Event.METADATA_FIELD_EDITED, 'arg1', 'arg2', kwarg1='art', kwarg2='immanence')
-    post(Event.PLAYER_REQUEST_TO_SEEK, 'apesar de vc', 'amanhã há de ser', kwarg1='chico', kwarg2='buarque')
+    event.attach(subscriber)
+    subscriber.record_subscription(event_name)
 
 
-if __name__ == '__main__':
-    main()
+def unsubscribe(event_name: EventName, subscriber):
+    try:
+        event = find_event_by_name(event_name)
+    except StopIteration:
+        raise ValueError(f"Can't unsubscribe: no registered event named {event_name}. ")
+
+    event.detach(subscriber)
+
+
+def find_event_by_name(event_name: EventName):
+    return next(e for e in active_events if e.name == event_name)
+
+
+
+class Subscriber(ABC):
+    def __init__(
+        self, *args, subscriptions: Optional[list[EventName]] = None, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+
+        self._subs = set()
+
+        if subscriptions:
+            for item in subscriptions:
+                subscribe(item, self)
+
+    @abstractmethod
+    def on_subscribed_event(
+        self, event_name: EventName, *args: tuple, **kwargs: dict
+    ) -> None:
+        ...
+
+    def unsubscribe(self, subscriptions: list | set) -> None:
+        for event_str in subscriptions:
+            logger.debug(f"Unsubscribing {self} from {event_str}.")
+            unsubscribe(event_str, self)
+            self._subs.remove(event_str)
+
+    def unsubscribe_from_all(self) -> None:
+        self.unsubscribe(self._subs.copy())
+
+    def record_subscription(self, event_name) -> None:
+        self._subs.add(event_name)
 
 
 

@@ -9,7 +9,7 @@ import logging
 from .common import process_parent_child_relation, ParentChildRelation
 from ..state_actions import StateAction
 from tilia.timelines.component_kinds import ComponentKind
-from ...events import EventName, Subscriber
+from ...events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_create_unit_below(unit)
 
         # record previous state
-        events.post(EventName.RECORD_STATE, self.timeline, StateAction.CREATE_UNIT_BELOW)
+        events.post(Event.RECORD_STATE, self.timeline, StateAction.CREATE_UNIT_BELOW)
 
         # create new child
         created_unit = self.timeline.create_timeline_component(
@@ -170,7 +170,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_change_level(unit, new_level)
 
         if record:
-            events.post(EventName.RECORD_STATE, self.timeline, StateAction.CHANGE_LEVEL)
+            events.post(Event.RECORD_STATE, self.timeline, StateAction.CHANGE_LEVEL)
 
         # change color
         unit.ui.process_color_before_level_change(new_level)
@@ -254,7 +254,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_no_boundary_crossing(start_time, end_time)
 
         if record:
-            events.post(EventName.RECORD_STATE, self.timeline, StateAction.GROUP)
+            events.post(Event.RECORD_STATE, self.timeline, StateAction.GROUP)
 
         has_same_parent = lambda u: u.parent == _get_previous_common_parent(
             units_to_group
@@ -295,9 +295,12 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             ParentChildRelation(parent=grouping_unit, children=grouping_unit_children)
         )
 
-        previous_parent_new_children = [c for c in previous_common_parent.children if c not in units_to_group] + [grouping_unit]
+
 
         if previous_common_parent:
+            previous_parent_new_children = [c for c in previous_common_parent.children if c not in units_to_group] + [
+                grouping_unit]
+
             self._make_parent_child_relation(
                 ParentChildRelation(
                     parent=previous_common_parent, children=previous_parent_new_children
@@ -339,7 +342,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_split(unit_to_split, split_time)
 
         if record:
-            events.post(EventName.RECORD_STATE, self.timeline, StateAction.SPLIT)
+            events.post(Event.RECORD_STATE, self.timeline, StateAction.SPLIT)
 
         self.delete_component(unit_to_split, record=False)
 
@@ -456,7 +459,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
             return units + units_between
 
-        events.post(EventName.RECORD_STATE, self.timeline, StateAction.MERGE)
+        events.post(Event.RECORD_STATE, self.timeline, StateAction.MERGE)
 
         _validate_common_parent(units_to_merge)
         _validate_at_least_two_units(units_to_merge)
@@ -500,12 +503,11 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
     def delete_component(self, component: Hierarchy, record=True) -> None:
         if record:
-            events.post(EventName.RECORD_STATE, self.timeline, StateAction.COMPONENT_DELETE)
+            events.post(Event.RECORD_STATE, self.timeline, StateAction.COMPONENT_DELETE)
 
         self.timeline.request_delete_ui_for_component(component)
 
-        if isinstance(component, Subscriber):
-            component.unsubscribe_from_all()
+        unsubscribe_from_all(component)
 
         self._update_parent_child_relation_after_deletion(component)
 

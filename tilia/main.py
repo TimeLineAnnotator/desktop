@@ -41,7 +41,7 @@ import sys
 from threading import Thread
 
 from tilia.player import player
-from tilia.events import Subscriber, EventName
+from tilia.events import Event, subscribe
 
 from tilia.timelines.timeline_kinds import TimelineKind, IMPLEMENTED_TIMELINE_KINDS
 from tilia.timelines.collection import TimelineCollection
@@ -52,27 +52,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class TiLiA(Subscriber):
+class TiLiA:
     def __init__(self, ui_kind: UserInterfaceKind):
-        super().__init__(
-            subscriptions=[
-                EventName.PLAYER_CHANGE_TO_VIDEO_PLAYER,
-                EventName.PLAYER_CHANGE_TO_AUDIO_PLAYER,
-                EventName.FILE_REQUEST_TO_LOAD_MEDIA,
-                EventName.APP_ADD_TIMELINE,
-                EventName.FILE_REQUEST_NEW_FILE,
-                EventName.APP_REQUEST_TO_CLOSE,
-                EventName.METADATA_FIELD_EDITED,
-                EventName.METADATA_NEW_FIELDS,
-            ]
-        )
+        logger.info("TiLia starting...")
+
+        subscribe(self, Event.FILE_REQUEST_TO_LOAD_MEDIA, self.on_request_to_load_media)
+        subscribe(self, Event.APP_ADD_TIMELINE, self.on_add_timeline)
+        subscribe(self, Event.FILE_REQUEST_NEW_FILE, self.on_request_new_file)
+        subscribe(self, Event.APP_REQUEST_TO_CLOSE, self.on_request_to_close)
+        subscribe(self, Event.METADATA_FIELD_EDITED, self.on_metadata_field_edited)
+        subscribe(self, Event.METADATA_NEW_FIELDS, self.on_metadata_new_fields)
 
         self.settings = None  # TODO load settings
 
         self._id_counter = itertools.count()
         self._file_manager = FileManager(self)
-
-        logger.info("TiLia starting...")
 
         self.ui = get_ui(ui_kind, self)
 
@@ -124,22 +118,6 @@ class TiLiA(Subscriber):
     @property
     def current_playback_time(self):
         return self._player.current_time
-
-    def on_subscribed_event(
-        self, event_name: str, *args: tuple, **kwargs: dict
-    ) -> None:
-        if event_name == EventName.FILE_REQUEST_TO_LOAD_MEDIA:
-            self.on_request_to_load_media(*args)
-        elif event_name == EventName.APP_ADD_TIMELINE:
-            self.on_add_timeline(*args)
-        elif event_name == EventName.FILE_REQUEST_NEW_FILE:
-            self.on_request_new_file()
-        elif event_name == EventName.APP_REQUEST_TO_CLOSE:
-            self.on_request_to_close()
-        elif event_name == EventName.METADATA_FIELD_EDITED:
-            self.on_metadata_field_edited(*args)
-        elif event_name == EventName.METADATA_NEW_FIELDS:
-            self.on_metadata_new_fields(*args)
 
     def on_request_to_load_media(self, media_path: str) -> None:
         import os
@@ -267,18 +245,16 @@ class TiLiA(Subscriber):
         self._media_metadata = new_metadata
 
 
-class FileManager(Subscriber):
+class FileManager:
     JSON_CONFIG = {"indent": 2}
-    SUBSCRIPTIONS = [
-        EventName.PLAYER_MEDIA_LOADED,
-        EventName.FILE_REQUEST_TO_SAVE,
-        EventName.FILE_REQUEST_TO_OPEN,
-    ]
 
     FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION = ['media_metadata', 'timelines', 'media_path']
 
     def __init__(self, app: TiLiA, file: TiliaFile = None):
-        super().__init__(subscriptions=self.SUBSCRIPTIONS)
+        subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_loaded)
+        subscribe(self, Event.FILE_REQUEST_TO_SAVE, self.save)
+        subscribe(self, Event.FILE_REQUEST_TO_OPEN, self.open)
+
         self._app = app
 
         if not file:
@@ -391,16 +367,6 @@ class FileManager(Subscriber):
     def on_media_loaded(self, media_path: str, *_) -> None:
         logger.debug(f"Updating _file media_path to '{media_path}'")
         self._file.media_path = media_path
-
-    def on_subscribed_event(
-        self, event_name: str, *args: tuple, **kwargs: dict
-    ) -> None:
-        if event_name == EventName.PLAYER_MEDIA_LOADED:
-            self.on_media_loaded(*args)
-        elif event_name == EventName.FILE_REQUEST_TO_SAVE:
-            self.save(**kwargs)
-        elif event_name == EventName.FILE_REQUEST_TO_OPEN:
-            self.open()
 
     def _get_file_path(self, save_as: bool) -> str:
         if not self._file.file_path or save_as:

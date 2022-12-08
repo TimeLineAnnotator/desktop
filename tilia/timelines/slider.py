@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from tilia.timelines.common import TimelineComponent
 
 from tilia import events, globals_
-from tilia.events import Subscriber, EventName
+from tilia.events import Event
 from tilia.timelines.common import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 

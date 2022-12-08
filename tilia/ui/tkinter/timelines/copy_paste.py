@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 from tilia import events
-from tilia.events import EventName
+from tilia.events import Event
 from tilia.exceptions import AppException
 from tilia.timelines.common import TimelineComponent
 from tilia.timelines.state_actions import StateAction

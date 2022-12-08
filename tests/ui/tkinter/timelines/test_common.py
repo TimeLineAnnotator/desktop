@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import tkinter as tk
 
 from tilia import globals_, events
-from tilia.events import EventName
+from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.tkinter.timelines.common import TkTimelineUICollection
 from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineTkUI
@@ -32,9 +32,7 @@ def tlui_coll(tkui_mock):
         tk.Frame()
     )
     yield _tlui_coll
-    _tlui_coll.unsubscribe_from_all()
-
-
+    unsubscribe_from_all(_tlui_coll)
 
 
 class TestTkTimelineUICollection:
@@ -49,7 +47,7 @@ class TestTkTimelineUICollection:
 
         assert tlui_coll._app_ui == tkui_mock
 
-        tlui_coll.unsubscribe_from_all()
+        unsubscribe_from_all(tlui_coll)
 
     def test_create_timeline_ui_hierarchy_timeline(self, tlui_coll):
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
@@ -98,11 +96,11 @@ class TestTkTimelineUICollection:
 
         assert tlui_coll._select_order[0] == tlui2
 
-        events.post(EventName.CANVAS_LEFT_CLICK, tlui1.canvas, 0, 0, 0, None, double=False)
+        events.post(Event.CANVAS_LEFT_CLICK, tlui1.canvas, 0, 0, 0, None, double=False)
 
         assert tlui_coll._select_order[0] == tlui1
 
-        events.post(EventName.CANVAS_LEFT_CLICK, tlui2.canvas, 0, 0, 0, None, double=False)
+        events.post(Event.CANVAS_LEFT_CLICK, tlui2.canvas, 0, 0, 0, None, double=False)
 
         assert tlui_coll._select_order[0] == tlui2
 

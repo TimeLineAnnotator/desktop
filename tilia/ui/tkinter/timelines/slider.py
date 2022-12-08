@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     )
 
 from tilia import events
-from tilia.events import EventName, Subscriber
+from tilia.events import Event, subscribe, unsubscribe
 from tilia.timelines.common import TimelineComponent
 from tilia.ui.element_kinds import UIElementKind
 from tilia.ui.tkinter.timelines.common import TimelineTkUI
@@ -26,7 +26,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SliderTimelineTkUI(Subscriber, TimelineTkUI):
+class SliderTimelineTkUI(TimelineTkUI):
 
     TOOLBAR_CLASS = None
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {}
@@ -41,8 +41,6 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
     TROUGH_DEFAULT_COLOR = "#FF0000"
 
     LINE_DEFAULT_COLOR = "#000000"
-
-    SUBSCRIPTIONS = [EventName.PLAYER_AUDIO_TIME_CHANGE]
 
     TIMELINE_KIND = TimelineKind.SLIDER_TIMELINE
 
@@ -69,9 +67,10 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
             name=name,
             height=height,
             is_visible=is_visible,
-            subscriptions=self.SUBSCRIPTIONS,
             **kwargs,
         )
+
+        subscribe(self, Event.PLAYER_AUDIO_TIME_CHANGE, self.on_audio_time_change)
 
         self._x = self.get_left_margin_x()
 
@@ -98,14 +97,6 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
     def x(self, value):
         logger.debug(f"Setting slider timeline slider to x={value}")
         self._x = value
-
-    def on_subscribed_event(self, event_name: str, *args, **kwargs) -> None:
-        if event_name == EventName.TIMELINE_LEFT_BUTTON_DRAG:
-            self.drag(*args)
-        elif event_name == EventName.TIMELINE_LEFT_BUTTON_RELEASE:
-            self.end_drag()
-        elif event_name == EventName.PLAYER_AUDIO_TIME_CHANGE:
-            self.on_audio_time_change(*args)
 
     def _update_trough_position(self) -> None:
         self.canvas.coords(self.trough, *self.get_trough_coords())
@@ -143,8 +134,8 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
         )
 
     def prepare_to_drag(self):
-        events.subscribe(EventName.TIMELINE_LEFT_BUTTON_DRAG, self)
-        events.subscribe(EventName.TIMELINE_LEFT_BUTTON_RELEASE, self)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
 
     def drag(self, x: int, _) -> None:
         logger.debug(f"Dragging {self} trough...")
@@ -173,13 +164,9 @@ class SliderTimelineTkUI(Subscriber, TimelineTkUI):
     def end_drag(self):
         logger.debug(f"Ending drag of {self}.")
         self.dragging = False
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK, self.get_time_by_x(self._x))
-        self.unsubscribe(
-            [
-                EventName.TIMELINE_LEFT_BUTTON_DRAG,
-                EventName.TIMELINE_LEFT_BUTTON_RELEASE,
-            ]
-        )
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.get_time_by_x(self._x))
+        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
+        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
 
     def on_audio_time_change(self, time: float) -> None:
         if not self.dragging:

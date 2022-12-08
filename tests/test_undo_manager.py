@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, call
 import pytest
 
 from tilia import events
-from tilia.events import EventName
+from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.state_actions import StateAction
 from tilia.undo_manager import UndoManager
 
@@ -12,18 +12,18 @@ from tilia.undo_manager import UndoManager
 def um():
     _um = UndoManager()
     yield _um
-    _um.unsubscribe_from_all()
+    unsubscribe_from_all(_um)
 
 
 class TestUndoManager:
 
     def test_constructor(self):
         um = UndoManager()
-        um.unsubscribe_from_all()
+        unsubscribe_from_all(um)
 
     def test_record_state(self, um):
         can_restore_state_mock = MagicMock()
-        events.post(EventName.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1)
+        events.post(Event.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1)
 
         assert um.stack[-1][0] == can_restore_state_mock
         assert um.stack[-1][1] == can_restore_state_mock.get_state()
@@ -31,8 +31,8 @@ class TestUndoManager:
 
     def test_record_two_states(self, um):
         can_restore_state_mock = MagicMock()
-        events.post(EventName.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1)
-        events.post(EventName.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION2)
+        events.post(Event.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1)
+        events.post(Event.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION2)
 
         assert um.stack[-1][0] == can_restore_state_mock
         assert um.stack[-1][1] == can_restore_state_mock.get_state()
@@ -40,17 +40,17 @@ class TestUndoManager:
 
     def test_record_successive_no_repeat_states_with_same_id(self, um):
         can_restore_state_mock = MagicMock()
-        events.post(EventName.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1, no_repeat=True, repeat_identifier=':||')
-        events.post(EventName.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1, no_repeat=True, repeat_identifier=':||')
+        events.post(Event.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1, no_repeat=True, repeat_identifier=':||')
+        events.post(Event.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1, no_repeat=True, repeat_identifier=':||')
         um.save_current_if_necessary()
 
         assert len(um.stack) == 2
 
     def test_record_successive_no_repeat_states_with_different_ids(self, um):
         can_restore_state_mock = MagicMock()
-        events.post(EventName.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1, no_repeat=True,
+        events.post(Event.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1, no_repeat=True,
                     repeat_identifier=':||')
-        events.post(EventName.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1, no_repeat=True,
+        events.post(Event.RECORD_STATE, can_restore_state_mock, StateAction.DUMMY_ACTION1, no_repeat=True,
                     repeat_identifier='%')
         um.save_current_if_necessary()
 
@@ -61,8 +61,8 @@ class TestUndoManager:
     def test_undo(self, um):
         timeline = MagicMock()
 
-        events.post(EventName.RECORD_STATE, timeline, StateAction.DUMMY_ACTION1)
-        events.post(EventName.RECORD_STATE, timeline, StateAction.DUMMY_ACTION2)
+        events.post(Event.RECORD_STATE, timeline, StateAction.DUMMY_ACTION1)
+        events.post(Event.RECORD_STATE, timeline, StateAction.DUMMY_ACTION2)
 
         um.undo()
 

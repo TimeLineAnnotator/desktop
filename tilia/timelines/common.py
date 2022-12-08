@@ -15,7 +15,7 @@ import tilia.timelines.serialize
 from . import serialize
 from .state_actions import StateAction
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
-from ..events import EventName, Subscriber
+from ..events import Event
 from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
@@ -217,8 +217,7 @@ class TimelineComponentManager:
 
         self.timeline.request_delete_ui_for_component(component)
 
-        if isinstance(component, Subscriber):
-            component.unsubscribe_from_all()
+        events.unsubscribe_from_all(component)
 
         self._remove_from_components_set(component)
 
@@ -301,7 +300,7 @@ class Timeline(ABC):
         logger.debug(f"Clearing timeline '{self}'")
 
         if record:
-            events.post(EventName.RECORD_STATE, self, StateAction.CLEAR_TIMELINE, self)
+            events.post(Event.RECORD_STATE, self, StateAction.CLEAR_TIMELINE, self)
 
         self.component_manager.clear()
 

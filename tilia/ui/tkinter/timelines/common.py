@@ -30,7 +30,7 @@ from tilia.ui.timelines.common import (
     TimelineUICollection,
     TimelineUIElement,
 )
-from tilia.events import Subscriber, EventName
+from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
 from tilia.repr import default_repr
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -129,7 +129,7 @@ class TimelineCanvas(tk.Canvas):
         return 0, 0, self._label_width, self.winfo_reqheight()
 
 
-class TkTimelineUICollection(Subscriber, TimelineUICollection):
+class TkTimelineUICollection(TimelineUICollection):
     """
     Collection of timeline uis. Responsible for:
         - Creating timeline uis;
@@ -138,29 +138,6 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
         - Gridding timeline ui's canvases on the timeline frame;
         - Getting 'global' information (e.g. margins and timeline size) for timeline uis.
     """
-
-    SUBSCRIPTIONS = [
-        EventName.CANVAS_LEFT_CLICK,
-        EventName.CANVAS_RIGHT_CLICK,
-        EventName.KEY_PRESS_DELETE,
-        EventName.KEY_PRESS_ENTER,
-        EventName.KEY_PRESS_LEFT,
-        EventName.KEY_PRESS_RIGHT,
-        EventName.KEY_PRESS_CONTROL_C,
-        EventName.KEY_PRESS_CONTROL_V,
-        EventName.DEBUG_SELECTED_ELEMENTS,
-        EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT,
-        EventName.REQUEST_ZOOM_IN,
-        EventName.REQUEST_ZOOM_OUT,
-        EventName.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER,
-        EventName.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER,
-        EventName.TIMELINES_REQUEST_TO_DELETE_TIMELINE,
-        EventName.TIMELINES_REQUEST_TO_CLEAR_TIMELINE,
-        EventName.TIMELINES_REQUEST_TO_SHOW_TIMELINE,
-        EventName.TIMELINES_REQUEST_TO_HIDE_TIMELINE,
-        EventName.KEY_PRESS_CONTROL_SHIFT_V
-
-    ]
 
     ZOOM_SCALE_FACTOR = 0.1
 
@@ -171,7 +148,31 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             scrollbar: tk.Scrollbar,
             toolbar_frame: tk.Frame
     ):
-        super().__init__(subscriptions=self.SUBSCRIPTIONS)
+
+        subscribe(self, Event.CANVAS_LEFT_CLICK, self._on_timeline_ui_left_click)
+        subscribe(self, Event.CANVAS_RIGHT_CLICK, self._on_timeline_ui_right_click)
+        subscribe(self, Event.KEY_PRESS_DELETE, self._on_delete_press)
+        subscribe(self, Event.KEY_PRESS_ENTER, self._on_enter_press)
+        subscribe(self, Event.KEY_PRESS_LEFT, lambda: self._on_side_arrow_press(Side.LEFT))
+        subscribe(self, Event.KEY_PRESS_RIGHT, lambda: self._on_side_arrow_press(Side.RIGHT))
+        subscribe(self, Event.KEY_PRESS_CONTROL_C, self._on_request_to_copy)
+        subscribe(self, Event.KEY_PRESS_CONTROL_V, self._on_request_to_paste)
+        subscribe(self, Event.KEY_PRESS_CONTROL_SHIFT_V, self._on_request_to_paste_with_children)
+        subscribe(self, Event.DEBUG_SELECTED_ELEMENTS, self._on_debug_selected_elements)
+        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT, self._on_hierarchy_timeline_split_button)
+        subscribe(self, Event.REQUEST_ZOOM_IN, lambda *args: self.zoomer(InOrOut.IN, *args))
+        subscribe(self, Event.REQUEST_ZOOM_OUT, lambda *args: self.zoomer(InOrOut.OUT, *args))
+        subscribe(self, Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER,
+                  lambda *args: self._move_in_display_order(*args,
+                                                            UpOrDown.DOWN))
+        subscribe(self, Event.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER,
+                  lambda *args: self._move_in_display_order(*args,
+                                                            UpOrDown.UP))
+        subscribe(self, Event.TIMELINES_REQUEST_TO_DELETE_TIMELINE, self._on_request_to_delete_timeline)
+        subscribe(self, Event.TIMELINES_REQUEST_TO_CLEAR_TIMELINE, lambda: 1 / 0)
+        subscribe(self, Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, self.on_request_to_show_timeline)
+        subscribe(self, Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, self.on_request_to_hide_timeline)
+
         self._app_ui = app_ui
         self.frame = frame
         self.toolbar_frame = toolbar_frame
@@ -420,35 +421,6 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
             (toolbar for toolbar in self._toolbars if toolbar.canvas == canvas), None
         )
 
-    def on_subscribed_event(
-            self, event_name: str, *args, **kwargs
-    ) -> None:
-        event_to_callback = {
-            EventName.CANVAS_LEFT_CLICK: lambda: self._on_timeline_ui_left_click(*args, **kwargs),
-            EventName.CANVAS_RIGHT_CLICK: lambda: self._on_timeline_ui_right_click(*args, **kwargs),
-            EventName.KEY_PRESS_DELETE: self._on_delete_press,
-            EventName.KEY_PRESS_ENTER: self._on_enter_press,
-            EventName.KEY_PRESS_LEFT: lambda: self._on_side_arrow_press(Side.LEFT),
-            EventName.KEY_PRESS_RIGHT: lambda: self._on_side_arrow_press(Side.RIGHT),
-            EventName.KEY_PRESS_CONTROL_C: self._on_request_to_copy,
-            EventName.KEY_PRESS_CONTROL_V: self._on_request_to_paste,
-            EventName.KEY_PRESS_CONTROL_SHIFT_V: self._on_request_to_paste_with_children,
-            EventName.DEBUG_SELECTED_ELEMENTS: self._on_debug_selected_elements,
-            EventName.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT: self._on_hierarchy_timeline_split_button,
-            EventName.REQUEST_ZOOM_IN: lambda: self.zoomer(InOrOut.IN, *args),
-            EventName.REQUEST_ZOOM_OUT: lambda: self.zoomer(InOrOut.OUT, *args),
-            EventName.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER: lambda: self._move_in_display_order(*args,
-                                                                                                        UpOrDown.DOWN),
-            EventName.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER: lambda: self._move_in_display_order(*args,
-                                                                                                      UpOrDown.UP),
-            EventName.TIMELINES_REQUEST_TO_DELETE_TIMELINE: lambda: self._on_request_to_delete_timeline(*args),
-            EventName.TIMELINES_REQUEST_TO_CLEAR_TIMELINE: lambda: 1 / 0,
-            EventName.TIMELINES_REQUEST_TO_SHOW_TIMELINE: lambda: self.on_request_to_show_timeline(*args),
-            EventName.TIMELINES_REQUEST_TO_HIDE_TIMELINE: lambda: self.on_request_to_hide_timeline(*args)
-        }
-
-        event_to_callback[event_name]()
-
     def _on_timeline_ui_right_click(
             self,
             canvas: tk.Canvas,
@@ -503,7 +475,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
 
     def _on_enter_press(self):
         if any([tlui.has_selected_elements for tlui in self._timeline_uis]):
-            events.post(EventName.UI_REQUEST_WINDOW_INSPECTOR)
+            events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
 
     def _on_side_arrow_press(self, side: Side):
 
@@ -530,7 +502,7 @@ class TkTimelineUICollection(Subscriber, TimelineUICollection):
                 copied_components = timeline_ui.get_copy_data_from_selected_elements()
 
         # noinspection PyUnboundLocalVariable
-        events.post(EventName.TIMELINE_COMPONENT_COPIED, copied_components)
+        events.post(Event.TIMELINE_COMPONENT_COPIED, copied_components)
 
     def get_elements_for_pasting(self) -> list[dict]:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
@@ -1134,7 +1106,7 @@ class TimelineTkUI(TimelineUI, ABC):
                 isinstance(clicked_element, RightClickable)
                 and clicked_item_id in clicked_element.right_click_triggers
         ):
-            events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
+            events.subscribe(self, Event.RIGHT_CLICK_MENU_OPTION_CLICK, self.on_right_click_menu_option_click)
             clicked_element.on_right_click(x, y, clicked_item_id)
         else:
             logger.debug(f"Element is not right clickable.")
@@ -1147,23 +1119,30 @@ class TimelineTkUI(TimelineUI, ABC):
             logger.debug(f"Element is inspectable. Sending data to inspector.")
             self.post_inspectable_selected_event(element)
 
-            events.subscribe(EventName.INSPECTOR_FIELD_EDITED, element)
+            events.subscribe(element, Event.INSPECTOR_FIELD_EDITED, self.on_inspector_field_edited)
 
     def deselect_all_elements(self):
         for element in self.element_manager.get_all_elements():
             if isinstance(element, Inspectable):
-                events.post(EventName.INSPECTABLE_ELEMENT_DESELECTED, element.id)
+                events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
             self.element_manager.deselect_element(element)
 
+    def on_right_click_menu_option_click(self, option: RightClickOption):
+        pass
+
+    def on_right_click_menu_new(self) -> None:
+        unsubscribe(Event.RIGHT_CLICK_MENU_OPTION_CLICK, self)
+        unsubscribe(Event.RIGHT_CLICK_MENU_NEW, self)
+
     def display_right_click_menu_for_element(self, canvas_x: float, canvas_y: float, options: list[tuple[str, RightClickOption]]):
-        events.post(EventName.RIGHT_CLICK_MENU_NEW)
-        events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
+        events.post(Event.RIGHT_CLICK_MENU_NEW)
+        events.subscribe(self, Event.RIGHT_CLICK_MENU_OPTION_CLICK, self.on_right_click_menu_option_click)
 
         display_right_click_menu(self.canvas.winfo_rootx() + int(canvas_x),
                                  self.canvas.winfo_rooty() + int(canvas_y), options)
 
-        events.subscribe(EventName.RIGHT_CLICK_MENU_NEW, self)
+        events.subscribe(self, Event.RIGHT_CLICK_MENU_NEW, self.on_right_click_menu_new)
 
     def display_right_click_menu_for_timeline(self, canvas_x: float, canvas_y: float):
         RIGHT_CLICK_OPTIONS = [
@@ -1171,23 +1150,26 @@ class TimelineTkUI(TimelineUI, ABC):
             ("Change timeline height...", RightClickOption.CHANGE_TIMELINE_HEIGHT)
         ]
 
-        events.post(EventName.RIGHT_CLICK_MENU_NEW)
-        events.subscribe(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, self)
+        events.post(Event.RIGHT_CLICK_MENU_NEW)
+        events.subscribe(self, Event.RIGHT_CLICK_MENU_OPTION_CLICK, self.on_right_click_menu_option_click)
 
         display_right_click_menu(self.canvas.winfo_rootx() + int(canvas_x),
                                  self.canvas.winfo_rooty() + int(canvas_y), RIGHT_CLICK_OPTIONS)
 
-        events.subscribe(EventName.RIGHT_CLICK_MENU_NEW, self)
+        events.subscribe(self, Event.RIGHT_CLICK_MENU_NEW, self.on_right_click_menu_new)
 
     @staticmethod
     def post_inspectable_selected_event(element: Inspectable):
         events.post(
-            EventName.INSPECTABLE_ELEMENT_SELECTED,
+            Event.INSPECTABLE_ELEMENT_SELECTED,
             type(element),
             element.INSPECTOR_FIELDS,
             element.get_inspector_dict(),
             element.id
         )
+
+    def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int):
+        pass
 
     def update_elements_position(self) -> None:
         self.element_manager.update_elements_postion()
@@ -1264,7 +1246,7 @@ class TimelineTkUI(TimelineUI, ABC):
 
         self.validate_paste(paste_data, selected_elements)
 
-        events.post(EventName.RECORD_STATE, self.timeline, StateAction.PASTE)
+        events.post(Event.RECORD_STATE, self.timeline, StateAction.PASTE)
 
         for element in self.element_manager.get_selected_elements():
             paste_into_element(element, paste_data[0])
@@ -1307,8 +1289,7 @@ class TimelineTkUI(TimelineUI, ABC):
     def delete(self):
         logger.info(f"Deleting timeline ui {self}...")
 
-        if isinstance(self, Subscriber):
-            self.unsubscribe_from_all()
+        unsubscribe_from_all(self)
 
         self.canvas.destroy()
         if self.toolbar:
@@ -1514,7 +1495,7 @@ def display_right_click_menu(x: int, y: int, options: list[tuple[str, RightClick
                 else:
                     self.tk_menu.add_command(
                         label=option[0],
-                        command=lambda _option=option[1]: events.post(EventName.RIGHT_CLICK_MENU_OPTION_CLICK, _option)
+                        command=lambda _option=option[1]: events.post(Event.RIGHT_CLICK_MENU_OPTION_CLICK, _option)
                     )
 
     RightClickMenu(x, y, options)

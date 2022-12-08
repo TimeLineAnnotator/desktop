@@ -1,6 +1,6 @@
 import pytest
 
-from tilia.events import EventName
+from tilia.events import Event
 from tilia import events
 from tilia import globals_
 from tilia.player.player import PygamePlayer, VlcPlayer, MediaLoadError, NoMediaLoadedError
@@ -85,7 +85,7 @@ class TestPygamePlayer:
     
     @pytest.mark.parametrize('pygame_player', AUDIO_FORMATS, indirect=True)
     def test_play(self, pygame_player):
-        events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         assert pygame_player.sounding()
         assert pygame_player.playing
     
@@ -98,22 +98,22 @@ class TestPygamePlayer:
     
     @pytest.mark.parametrize('pygame_player', AUDIO_FORMATS, indirect=True)
     def test_pause_media(self, pygame_player, pygame_play_media):
-        events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         assert not pygame_player.sounding()
         assert pygame_player.paused
     
     
     @pytest.mark.parametrize('pygame_player', AUDIO_FORMATS, indirect=True)
     def test_unpause_media(self, pygame_player, pygame_play_media):
-        events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
-        events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         assert pygame_player.sounding()
         assert pygame_player.playing
     
     
     @pytest.mark.parametrize('pygame_player', AUDIO_FORMATS, indirect=True)
     def test_stop_media(self, pygame_player, pygame_play_media):
-        events.post(EventName.PLAYER_REQUEST_TO_STOP)
+        events.post(Event.PLAYER_REQUEST_TO_STOP)
         assert not pygame_player.playing
         assert not pygame_player.paused
     
@@ -121,13 +121,13 @@ class TestPygamePlayer:
     @pytest.mark.parametrize('pygame_player', SEEKABLE_AUDIO_FORMATS, indirect=True)
     def test_seek_playing_media(self, pygame_play_media, pygame_player):
         player = pygame_play_media
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK, 10.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 10.0)
         assert player.current_time == pytest.approx(10.0)
     
     
     @pytest.mark.parametrize('pygame_player', SEEKABLE_AUDIO_FORMATS, indirect=True)
     def test_seek_media_stopped(self, pygame_player):
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK, 10.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 10.0)
         assert pygame_player.current_time == pytest.approx(10.0)
     
     
@@ -135,7 +135,7 @@ class TestPygamePlayer:
     def test_seek_media_paused(self, pygame_play_media, pygame_player):
         player = pygame_play_media
         player.play_pause()
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK, 10.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 10.0)
         assert player.current_time == pytest.approx(10.0)
 
 
@@ -170,7 +170,7 @@ class TestVlcPlayer:
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
     def test_play(self, vlc_player):
-        events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         assert vlc_player.sounding()
         assert vlc_player.playing
 
@@ -181,37 +181,37 @@ class TestVlcPlayer:
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
     def test_pause_media(self, vlc_player, vlc_play_media):
-        events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         assert not vlc_player.sounding()
         assert vlc_player.paused
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
     def test_unpause_media(self, vlc_player, vlc_play_media):
-        events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
-        events.post(EventName.PLAYER_REQUEST_TO_PLAYPAUSE)
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
+        events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         assert vlc_player.sounding()
         assert vlc_player.playing
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
     def test_stop_media(self, vlc_player, vlc_play_media):
-        events.post(EventName.PLAYER_REQUEST_TO_STOP)
+        events.post(Event.PLAYER_REQUEST_TO_STOP)
         assert not vlc_player.playing
         assert not vlc_player.paused
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
     def test_seek_playing_media(self, vlc_play_media, vlc_player):
         player = vlc_play_media
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK, 5.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 5.0)
         assert player.current_time == pytest.approx(5.0)
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
     def test_seek_media_stopped(self, vlc_player):
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK, 5.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 5.0)
         assert vlc_player.current_time == pytest.approx(5.0)
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
     def test_seek_media_paused(self, vlc_play_media, vlc_player):
         player = vlc_play_media
         player.play_pause()
-        events.post(EventName.PLAYER_REQUEST_TO_SEEK, 5.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 5.0)
         assert player.current_time == pytest.approx(5.0)
