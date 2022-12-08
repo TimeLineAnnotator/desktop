@@ -1,10 +1,11 @@
 import itertools
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import tkinter as tk
 
 import tilia.ui.tkinter.timelines.copy_paste
+from tilia.events import unsubscribe_from_all
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.common import ParentChildRelation
 from tilia.timelines.hierarchy.components import Hierarchy
@@ -91,7 +92,7 @@ def hierarchy_tlui(mock_tluicoll):
 def undo_manager() -> UndoManager:
     _um = UndoManager()
     yield _um
-    _um.unsubscribe_from_all()
+    unsubscribe_from_all(_um)
 
 def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
     stacking_order = canvas.find_all()
@@ -262,7 +263,7 @@ class TestHierarchyTimelineTkUI:
         assert is_in_front(unit14.ui.rect_id, unit15.ui.rect_id, tl_with_ui.ui.canvas)
 
     #######################
-    ### TEST COPY/PASTE ###
+    ### TEST COPY.PASTE ###
     #######################
 
     def test_get_copy_data_for_hierarchy_with_children(self):
@@ -296,7 +297,11 @@ class TestHierarchyTimelineTkUI:
         # assert child2_copy_data in copy_data['children']
         pass
 
-    def test_paste_without_children_into_selected_elements(self, tl_with_ui):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_paste_without_children_into_selected_elements(self, on_select_mock, tl_with_ui):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
 
         set_dummy_copy_attributes(hrc1)
@@ -338,7 +343,12 @@ class TestHierarchyTimelineTkUI:
 
         assert_is_copy_data_of(copy_data[0], hrc3.ui)
 
-    def test_paste_with_children_into_selected_elements_without_rescaling(self, tl_with_ui):
+
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_paste_with_children_into_selected_elements_without_rescaling(self, on_select_mock, tl_with_ui):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
         hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2)
@@ -373,7 +383,11 @@ class TestHierarchyTimelineTkUI:
         assert_are_copies(copied_children_1, hrc1)
         assert_are_copies(copied_children_2, hrc2)
 
-    def test_paste_with_children_into_selected_elements_with_rescaling(self, tl_with_ui):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_paste_with_children_into_selected_elements_with_rescaling(self, on_select_mock, tl_with_ui):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
         hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2)
@@ -402,7 +416,11 @@ class TestHierarchyTimelineTkUI:
         assert copied_children_2.start == 1.25
         assert copied_children_2.end == 1.5
 
-    def test_paste_with_children_that_have_children(self, tl_with_ui):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_paste_with_children_that_have_children(self, on_select_mock, tl_with_ui):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
         hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 2)
@@ -441,7 +459,11 @@ class TestHierarchyTimelineTkUI:
         assert copied_children_2.children[0].start == 1.5
         assert copied_children_2.children[0].end == 2.0
 
-    def test_paste_with_children_into_different_level_raises_error(self, tl_with_ui):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_paste_with_children_into_different_level_raises_error(self, on_select_mock, tl_with_ui):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
         hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2)
@@ -458,7 +480,10 @@ class TestHierarchyTimelineTkUI:
         with pytest.raises(PasteError):
             tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
-    def test_paste_with_children_paste_two_elements_raises_error(self, tl_with_ui):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_paste_with_children_paste_two_elements_raises_error(self, on_select_mock, tl_with_ui):
+
+        on_select_mock.return_value = None
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
         hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2)
@@ -477,7 +502,7 @@ class TestHierarchyTimelineTkUI:
 
 
     ######################
-    ### TEST UNDO/REDO ###
+    ### TEST UNDO.REDO ###
     ######################
 
 
@@ -561,7 +586,11 @@ class TestHierarchyTimelineTkUI:
         assert list(tl_with_ui.component_manager._components)[0].ui.label == 'initial value'
         assert list(tl_with_ui.component_manager._components)[0].ui.comments == 'some comments'
 
-    def test_undo_paste(self, tl_with_ui, undo_manager):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_undo_paste(self, on_select_mock, tl_with_ui, undo_manager):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc1')
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc2')
 
@@ -574,7 +603,11 @@ class TestHierarchyTimelineTkUI:
 
         assert 'hrc2' in [h.ui.label for h in tl_with_ui.component_manager._components]
 
-    def test_redo_paste(self, tl_with_ui, undo_manager):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_redo_paste(self, on_select_mock, tl_with_ui, undo_manager):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc1')
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc2')
 
@@ -588,7 +621,11 @@ class TestHierarchyTimelineTkUI:
 
         assert 'hrc2' not in [h.ui.label for h in tl_with_ui.component_manager._components]
 
-    def test_undo_paste_with_children(self, tl_with_ui, undo_manager):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_undo_paste_with_children(self, on_select_mock, tl_with_ui, undo_manager):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc1')
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2, label='hrc2')
         hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 1, 2, 2, label='hrc3')
@@ -605,7 +642,11 @@ class TestHierarchyTimelineTkUI:
 
         assert len(tl_with_ui.component_manager._components) == 3
 
-    def test_redo_paste_with_children(self, tl_with_ui, undo_manager):
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    def test_redo_paste_with_children(self, on_select_mock, tl_with_ui, undo_manager):
+
+        on_select_mock.return_value = None
+
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1, label='hrc1')
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2, label='hrc2')
         hrc3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 1, 2, 2, label='hrc3')
