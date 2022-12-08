@@ -1,7 +1,7 @@
 import pytest
 
 from tilia import events
-from tilia.events import EventName
+from tilia.events import Event, unsubscribe_from_all
 from tilia.files import TiliaFile
 from tilia.globals_ import UserInterfaceKind, NATIVE_VIDEO_FORMATS, NATIVE_AUDIO_FORMATS
 from tilia.main import TiLiA, FileManager
@@ -14,8 +14,8 @@ from tilia.timelines.timeline_kinds import TimelineKind
 def tilia_mock():
     tilia_mock_ = TiLiA(ui_kind=UserInterfaceKind.MOCK)
     yield tilia_mock_
-    tilia_mock_._undo_manager.unsubscribe_from_all()
-    tilia_mock_._player.unsubscribe_from_all()
+    unsubscribe_from_all(tilia_mock_._undo_manager)
+    unsubscribe_from_all(tilia_mock_._player)
 
 
 @pytest.fixture
@@ -57,14 +57,14 @@ class TestFileManager:
 
     def test_on_metadata_new_fields(self, tilia_mock):
         new_metadata_fields = ['test_field1', 'test_field2']
-        events.post(EventName.METADATA_NEW_FIELDS, new_metadata_fields)
+        events.post(Event.METADATA_NEW_FIELDS, new_metadata_fields)
 
         assert list(tilia_mock.media_metadata) == new_metadata_fields
 
     def test_on_metadata_field_edited(self, tilia_mock):
         edited_field = 'title'
         new_value = 'test title'
-        events.post(EventName.METADATA_FIELD_EDITED, edited_field, new_value)
+        events.post(Event.METADATA_FIELD_EDITED, edited_field, new_value)
 
         assert tilia_mock.media_metadata[edited_field] == new_value
 
@@ -92,7 +92,17 @@ class TestFileManager:
 
         import copy
         modified_save_params = copy.deepcopy(empty_file_save_params)
-        modified_save_params['timelines'] = {'0': 'tldata0', '1': 'tldata1'}
+        modified_save_params['timelines'] = {
+            '0': {'kind': 'SLIDER_TIMELINE', 'display_position': 0, 'is_visible': True, 'height': 10},
+            '1': {
+                'kind': 'HIERARCHY_TIMELINE',
+                'display_position': 0,
+                'height': 10,
+                'is_visible': True,
+                'name': 'test',
+                'components': {}
+            }
+        }
 
         assert file_manager.is_file_modified
 
@@ -107,6 +117,7 @@ class TestFileManager:
         modified_save_params = copy.deepcopy(empty_file_save_params)
         modified_save_params['media_path'] = 'modified path'
         assert file_manager.is_file_modified
+
 
 class TestTimelineWithUIBuilder:
     def test_create_slider_timeline_no_error(self, tilia_mock, tlwui_builder):
