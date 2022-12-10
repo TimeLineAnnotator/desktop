@@ -5,20 +5,17 @@ Defines the TimelineCollection class, which compose the TiLiA class.
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
+from tilia.events import subscribe, Event
 from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia.main import TiLiA
 
-import sys
 import logging
 
 logger = logging.getLogger(__name__)
 
-import tkinter as tk
-from tkinter import messagebox
-
-from tilia import globals_
+from tilia import globals_, events
 from tilia.timelines.common import Timeline
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTimeline,
@@ -37,6 +34,8 @@ class TimelineCollection:
         self._app = app
         self._timelines = []
         self._timeline_ui_collection = None  # will be set by TiLiA
+
+        subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_loaded)
 
     def create_timeline(self, timeline_kind: TimelineKind, **kwargs) -> Timeline:
         if timeline_kind == TimelineKind.HIERARCHY_TIMELINE:
@@ -103,6 +102,51 @@ class TimelineCollection:
 
     def has_slider_timeline(self):
         return any([isinstance(SliderTimeline, tl) for tl in self._timelines])
+
+    def has_timeline_of_kind(self, kind: TimelineKind):
+        return any([tl.KIND == kind for tl in self._timelines])
+
+    def on_media_loaded(self, _1, new_media_length: float, _2, previous_media_length: float):
+        if not self.has_timeline_of_kind(TimelineKind.HIERARCHY_TIMELINE):
+            return
+
+        events.post(Event.REQUEST_CHANGE_TIMELINE_WIDTH, self._timeline_ui_collection.get_timeline_width() * new_media_length / previous_media_length)
+
+        SCALE_HIERARCHIES_PROMPT = "Would you like to scale the hierarchies to new media's length?"
+        CROP_HIERARCHIES_PROMPT = "New media is smaller, so " \
+                                  "any hierarchies that exceed its size will be deleted or cropped."\
+                                  "Are you sure you don't want to scale them instead?"
+
+        if not self._app.ui.ask_yes_no(
+                'Scale hierarchies',
+                SCALE_HIERARCHIES_PROMPT
+        ):
+            self.scale_components_by_timeline_kind(TimelineKind.HIERARCHY_TIMELINE, new_media_length / previous_media_length)
+
+        elif new_media_length < previous_media_length:
+            if self._app.ui.ask_yes_no(
+                    'Confirm crop hierarchies',
+                    CROP_HIERARCHIES_PROMPT
+            ):
+                self.crop_components_by_timeline_kind(TimelineKind.HIERARCHY_TIMELINE, new_media_length)
+            else:
+                self.scale_components_by_timeline_kind(TimelineKind.HIERARCHY_TIMELINE, new_media_length / previous_media_length)
+
+        self.update_ui_elements_position_by_timeline_kind(TimelineKind.HIERARCHY_TIMELINE)
+
+
+    def scale_components_by_timeline_kind(self, kind: TimelineKind, factor: float) -> None:
+        for tl in [tl for tl in self._timelines if tl.KIND == kind]:
+            tl.scale(factor)
+
+    def crop_components_by_timeline_kind(self, kind: TimelineKind, new_length: float) -> None:
+        for tl in [tl for tl in self._timelines if tl.KIND == kind]:
+            tl.crop(new_length)
+
+    def update_ui_elements_position_by_timeline_kind(self, kind: TimelineKind) -> None:
+        for tl in [tl for tl in self._timelines if tl.KIND == kind]:
+            tl.ui.update_elements_position()
+
 
     def clear(self):
         logger.debug(f"Clearing timeline collection...")

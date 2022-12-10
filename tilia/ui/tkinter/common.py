@@ -38,6 +38,10 @@ def ask_for_int(title: str, prompt: str, initialvalue: int) -> int | None:
     return tk.simpledialog.askinteger(title, prompt, initialvalue=initialvalue)
 
 
+def ask_yes_no(title: str, prompt: str) -> bool:
+    return tk.messagebox.askyesno(title, prompt)
+
+
 def destroy_children_recursively(widget: tk.Widget | tk.Toplevel) -> None:
     """Recursively destroys all children of 'widget'"""
     children = widget.winfo_children()

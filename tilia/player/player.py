@@ -75,6 +75,7 @@ class Player(ABC):
         self._engine_load_media(media_path)
         self.media_path = media_path
 
+        previous_media_length = self.media_length
         self.media_length = self._engine_get_media_length()
         self.playback_start = start
 
@@ -93,6 +94,7 @@ class Player(ABC):
             self.media_path,
             self.media_length,
             self.playback_length,
+            previous_media_length
         )
 
         self.media_loaded = True

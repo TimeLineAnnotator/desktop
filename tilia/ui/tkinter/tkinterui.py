@@ -20,6 +20,7 @@ from tilia.player import player_ui
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
+from .common import ask_yes_no
 from .event_handler import TkEventHandler
 from .timelines.common import TkTimelineUICollection
 from .windows.common import AppWindow
@@ -232,6 +233,8 @@ class TkinterUI:
     def ask_string(title: str, prompt: str) -> str:
         return tk.simpledialog.askstring(title, prompt=prompt)
 
+    def ask_yes_no(self, title: str, prompt: str) -> bool:
+        return ask_yes_no(title, prompt)
 
     def get_timeline_ui_attribute_by_id(self, id_: int, attribute: str) -> Any:
         return self.timeline_ui_collection.get_timeline_ui_attribute_by_id(

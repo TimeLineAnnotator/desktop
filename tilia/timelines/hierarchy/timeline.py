@@ -34,6 +34,8 @@ class HierarchyTimeline(Timeline):
     SERIALIZABLE_BY_VALUE = []
     SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
 
+    KIND = TimelineKind.HIERARCHY_TIMELINE
+
     def __init__(
         self,
         collection: TimelineCollection,
@@ -65,6 +67,12 @@ class HierarchyTimeline(Timeline):
 
     def merge(self, units: list[Hierarchy]) -> None:
         self.component_manager.merge(units)
+
+    def scale_hierarchies(self, factor: float) -> None:
+        self.component_manager.scale_hierarchies(factor)
+
+    def crop(self, length: float) -> None:
+        self.component_manager.crop(length)
 
     def update_ui_with_parent_child_relation(self, relation: ParentChildRelation):
         self.ui.update_parent_child_relation(relation)
@@ -265,6 +273,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         is_between_grouped_units = lambda u: has_same_parent(u) and is_inside_grouping(
             u
         )
+
         units_to_group += self.get_components_by_condition(
             is_between_grouped_units, kind=ComponentKind.HIERARCHY
         )
@@ -513,6 +522,22 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         self._remove_from_components_set(component)
 
+    def scale(self, factor: float) -> None:
+        for hrc in self._components:
+            hrc.start *= factor
+            hrc.end *= factor
+            hrc.ui.update_position()
+
+    def crop(self, length: float) -> None:
+        for hrc in self._components.copy():
+            if hrc.end > length:
+                if hrc.start >= length:
+                    self.delete_component(hrc, record=False)
+                else:
+                    hrc.end = length
+            hrc.ui.update_position()
+
+
     def create_initial_hierarchy(self):
         """Create unit of level 1 encompassing whole audio"""
         logging.debug(f"Creating starting hierarchy for timeline '{self.timeline}'")
@@ -522,6 +547,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             end=self.timeline.get_media_length(),
             level=1,
         )
+
 
     def _update_parent_child_relation_after_deletion(
         self, component: Hierarchy

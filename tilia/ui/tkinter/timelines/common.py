@@ -162,6 +162,7 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT, self._on_hierarchy_timeline_split_button)
         subscribe(self, Event.REQUEST_ZOOM_IN, lambda *args: self.zoomer(InOrOut.IN, *args))
         subscribe(self, Event.REQUEST_ZOOM_OUT, lambda *args: self.zoomer(InOrOut.OUT, *args))
+        subscribe(self, Event.REQUEST_CHANGE_TIMELINE_WIDTH, self.on_request_change_timeline_width)
         subscribe(self, Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER,
                   lambda *args: self._move_in_display_order(*args,
                                                             UpOrDown.DOWN))
@@ -559,13 +560,21 @@ class TkTimelineUICollection(TimelineUICollection):
         else:
             self.timeline_width *= 1 - self.ZOOM_SCALE_FACTOR
 
-        self._update_timelines_after_zoom()
+        self._update_timelines_after_width_change()
+
+    def on_request_change_timeline_width(self, width: float) -> None:
+        if width < 0:
+            raise ValueError(f'Timeline width must be positive. Got {width=}')
+
+        self.timeline_width = width
+
+        self._update_timelines_after_width_change()
 
     def deselect_all_elements_in_timeline_uis(self):
         for timeline_ui in self._timeline_uis:
             timeline_ui.deselect_all_elements()
 
-    def _update_timelines_after_zoom(self):
+    def _update_timelines_after_width_change(self):
         for tl_ui in self._timeline_uis:
             tl_ui.canvas.config(
                 scrollregion=(0, 0, self.get_timeline_total_size(), tl_ui.height)

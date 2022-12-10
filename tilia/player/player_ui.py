@@ -89,7 +89,7 @@ class PlayerUI(tk.Frame):
     def on_player_unpaused(self):
         pass
 
-    def on_media_load(self, _1, _2, playback_length) -> None:
+    def on_media_load(self, _1, _2, playback_length: float, _3) -> None:
         self.media_length_str = self.format_media_time(playback_length)
         self.time_label.config(text=f"00:00/{self.media_length_str}")
 

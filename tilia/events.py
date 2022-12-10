@@ -6,8 +6,9 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    REQUEST_CHANGE_TIMELINE_WIDTH = auto()
     METADATA_NEW_FIELDS = auto()
-    METADATA_WINDOW_OPENED = None
+    METADATA_WINDOW_OPENED = auto()
     METADATA_FIELD_EDITED = auto()
     UI_REQUEST_WINDOW_METADATA = auto()
     PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING = auto()
@@ -152,38 +153,6 @@ def unsubscribe_from_all(subscriber: Any) -> None:
 
     for event in subscribers_to_events[subscriber]:
         unsubscribe(event, subscriber)
-
-
-def main():
-
-    def callback1(*args, **kwargs):
-        print(f'Executing callback 1 with {args=} and {kwargs=}')
-
-    def callback2(*args, **kwargs):
-        print(f'Executing callback 2 with {args=} and {kwargs=}')
-
-    subscriber1 = 'sub1'
-    subscriber2 = 'sub2'
-
-    subscribe(subscriber1, Event.METADATA_FIELD_EDITED, callback1)
-    subscribe(subscriber2, Event.METADATA_FIELD_EDITED, callback2)
-    subscribe(subscriber1, Event.PLAYER_REQUEST_TO_SEEK, callback1)
-    subscribe(subscriber2, Event.PLAYER_REQUEST_TO_SEEK, callback2)
-    unsubscribe(Event.METADATA_FIELD_EDITED, subscriber1)
-    unsubscribe(Event.METADATA_FIELD_EDITED, subscriber2)
-    unsubscribe(Event.PLAYER_REQUEST_TO_SEEK, subscriber1)
-    unsubscribe(Event.PLAYER_REQUEST_TO_SEEK, subscriber2)
-    subscribe(subscriber1, Event.METADATA_FIELD_EDITED, callback1)
-    subscribe(subscriber2, Event.METADATA_FIELD_EDITED, callback2)
-    subscribe(subscriber1, Event.PLAYER_REQUEST_TO_SEEK, callback1)
-    subscribe(subscriber2, Event.PLAYER_REQUEST_TO_SEEK, callback2)
-
-    post(Event.METADATA_FIELD_EDITED, 'arg1', 'arg2', kwarg1='art', kwarg2='immanence')
-    post(Event.PLAYER_REQUEST_TO_SEEK, 'apesar de vc', 'amanhã há de ser', kwarg1='chico', kwarg2='buarque')
-
-
-if __name__ == '__main__':
-    main()
 
 
 
