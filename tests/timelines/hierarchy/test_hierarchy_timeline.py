@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def tl_with_ui() -> HierarchyTimeline:
-
     id_counter = itertools.count()
 
     tl_coll_mock = MagicMock()
@@ -186,7 +185,7 @@ class TestHierarchyTimeline:
         "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
     )
     def test_deserialize_unit_with_parent(
-        self, update_ui_parent_child_mock, tl_with_ui
+            self, update_ui_parent_child_mock, tl_with_ui
     ):
 
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
@@ -210,7 +209,7 @@ class TestHierarchyTimeline:
         "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
     )
     def test_deserialize_unit_with_children(
-        self, update_ui_parent_child_mock, tl_with_ui
+            self, update_ui_parent_child_mock, tl_with_ui
     ):
 
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
@@ -308,7 +307,6 @@ class TestHierarchyTimelineComponentManager:
 
     # TEST GROUP
     def test_group_two_units(self, tl):
-
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0, end=0.1, level=1
         )
@@ -322,7 +320,6 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1.parent.level == 2
 
     def test_group_two_units_out_of_order(self, tl):
-
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0, end=0.1, level=1
         )
@@ -335,7 +332,6 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1.parent == hrc2.parent
 
     def test_group_two_units_with_units_of_same_level_in_between(self, tl):
-
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0, end=0.1, level=1
         )
@@ -354,7 +350,6 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1.parent == hrc2.parent == hrc3.parent == hrc4.parent
 
     def test_group_two_units_with_units_of_different_level_in_between(self, tl):
-
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0, end=0.1, level=1
         )
@@ -374,7 +369,6 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1.parent.level == 4
 
     def test_group_two_units_with_unit_with_children_in_between(self, tl):
-
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0, end=0.1, level=2
         )
@@ -399,7 +393,6 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1.parent == hrc4.parent == hrc5.parent
 
     def test_group_three_units_with_units_between_grouped_units(self, tl):
-
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0, end=0.1, level=1
         )
@@ -500,7 +493,6 @@ class TestHierarchyTimelineComponentManager:
         assert not hrc1.parent == hrc3 or hrc2.parent == hrc3
         assert hrc1.parent == hrc3.children[0]
 
-
     def test_group_two_units_with_parent_that_has_parent(self, tl):
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=0.4, level=4
@@ -532,7 +524,6 @@ class TestHierarchyTimelineComponentManager:
         tl.component_manager._make_parent_child_relation(
             ParentChildRelation(parent=hrc2, children=[hrc3, hrc4, hrc5, hrc6])
         )
-
 
         tl.component_manager.group([hrc3, hrc4])
 
@@ -594,7 +585,6 @@ class TestHierarchyTimelineComponentManager:
         "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
     )
     def test_split_unit_with_parent(self, update_ui_parent_child_mock, tl_with_ui):
-
         update_ui_parent_child_mock.return_value = None
 
         hrc1 = tl_with_ui.create_timeline_component(
@@ -628,7 +618,6 @@ class TestHierarchyTimelineComponentManager:
             level=2,
         )
 
-
         tl.component_manager._make_parent_child_relation(
             ParentChildRelation(parent=hrc2, children=[hrc1])
         )
@@ -639,7 +628,6 @@ class TestHierarchyTimelineComponentManager:
         "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
     )
     def test_split_unit_with_children(self, update_ui_parent_child_mock, tl_with_ui):
-
         update_ui_parent_child_mock.return_value = None
 
         hrc1 = tl_with_ui.create_timeline_component(
@@ -875,7 +863,6 @@ class TestHierarchyTimelineComponentManager:
             ParentChildRelation(parent=hrc1, children=[hrc2, hrc3])
         )
 
-
         serialized_components = tl_with_ui.component_manager.serialize_components()
 
         tl_with_ui.component_manager.clear()
@@ -888,3 +875,78 @@ class TestHierarchyTimelineComponentManager:
         assert dsrl_hrc3 in dsrl_hrc1.children
         assert dsrl_hrc2.parent == dsrl_hrc1
         assert dsrl_hrc3.parent == dsrl_hrc1
+
+    # TEST CROP
+    def test_crop(self, tl_with_ui):
+
+        hrc1 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY,
+            start=0.0,
+            end=0.3,
+            level=1
+        )
+
+        hrc2 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY,
+            start=0.1,
+            end=0.2,
+            level=2
+        )
+
+        hrc3 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY,
+            start=0.2,
+            end=0.3,
+            level=3
+        )
+
+        hrc4 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY,
+            start=0.0,
+            end=0.1,
+            level=1
+        )
+
+        tl_with_ui.component_manager.crop(0.15)
+
+        assert len(tl_with_ui.component_manager._components) == 3
+        assert hrc1.start == 0.0
+        assert hrc1.end == 0.15
+        assert hrc2.start == 0.1
+        assert hrc2.end == 0.15
+        assert hrc4.start == 0.0
+        assert hrc4.end == 0.1
+
+    def test_scale(self, tl_with_ui):
+
+        hrc1 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY,
+            start=0,
+            end=1,
+            level=1
+        )
+
+        hrc2 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY,
+            start=1,
+            end=3,
+            level=2
+        )
+
+        hrc3 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY,
+            start=3,
+            end=6,
+            level=3
+        )
+
+
+        tl_with_ui.component_manager.scale(0.5)
+
+        assert len(tl_with_ui.component_manager._components) == 3
+        assert hrc1.start == 0
+        assert hrc1.end == 0.5
+        assert hrc2.start == 0.5
+        assert hrc2.end == 1.5
+        assert hrc3.start == 1.5
+        assert hrc3.end == 3
