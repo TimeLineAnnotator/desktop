@@ -77,15 +77,6 @@ class TimelineCanvas(tk.Canvas):
             highlightthickness=0,
         )
 
-        # TODO what are these?
-        bindings = [
-            # ("<Configure>", lambda event: self.configure(scrollregion=self.bbox("all")),),
-            # ("<MouseWheel>", self.on_mouse_wheel)
-        ]
-
-        for binding in bindings:
-            self.bind(*binding)
-
         self._label_width = left_margin_width
 
         self._setup_label(initial_name)
@@ -173,6 +164,7 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.TIMELINES_REQUEST_TO_CLEAR_TIMELINE, lambda: 1 / 0)
         subscribe(self, Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, self.on_request_to_show_timeline)
         subscribe(self, Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, self.on_request_to_hide_timeline)
+        subscribe(self, Event.PLAYER_AUDIO_TIME_CHANGE, self.on_audio_time_change)
 
         self._app_ui = app_ui
         self.frame = frame
@@ -561,6 +553,13 @@ class TkTimelineUICollection(TimelineUICollection):
             self.timeline_width *= 1 - self.ZOOM_SCALE_FACTOR
 
         self._update_timelines_after_width_change()
+
+    def draw_playback_line(self):
+        for tl_ui in self._timeline_uis:
+            tl_ui.draw_playback_line()
+
+    def on_audio_time_change(self, time: float) -> None:
+        NotImplementedError
 
     def on_request_change_timeline_width(self, width: float) -> None:
         if width < 0:
@@ -1202,6 +1201,16 @@ class TimelineTkUI(TimelineUI, ABC):
             return None
 
         return selected_elements
+
+    def draw_playback_line(self) -> None:
+        self.playback_line = self.canvas.create_line(
+            self.get_left_margin_x(),
+            0,
+            self.get_left_margin_x(),
+            self.height,
+            dash=(3, 3),
+            fill="black",
+        )
 
     def on_delete_press(self):
         selected_elements = self.element_manager.get_selected_elements()
