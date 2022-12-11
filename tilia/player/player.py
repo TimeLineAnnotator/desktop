@@ -65,7 +65,6 @@ class Player(ABC):
         self.current_time = 0.0
         self.media_path = ""
         self.playing = False
-        self.paused = False
 
     @property
     def playback_length(self):
@@ -115,7 +114,6 @@ class Player(ABC):
         self.current_time = 0.0
         self.media_path = ""
         self.playing = False
-        self.paused = False
         logger.info(
             f"Media unloaded succesfully."
         )
@@ -131,23 +129,14 @@ class Player(ABC):
 
         if not self.playing:
             self._engine_play()
-            self.paused = False
             self.playing = True
-            self._start_play_loop()
-            events.post(Event.PLAYER_UNPAUSED)
-
-        elif self.paused:
-            self._engine_unpause()
-            self.paused = False
             self._start_play_loop()
             events.post(Event.PLAYER_UNPAUSED)
 
         else:
             self._engine_pause()
-            self.paused = True
+            self.playing = False
             events.post(Event.PLAYER_PAUSED)
-
-        return self.paused
 
     def stop(self):
         """Stops music playback and resets slider position"""
@@ -157,7 +146,6 @@ class Player(ABC):
             return
 
         self._engine_stop()
-        self.paused = False
         self.playing = False
 
         self._engine_seek(self.playback_start)
@@ -183,7 +171,7 @@ class Player(ABC):
         threading.Thread(target=self._play_loop).start()
 
     def _play_loop(self) -> None:
-        while self.playing and not self.paused:
+        while self.playing:
             self.current_time = self._engine_get_current_time() - self.playback_start
             events.post(Event.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
             if self.current_time >= self.playback_length:
@@ -198,10 +186,6 @@ class Player(ABC):
         self.unload_media()
         events.unsubscribe_from_all(self)
         self._engine_exit()
-
-    def sounding(self):
-        """Determines if there is media actually played (i.e. loaded and not paused or stopped) at the moment"""
-        return self.playing and not self.paused
 
     @abstractmethod
     def _engine_pause(self) -> None:
@@ -365,12 +349,15 @@ class PygamePlayer(Player):
     def _engine_seek(self, time: float) -> None:
         self.playback_offset = time
         pygame.mixer.music.play(loops=0, start=time)
-        if not self.sounding():
+        if not self.playing:
             pygame.mixer.music.pause()
         self.current_time = time
 
     def _engine_play(self) -> None:
-        pygame.mixer.music.play(loops=0, start=self.current_time)
+        try:
+            pygame.mixer.music.play(loops=0, start=self.current_time)
+        except pygame.error:
+            pygame.mixer.music.play(loops=0)
 
     def _engine_pause(self) -> None:
         pygame.mixer.music.pause()
