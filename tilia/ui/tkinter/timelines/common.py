@@ -234,7 +234,9 @@ class TkTimelineUICollection(TimelineUICollection):
         self._add_to_timeline_uis_set(tl_ui)
         self._add_to_timeline_ui_select_order(tl_ui)
         self._add_to_timeline_ui_display_order(tl_ui)
-        self.create_playback_line(tl_ui)
+
+        if not kind == TimelineKind.SLIDER_TIMELINE:
+            self.create_playback_line(tl_ui)
 
         return tl_ui
 
@@ -561,6 +563,9 @@ class TkTimelineUICollection(TimelineUICollection):
 
     def create_playback_lines(self):
         for tl_ui in self._timeline_uis:
+            if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+                continue
+
             self.create_playback_line(tl_ui)
 
     def create_playback_line(self, timeline_ui: TimelineTkUI):
@@ -572,6 +577,9 @@ class TkTimelineUICollection(TimelineUICollection):
 
     def on_audio_time_change(self, time: float) -> None:
         for tl_ui in self._timeline_uis:
+            if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+                continue
+
             change_playback_line_position(
                 timeline_ui=tl_ui,
                 playback_line_id=self._timeline_uis_to_playback_line_ids[tl_ui],
