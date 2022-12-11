@@ -159,6 +159,7 @@ class SliderTimelineTkUI(TimelineTkUI):
             logger.debug(f"Dragging to x='{drag_x}'.")
 
         self.x = drag_x
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.get_time_by_x(self._x))
         self._update_trough_position()
 
     def end_drag(self):
