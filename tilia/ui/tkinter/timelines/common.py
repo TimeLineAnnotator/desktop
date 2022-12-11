@@ -601,6 +601,11 @@ class TkTimelineUICollection(TimelineUICollection):
 
             tl_ui.update_elements_position()
 
+            change_playback_line_position(
+                tl_ui,
+                self._timeline_uis_to_playback_line_ids[tl_ui],
+                self._timeline_collection.get_current_playback_time()
+            )
             # TODO center view at appropriate point
 
     def get_timeline_total_size(self):
