@@ -16,6 +16,7 @@ def tilia_mock():
     yield tilia_mock_
     unsubscribe_from_all(tilia_mock_._undo_manager)
     unsubscribe_from_all(tilia_mock_._player)
+    tilia_mock_._player.destroy()
 
 
 @pytest.fixture
@@ -48,11 +49,11 @@ class TestFileManager:
     def test_constructor(self, tilia_mock):
         FileManager(tilia_mock)
 
-    def test_open(self, monkeypatch, file_manager):
+    def test_open(self, file_manager):
 
-        file_manager._app.ui.get_file_open_path.return_value = (
-            "test_file.tla"
-        )
+        file_manager._app.ui.get_file_open_path = lambda: "test_file.tla"
+        file_manager.ask_save_if_necessary = lambda: True
+
         file_manager.open()
 
     def test_on_metadata_new_fields(self, tilia_mock):
