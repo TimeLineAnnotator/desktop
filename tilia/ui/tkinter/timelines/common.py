@@ -1191,8 +1191,8 @@ class TimelineTkUI(TimelineUI, ABC):
         pass
 
     def on_right_click_menu_new(self) -> None:
-        unsubscribe(Event.RIGHT_CLICK_MENU_OPTION_CLICK, self)
-        unsubscribe(Event.RIGHT_CLICK_MENU_NEW, self)
+        unsubscribe(self, Event.RIGHT_CLICK_MENU_OPTION_CLICK)
+        unsubscribe(self, Event.RIGHT_CLICK_MENU_NEW)
 
     def display_right_click_menu_for_element(self, canvas_x: float, canvas_y: float,
                                              options: list[tuple[str, RightClickOption]]):

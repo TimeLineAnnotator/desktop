@@ -507,8 +507,8 @@ class HierarchyTkUI(TimelineTkUIElement):
     def end_drag(self):
         logger.debug(f"Ending drag of {self}.")
         self.drag_data = {}
-        unsubscribe(Event.TIMELINE_LEFT_BUTTON_DRAG, self)
-        unsubscribe(Event.TIMELINE_LEFT_BUTTON_RELEASE, self)
+        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
+        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
 
     def on_select(self) -> None:
         self.display_as_selected()

@@ -136,7 +136,7 @@ def subscribe(subscriber: Any, event: Event, callback: Callable) -> None:
         subscribers_to_events[subscriber].append(event)
 
 
-def unsubscribe(event: Event, subscriber: Any) -> None:
+def unsubscribe(subscriber: Any, event: Event) -> None:
 
     try:
         events_to_subscribers[event].pop(subscriber)
@@ -153,7 +153,7 @@ def unsubscribe_from_all(subscriber: Any) -> None:
         return
 
     for event in subscribers_to_events[subscriber]:
-        unsubscribe(event, subscriber)
+        unsubscribe(subscriber, event)
 
 
 
