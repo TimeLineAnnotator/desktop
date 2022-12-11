@@ -68,8 +68,8 @@ class HierarchyTimeline(Timeline):
     def merge(self, units: list[Hierarchy]) -> None:
         self.component_manager.merge(units)
 
-    def scale_hierarchies(self, factor: float) -> None:
-        self.component_manager.scale_hierarchies(factor)
+    def scale(self, factor: float) -> None:
+        self.component_manager.scale(factor)
 
     def crop(self, length: float) -> None:
         self.component_manager.crop(length)
