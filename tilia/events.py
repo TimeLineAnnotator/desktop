@@ -152,7 +152,7 @@ def unsubscribe_from_all(subscriber: Any) -> None:
     if subscriber not in subscribers_to_events.keys():
         return
 
-    for event in subscribers_to_events[subscriber]:
+    for event in subscribers_to_events[subscriber].copy():
         unsubscribe(subscriber, event)
 
 
