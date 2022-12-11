@@ -165,8 +165,8 @@ class SliderTimelineTkUI(TimelineTkUI):
         logger.debug(f"Ending drag of {self}.")
         self.dragging = False
         events.post(Event.PLAYER_REQUEST_TO_SEEK, self.get_time_by_x(self._x))
-        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
-        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
+        unsubscribe(Event.TIMELINE_LEFT_BUTTON_DRAG, self)
+        unsubscribe(Event.TIMELINE_LEFT_BUTTON_RELEASE, self)
 
     def on_audio_time_change(self, time: float) -> None:
         if not self.dragging:
