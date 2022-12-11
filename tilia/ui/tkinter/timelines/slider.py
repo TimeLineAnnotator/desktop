@@ -179,6 +179,7 @@ class SliderTimelineTkUI(TimelineTkUI):
         """No components in SliderTimeline. Must implement abstract method."""
 
     def update_elements_position(self):
+        self.x = self.get_x_by_time(self.timeline.get_current_playback_time())
         self._update_trough_position()
         self._update_line_position()
 
