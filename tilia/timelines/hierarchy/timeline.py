@@ -548,6 +548,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             level=1,
         )
 
+        events.post(Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.timeline)
 
     def _update_parent_child_relation_after_deletion(
         self, component: Hierarchy

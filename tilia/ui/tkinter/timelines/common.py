@@ -34,10 +34,11 @@ from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
 from tilia.repr import default_repr
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.timelines.common import InvalidComponentKindError, log_object_creation
+from tilia.timelines.common import InvalidComponentKindError, log_object_creation, Timeline
 from tilia.ui.tkinter.modifier_enum import ModifierEnum
 from tilia.misc_enums import InOrOut, UpOrDown, Side
-from tilia.ui.tkinter.timelines.copy_paste import get_copy_data_from_elements, paste_into_element, CopyAttributes, Copyable
+from tilia.ui.tkinter.timelines.copy_paste import get_copy_data_from_elements, paste_into_element, CopyAttributes, \
+    Copyable
 
 
 @runtime_checkable
@@ -165,6 +166,7 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, self.on_request_to_show_timeline)
         subscribe(self, Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, self.on_request_to_hide_timeline)
         subscribe(self, Event.PLAYER_AUDIO_TIME_CHANGE, self.on_audio_time_change)
+        subscribe(self, Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.on_create_initial_hierarchy)
 
         self._app_ui = app_ui
         self.frame = frame
@@ -178,6 +180,9 @@ class TkTimelineUICollection(TimelineUICollection):
         self._timeline_uis = set()
         self._select_order = []
         self._display_order = []
+        self._timeline_uis_to_playback_line_ids = {}
+
+        self.create_playback_lines()
 
         self._timeline_collection = None  # will be set by the TiLiA object
 
@@ -229,6 +234,7 @@ class TkTimelineUICollection(TimelineUICollection):
         self._add_to_timeline_uis_set(tl_ui)
         self._add_to_timeline_ui_select_order(tl_ui)
         self._add_to_timeline_ui_display_order(tl_ui)
+        self.create_playback_line(tl_ui)
 
         return tl_ui
 
@@ -480,7 +486,6 @@ class TkTimelineUICollection(TimelineUICollection):
             if isinstance(timeline_ui, AcceptsArrowPress):
                 timeline_ui.on_side_arrow_press(side)
 
-
     def _on_request_to_copy(self):
 
         ui_with_selected_elements = [tlui for tlui in self._timeline_uis if tlui.has_selected_elements]
@@ -554,12 +559,27 @@ class TkTimelineUICollection(TimelineUICollection):
 
         self._update_timelines_after_width_change()
 
-    def draw_playback_line(self):
+    def create_playback_lines(self):
         for tl_ui in self._timeline_uis:
-            tl_ui.draw_playback_line()
+            self.create_playback_line(tl_ui)
+
+    def create_playback_line(self, timeline_ui: TimelineTkUI):
+        line_id = draw_playback_line(
+            timeline_ui=timeline_ui,
+            initial_time=self._timeline_collection.get_current_playback_time()
+        )
+        self._timeline_uis_to_playback_line_ids[timeline_ui] = line_id
 
     def on_audio_time_change(self, time: float) -> None:
-        NotImplementedError
+        for tl_ui in self._timeline_uis:
+            change_playback_line_position(
+                timeline_ui=tl_ui,
+                playback_line_id=self._timeline_uis_to_playback_line_ids[tl_ui],
+                time=time
+            )
+
+    def on_create_initial_hierarchy(self, timeline: Timeline) -> None:
+        timeline.ui.canvas.tag_raise(self._timeline_uis_to_playback_line_ids[timeline.ui])
 
     def on_request_change_timeline_width(self, width: float) -> None:
         if width < 0:
@@ -648,6 +668,33 @@ class TkTimelineUICollection(TimelineUICollection):
             logger.debug(f"Making timeline visible.")
             self.show_timeline_ui(timeline_ui)
         pass
+
+
+def change_playback_line_position(timeline_ui: TimelineTkUI, playback_line_id: int, time: float) -> None:
+    timeline_ui.canvas.coords(
+        playback_line_id,
+        timeline_ui.get_x_by_time(time),
+        0,
+        timeline_ui.get_x_by_time(time),
+        timeline_ui.height,
+    )
+
+    timeline_ui.canvas.tag_raise(playback_line_id)
+
+
+def draw_playback_line(timeline_ui: TimelineTkUI, initial_time: float) -> int:
+    line_id = timeline_ui.canvas.create_line(
+        timeline_ui.get_x_by_time(initial_time),
+        0,
+        timeline_ui.get_x_by_time(initial_time),
+        timeline_ui.height,
+        dash=(3, 3),
+        fill="black",
+    )
+
+    timeline_ui.canvas.tag_raise(line_id)
+
+    return line_id
 
 
 class TimelineTkUIElement(TimelineUIElement, ABC):
@@ -974,6 +1021,15 @@ class TimelineTkUI(TimelineUI, ABC):
 
         self._setup_visiblity(is_visible)
 
+    #     self.create_playback_line()
+    #
+    # def create_playback_line(self):
+    #     self.playback_line_id = draw_playback_line(
+    #         timeline_ui=self,
+    #         initial_time=self.timeline_ui_collection._timelineget_current_playback_time()
+    #     )
+    #
+    #     self.canvas.tag_raise(self.playback_line_id)
 
     def _change_name(self, name: str):
         self.name = name
@@ -1052,7 +1108,6 @@ class TimelineTkUI(TimelineUI, ABC):
 
         return clicked_elements
 
-
     def _process_ui_element_left_click(
             self, clicked_element: TimelineComponentUI, clicked_item_id: int
     ) -> None:
@@ -1075,8 +1130,6 @@ class TimelineTkUI(TimelineUI, ABC):
         else:
             logger.debug(f"Element is not left clickable.")
 
-
-
         logger.debug(f"Processed click on ui element '{clicked_element}'.")
 
     def _process_ui_element_double_left_click(
@@ -1084,7 +1137,6 @@ class TimelineTkUI(TimelineUI, ABC):
     ) -> None:
 
         logger.debug(f"Processing double click on ui element '{clicked_element}'...")
-
 
         if (
                 isinstance(clicked_element, Selectable)
@@ -1101,7 +1153,6 @@ class TimelineTkUI(TimelineUI, ABC):
             clicked_element.on_double_left_click(clicked_item_id)
         else:
             logger.debug(f"Element is not double clickable.")
-
 
     def _process_ui_element_right_click(
             self,
@@ -1143,7 +1194,8 @@ class TimelineTkUI(TimelineUI, ABC):
         unsubscribe(Event.RIGHT_CLICK_MENU_OPTION_CLICK, self)
         unsubscribe(Event.RIGHT_CLICK_MENU_NEW, self)
 
-    def display_right_click_menu_for_element(self, canvas_x: float, canvas_y: float, options: list[tuple[str, RightClickOption]]):
+    def display_right_click_menu_for_element(self, canvas_x: float, canvas_y: float,
+                                             options: list[tuple[str, RightClickOption]]):
         events.post(Event.RIGHT_CLICK_MENU_NEW)
         events.subscribe(self, Event.RIGHT_CLICK_MENU_OPTION_CLICK, self.on_right_click_menu_option_click)
 
@@ -1202,16 +1254,6 @@ class TimelineTkUI(TimelineUI, ABC):
 
         return selected_elements
 
-    def draw_playback_line(self) -> None:
-        self.playback_line = self.canvas.create_line(
-            self.get_left_margin_x(),
-            0,
-            self.get_left_margin_x(),
-            self.height,
-            dash=(3, 3),
-            fill="black",
-        )
-
     def on_delete_press(self):
         selected_elements = self.element_manager.get_selected_elements()
         for element in selected_elements.copy():
@@ -1256,7 +1298,8 @@ class TimelineTkUI(TimelineUI, ABC):
 
         self.validate_copy(selected_elements)
 
-        return get_copy_data_from_elements([(el, el.DEFAULT_COPY_ATTRIBUTES) for el in selected_elements if isinstance(el, Copyable)])
+        return get_copy_data_from_elements(
+            [(el, el.DEFAULT_COPY_ATTRIBUTES) for el in selected_elements if isinstance(el, Copyable)])
 
     def paste_into_selected_elements(self, paste_data: list[dict] | dict):
 
@@ -1493,7 +1536,6 @@ class RightClickOption(Enum):
 
 
 def display_right_click_menu(x: int, y: int, options: list[tuple[str, RightClickOption]]) -> None:
-
     class RightClickMenu:
         def __init__(
                 self,

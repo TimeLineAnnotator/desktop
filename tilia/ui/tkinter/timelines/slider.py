@@ -186,5 +186,11 @@ class SliderTimelineTkUI(TimelineTkUI):
     def has_selected_elements(self):
         return False
 
+    def draw_playback_line(self) -> None:
+        """Slider timeline does not have a playback line (as it has a slider trough)."""
+
+    def change_playback_line_position(self, time: float) -> None:
+        """Slider timeline does not have a playback line (as it has a slider trough)."""
+
     def __str__(self):
         return f"{self.TIMELINE_KIND.value.capitalize()} Timeline"

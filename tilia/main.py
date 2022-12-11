@@ -106,7 +106,6 @@ class TiLiA:
         #     TimelineKind.HIERARCHY_TIMELINE, "HTL1"
         # )
 
-
     @property
     def media_length(self):
         return self._player.media_length

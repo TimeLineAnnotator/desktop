@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY = auto()
     REQUEST_CHANGE_TIMELINE_WIDTH = auto()
     METADATA_NEW_FIELDS = auto()
     METADATA_WINDOW_OPENED = auto()
