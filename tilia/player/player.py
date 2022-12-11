@@ -54,8 +54,6 @@ class Player(ABC):
         subscribe(self, Event.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self.unload_media)
         subscribe(self, Event.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media)
 
-        print(previous_media_length)
-
         logger.debug("Creating Player...")
         self.media_loaded = False
         self.previous_media_length = previous_media_length
@@ -239,6 +237,7 @@ class VlcPlayer(Player):
 
         self.vlc_instance = vlc.Instance()
         self.media_player = self.vlc_instance.media_player_new()
+        self._media_length = 0.0
 
         self.player_window = tk.Toplevel()
         self.player_window.geometry("800x600")
@@ -256,14 +255,23 @@ class VlcPlayer(Player):
         media = self.vlc_instance.media_new(media_path)
         self.media_player.set_media(media)
 
-        # must be playing to get media length
-        self.media_player.play()
-        time.sleep(0.5)  # must wait so pause works
-        self.media_player.pause()
-        self._media_length = self.media_player.get_length() / 1000
+        self._setup_media_length()
+
         if not self._media_length:
             raise MediaLoadError
         self._engine_seek(0.0)
+
+    def _setup_media_length(self):
+        MAX_RETRIES = 50
+        retries = 0
+
+        while not self._media_length and retries < MAX_RETRIES:
+            # must play and pause first to get media length
+            self.media_player.play()
+            time.sleep(0.1)
+            self.media_player.pause()
+            self._media_length = self.media_player.get_length() / 1000
+            retries += 1
 
     def _engine_get_media_length(self) -> float:
         return self._media_length
@@ -287,6 +295,7 @@ class VlcPlayer(Player):
         return self.media_player.get_position() * self._media_length
 
     def _engine_exit(self):
+        self.vlc_instance.vlm_del_media(self.media_path)
         self.player_window.destroy()
 
 
