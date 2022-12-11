@@ -118,7 +118,7 @@ class Player(ABC):
             f"Media unloaded succesfully."
         )
 
-    def play_pause(self) -> bool:
+    def play_pause(self):
         """Plays or pauses the current song.
         Returns the paused state after the call."""
 
