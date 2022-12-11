@@ -88,7 +88,6 @@ class HierarchyTimelineTkUI(TimelineTkUI):
         subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE,
                   lambda: self.on_change_level_button(IncreaseOrDecrease.DECREASE))
         subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP, self.on_group_button)
-        subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT, self.on_split_button)
         subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE, self.on_merge_button)
         subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT, self.on_paste_unit_button)
         subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN,
