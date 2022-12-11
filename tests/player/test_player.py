@@ -41,6 +41,7 @@ def pygame_play_media(pygame_player):
 
 @pytest.fixture
 def vlc_player_notloaded():
+    os.chdir(Path(Path(tilia.__file__).absolute().parents[1], 'tests'))
     player = VlcPlayer()
     yield player
     player.destroy()
