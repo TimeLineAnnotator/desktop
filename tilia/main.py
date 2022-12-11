@@ -162,12 +162,12 @@ class TiLiA:
     def _change_to_audio_player_if_necessary(self) -> None:
         if isinstance(self._player, player.VlcPlayer):
             self._player.destroy()
-            self._player = player.PygamePlayer()
+            self._player = player.PygamePlayer(previous_media_length=self._player.previous_media_length)
 
     def _change_to_video_player_if_necessary(self) -> None:
         if isinstance(self._player, player.PygamePlayer):
             self._player.destroy()
-            self._player = player.VlcPlayer()
+            self._player = player.VlcPlayer(previous_media_length=self._player.previous_media_length)
 
     def get_timelines_as_dict(self) -> dict:
         return self._timeline_collection.serialize_timelines()

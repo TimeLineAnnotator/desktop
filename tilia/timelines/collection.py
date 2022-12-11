@@ -113,11 +113,11 @@ class TimelineCollection:
         events.post(Event.REQUEST_CHANGE_TIMELINE_WIDTH, self._timeline_ui_collection.get_timeline_width() * new_media_length / previous_media_length)
 
         SCALE_HIERARCHIES_PROMPT = "Would you like to scale the hierarchies to new media's length?"
-        CROP_HIERARCHIES_PROMPT = "New media is smaller, so " \
-                                  "any hierarchies that exceed its size will be deleted or cropped."\
+        CROP_HIERARCHIES_PROMPT = "New media is smaller, " \
+                                  "so hierarchies may get deleted or cropped. "\
                                   "Are you sure you don't want to scale them instead?"
 
-        if not self._app.ui.ask_yes_no(
+        if self._app.ui.ask_yes_no(
                 'Scale hierarchies',
                 SCALE_HIERARCHIES_PROMPT
         ):

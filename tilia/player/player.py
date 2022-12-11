@@ -42,8 +42,9 @@ class Player(ABC):
 
     update_interval = 100
 
-    def __init__(self):
-        super(Player, self).__init__()
+    def __init__(self, previous_media_length: float = 1.0):
+        super().__init__()
+
 
         subscribe(self, Event.PLAYER_REQUEST_TO_PLAYPAUSE, self.play_pause)
         subscribe(self, Event.PLAYER_REQUEST_TO_STOP, self.stop)
@@ -53,9 +54,12 @@ class Player(ABC):
         subscribe(self, Event.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self.unload_media)
         subscribe(self, Event.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media)
 
+        print(previous_media_length)
+
         logger.debug("Creating Player...")
         self.media_loaded = False
-        self.media_length = 1.0
+        self.previous_media_length = previous_media_length
+        self.media_length = previous_media_length
         self.playback_start = 0.0
         self.playback_end = 0.0
         self.current_time = 0.0
@@ -87,8 +91,6 @@ class Player(ABC):
         if start:
             self._engine_seek(start)
 
-        globals_.MEDIA_LENGTH = self.playback_length
-
         events.post(
             Event.PLAYER_MEDIA_LOADED,
             self.media_path,
@@ -108,6 +110,7 @@ class Player(ABC):
     def unload_media(self):
         self._engine_unload_media()
         self.media_loaded = False
+        self.previous_media_length = self.media_length
         self.media_length = 1.0
         self.current_time = 0.0
         self.media_path = ""
@@ -247,8 +250,8 @@ class Player(ABC):
 class VlcPlayer(Player):
     """Handles video playback. Depends on an existing installation of VLC."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, previous_media_length: float = 1.0):
+        super().__init__(previous_media_length)
 
         self.vlc_instance = vlc.Instance()
         self.media_player = self.vlc_instance.media_player_new()
@@ -308,8 +311,8 @@ class PygamePlayer(Player):
     Other audio formats are automatically converted to .ogg using
     ffmpeg. Converting relies on an existing ffmpeg installation."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, previous_media_length: float = 1.0):
+        super().__init__(previous_media_length)
 
         # Initialize Pygame Mixer
         pygame.mixer.init()

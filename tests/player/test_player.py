@@ -139,8 +139,6 @@ class TestPygamePlayer:
         assert player.current_time == pytest.approx(10.0)
 
 
-
-
 class TestVlcPlayer:
 
     def test_constructor(self):
