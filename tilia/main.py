@@ -99,8 +99,8 @@ class TiLiA:
     def _code_for_dev(self):
         """Use this to execute code before the ui mainloop runs."""
 
-        # self.on_request_to_load_media(
-        #     r"C:\Música e musicologia\Outros\Sonatas do Mozart\Piano Sonata No -12 in F - K332 - I - Allegro.ogg")
+        # self._file_manager._open_file_by_path(
+        #     r"C:\Users\Felipe Martins\Desktop\nimic_with_hierarchies.tla")
         #
         # self._timeline_with_ui_builder.create_timeline(
         #     TimelineKind.HIERARCHY_TIMELINE, "HTL1"

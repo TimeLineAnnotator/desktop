@@ -98,6 +98,7 @@ class TkinterUI:
 
     def _setup_tk_root(self):
         self.root = tk.Tk()
+        self.root.geometry(get_startup_geometry())
 
         self.root.report_callback_exception = handle_exception
 
@@ -523,9 +524,10 @@ def get_startup_geometry():
     Uses get_curr_screen_geometry to return initial window size in tkinter's geometry format.
     """
 
+    STARTUP_HEIGHT = 300
     screen_geometry = get_curr_screen_geometry()
     # subtract 15 so window does not get cropped in case of miscalculation of upper right corner
     screen_width = int(screen_geometry.split("x")[0]) - 15
-    window_geometry = f"{screen_width}x%d+0+0"
+    window_geometry = f"{screen_width}x{STARTUP_HEIGHT}+0+0"
 
     return window_geometry
