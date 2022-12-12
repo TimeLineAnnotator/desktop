@@ -84,14 +84,13 @@ class TiLiA:
         self._player = player.PygamePlayer()
         self._clipboard = Clipboard()
         self._undo_manager = UndoManager()
-
         self._media_metadata = create_new_media_metadata()
 
         logger.info("TiLiA started.")
 
-        self._code_for_dev()
-
         self._initial_file_setup()
+
+        self._code_for_dev()
 
         self.ui.launch()
 
@@ -99,12 +98,10 @@ class TiLiA:
     def _code_for_dev(self):
         """Use this to execute code before the ui mainloop runs."""
 
-        # self._file_manager._open_file_by_path(
-        #     r"C:\Users\Felipe Martins\Desktop\nimic_with_hierarchies.tla")
+        # self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
         #
-        # self._timeline_with_ui_builder.create_timeline(
-        #     TimelineKind.HIERARCHY_TIMELINE, "HTL1"
-        # )
+        # self._file_manager._open_file_by_path(
+        #     r"C:\Programação\TiLiA-devresources\audioloaded_notimelines.tla")
 
     @property
     def media_length(self):
