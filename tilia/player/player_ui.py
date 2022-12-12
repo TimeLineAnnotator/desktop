@@ -73,7 +73,7 @@ class PlayerUI(tk.Frame):
                 f"Unrecognized icon name '{icon_name}' for play/pause icon change."
             )
 
-    def on_new_audio_time(self, audio_time: float) -> None:
+    def on_new_audio_time(self, audio_time: float, **_) -> None:
         self.time_label.config(
             text=f"{self.format_media_time(audio_time)}/{self.media_length_str}"
         )

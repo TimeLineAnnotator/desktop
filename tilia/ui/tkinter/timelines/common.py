@@ -165,7 +165,9 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.TIMELINES_REQUEST_TO_CLEAR_TIMELINE, lambda: 1 / 0)
         subscribe(self, Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, self.on_request_to_show_timeline)
         subscribe(self, Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, self.on_request_to_hide_timeline)
-        subscribe(self, Event.PLAYER_AUDIO_TIME_CHANGE, self.on_audio_time_change)
+        subscribe(self, Event.PLAYER_MEDIA_TIME_CHANGE, self.on_media_time_change)
+        subscribe(self, Event.SLIDER_DRAG_START, lambda: self.on_slider_drag(True))
+        subscribe(self, Event.SLIDER_DRAG_END, lambda: self.on_slider_drag(False))
         subscribe(self, Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.on_create_initial_hierarchy)
 
         self._app_ui = app_ui
@@ -176,6 +178,7 @@ class TkTimelineUICollection(TimelineUICollection):
         self.scrollbar = scrollbar
         self.scrollbar.config(command=self.on_scrollbar_move)
         self.scrollbar.pack(fill="x", expand=True)
+        self.slider_is_being_dragged = False
 
         self._timeline_uis = set()
         self._select_order = []
@@ -185,6 +188,9 @@ class TkTimelineUICollection(TimelineUICollection):
         self.create_playback_lines()
 
         self._timeline_collection = None  # will be set by the TiLiA object
+
+    def __str__(self) -> str:
+        return self.__class__.__name__ + '-' + str(id(self))
 
     def on_scrollbar_move(self, *args):
         for timeline in self._timeline_uis:
@@ -540,6 +546,21 @@ class TkTimelineUICollection(TimelineUICollection):
     def get_timeline_width(self):
         return self._app_ui.timeline_width
 
+        # noinspection PyUnresolvedReferences
+    def get_x_by_time(self, time: float) -> int:
+        return (
+                       (time / self._app_ui.get_media_length())
+                       * self._app_ui.timeline_width
+               ) + self.left_margin_x
+
+    # noinspection PyUnresolvedReferences
+    def get_time_by_x(self, x: int) -> float:
+        return (
+                (x - self.left_margin_x)
+                * self._app_ui.get_media_length()
+                / self._app_ui.timeline_width
+            )
+
     def _on_hierarchy_timeline_split_button(self) -> None:
         first_hierarchy_timeline_ui = self._get_first_from_select_order_by_kinds(
             [TimelineKind.HIERARCHY_TIMELINE]
@@ -575,16 +596,33 @@ class TkTimelineUICollection(TimelineUICollection):
         )
         self._timeline_uis_to_playback_line_ids[timeline_ui] = line_id
 
-    def on_audio_time_change(self, time: float) -> None:
+    def on_media_time_change(self, time: float) -> None:
         for tl_ui in self._timeline_uis:
-            if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
-                continue
+            if not self.slider_is_being_dragged:
+                self.auto_scroll(tl_ui, time)
+            self.change_playback_line_position(tl_ui, time)
 
-            change_playback_line_position(
-                timeline_ui=tl_ui,
-                playback_line_id=self._timeline_uis_to_playback_line_ids[tl_ui],
-                time=time
-            )
+    def on_slider_drag(self, is_dragging: bool) -> None:
+        self.slider_is_being_dragged = is_dragging
+
+    def auto_scroll(self, timeline_ui: TimelineTkUI, time: float):
+        visible_width = list(self._timeline_uis)[0].canvas.winfo_width()
+        trough_x = self.get_x_by_time(time)
+
+        if trough_x >= visible_width / 2:
+            scroll_fraction = (trough_x - (visible_width / 2)) / self.get_timeline_total_size()
+            timeline_ui.canvas.xview_moveto(scroll_fraction)
+
+    def change_playback_line_position(self, timeline_ui: TimelineTkUI, time: float):
+        if timeline_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+            return
+
+        change_playback_line_x(
+            timeline_ui=timeline_ui,
+            playback_line_id=self._timeline_uis_to_playback_line_ids[timeline_ui],
+            x=self.get_x_by_time(time)
+        )
+
 
     def on_create_initial_hierarchy(self, timeline: Timeline) -> None:
         timeline.ui.canvas.tag_raise(self._timeline_uis_to_playback_line_ids[timeline.ui])
@@ -610,11 +648,13 @@ class TkTimelineUICollection(TimelineUICollection):
             tl_ui.update_elements_position()
 
             if not tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
-                change_playback_line_position(
+                change_playback_line_x(
                     tl_ui,
                     self._timeline_uis_to_playback_line_ids[tl_ui],
                     self._timeline_collection.get_current_playback_time()
                 )
+
+            print(f"{tl_ui.canvas.bbox('all')=}")
             # TODO center view at appropriate point
 
     def get_timeline_total_size(self):
@@ -684,13 +724,9 @@ class TkTimelineUICollection(TimelineUICollection):
         pass
 
 
-def change_playback_line_position(timeline_ui: TimelineTkUI, playback_line_id: int, time: float) -> None:
+def change_playback_line_x(timeline_ui: TimelineTkUI, playback_line_id: int, x: float) -> None:
     timeline_ui.canvas.coords(
-        playback_line_id,
-        timeline_ui.get_x_by_time(time),
-        0,
-        timeline_ui.get_x_by_time(time),
-        timeline_ui.height,
+        playback_line_id, x, 0, x, timeline_ui.height,
     )
 
     timeline_ui.canvas.tag_raise(playback_line_id)
@@ -1327,22 +1363,6 @@ class TimelineTkUI(TimelineUI, ABC):
             paste_into_element(element, paste_data[0])
 
     # noinspection PyUnresolvedReferences
-    def get_x_by_time(self, time: float) -> int:
-
-        return (
-                       (time / self.timeline_ui_collection.get_media_length())
-                       * self.get_timeline_width()
-               ) + self.get_left_margin_x()
-
-    # noinspection PyUnresolvedReferences
-    def get_time_by_x(self, x: int) -> float:
-        return (
-                (x - self.get_left_margin_x())
-                * self.timeline_ui_collection.get_media_length()
-                / self.timeline_ui_collection.get_timeline_width()
-        )
-
-    # noinspection PyUnresolvedReferences
     def get_left_margin_x(self):
         return self.timeline_ui_collection.left_margin_x
 
@@ -1353,6 +1373,14 @@ class TimelineTkUI(TimelineUI, ABC):
     # noinspection PyUnresolvedReferences
     def get_timeline_width(self):
         return self.timeline_ui_collection.timeline_width
+
+    # noinspection PyUnresolvedReferences
+    def get_time_by_x(self, x: float) -> float:
+        return self.timeline_ui_collection.get_time_by_x(x)
+
+    # noinspection PyUnresolvedReferences
+    def get_x_by_time(self, time: float) -> float:
+        return self.timeline_ui_collection.get_x_by_time(time)
 
     def get_id_for_element(self):
         return self.timeline_ui_collection.get_id()
