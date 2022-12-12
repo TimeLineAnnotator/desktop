@@ -69,7 +69,7 @@ class TimelineCollection:
         self._timelines.append(timeline)
 
     def _remove_from_timelines(self, timeline: Timeline) -> None:
-        logger.debug(f"Removing timeline '{timeline}' to {self}.")
+        logger.debug(f"Removing timeline '{timeline}' from {self}.")
         try:
             self._timelines.remove(timeline)
         except ValueError:
