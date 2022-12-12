@@ -76,7 +76,7 @@ class Event(Enum):
     LEFT_BUTTON_CLICK = auto()
     MENU_OPTION_FILE_LOAD_MEDIA = auto()
     MERGE_RANGE_BUTTON = auto()
-    PLAYER_AUDIO_TIME_CHANGE = auto()
+    PLAYER_MEDIA_TIME_CHANGE = auto()
     PLAYER_CHANGE_TO_AUDIO_PLAYER = auto()
     PLAYER_CHANGE_TO_VIDEO_PLAYER = auto()
     PLAYER_MEDIA_LOADED = auto()

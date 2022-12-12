@@ -14,7 +14,7 @@ class PlayerUI(tk.Frame):
         logger.debug("Creating PlayerUI...")
         super().__init__(parent)
 
-        subscribe(self, Event.PLAYER_AUDIO_TIME_CHANGE, self.on_new_audio_time)
+        subscribe(self, Event.PLAYER_MEDIA_TIME_CHANGE, self.on_new_audio_time)
         subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_load)
         subscribe(self, Event.PLAYER_STOPPED, self.on_player_stop)
         subscribe(self, Event.PLAYER_PAUSED, lambda: self.change_playpause_icon("play"))

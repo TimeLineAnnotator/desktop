@@ -70,7 +70,7 @@ class SliderTimelineTkUI(TimelineTkUI):
             **kwargs,
         )
 
-        subscribe(self, Event.PLAYER_AUDIO_TIME_CHANGE, self.on_audio_time_change)
+        subscribe(self, Event.PLAYER_MEDIA_TIME_CHANGE, self.on_audio_time_change)
 
         self._x = self.get_left_margin_x()
 

@@ -98,7 +98,7 @@ class Player(ABC):
 
         self.media_loaded = True
 
-        events.post(Event.PLAYER_AUDIO_TIME_CHANGE, 0.0)
+        events.post(Event.PLAYER_MEDIA_TIME_CHANGE, 0.0)
 
         logger.info(
             f"Media loaded succesfully: path='{self.media_path}' length='{self.media_length}'"
@@ -150,7 +150,7 @@ class Player(ABC):
         self.current_time = self.playback_start
 
         events.post(Event.PLAYER_STOPPED)
-        events.post(Event.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+        events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time)
 
     def on_request_to_seek(self, time: float, if_paused: bool = False) -> None:
 
@@ -163,7 +163,7 @@ class Player(ABC):
         else:
             logger.debug(f"No media loaded. No need to seek.")
         self.current_time = time
-        events.post(Event.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+        events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time)
 
     def _start_play_loop(self):
         threading.Thread(target=self._play_loop).start()
@@ -171,7 +171,7 @@ class Player(ABC):
     def _play_loop(self) -> None:
         while self.playing:
             self.current_time = self._engine_get_current_time() - self.playback_start
-            events.post(Event.PLAYER_AUDIO_TIME_CHANGE, self.current_time)
+            events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time)
             if self.current_time >= self.playback_length:
                 self.stop()
             time.sleep(self.update_interval / 1000)
