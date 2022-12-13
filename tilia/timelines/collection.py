@@ -15,7 +15,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from tilia import globals_, events
+from tilia import events
 from tilia.timelines.common import Timeline
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTimeline,

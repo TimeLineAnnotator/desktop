@@ -1,0 +1,11 @@
+[table1]
+str_setting = 'abc'
+int_setting = 1
+float_setting = 1.0
+list_setting = [ 'ITEM1', 'ITEM2', 'ITEM3' ]
+
+[table2]
+str_setting = 'def'
+int_setting = 2
+float_setting = 2.0
+list_setting = [ 'ITEM4', 'ITEM5', 'ITEM6' ]
