@@ -41,19 +41,15 @@ class MetadataWindow:
     SEPARATE_WINDOW_FIELDS = ['notes']
 
     def __init__(self, app_ui, media_metadata: OrderedDict, non_editable_fields: OrderedDict):
-        # super(MetadataFrame, self).__init__(parent, width=300, height=0)
-
-        if self._instanced:
-            raise UniqueWindowDuplicate(self.KIND)
 
         logger.debug(f"Opening manage timelines window... ")
         logger.debug(f"{media_metadata=}")
 
         self._app_ui = app_ui
 
-        self._toplevel = tk.Toplevel()
-        self._toplevel.title("Manage timelines")
-        self._toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.toplevel = tk.Toplevel()
+        self.toplevel.title("Manage timelines")
+        self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
         self._metadata = media_metadata
         self._non_editable_fields = non_editable_fields
 
@@ -68,7 +64,7 @@ class MetadataWindow:
         self.fieldnames_to_widgets = {}
         self.widgets_to_varnames = {}
 
-        self._toplevel.grid_columnconfigure(1, weight=1)
+        self.toplevel.grid_columnconfigure(1, weight=1)
 
         # setup customizable fields
         row_number = 0
@@ -77,7 +73,7 @@ class MetadataWindow:
             if field_name in self.SEPARATE_WINDOW_FIELDS:
                 continue
 
-            label_and_entry = LabelAndEntry(self._toplevel, field_name.capitalize())
+            label_and_entry = LabelAndEntry(self.toplevel, field_name.capitalize())
             left_widget = label_and_entry.label
             right_widget = label_and_entry.entry
             right_widget.insert(0, self._metadata[field_name])
@@ -93,8 +89,8 @@ class MetadataWindow:
 
 
         for field_name, value in self._non_editable_fields.items():
-            left_widget = tk.Label(self._toplevel, text=field_name.capitalize())
-            right_widget = tk.Text(self._toplevel, height=1, borderwidth=0, width=40)
+            left_widget = tk.Label(self.toplevel, text=field_name.capitalize())
+            right_widget = tk.Text(self.toplevel, height=1, borderwidth=0, width=40)
             right_widget.insert(1.0, value)
             right_widget.config(state='disabled', font=('Arial', 9), bg='#F0F0F0')
 
@@ -107,12 +103,12 @@ class MetadataWindow:
 
 
         # setup notes field
-        notes_label = tk.Label(self._toplevel, text='Notes:')
+        notes_label = tk.Label(self.toplevel, text='Notes:')
         notes_button = tk.Button(
-            self._toplevel,
+            self.toplevel,
             text='Open notes...',
             command=lambda: NotesWindow(
-                self._toplevel,
+                self.toplevel,
                 self._metadata['notes']
             )
         )
@@ -136,19 +132,19 @@ class MetadataWindow:
         # self.bind('<Control-y>', on_ctrl_y)
 
         self._edit_metadata_fields_button = tk.Button(
-            self._toplevel,
+            self.toplevel,
             text='Edit metadata fields...',
             command=self.on_edit_metadata_fields_button
         )
         self._edit_metadata_fields_button.grid(row=len(self._metadata) + len(self._non_editable_fields) + 1, column=0, columnspan=2, pady=(0, 5))
 
     def on_edit_metadata_fields_button(self):
-        mfw = EditMetadataFieldsWindow(self, self._toplevel, list(self._metadata))
+        mfw = EditMetadataFieldsWindow(self, self.toplevel, list(self._metadata))
         mfw.wait_window()
         self.refresh_fields()
 
     def refresh_fields(self) -> None:
-        destroy_children_recursively(self._toplevel)
+        destroy_children_recursively(self.toplevel)
         self.setup_widgets()
 
     def on_entry_edited(self, var_name: str, *_):
@@ -159,8 +155,8 @@ class MetadataWindow:
         )
 
     def destroy(self):
-        self._toplevel.destroy()
-        MetadataWindow._instanced = False
+        self.toplevel.destroy()
+        events.post(Event.METADATA_WINDOW_CLOSED)
 
     def update_metadata_fields(self, new_fields: list[str]):
 

@@ -6,6 +6,9 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    METADATA_WINDOW_CLOSED = auto()
+    MANAGE_TIMELINES_WINDOW_CLOSED = auto()
+    REQUEST_FOCUS_TIMELINES = auto()
     SLIDER_DRAG_START = auto()
     SLIDER_DRAG_END = auto()
     HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY = auto()
@@ -71,7 +74,7 @@ class Event(Enum):
     INSPECTABLE_ELEMENT_DESELECTED = auto()
     INSPECTABLE_ELEMENT_SELECTED = auto()
     INSPECTOR_FIELD_EDITED = auto()
-    INSPECTOR_WINDOW_CLOSED = auto()
+    INSPECT_WINDOW_CLOSED = auto()
     INSPECTOR_WINDOW_OPENED = auto()
     JOIN_RANGE_BUTTON = auto()
     KEY_PRESS_DELETE = auto()

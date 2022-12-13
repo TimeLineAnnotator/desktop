@@ -86,8 +86,6 @@ class TiLiA:
 
         logger.info("TiLiA started.")
 
-        self._code_for_dev()
-
         self._initial_file_setup()
 
         self._code_for_dev()
@@ -101,7 +99,7 @@ class TiLiA:
         # self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
         #
         # self._file_manager._open_file_by_path(
-        #     r"C:\Programação\TiLiA-devresources\audioloaded_notimelines.tla")
+        #     r"C:\Programação\TiLiA-devresources\videoloaded_notimelines.tla")
 
     @property
     def media_length(self):

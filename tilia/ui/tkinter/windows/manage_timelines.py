@@ -27,9 +27,9 @@ class ManageTimelines:
 
         self._app_ui = app_ui
 
-        self._toplevel = tk.Toplevel()
-        self._toplevel.title("Manage timelines")
-        self._toplevel.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.toplevel = tk.Toplevel()
+        self.toplevel.title("Manage timelines")
+        self.toplevel.protocol("WM_DELETE_WINDOW", self.on_close)
 
         # TODO make transient in relation to main window
 
@@ -45,7 +45,7 @@ class ManageTimelines:
 
     def _setup_widgets(self):
 
-        self.outer_frame = tk.Frame(self._toplevel)
+        self.outer_frame = tk.Frame(self.toplevel)
 
         # create right frame
         self.right_frame = tk.Frame(self.outer_frame)
@@ -94,7 +94,7 @@ class ManageTimelines:
         self.list_box.pack(expand=True, side=tk.LEFT)
         self.scrollbar.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
 
-        self._toplevel.grid_columnconfigure(0, weight=1)
+        self.toplevel.grid_columnconfigure(0, weight=1)
         self.outer_frame.pack(expand=True)
 
     def initial_config(self) -> None:
@@ -189,7 +189,8 @@ class ManageTimelines:
         raise NotImplementedError
 
     def on_close(self):
-        self._toplevel.destroy()
+        self.toplevel.destroy()
+        events.post(Event.MANAGE_TIMELINES_WINDOW_CLOSED)
 
     def update_tl_ids_and_strings(self):
         self.tl_ids_and_strings = self._app_ui.get_timeline_info_for_manage_timelines_window()

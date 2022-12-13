@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
 from tilia.timelines.state_actions import StateAction
 from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError
+from tilia.ui.tkinter.windows import WindowKind
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
@@ -169,6 +170,7 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.SLIDER_DRAG_START, lambda: self.on_slider_drag(True))
         subscribe(self, Event.SLIDER_DRAG_END, lambda: self.on_slider_drag(False))
         subscribe(self, Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.on_create_initial_hierarchy)
+        subscribe(self, Event.REQUEST_FOCUS_TIMELINES, self.on_request_to_focus_timelines)
 
         self._app_ui = app_ui
         self.frame = frame
@@ -721,6 +723,8 @@ class TkTimelineUICollection(TimelineUICollection):
             self.show_timeline_ui(timeline_ui)
         pass
 
+    def on_request_to_focus_timelines(self):
+        self._select_order[0].canvas.focus_set()
 
 def change_playback_line_x(timeline_ui: TimelineTkUI, playback_line_id: int, x: float) -> None:
     timeline_ui.canvas.coords(

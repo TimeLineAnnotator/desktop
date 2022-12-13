@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 
 from tilia import events
-from tilia.events import Event, subscribe
+from tilia.events import Event, subscribe, unsubscribe_from_all
 from tilia.timelines.common import TimelineComponent
 from tilia.ui.tkinter.windows.exceptions import UniqueWindowDuplicate
 from tilia.ui.tkinter.windows.kinds import WindowKind
@@ -33,9 +33,9 @@ class Inspect:
     """
 
     _instanced = False
-    KIND = WindowKind.INSPECTOR
+    KIND = WindowKind.INSPECT
 
-    def __init__(self, parent):
+    def __init__(self, parent) -> None:
 
         if Inspect._instanced:
             raise UniqueWindowDuplicate(self.KIND)
@@ -61,12 +61,13 @@ class Inspect:
 
         Inspect._instanced = True
 
+        self.toplevel.bind("<Escape>", lambda _: events.post(Event.REQUEST_FOCUS_TIMELINES))
         events.post(Event.INSPECTOR_WINDOW_OPENED)
 
     def destroy(self):
-        unsubscribe_from_all(self)()
+        unsubscribe_from_all(self)
         self.toplevel.destroy()
-        events.post(Event.INSPECTOR_WINDOW_CLOSED)
+        events.post(Event.INSPECT_WINDOW_CLOSED)
         Inspect._instanced = False
 
     def display_not_selected_frame(self):
@@ -90,9 +91,9 @@ class Inspect:
             uicomplex_class, inspector_fields, inspector_values, uicomplex_id
         )
 
-    def update_inspected_object_stack(self, *uicomplex_args):
-        if uicomplex_args not in self.inspected_objects_stack:
-            self.inspected_objects_stack.append(uicomplex_args)
+    def update_inspected_object_stack(self, *uielement_args):
+        if uielement_args not in self.inspected_objects_stack:
+            self.inspected_objects_stack.append(uielement_args)
 
     def update_frame(
         self,

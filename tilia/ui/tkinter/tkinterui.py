@@ -65,9 +65,12 @@ class TkinterUI:
     def __init__(self, app: TiLiA):
 
         subscribe(self, Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media)
-        subscribe(self, Event.UI_REQUEST_WINDOW_INSPECTOR, lambda: self.on_request_window(WindowKind.INSPECTOR))
+        subscribe(self, Event.UI_REQUEST_WINDOW_INSPECTOR, lambda: self.on_request_window(WindowKind.INSPECT))
         subscribe(self, Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES, lambda: self.on_request_window(WindowKind.MANAGE_TIMELINES))
         subscribe(self, Event.UI_REQUEST_WINDOW_METADATA, lambda: self.on_request_window(WindowKind.METADATA))
+        subscribe(self, Event.INSPECT_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.INSPECT))
+        subscribe(self, Event.MANAGE_TIMELINES_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES))
+        subscribe(self, Event.METADATA_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.METADATA))
 
         logger.debug("Starting TkinterUI...")
 
@@ -89,18 +92,19 @@ class TkinterUI:
 
         self._create_timeline_ui_collection()
 
-        self.root.update_idletasks()  # necessary so .geometry positions windows correctly
-        self.root.geometry(
-            "+0+0"  # TODO set default window width and height
-        )  # if called earlier will not work correctly, for some reason
-
-        self._windows = {}
+        self._windows = {
+            WindowKind.INSPECT: None,
+            WindowKind.METADATA: None,
+            WindowKind.MANAGE_TIMELINES: None
+        }
 
         logger.debug("Tkinter UI started.")
 
+
     def _setup_tk_root(self):
         self.root = tk.Tk()
-        self.root.geometry(get_startup_geometry())
+        set_startup_geometry(self.root)
+        self.root.focus_set()
 
         self.root.report_callback_exception = handle_exception
 
@@ -158,19 +162,35 @@ class TkinterUI:
         self.hscrollbar_frame.pack(fill="x")
         self.main_frame.pack(fill="both", expand=True)
 
+    # noinspection PyTypeChecker,PyUnresolvedReferences
     def on_request_window(self, kind: WindowKind):
-        if kind == WindowKind.INSPECTOR:
-            self._windows[WindowKind.INSPECTOR] = Inspect(self.root)
+
+        if kind == WindowKind.INSPECT:
+            if not self._windows[WindowKind.INSPECT]:
+                self._windows[WindowKind.INSPECT] = Inspect(self.root)
+            else:
+                self._windows[WindowKind.INSPECT].toplevel.focus_set()
+
         elif kind == WindowKind.MANAGE_TIMELINES:
-            self._windows[WindowKind.MANAGE_TIMELINES] = ManageTimelines(
-                self, self.get_timeline_info_for_manage_timelines_window()
-            )
+            if not self._windows[WindowKind.MANAGE_TIMELINES]:
+                self._windows[WindowKind.MANAGE_TIMELINES] = ManageTimelines(
+                    self, self.get_timeline_info_for_manage_timelines_window()
+                )
+            else:
+                self._windows[WindowKind.MANAGE_TIMELINES].toplevel.focus_set()
+
         elif kind == WindowKind.METADATA:
-            self._windows[WindowKind.METADATA] = MetadataWindow(
-                self,
-                self._app.media_metadata,
-                self.get_metadata_non_editable_fields()
-            )
+            if not self._windows[WindowKind.METADATA]:
+                self._windows[WindowKind.METADATA] = MetadataWindow(
+                    self,
+                    self._app.media_metadata,
+                    self.get_metadata_non_editable_fields()
+                )
+            else:
+                self._windows[WindowKind.METADATA].toplevel.focus_set()
+
+    def on_window_closed(self, kind: WindowKind):
+        self._windows[kind] = None
 
     def get_metadata_non_editable_fields(self) -> dict[str]:
 
@@ -502,7 +522,7 @@ class TkinterUIMenus(tk.Menu):
                 tk.Label(self, text="https://github.com/FelipeDefensor/TiLiA").pack()
 
 
-def get_curr_screen_geometry():
+def get_curr_screen_geometry(root):
     """
     Workaround to get the size of the current screen in a multi-screen setup.
 
@@ -510,24 +530,35 @@ def get_curr_screen_geometry():
         geometry (str): The standard Tk geometry string.
             [width]x[height]+[left]+[top]
     """
-    root = tk.Tk()
     root.update_idletasks()
     root.attributes("-fullscreen", True)
-    root.state("iconic")
     geometry = root.winfo_geometry()
-    root.destroy()
+
     return geometry
 
 
-def get_startup_geometry():
+def get_startup_geometry(root: tk.Tk()):
     """
     Uses get_curr_screen_geometry to return initial window size in tkinter's geometry format.
     """
 
     STARTUP_HEIGHT = 300
-    screen_geometry = get_curr_screen_geometry()
-    # subtract 15 so window does not get cropped in case of miscalculation of upper right corner
-    screen_width = int(screen_geometry.split("x")[0]) - 15
-    window_geometry = f"{screen_width}x{STARTUP_HEIGHT}+0+0"
+
+    root.update_idletasks()
+    root.attributes("-fullscreen", True)
+    screen_geometry = root.winfo_geometry()
+
+    root.attributes("-fullscreen", False)
+
+    screen_width = int(screen_geometry.split("x")[0])
+    window_geometry = f"{screen_width - 50}x{STARTUP_HEIGHT}+18+10"
 
     return window_geometry
+
+
+def set_startup_geometry(root):
+
+    geometry = get_startup_geometry(root)
+    root.overrideredirect(True)
+    root.geometry(geometry)
+    root.overrideredirect(False)
