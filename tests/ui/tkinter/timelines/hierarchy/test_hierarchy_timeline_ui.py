@@ -42,6 +42,7 @@ def tl_with_ui() -> HierarchyTimeline:
     tlui_coll_mock = MagicMock()
     tlui_coll_mock.get_id = lambda: next(id_counter)
     tlui_coll_mock.get_media_length.return_value = 1.0
+    tlui_coll_mock.get_x_by_time.return_value = 1
     tlui_coll_mock.timeline_width = 200
     tlui_coll_mock.left_margin_x = 10
 
