@@ -162,7 +162,6 @@ class Player(ABC):
             self._engine_seek(time)
         else:
             logger.debug(f"No media loaded. No need to seek.")
-
         self.current_time = time
         events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time)
 
