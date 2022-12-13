@@ -606,7 +606,7 @@ class TkTimelineUICollection(TimelineUICollection):
         self.slider_is_being_dragged = is_dragging
 
     def auto_scroll(self, timeline_ui: TimelineTkUI, time: float):
-        visible_width = list(self._timeline_uis)[0].canvas.winfo_width()
+        visible_width = timeline_ui.canvas.winfo_width()
         trough_x = self.get_x_by_time(time)
 
         if trough_x >= visible_width / 2:
