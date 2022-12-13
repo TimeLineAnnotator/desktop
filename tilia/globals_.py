@@ -1,5 +1,6 @@
 import os
 import sys
+import appdirs
 from enum import Enum, auto
 
 APP_NAME = "TiLiA"
@@ -12,7 +13,10 @@ USER_INTERFACE_TYPE = "TKINTER"
 NATIVE_AUDIO_FORMATS = ["ogg"]
 SUPPORTED_AUDIO_FORMATS = ["mp3", "wav"]
 NATIVE_VIDEO_FORMATS = ["mp4", "mkv", "m4a"]
+
+USER_DATA_DIR = appdirs.user_data_dir(APP_NAME, roaming=True)
 FFMPEG_PATH = "C:\\ffmpeg\\bin\\ffmpeg.exe"
+SETTINGS_PATH = os.path.join(USER_DATA_DIR, 'settings.toml')
 
 DEFAULT_TIMELINE_WIDTH = 400
 DEFAULT_TIMELINE_PADX = 100
@@ -33,3 +37,5 @@ elif sys.platform == "win32":
 class UserInterfaceKind(Enum):
     TKINTER = auto()
     MOCK = auto()
+
+
