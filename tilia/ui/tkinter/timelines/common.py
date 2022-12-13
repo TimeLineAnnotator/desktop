@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 import tkinter as tk
 import tkinter.messagebox
 
-from tilia import events
+from tilia import events, settings
 from tilia.ui.element_kinds import UIElementKind
 from tilia.ui.timelines.common import (
     TimelineUI,
@@ -546,7 +546,7 @@ class TkTimelineUICollection(TimelineUICollection):
     def get_timeline_width(self):
         return self._app_ui.timeline_width
 
-        # noinspection PyUnresolvedReferences
+    # noinspection PyUnresolvedReferences
     def get_x_by_time(self, time: float) -> int:
         return (
                        (time / self._app_ui.get_media_length())
@@ -598,7 +598,7 @@ class TkTimelineUICollection(TimelineUICollection):
 
     def on_media_time_change(self, time: float) -> None:
         for tl_ui in self._timeline_uis:
-            if not self.slider_is_being_dragged:
+            if not self.slider_is_being_dragged and settings.settings['general']['auto-scroll']:
                 self.auto_scroll(tl_ui, time)
             self.change_playback_line_position(tl_ui, time)
 
