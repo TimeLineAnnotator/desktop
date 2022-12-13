@@ -259,19 +259,21 @@ class VlcPlayer(Player):
 
         if not self._media_length:
             raise MediaLoadError
+
         self._engine_seek(0.0)
 
     def _setup_media_length(self):
         MAX_RETRIES = 50
         retries = 0
 
+        self.media_player.play()
         while not self._media_length and retries < MAX_RETRIES:
             # must play and pause first to get media length
-            self.media_player.play()
-            time.sleep(0.1)
-            self.media_player.pause()
+            time.sleep(0.3)
             self._media_length = self.media_player.get_length() / 1000
             retries += 1
+
+        self.media_player.pause()
 
     def _engine_get_media_length(self) -> float:
         return self._media_length
