@@ -165,7 +165,7 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.TIMELINES_REQUEST_TO_CLEAR_TIMELINE, lambda: 1 / 0)
         subscribe(self, Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, self.on_request_to_show_timeline)
         subscribe(self, Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, self.on_request_to_hide_timeline)
-        subscribe(self, Event.PLAYER_AUDIO_TIME_CHANGE, self.on_audio_time_change)
+        subscribe(self, Event.PLAYER_MEDIA_TIME_CHANGE, self.on_audio_time_change)
         subscribe(self, Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.on_create_initial_hierarchy)
 
         self._app_ui = app_ui
