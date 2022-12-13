@@ -63,8 +63,6 @@ class TiLiA:
         subscribe(self, Event.METADATA_FIELD_EDITED, self.on_metadata_field_edited)
         subscribe(self, Event.METADATA_NEW_FIELDS, self.on_metadata_new_fields)
 
-        self.settings = None  # TODO load settings
-
         self._id_counter = itertools.count()
         self._file_manager = FileManager(self)
 

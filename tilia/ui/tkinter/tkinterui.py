@@ -16,7 +16,7 @@ import traceback
 import time
 
 
-from tilia import globals_, events
+from tilia import globals_, events, settings
 from tilia.player import player_ui
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -251,17 +251,15 @@ class AppToolbarsFrame(tk.Frame):
 
         self.playback_frame = player_ui.PlayerUI(self)
 
-        # TODO reimplement checkbox options
-        # def set_auto_scroll(caller: CheckboxItem):
-        #     globals_.settings["GENERAL"]["auto_scroll"] = caller.variable.get()
-        #
-        # self.auto_scroll_toolbar = CheckboxItem(
-        #     label="Auto-scroll",
-        #     # value=bool(globals_.settings["GENERAL"]["auto_scroll"]),
-        #     value=True,
-        #     set_func=set_auto_scroll,
-        #     parent=self,
-        # )
+        self.auto_scroll_checkbox = CheckboxItem(
+            label="Auto-scroll",
+            value=settings.settings["general"]["auto-scroll"],
+            set_func=lambda: settings.edit_setting(
+                "general", "auto-scroll", self.auto_scroll_checkbox.variable.get()
+            ),
+            parent=self
+        )
+
         #
         # def set_freeze_labels(caller: CheckboxItem):
         #     globals_.settings["GENERAL"][
@@ -279,8 +277,8 @@ class AppToolbarsFrame(tk.Frame):
         #
 
         self.playback_frame.pack(side=tk.LEFT, anchor=tk.W)
+        self.auto_scroll_checkbox.pack(side=tk.LEFT, anchor=tk.W)
 
-        # self.auto_scroll_toolbar.pack(side=tk.LEFT, anchor=tk.W)
         # self.freeze_labels_toolbar.pack(side=tk.LEFT, anchor=tk.W)
 
 
@@ -331,7 +329,7 @@ class CheckboxItem(tk.Frame):
         super().__init__(parent, *args, **kwargs)
         self.variable = tk.BooleanVar(value=value)
         self.checkbox = tk.Checkbutton(
-            self, command=lambda: set_func(self), variable=self.variable
+            self, command=set_func, variable=self.variable
         )
         self.label = tk.Label(self, text=label)
 

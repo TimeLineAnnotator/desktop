@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 import tkinter as tk
 import tkinter.messagebox
 
-from tilia import events
+from tilia import events, settings
 from tilia.ui.element_kinds import UIElementKind
 from tilia.ui.timelines.common import (
     TimelineUI,
@@ -577,8 +577,12 @@ class TkTimelineUICollection(TimelineUICollection):
 
     def on_audio_time_change(self, time: float) -> None:
         for tl_ui in self._timeline_uis:
-            if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
-                continue
+            if not self.slider_is_being_dragged and settings.settings['general']['auto-scroll']:
+                self.auto_scroll(tl_ui, time)
+            self.change_playback_line_position(tl_ui, time)
+
+    def on_slider_drag(self, is_dragging: bool) -> None:
+        self.slider_is_being_dragged = is_dragging
 
             change_playback_line_position(
                 timeline_ui=tl_ui,
