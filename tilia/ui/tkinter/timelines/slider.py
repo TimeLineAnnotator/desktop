@@ -164,6 +164,7 @@ class SliderTimelineTkUI(TimelineTkUI):
         self._update_trough_position()
 
     def end_drag(self):
+        """"""
         logger.debug(f"Ending drag of {self}.")
         self.dragging = False
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
