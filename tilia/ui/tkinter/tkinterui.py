@@ -13,6 +13,7 @@ import tkinter.filedialog
 import tkinter.messagebox
 import tkinter.simpledialog
 import traceback
+import time
 
 
 from tilia import globals_, events
@@ -46,6 +47,7 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
 
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
     traceback.print_tb(exc_traceback)
+    time.sleep(0.1)  # needed so traceback gets fully printed before type and value
     print(exc_type)
     print(exc_value)
 

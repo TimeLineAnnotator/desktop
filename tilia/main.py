@@ -88,6 +88,8 @@ class TiLiA:
 
         logger.info("TiLiA started.")
 
+        self._code_for_dev()
+
         self._initial_file_setup()
 
         self._code_for_dev()
@@ -147,8 +149,8 @@ class TiLiA:
 
     def _change_player_according_to_extension(self, extension: str) -> None:
         if (
-            extension
-            in globals_.SUPPORTED_AUDIO_FORMATS + globals_.NATIVE_AUDIO_FORMATS
+                extension
+                in globals_.SUPPORTED_AUDIO_FORMATS + globals_.NATIVE_AUDIO_FORMATS
         ):
             self._change_to_audio_player_if_necessary()
         elif extension in globals_.NATIVE_VIDEO_FORMATS:
@@ -221,8 +223,8 @@ class TiLiA:
 
     @staticmethod
     def _associate_timeline_and_timeline_ui_collections(
-        timeline_collection: TimelineCollection,
-        timeline_ui_collection: TimelineUICollection,
+            timeline_collection: TimelineCollection,
+            timeline_ui_collection: TimelineUICollection,
     ):
         timeline_ui_collection._timeline_collection = timeline_collection
         timeline_collection._timeline_ui_collection = timeline_ui_collection
@@ -257,6 +259,7 @@ class FileManager:
             self._file = TiliaFile()
         else:
             self._file = file
+
 
     @property
     def is_file_modified(self):
