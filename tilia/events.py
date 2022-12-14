@@ -6,6 +6,8 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    SELECTION_BOX_REQUEST_SELECT = auto()
+    SELECTION_BOX_REQUEST_DESELECT = auto()
     METADATA_WINDOW_CLOSED = auto()
     MANAGE_TIMELINES_WINDOW_CLOSED = auto()
     REQUEST_FOCUS_TIMELINES = auto()
@@ -121,14 +123,20 @@ subscribers_to_events = {}
 for event in Event:
     events_to_subscribers[event] = {}
 
+LOG_EVENTS = False
+
 
 def post(event: Event, *args, **kwargs) -> None:
-    logger.debug(f"Posting event {event.name} with {args=} and {kwargs=}.")
+    if LOG_EVENTS:
+        logger.debug(f"Posting event {event.name} with {args=} and {kwargs=}.")
 
     for subscriber, callback in events_to_subscribers[event].copy().items():
-        logger.debug(f"    Notifying {subscriber}...")
+        if LOG_EVENTS:
+            logger.debug(f"    Notifying {subscriber}...")
         callback(*args, **kwargs)
-    logger.debug(f"Notified subscribers about event '{event}'.")
+
+    if LOG_EVENTS:
+        logger.debug(f"Notified subscribers about event '{event}'.")
 
 
 def subscribe(subscriber: Any, event: Event, callback: Callable) -> None:

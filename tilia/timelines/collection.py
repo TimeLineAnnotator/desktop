@@ -63,6 +63,7 @@ class TimelineCollection:
         logger.debug(f"Deleting timeline {timeline}")
         timeline.delete()
         self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
+        self._timelines.remove(timeline)
 
     def _add_to_timelines(self, timeline: Timeline) -> None:
         logger.debug(f"Adding component '{timeline}' to {self}.")

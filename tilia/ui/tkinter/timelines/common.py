@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
 from tilia.timelines.state_actions import StateAction
 from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError
+from tilia.ui.tkinter.timelines.selection_box import SelectionBox
 from tilia.ui.tkinter.windows import WindowKind
 
 if TYPE_CHECKING:
@@ -50,8 +51,9 @@ class Inspectable(Protocol):
     id: int
     INSPECTOR_FIELDS: list[tuple[str, str]]
 
-    def get_inspector_dict(self) -> dict[str:Any]:
-        ...
+    def get_inspector_dict(self) -> dict[str:Any]: ...
+
+    def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int) -> None: ...
 
 
 class TimelineCanvas(tk.Canvas):
@@ -90,6 +92,7 @@ class TimelineCanvas(tk.Canvas):
         self._setup_cursors()
 
     TAG_TO_CURSOR = [("arrowsCursor", "sb_h_double_arrow"), ("handCursor", "hand2")]
+
 
     def _setup_cursors(self):
         for tag, cursor_name in self.TAG_TO_CURSOR:
@@ -143,6 +146,7 @@ class TkTimelineUICollection(TimelineUICollection):
     ):
 
         subscribe(self, Event.CANVAS_LEFT_CLICK, self._on_timeline_ui_left_click)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self._on_timeline_ui_left_drag)
         subscribe(self, Event.CANVAS_RIGHT_CLICK, self._on_timeline_ui_right_click)
         subscribe(self, Event.KEY_PRESS_DELETE, self._on_delete_press)
         subscribe(self, Event.KEY_PRESS_ENTER, self._on_enter_press)
@@ -153,15 +157,15 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.KEY_PRESS_CONTROL_SHIFT_V, self._on_request_to_paste_with_children)
         subscribe(self, Event.DEBUG_SELECTED_ELEMENTS, self._on_debug_selected_elements)
         subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT, self._on_hierarchy_timeline_split_button)
-        subscribe(self, Event.REQUEST_ZOOM_IN, lambda *args: self.zoomer(InOrOut.IN, *args))
-        subscribe(self, Event.REQUEST_ZOOM_OUT, lambda *args: self.zoomer(InOrOut.OUT, *args))
+        subscribe(self, Event.REQUEST_ZOOM_IN, lambda x: self.zoomer(InOrOut.IN, x))
+        subscribe(self, Event.REQUEST_ZOOM_OUT, lambda x: self.zoomer(InOrOut.OUT, x))
         subscribe(self, Event.REQUEST_CHANGE_TIMELINE_WIDTH, self.on_request_change_timeline_width)
         subscribe(self, Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER,
-                  lambda *args: self._move_in_display_order(*args,
-                                                            UpOrDown.DOWN))
+                  lambda tlui_id: self._move_in_display_order(tlui_id,
+                                                              UpOrDown.DOWN))
         subscribe(self, Event.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER,
-                  lambda *args: self._move_in_display_order(*args,
-                                                            UpOrDown.UP))
+                  lambda tlui_id: self._move_in_display_order(tlui_id,
+                                                              UpOrDown.UP))
         subscribe(self, Event.TIMELINES_REQUEST_TO_DELETE_TIMELINE, self._on_request_to_delete_timeline)
         subscribe(self, Event.TIMELINES_REQUEST_TO_CLEAR_TIMELINE, lambda: 1 / 0)
         subscribe(self, Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, self.on_request_to_show_timeline)
@@ -171,6 +175,8 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.SLIDER_DRAG_END, lambda: self.on_slider_drag(False))
         subscribe(self, Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.on_create_initial_hierarchy)
         subscribe(self, Event.REQUEST_FOCUS_TIMELINES, self.on_request_to_focus_timelines)
+        subscribe(self, Event.SELECTION_BOX_REQUEST_SELECT, self.on_selection_box_request_select)
+        subscribe(self, Event.SELECTION_BOX_REQUEST_DESELECT, self.on_selection_box_request_deselect)
 
         self._app_ui = app_ui
         self.frame = frame
@@ -186,6 +192,7 @@ class TkTimelineUICollection(TimelineUICollection):
         self._select_order = []
         self._display_order = []
         self._timeline_uis_to_playback_line_ids = {}
+        self.selection_box_elements_to_selected_triggers = {}
 
         self.create_playback_lines()
 
@@ -473,10 +480,103 @@ class TkTimelineUICollection(TimelineUICollection):
                 f"Notifying timeline ui '{clicked_timeline_ui}' about left click."
             )
             clicked_timeline_ui.on_click(x, y, clicked_item_id, button=Side.LEFT, modifier=modifier, double=double)
+            if not self.slider_is_being_dragged:
+                self.selection_boxes = [SelectionBox(canvas, [x, y], 0)]
         else:
             raise ValueError(
                 f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
             )
+
+    def _on_timeline_ui_left_drag(self, _, y: int) -> None:
+
+        if self.slider_is_being_dragged:
+            return
+
+        def create_selection_box_below():
+            print('Creating selection box below')
+            last_selection_box_timeline = self._get_timeline_ui_by_canvas(self.selection_boxes[-1].canvas)
+            last_display_order = self._display_order.index(last_selection_box_timeline)
+            try:
+                next_timeline = self._display_order[last_display_order + 1]
+            except IndexError:
+                # no timeline below
+                return
+
+            self.selection_boxes.append(
+                SelectionBox(
+                    next_timeline.canvas,
+                    [self.selection_boxes[-1].upper_left[0], -1],
+                    next_boundary_below * -1
+                )
+            )
+
+        def create_selection_box_above():
+            print('Creating selection box above')
+            last_selection_box_timeline = self._get_timeline_ui_by_canvas(self.selection_boxes[-1].canvas)
+            last_display_order = self._display_order.index(last_selection_box_timeline)
+            try:
+                next_timeline = self._display_order[last_display_order - 1]
+            except IndexError:
+                # no timeline above
+                return
+
+            self.selection_boxes.append(
+                SelectionBox(
+                    next_timeline.canvas,
+                    [self.selection_boxes[-1].upper_left[0], next_timeline.canvas.winfo_height()],
+                    sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes])
+                )
+            )
+
+        if self.selection_boxes:
+            next_boundary_below = sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes])
+            next_boundary_above = sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes[:-1]]) * -1
+            if y > next_boundary_below:
+                create_selection_box_below()
+            elif y < next_boundary_above:
+                create_selection_box_above()
+
+    def on_selection_box_request_select(self, canvas: tk.Canvas, canvas_item_id: int) -> None:
+
+        timeline_ui = self._get_timeline_ui_by_canvas(canvas)
+
+        try:
+            element = timeline_ui.get_clicked_element(canvas_item_id)[0]
+        except IndexError:
+            return
+
+        was_selected = timeline_ui.select_element_if_appropriate(element, canvas_item_id)
+
+        # track selection triggers under selection box
+        if was_selected:
+            if element in self.selection_box_elements_to_selected_triggers:
+                self.selection_box_elements_to_selected_triggers[element].add(canvas_item_id)
+            else:
+                self.selection_box_elements_to_selected_triggers[element] = {canvas_item_id}
+
+
+    def on_selection_box_request_deselect(self, canvas: tk.Canvas, canvas_item_id: int) -> None:
+
+        timeline_ui = self._get_timeline_ui_by_canvas(canvas)
+
+        try:
+            element = timeline_ui.get_clicked_element(canvas_item_id)[0]
+        except IndexError:
+            # canvas id does not belong to a timeline element (as in the playback line's id)
+            # note that if the canvas item belongs to multiple elements 'element' will always
+            # hold the first one on the list returned
+            return
+
+        if canvas_item_id not in element.selection_triggers:
+            return
+
+        self.selection_box_elements_to_selected_triggers[element].remove(canvas_item_id)
+
+        # stop tracking element if there are no more selection triggers under selection box
+        if not self.selection_box_elements_to_selected_triggers[element]:
+            self.selection_box_elements_to_selected_triggers.pop(element)
+            timeline_ui.deselect_element(element)
+
 
     def _on_delete_press(self):
         for timeline_ui in self._timeline_uis:
@@ -561,7 +661,7 @@ class TkTimelineUICollection(TimelineUICollection):
                 (x - self.left_margin_x)
                 * self._app_ui.get_media_length()
                 / self._app_ui.timeline_width
-            )
+        )
 
     def _on_hierarchy_timeline_split_button(self) -> None:
         first_hierarchy_timeline_ui = self._get_first_from_select_order_by_kinds(
@@ -625,7 +725,6 @@ class TkTimelineUICollection(TimelineUICollection):
             x=self.get_x_by_time(time)
         )
 
-
     def on_create_initial_hierarchy(self, timeline: Timeline) -> None:
         timeline.ui.canvas.tag_raise(self._timeline_uis_to_playback_line_ids[timeline.ui])
 
@@ -640,6 +739,8 @@ class TkTimelineUICollection(TimelineUICollection):
     def deselect_all_elements_in_timeline_uis(self):
         for timeline_ui in self._timeline_uis:
             timeline_ui.deselect_all_elements()
+
+        self.selection_box_elements_to_selected_triggers = {}
 
     def _update_timelines_after_width_change(self):
         for tl_ui in self._timeline_uis:
@@ -725,6 +826,7 @@ class TkTimelineUICollection(TimelineUICollection):
 
     def on_request_to_focus_timelines(self):
         self._select_order[0].canvas.focus_set()
+
 
 def change_playback_line_x(timeline_ui: TimelineTkUI, playback_line_id: int, x: float) -> None:
     timeline_ui.canvas.coords(
@@ -1023,6 +1125,11 @@ class DoubleLeftClickable(Protocol):
         ...
 
 
+@runtime_checkable
+class CanSeekTo(Protocol):
+    seek_time: float
+
+
 class TimelineTkUI(TimelineUI, ABC):
     """
     Interface for the ui of a Timeline object.
@@ -1133,7 +1240,7 @@ class TimelineTkUI(TimelineUI, ABC):
                 self.display_right_click_menu_for_timeline(x, y)
             return
 
-        clicked_elements = self._get_clicked_element(clicked_item_id)
+        clicked_elements = self.get_clicked_element(clicked_item_id)
 
         if not clicked_elements:
             logger.debug(f"No ui element was clicked.")
@@ -1150,7 +1257,7 @@ class TimelineTkUI(TimelineUI, ABC):
 
         logger.debug(f"Processed click on {self}.")
 
-    def _get_clicked_element(self, clicked_item_id: int) -> list[TimelineUIElement]:
+    def get_clicked_element(self, clicked_item_id: int) -> list[TimelineUIElement]:
 
         owns_clicked_item = lambda e: clicked_item_id in e.canvas_drawings_ids
 
@@ -1160,19 +1267,26 @@ class TimelineTkUI(TimelineUI, ABC):
 
         return clicked_elements
 
+    def select_element_if_appropriate(self, element: TimelineComponentUI, canvas_item_id: int) -> bool:
+        if (
+                isinstance(element, Selectable)
+                and canvas_item_id in element.selection_triggers
+        ):
+            self.select_element(element)
+            return True
+        else:
+            logger.debug(f"Element is not selectable.")
+            return False
+
     def _process_ui_element_left_click(
             self, clicked_element: TimelineComponentUI, clicked_item_id: int
     ) -> None:
 
         logger.debug(f"Processing left click on ui element '{clicked_element}'...")
 
-        if (
-                isinstance(clicked_element, Selectable)
-                and clicked_item_id in clicked_element.selection_triggers
-        ):
-            self._select_element(clicked_element)
-        else:
-            logger.debug(f"Element is not selectable.")
+        was_selected = self.select_element_if_appropriate(clicked_element, clicked_item_id)
+        if was_selected and isinstance(clicked_element, CanSeekTo):
+            events.post(Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, clicked_element.seek_time)
 
         if (
                 isinstance(clicked_element, LeftClickable)
@@ -1190,13 +1304,9 @@ class TimelineTkUI(TimelineUI, ABC):
 
         logger.debug(f"Processing double click on ui element '{clicked_element}'...")
 
-        if (
-                isinstance(clicked_element, Selectable)
-                and clicked_item_id in clicked_element.selection_triggers
-        ):
-            self._select_element(clicked_element)
-        else:
-            logger.debug(f"Element is not selectable.")
+        was_selected = self.select_element_if_appropriate(clicked_element, clicked_item_id)
+        if was_selected and isinstance(clicked_element, CanSeekTo):
+            events.post(Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, clicked_element.seek_time)
 
         if (
                 isinstance(clicked_element, DoubleLeftClickable)
@@ -1222,7 +1332,7 @@ class TimelineTkUI(TimelineUI, ABC):
         else:
             logger.debug(f"Element is not right clickable.")
 
-    def _select_element(self, element: Selectable):
+    def select_element(self, element: Selectable):
 
         self.element_manager.select_element(element)
 
@@ -1230,7 +1340,13 @@ class TimelineTkUI(TimelineUI, ABC):
             logger.debug(f"Element is inspectable. Sending data to inspector.")
             self.post_inspectable_selected_event(element)
 
-            events.subscribe(element, Event.INSPECTOR_FIELD_EDITED, self.on_inspector_field_edited)
+            events.subscribe(element, Event.INSPECTOR_FIELD_EDITED, element.on_inspector_field_edited)
+
+    def deselect_element(self, element: Selectable):
+        self.element_manager.deselect_element(element)
+
+        if isinstance(element, Inspectable):
+            events.unsubscribe(element, Event.INSPECTOR_FIELD_EDITED)
 
     def deselect_all_elements(self):
         for element in self.element_manager.get_all_elements():
@@ -1279,9 +1395,6 @@ class TimelineTkUI(TimelineUI, ABC):
             element.get_inspector_dict(),
             element.id
         )
-
-    def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int):
-        pass
 
     def update_elements_position(self) -> None:
         self.element_manager.update_elements_postion()

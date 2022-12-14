@@ -310,7 +310,7 @@ class TestHierarchyTimelineTkUI:
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc1.ui])
-        tl_with_ui.ui._select_element(hrc2.ui)
+        tl_with_ui.ui.select_element(hrc2.ui)
         tl_with_ui.ui.paste_into_selected_elements(copy_data)
 
         assert_are_copies(hrc1, hrc2)
@@ -364,7 +364,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc3.ui])
 
-        tl_with_ui.ui._select_element(hrc4.ui)
+        tl_with_ui.ui.select_element(hrc4.ui)
 
         tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
@@ -403,7 +403,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc3.ui])
 
-        tl_with_ui.ui._select_element(hrc4.ui)
+        tl_with_ui.ui.select_element(hrc4.ui)
 
         tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
@@ -446,7 +446,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc5.ui])
 
-        tl_with_ui.ui._select_element(hrc6.ui)
+        tl_with_ui.ui.select_element(hrc6.ui)
 
         tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
@@ -476,7 +476,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc3.ui])
 
-        tl_with_ui.ui._select_element(hrc4.ui)
+        tl_with_ui.ui.select_element(hrc4.ui)
 
         with pytest.raises(PasteError):
             tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
@@ -496,7 +496,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc3.ui, hrc4.ui])
 
-        tl_with_ui.ui._select_element(hrc4.ui)
+        tl_with_ui.ui.select_element(hrc4.ui)
 
         with pytest.raises(PasteError):
             tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
@@ -597,7 +597,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc1.ui])
 
-        tl_with_ui.ui._select_element(hrc2.ui)
+        tl_with_ui.ui.select_element(hrc2.ui)
         tl_with_ui.ui.paste_into_selected_elements(copy_data)
 
         undo_manager.undo()
@@ -614,7 +614,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc1.ui])
 
-        tl_with_ui.ui._select_element(hrc2.ui)
+        tl_with_ui.ui.select_element(hrc2.ui)
         tl_with_ui.ui.paste_into_selected_elements(copy_data)
 
         undo_manager.undo()
@@ -636,7 +636,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc2.ui])
 
-        tl_with_ui.ui._select_element(hrc3.ui)
+        tl_with_ui.ui.select_element(hrc3.ui)
         tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
         undo_manager.undo()
@@ -657,7 +657,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc2.ui])
 
-        tl_with_ui.ui._select_element(hrc3.ui)
+        tl_with_ui.ui.select_element(hrc3.ui)
         tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
         undo_manager.undo()

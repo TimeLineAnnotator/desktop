@@ -401,7 +401,7 @@ class HierarchyTimelineTkUI(TimelineTkUI):
 
     def right_click_menu_edit(self) -> None:
         self.deselect_all_elements()
-        self._select_element(self.right_clicked_hierarchy)
+        self.select_element(self.right_clicked_hierarchy)
         events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
 
     def right_click_menu_change_color(self) -> None:

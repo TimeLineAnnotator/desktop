@@ -156,6 +156,10 @@ class HierarchyTkUI(TimelineTkUIElement):
         return self.timeline_ui.get_x_by_time(self.tl_component.end)
 
     @property
+    def seek_time(self):
+        return self.tl_component.start
+
+    @property
     def level(self):
         return self.tl_component.level
 
@@ -512,7 +516,6 @@ class HierarchyTkUI(TimelineTkUIElement):
 
     def on_select(self) -> None:
         self.display_as_selected()
-        events.post(Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, self.tl_component.start)
 
     def on_deselect(self) -> None:
         self.display_as_deselected()
@@ -565,7 +568,9 @@ class HierarchyTkUI(TimelineTkUIElement):
             "Comments": self.tl_component.comments,
         }
 
-    def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int):
+    def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int) -> None:
+        print(f"{self.id=}")
+        print(f"{inspected_id=}")
         if inspected_id == self.id:
             logger.debug(f"Processing inspector field edition for {self}...")
 
