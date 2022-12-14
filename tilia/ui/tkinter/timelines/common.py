@@ -152,6 +152,8 @@ class TkTimelineUICollection(TimelineUICollection):
         subscribe(self, Event.KEY_PRESS_ENTER, self._on_enter_press)
         subscribe(self, Event.KEY_PRESS_LEFT, lambda: self._on_side_arrow_press(Side.LEFT))
         subscribe(self, Event.KEY_PRESS_RIGHT, lambda: self._on_side_arrow_press(Side.RIGHT))
+        subscribe(self, Event.KEY_PRESS_UP, lambda: self._on_up_down_arrow_press(UpOrDown.UP))
+        subscribe(self, Event.KEY_PRESS_DOWN, lambda: self._on_up_down_arrow_press(UpOrDown.DOWN))
         subscribe(self, Event.KEY_PRESS_CONTROL_C, self._on_request_to_copy)
         subscribe(self, Event.KEY_PRESS_CONTROL_V, self._on_request_to_paste)
         subscribe(self, Event.KEY_PRESS_CONTROL_SHIFT_V, self._on_request_to_paste_with_children)
@@ -588,13 +590,15 @@ class TkTimelineUICollection(TimelineUICollection):
 
     def _on_side_arrow_press(self, side: Side):
 
-        @runtime_checkable
-        class AcceptsArrowPress(Protocol):
-            def on_side_arrow_press(self, side): ...
+        for timeline_ui in self._timeline_uis:
+            if hasattr(timeline_ui, 'on_side_arrow_press'):
+                timeline_ui.on_side_arrow_press(side)
+
+    def _on_up_down_arrow_press(self, direction: UpOrDown):
 
         for timeline_ui in self._timeline_uis:
-            if isinstance(timeline_ui, AcceptsArrowPress):
-                timeline_ui.on_side_arrow_press(side)
+            if hasattr(timeline_ui, 'on_up_down_arrow_press'):
+                timeline_ui.on_up_down_arrow_press(direction)
 
     def _on_request_to_copy(self):
 

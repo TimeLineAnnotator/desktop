@@ -6,6 +6,8 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    KEY_PRESS_UP = auto()
+    KEY_PRESS_DOWN = auto()
     SELECTION_BOX_REQUEST_SELECT = auto()
     SELECTION_BOX_REQUEST_DESELECT = auto()
     METADATA_WINDOW_CLOSED = auto()

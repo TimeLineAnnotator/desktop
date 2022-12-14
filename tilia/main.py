@@ -96,10 +96,10 @@ class TiLiA:
     def _code_for_dev(self):
         """Use this to execute code before the ui mainloop runs."""
 
-        # self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
-        #
-        # self._file_manager._open_file_by_path(
-        #     r"C:\Programação\TiLiA-devresources\videoloaded_notimelines.tla")
+        self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
+
+        self._file_manager._open_file_by_path(
+            r"C:\Programação\TiLiA-devresources\audio_3hrc.tla")
 
     @property
     def media_length(self):

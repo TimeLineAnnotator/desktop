@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import tilia.ui.tkinter.timelines.copy_paste
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, subscribe, unsubscribe
-from tilia.misc_enums import IncreaseOrDecrease, Side
+from tilia.misc_enums import IncreaseOrDecrease, Side, UpOrDown
 from tilia.timelines.state_actions import StateAction
 
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -309,6 +309,39 @@ class HierarchyTimelineTkUI(TimelineTkUI):
     def on_delete_button(self):
         self.delete_selected_elements()
 
+    def _deselect_all_but_last(self):
+        ordered_selected_elements = sorted(self.element_manager.get_selected_elements(),
+                                           key=lambda x: x.tl_component.start)
+        if len(ordered_selected_elements) > 1:
+            for element in ordered_selected_elements[:-1]:
+                self.element_manager.deselect_element(element)
+
+    def on_up_down_arrow_press(self, direction: UpOrDown):
+
+        if not self.has_selected_elements:
+            logger.debug(f"User pressed {direction.value} arrow but no elements were selected.")
+            return
+
+        self._deselect_all_but_last()
+
+        selected_element = self.element_manager.get_selected_elements()[0]
+
+        element_to_select = None
+        if direction == UpOrDown.UP and selected_element.tl_component.parent:
+            element_to_select = selected_element.tl_component.parent.ui
+        elif direction == UpOrDown.DOWN and selected_element.tl_component.children:
+            element_to_select = sorted(selected_element.tl_component.children, key=lambda x: x.start)[0].ui
+
+        if element_to_select:
+            self.element_manager.deselect_element(selected_element)
+            self.element_manager.select_element(element_to_select)
+        elif direction == UpOrDown.UP:
+            logger.debug(f"Selected element has no parent. Can't select up.")
+        else:
+            logger.debug(f"Selected element has no children. Can't select down.")
+
+
+
     def on_side_arrow_press(self, side: Side):
 
         def _get_next_element_in_same_level(elm):
@@ -331,18 +364,14 @@ class HierarchyTimelineTkUI(TimelineTkUI):
             else:
                 return None
 
-        def _deselect_all_but_last():
-            ordered_selected_elements = sorted(self.element_manager.get_selected_elements(),
-                                               key=lambda x: x.tl_component.start)
-            if len(ordered_selected_elements) > 1:
-                for element in ordered_selected_elements[:-1]:
-                    self.element_manager.deselect_element(element)
+
 
         if not self.has_selected_elements:
             logger.debug(f"User pressed left arrow but no elements were selected.")
             return
 
-        _deselect_all_but_last()
+        self._deselect_all_but_last()
+
         selected_element = self.element_manager.get_selected_elements()[0]
         if side == Side.RIGHT:
             element_to_select = _get_next_element_in_same_level(selected_element)

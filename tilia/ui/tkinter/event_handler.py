@@ -67,6 +67,8 @@ DEFAULT_CANVAS_BINDINGS = [
     ("<Return>", lambda _: events.post(Event.KEY_PRESS_ENTER)),
     ("<Left>", lambda _: events.post(Event.KEY_PRESS_LEFT)),
     ("<Right>", lambda _: events.post(Event.KEY_PRESS_RIGHT)),
+    ("<Up>", lambda _: events.post(Event.KEY_PRESS_UP)),
+    ("<Down>", lambda _: events.post(Event.KEY_PRESS_DOWN)),
     (
         "<Control-i>",
         lambda _: events.post(Event.UI_REQUEST_WINDOW_INSPECTOR),
