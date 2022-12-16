@@ -56,7 +56,7 @@ class TkinterUI:
     """
     Responsible for high-level control of the GUI:
         - Instances the tk.TK object;
-        - Is composed of the high level tkinter frames (toolbar frame, timelines frame, etc...);
+        - Is composed of the high level tkinter frames (toolbar parent, timelines parent, etc...);
         - Is composed of the TkinterUIMenus class;
         - Is composed of a TkEventHandler which translates tkinter events into events.py events;
         - Keeps 'global' interface data such as window and timeline dimensions.
@@ -127,39 +127,37 @@ class TkinterUI:
         return self.timeline_width + 2 * self.timeline_padx
 
     def _create_timeline_ui_collection(self):
-        timelines_scrollbar = tk.Scrollbar(self.hscrollbar_frame, orient=tk.HORIZONTAL)
+
         self.timeline_ui_collection = TkTimelineUICollection(
-            self, self.inner_timelines_frame, timelines_scrollbar, self.timelines_toolbar_frame
+            self,
+            self.scrollable_frame,
+            self.hscrollbar,
+            self.timelines_toolbar_frame
         )
 
     def get_timeline_ui_collection(self):
         return self.timeline_ui_collection
 
     def _setup_frames(self):
-
         # create frames
         self.main_frame = tk.Frame(self.root)
 
         self.app_toolbars_frame = AppToolbarsFrame(self.main_frame)
-        globals_.TIMELINES_TOOLBAR = self.timelines_toolbar_frame = tk.Frame(
+        self.timelines_toolbar_frame = tk.Frame(
             self.main_frame
         )
 
-        self.outer_timelines_frame = tk.Frame(self.main_frame)
-        self.inner_timelines_frame = ScrollableFrame(self.outer_timelines_frame, bg="blue")
-        self.inner_timelines_frame.grid_columnconfigure(
-            0, weight=1
-        )
+        _scrollable_frame = ScrollableFrame(self.main_frame)
+        self.scrollable_frame = _scrollable_frame.frame
 
-        self.bottom_frame = tk.Frame(self.main_frame)
-        self.hscrollbar_frame = tk.Frame(self.main_frame)
+        self.hscrollbar = tk.Scrollbar(self.main_frame, orient=tk.HORIZONTAL)
 
         # pack frames
         self.app_toolbars_frame.pack(fill="x")
         self.timelines_toolbar_frame.pack(fill="x")
-        self.outer_timelines_frame.pack(fill="both", expand=True)
-        self.bottom_frame.pack(fill="x")
-        self.hscrollbar_frame.pack(fill="x")
+        self.hscrollbar.pack(fill="x", side=tk.BOTTOM)
+        _scrollable_frame.pack(side=tk.TOP, fill="both", expand=True)
+
         self.main_frame.pack(fill="both", expand=True)
 
     # noinspection PyTypeChecker,PyUnresolvedReferences
@@ -280,61 +278,32 @@ class AppToolbarsFrame(tk.Frame):
             parent=self
         )
 
-        #
-        # def set_freeze_labels(caller: CheckboxItem):
-        #     globals_.settings["GENERAL"][
-        #         "freeze_timeline_labels"
-        #     ] = caller.variable.get()
-        #     events.post(Event.FREEZE_LABELS_SET)
-        #
-        # self.freeze_labels_toolbar = CheckboxItem(
-        #     label="Freeze labels",
-        #     # value=bool(globals_.settings["GENERAL"]["freeze_timeline_labels"]),
-        #     value=True,
-        #     set_func=set_freeze_labels,
-        #     parent=self,
-        # )
-        #
-
         self.playback_frame.pack(side=tk.LEFT, anchor=tk.W)
         self.auto_scroll_checkbox.pack(side=tk.LEFT, anchor=tk.W)
 
-        # self.freeze_labels_toolbar.pack(side=tk.LEFT, anchor=tk.W)
-
 
 class ScrollableFrame(tk.Frame):
-    """
-    A vertically scrollable frame for the timeline UIs.
-    Taken from Tarqez's answer to this question on SO:
-    https://stackoverflow.com/questions/3085696/adding-a-scrollbar-to-a-group-of-widgets-in-tkinter
-    """
+    """Tk.Frame does not support scrolling. This workaround relies
+    on a frame placed inside a canvas, which does support scrolling.
+    self.frame is the frame that must be used by outside widgets."""
+    def __init__(self, parent) -> None:
+        super().__init__(parent)
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.frame = tk.Frame(self.canvas)
+        self.vsb = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.vsb.set)
 
-    def __init__(self, frame, *args, **kwargs):
+        self.vsb.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.create_window((0, 0), window=self.frame, anchor="nw",
+                                  tags="self.frame")
 
-        scrollbar = tk.Scrollbar(frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, expand=False)
+        self.frame.bind("<Configure>", self.on_frame_configure)
+        self.canvas.bind("<Configure>", lambda e: events.post(Event.ROOT_WINDOW_RESIZED, e.width, e.height))
 
-        self.canvas = tk.Canvas(frame, yscrollcommand=scrollbar.set)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        scrollbar.config(command=self.canvas.yview)
-
-        super().__init__(frame, *args, **kwargs)
-
-        self.canvas.bind("<Configure>", self.__fill_canvas)
-
-        # assign this obj (the inner frame) to the windows item of the canvas
-        self.windows_item = self.canvas.create_window(0, 0, window=self, anchor=tk.NW)
-
-    def __fill_canvas(self, event):
-        """Enlarge the windows item to the canvas width"""
-        canvas_width = event.width
-        self.canvas.itemconfig(self.windows_item, width=canvas_width)
-
-    def update(self):
-        """Update the canvas and the scrollregion"""
-        self.update_idletasks()
-        self.canvas.config(scrollregion=self.canvas.bbox(self.windows_item))
+    def on_frame_configure(self, event):
+        '''Reset the scroll region to encompass the inner frame'''
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
 
 class CheckboxItem(tk.Frame):

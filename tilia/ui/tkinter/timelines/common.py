@@ -81,6 +81,8 @@ class TimelineCanvas(tk.Canvas):
             highlightthickness=0,
         )
 
+        subscribe(self, Event.ROOT_WINDOW_RESIZED, self.on_root_window_resized)
+
         self._label_width = left_margin_width
 
         self._setup_label(initial_name)
@@ -116,6 +118,13 @@ class TimelineCanvas(tk.Canvas):
     def update_height(self, new_height: int):
         self.config(height=new_height)
 
+    def on_root_window_resized(self, width: int, _):
+        print(f"{self=}")
+        try:
+            self.config(width=width)
+        except:
+            pass
+
     @property
     def _get_label_coords(self):
         return self.LABEL_PAD, self.winfo_reqheight() / 2
@@ -131,7 +140,7 @@ class TkTimelineUICollection(TimelineUICollection):
         - Creating timeline uis;
         - Redirecting events (e.g. clicks, drags, button presses) from the TKEventHandler to the appropriate TimelineUI instance;
         - Handling queries for timeline uis;
-        - Gridding timeline ui's canvases on the timeline frame;
+        - Gridding timeline ui's canvases on the timeline parent;
         - Getting 'global' information (e.g. margins and timeline size) for timeline uis.
     """
 
@@ -187,7 +196,7 @@ class TkTimelineUICollection(TimelineUICollection):
 
         self.scrollbar = scrollbar
         self.scrollbar.config(command=self.on_scrollbar_move)
-        self.scrollbar.pack(fill="x", expand=True)
+
         self.slider_is_being_dragged = False
 
         self._timeline_uis = set()
@@ -354,6 +363,8 @@ class TkTimelineUICollection(TimelineUICollection):
     @staticmethod
     def grid_timeline_ui_canvas(canvas: tk.Canvas, row_number: int) -> None:
         logger.debug(f"Griding canvas at row '{row_number}'")
+        print(canvas.winfo_parent())
+        print(f"{canvas.nametowidget(canvas.winfo_parent()).winfo_children()=}")
         canvas.grid(row=row_number, column=0, sticky="ew")
 
     @staticmethod

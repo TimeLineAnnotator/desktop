@@ -47,7 +47,7 @@ class ManageTimelines:
 
         self.outer_frame = tk.Frame(self.toplevel)
 
-        # create right frame
+        # create right parent
         self.right_frame = tk.Frame(self.outer_frame)
         self.up_button = tk.Button(
             self.right_frame, text="▲", width=3, command=self.move_up

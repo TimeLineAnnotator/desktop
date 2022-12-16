@@ -22,7 +22,7 @@ class PlayerUI(tk.Frame):
 
         self.media_length_str = ""
 
-        # Create player control frame
+        # Create player control parent
         self.controls = tk.Frame(self)
         self.controls.pack(side=tk.LEFT, padx=5, pady=5)
 

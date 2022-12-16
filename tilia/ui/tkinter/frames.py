@@ -31,7 +31,7 @@ class MetadataLabelAndEntry(LabelAndEntry):
 
 
 class MetadataFrame(tk.Toplevel):
-    """Configure top frame on Edit>MediaMetadata... menu"""
+    """Configure top parent on Edit>MediaMetadata... menu"""
 
     def __init__(self, parent):
         super(MetadataFrame, self).__init__(parent, width=300, height=0)

@@ -32,7 +32,7 @@ class LabelAndEntry(tk.Frame):
 
 
 class MetadataWindow:
-    """Configure top frame on Edit>Metadata... menu"""
+    """Configure top parent on Edit>Metadata... menu"""
 
     _instanced = False
     KIND = WindowKind.METADATA
