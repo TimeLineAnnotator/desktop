@@ -119,7 +119,6 @@ class TimelineCanvas(tk.Canvas):
         self.config(height=new_height)
 
     def on_root_window_resized(self, width: int, _):
-        print(f"{self=}")
         try:
             self.config(width=width)
         except:
