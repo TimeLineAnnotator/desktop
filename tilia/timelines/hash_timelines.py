@@ -12,6 +12,7 @@ def hash_timeline_collection_data(timeline_collection_data: dict):
     str_to_hash = '|'
     for tl_data in sorted_tlcoll_data:
         str_to_hash += hash_timeline_data(tl_data['kind'], tl_data) + '|'
+        print(tl_data['display_position'], hash_timeline_data(tl_data['kind'], tl_data))
 
     return hash_function(str_to_hash)
 

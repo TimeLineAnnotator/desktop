@@ -1,5 +1,7 @@
 import os
 import sys
+from pathlib import Path
+
 import appdirs
 from enum import Enum, auto
 
@@ -15,6 +17,7 @@ SUPPORTED_AUDIO_FORMATS = ["mp3", "wav"]
 NATIVE_VIDEO_FORMATS = ["mp4", "mkv", "m4a"]
 
 USER_DATA_DIR = appdirs.user_data_dir(APP_NAME, roaming=True)
+AUTOSAVE_DIR = Path(USER_DATA_DIR, 'autosaves')
 FFMPEG_PATH = "C:\\ffmpeg\\bin\\ffmpeg.exe"
 SETTINGS_PATH = os.path.join(USER_DATA_DIR, 'settings.toml')
 

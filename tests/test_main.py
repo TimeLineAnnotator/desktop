@@ -87,7 +87,7 @@ class TestFileManager:
             empty_file_save_params[attr] = getattr(empty_file, attr)
         file_manager._get_save_parameters = lambda: empty_file_save_params
 
-        assert not file_manager.is_file_modified
+        assert not file_manager.was_file_modified()
 
 
         file_manager._get_save_parameters = lambda: modified_save_params
@@ -95,7 +95,12 @@ class TestFileManager:
         import copy
         modified_save_params = copy.deepcopy(empty_file_save_params)
         modified_save_params['timelines'] = {
-            '0': {'kind': 'SLIDER_TIMELINE', 'display_position': 0, 'is_visible': True, 'height': 10},
+            '0': {
+                'kind': 'SLIDER_TIMELINE',
+                'display_position': 0,
+                'is_visible': True,
+                'height': 10
+            },
             '1': {
                 'kind': 'HIERARCHY_TIMELINE',
                 'display_position': 0,
@@ -106,19 +111,19 @@ class TestFileManager:
             }
         }
 
-        assert file_manager.is_file_modified
+        assert file_manager.was_file_modified()
 
         modified_save_params = copy.deepcopy(empty_file_save_params)
         modified_save_params['media_metadata']['title'] = 'modified title'
-        assert file_manager.is_file_modified
+        assert file_manager.was_file_modified()
 
         modified_save_params = copy.deepcopy(empty_file_save_params)
         modified_save_params['media_metadata'].pop('title')
-        assert file_manager.is_file_modified
+        assert file_manager.was_file_modified()
 
         modified_save_params = copy.deepcopy(empty_file_save_params)
         modified_save_params['media_path'] = 'modified path'
-        assert file_manager.is_file_modified
+        assert file_manager.was_file_modified()
 
 
 class TestTimelineWithUIBuilder:

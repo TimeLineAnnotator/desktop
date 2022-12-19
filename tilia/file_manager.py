@@ -1,15 +1,30 @@
 from __future__ import annotations
 
+import logging
+import os
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from tilia import globals_
+from tilia import settings
+
+if TYPE_CHECKING:
+    from tilia.main import TiLiA
+
 import dataclasses
 import json
+import time
 from datetime import datetime
+from threading import Thread
 
 from tilia.events import subscribe, Event
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.files import TiliaFile
-from tilia.main import TiLiA, logger
+
 from tilia.timelines.hash_timelines import hash_timeline_collection_data
 from tilia.timelines.timeline_kinds import TimelineKind
+
+logger = logging.getLogger(__name__)
 
 
 class FileManager:
@@ -26,25 +41,22 @@ class FileManager:
 
         self._file = file if file else TiliaFile()
 
-    @property
-    def is_file_modified(self):
+        self._last_autosave_data = None
+        self._autosave_exception_list = []
+        self._autosave_thread = Thread(target=self._auto_save_loop, args=(self._autosave_exception_list, ))
+        self._autosave_thread.start()
 
-        current_file_data = self._get_save_parameters()
+    def was_file_modified(self):
 
-        if len(current_file_data['timelines']) == 1:
-            tl = list(current_file_data['timelines'].values())[0]
+        current_tilia_data = self._get_save_parameters()
+
+        # necessary tweak when there's only a slider timeline in file
+        if len(current_tilia_data['timelines']) == 1:
+            tl = list(current_tilia_data['timelines'].values())[0]
             if tl['kind'] == TimelineKind.SLIDER_TIMELINE.name:
-                current_file_data['timelines'] = {}
+                current_tilia_data['timelines'] = {}
 
-        for attr in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION:
-            if attr == 'timelines':
-                saved_file_hash = hash_timeline_collection_data(self._file.timelines)
-                current_file_hash = hash_timeline_collection_data(current_file_data['timelines'])
-                if saved_file_hash != current_file_hash:
-                    return True
-            elif current_file_data[attr] != getattr(self._file, attr):
-                return True
-        return False
+        return not compare_tilia_data(current_tilia_data, dataclasses.asdict(self._file))
 
     def _update_file(self, **kwargs) -> None:
         for keyword, value in kwargs.items():
@@ -52,20 +64,63 @@ class FileManager:
             setattr(self._file, keyword, value)
 
     def save(self, save_as: bool) -> None:
-        logger.info(f"Saving _file...")
+        logger.info(f"Saving file...")
         self._file.file_path = self.get_file_path(save_as)
-        try:
-            save_params = self._get_save_parameters()
-        except UserCancelledSaveError:
-            return
-
-        self._update_file(**save_params)
+        self._update_file(**self._get_save_parameters())
 
         logger.debug(f"Using path '{self._file.file_path}'")
         with open(self._file.file_path, "w", encoding="utf-8") as file:
             json.dump(dataclasses.asdict(self._file), file, **self.JSON_CONFIG)
 
         logger.info(f"File saved.")
+
+    def autosave(self):
+        logger.debug("Autosaving file...")
+
+        try:
+            save_params = self._get_save_parameters()
+        except AttributeError:
+            return
+
+        with open(self.get_autosave_path(), "w", encoding="utf-8") as file:
+            json.dump(save_params, file, **self.JSON_CONFIG)
+
+        self._last_autosave_data = save_params
+
+        logger.debug("Autosaved file.")
+
+
+    def needs_auto_save(self):
+        if not self._last_autosave_data:
+            return True
+
+        return not compare_tilia_data(self._last_autosave_data, self._get_save_parameters())
+
+    def _auto_save_loop(self, exception_list: list) -> None:
+        while True:
+            try:
+                time.sleep(settings.settings['auto-save']['interval'])
+                logger.debug(f"Checking if autosave is necessary...")
+                if self.needs_auto_save():
+                    make_room_for_new_autosave()
+                    self.autosave()
+                else:
+                    logger.debug(f"Autosave is not necessary")
+            except Exception as excp:
+                self._autosave_exception_list.append(excp)
+                _raise_save_loop_exception(excp)
+
+    def get_autosave_path(self):
+        return Path(globals_.AUTOSAVE_DIR, self.get_autosave_filename())
+
+    def get_autosave_filename(self):
+        if self._file.media_metadata['title']:
+            title = self._file.media_metadata['title'] + '.' + globals_.FILE_EXTENSION
+        else:
+            title = "Untitled" + '.' + globals_.FILE_EXTENSION
+
+        date = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        return f"{date}_{title}"
 
     def new(self):
         logger.debug(f"Processing new _file request.")
@@ -78,7 +133,7 @@ class FileManager:
 
         self._file = TiliaFile()
 
-        logger.info(f"New _file created.")
+        logger.info(f"New file created.")
 
     def open(self):
         logger.debug(f"Processing open _file request.")
@@ -104,7 +159,7 @@ class FileManager:
         self._app.load_file(self._file)
 
     def ask_save_if_necessary(self) -> None:
-        if not self.is_file_modified:
+        if not self.was_file_modified():
             return
 
         response = self._app.ui.ask_save_changes()
@@ -143,3 +198,39 @@ class FileManager:
     def clear(self) -> None:
         logger.debug(f"Clearing _file manager...")
         self._file = TiliaFile()
+
+
+def _raise_save_loop_exception(excp: Exception):
+    raise excp
+
+
+def compare_tilia_data(data1: dict, data2: dict) -> bool:
+    """Returns True if data1 is equivalent to data2, False otherwise."""
+
+    ATTRS_TO_CHECK = ['media_metadata', 'timelines', 'media_path']
+
+    for attr in ATTRS_TO_CHECK:
+        if attr == 'timelines':
+            if hash_timeline_collection_data(data1['timelines']) != hash_timeline_collection_data(data2['timelines']):
+                return False
+        elif data1[attr] != data2[attr]:
+            return False
+    return True
+
+
+def get_autosaves_paths() -> list[str]:
+    return [os.path.join(globals_.AUTOSAVE_DIR, file) for file in os.listdir(globals_.AUTOSAVE_DIR)]
+
+
+def delete_older_autosaves(amount: int):
+    paths_by_creation_date = sorted(
+        get_autosaves_paths(),
+        key=lambda x: os.path.getctime(x),
+    )
+    for path in paths_by_creation_date[:amount]:
+        os.remove(path)
+
+
+def make_room_for_new_autosave() -> None:
+    if (remaining_autosaves := len(get_autosaves_paths()) - settings.settings['auto-save']['max_saved_files']) >= 0:
+        delete_older_autosaves(remaining_autosaves + 1)

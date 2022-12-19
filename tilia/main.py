@@ -98,7 +98,7 @@ class TiLiA:
         self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
 
         self._file_manager._open_file_by_path(
-            r"C:\Programação\TiLiA-devresources\audio_3hrc.tla")
+            r"C:\Programação\TiLiA-devresources\audio_1hrc.tla")
 
     @property
     def media_length(self):
