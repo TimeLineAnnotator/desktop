@@ -12,6 +12,7 @@ from tilia.misc_enums import StartOrEnd
 from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
 from tilia.ui.tkinter.timelines.common import RightClickOption
+from ...common import format_media_time
 
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineTkUI
@@ -68,8 +69,8 @@ class HierarchyTkUI(TimelineTkUIElement):
 
     INSPECTOR_FIELDS = [
         ("Label", "entry"),
-        ("Start", "label"),
-        ("End", "label"),
+        ("Start / end", "label"),
+        ("Length", 'label'),
         ("Formal type", "entry"),
         ("Formal function", "entry"),
         ("Comments", "entry"),
@@ -558,19 +559,25 @@ class HierarchyTkUI(TimelineTkUIElement):
         else:
             logger.debug(f"End marker '{self.end_marker}' is shared, will not delete")
 
+    @property
+    def start_and_end_formatted(self) -> str:
+        return f'{format_media_time(self.tl_component.start)} / {format_media_time(self.tl_component.end)}'
+
+    @property
+    def length_formatted(self) -> str:
+        return format_media_time(self.tl_component.end - self.tl_component.start)
+
     def get_inspector_dict(self) -> dict:
         return {
             "Label": self.label,
-            "Start": self.tl_component.start,
-            "End": self.tl_component.end,
+            "Start / end": self.start_and_end_formatted,
+            "Length": self.length_formatted,
             "Formal type": self.tl_component.formal_type,
             "Formal function": self.tl_component.formal_function,
             "Comments": self.tl_component.comments,
         }
 
     def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int) -> None:
-        print(f"{self.id=}")
-        print(f"{inspected_id=}")
         if inspected_id == self.id:
             logger.debug(f"Processing inspector field edition for {self}...")
 
