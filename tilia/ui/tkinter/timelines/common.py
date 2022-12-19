@@ -727,8 +727,17 @@ class TkTimelineUICollection(TimelineUICollection):
         trough_x = self.get_x_by_time(time)
 
         if trough_x >= visible_width / 2:
-            scroll_fraction = (trough_x - (visible_width / 2)) / self.get_timeline_total_size()
-            timeline_ui.canvas.xview_moveto(scroll_fraction)
+            self.center_view_at_x(timeline_ui, trough_x - (visible_width / 2))
+
+    def on_center_view_on_time(self, time: float):
+        center_x = self.get_x_by_time(time)
+        for tl_ui in self._timeline_uis:
+            self.center_view_at_x(tl_ui, center_x)
+
+    def center_view_at_x(self, timeline_ui: TimelineTkUI, x: int) -> None:
+        scroll_fraction = (x / self.get_timeline_total_size())
+        timeline_ui.canvas.xview_moveto(scroll_fraction)
+
 
     def change_playback_line_position(self, timeline_ui: TimelineTkUI, time: float):
         if timeline_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
