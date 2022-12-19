@@ -43,8 +43,6 @@ class SelectionBox:
 
     def get_canvas_overlap(self):
         overlap = set(self.canvas.find_overlapping(*self.get_coords()))
-        # if self.outlined:
-        #     overlap.remove(self.canvas_id)
 
         overlap.remove(self.canvas_id)
 
@@ -55,9 +53,6 @@ class SelectionBox:
 
     def on_motion(self, x1: float, y1: float):
         """Updates selection box size. Returns canvas items that overlap with self."""
-        # if not self.outlined:
-        #     self.canvas.itemconfig(self.canvas_id, outline="black")
-        #     self.outlined = True
 
         self.bottom_right = [x1, y1]
         self.update_position()
@@ -66,16 +61,12 @@ class SelectionBox:
 
         # handle overlap change
         if current_overlap != self.overlap:
-            print(f"{current_overlap=}")
-            print(f"{self.overlap=}")
             if current_overlap - self.overlap:  # if an object was added
                 for canvas_id in (current_overlap - self.overlap).copy():
-                    print(f'Request select of {canvas_id}')
                     events.post(Event.SELECTION_BOX_REQUEST_SELECT, canvas=self.canvas, canvas_item_id=canvas_id)
                     self.overlap.add(canvas_id)
             else:  # if an object was removed
                 for canvas_id in (self.overlap - current_overlap).copy():
-                    print(f'Request deselect of {canvas_id}')
                     events.post(Event.SELECTION_BOX_REQUEST_DESELECT, canvas=self.canvas, canvas_item_id=canvas_id)
                     self.overlap.remove(canvas_id)
 
