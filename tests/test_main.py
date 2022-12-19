@@ -4,7 +4,8 @@ from tilia import events
 from tilia.events import Event, unsubscribe_from_all
 from tilia.files import TiliaFile
 from tilia.globals_ import UserInterfaceKind, NATIVE_VIDEO_FORMATS, NATIVE_AUDIO_FORMATS
-from tilia.main import TiLiA, FileManager
+from tilia.main import TiLiA
+from tilia.file_manager import FileManager
 from tilia.player import player
 from tilia.timelines.timeline_kinds import TimelineKind
 
