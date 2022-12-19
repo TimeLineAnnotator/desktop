@@ -1700,6 +1700,7 @@ def create_tool_tip(widget, text):
 
 
 class RightClickOption(Enum):
+    EXPORT_TO_AUDIO = auto()
     CHANGE_TIMELINE_NAME = auto()
     CHANGE_TIMELINE_HEIGHT = auto()
     RESET_COLOR = auto()

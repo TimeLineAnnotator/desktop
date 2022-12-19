@@ -11,14 +11,15 @@ Defines a TiLiA object which is composed, among other things, of instances of th
 
 """
 
-
 from __future__ import annotations
 
 import dataclasses
+import functools
 import itertools
 import json
 from collections import OrderedDict
 from datetime import datetime
+from pathlib import Path
 
 from typing import TYPE_CHECKING
 
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
 
 from unittest.mock import MagicMock
 
-from tilia import globals_, events
+from tilia import globals_, events, media_exporter
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.globals_ import UserInterfaceKind
 from tilia.files import TiliaFile, create_new_media_metadata
@@ -62,6 +63,7 @@ class TiLiA:
         subscribe(self, Event.APP_REQUEST_TO_CLOSE, self.on_request_to_close)
         subscribe(self, Event.METADATA_FIELD_EDITED, self.on_metadata_field_edited)
         subscribe(self, Event.METADATA_NEW_FIELDS, self.on_metadata_new_fields)
+        subscribe(self, Event.REQUEST_EXPORT_AUDIO_SEGMENT, self.on_request_to_export_audio_segment)
 
         self._id_counter = itertools.count()
         self._file_manager = FileManager(self)
@@ -114,7 +116,6 @@ class TiLiA:
         return self._player.current_time
 
     def on_request_to_load_media(self, media_path: str) -> None:
-        import os
 
         extension = os.path.splitext(media_path)[1][1:]
 
@@ -123,6 +124,19 @@ class TiLiA:
         self._player.load_media(media_path)
 
         self._media_metadata['media length'] = self.media_length
+
+    def on_request_to_export_audio_segment(self, segment_name: str, start_time: float, end_time: float):
+
+        export_dir = self.ui.ask_for_directory('Export audio')
+
+        media_exporter.export_audio_segment(
+            audio_path=self._player.media_path,
+            dir=export_dir,
+            file_title=self.media_metadata['title'],
+            start_time=start_time,
+            end_time=end_time,
+            segment_name=segment_name
+        )
 
     def on_request_new_file(self) -> None:
         try:
@@ -251,11 +265,7 @@ class FileManager:
 
         self._app = app
 
-        if not file:
-            self._file = TiliaFile()
-        else:
-            self._file = file
-
+        self._file = file if file else TiliaFile()
 
     @property
     def is_file_modified(self):
@@ -277,7 +287,6 @@ class FileManager:
                 return True
         return False
 
-
     def _update_file(self, **kwargs) -> None:
         for keyword, value in kwargs.items():
             logger.debug(f"Updating _file paramenter '{keyword}' to '{value}'")
@@ -285,7 +294,7 @@ class FileManager:
 
     def save(self, save_as: bool) -> None:
         logger.info(f"Saving _file...")
-        self._file.file_path = self._get_file_path(save_as)
+        self._file.file_path = self.get_file_path(save_as)
         try:
             save_params = self._get_save_parameters()
         except UserCancelledSaveError:
@@ -302,7 +311,7 @@ class FileManager:
     def new(self):
         logger.debug(f"Processing new _file request.")
         try:
-            self._file_manager.ask_save_if_necessary()
+            self.ask_save_if_necessary()
         except UserCancelledOpenError:
             return
 
@@ -363,7 +372,7 @@ class FileManager:
         logger.debug(f"Updating _file media_path to '{media_path}'")
         self._file.media_path = media_path
 
-    def _get_file_path(self, save_as: bool) -> str:
+    def get_file_path(self, save_as: bool) -> str:
         if not self._file.file_path or save_as:
             return self._app.ui.get_file_save_path(self.get_default_filename())
         else:
@@ -379,9 +388,9 @@ class FileManager:
 
 class TimelineWithUIBuilder:
     def __init__(
-        self,
-        timeline_collection: TimelineCollection,
-        timeline_ui_collection: TimelineUICollection,
+            self,
+            timeline_collection: TimelineCollection,
+            timeline_ui_collection: TimelineUICollection,
     ):
         self.timeline_ui_collection = timeline_ui_collection
         self.timeline_collection = timeline_collection
@@ -394,7 +403,7 @@ class TimelineWithUIBuilder:
             )
 
     def create_timeline(
-        self, timeline_kind: TimelineKind, name: str, components: dict[int] = None
+            self, timeline_kind: TimelineKind, name: str, components: dict[int] = None
     ):
         self._validate_timeline_kind(timeline_kind)
 

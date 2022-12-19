@@ -406,7 +406,8 @@ class HierarchyTimelineTkUI(TimelineTkUI):
             RightClickOption.COPY: self.right_click_menu_copy,
             RightClickOption.PASTE: self.right_click_menu_paste,
             RightClickOption.PASTE_WITH_ALL_ATTRIBUTES: self.right_click_menu_paste_with_all_attributes,
-            RightClickOption.DELETE: self.right_click_menu_delete
+            RightClickOption.DELETE: self.right_click_menu_delete,
+            RightClickOption.EXPORT_TO_AUDIO: self.right_click_menu_export_to_audio
         }
         option_to_callback[option]()
 
@@ -458,6 +459,14 @@ class HierarchyTimelineTkUI(TimelineTkUI):
 
     def right_click_menu_delete(self) -> None:
         self.timeline.on_request_to_delete_component(self.right_clicked_hierarchy.tl_component)
+
+    def right_click_menu_export_to_audio(self) -> None:
+        events.post(
+            Event.REQUEST_EXPORT_AUDIO_SEGMENT,
+            segment_name=self.right_clicked_hierarchy.full_name,
+            start_time=self.right_clicked_hierarchy.tl_component.start,
+            end_time=self.right_clicked_hierarchy.tl_component.end
+        )
 
     def get_previous_marker_x_by_x(self, x: int) -> None | int:
         all_marker_xs = self.get_all_elements_boundaries()

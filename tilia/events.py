@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    REQUEST_EXPORT_AUDIO_SEGMENT = auto()
     ROOT_WINDOW_RESIZED = auto()
     KEY_PRESS_UP = auto()
     KEY_PRESS_DOWN = auto()

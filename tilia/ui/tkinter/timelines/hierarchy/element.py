@@ -98,11 +98,12 @@ class HierarchyTkUI(TimelineTkUIElement):
         ("Decrease level", RightClickOption.DECREASE_LEVEL),
         ("Change color...", RightClickOption.CHANGE_COLOR),
         ("Reset color", RightClickOption.RESET_COLOR),
-         ('', RightClickOption.SEPARATOR),
+        ('', RightClickOption.SEPARATOR),
         ("Copy", RightClickOption.COPY),
         ("Paste", RightClickOption.PASTE),
         ("Paste w/ all attributes", RightClickOption.PASTE_WITH_ALL_ATTRIBUTES),
-          ('', RightClickOption.SEPARATOR),
+        ('', RightClickOption.SEPARATOR),
+        ('Export audio...', RightClickOption.EXPORT_TO_AUDIO),
         ("Delete", RightClickOption.DELETE),
     ]
 
@@ -210,6 +211,10 @@ class HierarchyTkUI(TimelineTkUIElement):
         self.tl_component.formal_type = value
 
     @property
+    def parent(self):
+        return self.tl_component.parent
+
+    @property
     def children(self):
         return self.tl_component.children
 
@@ -227,6 +232,24 @@ class HierarchyTkUI(TimelineTkUIElement):
     @property
     def shaded_color(self):
         return tilia.utils.color.hex_to_shaded_hex(self.color)
+
+    @property
+    def full_name(self) -> str:
+        STR_FOR_UNLABELED = 'Unnamed'
+        FULL_NAME_SEPARATOR = '-'
+
+        partial_name = self.label if self.label else STR_FOR_UNLABELED
+
+        next_parent = self.parent
+
+        while next_parent:
+            parent_name = next_parent.ui.label if next_parent.ui.label else STR_FOR_UNLABELED
+            partial_name = parent_name + FULL_NAME_SEPARATOR + partial_name
+            next_parent = next_parent.parent
+
+        full_name = self.timeline_ui.name + FULL_NAME_SEPARATOR + partial_name
+
+        return full_name
 
     def get_default_level_color(self, level: int) -> str:
         logger.debug(f"Getting default color for level '{level}'")

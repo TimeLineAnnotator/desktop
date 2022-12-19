@@ -3,6 +3,7 @@ import tkinter as tk
 import tkinter.colorchooser
 import tkinter.messagebox
 import tkinter.simpledialog
+import tkinter.filedialog
 
 
 class LabelAndEntry(tk.Frame):
@@ -40,6 +41,10 @@ def ask_for_int(title: str, prompt: str, initialvalue: int) -> int | None:
 
 def ask_yes_no(title: str, prompt: str) -> bool:
     return tk.messagebox.askyesno(title, prompt)
+
+
+def ask_for_directory(title: str) -> str | None:
+    return tk.filedialog.askdirectory(title=title)
 
 
 def destroy_children_recursively(widget: tk.Widget | tk.Toplevel) -> None:

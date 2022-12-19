@@ -21,7 +21,7 @@ from tilia.player import player_ui
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
-from .common import ask_yes_no
+from .common import ask_yes_no, ask_for_directory
 from .event_handler import TkEventHandler
 from .timelines.common import TkTimelineUICollection
 from .windows.common import AppWindow
@@ -262,6 +262,10 @@ class TkinterUI:
             id_, attribute
         )
 
+    @staticmethod
+    def ask_for_directory(title: str) -> str | None:
+        return ask_for_directory(title)
+
 
 class AppToolbarsFrame(tk.Frame):
     def __init__(self, *args, **kwargs):
@@ -339,7 +343,7 @@ class TkinterUIMenus(tk.Menu):
 
         self.file_menu.add_command(
             label="New...",
-            command=lambda: events.post(Event.FILE_REQUEST_NEW_FILE, save_as=False),
+            command=lambda: events.post(Event.FILE_REQUEST_NEW_FILE),
         )
         self.file_menu.add_command(
             label="Open...",
@@ -364,20 +368,7 @@ class TkinterUIMenus(tk.Menu):
             command=lambda: events.post(Event.MENU_OPTION_FILE_LOAD_MEDIA),
         )
         self.file_menu.add_separator()
-        self.goto_menu = tk.Menu(tearoff=0)
-        self.file_menu.add_cascade(
-            label="Go to...", menu=self.goto_menu, underline=0, state="disabled"
-        )
-        self.goto_menu.add_command(
-            label="Measure..",
-            command=lambda: GoToMeasureWindow(),
-            underline=0,
-            accelerator="Ctrl+G",
-            state="disabled",
-        )
-        # self.goto_menu.add_command(label='Time..', underline=0, accelerator='Ctrl+Shift+G')
 
-        self.file_menu.add_separator()
         self.file_menu.add_command(
             label="Media metadata...",
             command=lambda: events.post(Event.UI_REQUEST_WINDOW_METADATA),
