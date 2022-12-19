@@ -2,6 +2,8 @@ import os
 import tkinter as tk
 import logging
 
+from tilia.ui.tkinter.common import format_media_time
+
 logger = logging.getLogger(__name__)
 from typing import Literal
 
@@ -20,7 +22,7 @@ class PlayerUI(tk.Frame):
         subscribe(self, Event.PLAYER_PAUSED, lambda: self.change_playpause_icon("play"))
         subscribe(self, Event.PLAYER_UNPAUSED, lambda: self.change_playpause_icon("pause"))
 
-        self.media_length_str = ""
+        self.media_length_str = "0:00:00"
 
         # Create player control parent
         self.controls = tk.Frame(self)
@@ -75,27 +77,22 @@ class PlayerUI(tk.Frame):
 
     def on_new_audio_time(self, audio_time: float) -> None:
         self.time_label.config(
-            text=f"{self.format_media_time(audio_time)}/{self.media_length_str}"
+            text=f"{format_media_time(audio_time)}/{self.media_length_str}"
         )
 
     def on_player_stop(self) -> None:
-        self.time_label.config(text=f"00:00/{self.media_length_str}")
+        self.time_label.config(text=f"0:00:00/{self.media_length_str}")
         self.change_playpause_icon("play")
 
     def on_player_paused(self):
         self.play_btn.config(image=self.pause_btn_img)
-        pass
 
     def on_player_unpaused(self):
         pass
 
     def on_media_load(self, _1, _2, playback_length: float, _3) -> None:
-        self.media_length_str = self.format_media_time(playback_length)
-        self.time_label.config(text=f"00:00/{self.media_length_str}")
-
-    @staticmethod
-    def format_media_time(audio_time: float) -> str:
-        return f"""{str(int(audio_time // 60)).zfill(2)}:{f'{audio_time % 60:.1f}'.zfill(4)}"""
+        self.media_length_str = format_media_time(playback_length)
+        self.time_label.config(text=f"0:00:00/{self.media_length_str}")
 
     def destroy(self):
         tk.Frame.destroy(self)
