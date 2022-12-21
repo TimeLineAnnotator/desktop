@@ -6,7 +6,7 @@ from tilia.events import Event
 from tilia.misc_enums import UpOrDown
 
 if TYPE_CHECKING:
-    from tilia.ui.tkinter.tkinterui import TkinterUI
+    from tilia.ui.tkinterui import TkinterUI
 
 import logging
 

@@ -11,13 +11,13 @@ from tilia.events import Event, subscribe, unsubscribe
 from tilia.misc_enums import StartOrEnd
 from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
-from tilia.ui.tkinter.timelines.common import RightClickOption
+from tilia.ui.timelines.common import RightClickOption
 from ...common import format_media_time
 
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineUI
     from tilia.timelines.hierarchy.components import Hierarchy
-    from tilia.ui.tkinter.timelines.common import TimelineCanvas, RightClickOption
+    from tilia.ui.timelines.common import TimelineCanvas, RightClickOption
 
 import logging
 
@@ -31,7 +31,7 @@ from tilia.timelines.common import (
     log_object_deletion,
 )
 
-from tilia.ui.tkinter.timelines.common import TimelineUIElement
+from tilia.ui.timelines.common import TimelineUIElement
 
 
 class HierarchyUI(TimelineUIElement):

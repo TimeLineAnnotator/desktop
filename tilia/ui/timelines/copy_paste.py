@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tilia.ui.tkinter.timelines.common import TimelineUIElement
+    from tilia.ui.timelines.common import TimelineUIElement
 
 from tilia.exceptions import AppException
 from tilia.timelines.common import TimelineComponent

@@ -1,4 +1,4 @@
-from tilia.ui.tkinter.windows.kinds import WindowKind
+from tilia.ui.windows.kinds import WindowKind
 
 
 class UniqueWindowDuplicate(Exception):

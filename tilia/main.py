@@ -43,7 +43,7 @@ from tilia.events import Event, subscribe
 
 from tilia.timelines.timeline_kinds import TimelineKind, IMPLEMENTED_TIMELINE_KINDS
 from tilia.timelines.collection import TimelineCollection
-from tilia.ui.tkinter.tkinterui import TkinterUI
+from tilia.ui.tkinterui import TkinterUI
 
 import logging
 

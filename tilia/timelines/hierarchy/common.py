@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tilia.timelines.hierarchy.components import Hierarchy
-    from tilia.ui.tkinter.timelines.hierarchy import HierarchyUI
+    from tilia.ui.timelines.hierarchy import HierarchyUI
 
 
 import logging

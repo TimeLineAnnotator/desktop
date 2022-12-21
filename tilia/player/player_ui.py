@@ -2,7 +2,7 @@ import os
 import tkinter as tk
 import logging
 
-from tilia.ui.tkinter.common import format_media_time
+from tilia.ui.common import format_media_time
 
 logger = logging.getLogger(__name__)
 from typing import Literal

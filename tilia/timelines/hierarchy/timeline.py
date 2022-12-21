@@ -7,9 +7,9 @@ from __future__ import annotations
 import logging
 
 from .common import process_parent_child_relation, ParentChildRelation
-from ..state_actions import StateAction
+from tilia.timelines.state_actions import StateAction
 from tilia.timelines.component_kinds import ComponentKind
-from ...events import Event, unsubscribe_from_all
+from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
 
 logger = logging.getLogger(__name__)

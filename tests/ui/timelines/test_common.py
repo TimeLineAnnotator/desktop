@@ -7,10 +7,10 @@ import tkinter as tk
 from tilia import globals_, events
 from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.tkinter.timelines.common import TkTimelineUICollection
-from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineUI
-from tilia.ui.tkinter.timelines.slider import SliderTimelineUI
-from tilia.ui.tkinter.tkinterui import TkinterUI
+from tilia.ui.timelines.common import TkTimelineUICollection
+from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
+from tilia.ui.timelines.slider import SliderTimelineUI
+from tilia.ui.tkinterui import TkinterUI
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def tlui_coll(tkui_mock):
     unsubscribe_from_all(_tlui_coll)
 
 
-@patch('tilia.ui.tkinter.timelines.common.TkTimelineUICollection.create_playback_line')
+@patch('tilia.ui.timelines.common.TkTimelineUICollection.create_playback_line')
 class TestTkTimelineUICollection:
 
     def test_constructor(self, tkui_mock):

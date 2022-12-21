@@ -21,16 +21,15 @@ from tilia.player import player_ui
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
+from . import file
 from .common import ask_yes_no, ask_for_directory
 from .event_handler import TkEventHandler
 from .timelines.common import TkTimelineUICollection
 from .windows.common import AppWindow
-from .windows.gotomeasure import GoToMeasureWindow
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MetadataWindow
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
-from .. import file
 
 if TYPE_CHECKING:
     from tilia.main import TiLiA
@@ -215,7 +214,6 @@ class TkinterUI:
     @staticmethod
     def on_menu_file_load_media():
         media_path = file.choose_media_file()
-        # TODO validate media path
 
         events.post(Event.FILE_REQUEST_TO_LOAD_MEDIA, media_path)
 

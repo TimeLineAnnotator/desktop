@@ -19,8 +19,8 @@ from tilia.timelines.hierarchy.common import ParentChildRelation
 from tilia.timelines.serialize import serialize_component, _deserialize_component
 from tilia.timelines.state_actions import StateAction
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.tkinter.timelines.common import TimelineUIElementManager
-from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineUI
+from tilia.ui.timelines.common import TimelineUIElementManager
+from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
 
 logger = logging.getLogger(__name__)
 

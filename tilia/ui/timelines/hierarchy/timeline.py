@@ -6,18 +6,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import tilia.ui.tkinter.timelines.copy_paste
+import tilia.ui.timelines.copy_paste
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, subscribe, unsubscribe
 from tilia.misc_enums import IncreaseOrDecrease, Side, UpOrDown
 from tilia.timelines.state_actions import StateAction
 
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.tkinter.common import ask_for_color, ask_for_int, ask_for_string
-from tilia.ui.tkinter.timelines.common import RightClickOption
+from tilia.ui.common import ask_for_color, ask_for_int, ask_for_string
+from tilia.ui.timelines.common import RightClickOption
 
 if TYPE_CHECKING:
-    from tilia.ui.tkinter.timelines.common import (
+    from tilia.ui.timelines.common import (
         TkTimelineUICollection,
         TimelineUIElementManager,
         TimelineCanvas)
@@ -30,13 +30,13 @@ import tkinter as tk
 from tilia import globals_, utils, events
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline, logger
 from tilia.timelines.hierarchy.common import ParentChildRelation, process_parent_child_relation
-from tilia.ui.tkinter.timelines.common import TimelineUI
-from tilia.ui.tkinter.timelines.hierarchy import (
+from tilia.ui.timelines.common import TimelineUI
+from tilia.ui.timelines.hierarchy import (
     HierarchyTimelineToolbar,
     HierarchyUI
 )
 
-from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError, Copyable, get_copy_data_from_element
+from tilia.ui.timelines.copy_paste import CopyError, PasteError, Copyable, get_copy_data_from_element
 from tilia.ui.element_kinds import UIElementKind
 
 
@@ -530,7 +530,7 @@ class HierarchyTimelineUI(TimelineUI):
 
         def paste_with_children_into_element(paste_data_: dict, element_: HierarchyUI):
             logger.debug(f"Pasting with children into element '{element_}' with paste data = {paste_data_}'")
-            tilia.ui.tkinter.timelines.copy_paste.paste_into_element(element_, paste_data_)
+            tilia.ui.timelines.copy_paste.paste_into_element(element_, paste_data_)
 
             if 'children' in paste_data_:
                 children_of_element = []

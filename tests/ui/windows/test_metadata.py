@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from collections import OrderedDict
 import tkinter as tk
 
-from tilia.ui.tkinter.windows.metadata import MetadataWindow, EditMetadataFieldsWindow, PERMANENT_FIELDS
+from tilia.ui.windows.metadata import MetadataWindow, EditMetadataFieldsWindow, PERMANENT_FIELDS
 
 
 class TestMetadataWindow:

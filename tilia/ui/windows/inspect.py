@@ -16,8 +16,8 @@ from tkinter.scrolledtext import ScrolledText
 from tilia import events
 from tilia.events import Event, subscribe, unsubscribe_from_all
 from tilia.timelines.common import TimelineComponent
-from tilia.ui.tkinter.windows.exceptions import UniqueWindowDuplicate
-from tilia.ui.tkinter.windows.kinds import WindowKind
+from tilia.ui.windows.exceptions import UniqueWindowDuplicate
+from tilia.ui.windows.kinds import WindowKind
 
 PADX = 5
 PADY = 5

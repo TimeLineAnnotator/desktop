@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tilia.ui.tkinter.common import LabelAndEntry
+from tilia.ui.common import LabelAndEntry
 
 
 import tkinter as tk

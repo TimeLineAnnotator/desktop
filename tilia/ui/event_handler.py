@@ -3,7 +3,7 @@ import tilia.events as events
 from tilia import globals_
 
 from tilia.events import Event
-from tilia.ui.tkinter.modifier_enum import ModifierEnum
+from tilia.ui.modifier_enum import ModifierEnum
 
 
 def on_mouse_wheel(event: tk.Event):

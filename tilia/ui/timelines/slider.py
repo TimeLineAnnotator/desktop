@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
-    from tilia.ui.tkinter.timelines.common import (
+    from tilia.ui.timelines.common import (
         TkTimelineUICollection,
         TimelineUIElementManager,
         TimelineCanvas,
@@ -19,7 +19,7 @@ from tilia import events
 from tilia.events import Event, subscribe, unsubscribe
 from tilia.timelines.common import TimelineComponent
 from tilia.ui.element_kinds import UIElementKind
-from tilia.ui.tkinter.timelines.common import TimelineUI
+from tilia.ui.timelines.common import TimelineUI
 
 import logging
 

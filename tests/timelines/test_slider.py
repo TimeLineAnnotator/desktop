@@ -5,7 +5,7 @@ import pytest
 
 from tilia.timelines.slider import SliderTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.tkinter.timelines.slider import SliderTimelineUI
+from tilia.ui.timelines.slider import SliderTimelineUI
 
 
 @pytest.fixture

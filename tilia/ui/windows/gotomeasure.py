@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk as ttk
 
 from tilia import globals_
-from tilia.ui.tkinter.windows.common import AppWindow
+from tilia.ui.windows.common import AppWindow
 
 import logging
 
@@ -38,7 +38,7 @@ class GoToMeasureWindow(AppWindow):
         self.combo_box["state"] = "readonly"
         self.combo_box.pack()
 
-        from tilia.ui.tkinter.common import LabelAndEntry
+        from tilia.ui.common import LabelAndEntry
 
         self.labelentry = LabelAndEntry(self.upper_frame, "Measure")
         self.labelentry.entry.configure(width=4)

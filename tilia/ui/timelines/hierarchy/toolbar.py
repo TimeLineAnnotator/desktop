@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from tilia import events
 from tilia.events import Event
-from tilia.ui.tkinter import event_handler
-from tilia.ui.tkinter.timelines.common import TimelineToolbar
+from tilia.ui import event_handler
+from tilia.ui.timelines.common import TimelineToolbar
 
 
 class HierarchyTimelineToolbar(TimelineToolbar):

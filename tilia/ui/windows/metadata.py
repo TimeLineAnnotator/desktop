@@ -6,8 +6,8 @@ from collections import OrderedDict
 
 from tilia import events
 from tilia.events import Event
-from tilia.ui.tkinter.windows import WindowKind, UniqueWindowDuplicate
-from tilia.ui.tkinter.common import destroy_children_recursively
+from tilia.ui.windows import WindowKind, UniqueWindowDuplicate
+from tilia.ui.common import destroy_children_recursively
 
 logger = logging.getLogger(__name__)
 
