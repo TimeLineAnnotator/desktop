@@ -1,5 +1,6 @@
 import pytest
 
+import tilia.timelines.create
 from tilia import events
 from tilia.events import Event, unsubscribe_from_all
 from tilia.files import TiliaFile
@@ -8,6 +9,7 @@ from tilia.main import TiLiA
 from tilia.file_manager import FileManager
 from tilia.player import player
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.create import create_timeline
 
 
 # noinspection PyProtectedMember
@@ -24,11 +26,6 @@ def tilia_mock():
 def file_manager(tilia_mock):
     return FileManager(tilia_mock)
 
-
-@pytest.fixture
-def tlwui_builder(tilia_mock):
-    # noinspection PyProtectedMember
-    return tilia_mock._timeline_with_ui_builder
 
 class TestTilia:
     def test_change_player_according_to_extension(self, tilia_mock):
@@ -125,11 +122,19 @@ class TestFileManager:
         modified_save_params['media_path'] = 'modified path'
         assert file_manager.was_file_modified()
 
+    def test_create_slider_timeline_no_error(self, tilia_mock):
+        create_timeline(
+            TimelineKind.SLIDER_TIMELINE,
+            tilia_mock._timeline_collection,
+            tilia_mock._timeline_ui_collection,
+             name="test"
+        )
 
-class TestTimelineWithUIBuilder:
-    def test_create_slider_timeline_no_error(self, tilia_mock, tlwui_builder):
-        tlwui_builder.create_timeline(TimelineKind.SLIDER_TIMELINE, name="test")
-
-    def test_create_hierarchy_timelin_no_error(self, tilia_mock, tlwui_builder):
-        tlwui_builder.create_timeline(TimelineKind.HIERARCHY_TIMELINE, name="test")
+    def test_create_hierarchy_timelin_no_error(self, tilia_mock):
+        create_timeline(
+            TimelineKind.HIERARCHY_TIMELINE,
+            tilia_mock._timeline_collection,
+            tilia_mock._timeline_ui_collection,
+             name="test"
+        )
 

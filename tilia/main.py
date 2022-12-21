@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from tilia.clipboard import Clipboard
 from tilia.file_manager import FileManager
+from tilia.timelines.create import create_timeline
 from tilia.undo_manager import UndoManager
 
 if TYPE_CHECKING:
@@ -63,21 +64,17 @@ class TiLiA:
         subscribe(self, Event.REQUEST_EXPORT_AUDIO_SEGMENT, self.on_request_to_export_audio_segment)
 
         self._id_counter = itertools.count()
-        self._file_manager = FileManager(self)
 
         self.ui = get_ui(ui_kind, self)
 
         self._timeline_collection = TimelineCollection(self)
         self._timeline_ui_collection = self.ui.get_timeline_ui_collection()
 
-        self._associate_timeline_and_timeline_ui_collections(
+        _associate_timeline_and_timeline_ui_collections(
             self._timeline_collection, self._timeline_ui_collection
         )
 
-        self._timeline_with_ui_builder = TimelineWithUIBuilder(
-            self._timeline_collection, self._timeline_ui_collection
-        )
-
+        self._file_manager = FileManager(self)
         self._player = player.PygamePlayer()
         self._clipboard = Clipboard()
         self._undo_manager = UndoManager()
@@ -100,6 +97,9 @@ class TiLiA:
         self._file_manager._open_file_by_path(
             r"C:\Programação\TiLiA-devresources\audio_1hrc.tla")
 
+    def get_id(self) -> str:
+        return str(next(self._id_counter))
+
     @property
     def media_length(self):
         return self._player.media_length
@@ -111,6 +111,12 @@ class TiLiA:
     @property
     def current_playback_time(self):
         return self._player.current_time
+
+    def get_media_path(self) -> str:
+        return self._player.media_path
+
+    def get_media_title(self) -> str:
+        return self._media_metadata['title']
 
     def on_request_to_load_media(self, media_path: str) -> None:
 
@@ -148,11 +154,13 @@ class TiLiA:
 
         sys.exit()
 
-    def get_id(self) -> str:
-        return str(next(self._id_counter))
-
     def _initial_file_setup(self) -> None:
-        self._timeline_with_ui_builder.create_timeline(TimelineKind.SLIDER_TIMELINE, "")
+        create_timeline(
+            TimelineKind.SLIDER_TIMELINE,
+            self._timeline_collection,
+            self._timeline_ui_collection,
+            ""
+        )
 
     def _change_player_according_to_extension(self, extension: str) -> None:
         if (
@@ -177,12 +185,6 @@ class TiLiA:
 
     def get_timelines_as_dict(self) -> dict:
         return self._timeline_collection.serialize_timelines()
-
-    def get_media_path(self) -> str:
-        return self._player.media_path
-
-    def get_media_title(self) -> str:
-        return self._media_metadata['title']
 
     def get_elements_for_pasting(self):
         logger.debug(f"Getting clipboard contents for pasting...")
@@ -216,25 +218,29 @@ class TiLiA:
             except KeyError:
                 name = ""
             components = timeline.pop("components")
-            self._timeline_with_ui_builder.create_timeline(kind, name, components)
+            create_timeline(
+                kind,
+                self._timeline_collection,
+                self._timeline_ui_collection,
+                name,
+                components
+            )
 
-        logger.info(f"Loaded _file.")
+        logger.info(f"Loaded file.")
 
     def on_add_timeline(self, kind: TimelineKind) -> None:
-        if kind != TimelineKind.HIERARCHY_TIMELINE:
+        if kind not in (TimelineKind.HIERARCHY_TIMELINE, TimelineKind.HIERARCHY_TIMELINE):
             raise NotImplementedError
         name = self.ui.ask_string(
             title="Name for new timeline", prompt="Choose name for new timeline"
         )
-        self._timeline_with_ui_builder.create_timeline(kind, name)
 
-    @staticmethod
-    def _associate_timeline_and_timeline_ui_collections(
-            timeline_collection: TimelineCollection,
-            timeline_ui_collection: TimelineUICollection,
-    ):
-        timeline_ui_collection._timeline_collection = timeline_collection
-        timeline_collection._timeline_ui_collection = timeline_ui_collection
+        create_timeline(
+            kind,
+            self._timeline_collection,
+            self._timeline_ui_collection,
+            name
+        )
 
     def on_metadata_field_edited(self, field_name: str, value: str) -> None:
         self._media_metadata[field_name] = value
@@ -250,40 +256,12 @@ class TiLiA:
         self._media_metadata = new_metadata
 
 
-class TimelineWithUIBuilder:
-    def __init__(
-            self,
-            timeline_collection: TimelineCollection,
-            timeline_ui_collection: TimelineUICollection,
-    ):
-        self.timeline_ui_collection = timeline_ui_collection
-        self.timeline_collection = timeline_collection
-
-    @staticmethod
-    def _validate_timeline_kind(timeline_kind: TimelineKind):
-        if not isinstance(timeline_kind, TimelineKind):
-            raise ValueError(
-                f"Can't create timeline: invalid timeline kind '{timeline_kind}'"
-            )
-
-    def create_timeline(
-            self, timeline_kind: TimelineKind, name: str, components: dict[int] = None
-    ):
-        self._validate_timeline_kind(timeline_kind)
-
-        timeline = self.timeline_collection.create_timeline(timeline_kind)
-        timeline_ui = self.timeline_ui_collection.create_timeline_ui(
-            timeline_kind, name
-        )
-
-        timeline.ui = timeline_ui
-        timeline_ui.timeline = timeline
-
-        if components:
-            timeline.component_manager.deserialize_components(components)
-        else:
-            if timeline_kind == TimelineKind.HIERARCHY_TIMELINE:
-                timeline.component_manager.create_initial_hierarchy()  # TODO temporary workaround. Make this into an user action.
+def _associate_timeline_and_timeline_ui_collections(
+        timeline_collection: TimelineCollection,
+        timeline_ui_collection: TimelineUICollection,
+):
+    timeline_ui_collection._timeline_collection = timeline_collection
+    timeline_collection._timeline_ui_collection = timeline_ui_collection
 
 
 def config_logging():
