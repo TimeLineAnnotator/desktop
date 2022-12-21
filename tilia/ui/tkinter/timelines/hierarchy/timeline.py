@@ -30,17 +30,17 @@ import tkinter as tk
 from tilia import globals_, utils, events
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline, logger
 from tilia.timelines.hierarchy.common import ParentChildRelation, process_parent_child_relation
-from tilia.ui.tkinter.timelines.common import TimelineTkUI
+from tilia.ui.tkinter.timelines.common import TimelineUI
 from tilia.ui.tkinter.timelines.hierarchy import (
     HierarchyTimelineToolbar,
-    HierarchyTkUI
+    HierarchyUI
 )
 
 from tilia.ui.tkinter.timelines.copy_paste import CopyError, PasteError, Copyable, get_copy_data_from_element
 from tilia.ui.element_kinds import UIElementKind
 
 
-class HierarchyTimelineTkUI(TimelineTkUI):
+class HierarchyTimelineUI(TimelineUI):
     DEFAULT_HEIGHT = 150
     CANVAS_CLASS = tk.Canvas
     LABEL_WIDTH = 15
@@ -48,7 +48,7 @@ class HierarchyTimelineTkUI(TimelineTkUI):
     LINE_YOFFSET = 3
 
     TOOLBAR_CLASS = HierarchyTimelineToolbar
-    ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyTkUI}
+    ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyUI}
     COMPONENT_KIND_TO_UIELEMENT_KIND = {
         ComponentKind.HIERARCHY: UIElementKind.HIERARCHY_TKUI
     }
@@ -111,17 +111,17 @@ class HierarchyTimelineTkUI(TimelineTkUI):
             if not element.tl_component.parent and element.tl_component.children:
                 self.rearrange_descendants_drawings_stacking_order(element)
 
-    def rearrange_descendants_drawings_stacking_order(self, element: HierarchyTkUI):
+    def rearrange_descendants_drawings_stacking_order(self, element: HierarchyUI):
         logger.debug(f"Rearranging descendants of {element}...")
 
-        def get_element_and_descendants(parent: HierarchyTkUI):
+        def get_element_and_descendants(parent: HierarchyUI):
             is_in_branch = lambda \
                 e: e.tl_component.start >= parent.tl_component.start and e.tl_component.end <= parent.tl_component.end
             elements_in_branch = self.element_manager.get_elements_by_condition(is_in_branch,
                                                                                 kind=UIElementKind.HIERARCHY_TKUI)
             return elements_in_branch
 
-        def get_drawings_to_arrange(elements: set[HierarchyTkUI]):
+        def get_drawings_to_arrange(elements: set[HierarchyUI]):
             _drawings_to_lower = set()
             for element in elements:
                 _drawings_to_lower.add(element.rect_id)
@@ -388,7 +388,7 @@ class HierarchyTimelineTkUI(TimelineTkUI):
         else:
             logger.debug(f"Selected element is first element in level. Can't select previous.")
 
-    def listen_to_hierarchy_ui_right_click_menu(self, hierarchy: HierarchyTkUI) -> None:
+    def listen_to_hierarchy_ui_right_click_menu(self, hierarchy: HierarchyUI) -> None:
         self.right_clicked_hierarchy = hierarchy
         logger.debug(f"{self} is listening for right menu option clicks...")
 
@@ -512,7 +512,7 @@ class HierarchyTimelineTkUI(TimelineTkUI):
     def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
 
         def validate_paste_with_children(paste_data_: list[dict],
-                                         elements_to_receive_paste: list[HierarchyTkUI]) -> None:
+                                         elements_to_receive_paste: list[HierarchyUI]) -> None:
             for element in elements_to_receive_paste:
                 if len(paste_data_) > 1:
                     raise PasteError("Can't paste more than one Hierarchy at the same time.")
@@ -520,7 +520,7 @@ class HierarchyTimelineTkUI(TimelineTkUI):
                     raise PasteError(
                         "Can't paste all of unit's attributes (including children) into unit of different level.")
 
-        def get_descendants(parent: HierarchyTkUI):
+        def get_descendants(parent: HierarchyUI):
             is_in_branch = lambda \
                     e: e.tl_component.start >= parent.tl_component.start and e.tl_component.end <= parent.tl_component.end
             elements_in_branch = self.element_manager.get_elements_by_condition(is_in_branch,
@@ -528,7 +528,7 @@ class HierarchyTimelineTkUI(TimelineTkUI):
             elements_in_branch.remove(parent)
             return elements_in_branch
 
-        def paste_with_children_into_element(paste_data_: dict, element_: HierarchyTkUI):
+        def paste_with_children_into_element(paste_data_: dict, element_: HierarchyUI):
             logger.debug(f"Pasting with children into element '{element_}' with paste data = {paste_data_}'")
             tilia.ui.tkinter.timelines.copy_paste.paste_into_element(element_, paste_data_)
 
@@ -551,7 +551,7 @@ class HierarchyTimelineTkUI(TimelineTkUI):
                 process_parent_child_relation(parent_child_relation)
 
         def create_child_from_paste_data(
-                new_parent: HierarchyTkUI,
+                new_parent: HierarchyUI,
                 previous_parent_start: float,
                 previous_parent_end: float,
                 child_paste_data_: dict
@@ -606,7 +606,7 @@ class HierarchyTimelineTkUI(TimelineTkUI):
 
         return self.get_copy_data_from_hierarchy_uis(selected_elements)
 
-    def get_copy_data_from_hierarchy_uis(self, hierarchy_uis: list[HierarchyTkUI]):
+    def get_copy_data_from_hierarchy_uis(self, hierarchy_uis: list[HierarchyUI]):
 
         copy_data = []
         for ui in hierarchy_uis:
@@ -614,8 +614,8 @@ class HierarchyTimelineTkUI(TimelineTkUI):
 
         return copy_data
 
-    def get_copy_data_from_hierarchy_ui(self, hierarchy_ui: HierarchyTkUI):
-        ui_data = get_copy_data_from_element(hierarchy_ui, HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES)
+    def get_copy_data_from_hierarchy_ui(self, hierarchy_ui: HierarchyUI):
+        ui_data = get_copy_data_from_element(hierarchy_ui, HierarchyUI.DEFAULT_COPY_ATTRIBUTES)
 
         if hierarchy_ui.tl_component.children:
             ui_data["children"] = [self.get_copy_data_from_hierarchy_ui(child.ui) for child in

@@ -5,7 +5,7 @@ import pytest
 
 from tilia.timelines.slider import SliderTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.tkinter.timelines.slider import SliderTimelineTkUI
+from tilia.ui.tkinter.timelines.slider import SliderTimelineUI
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def tl_with_ui() -> SliderTimeline:
 
     timeline = SliderTimeline(tl_coll_mock, None, TimelineKind.SLIDER_TIMELINE)
 
-    timeline.ui = SliderTimelineTkUI(
+    timeline.ui = SliderTimelineUI(
         timeline_ui_collection=tlui_coll_mock,
         element_manager=MagicMock(),
         canvas=MagicMock(),
@@ -53,6 +53,6 @@ class TestSliderTimeline:
 
         serialized_timeline = tl_with_ui.to_dict()
 
-        assert serialized_timeline["height"] == SliderTimelineTkUI.DEFAULT_HEIGHT
+        assert serialized_timeline["height"] == SliderTimelineUI.DEFAULT_HEIGHT
         assert serialized_timeline["is_visible"] is True
         print(serialized_timeline["display_position"])

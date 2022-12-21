@@ -19,14 +19,14 @@ from tilia import events
 from tilia.events import Event, subscribe, unsubscribe
 from tilia.timelines.common import TimelineComponent
 from tilia.ui.element_kinds import UIElementKind
-from tilia.ui.tkinter.timelines.common import TimelineTkUI
+from tilia.ui.tkinter.timelines.common import TimelineUI
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class SliderTimelineTkUI(TimelineTkUI):
+class SliderTimelineUI(TimelineUI):
 
     TOOLBAR_CLASS = None
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {}

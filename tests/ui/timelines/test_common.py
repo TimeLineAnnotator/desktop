@@ -8,8 +8,8 @@ from tilia import globals_, events
 from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.tkinter.timelines.common import TkTimelineUICollection
-from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineTkUI
-from tilia.ui.tkinter.timelines.slider import SliderTimelineTkUI
+from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineUI
+from tilia.ui.tkinter.timelines.slider import SliderTimelineUI
 from tilia.ui.tkinter.tkinterui import TkinterUI
 
 
@@ -58,7 +58,7 @@ class TestTkTimelineUICollection:
 
         tlui = tlui_coll.create_timeline_ui(TimelineKind.HIERARCHY_TIMELINE, 'test')
 
-        assert tlui.__class__ == HierarchyTimelineTkUI
+        assert tlui.__class__ == HierarchyTimelineUI
         assert tlui in tlui_coll._timeline_uis
         assert tlui_coll._select_order[0] == tlui
 
@@ -66,7 +66,7 @@ class TestTkTimelineUICollection:
 
         tlui = tlui_coll.create_timeline_ui(TimelineKind.SLIDER_TIMELINE, 'test')
 
-        assert tlui.__class__ == SliderTimelineTkUI
+        assert tlui.__class__ == SliderTimelineUI
         assert tlui in tlui_coll._timeline_uis
         assert tlui_coll._select_order[0] == tlui
 

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tilia.timelines.hierarchy.components import Hierarchy
-    from tilia.ui.tkinter.timelines.hierarchy import HierarchyTkUI
+    from tilia.ui.tkinter.timelines.hierarchy import HierarchyUI
 
 
 import logging
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 class ParentChildRelation(NamedTuple):
     """Named tuple to facilitate the handling of parent and children attribute of hierarchies."""
 
-    parent: Hierarchy | HierarchyTkUI
-    children: list[Hierarchy | HierarchyTkUI]
+    parent: Hierarchy | HierarchyUI
+    children: list[Hierarchy | HierarchyUI]
 
 
 def process_parent_child_relation(relation: ParentChildRelation):

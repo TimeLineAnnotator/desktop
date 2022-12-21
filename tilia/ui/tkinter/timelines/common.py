@@ -17,7 +17,7 @@ if TYPE_CHECKING:
         TimelineUIElement,
     )
     from tilia.ui.tkinter.tkinterui import TkinterUI
-    from tilia.ui.tkinter.timelines.slider import SliderTimelineTkUI
+    from tilia.ui.tkinter.timelines.slider import SliderTimelineUI
 
 import logging
 
@@ -27,11 +27,6 @@ import tkinter.messagebox
 
 from tilia import events, settings
 from tilia.ui.element_kinds import UIElementKind
-from tilia.ui.timelines.common import (
-    TimelineUI,
-    TimelineUICollection,
-    TimelineUIElement,
-)
 from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
 from tilia.repr import default_repr
 from tilia.timelines.component_kinds import ComponentKind
@@ -133,7 +128,7 @@ class TimelineCanvas(tk.Canvas):
         return 0, 0, self._label_width, self.winfo_reqheight()
 
 
-class TkTimelineUICollection(TimelineUICollection):
+class TkTimelineUICollection:
     """
     Collection of timeline uis. Responsible for:
         - Creating timeline uis;
@@ -232,7 +227,7 @@ class TkTimelineUICollection(TimelineUICollection):
         logger.debug(f"Changing to timeline widht to {value}.")
         self._app_ui.timeline_width = value
 
-    def create_timeline_ui(self, kind: TimelineKind, name: str) -> TimelineTkUI:
+    def create_timeline_ui(self, kind: TimelineKind, name: str) -> TimelineUI:
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
 
         canvas = self.create_timeline_canvas(name, timeline_class.DEFAULT_HEIGHT)
@@ -265,7 +260,7 @@ class TkTimelineUICollection(TimelineUICollection):
 
         return tl_ui
 
-    def delete_timeline_ui(self, timeline_ui: TimelineTkUI):
+    def delete_timeline_ui(self, timeline_ui: TimelineUI):
         """Deletes given timeline ui. To be called by TimelineCollection
         after a Timeline has been deleted"""
         timeline_ui.delete()
@@ -275,11 +270,11 @@ class TkTimelineUICollection(TimelineUICollection):
         if timeline_ui.toolbar:
             self._delete_timeline_ui_toolbar_if_necessary(timeline_ui)
 
-    def _add_to_timeline_uis_set(self, timeline_ui: TimelineTkUI) -> None:
+    def _add_to_timeline_uis_set(self, timeline_ui: TimelineUI) -> None:
         logger.debug(f"Adding timeline ui '{timeline_ui}' to {self}.")
         self._timeline_uis.add(timeline_ui)
 
-    def _remove_from_timeline_uis_set(self, timeline_ui: TimelineTkUI) -> None:
+    def _remove_from_timeline_uis_set(self, timeline_ui: TimelineUI) -> None:
         logger.debug(f"Removing timeline ui '{timeline_ui}' to {self}.")
         try:
             self._timeline_uis.remove(timeline_ui)
@@ -288,11 +283,11 @@ class TkTimelineUICollection(TimelineUICollection):
                 f"Can't remove timeline ui '{timeline_ui}' from {self}: not in self.timeline_uis."
             )
 
-    def _add_to_timeline_ui_select_order(self, tl_ui: TimelineTkUI) -> None:
+    def _add_to_timeline_ui_select_order(self, tl_ui: TimelineUI) -> None:
         logger.debug(f"Inserting timeline into {self} select order.")
         self._select_order.insert(0, tl_ui)
 
-    def _remove_from_timeline_ui_select_order(self, tl_ui: TimelineTkUI) -> None:
+    def _remove_from_timeline_ui_select_order(self, tl_ui: TimelineUI) -> None:
         logger.debug(f"Removing timeline from {self} select order.")
         try:
             self._select_order.remove(tl_ui)
@@ -301,11 +296,11 @@ class TkTimelineUICollection(TimelineUICollection):
                 f"Can't remove timeline ui '{tl_ui}' from select order: not in select order."
             )
 
-    def _add_to_timeline_ui_display_order(self, tl_ui: TimelineTkUI) -> None:
+    def _add_to_timeline_ui_display_order(self, tl_ui: TimelineUI) -> None:
         logger.debug(f"Inserting timeline into {self} display order.")
         self._display_order.append(tl_ui)
 
-    def _remove_from_timeline_ui_display_order(self, tl_ui: TimelineTkUI) -> None:
+    def _remove_from_timeline_ui_display_order(self, tl_ui: TimelineUI) -> None:
         logger.debug(f"Removing timeline from {self} display order.")
         try:
             self._display_order.remove(tl_ui)
@@ -341,10 +336,10 @@ class TkTimelineUICollection(TimelineUICollection):
 
         logger.debug(f"New display order is {self._display_order}.")
 
-    def get_timeline_display_position(self, tl_ui: TimelineTkUI):
+    def get_timeline_display_position(self, tl_ui: TimelineUI):
         return self._display_order.index(tl_ui)
 
-    def _send_to_top_of_select_order(self, tl_ui: TimelineTkUI):
+    def _send_to_top_of_select_order(self, tl_ui: TimelineUI):
         """
         Sends given timeline to top of selecting order.
         Ui commands (e.g. button clicks) are send to topmost timeline
@@ -367,7 +362,7 @@ class TkTimelineUICollection(TimelineUICollection):
         canvas.grid(row=row_number, column=0, sticky="ew")
 
     @staticmethod
-    def hide_timeline_ui(timeline_ui: TimelineTkUI):
+    def hide_timeline_ui(timeline_ui: TimelineUI):
 
         timeline_ui.canvas.grid_forget()
         timeline_ui.is_visible = False
@@ -375,7 +370,7 @@ class TkTimelineUICollection(TimelineUICollection):
         if timeline_ui.toolbar:
             timeline_ui.toolbar.process_visiblity_change(False)
 
-    def show_timeline_ui(self, timeline_ui: TimelineTkUI):
+    def show_timeline_ui(self, timeline_ui: TimelineUI):
 
         timeline_ui.canvas.grid(row=self.get_timeline_display_position(timeline_ui), column=0, sticky='ew')
         timeline_ui.is_visible = True
@@ -384,13 +379,13 @@ class TkTimelineUICollection(TimelineUICollection):
             timeline_ui.toolbar.process_visiblity_change(True)
 
     @staticmethod
-    def get_timeline_ui_class_from_kind(kind: TimelineKind) -> type(TimelineTkUI):
-        from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineTkUI
-        from tilia.ui.tkinter.timelines.slider import SliderTimelineTkUI
+    def get_timeline_ui_class_from_kind(kind: TimelineKind) -> type(TimelineUI):
+        from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineUI
+        from tilia.ui.tkinter.timelines.slider import SliderTimelineUI
 
         kind_to_class_dict = {
-            TimelineKind.HIERARCHY_TIMELINE: HierarchyTimelineTkUI,
-            TimelineKind.SLIDER_TIMELINE: SliderTimelineTkUI,
+            TimelineKind.HIERARCHY_TIMELINE: HierarchyTimelineUI,
+            TimelineKind.SLIDER_TIMELINE: SliderTimelineUI,
         }
 
         class_ = kind_to_class_dict[kind]
@@ -705,7 +700,7 @@ class TkTimelineUICollection(TimelineUICollection):
 
             self.create_playback_line(tl_ui)
 
-    def create_playback_line(self, timeline_ui: TimelineTkUI):
+    def create_playback_line(self, timeline_ui: TimelineUI):
         line_id = draw_playback_line(
             timeline_ui=timeline_ui,
             initial_time=self._timeline_collection.get_current_playback_time()
@@ -721,7 +716,7 @@ class TkTimelineUICollection(TimelineUICollection):
     def on_slider_drag(self, is_dragging: bool) -> None:
         self.slider_is_being_dragged = is_dragging
 
-    def auto_scroll(self, timeline_ui: TimelineTkUI, time: float):
+    def auto_scroll(self, timeline_ui: TimelineUI, time: float):
         visible_width = timeline_ui.canvas.winfo_width()
         trough_x = self.get_x_by_time(time)
 
@@ -733,12 +728,12 @@ class TkTimelineUICollection(TimelineUICollection):
         for tl_ui in self._timeline_uis:
             self.center_view_at_x(tl_ui, center_x)
 
-    def center_view_at_x(self, timeline_ui: TimelineTkUI, x: int) -> None:
+    def center_view_at_x(self, timeline_ui: TimelineUI, x: int) -> None:
         scroll_fraction = (x / self.get_timeline_total_size())
         timeline_ui.canvas.xview_moveto(scroll_fraction)
 
 
-    def change_playback_line_position(self, timeline_ui: TimelineTkUI, time: float):
+    def change_playback_line_position(self, timeline_ui: TimelineUI, time: float):
         if timeline_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
             return
 
@@ -785,7 +780,7 @@ class TkTimelineUICollection(TimelineUICollection):
         return self._app_ui.timeline_total_size
 
     def _delete_timeline_ui_toolbar_if_necessary(
-            self, deleted_timeline_ui: TimelineTkUI
+            self, deleted_timeline_ui: TimelineUI
     ):
         logger.debug(
             f"Checking if it is necessary to delete {deleted_timeline_ui} toolbar."
@@ -808,13 +803,13 @@ class TkTimelineUICollection(TimelineUICollection):
         timeline = self._get_timeline_ui_by_id(id_)
         return getattr(timeline, attribute)
 
-    def _get_timeline_ui_by_id(self, id_: int) -> TimelineTkUI:
+    def _get_timeline_ui_by_id(self, id_: int) -> TimelineUI:
         return next((e for e in self._timeline_uis if e.timeline.id == id_), None)
 
     def get_timeline_uis(self):
         return self._timeline_uis
 
-    def get_timeline_ui_by_id(self, tl_ui_id: int) -> TimelineTkUI:
+    def get_timeline_ui_by_id(self, tl_ui_id: int) -> TimelineUI:
         return self._timeline_collection.get_timeline_by_id(tl_ui_id).ui
 
     def _on_request_to_delete_timeline(self, id_: int) -> None:
@@ -823,7 +818,7 @@ class TkTimelineUICollection(TimelineUICollection):
             self._timeline_collection.delete_timeline(timeline_ui.timeline)
 
     @staticmethod
-    def _ask_delete_timeline(timeline_ui: TimelineTkUI):
+    def _ask_delete_timeline(timeline_ui: TimelineUI):
         return tk.messagebox.askyesno(
             "Delete timeline?", f"Are you sure you want to delete timeline {str(timeline_ui)}?"
         )
@@ -851,7 +846,7 @@ class TkTimelineUICollection(TimelineUICollection):
         self._select_order[0].canvas.focus_set()
 
 
-def change_playback_line_x(timeline_ui: TimelineTkUI, playback_line_id: int, x: float) -> None:
+def change_playback_line_x(timeline_ui: TimelineUI, playback_line_id: int, x: float) -> None:
     timeline_ui.canvas.coords(
         playback_line_id, x, 0, x, timeline_ui.height,
     )
@@ -859,7 +854,7 @@ def change_playback_line_x(timeline_ui: TimelineTkUI, playback_line_id: int, x: 
     timeline_ui.canvas.tag_raise(playback_line_id)
 
 
-def draw_playback_line(timeline_ui: TimelineTkUI, initial_time: float) -> int:
+def draw_playback_line(timeline_ui: TimelineUI, initial_time: float) -> int:
     line_id = timeline_ui.canvas.create_line(
         timeline_ui.get_x_by_time(initial_time),
         0,
@@ -874,9 +869,9 @@ def draw_playback_line(timeline_ui: TimelineTkUI, initial_time: float) -> int:
     return line_id
 
 
-class TimelineTkUIElement(TimelineUIElement, ABC):
+class TimelineUIElement(ABC):
     """Interface for the tkinter ui objects corresponding to to a TimelineComponent instance.
-    E.g.: the HierarchyTkUI in the ui element corresponding to the Hierarchy timeline component."""
+    E.g.: the HierarchyUI in the ui element corresponding to the Hierarchy timeline component."""
 
     def __init__(
             self,
@@ -886,10 +881,11 @@ class TimelineTkUIElement(TimelineUIElement, ABC):
             canvas: tk.Canvas,
             **kwargs,
     ):
-        super().__init__(
-            *args, tl_component=tl_component, timeline_ui=timeline_ui, **kwargs
-        )
+        super().__init__()
 
+        self.tl_component = tl_component
+        self.timeline_ui = timeline_ui
+        self.id = timeline_ui.get_id()
         self.canvas = canvas
 
     @abstractmethod
@@ -909,7 +905,7 @@ class TimelineUIElementManager:
 
     @log_object_creation
     def __init__(
-            self, element_kinds_to_classes: dict[UIElementKind: type(TimelineTkUIElement)]
+            self, element_kinds_to_classes: dict[UIElementKind: type(TimelineUIElement)]
     ):
 
         self._elements = set()
@@ -929,7 +925,7 @@ class TimelineUIElementManager:
             self,
             kind: UIElementKind,
             component: TimelineComponent,
-            timeline_ui: TimelineTkUI,
+            timeline_ui: TimelineUI,
             canvas: TimelineCanvas,
             *args,
             **kwargs,
@@ -1053,10 +1049,10 @@ class TimelineUIElementManager:
                 f"Can't remove element '{element}' from selected objects of {self}: not in self._selected_elements."
             )
 
-    def get_selected_elements(self) -> list[TimelineTkUIElement]:
+    def get_selected_elements(self) -> list[TimelineUIElement]:
         return self._selected_elements
 
-    def delete_element(self, element: TimelineTkUIElement):
+    def delete_element(self, element: TimelineUIElement):
         logger.debug(f"Deleting UI element '{element}'")
         self._deselect_if_selected(element)
         element.delete()
@@ -1153,7 +1149,7 @@ class CanSeekTo(Protocol):
     seek_time: float
 
 
-class TimelineTkUI(TimelineUI, ABC):
+class TimelineUI(ABC):
     """
     Interface for the ui of a Timeline object.
     Is composed of:
@@ -1177,7 +1173,7 @@ class TimelineTkUI(TimelineUI, ABC):
             *args,
             timeline_ui_collection: TkTimelineUICollection,
             timeline_ui_element_manager: TimelineUIElementManager,
-            component_kinds_to_classes: dict[UIElementKind: type(TimelineTkUIElement)],
+            component_kinds_to_classes: dict[UIElementKind: type(TimelineUIElement)],
             component_kinds_to_ui_element_kinds: dict[ComponentKind:UIElementKind],
             canvas: TimelineCanvas,
             toolbar: TimelineToolbar,
@@ -1186,14 +1182,14 @@ class TimelineTkUI(TimelineUI, ABC):
             is_visible: bool,
             **kwargs
     ):
-        super().__init__(
-            *args,
-            timeline_ui_collection=timeline_ui_collection,
-            height=height,
-            is_visible=is_visible,
-            name=name,
-            **kwargs
-        )
+        super().__init__()
+
+        self.timeline_ui_collection = timeline_ui_collection
+        self.height = height
+        self.visible = is_visible
+        self.name = name
+
+        self._timeline = None
 
         self.component_kinds_to_ui_element_kinds = component_kinds_to_ui_element_kinds
         self.element_manager = timeline_ui_element_manager
@@ -1203,15 +1199,21 @@ class TimelineTkUI(TimelineUI, ABC):
 
         self._setup_visiblity(is_visible)
 
-    #     self.create_playback_line()
-    #
-    # def create_playback_line(self):
-    #     self.playback_line_id = draw_playback_line(
-    #         timeline_ui=self,
-    #         initial_time=self.timeline_ui_collection._timelineget_current_playback_time()
-    #     )
-    #
-    #     self.canvas.tag_raise(self.playback_line_id)
+    @property
+    def timeline(self):
+        return self._timeline
+
+    @timeline.setter
+    def timeline(self, value):
+        logger.debug(f"Setting {self} timeline as {value}")
+        self._timeline = value
+
+    @property
+    def display_position(self):
+        return self.timeline_ui_collection.get_timeline_display_position(self)
+
+    def get_id(self) -> str:
+        return self.timeline_ui_collection.get_id()
 
     def _change_name(self, name: str):
         self.name = name
@@ -1221,11 +1223,6 @@ class TimelineTkUI(TimelineUI, ABC):
         self.height = height
         self.canvas.update_height(height)
         self.update_elements_position()
-
-    # noinspection PyUnresolvedReferences
-    @property
-    def display_position(self):
-        return self.timeline_ui_collection.get_timeline_display_position(self)
 
     # noinspection PyUnresolvedReferences
     def _setup_visiblity(self, is_visible: bool):
@@ -1424,7 +1421,7 @@ class TimelineTkUI(TimelineUI, ABC):
 
     def _log_and_get_elements_for_button_processing(
             self, action_str_for_log: str
-    ) -> list[TimelineTkUIElement] | None:
+    ) -> list[TimelineUIElement] | None:
         """Gets selected elements to start with button click processing.
         Logs process start and if there is nothing to do, if that is the case.
         If timeline is not is_visible or there are no selected elements, there is nothing to do"""
@@ -1457,7 +1454,7 @@ class TimelineTkUI(TimelineUI, ABC):
         for component in selected_tl_components:
             self.timeline.on_request_to_delete_component(component)
 
-    def delete_element(self, element: TimelineTkUIElement):
+    def delete_element(self, element: TimelineUIElement):
         self.element_manager.delete_element(element)
 
     def debug_selected_elements(self):

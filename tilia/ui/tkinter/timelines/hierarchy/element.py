@@ -15,7 +15,7 @@ from tilia.ui.tkinter.timelines.common import RightClickOption
 from ...common import format_media_time
 
 if TYPE_CHECKING:
-    from .timeline import HierarchyTimelineTkUI
+    from .timeline import HierarchyTimelineUI
     from tilia.timelines.hierarchy.components import Hierarchy
     from tilia.ui.tkinter.timelines.common import TimelineCanvas, RightClickOption
 
@@ -31,10 +31,10 @@ from tilia.timelines.common import (
     log_object_deletion,
 )
 
-from tilia.ui.tkinter.timelines.common import TimelineTkUIElement
+from tilia.ui.tkinter.timelines.common import TimelineUIElement
 
 
-class HierarchyTkUI(TimelineTkUIElement):
+class HierarchyUI(TimelineUIElement):
 
     WIDTH = 0
     BASE_HEIGHT = 25
@@ -110,7 +110,7 @@ class HierarchyTkUI(TimelineTkUIElement):
     def __init__(
             self,
             unit: Hierarchy,
-            timeline_ui: HierarchyTimelineTkUI,
+            timeline_ui: HierarchyTimelineUI,
             canvas: tk.Canvas,
             label: str = "",
             color: str = "",
@@ -141,12 +141,12 @@ class HierarchyTkUI(TimelineTkUIElement):
     def create(
             cls,
             unit: Hierarchy,
-            timeline_ui: HierarchyTimelineTkUI,
+            timeline_ui: HierarchyTimelineUI,
             canvas: TimelineCanvas,
             **kwargs,
-    ) -> HierarchyTkUI:
+    ) -> HierarchyUI:
 
-        return HierarchyTkUI(unit, timeline_ui, canvas, **kwargs)
+        return HierarchyUI(unit, timeline_ui, canvas, **kwargs)
 
     @property
     def start_x(self):

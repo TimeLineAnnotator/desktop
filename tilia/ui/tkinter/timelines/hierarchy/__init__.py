@@ -1,3 +1,3 @@
-from .element import HierarchyTkUI
+from .element import HierarchyUI
 from .toolbar import HierarchyTimelineToolbar
-from .timeline import HierarchyTimelineTkUI
+from .timeline import HierarchyTimelineUI

@@ -20,7 +20,7 @@ from tilia.timelines.serialize import serialize_component, _deserialize_componen
 from tilia.timelines.state_actions import StateAction
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.tkinter.timelines.common import TimelineUIElementManager
-from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineTkUI
+from tilia.ui.tkinter.timelines.hierarchy import HierarchyTimelineUI
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +38,10 @@ def tl_with_ui() -> HierarchyTimeline:
     component_manager = HierarchyTLComponentManager()
     timeline = HierarchyTimeline(tl_coll_mock, component_manager)
 
-    timeline.ui = HierarchyTimelineTkUI(
+    timeline.ui = HierarchyTimelineUI(
         timeline_ui_collection=tlui_coll_mock,
         element_manager=TimelineUIElementManager(
-            HierarchyTimelineTkUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
+            HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
         ),
         canvas=MagicMock(),
         toolbar=MagicMock(),
@@ -235,7 +235,7 @@ class TestHierarchyTimeline:
 
         serialized_timeline = tl_with_ui.to_dict()
 
-        assert serialized_timeline["height"] == HierarchyTimelineTkUI.DEFAULT_HEIGHT
+        assert serialized_timeline["height"] == HierarchyTimelineUI.DEFAULT_HEIGHT
         assert serialized_timeline["is_visible"] is True
         assert serialized_timeline["kind"] == TimelineKind.HIERARCHY_TIMELINE.name
         assert len(serialized_timeline["components"])

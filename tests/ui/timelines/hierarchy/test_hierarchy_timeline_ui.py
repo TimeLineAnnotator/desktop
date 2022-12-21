@@ -10,9 +10,9 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.common import ParentChildRelation
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline, HierarchyTLComponentManager
-from tilia.ui.tkinter.timelines.hierarchy import HierarchyTkUI
+from tilia.ui.tkinter.timelines.hierarchy import HierarchyUI
 from tilia.ui.tkinter.timelines.hierarchy.timeline import (
-    HierarchyTimelineTkUI, HierarchyTimelineToolbar
+    HierarchyTimelineUI, HierarchyTimelineToolbar
 )
 from tilia.ui.tkinter.timelines.common import TkTimelineUICollection, TimelineUIElementManager
 from tilia.ui.tkinter.timelines.copy_paste import PasteError
@@ -48,10 +48,10 @@ def tl_with_ui() -> HierarchyTimeline:
 
     component_manager = HierarchyTLComponentManager()
     timeline = HierarchyTimeline(tl_coll_mock, component_manager)
-    timeline_ui = HierarchyTimelineTkUI(
+    timeline_ui = HierarchyTimelineUI(
         timeline_ui_collection=tlui_coll_mock,
         element_manager=TimelineUIElementManager(
-            HierarchyTimelineTkUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
+            HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
         ),
         canvas=tk.Canvas(),
         toolbar=MagicMock(),
@@ -77,9 +77,9 @@ def mock_tluicoll():
 
 @pytest.fixture
 def hierarchy_tlui(mock_tluicoll):
-    htlui = HierarchyTimelineTkUI(
+    htlui = HierarchyTimelineUI(
         timeline_ui_collection=mock_tluicoll,
-        element_manager=TimelineUIElementManager(HierarchyTimelineTkUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES),
+        element_manager=TimelineUIElementManager(HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES),
         canvas=tk.Canvas(),
         toolbar=MagicMock(),
         name='testHTL'
@@ -101,10 +101,10 @@ def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
 
 
 def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:
-    for attr in HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
+    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
         setattr(hierarchy, attr, f'test {attr} - {id(hierarchy)}')
 
-    for attr in HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES.by_element_value:
+    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_element_value:
         if attr == 'color':
             setattr(hierarchy.ui, attr, f"#FFFFFF")
             continue
@@ -112,10 +112,10 @@ def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:
 
 
 def assert_are_copies(hierarchy1: Hierarchy, hierarchy2: Hierarchy):
-    for attr in HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
+    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
         assert getattr(hierarchy1, attr) == getattr(hierarchy2, attr)
 
-    for attr in HierarchyTkUI.DEFAULT_COPY_ATTRIBUTES.by_element_value:
+    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_element_value:
         assert getattr(hierarchy1.ui, attr) == getattr(hierarchy2.ui, attr)
 
 
@@ -143,9 +143,9 @@ def assert_is_copy_data_of(copy_data: dict, hierarchy_ui: Hierarchy):
 class TestHierarchyTimelineTkUI:
 
     def test_constructor(self, mock_tluicoll):
-        HierarchyTimelineTkUI(
+        HierarchyTimelineUI(
             timeline_ui_collection=mock_tluicoll,
-            element_manager=TimelineUIElementManager(HierarchyTimelineTkUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES),
+            element_manager=TimelineUIElementManager(HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES),
             canvas=tk.Canvas(),
             toolbar=HierarchyTimelineToolbar,
             name='testHTL'
@@ -298,7 +298,7 @@ class TestHierarchyTimelineTkUI:
         # assert child2_copy_data in copy_data['children']
         pass
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_without_children_into_selected_elements(self, on_select_mock, tl_with_ui):
 
         on_select_mock.return_value = None
@@ -345,7 +345,7 @@ class TestHierarchyTimelineTkUI:
         assert_is_copy_data_of(copy_data[0], hrc3.ui)
 
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_with_children_into_selected_elements_without_rescaling(self, on_select_mock, tl_with_ui):
 
         on_select_mock.return_value = None
@@ -384,7 +384,7 @@ class TestHierarchyTimelineTkUI:
         assert_are_copies(copied_children_1, hrc1)
         assert_are_copies(copied_children_2, hrc2)
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_with_children_into_selected_elements_with_rescaling(self, on_select_mock, tl_with_ui):
 
         on_select_mock.return_value = None
@@ -417,7 +417,7 @@ class TestHierarchyTimelineTkUI:
         assert copied_children_2.start == 1.25
         assert copied_children_2.end == 1.5
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_with_children_that_have_children(self, on_select_mock, tl_with_ui):
 
         on_select_mock.return_value = None
@@ -460,7 +460,7 @@ class TestHierarchyTimelineTkUI:
         assert copied_children_2.children[0].start == 1.5
         assert copied_children_2.children[0].end == 2.0
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_with_children_into_different_level_raises_error(self, on_select_mock, tl_with_ui):
 
         on_select_mock.return_value = None
@@ -481,7 +481,7 @@ class TestHierarchyTimelineTkUI:
         with pytest.raises(PasteError):
             tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_with_children_paste_two_elements_raises_error(self, on_select_mock, tl_with_ui):
 
         on_select_mock.return_value = None
@@ -587,7 +587,7 @@ class TestHierarchyTimelineTkUI:
         assert list(tl_with_ui.component_manager._components)[0].ui.label == 'initial value'
         assert list(tl_with_ui.component_manager._components)[0].ui.comments == 'some comments'
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_undo_paste(self, on_select_mock, tl_with_ui, undo_manager):
 
         on_select_mock.return_value = None
@@ -604,7 +604,7 @@ class TestHierarchyTimelineTkUI:
 
         assert 'hrc2' in [h.ui.label for h in tl_with_ui.component_manager._components]
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_redo_paste(self, on_select_mock, tl_with_ui, undo_manager):
 
         on_select_mock.return_value = None
@@ -622,7 +622,7 @@ class TestHierarchyTimelineTkUI:
 
         assert 'hrc2' not in [h.ui.label for h in tl_with_ui.component_manager._components]
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_undo_paste_with_children(self, on_select_mock, tl_with_ui, undo_manager):
 
         on_select_mock.return_value = None
@@ -643,7 +643,7 @@ class TestHierarchyTimelineTkUI:
 
         assert len(tl_with_ui.component_manager._components) == 3
 
-    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyTkUI.on_select")
+    @patch("tilia.ui.tkinter.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_redo_paste_with_children(self, on_select_mock, tl_with_ui, undo_manager):
 
         on_select_mock.return_value = None

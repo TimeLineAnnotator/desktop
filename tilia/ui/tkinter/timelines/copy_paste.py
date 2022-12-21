@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable, TYPE_CHECKING
 
-from tilia import events
-from tilia.events import Event
+if TYPE_CHECKING:
+    from tilia.ui.tkinter.timelines.common import TimelineUIElement
+
 from tilia.exceptions import AppException
 from tilia.timelines.common import TimelineComponent
-from tilia.timelines.state_actions import StateAction
-from tilia.ui.timelines.common import TimelineUIElement
 
 import logging
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,6 @@ def get_copy_data_from_element(
         element: Copyable,
         copy_attrs: CopyAttributes
 ) -> dict:
-    """TODO"""
 
     by_element_value = {}
     for attr in copy_attrs.by_element_value:
