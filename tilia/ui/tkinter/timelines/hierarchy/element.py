@@ -35,7 +35,6 @@ from tilia.ui.tkinter.timelines.common import TimelineTkUIElement
 
 
 class HierarchyTkUI(TimelineTkUIElement):
-    """Ignores extra kwargs. In that way we may simply forward the kwargs from given to the component, regardless of whether they will be used."""
 
     WIDTH = 0
     BASE_HEIGHT = 25
@@ -448,7 +447,6 @@ class HierarchyTkUI(TimelineTkUIElement):
 
     def on_double_left_click(self, _) -> None:
         events.post(Event.PLAYER_REQUEST_TO_SEEK, self.tl_component.start)
-        print('DOUBLE!!!')
 
     @property
     def right_click_triggers(self) -> tuple[int, ...]:
