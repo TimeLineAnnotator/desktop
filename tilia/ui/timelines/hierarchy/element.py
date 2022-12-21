@@ -512,6 +512,7 @@ class HierarchyUI(TimelineUIElement):
     def drag(self, x: int, _) -> None:
         logger.debug(f"Dragging self {self.drag_data['extremity']} marker...")
         drag_x = x
+
         if x > self.drag_data["max_x"]:
             logger.debug(
                 f"Mouse is beyond right drag limit. Dragging to max x='{self.drag_data['max_x']}'"
@@ -525,9 +526,9 @@ class HierarchyUI(TimelineUIElement):
         else:
             logger.debug(f"Dragging to x='{x}'.")
 
-        self.tl_component.on_ui_changes_start_or_end_time(
-            self.timeline_ui.get_time_by_x(drag_x), self.drag_data["extremity"]
-        )
+        # update timeline component value
+        setattr(self.tl_component, self.drag_data["extremity"].value, self.timeline_ui.get_time_by_x(drag_x))
+
         self.update_position()
 
     def end_drag(self):

@@ -63,8 +63,8 @@ class Hierarchy(TimelineComponent):
 
         super().__init__(timeline)
 
-        self.start = start
-        self.end = end
+        self._start = start
+        self._end = end
         self.level = level
         self.comments = comments
 
@@ -90,20 +90,23 @@ class Hierarchy(TimelineComponent):
         self.timeline.on_request_to_delete_component(self)
         self.ui.delete()
 
-    def on_ui_changes_start_or_end_time(
-        self, time: float, extremity: StartOrEnd
-    ) -> None:
-        logger.debug(f"Changing {self} {extremity.value} to {time}")
-        setattr(self, extremity.value, time)
+    @property
+    def start(self):
+        return self._start
 
-    # noinspection PyUnresolvedReferences
-    class HierarchyRightClickMenu(tk.Menu):
-        def __init__(self, unit):
-            super().__init__(tearoff=0)
-            self.add_command(
-                label="Change unit color", command=unit.ask_change_color
-            )
-            self.add_command(label="Reset unit color", command=unit.reset_color)
+    @start.setter
+    def start(self, value):
+        logger.debug(f"Setting {self} start to {value}")
+        self._start = value
+
+    @property
+    def end(self):
+        return self._end
+
+    @end.setter
+    def end(self, value):
+        logger.debug(f"Setting {self} end to {value}")
+        self._end = value
 
     def __repr__(self):
         repr_ = f"Hierarchy({self.start}, {self.end}, {self.level}"
