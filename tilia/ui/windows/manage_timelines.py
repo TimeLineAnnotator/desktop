@@ -30,7 +30,7 @@ class ManageTimelines:
         self.toplevel = tk.Toplevel()
         self.toplevel.title("Manage timelines")
         self.toplevel.protocol("WM_DELETE_WINDOW", self.on_close)
-        self.transient(self._app_ui.root)
+        self.toplevel.transient(self._app_ui.root)
 
         logger.debug(f"Existing timelines ids and display strings are {timeline_ids_and_display_strings}")
         self.tl_ids_and_strings = timeline_ids_and_display_strings

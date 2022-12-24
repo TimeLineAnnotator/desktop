@@ -24,7 +24,7 @@ from tilia.events import Event, subscribe
 from . import file
 from .common import ask_yes_no, ask_for_directory
 from .event_handler import TkEventHandler
-from .timelines.common import TkTimelineUICollection
+from .timelines.common import TimelineUICollection
 from .windows.common import AppWindow
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MetadataWindow
@@ -108,7 +108,8 @@ class TkinterUI:
         self.root.report_callback_exception = handle_exception
 
         self.root.title(globals_.APP_NAME)
-        self.root.iconbitmap(globals_.APP_ICON_PATH)
+        icon = tk.PhotoImage(file=globals_.APP_ICON_PATH)
+        self.root.iconphoto(True, icon)
 
         self.root.protocol(
             "WM_DELETE_WINDOW", lambda: events.post(Event.APP_REQUEST_TO_CLOSE)
@@ -127,7 +128,7 @@ class TkinterUI:
 
     def _create_timeline_ui_collection(self):
 
-        self.timeline_ui_collection = TkTimelineUICollection(
+        self.timeline_ui_collection = TimelineUICollection(
             self,
             self.scrollable_frame,
             self.hscrollbar,
