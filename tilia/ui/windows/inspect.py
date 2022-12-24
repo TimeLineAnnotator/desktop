@@ -32,13 +32,9 @@ class Inspect:
     correct updating.
     """
 
-    _instanced = False
     KIND = WindowKind.INSPECT
 
     def __init__(self, parent) -> None:
-
-        if Inspect._instanced:
-            raise UniqueWindowDuplicate(self.KIND)
 
         subscribe(self, Event.INSPECTABLE_ELEMENT_SELECTED, self.on_timeline_component_selected)
         subscribe(self, Event.INSPECTABLE_ELEMENT_DESELECTED, self.on_timeline_component_deselected)
@@ -50,7 +46,6 @@ class Inspect:
         self.toplevel.title("Inspect")
         self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
         self.toplevel.focus()
-        # self.toplevel.geometry(f"+{int(musan_globals.ROOT.winfo_screenwidth() - 400)}+{int(musan_globals.ROOT.winfo_screenheight() / 2)}")
 
         self.currently_inspected_class = None
         self.field_widgets = None
