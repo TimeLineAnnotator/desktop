@@ -14,29 +14,6 @@ logger = logging.getLogger(__name__)
 LOGGER = logging.getLogger()
 
 
-class StateSavable:
-    """Objects that can be saved in file."""
-
-    def __init__(self, *args, savable_obj, **kwargs):
-
-        super().__init__(*args, **kwargs)
-
-        self.savable = True  # also enables saving to file
-        self.state_savable_obj = savable_obj
-
-    def to_dict(self):
-        """Saves savable_obj data to a dict"""
-        return self.state_savable_obj.to_dict()
-
-    def from_dict(self, dict):
-        """Loads savable_obj data from a dict"""
-        self.state_savable_obj.from_dict(dict)
-
-    def clear_state_stack(self):
-        "Calls clear() in savable_obj's state_stack"
-        self.state_savable_obj.state_stack.clear()
-
-
 class ObjectRightClickMenu:
     """Mixin for objects that have a right click menu"""
 

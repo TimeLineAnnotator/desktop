@@ -112,7 +112,7 @@ class TkinterUI:
         self.root.iconphoto(True, icon)
 
         self.root.protocol(
-            "WM_DELETE_WINDOW", lambda: events.post(Event.APP_REQUEST_TO_CLOSE)
+            "WM_DELETE_WINDOW", lambda: events.post(Event.REQUEST_CLOSE_APP)
         )
 
     def _setup_menus(self):
@@ -220,7 +220,7 @@ class TkinterUI:
     def on_menu_file_load_media():
         media_path = file.choose_media_file()
 
-        events.post(Event.FILE_REQUEST_TO_LOAD_MEDIA, media_path)
+        events.post(Event.REQUEST_LOAD_MEDIA, media_path)
 
     @staticmethod
     def get_file_save_path(initial_filename: str) -> str | None:
@@ -346,7 +346,7 @@ class TkinterUIMenus(tk.Menu):
 
         self.file_menu.add_command(
             label="New...",
-            command=lambda: events.post(Event.FILE_REQUEST_NEW_FILE),
+            command=lambda: events.post(Event.REQUEST_NEW_FILE),
         )
         self.file_menu.add_command(
             label="Open...",

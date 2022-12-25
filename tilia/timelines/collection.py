@@ -94,6 +94,11 @@ class TimelineCollection:
         logger.debug(f"Serializing all timelines...")
         return {tl.id: tl.to_dict() for tl in self._timelines}
 
+    def restore_state(self, timelines_dict: dict[dict]) -> None:
+        id_to_timelines = {tl.id: tl for tl in self._timelines}
+        for id, state in timelines_dict.items():
+            id_to_timelines[id].restore_state(state)
+
     def get_timeline_by_id(self, id_: int) -> Timeline:
         return next((e for e in self._timelines if e.id == id_), None)
 
@@ -167,12 +172,3 @@ class TimelineCollection:
             timeline.delete()
             self._remove_from_timelines(timeline)
             self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
-
-    def from_dict(self, timelines_dict: dict[dict]) -> None:
-        sort_attribute = ["display_position"]
-
-        sorted_timelines_dict = sorted(timelines_dict.items(), key=lambda _, tl_dict: getattr(tl_dict, sort_attribute))
-
-        for _, tl_dict in sorted_timelines_dict:
-            tl_kind = TimelineKind[tl_dict.pop("kind")]
-            self.create_timeline(tl_kind, **tl_dict)

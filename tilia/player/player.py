@@ -185,6 +185,13 @@ class Player(ABC):
         events.unsubscribe_from_all(self)
         self._engine_exit()
 
+    def restore_state(self, media_path: str):
+        if self.media_path == media_path:
+            return
+        else:
+            self.unload_media()
+            self.load_media(media_path)
+
     @abstractmethod
     def _engine_pause(self) -> None:
         ...

@@ -303,7 +303,7 @@ class TestHierarchyTimeline:
 
         assert len(tl_with_ui.component_manager._components) == 0
 
-        tl_with_ui.restore_state(state, StateAction.COMPONENT_DELETE)
+        tl_with_ui.restore_state(state)
 
         assert len(tl_with_ui.component_manager._components) == 2
 

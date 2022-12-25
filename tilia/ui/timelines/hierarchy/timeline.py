@@ -27,8 +27,9 @@ import logging
 logger = logging.getLogger(__name__)
 import tkinter as tk
 
-from tilia import globals_, utils, events
-from tilia.timelines.hierarchy.timeline import HierarchyTimeline, logger
+from tilia import events
+from tilia import ui
+from tilia.timelines.hierarchy.timeline import logger
 from tilia.timelines.hierarchy.common import ParentChildRelation, process_parent_child_relation
 from tilia.ui.timelines.common import TimelineUI
 from tilia.ui.timelines.hierarchy import (
@@ -492,6 +493,13 @@ class HierarchyTimelineUI(TimelineUI):
             # noinspection PyTypeChecker
             self.post_inspectable_selected_event(element)
 
+    def paste_single_into_selected_elements(self, paste_data: list[dict]):
+
+        for element in self.element_manager.get_selected_elements():
+            paste_into_element(element, paste_data[0])
+
+        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
+
     def validate_copy(self, elements: list[Copyable]) -> None:
         if len(elements) > 1:
             events.post(
@@ -579,8 +587,6 @@ class HierarchyTimelineUI(TimelineUI):
 
         validate_paste_with_children(paste_data, selected_elements)
 
-        events.post(Event.RECORD_STATE, self.timeline, StateAction.PASTE)
-
         for element in selected_elements:
             logger.debug(f"Deleting previous descendants of '{element}'")
             # delete previous descendants
@@ -590,6 +596,8 @@ class HierarchyTimelineUI(TimelineUI):
 
             # create children according to paste data
             paste_with_children_into_element(paste_data[0], element)
+
+        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
 
     def get_copy_data_from_selected_elements(self):
         selected_elements = self.element_manager.get_selected_elements()

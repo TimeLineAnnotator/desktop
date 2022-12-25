@@ -47,7 +47,29 @@ class Inspectable(Protocol):
 
     def get_inspector_dict(self) -> dict[str:Any]: ...
 
-    def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int) -> None: ...
+
+def on_inspector_field_edited(element: Inspectable, field_name: str, value: str, inspected_id: int) -> None:
+    if not inspected_id == element.id:
+        return
+
+    attr = element.FIELD_NAMES_TO_ATTRIBUTES[field_name]
+    logger.debug(f"Processing inspector field edition for {element}...")
+
+    logger.debug(f"Attribute edited is '{attr}'.")
+
+    if value == getattr(element, attr):
+        logger.debug(f"'{element}' already has '{attr}' = '{value}'. Nothing to do.")
+        return
+
+    setattr(element, attr, value)
+    logger.debug(f"New value is '{value}'.")
+
+    events.post(
+        Event.REQUEST_RECORD_STATE,
+        StateAction.ATTRIBUTE_EDIT_VIA_INSPECTOR,
+        no_repeat=True,
+        repeat_identifier=f"{attr}_{element.id}",
+    )
 
 
 class TimelineCanvas(tk.Canvas):

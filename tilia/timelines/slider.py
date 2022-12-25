@@ -43,3 +43,7 @@ class SliderTimeline(Timeline):
 
     def delete(self):
         """Nothing to do."""
+
+    def restore_state(self, state: dict):
+        """Nothing to do"""
+

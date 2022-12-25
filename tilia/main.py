@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 from tilia.clipboard import Clipboard
 from tilia.file_manager import FileManager
 from tilia.timelines.create import create_timeline
+from tilia.timelines.state_actions import StateAction
 from tilia.undo_manager import UndoManager
 
 if TYPE_CHECKING:
@@ -55,10 +56,12 @@ class TiLiA:
     def __init__(self, ui_kind: UserInterfaceKind):
         logger.info("TiLia starting...")
 
-        subscribe(self, Event.FILE_REQUEST_TO_LOAD_MEDIA, self.on_request_to_load_media)
+        subscribe(self, Event.REQUEST_LOAD_MEDIA, self.on_request_to_load_media)
         subscribe(self, Event.APP_ADD_TIMELINE, self.on_add_timeline)
-        subscribe(self, Event.FILE_REQUEST_NEW_FILE, self.on_request_new_file)
-        subscribe(self, Event.APP_REQUEST_TO_CLOSE, self.on_request_to_close)
+        subscribe(self, Event.REQUEST_NEW_FILE, self.on_request_new_file)
+        subscribe(self, Event.REQUEST_CLOSE_APP, self.on_request_to_close)
+        subscribe(self, Event.REQUEST_RECORD_STATE, self.on_request_to_record_state)
+        subscribe(self, Event.REQUEST_RESTORE_APP_STATE, self.on_request_to_restore_state)
         subscribe(self, Event.METADATA_FIELD_EDITED, self.on_metadata_field_edited)
         subscribe(self, Event.METADATA_NEW_FIELDS, self.on_metadata_new_fields)
         subscribe(self, Event.REQUEST_EXPORT_AUDIO_SEGMENT, self.on_request_to_export_audio_segment)
@@ -149,6 +152,9 @@ class TiLiA:
 
         self._initial_file_setup()
 
+        self._undo_manager.clear()
+        self._undo_manager.record(self.get_state(), StateAction.FILE_LOAD)
+
     def on_request_to_close(self) -> None:
         self._file_manager.ask_save_if_necessary()
 
@@ -227,7 +233,11 @@ class TiLiA:
                 components
             )
 
+        self._undo_manager.clear()
+        self._undo_manager.record(self.get_state(), StateAction.FILE_LOAD)
+
         logger.info(f"Loaded file.")
+
 
     def on_add_timeline(self, kind: TimelineKind) -> None:
         if kind not in (TimelineKind.HIERARCHY_TIMELINE, TimelineKind.MARKER_TIMELINE):
@@ -255,6 +265,23 @@ class TiLiA:
                 new_metadata[field] = self._media_metadata[field]
 
         self._media_metadata = new_metadata
+
+    def get_state(self):
+        return self._file_manager.get_save_parameters()
+
+    def on_request_to_record_state(self, action: StateAction, no_repeat=False, repeat_identifier=''):
+        self._undo_manager.record(self.get_state(), action, no_repeat=no_repeat, repeat_identifier=repeat_identifier)
+
+    def on_request_to_restore_state(self, state: dict) -> None:
+        self._timeline_collection.restore_state(state['timelines'])
+        self._file_manager.restore_state(media_metadata=state['media_metadata'], media_path=state['media_path'])
+        self.restore_player_state(state['media_path'])
+
+    def restore_player_state(self, media_path: str) -> None:
+        if self._player.media_path == media_path:
+            return
+        else:
+            self.on_request_to_load_media(media_path)
 
 
 def _associate_timeline_and_timeline_ui_collections(

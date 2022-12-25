@@ -82,12 +82,12 @@ class TestFileManager:
         empty_file_save_params = {}
         for attr in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION:
             empty_file_save_params[attr] = getattr(empty_file, attr)
-        file_manager._get_save_parameters = lambda: empty_file_save_params
+        file_manager.get_save_parameters = lambda: empty_file_save_params
 
         assert not file_manager.was_file_modified()
 
 
-        file_manager._get_save_parameters = lambda: modified_save_params
+        file_manager.get_save_parameters = lambda: modified_save_params
 
         import copy
         modified_save_params = copy.deepcopy(empty_file_save_params)

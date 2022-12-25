@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, OrderedDict
 
 from tilia import globals_
 from tilia import settings
@@ -48,7 +48,7 @@ class FileManager:
 
     def was_file_modified(self):
 
-        current_tilia_data = self._get_save_parameters()
+        current_tilia_data = self.get_save_parameters()
 
         # necessary tweak when there's only a slider timeline in file
         if len(current_tilia_data['timelines']) == 1:
@@ -66,7 +66,7 @@ class FileManager:
     def save(self, save_as: bool) -> None:
         logger.info(f"Saving file...")
         self._file.file_path = self.get_file_path(save_as)
-        self._update_file(**self._get_save_parameters())
+        self._update_file(**self.get_save_parameters())
 
         logger.debug(f"Using path '{self._file.file_path}'")
         with open(self._file.file_path, "w", encoding="utf-8") as file:
@@ -78,7 +78,7 @@ class FileManager:
         logger.debug("Autosaving file...")
 
         try:
-            save_params = self._get_save_parameters()
+            save_params = self.get_save_parameters()
         except AttributeError:
             return
 
@@ -94,7 +94,7 @@ class FileManager:
         if not self._last_autosave_data:
             return True
 
-        return not compare_tilia_data(self._last_autosave_data, self._get_save_parameters())
+        return not compare_tilia_data(self._last_autosave_data, self.get_save_parameters())
 
     def _auto_save_loop(self, exception_list: list) -> None:
         while True:
@@ -174,13 +174,17 @@ class FileManager:
             logger.debug("User cancelled _file open.")
             raise UserCancelledOpenError()
 
-    def _get_save_parameters(self) -> dict:
+    def get_save_parameters(self) -> dict:
         return {
             "media_metadata": dict(self._app.media_metadata),
             "timelines": self._app.get_timelines_as_dict(),
             "media_path": self._app.get_media_path(),
             "file_path": self._file.file_path,
         }
+
+    def restore_state(self, media_metadata: OrderedDict, media_path: str) -> None:
+        self._file.media_metadata = media_metadata
+        self._file.media_path = media_path
 
     def on_media_loaded(self, media_path: str, *_) -> None:
         logger.debug(f"Updating _file media_path to '{media_path}'")
