@@ -323,6 +323,9 @@ class Timeline(ABC):
 
         return result
 
+    def get_state(self) -> dict:
+        return self.to_dict()
+
     def restore_state(self, action: StateAction, state: dict):
         raise NotImplementedError
 

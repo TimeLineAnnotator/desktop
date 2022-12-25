@@ -77,12 +77,6 @@ class HierarchyTimeline(Timeline):
     def update_ui_with_parent_child_relation(self, relation: ParentChildRelation):
         self.ui.update_parent_child_relation(relation)
 
-    def restore_state(self, state: dict, action: StateAction):
-        self.component_manager.deserialize_components(state['components'])
-
-    def get_state(self) -> dict:
-        return self.to_dict()
-
 
 class HierarchyTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.HIERARCHY]

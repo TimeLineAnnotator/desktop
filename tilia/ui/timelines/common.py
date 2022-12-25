@@ -112,6 +112,7 @@ class TimelineCanvas(tk.Canvas):
 
     def update_height(self, new_height: int):
         self.config(height=new_height)
+        self.coords(self.label_in_canvas, self._get_label_coords)
 
     def on_root_window_resized(self, width: int, _):
         try:
