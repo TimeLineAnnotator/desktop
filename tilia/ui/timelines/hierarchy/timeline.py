@@ -7,18 +7,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import tilia.ui.timelines.copy_paste
+from tilia.ui.timelines.copy_paste import paste_into_element
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event, subscribe, unsubscribe
+from tilia.events import Event, subscribe
 from tilia.misc_enums import IncreaseOrDecrease, Side, UpOrDown
 from tilia.timelines.state_actions import StateAction
 
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.common import ask_for_color, ask_for_int, ask_for_string
-from tilia.ui.timelines.common import RightClickOption
+from tilia.ui.timelines.common import RightClickOption, TimelineUIElement
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
-        TkTimelineUICollection,
+        TimelineUICollection,
         TimelineUIElementManager,
         TimelineCanvas)
 
@@ -58,7 +58,7 @@ class HierarchyTimelineUI(TimelineUI):
     def __init__(
             self,
             *args,
-            timeline_ui_collection: TkTimelineUICollection,
+            timeline_ui_collection: TimelineUICollection,
             element_manager: TimelineUIElementManager,
             canvas: TimelineCanvas,
             toolbar: HierarchyTimelineToolbar,
@@ -101,7 +101,7 @@ class HierarchyTimelineUI(TimelineUI):
 
         self.timeline = None
 
-        self.right_clicked_hierarchy = None
+        self.right_clicked_element = None
 
     def get_timeline_height(self):
         return self.height
@@ -186,10 +186,6 @@ class HierarchyTimelineUI(TimelineUI):
         )
         logger.debug(f"Got units {units_using_marker}.")
         return units_using_marker
-
-    def _increment_toolbar_counter(self):
-        self.toolbar.increment_visible_timeline_counter()
-        pass
 
     @staticmethod
     def _swap_components_with_uis_in_relation(
@@ -295,7 +291,7 @@ class HierarchyTimelineUI(TimelineUI):
         if not selected_elements:
             return
 
-        self.paste_into_selected_elements(self.collection.get_elements_for_pasting())
+        self.paste_single_into_selected_elements(self.collection.get_elements_for_pasting())
 
     def on_paste_unit_with_children_button(self) -> None:
         selected_elements = self._log_and_get_elements_for_button_processing(
@@ -388,10 +384,6 @@ class HierarchyTimelineUI(TimelineUI):
         else:
             logger.debug(f"Selected element is first element in level. Can't select previous.")
 
-    def listen_to_hierarchy_ui_right_click_menu(self, hierarchy: HierarchyUI) -> None:
-        self.right_clicked_hierarchy = hierarchy
-        logger.debug(f"{self} is listening for right menu option clicks...")
-
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
         option_to_callback = {
@@ -412,60 +404,55 @@ class HierarchyTimelineUI(TimelineUI):
         option_to_callback[option]()
 
     def right_click_menu_change_timeline_height(self) -> None:
-        height = ask_for_int('Change timeline height', 'Insert new timeline height', initialvalue=self.height)
+        height = tilia.ui.common.ask_for_int('Change timeline height', 'Insert new timeline height', initialvalue=self.height)
         if height:
             logger.debug(f"User requested new timeline height of '{height}'")
             self._change_height(height)
 
-    def right_click_menu_change_timeline_name(self) -> None:
-        name = ask_for_string('Change timeline name', 'Insert new timeline name', initialvalue=self.name)
-        if name:
-            logger.debug(f"User requested new timeline name of '{name}'")
-            self._change_name(name)
 
     def right_click_menu_increase_level(self) -> None:
-        self.timeline.change_level_by_amount(1, self.right_clicked_hierarchy.tl_component)
+        self.timeline.change_level_by_amount(1, self.right_clicked_element.tl_component)
 
     def right_click_menu_decrease_level(self) -> None:
-        self.timeline.change_level_by_amount(-1, self.right_clicked_hierarchy.tl_component)
+        self.timeline.change_level_by_amount(-1, self.right_clicked_element.tl_component)
 
     def right_click_menu_edit(self) -> None:
         self.deselect_all_elements()
-        self.select_element(self.right_clicked_hierarchy)
+        self.select_element(self.right_clicked_element)
         events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
 
     def right_click_menu_change_color(self) -> None:
-        if color := ask_for_color(self.right_clicked_hierarchy.color):
-            self.right_clicked_hierarchy.color = color
+        if color := tilia.ui.common.ask_for_color(self.right_clicked_element.color):
+            self.right_clicked_element.color = color
 
     def right_click_menu_reset_color(self) -> None:
-        self.right_clicked_hierarchy.reset_color()
+        self.right_clicked_element.reset_color()
 
     def right_click_menu_copy(self) -> None:
         events.post(
             Event.TIMELINE_COMPONENT_COPIED,
-            self.get_copy_data_from_hierarchy_uis([self.right_clicked_hierarchy])
+            self.get_copy_data_from_hierarchy_uis([self.right_clicked_element])
         )
 
     def right_click_menu_paste(self) -> None:
         self.element_manager.deselect_all_elements()
-        self.element_manager.select_element(self.right_clicked_hierarchy)
-        self.paste_into_selected_elements(self.collection.get_elements_for_pasting())
+        self.element_manager.select_element(self.right_clicked_element)
+        self.paste_single_into_selected_elements(self.collection.get_elements_for_pasting())
 
     def right_click_menu_paste_with_all_attributes(self) -> None:
         self.element_manager.deselect_all_elements()
-        self.element_manager.select_element(self.right_clicked_hierarchy)
+        self.element_manager.select_element(self.right_clicked_element)
         self.paste_with_children_into_selected_elements(self.collection.get_elements_for_pasting())
 
     def right_click_menu_delete(self) -> None:
-        self.timeline.on_request_to_delete_component(self.right_clicked_hierarchy.tl_component)
+        self.timeline.on_request_to_delete_components([self.right_clicked_element.tl_component])
 
     def right_click_menu_export_to_audio(self) -> None:
         events.post(
             Event.REQUEST_EXPORT_AUDIO_SEGMENT,
-            segment_name=self.right_clicked_hierarchy.full_name,
-            start_time=self.right_clicked_hierarchy.tl_component.start,
-            end_time=self.right_clicked_hierarchy.tl_component.end
+            segment_name=self.right_clicked_element.full_name,
+            start_time=self.right_clicked_element.tl_component.start,
+            end_time=self.right_clicked_element.tl_component.end
         )
 
     def get_previous_marker_x_by_x(self, x: int) -> None | int:
@@ -507,6 +494,11 @@ class HierarchyTimelineUI(TimelineUI):
 
     def validate_copy(self, elements: list[Copyable]) -> None:
         if len(elements) > 1:
+            events.post(
+                Event.REQUEST_DISPLAY_ERROR,
+                title='Copy error',
+                message="Can't copy more than one hierarchy at once."
+            )
             raise CopyError(f"Can't copy more than one hierarchy at once.")
 
     def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
@@ -594,7 +586,7 @@ class HierarchyTimelineUI(TimelineUI):
             # delete previous descendants
             descendants = get_descendants(element)
             for descendant in descendants:
-                self.timeline.on_request_to_delete_component(descendant.tl_component, record=False)
+                self.timeline.on_request_to_delete_components([descendant.tl_component], record=False)
 
             # create children according to paste data
             paste_with_children_into_element(paste_data[0], element)

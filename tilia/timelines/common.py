@@ -57,8 +57,8 @@ class TimelineComponent(ABC):
         May validate delete request prior to performing
         deletion."""
 
-    def __repr__(self):
-        return tilia.repr.default_repr(self)
+    def __str__(self):
+        return tilia.repr.default_str_dunder(self)
 
 
 class TimelineComponentManager:
@@ -210,10 +210,8 @@ class TimelineComponentManager:
             default=None,
         )
 
-    def delete_component(self, component: TimelineComponent, record=True) -> None:
+    def delete_component(self, component: TimelineComponent) -> None:
         logger.debug(f"Deleting component '{component}'")
-        if record:
-            self.timeline.record_state(StateAction.DELETE, component)
 
         self.timeline.request_delete_ui_for_component(component)
 
@@ -224,7 +222,7 @@ class TimelineComponentManager:
     def clear(self):
         logging.debug(f"Clearing component manager '{self}'...")
         for component in self._components.copy():
-            self.delete_component(component, record=False)
+            self.delete_component(component)
 
     def serialize_components(self):
         logger.debug(f"Serializing components on '{self}.'")
@@ -277,23 +275,18 @@ class Timeline(ABC):
         component.ui = component_ui
 
     # noinspection PyMethodMayBeStatic
-    def record_state(
-        self, state_action_to_be_performed: StateAction, actor: TimelineComponent
-    ):
-        """Should record timelines state for Undo/redo purposes. Not implemented yet."""
-        logger.debug(
-            f"Recording timeline state before action '{state_action_to_be_performed}' by '{actor}'."
-        )
 
-    def on_request_to_delete_component(self, component: TimelineComponent, record=True) -> None:
-        self._validate_delete_component(component)
-        self.component_manager.delete_component(component, record=record)
+    def on_request_to_delete_components(self, components: list[TimelineComponent], record=True) -> None:
+        self._validate_delete_components(components)
+
+        for component in components:
+            self.component_manager.delete_component(component)
 
     def request_delete_ui_for_component(self, component: TimelineComponent) -> None:
         self.ui.delete_element(component.ui)
 
     @abstractmethod
-    def _validate_delete_component(self, component: TimelineComponent) -> None:
+    def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
         ...
 
     def clear(self, record=True):
@@ -326,8 +319,11 @@ class Timeline(ABC):
     def get_state(self) -> dict:
         return self.to_dict()
 
-    def restore_state(self, action: StateAction, state: dict):
-        raise NotImplementedError
+    def restore_state(self, state: dict):
+        self.clear(record=False)
+        self.component_manager.deserialize_components(state['components'])
+        self.ui.height = state['height']
+        self.ui.name = state['name']
 
     def get_id_for_component(self) -> int:
         id_ = self.collection.get_id()
@@ -341,7 +337,7 @@ class Timeline(ABC):
         return self.collection.get_current_playback_time()
 
     def __repr__(self):
-        return tilia.repr.default_repr(self)
+        return tilia.repr.default_str_dunder(self)
 
 
 def log_object_creation(func: Callable) -> Callable:

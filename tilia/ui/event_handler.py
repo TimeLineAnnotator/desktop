@@ -83,6 +83,7 @@ DEFAULT_CANVAS_BINDINGS = [
     ("<M>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE)),
     ("<Control-Up>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE)),
     ("<Control-Down>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE)),
+    ("<m>", lambda _: events.post(Event.MARKER_TOOLBAR_BUTTON_ADD)),
     ("<space>", lambda _: events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE))
 ]
 

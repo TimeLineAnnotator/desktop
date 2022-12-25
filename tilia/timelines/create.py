@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.timelines.common import TimelineUICollection
 
 
 def create_timeline(

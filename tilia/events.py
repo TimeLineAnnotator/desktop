@@ -33,7 +33,7 @@ class Event(Enum):
     REQUEST_TO_REDO = auto()
     REQUEST_TO_UNDO = auto()
     KEY_PRESS_CONTROL_SHIFT_V = auto()
-    UI_REQUEST_TO_DISPLAY_ERROR = auto()
+    REQUEST_DISPLAY_ERROR = auto()
     KEY_PRESS_CONTROL_V = auto()
     KEY_PRESS_CONTROL_C = auto()
     TIMELINE_COMPONENT_COPIED = auto()
@@ -127,7 +127,7 @@ subscribers_to_events = {}
 for event in Event:
     events_to_subscribers[event] = {}
 
-LOG_EVENTS = False
+LOG_EVENTS = True
 
 
 def post(event: Event, *args, **kwargs) -> None:

@@ -7,7 +7,7 @@ import tkinter as tk
 from tilia import globals_, events
 from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.common import TkTimelineUICollection
+from tilia.ui.timelines.common import TimelineUICollection
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
 from tilia.ui.timelines.slider import SliderTimelineUI
 from tilia.ui.tkinterui import TkinterUI
@@ -25,7 +25,7 @@ def tkui_mock():
 
 @pytest.fixture
 def tlui_coll(tkui_mock):
-    _tlui_coll = TkTimelineUICollection(
+    _tlui_coll = TimelineUICollection(
         tkui_mock,
         tk.Frame(),
         tk.Scrollbar(),
@@ -35,11 +35,11 @@ def tlui_coll(tkui_mock):
     unsubscribe_from_all(_tlui_coll)
 
 
-@patch('tilia.ui.timelines.common.TkTimelineUICollection.create_playback_line')
+@patch('tilia.ui.timelines.common.TimelineUICollection.create_playback_line')
 class TestTkTimelineUICollection:
 
     def test_constructor(self, tkui_mock):
-        tlui_coll = TkTimelineUICollection(
+        tlui_coll = TimelineUICollection(
             tkui_mock,
             tk.Frame(),
             tk.Scrollbar(),

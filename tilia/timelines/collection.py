@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tilia.events import subscribe, Event
+from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
 from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
@@ -38,12 +39,15 @@ class TimelineCollection:
         subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_loaded)
 
     def create_timeline(self, timeline_kind: TimelineKind, **kwargs) -> Timeline:
-        if timeline_kind == TimelineKind.HIERARCHY_TIMELINE:
-            tl = self._create_hierarchy_timeline(**kwargs)
-        elif timeline_kind == TimelineKind.SLIDER_TIMELINE:
-            tl = self._create_slider_timeline()
-        else:
-            raise NotImplementedError
+        match timeline_kind:
+            case TimelineKind.HIERARCHY_TIMELINE:
+                tl = self._create_hierarchy_timeline(**kwargs)
+            case TimelineKind.SLIDER_TIMELINE:
+                tl = self._create_slider_timeline()
+            case TimelineKind.MARKER_TIMELINE:
+                tl = self._create_marker_timeline()
+            case _:
+                raise NotImplementedError
 
         self._timelines.append(tl)
 
@@ -56,8 +60,16 @@ class TimelineCollection:
 
         return timeline
 
-    def _create_slider_timeline(self):
+    def _create_slider_timeline(self) -> SliderTimeline:
         return SliderTimeline(self, None, TimelineKind.SLIDER_TIMELINE)
+
+    def _create_marker_timeline(self, **kwargs) -> MarkerTimeline:
+        component_manager = MarkerTLComponentManager()
+        timeline = MarkerTimeline(self, component_manager, **kwargs)
+        component_manager.associate_to_timeline(timeline)
+
+        return timeline
+
 
     def delete_timeline(self, timeline: Timeline):
         logger.debug(f"Deleting timeline {timeline}")

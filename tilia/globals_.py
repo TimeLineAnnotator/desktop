@@ -6,7 +6,7 @@ import appdirs
 from enum import Enum, auto
 
 APP_NAME = "TiLiA"
-APP_ICON_PATH = os.path.join("ui", "img", "main_icon.ico")
+APP_ICON_PATH = os.path.join("ui", "img", "main_icon.png")
 FILE_EXTENSION = "tla"
 VERSION = "0.0.1"
 DEVELOPMENT_MODE = False

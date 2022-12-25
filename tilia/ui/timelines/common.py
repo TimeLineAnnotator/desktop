@@ -1,21 +1,18 @@
 from __future__ import annotations
 
+import functools
 import os
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable, Generic, TypeVar
 
 from tilia.timelines.state_actions import StateAction
+from tilia.ui.common import ask_for_int, ask_for_string
 from tilia.ui.timelines.copy_paste import CopyError, PasteError
 from tilia.ui.timelines.selection_box import SelectionBox
-from tilia.ui.windows import WindowKind
 
 if TYPE_CHECKING:
-    from tilia.ui.timelines.common import (
-        TimelineComponent,
-        TimelineComponentUI,
-        TimelineUIElement,
-    )
+    from tilia.timelines.common import TimelineComponent
     from tilia.ui.tkinterui import TkinterUI
     from tilia.ui.timelines.slider import SliderTimelineUI
 
@@ -28,7 +25,7 @@ import tkinter.messagebox
 from tilia import events, settings
 from tilia.ui.element_kinds import UIElementKind
 from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
-from tilia.repr import default_repr
+from tilia.repr import default_str_dunder
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.common import InvalidComponentKindError, log_object_creation, Timeline
@@ -44,7 +41,9 @@ class Inspectable(Protocol):
     When selected, they must, via an event, pass a dict with the attributes to be displayed."""
 
     id: int
+    timeline_ui: TimelineUI
     INSPECTOR_FIELDS: list[tuple[str, str]]
+    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str]
 
     def get_inspector_dict(self) -> dict[str:Any]: ...
 
@@ -90,7 +89,6 @@ class TimelineCanvas(tk.Canvas):
 
     TAG_TO_CURSOR = [("arrowsCursor", "sb_h_double_arrow"), ("handCursor", "hand2")]
 
-
     def _setup_cursors(self):
         for tag, cursor_name in self.TAG_TO_CURSOR:
             self.tag_bind(
@@ -129,7 +127,7 @@ class TimelineCanvas(tk.Canvas):
         return 0, 0, self._label_width, self.winfo_reqheight()
 
 
-class TkTimelineUICollection:
+class TimelineUICollection:
     """
     Collection of timeline uis. Responsible for:
         - Creating timeline uis;
@@ -163,6 +161,7 @@ class TkTimelineUICollection:
         subscribe(self, Event.KEY_PRESS_CONTROL_SHIFT_V, self._on_request_to_paste_with_children)
         subscribe(self, Event.DEBUG_SELECTED_ELEMENTS, self._on_debug_selected_elements)
         subscribe(self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT, self._on_hierarchy_timeline_split_button)
+        subscribe(self, Event.MARKER_TOOLBAR_BUTTON_ADD, self.on_marker_timeline_add_marker_button)
         subscribe(self, Event.REQUEST_ZOOM_IN, lambda x: self.zoomer(InOrOut.IN, x))
         subscribe(self, Event.REQUEST_ZOOM_OUT, lambda x: self.zoomer(InOrOut.OUT, x))
         subscribe(self, Event.REQUEST_CHANGE_TIMELINE_WIDTH, self.on_request_change_timeline_width)
@@ -383,10 +382,12 @@ class TkTimelineUICollection:
     def get_timeline_ui_class_from_kind(kind: TimelineKind) -> type(TimelineUI):
         from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
         from tilia.ui.timelines.slider import SliderTimelineUI
+        from tilia.ui.timelines.marker import MarkerTimelineUI
 
         kind_to_class_dict = {
             TimelineKind.HIERARCHY_TIMELINE: HierarchyTimelineUI,
             TimelineKind.SLIDER_TIMELINE: SliderTimelineUI,
+            TimelineKind.MARKER_TIMELINE: MarkerTimelineUI
         }
 
         class_ = kind_to_class_dict[kind]
@@ -562,7 +563,6 @@ class TkTimelineUICollection:
             else:
                 self.selection_box_elements_to_selected_triggers[element] = {canvas_item_id}
 
-
     def on_selection_box_request_deselect(self, canvas: tk.Canvas, canvas_item_id: int) -> None:
 
         timeline_ui = self._get_timeline_ui_by_canvas(canvas)
@@ -585,10 +585,15 @@ class TkTimelineUICollection:
             self.selection_box_elements_to_selected_triggers.pop(element)
             timeline_ui.deselect_element(element)
 
-
     def _on_delete_press(self):
+
+        if not any([tlui.has_selected_elements for tlui in self._timeline_uis]):
+            return
+
         for timeline_ui in self._timeline_uis:
             timeline_ui.on_delete_press()
+
+        events.post(Event.REQUEST_RECORD_STATE, 'delete timeline component(s)')
 
     def _on_enter_press(self):
         if any([tlui.has_selected_elements for tlui in self._timeline_uis]):
@@ -613,16 +618,24 @@ class TkTimelineUICollection:
         if len(ui_with_selected_elements) == 0:
             raise CopyError("Can't copy: there are no selected elements.")
         if len(ui_with_selected_elements) > 1:
+            events.post(Event.REQUEST_DISPLAY_ERROR, 'Copy error', "Can't copy components from more than one timeline.")
             raise CopyError("Can't copy: there are elements selected in multiple timelines.")
 
         for timeline_ui in self._select_order:
             if timeline_ui.has_selected_elements:
                 copied_components = timeline_ui.get_copy_data_from_selected_elements()
+                break
 
         # noinspection PyUnboundLocalVariable
-        events.post(Event.TIMELINE_COMPONENT_COPIED, copied_components)
+        events.post(
+            Event.TIMELINE_COMPONENT_COPIED,
+            {
+                'components': copied_components,
+                'timeline_kind': timeline_ui.timeline.KIND
+            }
+        )
 
-    def get_elements_for_pasting(self) -> list[dict]:
+    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
 
         if not clipboard_elements:
@@ -632,18 +645,36 @@ class TkTimelineUICollection:
 
     def _on_request_to_paste(self) -> None:
 
-        clipboard_elements = self.get_elements_for_pasting()
+        clipboard_data = self.get_elements_for_pasting()
 
-        for timeline_ui in self._timeline_uis:
-            if timeline_ui.has_selected_elements:
-                timeline_ui.paste_into_selected_elements(clipboard_elements)
+        paste_cardinality = 'MULTIPLE' if len(clipboard_data['components']) > 1 else 'SINGLE'
+
+        same_kind_timeline_uis = [tlui for tlui in self._timeline_uis if
+                                  tlui.TIMELINE_KIND == clipboard_data['timeline_kind']]
+
+        if any([tlui.has_selected_elements for tlui in same_kind_timeline_uis]):  # when there are selected elements
+            for timeline_ui in [tlui for tlui in same_kind_timeline_uis if tlui.has_selected_elements]:
+                if paste_cardinality == 'SINGLE' and hasattr(timeline_ui, 'paste_single_into_selected_elements'):
+                    timeline_ui.paste_single_into_selected_elements(clipboard_data['components'])
+                elif paste_cardinality == 'MULTIPLE' and hasattr(timeline_ui, 'paste_multiple_into_selected_elements'):
+                    timeline_ui.paste_multiple_into_selected_elements(clipboard_data['components'])
+        else:  # no elements are selected
+            timeline_to_paste = self._get_first_from_select_order_by_kinds([clipboard_data['timeline_kind']])
+            if paste_cardinality == 'SINGLE' and hasattr(timeline_to_paste, 'paste_single_into_timeline'):
+                timeline_to_paste.paste_single_into_timeline(clipboard_data['components'])
+            elif paste_cardinality == 'MULTIPLE' and hasattr(timeline_to_paste, 'paste_multiple_into_timeline'):
+                timeline_to_paste.paste_multiple_into_timeline(clipboard_data['components'])
 
     def _on_request_to_paste_with_children(self) -> None:
         clipboard_elements = self.get_elements_for_pasting()
 
+        if clipboard_elements['timeline_kind'] != TimelineKind.HIERARCHY_TIMELINE:
+            logger.debug(f"Copied elements are not hierarchies. Can't paste with children.")
+            return
+
         for timeline_ui in self._timeline_uis:
             if timeline_ui.has_selected_elements and timeline_ui.TIMELINE_KIND == TimelineKind.HIERARCHY_TIMELINE:
-                timeline_ui.paste_with_children_into_selected_elements(clipboard_elements)
+                timeline_ui.paste_with_children_into_selected_elements(clipboard_elements['components'])
 
     def _on_debug_selected_elements(self):
         for timeline_ui in self._timeline_uis:
@@ -658,12 +689,15 @@ class TkTimelineUICollection:
     def get_timeline_width(self):
         return self._app_ui.timeline_width
 
+    def get_current_playback_time(self):
+        return self._timeline_collection.get_current_playback_time()
+
     # noinspection PyUnresolvedReferences
     def get_x_by_time(self, time: float) -> int:
         return (
-                       (time / self._app_ui.get_media_length())
-                       * self._app_ui.timeline_width
-               ) + self.left_margin_x
+                (time / self._app_ui.get_media_length())
+                * self._app_ui.timeline_width
+        ) + self.left_margin_x
 
     # noinspection PyUnresolvedReferences
     def get_time_by_x(self, x: int) -> float:
@@ -680,6 +714,14 @@ class TkTimelineUICollection:
 
         if first_hierarchy_timeline_ui:
             first_hierarchy_timeline_ui.on_split_button()
+
+    def on_marker_timeline_add_marker_button(self) -> None:
+        first_marker_timeline_ui = self._get_first_from_select_order_by_kinds(
+            [TimelineKind.MARKER_TIMELINE]
+        )
+
+        if first_marker_timeline_ui:
+            first_marker_timeline_ui.create_marker(self.get_current_playback_time())
 
     def _get_first_from_select_order_by_kinds(self, classes: list[TimelineKind]):
         for tl_ui in self._select_order:
@@ -704,7 +746,7 @@ class TkTimelineUICollection:
     def create_playback_line(self, timeline_ui: TimelineUI):
         line_id = draw_playback_line(
             timeline_ui=timeline_ui,
-            initial_time=self._timeline_collection.get_current_playback_time()
+            initial_time=self.get_current_playback_time()
         )
         self._timeline_uis_to_playback_line_ids[timeline_ui] = line_id
 
@@ -729,10 +771,9 @@ class TkTimelineUICollection:
         for tl_ui in self._timeline_uis:
             self.center_view_at_x(tl_ui, center_x)
 
-    def center_view_at_x(self, timeline_ui: TimelineUI, x: int) -> None:
+    def center_view_at_x(self, timeline_ui: TimelineUI, x: float) -> None:
         scroll_fraction = (x / self.get_timeline_total_size())
         timeline_ui.canvas.xview_moveto(scroll_fraction)
-
 
     def change_playback_line_position(self, timeline_ui: TimelineUI, time: float):
         if timeline_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
@@ -773,7 +814,7 @@ class TkTimelineUICollection:
                 change_playback_line_x(
                     tl_ui,
                     self._timeline_uis_to_playback_line_ids[tl_ui],
-                    self._timeline_collection.get_current_playback_time()
+                    self.get_x_by_time(self.get_current_playback_time())
                 )
             # TODO center view at appropriate point
 
@@ -874,10 +915,12 @@ class TimelineUIElement(ABC):
     """Interface for the tkinter ui objects corresponding to to a TimelineComponent instance.
     E.g.: the HierarchyUI in the ui element corresponding to the Hierarchy timeline component."""
 
+    SomeTimelineComponent = TypeVar('SomeTimelineComponent', bound='TimelineComponent')
+
     def __init__(
             self,
             *args,
-            tl_component: TimelineComponent,
+            tl_component: Generic[SomeTimelineComponent],
             timeline_ui: TimelineUI,
             canvas: tk.Canvas,
             **kwargs,
@@ -970,7 +1013,7 @@ class TimelineUIElementManager:
 
     def get_element_by_condition(
             self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
-    ) -> TimelineComponentUI:
+    ) -> TimelineUIElement:
         element_set = self._get_element_set_by_kind(kind)
         return next((e for e in element_set if condition(e)), None)
 
@@ -1022,6 +1065,10 @@ class TimelineUIElementManager:
         if element in self._selected_elements:
             self._remove_from_selected_elements_set(element)
             element.on_deselect()
+
+            if isinstance(element, Inspectable):
+                events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
+
         else:
             logger.debug(f"Element '{element}' is already deselected.")
 
@@ -1071,7 +1118,7 @@ class TimelineUIElementManager:
         return drawings_ids
 
     def __repr__(self) -> str:
-        return default_repr(self)
+        return default_str_dunder(self)
 
     def get_all_elements(self) -> set:
         return self._elements
@@ -1172,7 +1219,7 @@ class TimelineUI(ABC):
     def __init__(
             self,
             *args,
-            timeline_ui_collection: TkTimelineUICollection,
+            timeline_ui_collection: TimelineUICollection,
             timeline_ui_element_manager: TimelineUIElementManager,
             component_kinds_to_classes: dict[UIElementKind: type(TimelineUIElement)],
             component_kinds_to_ui_element_kinds: dict[ComponentKind:UIElementKind],
@@ -1186,10 +1233,9 @@ class TimelineUI(ABC):
         super().__init__()
 
         self.timeline_ui_collection = timeline_ui_collection
-        self.height = height
         self.visible = is_visible
-        self.name = name
-
+        self._height = height
+        self._name = name
         self._timeline = None
 
         self.component_kinds_to_ui_element_kinds = component_kinds_to_ui_element_kinds
@@ -1197,6 +1243,8 @@ class TimelineUI(ABC):
         self.component_kinds_to_classes = component_kinds_to_classes
         self.canvas = canvas
         self.toolbar = toolbar
+
+        self.right_clicked_element = None
 
         self._setup_visiblity(is_visible)
 
@@ -1216,13 +1264,23 @@ class TimelineUI(ABC):
     def get_id(self) -> str:
         return self.timeline_ui_collection.get_id()
 
-    def _change_name(self, name: str):
-        self.name = name
-        self.canvas.update_label(name)
+    @property
+    def name(self):
+        return self._name
 
-    def _change_height(self, height: int):
-        self.height = height
-        self.canvas.update_height(height)
+    @name.setter
+    def name(self, value):
+        self._name = value
+        self.canvas.update_label(value)
+
+    @property
+    def height(self):
+        return self._height
+
+    @height.setter
+    def height(self, value):
+        self._height = value
+        self.canvas.update_height(value)
         self.update_elements_position()
 
     # noinspection PyUnresolvedReferences
@@ -1288,7 +1346,7 @@ class TimelineUI(ABC):
 
         return clicked_elements
 
-    def select_element_if_appropriate(self, element: TimelineComponentUI, canvas_item_id: int) -> bool:
+    def select_element_if_appropriate(self, element: TimelineUIElement, canvas_item_id: int) -> bool:
         if (
                 isinstance(element, Selectable)
                 and canvas_item_id in element.selection_triggers
@@ -1300,7 +1358,7 @@ class TimelineUI(ABC):
             return False
 
     def _process_ui_element_left_click(
-            self, clicked_element: TimelineComponentUI, clicked_item_id: int
+            self, clicked_element: TimelineUIElement, clicked_item_id: int
     ) -> None:
 
         logger.debug(f"Processing left click on ui element '{clicked_element}'...")
@@ -1320,7 +1378,7 @@ class TimelineUI(ABC):
         logger.debug(f"Processed click on ui element '{clicked_element}'.")
 
     def _process_ui_element_double_left_click(
-            self, clicked_element: TimelineComponentUI, clicked_item_id: int
+            self, clicked_element: TimelineUIElement, clicked_item_id: int
     ) -> None:
 
         logger.debug(f"Processing double click on ui element '{clicked_element}'...")
@@ -1340,7 +1398,7 @@ class TimelineUI(ABC):
     def _process_ui_element_right_click(
             self,
             x: float, y: float,
-            clicked_element: TimelineComponentUI,
+            clicked_element: TimelineUIElement,
             clicked_item_id: int
     ) -> None:
 
@@ -1361,7 +1419,8 @@ class TimelineUI(ABC):
             logger.debug(f"Element is inspectable. Sending data to inspector.")
             self.post_inspectable_selected_event(element)
 
-            events.subscribe(element, Event.INSPECTOR_FIELD_EDITED, element.on_inspector_field_edited)
+            events.subscribe(element, Event.INSPECTOR_FIELD_EDITED,
+                             functools.partial(on_inspector_field_edited, element))
 
     def deselect_element(self, element: Selectable):
         self.element_manager.deselect_element(element)
@@ -1371,17 +1430,18 @@ class TimelineUI(ABC):
 
     def deselect_all_elements(self):
         for element in self.element_manager.get_all_elements():
-            if isinstance(element, Inspectable):
-                events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
-
             self.element_manager.deselect_element(element)
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
-        pass
+        ...
 
     def on_right_click_menu_new(self) -> None:
         unsubscribe(self, Event.RIGHT_CLICK_MENU_OPTION_CLICK)
         unsubscribe(self, Event.RIGHT_CLICK_MENU_NEW)
+
+    def listen_for_uielement_rightclick_options(self, element: TimelineUIElement) -> None:
+        self.right_clicked_element = element
+        logger.debug(f"{self} is listening for right menu option clicks...")
 
     def display_right_click_menu_for_element(self, canvas_x: float, canvas_y: float,
                                              options: list[tuple[str, RightClickOption]]):
@@ -1406,6 +1466,22 @@ class TimelineUI(ABC):
                                  self.canvas.winfo_rooty() + int(canvas_y), RIGHT_CLICK_OPTIONS)
 
         events.subscribe(self, Event.RIGHT_CLICK_MENU_NEW, self.on_right_click_menu_new)
+
+    def right_click_menu_change_timeline_height(self) -> None:
+        height = ask_for_int('Change timeline height', 'Insert new timeline height', initialvalue=self.height)
+        if height:
+            logger.debug(f"User requested new timeline height of '{height}'")
+            self.height = height
+
+        events.post(Event.REQUEST_RECORD_STATE, 'timeline height change')
+
+    def right_click_menu_change_timeline_name(self) -> None:
+        name = ask_for_string('Change timeline name', 'Insert new timeline name', initialvalue=self.name)
+        if name:
+            logger.debug(f"User requested new timeline name of '{name}'")
+            self.name = name
+
+        events.post(Event.REQUEST_RECORD_STATE, 'timeline name change')
 
     @staticmethod
     def post_inspectable_selected_event(element: Inspectable):
@@ -1442,8 +1518,7 @@ class TimelineUI(ABC):
 
     def on_delete_press(self):
         selected_elements = self.element_manager.get_selected_elements()
-        for element in selected_elements.copy():
-            self.timeline.on_request_to_delete_component(element.tl_component)
+        self.timeline.on_request_to_delete_components([e.tl_component for e in selected_elements])
 
     def delete_selected_elements(self):
         selected_elements = self._log_and_get_elements_for_button_processing("delete")
@@ -1453,7 +1528,7 @@ class TimelineUI(ABC):
         selected_tl_components = [e.tl_component for e in selected_elements]
 
         for component in selected_tl_components:
-            self.timeline.on_request_to_delete_component(component)
+            self.timeline.on_request_to_delete_components([component])
 
     def delete_element(self, element: TimelineUIElement):
         self.element_manager.delete_element(element)
@@ -1476,8 +1551,7 @@ class TimelineUI(ABC):
 
     def validate_paste(self, paste_data: dict, elements_to_receive_paste: list[TimelineUIElement]) -> None:
         """Can be overwritten by subcalsses to implement validation"""
-        if len(paste_data) > 1:
-            raise CopyError("Can't paste more than one copied item at the same time.")
+        pass
 
     def get_copy_data_from_selected_elements(self) -> list[dict]:
         selected_elements = self.element_manager.get_selected_elements()
@@ -1486,17 +1560,6 @@ class TimelineUI(ABC):
 
         return get_copy_data_from_elements(
             [(el, el.DEFAULT_COPY_ATTRIBUTES) for el in selected_elements if isinstance(el, Copyable)])
-
-    def paste_into_selected_elements(self, paste_data: list[dict] | dict):
-
-        selected_elements = self.element_manager.get_selected_elements()
-
-        self.validate_paste(paste_data, selected_elements)
-
-        events.post(Event.RECORD_STATE, self.timeline, StateAction.PASTE)
-
-        for element in self.element_manager.get_selected_elements():
-            paste_into_element(element, paste_data[0])
 
     # noinspection PyUnresolvedReferences
     def get_left_margin_x(self):
@@ -1535,7 +1598,7 @@ class TimelineUI(ABC):
             self.toolbar.on_timeline_delete()
 
     def __repr__(self):
-        return default_repr(self)
+        return default_str_dunder(self)
 
     def __str__(self):
         return f"{self.name} | {self.TIMELINE_KIND.value.capitalize()} Timeline"
@@ -1558,35 +1621,35 @@ class TimelineToolbar(tk.LabelFrame):
         self._visible_timelines_count = 0
 
     def create_buttons(self):
-        if self.button_info:
-            for info in self.button_info:
-                file_name, callback, tooltip_text = info[:3]
-
-                # sets attribute with same name as image
-                setattr(
-                    self,
-                    file_name,
-                    tk.PhotoImage(file=os.path.join("ui", "img", f"{file_name}.png")),
-                )
-
-                # create and pack a button with img as image and command = f'on_{img}'
-                button = tk.Button(
-                    self,
-                    image=getattr(self, file_name),
-                    borderwidth=0,
-                    command=callback,
-                )
-
-                button.pack(side=tk.LEFT, padx=6)
-                create_tool_tip(button, tooltip_text)
-
-                # if attribute name is provided, set button as toolbar attribute to allow future modification.
-                try:
-                    setattr(self, info[3] + "_button", button)
-                except IndexError:
-                    pass
-        else:
+        if not self.button_info:
             raise ValueError(f"No button info found for {self}")
+
+        for info in self.button_info:
+            file_name, callback, tooltip_text = info[:3]
+
+            # sets attribute with same name as image
+            setattr(
+                self,
+                file_name,
+                tk.PhotoImage(file=os.path.join("ui", "img", f"{file_name}.png")),
+            )
+
+            # create and pack a button with img as image and command = f'on_{img}'
+            button = tk.Button(
+                self,
+                image=getattr(self, file_name),
+                borderwidth=0,
+                command=callback,
+            )
+
+            button.pack(side=tk.LEFT, padx=6)
+            create_tool_tip(button, tooltip_text)
+
+            # if attribute name is provided, set button as toolbar attribute to allow future modification.
+            try:
+                setattr(self, info[3] + "_button", button)
+            except IndexError:
+                pass
 
     def _increment_decrement_timelines_count(self, increment: bool) -> None:
         """Increments timelines count if 'increment' is True,

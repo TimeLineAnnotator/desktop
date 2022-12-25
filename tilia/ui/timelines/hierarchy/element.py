@@ -75,7 +75,7 @@ class HierarchyUI(TimelineUIElement):
         ("Comments", "entry"),
     ]
 
-    FIELD_NAME_TO_ATTRIBUTES_NAME = {
+    FIELD_NAMES_TO_ATTRIBUTES = {
         "Label": "label",
         "Time": "time",
         "Comments": "comments",
@@ -264,7 +264,7 @@ class HierarchyUI(TimelineUIElement):
             self._color = color
 
     def reset_color(self) -> None:
-        self.color= self.get_default_level_color(self.level)
+        self.color = self.get_default_level_color(self.level)
 
     # noinspection PyTypeChecker
     def process_color_before_level_change(self, new_level: int) -> None:
@@ -456,7 +456,7 @@ class HierarchyUI(TimelineUIElement):
         self.timeline_ui.display_right_click_menu_for_element(
             x, y, self.RIGHT_CLICK_OPTIONS
         )
-        self.timeline_ui.listen_to_hierarchy_ui_right_click_menu(self)
+        self.timeline_ui.listen_for_uielement_rightclick_options(self)
 
     def _get_extremity_from_marker_id(self, marker_id: int):
         if marker_id == self.start_marker:
@@ -529,13 +529,21 @@ class HierarchyUI(TimelineUIElement):
         # update timeline component value
         setattr(self.tl_component, self.drag_data["extremity"].value, self.timeline_ui.get_time_by_x(drag_x))
 
+        self.drag_data['x'] = drag_x
         self.update_position()
 
     def end_drag(self):
         logger.debug(f"Ending drag of {self}.")
+        events.post(
+            Event.REQUEST_RECORD_STATE,
+            'hierarchy drag',
+            no_repeat=True,
+            repeat_identifier=f'{self.timeline_ui}_drag_to_{self.drag_data["x"]}'
+        )
         self.drag_data = {}
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
+
 
     def on_select(self) -> None:
         self.display_as_selected()
@@ -598,22 +606,3 @@ class HierarchyUI(TimelineUIElement):
             "Formal function": self.tl_component.formal_function,
             "Comments": self.tl_component.comments,
         }
-
-    def on_inspector_field_edited(self, field_name: str, value: str, inspected_id: int) -> None:
-        if inspected_id == self.id:
-            logger.debug(f"Processing inspector field edition for {self}...")
-
-            attr = self.FIELD_NAME_TO_ATTRIBUTES_NAME[field_name]
-
-            events.post(
-                Event.RECORD_STATE,
-                self.timeline_ui.timeline,
-                StateAction.ATTRIBUTE_EDIT_VIA_INSPECTOR,
-                no_repeat=True,
-                repeat_identifier=f"{attr}_{self.id}",
-            )
-
-            logger.debug(f"Attribute edited is '{attr}'.")
-            logger.debug(f"New value is '{value}'.")
-
-            setattr(self, attr, value)

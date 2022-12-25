@@ -10,7 +10,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
-        TkTimelineUICollection,
+        TimelineUICollection,
         TimelineUIElementManager,
         TimelineCanvas,
     )
@@ -47,7 +47,7 @@ class SliderTimelineUI(TimelineUI):
     def __init__(
         self,
         *args,
-        timeline_ui_collection: TkTimelineUICollection,
+        timeline_ui_collection: TimelineUICollection,
         element_manager: TimelineUIElementManager,
         canvas: TimelineCanvas,
         toolbar: None,

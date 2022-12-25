@@ -95,7 +95,7 @@ class TiLiA:
         self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
 
         self._file_manager._open_file_by_path(
-            r"C:\Programação\TiLiA-devresources\audio_1hrc.tla")
+            r"C:\Programação\TiLiA-devresources\audio_2mrk.tla")
 
     def get_id(self) -> str:
         return str(next(self._id_counter))
@@ -186,7 +186,7 @@ class TiLiA:
     def get_timelines_as_dict(self) -> dict:
         return self._timeline_collection.serialize_timelines()
 
-    def get_elements_for_pasting(self):
+    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
         logger.debug(f"Getting clipboard contents for pasting...")
         elements = self._clipboard.get_contents_for_pasting()
         logger.debug(f"Got '{elements}'")
@@ -218,6 +218,7 @@ class TiLiA:
             except KeyError:
                 name = ""
             components = timeline.pop("components")
+
             create_timeline(
                 kind,
                 self._timeline_collection,
@@ -229,7 +230,7 @@ class TiLiA:
         logger.info(f"Loaded file.")
 
     def on_add_timeline(self, kind: TimelineKind) -> None:
-        if kind not in (TimelineKind.HIERARCHY_TIMELINE, TimelineKind.HIERARCHY_TIMELINE):
+        if kind not in (TimelineKind.HIERARCHY_TIMELINE, TimelineKind.MARKER_TIMELINE):
             raise NotImplementedError
         name = self.ui.ask_string(
             title="Name for new timeline", prompt="Choose name for new timeline"

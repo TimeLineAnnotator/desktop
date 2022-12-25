@@ -50,7 +50,6 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
     print(exc_type)
     print(exc_value)
 
-
 class TkinterUI:
     """
     Responsible for high-level control of the GUI:
@@ -67,6 +66,7 @@ class TkinterUI:
         subscribe(self, Event.UI_REQUEST_WINDOW_INSPECTOR, lambda: self.on_request_window(WindowKind.INSPECT))
         subscribe(self, Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES, lambda: self.on_request_window(WindowKind.MANAGE_TIMELINES))
         subscribe(self, Event.UI_REQUEST_WINDOW_METADATA, lambda: self.on_request_window(WindowKind.METADATA))
+        subscribe(self, Event.REQUEST_DISPLAY_ERROR, self.on_display_error)
         subscribe(self, Event.INSPECT_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.INSPECT))
         subscribe(self, Event.MANAGE_TIMELINES_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES))
         subscribe(self, Event.METADATA_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.METADATA))
@@ -190,6 +190,10 @@ class TkinterUI:
     def on_window_closed(self, kind: WindowKind):
         self._windows[kind] = None
 
+    @staticmethod
+    def on_display_error(title: str, message: str):
+        tk.messagebox.showerror(title, message)
+
     def get_metadata_non_editable_fields(self) -> dict[str]:
 
         return OrderedDict({
@@ -203,7 +207,7 @@ class TkinterUI:
             for tlui in sorted(self.timeline_ui_collection.get_timeline_uis(), key=lambda t: t.timeline.id)
         ]
 
-    def get_elements_for_pasting(self):
+    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
         return self._app.get_elements_for_pasting()
 
     def get_id(self) -> str:

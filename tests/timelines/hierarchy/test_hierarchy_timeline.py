@@ -38,7 +38,7 @@ def tl_with_ui() -> HierarchyTimeline:
     component_manager = HierarchyTLComponentManager()
     timeline = HierarchyTimeline(tl_coll_mock, component_manager)
 
-    timeline.ui = HierarchyTimelineUI(
+    ui = HierarchyTimelineUI(
         timeline_ui_collection=tlui_coll_mock,
         element_manager=TimelineUIElementManager(
             HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
@@ -47,6 +47,9 @@ def tl_with_ui() -> HierarchyTimeline:
         toolbar=MagicMock(),
         name="",
     )
+    timeline.ui = ui
+    ui.timeline = timeline
+
     component_manager.associate_to_timeline(timeline)
     yield timeline
 
@@ -83,9 +86,57 @@ class TestHierarchyTimeline:
             ComponentKind.HIERARCHY, 0, 1, 1
         )
 
-        tl.on_request_to_delete_component(hrc1)
+        tl.on_request_to_delete_components([hrc1])
 
         assert not tl.component_manager._components
+
+    # TEST RIGHT CLICK OPTIONS
+    @patch('tilia.ui.common.ask_for_color')
+    def test_right_click_change_color(self, ask_for_color_mock, tl_with_ui):
+
+        ask_for_color_mock.return_value = '#000000'
+
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0, 1)
+
+        tl_with_ui.ui.right_clicked_element = hrc1.ui
+
+        tl_with_ui.ui.right_click_menu_change_color()
+
+        assert hrc1.ui.color == "#000000"
+
+    @patch('tilia.ui.common.ask_for_color')
+    def test_right_click_reset_color(self, ask_for_color_mock, tl_with_ui):
+
+        ask_for_color_mock.return_value = '#000000'
+
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0, 1)
+
+        tl_with_ui.ui.right_clicked_element = hrc1.ui
+
+        tl_with_ui.ui.right_click_menu_change_color()
+        tl_with_ui.ui.right_click_menu_reset_color()
+
+        assert hrc1.ui.color == hrc1.ui.get_default_level_color(hrc1.level)
+
+    def test_right_click_increase_level(self, tl_with_ui):
+
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0, 1)
+
+        tl_with_ui.ui.right_clicked_element = hrc1.ui
+
+        tl_with_ui.ui.right_click_menu_increase_level()
+
+        assert hrc1.level == 2
+
+    def test_right_click_decrease_level(self, tl_with_ui):
+
+        hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0, 2)
+
+        tl_with_ui.ui.right_clicked_element = hrc1.ui
+
+        tl_with_ui.ui.right_click_menu_decrease_level()
+
+        assert hrc1.level == 1
 
     # TEST SERIALIZE
     def test_serialize_unit(self, tl_with_ui):
@@ -247,8 +298,8 @@ class TestHierarchyTimeline:
 
         state = tl_with_ui.to_dict()
 
-        tl_with_ui.on_request_to_delete_component(hrc1)
-        tl_with_ui.on_request_to_delete_component(hrc2)
+        tl_with_ui.on_request_to_delete_components([hrc1])
+        tl_with_ui.on_request_to_delete_components([hrc2])
 
         assert len(tl_with_ui.component_manager._components) == 0
 

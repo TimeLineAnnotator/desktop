@@ -46,7 +46,7 @@ class HierarchyTimeline(Timeline):
             collection, component_manager, TimelineKind.HIERARCHY_TIMELINE, **kwargs
         )
 
-    def _validate_delete_component(self, component: Hierarchy) -> None:
+    def _validate_delete_components(self, component: Hierarchy) -> None:
         pass
 
     def create_unit_below(self, component: Hierarchy) -> None:

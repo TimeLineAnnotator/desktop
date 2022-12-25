@@ -87,7 +87,7 @@ class Hierarchy(TimelineComponent):
         return Hierarchy(timeline, start, end, level, **kwargs)
 
     def receive_delete_request_from_ui(self) -> None:
-        self.timeline.on_request_to_delete_component(self)
+        self.timeline.on_request_to_delete_components([self])
         self.ui.delete()
 
     @property

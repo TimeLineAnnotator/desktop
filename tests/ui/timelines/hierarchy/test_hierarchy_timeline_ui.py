@@ -14,7 +14,7 @@ from tilia.ui.timelines.hierarchy import HierarchyUI
 from tilia.ui.timelines.hierarchy.timeline import (
     HierarchyTimelineUI, HierarchyTimelineToolbar
 )
-from tilia.ui.timelines.common import TkTimelineUICollection, TimelineUIElementManager
+from tilia.ui.timelines.common import TimelineUICollection, TimelineUIElementManager, on_inspector_field_edited
 from tilia.ui.timelines.copy_paste import PasteError
 
 import logging
@@ -67,7 +67,7 @@ def tl_with_ui() -> HierarchyTimeline:
 
 @pytest.fixture
 def mock_tluicoll():
-    return TkTimelineUICollection(
+    return TimelineUICollection(
         app_ui=MagicMock(),
         frame=MagicMock(),
         scrollbar=MagicMock(),
@@ -311,7 +311,7 @@ class TestHierarchyTimelineTkUI:
 
         copy_data = tl_with_ui.ui.get_copy_data_from_hierarchy_uis([hrc1.ui])
         tl_with_ui.ui.select_element(hrc2.ui)
-        tl_with_ui.ui.paste_into_selected_elements(copy_data)
+        tl_with_ui.ui.paste_single_into_selected_elements(copy_data)
 
         assert_are_copies(hrc1, hrc2)
 

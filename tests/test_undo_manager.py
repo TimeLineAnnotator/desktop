@@ -45,6 +45,7 @@ class TestUndoManager:
         um.save_current_if_necessary()
 
         assert len(um.stack) == 2
+        assert um.stack[-1]['state'] == 'state2'
 
     def test_record_successive_no_repeat_states_with_different_ids(self, um):
         can_restore_state_mock = MagicMock()
@@ -56,6 +57,8 @@ class TestUndoManager:
 
         assert len(um.stack) == 3
 
+    def test_undo(self, post_mock: MagicMock, um):
+        um.record('state1', 'action1')
 
 
     def test_undo(self, um):
