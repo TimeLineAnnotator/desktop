@@ -331,7 +331,7 @@ class HierarchyTimelineUI(TimelineUI):
 
         if element_to_select:
             self.element_manager.deselect_element(selected_element)
-            self.element_manager.select_element(element_to_select)
+            self.select_element(element_to_select)
         elif direction == UpOrDown.UP:
             logger.debug(f"Selected element has no parent. Can't select up.")
         else:
@@ -361,8 +361,6 @@ class HierarchyTimelineUI(TimelineUI):
             else:
                 return None
 
-
-
         if not self.has_selected_elements:
             logger.debug(f"User pressed left arrow but no elements were selected.")
             return
@@ -380,6 +378,7 @@ class HierarchyTimelineUI(TimelineUI):
         if element_to_select:
             self.element_manager.deselect_element(selected_element)
             self.element_manager.select_element(element_to_select)
+            self.post_inspectable_selected_event(element_to_select)
         elif side == Side.RIGHT:
             logger.debug(f"Selected element is last element in level. Can't select next.")
         else:

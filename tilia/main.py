@@ -98,7 +98,7 @@ class TiLiA:
         self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
 
         self._file_manager._open_file_by_path(
-            r"C:\Programação\TiLiA-devresources\audio_3hrc.tla")
+            r"C:\Programação\TiLiA-devresources\audio_2mrk.tla")
 
     def get_id(self) -> str:
         return str(next(self._id_counter))

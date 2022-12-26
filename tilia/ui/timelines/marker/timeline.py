@@ -144,7 +144,7 @@ class MarkerTimelineUI(TimelineUI):
 
         if element_to_select:
             self.element_manager.deselect_element(selected_element)
-            self.element_manager.select_element(element_to_select)
+            self.select_element(element_to_select)
         elif side == Side.RIGHT:
             logger.debug(f"Selected element is last. Can't select next.")
         else:
