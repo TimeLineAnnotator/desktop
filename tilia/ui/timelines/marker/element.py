@@ -253,10 +253,15 @@ class MarkerUI(TimelineUIElement):
         self.drag_data = {
             "max_x": self.timeline_ui.get_right_margin_x(),
             "min_x": self.timeline_ui.get_left_margin_x(),
-            "dragged": False
+            "dragged": False,
+            "x": None
         }
 
     def drag(self, x: int, _) -> None:
+
+        if self.drag_data['x'] is None:
+            events.post(Event.ELEMENT_DRAG_START)
+
         logger.debug(f"Dragging {self}...")
         drag_x = x
         if x > self.drag_data["max_x"]:

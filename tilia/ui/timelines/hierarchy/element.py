@@ -471,7 +471,7 @@ class HierarchyUI(TimelineUIElement):
     def make_drag_data(self, extremity: StartOrEnd):
         logger.debug(f"{self} is preparing to drag {extremity} marker...")
         min_x, max_x = self.get_drag_limit(extremity)
-        self.drag_data = {"extremity": extremity, "max_x": max_x, "min_x": min_x}
+        self.drag_data = {"extremity": extremity, "max_x": max_x, "min_x": min_x, "x": None}
 
     def get_drag_limit(self, extremity: StartOrEnd) -> tuple[int, int]:
         logger.debug(f"Getting drag limitis for {extremity} marker.")
@@ -510,6 +510,10 @@ class HierarchyUI(TimelineUIElement):
         return min_x, max_x
 
     def drag(self, x: int, _) -> None:
+
+        if self.drag_data['x'] is None:
+            events.post(Event.ELEMENT_DRAG_START)
+
         logger.debug(f"Dragging self {self.drag_data['extremity']} marker...")
         drag_x = x
 
@@ -534,12 +538,13 @@ class HierarchyUI(TimelineUIElement):
 
     def end_drag(self):
         logger.debug(f"Ending drag of {self}.")
-        events.post(
-            Event.REQUEST_RECORD_STATE,
-            'hierarchy drag',
-            no_repeat=True,
-            repeat_identifier=f'{self.timeline_ui}_drag_to_{self.drag_data["x"]}'
-        )
+        if self.drag_data is not None:
+            events.post(
+                Event.REQUEST_RECORD_STATE,
+                'hierarchy drag',
+                no_repeat=True,
+                repeat_identifier=f'{self.timeline_ui}_drag_to_{self.drag_data["x"]}'
+            )
         self.drag_data = {}
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)

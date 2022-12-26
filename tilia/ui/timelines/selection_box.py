@@ -24,6 +24,7 @@ class SelectionBox:
         events.subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.on_motion)
         events.subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.on_left_released)
         events.subscribe(self, Event.SLIDER_DRAG_START, self.on_preparing_to_drag)
+        events.subscribe(self, Event.ELEMENT_DRAG_START, self.on_preparing_to_drag)
 
     def draw(self):
         self.canvas_id = self.canvas.create_rectangle(*self.get_coords(), fill='')
@@ -44,7 +45,10 @@ class SelectionBox:
     def get_canvas_overlap(self):
         overlap = set(self.canvas.find_overlapping(*self.get_coords()))
 
-        overlap.remove(self.canvas_id)
+        try:
+            overlap.remove(self.canvas_id)
+        except KeyError:
+            pass  # happens when SelectionBox is about to be deleted
 
         return overlap
 
