@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    TILIA_FILE_LOADED = auto()
     ELEMENT_DRAG_START = auto()
     REQUEST_RESTORE_APP_STATE = auto()
     MARKER_TOOLBAR_BUTTON_DELETE = auto()

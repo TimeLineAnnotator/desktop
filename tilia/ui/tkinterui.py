@@ -70,6 +70,7 @@ class TkinterUI:
         subscribe(self, Event.INSPECT_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.INSPECT))
         subscribe(self, Event.MANAGE_TIMELINES_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES))
         subscribe(self, Event.METADATA_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.METADATA))
+        subscribe(self, Event.TILIA_FILE_LOADED, self.on_tilia_file_loaded)
 
         logger.debug("Starting TkinterUI...")
 
@@ -189,6 +190,13 @@ class TkinterUI:
 
     def on_window_closed(self, kind: WindowKind):
         self._windows[kind] = None
+
+    def on_tilia_file_loaded(self):
+        windows_to_close = [WindowKind.INSPECT, WindowKind.MANAGE_TIMELINES, WindowKind.METADATA]
+
+        for window_kind in windows_to_close:
+            if window := self._windows[window_kind]:
+                window.destroy()
 
     @staticmethod
     def on_display_error(title: str, message: str):

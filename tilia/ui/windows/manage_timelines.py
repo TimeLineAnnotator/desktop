@@ -29,7 +29,7 @@ class ManageTimelines:
 
         self.toplevel = tk.Toplevel()
         self.toplevel.title("Manage timelines")
-        self.toplevel.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
         self.toplevel.transient(self._app_ui.root)
 
         logger.debug(f"Existing timelines ids and display strings are {timeline_ids_and_display_strings}")
@@ -186,7 +186,7 @@ class ManageTimelines:
     def on_clear_button(self):
         raise NotImplementedError
 
-    def on_close(self):
+    def destroy(self):
         self.toplevel.destroy()
         events.post(Event.MANAGE_TIMELINES_WINDOW_CLOSED)
 

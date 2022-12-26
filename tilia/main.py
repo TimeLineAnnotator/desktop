@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 from unittest.mock import MagicMock
 
-from tilia import globals_, media_exporter
+from tilia import globals_, media_exporter, events
 from tilia.exceptions import UserCancelledSaveError
 from tilia.globals_ import UserInterfaceKind
 from tilia.files import TiliaFile, create_new_media_metadata
@@ -235,7 +235,7 @@ class TiLiA:
 
         self._undo_manager.clear()
         self._undo_manager.record(self.get_state(), StateAction.FILE_LOAD)
-
+        events.post(Event.TILIA_FILE_LOADED)
         logger.info(f"Loaded file.")
 
 
