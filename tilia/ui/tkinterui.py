@@ -214,9 +214,14 @@ class TkinterUI:
         })
 
     def get_timeline_info_for_manage_timelines_window(self) -> list[tuple[int, str]]:
+        def get_tlui_display_string(tlui):
+            if tlui.TIMELINE_KIND == TimelineKind.SLIDER_TIMELINE:
+                return 'SliderTimeline'
+            else:
+                return f"{tlui.name} | {tlui.timeline.__class__.__name__}"
         return [
-            (tlui.timeline.id, str(tlui))
-            for tlui in sorted(self.timeline_ui_collection.get_timeline_uis(), key=lambda t: t.timeline.id)
+            (tlui.timeline.id, get_tlui_display_string(tlui))
+            for tlui in sorted(self.timeline_ui_collection.get_timeline_uis(), key=lambda t: t.display_position)
         ]
 
     def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
