@@ -98,7 +98,7 @@ class TiLiA:
         self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
 
         self._file_manager._open_file_by_path(
-            r"C:\Programação\TiLiA-devresources\audio_2mrk.tla")
+            r"C:\Programação\TiLiA-devresources\audio_3hrc.tla")
 
     def get_id(self) -> str:
         return str(next(self._id_counter))
@@ -213,24 +213,25 @@ class TiLiA:
 
         file_copy = dataclasses.asdict(file)  # must copy so keys don't get popped in passed _file
 
-        for _, timeline in file_copy['timelines'].items():
-            kind_str = timeline.pop("kind")
+        for _, tl_data in file_copy['timelines'].items():
+            kind_str = tl_data.pop("kind")
             if kind_str not in IMPLEMENTED_TIMELINE_KINDS:
                 logger.debug(f"Timeline kind '{kind_str} is not implemented.")
                 continue
             kind = TimelineKind[kind_str]
-            try:
-                name = timeline.pop("name")
-            except KeyError:
-                name = ""
-            components = timeline.pop("components")
+            # try:
+            #     name = tl_data.pop("name")
+            # except KeyError:
+            #     name = ""
+            # components = tl_data.pop("components")
+
+            print(tl_data)
 
             create_timeline(
                 kind,
                 self._timeline_collection,
                 self._timeline_ui_collection,
-                name,
-                components
+                **tl_data
             )
 
         self._undo_manager.clear()

@@ -9,14 +9,17 @@ def create_timeline(
         timeline_kind: TimelineKind,
         timeline_collection: TimelineCollection,
         timeline_ui_collection: TimelineUICollection,
-        name: str,
-        components: dict[int] = None
+        name: str = '',
+        components: dict[int] = None,
+        **kwargs
 ):
     _validate_timeline_kind(timeline_kind)
 
     timeline = timeline_collection.create_timeline(timeline_kind)
     timeline_ui = timeline_ui_collection.create_timeline_ui(
-        timeline_kind, name
+        timeline_kind,
+        name,
+        **kwargs
     )
 
     timeline.ui = timeline_ui

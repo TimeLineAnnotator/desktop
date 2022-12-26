@@ -404,13 +404,6 @@ class HierarchyTimelineUI(TimelineUI):
         }
         option_to_callback[option]()
 
-    def right_click_menu_change_timeline_height(self) -> None:
-        height = tilia.ui.common.ask_for_int('Change timeline height', 'Insert new timeline height', initialvalue=self.height)
-        if height:
-            logger.debug(f"User requested new timeline height of '{height}'")
-            self._change_height(height)
-
-
     def right_click_menu_increase_level(self) -> None:
         self.timeline.change_level_by_amount(1, self.right_clicked_element.tl_component)
 

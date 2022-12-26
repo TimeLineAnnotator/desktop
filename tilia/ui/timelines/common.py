@@ -251,7 +251,7 @@ class TimelineUICollection:
         logger.debug(f"Changing to timeline widht to {value}.")
         self._app_ui.timeline_width = value
 
-    def create_timeline_ui(self, kind: TimelineKind, name: str) -> TimelineUI:
+    def create_timeline_ui(self, kind: TimelineKind, name: str, **kwargs) -> TimelineUI:
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
 
         canvas = self.create_timeline_canvas(name, timeline_class.DEFAULT_HEIGHT)
@@ -268,6 +268,7 @@ class TimelineUICollection:
             canvas=canvas,
             toolbar=toolbar,
             name=name,
+            **kwargs
         )
 
         if toolbar:
@@ -1255,15 +1256,17 @@ class TimelineUI(ABC):
         super().__init__()
 
         self.timeline_ui_collection = timeline_ui_collection
+        self.canvas = canvas
+        self._timeline = None
+
+        self._name = name
         self.visible = is_visible
         self._height = height
-        self._name = name
-        self._timeline = None
+        self.canvas.update_height(height)  # can't call height setter as some attributes have not yet been set
 
         self.component_kinds_to_ui_element_kinds = component_kinds_to_ui_element_kinds
         self.element_manager = timeline_ui_element_manager
         self.component_kinds_to_classes = component_kinds_to_classes
-        self.canvas = canvas
         self.toolbar = toolbar
 
         self.right_clicked_element = None

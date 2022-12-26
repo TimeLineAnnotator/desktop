@@ -4,8 +4,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 import tkinter as tk
 
-import tilia.ui.timelines.copy_paste
-from tilia import main, events
 from tilia.events import unsubscribe_from_all, Event
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.common import ParentChildRelation
@@ -16,7 +14,7 @@ from tilia.ui.timelines.hierarchy import HierarchyUI
 from tilia.ui.timelines.hierarchy.timeline import (
     HierarchyTimelineUI, HierarchyTimelineToolbar
 )
-from tilia.ui.timelines.common import TimelineUICollection, TimelineUIElementManager, on_inspector_field_edited
+from tilia.ui.timelines.common import TimelineUICollection, TimelineUIElementManager, TimelineCanvas
 from tilia.ui.timelines.copy_paste import PasteError
 
 import logging
@@ -50,12 +48,16 @@ def tl_with_ui() -> HierarchyTimeline:
 
     component_manager = HierarchyTLComponentManager()
     timeline = HierarchyTimeline(tl_coll_mock, component_manager)
+    timeline_canvas = TimelineCanvas(
+        tk.Frame(), MagicMock(), 1, 1, 1, ''
+    )
+
     timeline_ui = HierarchyTimelineUI(
         timeline_ui_collection=tlui_coll_mock,
         element_manager=TimelineUIElementManager(
             HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
         ),
-        canvas=tk.Canvas(),
+        canvas=timeline_canvas,
         toolbar=MagicMock(),
         name="",
     )
@@ -148,15 +150,6 @@ def assert_is_copy_data_of(copy_data: dict, hierarchy_ui: Hierarchy):
 
 
 class TestHierarchyTimelineTkUI:
-
-    def test_constructor(self, mock_tluicoll):
-        HierarchyTimelineUI(
-            timeline_ui_collection=mock_tluicoll,
-            element_manager=TimelineUIElementManager(HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES),
-            canvas=tk.Canvas(),
-            toolbar=HierarchyTimelineToolbar,
-            name='testHTL'
-        )
 
     def test_rearrange_elements_two_levels(self, tl_with_ui):
         unit2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
