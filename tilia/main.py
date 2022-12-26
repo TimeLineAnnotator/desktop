@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 from unittest.mock import MagicMock
 
-from tilia import globals_, media_exporter, events
+from tilia import globals_, media_exporter, events, local_dev_code
 from tilia.exceptions import UserCancelledSaveError
 from tilia.globals_ import UserInterfaceKind
 from tilia.files import TiliaFile, create_new_media_metadata
@@ -87,18 +87,10 @@ class TiLiA:
 
         self._initial_file_setup()
 
-        self._code_for_dev()
+        local_dev_code.func(self)
 
         self.ui.launch()
 
-    # noinspection PyProtectedMember
-    def _code_for_dev(self):
-        """Use this to execute code before the ui mainloop runs."""
-
-        self._timeline_collection.delete_timeline(self._timeline_collection._timelines[0])
-
-        self._file_manager._open_file_by_path(
-            r"C:\Programação\TiLiA-devresources\audio_2mrk.tla")
 
     def get_id(self) -> str:
         return str(next(self._id_counter))
