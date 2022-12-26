@@ -50,6 +50,7 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
     print(exc_type)
     print(exc_value)
 
+
 class TkinterUI:
     """
     Responsible for high-level control of the GUI:
@@ -135,6 +136,9 @@ class TkinterUI:
             self.hscrollbar,
             self.timelines_toolbar_frame
         )
+
+    def get_window_size(self):
+        return self.root.winfo_width()
 
     def get_timeline_ui_collection(self):
         return self.timeline_ui_collection

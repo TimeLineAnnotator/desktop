@@ -93,6 +93,7 @@ class TimelineCanvas(tk.Canvas):
         super().__init__(
             parent,
             height=height,
+            width=width,
             bg=self.DEFAULT_BG,
             highlightthickness=0,
         )
@@ -137,7 +138,8 @@ class TimelineCanvas(tk.Canvas):
     def on_root_window_resized(self, width: int, _):
         try:
             self.config(width=width)
-        except:
+        except tkinter.TclError:
+            # canvas does not exist, for some reason
             pass
 
     @property
@@ -418,12 +420,12 @@ class TimelineUICollection:
 
     def create_timeline_canvas(self, name: str, starting_height: int):
         return TimelineCanvas(
-            self.frame,
-            self.scrollbar,
-            self.get_tlcanvas_width(),
-            self._app_ui.timeline_padx,
-            starting_height,
-            name,
+            parent=self.frame,
+            scrollbar=self.scrollbar,
+            width=self.get_tlcanvas_width(),
+            left_margin_width=self._app_ui.timeline_padx,
+            height=starting_height,
+            initial_name=name
         )
 
     @property
@@ -456,7 +458,7 @@ class TimelineUICollection:
         )
 
     def get_tlcanvas_width(self) -> int:
-        return self._app_ui.timeline_total_size
+        return self._app_ui.get_window_size()
 
     def _get_timeline_ui_by_canvas(self, canvas):
         return next(
@@ -514,9 +516,7 @@ class TimelineUICollection:
             if not self.slider_is_being_dragged:
                 self.selection_boxes = [SelectionBox(canvas, [x, y], 0)]
         else:
-            raise ValueError(
-                f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
-            )
+            logger.debug(f"Can't process left click: no timeline with canvas '{canvas}' on {self}")
 
     def _on_timeline_ui_left_drag(self, _, y: int) -> None:
 

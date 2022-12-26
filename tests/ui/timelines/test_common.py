@@ -9,6 +9,7 @@ from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.common import TimelineUICollection
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
+from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.timelines.slider import SliderTimelineUI
 from tilia.ui.tkinterui import TkinterUI
 
@@ -51,8 +52,10 @@ class TestTkTimelineUICollection:
         unsubscribe_from_all(tlui_coll)
 
 
-    def test_create_timeline_ui_hierarchy_timeline(self, create_playback_line_mock, tlui_coll):
+    @patch('tilia.ui.timelines.common.TimelineUICollection.get_tlcanvas_width')
+    def test_create_timeline_ui_hierarchy_timeline(self, get_width_mock, _, tlui_coll):
 
+        get_width_mock.return_value = 1
 
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
 
@@ -62,7 +65,9 @@ class TestTkTimelineUICollection:
         assert tlui in tlui_coll._timeline_uis
         assert tlui_coll._select_order[0] == tlui
 
-    def test_create_timeline_ui_slider_timeline(self, create_playback_line_mock, tlui_coll):
+    @patch('tilia.ui.timelines.common.TimelineUICollection.get_tlcanvas_width')
+    def test_create_timeline_ui_slider_timeline(self, get_width_mock, _,  tlui_coll):
+        get_width_mock.return_value = 1
 
         tlui = tlui_coll.create_timeline_ui(TimelineKind.SLIDER_TIMELINE, 'test')
 
@@ -70,7 +75,10 @@ class TestTkTimelineUICollection:
         assert tlui in tlui_coll._timeline_uis
         assert tlui_coll._select_order[0] == tlui
 
-    def test_create_two_timeline_uis(self, create_playback_line_mock, tlui_coll):
+    @patch('tilia.ui.timelines.common.TimelineUICollection.get_tlcanvas_width')
+    def test_create_two_timeline_uis(self, get_width_mock, _,  tlui_coll):
+        get_width_mock.return_value = 1
+
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
 
         tlui1 = tlui_coll.create_timeline_ui(TimelineKind.HIERARCHY_TIMELINE, 'test')
@@ -80,7 +88,10 @@ class TestTkTimelineUICollection:
         assert tlui2 in tlui_coll._timeline_uis
         assert tlui_coll._select_order[0] == tlui2
 
-    def test_delete_timeline_ui(self, create_playback_line_mock, tlui_coll):
+    @patch('tilia.ui.timelines.common.TimelineUICollection.get_tlcanvas_width')
+    def test_delete_timeline_ui(self, get_width_mock, _,  tlui_coll):
+        get_width_mock.return_value = 1
+
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
         tlui_coll._delete_timeline_ui_toolbar_if_necessary = lambda _: None
 
@@ -92,7 +103,10 @@ class TestTkTimelineUICollection:
         assert not tlui_coll._select_order
         assert not tlui_coll._display_order
 
-    def test_update_select_order(self, create_playback_line_mock, tlui_coll):
+    @patch('tilia.ui.timelines.common.TimelineUICollection.get_tlcanvas_width')
+    def test_update_select_order(self, get_width_mock, _,  tlui_coll):
+        get_width_mock.return_value = 1
+
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
 
         tlui1 = tlui_coll.create_timeline_ui(TimelineKind.HIERARCHY_TIMELINE, 'test')
