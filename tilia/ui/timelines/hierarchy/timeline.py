@@ -43,10 +43,6 @@ from tilia.ui.element_kinds import UIElementKind
 
 class HierarchyTimelineUI(TimelineUI):
     DEFAULT_HEIGHT = 150
-    CANVAS_CLASS = tk.Canvas
-    LABEL_WIDTH = 15
-    LINE_WEIGHT = 3
-    LINE_YOFFSET = 3
 
     TOOLBAR_CLASS = HierarchyTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyUI}

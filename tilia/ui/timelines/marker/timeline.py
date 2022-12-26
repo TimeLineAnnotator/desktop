@@ -38,10 +38,6 @@ from tilia.ui.element_kinds import UIElementKind
 
 class MarkerTimelineUI(TimelineUI):
     DEFAULT_HEIGHT = 30
-    CANVAS_CLASS = tk.Canvas
-    LABEL_WIDTH = 15
-    LINE_WEIGHT = 3
-    LINE_YOFFSET = 3
 
     TOOLBAR_CLASS = MarkerTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.MARKER_TKUI: MarkerUI}
