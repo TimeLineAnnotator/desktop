@@ -78,6 +78,8 @@ DEFAULT_CANVAS_BINDINGS = [
     ("<Control-V>", lambda _: events.post(Event.KEY_PRESS_CONTROL_SHIFT_V)),
     ("<Control-z>", lambda _: events.post(Event.REQUEST_TO_UNDO)),
     ("<Control-y>", lambda _: events.post(Event.REQUEST_TO_REDO)),
+    ("<Control-s>", lambda _: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=False)),
+    ("<Control-S>", lambda _: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=True)),
     ("<g>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP)),
     ("<s>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT)),
     ("<M>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE)),
