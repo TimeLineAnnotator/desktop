@@ -72,50 +72,50 @@ from tilia.ui.windows.metadata import MetadataWindow, EditMetadataFieldsWindow, 
 #         metadata_window.update_metadata_fields(test_value2)
 #         metadata_window.refresh_fields()
 #         assert list(metadata_window.fieldnames_to_widgets) == test_value2
-
-
-class TestEditMetadataFieldsWindow:
-    def test_get_metadata_fields_as_str(self):
-        metadata_mock = {
-            'field1': 'a',
-            'field2': 'b',
-            'field3': 'c'
-        }
-
-        assert EditMetadataFieldsWindow.get_metadata_fields_as_str(list(metadata_mock)) == 'field1\nfield2\nfield3'
-
-
-
-    def test_get_metadata_fields_from_widget(self):
-        window_mock = MagicMock()
-        test_str = """
-        field1
-        field2
-        field3
-        """
-        window_mock.scrolled_text.get = lambda *_: test_str
-
-        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
-
-        assert metadata_fields == ['field1', 'field2', 'field3'] + PERMANENT_FIELDS
-
-        test_str = """
-        field1
-
-
-        field2
-        """
-
-        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
-
-        assert metadata_fields == ['field1', 'field2'] + PERMANENT_FIELDS
-
-        test_str = """
-        field1
-        !@#$%¨&*()\/{}[]
-        field2
-        """
-
-        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
-
-        assert metadata_fields == ['field1', '!@#$%¨&*()\/{}[]', 'field2'] + PERMANENT_FIELDS
+#
+#
+# class TestEditMetadataFieldsWindow:
+#     def test_get_metadata_fields_as_str(self):
+#         metadata_mock = {
+#             'field1': 'a',
+#             'field2': 'b',
+#             'field3': 'c'
+#         }
+#
+#         assert EditMetadataFieldsWindow.get_metadata_fields_as_str(list(metadata_mock)) == 'field1\nfield2\nfield3'
+#
+#
+#
+#     def test_get_metadata_fields_from_widget(self):
+#         window_mock = MagicMock()
+#         test_str = """
+#         field1
+#         field2
+#         field3
+#         """
+#         window_mock.scrolled_text.get = lambda *_: test_str
+#
+#         metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
+#
+#         assert metadata_fields == ['field1', 'field2', 'field3'] + PERMANENT_FIELDS
+#
+#         test_str = """
+#         field1
+#
+#
+#         field2
+#         """
+#
+#         metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
+#
+#         assert metadata_fields == ['field1', 'field2'] + PERMANENT_FIELDS
+#
+#         test_str = """
+#         field1
+#         !@#$%¨&*()\/{}[]
+#         field2
+#         """
+#
+#         metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
+#
+#         assert metadata_fields == ['field1', '!@#$%¨&*()\/{}[]', 'field2'] + PERMANENT_FIELDS

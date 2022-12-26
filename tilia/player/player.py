@@ -140,7 +140,7 @@ class Player(ABC):
         """Stops music playback and resets slider position"""
         events.post(Event.PLAYER_STOPPING)
         logger.debug("Stopping media playback.")
-        if not self.playing:
+        if not self.playing and self.current_time == 0.0:
             return
 
         self._engine_stop()
@@ -368,7 +368,7 @@ class PygamePlayer(Player):
         self.playback_offset = time
         pygame.mixer.music.play(loops=0, start=time)
         if not self.playing:
-            pygame.mixer.music.pause()
+            self._engine_pause()
         self.current_time = time
 
     def _engine_play(self) -> None:
@@ -379,6 +379,7 @@ class PygamePlayer(Player):
 
     def _engine_pause(self) -> None:
         pygame.mixer.music.pause()
+        self.playback_offset = self.current_time
 
     def _engine_unpause(self) -> None:
         pygame.mixer.music.unpause()

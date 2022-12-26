@@ -1,4 +1,5 @@
 import os
+import time
 
 import pytest
 from pathlib import Path
@@ -62,7 +63,6 @@ def vlc_play_media(vlc_player):
 
 
 class TestPygamePlayer:
-    # TESTS
     def test_startup(self):
         player = PygamePlayer()
         assert player
@@ -96,7 +96,7 @@ class TestPygamePlayer:
     def test_play(self, pygame_player):
         events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         assert pygame_player.playing
-    
+
     
     def test_play_no_media_loaded(self, pygame_player_notloaded):
         player = pygame_player_notloaded
@@ -115,12 +115,29 @@ class TestPygamePlayer:
         events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
         assert pygame_player.playing
-    
+
+    @pytest.mark.parametrize('pygame_player', AUDIO_FORMATS, indirect=True)
+    def test_pause_preserves_playback_time(self, pygame_player):
+        pygame_player.play_pause()
+        time.sleep(1)
+        time1 = pygame_player.current_time
+        pygame_player.play_pause()
+        pygame_player.play_pause()
+        time.sleep(0.5)
+        assert time1 * 2 >= pygame_player.current_time >= time1
     
     @pytest.mark.parametrize('pygame_player', AUDIO_FORMATS, indirect=True)
     def test_stop_media(self, pygame_player, pygame_play_media):
         events.post(Event.PLAYER_REQUEST_TO_STOP)
         assert not pygame_player.playing
+        assert pygame_player.current_time == 0.0
+
+    @pytest.mark.parametrize('pygame_player', AUDIO_FORMATS, indirect=True)
+    def test_stop_media_when_paused(self, pygame_player, pygame_play_media):
+        pygame_player.play_pause()
+        pygame_player.stop()
+        assert not pygame_player.playing
+        assert pygame_player.current_time == 0.0
 
     
     @pytest.mark.parametrize('pygame_player', SEEKABLE_AUDIO_FORMATS, indirect=True)
@@ -192,9 +209,20 @@ class TestVlcPlayer:
         assert vlc_player.playing
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
-    def test_stop_media(self, vlc_player, vlc_play_media):
-        events.post(Event.PLAYER_REQUEST_TO_STOP)
+    def test_stop_media(self, vlc_player):
+        time.sleep(0.5)
+        vlc_player.stop()
         assert not vlc_player.playing
+        assert vlc_player.current_time == 0.0
+
+    @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
+    def test_stop_media_when_paused(self, vlc_player):
+        vlc_player.play_pause()
+        time.sleep(0.5)
+        vlc_player.play_pause()
+        vlc_player.stop()
+        assert not vlc_player.playing
+        assert vlc_player.current_time == 0.0
 
     @pytest.mark.parametrize('vlc_player', VIDEO_FORMATS, indirect=True)
     def test_seek_playing_media(self, vlc_play_media, vlc_player):
