@@ -136,6 +136,10 @@ LOG_EVENTS = True
 
 
 def post(event: Event, *args, **kwargs) -> None:
+    """
+
+    :rtype: None
+    """
     if LOG_EVENTS:
         logger.debug(f"Posting event {event.name} with {args=} and {kwargs=}.")
 

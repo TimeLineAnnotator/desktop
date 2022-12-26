@@ -21,9 +21,8 @@ from tilia.player import player_ui
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
-from . import file
+from . import file, event_handler
 from .common import ask_yes_no, ask_for_directory
-from .event_handler import TkEventHandler
 from .timelines.common import TimelineUICollection
 from .windows.common import AppWindow
 from .windows.manage_timelines import ManageTimelines
@@ -89,7 +88,7 @@ class TkinterUI:
         self._setup_frames()
         self._setup_menus()
 
-        self.event_handler = TkEventHandler(self.root)
+        self._make_default_canvas_bindings()
 
         self._create_timeline_ui_collection()
 
@@ -116,6 +115,10 @@ class TkinterUI:
         self.root.protocol(
             "WM_DELETE_WINDOW", lambda: events.post(Event.REQUEST_CLOSE_APP)
         )
+
+    def _make_default_canvas_bindings(self) -> None:
+        for sequence, callback in event_handler.DEFAULT_CANVAS_BINDINGS:
+            self.root.bind_class("Canvas", sequence, callback)
 
     def _setup_menus(self):
         self.menus = TkinterUIMenus(self, self.root)

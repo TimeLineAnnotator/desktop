@@ -70,7 +70,6 @@ class TimelineCollection:
 
         return timeline
 
-
     def delete_timeline(self, timeline: Timeline):
         logger.debug(f"Deleting timeline {timeline}")
         timeline.delete()
@@ -94,10 +93,36 @@ class TimelineCollection:
         logger.debug(f"Serializing all timelines...")
         return {tl.id: tl.to_dict() for tl in self._timelines}
 
-    def restore_state(self, timelines_dict: dict[dict]) -> None:
+    def restore_state(self, timeline_states: dict[dict]) -> None:
+
+        def _delete_timeline_ui_with_workaround(timeline):
+            timeline_delete_func = timeline.ui.delete
+            timeline.ui.delete = timeline.ui.delete_workaround_with_grid_forget
+            self.delete_timeline(id_to_timelines[id])
+            timeline.ui.delete = timeline_delete_func
+
         id_to_timelines = {tl.id: tl for tl in self._timelines}
-        for id, state in timelines_dict.items():
-            id_to_timelines[id].restore_state(state)
+        shared_tl_ids = list(set(timeline_states) & set(id_to_timelines))
+
+
+        # restore state of timelines that already exist
+        for id in shared_tl_ids:
+            id_to_timelines[id].restore_state(timeline_states[id])
+
+        # delete timelines not in restored state
+        for id in list(set(id_to_timelines) - set(shared_tl_ids)):
+            _delete_timeline_ui_with_workaround(id_to_timelines[id])
+
+        # create timelines only in restored state
+        for id in list(set(timeline_states) - set(shared_tl_ids)):
+            from tilia.timelines.create import create_timeline
+            params = timeline_states[id].copy()
+            timeline_kind = TimelineKind[params.pop('kind')]
+            create_timeline(
+                timeline_kind,
+                self,
+                self._timeline_ui_collection,
+                **params)
 
     def get_timeline_by_id(self, id_: int) -> Timeline:
         return next((e for e in self._timelines if e.id == id_), None)

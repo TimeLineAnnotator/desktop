@@ -3,9 +3,7 @@ from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 
-from tilia import events
-from tilia.events import unsubscribe_from_all, Event
-from tilia.timelines.hierarchy.timeline import HierarchyTimeline, HierarchyTLComponentManager
+from tilia.events import unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.collection import TimelineCollection
 

@@ -85,7 +85,7 @@ class TiLiA:
 
         logger.info("TiLiA started.")
 
-        self._initial_file_setup()
+        # self._initial_file_setup()
 
         local_dev_code.func(self)
 
@@ -211,13 +211,6 @@ class TiLiA:
                 logger.debug(f"Timeline kind '{kind_str} is not implemented.")
                 continue
             kind = TimelineKind[kind_str]
-            # try:
-            #     name = tl_data.pop("name")
-            # except KeyError:
-            #     name = ""
-            # components = tl_data.pop("components")
-
-            print(tl_data)
 
             create_timeline(
                 kind,
@@ -245,6 +238,8 @@ class TiLiA:
             self._timeline_ui_collection,
             name
         )
+
+        events.post(Event.REQUEST_RECORD_STATE, StateAction.TIMELINE_CREATE)
 
     def on_metadata_field_edited(self, field_name: str, value: str) -> None:
         self._media_metadata[field_name] = value

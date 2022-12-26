@@ -18,7 +18,6 @@ if globals_.USER_OS == 'WINDOWS' or 'LINUX':
 else:
     right_click_keysym = '<ButtonPress-2>'
 
-
 DEFAULT_CANVAS_BINDINGS = [
     ######################
     ### MOUSE BINDINGS ###
@@ -89,15 +88,6 @@ DEFAULT_CANVAS_BINDINGS = [
     ("<space>", lambda _: events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE))
 ]
 
-
-class TkEventHandler:
-    def __init__(self, root: tk.Tk):
-        self.root = root
-        self._make_default_canvas_bindings()
-
-    def _make_default_canvas_bindings(self) -> None:
-        for sequence, callback in DEFAULT_CANVAS_BINDINGS:
-            self.root.bind_class("Canvas", sequence, callback)
 
 
 def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):

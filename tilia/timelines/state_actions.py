@@ -4,6 +4,8 @@ from enum import StrEnum, auto
 
 
 class StateAction(StrEnum):
+    TIMELINE_CREATE = auto()
+    TIMELINE_DELETE = auto()
     UNDO = auto()
     CREATE_MARKER = auto()
     ATTRIBUTE_EDIT_VIA_INSPECTOR = auto()

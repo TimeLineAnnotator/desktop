@@ -878,6 +878,8 @@ class TimelineUICollection:
         if self._ask_delete_timeline(timeline_ui):
             self._timeline_collection.delete_timeline(timeline_ui.timeline)
 
+        events.post(Event.REQUEST_RECORD_STATE, StateAction.TIMELINE_DELETE)
+
     @staticmethod
     def _ask_delete_timeline(timeline_ui: TimelineUI):
         return tk.messagebox.askyesno(
@@ -1611,11 +1613,22 @@ class TimelineUI(ABC):
     def has_selected_elements(self):
         return self.element_manager.has_selected_elements
 
+    def delete_workaround_with_grid_forget(self):
+        """
+        For some unkwon reason, calling self.canvas.destroy()
+        when undoing timeline creation is causing the app
+        to not respond to keyboard shortcuts. This workaround
+        uses grid_forget() instead, which causes small memory leaks.
+        """
+        unsubscribe_from_all(self)
+        self.canvas.grid_forget()
+        if self.toolbar:
+            self.toolbar.on_timeline_delete()
+
     def delete(self):
         logger.info(f"Deleting timeline ui {self}...")
 
         unsubscribe_from_all(self)
-
         self.canvas.destroy()
         if self.toolbar:
             self.toolbar.on_timeline_delete()
