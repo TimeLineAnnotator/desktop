@@ -382,8 +382,6 @@ class TimelineUICollection:
     @staticmethod
     def grid_timeline_ui_canvas(canvas: tk.Canvas, row_number: int) -> None:
         logger.debug(f"Griding canvas at row '{row_number}'")
-        print(canvas.winfo_parent())
-        print(f"{canvas.nametowidget(canvas.winfo_parent()).winfo_children()=}")
         canvas.grid(row=row_number, column=0, sticky="ew")
 
     @staticmethod
@@ -525,7 +523,6 @@ class TimelineUICollection:
             return
 
         def create_selection_box_below():
-            print('Creating selection box below')
             last_selection_box_timeline = self._get_timeline_ui_by_canvas(self.selection_boxes[-1].canvas)
             last_display_order = self._display_order.index(last_selection_box_timeline)
             try:
@@ -543,7 +540,6 @@ class TimelineUICollection:
             )
 
         def create_selection_box_above():
-            print('Creating selection box above')
             last_selection_box_timeline = self._get_timeline_ui_by_canvas(self.selection_boxes[-1].canvas)
             last_display_order = self._display_order.index(last_selection_box_timeline)
             try:
