@@ -10,7 +10,7 @@ class AutoSaver:
     def __init__(self):
         self.last_autosave_dict = dict()
         self.exception_list = []
-        self._thread = Thread(target=self._auto_save_loop, args=(self.exception_list, ))
+        self._thread = Thread(target=self._auto_save_loop, args=(self.exception_list,))
         self._thread.start()
 
     def _auto_save_loop(self, exception_list: list) -> None:
@@ -52,11 +52,17 @@ class AutoSaver:
         return os.path.join(self.AUTOSAVE_DIR, self.get_file_name())
 
     def make_room_for_new_autosave(self) -> None:
-        if (remaining_autosaves := len(self.get_autosaves_paths()) - self.MAX_SAVED_FILES) >= 0:
+        if (
+            remaining_autosaves := len(self.get_autosaves_paths())
+            - self.MAX_SAVED_FILES
+        ) >= 0:
             self.delete_older_autosaves(remaining_autosaves + 1)
 
     def get_autosaves_paths(self) -> list[str]:
-        return [os.path.join(self.AUTOSAVE_DIR, file) for file in os.listdir(self.AUTOSAVE_DIR)]
+        return [
+            os.path.join(self.AUTOSAVE_DIR, file)
+            for file in os.listdir(self.AUTOSAVE_DIR)
+        ]
 
     def delete_older_autosaves(self, amount: int):
         paths_by_creation_date = sorted(

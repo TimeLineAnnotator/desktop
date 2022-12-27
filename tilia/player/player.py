@@ -45,12 +45,14 @@ class Player(ABC):
     def __init__(self, previous_media_length: float = 1.0):
         super().__init__()
 
-
         subscribe(self, Event.PLAYER_REQUEST_TO_PLAYPAUSE, self.play_pause)
         subscribe(self, Event.PLAYER_REQUEST_TO_STOP, self.stop)
         subscribe(self, Event.PLAYER_REQUEST_TO_SEEK, self.on_request_to_seek)
-        subscribe(self, Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING,
-                  lambda *args: self.on_request_to_seek(*args, if_paused=True))
+        subscribe(
+            self,
+            Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING,
+            lambda *args: self.on_request_to_seek(*args, if_paused=True),
+        )
         subscribe(self, Event.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self.unload_media)
         subscribe(self, Event.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media)
 
@@ -93,7 +95,7 @@ class Player(ABC):
             self.media_path,
             self.media_length,
             self.playback_length,
-            previous_media_length
+            previous_media_length,
         )
 
         self.media_loaded = True
@@ -112,9 +114,7 @@ class Player(ABC):
         self.current_time = 0.0
         self.media_path = ""
         self.playing = False
-        logger.info(
-            f"Media unloaded succesfully."
-        )
+        logger.info(f"Media unloaded succesfully.")
 
     def play_pause(self):
         """Plays or pauses the current song.

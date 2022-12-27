@@ -36,8 +36,16 @@ class Inspect:
 
     def __init__(self, parent) -> None:
 
-        subscribe(self, Event.INSPECTABLE_ELEMENT_SELECTED, self.on_timeline_component_selected)
-        subscribe(self, Event.INSPECTABLE_ELEMENT_DESELECTED, self.on_timeline_component_deselected)
+        subscribe(
+            self,
+            Event.INSPECTABLE_ELEMENT_SELECTED,
+            self.on_timeline_component_selected,
+        )
+        subscribe(
+            self,
+            Event.INSPECTABLE_ELEMENT_DESELECTED,
+            self.on_timeline_component_deselected,
+        )
 
         self.inspected_objects_stack = []
         self.uicomplex_id = ""
@@ -56,7 +64,9 @@ class Inspect:
 
         Inspect._instanced = True
 
-        self.toplevel.bind("<Escape>", lambda _: events.post(Event.REQUEST_FOCUS_TIMELINES))
+        self.toplevel.bind(
+            "<Escape>", lambda _: events.post(Event.REQUEST_FOCUS_TIMELINES)
+        )
         events.post(Event.INSPECTOR_WINDOW_OPENED)
 
     def destroy(self):
@@ -205,8 +215,7 @@ class Inspect:
         events.post(
             Event.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.uicomplex_id
         )
-        
-        
+
 
 class LabelAndEntry(tk.Frame):
     """Create a tk.Label(), tk.Entry() pair and a associated tk.StrVar()"""

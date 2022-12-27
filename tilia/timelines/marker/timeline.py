@@ -19,7 +19,8 @@ if TYPE_CHECKING:
 from tilia.timelines.common import (
     Timeline,
     TimelineComponentManager,
-    log_object_creation, TimelineComponent
+    log_object_creation,
+    TimelineComponent,
 )
 
 
@@ -40,10 +41,8 @@ class MarkerTimeline(Timeline):
             collection, component_manager, TimelineKind.MARKER_TIMELINE, **kwargs
         )
 
-
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
-
 
 
 class MarkerTLComponentManager(TimelineComponentManager):

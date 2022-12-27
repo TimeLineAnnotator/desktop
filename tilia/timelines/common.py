@@ -276,7 +276,9 @@ class Timeline(ABC):
 
     # noinspection PyMethodMayBeStatic
 
-    def on_request_to_delete_components(self, components: list[TimelineComponent], record=True) -> None:
+    def on_request_to_delete_components(
+        self, components: list[TimelineComponent], record=True
+    ) -> None:
         self._validate_delete_components(components)
 
         for component in components:
@@ -321,9 +323,9 @@ class Timeline(ABC):
 
     def restore_state(self, state: dict):
         self.clear(record=False)
-        self.component_manager.deserialize_components(state['components'])
-        self.ui.height = state['height']
-        self.ui.name = state['name']
+        self.component_manager.deserialize_components(state["components"])
+        self.ui.height = state["height"]
+        self.ui.name = state["name"]
 
     def get_id_for_component(self) -> int:
         id_ = self.collection.get_id()

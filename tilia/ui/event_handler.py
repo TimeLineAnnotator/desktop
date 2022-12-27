@@ -13,17 +13,19 @@ def on_mouse_wheel(event: tk.Event):
         events.post(Event.REQUEST_ZOOM_OUT, event.widget.canvasx(event.x))
 
 
-if globals_.USER_OS == 'WINDOWS' or 'LINUX':
-    right_click_keysym = '<ButtonPress-3>'
+if globals_.USER_OS == "WINDOWS" or "LINUX":
+    right_click_keysym = "<ButtonPress-3>"
 else:
-    right_click_keysym = '<ButtonPress-2>'
+    right_click_keysym = "<ButtonPress-2>"
 
 DEFAULT_CANVAS_BINDINGS = [
     ######################
     ### MOUSE BINDINGS ###
     ######################
-
-    ("<ButtonPress-1>", lambda e: on_left_click(e, modifier=ModifierEnum.NONE, double=False)),
+    (
+        "<ButtonPress-1>",
+        lambda e: on_left_click(e, modifier=ModifierEnum.NONE, double=False),
+    ),
     (
         "<Shift-ButtonPress-1>",
         lambda e: on_left_click(e, modifier=ModifierEnum.SHIFT, double=False),
@@ -48,16 +50,20 @@ DEFAULT_CANVAS_BINDINGS = [
         "<ButtonRelease-1>",
         lambda _: events.post(Event.TIMELINE_LEFT_BUTTON_RELEASE),
     ),
-    ('<Double-Button-1>', lambda e: on_left_click(e, modifier=ModifierEnum.NONE, double=True)),
-    (right_click_keysym, lambda e: on_right_click(e, modifier=ModifierEnum.NONE, double=False)),
+    (
+        "<Double-Button-1>",
+        lambda e: on_left_click(e, modifier=ModifierEnum.NONE, double=True),
+    ),
+    (
+        right_click_keysym,
+        lambda e: on_right_click(e, modifier=ModifierEnum.NONE, double=False),
+    ),
     ("<MouseWheel>", on_mouse_wheel),
     ("<Button-4>", on_mouse_wheel),
     ("<Button-5>", on_mouse_wheel),
-
     #########################
     ### KEYBOARD BINDINGS ###
     #########################
-
     (
         "<Control-D>",
         lambda _: events.post(Event.DEBUG_SELECTED_ELEMENTS),
@@ -82,12 +88,17 @@ DEFAULT_CANVAS_BINDINGS = [
     ("<g>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP)),
     ("<s>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT)),
     ("<M>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE)),
-    ("<Control-Up>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE)),
-    ("<Control-Down>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE)),
+    (
+        "<Control-Up>",
+        lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE),
+    ),
+    (
+        "<Control-Down>",
+        lambda _: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE),
+    ),
     ("<m>", lambda _: events.post(Event.MARKER_TOOLBAR_BUTTON_ADD)),
-    ("<space>", lambda _: events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE))
+    ("<space>", lambda _: events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)),
 ]
-
 
 
 def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
@@ -104,7 +115,7 @@ def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
         canvas_y,
         clicked_item_id,
         modifier=modifier,
-        double=double
+        double=double,
     )
 
 
@@ -122,5 +133,5 @@ def on_right_click(event: tk.Event, modifier: ModifierEnum, double: bool):
         canvas_y,
         clicked_item_id,
         modifier=modifier,
-        double=double
+        double=double,
     )

@@ -17,9 +17,9 @@ SUPPORTED_AUDIO_FORMATS = ["mp3", "wav"]
 NATIVE_VIDEO_FORMATS = ["mp4", "mkv", "m4a"]
 
 USER_DATA_DIR = appdirs.user_data_dir(APP_NAME, roaming=True)
-AUTOSAVE_DIR = Path(USER_DATA_DIR, 'autosaves')
+AUTOSAVE_DIR = Path(USER_DATA_DIR, "autosaves")
 FFMPEG_PATH = "C:\\ffmpeg\\bin\\ffmpeg.exe"
-SETTINGS_PATH = os.path.join(USER_DATA_DIR, 'settings.toml')
+SETTINGS_PATH = os.path.join(USER_DATA_DIR, "settings.toml")
 
 DEFAULT_TIMELINE_WIDTH = 400
 DEFAULT_TIMELINE_PADX = 100
@@ -30,15 +30,13 @@ DEFAULT_WINDOW_HEIGHT = 700
 IMG_DIR = os.path.join("ui", "img")
 
 if sys.platform == "linux":
-    USER_OS = 'LINUX'
+    USER_OS = "LINUX"
 elif sys.platform == "darwin":
-    USER_OS = 'MACOS'
+    USER_OS = "MACOS"
 elif sys.platform == "win32":
-    USER_OS = 'WINDOWS'
+    USER_OS = "WINDOWS"
 
 
 class UserInterfaceKind(Enum):
     TKINTER = auto()
     MOCK = auto()
-
-

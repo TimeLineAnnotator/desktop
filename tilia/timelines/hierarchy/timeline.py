@@ -20,12 +20,14 @@ if TYPE_CHECKING:
 
 from .components import (
     Hierarchy,
-    HierarchyOperationError, logger,
+    HierarchyOperationError,
+    logger,
 )
 from tilia.timelines.common import (
     Timeline,
     TimelineComponentManager,
-    log_object_creation, )
+    log_object_creation,
+)
 from tilia import events
 
 
@@ -180,7 +182,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if record:
             events.post(Event.REQUEST_RECORD_STATE, StateAction.CHANGE_LEVEL)
 
-
     def group(self, units_to_group: list[Hierarchy], record=True) -> None:
         def _validate_at_least_two_selected(units_to_group):
             if len(units_to_group) <= 1:
@@ -296,8 +297,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         )
 
         if previous_common_parent:
-            previous_parent_new_children = [c for c in previous_common_parent.children if c not in units_to_group] + [
-                grouping_unit]
+            previous_parent_new_children = [
+                c for c in previous_common_parent.children if c not in units_to_group
+            ] + [grouping_unit]
 
             self._make_parent_child_relation(
                 ParentChildRelation(
@@ -309,7 +311,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         if record:
             events.post(Event.REQUEST_RECORD_STATE, StateAction.GROUP)
-
 
     def get_unit_to_split(self, time: float) -> Hierarchy | None:
         """Returns lowest level unit that begins strictly before and ends strictly after 'time'"""
@@ -332,7 +333,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 )
 
         def _get_new_children_for_unit_to_split_parent(
-                unit_to_split, left_unit, right_unit
+            unit_to_split, left_unit, right_unit
         ):
             new_children = unit_to_split.parent.children.copy() + [
                 left_unit,
@@ -394,16 +395,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 )
             )
 
+        UI_ATTRIBUTES_TO_PASS_ON = ["label", "color"]
 
-        UI_ATTRIBUTES_TO_PASS_ON = [
-            'label',
-            'color'
-
-        ]
-
-        TL_COMPONENT_ATTRIBUTES_TO_PASS_ON = [
-            'comments'
-        ]
+        TL_COMPONENT_ATTRIBUTES_TO_PASS_ON = ["comments"]
 
         for attr in UI_ATTRIBUTES_TO_PASS_ON:
             setattr(left_unit.ui, attr, getattr(unit_to_split.ui, attr))
@@ -512,7 +506,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         self._remove_from_components_set(component)
 
-
     def scale(self, factor: float) -> None:
         for hrc in self._components:
             hrc.start *= factor
@@ -528,7 +521,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     hrc.end = length
             hrc.ui.update_position()
 
-
     def create_initial_hierarchy(self):
         """Create unit of level 1 encompassing whole audio"""
         logging.debug(f"Creating starting hierarchy for timeline '{self.timeline}'")
@@ -539,7 +531,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             level=1,
         )
 
-        events.post(Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.timeline)
+        events.post(
+            Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.timeline
+        )
 
     def _update_parent_child_relation_after_deletion(
         self, component: Hierarchy
@@ -567,5 +561,3 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 parent=component.parent, children=component_parent_new_children
             )
         )
-
-

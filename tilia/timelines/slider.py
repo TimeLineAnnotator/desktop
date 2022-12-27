@@ -13,6 +13,7 @@ from tilia.timelines.common import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,4 +47,3 @@ class SliderTimeline(Timeline):
 
     def restore_state(self, state: dict):
         """Nothing to do"""
-

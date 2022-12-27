@@ -11,7 +11,8 @@ from tilia.ui.common import destroy_children_recursively
 
 logger = logging.getLogger(__name__)
 
-PERMANENT_FIELDS = ['notes']
+PERMANENT_FIELDS = ["notes"]
+
 
 class LabelAndEntry(tk.Frame):
     """Create a tk.Label(), tk.Entry() pair and a associated tk.StrVar()"""
@@ -37,10 +38,12 @@ class MetadataWindow:
     _instanced = False
     KIND = WindowKind.METADATA
 
-    NON_EDITABLE_FIELDS = ['media_path', 'media length']
-    SEPARATE_WINDOW_FIELDS = ['notes']
+    NON_EDITABLE_FIELDS = ["media_path", "media length"]
+    SEPARATE_WINDOW_FIELDS = ["notes"]
 
-    def __init__(self, app_ui, media_metadata: OrderedDict, non_editable_fields: OrderedDict):
+    def __init__(
+        self, app_ui, media_metadata: OrderedDict, non_editable_fields: OrderedDict
+    ):
 
         logger.debug(f"Opening manage timelines window... ")
         logger.debug(f"{media_metadata=}")
@@ -87,12 +90,11 @@ class MetadataWindow:
             self.fieldnames_to_widgets[field_name] = right_widget
             self.widgets_to_varnames[str(value_var)] = field_name
 
-
         for field_name, value in self._non_editable_fields.items():
             left_widget = tk.Label(self.toplevel, text=field_name.capitalize())
             right_widget = tk.Text(self.toplevel, height=1, borderwidth=0, width=40)
             right_widget.insert(1.0, value)
-            right_widget.config(state='disabled', font=('Arial', 9), bg='#F0F0F0')
+            right_widget.config(state="disabled", font=("Arial", 9), bg="#F0F0F0")
 
             left_widget.grid(row=row_number, column=0, sticky=tk.W)
             right_widget.grid(row=row_number, column=1, padx=5, pady=2, sticky=tk.EW)
@@ -101,16 +103,12 @@ class MetadataWindow:
             self.fieldnames_to_widgets[field_name] = right_widget
             self.widgets_to_varnames[value] = field_name
 
-
         # setup notes field
-        notes_label = tk.Label(self.toplevel, text='Notes:')
+        notes_label = tk.Label(self.toplevel, text="Notes:")
         notes_button = tk.Button(
             self.toplevel,
-            text='Open notes...',
-            command=lambda: NotesWindow(
-                self.toplevel,
-                self._metadata['notes']
-            )
+            text="Open notes...",
+            command=lambda: NotesWindow(self.toplevel, self._metadata["notes"]),
         )
 
         notes_label.grid(row=row_number + 1, column=0, sticky=tk.W)
@@ -133,10 +131,15 @@ class MetadataWindow:
 
         self._edit_metadata_fields_button = tk.Button(
             self.toplevel,
-            text='Edit metadata fields...',
-            command=self.on_edit_metadata_fields_button
+            text="Edit metadata fields...",
+            command=self.on_edit_metadata_fields_button,
         )
-        self._edit_metadata_fields_button.grid(row=len(self._metadata) + len(self._non_editable_fields) + 1, column=0, columnspan=2, pady=(0, 5))
+        self._edit_metadata_fields_button.grid(
+            row=len(self._metadata) + len(self._non_editable_fields) + 1,
+            column=0,
+            columnspan=2,
+            pady=(0, 5),
+        )
 
     def on_edit_metadata_fields_button(self):
         mfw = EditMetadataFieldsWindow(self, self.toplevel, list(self._metadata))
@@ -150,9 +153,7 @@ class MetadataWindow:
     def on_entry_edited(self, var_name: str, *_):
         field_name = self.widgets_to_varnames[var_name]
         entry = self.fieldnames_to_widgets[field_name]
-        events.post(
-            Event.METADATA_FIELD_EDITED, field_name, entry.get()
-        )
+        events.post(Event.METADATA_FIELD_EDITED, field_name, entry.get())
 
     def destroy(self):
         self.toplevel.destroy()
@@ -165,7 +166,7 @@ class MetadataWindow:
 
         new_metadata = OrderedDict()
         for field in new_fields:
-            new_metadata[field] = ''
+            new_metadata[field] = ""
 
             if field in self._metadata:
                 new_metadata[field] = self._metadata[field]
@@ -174,9 +175,14 @@ class MetadataWindow:
 
 
 class EditMetadataFieldsWindow(tk.Toplevel):
-    def __init__(self, metadata_window: MetadataWindow, metadata_toplevel: tk.Toplevel, metadata_fields: list[str]):
+    def __init__(
+        self,
+        metadata_window: MetadataWindow,
+        metadata_toplevel: tk.Toplevel,
+        metadata_fields: list[str],
+    ):
         super().__init__()
-        self.title('Edit metadata fields')
+        self.title("Edit metadata fields")
         self.metadata_window = metadata_window
         self.transient(metadata_toplevel)
 
@@ -187,23 +193,26 @@ class EditMetadataFieldsWindow(tk.Toplevel):
         self.button_frame = tk.Frame(self)
         self.button_frame.pack()
 
-        self.cancel_button = tk.Button(self.button_frame, text='Cancel', command=self.on_cancel)
-        self.save_button = tk.Button(self.button_frame, text='Save', command=self.on_save)
+        self.cancel_button = tk.Button(
+            self.button_frame, text="Cancel", command=self.on_cancel
+        )
+        self.save_button = tk.Button(
+            self.button_frame, text="Save", command=self.on_save
+        )
 
         self.cancel_button.pack(pady=5, padx=5, side=tk.LEFT)
         self.save_button.pack(pady=5, padx=5, side=tk.RIGHT)
 
     @staticmethod
     def get_metadata_fields_as_str(metadata_fields: list[str]):
-        metadata_str = ''
+        metadata_str = ""
         for field in metadata_fields:
-            metadata_str += field + '\n'
+            metadata_str += field + "\n"
 
         return metadata_str[:-1]
 
-
     def on_cancel(self) -> None:
-        print('Cancelling changes')
+        print("Cancelling changes")
         self.destroy()
 
     def on_save(self) -> None:
@@ -213,20 +222,18 @@ class EditMetadataFieldsWindow(tk.Toplevel):
         self.destroy()
 
     def get_metadata_fields_from_widget(self):
-        fields_list = list(map(lambda x: x.strip(), self.scrolled_text.get(1.0, 'end-1c').split('\n')))
+        fields_list = list(
+            map(lambda x: x.strip(), self.scrolled_text.get(1.0, "end-1c").split("\n"))
+        )
         fields_list += PERMANENT_FIELDS
-        return list(filter(lambda x: x != '', fields_list))
+        return list(filter(lambda x: x != "", fields_list))
 
 
 class NotesWindow(tk.Toplevel):
-    def __init__(
-            self,
-            metadata_toplevel: tk.Toplevel,
-            notes_metadata_value: str
-    ):
+    def __init__(self, metadata_toplevel: tk.Toplevel, notes_metadata_value: str):
         super().__init__(metadata_toplevel)
         self.transient(metadata_toplevel)
-        self.title('Notes')
+        self.title("Notes")
 
         self.scrolled_text = tk.scrolledtext.ScrolledText(self)
         self.scrolled_text.insert(1.0, notes_metadata_value)
@@ -238,8 +245,8 @@ class NotesWindow(tk.Toplevel):
 
             events.post(
                 Event.METADATA_FIELD_EDITED,
-                'notes',
-                self.scrolled_text.get(1.0, 'end-1c')
+                "notes",
+                self.scrolled_text.get(1.0, "end-1c"),
             )
 
             self.scrolled_text.edit_modified(False)

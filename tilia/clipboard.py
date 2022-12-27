@@ -10,10 +10,12 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 class Clipboard:
     def __init__(self) -> None:
-        events.subscribe(self, Event.TIMELINE_COMPONENT_COPIED, self.on_timeline_component_copied)
+        events.subscribe(
+            self, Event.TIMELINE_COMPONENT_COPIED, self.on_timeline_component_copied
+        )
         self._contents = []
 
-    def get_contents_for_pasting(self) -> dict[str: dict | TimelineKind]:
+    def get_contents_for_pasting(self) -> dict[str : dict | TimelineKind]:
         return self._contents
 
     def on_timeline_component_copied(self, contents):

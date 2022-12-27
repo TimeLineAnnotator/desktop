@@ -19,7 +19,6 @@ from tilia.timelines.common import (
 )
 
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -55,9 +54,7 @@ class Marker(TimelineComponent):
         self.comments = comments
 
     @classmethod
-    def create(
-        cls, timeline: MarkerTimeline, time: float, **kwargs
-    ):
+    def create(cls, timeline: MarkerTimeline, time: float, **kwargs):
         return Marker(timeline, time, **kwargs)
 
     def receive_delete_request_from_ui(self) -> None:
@@ -72,7 +69,6 @@ class Marker(TimelineComponent):
     def time(self, value):
         logger.debug(f"Setting {self} start to {value}")
         self._time = value
-
 
     def __str__(self):
         return f"Marker({self.time})"

@@ -15,34 +15,34 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_METADATA_FIELDS = [
-    'title',
-    'composer',
-    'tonality',
-    'time signature',
-    'performer',
-    'performance year',
-    'arranger',
-    'composition year',
-    'recording year',
-    'form',
-    'instrumentation',
-    'genre',
-    'lyrics',
-    'media length',
-    'notes',
+    "title",
+    "composer",
+    "tonality",
+    "time signature",
+    "performer",
+    "performance year",
+    "arranger",
+    "composition year",
+    "recording year",
+    "form",
+    "instrumentation",
+    "genre",
+    "lyrics",
+    "media length",
+    "notes",
 ]
 
-DEFAULT_TITLE = 'Untitled'
+DEFAULT_TITLE = "Untitled"
+
 
 def create_new_media_metadata():
 
     media_metadata = OrderedDict()
     for field in DEFAULT_METADATA_FIELDS:
-        media_metadata[field] = ''
+        media_metadata[field] = ""
 
-    media_metadata['title'] = DEFAULT_TITLE
+    media_metadata["title"] = DEFAULT_TITLE
     return media_metadata
-
 
 
 @dataclass
@@ -53,4 +53,3 @@ class TiliaFile:
     timelines: dict = field(default_factory=lambda: {})
     app_name: str = globals_.APP_NAME
     version: str = globals_.VERSION
-

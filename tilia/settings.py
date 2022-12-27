@@ -21,4 +21,3 @@ def edit_setting(table: str, name: str, value) -> None:
 def _save_settings():
     with open(SETTINGS_PATH, "w") as f:
         tomlkit.dump(settings, f)
-

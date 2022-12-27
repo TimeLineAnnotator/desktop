@@ -11,14 +11,11 @@ if TYPE_CHECKING:
 import logging
 
 
-
 logger = logging.getLogger(__name__)
 
 
 class ManageTimelines:
-    def __init__(
-        self, app_ui, timeline_ids_and_display_strings: list[tuple[int, str]]
-    ):
+    def __init__(self, app_ui, timeline_ids_and_display_strings: list[tuple[int, str]]):
         """
         Window that allow user to change the order, toggle visibility
         and delete timelines.
@@ -32,7 +29,9 @@ class ManageTimelines:
         self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
         self.toplevel.transient(self._app_ui.root)
 
-        logger.debug(f"Existing timelines ids and display strings are {timeline_ids_and_display_strings}")
+        logger.debug(
+            f"Existing timelines ids and display strings are {timeline_ids_and_display_strings}"
+        )
         self.tl_ids_and_strings = timeline_ids_and_display_strings
 
         self._setup_widgets()
@@ -109,7 +108,9 @@ class ManageTimelines:
 
         selected_timeline_id = self.tl_ids_and_strings[index][0]
 
-        is_visible = self._app_ui.get_timeline_ui_attribute_by_id(selected_timeline_id, 'is_visible')
+        is_visible = self._app_ui.get_timeline_ui_attribute_by_id(
+            selected_timeline_id, "is_visible"
+        )
 
         if is_visible:
             self.visible_checkbox.select()
@@ -167,12 +168,11 @@ class ManageTimelines:
 
         (
             self.tl_ids_and_strings[index],
-            self.tl_ids_and_strings[index - direction.value]
+            self.tl_ids_and_strings[index - direction.value],
         ) = (
             self.tl_ids_and_strings[index - direction.value],
-            self.tl_ids_and_strings[index]
+            self.tl_ids_and_strings[index],
         )
-
 
     def on_delete_button(self):
         index = self.list_box.index(self.list_box.curselection())
@@ -182,7 +182,6 @@ class ManageTimelines:
 
         self.update_tl_ids_and_strings()
 
-
     def on_clear_button(self):
         raise NotImplementedError
 
@@ -191,11 +190,11 @@ class ManageTimelines:
         events.post(Event.MANAGE_TIMELINES_WINDOW_CLOSED)
 
     def update_tl_ids_and_strings(self):
-        self.tl_ids_and_strings = self._app_ui.get_timeline_info_for_manage_timelines_window()
+        self.tl_ids_and_strings = (
+            self._app_ui.get_timeline_info_for_manage_timelines_window()
+        )
         self.list_box.delete(0, "end")
         self.list_box.insert(
             "end",
             *[display_str for _, display_str in self.tl_ids_and_strings],
         )
-
-

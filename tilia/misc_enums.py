@@ -29,5 +29,5 @@ class UpOrDown(Enum):
 
 
 class Side:
-    LEFT = 'LEFT'
-    RIGHT = 'RIGHT'
+    LEFT = "LEFT"
+    RIGHT = "RIGHT"

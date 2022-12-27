@@ -23,8 +23,8 @@ class ParentChildRelation(NamedTuple):
 
 def process_parent_child_relation(relation: ParentChildRelation):
     """Changes parent and child atributes of the units
-            that are arguments of the relation as to end with the parent/child
-            structure given."""
+    that are arguments of the relation as to end with the parent/child
+    structure given."""
 
     logger.debug(f"Processing parent/child relation '{relation}'")
 

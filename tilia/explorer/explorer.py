@@ -520,8 +520,12 @@ class Explorer:
         events.subscribe(self, "EXPLORER: SEARCH", do_search)
         events.subscribe(self, "EXPLORER: LOAD MEDIA", self.on_explorer_load_media)
         events.subscribe(self, "EXPLORER: PLAY", self.on_explorer_play)
-        events.subscribe(self, "EXPLORER: AUDIO INFO FROM SEARCH RESULT", self.on_explorer_audio_info_from_search_result)
-        
+        events.subscribe(
+            self,
+            "EXPLORER: AUDIO INFO FROM SEARCH RESULT",
+            self.on_explorer_audio_info_from_search_result,
+        )
+
     def on_explorer_load_media(self, audio_index: int):
         self.curr_audio_index = audio_index
         curr_audio = self.audio_info[self.curr_audio_index]
@@ -531,14 +535,12 @@ class Explorer:
             curr_audio["start"],
             curr_audio["end"],
         )
-        
+
     def on_explorer_play(self):
         events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)
-        
+
     def on_explorer_audio_info_from_search_result(self, audio_info):
         self.audio_info = audio_info
-    
-        
 
 
 def do_search(

@@ -16,23 +16,28 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.common import RightClickOption
 
 if TYPE_CHECKING:
-    from tilia.ui.timelines.common import (
-        TimelineUICollection,
-        TimelineUIElementManager,
-        TimelineCanvas)
+    from tilia.ui.timelines.common import TimelineCanvas
+    from tilia.ui.timelines.collection import TimelineUICollection
 
 import logging
 
 logger = logging.getLogger(__name__)
-import tkinter as tk
 
 from tilia import events
 from tilia import ui
-from tilia.ui.timelines.common import TimelineUI
+from tilia.ui.timelines.timeline import (
+    TimelineUI,
+    RightClickOption,
+    TimelineUIElementManager,
+)
 from tilia.ui.timelines.marker.element import MarkerUI
 from tilia.ui.timelines.marker.toolbar import MarkerTimelineToolbar
 
-from tilia.ui.timelines.copy_paste import Copyable, get_copy_data_from_element, paste_into_element
+from tilia.ui.timelines.copy_paste import (
+    Copyable,
+    get_copy_data_from_element,
+    paste_into_element,
+)
 from tilia.ui.element_kinds import UIElementKind
 
 
@@ -41,23 +46,21 @@ class MarkerTimelineUI(TimelineUI):
 
     TOOLBAR_CLASS = MarkerTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.MARKER_TKUI: MarkerUI}
-    COMPONENT_KIND_TO_UIELEMENT_KIND = {
-        ComponentKind.MARKER: UIElementKind.MARKER_TKUI
-    }
+    COMPONENT_KIND_TO_UIELEMENT_KIND = {ComponentKind.MARKER: UIElementKind.MARKER_TKUI}
 
     TIMELINE_KIND = TimelineKind.MARKER_TIMELINE
 
     def __init__(
-            self,
-            *args,
-            timeline_ui_collection: TimelineUICollection,
-            element_manager: TimelineUIElementManager,
-            canvas: TimelineCanvas,
-            toolbar: MarkerTimelineToolbar,
-            name: str,
-            height: int = DEFAULT_HEIGHT,
-            is_visible: bool = True,
-            **kwargs,
+        self,
+        *args,
+        timeline_ui_collection: TimelineUICollection,
+        element_manager: TimelineUIElementManager,
+        canvas: TimelineCanvas,
+        toolbar: MarkerTimelineToolbar,
+        name: str,
+        height: int = DEFAULT_HEIGHT,
+        is_visible: bool = True,
+        **kwargs,
     ):
 
         super().__init__(
@@ -71,10 +74,12 @@ class MarkerTimelineUI(TimelineUI):
             name=name,
             height=height,
             is_visible=is_visible,
-            **kwargs
+            **kwargs,
         )
 
-        subscribe(self, Event.MARKER_TOOLBAR_BUTTON_DELETE, self.on_delete_marker_button)
+        subscribe(
+            self, Event.MARKER_TOOLBAR_BUTTON_DELETE, self.on_delete_marker_button
+        )
         subscribe(self, Event.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
 
     def get_timeline_height(self):
@@ -82,43 +87,37 @@ class MarkerTimelineUI(TimelineUI):
 
     def create_marker(self, time: float, record=True, **kwargs) -> None:
 
-
-
-        self.timeline.create_timeline_component(
-            ComponentKind.MARKER,
-            time,
-            **kwargs
-        )
+        self.timeline.create_timeline_component(ComponentKind.MARKER, time, **kwargs)
 
         if record:
-            events.post(
-                Event.REQUEST_RECORD_STATE,
-                StateAction.CREATE_MARKER
-            )
+            events.post(Event.REQUEST_RECORD_STATE, StateAction.CREATE_MARKER)
 
     def on_delete_marker_button(self):
         self.delete_selected_elements()
 
     def _deselect_all_but_last(self):
-        ordered_selected_elements = sorted(self.element_manager.get_selected_elements(),
-                                           key=lambda x: x.tl_component.time)
+        ordered_selected_elements = sorted(
+            self.element_manager.get_selected_elements(),
+            key=lambda x: x.tl_component.time,
+        )
         if len(ordered_selected_elements) > 1:
             for element in ordered_selected_elements[:-1]:
                 self.element_manager.deselect_element(element)
 
     def on_side_arrow_press(self, side: Side):
-
         def _get_next_marker(elm):
-            later_elements = self.element_manager.get_elements_by_condition(lambda m: m.time > elm.time,
-                                                                            UIElementKind.MARKER_TKUI)
+            later_elements = self.element_manager.get_elements_by_condition(
+                lambda m: m.time > elm.time, UIElementKind.MARKER_TKUI
+            )
             if later_elements:
                 return sorted(later_elements, key=lambda m: m.time)[0]
             else:
                 return None
 
         def _get_previous_marker(elm):
-            earlier_elements = self.element_manager.get_elements_by_condition(lambda m: m.time < elm.time,
-                                                                              UIElementKind.MARKER_TKUI)
+            earlier_elements = self.element_manager.get_elements_by_condition(
+                lambda m: m.time < elm.time, UIElementKind.MARKER_TKUI
+            )
             if earlier_elements:
                 return sorted(earlier_elements, key=lambda m: m.time)[-1]
             else:
@@ -174,16 +173,20 @@ class MarkerTimelineUI(TimelineUI):
     def right_click_menu_copy(self) -> None:
         events.post(
             Event.TIMELINE_COMPONENT_COPIED,
-            self.get_copy_data_from_marker_uis([self.right_clicked_element])
+            self.get_copy_data_from_marker_uis([self.right_clicked_element]),
         )
 
     def right_click_menu_paste(self) -> None:
         self.element_manager.deselect_all_elements()
         self.element_manager.select_element(self.right_clicked_element)
-        self.paste_single_into_selected_elements(self.timeline_ui_collection.get_elements_for_pasting())
+        self.paste_single_into_selected_elements(
+            self.timeline_ui_collection.get_elements_for_pasting()
+        )
 
     def right_click_menu_delete(self) -> None:
-        self.timeline.on_request_to_delete_components([self.right_clicked_element.tl_component])
+        self.timeline.on_request_to_delete_components(
+            [self.right_clicked_element.tl_component]
+        )
 
     def on_inspector_window_opened(self):
         for element in self.element_manager.get_selected_elements():
@@ -229,14 +232,18 @@ class MarkerTimelineUI(TimelineUI):
         selected_elements = self.element_manager.get_selected_elements()
         self.validate_paste(paste_data, selected_elements)
 
-        paste_data = sorted(paste_data, key=lambda md: md['support_by_component_value']['time'])
+        paste_data = sorted(
+            paste_data, key=lambda md: md["support_by_component_value"]["time"]
+        )
         selected_elements = sorted(selected_elements, key=lambda e: e.time)
 
         paste_into_element(selected_elements[0], paste_data[0])
 
-        self.create_pasted_markers(paste_data[1:],
-                                   paste_data[0]['support_by_component_value']['time'],
-                                   selected_elements[0].time)
+        self.create_pasted_markers(
+            paste_data[1:],
+            paste_data[0]["support_by_component_value"]["time"],
+            selected_elements[0].time,
+        )
 
         events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
 
@@ -244,23 +251,33 @@ class MarkerTimelineUI(TimelineUI):
         return self.paste_multiple_into_timeline(paste_data)
 
     def paste_multiple_into_timeline(self, paste_data: list[dict] | dict):
-        reference_time = min(md['support_by_component_value']['time'] for md in paste_data)
+        reference_time = min(
+            md["support_by_component_value"]["time"] for md in paste_data
+        )
 
-        self.create_pasted_markers(paste_data, reference_time, self.timeline_ui_collection.get_current_playback_time())
+        self.create_pasted_markers(
+            paste_data,
+            reference_time,
+            self.timeline_ui_collection.get_current_playback_time(),
+        )
 
         events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
 
-    def create_pasted_markers(self, paste_data: list[dict], reference_time: float, target_time: float) -> None:
-        for marker_data in copy.deepcopy(paste_data):  # deepcopying so popping won't affect original data
-            marker_time = marker_data['support_by_component_value'].pop('time')
+    def create_pasted_markers(
+        self, paste_data: list[dict], reference_time: float, target_time: float
+    ) -> None:
+        for marker_data in copy.deepcopy(
+            paste_data
+        ):  # deepcopying so popping won't affect original data
+            marker_time = marker_data["support_by_component_value"].pop("time")
 
             self.create_marker(
                 target_time + (marker_time - reference_time),
-                **marker_data['by_element_value'],
-                **marker_data['by_component_value'],
-                **marker_data['support_by_element_value'],
-                **marker_data['support_by_component_value'],
-                record=False
+                **marker_data["by_element_value"],
+                **marker_data["by_component_value"],
+                **marker_data["support_by_element_value"],
+                **marker_data["support_by_component_value"],
+                record=False,
             )
 
     def __str__(self) -> str:

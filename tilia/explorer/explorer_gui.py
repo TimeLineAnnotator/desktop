@@ -146,7 +146,11 @@ class ExplorerTkGUI(ExplorerGUI):
     DEFAULT_TLOBJECTS_CONDITIONS = [("end", "<", "15"), ("level", "=", "2")]
 
     def __init__(self, parent: tk.Tk | tk.Toplevel):
-        subscribe(self, "EXPLORER: DISPLAY SEARCH RESULTS", self.on_explorer_display_search_results)
+        subscribe(
+            self,
+            "EXPLORER: DISPLAY SEARCH RESULTS",
+            self.on_explorer_display_search_results,
+        )
         self._setup_widgets(parent)
         self.tlobjects_condition_frames = []
         self.file_condition_frames = []
@@ -302,14 +306,11 @@ class ExplorerTkGUI(ExplorerGUI):
         return [cdt_frame.get_conditions() for cdt_frame in cdt_frame_list]
 
     def on_explorer_display_search_results(self, df: pd.Dataframe):
-        df["start"] = df["start"].map(
-            lambda x: time.strftime("%M:%S", time.gmtime(x))
-        )
+        df["start"] = df["start"].map(lambda x: time.strftime("%M:%S", time.gmtime(x)))
         df["end"] = df["end"].map(lambda x: time.strftime("%M:%S", time.gmtime(x)))
         ExplorerResultsWindow(
             list(df), list(df.itertuples(index=False)), df.index.values.tolist()
         )
-
 
 
 def get_attr_by_displayname(displayname: str) -> str:
@@ -439,9 +440,7 @@ class ExplorerResultsWindow(tk.Toplevel):
         region = self.tree.identify("region", event.x, event.y)
         if not region == "heading":
             item = self.tree.focus()
-            events.post(
-                events.EventEXPLORER_LOAD_MEDIA, self.tree.item(item, "text")
-            )
+            events.post(events.EventEXPLORER_LOAD_MEDIA, self.tree.item(item, "text"))
 
     def _build_tree(self) -> None:
         for col in self.headers:

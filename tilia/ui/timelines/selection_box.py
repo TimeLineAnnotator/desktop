@@ -18,19 +18,23 @@ class SelectionBox:
         # self.outlined = False
         self.setup_overlap()
 
-
-
         # observe mouse movement and release
         events.subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.on_motion)
-        events.subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.on_left_released)
+        events.subscribe(
+            self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.on_left_released
+        )
         events.subscribe(self, Event.SLIDER_DRAG_START, self.on_preparing_to_drag)
         events.subscribe(self, Event.ELEMENT_DRAG_START, self.on_preparing_to_drag)
 
     def draw(self):
-        self.canvas_id = self.canvas.create_rectangle(*self.get_coords(), fill='')
+        self.canvas_id = self.canvas.create_rectangle(*self.get_coords(), fill="")
 
     def get_coords(self):
-        return *self.upper_left, self.bottom_right[0], self.bottom_right[1] + self.y_offset
+        return (
+            *self.upper_left,
+            self.bottom_right[0],
+            self.bottom_right[1] + self.y_offset,
+        )
 
     def setup_overlap(self):
         self.overlap = self.get_canvas_overlap()
@@ -39,8 +43,11 @@ class SelectionBox:
 
         clicked_item = next(iter(self.canvas.find_withtag(tk.CURRENT)), None)
         if clicked_item:
-            events.post(Event.SELECTION_BOX_REQUEST_SELECT, canvas=self.canvas, canvas_item_id=clicked_item)
-
+            events.post(
+                Event.SELECTION_BOX_REQUEST_SELECT,
+                canvas=self.canvas,
+                canvas_item_id=clicked_item,
+            )
 
     def get_canvas_overlap(self):
         overlap = set(self.canvas.find_overlapping(*self.get_coords()))
@@ -67,11 +74,19 @@ class SelectionBox:
         if current_overlap != self.overlap:
             if current_overlap - self.overlap:  # if an object was added
                 for canvas_id in (current_overlap - self.overlap).copy():
-                    events.post(Event.SELECTION_BOX_REQUEST_SELECT, canvas=self.canvas, canvas_item_id=canvas_id)
+                    events.post(
+                        Event.SELECTION_BOX_REQUEST_SELECT,
+                        canvas=self.canvas,
+                        canvas_item_id=canvas_id,
+                    )
                     self.overlap.add(canvas_id)
             else:  # if an object was removed
                 for canvas_id in (self.overlap - current_overlap).copy():
-                    events.post(Event.SELECTION_BOX_REQUEST_DESELECT, canvas=self.canvas, canvas_item_id=canvas_id)
+                    events.post(
+                        Event.SELECTION_BOX_REQUEST_DESELECT,
+                        canvas=self.canvas,
+                        canvas_item_id=canvas_id,
+                    )
                     self.overlap.remove(canvas_id)
 
     def on_left_released(self):

@@ -30,7 +30,11 @@ logger = logging.getLogger(__name__)
 class FileManager:
     JSON_CONFIG = {"indent": 2}
 
-    FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION = ['media_metadata', 'timelines', 'media_path']
+    FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION = [
+        "media_metadata",
+        "timelines",
+        "media_path",
+    ]
 
     def __init__(self, app: TiLiA, file: TiliaFile = None):
         subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_loaded)
@@ -43,7 +47,9 @@ class FileManager:
 
         self._last_autosave_data = None
         self._autosave_exception_list = []
-        self._autosave_thread = Thread(target=self._auto_save_loop, args=(self._autosave_exception_list, ))
+        self._autosave_thread = Thread(
+            target=self._auto_save_loop, args=(self._autosave_exception_list,)
+        )
         self._autosave_thread.start()
 
     def was_file_modified(self):
@@ -51,12 +57,14 @@ class FileManager:
         current_tilia_data = self.get_save_parameters()
 
         # necessary tweak when there's only a slider timeline in file
-        if len(current_tilia_data['timelines']) == 1:
-            tl = list(current_tilia_data['timelines'].values())[0]
-            if tl['kind'] == TimelineKind.SLIDER_TIMELINE.name:
-                current_tilia_data['timelines'] = {}
+        if len(current_tilia_data["timelines"]) == 1:
+            tl = list(current_tilia_data["timelines"].values())[0]
+            if tl["kind"] == TimelineKind.SLIDER_TIMELINE.name:
+                current_tilia_data["timelines"] = {}
 
-        return not compare_tilia_data(current_tilia_data, dataclasses.asdict(self._file))
+        return not compare_tilia_data(
+            current_tilia_data, dataclasses.asdict(self._file)
+        )
 
     def _update_file(self, **kwargs) -> None:
         for keyword, value in kwargs.items():
@@ -89,17 +97,18 @@ class FileManager:
 
         logger.debug("Autosaved file.")
 
-
     def needs_auto_save(self):
         if not self._last_autosave_data:
             return True
 
-        return not compare_tilia_data(self._last_autosave_data, self.get_save_parameters())
+        return not compare_tilia_data(
+            self._last_autosave_data, self.get_save_parameters()
+        )
 
     def _auto_save_loop(self, exception_list: list) -> None:
         while True:
             try:
-                time.sleep(settings.settings['auto-save']['interval'])
+                time.sleep(settings.settings["auto-save"]["interval"])
                 logger.debug(f"Checking if autosave is necessary...")
                 if self.needs_auto_save():
                     make_room_for_new_autosave()
@@ -114,10 +123,10 @@ class FileManager:
         return Path(globals_.AUTOSAVE_DIR, self.get_autosave_filename())
 
     def get_autosave_filename(self):
-        if self._file.media_metadata['title']:
-            title = self._file.media_metadata['title'] + '.' + globals_.FILE_EXTENSION
+        if self._file.media_metadata["title"]:
+            title = self._file.media_metadata["title"] + "." + globals_.FILE_EXTENSION
         else:
-            title = "Untitled" + '.' + globals_.FILE_EXTENSION
+            title = "Untitled" + "." + globals_.FILE_EXTENSION
 
         date = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         return f"{date}_{title}"
@@ -211,11 +220,13 @@ def _raise_save_loop_exception(excp: Exception):
 def compare_tilia_data(data1: dict, data2: dict) -> bool:
     """Returns True if data1 is equivalent to data2, False otherwise."""
 
-    ATTRS_TO_CHECK = ['media_metadata', 'timelines', 'media_path']
+    ATTRS_TO_CHECK = ["media_metadata", "timelines", "media_path"]
 
     for attr in ATTRS_TO_CHECK:
-        if attr == 'timelines':
-            if hash_timeline_collection_data(data1['timelines']) != hash_timeline_collection_data(data2['timelines']):
+        if attr == "timelines":
+            if hash_timeline_collection_data(
+                data1["timelines"]
+            ) != hash_timeline_collection_data(data2["timelines"]):
                 return False
         elif data1[attr] != data2[attr]:
             return False
@@ -223,7 +234,10 @@ def compare_tilia_data(data1: dict, data2: dict) -> bool:
 
 
 def get_autosaves_paths() -> list[str]:
-    return [os.path.join(globals_.AUTOSAVE_DIR, file) for file in os.listdir(globals_.AUTOSAVE_DIR)]
+    return [
+        os.path.join(globals_.AUTOSAVE_DIR, file)
+        for file in os.listdir(globals_.AUTOSAVE_DIR)
+    ]
 
 
 def delete_older_autosaves(amount: int):
@@ -236,5 +250,8 @@ def delete_older_autosaves(amount: int):
 
 
 def make_room_for_new_autosave() -> None:
-    if (remaining_autosaves := len(get_autosaves_paths()) - settings.settings['auto-save']['max_saved_files']) >= 0:
+    if (
+        remaining_autosaves := len(get_autosaves_paths())
+        - settings.settings["auto-save"]["max_saved_files"]
+    ) >= 0:
         delete_older_autosaves(remaining_autosaves + 1)

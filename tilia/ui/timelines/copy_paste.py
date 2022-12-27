@@ -12,7 +12,6 @@ from tilia.timelines.common import TimelineComponent
 import logging
 
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +30,7 @@ class Copyable(Protocol):
 
 
 def get_copy_data_from_elements(
-        elements: list[tuple[Copyable, CopyAttributes]]
+    elements: list[tuple[Copyable, CopyAttributes]]
 ) -> list[dict]:
     copy_data = []
     for element, kind, copy_attrs in elements:
@@ -40,10 +39,7 @@ def get_copy_data_from_elements(
     return copy_data
 
 
-def get_copy_data_from_element(
-        element: Copyable,
-        copy_attrs: CopyAttributes
-) -> dict:
+def get_copy_data_from_element(element: Copyable, copy_attrs: CopyAttributes) -> dict:
 
     by_element_value = {}
     for attr in copy_attrs.by_element_value:
@@ -65,7 +61,7 @@ def get_copy_data_from_element(
         "by_element_value": by_element_value,
         "by_component_value": by_component_value,
         "support_by_element_value": support_by_element_value,
-        "support_by_component_value": support_by_component_value
+        "support_by_component_value": support_by_component_value,
     }
 
     return copy_data
@@ -73,13 +69,13 @@ def get_copy_data_from_element(
 
 def paste_into_element(element: TimelineUIElement, paste_data: dict[str:Any]):
 
-    logger.debug(f'{element} is receiving paste...')
+    logger.debug(f"{element} is receiving paste...")
 
-    for attr, value in paste_data['by_element_value'].items():
+    for attr, value in paste_data["by_element_value"].items():
         logger.debug(f"Pasting '{attr}' with value= '{value}'.")
         setattr(element, attr, value)
 
-    for attr, value in paste_data['by_component_value'].items():
+    for attr, value in paste_data["by_component_value"].items():
         logger.debug(f"Pasting '{attr}' with value='{value}'.")
         setattr(element.tl_component, attr, value)
 

@@ -6,7 +6,6 @@ from tilia.ui.timelines.common import TimelineToolbar
 
 
 class MarkerTimelineToolbar(TimelineToolbar):
-
     def __init__(self, parent):
         super().__init__(parent, text="Hierarchies")
 
@@ -20,7 +19,7 @@ class MarkerTimelineToolbar(TimelineToolbar):
                 "delete_marker30",
                 lambda: events.post(Event.MARKER_TOOLBAR_BUTTON_DELETE),
                 "Delete marker (Delete)",
-            )
+            ),
         ]
 
         self.create_buttons()
