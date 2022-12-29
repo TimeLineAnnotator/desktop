@@ -19,7 +19,7 @@ import time
 from tilia import globals_, events, settings
 from tilia.player import player_ui
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.timeline_kinds import TimelineKind, USER_CREATABLE_TIMELINE_KINDS
 from tilia.events import Event, subscribe
 from . import file, event_handler
 from .common import ask_yes_no, ask_for_directory
@@ -454,11 +454,20 @@ class TkinterUIMenus(tk.Menu):
 
         self.timelines_menu.add_timelines = tk.Menu(self.timelines_menu, tearoff=0)
 
-        for kind in TimelineKind:
+        def get_add_timeline_options():
+            options = []
+            for kind in USER_CREATABLE_TIMELINE_KINDS:
+                label = kind.value[:-len('_TIMELINE')].capitalize()
+                command = lambda kind_=kind: events.post(Event.APP_ADD_TIMELINE, kind_)
+                options.append((label, command))
+
+            return options
+
+        for label, command in get_add_timeline_options():
             self.timelines_menu.add_timelines.add_command(
-                label=kind.value.capitalize(),
-                command=lambda kind_=kind: events.post(Event.APP_ADD_TIMELINE, kind_),
-                underline=0,
+                label=label,
+                command=command,
+                underline=0
             )
 
         self.timelines_menu.add_cascade(
