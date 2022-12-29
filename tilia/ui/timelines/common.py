@@ -1,20 +1,11 @@
 from __future__ import annotations
 
-import functools
-import os
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable, Generic, TypeVar
 
-from tilia.timelines.state_actions import StateAction
-from tilia.ui.common import ask_for_int, ask_for_string
-from tilia.ui.timelines.copy_paste import CopyError, PasteError
-from tilia.ui.timelines.selection_box import SelectionBox
-
 if TYPE_CHECKING:
-    from tilia.timelines.common import TimelineComponent
-    from tilia.ui.tkinterui import TkinterUI
-    from tilia.ui.timelines.slider import SliderTimelineUI
+    pass
 
 import logging
 
@@ -22,54 +13,8 @@ logger = logging.getLogger(__name__)
 import tkinter as tk
 import tkinter.messagebox
 
-from tilia import events, settings
-from tilia.ui.element_kinds import UIElementKind
-from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
-from tilia.repr import default_str_dunder
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.timelines.common import InvalidComponentKindError, log_object_creation, Timeline
-from tilia.ui.modifier_enum import ModifierEnum
-from tilia.misc_enums import InOrOut, UpOrDown, Side
-from tilia.ui.timelines.copy_paste import get_copy_data_from_elements, paste_into_element, CopyAttributes, \
-    Copyable
-
-
-@runtime_checkable
-class Inspectable(Protocol):
-    """Protocol for timeline elements that may be inspected by the inspector window.
-    When selected, they must, via an event, pass a dict with the attributes to be displayed."""
-
-    id: int
-    timeline_ui: TimelineUI
-    INSPECTOR_FIELDS: list[tuple[str, str]]
-    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str]
-
-    def get_inspector_dict(self) -> dict[str:Any]: ...
-
-
-def on_inspector_field_edited(element: Inspectable, field_name: str, value: str, inspected_id: int) -> None:
-    if not inspected_id == element.id:
-        return
-
-    attr = element.FIELD_NAMES_TO_ATTRIBUTES[field_name]
-    logger.debug(f"Processing inspector field edition for {element}...")
-
-    logger.debug(f"Attribute edited is '{attr}'.")
-
-    if value == getattr(element, attr):
-        logger.debug(f"'{element}' already has '{attr}' = '{value}'. Nothing to do.")
-        return
-
-    setattr(element, attr, value)
-    logger.debug(f"New value is '{value}'.")
-
-    events.post(
-        Event.REQUEST_RECORD_STATE,
-        StateAction.ATTRIBUTE_EDIT_VIA_INSPECTOR,
-        no_repeat=True,
-        repeat_identifier=f"{attr}_{element.id}",
-    )
+from tilia.events import Event, subscribe
+from tilia.timelines.common import log_object_creation
 
 
 class TimelineCanvas(tk.Canvas):

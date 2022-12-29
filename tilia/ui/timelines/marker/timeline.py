@@ -13,7 +13,6 @@ from tilia.misc_enums import Side
 from tilia.timelines.state_actions import StateAction
 
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.common import RightClickOption
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineCanvas

@@ -10,16 +10,15 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
-        TimelineUICollection,
-        TimelineUIElementManager,
         TimelineCanvas,
     )
+    from tilia.ui.timelines.collection import TimelineUICollection
 
 from tilia import events
 from tilia.events import Event, subscribe, unsubscribe
 from tilia.timelines.common import TimelineComponent
 from tilia.ui.element_kinds import UIElementKind
-from tilia.ui.timelines.common import TimelineUI
+from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
 
 import logging
 

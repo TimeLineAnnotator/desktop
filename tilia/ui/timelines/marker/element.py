@@ -10,7 +10,7 @@ import tilia.utils.color
 from tilia.events import Event, subscribe, unsubscribe
 from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
-from tilia.ui.timelines.common import RightClickOption
+from ..timeline import RightClickOption
 from ...common import format_media_time
 
 if TYPE_CHECKING:

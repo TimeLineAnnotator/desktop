@@ -19,7 +19,7 @@ from tilia.timelines.marker.timeline import (
 from tilia.timelines.serialize import serialize_component, _deserialize_component
 from tilia.timelines.state_actions import StateAction
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.common import TimelineUIElementManager
+from tilia.ui.timelines.timeline import TimelineUIElementManager
 from tilia.ui.timelines.marker import MarkerTimelineUI, MarkerUI
 
 logger = logging.getLogger(__name__)
@@ -71,17 +71,13 @@ class TestMarkerTimeline:
         tl.ui = MagicMock()
         tl.create_timeline_component(ComponentKind.MARKER, time=0)
 
-        tl.ui.get_ui_for_component.assert_called_with(
-            ComponentKind.MARKER, ANY, time=0
-        )
+        tl.ui.get_ui_for_component.assert_called_with(ComponentKind.MARKER, ANY, time=0)
 
         assert len(tl.component_manager._components) == 1
 
     # TEST DELETE
     def test_delete_marker(self, tl):
-        mrk1 = tl.create_timeline_component(
-            ComponentKind.MARKER, time=0
-        )
+        mrk1 = tl.create_timeline_component(ComponentKind.MARKER, time=0)
 
         tl.on_request_to_delete_components([mrk1])
 
@@ -93,12 +89,10 @@ class TestMarkerTimeline:
             "time": 0,
             "color": "#000000",
             "comments": "my comments",
-            "label": "my label"
+            "label": "my label",
         }
 
-        mrk1 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, **unit_kwargs
-        )
+        mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, **unit_kwargs)
 
         # noinspection PyTypeChecker
         srlz_mrk1 = serialize_component(mrk1)
@@ -107,14 +101,9 @@ class TestMarkerTimeline:
             assert srlz_mrk1[key] == value
 
     def test_deserialize_unit(self, tl_with_ui):
-        unit_kwargs = {
-            "time": 0,
-            "comments": "my comments"
-        }
+        unit_kwargs = {"time": 0, "comments": "my comments"}
 
-        mrk1 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, **unit_kwargs
-        )
+        mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, **unit_kwargs)
 
         # noinspection PyTypeChecker
         serialized_mrk1 = serialize_component(mrk1)
@@ -125,11 +114,9 @@ class TestMarkerTimeline:
             assert getattr(mrk1, attr) == getattr(deserialized_mrk1, attr)
 
     def test_deserialize_unit_with_serializable_by_ui_attributes(self, tl_with_ui):
-        serializable_by_ui_attrs = {"color": "#000000", 'label': 'my label'}
+        serializable_by_ui_attrs = {"color": "#000000", "label": "my label"}
 
-        mrk1 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, time=0
-        )
+        mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
 
         # noinspection PyTypeChecker
         serialized_mrk1 = serialize_component(mrk1)
@@ -165,10 +152,10 @@ class TestMarkerTimeline:
         assert len(tl_with_ui.component_manager._components) == 2
 
     # TEST RIGHT CLICK OPTIONS
-    @patch('tilia.ui.common.ask_for_color')
+    @patch("tilia.ui.common.ask_for_color")
     def test_right_click_change_color(self, ask_for_color_mock, tl_with_ui):
 
-        ask_for_color_mock.return_value = '#000000'
+        ask_for_color_mock.return_value = "#000000"
 
         mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
 
@@ -178,10 +165,10 @@ class TestMarkerTimeline:
 
         assert mrk1.ui.color == "#000000"
 
-    @patch('tilia.ui.common.ask_for_color')
+    @patch("tilia.ui.common.ask_for_color")
     def test_right_click_reset_color(self, ask_for_color_mock, tl_with_ui):
 
-        ask_for_color_mock.return_value = '#000000'
+        ask_for_color_mock.return_value = "#000000"
 
         mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
 
@@ -189,7 +176,6 @@ class TestMarkerTimeline:
 
         tl_with_ui.ui.right_click_menu_change_color()
         tl_with_ui.ui.right_click_menu_reset_color()
-
 
         assert mrk1.ui.color == MarkerUI.DEFAULT_COLOR
 
@@ -210,15 +196,9 @@ class TestMarkerTimelineComponentManager:
 
     # TEST CLEAR
     def test_clear(self, tl):
-        _ = tl.create_timeline_component(
-            ComponentKind.MARKER, time=0
-        )
-        _ = tl.create_timeline_component(
-            ComponentKind.MARKER, time=0
-        )
-        _ = tl.create_timeline_component(
-            ComponentKind.MARKER, time=0
-        )
+        _ = tl.create_timeline_component(ComponentKind.MARKER, time=0)
+        _ = tl.create_timeline_component(ComponentKind.MARKER, time=0)
+        _ = tl.create_timeline_component(ComponentKind.MARKER, time=0)
 
         tl.component_manager.clear()
 
@@ -227,15 +207,9 @@ class TestMarkerTimelineComponentManager:
     # TEST SERIALIZE
     # noinspection PyUnresolvedReferences
     def test_serialize_components(self, tl_with_ui):
-        mrk1 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, time=0
-        )
-        mrk2 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, time=1
-        )
-        mrk3 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, time=2
-        )
+        mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
+        mrk2 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=1)
+        mrk3 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=2)
 
         serialized_components = tl_with_ui.component_manager.serialize_components()
 
@@ -244,15 +218,9 @@ class TestMarkerTimelineComponentManager:
 
     # noinspection PyUnresolvedReferences
     def test_deserialize_components(self, tl_with_ui):
-        mrk1 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, time=0
-        )
-        mrk2 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, time=1
-        )
-        mrk3 = tl_with_ui.create_timeline_component(
-            ComponentKind.MARKER, time=2
-        )
+        mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
+        mrk2 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=1)
+        mrk3 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=2)
 
         serialized_components = tl_with_ui.component_manager.serialize_components()
 
@@ -261,8 +229,6 @@ class TestMarkerTimelineComponentManager:
         tl_with_ui.component_manager.deserialize_components(serialized_components)
 
         assert len(tl_with_ui.component_manager._components) == 3
-        assert {dsr_mrk.time for dsr_mrk in tl_with_ui.component_manager._components} == {
-            u.time for u in [mrk1, mrk2, mrk3]
-        }
-
-
+        assert {
+            dsr_mrk.time for dsr_mrk in tl_with_ui.component_manager._components
+        } == {u.time for u in [mrk1, mrk2, mrk3]}

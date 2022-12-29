@@ -8,13 +8,19 @@ from tilia.events import unsubscribe_from_all, Event
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.common import ParentChildRelation
 from tilia.timelines.hierarchy.components import Hierarchy
-from tilia.timelines.hierarchy.timeline import HierarchyTimeline, HierarchyTLComponentManager
+from tilia.timelines.hierarchy.timeline import (
+    HierarchyTimeline,
+    HierarchyTLComponentManager,
+)
 from tilia.timelines.state_actions import StateAction
 from tilia.ui.timelines.hierarchy import HierarchyUI
 from tilia.ui.timelines.hierarchy.timeline import (
-    HierarchyTimelineUI, HierarchyTimelineToolbar
+    HierarchyTimelineUI,
+    HierarchyTimelineToolbar,
 )
-from tilia.ui.timelines.common import TimelineUICollection, TimelineUIElementManager, TimelineCanvas
+from tilia.ui.timelines.common import TimelineCanvas
+from tilia.ui.timelines.timeline import TimelineUIElementManager
+from tilia.ui.timelines.collection import TimelineUICollection
 from tilia.ui.timelines.copy_paste import PasteError
 
 import logging
@@ -27,8 +33,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def hierarchy_timeline():
     yield HierarchyTimeline(
-        collection=MagicMock(),
-        component_manager=HierarchyTLComponentManager()
+        collection=MagicMock(), component_manager=HierarchyTLComponentManager()
     )
 
 
@@ -48,9 +53,7 @@ def tl_with_ui() -> HierarchyTimeline:
 
     component_manager = HierarchyTLComponentManager()
     timeline = HierarchyTimeline(tl_coll_mock, component_manager)
-    timeline_canvas = TimelineCanvas(
-        tk.Frame(), MagicMock(), 1, 1, 1, ''
-    )
+    timeline_canvas = TimelineCanvas(tk.Frame(), MagicMock(), 1, 1, 1, "")
 
     timeline_ui = HierarchyTimelineUI(
         timeline_ui_collection=tlui_coll_mock,
@@ -67,7 +70,6 @@ def tl_with_ui() -> HierarchyTimeline:
 
     component_manager.associate_to_timeline(timeline)
 
-
     yield timeline
 
 
@@ -77,7 +79,7 @@ def mock_tluicoll():
         app_ui=MagicMock(),
         frame=MagicMock(),
         scrollbar=MagicMock(),
-        toolbar_frame=MagicMock()
+        toolbar_frame=MagicMock(),
     )
 
 
@@ -85,10 +87,12 @@ def mock_tluicoll():
 def hierarchy_tlui(mock_tluicoll):
     htlui = HierarchyTimelineUI(
         timeline_ui_collection=mock_tluicoll,
-        element_manager=TimelineUIElementManager(HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES),
+        element_manager=TimelineUIElementManager(
+            HierarchyTimelineUI.ELEMENT_KINDS_TO_ELEMENT_CLASSES
+        ),
         canvas=tk.Canvas(),
         toolbar=MagicMock(),
-        name='testHTL'
+        name="testHTL",
     )
 
     htlui.timeline = MagicMock(spec=HierarchyTimeline)
@@ -99,7 +103,7 @@ def hierarchy_tlui(mock_tluicoll):
 @pytest.fixture
 def undo_manager() -> UndoManager:
     _um = UndoManager()
-    _um.record('state0', StateAction.FILE_LOAD)
+    _um.record("state0", StateAction.FILE_LOAD)
     yield _um
     unsubscribe_from_all(_um)
 
@@ -111,13 +115,13 @@ def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
 
 def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:
     for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
-        setattr(hierarchy, attr, f'test {attr} - {id(hierarchy)}')
+        setattr(hierarchy, attr, f"test {attr} - {id(hierarchy)}")
 
     for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_element_value:
-        if attr == 'color':
+        if attr == "color":
             setattr(hierarchy.ui, attr, f"#FFFFFF")
             continue
-        setattr(hierarchy.ui, attr, f'test {attr} - {id(hierarchy.ui)}')
+        setattr(hierarchy.ui, attr, f"test {attr} - {id(hierarchy.ui)}")
 
 
 def assert_are_copies(hierarchy1: Hierarchy, hierarchy2: Hierarchy):
@@ -130,27 +134,26 @@ def assert_are_copies(hierarchy1: Hierarchy, hierarchy2: Hierarchy):
 
 def assert_is_copy_data_of(copy_data: dict, hierarchy_ui: Hierarchy):
     def _make_assertions(copy_data_: dict, hierarchy_ui_: Hierarchy):
-        for attr, value in copy_data['by_element_value'].items():
+        for attr, value in copy_data["by_element_value"].items():
             assert value == getattr(hierarchy_ui, attr)
 
-        for attr, value in copy_data['support_by_element_value'].items():
+        for attr, value in copy_data["support_by_element_value"].items():
             assert value == getattr(hierarchy_ui, attr)
 
-        for attr, value in copy_data['by_component_value'].items():
+        for attr, value in copy_data["by_component_value"].items():
             assert value == getattr(hierarchy_ui.tl_component, attr)
 
-        for attr, value in copy_data['support_by_component_value'].items():
+        for attr, value in copy_data["support_by_component_value"].items():
             assert value == getattr(hierarchy_ui.tl_component, attr)
 
     _make_assertions(copy_data, hierarchy_ui)
 
     if children := hierarchy_ui.tl_component.children:
         for index, child in enumerate(children):
-            _make_assertions(child, copy_data['children'][index])
+            _make_assertions(child, copy_data["children"][index])
 
 
 class TestHierarchyTimelineTkUI:
-
     def test_rearrange_elements_two_levels(self, tl_with_ui):
         unit2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
         unit3 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
@@ -209,8 +212,12 @@ class TestHierarchyTimelineTkUI:
         unit7 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 2, 3)
         unit8 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 2.5, 3, 1)
         unit9 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 2, 4.5, 1)
-        unit10 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 3.5, 4, 1)
-        unit11 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 3, 3.5, 1)
+        unit10 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, 3.5, 4, 1
+        )
+        unit11 = tl_with_ui.create_timeline_component(
+            ComponentKind.HIERARCHY, 3, 3.5, 1
+        )
         unit12 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 2, 3, 2)
         unit13 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 3, 4, 2)
         unit14 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 2, 4, 3)
@@ -299,7 +306,9 @@ class TestHierarchyTimelineTkUI:
         pass
 
     @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
-    def test_paste_without_children_into_selected_elements(self, on_select_mock, tl_with_ui):
+    def test_paste_without_children_into_selected_elements(
+        self, on_select_mock, tl_with_ui
+    ):
 
         on_select_mock.return_value = None
 
@@ -344,9 +353,10 @@ class TestHierarchyTimelineTkUI:
 
         assert_is_copy_data_of(copy_data[0], hrc3.ui)
 
-
     @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
-    def test_paste_with_children_into_selected_elements_without_rescaling(self, on_select_mock, tl_with_ui):
+    def test_paste_with_children_into_selected_elements_without_rescaling(
+        self, on_select_mock, tl_with_ui
+    ):
 
         on_select_mock.return_value = None
 
@@ -371,7 +381,9 @@ class TestHierarchyTimelineTkUI:
         assert len(tl_with_ui.component_manager._components) == 6
         assert len(hrc4.children) == 2
 
-        copied_children_1, copied_children_2 = sorted(hrc4.children, key=lambda h: h.start)
+        copied_children_1, copied_children_2 = sorted(
+            hrc4.children, key=lambda h: h.start
+        )
 
         assert copied_children_1.parent == hrc4
         assert copied_children_1.start == 1.0
@@ -385,7 +397,9 @@ class TestHierarchyTimelineTkUI:
         assert_are_copies(copied_children_2, hrc2)
 
     @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
-    def test_paste_with_children_into_selected_elements_with_rescaling(self, on_select_mock, tl_with_ui):
+    def test_paste_with_children_into_selected_elements_with_rescaling(
+        self, on_select_mock, tl_with_ui
+    ):
 
         on_select_mock.return_value = None
 
@@ -407,7 +421,9 @@ class TestHierarchyTimelineTkUI:
 
         tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
-        copied_children_1, copied_children_2 = sorted(hrc4.children, key=lambda h: h.start)
+        copied_children_1, copied_children_2 = sorted(
+            hrc4.children, key=lambda h: h.start
+        )
 
         assert copied_children_1.parent == hrc4
         assert copied_children_1.start == 1.0
@@ -450,7 +466,9 @@ class TestHierarchyTimelineTkUI:
 
         tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
-        copied_children_1, copied_children_2 = sorted(hrc6.children, key=lambda h: h.start)
+        copied_children_1, copied_children_2 = sorted(
+            hrc6.children, key=lambda h: h.start
+        )
 
         assert len(copied_children_1.children) == 1
         assert copied_children_1.children[0].start == 1
@@ -461,7 +479,9 @@ class TestHierarchyTimelineTkUI:
         assert copied_children_2.children[0].end == 2.0
 
     @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
-    def test_paste_with_children_into_different_level_raises_error(self, on_select_mock, tl_with_ui):
+    def test_paste_with_children_into_different_level_raises_error(
+        self, on_select_mock, tl_with_ui
+    ):
 
         on_select_mock.return_value = None
 
@@ -482,7 +502,9 @@ class TestHierarchyTimelineTkUI:
             tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
 
     @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
-    def test_paste_with_children_paste_two_elements_raises_error(self, on_select_mock, tl_with_ui):
+    def test_paste_with_children_paste_two_elements_raises_error(
+        self, on_select_mock, tl_with_ui
+    ):
 
         on_select_mock.return_value = None
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
@@ -500,6 +522,3 @@ class TestHierarchyTimelineTkUI:
 
         with pytest.raises(PasteError):
             tl_with_ui.ui.paste_with_children_into_selected_elements(copy_data)
-
-
-

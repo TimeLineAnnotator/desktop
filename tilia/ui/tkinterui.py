@@ -23,7 +23,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
 from . import file, event_handler
 from .common import ask_yes_no, ask_for_directory
-from .timelines.common import TimelineUICollection
+from .timelines.collection import TimelineUICollection
 from .windows.common import AppWindow
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MetadataWindow

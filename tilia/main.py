@@ -27,7 +27,7 @@ from tilia.timelines.state_actions import StateAction
 from tilia.undo_manager import UndoManager
 
 if TYPE_CHECKING:
-    from tilia.ui.timelines.common import TimelineUICollection
+    from tilia.ui.timelines.collection import TimelineUICollection
 
 from unittest.mock import MagicMock
 

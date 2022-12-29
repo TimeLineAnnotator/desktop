@@ -19,7 +19,7 @@ from tilia.timelines.hierarchy.common import ParentChildRelation
 from tilia.timelines.serialize import serialize_component, _deserialize_component
 from tilia.timelines.state_actions import StateAction
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.common import TimelineUIElementManager
+from tilia.ui.timelines.timeline import TimelineUIElementManager
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
 
 logger = logging.getLogger(__name__)
@@ -82,19 +82,17 @@ class TestHierarchyTimeline:
 
     # TEST DELETE
     def test_delete_hierarchy(self, tl):
-        hrc1 = tl.create_timeline_component(
-            ComponentKind.HIERARCHY, 0, 1, 1
-        )
+        hrc1 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
 
         tl.on_request_to_delete_components([hrc1])
 
         assert not tl.component_manager._components
 
     # TEST RIGHT CLICK OPTIONS
-    @patch('tilia.ui.common.ask_for_color')
+    @patch("tilia.ui.common.ask_for_color")
     def test_right_click_change_color(self, ask_for_color_mock, tl_with_ui):
 
-        ask_for_color_mock.return_value = '#000000'
+        ask_for_color_mock.return_value = "#000000"
 
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0, 1)
 
@@ -104,10 +102,10 @@ class TestHierarchyTimeline:
 
         assert hrc1.ui.color == "#000000"
 
-    @patch('tilia.ui.common.ask_for_color')
+    @patch("tilia.ui.common.ask_for_color")
     def test_right_click_reset_color(self, ask_for_color_mock, tl_with_ui):
 
-        ask_for_color_mock.return_value = '#000000'
+        ask_for_color_mock.return_value = "#000000"
 
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0, 1)
 
@@ -236,7 +234,7 @@ class TestHierarchyTimeline:
         "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
     )
     def test_deserialize_unit_with_parent(
-            self, update_ui_parent_child_mock, tl_with_ui
+        self, update_ui_parent_child_mock, tl_with_ui
     ):
 
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
@@ -260,7 +258,7 @@ class TestHierarchyTimeline:
         "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
     )
     def test_deserialize_unit_with_children(
-            self, update_ui_parent_child_mock, tl_with_ui
+        self, update_ui_parent_child_mock, tl_with_ui
     ):
 
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
@@ -659,7 +657,12 @@ class TestHierarchyTimelineComponentManager:
     def test_split_unit_passes_attributes(self, tl):
         """Does not test for passing of ui attributes."""
         hrc1 = tl.component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=1, level=1, comments='test comment'
+            ComponentKind.HIERARCHY,
+            timeline=tl,
+            start=0.0,
+            end=1,
+            level=1,
+            comments="test comment",
         )
         hrc2 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY,
@@ -673,7 +676,7 @@ class TestHierarchyTimelineComponentManager:
             ParentChildRelation(parent=hrc2, children=[hrc1])
         )
 
-        assert hrc2.children[0].comments == 'test comment'
+        assert hrc2.children[0].comments == "test comment"
 
     @patch(
         "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
@@ -920,7 +923,9 @@ class TestHierarchyTimelineComponentManager:
 
         tl_with_ui.component_manager.deserialize_components(serialized_components)
 
-        dsrl_hrc1, dsrl_hrc2, dsrl_hrc3 = sorted(list(tl_with_ui.component_manager._components), key=lambda x: x.start)
+        dsrl_hrc1, dsrl_hrc2, dsrl_hrc3 = sorted(
+            list(tl_with_ui.component_manager._components), key=lambda x: x.start
+        )
 
         assert dsrl_hrc2 in dsrl_hrc1.children
         assert dsrl_hrc3 in dsrl_hrc1.children
@@ -931,31 +936,19 @@ class TestHierarchyTimelineComponentManager:
     def test_crop(self, tl_with_ui):
 
         hrc1 = tl_with_ui.create_timeline_component(
-            ComponentKind.HIERARCHY,
-            start=0.0,
-            end=0.3,
-            level=1
+            ComponentKind.HIERARCHY, start=0.0, end=0.3, level=1
         )
 
         hrc2 = tl_with_ui.create_timeline_component(
-            ComponentKind.HIERARCHY,
-            start=0.1,
-            end=0.2,
-            level=2
+            ComponentKind.HIERARCHY, start=0.1, end=0.2, level=2
         )
 
         hrc3 = tl_with_ui.create_timeline_component(
-            ComponentKind.HIERARCHY,
-            start=0.2,
-            end=0.3,
-            level=3
+            ComponentKind.HIERARCHY, start=0.2, end=0.3, level=3
         )
 
         hrc4 = tl_with_ui.create_timeline_component(
-            ComponentKind.HIERARCHY,
-            start=0.0,
-            end=0.1,
-            level=1
+            ComponentKind.HIERARCHY, start=0.0, end=0.1, level=1
         )
 
         tl_with_ui.component_manager.crop(0.15)
@@ -971,26 +964,16 @@ class TestHierarchyTimelineComponentManager:
     def test_scale(self, tl_with_ui):
 
         hrc1 = tl_with_ui.create_timeline_component(
-            ComponentKind.HIERARCHY,
-            start=0,
-            end=1,
-            level=1
+            ComponentKind.HIERARCHY, start=0, end=1, level=1
         )
 
         hrc2 = tl_with_ui.create_timeline_component(
-            ComponentKind.HIERARCHY,
-            start=1,
-            end=3,
-            level=2
+            ComponentKind.HIERARCHY, start=1, end=3, level=2
         )
 
         hrc3 = tl_with_ui.create_timeline_component(
-            ComponentKind.HIERARCHY,
-            start=3,
-            end=6,
-            level=3
+            ComponentKind.HIERARCHY, start=3, end=6, level=3
         )
-
 
         tl_with_ui.component_manager.scale(0.5)
 
