@@ -85,8 +85,8 @@ class TimelineUICollection:
         subscribe(
             self, Event.BEAT_TOOLBAR_BUTTON_ADD, self.on_beat_timeline_add_beat_button
         )
-        subscribe(self, Event.REQUEST_ZOOM_IN, lambda x: self.zoomer(InOrOut.IN, x))
-        subscribe(self, Event.REQUEST_ZOOM_OUT, lambda x: self.zoomer(InOrOut.OUT, x))
+        subscribe(self, Event.REQUEST_ZOOM_IN, lambda: self.zoomer(InOrOut.IN))
+        subscribe(self, Event.REQUEST_ZOOM_OUT, lambda: self.zoomer(InOrOut.OUT))
         subscribe(
             self,
             Event.REQUEST_CHANGE_TIMELINE_WIDTH,
@@ -780,7 +780,7 @@ class TimelineUICollection:
             if tl_ui.TIMELINE_KIND in classes:
                 return tl_ui
 
-    def zoomer(self, direction: InOrOut, mouse_x: int):
+    def zoomer(self, direction: InOrOut):
         if direction == InOrOut.IN:
             self.timeline_width *= 1 + self.ZOOM_SCALE_FACTOR
         else:

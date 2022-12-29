@@ -9,9 +9,9 @@ from tilia.ui.modifier_enum import ModifierEnum
 
 def on_mouse_wheel(event: tk.Event):
     if event.delta > 1:
-        events.post(Event.REQUEST_ZOOM_IN, event.widget.canvasx(event.x))
+        events.post(Event.REQUEST_ZOOM_IN)
     elif event.delta < 1:
-        events.post(Event.REQUEST_ZOOM_OUT, event.widget.canvasx(event.x))
+        events.post(Event.REQUEST_ZOOM_OUT)
 
 
 if globals_.USER_OS == "WINDOWS" or "LINUX":
