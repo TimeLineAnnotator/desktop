@@ -919,8 +919,7 @@ class TimelineUICollection:
     def _ask_delete_timeline(timeline_ui: TimelineUI):
         return tk.messagebox.askyesno(
             "Delete timeline",
-            f"Are you sure you want to delete timeline {str(timeline_ui)}?\n"
-            f"THIS CAN NOT BE UNDONE!",
+            f"Are you sure you want to delete timeline {str(timeline_ui)}?"
         )
 
     def on_request_to_hide_timeline(self, id_: int) -> None:
