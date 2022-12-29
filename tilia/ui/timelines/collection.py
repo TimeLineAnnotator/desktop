@@ -104,10 +104,10 @@ class TimelineUICollection:
         )
         subscribe(
             self,
-            Event.TIMELINES_REQUEST_TO_DELETE_TIMELINE,
-            self._on_request_to_delete_timeline,
+            Event.REQUEST_DELETE_TIMELINE,
+            self.on_request_to_delete_timeline,
         )
-        subscribe(self, Event.TIMELINES_REQUEST_TO_CLEAR_TIMELINE, lambda: 1 / 0)
+        subscribe(self, Event.REQUEST_CLEAR_TIMELINE, self.on_request_to_clear_timeline)
         subscribe(
             self,
             Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE,
@@ -908,18 +908,30 @@ class TimelineUICollection:
     def get_timeline_ui_by_id(self, tl_ui_id: int) -> TimelineUI:
         return self._timeline_collection.get_timeline_by_id(tl_ui_id).ui
 
-    def _on_request_to_delete_timeline(self, id_: int) -> None:
+    def on_request_to_delete_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)
         if self._ask_delete_timeline(timeline_ui):
             self._timeline_collection.delete_timeline(timeline_ui.timeline)
 
         events.post(Event.REQUEST_RECORD_STATE, StateAction.TIMELINE_DELETE)
 
+    def on_request_to_clear_timeline(self, id_: int) -> None:
+        timeline_ui = self._get_timeline_ui_by_id(id_)
+        if self._ask_clear_timeline(timeline_ui):
+            self._timeline_collection.clear_timeline(timeline_ui.timeline)
+
     @staticmethod
     def _ask_delete_timeline(timeline_ui: TimelineUI):
         return tk.messagebox.askyesno(
             "Delete timeline",
-            f"Are you sure you want to delete timeline {str(timeline_ui)}?"
+            f"Are you sure you want to delete timeline {str(timeline_ui)}?",
+        )
+
+    @staticmethod
+    def _ask_clear_timeline(timeline_ui: TimelineUI):
+        return tk.messagebox.askyesno(
+            "Delete timeline",
+            f"Are you sure you want to clear timeline {str(timeline_ui)}?",
         )
 
     def on_request_to_hide_timeline(self, id_: int) -> None:
@@ -967,7 +979,7 @@ def draw_playback_line(timeline_ui: TimelineUI, initial_time: float) -> int:
         timeline_ui.height,
         dash=(3, 3),
         fill="black",
-        tags=(CLICK_THROUGH,)
+        tags=(CLICK_THROUGH,),
     )
 
     timeline_ui.canvas.tag_raise(line_id)

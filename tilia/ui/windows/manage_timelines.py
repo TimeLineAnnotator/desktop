@@ -55,9 +55,10 @@ class ManageTimelines:
         self.delete_button = tk.Button(
             self.right_frame, text="Delete", command=self.on_delete_button
         )
-        # self.clear_button = tk.Button(
-        #     self.right_frame, text="Clear", command=self.on_clear_button
-        # ) TODO implement clear button
+
+        self.clear_button = tk.Button(
+            self.right_frame, text="Clear", command=self.on_clear_button
+        )
 
         # create checkbox
         self.visible_checkbox_var = tk.BooleanVar()
@@ -75,7 +76,7 @@ class ManageTimelines:
         self.down_button.grid(column=1, row=1, sticky=tk.EW)
         self.visible_checkbox.grid(column=1, row=2, sticky=tk.EW)
         self.delete_button.grid(column=1, row=3, sticky=tk.EW)
-        # self.clear_button.grid(column=1, row=4, sticky=tk.EW)
+        self.clear_button.grid(column=1, row=4, sticky=tk.EW)
 
         self.list_box = tk.Listbox(self.outer_frame, width=40, activestyle="none")
         self.list_box.insert(
@@ -178,12 +179,16 @@ class ManageTimelines:
         index = self.list_box.index(self.list_box.curselection())
         timeline_id = self.tl_ids_and_strings[index][0]
 
-        events.post(Event.TIMELINES_REQUEST_TO_DELETE_TIMELINE, timeline_id)
+        events.post(Event.REQUEST_DELETE_TIMELINE, timeline_id)
 
         self.update_tl_ids_and_strings()
 
     def on_clear_button(self):
-        raise NotImplementedError
+        index = self.list_box.index(self.list_box.curselection())
+        timeline_id = self.tl_ids_and_strings[index][0]
+
+        events.post(Event.REQUEST_CLEAR_TIMELINE, timeline_id)
+
 
     def destroy(self):
         self.toplevel.destroy()
