@@ -282,7 +282,7 @@ class TestHierarchyTimeline:
     def test_serialize_timeline(self, tl_with_ui):
         _ = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
 
-        serialized_timeline = tl_with_ui.to_dict()
+        serialized_timeline = tl_with_ui.get_state()
 
         assert serialized_timeline["height"] == HierarchyTimelineUI.DEFAULT_HEIGHT
         assert serialized_timeline["is_visible"] is True
@@ -294,7 +294,7 @@ class TestHierarchyTimeline:
         hrc1 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
         hrc2 = tl_with_ui.create_timeline_component(ComponentKind.HIERARCHY, 1, 2, 1)
 
-        state = tl_with_ui.to_dict()
+        state = tl_with_ui.get_state()
 
         tl_with_ui.on_request_to_delete_components([hrc1])
         tl_with_ui.on_request_to_delete_components([hrc2])

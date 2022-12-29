@@ -549,7 +549,7 @@ def get_curr_screen_geometry(root):
     return geometry
 
 
-def get_startup_geometry(root: tk.Tk()):
+def get_startup_geometry(root: tk.Tk):
     """
     Uses get_curr_screen_geometry to return initial window size in tkinter's geometry format.
     """

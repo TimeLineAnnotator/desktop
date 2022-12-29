@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tilia.events import subscribe, Event
+from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -45,7 +46,9 @@ class TimelineCollection:
             case TimelineKind.SLIDER_TIMELINE:
                 tl = self._create_slider_timeline()
             case TimelineKind.MARKER_TIMELINE:
-                tl = self._create_marker_timeline()
+                tl = self._create_marker_timeline(**kwargs)
+            case TimelineKind.BEAT_TIMELINE:
+                tl = self._create_beat_timeline(**kwargs)
             case _:
                 raise NotImplementedError
 
@@ -66,6 +69,19 @@ class TimelineCollection:
     def _create_marker_timeline(self, **kwargs) -> MarkerTimeline:
         component_manager = MarkerTLComponentManager()
         timeline = MarkerTimeline(self, component_manager, **kwargs)
+        component_manager.associate_to_timeline(timeline)
+
+        return timeline
+
+    def _create_beat_timeline(self, beat_pattern=None, **kwargs) -> BeatTimeline:
+        component_manager = BeatTLComponentManager()
+        if not beat_pattern:
+            beat_pattern = self._timeline_ui_collection.ask_beat_pattern()
+            if not beat_pattern:
+                raise ValueError("User cancelled timeline creation.")
+
+        timeline = BeatTimeline(self, component_manager, beat_pattern, **kwargs)
+
         component_manager.associate_to_timeline(timeline)
 
         return timeline
@@ -91,10 +107,9 @@ class TimelineCollection:
 
     def serialize_timelines(self):
         logger.debug(f"Serializing all timelines...")
-        return {tl.id: tl.to_dict() for tl in self._timelines}
+        return {tl.id: tl.get_state() for tl in self._timelines}
 
     def restore_state(self, timeline_states: dict[dict]) -> None:
-
         def _delete_timeline_ui_with_workaround(timeline):
             timeline_delete_func = timeline.ui.delete
             timeline.ui.delete = timeline.ui.delete_workaround_with_grid_forget
@@ -103,7 +118,6 @@ class TimelineCollection:
 
         id_to_timelines = {tl.id: tl for tl in self._timelines}
         shared_tl_ids = list(set(timeline_states) & set(id_to_timelines))
-
 
         # restore state of timelines that already exist
         for id in shared_tl_ids:
@@ -116,13 +130,10 @@ class TimelineCollection:
         # create timelines only in restored state
         for id in list(set(timeline_states) - set(shared_tl_ids)):
             from tilia.timelines.create import create_timeline
+
             params = timeline_states[id].copy()
-            timeline_kind = TimelineKind[params.pop('kind')]
-            create_timeline(
-                timeline_kind,
-                self,
-                self._timeline_ui_collection,
-                **params)
+            timeline_kind = TimelineKind[params.pop("kind")]
+            create_timeline(timeline_kind, self, self._timeline_ui_collection, **params)
 
     def get_timeline_by_id(self, id_: int) -> Timeline:
         return next((e for e in self._timelines if e.id == id_), None)
@@ -149,40 +160,60 @@ class TimelineCollection:
     def has_timeline_of_kind(self, kind: TimelineKind):
         return any([tl.KIND == kind for tl in self._timelines])
 
-    def on_media_loaded(self, _1, new_media_length: float, _2, previous_media_length: float):
+    def on_media_loaded(
+        self, _1, new_media_length: float, _2, previous_media_length: float
+    ):
         if not self.has_timeline_of_kind(TimelineKind.HIERARCHY_TIMELINE):
             return
 
-        events.post(Event.REQUEST_CHANGE_TIMELINE_WIDTH, self._timeline_ui_collection.get_timeline_width() * new_media_length / previous_media_length)
+        events.post(
+            Event.REQUEST_CHANGE_TIMELINE_WIDTH,
+            self._timeline_ui_collection.get_timeline_width()
+            * new_media_length
+            / previous_media_length,
+        )
 
-        SCALE_HIERARCHIES_PROMPT = "Would you like to scale the hierarchies to new media's length?"
-        CROP_HIERARCHIES_PROMPT = "New media is smaller, " \
-                                  "so hierarchies may get deleted or cropped. "\
-                                  "Are you sure you don't want to scale them instead?"
+        SCALE_HIERARCHIES_PROMPT = (
+            "Would you like to scale the hierarchies to new media's length?"
+        )
+        CROP_HIERARCHIES_PROMPT = (
+            "New media is smaller, "
+            "so hierarchies may get deleted or cropped. "
+            "Are you sure you don't want to scale them instead?"
+        )
 
-        if self._app.ui.ask_yes_no(
-                'Scale hierarchies',
-                SCALE_HIERARCHIES_PROMPT
-        ):
-            self.scale_components_by_timeline_kind(TimelineKind.HIERARCHY_TIMELINE, new_media_length / previous_media_length)
+        if self._app.ui.ask_yes_no("Scale hierarchies", SCALE_HIERARCHIES_PROMPT):
+            self.scale_components_by_timeline_kind(
+                TimelineKind.HIERARCHY_TIMELINE,
+                new_media_length / previous_media_length,
+            )
 
         elif new_media_length < previous_media_length:
             if self._app.ui.ask_yes_no(
-                    'Confirm crop hierarchies',
-                    CROP_HIERARCHIES_PROMPT
+                "Confirm crop hierarchies", CROP_HIERARCHIES_PROMPT
             ):
-                self.crop_components_by_timeline_kind(TimelineKind.HIERARCHY_TIMELINE, new_media_length)
+                self.crop_components_by_timeline_kind(
+                    TimelineKind.HIERARCHY_TIMELINE, new_media_length
+                )
             else:
-                self.scale_components_by_timeline_kind(TimelineKind.HIERARCHY_TIMELINE, new_media_length / previous_media_length)
+                self.scale_components_by_timeline_kind(
+                    TimelineKind.HIERARCHY_TIMELINE,
+                    new_media_length / previous_media_length,
+                )
 
-        self.update_ui_elements_position_by_timeline_kind(TimelineKind.HIERARCHY_TIMELINE)
+        self.update_ui_elements_position_by_timeline_kind(
+            TimelineKind.HIERARCHY_TIMELINE
+        )
 
-
-    def scale_components_by_timeline_kind(self, kind: TimelineKind, factor: float) -> None:
+    def scale_components_by_timeline_kind(
+        self, kind: TimelineKind, factor: float
+    ) -> None:
         for tl in [tl for tl in self._timelines if tl.KIND == kind]:
             tl.scale(factor)
 
-    def crop_components_by_timeline_kind(self, kind: TimelineKind, new_length: float) -> None:
+    def crop_components_by_timeline_kind(
+        self, kind: TimelineKind, new_length: float
+    ) -> None:
         for tl in [tl for tl in self._timelines if tl.KIND == kind]:
             tl.crop(new_length)
 
@@ -190,10 +221,12 @@ class TimelineCollection:
         for tl in [tl for tl in self._timelines if tl.KIND == kind]:
             tl.ui.update_elements_position()
 
-
     def clear(self):
         logger.debug(f"Clearing timeline collection...")
         for timeline in self._timelines.copy():
             timeline.delete()
             self._remove_from_timelines(timeline)
             self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
+
+    def __str__(self):
+        return self.__class__.__name__ + f"({id(self)})"

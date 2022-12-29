@@ -5,3 +5,4 @@ class UIElementKind(Enum):
     MARKER_TKUI = "MARKER TKINTER UI"
     ANY = "ANY"
     HIERARCHY_TKUI = "HIERARCHY TKINTER UI"
+    BEAT_UI = "BEAT_UI"

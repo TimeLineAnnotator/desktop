@@ -83,7 +83,7 @@ class TiLiA:
 
         logger.info("TiLiA started.")
 
-        # self._initial_file_setup()
+        self._initial_file_setup()
 
         local_dev_code.func(self)
 
@@ -273,11 +273,13 @@ class TiLiA:
         )
 
     def on_request_to_restore_state(self, state: dict) -> None:
+        logging.disable(logging.CRITICAL)
         self._timeline_collection.restore_state(state["timelines"])
         self._file_manager.restore_state(
             media_metadata=state["media_metadata"], media_path=state["media_path"]
         )
         self.restore_player_state(state["media_path"])
+        logging.disable(logging.NOTSET)
 
     def restore_player_state(self, media_path: str) -> None:
         if self._player.media_path == media_path:

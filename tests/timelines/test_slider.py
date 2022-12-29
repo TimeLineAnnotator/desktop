@@ -41,17 +41,12 @@ def tl() -> SliderTimeline:
 
 
 class TestSliderTimeline:
-
     def test_constructor(self):
-        SliderTimeline(
-            MagicMock(),
-            None,
-            TimelineKind.SLIDER_TIMELINE
-        )
+        SliderTimeline(MagicMock(), None, TimelineKind.SLIDER_TIMELINE)
 
     def test_serialize_timeline(self, tl_with_ui):
 
-        serialized_timeline = tl_with_ui.to_dict()
+        serialized_timeline = tl_with_ui.get_state()
 
         assert serialized_timeline["height"] == SliderTimelineUI.DEFAULT_HEIGHT
         assert serialized_timeline["is_visible"] is True

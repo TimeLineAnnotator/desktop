@@ -6,6 +6,8 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    BEAT_TOOLBAR_BUTTON_ADD = auto()
+    BEAT_TOOLBAR_BUTTON_DELETE = auto()
     TILIA_FILE_LOADED = auto()
     ELEMENT_DRAG_START = auto()
     REQUEST_RESTORE_APP_STATE = auto()
@@ -180,6 +182,3 @@ def unsubscribe_from_all(subscriber: Any) -> None:
 
     for event in subscribers_to_events[subscriber].copy():
         unsubscribe(subscriber, event)
-
-
-

@@ -43,11 +43,15 @@ def serialize_component(component: Serializable) -> dict[str]:
 
     # serialize attributes by value
     for attr in component.SERIALIZABLE_BY_VALUE:
-        serialized_component[attr] = getattr(component, attr)
+        if isinstance(value := getattr(component, attr), list):
+            value = value.copy()
+        serialized_component[attr] = value
 
     # serialize attributes by ui value
     for attr in component.SERIALIZABLE_BY_UI_VALUE:
-        serialized_component[attr] = getattr(component.ui, attr)
+        if isinstance(value := getattr(component.ui, attr), list):
+            value = value.copy()
+        serialized_component[attr] = value
 
     # serialize attributes by id
     for attr in component.SERIALIZABLE_BY_ID:

@@ -4,6 +4,7 @@ from enum import StrEnum, auto
 
 
 class StateAction(StrEnum):
+    CREATE_BEAT = auto()
     TIMELINE_CREATE = auto()
     TIMELINE_DELETE = auto()
     UNDO = auto()

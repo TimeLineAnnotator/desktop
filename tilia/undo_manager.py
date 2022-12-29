@@ -35,7 +35,8 @@ class UndoManager:
     ):
         """
         Records given app 'state' to UndoManager's stack. Should be called by the TiLiA object.
-        The TiLiA Call should to be triggered by posting Event.REQUEST_RECORD_STATE *after*
+        The TiLiA call should to be triggered by posting Event.REQUEST_RECORD_STATE
+        *after*
         'action' has been done.
         """
 

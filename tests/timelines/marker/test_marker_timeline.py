@@ -129,7 +129,7 @@ class TestMarkerTimeline:
     def test_serialize_timeline(self, tl_with_ui):
         _ = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
 
-        serialized_timeline = tl_with_ui.to_dict()
+        serialized_timeline = tl_with_ui.get_state()
 
         assert serialized_timeline["height"] == MarkerTimelineUI.DEFAULT_HEIGHT
         assert serialized_timeline["is_visible"] is True
@@ -141,7 +141,7 @@ class TestMarkerTimeline:
         mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
         mrk2 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=1)
 
-        state = tl_with_ui.to_dict()
+        state = tl_with_ui.get_state()
 
         tl_with_ui.clear()
 

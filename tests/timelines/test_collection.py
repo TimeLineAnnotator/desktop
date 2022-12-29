@@ -14,6 +14,7 @@ def tl_coll():
     yield _tl_coll
     unsubscribe_from_all(_tl_coll)
 
+
 class TestTimelineCollection:
     # TEST CONSTRUCTORS
     def test_constructor(self):
@@ -47,6 +48,3 @@ class TestTimelineCollection:
         tl_coll.clear()
 
         assert not tl_coll._timelines
-
-
-

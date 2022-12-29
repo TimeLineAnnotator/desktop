@@ -35,7 +35,7 @@ def ask_for_string(title: str, prompt: str, initialvalue: str) -> str | None:
     return tk.simpledialog.askstring(title, prompt, initialvalue=initialvalue)
 
 
-def ask_for_int(title: str, prompt: str, initialvalue: int) -> int | None:
+def ask_for_int(title: str, prompt: str, initialvalue: int = "") -> int | None:
     return tk.simpledialog.askinteger(title, prompt, initialvalue=initialvalue)
 
 

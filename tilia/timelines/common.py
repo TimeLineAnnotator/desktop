@@ -74,12 +74,20 @@ class TimelineComponentManager:
 
         self.timeline = None
 
+    @property
+    def component_count(self):
+        return len(self._components)
+
     def associate_to_timeline(self, timeline: Timeline):
         logging.debug(f"Seting {self}.timeline to {timeline}")
         self.timeline = timeline
 
+    def _validate_component_creation(self, *args, **kwargs):
+        pass
+
     def create_component(self, kind: ComponentKind, *args, **kwargs):
         self._validate_component_kind(kind)
+        self._validate_component_creation(*args, **kwargs)
         component_class = self._get_component_class_by_kind(kind)
         component = component_class.create(*args, **kwargs)
 
@@ -287,9 +295,8 @@ class Timeline(ABC):
     def request_delete_ui_for_component(self, component: TimelineComponent) -> None:
         self.ui.delete_element(component.ui)
 
-    @abstractmethod
     def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
-        ...
+        pass
 
     def clear(self, record=True):
         logger.debug(f"Clearing timeline '{self}'")
@@ -303,23 +310,24 @@ class Timeline(ABC):
         logger.debug(f"Deleting timeline '{self}'")
         self.component_manager.clear()
 
-    def to_dict(self) -> dict:
+    def get_state(self) -> dict:
         """Creates a dict with timeline components and attributes."""
         logger.debug(f"Serializing {self}...")
-        result = {}
+        state = {}
         for attr in self.SERIALIZABLE_BY_VALUE:
-            result[attr] = getattr(self, attr)
+            if isinstance(value := getattr(self, attr), list):
+                value = value.copy()
+            state[attr] = value
 
         for attr in self.SERIALIZABLE_BY_UI_VALUE:
-            result[attr] = getattr(self.ui, attr)
+            if isinstance(value := getattr(self.ui, attr), list):
+                value = value.copy()
+            state[attr] = value
 
-        result["components"] = self.component_manager.serialize_components()
-        result["kind"] = self._kind.name
+        state["components"] = self.component_manager.serialize_components()
+        state["kind"] = self._kind.name
 
-        return result
-
-    def get_state(self) -> dict:
-        return self.to_dict()
+        return state
 
     def restore_state(self, state: dict):
         self.clear(record=False)
@@ -338,8 +346,8 @@ class Timeline(ABC):
     def get_current_playback_time(self):
         return self.collection.get_current_playback_time()
 
-    def __repr__(self):
-        return tilia.repr.default_str_dunder(self)
+    def __str__(self):
+        return self.__class__.__name__ + f"({id(self)})"
 
 
 def log_object_creation(func: Callable) -> Callable:

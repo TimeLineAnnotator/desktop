@@ -15,7 +15,7 @@ def create_timeline(
 ):
     _validate_timeline_kind(timeline_kind)
 
-    timeline = timeline_collection.create_timeline(timeline_kind)
+    timeline = timeline_collection.create_timeline(timeline_kind, **kwargs)
     timeline_ui = timeline_ui_collection.create_timeline_ui(
         timeline_kind, name, **kwargs
     )

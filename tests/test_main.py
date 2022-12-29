@@ -42,7 +42,6 @@ class TestTilia:
         assert isinstance(tilia_mock._player, player.PygamePlayer)
 
 
-
 class TestFileManager:
     def test_constructor(self, tilia_mock):
         FileManager(tilia_mock)
@@ -55,14 +54,14 @@ class TestFileManager:
         file_manager.open()
 
     def test_on_metadata_new_fields(self, tilia_mock):
-        new_metadata_fields = ['test_field1', 'test_field2']
+        new_metadata_fields = ["test_field1", "test_field2"]
         events.post(Event.METADATA_NEW_FIELDS, new_metadata_fields)
 
         assert list(tilia_mock.media_metadata) == new_metadata_fields
 
     def test_on_metadata_field_edited(self, tilia_mock):
-        edited_field = 'title'
-        new_value = 'test title'
+        edited_field = "title"
+        new_value = "test title"
         events.post(Event.METADATA_FIELD_EDITED, edited_field, new_value)
 
         assert tilia_mock.media_metadata[edited_field] == new_value
@@ -71,9 +70,9 @@ class TestFileManager:
         file_manager._open_file_by_path("test_metadata_custom_fields.tla")
 
         assert list(file_manager._file.media_metadata.items()) == [
-            ('test_field1', 'a'),
-            ('test_field2', 'b'),
-            ('test_field3', 'c')
+            ("test_field1", "a"),
+            ("test_field2", "b"),
+            ("test_field3", "c"),
         ]
 
     def test_is_file_modified(self, tilia_mock, file_manager):
@@ -86,40 +85,40 @@ class TestFileManager:
 
         assert not file_manager.was_file_modified()
 
-
         file_manager.get_save_parameters = lambda: modified_save_params
 
         import copy
+
         modified_save_params = copy.deepcopy(empty_file_save_params)
-        modified_save_params['timelines'] = {
-            '0': {
-                'kind': 'SLIDER_TIMELINE',
-                'display_position': 0,
-                'is_visible': True,
-                'height': 10
+        modified_save_params["timelines"] = {
+            "0": {
+                "kind": "SLIDER_TIMELINE",
+                "display_position": 0,
+                "is_visible": True,
+                "height": 10,
             },
-            '1': {
-                'kind': 'HIERARCHY_TIMELINE',
-                'display_position': 0,
-                'height': 10,
-                'is_visible': True,
-                'name': 'test',
-                'components': {}
-            }
+            "1": {
+                "kind": "HIERARCHY_TIMELINE",
+                "display_position": 0,
+                "height": 10,
+                "is_visible": True,
+                "name": "test",
+                "components": {},
+            },
         }
 
         assert file_manager.was_file_modified()
 
         modified_save_params = copy.deepcopy(empty_file_save_params)
-        modified_save_params['media_metadata']['title'] = 'modified title'
+        modified_save_params["media_metadata"]["title"] = "modified title"
         assert file_manager.was_file_modified()
 
         modified_save_params = copy.deepcopy(empty_file_save_params)
-        modified_save_params['media_metadata'].pop('title')
+        modified_save_params["media_metadata"].pop("title")
         assert file_manager.was_file_modified()
 
         modified_save_params = copy.deepcopy(empty_file_save_params)
-        modified_save_params['media_path'] = 'modified path'
+        modified_save_params["media_path"] = "modified path"
         assert file_manager.was_file_modified()
 
     def test_create_slider_timeline_no_error(self, tilia_mock):
@@ -127,7 +126,7 @@ class TestFileManager:
             TimelineKind.SLIDER_TIMELINE,
             tilia_mock._timeline_collection,
             tilia_mock._timeline_ui_collection,
-             name="test"
+            name="test",
         )
 
     def test_create_hierarchy_timelin_no_error(self, tilia_mock):
@@ -135,6 +134,5 @@ class TestFileManager:
             TimelineKind.HIERARCHY_TIMELINE,
             tilia_mock._timeline_collection,
             tilia_mock._timeline_ui_collection,
-             name="test"
+            name="test",
         )
-
