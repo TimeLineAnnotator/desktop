@@ -10,7 +10,7 @@ class HierarchyTimelineToolbar(TimelineToolbar):
     pady = 3
 
     def __init__(self, parent):
-        super(HierarchyTimelineToolbar, self).__init__(parent, text="Hierarchies")
+        super().__init__(parent, text="Hierarchies")
 
         self.button_info = [
             (
@@ -44,9 +44,7 @@ class HierarchyTimelineToolbar(TimelineToolbar):
             ),
             (
                 "below30",
-                lambda: events.post(
-                    Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD
-                ),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD),
                 "Create unit below",
             ),
             (
@@ -56,9 +54,7 @@ class HierarchyTimelineToolbar(TimelineToolbar):
             ),
             (
                 "paste30",
-                lambda: events.post(
-                    Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT
-                ),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT),
                 "Paste unit (Ctrl + V",
             ),
             (

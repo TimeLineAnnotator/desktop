@@ -69,7 +69,7 @@ class HierarchyUI(TimelineUIElement):
     INSPECTOR_FIELDS = [
         ("Label", "entry"),
         ("Start / end", "label"),
-        ("Length", 'label'),
+        ("Length", "label"),
         ("Formal type", "entry"),
         ("Formal function", "entry"),
         ("Comments", "entry"),
@@ -92,36 +92,32 @@ class HierarchyUI(TimelineUIElement):
 
     RIGHT_CLICK_OPTIONS = [
         ("Edit...", RightClickOption.EDIT),
-        ('', RightClickOption.SEPARATOR),
+        ("", RightClickOption.SEPARATOR),
         ("Increase level", RightClickOption.INCREASE_LEVEL),
         ("Decrease level", RightClickOption.DECREASE_LEVEL),
         ("Change color...", RightClickOption.CHANGE_COLOR),
         ("Reset color", RightClickOption.RESET_COLOR),
-        ('', RightClickOption.SEPARATOR),
+        ("", RightClickOption.SEPARATOR),
         ("Copy", RightClickOption.COPY),
         ("Paste", RightClickOption.PASTE),
         ("Paste w/ all attributes", RightClickOption.PASTE_WITH_ALL_ATTRIBUTES),
-        ('', RightClickOption.SEPARATOR),
-        ('Export audio...', RightClickOption.EXPORT_TO_AUDIO),
+        ("", RightClickOption.SEPARATOR),
+        ("Export audio...", RightClickOption.EXPORT_TO_AUDIO),
         ("Delete", RightClickOption.DELETE),
     ]
 
     @log_object_creation
     def __init__(
-            self,
-            unit: Hierarchy,
-            timeline_ui: HierarchyTimelineUI,
-            canvas: tk.Canvas,
-            label: str = "",
-            color: str = "",
-            **_,
+        self,
+        unit: Hierarchy,
+        timeline_ui: HierarchyTimelineUI,
+        canvas: tk.Canvas,
+        label: str = "",
+        color: str = "",
+        **_,
     ):
 
-        super().__init__(
-            tl_component=unit,
-            timeline_ui=timeline_ui,
-            canvas=canvas
-        )
+        super().__init__(tl_component=unit, timeline_ui=timeline_ui, canvas=canvas)
 
         self.tl_component = unit
         self.timeline_ui = timeline_ui
@@ -139,11 +135,11 @@ class HierarchyUI(TimelineUIElement):
 
     @classmethod
     def create(
-            cls,
-            unit: Hierarchy,
-            timeline_ui: HierarchyTimelineUI,
-            canvas: TimelineCanvas,
-            **kwargs,
+        cls,
+        unit: Hierarchy,
+        timeline_ui: HierarchyTimelineUI,
+        canvas: TimelineCanvas,
+        **kwargs,
     ) -> HierarchyUI:
 
         return HierarchyUI(unit, timeline_ui, canvas, **kwargs)
@@ -234,15 +230,17 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def full_name(self) -> str:
-        STR_FOR_UNLABELED = 'Unnamed'
-        FULL_NAME_SEPARATOR = '-'
+        STR_FOR_UNLABELED = "Unnamed"
+        FULL_NAME_SEPARATOR = "-"
 
         partial_name = self.label if self.label else STR_FOR_UNLABELED
 
         next_parent = self.parent
 
         while next_parent:
-            parent_name = next_parent.ui.label if next_parent.ui.label else STR_FOR_UNLABELED
+            parent_name = (
+                next_parent.ui.label if next_parent.ui.label else STR_FOR_UNLABELED
+            )
             partial_name = parent_name + FULL_NAME_SEPARATOR + partial_name
             next_parent = next_parent.parent
 
@@ -338,9 +336,9 @@ class HierarchyUI(TimelineUIElement):
 
         x0 = self.start_x + self.XOFFSET
         y0 = (
-                tl_height
-                - self.YOFFSET
-                - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
+            tl_height
+            - self.YOFFSET
+            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
         )
         x1 = self.end_x - self.XOFFSET
 
@@ -352,7 +350,7 @@ class HierarchyUI(TimelineUIElement):
 
         return (
             x1 + self.COMMENTS_INDICATOR_XOFFSET,
-            y0 + self.COMMENTS_INDICATOR_YOFFSET
+            y0 + self.COMMENTS_INDICATOR_YOFFSET,
         )
 
     def get_label_coords(self):
@@ -402,7 +400,7 @@ class HierarchyUI(TimelineUIElement):
         )
 
     def get_marker_coords(
-            self, marker_extremity: StartOrEnd
+        self, marker_extremity: StartOrEnd
     ) -> tuple[float, float, float, float]:
 
         draw_h = self.timeline_ui.get_timeline_height() - self.MARKER_YOFFSET
@@ -422,7 +420,6 @@ class HierarchyUI(TimelineUIElement):
             marker_x + (self.MARKER_WIDTH / 2),
             draw_h,
         )
-
 
     MIN_DRAG_GAP = 4
     DRAG_PROXIMITY_LIMIT = MARKER_WIDTH / 2 + MIN_DRAG_GAP
@@ -471,7 +468,12 @@ class HierarchyUI(TimelineUIElement):
     def make_drag_data(self, extremity: StartOrEnd):
         logger.debug(f"{self} is preparing to drag {extremity} marker...")
         min_x, max_x = self.get_drag_limit(extremity)
-        self.drag_data = {"extremity": extremity, "max_x": max_x, "min_x": min_x, "x": None}
+        self.drag_data = {
+            "extremity": extremity,
+            "max_x": max_x,
+            "min_x": min_x,
+            "x": None,
+        }
 
     def get_drag_limit(self, extremity: StartOrEnd) -> tuple[int, int]:
         logger.debug(f"Getting drag limitis for {extremity} marker.")
@@ -511,10 +513,9 @@ class HierarchyUI(TimelineUIElement):
 
     def drag(self, x: int, _) -> None:
 
-        if self.drag_data['x'] is None:
+        if self.drag_data["x"] is None:
             events.post(Event.ELEMENT_DRAG_START)
 
-        logger.debug(f"Dragging self {self.drag_data['extremity']} marker...")
         drag_x = x
 
         if x > self.drag_data["max_x"]:
@@ -531,24 +532,28 @@ class HierarchyUI(TimelineUIElement):
             logger.debug(f"Dragging to x='{x}'.")
 
         # update timeline component value
-        setattr(self.tl_component, self.drag_data["extremity"].value, self.timeline_ui.get_time_by_x(drag_x))
+        setattr(
+            self.tl_component,
+            self.drag_data["extremity"].value,
+            self.timeline_ui.get_time_by_x(drag_x),
+        )
 
-        self.drag_data['x'] = drag_x
+        self.drag_data["x"] = drag_x
         self.update_position()
 
     def end_drag(self):
-        logger.debug(f"Ending drag of {self}.")
-        if self.drag_data is not None:
+
+        if self.drag_data["x"] is not None:
+            logger.debug(f"Dragged {self}. New x is {self.drag_data['x']}")
             events.post(
                 Event.REQUEST_RECORD_STATE,
-                'hierarchy drag',
+                "hierarchy drag",
                 no_repeat=True,
-                repeat_identifier=f'{self.timeline_ui}_drag_to_{self.drag_data["x"]}'
+                repeat_identifier=f'{self.timeline_ui}_drag_to_{self.drag_data["x"]}',
             )
         self.drag_data = {}
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
-
 
     def on_select(self) -> None:
         self.display_as_selected()
@@ -596,7 +601,7 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def start_and_end_formatted(self) -> str:
-        return f'{format_media_time(self.tl_component.start)} / {format_media_time(self.tl_component.end)}'
+        return f"{format_media_time(self.tl_component.start)} / {format_media_time(self.tl_component.end)}"
 
     @property
     def length_formatted(self) -> str:

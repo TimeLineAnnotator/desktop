@@ -37,55 +37,46 @@ class MarkerUI(TimelineUIElement):
     WIDTH = 8
     HEIGHT = 10
 
-    DEFAULT_COLOR = '#999999'
+    DEFAULT_COLOR = "#999999"
 
     LABEL_PADX = 7
 
-    INSPECTOR_FIELDS = [
-        ("Label", "entry"),
-        ("Time", "label"),
-        ("Comments", "entry")
-    ]
+    INSPECTOR_FIELDS = [("Label", "entry"), ("Time", "label"), ("Comments", "entry")]
 
-    FIELD_NAMES_TO_ATTRIBUTES = {
-        'Label': 'label',
-        'Comments': 'comments'
-    }
+    FIELD_NAMES_TO_ATTRIBUTES = {"Label": "label", "Comments": "comments"}
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         by_element_value=["label", "color"],
         by_component_value=["comments"],
         support_by_element_value=[],
-        support_by_component_value=['time'],
+        support_by_component_value=["time"],
     )
 
     RIGHT_CLICK_OPTIONS = [
         ("Edit...", RightClickOption.EDIT),
-        ('', RightClickOption.SEPARATOR),
+        ("", RightClickOption.SEPARATOR),
         ("Change color...", RightClickOption.CHANGE_COLOR),
         ("Reset color", RightClickOption.RESET_COLOR),
-        ('', RightClickOption.SEPARATOR),
+        ("", RightClickOption.SEPARATOR),
         ("Copy", RightClickOption.COPY),
         ("Paste", RightClickOption.PASTE),
-        ('', RightClickOption.SEPARATOR),
+        ("", RightClickOption.SEPARATOR),
         ("Delete", RightClickOption.DELETE),
     ]
 
     @log_object_creation
     def __init__(
-            self,
-            timeline_component: Marker,
-            timeline_ui: MarkerTimelineUI,
-            canvas: tk.Canvas,
-            label: str = "",
-            color: str = DEFAULT_COLOR,
-            **_,
+        self,
+        timeline_component: Marker,
+        timeline_ui: MarkerTimelineUI,
+        canvas: tk.Canvas,
+        label: str = "",
+        color: str = DEFAULT_COLOR,
+        **_,
     ):
 
         super().__init__(
-            tl_component=timeline_component,
-            timeline_ui=timeline_ui,
-            canvas=canvas
+            tl_component=timeline_component, timeline_ui=timeline_ui, canvas=canvas
         )
 
         self._label = label
@@ -101,11 +92,11 @@ class MarkerUI(TimelineUIElement):
 
     @classmethod
     def create(
-            cls,
-            unit: Marker,
-            timeline_ui: MarkerTimelineUI,
-            canvas: TimelineCanvas,
-            **kwargs,
+        cls,
+        unit: Marker,
+        timeline_ui: MarkerTimelineUI,
+        canvas: TimelineCanvas,
+        **kwargs,
     ) -> MarkerUI:
 
         return MarkerUI(unit, timeline_ui, canvas, **kwargs)
@@ -163,10 +154,7 @@ class MarkerUI(TimelineUIElement):
 
     @property
     def canvas_drawings_ids(self):
-        return (
-            self.marker_proper_id,
-            self.label_id
-        )
+        return (self.marker_proper_id, self.label_id)
 
     def update_position(self):
 
@@ -180,7 +168,6 @@ class MarkerUI(TimelineUIElement):
 
         # update label
         self.canvas.coords(self.label_id, *self.get_label_coords())
-
 
     def draw_unit(self) -> int:
         coords = self.get_unit_coords()
@@ -196,7 +183,6 @@ class MarkerUI(TimelineUIElement):
         logger.debug(f"Drawing marker label with {coords=} and {self.label=}")
         return self.canvas.create_text(*coords, text=self.label)
 
-
     def get_unit_coords(self):
 
         x0 = self.x - self.WIDTH / 2
@@ -207,7 +193,6 @@ class MarkerUI(TimelineUIElement):
         y2 = self.HEIGHT
 
         return x0, y0, x1, y1, x2, y2
-
 
     def get_label_coords(self):
         return self.x, self.HEIGHT + self.LABEL_PADX
@@ -225,7 +210,7 @@ class MarkerUI(TimelineUIElement):
 
     @property
     def left_click_triggers(self) -> tuple[int, ...]:
-        return self.marker_proper_id,
+        return (self.marker_proper_id,)
 
     def on_left_click(self, _) -> None:
         self.make_drag_data()
@@ -254,15 +239,14 @@ class MarkerUI(TimelineUIElement):
             "max_x": self.timeline_ui.get_right_margin_x(),
             "min_x": self.timeline_ui.get_left_margin_x(),
             "dragged": False,
-            "x": None
+            "x": None,
         }
 
     def drag(self, x: int, _) -> None:
 
-        if self.drag_data['x'] is None:
+        if self.drag_data["x"] is None:
             events.post(Event.ELEMENT_DRAG_START)
 
-        logger.debug(f"Dragging {self}...")
         drag_x = x
         if x > self.drag_data["max_x"]:
             logger.debug(
@@ -276,19 +260,16 @@ class MarkerUI(TimelineUIElement):
             drag_x = self.drag_data["min_x"]
 
         self.tl_component.time = self.timeline_ui.get_time_by_x(drag_x)
-        self.drag_data['dragged'] = True
 
+        self.drag_data["x"] = drag_x
         self.update_position()
 
     def end_drag(self):
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
-        if self.drag_data['dragged']:
+        if self.drag_data["x"] is not None:
             logger.debug(f"Dragged {self}. New x is {self.x}")
-            events.post(
-                Event.REQUEST_RECORD_STATE,
-                'marker drag'
-            )
+            events.post(Event.REQUEST_RECORD_STATE, "marker drag")
 
         self.drag_data = {}
 
@@ -304,7 +285,9 @@ class MarkerUI(TimelineUIElement):
         )
 
     def display_as_deselected(self) -> None:
-        self.canvas.itemconfig(self.marker_proper_id, fill=self.color, width=0, outline="")
+        self.canvas.itemconfig(
+            self.marker_proper_id, fill=self.color, width=0, outline=""
+        )
 
     def request_delete_to_component(self):
         self.tl_component.receive_delete_request_from_ui()
@@ -313,5 +296,5 @@ class MarkerUI(TimelineUIElement):
         return {
             "Label": self.label,
             "Time": format_media_time(self.time),
-            "Comments": self.comments
+            "Comments": self.comments,
         }

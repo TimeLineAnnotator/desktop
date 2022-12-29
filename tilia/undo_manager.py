@@ -8,7 +8,6 @@ import logging
 from typing import TYPE_CHECKING, Protocol
 
 
-
 if TYPE_CHECKING:
     from tilia.main import TiLiA
 
@@ -18,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 class UndoManager:
-
     def __init__(self) -> None:
 
         subscribe(self, Event.REQUEST_TO_UNDO, self.undo)
@@ -33,7 +31,7 @@ class UndoManager:
         state,
         action: StateAction,
         no_repeat=False,
-        repeat_identifier='',
+        repeat_identifier="",
     ):
         """
         Records given app 'state' to UndoManager's stack. Should be called by the TiLiA object.
@@ -47,20 +45,18 @@ class UndoManager:
         logger.debug(f"Recording {action}.")
 
         if no_repeat and self.last_repeat_id == repeat_identifier:
-            logger.debug(f"No repeat is on and action is same last ({action}, {repeat_identifier})."
-                         f" Updating recorded state.")
-            self.stack[-1]['state'] = state
+            logger.debug(
+                f"No repeat is on and action is same last ({action}, {repeat_identifier})."
+                f" Updating recorded state."
+            )
+            self.stack[-1]["state"] = state
             return
 
-        logger.debug(
-            f"Current state is not saved. Appending current state to stack..."
-        )
-        self.stack.append({'state': state, 'action': action})
-        logger.debug(f"State appended.")
+        self.stack.append({"state": state, "action": action})
+        logger.debug(f"State recorded.")
 
         if repeat_identifier:
             self.last_repeat_id = repeat_identifier
-
 
     def undo(self):
         """Undoes last action"""
@@ -69,14 +65,12 @@ class UndoManager:
             logger.debug(f"No actions to undo.")
             return
 
-        last_state = self.stack[self.current_state_index - 1]['state']
-        last_action = self.stack[self.current_state_index - 1]['action']
+        last_state = self.stack[self.current_state_index - 1]["state"]
+        last_action = self.stack[self.current_state_index - 1]["action"]
 
         logger.debug(f"Undoing {last_action}...")
 
-        logging.disable(logging.CRITICAL)
         events.post(Event.REQUEST_RESTORE_APP_STATE, last_state)
-        logging.disable(logging.NOTSET)
 
         logger.debug(f"Undone {last_action}.")
 
@@ -90,14 +84,12 @@ class UndoManager:
             logger.debug(f"No action to redo.")
             return
 
-        next_state = self.stack[self.current_state_index + 1]['state']
-        next_action = self.stack[self.current_state_index + 1]['action']
+        next_state = self.stack[self.current_state_index + 1]["state"]
+        next_action = self.stack[self.current_state_index + 1]["action"]
 
         logger.debug(f"Redoing {next_action}...")
 
-        logging.disable(logging.CRITICAL)
         events.post(Event.REQUEST_RESTORE_APP_STATE, next_state)
-        logging.disable(logging.NOTSET)
 
         logger.debug(f"Redone {next_action}.")
 
@@ -109,9 +101,6 @@ class UndoManager:
             self.stack = self.stack[: self.current_state_index + 1]
             self.current_state_index = -1
 
-
     def clear(self):
         self.stack = []
         self.current_state_index = -1
-
-
