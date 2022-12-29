@@ -3,6 +3,7 @@ import tilia.events as events
 from tilia import globals_
 
 from tilia.events import Event
+from tilia.ui.canvas_tags import CLICK_THROUGH
 from tilia.ui.modifier_enum import ModifierEnum
 
 
@@ -102,12 +103,29 @@ DEFAULT_CANVAS_BINDINGS = [
 ]
 
 
+def get_highest_in_stacking_order(ids: set, canvas: tk.Canvas) -> int:
+    ids_in_order = [id_ for id_ in canvas.find_all() if id_ in ids]
+    return ids_in_order[-1]
+
+
 def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     """Handles mouse click"""
     canvas = event.widget
     canvas_x = canvas.canvasx(event.x)
     canvas_y = canvas.canvasx(event.y)
     clicked_item_id = next(iter(canvas.find_withtag(tk.CURRENT)), None)
+
+
+    if clicked_item_id and CLICK_THROUGH in canvas.gettags(clicked_item_id):
+        overlapping = set(
+            canvas.find_overlapping(canvas_x, canvas_y, canvas_x, canvas_y)
+        )
+        if clicked_item_id in overlapping:
+            overlapping.remove(clicked_item_id)
+        try:
+            clicked_item_id = get_highest_in_stacking_order(overlapping, canvas)
+        except IndexError:
+            clicked_item_id = None
 
     events.post(
         Event.CANVAS_LEFT_CLICK,
@@ -126,6 +144,17 @@ def on_right_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     canvas_x = canvas.canvasx(event.x)
     canvas_y = canvas.canvasx(event.y)
     clicked_item_id = next(iter(canvas.find_withtag(tk.CURRENT)), None)
+
+    if clicked_item_id and CLICK_THROUGH in canvas.gettags(clicked_item_id):
+        overlapping = set(
+            canvas.find_overlapping(canvas_x, canvas_y, canvas_x, canvas_y)
+        )
+        if clicked_item_id in overlapping:
+            overlapping.remove(clicked_item_id)
+        try:
+            clicked_item_id = get_highest_in_stacking_order(overlapping, canvas)
+        except IndexError:
+            clicked_item_id = None
 
     events.post(
         Event.CANVAS_RIGHT_CLICK,

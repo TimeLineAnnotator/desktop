@@ -210,19 +210,12 @@ class MarkerUI(TimelineUIElement):
 
     @property
     def left_click_triggers(self) -> tuple[int, ...]:
-        return (self.marker_proper_id,)
+        return self.marker_proper_id,
 
     def on_left_click(self, _) -> None:
         self.make_drag_data()
         subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
         subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
-
-    @property
-    def double_left_click_triggers(self) -> tuple[int, ...]:
-        return self.marker_proper_id, self.label_id
-
-    def on_double_left_click(self, _) -> None:
-        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.time)
 
     @property
     def right_click_triggers(self) -> tuple[int, ...]:

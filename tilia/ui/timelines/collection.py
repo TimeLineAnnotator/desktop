@@ -4,6 +4,8 @@ import logging
 import tkinter as tk
 from typing import Any, TYPE_CHECKING
 
+from tilia.ui.canvas_tags import CLICK_THROUGH
+
 if TYPE_CHECKING:
     from tilia.ui.tkinterui import TkinterUI
 
@@ -966,6 +968,7 @@ def draw_playback_line(timeline_ui: TimelineUI, initial_time: float) -> int:
         timeline_ui.height,
         dash=(3, 3),
         fill="black",
+        tags=(CLICK_THROUGH,)
     )
 
     timeline_ui.canvas.tag_raise(line_id)

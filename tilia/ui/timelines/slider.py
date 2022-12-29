@@ -82,8 +82,7 @@ class SliderTimelineUI(TimelineUI):
         self.trough = self.canvas.create_oval(
             *self.get_trough_coords(),
             fill=self.TROUGH_DEFAULT_COLOR,
-            tags="canHDrag",
-            width=0,
+            width=0
         )
 
         self.dragging = False

@@ -2,6 +2,8 @@ import logging
 from enum import Enum, auto
 from typing import Callable, Any
 
+from tilia import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -134,14 +136,11 @@ subscribers_to_events = {}
 for event in Event:
     events_to_subscribers[event] = {}
 
-LOG_EVENTS = True
+LOG_EVENTS = settings.settings['logging']['log_events']
 
 
 def post(event: Event, *args, **kwargs) -> None:
-    """
 
-    :rtype: None
-    """
     if LOG_EVENTS:
         logger.debug(f"Posting event {event.name} with {args=} and {kwargs=}.")
 

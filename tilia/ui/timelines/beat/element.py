@@ -10,6 +10,7 @@ import tilia.utils.color
 from tilia.events import Event, subscribe, unsubscribe
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
+from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
 from ...common import format_media_time
 
 if TYPE_CHECKING:
@@ -168,7 +169,7 @@ class BeatUI(TimelineUIElement):
         logger.debug(f"Drawing beat proper with {coords}")
         return self.canvas.create_rectangle(
             *coords,
-            tags=("canHDrag", "arrowsCursor"),
+            tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS),
             fill=self.FILL,
             outline="",
             width=3,

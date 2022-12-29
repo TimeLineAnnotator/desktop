@@ -12,6 +12,7 @@ from tilia.misc_enums import StartOrEnd
 from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
+from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
 from ...common import format_media_time
 
 if TYPE_CHECKING:
@@ -396,7 +397,7 @@ class HierarchyUI(TimelineUIElement):
             outline="#111111",
             width=self.MARKER_OUTLINE_WIDTH,
             fill="black",
-            tags=("canHDrag", "arrowsCursor"),
+            tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS),
         )
 
     def get_marker_coords(

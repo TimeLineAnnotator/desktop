@@ -339,7 +339,7 @@ class AppToolbarsFrame(tk.Frame):
 
 class ScrollableFrame(tk.Frame):
     """Tk.Frame does not support scrolling. This workaround relies
-    on a frame placed inside a canvas, which does support scrolling.
+    on a frame placed inside a canvas, a widget which does support scrolling.
     self.frame is the frame that must be used by outside widgets."""
 
     def __init__(self, parent) -> None:
@@ -352,7 +352,7 @@ class ScrollableFrame(tk.Frame):
         self.vsb.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
         self.canvas.create_window(
-            (0, 0), window=self.frame, anchor="nw", tags="self.frame"
+            (0, 0), window=self.frame, anchor="nw"
         )
 
         self.frame.bind("<Configure>", self.on_frame_configure)

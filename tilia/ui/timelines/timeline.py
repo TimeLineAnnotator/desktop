@@ -225,7 +225,7 @@ class TimelineUI(ABC):
         self,
         x: int,
         y: int,
-        clicked_item_id: int,
+        item_id: int,
         button: Side,
         modifier: ModifierEnum,
         double: bool,
@@ -233,35 +233,33 @@ class TimelineUI(ABC):
 
         logger.debug(f"Processing click on {self}...")
 
-        if not clicked_item_id:
+        if not item_id:
             if button == Side.LEFT:
                 logger.debug(f"No canvas item was clicked.")
             else:
                 self.display_right_click_menu_for_timeline(x, y)
             return
 
-        clicked_elements = self.get_clicked_element(clicked_item_id)
+        clicked_elements = self.get_clicked_element(item_id)
 
         if not clicked_elements:
             logger.debug(f"No ui element was clicked.")
             return
 
         for (
-            clicked_element
+            elm
         ) in clicked_elements:  # clicked item might be owned by more than on element
             if button == Side.LEFT:
                 if not double:
-                    self._process_ui_element_left_click(
-                        clicked_element, clicked_item_id
-                    )
+                    self._process_ui_element_left_click(elm, item_id)
                 else:
-                    self._process_ui_element_double_left_click(
-                        clicked_element, clicked_item_id
+                    double_clicked = self._process_ui_element_double_left_click(
+                        elm, item_id
                     )
+                    if not double_clicked:  # consider as single click
+                        self._process_ui_element_left_click(elm, item_id)
             elif button == Side.RIGHT:
-                self._process_ui_element_right_click(
-                    x, y, clicked_element, clicked_item_id
-                )
+                self._process_ui_element_right_click(x, y, elm, item_id)
 
         logger.debug(f"Processed click on {self}.")
 
@@ -314,7 +312,7 @@ class TimelineUI(ABC):
 
     def _process_ui_element_double_left_click(
         self, clicked_element: TimelineUIElement, clicked_item_id: int
-    ) -> None:
+    ) -> None | bool:
 
         logger.debug(f"Processing double click on ui element '{clicked_element}'...")
 
@@ -331,8 +329,10 @@ class TimelineUI(ABC):
             and clicked_item_id in clicked_element.double_left_click_triggers
         ):
             clicked_element.on_double_left_click(clicked_item_id)
+            return True
         else:
             logger.debug(f"Element is not double clickable.")
+            return False
 
     def _process_ui_element_right_click(
         self,
