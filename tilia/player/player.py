@@ -166,7 +166,7 @@ class Player(ABC):
         events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time)
 
     def _start_play_loop(self):
-        threading.Thread(target=self._play_loop).start()
+        threading.Thread(target=self._play_loop, daemon=True).start()
 
     def _play_loop(self) -> None:
         while self.playing:

@@ -2,35 +2,10 @@
 Aim to get rid of this by refactoring functions and classes into more meaningful modules.
 """
 
-from threading import Thread
 from typing import Callable
-
-import tkinter as tk
-
 import logging
 
 logger = logging.getLogger(__name__)
-
-LOGGER = logging.getLogger()
-
-
-class ObjectRightClickMenu:
-    """Mixin for objects that have a right click menu"""
-
-    def __init__(self, *args, menu_class: type = None, **kwargs):
-
-        if not menu_class:
-            raise ValueError(
-                f"Can't initilized class '{self.__class__}': missing kwarg 'menu_class'"
-            )
-
-        super().__init__(*args, **kwargs)
-
-        self.right_click_menu_class = menu_class
-
-    def show_right_click_menu(self, event: tk.Event, *args, **kwargs):
-        menu = self.right_click_menu_class(self, *args, **kwargs)
-        menu.tk_popup(event.x_root, event.y_root)
 
 
 def log_object_creation_with_vars(func: Callable, attrs: list[tuple[str, str]]):
@@ -78,20 +53,3 @@ def log_object_deletion(func: Callable, attrs: list[tuple[str, str]]):
         return result
 
     return wrapper
-
-
-# noinspection PyAttributeOutsideInit
-# noinspection PyUnresolvedReferences
-class PropagatingThread(Thread):
-    def run(self):
-        self.exc = None
-        try:
-            self.ret = self._target(*self._args, **self._kwargs)
-        except BaseException as e:
-            self.exc = e
-
-    def join(self, timeout=None):
-        super(PropagatingThread, self).join(timeout)
-        if self.exc:
-            raise self.exc
-        return self.ret

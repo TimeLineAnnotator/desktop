@@ -63,13 +63,37 @@ class TkinterUI:
     def __init__(self, app: TiLiA):
 
         subscribe(self, Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media)
-        subscribe(self, Event.UI_REQUEST_WINDOW_INSPECTOR, lambda: self.on_request_window(WindowKind.INSPECT))
-        subscribe(self, Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES, lambda: self.on_request_window(WindowKind.MANAGE_TIMELINES))
-        subscribe(self, Event.UI_REQUEST_WINDOW_METADATA, lambda: self.on_request_window(WindowKind.METADATA))
+        subscribe(
+            self,
+            Event.UI_REQUEST_WINDOW_INSPECTOR,
+            lambda: self.on_request_window(WindowKind.INSPECT),
+        )
+        subscribe(
+            self,
+            Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
+            lambda: self.on_request_window(WindowKind.MANAGE_TIMELINES),
+        )
+        subscribe(
+            self,
+            Event.UI_REQUEST_WINDOW_METADATA,
+            lambda: self.on_request_window(WindowKind.METADATA),
+        )
         subscribe(self, Event.REQUEST_DISPLAY_ERROR, self.on_display_error)
-        subscribe(self, Event.INSPECT_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.INSPECT))
-        subscribe(self, Event.MANAGE_TIMELINES_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES))
-        subscribe(self, Event.METADATA_WINDOW_CLOSED, lambda: self.on_window_closed(WindowKind.METADATA))
+        subscribe(
+            self,
+            Event.INSPECT_WINDOW_CLOSED,
+            lambda: self.on_window_closed(WindowKind.INSPECT),
+        )
+        subscribe(
+            self,
+            Event.MANAGE_TIMELINES_WINDOW_CLOSED,
+            lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES),
+        )
+        subscribe(
+            self,
+            Event.METADATA_WINDOW_CLOSED,
+            lambda: self.on_window_closed(WindowKind.METADATA),
+        )
         subscribe(self, Event.TILIA_FILE_LOADED, self.on_tilia_file_loaded)
 
         logger.debug("Starting TkinterUI...")
@@ -95,11 +119,10 @@ class TkinterUI:
         self._windows = {
             WindowKind.INSPECT: None,
             WindowKind.METADATA: None,
-            WindowKind.MANAGE_TIMELINES: None
+            WindowKind.MANAGE_TIMELINES: None,
         }
 
         logger.debug("Tkinter UI started.")
-
 
     def _setup_tk_root(self):
         self.root = tk.Tk()
@@ -109,8 +132,8 @@ class TkinterUI:
         self.root.report_callback_exception = handle_exception
 
         self.root.title(globals_.APP_NAME)
-        icon = tk.PhotoImage(file=globals_.APP_ICON_PATH)
-        self.root.iconphoto(True, icon)
+        self.icon = tk.PhotoImage(master=self.root, file=globals_.APP_ICON_PATH)
+        self.root.iconphoto(True, self.icon)
 
         self.root.protocol(
             "WM_DELETE_WINDOW", lambda: events.post(Event.REQUEST_CLOSE_APP)
@@ -134,10 +157,7 @@ class TkinterUI:
     def _create_timeline_ui_collection(self):
 
         self.timeline_ui_collection = TimelineUICollection(
-            self,
-            self.scrollable_frame,
-            self.hscrollbar,
-            self.timelines_toolbar_frame
+            self, self.scrollable_frame, self.hscrollbar, self.timelines_toolbar_frame
         )
 
     def get_window_size(self):
@@ -151,9 +171,7 @@ class TkinterUI:
         self.main_frame = tk.Frame(self.root)
 
         self.app_toolbars_frame = AppToolbarsFrame(self.main_frame)
-        self.timelines_toolbar_frame = tk.Frame(
-            self.main_frame
-        )
+        self.timelines_toolbar_frame = tk.Frame(self.main_frame)
 
         _scrollable_frame = ScrollableFrame(self.main_frame)
         self.scrollable_frame = _scrollable_frame.frame
@@ -190,7 +208,7 @@ class TkinterUI:
                 self._windows[WindowKind.METADATA] = MetadataWindow(
                     self,
                     self._app.media_metadata,
-                    self.get_metadata_non_editable_fields()
+                    self.get_metadata_non_editable_fields(),
                 )
             else:
                 self._windows[WindowKind.METADATA].toplevel.focus_set()
@@ -199,7 +217,11 @@ class TkinterUI:
         self._windows[kind] = None
 
     def on_tilia_file_loaded(self):
-        windows_to_close = [WindowKind.INSPECT, WindowKind.MANAGE_TIMELINES, WindowKind.METADATA]
+        windows_to_close = [
+            WindowKind.INSPECT,
+            WindowKind.MANAGE_TIMELINES,
+            WindowKind.METADATA,
+        ]
 
         for window_kind in windows_to_close:
             if window := self._windows[window_kind]:
@@ -211,23 +233,29 @@ class TkinterUI:
 
     def get_metadata_non_editable_fields(self) -> dict[str]:
 
-        return OrderedDict({
-            'media length': self._app.media_length,
-            'media path': self._app.get_media_path()
-        })
+        return OrderedDict(
+            {
+                "media length": self._app.media_length,
+                "media path": self._app.get_media_path(),
+            }
+        )
 
     def get_timeline_info_for_manage_timelines_window(self) -> list[tuple[int, str]]:
         def get_tlui_display_string(tlui):
             if tlui.TIMELINE_KIND == TimelineKind.SLIDER_TIMELINE:
-                return 'SliderTimeline'
+                return "SliderTimeline"
             else:
                 return f"{tlui.name} | {tlui.timeline.__class__.__name__}"
+
         return [
             (tlui.timeline.id, get_tlui_display_string(tlui))
-            for tlui in sorted(self.timeline_ui_collection.get_timeline_uis(), key=lambda t: t.display_position)
+            for tlui in sorted(
+                self.timeline_ui_collection.get_timeline_uis(),
+                key=lambda t: t.display_position,
+            )
         ]
 
-    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
         return self._app.get_elements_for_pasting()
 
     def get_id(self) -> str:
@@ -302,7 +330,7 @@ class AppToolbarsFrame(tk.Frame):
             set_func=lambda: settings.edit_setting(
                 "general", "auto-scroll", self.auto_scroll_checkbox.variable.get()
             ),
-            parent=self
+            parent=self,
         )
 
         self.playback_frame.pack(side=tk.LEFT, anchor=tk.W)
@@ -313,6 +341,7 @@ class ScrollableFrame(tk.Frame):
     """Tk.Frame does not support scrolling. This workaround relies
     on a frame placed inside a canvas, which does support scrolling.
     self.frame is the frame that must be used by outside widgets."""
+
     def __init__(self, parent) -> None:
         super().__init__(parent)
         self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
@@ -322,14 +351,18 @@ class ScrollableFrame(tk.Frame):
 
         self.vsb.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.canvas.create_window((0, 0), window=self.frame, anchor="nw",
-                                  tags="self.frame")
+        self.canvas.create_window(
+            (0, 0), window=self.frame, anchor="nw", tags="self.frame"
+        )
 
         self.frame.bind("<Configure>", self.on_frame_configure)
-        self.canvas.bind("<Configure>", lambda e: events.post(Event.ROOT_WINDOW_RESIZED, e.width, e.height))
+        self.canvas.bind(
+            "<Configure>",
+            lambda e: events.post(Event.ROOT_WINDOW_RESIZED, e.width, e.height),
+        )
 
     def on_frame_configure(self, event):
-        '''Reset the scroll region to encompass the inner frame'''
+        """Reset the scroll region to encompass the inner frame"""
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
 
@@ -344,9 +377,7 @@ class CheckboxItem(tk.Frame):
         emulating a method call (with self as first parameter)."""
         super().__init__(parent, *args, **kwargs)
         self.variable = tk.BooleanVar(value=value)
-        self.checkbox = tk.Checkbutton(
-            self, command=set_func, variable=self.variable
-        )
+        self.checkbox = tk.Checkbutton(self, command=set_func, variable=self.variable)
         self.label = tk.Label(self, text=label)
 
         self.checkbox.pack(side=tk.LEFT)
@@ -395,7 +426,7 @@ class TkinterUIMenus(tk.Menu):
         self.file_menu.add_command(
             label="Media metadata...",
             command=lambda: events.post(Event.UI_REQUEST_WINDOW_METADATA),
-            underline=0
+            underline=0,
         )
 
         # EDIT MENU
@@ -406,13 +437,13 @@ class TkinterUIMenus(tk.Menu):
             label="Undo",
             command=lambda: events.post(Event.REQUEST_TO_UNDO),
             underline=0,
-            accelerator="Ctrl + Z"
+            accelerator="Ctrl + Z",
         )
         self.edit_menu.add_command(
             label="Redo",
             command=lambda: events.post(Event.REQUEST_TO_REDO),
             underline=0,
-            accelerator="Ctrl + Y"
+            accelerator="Ctrl + Y",
         )
 
         # self.edit_menu.add_command(label='Clear timeline', command=event_handlers.on_cleartimeline, underline=0)
@@ -426,9 +457,7 @@ class TkinterUIMenus(tk.Menu):
         for kind in TimelineKind:
             self.timelines_menu.add_timelines.add_command(
                 label=kind.value.capitalize(),
-                command=lambda kind_=kind: events.post(
-                    Event.APP_ADD_TIMELINE, kind_
-                ),
+                command=lambda kind_=kind: events.post(Event.APP_ADD_TIMELINE, kind_),
                 underline=0,
             )
 

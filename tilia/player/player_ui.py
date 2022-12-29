@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 import logging
+from pathlib import Path
 
 from tilia.ui.common import format_media_time
 
@@ -20,7 +21,9 @@ class PlayerUI(tk.Frame):
         subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_load)
         subscribe(self, Event.PLAYER_STOPPED, self.on_player_stop)
         subscribe(self, Event.PLAYER_PAUSED, lambda: self.change_playpause_icon("play"))
-        subscribe(self, Event.PLAYER_UNPAUSED, lambda: self.change_playpause_icon("pause"))
+        subscribe(
+            self, Event.PLAYER_UNPAUSED, lambda: self.change_playpause_icon("pause")
+        )
 
         self.media_length_str = "0:00:00"
 
@@ -30,13 +33,13 @@ class PlayerUI(tk.Frame):
 
         # get player button images
         self.play_btn_img = tk.PhotoImage(
-            file=os.path.join(globals_.IMG_DIR, "play15.png")
+            master=self, file=Path(globals_.IMG_DIR, "play15.png")
         )
         self.pause_btn_img = tk.PhotoImage(
-            file=os.path.join(globals_.IMG_DIR, "pause15.png")
+            master=self, file=Path(globals_.IMG_DIR, "pause15.png")
         )
         self.stop_btn_img = tk.PhotoImage(
-            file=os.path.join(globals_.IMG_DIR, "stop15.png")
+            master=self, file=Path(globals_.IMG_DIR, "stop15.png")
         )
 
         # Create player control buttons

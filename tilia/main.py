@@ -17,37 +17,29 @@ import dataclasses
 import itertools
 from collections import OrderedDict
 from pathlib import Path
-
+import os
+import sys
+from unittest.mock import MagicMock
+import logging
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tilia.ui.timelines.collection import TimelineUICollection
 
 from tilia.clipboard import Clipboard
 from tilia.file_manager import FileManager
 from tilia.timelines.create import create_timeline
 from tilia.timelines.state_actions import StateAction
 from tilia.undo_manager import UndoManager
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.collection import TimelineUICollection
-
-from unittest.mock import MagicMock
-
 from tilia import globals_, media_exporter, events, local_dev_code
 from tilia.exceptions import UserCancelledSaveError
 from tilia.globals_ import UserInterfaceKind
 from tilia.files import TiliaFile, create_new_media_metadata
-
-import os
-import sys
-from threading import Thread
-
 from tilia.player import player
 from tilia.events import Event, subscribe
-
 from tilia.timelines.timeline_kinds import TimelineKind, IMPLEMENTED_TIMELINE_KINDS
 from tilia.timelines.collection import TimelineCollection
 from tilia.ui.tkinterui import TkinterUI
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -322,22 +314,4 @@ def main():
 
 
 if __name__ == "__main__":
-
-    class PropagatingThread(Thread):
-        # noinspection PyAttributeOutsideInit
-        def run(self):
-            self.exc = None
-            try:
-                self.ret = self._target(*self._args, **self._kwargs)
-            except BaseException as e:
-                self.exc = e
-
-        def join(self, timeout=None):
-            super(PropagatingThread, self).join(timeout)
-            if self.exc:
-                raise self.exc
-            return self.ret
-
-    main_thread = PropagatingThread(target=main)
-    main_thread.start()
-    main_thread.join()
+    main()

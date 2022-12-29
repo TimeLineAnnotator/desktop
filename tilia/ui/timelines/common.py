@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable, Generic, TypeVar
+from pathlib import Path
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 if TYPE_CHECKING:
     pass

@@ -48,7 +48,9 @@ class FileManager:
         self._last_autosave_data = None
         self._autosave_exception_list = []
         self._autosave_thread = Thread(
-            target=self._auto_save_loop, args=(self._autosave_exception_list,)
+            target=self._auto_save_loop,
+            args=(self._autosave_exception_list,),
+            daemon=True,
         )
         self._autosave_thread.start()
 
