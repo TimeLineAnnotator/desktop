@@ -331,7 +331,7 @@ class PygamePlayer(Player):
     def load_media(self, media_path: str, start: float = 0.0, end: float = 0.0):
         extension = Path(media_path).suffix[1:]
 
-        if extension in globals_.SUPPORTED_AUDIO_FORMATS:
+        if extension not in globals_.SUPPORTED_AUDIO_FORMATS:
             ERROR_MESSAGE = (
                 "Conversion when loading is currently only available on "
                 "Windows. Convert audio file to OGG before loading."

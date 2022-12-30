@@ -15,10 +15,10 @@ from tilia.player.player import (
     NoMediaLoadedError,
 )
 
-AUDIO_FORMATS = tuple(globals_.NATIVE_AUDIO_FORMATS + globals_.SUPPORTED_AUDIO_FORMATS)
+AUDIO_FORMATS = tuple(globals_.SUPPORTED_AUDIO_FORMATS)
 SEEKABLE_AUDIO_FORMATS = tuple([f for f in AUDIO_FORMATS if f != "wav"])
 
-VIDEO_FORMATS = tuple(globals_.NATIVE_VIDEO_FORMATS)
+VIDEO_FORMATS = tuple(globals_.SUPPORTED_VIDEO_FORMATS)
 
 
 # FIXTURES
@@ -83,7 +83,7 @@ class TestPygamePlayer:
 
     def test_media_load_failed(self, pygame_player_notloaded):
         player = pygame_player_notloaded
-        with pytest.raises(MediaLoadError):
+        with pytest.raises(FileNotFoundError):
             player.load_media("invalid media")
 
     @pytest.mark.parametrize("pygame_player", AUDIO_FORMATS, indirect=True)

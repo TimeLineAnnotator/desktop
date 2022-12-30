@@ -4,7 +4,7 @@ import tilia.timelines.create
 from tilia import events
 from tilia.events import Event, unsubscribe_from_all
 from tilia.files import TiliaFile
-from tilia.globals_ import UserInterfaceKind, NATIVE_VIDEO_FORMATS, NATIVE_AUDIO_FORMATS
+from tilia.globals_ import UserInterfaceKind, SUPPORTED_VIDEO_FORMATS, SUPPORTED_AUDIO_FORMATS
 from tilia.main import TiLiA
 from tilia.file_manager import FileManager
 from tilia.player import player
@@ -29,16 +29,16 @@ def file_manager(tilia_mock):
 
 class TestTilia:
     def test_change_player_according_to_extension(self, tilia_mock):
-        tilia_mock._change_player_according_to_extension(NATIVE_VIDEO_FORMATS[0])
+        tilia_mock._change_player_according_to_extension(SUPPORTED_VIDEO_FORMATS[0])
         assert isinstance(tilia_mock._player, player.VlcPlayer)
 
-        tilia_mock._change_player_according_to_extension(NATIVE_AUDIO_FORMATS[0])
+        tilia_mock._change_player_according_to_extension(SUPPORTED_AUDIO_FORMATS[0])
         assert isinstance(tilia_mock._player, player.PygamePlayer)
 
-        tilia_mock._change_player_according_to_extension(NATIVE_VIDEO_FORMATS[0])
+        tilia_mock._change_player_according_to_extension(SUPPORTED_VIDEO_FORMATS[0])
         assert isinstance(tilia_mock._player, player.VlcPlayer)
 
-        tilia_mock._change_player_according_to_extension(NATIVE_AUDIO_FORMATS[0])
+        tilia_mock._change_player_according_to_extension(SUPPORTED_AUDIO_FORMATS[0])
         assert isinstance(tilia_mock._player, player.PygamePlayer)
 
 
