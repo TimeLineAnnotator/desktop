@@ -1,3 +1,4 @@
+import sys
 import tkinter as tk
 import tilia.events as events
 from tilia import globals_
@@ -14,7 +15,7 @@ def on_mouse_wheel(event: tk.Event):
         events.post(Event.REQUEST_ZOOM_OUT)
 
 
-if globals_.USER_OS == "WINDOWS" or "LINUX":
+if sys.platform == "win32" or "linux":
     right_click_keysym = "<ButtonPress-3>"
 else:
     right_click_keysym = "<ButtonPress-2>"

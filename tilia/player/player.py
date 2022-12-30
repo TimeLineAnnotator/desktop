@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import os.path
 import subprocess
+import sys
 import time
 import tkinter as tk
+from pathlib import Path
 
 import vlc
 
@@ -327,9 +329,22 @@ class PygamePlayer(Player):
         self.playback_offset = 0.0
 
     def load_media(self, media_path: str, start: float = 0.0, end: float = 0.0):
-        _, extension = os.path.splitext(media_path)
+        extension = Path(media_path).suffix[1:]
 
         if extension in globals_.SUPPORTED_AUDIO_FORMATS:
+            ERROR_MESSAGE = (
+                "Conversion when loading is currently only available on "
+                "Windows. Convert audio file to OGG before loading."
+            )
+
+            if sys.platform != "win32":
+                events.post(
+                    Event.REQUEST_DISPLAY_ERROR,
+                    title="Convert audio",
+                    message=ERROR_MESSAGE,
+                )
+                return
+
             media_path = self._convert_audio_to_ogg(media_path)
 
         super().load_media(media_path)
@@ -340,10 +355,10 @@ class PygamePlayer(Player):
 
         output_path = os.path.splitext(audio_path)[0] + ".ogg"
 
-        # TODO display dialog so user can choose ffmpeg path
         conversion_command = (
             f"""{globals_.FFMPEG_PATH} -i "{audio_path}" "{output_path}\""""
         )
+
         logger.info(f"Converting audio file {audio_path}")
 
         process = subprocess.Popen(conversion_command)

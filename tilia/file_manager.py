@@ -237,7 +237,7 @@ def compare_tilia_data(data1: dict, data2: dict) -> bool:
 
 def get_autosaves_paths() -> list[str]:
     return [
-        os.path.join(globals_.AUTOSAVE_DIR, file)
+       str(Path(globals_.AUTOSAVE_DIR, file))
         for file in os.listdir(globals_.AUTOSAVE_DIR)
     ]
 

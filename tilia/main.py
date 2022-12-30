@@ -124,7 +124,16 @@ class TiLiA:
         self, segment_name: str, start_time: float, end_time: float
     ):
 
+
+        if sys.platform != 'win32':
+            ERROR_MESSAGE = "Exporting audio is currently only available " \
+                           "on Windows."
+            events.post(Event.REQUEST_DISPLAY_ERROR, title='Export audio',
+                        message=ERROR_MESSAGE)
+            return
+
         export_dir = Path(self.ui.ask_for_directory("Export audio"))
+
 
         media_exporter.export_audio_segment(
             audio_path=self._player.media_path,
@@ -162,10 +171,10 @@ class TiLiA:
     def _change_player_according_to_extension(self, extension: str) -> None:
         if (
             extension
-            in globals_.SUPPORTED_AUDIO_FORMATS + globals_.NATIVE_AUDIO_FORMATS
+            in globals_.SUPPORTED_AUDIO_FORMATS
         ):
             self._change_to_audio_player_if_necessary()
-        elif extension in globals_.NATIVE_VIDEO_FORMATS:
+        elif extension in globals_.SUPPORTED_VIDEO_FORMATS:
             self._change_to_video_player_if_necessary()
         else:
             raise ValueError(f"Media _file extension '{extension}' is not supported.")
