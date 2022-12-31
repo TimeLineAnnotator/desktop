@@ -67,7 +67,7 @@ class TestFileManager:
         assert tilia_mock.media_metadata[edited_field] == new_value
 
     def test_load_custom_metadata_fields(self, tilia_mock, file_manager):
-        file_manager._open_file_by_path("test_metadata_custom_fields.tla")
+        file_manager.open_file_by_path("test_metadata_custom_fields.tla")
 
         assert list(file_manager._file.media_metadata.items()) == [
             ("test_field1", "a"),

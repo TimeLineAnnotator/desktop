@@ -83,13 +83,15 @@ class TiLiA:
 
         logger.info("TiLiA started.")
 
-        self._initial_file_setup()
+        print(f"{sys.argv=}")
+        print(f"{sys.argv[1] if len(sys.argv) > 1 else None=}")
 
-        if not os.getenv("IS_BUILDING_APP", None) == 'true':
+        self._initial_file_setup(sys.argv[1] if len(sys.argv) > 1 else None)
+
+        if settings.settings['dev']['dev_mode']:
             local_dev_code.func(self)
 
         self.ui.launch()
-
 
     def get_id(self) -> str:
         return str(next(self._id_counter))
@@ -126,16 +128,14 @@ class TiLiA:
         self, segment_name: str, start_time: float, end_time: float
     ):
 
-
-        if sys.platform != 'win32':
-            ERROR_MESSAGE = "Exporting audio is currently only available " \
-                           "on Windows."
-            events.post(Event.REQUEST_DISPLAY_ERROR, title='Export audio',
-                        message=ERROR_MESSAGE)
+        if sys.platform != "win32":
+            ERROR_MESSAGE = "Exporting audio is currently only available " "on Windows."
+            events.post(
+                Event.REQUEST_DISPLAY_ERROR, title="Export audio", message=ERROR_MESSAGE
+            )
             return
 
         export_dir = Path(self.ui.ask_for_directory("Export audio"))
-
 
         media_exporter.export_audio_segment(
             audio_path=self._player.media_path,
@@ -162,19 +162,20 @@ class TiLiA:
 
         sys.exit()
 
-    def _initial_file_setup(self) -> None:
-        create_timeline(
-            TimelineKind.SLIDER_TIMELINE,
-            self._timeline_collection,
-            self._timeline_ui_collection,
-            "",
-        )
+    def _initial_file_setup(self, file_to_open: str = None) -> None:
+        if file_to_open:
+            logger.info(f"Opening file provided at startup: {file_to_open}")
+            self._file_manager.open_file_by_path(file_to_open)
+        else:
+            create_timeline(
+                TimelineKind.SLIDER_TIMELINE,
+                self._timeline_collection,
+                self._timeline_ui_collection,
+                "",
+            )
 
     def _change_player_according_to_extension(self, extension: str) -> None:
-        if (
-            extension
-            in globals_.SUPPORTED_AUDIO_FORMATS
-        ):
+        if extension in globals_.SUPPORTED_AUDIO_FORMATS:
             self._change_to_audio_player_if_necessary()
         elif extension in globals_.SUPPORTED_VIDEO_FORMATS:
             self._change_to_video_player_if_necessary()

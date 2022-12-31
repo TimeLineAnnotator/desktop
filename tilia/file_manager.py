@@ -158,9 +158,9 @@ class FileManager:
 
         self._app.clear_app()
 
-        self._open_file_by_path(file_path)
+        self.open_file_by_path(file_path)
 
-    def _open_file_by_path(self, file_path: str):
+    def open_file_by_path(self, file_path: str):
         logger.debug(f"Opening _file path {file_path}.")
 
         with open(file_path, "r", encoding="utf-8") as file:
