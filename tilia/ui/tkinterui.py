@@ -46,10 +46,10 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
         return
 
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-    traceback.print_tb(exc_traceback)
+    # traceback.print_tb(exc_traceback)
     time.sleep(0.1)  # needed so traceback gets fully printed before type and value
-    print(exc_type)
-    print(exc_value)
+    # print(exc_type)
+    # print(exc_value)
 
 
 class TkinterUI:
@@ -286,8 +286,10 @@ class TkinterUI:
     @staticmethod
     def on_menu_file_load_media():
         media_path = file.choose_media_file()
-
-        events.post(Event.REQUEST_LOAD_MEDIA, media_path)
+        if media_path:
+            events.post(Event.REQUEST_LOAD_MEDIA, media_path)
+        else:
+            logger.debug(f"User cancelled media load.")
 
     @staticmethod
     def get_file_save_path(initial_filename: str) -> str | None:

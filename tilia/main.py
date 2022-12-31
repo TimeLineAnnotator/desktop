@@ -306,8 +306,12 @@ def _associate_timeline_and_timeline_ui_collections(
 
 
 def config_logging():
-    FORMAT = " %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
-    logging.basicConfig(level=logging.DEBUG, format=FORMAT)
+    logging.basicConfig(
+        filename=Path(globals_.DATA_DIR, 'log.txt'),
+        filemode='w',
+        level=logging.DEBUG,
+        format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
+    )
 
 
 def get_ui(kind: UserInterfaceKind, app: TiLiA):

@@ -3,7 +3,7 @@ auto-scroll = false
 
 [auto-save]
 max_saved_files = 100
-interval = 1200
+interval = 300
 
 [media_metadata]
 default_fields = [

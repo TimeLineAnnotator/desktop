@@ -22,15 +22,16 @@ SUPPORTED_VIDEO_FORMATS = ["mp4", "mkv", "m4a"]
 IMG_DIR = Path("ui", "img")
 FFMPEG_PATH = Path("ffmpeg", "ffmpeg.exe")
 
-try:
-    AUTOSAVE_DIR = Path(appdirs.user_data_dir(APP_NAME, roaming=True), "autosaves")
-except FileNotFoundError:
-    AUTOSAVE_DIR = Path(appdirs.site_data_dir(APP_NAME), "autosaves")
 
 try:
-    SETTINGS_PATH = Path(appdirs.user_data_dir(APP_NAME, roaming=True), "settings.toml")
+    DATA_DIR = Path(appdirs.user_data_dir(APP_NAME, roaming=True))
+    SETTINGS_PATH = Path(DATA_DIR, "settings.toml")
+    AUTOSAVE_DIR = Path(DATA_DIR, "autosaves")
 except FileNotFoundError:
-    SETTINGS_PATH = Path(appdirs.site_data_dir(APP_NAME), "settings.toml")
+    DATA_DIR = Path(appdirs.site_data_dir(APP_NAME))
+    SETTINGS_PATH = Path(DATA_DIR, "settings.toml")
+    AUTOSAVE_DIR = Path(DATA_DIR, "autosaves")
+
 
 
 DEFAULT_TIMELINE_WIDTH = 400

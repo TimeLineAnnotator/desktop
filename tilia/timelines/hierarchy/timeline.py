@@ -20,8 +20,7 @@ if TYPE_CHECKING:
 
 from .components import (
     Hierarchy,
-    HierarchyOperationError,
-    logger,
+    HierarchyOperationError
 )
 from tilia.timelines.common import (
     Timeline,

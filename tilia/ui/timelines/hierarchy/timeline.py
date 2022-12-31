@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 import tkinter as tk
 
 from tilia import events, settings
-from tilia.timelines.hierarchy.timeline import logger
 from tilia.timelines.hierarchy.common import (
     ParentChildRelation,
     process_parent_child_relation,

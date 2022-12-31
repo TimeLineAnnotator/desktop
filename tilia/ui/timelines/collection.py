@@ -149,6 +149,7 @@ class TimelineUICollection:
         self.scrollbar.config(command=self.on_scrollbar_move)
 
         self.slider_is_being_dragged = False
+        self.selection_boxes = []
 
         self._timeline_uis = set()
         self._select_order = []

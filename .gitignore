@@ -5,4 +5,5 @@
 /tilia.egg-info/
 /.pytest_cache/
 /build/installer_script.iss
-/build/TiLiA_0.2.0_setup.exe
+/build/*.exe
+
