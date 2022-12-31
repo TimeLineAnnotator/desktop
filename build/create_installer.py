@@ -1,5 +1,8 @@
 from pathlib import Path
 
+README_PATH = Path(Path().absolute().resolve().parent, 'README.md')
+LICENSE_PATH = Path(Path().absolute().resolve().parent, 'LICENSE')
+
 
 def create_iss_script(version: str, app_name: str) -> None:
     iss_script = f"""#define MyAppName "{app_name}"
@@ -43,6 +46,9 @@ Name: "desktopicon"; Description: "{{cm:CreateDesktopIcon}}"; GroupDescription: 
 Source: "{{#SourcePath}}\\dist\\{{#MyAppName}}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{{#SourcePath}}\\ffmpeg\*"; DestDir: "{{app}}\\ffmpeg"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{{#SourcePath}}\settings.toml"; DestDir: "{{autoappdata}}\\{{#MyAppName}}\\{{#MyAppName}}"; Flags: ignoreversion
+Source: "{{#SourcePath}}\settings.toml"; DestDir: "{{autoappdata}}\\{{#MyAppName}}\\{{#MyAppName}}"; Flags: ignoreversion
+Source: "{README_PATH}"; DestDir: "{{app}}"; Flags: ignoreversion isreadme
+Source: "{LICENSE_PATH}"; DestDir: "{{app}}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Dirs]
