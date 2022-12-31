@@ -85,9 +85,11 @@ class TiLiA:
 
         self._initial_file_setup()
 
-        local_dev_code.func(self)
+        if os.getenv("IS_BUILDING_APP", None) == 'true':
+            local_dev_code.func(self)
 
         self.ui.launch()
+
 
     def get_id(self) -> str:
         return str(next(self._id_counter))

@@ -1,0 +1,12 @@
+[general]
+auto-scroll = false
+
+[auto-save]
+max_saved_files = 100
+interval = 1200
+
+[beat_timeline]
+display_measure_periodicity = 2
+
+[logging]
+log_events = false

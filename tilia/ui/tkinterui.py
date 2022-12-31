@@ -4,6 +4,8 @@ The TkinterUI is responsible for high-level control of the GUI.
 """
 
 from __future__ import annotations
+
+import os
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable
 import sys
@@ -514,7 +516,7 @@ class TkinterUIMenus(tk.Menu):
         )
 
         # DEVELOPMENT WINDOW OPTION
-        if globals_.DEVELOPMENT_MODE:
+        if os.getenv("IS_BUILDING_APP", None) == 'true':
             self.view_window_menu.add_command(
                 label="Development",
                 command=lambda: events.post(Event.UI_REQUEST_WINDOW_DEVELOPMENT),
