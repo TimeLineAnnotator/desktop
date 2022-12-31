@@ -31,7 +31,7 @@ from tilia.file_manager import FileManager
 from tilia.timelines.create import create_timeline
 from tilia.timelines.state_actions import StateAction
 from tilia.undo_manager import UndoManager
-from tilia import globals_, media_exporter, events, local_dev_code
+from tilia import globals_, media_exporter, events, local_dev_code, settings
 from tilia.exceptions import UserCancelledSaveError
 from tilia.globals_ import UserInterfaceKind
 from tilia.files import TiliaFile, create_new_media_metadata

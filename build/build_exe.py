@@ -4,7 +4,6 @@ import subprocess
 from build.create_installer import create_iss_script
 from tilia import globals_
 
-os.environ['IS_BUILDING_APP'] = "true"
 os.environ['VERSION'] = "0.2.0"
 
 p = subprocess.Popen('pyinstaller build_exe.spec -y')

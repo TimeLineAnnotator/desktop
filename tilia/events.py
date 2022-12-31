@@ -136,7 +136,7 @@ subscribers_to_events = {}
 for event in Event:
     events_to_subscribers[event] = {}
 
-LOG_EVENTS = settings.settings['logging']['log_events']
+LOG_EVENTS = settings.settings['dev']['log_events']
 
 
 def post(event: Event, *args, **kwargs) -> None:

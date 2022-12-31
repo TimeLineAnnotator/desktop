@@ -514,13 +514,13 @@ class TkinterUIMenus(tk.Menu):
             command=lambda: events.post(Event.REQUEST_ZOOM_OUT),
         )
 
-        # DEVELOPMENT WINDOW OPTION
-        if not os.getenv("IS_BUILDING_APP", None) == 'true':
-            self.view_window_menu.add_command(
-                label="Development",
-                command=lambda: events.post(Event.UI_REQUEST_WINDOW_DEVELOPMENT),
-                underline=0,
-            )
+        # # DEVELOPMENT WINDOW OPTION
+        # if settings.settings['dev']['dev_mode']:
+        #     self.view_window_menu.add_command(
+        #         label="Development",
+        #         command=lambda: events.post(Event.UI_REQUEST_WINDOW_DEVELOPMENT),
+        #         underline=0,
+        #     )
 
         # HELP MENU
         self.help_menu = tk.Menu(self, tearoff=0)
