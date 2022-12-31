@@ -107,7 +107,7 @@ class FileManager:
             self._last_autosave_data, self.get_save_parameters()
         )
 
-    def _auto_save_loop(self, exception_list: list) -> None:
+    def _auto_save_loop(self, *_) -> None:
         while True:
             try:
                 time.sleep(settings.settings["auto-save"]["interval"])
@@ -116,7 +116,7 @@ class FileManager:
                     make_room_for_new_autosave()
                     self.autosave()
                 else:
-                    logger.debug(f"Autosave is not necessary")
+                    logger.debug(f"Autosave is not necessary.")
             except Exception as excp:
                 self._autosave_exception_list.append(excp)
                 _raise_save_loop_exception(excp)
