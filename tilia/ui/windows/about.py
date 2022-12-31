@@ -5,7 +5,7 @@ from tilia.events import Event
 
 
 class About:
-    def __init__(self, parent: tk.Tk()):
+    def __init__(self, parent: tk.Tk):
         self.toplevel = tk.Toplevel(parent)
         self.toplevel.transient(parent)
         self.toplevel.title(f"About {globals_.APP_NAME}")

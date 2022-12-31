@@ -165,7 +165,7 @@ class Inspect:
         frame = tk.Frame(self.toplevel)
         widget1 = None
         widget2 = None
-        value_var = None
+        starting_focus_widget = None
         self.field_widgets = {}
         self.var_widgets = {}
 
@@ -174,11 +174,14 @@ class Inspect:
             field_kind = field_tuple[1]
             value_var = None
             if field_kind == "entry":
+
                 label_and_entry = LabelAndEntry(frame, field_name)
                 widget1 = label_and_entry.label
                 widget2 = label_and_entry.entry
                 value_var = label_and_entry.entry_var
                 value_var.trace_add("write", self.on_entry_edited)
+                if not starting_focus_widget:
+                    starting_focus_widget = widget2
 
             elif field_kind == "label":
                 widget1 = tk.Label(frame, text=f"{field_name}:")
@@ -187,6 +190,8 @@ class Inspect:
                 label_and_scrolled_text = LabelAndScrolledText(frame, field_name)
                 widget1 = label_and_scrolled_text.label
                 widget2 = label_and_scrolled_text.scrolled_text
+                if not starting_focus_widget:
+                    starting_focus_widget = widget2
             elif field_kind == "separator":
                 widget1 = tk.Label(frame, text=f"{field_name}")
                 widget2 = ttk.Separator(frame, orient=tk.HORIZONTAL)
@@ -198,10 +203,10 @@ class Inspect:
             if value_var:
                 self.var_widgets[str(value_var)] = field_name
 
-            # if field_tuple[0] == "Label":
-            #     self.focus_widget = label_and_entry.entry
-
             frame.columnconfigure(1, weight=1)
+
+            if starting_focus_widget:
+                starting_focus_widget.focus_set()
 
         return frame
 
@@ -219,7 +224,7 @@ class LabelAndEntry(tk.Frame):
     width = 32
 
     def __init__(self, parent, label, attr_to_link=None):
-        super(LabelAndEntry, self).__init__(parent)
+        super().__init__(parent)
         label_text = label + ":"
         self.label = tk.Label(parent, text=label_text)
 

@@ -568,8 +568,8 @@ def do_search(
         file_data_to_add,
     )
 
-    events.post(events.EventEXPLORER_AUDIO_INFO_FROM_SEARCH_RESULT, audio_info)
-    events.post(events.EventEXPLORER_DISPLAY_SEARCH_RESULTS, search_result)
+    events.post(Event.EXPLORER_AUDIO_INFO_FROM_SEARCH_RESULT, audio_info)
+    events.post(Event.EXPLORER_DISPLAY_SEARCH_RESULTS, search_result)
 
 
 def main():
