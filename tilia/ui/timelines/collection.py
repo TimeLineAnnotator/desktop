@@ -801,6 +801,13 @@ class TimelineUICollection:
         )
         self._timeline_uis_to_playback_line_ids[timeline_ui] = line_id
 
+    def after_restore_state(self):
+        for tl_ui in self._timeline_uis:
+            if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+                continue
+
+            tl_ui.canvas.tag_raise(self._timeline_uis_to_playback_line_ids[tl_ui])
+
     def on_media_time_change(self, time: float) -> None:
         for tl_ui in self._timeline_uis:
             if (

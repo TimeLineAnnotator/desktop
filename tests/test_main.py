@@ -18,7 +18,7 @@ from tilia.timelines.create import create_timeline
 # noinspection PyProtectedMember
 @pytest.fixture
 def tilia_mock():
-    os.chdir(Path(__file__).absolute().parents[1].resolve())
+    os.chdir(Path(Path(__file__).absolute().parents[1], 'tests'))
     tilia_mock_ = TiLiA(ui_kind=UserInterfaceKind.MOCK)
     yield tilia_mock_
     unsubscribe_from_all(tilia_mock_._undo_manager)
@@ -51,8 +51,7 @@ class TestFileManager:
         FileManager(tilia_mock)
 
     def test_open(self, file_manager):
-        print(f"{Path('test_file.tla')=}")
-        file_manager._app.ui.get_file_open_path = lambda: Path("test_file.tla").resolve()
+        file_manager._app.ui.get_file_open_path = lambda: 'test_file.tla'
         file_manager.ask_save_if_necessary = lambda: True
 
         file_manager.open()
@@ -71,7 +70,7 @@ class TestFileManager:
         assert tilia_mock.media_metadata[edited_field] == new_value
 
     def test_load_custom_metadata_fields(self, tilia_mock, file_manager):
-        file_manager.open_file_by_path(Path("test_metadata_custom_fields.tla"))
+        file_manager.open_file_by_path("test_metadata_custom_fields.tla")
 
         assert list(file_manager._file.media_metadata.items()) == [
             ("test_field1", "a"),

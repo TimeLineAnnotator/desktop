@@ -10,8 +10,10 @@ from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
 from tilia.timelines.timeline_kinds import TimelineKind
 
+
 if TYPE_CHECKING:
     from tilia.main import TiLiA
+    from tilia.ui.timelines.collection import TimelineUICollection
 
 import logging
 
@@ -139,6 +141,8 @@ class TimelineCollection:
             params = timeline_states[id].copy()
             timeline_kind = TimelineKind[params.pop("kind")]
             create_timeline(timeline_kind, self, self._timeline_ui_collection, **params)
+
+        self._timeline_ui_collection.after_restore_state()
 
     def get_timeline_by_id(self, id_: int) -> Timeline:
         return next((e for e in self._timelines if e.id == id_), None)
