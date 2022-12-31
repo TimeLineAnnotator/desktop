@@ -22,7 +22,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from tilia import events
+from tilia import events, settings
 from tilia import ui
 from tilia.ui.timelines.timeline import (
     TimelineUI,
@@ -41,7 +41,7 @@ from tilia.ui.element_kinds import UIElementKind
 
 
 class MarkerTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = 30
+    DEFAULT_HEIGHT = settings.settings['marker_timeline']['default_height']
 
     TOOLBAR_CLASS = MarkerTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.MARKER_TKUI: MarkerUI}

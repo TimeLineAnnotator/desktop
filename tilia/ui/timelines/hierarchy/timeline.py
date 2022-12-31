@@ -14,7 +14,6 @@ from tilia.misc_enums import IncreaseOrDecrease, Side, UpOrDown
 from tilia.timelines.state_actions import StateAction
 
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.common import TimelineUIElement
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineCanvas
@@ -25,8 +24,7 @@ import logging
 logger = logging.getLogger(__name__)
 import tkinter as tk
 
-from tilia import events
-from tilia import ui
+from tilia import events, settings
 from tilia.timelines.hierarchy.timeline import logger
 from tilia.timelines.hierarchy.common import (
     ParentChildRelation,
@@ -49,7 +47,7 @@ from tilia.ui.element_kinds import UIElementKind
 
 
 class HierarchyTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = 150
+    DEFAULT_HEIGHT = settings.settings['hierarchy_timeline']['default_height']
 
     TOOLBAR_CLASS = HierarchyTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyUI}
@@ -197,7 +195,7 @@ class HierarchyTimelineUI(TimelineUI):
                     element.comments_ind_id, lowest_drawing_in_lower_elements
                 )
 
-    def get_markerid_at_x(self, x: int):
+    def get_markerid_at_x(self, x: float):
         starts_or_ends_at_time = lambda u: u.start_x == x or u.end_x == x
         element = self.element_manager.get_element_by_condition(
             starts_or_ends_at_time, UIElementKind.HIERARCHY_TKUI

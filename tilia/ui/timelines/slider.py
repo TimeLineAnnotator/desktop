@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     )
     from tilia.ui.timelines.collection import TimelineUICollection
 
-from tilia import events
+from tilia import events, settings
 from tilia.events import Event, subscribe, unsubscribe
 from tilia.timelines.common import TimelineComponent
 from tilia.ui.element_kinds import UIElementKind
@@ -31,15 +31,12 @@ class SliderTimelineUI(TimelineUI):
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {}
     COMPONENT_KIND_TO_UIELEMENT_KIND = {}
 
-    DEFAULT_HEIGHT = 25
+    DEFAULT_HEIGHT = settings.settings['slider_timeline']['default_height']
 
-    TROUGH_HEIGHT = 10
-    TROUGH_WIDTH = 10
-    LINE_WEIGHT = 3
-
-    TROUGH_DEFAULT_COLOR = "#FF0000"
-
-    LINE_DEFAULT_COLOR = "#000000"
+    TROUGH_RADIUS = settings.settings['slider_timeline']['trough_radius']
+    TROUGH_DEFAULT_COLOR = settings.settings['slider_timeline']['trough_color']
+    LINE_DEFAULT_COLOR = settings.settings['slider_timeline']['line_color']
+    LINE_WEIGHT = settings.settings['slider_timeline']['line_weight']
 
     TIMELINE_KIND = TimelineKind.SLIDER_TIMELINE
 
@@ -104,10 +101,10 @@ class SliderTimelineUI(TimelineUI):
 
     def get_trough_coords(self) -> tuple:
         return (
-            self._x - self.TROUGH_WIDTH / 2,
-            self.height / 2 - (self.TROUGH_HEIGHT - self.LINE_WEIGHT) / 2,
-            self._x + self.TROUGH_WIDTH / 2,
-            self.height / 2 + (self.LINE_WEIGHT + self.TROUGH_HEIGHT) / 2,
+            self._x - self.TROUGH_RADIUS,
+            self.height / 2 - (self.TROUGH_RADIUS * 2 - self.LINE_WEIGHT) / 2,
+            self._x + self.TROUGH_RADIUS,
+            self.height / 2 + (self.LINE_WEIGHT + self.TROUGH_RADIUS * 2) / 2,
         )
 
     def on_click(self, x: int, _, clicked_item_id: int, **_kw) -> None:
@@ -195,4 +192,4 @@ class SliderTimelineUI(TimelineUI):
         """Slider timeline does not have a playback line (as it has a slider trough)."""
 
     def __str__(self):
-        return f"{self.TIMELINE_KIND.value.capitalize()} Timeline"
+        return f"Slider Timeline"

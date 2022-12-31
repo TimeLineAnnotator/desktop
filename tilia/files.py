@@ -9,27 +9,15 @@ import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
-from tilia import globals_
+from tilia import globals_, settings
 
 logger = logging.getLogger(__name__)
 
-
-DEFAULT_METADATA_FIELDS = [
-    "title",
-    "composer",
-    "tonality",
-    "time signature",
-    "performer",
-    "performance year",
-    "arranger",
-    "composition year",
-    "recording year",
-    "form",
-    "instrumentation",
-    "genre",
-    "lyrics",
-    "notes"
+MANDATORY_METADATA_FIELDS = [
+    "title"
 ]
+
+DEFAULT_METADATA_FIELDS = settings.settings['media_metadata']['default_fields']
 
 DEFAULT_TITLE = "Untitled"
 
@@ -37,7 +25,7 @@ DEFAULT_TITLE = "Untitled"
 def create_new_media_metadata():
 
     media_metadata = OrderedDict()
-    for field in DEFAULT_METADATA_FIELDS:
+    for field in MANDATORY_METADATA_FIELDS + DEFAULT_METADATA_FIELDS:
         media_metadata[field] = ""
 
     media_metadata["title"] = DEFAULT_TITLE

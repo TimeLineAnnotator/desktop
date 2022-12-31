@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 import tilia.utils.color
 from tilia.events import Event, subscribe, unsubscribe
 from tilia.misc_enums import StartOrEnd
-from tilia.timelines.state_actions import StateAction
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
 from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
@@ -18,7 +17,7 @@ from ...common import format_media_time
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineUI
     from tilia.timelines.hierarchy.components import Hierarchy
-    from tilia.ui.timelines.common import TimelineCanvas, RightClickOption
+    from tilia.ui.timelines.common import TimelineCanvas
 
 import logging
 
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 import tkinter as tk
 
 from tilia.utils.color import has_custom_color
-from tilia import events
+from tilia import events, settings
 from tilia.timelines.common import (
     log_object_creation,
     log_object_deletion,
@@ -38,10 +37,10 @@ from tilia.ui.timelines.common import TimelineUIElement
 class HierarchyUI(TimelineUIElement):
 
     WIDTH = 0
-    BASE_HEIGHT = 25
+    BASE_HEIGHT = settings.settings['hierarchy_timeline']['hierarchy_base_height']
     YOFFSET = 0
     XOFFSET = 1
-    LVL_HEIGHT_INCR = 25
+    LVL_HEIGHT_INCR = settings.settings['hierarchy_timeline']['hierarchy_level_height_diff']
 
     COMMENTS_INDICATOR_CHAR = "💬"
     COMMENTS_INDICATOR_YOFFSET = 5
@@ -51,21 +50,10 @@ class HierarchyUI(TimelineUIElement):
 
     MARKER_YOFFSET = 0
     MARKER_WIDTH = 2
-    MARKER_LINE_HEIGHT = 10
+    MARKER_LINE_HEIGHT = settings.settings['hierarchy_timeline']['hierarchy_marker_height']
     MARKER_OUTLINE_WIDTH = 0
 
-    DEFAULT_COLORS = [
-        "#68de7c",
-        "#f2d675",
-        "#ffabaf",
-        "#dcdcde",
-        "#9ec2e6",
-        "#00ba37",
-        "#dba617",
-        "#f86368",
-        "#a7aaad",
-        "#4f94d4",
-    ]
+    DEFAULT_COLORS = settings.settings['hierarchy_timeline']['hierarchy_default_colors']
 
     INSPECTOR_FIELDS = [
         ("Label", "entry"),

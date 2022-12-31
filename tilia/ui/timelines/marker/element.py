@@ -23,7 +23,7 @@ import logging
 logger = logging.getLogger(__name__)
 import tkinter as tk
 
-from tilia import events
+from tilia import events, settings
 from tilia.timelines.common import (
     log_object_creation,
     log_object_deletion,
@@ -34,10 +34,10 @@ from tilia.ui.timelines.common import TimelineUIElement
 
 class MarkerUI(TimelineUIElement):
 
-    WIDTH = 8
-    HEIGHT = 10
+    WIDTH = settings.settings['marker_timeline']['marker_width']
+    HEIGHT = settings.settings['marker_timeline']['marker_height']
 
-    DEFAULT_COLOR = "#999999"
+    DEFAULT_COLOR = settings.settings['marker_timeline']['marker_default_color']
 
     LABEL_PADX = 7
 

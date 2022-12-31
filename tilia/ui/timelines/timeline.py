@@ -6,7 +6,7 @@ import tkinter as tk
 from abc import ABC
 from enum import Enum, auto
 
-from typing import runtime_checkable, Protocol, Any, Callable, TYPE_CHECKING
+from typing import runtime_checkable, Protocol, Any, Callable, TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection import TimelineUICollection
@@ -137,10 +137,10 @@ class TimelineUI(ABC):
         *args,
         timeline_ui_collection: TimelineUICollection,
         timeline_ui_element_manager: TimelineUIElementManager,
-        component_kinds_to_classes: dict[UIElementKind : type(TimelineUIElement)],
+        component_kinds_to_classes: dict[UIElementKind: type(TimelineUIElement)],
         component_kinds_to_ui_element_kinds: dict[ComponentKind:UIElementKind],
         canvas: TimelineCanvas,
-        toolbar: TimelineToolbar,
+        toolbar: TimelineToolbar | None,
         name: str,
         height: int,
         is_visible: bool,
@@ -681,9 +681,11 @@ class TimelineUIElementManager:
         - Deleting timeline elements;
     """
 
+    SomeTimelineUIElement = TypeVar("SomeTimelineUIElement", bound="TimelineUIElement")
+
     @log_object_creation
     def __init__(
-        self, element_kinds_to_classes: dict[UIElementKind : type(TimelineUIElement)]
+        self, element_kinds_to_classes: dict[UIElementKind: type(TimelineUIElement)]
     ):
 
         self._elements = set()
@@ -716,11 +718,11 @@ class TimelineUIElementManager:
 
         return element
 
-    def _add_to_elements_set(self, element: TimelineUIElement) -> None:
+    def _add_to_elements_set(self, element: SomeTimelineUIElement) -> None:
         logger.debug(f"Adding element '{element}' to {self}.")
         self._elements.add(element)
 
-    def _remove_from_elements_set(self, element: TimelineUIElement) -> None:
+    def _remove_from_elements_set(self, element: SomeTimelineUIElement) -> None:
         logger.debug(f"Removing element '{element}' from {self}.")
         try:
             self._elements.remove(element)
@@ -740,14 +742,14 @@ class TimelineUIElementManager:
         return self._get_elements_from_set_by_attribute(element_set, attr_name, value)
 
     def get_elements_by_condition(
-        self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
+        self, condition: Callable[[SomeTimelineUIElement], bool], kind: UIElementKind
     ) -> list:
         element_set = self._get_element_set_by_kind(kind)
         return [e for e in element_set if condition(e)]
 
     def get_element_by_condition(
-        self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
-    ) -> TimelineUIElement:
+        self, condition: Callable[[SomeTimelineUIElement], bool], kind: UIElementKind
+    ) -> SomeTimelineUIElement:
         element_set = self._get_element_set_by_kind(kind)
         return next((e for e in element_set if condition(e)), None)
 
@@ -766,7 +768,7 @@ class TimelineUIElementManager:
 
     def _get_element_class_by_kind(
         self, kind: UIElementKind
-    ) -> type(TimelineUIElement):
+    ) -> type(SomeTimelineUIElement):
         self._validate_element_kind(kind)
         return self._element_kinds_to_classes[kind]
 
@@ -786,7 +788,7 @@ class TimelineUIElementManager:
     ) -> list:
         return [e for e in cmp_list if getattr(e, attr_name) == value]
 
-    def select_element(self, element: Any) -> None:
+    def select_element(self, element: SomeTimelineUIElement) -> None:
         logger.debug(f"Selecting element '{element}'")
         if element not in self._selected_elements:
             self._add_to_selected_elements_set(element)
@@ -794,7 +796,7 @@ class TimelineUIElementManager:
         else:
             logger.debug(f"Element '{element}' is already selected.")
 
-    def deselect_element(self, element: Any) -> None:
+    def deselect_element(self, element: SomeTimelineUIElement) -> None:
 
         if element in self._selected_elements:
             logger.debug(f"Deselecting element '{element}'")
@@ -804,7 +806,7 @@ class TimelineUIElementManager:
             if isinstance(element, Inspectable):
                 events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
-    def _deselect_if_selected(self, element):
+    def _deselect_if_selected(self, element: SomeTimelineUIElement):
         logger.debug(f"Will deselect {element} if it is selected.")
         if element in self._selected_elements:
             self.deselect_element(element)
@@ -816,11 +818,13 @@ class TimelineUIElementManager:
         for element in self._selected_elements.copy():
             self.deselect_element(element)
 
-    def _add_to_selected_elements_set(self, element: TimelineUIElement) -> None:
+    def _add_to_selected_elements_set(self, element: SomeTimelineUIElement) -> None:
         logger.debug(f"Adding element '{element}' to selected elements {self}.")
         self._selected_elements.append(element)
 
-    def _remove_from_selected_elements_set(self, element: TimelineUIElement) -> None:
+    def _remove_from_selected_elements_set(
+        self, element: SomeTimelineUIElement
+    ) -> None:
         logger.debug(f"Removing element '{element}' from selected elements of {self}.")
         try:
             self._selected_elements.remove(element)
@@ -829,10 +833,10 @@ class TimelineUIElementManager:
                 f"Can't remove element '{element}' from selected objects of {self}: not in self._selected_elements."
             )
 
-    def get_selected_elements(self) -> list[TimelineUIElement]:
+    def get_selected_elements(self) -> list[SomeTimelineUIElement]:
         return self._selected_elements
 
-    def delete_element(self, element: TimelineUIElement):
+    def delete_element(self, element: SomeTimelineUIElement):
         logger.debug(f"Deleting UI element '{element}'")
         self._deselect_if_selected(element)
         element.delete()
@@ -840,7 +844,7 @@ class TimelineUIElementManager:
 
     @staticmethod
     def get_canvas_drawings_ids_from_elements(
-        elements: list[TimelineUIElement],
+        elements: list[SomeTimelineUIElement],
     ) -> list[int]:
         drawings_ids = []
         for element in elements:

@@ -646,7 +646,7 @@ class TimelineUICollection:
             },
         )
 
-    def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
 
         if not clipboard_elements:
@@ -744,7 +744,7 @@ class TimelineUICollection:
         ) + self.left_margin_x
 
     # noinspection PyUnresolvedReferences
-    def get_time_by_x(self, x: int) -> float:
+    def get_time_by_x(self, x: float) -> float:
         return (
             (x - self.left_margin_x)
             * self._app_ui.get_media_length()
