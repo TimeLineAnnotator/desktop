@@ -21,7 +21,6 @@ from tilia.ui.windows.kinds import WindowKind
 
 PADX = 5
 PADY = 5
-MIN_UPDATE_TIME = 0.1
 
 
 class Inspect:
@@ -62,8 +61,6 @@ class Inspect:
         self.inspector_frame.pack()
         self.display_not_selected_frame()
 
-        Inspect._instanced = True
-
         self.toplevel.bind(
             "<Escape>", lambda _: events.post(Event.REQUEST_FOCUS_TIMELINES)
         )
@@ -73,7 +70,6 @@ class Inspect:
         unsubscribe_from_all(self)
         self.toplevel.destroy()
         events.post(Event.INSPECT_WINDOW_CLOSED)
-        Inspect._instanced = False
 
     def display_not_selected_frame(self):
         tk.Label(

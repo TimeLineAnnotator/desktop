@@ -28,6 +28,7 @@ from .common import ask_yes_no, ask_for_directory, format_media_time
 from .timelines.collection import TimelineUICollection
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MetadataWindow
+from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
 
@@ -79,6 +80,11 @@ class TkinterUI:
             Event.UI_REQUEST_WINDOW_METADATA,
             lambda: self.on_request_window(WindowKind.METADATA),
         )
+        subscribe(
+            self,
+            Event.UI_REQUEST_WINDOW_ABOUT,
+            lambda: self.on_request_window(WindowKind.ABOUT),
+        )
         subscribe(self, Event.REQUEST_DISPLAY_ERROR, self.on_display_error)
         subscribe(
             self,
@@ -95,6 +101,12 @@ class TkinterUI:
             Event.METADATA_WINDOW_CLOSED,
             lambda: self.on_window_closed(WindowKind.METADATA),
         )
+        subscribe(
+            self,
+            Event.ABOUT_WINDOW_CLOSED,
+            lambda: self.on_window_closed(WindowKind.ABOUT),
+        )
+
         subscribe(self, Event.TILIA_FILE_LOADED, self.on_tilia_file_loaded)
 
         logger.debug("Starting TkinterUI...")
@@ -121,6 +133,7 @@ class TkinterUI:
             WindowKind.INSPECT: None,
             WindowKind.METADATA: None,
             WindowKind.MANAGE_TIMELINES: None,
+            WindowKind.ABOUT: None,
         }
 
         logger.debug("Tkinter UI started.")
@@ -213,6 +226,11 @@ class TkinterUI:
                     {'media length': format_media_time})
             else:
                 self._windows[WindowKind.METADATA].toplevel.focus_set()
+        elif kind == WindowKind.ABOUT:
+            if not self._windows[WindowKind.ABOUT]:
+                self._windows[WindowKind.ABOUT] = About(self.root)
+            else:
+                self._windows[WindowKind.ABOUT].toplevel.focus_set()
 
     def on_window_closed(self, kind: WindowKind):
         self._windows[kind] = None
@@ -530,7 +548,6 @@ class TkinterUIMenus(tk.Menu):
             label="About...",
             underline=0,
             command=lambda: events.post(Event.UI_REQUEST_WINDOW_ABOUT),
-            state="disabled",
         )
 
 

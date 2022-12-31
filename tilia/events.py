@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    ABOUT_WINDOW_CLOSED = auto()
     BEAT_TOOLBAR_BUTTON_ADD = auto()
     BEAT_TOOLBAR_BUTTON_DELETE = auto()
     TILIA_FILE_LOADED = auto()

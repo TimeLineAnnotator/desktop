@@ -83,9 +83,6 @@ class TiLiA:
 
         logger.info("TiLiA started.")
 
-        print(f"{sys.argv=}")
-        print(f"{sys.argv[1] if len(sys.argv) > 1 else None=}")
-
         self._initial_file_setup(sys.argv[1] if len(sys.argv) > 1 else None)
 
         if settings.settings['dev']['dev_mode']:
