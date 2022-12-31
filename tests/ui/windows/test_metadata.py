@@ -25,7 +25,10 @@ class TestMetadataWindow:
                 'field3': 'c'
             }
         )
-        _metadata_window = MetadataWindow(app_ui=None, media_metadata=mediametadata_mock, non_editable_fields=OrderedDict())
+        _metadata_window = MetadataWindow(
+            app_ui=None,
+            media_metadata=mediametadata_mock,
+            non_editable_fields=OrderedDict())
         yield _metadata_window
         _metadata_window.destroy()
 
@@ -49,7 +52,10 @@ class TestMetadataWindow:
                 'noedit2': 'b',
             }
         )
-        metadata_window = MetadataWindow(app_ui=None, media_metadata=mediametadata_mock, non_editable_fields=non_editable_fields_mock)
+        metadata_window = MetadataWindow(
+            app_ui=None,
+            media_metadata=mediametadata_mock,
+            non_editable_fields=non_editable_fields_mock)
 
         assert list(metadata_window.fieldnames_to_widgets.keys()) == list(mediametadata_mock.keys()) + list(non_editable_fields_mock.keys())
 

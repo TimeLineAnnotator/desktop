@@ -28,8 +28,7 @@ DEFAULT_METADATA_FIELDS = [
     "instrumentation",
     "genre",
     "lyrics",
-    "media length",
-    "notes",
+    "notes"
 ]
 
 DEFAULT_TITLE = "Untitled"

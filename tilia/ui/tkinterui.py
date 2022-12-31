@@ -24,9 +24,8 @@ from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind, USER_CREATABLE_TIMELINE_KINDS
 from tilia.events import Event, subscribe
 from . import file, event_handler
-from .common import ask_yes_no, ask_for_directory
+from .common import ask_yes_no, ask_for_directory, format_media_time
 from .timelines.collection import TimelineUICollection
-from .windows.common import AppWindow
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MetadataWindow
 from .windows.inspect import Inspect
@@ -211,7 +210,7 @@ class TkinterUI:
                     self,
                     self._app.media_metadata,
                     self.get_metadata_non_editable_fields(),
-                )
+                    {'media length': format_media_time})
             else:
                 self._windows[WindowKind.METADATA].toplevel.focus_set()
 
@@ -516,7 +515,7 @@ class TkinterUIMenus(tk.Menu):
         )
 
         # DEVELOPMENT WINDOW OPTION
-        if os.getenv("IS_BUILDING_APP", None) == 'true':
+        if not os.getenv("IS_BUILDING_APP", None) == 'true':
             self.view_window_menu.add_command(
                 label="Development",
                 command=lambda: events.post(Event.UI_REQUEST_WINDOW_DEVELOPMENT),
@@ -533,16 +532,6 @@ class TkinterUIMenus(tk.Menu):
             command=lambda: events.post(Event.UI_REQUEST_WINDOW_ABOUT),
             state="disabled",
         )
-
-        class AboutWindow(AppWindow):
-            def __init__(self):
-                super(AboutWindow, self).__init__()
-                self.title(f"{globals_.APP_NAME}")
-                tk.Label(self, text=globals_.APP_NAME).pack()
-                tk.Label(self, text=f"Version {globals_.VERSION}").pack()
-                # TODO add licensing information
-                tk.Label(self, text="Felipe Defensor").pack()
-                tk.Label(self, text="https://github.com/FelipeDefensor/TiLiA").pack()
 
 
 def get_curr_screen_geometry(root):

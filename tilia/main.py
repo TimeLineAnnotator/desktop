@@ -85,7 +85,7 @@ class TiLiA:
 
         self._initial_file_setup()
 
-        if os.getenv("IS_BUILDING_APP", None) == 'true':
+        if not os.getenv("IS_BUILDING_APP", None) == 'true':
             local_dev_code.func(self)
 
         self.ui.launch()

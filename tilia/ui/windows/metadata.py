@@ -3,6 +3,7 @@ from tkinter import scrolledtext
 
 import logging
 from collections import OrderedDict
+from typing import Callable
 
 from tilia import events
 from tilia.events import Event
@@ -21,7 +22,7 @@ class LabelAndEntry(tk.Frame):
 
     def __init__(self, parent, label, attr_to_link=None):
 
-        super(LabelAndEntry, self).__init__(parent)
+        super().__init__(parent)
         label_text = label + ":"
         self.label = tk.Label(parent, text=label_text)
 
@@ -35,17 +36,20 @@ class LabelAndEntry(tk.Frame):
 class MetadataWindow:
     """Configure top parent on Edit>Metadata... menu"""
 
-    _instanced = False
     KIND = WindowKind.METADATA
 
     NON_EDITABLE_FIELDS = ["media_path", "media length"]
     SEPARATE_WINDOW_FIELDS = ["notes"]
 
     def __init__(
-        self, app_ui, media_metadata: OrderedDict, non_editable_fields: OrderedDict
+        self,
+        app_ui,
+        media_metadata: OrderedDict,
+        non_editable_fields: OrderedDict,
+        fields_to_formatters: dict[str, Callable[[str], str]] = None,
     ):
 
-        logger.debug(f"Opening manage timelines window... ")
+        logger.debug(f"Opening media metadata window... ")
         logger.debug(f"{media_metadata=}")
 
         self._app_ui = app_ui
@@ -55,10 +59,11 @@ class MetadataWindow:
         self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
         self._metadata = media_metadata
         self._non_editable_fields = non_editable_fields
+        self.fields_to_formatters = fields_to_formatters if fields_to_formatters else {}
 
+        self.widgets_to_varnames = None
+        self.fieldnames_to_widgets = None
         self.setup_widgets()
-
-        MetadataWindow._instanced = True
 
         events.post(Event.METADATA_WINDOW_OPENED)
 
@@ -71,15 +76,17 @@ class MetadataWindow:
 
         # setup customizable fields
         row_number = 0
-        for field_name in self._metadata:
+        for field_name, value in self._metadata.items():
 
-            if field_name in self.SEPARATE_WINDOW_FIELDS:
+            if field_name in self.SEPARATE_WINDOW_FIELDS + self.NON_EDITABLE_FIELDS:
                 continue
+            elif field_name in self.fields_to_formatters:
+                value = self.fields_to_formatters[field_name](value)
 
             label_and_entry = LabelAndEntry(self.toplevel, field_name.capitalize())
             left_widget = label_and_entry.label
             right_widget = label_and_entry.entry
-            right_widget.insert(0, self._metadata[field_name])
+            right_widget.insert(0, value)
             value_var = label_and_entry.entry_var
             value_var.trace_add("write", self.on_entry_edited)
 
@@ -91,6 +98,10 @@ class MetadataWindow:
             self.widgets_to_varnames[str(value_var)] = field_name
 
         for field_name, value in self._non_editable_fields.items():
+
+            if field_name in self.fields_to_formatters:
+                value = self.fields_to_formatters[field_name](value)
+
             left_widget = tk.Label(self.toplevel, text=field_name.capitalize())
             right_widget = tk.Text(self.toplevel, height=1, borderwidth=0, width=40)
             right_widget.insert(1.0, value)
