@@ -159,6 +159,7 @@ class TimelineToolbar(tk.LabelFrame):
                 image=getattr(self, file_name),
                 borderwidth=0,
                 command=callback,
+                takefocus=False
             )
 
             button.pack(side=tk.LEFT, padx=6)

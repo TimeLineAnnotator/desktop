@@ -48,12 +48,14 @@ class PlayerUI(tk.Frame):
             image=self.play_btn_img,
             borderwidth=0,
             command=lambda: events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE),
+            takefocus=False
         )
         self.stop_btn = tk.Button(
             self.controls,
             image=self.stop_btn_img,
             borderwidth=0,
             command=lambda: events.post(Event.PLAYER_REQUEST_TO_STOP),
+            takefocus=False
         )
 
         # grid player buttons

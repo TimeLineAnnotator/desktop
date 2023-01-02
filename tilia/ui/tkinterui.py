@@ -122,7 +122,7 @@ class TkinterUI:
         self.window_width = globals_.DEFAULT_WINDOW_WIDTH
         self.window_height = globals_.DEFAULT_WINDOW_HEIGHT
 
-        self._setup_frames()
+        self._setup_widgets()
         self._setup_menus()
 
         self._make_default_canvas_bindings()
@@ -180,7 +180,7 @@ class TkinterUI:
     def get_timeline_ui_collection(self):
         return self.timeline_ui_collection
 
-    def _setup_frames(self):
+    def _setup_widgets(self):
         # create frames
         self.main_frame = tk.Frame(self.root)
 
@@ -398,7 +398,7 @@ class CheckboxItem(tk.Frame):
         emulating a method call (with self as first parameter)."""
         super().__init__(parent, *args, **kwargs)
         self.variable = tk.BooleanVar(value=value)
-        self.checkbox = tk.Checkbutton(self, command=set_func, variable=self.variable)
+        self.checkbox = tk.Checkbutton(self, command=set_func, variable=self.variable, takefocus=False)
         self.label = tk.Label(self, text=label)
 
         self.checkbox.pack(side=tk.LEFT)
