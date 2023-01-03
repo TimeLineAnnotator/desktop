@@ -189,6 +189,8 @@ class ManageTimelines:
 
         events.post(Event.REQUEST_CLEAR_TIMELINE, timeline_id)
 
+    def focus(self):
+        self.toplevel.focus_set()
 
     def destroy(self):
         self.toplevel.destroy()

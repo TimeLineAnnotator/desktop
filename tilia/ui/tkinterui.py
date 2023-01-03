@@ -210,7 +210,7 @@ class TkinterUI:
             if not self._windows[WindowKind.INSPECT]:
                 self._windows[WindowKind.INSPECT] = Inspect(self.root)
             else:
-                self._windows[WindowKind.INSPECT].toplevel.focus_set()
+                self._windows[WindowKind.INSPECT].focus()
 
         elif kind == WindowKind.MANAGE_TIMELINES:
             if not self._windows[WindowKind.MANAGE_TIMELINES]:
@@ -218,7 +218,7 @@ class TkinterUI:
                     self, self.get_timeline_info_for_manage_timelines_window()
                 )
             else:
-                self._windows[WindowKind.MANAGE_TIMELINES].toplevel.focus_set()
+                self._windows[WindowKind.MANAGE_TIMELINES].focus()
 
         elif kind == WindowKind.METADATA:
             if not self._windows[WindowKind.METADATA]:
@@ -228,12 +228,12 @@ class TkinterUI:
                     self.get_metadata_non_editable_fields(),
                     {'media length': format_media_time})
             else:
-                self._windows[WindowKind.METADATA].toplevel.focus_set()
+                self._windows[WindowKind.METADATA].focus()
         elif kind == WindowKind.ABOUT:
             if not self._windows[WindowKind.ABOUT]:
                 self._windows[WindowKind.ABOUT] = About(self.root)
             else:
-                self._windows[WindowKind.ABOUT].toplevel.focus_set()
+                self._windows[WindowKind.ABOUT].focus()
 
     def on_window_closed(self, kind: WindowKind):
         self._windows[kind] = None

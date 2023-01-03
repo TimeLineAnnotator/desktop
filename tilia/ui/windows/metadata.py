@@ -166,6 +166,9 @@ class MetadataWindow:
         entry = self.fieldnames_to_widgets[field_name]
         events.post(Event.METADATA_FIELD_EDITED, field_name, entry.get())
 
+    def focus(self):
+        self.toplevel.focus_set()
+
     def destroy(self):
         self.toplevel.destroy()
         events.post(Event.METADATA_WINDOW_CLOSED)

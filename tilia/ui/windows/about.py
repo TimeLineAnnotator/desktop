@@ -18,6 +18,8 @@ class About:
         tk.Label(self.toplevel, text="github.com/FelipeDefensor/TiLiA").pack()
         tk.Label(self.toplevel, text="License: CC BY-SA 4.0").pack()
 
+    def focus(self):
+        self.toplevel.focus_set()
 
     def destroy(self):
         self.toplevel.destroy()

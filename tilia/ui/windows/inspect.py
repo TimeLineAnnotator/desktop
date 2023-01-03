@@ -66,6 +66,14 @@ class Inspect:
         )
         events.post(Event.INSPECTOR_WINDOW_OPENED)
 
+    def focus(self):
+        self.toplevel.focus_set()
+
+        if self.starting_focus_widget:
+            self.starting_focus_widget.focus_set()
+            self.starting_focus_widget.selection_range(0, tk.END)
+
+
     def destroy(self):
         unsubscribe_from_all(self)
         self.toplevel.destroy()
@@ -154,6 +162,9 @@ class Inspect:
                     f"Non recognized widget type {type(widget)} for inspector field."
                 )
 
+            if self.starting_focus_widget:
+                self.starting_focus_widget.selection_range(0, tk.END)
+
     def clear_values(self):
         clearing_dict = {}
         for key in self.field_widgets.keys():
@@ -165,7 +176,7 @@ class Inspect:
         frame = tk.Frame(self.toplevel)
         widget1 = None
         widget2 = None
-        starting_focus_widget = None
+        self.starting_focus_widget = None
         self.field_widgets = {}
         self.var_widgets = {}
 
@@ -180,8 +191,8 @@ class Inspect:
                 widget2 = label_and_entry.entry
                 value_var = label_and_entry.entry_var
                 value_var.trace_add("write", self.on_entry_edited)
-                if not starting_focus_widget:
-                    starting_focus_widget = widget2
+                if not self.starting_focus_widget:
+                    self.starting_focus_widget = widget2
 
             elif field_kind == "label":
                 widget1 = tk.Label(frame, text=f"{field_name}:")
@@ -190,8 +201,8 @@ class Inspect:
                 label_and_scrolled_text = LabelAndScrolledText(frame, field_name)
                 widget1 = label_and_scrolled_text.label
                 widget2 = label_and_scrolled_text.scrolled_text
-                if not starting_focus_widget:
-                    starting_focus_widget = widget2
+                if not self.starting_focus_widget:
+                    self.starting_focus_widget = widget2
             elif field_kind == "separator":
                 widget1 = tk.Label(frame, text=f"{field_name}")
                 widget2 = ttk.Separator(frame, orient=tk.HORIZONTAL)
@@ -205,8 +216,8 @@ class Inspect:
 
             frame.columnconfigure(1, weight=1)
 
-            if starting_focus_widget:
-                starting_focus_widget.focus_set()
+            if self.starting_focus_widget:
+                self.starting_focus_widget.focus_set()
 
         return frame
 
