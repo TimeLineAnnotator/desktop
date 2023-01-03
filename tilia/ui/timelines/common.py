@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+from tilia.ui.canvas_tags import CURSOR_ARROWS, CURSOR_HAND
+
 if TYPE_CHECKING:
     pass
 
@@ -55,7 +57,7 @@ class TimelineCanvas(tk.Canvas):
 
         self._setup_cursors()
 
-    TAG_TO_CURSOR = [("arrowsCursor", "sb_h_double_arrow"), ("handCursor", "hand2")]
+    TAG_TO_CURSOR = [(CURSOR_ARROWS, "sb_h_double_arrow"), (CURSOR_HAND, "hand2")]
 
     def _setup_cursors(self):
         for tag, cursor_name in self.TAG_TO_CURSOR:
