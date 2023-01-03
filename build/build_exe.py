@@ -6,7 +6,9 @@ from tilia import globals_
 
 
 def confirm_version_number_update():
-    answer = input("Did you remember to update the version number? y/n")
+    answer = input(
+        f"Did you remember to update the version number (current version number is {globals_.VERSION})? y/n "
+    )
 
     if answer.lower() == "y":
         return True
