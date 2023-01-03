@@ -1,5 +1,6 @@
 import os
 import time
+from unittest.mock import patch
 
 import pytest
 from pathlib import Path
@@ -169,10 +170,18 @@ class TestVlcPlayer:
         assert player.media_path == media_path
         player.destroy()
 
-    def test_media_load_failed(self, vlc_player_notloaded):
+    @patch('tilia.events.post')
+    def test_media_load_failed(self, post_mock, vlc_player_notloaded):
         player = vlc_player_notloaded
-        with pytest.raises(MediaLoadError):
-            player.load_media("invalid media")
+
+        player.load_media("invalid media")
+
+        assert post_mock.called_with(
+            Event.REQUEST_DISPLAY_ERROR,
+                title='Media load error',
+                message=f'Could not load "invalid media".'
+                                f'Try loading another media file.'
+        )
 
     @pytest.mark.parametrize("vlc_player", VIDEO_FORMATS, indirect=True)
     def test_media_unload(self, vlc_player):

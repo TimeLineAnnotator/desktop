@@ -5,9 +5,13 @@ from tilia.events import Event, unsubscribe_from_all
 class SelectionBox:
     """Box that indicates objects to be selected when clicking and dragging"""
 
-    def __init__(self, canvas, intial_coord: list[float, float], y_offset: int):
-        self.upper_left = intial_coord
-        self.bottom_right = intial_coord
+    def __init__(self, canvas, initial_coord: list[float, float], y_offset: int):
+        """
+        :param initial_coord: x and y for starting top left corner
+        :param y_offset:
+        """
+        self.upper_left = initial_coord
+        self.bottom_right = initial_coord
 
         self.canvas_id = 0
         self.canvas = canvas
@@ -15,7 +19,6 @@ class SelectionBox:
         self.y_offset = y_offset
         self.draw()
 
-        # self.outlined = False
         self.setup_overlap()
 
         # observe mouse movement and release

@@ -32,6 +32,8 @@ from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
 
+from traceback_with_variables import printing_exc, LoggerAsFile
+
 if TYPE_CHECKING:
     from tilia.main import TiLiA
 
@@ -44,6 +46,7 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
+
 
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
     # traceback.print_tb(exc_traceback)

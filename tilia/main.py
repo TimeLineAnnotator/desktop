@@ -21,6 +21,8 @@ import os
 import sys
 from unittest.mock import MagicMock
 import logging
+from traceback_with_variables import prints_exc, LoggerAsFile
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -152,6 +154,7 @@ class TiLiA:
         self._initial_file_setup()
 
         self._undo_manager.clear()
+        events.post(Event.TILIA_FILE_LOADED)
         self._undo_manager.record(self.get_state(), StateAction.FILE_LOAD)
 
     def on_request_to_close(self) -> None:
@@ -305,13 +308,13 @@ def _associate_timeline_and_timeline_ui_collections(
     timeline_collection._timeline_ui_collection = timeline_ui_collection
 
 
-def config_logging():
-    logging.basicConfig(
-        filename=Path(globals_.DATA_DIR, 'log.txt'),
-        filemode='w',
-        level=logging.DEBUG,
-        format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
-    )
+# def config_logging():
+#     logging.basicConfig(
+#         filename=Path(globals_.DATA_DIR, 'log.txt'),
+#         filemode='w',
+#         level=logging.DEBUG,
+#         format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
+#     )
 
 
 def get_ui(kind: UserInterfaceKind, app: TiLiA):
@@ -320,9 +323,16 @@ def get_ui(kind: UserInterfaceKind, app: TiLiA):
     if kind == UserInterfaceKind.MOCK:
         return MagicMock()
 
+logging.basicConfig(
+        filename=Path(globals_.DATA_DIR, 'log.txt'),
+        filemode='w',
+        level=logging.DEBUG,
+        format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
+    )
 
+@prints_exc(file_=LoggerAsFile(logger))
 def main():
-    config_logging()
+    # config_logging()
     os.chdir(os.path.dirname(__file__))
 
     TiLiA(ui_kind=UserInterfaceKind.TKINTER)

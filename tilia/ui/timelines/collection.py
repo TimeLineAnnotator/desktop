@@ -150,6 +150,8 @@ class TimelineUICollection:
 
         self.slider_is_being_dragged = False
         self.selection_boxes = []
+        self.selection_boxes_above = False
+        self.selection_boxes_below = True
 
         self._timeline_uis = set()
         self._select_order = []
@@ -475,12 +477,20 @@ class TimelineUICollection:
             )
             if not self.slider_is_being_dragged:
                 self.selection_boxes = [SelectionBox(canvas, [x, y], 0)]
+                self.next_sbx_boundary_below = canvas.winfo_height()
+                self.next_sbx_boundary_above = 0
         else:
             logger.debug(
                 f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
             )
 
-    def _on_timeline_ui_left_drag(self, _, y: int) -> None:
+    def _on_timeline_ui_left_drag(self, x, y: int) -> None:
+        """
+        Creates selection boxes on aproppriate timelines as mouse is dragged.
+        :param x: x coord on timeline that started drag
+        :param y: y coord on timeline that started drag
+        """
+
 
         if self.slider_is_being_dragged:
             return
@@ -490,30 +500,33 @@ class TimelineUICollection:
                 self.selection_boxes[-1].canvas
             )
             last_display_order = self._display_order.index(last_selection_box_timeline)
-            try:
-                next_timeline = self._display_order[last_display_order + 1]
-            except IndexError:
-                # no timeline below
+
+            if last_display_order == len(self._display_order) - 1:
+                # no more timelines below
                 return
+
+            next_timeline = self._display_order[last_display_order + 1]
 
             self.selection_boxes.append(
                 SelectionBox(
                     next_timeline.canvas,
                     [self.selection_boxes[-1].upper_left[0], -1],
-                    next_boundary_below * -1,
+                    self.next_sbx_boundary_below * -1,
                 )
             )
 
         def create_selection_box_above():
+
             last_selection_box_timeline = self._get_timeline_ui_by_canvas(
                 self.selection_boxes[-1].canvas
             )
             last_display_order = self._display_order.index(last_selection_box_timeline)
-            try:
-                next_timeline = self._display_order[last_display_order - 1]
-            except IndexError:
-                # no timeline above
+
+            if last_display_order == 0:
+                # no more timelines above
                 return
+
+            next_timeline = self._display_order[last_display_order - 1]
 
             self.selection_boxes.append(
                 SelectionBox(
@@ -522,22 +535,41 @@ class TimelineUICollection:
                         self.selection_boxes[-1].upper_left[0],
                         next_timeline.canvas.winfo_height(),
                     ],
-                    sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes]),
+                    sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes][1:])
+                    + next_timeline.canvas.winfo_height(),
                 )
             )
 
-        if self.selection_boxes:
-            next_boundary_below = sum(
+        if not self.selection_boxes:
+            return
+
+        if y > self.next_sbx_boundary_below:
+
+            if self.selection_boxes_above:
+                self.selection_boxes = self.selection_boxes[:1]
+                self.selection_boxes_above = False
+                self.next_sbx_boundary_above = 0
+
+            self.next_sbx_boundary_below = sum(
                 [sbx.canvas.winfo_height() for sbx in self.selection_boxes]
             )
-            next_boundary_above = (
-                sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes[:-1]])
+            self.selection_boxes_below = True
+
+            create_selection_box_below()
+        elif y < self.next_sbx_boundary_above:
+
+            if self.selection_boxes_below:
+                self.selection_boxes = self.selection_boxes[:1]
+                self.selection_boxes_below = False
+                self.next_sbx_boundary_below = self.selection_boxes[0].canvas.winfo_height()
+
+            self.next_sbx_boundary_above = (
+                sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes[1:]])
                 * -1
             )
-            if y > next_boundary_below:
-                create_selection_box_below()
-            elif y < next_boundary_above:
-                create_selection_box_above()
+            self.selection_boxes_above = True
+
+            create_selection_box_above()
 
     def on_selection_box_request_select(
         self, canvas: tk.Canvas, canvas_item_id: int
@@ -647,7 +679,7 @@ class TimelineUICollection:
             },
         )
 
-    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
 
         if not clipboard_elements:

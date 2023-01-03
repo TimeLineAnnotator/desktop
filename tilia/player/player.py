@@ -77,7 +77,16 @@ class Player(ABC):
         if self.playing:
             self.stop()
 
-        self._engine_load_media(media_path)
+        try:
+            self._engine_load_media(media_path)
+        except MediaLoadError:
+            events.post(Event.REQUEST_DISPLAY_ERROR,
+                        title='Media load error',
+                        message=f'Could not load "{media_path}".'
+                                f'Try loading another media file.'
+                        )
+            return
+
         self.media_path = media_path
 
         previous_media_length = self.media_length
@@ -272,7 +281,7 @@ class VlcPlayer(Player):
         self._engine_seek(0.0)
 
     def _setup_media_length(self):
-        MAX_RETRIES = 50
+        MAX_RETRIES = 10
         retries = 0
 
         self.media_player.play()
