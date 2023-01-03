@@ -736,6 +736,40 @@ class TestHierarchyTimelineComponentManager:
 
         assert len(tl.component_manager._components) == 1
 
+    def test_merge_three_units(self, tl):
+        hrc1 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=0.1, level=1
+        )
+        hrc2 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.1, end=0.2, level=1
+        )
+        hrc3 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.2, end=0.3, level=1
+        )
+
+        tl.component_manager.merge([hrc1, hrc2, hrc3])
+
+        assert len(tl.component_manager._components) == 1
+
+    def test_merge_four_units(self, tl):
+        hrc1 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=0.1, level=1
+        )
+        hrc2 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.1, end=0.2, level=1
+        )
+        hrc3 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.2, end=0.3, level=1
+        )
+        hrc4 = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=tl, start=0.3, end=0.4, level=1
+        )
+
+
+        tl.component_manager.merge([hrc1, hrc2, hrc3, hrc4])
+
+        assert len(tl.component_manager._components) == 1
+
     def test_merge_two_units_with_children(self, tl):
         hrc1 = tl.component_manager.create_component(
             ComponentKind.HIERARCHY, timeline=tl, start=0.0, end=0.5, level=1

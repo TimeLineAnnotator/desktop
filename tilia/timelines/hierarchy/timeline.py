@@ -429,16 +429,18 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         def _get_units_to_merge_from_unit_list(
             units: list[Hierarchy],
         ) -> list[Hierarchy]:
-            """Returns units that start after (inclusive) first
-            given unit's start and end before (inclusive) last
-             given unit's end and have the same parent as given units
-             (to prevent unwanted from being returned). Assumes all
-             given units have the same parent."""
+            """
+            Returns units that:
+            (1) start after (inclusive) first given unit's start;
+            (2) end before (inclusive) last given unit's end; and
+            (3) have the same parent as given units.
+            Assumes all given units have the same parent.
+            """
 
             units_sorted_by_time = sorted(units, key=lambda u: (u.start, u.end))
 
             # get units between extremities
-            is_between_selected_unitsand_has_same_parent = lambda u: all(
+            is_between_selected_units_and_has_same_parent = lambda u: all(
                 [
                     u.start >= units_sorted_by_time[0].end,
                     u.end <= units_sorted_by_time[-1].start,
@@ -447,11 +449,11 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             )
 
             units_between = self.get_components_by_condition(
-                is_between_selected_unitsand_has_same_parent,
+                is_between_selected_units_and_has_same_parent,
                 kind=ComponentKind.HIERARCHY,
             )
 
-            return units + units_between
+            return list(set(units + units_between))
 
         events.post(Event.REQUEST_RECORD_STATE, StateAction.MERGE)
 
