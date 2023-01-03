@@ -208,12 +208,10 @@ class TimelineUICollection:
 
         self.scroll_to_x(self.get_x_by_time(scroll_time))
 
-
     def create_timeline_ui(self, kind: TimelineKind, name: str, **kwargs) -> TimelineUI:
+
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
-
         canvas = self.create_timeline_canvas(name, timeline_class.DEFAULT_HEIGHT)
-
         toolbar = self.get_toolbar_for_timeline_ui(timeline_class.TOOLBAR_CLASS)
 
         element_manager = TimelineUIElementManager(
@@ -382,7 +380,7 @@ class TimelineUICollection:
         return class_
 
     def create_timeline_canvas(self, name: str, starting_height: int):
-        return TimelineCanvas(
+        canvas = TimelineCanvas(
             parent=self.frame,
             scrollbar=self.scrollbar,
             width=self.get_tlcanvas_width(),
@@ -390,6 +388,11 @@ class TimelineUICollection:
             height=starting_height,
             initial_name=name,
         )
+        canvas.config(
+            scrollregion=(0, 0, self.get_timeline_total_size(), starting_height)
+        )
+        canvas.xview_moveto(self.get_scroll_fraction())
+        return canvas
 
     @property
     def _toolbar_types(self):
@@ -498,8 +501,8 @@ class TimelineUICollection:
                 double=double,
             )
             if not self.slider_is_being_dragged:
-                logger.debug(f'{x=}')
-                logger.debug(f'{y=}')
+                logger.debug(f"{x=}")
+                logger.debug(f"{y=}")
                 self.selection_boxes = [SelectionBox(canvas, [x, y], 0)]
                 self.next_sbx_boundary_below = canvas.winfo_height()
                 self.next_sbx_boundary_above = 0
@@ -514,7 +517,6 @@ class TimelineUICollection:
         :param x: x coord on timeline that started drag
         :param y: y coord on timeline that started drag
         """
-
 
         if self.slider_is_being_dragged:
             return
@@ -585,7 +587,9 @@ class TimelineUICollection:
             if self.selection_boxes_below:
                 self.selection_boxes = self.selection_boxes[:1]
                 self.selection_boxes_below = False
-                self.next_sbx_boundary_below = self.selection_boxes[0].canvas.winfo_height()
+                self.next_sbx_boundary_below = self.selection_boxes[
+                    0
+                ].canvas.winfo_height()
 
             self.next_sbx_boundary_above = (
                 sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes[1:]])
@@ -865,7 +869,9 @@ class TimelineUICollection:
 
     def after_height_change(self, timeline_ui: TimelineUI):
         """Updates timeline ui's playback line coords so it matches new height"""
-        self.change_playback_line_position(timeline_ui, self.get_current_playback_time())
+        self.change_playback_line_position(
+            timeline_ui, self.get_current_playback_time()
+        )
 
     def on_media_time_change(self, time: float) -> None:
         for tl_ui in self._timeline_uis:
@@ -922,20 +928,15 @@ class TimelineUICollection:
 
         self.selection_box_elements_to_selected_triggers = {}
 
-    def get_scroll_fraction(self):
-        sample_tlui = self._display_order[0]
-        logger.debug(f"{sample_tlui.canvas.canvasx(0)=}")
-        logger.debug(f"{self.left_margin_x=}")
-        scrolled_timeline_width = sample_tlui.canvas.canvasx(0) - self.left_margin_x
-        logger.debug(f"{scrolled_timeline_width=}")
-        scroll_fraction = scrolled_timeline_width / self.get_timeline_total_size()
-        logger.debug(f"{scroll_fraction=}")
+    def get_scroll_fraction(self) -> float:
+        if not self._display_order:
+            return 0
 
-        return scroll_fraction
+        return self._display_order[0].canvas.canvasx(0) / self.get_timeline_total_size()
 
     def scroll_to_x(self, x: float):
         for tl_ui in self._timeline_uis:
-            tl_ui.canvas.xview_moveto(x/self.get_timeline_total_size())
+            tl_ui.canvas.xview_moveto(x / self.get_timeline_total_size())
 
     def _update_timelines_after_width_change(self):
         scroll_time = self.get_time_by_x(self._display_order[0].canvas.canvasx(0))
@@ -958,7 +959,6 @@ class TimelineUICollection:
                 )
 
         # self.scroll_to_x(self.get_x_by_time(scroll_time))
-
 
     def get_timeline_total_size(self):
         return self._app_ui.timeline_total_size
