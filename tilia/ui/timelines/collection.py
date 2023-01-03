@@ -841,6 +841,10 @@ class TimelineUICollection:
 
             tl_ui.canvas.tag_raise(self._timeline_uis_to_playback_line_ids[tl_ui])
 
+    def after_height_change(self, timeline_ui: TimelineUI):
+        """Updates timeline ui's playback line coords so it matches new height"""
+        self.change_playback_line_position(timeline_ui, self.get_current_playback_time())
+
     def on_media_time_change(self, time: float) -> None:
         for tl_ui in self._timeline_uis:
             if (

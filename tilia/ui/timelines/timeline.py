@@ -443,6 +443,7 @@ class TimelineUI(ABC):
         if height:
             logger.debug(f"User requested new timeline height of '{height}'")
             self.height = height
+            self.timeline_ui_collection.after_height_change(self)
 
         events.post(Event.REQUEST_RECORD_STATE, "timeline height change")
 
