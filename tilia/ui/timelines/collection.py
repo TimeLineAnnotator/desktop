@@ -184,8 +184,30 @@ class TimelineUICollection:
 
     @timeline_width.setter
     def timeline_width(self, value):
-        logger.debug(f"Changing to timeline widht to {value}.")
+        logger.debug(f"Changing to timeline width to {value}.")
+
+        scroll_time = self.get_time_by_x(self._display_order[0].canvas.canvasx(0))
         self._app_ui.timeline_width = value
+
+        for tl_ui in self._timeline_uis:
+
+            tl_ui.canvas.config(
+                scrollregion=(0, 0, self.get_timeline_total_size(), tl_ui.height)
+            )
+
+            logging.disable(logging.CRITICAL)
+            tl_ui.update_elements_position()
+            logging.disable(logging.NOTSET)
+
+            if not tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+                change_playback_line_x(
+                    tl_ui,
+                    self._timeline_uis_to_playback_line_ids[tl_ui],
+                    self.get_x_by_time(self.get_current_playback_time()),
+                )
+
+        self.scroll_to_x(self.get_x_by_time(scroll_time))
+
 
     def create_timeline_ui(self, kind: TimelineKind, name: str, **kwargs) -> TimelineUI:
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
@@ -819,8 +841,6 @@ class TimelineUICollection:
         else:
             self.timeline_width *= 1 - self.ZOOM_SCALE_FACTOR
 
-        self._update_timelines_after_width_change()
-
     def create_playback_lines(self):
         for tl_ui in self._timeline_uis:
             if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
@@ -894,21 +914,39 @@ class TimelineUICollection:
 
         self.timeline_width = width
 
-        self._update_timelines_after_width_change()
-
     def deselect_all_elements_in_timeline_uis(self):
         for timeline_ui in self._timeline_uis:
             timeline_ui.deselect_all_elements()
 
         self.selection_box_elements_to_selected_triggers = {}
 
-    def _update_timelines_after_width_change(self):
+    def get_scroll_fraction(self):
+        sample_tlui = self._display_order[0]
+        logger.debug(f"{sample_tlui.canvas.canvasx(0)=}")
+        logger.debug(f"{self.left_margin_x=}")
+        scrolled_timeline_width = sample_tlui.canvas.canvasx(0) - self.left_margin_x
+        logger.debug(f"{scrolled_timeline_width=}")
+        scroll_fraction = scrolled_timeline_width / self.get_timeline_total_size()
+        logger.debug(f"{scroll_fraction=}")
+
+        return scroll_fraction
+
+    def scroll_to_x(self, x: float):
         for tl_ui in self._timeline_uis:
+            tl_ui.canvas.xview_moveto(x/self.get_timeline_total_size())
+
+    def _update_timelines_after_width_change(self):
+        scroll_time = self.get_time_by_x(self._display_order[0].canvas.canvasx(0))
+        logger.debug(f"{scroll_time=}")
+        for tl_ui in self._timeline_uis:
+
             tl_ui.canvas.config(
                 scrollregion=(0, 0, self.get_timeline_total_size(), tl_ui.height)
             )
 
+            logging.disable(logging.CRITICAL)
             tl_ui.update_elements_position()
+            logging.disable(logging.NOTSET)
 
             if not tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
                 change_playback_line_x(
@@ -916,7 +954,9 @@ class TimelineUICollection:
                     self._timeline_uis_to_playback_line_ids[tl_ui],
                     self.get_x_by_time(self.get_current_playback_time()),
                 )
-            # TODO center view at appropriate point
+
+        # self.scroll_to_x(self.get_x_by_time(scroll_time))
+
 
     def get_timeline_total_size(self):
         return self._app_ui.timeline_total_size
