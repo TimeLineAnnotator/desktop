@@ -375,6 +375,7 @@ class TimelineUI(ABC):
         if isinstance(element, Inspectable):
             events.unsubscribe(element, Event.INSPECTOR_FIELD_EDITED)
 
+
     def deselect_all_elements(self):
         for element in self.element_manager.get_all_elements():
             self.element_manager.deselect_element(element)
@@ -649,6 +650,7 @@ def display_right_click_menu(
 def on_inspector_field_edited(
     element: Inspectable, field_name: str, value: str, inspected_id: int
 ) -> None:
+
     if not inspected_id == element.id:
         return
 
@@ -803,9 +805,6 @@ class TimelineUIElementManager:
             logger.debug(f"Deselecting element '{element}'")
             self._remove_from_selected_elements_set(element)
             element.on_deselect()
-
-            if isinstance(element, Inspectable):
-                events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
     def _deselect_if_selected(self, element: SomeTimelineUIElement):
         logger.debug(f"Will deselect {element} if it is selected.")
