@@ -61,7 +61,7 @@ class HierarchyUI(TimelineUIElement):
         ("Length", "label"),
         ("Formal type", "entry"),
         ("Formal function", "entry"),
-        ("Comments", "entry"),
+        ("Comments", "scrolled_text"),
     ]
 
     FIELD_NAMES_TO_ATTRIBUTES = {
@@ -134,8 +134,16 @@ class HierarchyUI(TimelineUIElement):
         return HierarchyUI(unit, timeline_ui, canvas, **kwargs)
 
     @property
+    def start(self):
+        return self.tl_component.start
+
+    @property
     def start_x(self):
         return self.timeline_ui.get_x_by_time(self.tl_component.start)
+
+    @property
+    def end(self):
+        return self.tl_component.end
 
     @property
     def end_x(self):

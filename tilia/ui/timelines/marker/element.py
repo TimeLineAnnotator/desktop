@@ -41,7 +41,7 @@ class MarkerUI(TimelineUIElement):
 
     LABEL_PADX = 7
 
-    INSPECTOR_FIELDS = [("Label", "entry"), ("Time", "label"), ("Comments", "entry")]
+    INSPECTOR_FIELDS = [("Label", "entry"), ("Time", "label"), ("Comments", "scrolled_text")]
 
     FIELD_NAMES_TO_ATTRIBUTES = {"Label": "label", "Comments": "comments"}
 

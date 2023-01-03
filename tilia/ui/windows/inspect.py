@@ -8,19 +8,20 @@ from __future__ import annotations
 
 import logging
 from tkinter import ttk
-from typing import TYPE_CHECKING
 
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
+from typing import Callable
 
 from tilia import events
 from tilia.events import Event, subscribe, unsubscribe_from_all
 from tilia.timelines.common import TimelineComponent
-from tilia.ui.windows.exceptions import UniqueWindowDuplicate
 from tilia.ui.windows.kinds import WindowKind
 
 PADX = 5
 PADY = 5
+
+logger = logging.getLogger(__name__)
 
 
 class Inspect:
@@ -55,8 +56,8 @@ class Inspect:
         self.toplevel.focus()
 
         self.currently_inspected_class = None
-        self.field_widgets = None
-        self.var_widgets = None
+        self.fieldname_to_widgets = None
+        self.strvar_to_fieldname = None
         self.inspector_frame = tk.Frame(self.toplevel)
         self.inspector_frame.pack()
         self.display_not_selected_frame()
@@ -72,7 +73,6 @@ class Inspect:
         if self.starting_focus_widget:
             self.starting_focus_widget.focus_set()
             self.starting_focus_widget.selection_range(0, tk.END)
-
 
     def destroy(self):
         unsubscribe_from_all(self)
@@ -139,14 +139,14 @@ class Inspect:
             self.update_values(inspector_values, uicomplex_id)
         else:
             self.clear_values()
-            for _, widget in self.field_widgets.items():
+            for _, widget in self.fieldname_to_widgets.items():
                 widget.config(state="disabled")
 
     def update_values(self, field_values: dict[str:str], uicomplex_id: str):
         self.uicomplex_id = uicomplex_id
         for field_name, value in field_values.items():
             try:
-                widget = self.field_widgets[field_name]
+                widget = self.fieldname_to_widgets[field_name]
             except KeyError:
                 logging.warning(f"Inspect has no field named {field_name}")
                 continue
@@ -154,9 +154,12 @@ class Inspect:
             widget.config(state="normal")
             if type(widget) == tk.Label:
                 widget.config(text=value)
-            elif type(widget) == tk.Entry or type(widget) == ScrolledText:
+            elif type(widget) == tk.Entry:
                 widget.delete(0, "end")
                 widget.insert(0, value)
+            elif type(widget) == ScrolledText:
+                widget.delete(1.0, "end")
+                widget.insert(1.0, value)
             else:
                 raise TypeError(
                     f"Non recognized widget type {type(widget)} for inspector field."
@@ -167,7 +170,7 @@ class Inspect:
 
     def clear_values(self):
         clearing_dict = {}
-        for key in self.field_widgets.keys():
+        for key in self.fieldname_to_widgets.keys():
             clearing_dict[key] = ""
 
         self.update_values(clearing_dict, "id_cleared")
@@ -177,8 +180,8 @@ class Inspect:
         widget1 = None
         widget2 = None
         self.starting_focus_widget = None
-        self.field_widgets = {}
-        self.var_widgets = {}
+        self.fieldname_to_widgets = {}
+        self.strvar_to_fieldname = {}
 
         for row, field_tuple in enumerate(field_tuples):
             field_name = field_tuple[0]
@@ -198,7 +201,9 @@ class Inspect:
                 widget1 = tk.Label(frame, text=f"{field_name}:")
                 widget2 = tk.Label(frame)
             elif field_kind == "scrolled_text":
-                label_and_scrolled_text = LabelAndScrolledText(frame, field_name)
+                label_and_scrolled_text = LabelAndScrolledText(
+                    frame, field_name, self.on_scrolled_text_edited
+                )
                 widget1 = label_and_scrolled_text.label
                 widget2 = label_and_scrolled_text.scrolled_text
                 if not self.starting_focus_widget:
@@ -210,9 +215,9 @@ class Inspect:
             widget1.grid(row=row, column=0, sticky=tk.W)
             widget2.grid(row=row, column=1, padx=5, pady=2, sticky=tk.EW)
 
-            self.field_widgets[field_name] = widget2
+            self.fieldname_to_widgets[field_name] = widget2
             if value_var:
-                self.var_widgets[str(value_var)] = field_name
+                self.strvar_to_fieldname[str(value_var)] = field_name
 
             frame.columnconfigure(1, weight=1)
 
@@ -222,17 +227,30 @@ class Inspect:
         return frame
 
     def on_entry_edited(self, var_name: str, *_):
-        field_name = self.var_widgets[var_name]
-        entry = self.field_widgets[field_name]
+        field_name = self.strvar_to_fieldname[var_name]
+        entry = self.fieldname_to_widgets[field_name]
         events.post(
             Event.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.uicomplex_id
         )
+
+    def on_scrolled_text_edited(self, widget: ScrolledText, value: str):
+        fieldname = self.widgets_to_fieldnames[widget]
+        logger.debug(f"{fieldname=}")
+        logger.debug(f"{value=}")
+
+        events.post(
+            Event.INSPECTOR_FIELD_EDITED, fieldname, value, self.uicomplex_id
+        )
+
+    @property
+    def widgets_to_fieldnames(self):
+        return {widget: fieldname for fieldname, widget in self.fieldname_to_widgets.items()}
 
 
 class LabelAndEntry(tk.Frame):
     """Create a tk.Label(), tk.Entry() pair and a associated tk.StrVar()"""
 
-    width = 32
+    WIDTH = 32
 
     def __init__(self, parent, label, attr_to_link=None):
         super().__init__(parent)
@@ -247,9 +265,24 @@ class LabelAndEntry(tk.Frame):
 
 
 class LabelAndScrolledText:
-    def __init__(self, parent, name, text: str = ""):
+    HEIGHT = 5
+    WIDTH = 20
+
+    def __init__(
+        self,
+        parent,
+        name,
+        callback: Callable[[ScrolledText, str], None],
+        text: str = "",
+    ):
         self.label = tk.Label(parent, text=f"{name}:")
-        self.scrolled_text = ScrolledText(parent, height=8, width=25)
+        self.callback = callback
+        self.scrolled_text = ScrolledText(parent, height=self.HEIGHT, width=self.WIDTH)
         self.scrolled_text.insert(1.0, text)
         self.scrolled_text.edit_modified(False)
-        # self.scrolled_text.bind("<<Modified>>", self.modify_scrolled_text)
+        self.scrolled_text.bind("<<Modified>>", self.on_modified)
+
+
+    def on_modified(self, _):
+        self.callback(self.scrolled_text, self.scrolled_text.get(1.0, 'end-1c'))
+        self.scrolled_text.edit_modified(False)
