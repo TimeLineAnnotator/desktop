@@ -498,6 +498,8 @@ class TimelineUICollection:
                 double=double,
             )
             if not self.slider_is_being_dragged:
+                logger.debug(f'{x=}')
+                logger.debug(f'{y=}')
                 self.selection_boxes = [SelectionBox(canvas, [x, y], 0)]
                 self.next_sbx_boundary_below = canvas.winfo_height()
                 self.next_sbx_boundary_above = 0

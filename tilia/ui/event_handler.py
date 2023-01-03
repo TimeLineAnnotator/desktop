@@ -113,7 +113,7 @@ def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     """Handles mouse click"""
     canvas = event.widget
     canvas_x = canvas.canvasx(event.x)
-    canvas_y = canvas.canvasx(event.y)
+    canvas_y = canvas.canvasy(event.y)
     clicked_item_id = next(iter(canvas.find_withtag(tk.CURRENT)), None)
 
 
