@@ -21,7 +21,6 @@ import os
 import sys
 from unittest.mock import MagicMock
 import logging
-from traceback_with_variables import prints_exc, LoggerAsFile
 
 from typing import TYPE_CHECKING
 
@@ -339,7 +338,7 @@ logging.basicConfig(
         format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
     )
 
-@prints_exc(file_=LoggerAsFile(logger))
+
 def main():
     # config_logging()
     os.chdir(os.path.dirname(__file__))

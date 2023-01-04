@@ -32,8 +32,6 @@ from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
 
-from traceback_with_variables import printing_exc, LoggerAsFile
-
 if TYPE_CHECKING:
     from tilia.main import TiLiA
 
