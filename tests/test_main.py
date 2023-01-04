@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import os
@@ -16,10 +17,13 @@ from tilia.timelines.create import create_timeline
 
 
 # noinspection PyProtectedMember
+
 @pytest.fixture
 def tilia_mock():
     os.chdir(Path(Path(__file__).absolute().parents[1], 'tests'))
-    tilia_mock_ = TiLiA(ui_kind=UserInterfaceKind.MOCK)
+    with patch('tilia.main.TiLiA._initial_file_setup') as mock:
+        mock.return_value = None
+        tilia_mock_ = TiLiA(ui_kind=UserInterfaceKind.MOCK)
     yield tilia_mock_
     unsubscribe_from_all(tilia_mock_._undo_manager)
     unsubscribe_from_all(tilia_mock_._player)
