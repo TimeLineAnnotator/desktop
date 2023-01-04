@@ -222,7 +222,9 @@ class MarkerTimelineUI(TimelineUI):
         self.validate_paste(paste_data, selected_elements)
 
         for element in self.element_manager.get_selected_elements():
+            self.deselect_element(element)
             paste_into_element(element, paste_data[0])
+            self.select_element(element)
 
         events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
 
@@ -236,7 +238,9 @@ class MarkerTimelineUI(TimelineUI):
         )
         selected_elements = sorted(selected_elements, key=lambda e: e.time)
 
+        self.deselect_element(selected_elements[0])
         paste_into_element(selected_elements[0], paste_data[0])
+        self.select_element(selected_elements[0])
 
         self.create_pasted_markers(
             paste_data[1:],

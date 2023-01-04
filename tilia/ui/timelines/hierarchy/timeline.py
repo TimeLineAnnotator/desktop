@@ -548,7 +548,9 @@ class HierarchyTimelineUI(TimelineUI):
     def paste_single_into_selected_elements(self, paste_data: list[dict]):
 
         for element in self.element_manager.get_selected_elements():
+            self.deselect_element(element)
             paste_into_element(element, paste_data[0])
+            self.select_element(element)
 
         events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
 
@@ -668,7 +670,8 @@ class HierarchyTimelineUI(TimelineUI):
 
         validate_paste_with_children(paste_data, selected_elements)
 
-        for element in selected_elements:
+        for element in selected_elements.copy():
+            self.deselect_element(element)
             logger.debug(f"Deleting previous descendants of '{element}'")
             # delete previous descendants
             descendants = get_descendants(element)
@@ -679,6 +682,7 @@ class HierarchyTimelineUI(TimelineUI):
 
             # create children according to paste data
             paste_with_children_into_element(paste_data[0], element)
+            self.select_element(element)
 
         events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
 

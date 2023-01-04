@@ -48,7 +48,7 @@ class Inspect:
         )
 
         self.inspected_objects_stack = []
-        self.uicomplex_id = ""
+        self.element_id = ""
         self.toplevel = tk.Toplevel(parent)
         self.toplevel.transient(parent)
         self.toplevel.title("Inspect")
@@ -88,16 +88,16 @@ class Inspect:
 
     def on_timeline_component_selected(
         self,
-        uicomplex_class: type(TimelineComponent),
+        element_class: type(TimelineComponent),
         inspector_fields: tuple[str, str],
         inspector_values: dict[str:str],
-        uicomplex_id: str,
+        element_id: str,
     ):
 
-        self.update_frame(uicomplex_class, inspector_fields)
-        self.update_values(inspector_values, uicomplex_id)
+        self.update_frame(element_class, inspector_fields)
+        self.update_values(inspector_values, element_id)
         self.update_inspected_object_stack(
-            uicomplex_class, inspector_fields, inspector_values, uicomplex_id
+            element_class, inspector_fields, inspector_values, element_id
         )
 
     def update_inspected_object_stack(self, *uielement_args):
@@ -106,44 +106,44 @@ class Inspect:
 
     def update_frame(
         self,
-        uicomplex_class: type(TimelineComponent),
+        element_class: type(TimelineComponent),
         inspector_fields: tuple[str, str],
     ):
-        if uicomplex_class != self.currently_inspected_class:
+        if element_class != self.currently_inspected_class:
             self.inspector_frame.destroy()
             self.inspector_frame = self.create_inspector_frame(inspector_fields)
             self.inspector_frame.pack(padx=5, pady=5, expand=True, fill=tk.X)
-            self.currently_inspected_class = uicomplex_class
+            self.currently_inspected_class = element_class
 
-    def on_timeline_component_deselected(self, uicomplex_id: str):
+    def on_timeline_component_deselected(self, element_id: str):
         try:
-            uicomplex_index = [
+            element_index = [
                 self.inspected_objects_stack.index(obj)
                 for obj in self.inspected_objects_stack
-                if obj[-1] == uicomplex_id
+                if obj[-1] == element_id
             ][0]
         except IndexError:
             return
 
-        self.inspected_objects_stack.pop(uicomplex_index)
+        self.inspected_objects_stack.pop(element_index)
 
         if self.inspected_objects_stack:
             (
-                uicomplex_class,
+                element_class,
                 inspector_fields,
                 inspector_values,
-                uicomplex_id,
+                element_id,
             ) = self.inspected_objects_stack[-1]
 
-            self.update_frame(uicomplex_class, inspector_fields)
-            self.update_values(inspector_values, uicomplex_id)
+            self.update_frame(element_class, inspector_fields)
+            self.update_values(inspector_values, element_id)
         else:
             self.clear_values()
             for _, widget in self.fieldname_to_widgets.items():
                 widget.config(state="disabled")
 
-    def update_values(self, field_values: dict[str:str], uicomplex_id: str):
-        self.uicomplex_id = uicomplex_id
+    def update_values(self, field_values: dict[str:str], element_id: str):
+        self.element_id = element_id
         for field_name, value in field_values.items():
             try:
                 widget = self.fieldname_to_widgets[field_name]
@@ -230,7 +230,7 @@ class Inspect:
         field_name = self.strvar_to_fieldname[var_name]
         entry = self.fieldname_to_widgets[field_name]
         events.post(
-            Event.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.uicomplex_id
+            Event.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.element_id
         )
 
     def on_scrolled_text_edited(self, widget: ScrolledText, value: str):
@@ -239,7 +239,7 @@ class Inspect:
         logger.debug(f"{value=}")
 
         events.post(
-            Event.INSPECTOR_FIELD_EDITED, fieldname, value, self.uicomplex_id
+            Event.INSPECTOR_FIELD_EDITED, fieldname, value, self.element_id
         )
 
     @property

@@ -375,10 +375,12 @@ class TimelineUI(ABC):
         if isinstance(element, Inspectable):
             events.unsubscribe(element, Event.INSPECTOR_FIELD_EDITED)
 
+            events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
+
 
     def deselect_all_elements(self):
         for element in self.element_manager.get_all_elements():
-            self.element_manager.deselect_element(element)
+            self.deselect_element(element)
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
         ...
@@ -508,6 +510,9 @@ class TimelineUI(ABC):
             self.timeline.on_request_to_delete_components([component])
 
     def delete_element(self, element: TimelineUIElement):
+        if element in self.element_manager.get_selected_elements():
+            self.deselect_element(element)
+
         self.element_manager.delete_element(element)
 
     def debug_selected_elements(self):
