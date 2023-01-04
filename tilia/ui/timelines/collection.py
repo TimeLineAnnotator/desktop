@@ -188,6 +188,8 @@ class TimelineUICollection:
         logger.debug(f"Changing to timeline width to {value}.")
 
         scroll_time = self.get_time_by_x(self._display_order[0].canvas.canvasx(0))
+        print(self._display_order[0].canvas.canvasx(0))
+        print(scroll_time)
         self._app_ui.timeline_width = value
 
         for tl_ui in self._timeline_uis:
@@ -936,30 +938,9 @@ class TimelineUICollection:
         return self._display_order[0].canvas.canvasx(0) / self.get_timeline_total_size()
 
     def scroll_to_x(self, x: float):
+        x = max(x, 0)
         for tl_ui in self._timeline_uis:
             tl_ui.canvas.xview_moveto(x / self.get_timeline_total_size())
-
-    def _update_timelines_after_width_change(self):
-        scroll_time = self.get_time_by_x(self._display_order[0].canvas.canvasx(0))
-        logger.debug(f"{scroll_time=}")
-        for tl_ui in self._timeline_uis:
-
-            tl_ui.canvas.config(
-                scrollregion=(0, 0, self.get_timeline_total_size(), tl_ui.height)
-            )
-
-            logging.disable(logging.CRITICAL)
-            tl_ui.update_elements_position()
-            logging.disable(logging.NOTSET)
-
-            if not tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
-                change_playback_line_x(
-                    tl_ui,
-                    self._timeline_uis_to_playback_line_ids[tl_ui],
-                    self.get_x_by_time(self.get_current_playback_time()),
-                )
-
-        # self.scroll_to_x(self.get_x_by_time(scroll_time))
 
     def get_timeline_total_size(self):
         return self._app_ui.timeline_total_size
