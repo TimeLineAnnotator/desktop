@@ -20,7 +20,7 @@ def choose_media_file():
     )
 
     audio_filetypes = get_filetypes_str(globals_.SUPPORTED_AUDIO_FORMATS +
-                                        globals_.CONVERTABLE_AUDIO_FORMATS)
+                                        globals_.CONVERTIBLE_AUDIO_FORMATS)
 
     video_filetypes = get_filetypes_str(globals_.SUPPORTED_VIDEO_FORMATS)
 

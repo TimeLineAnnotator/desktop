@@ -11,7 +11,7 @@ FILE_EXTENSION = "tla"
 VERSION = "0.0.92"
 
 SUPPORTED_AUDIO_FORMATS = ["ogg", "wav"]
-CONVERTABLE_AUDIO_FORMATS = [
+CONVERTIBLE_AUDIO_FORMATS = [
     "mp3",
     "aac",
     "m4a",

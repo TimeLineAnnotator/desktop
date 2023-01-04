@@ -174,12 +174,12 @@ class TiLiA:
             )
 
     def _change_player_according_to_extension(self, extension: str) -> None:
-        if extension in globals_.SUPPORTED_AUDIO_FORMATS:
+        if extension.lower() in globals_.SUPPORTED_AUDIO_FORMATS + globals_.CONVERTIBLE_AUDIO_FORMATS:
             self._change_to_audio_player_if_necessary()
-        elif extension in globals_.SUPPORTED_VIDEO_FORMATS:
+        elif extension.lower() in globals_.SUPPORTED_VIDEO_FORMATS:
             self._change_to_video_player_if_necessary()
         else:
-            raise ValueError(f"Media _file extension '{extension}' is not supported.")
+            raise ValueError(f"Media file extension '{extension}' is not supported.")
 
     def _change_to_audio_player_if_necessary(self) -> None:
         if isinstance(self._player, player.VlcPlayer):
