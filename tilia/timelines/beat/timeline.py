@@ -234,7 +234,10 @@ class BeatTimeline(Timeline):
             elif beat_index == n:
                 return measure_index
         else:
-            raise ValueError(f'No beat with index "{beat_index}" at {self}.')
+            if beat_index > n:
+                return measure_index
+            else:
+                raise ValueError(f'No beat with index "{beat_index}" at {self}.')
 
     def get_beat_index(self, beat: Beat) -> int:
         return self.component_manager.ordered_beats.index(beat)
