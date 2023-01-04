@@ -55,7 +55,7 @@ class MetadataWindow:
         self._app_ui = app_ui
 
         self.toplevel = tk.Toplevel()
-        self.toplevel.title("Manage timelines")
+        self.toplevel.title("Media metadata")
         self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
         self._metadata = media_metadata
         self._non_editable_fields = non_editable_fields
