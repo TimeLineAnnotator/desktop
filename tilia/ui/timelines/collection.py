@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cProfile
 import logging
 import tkinter as tk
 from typing import Any, TYPE_CHECKING

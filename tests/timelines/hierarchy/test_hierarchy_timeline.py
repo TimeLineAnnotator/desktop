@@ -64,6 +64,10 @@ def tl() -> HierarchyTimeline:
     yield timeline
 
 
+class TkFontDummy:
+    def measure(self, _):
+        return 0
+
 class TestHierarchyTimeline:
 
     # TEST CREATE
@@ -137,7 +141,9 @@ class TestHierarchyTimeline:
         assert hrc1.level == 1
 
     # TEST SERIALIZE
-    def test_serialize_unit(self, tl_with_ui):
+    @patch('tilia.ui.timelines.hierarchy.element.HierarchyUI.display_label')
+    @patch('tkinter.font.Font')
+    def test_serialize_unit(self, font_mock, display_label_mock,  tl_with_ui):
         unit_kwargs = {
             "start": 0,
             "end": 1,
@@ -148,6 +154,9 @@ class TestHierarchyTimeline:
             "formal_type": "my formal type",
             "formal_function": "my formal function",
         }
+
+        font_mock = TkFontDummy()
+        display_label_mock.return_value = ''
 
         hrc1 = tl_with_ui.create_timeline_component(
             ComponentKind.HIERARCHY, **unit_kwargs
@@ -214,8 +223,13 @@ class TestHierarchyTimeline:
         for attr in unit_kwargs:
             assert getattr(hrc1, attr) == getattr(deserialized_hrc1, attr)
 
-    def test_deserialize_unit_with_serializable_by_ui_attributes(self, tl_with_ui):
+    @patch('tilia.ui.timelines.hierarchy.element.HierarchyUI.display_label')
+    @patch('tkinter.font.Font')
+    def test_deserialize_unit_with_serializable_by_ui_attributes(self, font_mock, display_label_mock, tl_with_ui):
         serializable_by_ui_attrs = {"color": "#000000", "label": "my label"}
+
+        font_mock = TkFontDummy()
+        display_label_mock.return_value = ''
 
         hrc1 = tl_with_ui.create_timeline_component(
             ComponentKind.HIERARCHY, 0, 1, 1, **serializable_by_ui_attrs

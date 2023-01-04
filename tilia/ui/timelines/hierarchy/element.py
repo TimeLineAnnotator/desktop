@@ -4,7 +4,16 @@ Defines the ui corresponding to a Hierarchy object.
 
 from __future__ import annotations
 
+import tkinter as tk
+from tkinter import font
+import logging
+
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .timeline import HierarchyTimelineUI
+    from tilia.timelines.hierarchy.components import Hierarchy
+    from tilia.ui.timelines.common import TimelineCanvas
 
 import tilia.utils.color
 from tilia.events import Event, subscribe, unsubscribe
@@ -13,17 +22,6 @@ from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
 from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
 from ...common import format_media_time
-
-if TYPE_CHECKING:
-    from .timeline import HierarchyTimelineUI
-    from tilia.timelines.hierarchy.components import Hierarchy
-    from tilia.ui.timelines.common import TimelineCanvas
-
-import logging
-
-logger = logging.getLogger(__name__)
-import tkinter as tk
-
 from tilia.utils.color import has_custom_color
 from tilia import events, settings
 from tilia.timelines.common import (
@@ -33,14 +31,18 @@ from tilia.timelines.common import (
 
 from tilia.ui.timelines.common import TimelineUIElement
 
+logger = logging.getLogger(__name__)
+
 
 class HierarchyUI(TimelineUIElement):
 
     WIDTH = 0
-    BASE_HEIGHT = settings.settings['hierarchy_timeline']['hierarchy_base_height']
+    BASE_HEIGHT = settings.settings["hierarchy_timeline"]["hierarchy_base_height"]
     YOFFSET = 0
     XOFFSET = 1
-    LVL_HEIGHT_INCR = settings.settings['hierarchy_timeline']['hierarchy_level_height_diff']
+    LVL_HEIGHT_INCR = settings.settings["hierarchy_timeline"][
+        "hierarchy_level_height_diff"
+    ]
 
     COMMENTS_INDICATOR_CHAR = "💬"
     COMMENTS_INDICATOR_YOFFSET = 5
@@ -50,10 +52,12 @@ class HierarchyUI(TimelineUIElement):
 
     MARKER_YOFFSET = 0
     MARKER_WIDTH = 2
-    MARKER_LINE_HEIGHT = settings.settings['hierarchy_timeline']['hierarchy_marker_height']
+    MARKER_LINE_HEIGHT = settings.settings["hierarchy_timeline"][
+        "hierarchy_marker_height"
+    ]
     MARKER_OUTLINE_WIDTH = 0
 
-    DEFAULT_COLORS = settings.settings['hierarchy_timeline']['hierarchy_default_colors']
+    DEFAULT_COLORS = settings.settings["hierarchy_timeline"]["hierarchy_default_colors"]
 
     INSPECTOR_FIELDS = [
         ("Label", "entry"),
@@ -108,11 +112,15 @@ class HierarchyUI(TimelineUIElement):
 
         super().__init__(tl_component=unit, timeline_ui=timeline_ui, canvas=canvas)
 
+        self.previous_width = 0
         self.tl_component = unit
         self.timeline_ui = timeline_ui
         self.canvas = canvas
 
-        self._label = label
+        self._label = ''
+        self.label_measures = []
+        self._setup_label(label)
+
         self._setup_color(color)
 
         self.rect_id = self.draw_unit()
@@ -164,7 +172,25 @@ class HierarchyUI(TimelineUIElement):
     @label.setter
     def label(self, value):
         self._label = value
-        self.canvas.itemconfig(self.label_id, text=self._label)
+        self.update_label_measures()
+        self.canvas.itemconfig(self.label_id, text=self.display_label)
+
+    @property
+    def display_label(self):
+        """
+        Returns largest substring of self.label that fits inside its HierarchyUI
+        """
+
+        if not self._label:
+            return ""
+
+        max_width = self.end_x - self.start_x
+
+        for i, measure in enumerate(self.label_measures):
+            if measure > max_width:
+                return self._label[:i]
+
+        return self._label
 
     @property
     def comments(self):
@@ -245,6 +271,16 @@ class HierarchyUI(TimelineUIElement):
 
         return full_name
 
+    def _setup_label(self, label: str):
+        self._label = label
+        self.update_label_measures()
+
+    def update_label_measures(self):
+        tk_font = tk.font.Font()
+        self.label_measures = [
+            tk_font.measure(self._label[: i + 1]) for i in range(len(self._label))
+        ]
+
     def get_default_level_color(self, level: int) -> str:
         logger.debug(f"Getting default color for level '{level}'")
         level_color = self.DEFAULT_COLORS[level % len(self.DEFAULT_COLORS)]
@@ -299,6 +335,7 @@ class HierarchyUI(TimelineUIElement):
 
         # update label
         self.canvas.coords(self.label_id, *self.get_label_coords())
+        self.canvas.itemconfig(self.label_id, text=self.display_label)
 
         # update markers
         self.canvas.coords(self.start_marker, *self.get_marker_coords(StartOrEnd.START))
@@ -316,7 +353,8 @@ class HierarchyUI(TimelineUIElement):
     def draw_label(self):
         coords = self.get_label_coords()
         logger.debug(f"Drawing hierarchy label with {coords=} and {self.label=}")
-        return self.canvas.create_text(*coords, text=self.label)
+
+        return self.canvas.create_text(*coords, text=self.display_label)
 
     def draw_comments_indicator(self) -> int:
         coords = self.get_comments_indicator_coords()
