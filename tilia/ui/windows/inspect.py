@@ -143,6 +143,7 @@ class Inspect:
                 widget.config(state="disabled")
 
     def update_values(self, field_values: dict[str:str], element_id: str):
+
         self.element_id = element_id
         for field_name, value in field_values.items():
             try:
@@ -155,8 +156,14 @@ class Inspect:
             if type(widget) == tk.Label:
                 widget.config(text=value)
             elif type(widget) == tk.Entry:
+                # pause strvar trace
+                strvar = self.widgets_to_strvars[widget]
+                strvar.trace_vdelete('w', strvar.trace_id)
+                # change entry value
                 widget.delete(0, "end")
                 widget.insert(0, value)
+                # resume strvar trace
+                strvar.trace_id = strvar.trace_add("write", self.on_entry_edited)
             elif type(widget) == ScrolledText:
                 widget.delete(1.0, "end")
                 widget.insert(1.0, value)
@@ -182,18 +189,19 @@ class Inspect:
         self.starting_focus_widget = None
         self.fieldname_to_widgets = {}
         self.strvar_to_fieldname = {}
+        self.widgets_to_strvars = {}
 
         for row, field_tuple in enumerate(field_tuples):
             field_name = field_tuple[0]
             field_kind = field_tuple[1]
-            value_var = None
+            strvar = None
             if field_kind == "entry":
 
                 label_and_entry = LabelAndEntry(frame, field_name)
                 widget1 = label_and_entry.label
                 widget2 = label_and_entry.entry
-                value_var = label_and_entry.entry_var
-                value_var.trace_add("write", self.on_entry_edited)
+                strvar = label_and_entry.entry_var
+                strvar.trace_id = strvar.trace_add("write", self.on_entry_edited)
                 if not self.starting_focus_widget:
                     self.starting_focus_widget = widget2
 
@@ -216,8 +224,9 @@ class Inspect:
             widget2.grid(row=row, column=1, padx=5, pady=2, sticky=tk.EW)
 
             self.fieldname_to_widgets[field_name] = widget2
-            if value_var:
-                self.strvar_to_fieldname[str(value_var)] = field_name
+            if strvar:
+                self.strvar_to_fieldname[str(strvar)] = field_name
+                self.widgets_to_strvars[widget2] = strvar
 
             frame.columnconfigure(1, weight=1)
 

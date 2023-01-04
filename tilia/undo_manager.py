@@ -68,12 +68,13 @@ class UndoManager:
 
         last_state = self.stack[self.current_state_index - 1]["state"]
         last_action = self.stack[self.current_state_index - 1]["action"]
+        current_action = self.stack[self.current_state_index]["action"]
 
-        logger.debug(f"Undoing {last_action}...")
+        logger.debug(f"Undoing {current_action}...")
 
         events.post(Event.REQUEST_RESTORE_APP_STATE, last_state)
 
-        logger.debug(f"Undone {last_action}.")
+        logger.debug(f"Undone {current_action}.")
 
         self.current_state_index -= 1
 
