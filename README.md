@@ -18,12 +18,14 @@ Some examples of what TiLiA visualizations look like:
    - Hierarchy: nested and leveled units organized in arbitrally complex hierarchical structures
    - Marker: simple labeled markers to indicate discrete events
    - Beat: beat and measure markers with support to numbering
+ - Controlling playback by clicking on timeline units
+ - Multiple attributes linked to each timeline units
  - Video file support
  - Customizable metadata can be attached to files
  - Creation of unlimited number of timelines
- - Timeline edition during playback
- - Timeline hiding 
- - Export segments of audio
+ - Easy timeline edition during playback
+ - Timelines can be temporarily hidden 
+ - Audio of hierarchy unit can be exported separatedly 
 
 ## Planned features
 
@@ -42,6 +44,9 @@ There are many more features that I would like to implement than can be listed h
   - Audio wave
 - TiLiA explorer: allows filtered searches through timeline components in multiple TiLiA files
 - Font and GUI colors customization
+- Enable video export
+- Automatic cut detection for video
+- Automatic beat detection for audio
 
 ## Documentation
 
@@ -49,7 +54,7 @@ Documentation is almost non-existent at this point. After more of the core featu
 
 ## How to contribute
 
-Feel free to fork the repository and submit pull requests. However, since the documentation is almost non-existent at this point, it is probably better to reach out for the developers before doing so. 
+Check our CONTRIBUTING.md file at the root directory.
 
 ## Website
 

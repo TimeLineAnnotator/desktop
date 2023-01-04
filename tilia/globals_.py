@@ -8,7 +8,7 @@ from enum import Enum, auto
 APP_NAME = "TiLiA"
 APP_ICON_PATH = Path("ui", "img", "main_icon.png")
 FILE_EXTENSION = "tla"
-VERSION = "0.0.91"
+VERSION = "0.0.92"
 
 SUPPORTED_AUDIO_FORMATS = ["ogg", "wav"]
 CONVERTABLE_AUDIO_FORMATS = [
