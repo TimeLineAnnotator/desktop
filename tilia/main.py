@@ -316,31 +316,20 @@ def _associate_timeline_and_timeline_ui_collections(
     timeline_collection._timeline_ui_collection = timeline_ui_collection
 
 
-# def config_logging():
-#     logging.basicConfig(
-#         filename=Path(globals_.DATA_DIR, 'log.txt'),
-#         filemode='w',
-#         level=logging.DEBUG,
-#         format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
-#     )
-
-
 def get_ui(kind: UserInterfaceKind, app: TiLiA):
     if kind == UserInterfaceKind.TKINTER:
         return TkinterUI(app)
     if kind == UserInterfaceKind.MOCK:
         return MagicMock()
 
-logging.basicConfig(
+def main():
+    logging.basicConfig(
         filename=Path(globals_.DATA_DIR, 'log.txt'),
         filemode='w',
         level=logging.DEBUG,
         format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
     )
 
-
-def main():
-    # config_logging()
     os.chdir(os.path.dirname(__file__))
 
     TiLiA(ui_kind=UserInterfaceKind.TKINTER)
