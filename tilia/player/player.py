@@ -38,6 +38,8 @@ class MediaLoadError(AppException):
 class NoMediaLoadedError(AppException):
     pass
 
+class VLCNotInstalledError(AppException):
+    pass
 
 class Player(ABC):
     """Interface for media playback engines."""
@@ -254,6 +256,8 @@ class VlcPlayer(Player):
         super().__init__(previous_media_length)
 
         self.vlc_instance = vlc.Instance()
+        if not self.vlc_instance:
+            raise VLCNotInstalledError
         self.media_player = self.vlc_instance.media_player_new()
         self._media_length = 0.0
 
@@ -420,6 +424,7 @@ class PygamePlayer(Player):
 
     def _engine_unload_media(self):
         pygame.mixer.music.unload()
+
 
     def _engine_get_media_length(self) -> float:
         return pygame.mixer.Sound(self.media_path).get_length()

@@ -192,9 +192,18 @@ class TiLiA:
     def _change_to_video_player_if_necessary(self) -> None:
         if isinstance(self._player, player.PygamePlayer):
             self._player.destroy()
-            self._player = player.VlcPlayer(
-                previous_media_length=self._player.previous_media_length
-            )
+            try:
+                self._player = player.VlcPlayer(
+                    previous_media_length=self._player.previous_media_length
+                )
+            except player.VLCNotInstalledError:
+                events.post(
+                    Event.REQUEST_DISPLAY_ERROR,
+                title='VLC not installed',
+                message="To load a video file, VLC player must be installed.\n"
+                        "Download and install VLC from https://videolan.org and"
+                        " try reloading the file."
+                )
 
     def get_timelines_as_dict(self) -> dict:
         return self._timeline_collection.serialize_timelines()
