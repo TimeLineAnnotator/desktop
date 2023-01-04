@@ -7,7 +7,7 @@ from tilia.ui.timelines.common import TimelineToolbar
 
 class MarkerTimelineToolbar(TimelineToolbar):
     def __init__(self, parent):
-        super().__init__(parent, text="Hierarchies")
+        super().__init__(parent, text="Markers")
 
         self.button_info = [
             (
