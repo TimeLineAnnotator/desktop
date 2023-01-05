@@ -303,9 +303,6 @@ class Timeline(ABC):
 
         self.component_manager.clear()
 
-        if record:
-            events.post(Event.REQUEST_RECORD_STATE, StateAction.CLEAR_TIMELINE)
-
     def delete(self):
         logger.debug(f"Deleting timeline '{self}'")
         self.component_manager.clear()

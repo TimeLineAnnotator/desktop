@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from tilia.events import subscribe, Event
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
+from tilia.timelines.state_actions import StateAction
 from tilia.timelines.timeline_kinds import TimelineKind
 
 
@@ -96,8 +97,18 @@ class TimelineCollection:
 
     @staticmethod
     def clear_timeline(timeline: Timeline):
-        logger.debug(f"Clearing timeline {timeline}")
+        logger.debug(f"Clearing timeline {timeline}...")
         timeline.clear()
+
+        events.post(Event.REQUEST_RECORD_STATE, 'clear timeline')
+
+
+    def clear_all_timelines(self):
+        logger.debug(f"Clearing all timelines...")
+        for timeline in self._timelines:
+            timeline.clear()
+
+        events.post(Event.REQUEST_RECORD_STATE, 'clear all timelines')
 
     def _add_to_timelines(self, timeline: Timeline) -> None:
         logger.debug(f"Adding component '{timeline}' to {self}.")

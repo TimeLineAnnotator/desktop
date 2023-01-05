@@ -105,8 +105,7 @@ class TkinterUIMenus(tk.Menu):
         timelines_menu.add_command(
             label="Clear all",
             underline=0,
-            command=lambda: events.post(Event.TIMELINES_REQUEST_TO_CLEAR_ALL_TIMELINES),
-            state="disabled",
+            command=lambda: events.post(Event.REQUEST_CLEAR_ALL_TIMELINES),
         )
 
         # VIEW MENU

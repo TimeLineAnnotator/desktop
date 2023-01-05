@@ -109,6 +109,7 @@ class TimelineUICollection:
             self.on_request_to_delete_timeline,
         )
         subscribe(self, Event.REQUEST_CLEAR_TIMELINE, self.on_request_to_clear_timeline)
+        subscribe(self, Event.REQUEST_CLEAR_ALL_TIMELINES, self.on_request_to_clear_all_timelines)
         subscribe(
             self,
             Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE,
@@ -988,19 +989,31 @@ class TimelineUICollection:
         if self._ask_clear_timeline(timeline_ui):
             self._timeline_collection.clear_timeline(timeline_ui.timeline)
 
+    def on_request_to_clear_all_timelines(self) -> None:
+        if self._ask_clear_all_timelines():
+            self._timeline_collection.clear_all_timelines()
+
     @staticmethod
-    def _ask_delete_timeline(timeline_ui: TimelineUI):
+    def _ask_delete_timeline(timeline_ui: TimelineUI) -> None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to delete timeline {str(timeline_ui)}?",
         )
 
     @staticmethod
-    def _ask_clear_timeline(timeline_ui: TimelineUI):
+    def _ask_clear_timeline(timeline_ui: TimelineUI) -> None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to clear timeline {str(timeline_ui)}?",
         )
+
+    @staticmethod
+    def _ask_clear_all_timelines() -> None:
+        return tk.messagebox.askyesno(
+            "Delete timeline",
+            f"Are you sure you want to clear ALL timelines?",
+        )
+
 
     def on_request_to_hide_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)
