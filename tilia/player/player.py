@@ -169,12 +169,15 @@ class Player(ABC):
 
     def on_request_to_seek(self, time: float, if_paused: bool = False) -> None:
 
+        logger.debug(f"Processing request to seek with {time=}, {if_paused=}")
         if if_paused and self.playing:
             logger.debug(f"Media is playing. Will not seek.")
             return
 
         if self.media_loaded:
+            logger.debug(f"Seeking to {time}...")
             self._engine_seek(time)
+            logger.debug(f"New playback time is {self.current_time}.")
         else:
             logger.debug(f"No media loaded. No need to seek.")
         self.current_time = time
@@ -397,9 +400,9 @@ class PygamePlayer(Player):
     def _engine_seek(self, time: float) -> None:
         self.playback_offset = time
         pygame.mixer.music.play(loops=0, start=time)
+        self.current_time = time
         if not self.playing:
             self._engine_pause()
-        self.current_time = time
 
     def _engine_play(self) -> None:
         try:
