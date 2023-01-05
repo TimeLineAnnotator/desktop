@@ -322,6 +322,7 @@ def get_ui(kind: UserInterfaceKind, app: TiLiA):
     if kind == UserInterfaceKind.MOCK:
         return MagicMock()
 
+
 def main():
     logging.basicConfig(
         filename=Path(globals_.DATA_DIR, 'log.txt'),

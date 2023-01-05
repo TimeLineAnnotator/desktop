@@ -46,6 +46,7 @@ DEFAULT_CANVAS_BINDINGS = [
             Event.TIMELINE_LEFT_BUTTON_DRAG,
             e.widget.canvasx(e.x),
             e.widget.canvasy(e.y),
+            logging_level=5,
         ),
     ),
     (

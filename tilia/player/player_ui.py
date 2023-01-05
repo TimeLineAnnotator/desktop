@@ -68,6 +68,9 @@ class PlayerUI(tk.Frame):
 
         logger.debug("Created PlayerUI.")
 
+    def __str__(self):
+        return f'{self.__class__.__name__}({id(self)})'
+
     def change_playpause_icon(self, icon_name: Literal["play", "pause"]):
 
         if icon_name == "play":

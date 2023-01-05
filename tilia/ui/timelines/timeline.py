@@ -379,7 +379,7 @@ class TimelineUI(ABC):
 
 
     def deselect_all_elements(self):
-        for element in self.element_manager.get_all_elements():
+        for element in self.element_manager.get_selected_elements():
             self.deselect_element(element)
 
     def on_right_click_menu_option_click(self, option: RightClickOption):

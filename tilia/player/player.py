@@ -143,11 +143,13 @@ class Player(ABC):
             self.playing = True
             self._start_play_loop()
             events.post(Event.PLAYER_UNPAUSED)
+            logger.debug(f"Media is now playing.")
 
         else:
             self._engine_pause()
             self.playing = False
             events.post(Event.PLAYER_PAUSED)
+            logger.debug(f"Media is now paused.")
 
     def stop(self):
         """Stops music playback and resets slider position"""
@@ -184,7 +186,7 @@ class Player(ABC):
     def _play_loop(self) -> None:
         while self.playing:
             self.current_time = self._engine_get_current_time() - self.playback_start
-            events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time)
+            events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time, logging_level=5)
             if self.current_time >= self.playback_length:
                 self.stop()
             time.sleep(self.update_interval / 1000)
