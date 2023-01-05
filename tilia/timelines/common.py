@@ -347,7 +347,10 @@ class Timeline(ABC):
         return self.collection.get_current_playback_time()
 
     def __str__(self):
-        return self.__class__.__name__ + f"({id(self)})"
+        if self.ui:
+            return str(self.ui)
+        else:
+            return self.__class__.__name__ + f"({id(self)})"
 
 
 def log_object_creation(func: Callable) -> Callable:

@@ -601,7 +601,7 @@ class TimelineUI(ABC):
         return default_str_dunder(self)
 
     def __str__(self):
-        return f"{self.name} | {self.TIMELINE_KIND.value.capitalize()} Timeline"
+        return f"{self.name} | {self.TIMELINE_KIND.value.capitalize().split('_')[0]} Timeline"
 
 
 class RightClickOption(Enum):

@@ -64,6 +64,7 @@ class BeatTimeline(Timeline):
             else measures_to_force_number_display
         )
 
+
     @property
     def display_measure_number_bool_array(self):
         return [
@@ -304,11 +305,11 @@ class BeatTLComponentManager(TimelineComponentManager):
         if time in self.beat_times:
             events.post(
                 Event.REQUEST_DISPLAY_ERROR,
-                "Create beat error",
-                "Can not create beat. "
-                f"There is already a beat at {self.timeline} at the current point.",
+                "Create beat",
+                "Can not create beat.\n"
+                f"There is already a beat on '{self.timeline}' at the selected time.",
             )
-            raise ValueError(f"Can't create beat. There's already a beat at {time}")
+            raise ValueError(f"Can't create beat. There's already a beat one {self} at {time}")
 
     def update_beat_uis(self):
         beats = self.ordered_beats.copy()

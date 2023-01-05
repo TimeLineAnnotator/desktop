@@ -713,6 +713,3 @@ class HierarchyTimelineUI(TimelineUI):
             ]
 
         return ui_data
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.name}|{id(self)})"
