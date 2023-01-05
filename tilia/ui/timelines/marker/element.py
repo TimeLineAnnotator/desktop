@@ -263,6 +263,7 @@ class MarkerUI(TimelineUIElement):
         if self.drag_data["x"] is not None:
             logger.debug(f"Dragged {self}. New x is {self.x}")
             events.post(Event.REQUEST_RECORD_STATE, "marker drag")
+            events.post(Event.ELEMENT_DRAG_END)
 
         self.drag_data = {}
 

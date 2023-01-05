@@ -586,6 +586,7 @@ class HierarchyUI(TimelineUIElement):
                 no_repeat=True,
                 repeat_identifier=f'{self.timeline_ui}_drag_to_{self.drag_data["x"]}',
             )
+            events.post(Event.ELEMENT_DRAG_END)
         self.drag_data = {}
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)

@@ -268,9 +268,6 @@ class BeatUI(TimelineUIElement):
         if self.drag_data["x"] is None:
             events.post(Event.ELEMENT_DRAG_START)
 
-        print(f"{x=}")
-        print(f"{self.drag_data=}")
-
         drag_x = x
         if x > self.drag_data["max_x"]:
             logger.debug(
@@ -291,9 +288,11 @@ class BeatUI(TimelineUIElement):
     def end_drag(self):
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
+
         if self.drag_data["x"] is not None:
             logger.debug(f"Dragged {self}. New x is {self.x}")
             events.post(Event.REQUEST_RECORD_STATE, "beat drag")
+            events.post(Event.ELEMENT_DRAG_END)
 
         self.drag_data = {}
 

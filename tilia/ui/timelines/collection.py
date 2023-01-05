@@ -121,8 +121,10 @@ class TimelineUICollection:
             self.on_request_to_hide_timeline,
         )
         subscribe(self, Event.PLAYER_MEDIA_TIME_CHANGE, self.on_media_time_change)
-        subscribe(self, Event.SLIDER_DRAG_START, lambda: self.on_slider_drag(True))
-        subscribe(self, Event.SLIDER_DRAG_END, lambda: self.on_slider_drag(False))
+        subscribe(self, Event.SLIDER_DRAG_START, lambda: self.on_element_drag(True))
+        subscribe(self, Event.ELEMENT_DRAG_START, lambda: self.on_element_drag(True))
+        subscribe(self, Event.SLIDER_DRAG_END, lambda: self.on_element_drag(False))
+        subscribe(self, Event.ELEMENT_DRAG_END, lambda: self.on_element_drag(False))
         subscribe(
             self,
             Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY,
@@ -150,7 +152,7 @@ class TimelineUICollection:
         self.scrollbar = scrollbar
         self.scrollbar.config(command=self.on_scrollbar_move)
 
-        self.slider_is_being_dragged = False
+        self.element_is_being_dragged = False
         self.selection_boxes = []
         self.selection_boxes_above = False
         self.selection_boxes_below = True
@@ -504,7 +506,7 @@ class TimelineUICollection:
                 modifier=modifier,
                 double=double,
             )
-            if not self.slider_is_being_dragged:
+            if not self.element_is_being_dragged:
                 logger.debug(f"{x=}")
                 logger.debug(f"{y=}")
                 self.selection_boxes = [SelectionBox(canvas, [x, y], 0)]
@@ -522,7 +524,7 @@ class TimelineUICollection:
         :param y: y coord on timeline that started drag
         """
 
-        if self.slider_is_being_dragged:
+        if self.element_is_being_dragged:
             return
 
         def create_selection_box_below():
@@ -880,14 +882,14 @@ class TimelineUICollection:
     def on_media_time_change(self, time: float) -> None:
         for tl_ui in self._timeline_uis:
             if (
-                not self.slider_is_being_dragged
+                not self.element_is_being_dragged
                 and settings.settings["general"]["auto-scroll"]
             ):
                 self.auto_scroll(tl_ui, time)
             self.change_playback_line_position(tl_ui, time)
 
-    def on_slider_drag(self, is_dragging: bool) -> None:
-        self.slider_is_being_dragged = is_dragging
+    def on_element_drag(self, is_dragging: bool) -> None:
+        self.element_is_being_dragged = is_dragging
 
     def auto_scroll(self, timeline_ui: TimelineUI, time: float):
         visible_width = timeline_ui.canvas.winfo_width()
