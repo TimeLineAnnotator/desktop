@@ -5,7 +5,6 @@ The TkinterUI is responsible for high-level control of the GUI.
 
 from __future__ import annotations
 
-import os
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable
 import sys
@@ -14,17 +13,17 @@ import tkinter.font
 import tkinter.filedialog
 import tkinter.messagebox
 import tkinter.simpledialog
-import traceback
 import time
 
 
 from tilia import globals_, events, settings
 from tilia.player import player_ui
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
-from tilia.timelines.timeline_kinds import TimelineKind, USER_CREATABLE_TIMELINE_KINDS
+from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
 from . import file, event_handler
 from .common import ask_yes_no, ask_for_directory, format_media_time
+from .menus import TkinterUIMenus
 from .timelines.collection import TimelineUICollection
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MetadataWindow
@@ -159,7 +158,7 @@ class TkinterUI:
             self.root.bind_class("Canvas", sequence, callback)
 
     def _setup_menus(self):
-        self.menus = TkinterUIMenus(self, self.root)
+        self.root.config(menu=TkinterUIMenus())
 
     def launch(self):
         logger.debug("Entering Tkinter UI mainloop.")
@@ -404,154 +403,6 @@ class CheckboxItem(tk.Frame):
 
         self.checkbox.pack(side=tk.LEFT)
         self.label.pack(side=tk.LEFT)
-
-
-class TkinterUIMenus(tk.Menu):
-    def __init__(self, tkinterui: TkinterUI, parent):
-        self._tkinterui = tkinterui
-        super().__init__(parent)
-
-        parent.config(menu=self)
-
-        # FILE MENU
-        self.file_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="File", menu=self.file_menu, underline=0)
-
-        self.file_menu.add_command(
-            label="New...",
-            command=lambda: events.post(Event.REQUEST_NEW_FILE),
-        )
-        self.file_menu.add_command(
-            label="Open...",
-            command=lambda: events.post(Event.FILE_REQUEST_TO_OPEN),
-            underline=0,
-        )
-        self.file_menu.add_command(
-            label="Save",
-            command=lambda: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=False),
-            accelerator="Ctrl+S",
-            underline=0,
-        )
-        self.file_menu.add_command(
-            label="Save as...",
-            command=lambda: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=True),
-            accelerator="Ctrl+Shift+S",
-            underline=5,
-        )
-        self.file_menu.add_command(
-            label="Load media file...",
-            underline=0,
-            command=lambda: events.post(Event.MENU_OPTION_FILE_LOAD_MEDIA),
-        )
-        self.file_menu.add_separator()
-
-        self.file_menu.add_command(
-            label="Media metadata...",
-            command=lambda: events.post(Event.UI_REQUEST_WINDOW_METADATA),
-            underline=0,
-        )
-
-        # EDIT MENU
-        self.edit_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="Edit", menu=self.edit_menu, underline=0)
-
-        self.edit_menu.add_command(
-            label="Undo",
-            command=lambda: events.post(Event.REQUEST_TO_UNDO),
-            underline=0,
-            accelerator="Ctrl + Z",
-        )
-        self.edit_menu.add_command(
-            label="Redo",
-            command=lambda: events.post(Event.REQUEST_TO_REDO),
-            underline=0,
-            accelerator="Ctrl + Y",
-        )
-
-        # self.edit_menu.add_command(label='Clear timeline', command=event_handlers.on_cleartimeline, underline=0)
-
-        # TIMELINES MENU
-        self.timelines_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="Timelines", menu=self.timelines_menu, underline=0)
-
-        self.timelines_menu.add_timelines = tk.Menu(self.timelines_menu, tearoff=0)
-
-        def get_add_timeline_options():
-            options = []
-            for kind in USER_CREATABLE_TIMELINE_KINDS:
-                label = kind.value[:-len('_TIMELINE')].capitalize()
-                command = lambda kind_=kind: events.post(Event.APP_ADD_TIMELINE, kind_)
-                options.append((label, command))
-
-            return options
-
-        for label, command in get_add_timeline_options():
-            self.timelines_menu.add_timelines.add_command(
-                label=label,
-                command=command,
-                underline=0
-            )
-
-        self.timelines_menu.add_cascade(
-            label="Add...",
-            menu=self.timelines_menu.add_timelines,
-            underline=0,
-        )
-
-        self.timelines_menu.add_command(
-            label="Manage...",
-            underline=0,
-            command=lambda: events.post(Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES),
-        )
-
-        self.timelines_menu.add_command(
-            label="Clear all",
-            underline=0,
-            command=lambda: events.post(Event.TIMELINES_REQUEST_TO_CLEAR_ALL_TIMELINES),
-            state="disabled",
-        )
-
-        # VIEW MENU
-        self.view_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="View", menu=self.view_menu, underline=0)
-        self.view_window_menu = tk.Menu(self.view_menu, tearoff=0)
-        self.view_menu.add_cascade(
-            label="Window", menu=self.view_window_menu, underline=0
-        )
-        self.view_window_menu.add_command(
-            label="Inspect",
-            command=lambda: events.post(Event.UI_REQUEST_WINDOW_INSPECTOR),
-            underline=0,
-        )
-        self.view_menu.add_separator()
-        self.view_menu.add_command(
-            label="Zoom in",
-            accelerator="Ctrl + +",
-            command=lambda: events.post(Event.REQUEST_ZOOM_IN),
-        )
-        self.view_menu.add_command(
-            label="Zoom out",
-            accelerator="Ctrl + -",
-            command=lambda: events.post(Event.REQUEST_ZOOM_OUT),
-        )
-
-        # # DEVELOPMENT WINDOW OPTION
-        # if settings.settings['dev']['dev_mode']:
-        #     self.view_window_menu.add_command(
-        #         label="Development",
-        #         command=lambda: events.post(Event.UI_REQUEST_WINDOW_DEVELOPMENT),
-        #         underline=0,
-        #     )
-
-        # HELP MENU
-        self.help_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="Help", menu=self.help_menu, underline=0)
-        self.help_menu.add_command(label="Help...", state="disabled", underline=0)
-        self.help_menu.add_command(
-            label="About...",
-            underline=0,
-            command=lambda: events.post(Event.UI_REQUEST_WINDOW_ABOUT),
-        )
 
 
 def get_curr_screen_geometry(root):
