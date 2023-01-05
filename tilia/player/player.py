@@ -397,9 +397,9 @@ class PygamePlayer(Player):
     def _engine_seek(self, time: float) -> None:
         self.playback_offset = time
         pygame.mixer.music.play(loops=0, start=time)
+        self.current_time = time
         if not self.playing:
             self._engine_pause()
-        self.current_time = time
 
     def _engine_play(self) -> None:
         try:
