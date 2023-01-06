@@ -6,4 +6,6 @@
 /.pytest_cache/
 /build/installer_script.iss
 /build/*.exe
-
+/build/build/
+/build/dist/
+/build/ffmpeg/ffmpeg.exe
