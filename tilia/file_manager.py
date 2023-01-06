@@ -134,14 +134,10 @@ class FileManager:
         return f"{date}_{title}"
 
     def new(self):
-        logger.debug(f"Processing new _file request.")
-        try:
-            self.ask_save_if_necessary()
-        except UserCancelledOpenError:
-            return
+        logger.debug(f"Processing new file request.")
 
+        self.ask_save_if_necessary()
         self._app.clear_app()
-
         self._file = TiliaFile()
 
         logger.info(f"New file created.")
@@ -161,7 +157,7 @@ class FileManager:
         self.open_file_by_path(file_path)
 
     def open_file_by_path(self, file_path: str):
-        logger.debug(f"Opening _file path {file_path}.")
+        logger.debug(f"Opening file path {file_path}.")
 
         with open(file_path, "r", encoding="utf-8") as file:
             file_dict = json.load(file)
@@ -170,19 +166,22 @@ class FileManager:
         self._app.load_file(self._file)
 
     def ask_save_if_necessary(self) -> None:
+        logger.debug(f"Checking if save is necessary...")
         if not self.was_file_modified():
+            logger.debug(f"File was not modified. Save is not necessary.")
             return
 
+        logger.debug(f"Save is necessary. Asking if user wants to save file...")
         response = self._app.ui.ask_save_changes()
 
         if response:
-            logger.debug("User chose to save _file before opening.")
+            logger.debug("User chose to save file.")
             self.save(save_as=False)
         elif response is False:
-            logger.debug("User chose not to save _file before opening.")
+            logger.debug("User chose not to save file.")
             pass
         elif response is None:
-            logger.debug("User cancelled _file open.")
+            logger.debug("User cancelled dialog.")
             raise UserCancelledOpenError()
 
     def get_save_parameters(self) -> dict:
