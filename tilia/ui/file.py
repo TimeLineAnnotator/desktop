@@ -14,15 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 def choose_media_file():
-    all_filetypes = get_filetypes_str(
-        globals_.SUPPORTED_AUDIO_FORMATS
-        + globals_.SUPPORTED_VIDEO_FORMATS
+
+    audio_filetypes = get_filetypes_str(
+        globals_.SUPPORTED_AUDIO_FORMATS + globals_.CONVERTIBLE_AUDIO_FORMATS
     )
 
-    audio_filetypes = get_filetypes_str(globals_.SUPPORTED_AUDIO_FORMATS +
-                                        globals_.CONVERTIBLE_AUDIO_FORMATS)
-
     video_filetypes = get_filetypes_str(globals_.SUPPORTED_VIDEO_FORMATS)
+
+    all_filetypes = get_filetypes_str(
+        globals_.SUPPORTED_AUDIO_FORMATS
+        + globals_.CONVERTIBLE_AUDIO_FORMATS
+        + globals_.SUPPORTED_VIDEO_FORMATS
+    )
 
     file_path = tk.filedialog.askopenfilename(
         title="Load media...",
@@ -30,6 +33,7 @@ def choose_media_file():
             ("All supported media files", all_filetypes),
             ("Audio files", audio_filetypes),
             ("Video files", video_filetypes),
+            ("All files", "*.*"),
         ],
     )
 
