@@ -26,7 +26,7 @@ from .common import ask_yes_no, ask_for_directory, format_media_time
 from .menus import TkinterUIMenus
 from .timelines.collection import TimelineUICollection
 from .windows.manage_timelines import ManageTimelines
-from .windows.metadata import MetadataWindow
+from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
@@ -78,7 +78,7 @@ class TkinterUI:
         subscribe(
             self,
             Event.UI_REQUEST_WINDOW_METADATA,
-            lambda: self.on_request_window(WindowKind.METADATA),
+            lambda: self.on_request_window(WindowKind.MEDIA_METADATA),
         )
         subscribe(
             self,
@@ -99,7 +99,7 @@ class TkinterUI:
         subscribe(
             self,
             Event.METADATA_WINDOW_CLOSED,
-            lambda: self.on_window_closed(WindowKind.METADATA),
+            lambda: self.on_window_closed(WindowKind.MEDIA_METADATA),
         )
         subscribe(
             self,
@@ -131,7 +131,7 @@ class TkinterUI:
 
         self._windows = {
             WindowKind.INSPECT: None,
-            WindowKind.METADATA: None,
+            WindowKind.MEDIA_METADATA: None,
             WindowKind.MANAGE_TIMELINES: None,
             WindowKind.ABOUT: None,
         }
@@ -217,15 +217,15 @@ class TkinterUI:
             else:
                 self._windows[WindowKind.MANAGE_TIMELINES].focus()
 
-        elif kind == WindowKind.METADATA:
-            if not self._windows[WindowKind.METADATA]:
-                self._windows[WindowKind.METADATA] = MetadataWindow(
+        elif kind == WindowKind.MEDIA_METADATA:
+            if not self._windows[WindowKind.MEDIA_METADATA]:
+                self._windows[WindowKind.MEDIA_METADATA] = MediaMetadataWindow(
                     self,
                     self._app.media_metadata,
                     self.get_metadata_non_editable_fields(),
                     {'media length': format_media_time})
             else:
-                self._windows[WindowKind.METADATA].focus()
+                self._windows[WindowKind.MEDIA_METADATA].focus()
         elif kind == WindowKind.ABOUT:
             if not self._windows[WindowKind.ABOUT]:
                 self._windows[WindowKind.ABOUT] = About(self.root)
@@ -239,7 +239,7 @@ class TkinterUI:
         windows_to_close = [
             WindowKind.INSPECT,
             WindowKind.MANAGE_TIMELINES,
-            WindowKind.METADATA,
+            WindowKind.MEDIA_METADATA,
         ]
 
         for window_kind in windows_to_close:

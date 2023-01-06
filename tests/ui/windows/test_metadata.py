@@ -6,7 +6,7 @@ from collections import OrderedDict
 import tkinter as tk
 
 from tilia.ui.windows.metadata import (
-    MetadataWindow,
+    MediaMetadataWindow,
     EditMetadataFieldsWindow,
     PERMANENT_FIELDS,
 )
@@ -25,7 +25,7 @@ class TestMetadataWindow:
                 'field3': 'c'
             }
         )
-        _metadata_window = MetadataWindow(
+        _metadata_window = MediaMetadataWindow(
             app_ui=None,
             media_metadata=mediametadata_mock,
             non_editable_fields=OrderedDict())
@@ -52,7 +52,7 @@ class TestMetadataWindow:
                 'noedit2': 'b',
             }
         )
-        metadata_window = MetadataWindow(
+        metadata_window = MediaMetadataWindow(
             app_ui=None,
             media_metadata=mediametadata_mock,
             non_editable_fields=non_editable_fields_mock)
