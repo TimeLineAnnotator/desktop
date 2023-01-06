@@ -172,11 +172,18 @@ class MediaMetadataWindow:
         self.refresh_fields()
         self.mf_window = None
 
+    def on_metadata_edited(self, field_name: str, value: str | float) -> None:
+        if field_name == 'notes':
+            logger.debug(f"Updating metadata value on {self}")
+            self._metadata['notes'] = value
+
     def on_notes_button(self):
         logger.debug(f"User requested to open notes window.")
         if self.notes_window:
             logger.debug(f"Window is already open.")
             return
+
+        events.subscribe(self, Event.METADATA_FIELD_EDITED, self.on_metadata_edited)
 
         self.notes_window = NotesWindow(self.toplevel, self._metadata["notes"])
         self.notes_window.wait_window()
@@ -290,7 +297,10 @@ class NotesWindow(tk.Toplevel):
             events.post(
                 Event.METADATA_FIELD_EDITED,
                 "notes",
-                self.scrolled_text.get(1.0, "end-1c"),
+                self.get_notes(),
             )
 
             self.scrolled_text.edit_modified(False)
+
+    def get_notes(self):
+        return self.scrolled_text.get(1.0, "end-1c")
