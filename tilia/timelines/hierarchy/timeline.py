@@ -343,7 +343,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         _validate_split(unit_to_split, split_time)
 
-        self.delete_component(unit_to_split, record=False)
+        self.delete_component(unit_to_split)
 
         left_unit = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
@@ -465,7 +465,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         _validate_at_same_level(units_to_merge)
 
         for unit in units_to_merge:
-            self.delete_component(unit, record=False)
+            self.delete_component(unit)
 
         merger_unit = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
@@ -497,7 +497,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         # TODO set comments as units_to_merge[0].comments
         # TODO handle selection after merge
 
-    def delete_component(self, component: Hierarchy, record=True) -> None:
+    def delete_component(self, component: Hierarchy) -> None:
 
         self.timeline.request_delete_ui_for_component(component)
 
@@ -508,16 +508,18 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         self._remove_from_components_set(component)
 
     def scale(self, factor: float) -> None:
+        logger.debug(f"Scaling hierarchies in {self}...")
         for hrc in self._components:
             hrc.start *= factor
             hrc.end *= factor
             hrc.ui.update_position()
 
     def crop(self, length: float) -> None:
+        logger.debug(f"Cropping hierarchies in {self}...")
         for hrc in self._components.copy():
             if hrc.end > length:
                 if hrc.start >= length:
-                    self.delete_component(hrc, record=False)
+                    self.delete_component(hrc)
                 else:
                     hrc.end = length
             hrc.ui.update_position()

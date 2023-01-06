@@ -193,48 +193,48 @@ class TimelineCollection:
             / previous_media_length,
         )
 
+        logger.debug(f"Asking user if scale timelines is wanted...")
         SCALE_HIERARCHIES_PROMPT = (
-            "Would you like to scale the hierarchies to new media's length?"
+            "Would you like to scale existing timelines to new media length?"
         )
         CROP_HIERARCHIES_PROMPT = (
             "New media is smaller, "
-            "so hierarchies may get deleted or cropped. "
-            "Are you sure you don't want to scale them instead?"
+            "so components may get deleted or cropped. "
+            "Are you sure you don't want to scale existing timelines?"
         )
 
-        if self._app.ui.ask_yes_no("Scale hierarchies", SCALE_HIERARCHIES_PROMPT):
-            self.scale_components_by_timeline_kind(
-                TimelineKind.HIERARCHY_TIMELINE,
+        if self._app.ui.ask_yes_no("Scale timelines", SCALE_HIERARCHIES_PROMPT):
+            logger.debug(f"User chose to scale timelines.")
+            self.scale_timeline_components(
                 new_media_length / previous_media_length,
             )
 
         elif new_media_length < previous_media_length:
+            logger.debug(f"User chose not to scale timelines. Asking is timelin crop is wanted...")
             if self._app.ui.ask_yes_no(
-                "Confirm crop hierarchies", CROP_HIERARCHIES_PROMPT
+                "Crop timelines", CROP_HIERARCHIES_PROMPT
             ):
-                self.crop_components_by_timeline_kind(
-                    TimelineKind.HIERARCHY_TIMELINE, new_media_length
+                logger.debug(f"User chose to crop timelines.")
+                self.crop_timeline_components(
+                    new_media_length
                 )
             else:
-                self.scale_components_by_timeline_kind(
-                    TimelineKind.HIERARCHY_TIMELINE,
+                logger.debug(f"User chose not to crop timelines.")
+                self.scale_timeline_components(
                     new_media_length / previous_media_length,
                 )
 
-        self.update_ui_elements_position_by_timeline_kind(
-            TimelineKind.HIERARCHY_TIMELINE
-        )
 
-    def scale_components_by_timeline_kind(
-        self, kind: TimelineKind, factor: float
+    def scale_timeline_components(
+        self, factor: float
     ) -> None:
-        for tl in [tl for tl in self._timelines if tl.KIND == kind]:
+        for tl in [tl for tl in self._timelines if hasattr(tl, 'scale')]:
             tl.scale(factor)
 
-    def crop_components_by_timeline_kind(
-        self, kind: TimelineKind, new_length: float
+    def crop_timeline_components(
+        self, new_length: float
     ) -> None:
-        for tl in [tl for tl in self._timelines if tl.KIND == kind]:
+        for tl in [tl for tl in self._timelines if hasattr(tl, 'scale')]:
             tl.crop(new_length)
 
     def update_ui_elements_position_by_timeline_kind(self, kind: TimelineKind) -> None:

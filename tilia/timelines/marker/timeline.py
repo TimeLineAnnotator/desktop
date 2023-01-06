@@ -44,6 +44,12 @@ class MarkerTimeline(Timeline):
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
 
+    def scale(self, factor: float) -> None:
+        self.component_manager.scale(factor)
+
+    def crop(self, length: float) -> None:
+        self.component_manager.crop(length)
+
 
 class MarkerTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.MARKER]
@@ -51,3 +57,15 @@ class MarkerTLComponentManager(TimelineComponentManager):
     @log_object_creation
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
+
+    def scale(self, factor: float) -> None:
+        logger.debug(f"Scaling markers in {self}...")
+        for marker in self._components:
+            marker.time *= factor
+            marker.ui.update_position()
+
+    def crop(self, length: float) -> None:
+        logger.debug(f"Cropping markers in {self}...")
+        for marker in self._components.copy():
+            if marker.time > length:
+                self.delete_component(marker)

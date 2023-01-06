@@ -285,6 +285,12 @@ class BeatTimeline(Timeline):
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
 
+    def scale(self, factor: float) -> None:
+        self.component_manager.scale(factor)
+
+    def crop(self, length: float) -> None:
+        self.component_manager.crop(length)
+
 
 class BeatTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.BEAT]
@@ -350,6 +356,18 @@ class BeatTLComponentManager(TimelineComponentManager):
         for index, beat in enumerate(beats_in_measure):
             beat.time = measure_start_time + index * interval
             beat.ui.update_position()
+
+    def scale(self, factor: float) -> None:
+        logger.debug(f"Scaling beats in {self}...")
+        for beat in self._components:
+            beat.time *= factor
+            beat.ui.update_position()
+
+    def crop(self, length: float) -> None:
+        logger.debug(f"Cropping beats in {self}...")
+        for beat in self._components.copy():
+            if beat.time > length:
+                self.delete_component(beat)
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):
         super().deserialize_components(serialized_components)
