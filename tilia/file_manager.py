@@ -9,7 +9,7 @@ from tilia import globals_
 from tilia import settings
 
 if TYPE_CHECKING:
-    from tilia.main import TiLiA
+    from tilia._tilia import TiLiA
 
 import dataclasses
 import json

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Protocol
 
 
 if TYPE_CHECKING:
-    from tilia.main import TiLiA
+    from tilia._tilia import TiLiA
 
 from tilia.timelines.state_actions import StateAction
 
