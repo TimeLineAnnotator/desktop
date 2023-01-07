@@ -18,6 +18,8 @@ import tkinter.messagebox
 from tilia.events import Event, subscribe
 from tilia.timelines.common import log_object_creation
 
+SomeTimelineComponent = TypeVar("SomeTimelineComponent", bound="TimelineComponent")
+SomeTimelineUI = TypeVar("SomeTimelineUI", bound="TimelineUI")
 
 class TimelineCanvas(tk.Canvas):
     """Interface for the canvas that composes a timeline.
@@ -101,9 +103,6 @@ class TimelineCanvas(tk.Canvas):
 class TimelineUIElement(ABC):
     """Interface for the tkinter ui objects corresponding to to a TimelineComponent instance.
     E.g.: the HierarchyUI in the ui element corresponding to the Hierarchy timeline component."""
-
-    SomeTimelineComponent = TypeVar("SomeTimelineComponent", bound="TimelineComponent")
-    SomeTimelineUI = TypeVar("SomeTimelineUI", bound="TimelineUI")
 
     def __init__(
         self,

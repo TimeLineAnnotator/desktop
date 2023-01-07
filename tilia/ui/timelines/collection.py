@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import cProfile
 import logging
 import tkinter as tk
+from tkinter import messagebox
 from typing import Any, TYPE_CHECKING
 
 from tilia.ui.canvas_tags import CLICK_THROUGH
@@ -17,7 +17,7 @@ from tilia.timelines.common import Timeline
 from tilia.timelines.state_actions import StateAction
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.modifier_enum import ModifierEnum
-from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar
+from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar, SomeTimelineUI
 from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
 from tilia.ui.timelines.copy_paste import CopyError, PasteError
 from tilia.ui.timelines.selection_box import SelectionBox
@@ -45,104 +45,43 @@ class TimelineUICollection:
         scrollbar: tk.Scrollbar,
         toolbar_frame: tk.Frame,
     ):
-
-        subscribe(self, Event.CANVAS_LEFT_CLICK, self._on_timeline_ui_left_click)
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self._on_timeline_ui_left_drag)
-        subscribe(self, Event.CANVAS_RIGHT_CLICK, self._on_timeline_ui_right_click)
-        subscribe(self, Event.KEY_PRESS_DELETE, self._on_delete_press)
-        subscribe(self, Event.KEY_PRESS_ENTER, self._on_enter_press)
-        subscribe(
-            self, Event.KEY_PRESS_LEFT, lambda: self._on_side_arrow_press(Side.LEFT)
-        )
-        subscribe(
-            self, Event.KEY_PRESS_RIGHT, lambda: self._on_side_arrow_press(Side.RIGHT)
-        )
-        subscribe(
-            self, Event.KEY_PRESS_UP, lambda: self._on_up_down_arrow_press(UpOrDown.UP)
-        )
-        subscribe(
-            self,
-            Event.KEY_PRESS_DOWN,
-            lambda: self._on_up_down_arrow_press(UpOrDown.DOWN),
-        )
-        subscribe(self, Event.KEY_PRESS_CONTROL_C, self._on_request_to_copy)
-        subscribe(self, Event.KEY_PRESS_CONTROL_V, self._on_request_to_paste)
-        subscribe(
-            self,
-            Event.KEY_PRESS_CONTROL_SHIFT_V,
-            self._on_request_to_paste_with_children,
-        )
-        subscribe(self, Event.DEBUG_SELECTED_ELEMENTS, self._on_debug_selected_elements)
-        subscribe(
-            self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT,
-            self._on_hierarchy_timeline_split_button,
-        )
-        subscribe(
-            self,
-            Event.MARKER_TOOLBAR_BUTTON_ADD,
-            self.on_marker_timeline_add_marker_button,
-        )
-        subscribe(
-            self, Event.BEAT_TOOLBAR_BUTTON_ADD, self.on_beat_timeline_add_beat_button
-        )
-        subscribe(self, Event.REQUEST_ZOOM_IN, lambda: self.zoomer(InOrOut.IN))
-        subscribe(self, Event.REQUEST_ZOOM_OUT, lambda: self.zoomer(InOrOut.OUT))
-        subscribe(
-            self,
-            Event.REQUEST_CHANGE_TIMELINE_WIDTH,
-            self.on_request_change_timeline_width,
-        )
-        subscribe(
-            self,
-            Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER,
-            lambda tlui_id: self._move_in_display_order(tlui_id, UpOrDown.DOWN),
-        )
-        subscribe(
-            self,
-            Event.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER,
-            lambda tlui_id: self._move_in_display_order(tlui_id, UpOrDown.UP),
-        )
-        subscribe(
-            self,
-            Event.REQUEST_DELETE_TIMELINE,
-            self.on_request_to_delete_timeline,
-        )
-        subscribe(self, Event.REQUEST_CLEAR_TIMELINE, self.on_request_to_clear_timeline)
-        subscribe(self, Event.REQUEST_CLEAR_ALL_TIMELINES, self.on_request_to_clear_all_timelines)
-        subscribe(
-            self,
-            Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE,
-            self.on_request_to_show_timeline,
-        )
-        subscribe(
-            self,
-            Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE,
-            self.on_request_to_hide_timeline,
-        )
-        subscribe(self, Event.PLAYER_MEDIA_TIME_CHANGE, self.on_media_time_change)
-        subscribe(self, Event.SLIDER_DRAG_START, lambda: self.on_element_drag(True))
-        subscribe(self, Event.ELEMENT_DRAG_START, lambda: self.on_element_drag(True))
-        subscribe(self, Event.SLIDER_DRAG_END, lambda: self.on_element_drag(False))
-        subscribe(self, Event.ELEMENT_DRAG_END, lambda: self.on_element_drag(False))
-        subscribe(
-            self,
-            Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY,
-            self.on_create_initial_hierarchy,
-        )
-        subscribe(
-            self, Event.REQUEST_FOCUS_TIMELINES, self.on_request_to_focus_timelines
-        )
-        subscribe(
-            self,
-            Event.SELECTION_BOX_REQUEST_SELECT,
-            self.on_selection_box_request_select,
-        )
-        subscribe(
-            self,
-            Event.SELECTION_BOX_REQUEST_DESELECT,
-            self.on_selection_box_request_deselect,
-        )
+        self.SUBSCRIPTIONS = [
+            (Event.BEAT_TOOLBAR_BUTTON_ADD, self.on_beat_timeline_add_beat_button),
+            (Event.CANVAS_LEFT_CLICK, self._on_timeline_ui_left_click),
+            (Event.CANVAS_RIGHT_CLICK, self._on_timeline_ui_right_click),
+            (Event.DEBUG_SELECTED_ELEMENTS, self._on_debug_selected_elements),
+            (Event.ELEMENT_DRAG_END, lambda: self.on_element_drag(False)),
+            (Event.ELEMENT_DRAG_START, lambda: self.on_element_drag(True)),
+            (Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.on_create_initial_hierarchy),
+            (Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT, self._on_hierarchy_timeline_split_button),
+            (Event.KEY_PRESS_CONTROL_C, self._on_request_to_copy),
+            (Event.KEY_PRESS_CONTROL_SHIFT_V, self._on_request_to_paste_with_children),
+            (Event.KEY_PRESS_CONTROL_V, self._on_request_to_paste),
+            (Event.KEY_PRESS_DELETE, self._on_delete_press),
+            (Event.KEY_PRESS_DOWN, lambda: self._on_up_down_arrow_press(UpOrDown.DOWN)),
+            (Event.KEY_PRESS_ENTER, self._on_enter_press),
+            (Event.KEY_PRESS_LEFT, lambda: self._on_side_arrow_press(Side.LEFT)),
+            (Event.KEY_PRESS_RIGHT, lambda: self._on_side_arrow_press(Side.RIGHT)),
+            (Event.KEY_PRESS_UP, lambda: self._on_up_down_arrow_press(UpOrDown.UP)),
+            (Event.MARKER_TOOLBAR_BUTTON_ADD, self.on_marker_timeline_add_marker_button),
+            (Event.PLAYER_MEDIA_TIME_CHANGE, self.on_media_time_change),
+            (Event.REQUEST_CHANGE_TIMELINE_WIDTH, self.on_request_change_timeline_width),
+            (Event.REQUEST_CLEAR_ALL_TIMELINES, self.on_request_to_clear_all_timelines),
+            (Event.REQUEST_CLEAR_TIMELINE, self.on_request_to_clear_timeline),
+            (Event.REQUEST_DELETE_TIMELINE, self.on_request_to_delete_timeline),
+            (Event.REQUEST_FOCUS_TIMELINES, self.on_request_to_focus_timelines),
+            (Event.REQUEST_ZOOM_IN, lambda: self.zoomer(InOrOut.IN)),
+            (Event.REQUEST_ZOOM_OUT, lambda: self.zoomer(InOrOut.OUT)),
+            (Event.SELECTION_BOX_REQUEST_DESELECT, self.on_selection_box_request_deselect),
+            (Event.SELECTION_BOX_REQUEST_SELECT, self.on_selection_box_request_select),
+            (Event.SLIDER_DRAG_END, lambda: self.on_element_drag(False)),
+            (Event.SLIDER_DRAG_START, lambda: self.on_element_drag(True)),
+            (Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER, lambda tlui_id: self._move_in_display_order(tlui_id, UpOrDown.DOWN)),
+            (Event.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER, lambda tlui_id: self._move_in_display_order(tlui_id, UpOrDown.UP)),
+            (Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, self.on_request_to_hide_timeline),
+            (Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, self.on_request_to_show_timeline),
+            (Event.TIMELINE_LEFT_BUTTON_DRAG, self._on_timeline_ui_left_drag),
+        ]
 
         self._app_ui = app_ui
         self.frame = frame
@@ -167,11 +106,23 @@ class TimelineUICollection:
 
         self._timeline_collection = None  # will be set by the TiLiA object
 
+        self._setup_subscriptions()
+
     def __str__(self) -> str:
         return self.__class__.__name__ + "-" + str(id(self))
 
+    def __getitem__(self, key):
+        return self._display_order[key]
+
+    def __iter__(self):
+        return iter(self._display_order)
+
+    def _setup_subscriptions(self):
+        for event, callback in self.SUBSCRIPTIONS:
+            subscribe(self, event, callback)
+
     def on_scrollbar_move(self, *args):
-        for timeline in self._timeline_uis:
+        for timeline in self:
             timeline.canvas.xview(*args)
 
     @property
@@ -191,11 +142,9 @@ class TimelineUICollection:
         logger.debug(f"Changing to timeline width to {value}.")
 
         scroll_time = self.get_time_by_x(self._display_order[0].canvas.canvasx(0))
-        print(self._display_order[0].canvas.canvasx(0))
-        print(scroll_time)
         self._app_ui.timeline_width = value
 
-        for tl_ui in self._timeline_uis:
+        for tl_ui in self:
 
             tl_ui.canvas.config(
                 scrollregion=(0, 0, self.get_timeline_total_size(), tl_ui.height)
@@ -434,7 +383,7 @@ class TimelineUICollection:
 
     def _get_timeline_ui_by_canvas(self, canvas):
         return next(
-            (tlui for tlui in self._timeline_uis if tlui.canvas == canvas), None
+            (tlui for tlui in self if tlui.canvas == canvas), None
         )
 
     def _get_toolbar_by_type(self, canvas):
@@ -517,10 +466,10 @@ class TimelineUICollection:
                 f"Can't process left click: no timeline with canvas '{canvas}' on {self}"
             )
 
-    def _on_timeline_ui_left_drag(self, x, y: int) -> None:
+    def _on_timeline_ui_left_drag(self, _, y: int) -> None:
         """
         Creates selection boxes on aproppriate timelines as mouse is dragged.
-        :param x: x coord on timeline that started drag
+        :param _: x coord on timeline that started drag
         :param y: y coord on timeline that started drag
         """
 
@@ -657,34 +606,34 @@ class TimelineUICollection:
 
     def _on_delete_press(self):
 
-        if not any([tlui.has_selected_elements for tlui in self._timeline_uis]):
+        if not any([tlui.has_selected_elements for tlui in self]):
             return
 
-        for timeline_ui in self._timeline_uis:
+        for timeline_ui in self:
             timeline_ui.on_delete_press()
 
         events.post(Event.REQUEST_RECORD_STATE, "delete timeline component(s)")
 
     def _on_enter_press(self):
-        if any([tlui.has_selected_elements for tlui in self._timeline_uis]):
+        if any([tlui.has_selected_elements for tlui in self]):
             events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
 
     def _on_side_arrow_press(self, side: Side):
 
-        for timeline_ui in self._timeline_uis:
+        for timeline_ui in self:
             if hasattr(timeline_ui, "on_side_arrow_press"):
                 timeline_ui.on_side_arrow_press(side)
 
     def _on_up_down_arrow_press(self, direction: UpOrDown):
 
-        for timeline_ui in self._timeline_uis:
+        for timeline_ui in self:
             if hasattr(timeline_ui, "on_up_down_arrow_press"):
                 timeline_ui.on_up_down_arrow_press(direction)
 
     def _on_request_to_copy(self):
 
         ui_with_selected_elements = [
-            tlui for tlui in self._timeline_uis if tlui.has_selected_elements
+            tlui for tlui in self if tlui.has_selected_elements
         ]
 
         if len(ui_with_selected_elements) == 0:
@@ -713,7 +662,7 @@ class TimelineUICollection:
             },
         )
 
-    def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
 
         if not clipboard_elements:
@@ -731,7 +680,7 @@ class TimelineUICollection:
 
         same_kind_timeline_uis = [
             tlui
-            for tlui in self._timeline_uis
+            for tlui in self
             if tlui.TIMELINE_KIND == clipboard_data["timeline_kind"]
         ]
 
@@ -779,7 +728,7 @@ class TimelineUICollection:
             )
             return
 
-        for timeline_ui in self._timeline_uis:
+        for timeline_ui in self:
             if (
                 timeline_ui.has_selected_elements
                 and timeline_ui.TIMELINE_KIND == TimelineKind.HIERARCHY_TIMELINE
@@ -789,7 +738,7 @@ class TimelineUICollection:
                 )
 
     def _on_debug_selected_elements(self):
-        for timeline_ui in self._timeline_uis:
+        for timeline_ui in self:
             timeline_ui.debug_selected_elements()
 
     def get_id(self) -> str:
@@ -842,7 +791,7 @@ class TimelineUICollection:
         if first_beat_timeline_ui:
             first_beat_timeline_ui.create_beat(time=self.get_current_playback_time())
 
-    def _get_first_from_select_order_by_kinds(self, classes: list[TimelineKind]):
+    def _get_first_from_select_order_by_kinds(self, classes: list[TimelineKind]) -> SomeTimelineUI:
         for tl_ui in self._select_order:
             if tl_ui.TIMELINE_KIND in classes:
                 return tl_ui
@@ -854,7 +803,7 @@ class TimelineUICollection:
             self.timeline_width *= 1 - self.ZOOM_SCALE_FACTOR
 
     def create_playback_lines(self):
-        for tl_ui in self._timeline_uis:
+        for tl_ui in self:
             if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
                 continue
 
@@ -867,7 +816,7 @@ class TimelineUICollection:
         self._timeline_uis_to_playback_line_ids[timeline_ui] = line_id
 
     def after_restore_state(self):
-        for tl_ui in self._timeline_uis:
+        for tl_ui in self:
             if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
                 continue
 
@@ -880,7 +829,7 @@ class TimelineUICollection:
         )
 
     def on_media_time_change(self, time: float) -> None:
-        for tl_ui in self._timeline_uis:
+        for tl_ui in self:
             if (
                 not self.element_is_being_dragged
                 and settings.settings["general"]["auto-scroll"]
@@ -900,7 +849,7 @@ class TimelineUICollection:
 
     def on_center_view_on_time(self, time: float):
         center_x = self.get_x_by_time(time)
-        for tl_ui in self._timeline_uis:
+        for tl_ui in self:
             self.center_view_at_x(tl_ui, center_x)
 
     def center_view_at_x(self, timeline_ui: TimelineUI, x: float) -> None:
@@ -929,7 +878,7 @@ class TimelineUICollection:
         self.timeline_width = width
 
     def deselect_all_elements_in_timeline_uis(self):
-        for timeline_ui in self._timeline_uis:
+        for timeline_ui in self:
             timeline_ui.deselect_all_elements()
 
         self.selection_box_elements_to_selected_triggers = {}
@@ -942,7 +891,7 @@ class TimelineUICollection:
 
     def scroll_to_x(self, x: float):
         x = max(x, 0)
-        for tl_ui in self._timeline_uis:
+        for tl_ui in self:
             tl_ui.canvas.xview_moveto(x / self.get_timeline_total_size())
 
     def get_timeline_total_size(self):
@@ -954,7 +903,7 @@ class TimelineUICollection:
         )
         existing_timeline_uis_of_same_kind = [
             tlui
-            for tlui in self._timeline_uis
+            for tlui in self
             if type(tlui) == type(deleted_timeline_ui)
         ]
         if not existing_timeline_uis_of_same_kind:
@@ -971,7 +920,7 @@ class TimelineUICollection:
         return getattr(timeline, attribute)
 
     def _get_timeline_ui_by_id(self, id_: int) -> TimelineUI:
-        return next((e for e in self._timeline_uis if e.timeline.id == id_), None)
+        return next((e for e in self if e.timeline.id == id_), None)
 
     def get_timeline_uis(self):
         return self._timeline_uis

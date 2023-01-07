@@ -8,13 +8,11 @@ from typing import TYPE_CHECKING, Any
 from tilia.events import subscribe, Event
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
-from tilia.timelines.state_actions import StateAction
 from tilia.timelines.timeline_kinds import TimelineKind
 
 
 if TYPE_CHECKING:
     from tilia._tilia import TiLiA
-    from tilia.ui.timelines.collection import TimelineUICollection
 
 import logging
 
@@ -41,6 +39,12 @@ class TimelineCollection:
         self._timeline_ui_collection = None  # will be set by TiLiA
 
         subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_loaded)
+
+    def __getitem__(self, key):
+        return self._timelines[key]
+
+    def __iter__(self):
+        return iter(self._timelines)
 
     def create_timeline(self, timeline_kind: TimelineKind, **kwargs) -> Timeline:
         match timeline_kind:
@@ -105,7 +109,7 @@ class TimelineCollection:
 
     def clear_all_timelines(self):
         logger.debug(f"Clearing all timelines...")
-        for timeline in self._timelines:
+        for timeline in self:
             timeline.clear()
 
         events.post(Event.REQUEST_RECORD_STATE, 'clear all timelines')
@@ -125,7 +129,7 @@ class TimelineCollection:
 
     def serialize_timelines(self):
         logger.debug(f"Serializing all timelines...")
-        return {tl.id: tl.get_state() for tl in self._timelines}
+        return {tl.id: tl.get_state() for tl in self}
 
     def restore_state(self, timeline_states: dict[dict]) -> None:
         def _delete_timeline_ui_with_workaround(timeline):
@@ -134,7 +138,7 @@ class TimelineCollection:
             self.delete_timeline(id_to_timelines[id])
             timeline.ui.delete = timeline_delete_func
 
-        id_to_timelines = {tl.id: tl for tl in self._timelines}
+        id_to_timelines = {tl.id: tl for tl in self}
         shared_tl_ids = list(set(timeline_states) & set(id_to_timelines))
 
         # restore state of timelines that already exist
@@ -156,14 +160,14 @@ class TimelineCollection:
         self._timeline_ui_collection.after_restore_state()
 
     def get_timeline_by_id(self, id_: int) -> Timeline:
-        return next((e for e in self._timelines if e.id == id_), None)
+        return next((e for e in self if e.id == id_), None)
 
     def get_timeline_attribute_by_id(self, id_: int, attribute: str) -> Any:
         timeline = self.get_timeline_by_id(id_)
         return getattr(timeline, attribute)
 
     def get_timeline_ids(self):
-        return [tl.id for tl in self._timelines]
+        return [tl.id for tl in self]
 
     def get_id(self) -> str:
         return self._app.get_id()
@@ -175,10 +179,10 @@ class TimelineCollection:
         return self._app.current_playback_time
 
     def has_slider_timeline(self):
-        return any([isinstance(SliderTimeline, tl) for tl in self._timelines])
+        return any([isinstance(SliderTimeline, tl) for tl in self])
 
     def has_timeline_of_kind(self, kind: TimelineKind):
-        return any([tl.KIND == kind for tl in self._timelines])
+        return any([tl.KIND == kind for tl in self])
 
     def on_media_loaded(
         self, _1, new_media_length: float, _2, previous_media_length: float
@@ -228,17 +232,17 @@ class TimelineCollection:
     def scale_timeline_components(
         self, factor: float
     ) -> None:
-        for tl in [tl for tl in self._timelines if hasattr(tl, 'scale')]:
+        for tl in [tl for tl in self if hasattr(tl, 'scale')]:
             tl.scale(factor)
 
     def crop_timeline_components(
         self, new_length: float
     ) -> None:
-        for tl in [tl for tl in self._timelines if hasattr(tl, 'scale')]:
+        for tl in [tl for tl in self if hasattr(tl, 'scale')]:
             tl.crop(new_length)
 
     def update_ui_elements_position_by_timeline_kind(self, kind: TimelineKind) -> None:
-        for tl in [tl for tl in self._timelines if tl.KIND == kind]:
+        for tl in [tl for tl in self if tl.KIND == kind]:
             tl.ui.update_elements_position()
 
     def clear(self):
