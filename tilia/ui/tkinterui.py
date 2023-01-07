@@ -32,7 +32,7 @@ from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
 
 if TYPE_CHECKING:
-    from tilia.main import TiLiA
+    from ..tilia import TiLiA
 
 import logging
 

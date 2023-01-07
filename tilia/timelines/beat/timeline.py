@@ -259,9 +259,12 @@ class BeatTimeline(Timeline):
         self.force_display_measure_number(measure_index)
 
     def reset_measure_number(self, measure_index: int) -> None:
-        self.measure_numbers[measure_index] = (
-            self.measure_numbers[measure_index - 1] + 1
-        )
+        if measure_index == 0:
+            self.measure_numbers[0] = 1
+        else:
+            self.measure_numbers[measure_index] = (
+                self.measure_numbers[measure_index - 1] + 1
+            )
         self.propagate_measure_number_change(measure_index)
 
         try:

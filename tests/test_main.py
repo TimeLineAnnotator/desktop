@@ -8,7 +8,7 @@ from tilia import events
 from tilia.events import Event, unsubscribe_from_all
 from tilia.files import TiliaFile
 from tilia.globals_ import SUPPORTED_VIDEO_FORMATS, SUPPORTED_AUDIO_FORMATS
-from tilia.main import TiLiA
+from tilia._tilia import TiLiA
 from tilia.file_manager import FileManager
 from tilia.player import player
 from tilia.timelines.timeline_kinds import TimelineKind

@@ -13,7 +13,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 
 if TYPE_CHECKING:
-    from tilia.main import TiLiA
+    from tilia._tilia import TiLiA
     from tilia.ui.timelines.collection import TimelineUICollection
 
 import logging

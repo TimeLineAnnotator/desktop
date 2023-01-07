@@ -79,7 +79,14 @@ class BeatTimelineUI(TimelineUI):
         )
 
         subscribe(self, Event.BEAT_TOOLBAR_BUTTON_DELETE, self.on_delete_beat_button)
-        subscribe(self, Event.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
+
+    @property
+    def ordered_elements(self):
+        return sorted(self.elements, key=lambda b: b.time)
+
+    @property
+    def ordered_selected_elements(self):
+        return sorted(self.selected_elements, key=lambda b: b.time)
 
     def create_beat(self, time: float, record=True, **kwargs) -> None:
 
@@ -93,12 +100,13 @@ class BeatTimelineUI(TimelineUI):
         self.delete_selected_elements()
 
     def _deselect_all_but_last(self):
-        ordered_selected_elements = sorted(
-            self.element_manager.get_selected_elements(),
-            key=lambda x: x.tl_component.time,
-        )
-        if len(ordered_selected_elements) > 1:
-            for element in ordered_selected_elements[:-1]:
+        if len(self.ordered_selected_elements) > 1:
+            for element in self.ordered_selected_elements[:-1]:
+                self.element_manager.deselect_element(element)
+
+    def _deselect_all_but_first(self):
+        if len(self.ordered_selected_elements) > 1:
+            for element in self.ordered_selected_elements[1:]:
                 self.element_manager.deselect_element(element)
 
     def get_next_beat(self, elm):
@@ -131,12 +139,14 @@ class BeatTimelineUI(TimelineUI):
             logger.debug(f"User pressed left arrow but no elements were selected.")
             return
 
-        self._deselect_all_but_last()
 
-        selected_element = self.element_manager.get_selected_elements()[0]
         if side == Side.RIGHT:
+            self._deselect_all_but_last()
+            selected_element = self.element_manager.get_selected_elements()[0]
             element_to_select = self.get_next_beat(selected_element)
         elif side == Side.LEFT:
+            self._deselect_all_but_first()
+            selected_element = self.element_manager.get_selected_elements()[0]
             element_to_select = self.get_previous_beat(selected_element)
         else:
             raise ValueError(f"Invalid side '{side}'.")
@@ -224,22 +234,10 @@ class BeatTimelineUI(TimelineUI):
 
         self.timeline.recalculate_measures()
 
-    def on_inspector_window_opened(self):
-        for element in self.element_manager.get_selected_elements():
-            logger.debug(
-                f"Notifying inspector of previsously selected elements on {self}..."
-            )
-            self.post_inspectable_selected_event(element)
-
-    def validate_copy(self, elements: list[Copyable]) -> None:
-        pass
-
     def get_copy_data_from_selected_elements(self):
-        selected_elements = self.element_manager.get_selected_elements()
+        self.validate_copy(self.selected_elements)
 
-        self.validate_copy(selected_elements)
-
-        return self.get_copy_data_from_beat_uis(selected_elements)
+        return self.get_copy_data_from_beat_uis(self.selected_elements)
 
     def get_copy_data_from_beat_uis(self, beat_uis: list[BeatUI]):
 

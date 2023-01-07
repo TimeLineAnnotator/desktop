@@ -29,6 +29,8 @@ def create_timeline(
         if timeline_kind == TimelineKind.HIERARCHY_TIMELINE:
             timeline.component_manager.create_initial_hierarchy()  # TODO temporary workaround. Make this into an user action.
 
+    return timeline
+
 
 def _validate_timeline_kind(timeline_kind: TimelineKind):
     if not isinstance(timeline_kind, TimelineKind):
