@@ -59,7 +59,7 @@ def destroy_children_recursively(widget: tk.Widget | tk.Toplevel) -> None:
         child.destroy()
 
 
-def format_media_time(audio_time: float) -> str:
+def format_media_time(audio_time: float | str) -> str:
     return (
         f"""{str(int(audio_time // 60)).zfill(2)}:{f'{audio_time % 60:.1f}'.zfill(4)}"""
     )

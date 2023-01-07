@@ -44,7 +44,6 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
 
-
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
     # traceback.print_tb(exc_traceback)
     time.sleep(0.1)  # needed so traceback gets fully printed before type and value
@@ -62,71 +61,61 @@ class TkinterUI:
         - Keeps 'global' interface data such as window and timeline dimensions.
     """
 
-    def __init__(self, app: TiLiA):
-
-        subscribe(self, Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media)
-        subscribe(
-            self,
-            Event.UI_REQUEST_WINDOW_INSPECTOR,
-            lambda: self.on_request_window(WindowKind.INSPECT),
-        )
-        subscribe(
-            self,
-            Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
-            lambda: self.on_request_window(WindowKind.MANAGE_TIMELINES),
-        )
-        subscribe(
-            self,
-            Event.UI_REQUEST_WINDOW_METADATA,
-            lambda: self.on_request_window(WindowKind.MEDIA_METADATA),
-        )
-        subscribe(
-            self,
-            Event.UI_REQUEST_WINDOW_ABOUT,
-            lambda: self.on_request_window(WindowKind.ABOUT),
-        )
-        subscribe(self, Event.REQUEST_DISPLAY_ERROR, self.on_display_error)
-        subscribe(
-            self,
-            Event.INSPECT_WINDOW_CLOSED,
-            lambda: self.on_window_closed(WindowKind.INSPECT),
-        )
-        subscribe(
-            self,
-            Event.MANAGE_TIMELINES_WINDOW_CLOSED,
-            lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES),
-        )
-        subscribe(
-            self,
-            Event.METADATA_WINDOW_CLOSED,
-            lambda: self.on_window_closed(WindowKind.MEDIA_METADATA),
-        )
-        subscribe(
-            self,
-            Event.ABOUT_WINDOW_CLOSED,
-            lambda: self.on_window_closed(WindowKind.ABOUT),
-        )
-
-        subscribe(self, Event.TILIA_FILE_LOADED, self.on_tilia_file_loaded)
+    def __init__(self, root: tk.Tk):
 
         logger.debug("Starting TkinterUI...")
 
-        self._app = app
-        self._setup_tk_root()
+        self.app = None
+        self.root = root
+        self._config_root()
+
+        self.SUBSCRIPTIONS = [
+            (Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media),
+            (
+                Event.UI_REQUEST_WINDOW_INSPECTOR,
+                lambda: self.on_request_window(WindowKind.INSPECT),
+            ),
+            (
+                Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
+                lambda: self.on_request_window(WindowKind.MANAGE_TIMELINES),
+            ),
+            (
+                Event.UI_REQUEST_WINDOW_METADATA,
+                lambda: self.on_request_window(WindowKind.MEDIA_METADATA),
+            ),
+            (
+                Event.UI_REQUEST_WINDOW_ABOUT,
+                lambda: self.on_request_window(WindowKind.ABOUT),
+            ),
+            (Event.REQUEST_DISPLAY_ERROR, self.on_display_error),
+            (
+                Event.INSPECT_WINDOW_CLOSED,
+                lambda: self.on_window_closed(WindowKind.INSPECT),
+            ),
+            (
+                Event.MANAGE_TIMELINES_WINDOW_CLOSED,
+                lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES),
+            ),
+            (
+                Event.METADATA_WINDOW_CLOSED,
+                lambda: self.on_window_closed(WindowKind.MEDIA_METADATA),
+            ),
+            (
+                Event.ABOUT_WINDOW_CLOSED,
+                lambda: self.on_window_closed(WindowKind.ABOUT),
+            ),
+            (Event.TILIA_FILE_LOADED, self.on_tilia_file_loaded),
+        ]
 
         self.default_font = tkinter.font.nametofont("TkDefaultFont")
 
         self.timeline_width = globals_.DEFAULT_TIMELINE_WIDTH
         self.timeline_padx = globals_.DEFAULT_TIMELINE_PADX
 
-        self.window_width = globals_.DEFAULT_WINDOW_WIDTH
-        self.window_height = globals_.DEFAULT_WINDOW_HEIGHT
-
+        self._setup_subscriptions()
         self._setup_widgets()
         self._setup_menus()
-
         self._make_default_canvas_bindings()
-
         self._create_timeline_ui_collection()
 
         self._windows = {
@@ -138,8 +127,11 @@ class TkinterUI:
 
         logger.debug("Tkinter UI started.")
 
-    def _setup_tk_root(self):
-        self.root = tk.Tk()
+    def _setup_subscriptions(self):
+        for event, callback in self.SUBSCRIPTIONS:
+            subscribe(self, event, callback)
+
+    def _config_root(self):
         set_startup_geometry(self.root)
         self.root.focus_set()
 
@@ -202,35 +194,37 @@ class TkinterUI:
 
     # noinspection PyTypeChecker,PyUnresolvedReferences
     def on_request_window(self, kind: WindowKind):
+        """Open a window of 'kind', if there is no window of that kind open.
+        Otherwise, focus window of that kind."""
 
-        if kind == WindowKind.INSPECT:
-            if not self._windows[WindowKind.INSPECT]:
-                self._windows[WindowKind.INSPECT] = Inspect(self.root)
-            else:
-                self._windows[WindowKind.INSPECT].focus()
+        kind_to_constructor = {
+            WindowKind.INSPECT: self.open_inspect_window,
+            WindowKind.MANAGE_TIMELINES: self.open_manage_timelines_window,
+            WindowKind.MEDIA_METADATA: self.open_media_metadata_window,
+            WindowKind.ABOUT: self.open_about_window
+        }
 
-        elif kind == WindowKind.MANAGE_TIMELINES:
-            if not self._windows[WindowKind.MANAGE_TIMELINES]:
-                self._windows[WindowKind.MANAGE_TIMELINES] = ManageTimelines(
-                    self, self.get_timeline_info_for_manage_timelines_window()
-                )
-            else:
-                self._windows[WindowKind.MANAGE_TIMELINES].focus()
+        if not self._windows[kind]:
+            self._windows[kind] = kind_to_constructor[kind]()
+        else:
+            self._windows[kind].focus()
 
-        elif kind == WindowKind.MEDIA_METADATA:
-            if not self._windows[WindowKind.MEDIA_METADATA]:
-                self._windows[WindowKind.MEDIA_METADATA] = MediaMetadataWindow(
-                    self,
-                    self._app.media_metadata,
-                    self.get_metadata_non_editable_fields(),
-                    {'media length': format_media_time})
-            else:
-                self._windows[WindowKind.MEDIA_METADATA].focus()
-        elif kind == WindowKind.ABOUT:
-            if not self._windows[WindowKind.ABOUT]:
-                self._windows[WindowKind.ABOUT] = About(self.root)
-            else:
-                self._windows[WindowKind.ABOUT].focus()
+    def open_inspect_window(self):
+        return Inspect(self.root)
+
+    def open_about_window(self):
+        return About(self.root)
+
+    def open_manage_timelines_window(self):
+        return ManageTimelines(self, self.get_timeline_info_for_manage_timelines_window())
+
+    def open_media_metadata_window(self):
+        return MediaMetadataWindow(
+            self,
+            self.app.media_metadata,
+            self.get_metadata_non_editable_fields(),
+            {"media length": format_media_time},
+        )
 
     def on_window_closed(self, kind: WindowKind):
         self._windows[kind] = None
@@ -251,11 +245,10 @@ class TkinterUI:
         tk.messagebox.showerror(title, message)
 
     def get_metadata_non_editable_fields(self) -> dict[str]:
-
         return OrderedDict(
             {
-                "media length": self._app.media_length,
-                "media path": self._app.get_media_path(),
+                "media length": self.app.media_length,
+                "media path": self.app.get_media_path(),
             }
         )
 
@@ -275,13 +268,13 @@ class TkinterUI:
         ]
 
     def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
-        return self._app.get_elements_for_pasting()
+        return self.app.get_elements_for_pasting()
 
     def get_id(self) -> str:
-        return self._app.get_id()
+        return self.app.get_id()
 
     def get_media_length(self):
-        return self._app.media_length
+        return self.app.media_length
 
     @staticmethod
     def on_menu_file_load_media():
@@ -372,9 +365,7 @@ class ScrollableFrame(tk.Frame):
 
         self.vsb.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.canvas.create_window(
-            (0, 0), window=self.frame, anchor="nw"
-        )
+        self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
 
         self.frame.bind("<Configure>", self.on_frame_configure)
         self.canvas.bind(
@@ -398,7 +389,9 @@ class CheckboxItem(tk.Frame):
         emulating a method call (with self as first parameter)."""
         super().__init__(parent, *args, **kwargs)
         self.variable = tk.BooleanVar(value=value)
-        self.checkbox = tk.Checkbutton(self, command=set_func, variable=self.variable, takefocus=False)
+        self.checkbox = tk.Checkbutton(
+            self, command=set_func, variable=self.variable, takefocus=False
+        )
         self.label = tk.Label(self, text=label)
 
         self.checkbox.pack(side=tk.LEFT)

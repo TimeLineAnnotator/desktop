@@ -19,8 +19,8 @@ from collections import OrderedDict
 from pathlib import Path
 import os
 import sys
-from unittest.mock import MagicMock
 import logging
+import tkinter as tk
 
 from typing import TYPE_CHECKING
 
@@ -34,7 +34,6 @@ from tilia.timelines.state_actions import StateAction
 from tilia.undo_manager import UndoManager
 from tilia import globals_, media_exporter, events, local_dev_code, settings
 from tilia.exceptions import UserCancelledSaveError
-from tilia.globals_ import UserInterfaceKind
 from tilia.files import TiliaFile, create_new_media_metadata
 from tilia.player import player
 from tilia.events import Event, subscribe
@@ -46,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 class TiLiA:
-    def __init__(self, ui_kind: UserInterfaceKind):
+    def __init__(self, ui):
         logger.info("TiLia starting...")
 
         subscribe(self, Event.REQUEST_LOAD_MEDIA, self.on_request_to_load_media)
@@ -67,7 +66,8 @@ class TiLiA:
 
         self._id_counter = itertools.count()
 
-        self.ui = get_ui(ui_kind, self)
+        self.ui = ui
+        self.ui.app = self
 
         self._timeline_collection = TimelineCollection(self)
         self._timeline_ui_collection = self.ui.get_timeline_ui_collection()
@@ -316,13 +316,6 @@ def _associate_timeline_and_timeline_ui_collections(
     timeline_collection._timeline_ui_collection = timeline_ui_collection
 
 
-def get_ui(kind: UserInterfaceKind, app: TiLiA):
-    if kind == UserInterfaceKind.TKINTER:
-        return TkinterUI(app)
-    if kind == UserInterfaceKind.MOCK:
-        return MagicMock()
-
-
 def main():
     logging.basicConfig(
         filename=Path(globals_.DATA_DIR, 'log.txt'),
@@ -333,7 +326,9 @@ def main():
 
     os.chdir(os.path.dirname(__file__))
 
-    TiLiA(ui_kind=UserInterfaceKind.TKINTER)
+    root = tk.Tk()
+    ui = TkinterUI(root)
+    TiLiA(ui)
 
 
 if __name__ == "__main__":

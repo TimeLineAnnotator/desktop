@@ -1,14 +1,13 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 import os
 
-import tilia.timelines.create
 from tilia import events
 from tilia.events import Event, unsubscribe_from_all
 from tilia.files import TiliaFile
-from tilia.globals_ import UserInterfaceKind, SUPPORTED_VIDEO_FORMATS, SUPPORTED_AUDIO_FORMATS
+from tilia.globals_ import SUPPORTED_VIDEO_FORMATS, SUPPORTED_AUDIO_FORMATS
 from tilia.main import TiLiA
 from tilia.file_manager import FileManager
 from tilia.player import player
@@ -23,7 +22,7 @@ def tilia_mock():
     os.chdir(Path(Path(__file__).absolute().parents[1], 'tests'))
     with patch('tilia.main.TiLiA._initial_file_setup') as mock:
         mock.return_value = None
-        tilia_mock_ = TiLiA(ui_kind=UserInterfaceKind.MOCK)
+        tilia_mock_ = TiLiA(MagicMock())
     yield tilia_mock_
     unsubscribe_from_all(tilia_mock_._undo_manager)
     unsubscribe_from_all(tilia_mock_._player)

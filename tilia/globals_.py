@@ -32,15 +32,8 @@ except FileNotFoundError:
     SETTINGS_PATH = Path(DATA_DIR, "settings.toml")
     AUTOSAVE_DIR = Path(DATA_DIR, "autosaves")
 
-
-
 DEFAULT_TIMELINE_WIDTH = 400
 DEFAULT_TIMELINE_PADX = 100
 
 DEFAULT_WINDOW_WIDTH = 1200
 DEFAULT_WINDOW_HEIGHT = 700
-
-
-class UserInterfaceKind(Enum):
-    TKINTER = auto()
-    MOCK = auto()
