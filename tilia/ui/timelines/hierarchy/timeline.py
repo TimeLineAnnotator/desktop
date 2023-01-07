@@ -46,7 +46,7 @@ from tilia.ui.element_kinds import UIElementKind
 
 
 class HierarchyTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = settings.settings['hierarchy_timeline']['default_height']
+    DEFAULT_HEIGHT = settings.settings["hierarchy_timeline"]["default_height"]
 
     TOOLBAR_CLASS = HierarchyTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyUI}
@@ -117,7 +117,6 @@ class HierarchyTimelineUI(TimelineUI):
         subscribe(
             self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE, self.on_delete_button
         )
-        subscribe(self, Event.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
 
         self.collection = timeline_ui_collection
 
@@ -412,7 +411,9 @@ class HierarchyTimelineUI(TimelineUI):
                 return None
 
         if not self.has_selected_elements:
-            logger.debug(f"User pressed {side} arrow but no elements are selected in {self}.")
+            logger.debug(
+                f"User pressed {side} arrow but no elements are selected in {self}."
+            )
             return
 
         self._deselect_all_but_last()
@@ -536,14 +537,6 @@ class HierarchyTimelineUI(TimelineUI):
         )
 
         return earlier_boundaries.union(later_boundaries)
-
-    def on_inspector_window_opened(self):
-        for element in self.element_manager.get_selected_elements():
-            logger.debug(
-                f"Notifying inspector of previsously selected elements on {self}..."
-            )
-            # noinspection PyTypeChecker
-            self.post_inspectable_selected_event(element)
 
     def paste_single_into_selected_elements(self, paste_data: list[dict]):
 

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from tilia.ui.timelines.collection import TimelineUICollection
 
 from tilia import events
-from tilia.events import Event, unsubscribe, unsubscribe_from_all
+from tilia.events import Event, unsubscribe, unsubscribe_from_all, subscribe
 from tilia.misc_enums import Side
 from tilia.repr import default_str_dunder
 from tilia.timelines.common import (
@@ -137,7 +137,7 @@ class TimelineUI(ABC):
         *args,
         timeline_ui_collection: TimelineUICollection,
         timeline_ui_element_manager: TimelineUIElementManager,
-        component_kinds_to_classes: dict[UIElementKind: type(TimelineUIElement)],
+        component_kinds_to_classes: dict[UIElementKind : type(TimelineUIElement)],
         component_kinds_to_ui_element_kinds: dict[ComponentKind:UIElementKind],
         canvas: TimelineCanvas,
         toolbar: TimelineToolbar | None,
@@ -167,6 +167,8 @@ class TimelineUI(ABC):
         self.right_clicked_element = None
 
         self._setup_visiblity(is_visible)
+
+        subscribe(self, Event.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
 
     @property
     def timeline(self):
@@ -202,6 +204,14 @@ class TimelineUI(ABC):
         self._height = value
         self.canvas.update_height(value)
         self.update_elements_position()
+
+    @property
+    def elements(self):
+        return list(self.element_manager.get_all_elements())
+
+    @property
+    def selected_elements(self):
+        return self.element_manager.get_selected_elements()
 
     # noinspection PyUnresolvedReferences
     def _setup_visiblity(self, is_visible: bool):
@@ -377,9 +387,8 @@ class TimelineUI(ABC):
 
             events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
-
     def deselect_all_elements(self):
-        for element in self.element_manager.get_selected_elements():
+        for element in self.selected_elements.copy():
             self.deselect_element(element)
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
@@ -459,6 +468,13 @@ class TimelineUI(ABC):
             self.name = name
 
         events.post(Event.REQUEST_RECORD_STATE, "timeline name change")
+
+    def on_inspector_window_opened(self):
+        for element in self.element_manager.get_selected_elements():
+            logger.debug(
+                f"Notifying inspector of previsously selected elements on {self}..."
+            )
+            self.post_inspectable_selected_event(element)
 
     @staticmethod
     def post_inspectable_selected_event(element: Inspectable):
@@ -693,7 +709,7 @@ class TimelineUIElementManager:
 
     @log_object_creation
     def __init__(
-        self, element_kinds_to_classes: dict[UIElementKind: type(TimelineUIElement)]
+        self, element_kinds_to_classes: dict[UIElementKind : type(TimelineUIElement)]
     ):
 
         self._elements = set()

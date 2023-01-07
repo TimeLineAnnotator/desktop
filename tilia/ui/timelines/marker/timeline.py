@@ -41,7 +41,7 @@ from tilia.ui.element_kinds import UIElementKind
 
 
 class MarkerTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = settings.settings['marker_timeline']['default_height']
+    DEFAULT_HEIGHT = settings.settings["marker_timeline"]["default_height"]
 
     TOOLBAR_CLASS = MarkerTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.MARKER_TKUI: MarkerUI}
@@ -79,7 +79,6 @@ class MarkerTimelineUI(TimelineUI):
         subscribe(
             self, Event.MARKER_TOOLBAR_BUTTON_DELETE, self.on_delete_marker_button
         )
-        subscribe(self, Event.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
 
     def get_timeline_height(self):
         return self.height
@@ -186,13 +185,6 @@ class MarkerTimelineUI(TimelineUI):
         self.timeline.on_request_to_delete_components(
             [self.right_clicked_element.tl_component]
         )
-
-    def on_inspector_window_opened(self):
-        for element in self.element_manager.get_selected_elements():
-            logger.debug(
-                f"Notifying inspector of previsously selected elements on {self}..."
-            )
-            self.post_inspectable_selected_event(element)
 
     def validate_copy(self, elements: list[Copyable]) -> None:
         pass
