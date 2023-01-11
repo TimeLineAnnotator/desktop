@@ -50,11 +50,11 @@ There are many more features that I would like to implement than can be listed h
 
 ## Documentation
 
-Documentation is almost non-existent at this point. After more of the core features get implemented somw work will be put into that.
+Documentation is almost non-existent at this point. After more of the core features get implemented some work will be put into that.
 
 ## How to contribute
 
-Check our CONTRIBUTING.md file at the root directory.
+Read the CONTRIBUTING.md file at the root directory.
 
 ## Website
 
