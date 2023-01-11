@@ -1,4 +1,4 @@
-# -*- mode: python ; coding: utf-8 -*-
+ # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
 
 block_cipher = None
@@ -26,7 +26,7 @@ exe = EXE(
     a.scripts,
     [("v", None, "OPTION")],
     exclude_binaries=True,
-    name="TiLiA",
+    name="TLA",
     debug=True,
     bootloader_ignore_signals=False,
     strip=False,
