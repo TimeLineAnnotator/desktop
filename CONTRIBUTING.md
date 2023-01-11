@@ -4,7 +4,7 @@ Thank you for considering contributing to TiLiA. I really believe that, with the
 In this early stage, the contributing process is not really structured, and help is needed is almost every front. Some of the issues where contributions would be most appreciated:
 
 ## Testing:
-Somewhat thorough tests have been written for the logic of the timelines, but the UI has practically nothing written. That is mainly to the difficulty of testing tkinter UI's and the possibility of changing the engine to PyQT in the future. However, there are many UI features that could be tested without relying to heavily on tkinter.
+Somewhat thorough tests have been written for the logic of the timelines, but the UI has practically nothing written. That is mainly to the difficulty of testing tkinter UI's and the possibility of changing the engine to PyQT in the future. However, there are many UI features that could be tested without relying too heavily on tkinter.
 Overall, the test coverage is borderline unnacceptable the way it is now.
   
 ## Tutorials/guides:
