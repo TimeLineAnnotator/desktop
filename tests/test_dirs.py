@@ -4,7 +4,7 @@ from pathlib import Path
 
 from unittest.mock import patch
 
-from tilia import dirs
+from tilia import dirs, settings
 
 
 @patch("tilia.dirs.SITE_DATA_DIR", Path("site_dir"))
@@ -42,11 +42,8 @@ def test_create_settings_file():
 
     assert os.path.exists(test_dir)
 
-    with open(Path(dirs.get_build_path(), "settings.toml")) as f:
-        default_settings = f.read()
-
     with open(Path(test_dir, "settings.toml")) as f:
-        assert f.read() == default_settings
+        assert f.read() == settings.DEFAULT_SETTINGS
 
     shutil.rmtree(test_dir)
 

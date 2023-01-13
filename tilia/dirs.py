@@ -4,7 +4,7 @@ from pathlib import Path
 import tilia
 import appdirs
 
-from tilia import globals_
+from tilia import globals_, settings
 
 settings_path = ""
 autosaves_path = ""
@@ -73,11 +73,9 @@ def create_data_dir() -> Path:
 
 
 def create_settings_file(data_dir: Path):
-    with open(Path(get_build_path(), "settings.toml")) as f:
-        default_settings = f.read()
 
     with open(Path(data_dir, "settings.toml"), "w") as f:
-        f.write(default_settings)
+        f.write(settings.DEFAULT_SETTINGS)
 
 
 def create_autosaves_dir(data_dir: Path):
