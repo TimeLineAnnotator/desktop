@@ -137,18 +137,18 @@ subscribers_to_events = {}
 for event in Event:
     events_to_subscribers[event] = {}
 
-LOG_EVENTS = settings.settings["dev"]["log_events"]
+log_events = settings.get('dev', 'log_events', default_value=False)
 
 
 def post(event: Event, *args, logging_level=10, **kwargs) -> None:
 
-    if LOG_EVENTS:
+    if log_events:
         logger.log(
             logging_level, f"Posting event {event.name} with {args=} and {kwargs=}."
         )
 
     for subscriber, callback in events_to_subscribers[event].copy().items():
-        if LOG_EVENTS:
+        if log_events:
             logger.log(logging_level, f"    Notifying {subscriber}...")
         try:
             callback(*args, **kwargs)
@@ -157,7 +157,7 @@ def post(event: Event, *args, logging_level=10, **kwargs) -> None:
                 f"Exception when notifying about {event} with {args=}, {kwargs=}"
             ) from exc
 
-    if LOG_EVENTS:
+    if log_events:
         logger.log(logging_level, f"Notified subscribers about event '{event}'.")
 
 

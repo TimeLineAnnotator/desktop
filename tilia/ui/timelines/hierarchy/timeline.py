@@ -46,7 +46,7 @@ from tilia.ui.element_kinds import UIElementKind
 
 
 class HierarchyTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = settings.settings["hierarchy_timeline"]["default_height"]
+    DEFAULT_HEIGHT = settings.get("hierarchy_timeline", "default_height")
 
     TOOLBAR_CLASS = HierarchyTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyUI}

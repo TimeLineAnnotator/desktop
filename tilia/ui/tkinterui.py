@@ -220,7 +220,7 @@ class TkinterUI:
 
     def open_media_metadata_window(self):
         return MediaMetadataWindow(
-            self,
+            self.root,
             self.app.media_metadata,
             self.get_metadata_non_editable_fields(),
             {"media length": format_media_time},
@@ -340,8 +340,8 @@ class AppToolbarsFrame(tk.Frame):
 
         self.auto_scroll_checkbox = CheckboxItem(
             label="Auto-scroll",
-            value=settings.settings["general"]["auto-scroll"],
-            set_func=lambda: settings.edit_setting(
+            value=settings.get("general", "auto-scroll"),
+            set_func=lambda: settings.edit(
                 "general", "auto-scroll", self.auto_scroll_checkbox.variable.get()
             ),
             parent=self,

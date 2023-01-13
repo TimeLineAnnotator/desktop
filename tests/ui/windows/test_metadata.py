@@ -17,7 +17,7 @@ class TestMetadataWindow:
     @patch('tkinter.Toplevel')
     @patch('tkinter.StringVar')
     @pytest.fixture
-    def metadata_window(self):
+    def metadata_window(self, tk_session):
         mediametadata_mock = OrderedDict(
             {
                 'field1': 'a',
@@ -26,7 +26,7 @@ class TestMetadataWindow:
             }
         )
         _metadata_window = MediaMetadataWindow(
-            app_ui=None,
+            parent=tk_session,
             media_metadata=mediametadata_mock,
             non_editable_fields=OrderedDict())
         yield _metadata_window
@@ -37,7 +37,7 @@ class TestMetadataWindow:
     @patch('tkinter.StringVar')
     @patch('tkinter.Label')
     @patch('tkinter.Text')
-    def test_constructor(self, *_):
+    def test_constructor(self, tk_session, *_):
         mediametadata_mock = OrderedDict(
             {
                 'field1': 'a',
@@ -53,7 +53,7 @@ class TestMetadataWindow:
             }
         )
         metadata_window = MediaMetadataWindow(
-            app_ui=None,
+            parent=tk_session,
             media_metadata=mediametadata_mock,
             non_editable_fields=non_editable_fields_mock)
 

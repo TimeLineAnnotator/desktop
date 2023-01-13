@@ -133,7 +133,7 @@ class TkinterUIMenus(tk.Menu):
         )
 
         # # DEVELOPMENT WINDOW OPTION
-        # if settings.settings['dev']['dev_mode']:
+        # if settings.get('dev', 'dev_mode'):
         #     view_window_menu.add_command(
         #         label="Development",
         #         command=lambda: events.post(Event.UI_REQUEST_WINDOW_DEVELOPMENT),

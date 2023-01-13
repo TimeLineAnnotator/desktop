@@ -31,12 +31,12 @@ class SliderTimelineUI(TimelineUI):
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {}
     COMPONENT_KIND_TO_UIELEMENT_KIND = {}
 
-    DEFAULT_HEIGHT = settings.settings['slider_timeline']['default_height']
+    DEFAULT_HEIGHT = settings.get('slider_timeline', 'default_height')
 
-    TROUGH_RADIUS = settings.settings['slider_timeline']['trough_radius']
-    TROUGH_DEFAULT_COLOR = settings.settings['slider_timeline']['trough_color']
-    LINE_DEFAULT_COLOR = settings.settings['slider_timeline']['line_color']
-    LINE_WEIGHT = settings.settings['slider_timeline']['line_weight']
+    TROUGH_RADIUS = settings.get('slider_timeline', 'trough_radius')
+    TROUGH_DEFAULT_COLOR = settings.get('slider_timeline', 'trough_color')
+    LINE_DEFAULT_COLOR = settings.get('slider_timeline', 'line_color')
+    LINE_WEIGHT = settings.get('slider_timeline', 'line_weight')
 
     TIMELINE_KIND = TimelineKind.SLIDER_TIMELINE
 

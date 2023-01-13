@@ -14,7 +14,7 @@ def use_test_settings():
     with open(TEST_SETTINGS_PATH, "r") as f:
         settings.settings = tomlkit.load(f)
 
-    with patch("tilia.globals_.SETTINGS_PATH", TEST_SETTINGS_PATH):
+    with patch("dirs.settings_path", TEST_SETTINGS_PATH):
         yield
 
     settings.settings = settings._load_settings()

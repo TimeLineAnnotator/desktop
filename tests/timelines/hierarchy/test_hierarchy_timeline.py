@@ -68,6 +68,7 @@ class TkFontDummy:
     def measure(self, _):
         return 0
 
+
 class TestHierarchyTimeline:
 
     # TEST CREATE

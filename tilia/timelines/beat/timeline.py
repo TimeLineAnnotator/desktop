@@ -36,9 +36,10 @@ class BeatTimeline(Timeline):
     SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
 
     KIND = TimelineKind.BEAT_TIMELINE
-    DISPLAY_MEASURE_NUMBER_PERIOD = settings.settings["beat_timeline"][
+    DISPLAY_MEASURE_NUMBER_PERIOD = settings.get(
+        "beat_timeline",
         "display_measure_periodicity"
-    ]
+    )
 
     def __init__(
         self,

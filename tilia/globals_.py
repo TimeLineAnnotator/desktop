@@ -19,17 +19,6 @@ CONVERTIBLE_AUDIO_FORMATS = [
 ]  # ffmpeg can probably convert more formats
 SUPPORTED_VIDEO_FORMATS = ["mp4", "mkv", "m4a"]
 
-IMG_DIR = Path("ui", "img")
-FFMPEG_PATH = Path("ffmpeg", "ffmpeg.exe")
-
-if os.path.exists(Path(appdirs.user_data_dir(APP_NAME, roaming=True))):
-    DATA_DIR = Path(appdirs.user_data_dir(APP_NAME, roaming=True))                                   
-else:
-    DATA_DIR = Path(appdirs.site_data_dir(APP_NAME))
-
-SETTINGS_PATH = Path(DATA_DIR, "settings.toml")
-AUTOSAVE_DIR = Path(DATA_DIR, "autosaves")
-
 DEFAULT_TIMELINE_WIDTH = 400
 DEFAULT_TIMELINE_PADX = 100
 

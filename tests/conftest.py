@@ -2,22 +2,30 @@ import os
 from pathlib import Path
 
 import pytest
+from tilia import dirs
+
 from tilia import settings
 import tkinter as tk
 import _tkinter
 
-from tilia._tilia import TiLiA
-from tilia.ui.tkinterui import TkinterUI
-from tilia.timelines.collection import TimelineCollection
-from tilia.ui.timelines.collection import TimelineUICollection
-
 
 @pytest.fixture(scope="session", autouse=True)
 def tilia_session():
-    prev_dev_mode_value = settings.settings["dev"]["dev_mode"]
-    settings.edit_setting("dev", "dev_mode", False)
-    yield
-    settings.edit_setting("dev", "dev_mode", prev_dev_mode_value)
+    def settings_get_patch(table, value, default_value=None):
+        match table, value:
+            case 'dev', 'dev_mode':
+                return False
+            case 'auto-save', 'interval':
+                return 0
+            case _:
+                return original_settings_get(table, value, default_value)
+
+    original_settings_get = settings.get
+    settings.get = settings_get_patch
+
+    dirs.setup_dirs()
+    settings.load(dirs.settings_path)
+    return
 
 
 @pytest.fixture(scope="session")
@@ -37,6 +45,8 @@ def pump_events():
 
 @pytest.fixture(scope="session")
 def tkui(tk_session):
+    from tilia.ui.tkinterui import TkinterUI
+
     os.chdir(Path(Path(__file__).absolute().parents[1], "tilia"))
     tkui_ = TkinterUI(pytest.root)
     yield tkui_
@@ -44,6 +54,8 @@ def tkui(tk_session):
 
 @pytest.fixture(scope="session")
 def tilia(tkui):
+    from tilia._tilia import TiLiA
+
     return TiLiA(tkui)
 
 

@@ -17,15 +17,13 @@ MANDATORY_METADATA_FIELDS = [
     "title"
 ]
 
-DEFAULT_METADATA_FIELDS = settings.settings['media_metadata']['default_fields']
-
 DEFAULT_TITLE = "Untitled"
 
 
 def create_new_media_metadata():
-
+    default_metadata_fields = settings.get('media_metadata', 'default_fields')
     media_metadata = OrderedDict()
-    for field in MANDATORY_METADATA_FIELDS + DEFAULT_METADATA_FIELDS:
+    for field in MANDATORY_METADATA_FIELDS + default_metadata_fields:
         media_metadata[field] = ""
 
     media_metadata["title"] = DEFAULT_TITLE

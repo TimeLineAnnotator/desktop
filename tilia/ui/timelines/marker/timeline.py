@@ -41,7 +41,7 @@ from tilia.ui.element_kinds import UIElementKind
 
 
 class MarkerTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = settings.settings["marker_timeline"]["default_height"]
+    DEFAULT_HEIGHT = settings.get("marker_timeline", "default_height")
 
     TOOLBAR_CLASS = MarkerTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.MARKER_TKUI: MarkerUI}

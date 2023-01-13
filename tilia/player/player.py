@@ -20,6 +20,8 @@ import vlc
 from abc import ABC, abstractmethod
 import logging
 
+from tilia import dirs
+
 logger = logging.getLogger(__name__)
 import threading
 
@@ -374,7 +376,7 @@ class PygamePlayer(Player):
         output_path = os.path.splitext(audio_path)[0] + ".ogg"
 
         conversion_command = (
-            f"""{globals_.FFMPEG_PATH} -i "{audio_path}" "{output_path}\""""
+            f"""{dirs.ffmpeg_path} -i "{audio_path}" "{output_path}\""""
         )
 
         logger.info(f"Converting audio file {audio_path}")

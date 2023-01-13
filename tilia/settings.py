@@ -1,23 +1,36 @@
+from pathlib import Path
 import tomlkit
+from tilia import dirs
 
-from tilia.globals_ import SETTINGS_PATH
+with open(Path(dirs.get_build_path(), "settings.toml")) as f:
+    default_settings = tomlkit.load(f)
 
-
-def _load_settings():
-    with open(SETTINGS_PATH, "r") as f:
-        settings = tomlkit.load(f)
-
-    return settings
+_settings = default_settings
+_settings_path = ""
 
 
-settings = _load_settings()
+def load(settings_path: Path):
+
+    with open(settings_path, "r") as f:
+        loaded_settings = tomlkit.load(f)
+
+    global _settings, _settings_path
+    _settings = loaded_settings
+    _settings_path = settings_path
 
 
-def edit_setting(table: str, name: str, value) -> None:
-    settings[table][name] = value
-    _save_settings()
+def get(table: str, name: str, default_value=None):
+    try:
+        return _settings[table][name]
+    except KeyError:
+        return default_value
 
 
-def _save_settings():
-    with open(SETTINGS_PATH, "w") as f:
-        tomlkit.dump(settings, f)
+def edit(table: str, name: str, value) -> None:
+    _settings[table][name] = value
+    _save()
+
+
+def _save():
+    with open(_settings_path, "w") as f:
+        tomlkit.dump(_settings, f)
