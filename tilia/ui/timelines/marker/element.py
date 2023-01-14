@@ -34,10 +34,10 @@ from tilia.ui.timelines.common import TimelineUIElement
 
 class MarkerUI(TimelineUIElement):
 
-    WIDTH = settings.settings['marker_timeline']['marker_width']
-    HEIGHT = settings.settings['marker_timeline']['marker_height']
+    WIDTH = settings.get('marker_timeline', 'marker_width')
+    HEIGHT = settings.get('marker_timeline', 'marker_height')
 
-    DEFAULT_COLOR = settings.settings['marker_timeline']['marker_default_color']
+    DEFAULT_COLOR = settings.get('marker_timeline', 'marker_default_color')
 
     LABEL_PADX = 7
 

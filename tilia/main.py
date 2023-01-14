@@ -13,33 +13,30 @@ Defines a TiLiA object which is composed, among other things, of instances of th
 
 from __future__ import annotations
 
-from pathlib import Path
-import os
 import logging
 import tkinter as tk
-
 from typing import TYPE_CHECKING
-
-from tilia._tilia import TiLiA
 
 if TYPE_CHECKING:
     pass
 
-from tilia import globals_
+from tilia import dirs, settings
+from tilia._tilia import TiLiA
 from tilia.ui.tkinterui import TkinterUI
 
 logger = logging.getLogger(__name__)
 
 
 def main():
-    logging.basicConfig(
-        filename=Path(globals_.DATA_DIR, 'log.txt'),
-        filemode='w',
-        level=logging.DEBUG,
-        format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
-    )
+    dirs.setup_dirs()
+    settings.load(dirs.settings_path)
 
-    os.chdir(os.path.dirname(__file__))
+    logging.basicConfig(
+        filename=dirs.log_path,
+        filemode="w",
+        level=logging.DEBUG,
+        format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s",
+    )
 
     root = tk.Tk()
     ui = TkinterUI(root)

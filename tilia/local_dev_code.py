@@ -36,8 +36,18 @@ TLUIC.scroll_to_x(TLUIC.get_x_by_time(time))
 # noinspection PyProtectedMember
 def func(tilia) -> None:
     """
-    This function will be called right befor the ui mainloop on every startup.
+    This function will be called right before the ui mainloop on every startup.
     Use this function to run code for development purposes.
     Changes to this file should bot be commited.
     """
-    pass
+
+    # setup convenience constants
+    TIMELINE_COLLECTION = TLC = tilia._timeline_collection
+    TIMELINEUI_COLLECTION = TLUIC = tilia._timeline_ui_collection
+
+    # delete existing slider timeline
+    TLC.delete_timeline(TLC._timelines[0])
+
+    # load file
+    FILE_PATH = r"C:\prog\TiLiA-devresources\audio_1ofeach.tla"
+    tilia._file_manager.open_file_by_path(FILE_PATH)

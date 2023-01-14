@@ -832,7 +832,7 @@ class TimelineUICollection:
         for tl_ui in self:
             if (
                 not self.element_is_being_dragged
-                and settings.settings["general"]["auto-scroll"]
+                and settings.get("general", "auto-scroll")
             ):
                 self.auto_scroll(tl_ui, time)
             self.change_playback_line_position(tl_ui, time)

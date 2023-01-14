@@ -1,9 +1,9 @@
 """Enum for action names to be recorded by UndoRedoStack (to be implemented)."""
 
-from enum import StrEnum, auto
+from enum import Enum, auto
 
 
-class StateAction(StrEnum):
+class StateAction(Enum):
     TIMELINE_CLEAR = auto()
     CREATE_BEAT = auto()
     TIMELINE_CREATE = auto()

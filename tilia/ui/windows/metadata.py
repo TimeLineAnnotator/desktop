@@ -43,7 +43,7 @@ class MediaMetadataWindow:
 
     def __init__(
         self,
-        app_ui,
+        parent: tk.Tk,
         media_metadata: OrderedDict,
         non_editable_fields: OrderedDict,
         fields_to_formatters: dict[str, Callable[[str], str]] = None,
@@ -54,9 +54,8 @@ class MediaMetadataWindow:
         logger.debug(f"Opening media metadata window... ")
         logger.debug(f"{media_metadata=}")
 
-        self._app_ui = app_ui
-
-        self.toplevel = tk.Toplevel()
+        self.toplevel = tk.Toplevel(parent)
+        self.toplevel.transient(parent)
         self.toplevel.title("Media metadata")
         self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
         self._metadata = media_metadata

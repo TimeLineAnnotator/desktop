@@ -1,4 +1,4 @@
-# -*- mode: python ; coding: utf-8 -*-
+ # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
 
 block_cipher = None
@@ -7,8 +7,8 @@ a = Analysis(
     ["../tilia/main.py"],
     pathex=[],
     binaries=[],
-    datas=[("../tilia/ui/img", "ui/img/"), ("./ffmpeg", "ffmpeg/")],
-    hiddenimports=[],
+    datas=[("../tilia/ui/img", "tilia/ui/img/"), ("./ffmpeg", "ffmpeg/")],
+    hiddenimports=["tkinter"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -26,7 +26,7 @@ exe = EXE(
     a.scripts,
     [("v", None, "OPTION")],
     exclude_binaries=True,
-    name="TiLiA",
+    name="TLA",
     debug=True,
     bootloader_ignore_signals=False,
     strip=False,

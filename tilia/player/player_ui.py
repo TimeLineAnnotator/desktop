@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 from typing import Literal
 
 from tilia.events import Event, subscribe, unsubscribe_from_all
-from tilia import globals_, events
+from tilia import globals_, events, dirs
 
 
 class PlayerUI(tk.Frame):
@@ -33,13 +33,13 @@ class PlayerUI(tk.Frame):
 
         # get player button images
         self.play_btn_img = tk.PhotoImage(
-            master=self, file=Path(globals_.IMG_DIR, "play15.png")
+            master=self, file=Path(dirs.img_path, "play15.png")
         )
         self.pause_btn_img = tk.PhotoImage(
-            master=self, file=Path(globals_.IMG_DIR, "pause15.png")
+            master=self, file=Path(dirs.img_path, "pause15.png")
         )
         self.stop_btn_img = tk.PhotoImage(
-            master=self, file=Path(globals_.IMG_DIR, "stop15.png")
+            master=self, file=Path(dirs.img_path, "stop15.png")
         )
 
         # Create player control buttons

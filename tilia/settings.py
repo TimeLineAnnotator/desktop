@@ -1,23 +1,97 @@
+from pathlib import Path
 import tomlkit
+from tilia import dirs
 
-from tilia.globals_ import SETTINGS_PATH
+DEFAULT_SETTINGS = """
+[general]
+auto-scroll = false
+
+[auto-save]
+max_saved_files = 100
+interval = 300
+
+[media_metadata]
+default_fields = [
+    "composer",
+    "tonality",
+    "time signature",
+    "performer",
+    "performance year",
+    "arranger",
+    "composition year",
+    "recording year",
+    "form",
+    "instrumentation",
+    "genre",
+    "lyrics",
+    "notes"
+]
+
+[slider_timeline]
+default_height = 25
+trough_radius = 5
+trough_color = "#FF0000"
+line_color = "#000000"
+line_weight = 3
+
+[beat_timeline]
+display_measure_periodicity = 5
+
+[hierarchy_timeline]
+default_height = 120
+hierarchy_default_colors = [
+        "#68de7c",
+        "#f2d675",
+        "#ffabaf",
+        "#dcdcde",
+        "#9ec2e6",
+        "#00ba37",
+        "#dba617",
+        "#f86368",
+        "#a7aaad",
+        "#4f94d4"
+    ]
+hierarchy_base_height = 25
+hierarchy_level_height_diff = 25
+hierarchy_marker_height = 10
+
+[marker_timeline]
+default_height = 30
+marker_width = 8
+marker_height = 10
+marker_default_color = '#999999'
+
+[dev]
+log_events = true
+dev_mode = false
+"""
+
+_settings = tomlkit.loads(DEFAULT_SETTINGS)
+_settings_path = ""
 
 
-def _load_settings():
-    with open(SETTINGS_PATH, "r") as f:
-        settings = tomlkit.load(f)
+def load(settings_path: Path):
 
-    return settings
+    with open(settings_path, "r") as f:
+        loaded_settings = tomlkit.load(f)
 
-
-settings = _load_settings()
-
-
-def edit_setting(table: str, name: str, value) -> None:
-    settings[table][name] = value
-    _save_settings()
+    global _settings, _settings_path
+    _settings = loaded_settings
+    _settings_path = settings_path
 
 
-def _save_settings():
-    with open(SETTINGS_PATH, "w") as f:
-        tomlkit.dump(settings, f)
+def get(table: str, name: str, default_value=None):
+    try:
+        return _settings[table][name]
+    except KeyError:
+        return default_value
+
+
+def edit(table: str, name: str, value) -> None:
+    _settings[table][name] = value
+    _save()
+
+
+def _save():
+    with open(_settings_path, "w") as f:
+        tomlkit.dump(_settings, f)

@@ -69,7 +69,7 @@ class TiLiA:
         else:
             self._initial_file_setup()
 
-        if settings.settings['dev']['dev_mode']:
+        if settings.get('dev', 'dev_mode'):
             local_dev_code.func(self)
 
     def get_id(self) -> str:

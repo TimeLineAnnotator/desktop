@@ -8,7 +8,7 @@ from enum import Enum, auto
 APP_NAME = "TiLiA"
 APP_ICON_PATH = Path("ui", "img", "main_icon.png")
 FILE_EXTENSION = "tla"
-VERSION = "0.0.93"
+VERSION = "0.0.94"
 
 SUPPORTED_AUDIO_FORMATS = ["ogg", "wav"]
 CONVERTIBLE_AUDIO_FORMATS = [
@@ -18,19 +18,6 @@ CONVERTIBLE_AUDIO_FORMATS = [
     "flac",
 ]  # ffmpeg can probably convert more formats
 SUPPORTED_VIDEO_FORMATS = ["mp4", "mkv", "m4a"]
-
-IMG_DIR = Path("ui", "img")
-FFMPEG_PATH = Path("ffmpeg", "ffmpeg.exe")
-
-
-try:
-    DATA_DIR = Path(appdirs.user_data_dir(APP_NAME, roaming=True))
-    SETTINGS_PATH = Path(DATA_DIR, "settings.toml")
-    AUTOSAVE_DIR = Path(DATA_DIR, "autosaves")
-except FileNotFoundError:
-    DATA_DIR = Path(appdirs.site_data_dir(APP_NAME))
-    SETTINGS_PATH = Path(DATA_DIR, "settings.toml")
-    AUTOSAVE_DIR = Path(DATA_DIR, "autosaves")
 
 DEFAULT_TIMELINE_WIDTH = 400
 DEFAULT_TIMELINE_PADX = 100

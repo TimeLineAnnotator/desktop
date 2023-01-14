@@ -1,7 +1,7 @@
-from enum import auto, StrEnum
+from enum import auto, Enum
 
 
-class ComponentKind(StrEnum):
+class ComponentKind(Enum):
     BEAT = auto()
     MARKER = auto()
     HIERARCHY = auto()

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, OrderedDict
 
-from tilia import globals_
+from tilia import globals_, dirs
 from tilia import settings
 
 if TYPE_CHECKING:
@@ -52,7 +52,8 @@ class FileManager:
             args=(self._autosave_exception_list,),
             daemon=True,
         )
-        self._autosave_thread.start()
+        if settings.get('auto-save', 'interval'):
+            self._autosave_thread.start()
 
     def was_file_modified(self):
 
@@ -110,7 +111,7 @@ class FileManager:
     def _auto_save_loop(self, *_) -> None:
         while True:
             try:
-                time.sleep(settings.settings["auto-save"]["interval"])
+                time.sleep(settings.get("auto-save", "interval"))
                 logger.debug(f"Checking if autosave is necessary...")
                 if self.needs_auto_save():
                     make_room_for_new_autosave()
@@ -122,7 +123,7 @@ class FileManager:
                 _raise_save_loop_exception(excp)
 
     def get_autosave_path(self):
-        return Path(globals_.AUTOSAVE_DIR, self.get_autosave_filename())
+        return Path(dirs.autosaves_path, self.get_autosave_filename())
 
     def get_autosave_filename(self):
         if self._file.media_metadata["title"]:
@@ -236,8 +237,8 @@ def compare_tilia_data(data1: dict, data2: dict) -> bool:
 
 def get_autosaves_paths() -> list[str]:
     return [
-       str(Path(globals_.AUTOSAVE_DIR, file))
-        for file in os.listdir(globals_.AUTOSAVE_DIR)
+       str(Path(dirs.autosaves_path, file))
+        for file in os.listdir(dirs.autosaves_path)
     ]
 
 
@@ -253,6 +254,6 @@ def delete_older_autosaves(amount: int):
 def make_room_for_new_autosave() -> None:
     if (
         remaining_autosaves := len(get_autosaves_paths())
-        - settings.settings["auto-save"]["max_saved_files"]
+        - settings.get("auto-save", "max_saved_files")
     ) >= 0:
         delete_older_autosaves(remaining_autosaves + 1)

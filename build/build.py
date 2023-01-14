@@ -1,7 +1,37 @@
+import os
+import subprocess
+
+from tilia import globals_
+
 from pathlib import Path
 
 README_PATH = Path(Path().absolute().resolve().parent, 'README.md')
 LICENSE_PATH = Path(Path().absolute().resolve().parent, 'LICENSE')
+
+
+def confirm_version_number_update():
+    answer = input(
+        f"Did you remember to update the version number (current version number is {globals_.VERSION})? y/n "
+    )
+
+    if answer.lower() == "y":
+        return True
+    else:
+        return False
+
+
+def make_pyinstaller_build():
+    p = subprocess.Popen("pyinstaller tilia.spec -y")
+    p.wait()
+
+
+def make_installer():
+    create_iss_script(globals_.VERSION, globals_.APP_NAME)
+
+    path_to_inno = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+
+    p = subprocess.Popen(f"{path_to_inno} installer_script.iss")
+    p.wait()
 
 
 def create_iss_script(version: str, app_name: str) -> None:
@@ -45,8 +75,6 @@ Name: "desktopicon"; Description: "{{cm:CreateDesktopIcon}}"; GroupDescription: 
 [Files]
 Source: "{{#SourcePath}}\\dist\\{{#MyAppName}}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{{#SourcePath}}\\ffmpeg\*"; DestDir: "{{app}}\\ffmpeg"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{{#SourcePath}}\settings.toml"; DestDir: "{{autoappdata}}\\{{#MyAppName}}\\{{#MyAppName}}"; Flags: ignoreversion
-Source: "{{#SourcePath}}\settings.toml"; DestDir: "{{autoappdata}}\\{{#MyAppName}}\\{{#MyAppName}}"; Flags: ignoreversion
 Source: "{README_PATH}"; DestDir: "{{app}}"; Flags: ignoreversion isreadme
 Source: "{LICENSE_PATH}"; DestDir: "{{app}}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
@@ -71,3 +99,15 @@ Filename: "{{app}}\\{{#MyAppExeName}}"; Description: "{{cm:LaunchProgram,{{#Stri
 
     with open('installer_script.iss', 'w') as f:
         f.write(iss_script)
+
+
+def main() -> None:
+    if not confirm_version_number_update():
+        return
+
+    make_pyinstaller_build()
+    make_installer()
+
+
+if __name__ == "__main__":
+    main()

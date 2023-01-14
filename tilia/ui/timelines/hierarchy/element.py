@@ -37,12 +37,13 @@ logger = logging.getLogger(__name__)
 class HierarchyUI(TimelineUIElement):
 
     WIDTH = 0
-    BASE_HEIGHT = settings.settings["hierarchy_timeline"]["hierarchy_base_height"]
+    BASE_HEIGHT = settings.get("hierarchy_timeline", "hierarchy_base_height")
     YOFFSET = 0
     XOFFSET = 1
-    LVL_HEIGHT_INCR = settings.settings["hierarchy_timeline"][
+    LVL_HEIGHT_INCR = settings.get(
+        "hierarchy_timeline",
         "hierarchy_level_height_diff"
-    ]
+    )
 
     COMMENTS_INDICATOR_CHAR = "💬"
     COMMENTS_INDICATOR_YOFFSET = 5
@@ -52,12 +53,14 @@ class HierarchyUI(TimelineUIElement):
 
     MARKER_YOFFSET = 0
     MARKER_WIDTH = 2
-    MARKER_LINE_HEIGHT = settings.settings["hierarchy_timeline"][
+    MARKER_LINE_HEIGHT = settings.get(
+        "hierarchy_timeline",
         "hierarchy_marker_height"
-    ]
+    )
+
     MARKER_OUTLINE_WIDTH = 0
 
-    DEFAULT_COLORS = settings.settings["hierarchy_timeline"]["hierarchy_default_colors"]
+    DEFAULT_COLORS = settings.get("hierarchy_timeline", "hierarchy_default_colors")
 
     INSPECTOR_FIELDS = [
         ("Label", "entry"),
