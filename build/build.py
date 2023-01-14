@@ -21,7 +21,7 @@ def confirm_version_number_update():
 
 
 def make_pyinstaller_build():
-    p = subprocess.Popen("pyinstaller build_exe.spec -y")
+    p = subprocess.Popen("pyinstaller tilia.spec -y")
     p.wait()
 
 
@@ -75,8 +75,6 @@ Name: "desktopicon"; Description: "{{cm:CreateDesktopIcon}}"; GroupDescription: 
 [Files]
 Source: "{{#SourcePath}}\\dist\\{{#MyAppName}}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{{#SourcePath}}\\ffmpeg\*"; DestDir: "{{app}}\\ffmpeg"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{{#SourcePath}}\settings.toml"; DestDir: "{{autoappdata}}\\{{#MyAppName}}\\{{#MyAppName}}"; Flags: ignoreversion
-Source: "{{#SourcePath}}\settings.toml"; DestDir: "{{autoappdata}}\\{{#MyAppName}}\\{{#MyAppName}}"; Flags: ignoreversion
 Source: "{README_PATH}"; DestDir: "{{app}}"; Flags: ignoreversion isreadme
 Source: "{LICENSE_PATH}"; DestDir: "{{app}}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
@@ -107,7 +105,7 @@ def main() -> None:
     if not confirm_version_number_update():
         return
 
-    # make_pyinstaller_build()
+    make_pyinstaller_build()
     make_installer()
 
 

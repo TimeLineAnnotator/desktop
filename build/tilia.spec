@@ -7,7 +7,7 @@ a = Analysis(
     ["../tilia/main.py"],
     pathex=[],
     binaries=[],
-    datas=[("../tilia/ui/img", "ui/img/"), ("./ffmpeg", "ffmpeg/")],
+    datas=[("../tilia/ui/img", "tilia/ui/img/"), ("./ffmpeg", "ffmpeg/")],
     hiddenimports=["tkinter"],
     hookspath=[],
     hooksconfig={},
