@@ -20,7 +20,7 @@ from tilia.timelines.create import create_timeline
 @pytest.fixture
 def tilia_mock():
     os.chdir(Path(Path(__file__).absolute().parents[1], 'tests'))
-    with patch('tilia.main.TiLiA._initial_file_setup') as mock:
+    with patch('tilia.main.TiLiA._blank_file_setup') as mock:
         mock.return_value = None
         tilia_mock_ = TiLiA(MagicMock())
     yield tilia_mock_

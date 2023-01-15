@@ -248,7 +248,7 @@ class TkinterUI:
         return OrderedDict(
             {
                 "media length": self.app.media_length,
-                "media path": self.app.get_media_path(),
+                "media path": self.app.media_path,
             }
         )
 

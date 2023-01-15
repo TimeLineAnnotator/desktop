@@ -78,7 +78,7 @@ class TkinterUIMenus(tk.Menu):
             options = []
             for kind in USER_CREATABLE_TIMELINE_KINDS:
                 label = kind.value[:-len('_TIMELINE')].capitalize()
-                command = lambda kind_=kind: events.post(Event.APP_ADD_TIMELINE, kind_)
+                command = lambda kind_=kind: events.post(Event.REQUEST_ADD_TIMELINE, kind_)
                 options.append((label, command))
 
             return options

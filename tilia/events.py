@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class Event(Enum):
     ABOUT_WINDOW_CLOSED = auto()
     ADD_RANGE_BUTTON = auto()
-    APP_ADD_TIMELINE = auto()
+    REQUEST_ADD_TIMELINE = auto()
     BEAT_TOOLBAR_BUTTON_ADD = auto()
     BEAT_TOOLBAR_BUTTON_DELETE = auto()
     CANVAS_LEFT_CLICK = auto()

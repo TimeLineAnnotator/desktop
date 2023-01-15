@@ -189,7 +189,7 @@ class FileManager:
         return {
             "media_metadata": dict(self._app.media_metadata),
             "timelines": self._app.get_timelines_as_dict(),
-            "media_path": self._app.get_media_path(),
+            "media_path": self._app.media_path,
             "file_path": self._file.file_path,
         }
 
@@ -208,7 +208,7 @@ class FileManager:
             return self._file.file_path
 
     def get_default_filename(self) -> str:
-        return f"{self._app.get_media_title()} {datetime.now().strftime('%d-%m-%Y %H%M%S')}"
+        return f"{self._app.media_title} {datetime.now().strftime('%d-%m-%Y %H%M%S')}"
 
     def clear(self) -> None:
         logger.debug(f"Clearing _file manager...")

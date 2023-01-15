@@ -17,8 +17,9 @@ class TiliaDummy:
         self.media_length = 99
         self.media_metadata = {'title': 'test'}
 
-    def get_media_path(self):
-        return r'test_path'
+    @property
+    def media_path(self):
+        return 'test_path'
 
 
 
