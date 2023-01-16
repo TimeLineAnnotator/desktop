@@ -123,7 +123,6 @@ class TimelineUIElement(ABC):
     def delete(self):
         ...
 
-
 class TimelineToolbar(tk.LabelFrame):
     """
     Toolbar that enables users to edit TimelineComponents.

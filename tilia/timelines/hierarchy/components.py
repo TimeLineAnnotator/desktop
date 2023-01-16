@@ -35,6 +35,8 @@ class Hierarchy(TimelineComponent):
     SERIALIZABLE_BY_VALUE = [
         "start",
         "end",
+        "playback_start",
+        "playback_end",
         "level",
         "formal_type",
         "formal_function",
@@ -56,6 +58,8 @@ class Hierarchy(TimelineComponent):
         parent=None,
         children=None,
         comments="",
+        playback_start=None,
+        playback_end=None,
         formal_type="",
         formal_function="",
         **_,
@@ -73,18 +77,42 @@ class Hierarchy(TimelineComponent):
 
         self.parent = parent
 
-        if children:
-            self.children = children
-        else:
-            self.children = []
+        self.children = children if children else []
+        self.playback_start = playback_start if playback_start else self.start
+        self.playback_end = playback_end if playback_end else self.end
 
         self.ui = None
 
     @classmethod
     def create(
-        cls, timeline: HierarchyTimeline, start: float, end: float, level: int, **kwargs
+        cls,
+            timeline: HierarchyTimeline,
+            start: float,
+            end: float,
+            level: int,
+            parent=None,
+            children=None,
+            comments="",
+            playback_start=None,
+            playback_end=None,
+            formal_type="",
+            formal_function="",
+            **kwargs,
     ):
-        return Hierarchy(timeline, start, end, level, **kwargs)
+        return Hierarchy(
+            timeline,
+            start,
+            end,
+            level,
+            parent,
+            children,
+            comments,
+            playback_start,
+            playback_end,
+            formal_type,
+            formal_function,
+            **kwargs
+        )
 
     def receive_delete_request_from_ui(self) -> None:
         self.timeline.on_request_to_delete_components([self])
@@ -97,7 +125,10 @@ class Hierarchy(TimelineComponent):
     @start.setter
     def start(self, value):
         logger.debug(f"Setting {self} start to {value}")
+        prev_start = self._start
         self._start = value
+        if self.playback_start > value or self.playback_start == prev_start:
+            self.playback_start = value
 
     @property
     def end(self):
@@ -106,7 +137,11 @@ class Hierarchy(TimelineComponent):
     @end.setter
     def end(self, value):
         logger.debug(f"Setting {self} end to {value}")
+        prev_end = self._end
         self._end = value
+        if self.playback_end < value or self.playback_end == prev_end:
+            self.playback_end = value
+
 
     def __repr__(self):
         repr_ = f"Hierarchy({self.start}, {self.end}, {self.level}"

@@ -130,6 +130,8 @@ class HierarchyUI(TimelineUIElement):
         self.label_id = self.draw_label()
         self.comments_ind_id = self.draw_comments_indicator()
         self.start_marker, self.end_marker = self.draw_markers()
+        self.playstart_ind_id = self.draw_playback_start_indicator()
+        self.playend_ind_id = self.draw_playback_end_indicator()
 
         self.drag_data = {}
 
@@ -150,7 +152,7 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def start_x(self):
-        return self.timeline_ui.get_x_by_time(self.tl_component.start)
+        return self.timeline_ui.get_x_by_time(self.start)
 
     @property
     def end(self):
@@ -158,7 +160,23 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def end_x(self):
-        return self.timeline_ui.get_x_by_time(self.tl_component.end)
+        return self.timeline_ui.get_x_by_time(self.end)
+
+    @property
+    def playback_start(self):
+        return self.tl_component.playback_start
+
+    @property
+    def playback_start_x(self):
+        return self.timeline_ui.get_x_by_time(self.playback_start)
+
+    @property
+    def playback_end(self):
+        return self.tl_component.playback_end
+
+    @property
+    def playback_end_x(self):
+        return self.timeline_ui.get_x_by_time(self.playback_end)
 
     @property
     def seek_time(self):
@@ -368,6 +386,44 @@ class HierarchyUI(TimelineUIElement):
             *self.get_comments_indicator_coords(),
             text=self.COMMENTS_INDICATOR_CHAR if self.comments else "",
         )
+
+    def draw_playback_start_indicator(self) -> tuple[int, int] | None:
+        if self.start_x == self.playback_start_x:
+            return
+
+        vline_coords = self.get_playback_start_indicator_vline_coords()
+        hline_coords = self.get_playback_start_indicator_hline_coords()
+
+        vline_id = self.canvas.create_line(*vline_coords)
+        hline_id = self.canvas.create_line(*hline_coords)
+
+        return vline_id, hline_id
+
+    def get_playback_start_indicator_vline_coords(self):
+        tl_height = self.timeline_ui.get_timeline_height()
+
+        x0 = x1 = self.playback_start_x
+        y0 = (
+                tl_height
+                - self.YOFFSET
+                - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
+        )
+        y1 = tl_height - self.YOFFSET
+
+        return x0, y0, x1, y1
+
+    def get_playback_start_indicator_hline_coords(self):
+        tl_height = self.timeline_ui.get_timeline_height()
+
+        x0 = self.playback_start_x
+        y0 = y1 = (
+                tl_height
+                - self.YOFFSET
+                - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR)) / 2
+        )
+        x1 = self.start_x + self.XOFFSET
+
+        return x0, y0, x1, y1
 
     def get_unit_coords(self):
         tl_height = self.timeline_ui.get_timeline_height()
