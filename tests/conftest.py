@@ -18,7 +18,7 @@ def tilia_session():
             case 'auto-save', 'interval':
                 return 0
             case _:
-                return original_settings_get(table, value, default_value)
+                return original_settings_get(table, value)
 
     original_settings_get = settings.get
     settings.get = settings_get_patch
