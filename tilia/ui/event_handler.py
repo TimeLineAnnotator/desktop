@@ -9,9 +9,12 @@ from tilia.ui.modifier_enum import ModifierEnum
 
 
 def on_mouse_wheel(event: tk.Event):
-    if event.delta > 1:
+    if sys.platform == 'darwin':
+        event.delta *= -1
+
+    if event.delta > 0:
         events.post(Event.REQUEST_ZOOM_IN)
-    elif event.delta < 1:
+    elif event.delta < 0:
         events.post(Event.REQUEST_ZOOM_OUT)
 
 
@@ -62,8 +65,8 @@ DEFAULT_CANVAS_BINDINGS = [
         lambda e: on_right_click(e, modifier=ModifierEnum.NONE, double=False),
     ),
     ("<MouseWheel>", on_mouse_wheel),
-    ("<Button-4>", on_mouse_wheel),
-    ("<Button-5>", on_mouse_wheel),
+    ("<Button-4>", lambda: events.post(Event.REQUEST_ZOOM_IN)),
+    ("<Button-5>", lambda: events.post(Event.REQUEST_ZOOM_OUT)),
     #########################
     ### KEYBOARD BINDINGS ###
     #########################
