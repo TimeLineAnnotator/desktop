@@ -33,12 +33,8 @@ from tilia.exceptions import AppException
 try:
     import vlc
 except OSError:
-    events.post(
-        Event.REQUEST_DISPLAY_ERROR,
-        title="No VLC installed",
-        message="VLC is not installed, but TiLiA needs it for playing video."
-                "\nIf you want to annotate video files, download and install VLC from www.videolan.org",
-    )
+    # VLC is not installed, error will be raised when trying to load a media file
+    pass
 
 
 class MediaLoadError(AppException):
@@ -275,9 +271,11 @@ class VlcPlayer(Player):
     def __init__(self, previous_media_length: float = 1.0):
         super().__init__(previous_media_length)
 
-        self.vlc_instance = vlc.Instance()
-        if not self.vlc_instance:
+        try:
+            self.vlc_instance = vlc.Instance()
+        except NameError:
             raise VLCNotInstalledError
+
         self.media_player = self.vlc_instance.media_player_new()
         self._media_length = 0.0
 
