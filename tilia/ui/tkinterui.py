@@ -67,7 +67,7 @@ class TkinterUI:
 
         self.app = None
         self.root = root
-        self._config_root()
+        self._setup_root()
 
         self.SUBSCRIPTIONS = [
             (Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media),
@@ -131,7 +131,7 @@ class TkinterUI:
         for event, callback in self.SUBSCRIPTIONS:
             subscribe(self, event, callback)
 
-    def _config_root(self):
+    def _setup_root(self):
         set_startup_geometry(self.root)
         self.root.focus_set()
 
@@ -201,7 +201,7 @@ class TkinterUI:
             WindowKind.INSPECT: self.open_inspect_window,
             WindowKind.MANAGE_TIMELINES: self.open_manage_timelines_window,
             WindowKind.MEDIA_METADATA: self.open_media_metadata_window,
-            WindowKind.ABOUT: self.open_about_window
+            WindowKind.ABOUT: self.open_about_window,
         }
 
         if not self._windows[kind]:
@@ -216,7 +216,9 @@ class TkinterUI:
         return About(self.root)
 
     def open_manage_timelines_window(self):
-        return ManageTimelines(self, self.get_timeline_info_for_manage_timelines_window())
+        return ManageTimelines(
+            self, self.get_timeline_info_for_manage_timelines_window()
+        )
 
     def open_media_metadata_window(self):
         return MediaMetadataWindow(
@@ -413,7 +415,7 @@ def get_curr_screen_geometry(root):
     return geometry
 
 
-def get_startup_geometry(root: tk.Tk):
+def get_startup_geometry_old(root: tk.Tk):
     """
     Uses get_curr_screen_geometry to return initial window size in tkinter's geometry format.
     """
@@ -428,6 +430,16 @@ def get_startup_geometry(root: tk.Tk):
 
     screen_width = int(screen_geometry.split("x")[0])
     window_geometry = f"{screen_width - 50}x{STARTUP_HEIGHT}+18+10"
+
+    return window_geometry
+
+
+def get_startup_geometry(root: tk.Tk):
+    """
+    Uses get_curr_screen_geometry to return initial window size in tkinter's geometry format.
+    """
+
+    window_geometry = f'{settings.get("general", "window_width")}x{settings.get("general", "window_height")}+18+10'
 
     return window_geometry
 

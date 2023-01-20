@@ -5,6 +5,8 @@ from tilia import dirs
 DEFAULT_SETTINGS = """
 [general]
 auto-scroll = false
+window_width = 800 
+window_height = 400 
 
 [auto-save]
 max_saved_files = 100
