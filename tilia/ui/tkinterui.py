@@ -67,7 +67,7 @@ class TkinterUI:
 
         self.app = None
         self.root = root
-        self._config_root()
+        self._setup_root()
 
         self.SUBSCRIPTIONS = [
             (Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media),
@@ -131,8 +131,17 @@ class TkinterUI:
         for event, callback in self.SUBSCRIPTIONS:
             subscribe(self, event, callback)
 
-    def _config_root(self):
-        set_startup_geometry(self.root)
+    def _setup_root(self):
+
+        def get_root_geometry():
+            w = settings.get("general", "window_width")
+            h = settings.get("general", "window_height")
+            x = settings.get("general", "window_x")
+            y = settings.get("general", "window_y")
+
+            return f'{w}x{h}+{x}+{y}'
+
+        self.root.geometry(get_root_geometry())
         self.root.focus_set()
 
         self.root.report_callback_exception = handle_exception
@@ -141,9 +150,15 @@ class TkinterUI:
         self.icon = tk.PhotoImage(master=self.root, file=globals_.APP_ICON_PATH)
         self.root.iconphoto(True, self.icon)
 
-        self.root.protocol(
-            "WM_DELETE_WINDOW", lambda: events.post(Event.REQUEST_CLOSE_APP)
-        )
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _on_close(self):
+        settings.edit("general", "window_width", self.root.winfo_width())
+        settings.edit("general", "window_height", self.root.winfo_height())
+        settings.edit("general", "window_x", self.root.winfo_x())
+        settings.edit("general", "window_y", self.root.winfo_y())
+
+        events.post(Event.REQUEST_CLOSE_APP)
 
     def _make_default_canvas_bindings(self) -> None:
         for sequence, callback in event_handler.DEFAULT_CANVAS_BINDINGS:
@@ -201,7 +216,7 @@ class TkinterUI:
             WindowKind.INSPECT: self.open_inspect_window,
             WindowKind.MANAGE_TIMELINES: self.open_manage_timelines_window,
             WindowKind.MEDIA_METADATA: self.open_media_metadata_window,
-            WindowKind.ABOUT: self.open_about_window
+            WindowKind.ABOUT: self.open_about_window,
         }
 
         if not self._windows[kind]:
@@ -216,7 +231,9 @@ class TkinterUI:
         return About(self.root)
 
     def open_manage_timelines_window(self):
-        return ManageTimelines(self, self.get_timeline_info_for_manage_timelines_window())
+        return ManageTimelines(
+            self, self.get_timeline_info_for_manage_timelines_window()
+        )
 
     def open_media_metadata_window(self):
         return MediaMetadataWindow(
@@ -396,45 +413,3 @@ class CheckboxItem(tk.Frame):
 
         self.checkbox.pack(side=tk.LEFT)
         self.label.pack(side=tk.LEFT)
-
-
-def get_curr_screen_geometry(root):
-    """
-    Workaround to get the size of the current screen in a multi-screen setup.
-
-    Returns:
-        geometry (str): The standard Tk geometry string.
-            [width]x[height]+[left]+[top]
-    """
-    root.update_idletasks()
-    root.attributes("-fullscreen", True)
-    geometry = root.winfo_geometry()
-
-    return geometry
-
-
-def get_startup_geometry(root: tk.Tk):
-    """
-    Uses get_curr_screen_geometry to return initial window size in tkinter's geometry format.
-    """
-
-    STARTUP_HEIGHT = 300
-
-    root.update_idletasks()
-    root.attributes("-fullscreen", True)
-    screen_geometry = root.winfo_geometry()
-
-    root.attributes("-fullscreen", False)
-
-    screen_width = int(screen_geometry.split("x")[0])
-    window_geometry = f"{screen_width - 50}x{STARTUP_HEIGHT}+18+10"
-
-    return window_geometry
-
-
-def set_startup_geometry(root):
-
-    geometry = get_startup_geometry(root)
-    root.overrideredirect(True)
-    root.geometry(geometry)
-    root.overrideredirect(False)
