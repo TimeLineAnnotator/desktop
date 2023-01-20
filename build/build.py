@@ -38,7 +38,7 @@ def create_iss_script(version: str, app_name: str) -> None:
     iss_script = f"""#define MyAppName "{app_name}"
 #define MyAppVersion "{version}"
 #define MyAppURL "https://www.timelineannotator.com/"
-#define MyAppExeName "tilia.exe"
+#define MyAppExeName "TLA.exe"
 #define MyAppAssocName MyAppName + " File"
 #define MyAppAssocExt ".tla"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
@@ -54,11 +54,12 @@ AppPublisherURL={{#MyAppURL}}
 AppSupportURL={{#MyAppURL}}
 AppUpdatesURL={{#MyAppURL}}
 DefaultDirName={{autopf}}\\{{#MyAppName}}
+DisableDirPage=auto
 ChangesAssociations=yes
 DefaultGroupName={{#MyAppName}}
 AllowNoIcons=yes
 ArchitecturesInstallIn64BitMode=x64
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 OutputBaseFilename={{#MyAppName}}_{{#MyAppVersion}}_setup
 OutputDir=.
 Compression=lzma
