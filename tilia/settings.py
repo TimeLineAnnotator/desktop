@@ -5,6 +5,10 @@ from tilia import dirs
 DEFAULT_SETTINGS = """
 [general]
 auto-scroll = false
+window_width = 800 
+window_height = 400 
+window_x = 20
+window_y = 10
 
 [auto-save]
 max_saved_files = 100
@@ -62,7 +66,7 @@ marker_height = 10
 marker_default_color = '#999999'
 
 [dev]
-log_events = true
+log_events = false
 dev_mode = false
 """
 
@@ -80,11 +84,12 @@ def load(settings_path: Path):
     _settings_path = settings_path
 
 
-def get(table: str, name: str, default_value=None):
+def get(table: str, name: str):
     try:
         return _settings[table][name]
     except KeyError:
-        return default_value
+        _create_entry(table, name)
+        return get(table, name)
 
 
 def edit(table: str, name: str, value) -> None:
@@ -95,3 +100,8 @@ def edit(table: str, name: str, value) -> None:
 def _save():
     with open(_settings_path, "w") as f:
         tomlkit.dump(_settings, f)
+
+
+def _create_entry(table, name):
+    default_settings = tomlkit.loads(DEFAULT_SETTINGS)
+    edit(table, name, default_settings[table][name])

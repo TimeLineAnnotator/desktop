@@ -36,6 +36,7 @@ def file_manager(tilia_mock):
 
 class TestTilia:
     def test_change_player_according_to_extension(self, tilia_mock):
+
         tilia_mock._change_player_according_to_extension(SUPPORTED_VIDEO_FORMATS[0])
         assert isinstance(tilia_mock._player, player.VlcPlayer)
 
