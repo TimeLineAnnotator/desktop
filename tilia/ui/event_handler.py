@@ -65,8 +65,8 @@ DEFAULT_CANVAS_BINDINGS = [
         lambda e: on_right_click(e, modifier=ModifierEnum.NONE, double=False),
     ),
     ("<MouseWheel>", on_mouse_wheel),
-    ("<Button-4>", lambda: events.post(Event.REQUEST_ZOOM_IN)),
-    ("<Button-5>", lambda: events.post(Event.REQUEST_ZOOM_OUT)),
+    ("<Button-4>", lambda _: events.post(Event.REQUEST_ZOOM_IN)),
+    ("<Button-5>", lambda _: events.post(Event.REQUEST_ZOOM_OUT)),
     #########################
     ### KEYBOARD BINDINGS ###
     #########################
