@@ -9,7 +9,7 @@ from tilia.ui.modifier_enum import ModifierEnum
 
 
 def on_mouse_wheel(event: tk.Event):
-    if sys.platform == 'darwin':
+    if sys.platform == "darwin":
         event.delta *= -1
 
     if event.delta > 0:
@@ -124,7 +124,6 @@ def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     canvas_y = canvas.canvasy(event.y)
     clicked_item_id = next(iter(canvas.find_withtag(tk.CURRENT)), None)
 
-
     if clicked_item_id and CLICK_THROUGH in canvas.gettags(clicked_item_id):
         overlapping = set(
             canvas.find_overlapping(canvas_x, canvas_y, canvas_x, canvas_y)
@@ -148,7 +147,6 @@ def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
 
 
 def on_right_click(event: tk.Event, modifier: ModifierEnum, double: bool):
-    """Handles mouse click"""
     canvas = event.widget
     canvas_x = canvas.canvasx(event.x)
     canvas_y = canvas.canvasx(event.y)
