@@ -22,10 +22,8 @@ if TYPE_CHECKING:
 import logging
 
 logger = logging.getLogger(__name__)
-import tkinter as tk
 
 from tilia import events
-from tilia import ui
 from tilia.ui.timelines.timeline import (
     TimelineUI,
     RightClickOption,
@@ -35,9 +33,7 @@ from tilia.ui.timelines.beat.element import BeatUI
 from tilia.ui.timelines.beat.toolbar import BeatTimelineToolbar
 
 from tilia.ui.timelines.copy_paste import (
-    Copyable,
     get_copy_data_from_element,
-    paste_into_element,
 )
 from tilia.ui.element_kinds import UIElementKind
 
