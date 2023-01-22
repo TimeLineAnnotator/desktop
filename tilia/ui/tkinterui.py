@@ -132,14 +132,13 @@ class TkinterUI:
             subscribe(self, event, callback)
 
     def _setup_root(self):
-
         def get_root_geometry():
             w = settings.get("general", "window_width")
             h = settings.get("general", "window_height")
             x = settings.get("general", "window_x")
             y = settings.get("general", "window_y")
 
-            return f'{w}x{h}+{x}+{y}'
+            return f"{w}x{h}+{x}+{y}"
 
         self.root.geometry(get_root_geometry())
         self.root.focus_set()
@@ -306,11 +305,16 @@ class TkinterUI:
         path = tk.filedialog.asksaveasfilename(
             defaultextension=f"{globals_.FILE_EXTENSION}",
             initialfile=initial_filename,
-            filetypes=((f"{globals_.APP_NAME} files", f"*.{globals_.FILE_EXTENSION}"),),
+            filetypes=((f"{globals_.APP_NAME} files", f".{globals_.FILE_EXTENSION}"),),
         )
 
         if not path:
             raise UserCancelledSaveError("User cancelled or closed save window dialog.")
+
+        if path.endswith(f"{globals_.FILE_EXTENSION}") and not path.endswith(
+            f".{globals_.FILE_EXTENSION}"
+        ):
+            path = path[:-3] + ".tla"
 
         return path
 
@@ -318,7 +322,10 @@ class TkinterUI:
     def get_file_open_path():
         path = tk.filedialog.askopenfilename(
             title=f"Open {globals_.APP_NAME} file...",
-            filetypes=((f"{globals_.APP_NAME} files", f"*.{globals_.FILE_EXTENSION}"),),
+            filetypes=(
+                (f"{globals_.APP_NAME} files", f".{globals_.FILE_EXTENSION}"),
+                ("All files", "*.*"),
+            ),
         )
 
         if not path:
