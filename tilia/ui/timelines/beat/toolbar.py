@@ -13,7 +13,7 @@ class BeatTimelineToolbar(TimelineToolbar):
             (
                 "add_beat30",
                 lambda: events.post(Event.BEAT_TOOLBAR_BUTTON_ADD),
-                "Add beat at current position (m)",
+                "Add beat at current position (b)",
             ),
             (
                 "delete_beat30",

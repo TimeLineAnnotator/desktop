@@ -33,14 +33,14 @@ class HierarchyTimelineToolbar(TimelineToolbar):
                 lambda: events.post(
                     Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE
                 ),
-                "Increase level",
+                "Increase level (Ctrl + Up)",
             ),
             (
                 "lvldwn30",
                 lambda: events.post(
                     Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE
                 ),
-                "Decrease level",
+                "Decrease level (Ctrl + Down)",
             ),
             (
                 "below30",
@@ -55,7 +55,7 @@ class HierarchyTimelineToolbar(TimelineToolbar):
             (
                 "paste30",
                 lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT),
-                "Paste unit (Ctrl + V",
+                "Paste unit (Ctrl + V)",
             ),
             (
                 "paste_with_data30",
