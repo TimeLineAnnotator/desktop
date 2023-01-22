@@ -500,14 +500,13 @@ class TimelineUI(ABC):
 
         if not self.visible:
             logging.debug(f"TimelineUI is not visible, nothing to do.")
+            return None
 
-        selected_elements = self.element_manager.get_selected_elements()
-
-        if not selected_elements:
+        if not self.selected_elements:
             logging.debug(f"No element is selected. Nothing to do.")
             return None
 
-        return selected_elements
+        return self.selected_elements
 
     def on_delete_press(self):
         selected_elements = self.element_manager.get_selected_elements()

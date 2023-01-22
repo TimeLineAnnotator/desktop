@@ -284,11 +284,19 @@ class HierarchyTimelineUI(TimelineUI):
         if not selected_elements:
             return
 
-        if not selected_elements:
-            logging.debug(f"No element is selected. Nothing to do.")
-
         selected_tl_components = [e.tl_component for e in selected_elements]
-        for component in selected_tl_components:
+        if increase_or_decrease == IncreaseOrDecrease.INCREASE:
+            reverse = True
+        elif increase_or_decrease == IncreaseOrDecrease.DECREASE:
+            reverse = False
+        else:
+            raise ValueError(
+                f'Got invalid value "{increase_or_decrease}" for increase_or_decrease'
+            )
+
+        for component in sorted(
+            selected_tl_components, key=lambda x: (x.level, x.start), reverse=reverse
+        ):
             logging.debug(
                 f"Requesting timeline to {increase_or_decrease.name.lower()} level of {component}."
             )
