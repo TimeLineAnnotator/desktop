@@ -43,7 +43,7 @@ from tilia.ui.element_kinds import UIElementKind
 
 
 class BeatTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = 30
+    DEFAULT_HEIGHT = 35
 
     TOOLBAR_CLASS = BeatTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.BEAT_UI: BeatUI}
@@ -138,7 +138,6 @@ class BeatTimelineUI(TimelineUI):
         if not self.has_selected_elements:
             logger.debug(f"User pressed left arrow but no elements were selected.")
             return
-
 
         if side == Side.RIGHT:
             self._deselect_all_but_last()
