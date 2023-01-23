@@ -13,6 +13,36 @@ from tilia.ui.timelines.copy_paste import PasteError
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 
 
+class TestHierarchyTimelineUI(HierarchyTimelineUI):
+    def create_hierarchy(
+        self, start: float, end: float, level: int, **kwargs
+    ) -> Hierarchy:
+        ...
+
+    def relate_hierarchies(self, relation: PCRel):
+        ...
+
+
+@pytest.fixture
+def hierarchy_tlui(tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
+    def create_hierarchy(start: float, end: float, level: int, **kwargs) -> Hierarchy:
+        return tl.create_timeline_component(
+            ComponentKind.HIERARCHY, start, end, level, **kwargs
+        )
+
+    def relate_hierarchies(relation: PCRel):
+        return tl.component_manager._make_parent_child_relation(relation)
+
+    tl: HierarchyTimeline = create_timeline(
+        TimelineKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct
+    )
+    tl.clear()
+    tl.ui.create_hierarchy = create_hierarchy
+    tl.ui.relate_hierarchies = relate_hierarchies
+    yield tl.ui
+    tl_clct.delete_timeline(tl)
+
+
 def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
     stacking_order = canvas.find_all()
     return stacking_order.index(id1) > stacking_order.index(id2)
@@ -56,36 +86,6 @@ def assert_is_copy_data_of(copy_data: dict, hierarchy_ui: HierarchyUI):
     if children := hierarchy_ui.tl_component.children:
         for index, child in enumerate(children):
             _make_assertions(child, copy_data["children"][index])
-
-
-class TestHierarchyTimelineUI(HierarchyTimelineUI):
-    def create_hierarchy(
-        self, start: float, end: float, level: int, **kwargs
-    ) -> Hierarchy:
-        ...
-
-    def relate_hierarchies(self, relation: PCRel):
-        ...
-
-
-@pytest.fixture
-def hierarchy_tlui(tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
-    def create_hierarchy(start: float, end: float, level: int, **kwargs) -> Hierarchy:
-        return tl.create_timeline_component(
-            ComponentKind.HIERARCHY, start, end, level, **kwargs
-        )
-
-    def relate_hierarchies(relation: PCRel):
-        return tl.component_manager._make_parent_child_relation(relation)
-
-    tl: HierarchyTimeline = create_timeline(
-        TimelineKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct
-    )
-    tl.clear()
-    tl.ui.create_hierarchy = create_hierarchy
-    tl.ui.relate_hierarchies = relate_hierarchies
-    yield tl.ui
-    tl_clct.delete_timeline(tl)
 
 
 class TestHierarchyTimelineUI:
