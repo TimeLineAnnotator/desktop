@@ -1,10 +1,9 @@
 import sys
 import tkinter as tk
 import tilia.events as events
-from tilia import globals_
 
 from tilia.events import Event
-from tilia.ui.canvas_tags import CLICK_THROUGH
+from tilia.ui.canvas_tags import TRANSPARENT, TAG_TO_CURSOR, CURSOR_TAGS
 from tilia.ui.modifier_enum import ModifierEnum
 
 
@@ -22,6 +21,51 @@ if sys.platform == "win32" or "linux":
     right_click_keysym = "<ButtonPress-3>"
 else:
     right_click_keysym = "<ButtonPress-2>"
+
+current_indicator = 0
+
+
+def get_highest_in_stacking_order(ids: set, canvas: tk.Canvas) -> int:
+    ids_in_order = [id_ for id_ in canvas.find_all() if id_ in ids]
+    return ids_in_order[-1]
+
+
+def get_click_event_params(event: tk.Event) -> tuple[tk.Canvas, int, int, int | None]:
+    canvas = event.widget
+    canvas_x = canvas.canvasx(event.x)
+    canvas_y = canvas.canvasy(event.y)
+    id = next(iter(canvas.find_withtag(tk.CURRENT)), None)
+
+    if id and TRANSPARENT in canvas.gettags(id):
+        overlapping = set(
+            canvas.find_overlapping(canvas_x, canvas_y, canvas_x, canvas_y)
+        )
+        if id in overlapping:
+            overlapping.remove(id)
+        try:
+            id = get_highest_in_stacking_order(overlapping, canvas)
+        except IndexError:
+            id = None
+
+    return canvas, canvas_x, canvas_y, id
+
+
+def on_motion(event: tk.Event) -> None:
+    """Sets cursor based on hovered canvas item tags.
+    Ignores items tagged with TRANSPARENT"""
+    item_id = get_click_event_params(event)[3]
+
+    if not item_id:
+        event.widget.config(cursor="")
+        return
+
+    for tag in event.widget.gettags(item_id):
+        if tag in CURSOR_TAGS:
+            event.widget.config(cursor=TAG_TO_CURSOR[tag])
+            break
+    else:
+        event.widget.config(cursor="")
+
 
 DEFAULT_CANVAS_BINDINGS = [
     ######################
@@ -52,6 +96,7 @@ DEFAULT_CANVAS_BINDINGS = [
             logging_level=5,
         ),
     ),
+    ("<Motion>", on_motion),
     (
         "<ButtonRelease-1>",
         lambda _: events.post(Event.TIMELINE_LEFT_BUTTON_RELEASE),
@@ -112,63 +157,21 @@ DEFAULT_CANVAS_BINDINGS = [
 ]
 
 
-def get_highest_in_stacking_order(ids: set, canvas: tk.Canvas) -> int:
-    ids_in_order = [id_ for id_ in canvas.find_all() if id_ in ids]
-    return ids_in_order[-1]
-
-
 def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     """Handles mouse click"""
-    canvas = event.widget
-    canvas_x = canvas.canvasx(event.x)
-    canvas_y = canvas.canvasy(event.y)
-    clicked_item_id = next(iter(canvas.find_withtag(tk.CURRENT)), None)
-
-    if clicked_item_id and CLICK_THROUGH in canvas.gettags(clicked_item_id):
-        overlapping = set(
-            canvas.find_overlapping(canvas_x, canvas_y, canvas_x, canvas_y)
-        )
-        if clicked_item_id in overlapping:
-            overlapping.remove(clicked_item_id)
-        try:
-            clicked_item_id = get_highest_in_stacking_order(overlapping, canvas)
-        except IndexError:
-            clicked_item_id = None
 
     events.post(
         Event.CANVAS_LEFT_CLICK,
-        canvas,
-        canvas_x,
-        canvas_y,
-        clicked_item_id,
+        *get_click_event_params(event),
         modifier=modifier,
         double=double,
     )
 
 
 def on_right_click(event: tk.Event, modifier: ModifierEnum, double: bool):
-    canvas = event.widget
-    canvas_x = canvas.canvasx(event.x)
-    canvas_y = canvas.canvasx(event.y)
-    clicked_item_id = next(iter(canvas.find_withtag(tk.CURRENT)), None)
-
-    if clicked_item_id and CLICK_THROUGH in canvas.gettags(clicked_item_id):
-        overlapping = set(
-            canvas.find_overlapping(canvas_x, canvas_y, canvas_x, canvas_y)
-        )
-        if clicked_item_id in overlapping:
-            overlapping.remove(clicked_item_id)
-        try:
-            clicked_item_id = get_highest_in_stacking_order(overlapping, canvas)
-        except IndexError:
-            clicked_item_id = None
-
     events.post(
         Event.CANVAS_RIGHT_CLICK,
-        canvas,
-        canvas_x,
-        canvas_y,
-        clicked_item_id,
+        *get_click_event_params(event),
         modifier=modifier,
         double=double,
     )

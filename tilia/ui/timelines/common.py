@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Generic, TypeVar
 
-from tilia.ui.canvas_tags import CURSOR_ARROWS, CURSOR_HAND
+from tilia.ui.canvas_tags import CURSOR_ARROWS, CURSOR_HAND, TAG_TO_CURSOR
 
 if TYPE_CHECKING:
     pass
@@ -20,6 +20,7 @@ from tilia.timelines.common import log_object_creation
 
 SomeTimelineComponent = TypeVar("SomeTimelineComponent", bound="TimelineComponent")
 SomeTimelineUI = TypeVar("SomeTimelineUI", bound="TimelineUI")
+
 
 class TimelineCanvas(tk.Canvas):
     """Interface for the canvas that composes a timeline.
@@ -59,10 +60,8 @@ class TimelineCanvas(tk.Canvas):
 
         self._setup_cursors()
 
-    TAG_TO_CURSOR = [(CURSOR_ARROWS, "sb_h_double_arrow"), (CURSOR_HAND, "hand2")]
-
     def _setup_cursors(self):
-        for tag, cursor_name in self.TAG_TO_CURSOR:
+        for tag, cursor_name in TAG_TO_CURSOR.items():
             self.tag_bind(
                 tag, "<Enter>", lambda x, name=cursor_name: self.config(cursor=name)
             )
@@ -160,7 +159,7 @@ class TimelineToolbar(tk.LabelFrame):
                 image=getattr(self, file_name),
                 borderwidth=0,
                 command=callback,
-                takefocus=False
+                takefocus=False,
             )
 
             button.pack(side=tk.LEFT, padx=6)

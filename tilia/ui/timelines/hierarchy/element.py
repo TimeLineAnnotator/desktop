@@ -40,10 +40,7 @@ class HierarchyUI(TimelineUIElement):
     BASE_HEIGHT = settings.get("hierarchy_timeline", "hierarchy_base_height")
     YOFFSET = 0
     XOFFSET = 1
-    LVL_HEIGHT_INCR = settings.get(
-        "hierarchy_timeline",
-        "hierarchy_level_height_diff"
-    )
+    LVL_HEIGHT_INCR = settings.get("hierarchy_timeline", "hierarchy_level_height_diff")
 
     COMMENTS_INDICATOR_CHAR = "💬"
     COMMENTS_INDICATOR_YOFFSET = 5
@@ -53,10 +50,7 @@ class HierarchyUI(TimelineUIElement):
 
     MARKER_YOFFSET = 0
     MARKER_WIDTH = 2
-    MARKER_LINE_HEIGHT = settings.get(
-        "hierarchy_timeline",
-        "hierarchy_marker_height"
-    )
+    MARKER_LINE_HEIGHT = settings.get("hierarchy_timeline", "hierarchy_marker_height")
 
     MARKER_OUTLINE_WIDTH = 0
 
@@ -120,7 +114,7 @@ class HierarchyUI(TimelineUIElement):
         self.timeline_ui = timeline_ui
         self.canvas = canvas
 
-        self._label = ''
+        self._label = ""
         self.label_measures = []
         self._setup_label(label)
 
@@ -417,6 +411,7 @@ class HierarchyUI(TimelineUIElement):
             start_marker = self.draw_marker(StartOrEnd.START)
         else:
             logger.debug(f"Got existing marker '{start_marker}' as start marker.")
+            self.canvas.tag_raise(start_marker, self.rect_id)
 
         end_marker = self.timeline_ui.get_markerid_at_x(self.end_x)
         if not end_marker:
@@ -424,6 +419,7 @@ class HierarchyUI(TimelineUIElement):
             end_marker = self.draw_marker(StartOrEnd.END)
         else:
             logger.debug(f"Got existing marker '{end_marker}' as end marker.")
+            self.canvas.tag_raise(end_marker, self.rect_id)
 
         return start_marker, end_marker
 
@@ -431,7 +427,7 @@ class HierarchyUI(TimelineUIElement):
 
         return self.canvas.create_rectangle(
             *self.get_marker_coords(marker_extremity),
-            outline="#111111",
+            outline="black",
             width=self.MARKER_OUTLINE_WIDTH,
             fill="black",
             tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS),
@@ -449,7 +445,7 @@ class HierarchyUI(TimelineUIElement):
             marker_x = self.end_x
         else:
             raise ValueError(
-                f"Can't create marker: Invalide marker extremity '{marker_extremity}"
+                f"Can't create marker: Invalid marker extremity '{marker_extremity}"
             )
 
         return (
@@ -609,7 +605,7 @@ class HierarchyUI(TimelineUIElement):
         )
 
     def display_as_deselected(self) -> None:
-        self.canvas.itemconfig(self.rect_id, fill=self.color, width=0, outline="")
+        self.canvas.itemconfig(self.rect_id, fill=self.color, width=0, outline="black")
 
     def marker_is_shared(self, marker_id: int) -> bool:
         units_with_marker = self.timeline_ui.get_units_using_marker(marker_id)
