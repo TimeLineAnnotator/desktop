@@ -424,6 +424,8 @@ class TimelineUICollection:
         clicked_item_id: int,
         modifier: ModifierEnum,
         double: bool,
+        root_x: int,
+        root_y: int,
     ) -> None:
 
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
@@ -439,6 +441,8 @@ class TimelineUICollection:
                 button=Side.RIGHT,
                 modifier=modifier,
                 double=double,
+                root_x=root_x,
+                root_y=root_y,
             )
         else:
             raise ValueError(
@@ -480,6 +484,7 @@ class TimelineUICollection:
                 modifier=modifier,
                 double=double,
             )
+
             if not self.element_is_being_dragged:
                 logger.debug(f"{x=}")
                 logger.debug(f"{y=}")

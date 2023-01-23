@@ -239,6 +239,8 @@ class TimelineUI(ABC):
         button: Side,
         modifier: ModifierEnum,
         double: bool,
+        root_x: int = None,
+        root_y: int = None,
     ) -> None:
 
         logger.debug(f"Processing click on {self}...")
@@ -269,7 +271,7 @@ class TimelineUI(ABC):
                     if not double_clicked:  # consider as single click
                         self._process_ui_element_left_click(elm, item_id)
             elif button == Side.RIGHT:
-                self._process_ui_element_right_click(x, y, elm, item_id)
+                self._process_ui_element_right_click(root_x, root_y, elm, item_id)
 
         logger.debug(f"Processed click on {self}.")
 
@@ -346,8 +348,8 @@ class TimelineUI(ABC):
 
     def _process_ui_element_right_click(
         self,
-        x: float,
-        y: float,
+        root_x: int,
+        root_y: int,
         clicked_element: TimelineUIElement,
         clicked_item_id: int,
     ) -> None:
@@ -361,7 +363,7 @@ class TimelineUI(ABC):
                 Event.RIGHT_CLICK_MENU_OPTION_CLICK,
                 self.on_right_click_menu_option_click,
             )
-            clicked_element.on_right_click(x, y, clicked_item_id)
+            clicked_element.on_right_click(root_x, root_y, clicked_item_id)
         else:
             logger.debug(f"Element is not right clickable.")
 
@@ -406,8 +408,8 @@ class TimelineUI(ABC):
 
     def display_right_click_menu_for_element(
         self,
-        canvas_x: float,
-        canvas_y: float,
+        root_x: int,
+        root_y: int,
         options: list[tuple[str, RightClickOption]],
     ):
         events.post(Event.RIGHT_CLICK_MENU_NEW)
@@ -418,8 +420,8 @@ class TimelineUI(ABC):
         )
 
         display_right_click_menu(
-            self.canvas.winfo_rootx() + int(canvas_x),
-            self.canvas.winfo_rooty() + int(canvas_y),
+            root_x,
+            root_y,
             options,
         )
 

@@ -164,7 +164,7 @@ def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
         Event.CANVAS_LEFT_CLICK,
         *get_click_event_params(event),
         modifier=modifier,
-        double=double,
+        double=double
     )
 
 
@@ -174,4 +174,6 @@ def on_right_click(event: tk.Event, modifier: ModifierEnum, double: bool):
         *get_click_event_params(event),
         modifier=modifier,
         double=double,
+        root_x=event.x_root,
+        root_y=event.y_root
     )
