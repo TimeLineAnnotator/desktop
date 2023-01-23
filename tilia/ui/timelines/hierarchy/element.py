@@ -96,6 +96,9 @@ class HierarchyUI(TimelineUIElement):
         ("Delete", RightClickOption.DELETE),
     ]
 
+    NAME_WHEN_UNLABELED = "Unnamed"
+    FULL_NAME_SEPARATOR = "-"
+
     @log_object_creation
     def __init__(
         self,
@@ -250,21 +253,21 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def full_name(self) -> str:
-        STR_FOR_UNLABELED = "Unnamed"
-        FULL_NAME_SEPARATOR = "-"
 
-        partial_name = self.label if self.label else STR_FOR_UNLABELED
+        partial_name = self.label if self.label else self.NAME_WHEN_UNLABELED
 
         next_parent = self.parent
 
         while next_parent:
             parent_name = (
-                next_parent.ui.label if next_parent.ui.label else STR_FOR_UNLABELED
+                next_parent.ui.label
+                if next_parent.ui.label
+                else self.NAME_WHEN_UNLABELED
             )
-            partial_name = parent_name + FULL_NAME_SEPARATOR + partial_name
+            partial_name = parent_name + self.FULL_NAME_SEPARATOR + partial_name
             next_parent = next_parent.parent
 
-        full_name = self.timeline_ui.name + FULL_NAME_SEPARATOR + partial_name
+        full_name = self.timeline_ui.name + self.FULL_NAME_SEPARATOR + partial_name
 
         return full_name
 
@@ -273,6 +276,7 @@ class HierarchyUI(TimelineUIElement):
         self.update_label_measures()
 
     def update_label_measures(self):
+        """Calculates length of substrings of label and stores it in self.label_measures"""
         tk_font = tk.font.Font()
         self.label_measures = [
             tk_font.measure(self._label[: i + 1]) for i in range(len(self._label))
