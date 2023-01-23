@@ -52,7 +52,7 @@ class FileManager:
             args=(self._autosave_exception_list,),
             daemon=True,
         )
-        if settings.get('auto-save', 'interval'):
+        if settings.get("auto-save", "interval"):
             self._autosave_thread.start()
 
     def was_file_modified(self):
@@ -71,7 +71,7 @@ class FileManager:
 
     def _update_file(self, **kwargs) -> None:
         for keyword, value in kwargs.items():
-            logger.debug(f"Updating _file paramenter '{keyword}' to '{value}'")
+            logger.debug(f"Updating file paramenter '{keyword}' to '{value}'")
             setattr(self._file, keyword, value)
 
     def save(self, save_as: bool) -> None:
@@ -144,9 +144,9 @@ class FileManager:
         logger.info(f"New file created.")
 
     def open(self):
-        logger.debug(f"Processing open _file request.")
+        logger.debug(f"Processing open file request.")
         self.ask_save_if_necessary()
-        logger.debug(f"Getting path of _file to open.")
+        logger.debug(f"Getting path of file to open.")
         try:
             file_path = self._app.ui.get_file_open_path()
             logger.debug(f"Got path {file_path}")
@@ -163,6 +163,7 @@ class FileManager:
         with open(file_path, "r", encoding="utf-8") as file:
             file_dict = json.load(file)
 
+        file_dict["file_path"] = file_path
         self._file = TiliaFile(**file_dict)
         self._app.load_file(self._file)
 
@@ -198,7 +199,7 @@ class FileManager:
         self._file.media_path = media_path
 
     def on_media_loaded(self, media_path: str, *_) -> None:
-        logger.debug(f"Updating _file media_path to '{media_path}'")
+        logger.debug(f"Updating file media_path to '{media_path}'")
         self._file.media_path = media_path
 
     def get_file_path(self, save_as: bool) -> str:
@@ -211,7 +212,7 @@ class FileManager:
         return f"{self._app.media_title} {datetime.now().strftime('%d-%m-%Y %H%M%S')}"
 
     def clear(self) -> None:
-        logger.debug(f"Clearing _file manager...")
+        logger.debug(f"Clearing file manager...")
         self._file = TiliaFile()
 
 
@@ -237,8 +238,7 @@ def compare_tilia_data(data1: dict, data2: dict) -> bool:
 
 def get_autosaves_paths() -> list[str]:
     return [
-       str(Path(dirs.autosaves_path, file))
-        for file in os.listdir(dirs.autosaves_path)
+        str(Path(dirs.autosaves_path, file)) for file in os.listdir(dirs.autosaves_path)
     ]
 
 
