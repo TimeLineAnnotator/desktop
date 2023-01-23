@@ -7,8 +7,6 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.beat.timeline import BeatTimelineUI
 from tilia.timelines.create import create_timeline
-from tests.conftest import pump_events
-from time import sleep
 
 
 @pytest.fixture
@@ -374,7 +372,9 @@ class TestBeatTimelineUI:
 
         assert tl_state0 == tl_state1
 
-    @patch('tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time')
+    @patch(
+        "tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time"
+    )
     def test_paste_single_into_timeline(self, playback_time_mock, beat_tlui, tlui_clct):
 
         playback_time_mock.return_value = 0.5
@@ -391,8 +391,12 @@ class TestBeatTimelineUI:
         assert len(beat_tlui.elements) == 2
         assert beat_tlui.ordered_elements[1].time == 0.5
 
-    @patch('tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time')
-    def test_paste_multiple_into_timeline(self, playback_time_mock, beat_tlui, tlui_clct):
+    @patch(
+        "tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time"
+    )
+    def test_paste_multiple_into_timeline(
+        self, playback_time_mock, beat_tlui, tlui_clct
+    ):
 
         playback_time_mock.return_value = 0.4
 
@@ -415,8 +419,3 @@ class TestBeatTimelineUI:
         assert beat_tlui.ordered_elements[5].time == pytest.approx(0.5)
         assert beat_tlui.ordered_elements[6].time == pytest.approx(0.6)
         assert beat_tlui.ordered_elements[7].time == pytest.approx(0.7)
-
-
-
-
-
