@@ -18,10 +18,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
 
-from .components import (
-    Hierarchy,
-    HierarchyOperationError
-)
+from .components import Hierarchy, HierarchyOperationError
 from tilia.timelines.common import (
     Timeline,
     TimelineComponentManager,
@@ -45,6 +42,13 @@ class HierarchyTimeline(Timeline):
     ):
         super().__init__(
             collection, component_manager, TimelineKind.HIERARCHY_TIMELINE, **kwargs
+        )
+
+    def create_hierarchy(
+        self, start: float, end: float, level: int, **kwargs
+    ) -> Hierarchy:
+        return self.create_timeline_component(
+            ComponentKind.HIERARCHY, start, end, level, **kwargs
         )
 
     def _validate_delete_components(self, component: Hierarchy) -> None:
