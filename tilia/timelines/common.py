@@ -8,7 +8,7 @@ Contains the following interfaces, that should be implemented by specific timeli
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 import tilia.repr
 import tilia.timelines.serialize
@@ -240,6 +240,12 @@ class TimelineComponentManager:
         serialize.deserialize_components(self.timeline, serialized_components)
 
 
+SomeTimelineComponent = TypeVar("SomeTimelineComponent", bound="TimelineComponent")
+SomeTimelineComponentManager = TypeVar(
+    "SomeTimelineComponentManager", bound="TimelineComponentManager"
+)
+
+
 class Timeline(ABC):
     """Interface for timelines.
     Is composed of a ComponentManager, which implements most of the timeline component operations and functions
@@ -252,7 +258,7 @@ class Timeline(ABC):
     def __init__(
         self,
         collection: TimelineCollection,
-        component_manager: TimelineComponentManager | None,
+        component_manager: SomeTimelineComponentManager | None,
         kind: TimelineKind,
         **_,
     ):
@@ -266,7 +272,7 @@ class Timeline(ABC):
 
     def create_timeline_component(
         self, kind: ComponentKind, *args, **kwargs
-    ) -> TimelineComponent:
+    ) -> SomeTimelineComponent:
         """Creates a TimelineComponent of the given kind. Request timeline ui to create a ui for the component."""
         component = self.component_manager.create_component(kind, self, *args, **kwargs)
         component_ui = self.ui.get_ui_for_component(kind, component, **kwargs)
@@ -277,7 +283,7 @@ class Timeline(ABC):
 
     @staticmethod
     def _make_reference_to_ui_in_component(
-        component: TimelineComponent, component_ui: TimelineComponentUI
+        component: SomeTimelineComponent, component_ui: SomeTimelineComponent
     ):
         logger.debug(f"Setting '{component}' ui as {component_ui}.'")
         component.ui = component_ui
@@ -285,17 +291,19 @@ class Timeline(ABC):
     # noinspection PyMethodMayBeStatic
 
     def on_request_to_delete_components(
-        self, components: list[TimelineComponent], record=True
+        self, components: list[SomeTimelineComponent], record=True
     ) -> None:
         self._validate_delete_components(components)
 
         for component in components:
             self.component_manager.delete_component(component)
 
-    def request_delete_ui_for_component(self, component: TimelineComponent) -> None:
+    def request_delete_ui_for_component(self, component: SomeTimelineComponent) -> None:
         self.ui.delete_element(component.ui)
 
-    def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
+    def _validate_delete_components(
+        self, components: list[SomeTimelineComponent]
+    ) -> None:
         pass
 
     def clear(self, record=True):
