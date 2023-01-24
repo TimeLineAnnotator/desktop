@@ -156,13 +156,13 @@ class TestHierarchyTimelineUI:
         unit2.parent = unit1
         unit3.parent = unit1
 
-        assert is_in_front(unit1.ui.rect_id, unit2.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit1.ui.rect_id, unit3.ui.rect_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit1.ui.body_id, unit2.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit1.ui.body_id, unit3.ui.body_id, hierarchy_tlui.canvas)
 
         hierarchy_tlui.rearrange_canvas_drawings()
 
-        assert is_in_front(unit2.ui.rect_id, unit1.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit3.ui.rect_id, unit1.ui.rect_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit2.ui.body_id, unit1.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit3.ui.body_id, unit1.ui.body_id, hierarchy_tlui.canvas)
 
     def test_rearrange_elements_three_levels(self, hierarchy_tlui):
         unit1 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -188,12 +188,12 @@ class TestHierarchyTimelineUI:
 
         hierarchy_tlui.rearrange_canvas_drawings()
 
-        assert is_in_front(unit1.ui.rect_id, unit5.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit2.ui.rect_id, unit5.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit3.ui.rect_id, unit6.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit4.ui.rect_id, unit6.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit5.ui.rect_id, unit7.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit6.ui.rect_id, unit7.ui.rect_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit1.ui.body_id, unit5.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit2.ui.body_id, unit5.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit3.ui.body_id, unit6.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit4.ui.body_id, unit6.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit5.ui.body_id, unit7.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit6.ui.body_id, unit7.ui.body_id, hierarchy_tlui.canvas)
 
     def test_rearrange_elements_four_levels(self, hierarchy_tlui):
         unit1 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -244,20 +244,20 @@ class TestHierarchyTimelineUI:
 
         hierarchy_tlui.rearrange_canvas_drawings()
 
-        assert is_in_front(unit1.ui.rect_id, unit5.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit2.ui.rect_id, unit5.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit3.ui.rect_id, unit6.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit4.ui.rect_id, unit6.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit5.ui.rect_id, unit7.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit6.ui.rect_id, unit7.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit7.ui.rect_id, unit15.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit8.ui.rect_id, unit12.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit9.ui.rect_id, unit12.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit10.ui.rect_id, unit13.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit11.ui.rect_id, unit13.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit12.ui.rect_id, unit14.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit13.ui.rect_id, unit14.ui.rect_id, hierarchy_tlui.canvas)
-        assert is_in_front(unit14.ui.rect_id, unit15.ui.rect_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit1.ui.body_id, unit5.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit2.ui.body_id, unit5.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit3.ui.body_id, unit6.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit4.ui.body_id, unit6.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit5.ui.body_id, unit7.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit6.ui.body_id, unit7.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit7.ui.body_id, unit15.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit8.ui.body_id, unit12.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit9.ui.body_id, unit12.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit10.ui.body_id, unit13.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit11.ui.body_id, unit13.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit12.ui.body_id, unit14.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit13.ui.body_id, unit14.ui.body_id, hierarchy_tlui.canvas)
+        assert is_in_front(unit14.ui.body_id, unit15.ui.body_id, hierarchy_tlui.canvas)
 
         #######################
         ### TEST COPY.PASTE ###

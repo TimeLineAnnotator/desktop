@@ -89,3 +89,36 @@ class TestHierarchyUI:
         hui.process_color_before_level_change(2)
 
         assert hui.color == "#1a3a5a"
+
+    def test_draw_body(self, hierarchy_tlui):
+        hui = hierarchy_tlui.create_hui()
+
+        id = hui.draw_body()
+        x0, y0, x1, y1 = hui.canvas.coords(id)
+        assert (x0, y0, x1, y1)
+        assert x1 - x0 == (hui.end_x - hui.start_x) - 2 * hui.XOFFSET
+        assert hui.canvas.itemcget(id, "fill") == hui.color
+
+    def test_draw_label(self, hierarchy_tlui):
+        hui = hierarchy_tlui.create_hui(label="dummy_label")
+
+        id = hui.draw_label()
+        x, y = hui.canvas.coords(id)
+        assert (x, y)
+        # check must be done with 'in' to account for cases when display_label != label
+        assert hui.canvas.itemcget(id, "text") in "dummy_label"
+
+    def test_draw_coments_indicator(self, hierarchy_tlui):
+        hui = hierarchy_tlui.create_hui(comments=".")
+
+        id = hui.draw_comments_indicator()
+        x, y = hui.canvas.coords(id)
+        assert (x, y)
+        assert hui.canvas.itemcget(id, "text") == hui.COMMENTS_INDICATOR_CHAR
+
+    def test_draw_coments_indicator_no_comments(self, hierarchy_tlui):
+        hui = hierarchy_tlui.create_hui()
+
+        id = hui.draw_comments_indicator()
+
+        assert hui.canvas.itemcget(id, "text") == ""
