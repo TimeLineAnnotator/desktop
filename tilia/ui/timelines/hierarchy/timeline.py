@@ -126,9 +126,6 @@ class HierarchyTimelineUI(TimelineUI):
 
         self.right_clicked_element = None
 
-    def get_timeline_height(self):
-        return self.height
-
     def rearrange_canvas_drawings(self):
         for element in self.element_manager.get_all_elements():
             if not element.tl_component.parent and element.tl_component.children:
@@ -150,7 +147,7 @@ class HierarchyTimelineUI(TimelineUI):
         def get_drawings_to_arrange(elements: set[HierarchyUI]):
             _drawings_to_lower = set()
             for element in elements:
-                _drawings_to_lower.add(element.rect_id)
+                _drawings_to_lower.add(element.body_id)
                 _drawings_to_lower.add(element.label_id)
                 _drawings_to_lower.add(element.comments_ind_id)
 
@@ -185,7 +182,7 @@ class HierarchyTimelineUI(TimelineUI):
                 logger.debug(
                     f"Lowering drawings '{element.canvas_drawings_ids}' of element '{element}'"
                 )
-                self.canvas.tag_lower(element.rect_id, lowest_drawing_in_lower_elements)
+                self.canvas.tag_lower(element.body_id, lowest_drawing_in_lower_elements)
                 self.canvas.tag_lower(
                     element.label_id, lowest_drawing_in_lower_elements
                 )
@@ -259,7 +256,7 @@ class HierarchyTimelineUI(TimelineUI):
         )
 
         # lower parents canvas drawings
-        self.canvas.tag_lower(parent_ui.rect_id, lowest_child_drawing_id)
+        self.canvas.tag_lower(parent_ui.body_id, lowest_child_drawing_id)
         self.canvas.tag_lower(parent_ui.label_id, lowest_child_drawing_id)
         self.canvas.tag_lower(parent_ui.comments_ind_id, lowest_child_drawing_id)
 
