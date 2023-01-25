@@ -754,16 +754,16 @@ class TimelineUICollection:
 
         if clipboard_elements["timeline_kind"] != TimelineKind.HIERARCHY_TIMELINE:
             logger.debug(
-                f"Copied elements are not hierarchies. Can't paste with children."
+                f"Copied elements are not hierarchies." f" Can't paste with children."
             )
             return
 
-        for timeline_ui in self:
+        for tl_ui in self:
             if (
-                timeline_ui.has_selected_elements
-                and timeline_ui.TIMELINE_KIND == TimelineKind.HIERARCHY_TIMELINE
+                tl_ui.has_selected_elements
+                and tl_ui.TIMELINE_KIND == TimelineKind.HIERARCHY_TIMELINE
             ):
-                timeline_ui.paste_with_children_into_selected_elements(
+                tl_ui.paste_with_children_into_selected_elements(
                     clipboard_elements["components"]
                 )
 
@@ -974,21 +974,21 @@ class TimelineUICollection:
             self._timeline_collection.clear_all_timelines()
 
     @staticmethod
-    def _ask_delete_timeline(timeline_ui: TimelineUI) -> None:
+    def _ask_delete_timeline(timeline_ui: TimelineUI) -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to delete timeline {str(timeline_ui)}?",
         )
 
     @staticmethod
-    def _ask_clear_timeline(timeline_ui: TimelineUI) -> None:
+    def _ask_clear_timeline(timeline_ui: TimelineUI) -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to clear timeline {str(timeline_ui)}?",
         )
 
     @staticmethod
-    def _ask_clear_all_timelines() -> None:
+    def _ask_clear_all_timelines() -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to clear ALL timelines?",
