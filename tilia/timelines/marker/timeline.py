@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 

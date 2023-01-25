@@ -21,7 +21,7 @@ from tilia.timelines.common import (
     InvalidComponentKindError,
 )
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.ui.common import ask_for_int, ask_for_string
 from tilia.ui.element_kinds import UIElementKind
 from tilia.ui.modifier_enum import ModifierEnum
@@ -463,7 +463,7 @@ class TimelineUI(ABC):
             self.height = height
             self.timeline_ui_collection.after_height_change(self)
 
-        events.post(Event.REQUEST_RECORD_STATE, "timeline height change")
+        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_HEIGHT_CHANGE)
 
     def right_click_menu_change_timeline_name(self) -> None:
         name = ask_for_string(
@@ -473,7 +473,7 @@ class TimelineUI(ABC):
             logger.debug(f"User requested new timeline name of '{name}'")
             self.name = name
 
-        events.post(Event.REQUEST_RECORD_STATE, "timeline name change")
+        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_NAME_CHANGE)
 
     def on_inspector_window_opened(self):
         for element in self.selected_elements:
@@ -666,7 +666,7 @@ def on_inspector_field_edited(
 
     events.post(
         Event.REQUEST_RECORD_STATE,
-        StateAction.ATTRIBUTE_EDIT_VIA_INSPECTOR,
+        Action.ATTRIBUTE_EDIT_VIA_INSPECTOR,
         no_repeat=True,
         repeat_identifier=f"{attr}_{element.id}",
     )

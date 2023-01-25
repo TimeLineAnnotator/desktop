@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, subscribe
 from tilia.misc_enums import Side
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -88,7 +88,7 @@ class MarkerTimelineUI(TimelineUI):
         self.timeline.create_timeline_component(ComponentKind.MARKER, time, **kwargs)
 
         if record:
-            events.post(Event.REQUEST_RECORD_STATE, StateAction.CREATE_MARKER)
+            events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_MARKER)
 
     def on_delete_marker_button(self):
         self.delete_selected_elements()
@@ -218,7 +218,7 @@ class MarkerTimelineUI(TimelineUI):
             paste_into_element(element, paste_data[0])
             self.select_element(element)
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def paste_multiple_into_selected_elements(self, paste_data: list[dict] | dict):
 
@@ -240,7 +240,7 @@ class MarkerTimelineUI(TimelineUI):
             selected_elements[0].time,
         )
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def paste_single_into_timeline(self, paste_data: list[dict] | dict):
         return self.paste_multiple_into_timeline(paste_data)
@@ -256,7 +256,7 @@ class MarkerTimelineUI(TimelineUI):
             self.timeline_ui_collection.get_current_playback_time(),
         )
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def create_pasted_markers(
         self, paste_data: list[dict], reference_time: float, target_time: float

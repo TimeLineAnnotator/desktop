@@ -14,7 +14,7 @@ from tilia import events, settings
 from tilia.events import subscribe, Event
 from tilia.misc_enums import Side, UpOrDown, InOrOut
 from tilia.timelines.common import Timeline
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar, SomeTimelineUI
@@ -642,7 +642,7 @@ class TimelineUICollection:
         for timeline_ui in self:
             timeline_ui.on_delete_press()
 
-        events.post(Event.REQUEST_RECORD_STATE, "delete timeline component(s)")
+        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE_TIMELINE_COMPONENT)
 
     def _on_enter_press(self):
         if any([tlui.has_selected_elements for tlui in self]):
@@ -962,7 +962,7 @@ class TimelineUICollection:
         if self._ask_delete_timeline(timeline_ui):
             self._timeline_collection.delete_timeline(timeline_ui.timeline)
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.TIMELINE_DELETE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_DELETE)
 
     def on_request_to_clear_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)

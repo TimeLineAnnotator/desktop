@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 
 from .common import process_parent_child_relation, ParentChildRelation
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -150,7 +150,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             ParentChildRelation(parent=unit, children=[created_unit])
         )
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.CREATE_UNIT_BELOW)
+        events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_UNIT_BELOW)
 
     def change_level_by_amount(self, unit: Hierarchy, amount: int, record=True):
         def _validate_change_level(unit: Hierarchy, new_level: int):
@@ -313,7 +313,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         # TODO handle selects and deselects
 
         if record:
-            events.post(Event.REQUEST_RECORD_STATE, StateAction.GROUP)
+            events.post(Event.REQUEST_RECORD_STATE, Action.GROUP)
 
     def get_unit_to_split(self, time: float) -> Hierarchy | None:
         """Returns lowest level unit that begins strictly before and ends strictly after 'time'"""
@@ -411,7 +411,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             setattr(right_unit, attr, getattr(unit_to_split, attr))
 
         if record:
-            events.post(Event.REQUEST_RECORD_STATE, StateAction.SPLIT)
+            events.post(Event.REQUEST_RECORD_STATE, Action.SPLIT)
 
     def merge(self, units_to_merge: list[Hierarchy]):
         def _validate_at_least_two_units(units: list[Hierarchy]) -> None:

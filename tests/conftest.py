@@ -8,14 +8,16 @@ from tilia import settings
 import tkinter as tk
 import _tkinter
 
+from tilia.timelines.state_actions import Action
+
 
 @pytest.fixture(scope="session", autouse=True)
 def tilia_session():
     def settings_get_patch(table, value, default_value=None):
         match table, value:
-            case 'dev', 'dev_mode':
+            case "dev", "dev_mode":
                 return False
-            case 'auto-save', 'interval':
+            case "auto-save", "interval":
                 return 0
             case _:
                 return original_settings_get(table, value)

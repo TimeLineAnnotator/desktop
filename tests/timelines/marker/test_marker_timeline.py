@@ -17,7 +17,7 @@ from tilia.timelines.marker.timeline import (
 
 # noinspection PyProtectedMember
 from tilia.timelines.serialize import serialize_component, _deserialize_component
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.timeline import TimelineUIElementManager
 from tilia.ui.timelines.marker import MarkerTimelineUI, MarkerUI

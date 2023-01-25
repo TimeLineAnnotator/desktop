@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from tilia.events import subscribe, Event
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
+from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
 
 
@@ -104,15 +105,14 @@ class TimelineCollection:
         logger.debug(f"Clearing timeline {timeline}...")
         timeline.clear()
 
-        events.post(Event.REQUEST_RECORD_STATE, 'clear timeline')
-
+        events.post(Event.REQUEST_RECORD_STATE, Action.CLEAR_TIMELINE)
 
     def clear_all_timelines(self):
         logger.debug(f"Clearing all timelines...")
         for timeline in self:
             timeline.clear()
 
-        events.post(Event.REQUEST_RECORD_STATE, 'clear all timelines')
+        events.post(Event.REQUEST_RECORD_STATE, Action.CLEAR_ALL_TIMELINES)
 
     def _add_to_timelines(self, timeline: Timeline) -> None:
         logger.debug(f"Adding component '{timeline}' to {self}.")
@@ -214,31 +214,24 @@ class TimelineCollection:
             )
 
         elif new_media_length < previous_media_length:
-            logger.debug(f"User chose not to scale timelines. Asking is timelin crop is wanted...")
-            if self._app.ui.ask_yes_no(
-                "Crop timelines", CROP_HIERARCHIES_PROMPT
-            ):
+            logger.debug(
+                f"User chose not to scale timelines. Asking is timelin crop is wanted..."
+            )
+            if self._app.ui.ask_yes_no("Crop timelines", CROP_HIERARCHIES_PROMPT):
                 logger.debug(f"User chose to crop timelines.")
-                self.crop_timeline_components(
-                    new_media_length
-                )
+                self.crop_timeline_components(new_media_length)
             else:
                 logger.debug(f"User chose not to crop timelines.")
                 self.scale_timeline_components(
                     new_media_length / previous_media_length,
                 )
 
-
-    def scale_timeline_components(
-        self, factor: float
-    ) -> None:
-        for tl in [tl for tl in self if hasattr(tl, 'scale')]:
+    def scale_timeline_components(self, factor: float) -> None:
+        for tl in [tl for tl in self if hasattr(tl, "scale")]:
             tl.scale(factor)
 
-    def crop_timeline_components(
-        self, new_length: float
-    ) -> None:
-        for tl in [tl for tl in self if hasattr(tl, 'scale')]:
+    def crop_timeline_components(self, new_length: float) -> None:
+        for tl in [tl for tl in self if hasattr(tl, "scale")]:
             tl.crop(new_length)
 
     def update_ui_elements_position_by_timeline_kind(self, kind: TimelineKind) -> None:

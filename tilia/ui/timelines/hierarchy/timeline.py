@@ -11,7 +11,7 @@ from tilia.ui.timelines.copy_paste import paste_into_element
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, subscribe
 from tilia.misc_enums import IncreaseOrDecrease, Side, UpOrDown
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -274,22 +274,15 @@ class HierarchyTimelineUI(TimelineUI):
         if not self.selected_elements:
             return
 
-        if increase_or_decrease == IncreaseOrDecrease.INCREASE:
-            reverse = True
-        elif increase_or_decrease == IncreaseOrDecrease.DECREASE:
-            reverse = False
-        else:
-            raise ValueError(
-                f'Got invalid value "{increase_or_decrease}" for increase_or_decrease'
-            )
+        logging.debug(
+            f"Requesting timeline to {increase_or_decrease.name.lower()} level of selected elements."
+        )
 
-        for component in sorted(
-            self.selected_components, key=lambda x: (x.level, x.start), reverse=reverse
-        ):
-            logging.debug(
-                f"Requesting timeline to {increase_or_decrease.name.lower()} level of {component}."
-            )
-            self.timeline.change_level_by_amount(increase_or_decrease.value, component)
+        self.timeline.change_level_by_amount(
+            increase_or_decrease.value, self.selected_components
+        )
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.HIERARCHY_LEVEL_CHANGE)
 
         logging.debug(f"Processed {increase_or_decrease.name.lower()} level button.")
 
@@ -534,7 +527,7 @@ class HierarchyTimelineUI(TimelineUI):
             paste_into_element(element, paste_data[0])
             self.select_element(element)
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def validate_copy(self, elements: list[Copyable]) -> None:
         if len(elements) > 1:
@@ -669,7 +662,7 @@ class HierarchyTimelineUI(TimelineUI):
             self._paste_with_children_into_element(paste_data[0], element)
             self.select_element(element)
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def get_copy_data_from_selected_elements(self):
         selected_elements = self.element_manager.get_selected_elements()

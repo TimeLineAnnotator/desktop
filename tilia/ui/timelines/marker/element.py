@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import tilia.utils.color
 from tilia.events import Event, subscribe, unsubscribe
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
 from ...common import format_media_time
@@ -34,14 +34,18 @@ from tilia.ui.timelines.common import TimelineUIElement
 
 class MarkerUI(TimelineUIElement):
 
-    WIDTH = settings.get('marker_timeline', 'marker_width')
-    HEIGHT = settings.get('marker_timeline', 'marker_height')
+    WIDTH = settings.get("marker_timeline", "marker_width")
+    HEIGHT = settings.get("marker_timeline", "marker_height")
 
-    DEFAULT_COLOR = settings.get('marker_timeline', 'marker_default_color')
+    DEFAULT_COLOR = settings.get("marker_timeline", "marker_default_color")
 
     LABEL_PADX = 7
 
-    INSPECTOR_FIELDS = [("Label", "entry"), ("Time", "label"), ("Comments", "scrolled_text")]
+    INSPECTOR_FIELDS = [
+        ("Label", "entry"),
+        ("Time", "label"),
+        ("Comments", "scrolled_text"),
+    ]
 
     FIELD_NAMES_TO_ATTRIBUTES = {"Label": "label", "Comments": "comments"}
 
@@ -154,7 +158,7 @@ class MarkerUI(TimelineUIElement):
 
     @property
     def canvas_drawings_ids(self):
-        return (self.marker_proper_id, self.label_id)
+        return self.marker_proper_id, self.label_id
 
     def update_position(self):
 
@@ -210,7 +214,7 @@ class MarkerUI(TimelineUIElement):
 
     @property
     def left_click_triggers(self) -> tuple[int, ...]:
-        return self.marker_proper_id,
+        return (self.marker_proper_id,)
 
     def on_left_click(self, _) -> None:
         self.make_drag_data()
@@ -262,7 +266,7 @@ class MarkerUI(TimelineUIElement):
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
         if self.drag_data["x"] is not None:
             logger.debug(f"Dragged {self}. New x is {self.x}")
-            events.post(Event.REQUEST_RECORD_STATE, "marker drag")
+            events.post(Event.REQUEST_RECORD_STATE, Action.MARKER_DRAG)
             events.post(Event.ELEMENT_DRAG_END)
 
         self.drag_data = {}

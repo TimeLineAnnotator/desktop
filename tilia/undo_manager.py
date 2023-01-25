@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from tilia._tilia import TiLiA
 
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class UndoManager:
     def record(
         self,
         state,
-        action: StateAction,
+        action: Action,
         no_repeat=False,
         repeat_identifier="",
     ):
