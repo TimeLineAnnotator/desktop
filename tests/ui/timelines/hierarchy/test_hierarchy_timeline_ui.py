@@ -263,42 +263,7 @@ class TestHierarchyTimelineUI:
         ### TEST COPY.PASTE ###
         #######################
 
-    def test_get_copy_data_for_hierarchy_with_children(self):
-        # TODO
-        # cpm = HierarchyTimelineCopyPasteManager()
-        # h_mock, hui_mock = hierarchy_with_ui_mock()
-        # h_mock_child1, hui_mock_child1 = hierarchy_with_ui_mock()
-        # h_mock_child2, hui_mock_child2 = hierarchy_with_ui_mock()
-        #
-        # h_mock.children.append(h_mock_child1)
-        # h_mock.children.append(h_mock_child2)
-        #
-        # copy_data = cpm.get_copy_data_for_hierarchy_ui(hui_mock)
-        # child1_copy_data = cpm.get_copy_data_for_hierarchy_ui(hui_mock_child1)
-        # child2_copy_data = cpm.get_copy_data_for_hierarchy_ui(hui_mock_child2)
-        #
-        #
-        # for attr in HierarchyTimelineCopyPasteManager.DEFAULT_COPY_ATTRIBUTES_BY_COMPONENT_VALUE:
-        #     assert copy_data['by_component_value'][attr] == getattr(h_mock, attr)
-        #
-        # for attr in HierarchyTimelineCopyPasteManager.SUPPORT_COPY_ATTRIBUTES_BY_COMPONENT_VALUE:
-        #     assert copy_data['support_by_component_value'][attr] == getattr(h_mock, attr)
-        #
-        # for attr in HierarchyTimelineCopyPasteManager.DEFAULT_COPY_ATTRIBUTES_BY_ELEMENT_VALUE:
-        #     assert copy_data['by_element_value'][attr] == getattr(hui_mock, attr)
-        #
-        # for attr in HierarchyTimelineCopyPasteManager.SUPPORT_COPY_ATTRIBUTES_BY_ELEMENT_VALUE:
-        #     assert copy_data['support_by_element_value'][attr] == getattr(hui_mock, attr)
-        #
-        # assert child1_copy_data in copy_data['children']
-        # assert child2_copy_data in copy_data['children']
-        pass
-
-    @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
-    def test_paste_without_children_into_selected_elements(
-        self, on_select_mock, hierarchy_tlui
-    ):
-        on_select_mock.return_value = None
+    def test_paste_without_children_into_selected_elements(self, hierarchy_tlui):
 
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
 
@@ -341,11 +306,9 @@ class TestHierarchyTimelineUI:
 
         assert_is_copy_data_of(copy_data[0], hrc3.ui)
 
-    @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_with_children_into_selected_elements_without_rescaling(
-        self, on_select_mock, hierarchy_tlui
+        self, hierarchy_tlui
     ):
-        on_select_mock.return_value = None
 
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -363,7 +326,7 @@ class TestHierarchyTimelineUI:
 
         hierarchy_tlui.paste_with_children_into_selected_elements(copy_data)
 
-        assert len(hierarchy_tlui.timeline.component_manager._components) == 6
+        assert len(hierarchy_tlui.elements) == 6
         assert len(hrc4.children) == 2
 
         copied_children_1, copied_children_2 = sorted(
@@ -381,11 +344,9 @@ class TestHierarchyTimelineUI:
         assert_are_copies(copied_children_1, hrc1)
         assert_are_copies(copied_children_2, hrc2)
 
-    @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_with_children_into_selected_elements_with_rescaling(
-        self, on_select_mock, hierarchy_tlui
+        self, hierarchy_tlui
     ):
-        on_select_mock.return_value = None
 
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -415,11 +376,7 @@ class TestHierarchyTimelineUI:
         assert copied_children_2.start == 1.25
         assert copied_children_2.end == 1.5
 
-    @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
-    def test_paste_with_children_that_have_children(
-        self, on_select_mock, hierarchy_tlui
-    ):
-        on_select_mock.return_value = None
+    def test_paste_with_children_that_have_children(self, hierarchy_tlui):
 
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -432,9 +389,7 @@ class TestHierarchyTimelineUI:
         set_dummy_copy_attributes(hrc2)
 
         hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc3, children=[hrc1]))
-
         hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc4, children=[hrc2]))
-
         hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc5, children=[hrc3, hrc4]))
 
         copy_data = hierarchy_tlui.get_copy_data_from_hierarchy_uis([hrc5.ui])
@@ -455,11 +410,9 @@ class TestHierarchyTimelineUI:
         assert copied_children_2.children[0].start == 1.5
         assert copied_children_2.children[0].end == 2.0
 
-    @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
     def test_paste_with_children_into_different_level_raises_error(
-        self, on_select_mock, hierarchy_tlui
+        self, hierarchy_tlui
     ):
-        on_select_mock.return_value = None
 
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -473,13 +426,10 @@ class TestHierarchyTimelineUI:
         hierarchy_tlui.select_element(hrc4.ui)
 
         with pytest.raises(PasteError):
-            hierarchy_tlui.paste_with_children_into_selected_elements(copy_data)
+            with patch("tkinter.messagebox.showerror", lambda *_: None):
+                hierarchy_tlui.paste_with_children_into_selected_elements(copy_data)
 
-    @patch("tilia.ui.timelines.hierarchy.element.HierarchyUI.on_select")
-    def test_paste_with_children_paste_two_elements_raises_error(
-        self, on_select_mock, hierarchy_tlui
-    ):
-        on_select_mock.return_value = None
+    def test_paste_with_children_paste_two_elements_raises_error(self, hierarchy_tlui):
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
         hrc3 = hierarchy_tlui.create_hierarchy(0, 1, 2)
