@@ -213,6 +213,10 @@ class TimelineUI(ABC):
     def selected_elements(self):
         return self.element_manager.get_selected_elements()
 
+    @property
+    def selected_components(self):
+        return [element.tl_component for element in self.selected_elements]
+
     # noinspection PyUnresolvedReferences
     def _setup_visiblity(self, is_visible: bool):
         self.is_visible = is_visible
@@ -472,7 +476,7 @@ class TimelineUI(ABC):
         events.post(Event.REQUEST_RECORD_STATE, "timeline name change")
 
     def on_inspector_window_opened(self):
-        for element in self.element_manager.get_selected_elements():
+        for element in self.selected_elements:
             logger.debug(
                 f"Notifying inspector of previsously selected elements on {self}..."
             )
@@ -491,57 +495,31 @@ class TimelineUI(ABC):
     def update_elements_position(self) -> None:
         self.element_manager.update_elements_postion()
 
-    def _log_and_get_elements_for_button_processing(
-        self, action_str_for_log: str
-    ) -> list[TimelineUIElement] | None:
-        """Gets selected elements to start with button click processing.
-        Logs process start and if there is nothing to do, if that is the case.
-        If timeline is not is_visible or there are no selected elements, there is nothing to do"""
-
-        logging.debug(f"Processing {action_str_for_log} button click in {self}...")
-
-        if not self.visible:
-            logging.debug(f"TimelineUI is not visible, nothing to do.")
-            return None
-
-        if not self.selected_elements:
-            logging.debug(f"No element is selected. Nothing to do.")
-            return None
-
-        return self.selected_elements
-
     def on_delete_press(self):
-        selected_elements = self.element_manager.get_selected_elements()
-        self.timeline.on_request_to_delete_components(
-            [e.tl_component for e in selected_elements]
-        )
+        self.timeline.on_request_to_delete_components(self.selected_components)
 
     def delete_selected_elements(self):
-        selected_elements = self._log_and_get_elements_for_button_processing("delete")
-        if not selected_elements:
+        if not self.selected_elements:
             return
 
-        selected_tl_components = [e.tl_component for e in selected_elements]
-
-        for component in selected_tl_components:
+        for component in self.selected_components:
             self.timeline.on_request_to_delete_components([component])
 
     def delete_element(self, element: TimelineUIElement):
-        if element in self.element_manager.get_selected_elements():
+        if element in self.selected_elements:
             self.deselect_element(element)
 
         self.element_manager.delete_element(element)
 
     def debug_selected_elements(self):
-        selected_elements = self.element_manager.get_selected_elements()
-        print(f"========== {self} ==========")
-        for element in selected_elements.copy():
+        logger.debug(f"========== {self} ==========")
+        for element in self.selected_elements.copy():
             from pprint import pprint
 
-            print(f"----- {element} -----")
-            print("--- UIElement attributes ---")
+            logger.debug(f"----- {element} -----")
+            logger.debug("--- UIElement attributes ---")
             pprint(element.__dict__)
-            print("--- Component attributes ---")
+            logger.debug("--- Component attributes ---")
             pprint(element.tl_component.__dict__)
 
     def validate_copy(self, elements: list[TimelineUIElement]) -> None:
@@ -555,14 +533,12 @@ class TimelineUI(ABC):
         pass
 
     def get_copy_data_from_selected_elements(self) -> list[dict]:
-        selected_elements = self.element_manager.get_selected_elements()
-
-        self.validate_copy(selected_elements)
+        self.validate_copy(self.selected_elements)
 
         return get_copy_data_from_elements(
             [
                 (el, el.DEFAULT_COPY_ATTRIBUTES)
-                for el in selected_elements
+                for el in self.selected_elements
                 if isinstance(el, Copyable)
             ]
         )
