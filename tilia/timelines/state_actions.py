@@ -4,6 +4,11 @@ from enum import Enum, auto
 
 
 class Action(Enum):
+    BEATS_IN_MEASURE_CHANGE = auto()
+    DISTRIBUTE_BEATS = auto()
+    MEASURE_NUMBER_RESET = auto()
+    MEASURE_NUMBER_CHANGE = auto()
+    TEST_STATE = auto()
     TIMELINE_NAME_CHANGE = auto()
     TIMELINE_HEIGHT_CHANGE = auto()
     DELETE_TIMELINE_COMPONENT = auto()
