@@ -4,12 +4,9 @@ from unittest.mock import MagicMock, ANY, patch
 import itertools
 import logging
 
-from tilia import events
-from tilia.events import Event
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.common import InvalidComponentKindError
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.create import create_timeline
 from tilia.timelines.hierarchy.components import HierarchyOperationError, Hierarchy
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
@@ -93,10 +90,7 @@ class TkFontDummy:
 class TestHierarchyTimeline:
 
     # TEST CREATE
-    def test_create_hierarchy(self):
-        tl_coll = TimelineCollection(MagicMock())
-        component_manager = HierarchyTLComponentManager()
-        tl = HierarchyTimeline(tl_coll, component_manager)
+    def test_create_hierarchy(self, tl):
         tl.ui = MagicMock()
         tl.create_timeline_component(ComponentKind.HIERARCHY, start=0, end=1, level=1)
 

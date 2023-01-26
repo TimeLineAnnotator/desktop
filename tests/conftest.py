@@ -1,6 +1,7 @@
 import itertools
 import os
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 import pytest
 from tilia import dirs
@@ -10,7 +11,6 @@ import tkinter as tk
 import _tkinter
 
 from tilia.events import unsubscribe_from_all
-from tilia.timelines.state_actions import Action
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -47,29 +47,35 @@ def pump_events():
         pass
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def tkui(tk_session):
     from tilia.ui.tkinterui import TkinterUI
 
     os.chdir(Path(Path(__file__).absolute().parents[1], "tilia"))
-    tkui_ = TkinterUI(pytest.root)
+    with patch("tilia.ui.player.PlayerUI", MagicMock()):
+        tkui_ = TkinterUI(pytest.root)
     yield tkui_
+    unsubscribe_from_all(tkui_.timeline_ui_collection)
+    unsubscribe_from_all(tkui_)
 
 
 # noinspection PyProtectedMember
 @pytest.fixture(scope="module")
 def tilia(tkui):
+    os.chdir(Path(Path(__file__).absolute().parents[1], "tilia"))
     from tilia._tilia import TiLiA
 
     tilia_ = TiLiA(tkui)
-    tilia_._timeline_collection.delete_timeline(tilia_._timeline_collection[0])
+    tilia_.clear_app()  # undo blank file setup
     yield tilia_
     tilia_.clear_app()
+    unsubscribe_from_all(tilia_)
     unsubscribe_from_all(tilia_._timeline_collection)
     unsubscribe_from_all(tilia_._timeline_ui_collection)
     unsubscribe_from_all(tilia_._file_manager)
     unsubscribe_from_all(tilia_._player)
     unsubscribe_from_all(tilia_._undo_manager)
+    unsubscribe_from_all(tilia_._clipboard)
 
 
 @pytest.fixture(scope="module")

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineCanvas
 
 import tilia.utils.color
-from tilia.events import Event, subscribe, unsubscribe
+from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
 from tilia.misc_enums import StartOrEnd
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
@@ -444,6 +444,7 @@ class HierarchyUI(TimelineUIElement):
         logger.debug(f"Deleting comments indicator '{self.comments_ind_id}'")
         self.canvas.delete(self.comments_ind_id)
         self._delete_markers_if_not_shared()
+        unsubscribe_from_all(self)
 
     def get_marker_coords(
         self, marker_extremity: StartOrEnd

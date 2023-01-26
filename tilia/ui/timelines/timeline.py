@@ -841,8 +841,9 @@ class TimelineUIElementManager:
 
     def delete_element(self, element: SomeTimelineUIElement):
         logger.debug(f"Deleting UI element '{element}'")
-        self._deselect_if_selected(element)
+        # self._deselect_if_selected(element)
         element.delete()
+        element
         self._remove_from_elements_set(element)
 
     @staticmethod

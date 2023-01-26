@@ -280,6 +280,7 @@ class VlcPlayer(Player):
         except NameError:
             raise VLCNotInstalledError
 
+        self.vlc_instance.log_unset()
         self.media_player = self.vlc_instance.media_player_new()
         self._media_length = 0.0
 
@@ -341,7 +342,8 @@ class VlcPlayer(Player):
         return self.media_player.get_position() * self._media_length
 
     def _engine_exit(self):
-        self.vlc_instance.vlm_del_media(self.media_path)
+        self.media_player.release()
+        self.vlc_instance.release()
         self.player_window.destroy()
 
 

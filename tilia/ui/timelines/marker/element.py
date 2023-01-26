@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import tilia.utils.color
-from tilia.events import Event, subscribe, unsubscribe
+from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
 from tilia.timelines.state_actions import Action
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
@@ -207,6 +207,7 @@ class MarkerUI(TimelineUIElement):
         self.canvas.delete(self.marker_proper_id)
         logger.debug(f"Deleting label '{self.label_id}'")
         self.canvas.delete(self.label_id)
+        unsubscribe_from_all(self)
 
     @property
     def selection_triggers(self) -> tuple[int, ...]:

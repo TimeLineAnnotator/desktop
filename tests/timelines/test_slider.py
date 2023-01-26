@@ -3,50 +3,28 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tilia.timelines.create import create_timeline
 from tilia.timelines.slider import SliderTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.slider import SliderTimelineUI
 
 
 @pytest.fixture
-def tl_with_ui() -> SliderTimeline:
-
-    id_counter = itertools.count()
-
-    tl_coll_mock = MagicMock()
-    tl_coll_mock.get_id = lambda: next(id_counter)
-
-    tlui_coll_mock = MagicMock()
-    tlui_coll_mock.get_id = lambda: next(id_counter)
-
-    timeline = SliderTimeline(tl_coll_mock, None, TimelineKind.SLIDER_TIMELINE)
-
-    timeline.ui = SliderTimelineUI(
-        timeline_ui_collection=tlui_coll_mock,
-        element_manager=MagicMock(),
-        canvas=MagicMock(),
-        toolbar=None,
-        name="",
+def slider_tl(tilia, tl_clct, tlui_clct) -> SliderTimeline:
+    tl: SliderTimeline = create_timeline(
+        TimelineKind.SLIDER_TIMELINE, tl_clct, tlui_clct
     )
 
-    yield timeline
-
-
-@pytest.fixture
-def tl() -> SliderTimeline:
-    timeline = SliderTimeline(MagicMock(), None, None)
-
-    timeline.ui = MagicMock()
-    yield timeline
+    tl.clear()
+    yield tl
+    tl_clct.delete_timeline(tl)
+    tilia._undo_manager.clear()
 
 
 class TestSliderTimeline:
-    def test_constructor(self):
-        SliderTimeline(MagicMock(), None, TimelineKind.SLIDER_TIMELINE)
+    def test_serialize_timeline(self, slider_tl):
 
-    def test_serialize_timeline(self, tl_with_ui):
-
-        serialized_timeline = tl_with_ui.get_state()
+        serialized_timeline = slider_tl.get_state()
 
         assert serialized_timeline["height"] == SliderTimelineUI.DEFAULT_HEIGHT
         assert serialized_timeline["is_visible"] is True

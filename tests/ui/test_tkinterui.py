@@ -37,9 +37,9 @@ class TestTkinterUI:
         assert managetl_mock.called
 
     @patch("tilia.ui.tkinterui.MediaMetadataWindow")
-    def test_on_request_window_media_metadata(self, mmtdata_mock, tkui):
-        tkui.on_request_window(WindowKind.MEDIA_METADATA)
-        assert mmtdata_mock.called
+    def test_on_request_window_media_metadata(self, mngmtdata_mock, tilia):
+        tilia.ui.on_request_window(WindowKind.MEDIA_METADATA)
+        assert mngmtdata_mock.called
 
     @patch("tilia.ui.tkinterui.About")
     def test_on_request_window_about(self, about_mock, tkui):

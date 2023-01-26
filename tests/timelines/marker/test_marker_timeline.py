@@ -4,12 +4,10 @@ from unittest.mock import MagicMock, ANY, patch
 import itertools
 import logging
 
-from tilia import events
-from tilia.events import Event
+from tilia.events import unsubscribe_from_all
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.common import InvalidComponentKindError
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.marker.components import MarkerOperationError
 from tilia.timelines.marker.timeline import (
     MarkerTLComponentManager,
     MarkerTimeline,
@@ -17,7 +15,6 @@ from tilia.timelines.marker.timeline import (
 
 # noinspection PyProtectedMember
 from tilia.timelines.serialize import serialize_component, _deserialize_component
-from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.timeline import TimelineUIElementManager
 from tilia.ui.timelines.marker import MarkerTimelineUI, MarkerUI
@@ -49,6 +46,8 @@ def tl_with_ui() -> MarkerTimeline:
     )
     component_manager.associate_to_timeline(timeline)
     yield timeline
+    unsubscribe_from_all(timeline)
+    unsubscribe_from_all(timeline.ui)
 
 
 @pytest.fixture
@@ -59,21 +58,16 @@ def tl() -> MarkerTimeline:
     timeline.ui = MagicMock()
     component_manager.associate_to_timeline(timeline)
     yield timeline
+    unsubscribe_from_all(timeline)
 
 
 class TestMarkerTimeline:
 
     # TEST CREATE
-    def test_create_marker(self):
-        tl_coll = TimelineCollection(MagicMock())
-        component_manager = MarkerTLComponentManager()
-        tl = MarkerTimeline(tl_coll, component_manager)
-        tl.ui = MagicMock()
-        tl.create_timeline_component(ComponentKind.MARKER, time=0)
+    def test_create_marker(self, tl_with_ui):
+        tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
 
-        tl.ui.get_ui_for_component.assert_called_with(ComponentKind.MARKER, ANY, time=0)
-
-        assert len(tl.component_manager._components) == 1
+        assert len(tl_with_ui.component_manager._components) == 1
 
     # TEST DELETE
     def test_delete_marker(self, tl):

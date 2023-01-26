@@ -17,7 +17,7 @@ from tilia.player import player
 
 @pytest.fixture
 def file_manager(tilia):
-    return FileManager(tilia)
+    return tilia._file_manager
 
 
 class TestTilia:
@@ -37,16 +37,15 @@ class TestTilia:
 
 
 class TestFileManager:
-    def test_constructor(self, tilia):
-        FileManager(tilia)
-
-    def test_open(self, file_manager):
+    def test_open(self, tilia, file_manager):
         os.chdir(Path(Path(__file__).absolute().parents[1], "tests"))
         file_manager._app.ui.get_file_open_path = lambda: "test_file.tla"
         file_manager.ask_save_if_necessary = lambda: True
 
         with patch("tkinter.PhotoImage", lambda *args, **kwargs: None):
             file_manager.open()
+
+        tilia.clear_app()
 
     def test_on_metadata_new_fields(self, tilia):
         new_metadata_fields = ["test_field1", "test_field2"]
@@ -70,6 +69,8 @@ class TestFileManager:
             ("test_field2", "b"),
             ("test_field3", "c"),
         ]
+
+        tilia.clear_app()
 
     def test_is_file_modified(self, tilia, file_manager):
 

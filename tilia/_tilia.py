@@ -94,7 +94,11 @@ class TiLiA:
         Checks if a file path was passed as an argument to process.
         If it was, the file is opened. Else, calls setup for newly created files.
         """
-        if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
+        if (
+            len(sys.argv) > 1
+            and os.path.isfile(sys.argv[1])
+            and sys.argv[1].endswith(".tla")
+        ):
             logger.info(f"Opening file provided at startup: {sys.argv[1]}")
             self._file_manager.open_file_by_path(sys.argv[1])
         else:

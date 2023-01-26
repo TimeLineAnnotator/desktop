@@ -7,6 +7,7 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.beat.timeline import BeatTimelineUI
 from tilia.timelines.create import create_timeline
+from tilia.ui.windows import WindowKind
 
 
 @pytest.fixture
@@ -20,6 +21,7 @@ def beat_tlui(tl_clct, tlui_clct) -> BeatTimelineUI:
             tl: BeatTimeline = create_timeline(
                 TimelineKind.BEAT_TIMELINE, tl_clct, tlui_clct
             )
+
     yield tl.ui
     tl_clct.delete_timeline(tl)
 
@@ -185,7 +187,7 @@ class TestBeatTimelineUI:
         beat_tlui.on_side_arrow_press(Side.LEFT)
         assert beat_tlui.selected_elements == [beat0]
 
-    def test_on_right_click_menu_inspect(self, beat_tlui):
+    def test_on_right_click_menu_inspect(self, tkui, beat_tlui):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
@@ -199,6 +201,9 @@ class TestBeatTimelineUI:
         beat_tlui.right_click_menu_inspect()
 
         assert beat_tlui.selected_elements == [beat0]
+        assert tkui._windows[WindowKind.INSPECT]
+
+        tkui._windows[WindowKind.INSPECT].destroy()
 
     @patch("tilia.ui.common.ask_for_int")
     def test_right_click_menu_change_measure_number_single_measure(

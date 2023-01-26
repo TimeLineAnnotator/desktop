@@ -181,6 +181,9 @@ def unsubscribe(subscriber: Any, event: Event) -> None:
 
     subscribers_to_events[subscriber].remove(event)
 
+    if not subscribers_to_events[subscriber]:
+        subscribers_to_events.pop(subscriber)
+
 
 def unsubscribe_from_all(subscriber: Any) -> None:
 
