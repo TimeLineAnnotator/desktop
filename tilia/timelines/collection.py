@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tilia.events import subscribe, Event
+from tilia.repr import default_str
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
 from tilia.timelines.state_actions import Action
@@ -46,6 +47,9 @@ class TimelineCollection:
 
     def __iter__(self):
         return iter(self._timelines)
+
+    def __str__(self):
+        return default_str(self)
 
     def create_timeline(self, timeline_kind: TimelineKind, **kwargs) -> Timeline:
         match timeline_kind:
@@ -244,6 +248,3 @@ class TimelineCollection:
             timeline.delete()
             self._remove_from_timelines(timeline)
             self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
-
-    def __str__(self):
-        return self.__class__.__name__ + f"({id(self)})"

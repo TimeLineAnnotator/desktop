@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, OrderedDict
 
 from tilia import globals_, dirs
 from tilia import settings
+from tilia.repr import default_str
 
 if TYPE_CHECKING:
     from tilia._tilia import TiLiA
@@ -54,6 +55,9 @@ class FileManager:
         )
         if settings.get("auto-save", "interval"):
             self._autosave_thread.start()
+
+    def __str__(self):
+        return default_str(self)
 
     def was_file_modified(self):
 

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 from tilia import events
 from tilia.events import Event, unsubscribe, unsubscribe_from_all, subscribe
 from tilia.misc_enums import Side
-from tilia.repr import default_str_dunder
+from tilia.repr import default_str
 from tilia.timelines.common import (
     TimelineComponent,
     log_object_creation,
@@ -586,12 +586,13 @@ class TimelineUI(ABC):
         logger.info(f"Deleting timeline ui {self}...")
 
         unsubscribe_from_all(self)
+        unsubscribe_from_all(self.canvas)
         self.canvas.destroy()
         if self.toolbar:
             self.toolbar.on_timeline_delete()
 
     def __repr__(self):
-        return default_str_dunder(self)
+        return default_str(self)
 
     def __str__(self):
         return f"{self.name} | {self.TIMELINE_KIND.value.capitalize().split('_')[0]} Timeline"
@@ -856,7 +857,7 @@ class TimelineUIElementManager:
         return drawings_ids
 
     def __repr__(self) -> str:
-        return default_str_dunder(self)
+        return default_str(self)
 
     def get_all_elements(self) -> set:
         return self._elements

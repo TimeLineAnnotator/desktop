@@ -1,5 +1,5 @@
 from typing import Any
 
 
-def default_str_dunder(object_: Any) -> str:
-    return f"{object_.__class__.__name__}({id(object_)})"
+def default_str(self: Any) -> str:
+    return self.__class__.__name__ + "-" + str(id(self))

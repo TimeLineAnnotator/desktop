@@ -53,7 +53,7 @@ class TimelineComponent(ABC):
         deletion."""
 
     def __str__(self):
-        return tilia.repr.default_str_dunder(self)
+        return tilia.repr.default_str(self)
 
 
 class TimelineComponentManager:

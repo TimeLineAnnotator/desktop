@@ -17,6 +17,7 @@ from tilia.exceptions import UserCancelledSaveError
 from tilia.file_manager import FileManager
 from tilia.files import create_new_media_metadata, TiliaFile
 from tilia.player import player
+from tilia.repr import default_str
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.create import create_timeline
 from tilia.timelines.state_actions import Action
@@ -61,6 +62,9 @@ class TiLiA:
 
         if settings.get("dev", "dev_mode"):
             local_dev_code.func(self)
+
+    def __str__(self):
+        return default_str(self)
 
     def _setup_ui(self, ui):
         self.ui = ui

@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 import logging
 
 from tilia import dirs
+from tilia.repr import default_str
 
 logger = logging.getLogger(__name__)
 import threading
@@ -77,6 +78,9 @@ class Player(ABC):
         self.current_time = 0.0
         self.media_path = ""
         self.playing = False
+
+    def __str__(self):
+        return default_str(self)
 
     @property
     def playback_length(self):
