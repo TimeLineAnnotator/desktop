@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tilia.events import Event, unsubscribe_from_all
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.undo_manager import UndoManager
 
 
@@ -11,7 +11,7 @@ from tilia.undo_manager import UndoManager
 def um():
     _um = UndoManager()
     _um.record(
-        "state0", StateAction.FILE_LOAD
+        "state0", Action.FILE_LOAD
     )  # simulate the fact that there will always be this record at the bootom of the stack
     yield _um
     unsubscribe_from_all(_um)
@@ -27,7 +27,7 @@ class TestUndoManager:
         um.record("state1", "action1")
 
         assert um.stack == [
-            {"state": "state0", "action": StateAction.FILE_LOAD},
+            {"state": "state0", "action": Action.FILE_LOAD},
             {"state": "state1", "action": "action1"},
         ]
 
@@ -36,7 +36,7 @@ class TestUndoManager:
         um.record("state2", "action2")
 
         assert um.stack == [
-            {"state": "state0", "action": StateAction.FILE_LOAD},
+            {"state": "state0", "action": Action.FILE_LOAD},
             {"state": "state1", "action": "action1"},
             {"state": "state2", "action": "action2"},
         ]
@@ -128,7 +128,7 @@ class TestUndoManager:
         um.record("state3", "action3")
 
         assert um.stack == [
-            {"state": "state0", "action": StateAction.FILE_LOAD},
+            {"state": "state0", "action": Action.FILE_LOAD},
             {"state": "state1", "action": "action1"},
             {"state": "state3", "action": "action3"},
         ]
@@ -145,7 +145,7 @@ class TestUndoManager:
         um.record("state4", "action4")
 
         assert um.stack == [
-            {"state": "state0", "action": StateAction.FILE_LOAD},
+            {"state": "state0", "action": Action.FILE_LOAD},
             {"state": "state1", "action": "action1"},
             {"state": "state2", "action": "action2"},
             {"state": "state4", "action": "action4"},

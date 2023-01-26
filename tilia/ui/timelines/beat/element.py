@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import tilia.utils.color
-from tilia.events import Event, subscribe, unsubscribe
+from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
+from tilia.timelines.state_actions import Action
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
 from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
@@ -45,10 +45,7 @@ class BeatUI(TimelineUIElement):
 
     DRAG_PROXIMITY_LIMIT = 2
 
-    INSPECTOR_FIELDS = [
-        ("Time", "label"),
-        ("Measure", "label")
-    ]
+    INSPECTOR_FIELDS = [("Time", "label"), ("Measure", "label")]
 
     FIELD_NAMES_TO_ATTRIBUTES = {}
 
@@ -207,6 +204,7 @@ class BeatUI(TimelineUIElement):
         self.canvas.delete(self.beat_proper_id)
         logger.debug(f"Deleting label '{self.label_id}'")
         self.canvas.delete(self.label_id)
+        unsubscribe_from_all(self)
 
     @property
     def selection_triggers(self) -> tuple[int, ...]:
@@ -291,7 +289,7 @@ class BeatUI(TimelineUIElement):
 
         if self.drag_data["x"] is not None:
             logger.debug(f"Dragged {self}. New x is {self.x}")
-            events.post(Event.REQUEST_RECORD_STATE, "beat drag")
+            events.post(Event.REQUEST_RECORD_STATE, Action.BEAT_DRAG)
             events.post(Event.ELEMENT_DRAG_END)
 
         self.drag_data = {}
@@ -312,7 +310,4 @@ class BeatUI(TimelineUIElement):
         self.tl_component.receive_delete_request_from_ui()
 
     def get_inspector_dict(self) -> dict:
-        return {
-            "Time": format_media_time(self.time),
-            "Measure": self.measure_number
-        }
+        return {"Time": format_media_time(self.time), "Measure": self.measure_number}

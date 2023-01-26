@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineCanvas
 
 import tilia.utils.color
-from tilia.events import Event, subscribe, unsubscribe
+from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
 from tilia.misc_enums import StartOrEnd
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
@@ -96,6 +96,9 @@ class HierarchyUI(TimelineUIElement):
         ("Delete", RightClickOption.DELETE),
     ]
 
+    NAME_WHEN_UNLABELED = "Unnamed"
+    FULL_NAME_SEPARATOR = "-"
+
     @log_object_creation
     def __init__(
         self,
@@ -120,7 +123,7 @@ class HierarchyUI(TimelineUIElement):
 
         self._setup_color(color)
 
-        self.rect_id = self.draw_unit()
+        self.body_id = self.draw_body()
         self.label_id = self.draw_label()
         self.comments_ind_id = self.draw_comments_indicator()
         self.start_marker, self.end_marker = self.draw_markers()
@@ -242,7 +245,7 @@ class HierarchyUI(TimelineUIElement):
     def color(self, value):
         logger.debug(f"Setting {self} color to {value}")
         self._color = value
-        self.canvas.itemconfig(self.rect_id, fill=self._color)
+        self.canvas.itemconfig(self.body_id, fill=self._color)
 
     @property
     def shaded_color(self):
@@ -250,21 +253,21 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def full_name(self) -> str:
-        STR_FOR_UNLABELED = "Unnamed"
-        FULL_NAME_SEPARATOR = "-"
 
-        partial_name = self.label if self.label else STR_FOR_UNLABELED
+        partial_name = self.label if self.label else self.NAME_WHEN_UNLABELED
 
         next_parent = self.parent
 
         while next_parent:
             parent_name = (
-                next_parent.ui.label if next_parent.ui.label else STR_FOR_UNLABELED
+                next_parent.ui.label
+                if next_parent.ui.label
+                else self.NAME_WHEN_UNLABELED
             )
-            partial_name = parent_name + FULL_NAME_SEPARATOR + partial_name
+            partial_name = parent_name + self.FULL_NAME_SEPARATOR + partial_name
             next_parent = next_parent.parent
 
-        full_name = self.timeline_ui.name + FULL_NAME_SEPARATOR + partial_name
+        full_name = self.timeline_ui.name + self.FULL_NAME_SEPARATOR + partial_name
 
         return full_name
 
@@ -273,6 +276,7 @@ class HierarchyUI(TimelineUIElement):
         self.update_label_measures()
 
     def update_label_measures(self):
+        """Calculates length of substrings of label and stores it in self.label_measures"""
         tk_font = tk.font.Font()
         self.label_measures = [
             tk_font.measure(self._label[: i + 1]) for i in range(len(self._label))
@@ -307,7 +311,7 @@ class HierarchyUI(TimelineUIElement):
     @property
     def canvas_drawings_ids(self):
         return (
-            self.rect_id,
+            self.body_id,
             self.label_id,
             self.comments_ind_id,
             self.start_marker,
@@ -318,28 +322,36 @@ class HierarchyUI(TimelineUIElement):
 
         logger.debug(f"Updating {self} canvas drawings positions...")
 
-        # update rectangle
+        self.update_rectangle_position()
+        self.update_comments_indicator_position()
+        self.update_label_position()
+        self.update_displayed_label()
+        self.update_markers_position()
+
+    def update_rectangle_position(self):
         self.canvas.coords(
-            self.rect_id,
-            *self.get_unit_coords(),
+            self.body_id,
+            *self.get_body_coords(),
         )
 
-        # update comments indicator
+    def update_comments_indicator_position(self):
         self.canvas.coords(
             self.comments_ind_id,
             *self.get_comments_indicator_coords(),
         )
 
-        # update label
+    def update_label_position(self):
         self.canvas.coords(self.label_id, *self.get_label_coords())
+
+    def update_displayed_label(self):
         self.canvas.itemconfig(self.label_id, text=self.display_label)
 
-        # update markers
+    def update_markers_position(self):
         self.canvas.coords(self.start_marker, *self.get_marker_coords(StartOrEnd.START))
         self.canvas.coords(self.end_marker, *self.get_marker_coords(StartOrEnd.END))
 
-    def draw_unit(self) -> int:
-        coords = self.get_unit_coords()
+    def draw_body(self) -> int:
+        coords = self.get_body_coords()
         logger.debug(f"Drawing hierarchy rectangle with {coords} ans {self.color=}")
         return self.canvas.create_rectangle(
             *coords,
@@ -363,42 +375,6 @@ class HierarchyUI(TimelineUIElement):
             text=self.COMMENTS_INDICATOR_CHAR if self.comments else "",
         )
 
-    def get_unit_coords(self):
-        tl_height = self.timeline_ui.get_timeline_height()
-
-        x0 = self.start_x + self.XOFFSET
-        y0 = (
-            tl_height
-            - self.YOFFSET
-            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
-        )
-        x1 = self.end_x - self.XOFFSET
-
-        y1 = tl_height - self.YOFFSET
-        return x0, y0, x1, y1
-
-    def get_comments_indicator_coords(self):
-        _, y0, x1, _ = self.get_unit_coords()
-
-        return (
-            x1 + self.COMMENTS_INDICATOR_XOFFSET,
-            y0 + self.COMMENTS_INDICATOR_YOFFSET,
-        )
-
-    def get_label_coords(self):
-        x0, y0, x1, _ = self.get_unit_coords()
-        return (x0 + x1) / 2, y0 + self.LABEL_YOFFSET
-
-    @log_object_deletion
-    def delete(self):
-        logger.debug(f"Deleting rectangle '{self.rect_id}'")
-        self.canvas.delete(self.rect_id)
-        logger.debug(f"Deleting label '{self.label_id}'")
-        self.canvas.delete(self.label_id)
-        logger.debug(f"Deleting comments indicator '{self.comments_ind_id}'")
-        self.canvas.delete(self.comments_ind_id)
-        self._delete_markers_if_not_shared()
-
     def draw_markers(self) -> tuple[int, int]:
         """If there are already markers at start or end position,
         uses them instead"""
@@ -411,7 +387,7 @@ class HierarchyUI(TimelineUIElement):
             start_marker = self.draw_marker(StartOrEnd.START)
         else:
             logger.debug(f"Got existing marker '{start_marker}' as start marker.")
-            self.canvas.tag_raise(start_marker, self.rect_id)
+            self.canvas.tag_raise(start_marker, self.body_id)
 
         end_marker = self.timeline_ui.get_markerid_at_x(self.end_x)
         if not end_marker:
@@ -419,7 +395,7 @@ class HierarchyUI(TimelineUIElement):
             end_marker = self.draw_marker(StartOrEnd.END)
         else:
             logger.debug(f"Got existing marker '{end_marker}' as end marker.")
-            self.canvas.tag_raise(end_marker, self.rect_id)
+            self.canvas.tag_raise(end_marker, self.body_id)
 
         return start_marker, end_marker
 
@@ -433,11 +409,48 @@ class HierarchyUI(TimelineUIElement):
             tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS),
         )
 
+    def get_body_coords(self):
+        tl_height = self.timeline_ui.height
+
+        x0 = self.start_x + self.XOFFSET
+        y0 = (
+            tl_height
+            - self.YOFFSET
+            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
+        )
+        x1 = self.end_x - self.XOFFSET
+
+        y1 = tl_height - self.YOFFSET
+        return x0, y0, x1, y1
+
+    def get_comments_indicator_coords(self):
+        _, y0, x1, _ = self.get_body_coords()
+
+        return (
+            x1 + self.COMMENTS_INDICATOR_XOFFSET,
+            y0 + self.COMMENTS_INDICATOR_YOFFSET,
+        )
+
+    def get_label_coords(self):
+        x0, y0, x1, _ = self.get_body_coords()
+        return (x0 + x1) / 2, y0 + self.LABEL_YOFFSET
+
+    @log_object_deletion
+    def delete(self):
+        logger.debug(f"Deleting rectangle '{self.body_id}'")
+        self.canvas.delete(self.body_id)
+        logger.debug(f"Deleting label '{self.label_id}'")
+        self.canvas.delete(self.label_id)
+        logger.debug(f"Deleting comments indicator '{self.comments_ind_id}'")
+        self.canvas.delete(self.comments_ind_id)
+        self._delete_markers_if_not_shared()
+        unsubscribe_from_all(self)
+
     def get_marker_coords(
         self, marker_extremity: StartOrEnd
     ) -> tuple[float, float, float, float]:
 
-        draw_h = self.timeline_ui.get_timeline_height() - self.MARKER_YOFFSET
+        draw_h = self.timeline_ui.height - self.MARKER_YOFFSET
 
         if marker_extremity == StartOrEnd.START:
             marker_x = self.start_x
@@ -460,7 +473,7 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def selection_triggers(self) -> tuple[int, ...]:
-        return self.rect_id, self.label_id, self.comments_ind_id
+        return self.body_id, self.label_id, self.comments_ind_id
 
     @property
     def left_click_triggers(self) -> tuple[int, ...]:
@@ -474,16 +487,16 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def double_left_click_triggers(self) -> tuple[int, ...]:
-        return self.rect_id, self.comments_ind_id, self.label_id
+        return self.body_id, self.comments_ind_id, self.label_id
 
     def on_double_left_click(self, _) -> None:
         events.post(Event.PLAYER_REQUEST_TO_SEEK, self.tl_component.start)
 
     @property
     def right_click_triggers(self) -> tuple[int, ...]:
-        return self.rect_id, self.label_id, self.comments_ind_id
+        return self.body_id, self.label_id, self.comments_ind_id
 
-    def on_right_click(self, x: float, y: float, _) -> None:
+    def on_right_click(self, x: int, y: int, _) -> None:
         self.timeline_ui.display_right_click_menu_for_element(
             x, y, self.RIGHT_CLICK_OPTIONS
         )
@@ -601,11 +614,11 @@ class HierarchyUI(TimelineUIElement):
 
     def display_as_selected(self) -> None:
         self.canvas.itemconfig(
-            self.rect_id, fill=self.shaded_color, width=1, outline="black"
+            self.body_id, fill=self.shaded_color, width=1, outline="black"
         )
 
     def display_as_deselected(self) -> None:
-        self.canvas.itemconfig(self.rect_id, fill=self.color, width=0, outline="black")
+        self.canvas.itemconfig(self.body_id, fill=self.color, width=0, outline="black")
 
     def marker_is_shared(self, marker_id: int) -> bool:
         units_with_marker = self.timeline_ui.get_units_using_marker(marker_id)

@@ -17,9 +17,10 @@ from tilia.exceptions import UserCancelledSaveError
 from tilia.file_manager import FileManager
 from tilia.files import create_new_media_metadata, TiliaFile
 from tilia.player import player
+from tilia.repr import default_str
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.create import create_timeline
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind, IMPLEMENTED_TIMELINE_KINDS
 from tilia.ui.timelines.collection import TimelineUICollection
 from tilia.undo_manager import UndoManager
@@ -28,8 +29,8 @@ logger = logging.getLogger(__name__)
 
 
 class MediaType(Enum):
-    AUDIO = 'audio'
-    VIDEO = 'video'
+    AUDIO = "audio"
+    VIDEO = "video"
 
 
 class TiLiA:
@@ -62,6 +63,9 @@ class TiLiA:
         if settings.get("dev", "dev_mode"):
             local_dev_code.func(self)
 
+    def __str__(self):
+        return default_str(self)
+
     def _setup_ui(self, ui):
         self.ui = ui
         self.ui.app = self
@@ -90,7 +94,11 @@ class TiLiA:
         Checks if a file path was passed as an argument to process.
         If it was, the file is opened. Else, calls setup for newly created files.
         """
-        if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
+        if (
+            len(sys.argv) > 1
+            and os.path.isfile(sys.argv[1])
+            and sys.argv[1].endswith(".tla")
+        ):
             logger.info(f"Opening file provided at startup: {sys.argv[1]}")
             self._file_manager.open_file_by_path(sys.argv[1])
         else:
@@ -177,7 +185,7 @@ class TiLiA:
 
         self._undo_manager.clear()
         events.post(Evt.TILIA_FILE_LOADED)
-        self._undo_manager.record(self.get_state(), StateAction.FILE_LOAD)
+        self._undo_manager.record(self.get_state(), Action.FILE_LOAD)
 
     def on_request_to_close(self) -> None:
         self._file_manager.ask_save_if_necessary()
@@ -200,7 +208,7 @@ class TiLiA:
                 Evt.REQUEST_DISPLAY_ERROR,
                 title="Media file not supported",
                 message=f"Media file of type '{extension}' not supported."
-                        f"Try loading a supported file type."
+                f"Try loading a supported file type.",
             )
             raise ValueError(f"Media file extension '{extension}' is not supported.")
 
@@ -232,11 +240,10 @@ class TiLiA:
             self._player.destroy()
             self._player = new_player
 
-
     def get_timelines_as_dict(self) -> dict:
         return self._timeline_collection.serialize_timelines()
 
-    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
         logger.debug(f"Getting clipboard contents for pasting...")
         elements = self._clipboard.get_contents_for_pasting()
         logger.debug(f"Got '{elements}'")
@@ -247,6 +254,8 @@ class TiLiA:
         self._timeline_collection.clear()
         self._file_manager.clear()
         self._player.clear()
+        self._undo_manager.clear()
+        self._media_metadata = create_new_media_metadata()
         logger.info(f"App cleared.")
 
     def load_file(self, file: TiliaFile) -> None:
@@ -271,7 +280,7 @@ class TiLiA:
             )
 
         self._undo_manager.clear()
-        self._undo_manager.record(self.get_state(), StateAction.FILE_LOAD)
+        self._undo_manager.record(self.get_state(), Action.FILE_LOAD)
         events.post(Evt.TILIA_FILE_LOADED)
         logger.info(f"Loaded file.")
 
@@ -281,7 +290,9 @@ class TiLiA:
             kind not in IMPLEMENTED_TIMELINE_KINDS
             or kind == TimelineKind.SLIDER_TIMELINE
         ):
-            raise NotImplementedError(f'Can not create timeline. Invalid timeline kind "{kind}"')
+            raise NotImplementedError(
+                f'Can not create timeline. Invalid timeline kind "{kind}"'
+            )
 
         name = self.ui.ask_string(
             title="Name for new timeline", prompt="Choose name for new timeline"
@@ -291,7 +302,7 @@ class TiLiA:
             kind, self._timeline_collection, self._timeline_ui_collection, name
         )
 
-        events.post(Evt.REQUEST_RECORD_STATE, StateAction.TIMELINE_CREATE)
+        events.post(Evt.REQUEST_RECORD_STATE, Action.TIMELINE_CREATE)
 
     def on_metadata_field_edited(self, field_name: str, value: str) -> None:
         self._media_metadata[field_name] = value
@@ -323,7 +334,7 @@ class TiLiA:
         return state
 
     def on_request_to_record_state(
-        self, action: StateAction, no_repeat=False, repeat_identifier=""
+        self, action: Action, no_repeat=False, repeat_identifier=""
     ):
         self._undo_manager.record(
             self.get_state(),

@@ -14,7 +14,7 @@ from tilia import events, settings
 from tilia.events import subscribe, Event
 from tilia.misc_enums import Side, UpOrDown, InOrOut
 from tilia.timelines.common import Timeline
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar, SomeTimelineUI
@@ -471,7 +471,7 @@ class TimelineUICollection:
         if modifier == ModifierEnum.NONE:
             self.deselect_all_elements_in_timeline_uis()
 
-        if clicked_timeline_ui:
+        if clicked_timeline_ui is not None:
             self._send_to_top_of_select_order(clicked_timeline_ui)
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about left click."
@@ -642,7 +642,7 @@ class TimelineUICollection:
         for timeline_ui in self:
             timeline_ui.on_delete_press()
 
-        events.post(Event.REQUEST_RECORD_STATE, "delete timeline component(s)")
+        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE_TIMELINE_COMPONENT)
 
     def _on_enter_press(self):
         if any([tlui.has_selected_elements for tlui in self]):
@@ -754,16 +754,16 @@ class TimelineUICollection:
 
         if clipboard_elements["timeline_kind"] != TimelineKind.HIERARCHY_TIMELINE:
             logger.debug(
-                f"Copied elements are not hierarchies. Can't paste with children."
+                f"Copied elements are not hierarchies." f" Can't paste with children."
             )
             return
 
-        for timeline_ui in self:
+        for tl_ui in self:
             if (
-                timeline_ui.has_selected_elements
-                and timeline_ui.TIMELINE_KIND == TimelineKind.HIERARCHY_TIMELINE
+                tl_ui.has_selected_elements
+                and tl_ui.TIMELINE_KIND == TimelineKind.HIERARCHY_TIMELINE
             ):
-                timeline_ui.paste_with_children_into_selected_elements(
+                tl_ui.paste_with_children_into_selected_elements(
                     clipboard_elements["components"]
                 )
 
@@ -962,7 +962,7 @@ class TimelineUICollection:
         if self._ask_delete_timeline(timeline_ui):
             self._timeline_collection.delete_timeline(timeline_ui.timeline)
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.TIMELINE_DELETE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_DELETE)
 
     def on_request_to_clear_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)
@@ -974,21 +974,21 @@ class TimelineUICollection:
             self._timeline_collection.clear_all_timelines()
 
     @staticmethod
-    def _ask_delete_timeline(timeline_ui: TimelineUI) -> None:
+    def _ask_delete_timeline(timeline_ui: TimelineUI) -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to delete timeline {str(timeline_ui)}?",
         )
 
     @staticmethod
-    def _ask_clear_timeline(timeline_ui: TimelineUI) -> None:
+    def _ask_clear_timeline(timeline_ui: TimelineUI) -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to clear timeline {str(timeline_ui)}?",
         )
 
     @staticmethod
-    def _ask_clear_all_timelines() -> None:
+    def _ask_clear_all_timelines() -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to clear ALL timelines?",

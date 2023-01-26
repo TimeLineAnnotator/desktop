@@ -15,9 +15,10 @@ import tkinter.messagebox
 import tkinter.simpledialog
 import time
 
-
+import tilia.repr
 from tilia import globals_, events, settings
-from tilia.player import player_ui
+from tilia.ui import player
+from tilia.repr import default_str
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
@@ -30,9 +31,6 @@ from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
-
-if TYPE_CHECKING:
-    from ..tilia import TiLiA
 
 import logging
 
@@ -126,6 +124,9 @@ class TkinterUI:
         }
 
         logger.debug("Tkinter UI started.")
+
+    def __str__(self):
+        return default_str(self)
 
     def _setup_subscriptions(self):
         for event, callback in self.SUBSCRIPTIONS:
@@ -360,7 +361,7 @@ class AppToolbarsFrame(tk.Frame):
     def __init__(self, *args, **kwargs):
         super(AppToolbarsFrame, self).__init__(*args, **kwargs)
 
-        self.playback_frame = player_ui.PlayerUI(self)
+        self.playback_frame = player.PlayerUI(self)
 
         self.auto_scroll_checkbox = CheckboxItem(
             label="Auto-scroll",

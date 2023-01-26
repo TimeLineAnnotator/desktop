@@ -14,14 +14,14 @@ if TYPE_CHECKING:
 from tilia import events
 from tilia.events import Event, unsubscribe, unsubscribe_from_all, subscribe
 from tilia.misc_enums import Side
-from tilia.repr import default_str_dunder
+from tilia.repr import default_str
 from tilia.timelines.common import (
     TimelineComponent,
     log_object_creation,
     InvalidComponentKindError,
 )
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 from tilia.ui.common import ask_for_int, ask_for_string
 from tilia.ui.element_kinds import UIElementKind
 from tilia.ui.modifier_enum import ModifierEnum
@@ -212,6 +212,10 @@ class TimelineUI(ABC):
     @property
     def selected_elements(self):
         return self.element_manager.get_selected_elements()
+
+    @property
+    def selected_components(self):
+        return [element.tl_component for element in self.selected_elements]
 
     # noinspection PyUnresolvedReferences
     def _setup_visiblity(self, is_visible: bool):
@@ -459,7 +463,7 @@ class TimelineUI(ABC):
             self.height = height
             self.timeline_ui_collection.after_height_change(self)
 
-        events.post(Event.REQUEST_RECORD_STATE, "timeline height change")
+        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_HEIGHT_CHANGE)
 
     def right_click_menu_change_timeline_name(self) -> None:
         name = ask_for_string(
@@ -469,10 +473,10 @@ class TimelineUI(ABC):
             logger.debug(f"User requested new timeline name of '{name}'")
             self.name = name
 
-        events.post(Event.REQUEST_RECORD_STATE, "timeline name change")
+        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_NAME_CHANGE)
 
     def on_inspector_window_opened(self):
-        for element in self.element_manager.get_selected_elements():
+        for element in self.selected_elements:
             logger.debug(
                 f"Notifying inspector of previsously selected elements on {self}..."
             )
@@ -491,57 +495,31 @@ class TimelineUI(ABC):
     def update_elements_position(self) -> None:
         self.element_manager.update_elements_postion()
 
-    def _log_and_get_elements_for_button_processing(
-        self, action_str_for_log: str
-    ) -> list[TimelineUIElement] | None:
-        """Gets selected elements to start with button click processing.
-        Logs process start and if there is nothing to do, if that is the case.
-        If timeline is not is_visible or there are no selected elements, there is nothing to do"""
-
-        logging.debug(f"Processing {action_str_for_log} button click in {self}...")
-
-        if not self.visible:
-            logging.debug(f"TimelineUI is not visible, nothing to do.")
-            return None
-
-        if not self.selected_elements:
-            logging.debug(f"No element is selected. Nothing to do.")
-            return None
-
-        return self.selected_elements
-
     def on_delete_press(self):
-        selected_elements = self.element_manager.get_selected_elements()
-        self.timeline.on_request_to_delete_components(
-            [e.tl_component for e in selected_elements]
-        )
+        self.timeline.on_request_to_delete_components(self.selected_components)
 
     def delete_selected_elements(self):
-        selected_elements = self._log_and_get_elements_for_button_processing("delete")
-        if not selected_elements:
+        if not self.selected_elements:
             return
 
-        selected_tl_components = [e.tl_component for e in selected_elements]
-
-        for component in selected_tl_components:
+        for component in self.selected_components:
             self.timeline.on_request_to_delete_components([component])
 
     def delete_element(self, element: TimelineUIElement):
-        if element in self.element_manager.get_selected_elements():
+        if element in self.selected_elements:
             self.deselect_element(element)
 
         self.element_manager.delete_element(element)
 
     def debug_selected_elements(self):
-        selected_elements = self.element_manager.get_selected_elements()
-        print(f"========== {self} ==========")
-        for element in selected_elements.copy():
+        logger.debug(f"========== {self} ==========")
+        for element in self.selected_elements.copy():
             from pprint import pprint
 
-            print(f"----- {element} -----")
-            print("--- UIElement attributes ---")
+            logger.debug(f"----- {element} -----")
+            logger.debug("--- UIElement attributes ---")
             pprint(element.__dict__)
-            print("--- Component attributes ---")
+            logger.debug("--- Component attributes ---")
             pprint(element.tl_component.__dict__)
 
     def validate_copy(self, elements: list[TimelineUIElement]) -> None:
@@ -555,14 +533,12 @@ class TimelineUI(ABC):
         pass
 
     def get_copy_data_from_selected_elements(self) -> list[dict]:
-        selected_elements = self.element_manager.get_selected_elements()
-
-        self.validate_copy(selected_elements)
+        self.validate_copy(self.selected_elements)
 
         return get_copy_data_from_elements(
             [
                 (el, el.DEFAULT_COPY_ATTRIBUTES)
-                for el in selected_elements
+                for el in self.selected_elements
                 if isinstance(el, Copyable)
             ]
         )
@@ -610,12 +586,13 @@ class TimelineUI(ABC):
         logger.info(f"Deleting timeline ui {self}...")
 
         unsubscribe_from_all(self)
+        unsubscribe_from_all(self.canvas)
         self.canvas.destroy()
         if self.toolbar:
             self.toolbar.on_timeline_delete()
 
     def __repr__(self):
-        return default_str_dunder(self)
+        return default_str(self)
 
     def __str__(self):
         return f"{self.name} | {self.TIMELINE_KIND.value.capitalize().split('_')[0]} Timeline"
@@ -690,7 +667,7 @@ def on_inspector_field_edited(
 
     events.post(
         Event.REQUEST_RECORD_STATE,
-        StateAction.ATTRIBUTE_EDIT_VIA_INSPECTOR,
+        Action.ATTRIBUTE_EDIT_VIA_INSPECTOR,
         no_repeat=True,
         repeat_identifier=f"{attr}_{element.id}",
     )
@@ -725,6 +702,10 @@ class TimelineUIElementManager:
     @property
     def element_kinds(self):
         return [kind for kind, _ in self._element_kinds_to_classes.items()]
+
+    @property
+    def ordered_elements(self):
+        return sorted(self._elements, key=lambda e: (e.level, e.start))
 
     def create_element(
         self,
@@ -860,8 +841,9 @@ class TimelineUIElementManager:
 
     def delete_element(self, element: SomeTimelineUIElement):
         logger.debug(f"Deleting UI element '{element}'")
-        self._deselect_if_selected(element)
+        # self._deselect_if_selected(element)
         element.delete()
+        element
         self._remove_from_elements_set(element)
 
     @staticmethod
@@ -876,7 +858,7 @@ class TimelineUIElementManager:
         return drawings_ids
 
     def __repr__(self) -> str:
-        return default_str_dunder(self)
+        return default_str(self)
 
     def get_all_elements(self) -> set:
         return self._elements

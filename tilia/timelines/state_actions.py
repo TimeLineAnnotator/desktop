@@ -3,7 +3,19 @@
 from enum import Enum, auto
 
 
-class StateAction(Enum):
+class Action(Enum):
+    BEATS_IN_MEASURE_CHANGE = auto()
+    DISTRIBUTE_BEATS = auto()
+    MEASURE_NUMBER_RESET = auto()
+    MEASURE_NUMBER_CHANGE = auto()
+    TEST_STATE = auto()
+    TIMELINE_NAME_CHANGE = auto()
+    TIMELINE_HEIGHT_CHANGE = auto()
+    DELETE_TIMELINE_COMPONENT = auto()
+    MARKER_DRAG = auto()
+    BEAT_DRAG = auto()
+    HIERARCHY_LEVEL_CHANGE = auto()
+    CLEAR_ALL_TIMELINES = auto()
     TIMELINE_CLEAR = auto()
     CREATE_BEAT = auto()
     TIMELINE_CREATE = auto()

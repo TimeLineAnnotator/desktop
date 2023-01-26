@@ -11,7 +11,7 @@ from tilia.ui.timelines.copy_paste import paste_into_element
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, subscribe
 from tilia.misc_enums import IncreaseOrDecrease, Side, UpOrDown
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -106,13 +106,13 @@ class HierarchyTimelineUI(TimelineUI):
         )
         subscribe(
             self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT,
-            self.on_paste_unit_button,
+            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE,
+            self.on_paste_button,
         )
         subscribe(
             self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN,
-            self.on_paste_unit_with_children_button,
+            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_WITH_CHILDREN,
+            self.on_paste_with_children_button,
         )
         subscribe(
             self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE, self.on_delete_button
@@ -126,8 +126,12 @@ class HierarchyTimelineUI(TimelineUI):
 
         self.right_clicked_element = None
 
-    def get_timeline_height(self):
-        return self.height
+    def __len__(self):
+        return len(self.elements)
+
+    def __bool__(self):
+        """Prevents False form being returned when timeline is empty."""
+        return True
 
     def rearrange_canvas_drawings(self):
         for element in self.element_manager.get_all_elements():
@@ -150,7 +154,7 @@ class HierarchyTimelineUI(TimelineUI):
         def get_drawings_to_arrange(elements: set[HierarchyUI]):
             _drawings_to_lower = set()
             for element in elements:
-                _drawings_to_lower.add(element.rect_id)
+                _drawings_to_lower.add(element.body_id)
                 _drawings_to_lower.add(element.label_id)
                 _drawings_to_lower.add(element.comments_ind_id)
 
@@ -185,7 +189,7 @@ class HierarchyTimelineUI(TimelineUI):
                 logger.debug(
                     f"Lowering drawings '{element.canvas_drawings_ids}' of element '{element}'"
                 )
-                self.canvas.tag_lower(element.rect_id, lowest_drawing_in_lower_elements)
+                self.canvas.tag_lower(element.body_id, lowest_drawing_in_lower_elements)
                 self.canvas.tag_lower(
                     element.label_id, lowest_drawing_in_lower_elements
                 )
@@ -259,61 +263,48 @@ class HierarchyTimelineUI(TimelineUI):
         )
 
         # lower parents canvas drawings
-        self.canvas.tag_lower(parent_ui.rect_id, lowest_child_drawing_id)
+        self.canvas.tag_lower(parent_ui.body_id, lowest_child_drawing_id)
         self.canvas.tag_lower(parent_ui.label_id, lowest_child_drawing_id)
         self.canvas.tag_lower(parent_ui.comments_ind_id, lowest_child_drawing_id)
 
     def on_create_unit_below_button(self):
-        selected_elements = self._log_and_get_elements_for_button_processing(
-            "create button below"
-        )
-        if not selected_elements:
+        if not self.selected_elements:
             return
 
-        selected_tl_components = [e.tl_component for e in selected_elements]
-        for component in selected_tl_components:
+        for component in self.selected_components:
             logging.debug(f"Requesting timeline to create unit below {component}.")
             self.timeline.create_unit_below(component)
 
         logging.debug(f"Processed create unit below button.")
 
+        events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_UNIT_BELOW)
+
     def on_change_level_button(self, increase_or_decrease: IncreaseOrDecrease):
-        selected_elements = self._log_and_get_elements_for_button_processing(
-            increase_or_decrease.name.lower()
-        )
-        if not selected_elements:
+        if not self.selected_elements:
             return
 
-        selected_tl_components = [e.tl_component for e in selected_elements]
-        if increase_or_decrease == IncreaseOrDecrease.INCREASE:
-            reverse = True
-        elif increase_or_decrease == IncreaseOrDecrease.DECREASE:
-            reverse = False
-        else:
-            raise ValueError(
-                f'Got invalid value "{increase_or_decrease}" for increase_or_decrease'
-            )
+        logging.debug(
+            f"Requesting timeline to {increase_or_decrease.name.lower()} level of selected elements."
+        )
 
-        for component in sorted(
-            selected_tl_components, key=lambda x: (x.level, x.start), reverse=reverse
-        ):
-            logging.debug(
-                f"Requesting timeline to {increase_or_decrease.name.lower()} level of {component}."
-            )
-            self.timeline.change_level_by_amount(increase_or_decrease.value, component)
+        self.timeline.change_level_by_amount(
+            increase_or_decrease.value, self.selected_components
+        )
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.HIERARCHY_LEVEL_CHANGE)
 
         logging.debug(f"Processed {increase_or_decrease.name.lower()} level button.")
 
     def on_group_button(self):
-        selected_elements = self._log_and_get_elements_for_button_processing("group")
-        if not selected_elements:
+        if not self.selected_elements:
             return
 
-        selected_components = [e.tl_component for e in selected_elements]
-        logging.debug(f"Requesting timeline to group {selected_components}.")
-        self.timeline.group(selected_components)
+        logging.debug(f"Requesting timeline to group {self.selected_components}.")
+        self.timeline.group(self.selected_components)
 
         logging.debug(f"Processed group level button.")
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.GROUP)
 
     def on_split_button(self):
         logging.debug(f"Processing split button press...")
@@ -321,38 +312,37 @@ class HierarchyTimelineUI(TimelineUI):
         logging.debug(f"Requesting timeline to split at time={split_time}.")
         self.timeline.split(split_time)
         logging.debug(f"Processed split button press.")
+        events.post(Event.REQUEST_RECORD_STATE, Action.SPLIT)
 
     def on_merge_button(self):
-        selected_elements = self._log_and_get_elements_for_button_processing("merge")
-        if not selected_elements:
+        if not self.selected_elements:
             return
 
-        selected_components = [e.tl_component for e in selected_elements]
-        logging.debug(f"Requesting timeline to merge {selected_components}.")
-        self.timeline.merge(selected_components)
+        logging.debug(f"Requesting timeline to merge {self.selected_components}.")
+        self.timeline.merge(self.selected_components)
+        events.post(Event.REQUEST_RECORD_STATE, Action.MERGE)
 
-    def on_paste_unit_button(self) -> None:
-        selected_elements = self._log_and_get_elements_for_button_processing("paste")
-        if not selected_elements:
+    def on_paste_button(self) -> None:
+        if not self.selected_elements:
             return
 
         self.paste_single_into_selected_elements(
-            self.collection.get_elements_for_pasting()
+            self.collection.get_elements_for_pasting()["components"]
         )
 
-    def on_paste_unit_with_children_button(self) -> None:
-        selected_elements = self._log_and_get_elements_for_button_processing(
-            "paste with children"
-        )
-        if not selected_elements:
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
+
+    def on_paste_with_children_button(self) -> None:
+        if not self.selected_elements:
             return
 
         self.paste_with_children_into_selected_elements(
-            self.collection.get_elements_for_pasting()
+            self.collection.get_elements_for_pasting()["components"]
         )
 
     def on_delete_button(self):
         self.delete_selected_elements()
+        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE)
 
     def _deselect_all_but_last(self):
         ordered_selected_elements = sorted(
@@ -465,11 +455,13 @@ class HierarchyTimelineUI(TimelineUI):
         option_to_callback[option]()
 
     def right_click_menu_increase_level(self) -> None:
-        self.timeline.change_level_by_amount(1, self.right_clicked_element.tl_component)
+        self.timeline.change_level_by_amount(
+            1, [self.right_clicked_element.tl_component]
+        )
 
     def right_click_menu_decrease_level(self) -> None:
         self.timeline.change_level_by_amount(
-            -1, self.right_clicked_element.tl_component
+            -1, [self.right_clicked_element.tl_component]
         )
 
     def right_click_menu_edit(self) -> None:
@@ -553,8 +545,6 @@ class HierarchyTimelineUI(TimelineUI):
             paste_into_element(element, paste_data[0])
             self.select_element(element)
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
-
     def validate_copy(self, elements: list[Copyable]) -> None:
         if len(elements) > 1:
             events.post(
@@ -564,21 +554,99 @@ class HierarchyTimelineUI(TimelineUI):
             )
             raise CopyError(f"Can't copy more than one hierarchy at once.")
 
+    def _create_child_from_paste_data(
+        self,
+        new_parent: HierarchyUI,
+        prev_parent_start: float,
+        prev_parent_end: float,
+        child_pastedata_: dict,
+    ):
+        logger.debug(
+            f"Creating child for '{new_parent}' from paste data '{child_pastedata_}'"
+        )
+
+        new_parent_length = new_parent.tl_component.end - new_parent.tl_component.start
+
+        prev_parent_length = prev_parent_end - prev_parent_start
+        scale_factor = new_parent_length / prev_parent_length
+
+        relative_child_start = (
+            child_pastedata_["support_by_component_value"]["start"] - prev_parent_start
+        )
+
+        new_child_start = (
+            relative_child_start * scale_factor
+        ) + new_parent.tl_component.start
+        logger.debug(f"New child start is '{new_child_start}'")
+
+        relative_child_end = (
+            child_pastedata_["support_by_component_value"]["end"] - prev_parent_end
+        )
+
+        new_child_end = (
+            relative_child_end * scale_factor
+        ) + new_parent.tl_component.end
+        logger.debug(f"New child end is '{new_child_end}'")
+
+        return self.timeline.create_timeline_component(
+            kind=ComponentKind.HIERARCHY,
+            start=new_child_start,
+            end=new_child_end,
+            level=child_pastedata_["support_by_component_value"]["level"],
+            **child_pastedata_["by_element_value"],
+            **child_pastedata_["by_component_value"],
+        )
+
+    def _paste_with_children_into_element(self, paste_data: dict, element: HierarchyUI):
+        logger.debug(
+            f"Pasting with children into element '{element}' with paste data = {paste_data}'"
+        )
+        tilia.ui.timelines.copy_paste.paste_into_element(element, paste_data)
+
+        if "children" in paste_data:
+            children_of_element = []
+            for child_paste_data in paste_data["children"]:
+                child_component = self._create_child_from_paste_data(
+                    element,
+                    paste_data["support_by_component_value"]["start"],
+                    paste_data["support_by_component_value"]["end"],
+                    child_paste_data,
+                )
+
+                if child_paste_data.get("children", None):
+                    self._paste_with_children_into_element(
+                        child_paste_data, child_component.ui
+                    )
+
+                children_of_element.append(child_component)
+
+            parent_child_relation = ParentChildRelation(
+                parent=element.tl_component, children=children_of_element
+            )
+
+            self._swap_components_with_uis_in_relation(parent_child_relation)
+            process_parent_child_relation(parent_child_relation)
+
     def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
-        def validate_paste_with_children(
-            paste_data_: list[dict], elements_to_receive_paste: list[HierarchyUI]
-        ) -> None:
-            for element in elements_to_receive_paste:
-                if len(paste_data_) > 1:
-                    raise PasteError(
-                        "Can't paste more than one Hierarchy at the same time."
-                    )
-                elif element.level != int(
-                    paste_data_[0]["support_by_component_value"]["level"]
+        def validate_paste_with_children() -> None:
+            if len(paste_data) > 1:
+                raise PasteError("Can't paste more than one Hierarchy at once.")
+
+            PASTE_ERROR_LVL_PROMPT = (
+                "Can't paste all of unit's attributes (including children)"
+                " into unit of different level."
+            )
+
+            for element in self.selected_elements:
+                if element.level != int(
+                    paste_data[0]["support_by_component_value"]["level"]
                 ):
-                    raise PasteError(
-                        "Can't paste all of unit's attributes (including children) into unit of different level."
+                    events.post(
+                        Event.REQUEST_DISPLAY_ERROR,
+                        title="Paste error",
+                        message=PASTE_ERROR_LVL_PROMPT,
                     )
+                    raise PasteError(PASTE_ERROR_LVL_PROMPT)
 
         def get_descendants(parent: HierarchyUI):
             is_in_branch = (
@@ -591,87 +659,12 @@ class HierarchyTimelineUI(TimelineUI):
             elements_in_branch.remove(parent)
             return elements_in_branch
 
-        def paste_with_children_into_element(paste_data_: dict, element_: HierarchyUI):
-            logger.debug(
-                f"Pasting with children into element '{element_}' with paste data = {paste_data_}'"
-            )
-            tilia.ui.timelines.copy_paste.paste_into_element(element_, paste_data_)
-
-            if "children" in paste_data_:
-                children_of_element = []
-                for child_paste_data in paste_data_["children"]:
-                    child_component = create_child_from_paste_data(
-                        element_,
-                        paste_data_["support_by_component_value"]["start"],
-                        paste_data_["support_by_component_value"]["end"],
-                        child_paste_data,
-                    )
-
-                    if child_paste_data.get("children", None):
-                        paste_with_children_into_element(
-                            child_paste_data, child_component.ui
-                        )
-
-                    children_of_element.append(child_component)
-
-                parent_child_relation = ParentChildRelation(
-                    parent=element_.tl_component, children=children_of_element
-                )
-                self._swap_components_with_uis_in_relation(parent_child_relation)
-                process_parent_child_relation(parent_child_relation)
-
-        def create_child_from_paste_data(
-            new_parent: HierarchyUI,
-            previous_parent_start: float,
-            previous_parent_end: float,
-            child_paste_data_: dict,
-        ):
-            logger.debug(
-                f"Creating child for '{new_parent}' from paste data '{child_paste_data_}'"
-            )
-            new_parent_length = (
-                new_parent.tl_component.end - new_parent.tl_component.start
-            )
-            prev_parent_length = previous_parent_end - previous_parent_start
-            scale_factor = new_parent_length / prev_parent_length
-            # logger.debug(f"Scale factor between previous and new parents is '{scale_factor}'")
-
-            relative_child_start = (
-                child_paste_data_["support_by_component_value"]["start"]
-                - previous_parent_start
-            )
-            # logger.debug(f"Child start relative to previous parent is '{relative_child_start}'")
-            new_child_start = (
-                relative_child_start * scale_factor
-            ) + new_parent.tl_component.start
-            logger.debug(f"New child start is '{new_child_start}'")
-
-            relative_child_end = (
-                child_paste_data_["support_by_component_value"]["end"]
-                - previous_parent_end
-            )
-            # logger.debug(f"Child end relative to previous parent is '{relative_child_end}'")
-            new_child_end = (
-                relative_child_end * scale_factor
-            ) + new_parent.tl_component.end
-            logger.debug(f"New child end is '{new_child_end}'")
-
-            return self.timeline.create_timeline_component(
-                kind=ComponentKind.HIERARCHY,
-                start=new_child_start,
-                end=new_child_end,
-                level=child_paste_data_["support_by_component_value"]["level"],
-                **child_paste_data_["by_element_value"],
-                **child_paste_data_["by_component_value"],
-            )
-
         logger.debug(f"Pasting with children into selected elements...")
-        selected_elements = self.element_manager.get_selected_elements()
-        logger.debug(f"Selected elements are: {selected_elements}")
+        logger.debug(f"Selected elements are: {self.selected_elements}")
 
-        validate_paste_with_children(paste_data, selected_elements)
+        validate_paste_with_children()
 
-        for element in selected_elements.copy():
+        for element in self.selected_elements.copy():
             self.deselect_element(element)
             logger.debug(f"Deleting previous descendants of '{element}'")
             # delete previous descendants
@@ -682,10 +675,10 @@ class HierarchyTimelineUI(TimelineUI):
                 )
 
             # create children according to paste data
-            paste_with_children_into_element(paste_data[0], element)
+            self._paste_with_children_into_element(paste_data[0], element)
             self.select_element(element)
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def get_copy_data_from_selected_elements(self):
         selected_elements = self.element_manager.get_selected_elements()

@@ -7,11 +7,12 @@ import logging
 
 from typing import TYPE_CHECKING, Protocol
 
+from tilia.repr import default_str
 
 if TYPE_CHECKING:
     from tilia._tilia import TiLiA
 
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,13 @@ class UndoManager:
         self.current_state_index = -1
         self.last_repeat_id = None
 
+    def __str__(self):
+        return default_str(self)
+
     def record(
         self,
         state,
-        action: StateAction,
+        action: Action,
         no_repeat=False,
         repeat_identifier="",
     ):
