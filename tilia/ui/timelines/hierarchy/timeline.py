@@ -342,7 +342,6 @@ class HierarchyTimelineUI(TimelineUI):
 
     def on_delete_button(self):
         self.delete_selected_elements()
-        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE)
 
     def _deselect_all_but_last(self):
         ordered_selected_elements = sorted(

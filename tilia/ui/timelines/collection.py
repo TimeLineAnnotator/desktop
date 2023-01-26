@@ -821,6 +821,8 @@ class TimelineUICollection:
         if first_beat_timeline_ui:
             first_beat_timeline_ui.create_beat(time=self.get_current_playback_time())
 
+        events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_BEAT)
+
     def _get_first_from_select_order_by_kinds(
         self, classes: list[TimelineKind]
     ) -> SomeTimelineUI:

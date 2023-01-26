@@ -2,8 +2,11 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+from tilia import events
+from tilia.events import Event
 from tilia.misc_enums import Side
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.beat.timeline import BeatTimelineUI
 from tilia.timelines.create import create_timeline
@@ -426,3 +429,83 @@ class TestBeatTimelineUI:
         assert beat_tlui.ordered_elements[5].time == pytest.approx(0.5)
         assert beat_tlui.ordered_elements[6].time == pytest.approx(0.6)
         assert beat_tlui.ordered_elements[7].time == pytest.approx(0.7)
+
+    def test_on_add_beat_button(self, beat_tlui, tlui_clct):
+
+        with patch(
+            "tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time",
+            lambda _: 0.101,
+        ):
+            events.post(Event.BEAT_TOOLBAR_BUTTON_ADD)
+
+        assert len(beat_tlui.elements) == 1
+        assert list(beat_tlui.elements)[0].time == 0.101
+
+    def test_undo_redo_add_beat(self, beat_tlui, tlui_clct):
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        with patch(
+            "tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time",
+            lambda _: 0.101,
+        ):
+            events.post(Event.BEAT_TOOLBAR_BUTTON_ADD)
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(beat_tlui.elements) == 0
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(beat_tlui.elements) == 1
+
+    def test_on_delete_beat_button(self, beat_tlui):
+        beat_tlui.create_beat(0)
+        beat_tlui.select_element(list(beat_tlui.elements)[0])
+        events.post(Event.BEAT_TOOLBAR_BUTTON_DELETE)
+
+        assert len(beat_tlui.elements) == 0
+
+    def test_undo_redo_delete_beat(self, beat_tlui):
+
+        beat_tlui.create_beat(0)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        beat_tlui.select_element(list(beat_tlui.elements)[0])
+        events.post(Event.BEAT_TOOLBAR_BUTTON_DELETE)
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(beat_tlui.elements) == 1
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(beat_tlui.elements) == 0
+
+    def test_on_delete_beat_button_multiple_beats(self, beat_tlui):
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(0.1)
+        beat_tlui.create_beat(0.2)
+
+        for beat_ui in list(beat_tlui.elements):
+            beat_tlui.select_element(beat_ui)
+
+        events.post(Event.BEAT_TOOLBAR_BUTTON_DELETE)
+
+        assert len(beat_tlui.elements) == 0
+
+    def test_undo_redo_delete_beat_multiple_beats(self, beat_tlui, tlui_clct):
+
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(0.1)
+        beat_tlui.create_beat(0.2)
+
+        for beat_ui in list(beat_tlui.elements):
+            beat_tlui.select_element(beat_ui)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        events.post(Event.BEAT_TOOLBAR_BUTTON_DELETE)
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(beat_tlui.elements) == 3
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(beat_tlui.elements) == 0

@@ -505,6 +505,8 @@ class TimelineUI(ABC):
         for component in self.selected_components:
             self.timeline.on_request_to_delete_components([component])
 
+        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE_TIMELINE_COMPONENT)
+
     def delete_element(self, element: TimelineUIElement):
         if element in self.selected_elements:
             self.deselect_element(element)
