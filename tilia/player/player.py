@@ -53,7 +53,7 @@ class VLCNotInstalledError(AppException):
 class Player(ABC):
     """Interface for media playback engines."""
 
-    update_interval = 100
+    update_interval = 25
 
     def __init__(self, previous_media_length: float = 1.0):
         super().__init__()
