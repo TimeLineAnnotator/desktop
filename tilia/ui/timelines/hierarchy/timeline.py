@@ -106,13 +106,13 @@ class HierarchyTimelineUI(TimelineUI):
         )
         subscribe(
             self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT,
-            self.on_paste_unit_button,
+            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE,
+            self.on_paste_button,
         )
         subscribe(
             self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN,
-            self.on_paste_unit_with_children_button,
+            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_WITH_CHILDREN,
+            self.on_paste_with_children_button,
         )
         subscribe(
             self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE, self.on_delete_button
@@ -125,6 +125,13 @@ class HierarchyTimelineUI(TimelineUI):
         self.timeline = None
 
         self.right_clicked_element = None
+
+    def __len__(self):
+        return len(self.elements)
+
+    def __bool__(self):
+        """Prevents False form being returned when timeline is empty."""
+        return True
 
     def rearrange_canvas_drawings(self):
         for element in self.element_manager.get_all_elements():
@@ -270,6 +277,8 @@ class HierarchyTimelineUI(TimelineUI):
 
         logging.debug(f"Processed create unit below button.")
 
+        events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_UNIT_BELOW)
+
     def on_change_level_button(self, increase_or_decrease: IncreaseOrDecrease):
         if not self.selected_elements:
             return
@@ -295,12 +304,15 @@ class HierarchyTimelineUI(TimelineUI):
 
         logging.debug(f"Processed group level button.")
 
+        events.post(Event.REQUEST_RECORD_STATE, Action.GROUP)
+
     def on_split_button(self):
         logging.debug(f"Processing split button press...")
         split_time = self.timeline.get_current_playback_time()
         logging.debug(f"Requesting timeline to split at time={split_time}.")
         self.timeline.split(split_time)
         logging.debug(f"Processed split button press.")
+        events.post(Event.REQUEST_RECORD_STATE, Action.SPLIT)
 
     def on_merge_button(self):
         if not self.selected_elements:
@@ -308,8 +320,9 @@ class HierarchyTimelineUI(TimelineUI):
 
         logging.debug(f"Requesting timeline to merge {self.selected_components}.")
         self.timeline.merge(self.selected_components)
+        events.post(Event.REQUEST_RECORD_STATE, Action.MERGE)
 
-    def on_paste_unit_button(self) -> None:
+    def on_paste_button(self) -> None:
         if not self.selected_elements:
             return
 
@@ -317,7 +330,9 @@ class HierarchyTimelineUI(TimelineUI):
             self.collection.get_elements_for_pasting()["components"]
         )
 
-    def on_paste_unit_with_children_button(self) -> None:
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
+
+    def on_paste_with_children_button(self) -> None:
         if not self.selected_elements:
             return
 
@@ -327,6 +342,7 @@ class HierarchyTimelineUI(TimelineUI):
 
     def on_delete_button(self):
         self.delete_selected_elements()
+        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE)
 
     def _deselect_all_but_last(self):
         ordered_selected_elements = sorted(
@@ -439,11 +455,13 @@ class HierarchyTimelineUI(TimelineUI):
         option_to_callback[option]()
 
     def right_click_menu_increase_level(self) -> None:
-        self.timeline.change_level_by_amount(1, self.right_clicked_element.tl_component)
+        self.timeline.change_level_by_amount(
+            1, [self.right_clicked_element.tl_component]
+        )
 
     def right_click_menu_decrease_level(self) -> None:
         self.timeline.change_level_by_amount(
-            -1, self.right_clicked_element.tl_component
+            -1, [self.right_clicked_element.tl_component]
         )
 
     def right_click_menu_edit(self) -> None:
@@ -526,8 +544,6 @@ class HierarchyTimelineUI(TimelineUI):
             self.deselect_element(element)
             paste_into_element(element, paste_data[0])
             self.select_element(element)
-
-        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def validate_copy(self, elements: list[Copyable]) -> None:
         if len(elements) > 1:

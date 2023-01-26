@@ -15,9 +15,11 @@ def beat_tlui(tl_clct, tlui_clct) -> BeatTimelineUI:
         "tilia.ui.timelines.collection.TimelineUICollection.ask_beat_pattern"
     ) as mock:
         mock.return_value = [4]
-        tl: BeatTimeline = create_timeline(
-            TimelineKind.BEAT_TIMELINE, tl_clct, tlui_clct
-        )
+        with patch("tkinter.PhotoImage", lambda *args, **kwargs: None):
+            # avoid intermintent error when creating toolbar image and speeds up tests
+            tl: BeatTimeline = create_timeline(
+                TimelineKind.BEAT_TIMELINE, tl_clct, tlui_clct
+            )
     yield tl.ui
     tl_clct.delete_timeline(tl)
 

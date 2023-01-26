@@ -471,7 +471,7 @@ class TimelineUICollection:
         if modifier == ModifierEnum.NONE:
             self.deselect_all_elements_in_timeline_uis()
 
-        if clicked_timeline_ui:
+        if clicked_timeline_ui is not None:
             self._send_to_top_of_select_order(clicked_timeline_ui)
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about left click."

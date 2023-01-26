@@ -4,10 +4,12 @@ from unittest.mock import MagicMock, ANY, patch
 import itertools
 import logging
 
+from tilia import events
 from tilia.events import Event
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.common import InvalidComponentKindError
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.create import create_timeline
 from tilia.timelines.hierarchy.components import HierarchyOperationError, Hierarchy
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
@@ -17,10 +19,7 @@ from tilia.timelines.hierarchy.common import ParentChildRelation
 
 # noinspection PyProtectedMember
 from tilia.timelines.serialize import serialize_component, _deserialize_component
-from tilia.timelines.state_actions import StateAction
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.timeline import TimelineUIElementManager
-from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +66,7 @@ class DummyTimelineCollection:
 
 
 @pytest.fixture
-def tl() -> HierarchyTimeline:
+def tl(tilia) -> HierarchyTimeline:
     component_manager = HierarchyTLComponentManager()
     timeline = HierarchyTimeline(DummyTimelineCollection(), component_manager)
 
@@ -78,6 +77,7 @@ def tl() -> HierarchyTimeline:
 
     component_manager.associate_to_timeline(timeline)
     yield timeline
+    tilia._undo_manager.clear()
 
 
 @pytest.fixture

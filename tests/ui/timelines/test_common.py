@@ -100,8 +100,8 @@ class TestTkTimelineUICollection:
 
         tlui_coll.get_toolbar_for_timeline_ui = lambda _: MagicMock()
 
-        tlui1 = tlui_coll.create_timeline_ui(TimelineKind.HIERARCHY_TIMELINE, "test")
-        tlui2 = tlui_coll.create_timeline_ui(TimelineKind.HIERARCHY_TIMELINE, "test")
+        tlui1 = tlui_coll.create_timeline_ui(TimelineKind.HIERARCHY_TIMELINE, "test1")
+        tlui2 = tlui_coll.create_timeline_ui(TimelineKind.HIERARCHY_TIMELINE, "test2")
 
         assert tlui_coll._select_order[0] == tlui2
 

@@ -702,6 +702,10 @@ class TimelineUIElementManager:
     def element_kinds(self):
         return [kind for kind, _ in self._element_kinds_to_classes.items()]
 
+    @property
+    def ordered_elements(self):
+        return sorted(self._elements, key=lambda e: (e.level, e.start))
+
     def create_element(
         self,
         kind: UIElementKind,

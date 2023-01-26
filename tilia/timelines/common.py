@@ -13,16 +13,11 @@ from typing import TYPE_CHECKING, TypeVar
 import tilia.repr
 import tilia.timelines.serialize
 from . import serialize
-from .state_actions import Action
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
-from ..events import Event
 from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from .collection import TimelineCollection
-    from tilia.ui.timelines.common import (
-        TimelineComponentUI,
-    )
 
 from typing import Callable, Any
 from abc import ABC, abstractmethod

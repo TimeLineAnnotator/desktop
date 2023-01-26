@@ -3,14 +3,18 @@ from unittest.mock import patch
 import pytest
 import tkinter as tk
 
+from tilia import events
+from tilia.events import Event
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.common import ParentChildRelation as PCRel
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
+from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.create import create_timeline
 from tilia.ui.timelines.copy_paste import PasteError
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
+from tilia.misc_enums import IncreaseOrDecrease
 
 
 class TestHierarchyTimelineUI(HierarchyTimelineUI):
@@ -19,28 +23,33 @@ class TestHierarchyTimelineUI(HierarchyTimelineUI):
     ) -> Hierarchy:
         ...
 
-    def relate_hierarchies(self, relation: PCRel):
+    def relate_hierarchies(self, parent: Hierarchy, children: list[Hierarchy]):
         ...
 
 
 @pytest.fixture
-def hierarchy_tlui(tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
+def hierarchy_tlui(tilia, tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
     def create_hierarchy(start: float, end: float, level: int, **kwargs) -> Hierarchy:
         return tl.create_timeline_component(
             ComponentKind.HIERARCHY, start, end, level, **kwargs
         )
 
-    def relate_hierarchies(relation: PCRel):
-        return tl.component_manager._make_parent_child_relation(relation)
+    def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
+        return tl.component_manager._make_parent_child_relation(
+            PCRel(parent=parent, children=children)
+        )
 
-    tl: HierarchyTimeline = create_timeline(
-        TimelineKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct
-    )
+    with patch("tkinter.PhotoImage", lambda *args, **kwargs: None):
+        tl: HierarchyTimeline = create_timeline(
+            TimelineKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct
+        )
+
     tl.clear()
     tl.ui.create_hierarchy = create_hierarchy
     tl.ui.relate_hierarchies = relate_hierarchies
     yield tl.ui
     tl_clct.delete_timeline(tl)
+    tilia._undo_manager.clear()
 
 
 def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
@@ -318,7 +327,7 @@ class TestHierarchyTimelineUI:
         set_dummy_copy_attributes(hrc1)
         set_dummy_copy_attributes(hrc2)
 
-        hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc3, children=[hrc1, hrc2]))
+        hierarchy_tlui.relate_hierarchies(parent=hrc3, children=[hrc1, hrc2])
 
         copy_data = hierarchy_tlui.get_copy_data_from_hierarchy_uis([hrc3.ui])
 
@@ -356,7 +365,7 @@ class TestHierarchyTimelineUI:
         set_dummy_copy_attributes(hrc1)
         set_dummy_copy_attributes(hrc2)
 
-        hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc3, children=[hrc1, hrc2]))
+        hierarchy_tlui.relate_hierarchies(parent=hrc3, children=[hrc1, hrc2])
 
         copy_data = hierarchy_tlui.get_copy_data_from_hierarchy_uis([hrc3.ui])
 
@@ -388,9 +397,9 @@ class TestHierarchyTimelineUI:
         set_dummy_copy_attributes(hrc1)
         set_dummy_copy_attributes(hrc2)
 
-        hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc3, children=[hrc1]))
-        hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc4, children=[hrc2]))
-        hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc5, children=[hrc3, hrc4]))
+        hierarchy_tlui.relate_hierarchies(parent=hrc3, children=[hrc1])
+        hierarchy_tlui.relate_hierarchies(parent=hrc4, children=[hrc2])
+        hierarchy_tlui.relate_hierarchies(parent=hrc5, children=[hrc3, hrc4])
 
         copy_data = hierarchy_tlui.get_copy_data_from_hierarchy_uis([hrc5.ui])
 
@@ -419,7 +428,7 @@ class TestHierarchyTimelineUI:
         hrc3 = hierarchy_tlui.create_hierarchy(0, 1, 2)
         hrc4 = hierarchy_tlui.create_hierarchy(1, 1.5, 3)
 
-        hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc3, children=[hrc1, hrc2]))
+        hierarchy_tlui.relate_hierarchies(parent=hrc3, children=[hrc1, hrc2])
 
         copy_data = hierarchy_tlui.get_copy_data_from_hierarchy_uis([hrc3.ui])
 
@@ -435,7 +444,7 @@ class TestHierarchyTimelineUI:
         hrc3 = hierarchy_tlui.create_hierarchy(0, 1, 2)
         hrc4 = hierarchy_tlui.create_hierarchy(1, 1.5, 2)
 
-        hierarchy_tlui.relate_hierarchies(PCRel(parent=hrc3, children=[hrc1, hrc2]))
+        hierarchy_tlui.relate_hierarchies(parent=hrc3, children=[hrc1, hrc2])
 
         copy_data = hierarchy_tlui.get_copy_data_from_hierarchy_uis([hrc3.ui, hrc4.ui])
 
@@ -443,3 +452,252 @@ class TestHierarchyTimelineUI:
 
         with pytest.raises(PasteError):
             hierarchy_tlui.paste_with_children_into_selected_elements(copy_data)
+
+    def test_on_split_button(self, hierarchy_tlui):
+        hierarchy_tlui.create_hierarchy(0, 1, 1)
+
+        with patch(
+            "tilia.timelines.common.Timeline.get_current_playback_time", lambda _: 0.5
+        ):
+            hierarchy_tlui.on_split_button()
+
+        assert len(hierarchy_tlui) == 2
+
+    def test_undo_redo_split_button(self, hierarchy_tlui):
+        hierarchy_tlui.create_hierarchy(0, 1, 1)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        with patch(
+            "tilia.timelines.common.Timeline.get_current_playback_time", lambda _: 0.5
+        ):
+            hierarchy_tlui.on_split_button()
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(hierarchy_tlui) == 1
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(hierarchy_tlui) == 2
+
+    def test_on_merge_button(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hrc2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+        hierarchy_tlui.select_element(hrc2.ui)
+
+        hierarchy_tlui.on_merge_button()
+
+        assert len(hierarchy_tlui) == 1
+
+    def test_undo_redo_merge(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hrc2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+        hierarchy_tlui.select_element(hrc2.ui)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        hierarchy_tlui.on_merge_button()
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(hierarchy_tlui) == 2
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(hierarchy_tlui) == 1
+
+    def test_on_increase_level_button(self, hierarchy_tlui):
+        hrc = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hierarchy_tlui.select_element(hrc.ui)
+
+        hierarchy_tlui.on_change_level_button(IncreaseOrDecrease.INCREASE)
+
+        assert hierarchy_tlui.elements[0].level == 2
+
+    def test_on_decrease_level_button(self, hierarchy_tlui):
+        hrc = hierarchy_tlui.create_hierarchy(0, 1, 2)
+        hierarchy_tlui.select_element(hrc.ui)
+
+        hierarchy_tlui.on_change_level_button(IncreaseOrDecrease.DECREASE)
+
+        assert hierarchy_tlui.elements[0].level == 1
+
+    def test_undo_redo_increase_level(self, hierarchy_tlui):
+        hrc = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hierarchy_tlui.select_element(hrc.ui)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        hierarchy_tlui.on_change_level_button(IncreaseOrDecrease.INCREASE)
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert hierarchy_tlui.elements[0].level == 1
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert hierarchy_tlui.elements[0].level == 2
+
+    def test_undo_redo_decrease_level(self, hierarchy_tlui):
+        hrc = hierarchy_tlui.create_hierarchy(0, 1, 2)
+        hierarchy_tlui.select_element(hrc.ui)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        hierarchy_tlui.on_change_level_button(IncreaseOrDecrease.DECREASE)
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert hierarchy_tlui.elements[0].level == 2
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert hierarchy_tlui.elements[0].level == 1
+
+    def test_on_group_button(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hrc2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+        hierarchy_tlui.select_element(hrc2.ui)
+
+        hierarchy_tlui.on_group_button()
+
+        assert len(hierarchy_tlui) == 3
+
+    def test_undo_redo_group(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hrc2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+        hierarchy_tlui.select_element(hrc2.ui)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        hierarchy_tlui.on_group_button()
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(hierarchy_tlui) == 2
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(hierarchy_tlui) == 3
+
+    def test_on_delete_button(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+
+        hierarchy_tlui.on_delete_button()
+
+        assert len(hierarchy_tlui) == 0
+
+    def test_undo_redo_delete(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        hierarchy_tlui.on_delete_button()
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(hierarchy_tlui) == 1
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(hierarchy_tlui) == 0
+
+    def test_on_create_unit_below_button(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+
+        hierarchy_tlui.on_create_unit_below_button()
+
+        assert len(hierarchy_tlui) == 2
+
+    def test_undo_redo_create_unit_below(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        hierarchy_tlui.on_create_unit_below_button()
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(hierarchy_tlui) == 1
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(hierarchy_tlui) == 2
+
+    def test_on_paste_button(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1, label="paste test")
+        hrc2 = hierarchy_tlui.create_hierarchy(0, 1, 2)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+        hierarchy_tlui.timeline_ui_collection._on_request_to_copy()
+        hierarchy_tlui.deselect_element(hrc1.ui)
+
+        hierarchy_tlui.select_element(hrc2.ui)
+        hierarchy_tlui.on_paste_button()
+
+        assert hrc2.ui.label == "paste test"
+
+    def test_undo_redo_paste(self, hierarchy_tlui):
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1, label="paste test")
+        hrc2 = hierarchy_tlui.create_hierarchy(0, 1, 2)
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        hierarchy_tlui.select_element(hrc1.ui)
+        hierarchy_tlui.timeline_ui_collection._on_request_to_copy()
+        hierarchy_tlui.deselect_element(hrc1.ui)
+
+        hierarchy_tlui.select_element(hrc2.ui)
+        hierarchy_tlui.on_paste_button()
+
+        assert hrc2.ui.label == "paste test"
+
+        events.post(Event.REQUEST_TO_UNDO)
+        hrc_ui2 = hierarchy_tlui.element_manager.ordered_elements[1]
+        assert hrc_ui2.label == ""
+
+        events.post(Event.REQUEST_TO_REDO)
+        hrc_ui2 = hierarchy_tlui.element_manager.ordered_elements[1]
+        assert hrc_ui2.label == "paste test"
+
+    def test_on_paste_with_children_button(self, hierarchy_tlui):
+        parent = hierarchy_tlui.create_hierarchy(0, 2, 2)
+        child1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        child2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
+        receptor = hierarchy_tlui.create_hierarchy(2, 3, 2, label="receptor")
+
+        hierarchy_tlui.relate_hierarchies(parent, [child1, child2])
+
+        hierarchy_tlui.select_element(parent.ui)
+        hierarchy_tlui.timeline_ui_collection._on_request_to_copy()
+        hierarchy_tlui.deselect_element(parent.ui)
+
+        hierarchy_tlui.select_element(receptor.ui)
+        hierarchy_tlui.on_paste_with_children_button()
+
+        assert len(hierarchy_tlui) == 6
+
+    def test_undo_redo_paste_with_children(self, hierarchy_tlui):
+        parent = hierarchy_tlui.create_hierarchy(0, 2, 2)
+        child1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        child2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
+        receptor = hierarchy_tlui.create_hierarchy(2, 3, 2, label="receptor")
+
+        hierarchy_tlui.relate_hierarchies(parent, [child1, child2])
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        hierarchy_tlui.select_element(parent.ui)
+        hierarchy_tlui.timeline_ui_collection._on_request_to_copy()
+        hierarchy_tlui.deselect_element(parent.ui)
+
+        hierarchy_tlui.select_element(receptor.ui)
+        hierarchy_tlui.on_paste_with_children_button()
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(hierarchy_tlui) == 4
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(hierarchy_tlui) == 6

@@ -246,6 +246,8 @@ class TiLiA:
         self._timeline_collection.clear()
         self._file_manager.clear()
         self._player.clear()
+        self._undo_manager.clear()
+        self._media_metadata = create_new_media_metadata()
         logger.info(f"App cleared.")
 
     def load_file(self, file: TiliaFile) -> None:

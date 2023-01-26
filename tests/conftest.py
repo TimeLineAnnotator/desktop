@@ -1,3 +1,4 @@
+import itertools
 import os
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from tilia import settings
 import tkinter as tk
 import _tkinter
 
+from tilia.events import unsubscribe_from_all
 from tilia.timelines.state_actions import Action
 
 
@@ -54,18 +56,27 @@ def tkui(tk_session):
     yield tkui_
 
 
-@pytest.fixture(scope="session")
+# noinspection PyProtectedMember
+@pytest.fixture(scope="module")
 def tilia(tkui):
     from tilia._tilia import TiLiA
 
-    return TiLiA(tkui)
+    tilia_ = TiLiA(tkui)
+    tilia_._timeline_collection.delete_timeline(tilia_._timeline_collection[0])
+    yield tilia_
+    tilia_.clear_app()
+    unsubscribe_from_all(tilia_._timeline_collection)
+    unsubscribe_from_all(tilia_._timeline_ui_collection)
+    unsubscribe_from_all(tilia_._file_manager)
+    unsubscribe_from_all(tilia_._player)
+    unsubscribe_from_all(tilia_._undo_manager)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def tlui_clct(tkui, tilia):
     return tilia._timeline_ui_collection
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def tl_clct(tkui, tilia):
     return tilia._timeline_collection

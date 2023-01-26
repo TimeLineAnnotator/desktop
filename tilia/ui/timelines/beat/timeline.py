@@ -84,13 +84,10 @@ class BeatTimelineUI(TimelineUI):
     def ordered_selected_elements(self):
         return sorted(self.selected_elements, key=lambda b: b.time)
 
-    def create_beat(self, time: float, record=True, **kwargs) -> None:
+    def create_beat(self, time: float, **kwargs) -> None:
 
         self.timeline.create_timeline_component(ComponentKind.BEAT, time=time, **kwargs)
         self.timeline.recalculate_measures()
-
-        if record:
-            events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_BEAT)
 
     def on_delete_beat_button(self):
         self.delete_selected_elements()
@@ -276,5 +273,4 @@ class BeatTimelineUI(TimelineUI):
                 **beat_data["by_component_value"],
                 **beat_data["support_by_element_value"],
                 **beat_data["support_by_component_value"],
-                record=False,
             )

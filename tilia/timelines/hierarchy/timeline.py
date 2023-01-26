@@ -44,6 +44,13 @@ class HierarchyTimeline(Timeline):
             collection, component_manager, TimelineKind.HIERARCHY_TIMELINE, **kwargs
         )
 
+    def __len__(self):
+        return self.component_manager.component_count
+
+    def __bool__(self):
+        """Prevents False form being returned when timeline is empty."""
+        return True
+
     def create_hierarchy(
         self, start: float, end: float, level: int, **kwargs
     ) -> Hierarchy:
@@ -57,8 +64,19 @@ class HierarchyTimeline(Timeline):
     def create_unit_below(self, component: Hierarchy) -> None:
         self.component_manager.create_unit_below(component)
 
-    def change_level_by_amount(self, amount: int, component: Hierarchy) -> None:
-        self.component_manager.change_level_by_amount(component, amount)
+    def change_level_by_amount(self, amount: int, components: list[Hierarchy]) -> None:
+
+        if amount > 0:
+            reverse = True
+        elif amount < 0:
+            reverse = False
+        else:
+            return
+
+        for component in sorted(
+            components, key=lambda x: (x.level, x.start), reverse=reverse
+        ):
+            self.component_manager.change_level_by_amount(component, amount)
 
     def group(self, units: list[Hierarchy]) -> None:
         self.component_manager.group(units)
@@ -150,9 +168,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             ParentChildRelation(parent=unit, children=[created_unit])
         )
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_UNIT_BELOW)
-
-    def change_level_by_amount(self, unit: Hierarchy, amount: int, record=True):
+    def change_level_by_amount(self, unit: Hierarchy, amount: int):
         def _validate_change_level(unit: Hierarchy, new_level: int):
             if new_level < 1:
                 raise HierarchyOperationError(
@@ -182,10 +198,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         unit.ui.update_position()
 
-        if record:
-            events.post(Event.REQUEST_RECORD_STATE, StateAction.CHANGE_LEVEL)
-
-    def group(self, units_to_group: list[Hierarchy], record=True) -> None:
+    def group(self, units_to_group: list[Hierarchy]) -> None:
         def _validate_at_least_two_selected(units_to_group):
             if len(units_to_group) <= 1:
                 raise HierarchyOperationError(
@@ -312,9 +325,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         # TODO handle selects and deselects
 
-        if record:
-            events.post(Event.REQUEST_RECORD_STATE, Action.GROUP)
-
     def get_unit_to_split(self, time: float) -> Hierarchy | None:
         """Returns lowest level unit that begins strictly before and ends strictly after 'time'"""
         units_at_time = self.get_components_by_condition(
@@ -324,9 +334,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if units_at_time_sorted_by_time:
             return units_at_time_sorted_by_time[0]
 
-    def split(
-        self, unit_to_split: Hierarchy, split_time: float, record: bool = True
-    ) -> None:
+    def split(self, unit_to_split: Hierarchy, split_time: float) -> None:
         """Split a unit into two new ones"""
 
         def _validate_split(unit: Hierarchy, time: float):
@@ -410,9 +418,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             setattr(left_unit, attr, getattr(unit_to_split, attr))
             setattr(right_unit, attr, getattr(unit_to_split, attr))
 
-        if record:
-            events.post(Event.REQUEST_RECORD_STATE, Action.SPLIT)
-
     def merge(self, units_to_merge: list[Hierarchy]):
         def _validate_at_least_two_units(units: list[Hierarchy]) -> None:
             if len(units) <= 1:
@@ -458,8 +463,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             )
 
             return list(set(units + units_between))
-
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.MERGE)
 
         _validate_common_parent(units_to_merge)
         _validate_at_least_two_units(units_to_merge)

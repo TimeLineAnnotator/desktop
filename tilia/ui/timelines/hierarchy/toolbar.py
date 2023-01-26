@@ -54,13 +54,13 @@ class HierarchyTimelineToolbar(TimelineToolbar):
             ),
             (
                 "paste30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE),
                 "Paste unit (Ctrl + V)",
             ),
             (
                 "paste_with_data30",
                 lambda: events.post(
-                    Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN
+                    Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_WITH_CHILDREN
                 ),
                 "Paste unit with all attributes\n(including children) (Ctrl + Shift + V)",
             ),

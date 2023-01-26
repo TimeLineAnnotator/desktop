@@ -37,8 +37,8 @@ class Event(Enum):
     HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE = auto()
     HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE = auto()
     HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE = auto()
-    HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT = auto()
-    HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN = auto()
+    HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE = auto()
+    HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_WITH_CHILDREN = auto()
     HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT = auto()
     INSPECTABLE_ELEMENT_DESELECTED = auto()
     INSPECTABLE_ELEMENT_SELECTED = auto()
@@ -137,7 +137,7 @@ subscribers_to_events = {}
 for event in Event:
     events_to_subscribers[event] = {}
 
-log_events = settings.get('dev', 'log_events')
+log_events = settings.get("dev", "log_events")
 
 
 def post(event: Event, *args, logging_level=10, **kwargs) -> None:
