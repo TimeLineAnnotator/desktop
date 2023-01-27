@@ -697,45 +697,16 @@ class TimelineUICollection:
             self.selection_box_elements_to_selected_triggers.pop(element)
             timeline_ui.deselect_element(element)
 
-    def _on_delete_press(self):
-
-        if not any([tlui.has_selected_elements for tlui in self]):
-            return
-
-        for timeline_ui in self:
-            timeline_ui.on_delete_press()
-
-        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE_TIMELINE_COMPONENT)
-
-    def on_beat_timeline_delete_beat_button(self):
-        from tilia.ui.timelines.beat import BeatTimelineUI
-
-        if not any(
-            [
-                tlui.has_selected_elements
-                for tlui in self
-                if isinstance(tlui, BeatTimelineUI)
-            ]
-        ):
-            return
-
-        for timeline_ui in [tlui for tlui in self if isinstance(tlui, BeatTimelineUI)]:
-            timeline_ui.on_delete_press()
-
-        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE_TIMELINE_COMPONENT)
-
     def _on_enter_press(self):
         if any([tlui.has_selected_elements for tlui in self]):
             events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
 
     def _on_side_arrow_press(self, side: Side):
-
         for timeline_ui in self:
             if hasattr(timeline_ui, "on_side_arrow_press"):
                 timeline_ui.on_side_arrow_press(side)
 
     def _on_up_down_arrow_press(self, direction: UpOrDown):
-
         for timeline_ui in self:
             if hasattr(timeline_ui, "on_up_down_arrow_press"):
                 timeline_ui.on_up_down_arrow_press(direction)
@@ -893,12 +864,24 @@ class TimelineUICollection:
         TlKind.BEAT_TIMELINE: {"add": "first", "delete": "all"},
     }
 
-    def on_timeline_toolbar_button(self, kind: TlKind, button: str) -> None:
+    def _on_delete_press(self):
+        self.on_timeline_toolbar_button(
+            [TlKind.HIERARCHY_TIMELINE, TlKind.MARKER_TIMELINE, TlKind.BEAT_TIMELINE],
+            "delete",
+        )
 
-        if self.tlkind_to_action_to_call_type[kind][button] == "all":
-            self.timeline_toolbar_button_call_on_all(kind, button)
-        else:
-            self.timeline_toolbar_button_call_on_first(kind, button)
+    def on_timeline_toolbar_button(
+        self, kinds: TlKind | list[TlKind], button: str
+    ) -> None:
+
+        if not isinstance(kinds, list):
+            kinds = [kinds]
+
+        for kind in kinds:
+            if self.tlkind_to_action_to_call_type[kind][button] == "all":
+                self.timeline_toolbar_button_call_on_all(kind, button)
+            else:
+                self.timeline_toolbar_button_call_on_first(kind, button)
 
         self.timeline_toolbar_button_record(button)
 

@@ -1,4 +1,3 @@
-import itertools
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -11,6 +10,17 @@ import tkinter as tk
 import _tkinter
 
 from tilia.events import unsubscribe_from_all
+from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.create import create_timeline
+from tilia.timelines.hierarchy.common import ParentChildRelation
+from tilia.timelines.hierarchy.components import Hierarchy
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
+from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.ui.timelines.beat import BeatTimelineUI
+from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
+from tilia.ui.timelines.marker import MarkerTimelineUI
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -86,3 +96,60 @@ def tlui_clct(tkui, tilia):
 @pytest.fixture(scope="module")
 def tl_clct(tkui, tilia):
     return tilia._timeline_collection
+
+
+## FIXTURES FOR CREATING TIMELINES
+
+
+@pytest.fixture
+def beat_tlui(tl_clct, tlui_clct) -> BeatTimelineUI:
+    with patch(
+        "tilia.ui.timelines.collection.TimelineUICollection.ask_beat_pattern"
+    ) as mock:
+        mock.return_value = [4]
+        tl: BeatTimeline = create_timeline(TlKind.BEAT_TIMELINE, tl_clct, tlui_clct)
+
+    yield tl.ui
+    tl_clct.delete_timeline(tl)
+
+
+class TestHierarchyTimelineUI(HierarchyTimelineUI):
+    def create_hierarchy(
+        self, start: float, end: float, level: int, **kwargs
+    ) -> Hierarchy:
+        ...
+
+    def relate_hierarchies(self, parent: Hierarchy, children: list[Hierarchy]):
+        ...
+
+
+@pytest.fixture
+def hierarchy_tlui(tilia, tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
+    def create_hierarchy(start: float, end: float, level: int, **kwargs) -> Hierarchy:
+        return tl.create_timeline_component(
+            ComponentKind.HIERARCHY, start, end, level, **kwargs
+        )
+
+    def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
+        return tl.component_manager._make_parent_child_relation(
+            ParentChildRelation(parent=parent, children=children)
+        )
+
+    tl: HierarchyTimeline = create_timeline(
+        TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct
+    )
+
+    tl.clear()
+    tl.ui.create_hierarchy = create_hierarchy
+    tl.ui.relate_hierarchies = relate_hierarchies
+    yield tl.ui
+    tl_clct.delete_timeline(tl)
+    tilia._undo_manager.clear()
+
+
+@pytest.fixture
+def marker_tlui(tl_clct, tlui_clct) -> MarkerTimelineUI:
+    tl: MarkerTimeline = create_timeline(TlKind.MARKER_TIMELINE, tl_clct, tlui_clct)
+
+    yield tl.ui
+    tl_clct.delete_timeline(tl)

@@ -4,23 +4,8 @@ import pytest
 
 from tilia import events
 from tilia.events import Event
-from tilia.timelines.create import create_timeline
-from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.timelines.marker import MarkerTimelineUI
-
-
-@pytest.fixture
-def marker_tlui(tl_clct, tlui_clct) -> MarkerTimelineUI:
-    # with patch("tkinter.PhotoImage", lambda *args, **kwargs: None):
-    #     # avoid intermintent error when creating toolbar image and speeds up tests
-    # experimenting leaving this out after refactor to see if intermitent error reoccurs
-
-    tl: MarkerTimeline = create_timeline(TlKind.MARKER_TIMELINE, tl_clct, tlui_clct)
-
-    yield tl.ui
-    tl_clct.delete_timeline(tl)
 
 
 class TestMarkerTimelineUI:

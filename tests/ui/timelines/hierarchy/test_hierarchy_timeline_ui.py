@@ -5,50 +5,11 @@ import tkinter as tk
 
 from tilia import events
 from tilia.events import Event
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.hierarchy.common import ParentChildRelation as PCRel
 from tilia.timelines.hierarchy.components import Hierarchy
-from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.timelines.create import create_timeline
 from tilia.ui.timelines.copy_paste import PasteError
-from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
-
-
-class TestHierarchyTimelineUI(HierarchyTimelineUI):
-    def create_hierarchy(
-        self, start: float, end: float, level: int, **kwargs
-    ) -> Hierarchy:
-        ...
-
-    def relate_hierarchies(self, parent: Hierarchy, children: list[Hierarchy]):
-        ...
-
-
-@pytest.fixture
-def hierarchy_tlui(tilia, tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
-    def create_hierarchy(start: float, end: float, level: int, **kwargs) -> Hierarchy:
-        return tl.create_timeline_component(
-            ComponentKind.HIERARCHY, start, end, level, **kwargs
-        )
-
-    def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
-        return tl.component_manager._make_parent_child_relation(
-            PCRel(parent=parent, children=children)
-        )
-
-    with patch("tkinter.PhotoImage", lambda *args, **kwargs: None):
-        tl: HierarchyTimeline = create_timeline(
-            TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct
-        )
-
-    tl.clear()
-    tl.ui.create_hierarchy = create_hierarchy
-    tl.ui.relate_hierarchies = relate_hierarchies
-    yield tl.ui
-    tl_clct.delete_timeline(tl)
-    tilia._undo_manager.clear()
+from tilia.ui.timelines.hierarchy import HierarchyUI
 
 
 def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:

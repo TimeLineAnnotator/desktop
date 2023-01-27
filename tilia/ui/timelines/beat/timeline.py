@@ -93,8 +93,12 @@ class BeatTimelineUI(TimelineUI):
         self.create_beat(self.timeline_ui_collection.get_current_playback_time())
 
     def create_beat(self, time: float, **kwargs) -> None:
-        self.timeline.create_timeline_component(ComponentKind.BEAT, time=time, **kwargs)
+        beat = self.timeline.create_timeline_component(
+            ComponentKind.BEAT, time=time, **kwargs
+        )
         self.timeline.recalculate_measures()
+
+        return beat
 
     def delete_selected_elements(self):
         if not self.selected_elements:

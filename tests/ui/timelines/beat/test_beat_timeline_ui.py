@@ -13,22 +13,8 @@ from tilia.timelines.create import create_timeline
 from tilia.ui.windows import WindowKind
 
 
-@pytest.fixture
-def beat_tlui(tl_clct, tlui_clct) -> BeatTimelineUI:
-    with patch(
-        "tilia.ui.timelines.collection.TimelineUICollection.ask_beat_pattern"
-    ) as mock:
-        mock.return_value = [4]
-        with patch("tkinter.PhotoImage", lambda *args, **kwargs: None):
-            # avoid intermintent error when creating toolbar image and speeds up tests
-            tl: BeatTimeline = create_timeline(TlKind.BEAT_TIMELINE, tl_clct, tlui_clct)
-
-    yield tl.ui
-    tl_clct.delete_timeline(tl)
-
-
 class TestBeatTimelineUI:
-    def test_init(self):
+    def test_init(self, beat_tlui):
         assert beat_tlui
 
     def test_create_beat(self, beat_tlui):

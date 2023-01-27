@@ -90,7 +90,9 @@ class MarkerTimelineUI(TimelineUI):
         self.create_marker(self.timeline_ui_collection.get_current_playback_time())
 
     def create_marker(self, time: float, **kwargs) -> None:
-        self.timeline.create_timeline_component(ComponentKind.MARKER, time, **kwargs)
+        return self.timeline.create_timeline_component(
+            ComponentKind.MARKER, time, **kwargs
+        )
 
     def on_delete_marker_button(self):
         self.delete_selected_elements()

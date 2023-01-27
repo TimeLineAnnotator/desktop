@@ -5,7 +5,11 @@ import pytest
 from tilia import events
 from tilia.events import Event
 from tilia.timelines.create import create_timeline
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.timelines.state_actions import Action
+from tilia.timelines.timeline_kinds import (
+    TimelineKind as TlKind,
+    IMPLEMENTED_TIMELINE_KINDS,
+)
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
 from tilia.ui.timelines.slider import SliderTimelineUI
 
@@ -49,6 +53,19 @@ class TestTimelineUICollection:
 
         tl_clct.delete_timeline(tlui1.timeline)
         tl_clct.delete_timeline(tlui2.timeline)
+
+    def test_crete_timeline_uis_of_all_kinds(self, tl_clct, tlui_clct):
+        for kind in IMPLEMENTED_TIMELINE_KINDS:
+            with patch(
+                "tilia.ui.timelines.collection.TimelineUICollection.ask_beat_pattern"
+            ) as mock:
+                mock.return_value = [1]
+                create_timeline(kind, tl_clct, tlui_clct)
+
+        assert len(tlui_clct.get_timeline_uis()) == len(IMPLEMENTED_TIMELINE_KINDS)
+
+        for timeline in tl_clct._timelines.copy():
+            tl_clct.delete_timeline(timeline)
 
     def test_delete_timeline_ui(self, tl_clct, tlui_clct):
 
@@ -115,3 +132,43 @@ class TestTimelineUICollection:
                     call_on_first_mock.assert_called_with(kind, button)
 
                 record_mock.assert_called_with(button)
+
+    def test_on_delete_button(self, tlui_clct, beat_tlui, hierarchy_tlui, marker_tlui):
+
+        marker = marker_tlui.create_marker(0)
+        marker_tlui.select_element(marker.ui)
+        hierarchy = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hierarchy_tlui.select_element(hierarchy.ui)
+        beat = beat_tlui.create_beat(0)
+        beat_tlui.select_element(beat.ui)
+
+        tlui_clct._on_delete_press()
+
+        assert not marker_tlui.elements
+        assert not hierarchy_tlui.elements
+        assert not beat_tlui.elements
+
+    def test_undo_redo_delete_button(
+        self, tlui_clct, beat_tlui, hierarchy_tlui, marker_tlui
+    ):
+
+        marker = marker_tlui.create_marker(0)
+        marker_tlui.select_element(marker.ui)
+        hierarchy = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hierarchy_tlui.select_element(hierarchy.ui)
+        beat = beat_tlui.create_beat(0)
+        beat_tlui.select_element(beat.ui)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        tlui_clct._on_delete_press()
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(marker_tlui.elements) == 1
+        assert len(hierarchy_tlui.elements) == 1
+        assert len(beat_tlui.elements) == 1
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert not marker_tlui.elements
+        assert not hierarchy_tlui.elements
+        assert not beat_tlui.elements
