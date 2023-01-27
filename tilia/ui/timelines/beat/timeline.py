@@ -74,7 +74,12 @@ class BeatTimelineUI(TimelineUI):
             **kwargs,
         )
 
-        subscribe(self, Event.BEAT_TOOLBAR_BUTTON_DELETE, self.on_delete_beat_button)
+    def _setup_user_actions_to_callbacks(self):
+
+        self.action_to_callback = {
+            "add": self.add_beat,
+            "delete": self.delete_selected_elements,
+        }
 
     @property
     def ordered_elements(self):
@@ -84,13 +89,21 @@ class BeatTimelineUI(TimelineUI):
     def ordered_selected_elements(self):
         return sorted(self.selected_elements, key=lambda b: b.time)
 
-    def create_beat(self, time: float, **kwargs) -> None:
+    def add_beat(self):
+        self.create_beat(self.timeline_ui_collection.get_current_playback_time())
 
+    def create_beat(self, time: float, **kwargs) -> None:
         self.timeline.create_timeline_component(ComponentKind.BEAT, time=time, **kwargs)
         self.timeline.recalculate_measures()
 
-    def on_delete_beat_button(self):
-        self.delete_selected_elements()
+    def delete_selected_elements(self):
+        if not self.selected_elements:
+            return
+
+        for component in self.selected_components:
+            self.timeline.on_request_to_delete_components([component])
+
+        self.timeline.recalculate_measures()
 
     def _deselect_all_but_last(self):
         if len(self.ordered_selected_elements) > 1:

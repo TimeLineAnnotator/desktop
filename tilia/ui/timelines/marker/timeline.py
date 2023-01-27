@@ -76,19 +76,21 @@ class MarkerTimelineUI(TimelineUI):
             **kwargs,
         )
 
-        subscribe(
-            self, Event.MARKER_TOOLBAR_BUTTON_DELETE, self.on_delete_marker_button
-        )
+    def _setup_user_actions_to_callbacks(self):
+
+        self.action_to_callback = {
+            "add": self.add_marker,
+            "delete": self.delete_selected_elements,
+        }
 
     def get_timeline_height(self):
         return self.height
 
-    def create_marker(self, time: float, record=True, **kwargs) -> None:
+    def add_marker(self):
+        self.create_marker(self.timeline_ui_collection.get_current_playback_time())
 
+    def create_marker(self, time: float, **kwargs) -> None:
         self.timeline.create_timeline_component(ComponentKind.MARKER, time, **kwargs)
-
-        if record:
-            events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_MARKER)
 
     def on_delete_marker_button(self):
         self.delete_selected_elements()
@@ -272,5 +274,4 @@ class MarkerTimelineUI(TimelineUI):
                 **marker_data["by_component_value"],
                 **marker_data["support_by_element_value"],
                 **marker_data["support_by_component_value"],
-                record=False,
             )

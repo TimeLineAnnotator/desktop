@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 import logging
 
-from tests.timelines.beat.test_beat_component_manager import DummyBeat
 from tilia.timelines.beat.timeline import BeatTLComponentManager, BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -330,6 +329,21 @@ class TestBeatTimeline:
 
         assert beat_tl.beats_in_measure == [2]
         assert beat_tl.measure_numbers == [1]
+
+    def test_recalculate_measure_first_beat_from_last_measure(self, beat_tl):
+        b0 = beat_tl.create_timeline_component(time=1)
+        b1 = beat_tl.create_timeline_component(time=2)
+        b2 = beat_tl.create_timeline_component(time=3)
+        b3 = beat_tl.create_timeline_component(time=4)
+
+        beat_tl.recalculate_measures()
+
+        beat_tl.on_request_to_delete_components([b2])
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.beats_in_measure == [2, 1]
+        assert beat_tl.measure_numbers == [1, 2]
 
     def test_update_beats_that_start_measures(self, beat_tl):
         beat_tl.beats_in_measure = [4]

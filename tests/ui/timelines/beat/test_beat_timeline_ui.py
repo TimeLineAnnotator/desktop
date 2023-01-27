@@ -7,7 +7,7 @@ from tilia.events import Event
 from tilia.misc_enums import Side
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.state_actions import Action
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.timelines.beat.timeline import BeatTimelineUI
 from tilia.timelines.create import create_timeline
 from tilia.ui.windows import WindowKind
@@ -21,9 +21,7 @@ def beat_tlui(tl_clct, tlui_clct) -> BeatTimelineUI:
         mock.return_value = [4]
         with patch("tkinter.PhotoImage", lambda *args, **kwargs: None):
             # avoid intermintent error when creating toolbar image and speeds up tests
-            tl: BeatTimeline = create_timeline(
-                TimelineKind.BEAT_TIMELINE, tl_clct, tlui_clct
-            )
+            tl: BeatTimeline = create_timeline(TlKind.BEAT_TIMELINE, tl_clct, tlui_clct)
 
     yield tl.ui
     tl_clct.delete_timeline(tl)
@@ -49,16 +47,6 @@ class TestBeatTimelineUI:
         beat_tlui.create_beat(0)
         with pytest.raises(ValueError):
             beat_tlui.create_beat(0)
-
-    def test_on_delete_beat_button(self, beat_tlui):
-        beat_tlui.create_beat(0)
-        beat_tlui.create_beat(0.1)
-
-        beat0 = beat_tlui.elements[0]
-        beat_tlui.select_element(beat0)
-        beat_tlui.on_delete_beat_button()
-
-        assert len(beat_tlui.elements) == 1
 
     def test_deselect_all_but_last(self, beat_tlui):
         beat_tlui.create_beat(0)
@@ -449,7 +437,7 @@ class TestBeatTimelineUI:
             "tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time",
             lambda _: 0.101,
         ):
-            events.post(Event.BEAT_TOOLBAR_BUTTON_ADD)
+            tlui_clct.on_timeline_toolbar_button(TlKind.BEAT_TIMELINE, "add")
 
         events.post(Event.REQUEST_TO_UNDO)
         assert len(beat_tlui.elements) == 0
@@ -464,22 +452,7 @@ class TestBeatTimelineUI:
 
         assert len(beat_tlui.elements) == 0
 
-    def test_undo_redo_delete_beat(self, beat_tlui):
-
-        beat_tlui.create_beat(0)
-
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
-
-        beat_tlui.select_element(list(beat_tlui.elements)[0])
-        events.post(Event.BEAT_TOOLBAR_BUTTON_DELETE)
-
-        events.post(Event.REQUEST_TO_UNDO)
-        assert len(beat_tlui.elements) == 1
-
-        events.post(Event.REQUEST_TO_REDO)
-        assert len(beat_tlui.elements) == 0
-
-    def test_on_delete_beat_button_multiple_beats(self, beat_tlui):
+    def test_on_delete_beat_button_multiple_beats(self, beat_tlui, tlui_clct):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
@@ -502,10 +475,27 @@ class TestBeatTimelineUI:
 
         events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
-        events.post(Event.BEAT_TOOLBAR_BUTTON_DELETE)
+        tlui_clct.on_timeline_toolbar_button(TlKind.BEAT_TIMELINE, "delete")
 
         events.post(Event.REQUEST_TO_UNDO)
         assert len(beat_tlui.elements) == 3
+
+        events.post(Event.REQUEST_TO_REDO)
+        assert len(beat_tlui.elements) == 0
+
+    def test_undo_redo_delete_beat(self, beat_tlui, tlui_clct):
+        # 'tlui_clct' is needed as it subscriber to toolbar event
+        # and forwards it to beat timeline
+
+        beat_tlui.create_beat(0)
+
+        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+
+        beat_tlui.select_element(list(beat_tlui.elements)[0])
+        tlui_clct.on_timeline_toolbar_button(TlKind.BEAT_TIMELINE, "delete")
+
+        events.post(Event.REQUEST_TO_UNDO)
+        assert len(beat_tlui.elements) == 1
 
         events.post(Event.REQUEST_TO_REDO)
         assert len(beat_tlui.elements) == 0

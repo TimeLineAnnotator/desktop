@@ -15,17 +15,17 @@ class HierarchyTimelineToolbar(TimelineToolbar):
         self.button_info = [
             (
                 "split30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_SPLIT),
                 "Split unit at current position (s)",
             ),
             (
                 "merge30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_MERGE),
                 "Merge units (Shift+m)",
             ),
             (
                 "group30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_GROUP),
                 "Group units (g)",
             ),
             (
@@ -44,17 +44,17 @@ class HierarchyTimelineToolbar(TimelineToolbar):
             ),
             (
                 "below30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_CREATE_CHILD),
                 "Create unit below",
             ),
             (
                 "delete30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_DELETE),
                 "Delete unit (Delete)",
             ),
             (
                 "paste30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_PASTE),
                 "Paste unit (Ctrl + V)",
             ),
             (

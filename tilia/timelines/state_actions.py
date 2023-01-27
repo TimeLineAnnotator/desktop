@@ -4,6 +4,13 @@ from enum import Enum, auto
 
 
 class Action(Enum):
+    ADD_COMPONENT = auto()
+    LEVEL_DECREASE = auto()
+    LEVEL_INCREASE = auto()
+    PASTE_WITH_CHILDREN = auto()
+    DECREASE_LEVEL = auto()
+    INCREASE_LEVEL = auto()
+    CREATE_CHILD = auto()
     BEATS_IN_MEASURE_CHANGE = auto()
     DISTRIBUTE_BEATS = auto()
     MEASURE_NUMBER_RESET = auto()
@@ -31,5 +38,4 @@ class Action(Enum):
     SPLIT = auto()
     GROUP = auto()
     CHANGE_LEVEL = auto()
-    CREATE_UNIT_BELOW = auto()
     DELETE = auto()

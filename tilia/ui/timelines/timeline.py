@@ -167,6 +167,7 @@ class TimelineUI(ABC):
         self.right_clicked_element = None
 
         self._setup_visiblity(is_visible)
+        self._setup_user_actions_to_callbacks()
 
         subscribe(self, Event.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
 
@@ -223,6 +224,19 @@ class TimelineUI(ABC):
 
         if not self.is_visible:
             self.timeline_ui_collection.hide_timeline_ui(self)
+
+    def _setup_user_actions_to_callbacks(self):
+        """
+        Subclasses should override this and create a self.action_to_callback dict
+        where:
+
+        action: str = user action
+        callback: Callable = function to be called when action is performed
+
+        TimelineUICollection will use this dictionary to call the appropriate function
+        according to user request.
+        """
+        self.action_to_callback = {}
 
     def get_ui_for_component(
         self, component_kind: ComponentKind, component: TimelineComponent, **kwargs
@@ -495,17 +509,12 @@ class TimelineUI(ABC):
     def update_elements_position(self) -> None:
         self.element_manager.update_elements_postion()
 
-    def on_delete_press(self):
-        self.timeline.on_request_to_delete_components(self.selected_components)
-
     def delete_selected_elements(self):
         if not self.selected_elements:
             return
 
         for component in self.selected_components:
             self.timeline.on_request_to_delete_components([component])
-
-        events.post(Event.REQUEST_RECORD_STATE, Action.DELETE_TIMELINE_COMPONENT)
 
     def delete_element(self, element: TimelineUIElement):
         if element in self.selected_elements:
@@ -843,9 +852,7 @@ class TimelineUIElementManager:
 
     def delete_element(self, element: SomeTimelineUIElement):
         logger.debug(f"Deleting UI element '{element}'")
-        # self._deselect_if_selected(element)
         element.delete()
-        element
         self._remove_from_elements_set(element)
 
     @staticmethod

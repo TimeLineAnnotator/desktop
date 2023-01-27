@@ -921,20 +921,20 @@ class TestHierarchyTimelineComponentManager:
     def test_increase_level(self, tl, cm):
 
         hrc = tl.create_hierarchy(0, 1, 1)
-        cm.change_level_by_amount(hrc, 1)
+        cm.change_level(hrc, 1)
         assert hrc.level == 2
 
     def test_decrease_level(self, tl, cm):
 
         hrc = tl.create_hierarchy(0, 1, 2)
-        cm.change_level_by_amount(hrc, -1)
+        cm.change_level(hrc, -1)
         assert hrc.level == 1
 
     def test_decrease_level_below_one_raises_error(self, tl, cm):
 
         hrc = tl.create_hierarchy(0, 1, 1)
         with pytest.raises(HierarchyOperationError):
-            cm.change_level_by_amount(hrc, -1)
+            cm.change_level(hrc, -1)
 
         with pytest.raises(HierarchyOperationError):
-            cm.change_level_by_amount(hrc, -2)
+            cm.change_level(hrc, -2)

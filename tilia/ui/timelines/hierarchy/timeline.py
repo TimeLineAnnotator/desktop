@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 import tilia.ui.timelines.copy_paste
 from tilia.ui.timelines.copy_paste import paste_into_element
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event, subscribe
-from tilia.misc_enums import IncreaseOrDecrease, Side, UpOrDown
+from tilia.events import Event
+from tilia.misc_enums import Side, UpOrDown
 from tilia.timelines.state_actions import Action
 
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -82,48 +82,9 @@ class HierarchyTimelineUI(TimelineUI):
             is_visible=is_visible,
             **kwargs,
         )
-
-        subscribe(
-            self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD,
-            self.on_create_unit_below_button,
-        )
-        subscribe(
-            self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE,
-            lambda: self.on_change_level_button(IncreaseOrDecrease.INCREASE),
-        )
-        subscribe(
-            self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE,
-            lambda: self.on_change_level_button(IncreaseOrDecrease.DECREASE),
-        )
-        subscribe(
-            self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP, self.on_group_button
-        )
-        subscribe(
-            self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE, self.on_merge_button
-        )
-        subscribe(
-            self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE,
-            self.on_paste_button,
-        )
-        subscribe(
-            self,
-            Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_WITH_CHILDREN,
-            self.on_paste_with_children_button,
-        )
-        subscribe(
-            self, Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE, self.on_delete_button
-        )
-
         self.collection = timeline_ui_collection
-
         self._name = name
-
         self.timeline = None
-
         self.right_clicked_element = None
 
     def __len__(self):
@@ -132,6 +93,20 @@ class HierarchyTimelineUI(TimelineUI):
     def __bool__(self):
         """Prevents False form being returned when timeline is empty."""
         return True
+
+    def _setup_user_actions_to_callbacks(self):
+
+        self.action_to_callback = {
+            "create_child": self.create_child,
+            "increase_level": self.increase_level,
+            "decrease_level": self.decrease_level,
+            "group": self.group,
+            "merge": self.merge,
+            "paste": self.paste,
+            "paste_with_children": self.paste_with_children,
+            "delete": self.delete_selected_elements,
+            "split": self.split,
+        }
 
     def rearrange_canvas_drawings(self):
         for element in self.element_manager.get_all_elements():
@@ -267,7 +242,7 @@ class HierarchyTimelineUI(TimelineUI):
         self.canvas.tag_lower(parent_ui.label_id, lowest_child_drawing_id)
         self.canvas.tag_lower(parent_ui.comments_ind_id, lowest_child_drawing_id)
 
-    def on_create_unit_below_button(self):
+    def create_child(self):
         if not self.selected_elements:
             return
 
@@ -277,25 +252,25 @@ class HierarchyTimelineUI(TimelineUI):
 
         logging.debug(f"Processed create unit below button.")
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_UNIT_BELOW)
+    def increase_level(self):
+        self.change_level(1)
 
-    def on_change_level_button(self, increase_or_decrease: IncreaseOrDecrease):
+    def decrease_level(self):
+        self.change_level(-1)
+
+    def change_level(self, amount: int):
         if not self.selected_elements:
             return
 
         logging.debug(
-            f"Requesting timeline to {increase_or_decrease.name.lower()} level of selected elements."
+            f"Requesting timeline to change level of selected elements by {amount}."
         )
 
-        self.timeline.change_level_by_amount(
-            increase_or_decrease.value, self.selected_components
-        )
+        self.timeline.change_level(amount, self.selected_components)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.HIERARCHY_LEVEL_CHANGE)
+        logging.debug(f"Processed change level button.")
 
-        logging.debug(f"Processed {increase_or_decrease.name.lower()} level button.")
-
-    def on_group_button(self):
+    def group(self):
         if not self.selected_elements:
             return
 
@@ -304,25 +279,21 @@ class HierarchyTimelineUI(TimelineUI):
 
         logging.debug(f"Processed group level button.")
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.GROUP)
-
-    def on_split_button(self):
+    def split(self):
         logging.debug(f"Processing split button press...")
         split_time = self.timeline.get_current_playback_time()
         logging.debug(f"Requesting timeline to split at time={split_time}.")
         self.timeline.split(split_time)
         logging.debug(f"Processed split button press.")
-        events.post(Event.REQUEST_RECORD_STATE, Action.SPLIT)
 
-    def on_merge_button(self):
+    def merge(self):
         if not self.selected_elements:
             return
 
         logging.debug(f"Requesting timeline to merge {self.selected_components}.")
         self.timeline.merge(self.selected_components)
-        events.post(Event.REQUEST_RECORD_STATE, Action.MERGE)
 
-    def on_paste_button(self) -> None:
+    def paste(self) -> None:
         if not self.selected_elements:
             return
 
@@ -330,18 +301,13 @@ class HierarchyTimelineUI(TimelineUI):
             self.collection.get_elements_for_pasting()["components"]
         )
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
-
-    def on_paste_with_children_button(self) -> None:
+    def paste_with_children(self) -> None:
         if not self.selected_elements:
             return
 
         self.paste_with_children_into_selected_elements(
             self.collection.get_elements_for_pasting()["components"]
         )
-
-    def on_delete_button(self):
-        self.delete_selected_elements()
 
     def _deselect_all_but_last(self):
         ordered_selected_elements = sorted(
@@ -454,14 +420,10 @@ class HierarchyTimelineUI(TimelineUI):
         option_to_callback[option]()
 
     def right_click_menu_increase_level(self) -> None:
-        self.timeline.change_level_by_amount(
-            1, [self.right_clicked_element.tl_component]
-        )
+        self.timeline.change_level(1, [self.right_clicked_element.tl_component])
 
     def right_click_menu_decrease_level(self) -> None:
-        self.timeline.change_level_by_amount(
-            -1, [self.right_clicked_element.tl_component]
-        )
+        self.timeline.change_level(-1, [self.right_clicked_element.tl_component])
 
     def right_click_menu_edit(self) -> None:
         self.deselect_all_elements()
@@ -676,8 +638,6 @@ class HierarchyTimelineUI(TimelineUI):
             # create children according to paste data
             self._paste_with_children_into_element(paste_data[0], element)
             self.select_element(element)
-
-        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def get_copy_data_from_selected_elements(self):
         selected_elements = self.element_manager.get_selected_elements()

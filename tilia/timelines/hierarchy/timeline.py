@@ -64,7 +64,7 @@ class HierarchyTimeline(Timeline):
     def create_unit_below(self, component: Hierarchy) -> None:
         self.component_manager.create_unit_below(component)
 
-    def change_level_by_amount(self, amount: int, components: list[Hierarchy]) -> None:
+    def change_level(self, amount: int, components: list[Hierarchy]) -> None:
 
         if amount > 0:
             reverse = True
@@ -76,7 +76,7 @@ class HierarchyTimeline(Timeline):
         for component in sorted(
             components, key=lambda x: (x.level, x.start), reverse=reverse
         ):
-            self.component_manager.change_level_by_amount(component, amount)
+            self.component_manager.change_level(component, amount)
 
     def group(self, units: list[Hierarchy]) -> None:
         self.component_manager.group(units)
@@ -168,7 +168,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             ParentChildRelation(parent=unit, children=[created_unit])
         )
 
-    def change_level_by_amount(self, unit: Hierarchy, amount: int):
+    def change_level(self, unit: Hierarchy, amount: int):
         def _validate_change_level(unit: Hierarchy, new_level: int):
             if new_level < 1:
                 raise HierarchyOperationError(
