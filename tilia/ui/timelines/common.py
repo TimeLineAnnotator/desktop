@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Generic, TypeVar
+
+import _tkinter
 
 from tilia.ui.canvas_tags import CURSOR_ARROWS, CURSOR_HAND, TAG_TO_CURSOR
 
@@ -139,6 +142,20 @@ class TimelineToolbar(tk.LabelFrame):
         self.visible = False
         self._visible_timelines_count = 0
 
+    def create_photo_image(self, file_name: str) -> tk.PhotoImage | None:
+        max_retries = 5
+        while max_retries:
+            try:
+                photo_image = tk.PhotoImage(
+                    master=self, file=Path("ui", "img", f"{file_name}.png")
+                )
+                return photo_image
+            except _tkinter.TclError:
+                time.sleep(0.1)
+                max_retries -= 1
+
+        return None
+
     def create_buttons(self):
         if not self.button_info:
             raise ValueError(f"No button info found for {self}")
@@ -146,17 +163,15 @@ class TimelineToolbar(tk.LabelFrame):
         for info in self.button_info:
             file_name, callback, tooltip_text = info[:3]
 
+            photo_image = self.create_photo_image(file_name)
+
             # sets attribute with same name as image
-            setattr(
-                self,
-                file_name,
-                tk.PhotoImage(master=self, file=Path("ui", "img", f"{file_name}.png")),
-            )
+            setattr(self, file_name, photo_image)
 
             # create and pack a button with img as image and command = f'on_{img}'
             button = tk.Button(
                 self,
-                image=getattr(self, file_name),
+                image=photo_image,
                 borderwidth=0,
                 command=callback,
                 takefocus=False,
