@@ -78,7 +78,7 @@ class TestPygamePlayer:
     def test_media_load_failed(self, pygame_player_notloaded):
         player = pygame_player_notloaded
         with pytest.raises(FileNotFoundError):
-            player.load_media("invalid media")
+            player.load_media("invalid.ogg")
 
     @pytest.mark.parametrize("pygame_player", AUDIO_FORMATS, indirect=True)
     def test_media_unload(self, pygame_player):
