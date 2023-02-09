@@ -100,7 +100,6 @@ class Player(ABC):
                 message=f'Could not load "{media_path}".'
                 f"Try loading another media file.",
             )
-            return
 
         self.media_path = media_path
 
