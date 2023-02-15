@@ -3,6 +3,7 @@ from pathlib import Path
 
 import tilia
 import appdirs
+import shutil
 
 from tilia import globals_, settings
 
@@ -93,3 +94,7 @@ def create_autosaves_dir(data_dir: Path):
 
 def create_temp_dir(data_dir: Path):
     os.mkdir(Path(data_dir, ".temp"))
+
+
+def delete_temp_dir():
+    shutil.rmtree(temp_path)

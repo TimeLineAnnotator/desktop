@@ -9,7 +9,7 @@ from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
 
-from tilia import settings, local_dev_code, events, media_exporter, globals_
+from tilia import settings, local_dev_code, events, media_exporter, globals_, dirs
 from tilia.clipboard import Clipboard
 from tilia.events import subscribe
 from tilia.events import Event as Evt
@@ -189,6 +189,7 @@ class TiLiA:
 
     def on_request_to_close(self) -> None:
         self._file_manager.ask_save_if_necessary()
+        dirs.delete_temp_dir()
 
         sys.exit()
 
