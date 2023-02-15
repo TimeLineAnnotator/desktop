@@ -10,6 +10,7 @@ settings_path = ""
 autosaves_path = ""
 log_path = ""
 data_path = ""
+temp_path = ""
 img_path = Path("ui", "img")
 ffmpeg_path = Path("ffmpeg", "ffmpeg.exe")
 SITE_DATA_DIR = Path(appdirs.site_data_dir(globals_.APP_NAME))
@@ -47,18 +48,26 @@ def setup_autosaves_path(data_dir):
         create_autosaves_dir(data_dir)
 
 
+def setup_temp_path(data_dir):
+    if not os.path.exists(temp_path):
+        create_temp_dir(data_dir)
+
+
 def setup_dirs() -> None:
     os.chdir(os.path.dirname(__file__))
 
     data_dir = setup_data_dir()
 
-    global settings_path, autosaves_path, log_path
+    global settings_path, autosaves_path, log_path, temp_path
 
     settings_path = Path(data_dir, "settings.toml")
     setup_settings_file(data_dir)
 
     autosaves_path = Path(data_dir, "autosaves")
     setup_autosaves_path(data_dir)
+
+    temp_path = Path(data_dir, ".temp")
+    setup_temp_path(data_dir)
 
     log_path = Path(data_dir, "log.txt")
 
@@ -80,3 +89,7 @@ def create_settings_file(data_dir: Path):
 
 def create_autosaves_dir(data_dir: Path):
     os.mkdir(Path(data_dir, "autosaves"))
+
+
+def create_temp_dir(data_dir: Path):
+    os.mkdir(Path(data_dir, ".temp"))
