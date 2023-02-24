@@ -12,28 +12,17 @@ from tilia.ui.windows import WindowKind
 
 
 class TiliaDummy:
-
     def __init__(self):
         self.media_length = 99
-        self.media_metadata = {'title': 'test'}
+        self.media_metadata = {"title": "test"}
 
     @property
     def media_path(self):
-        return 'test_path'
-
-
+        return "test_path"
 
 
 class TestTkinterUI:
-
-    def test_get_metadata_non_editable_fields(self, tkui):
-        tkui.app = TiliaDummy()
-        assert tkui.get_metadata_non_editable_fields() == OrderedDict({
-            'media length': 99,
-            'media path': 'test_path'
-        })
-
-    @patch('tilia.ui.tkinterui.Inspect')
+    @patch("tilia.ui.tkinterui.Inspect")
     def test_on_request_window_inspect(self, inspect_mock, tkui):
 
         tkui.on_request_window(WindowKind.INSPECT)
@@ -42,19 +31,17 @@ class TestTkinterUI:
         tkui.on_request_window(WindowKind.INSPECT)
         assert tkui._windows[WindowKind.INSPECT].focus.called
 
-    @patch('tilia.ui.tkinterui.ManageTimelines')
+    @patch("tilia.ui.tkinterui.ManageTimelines")
     def test_on_request_window_manage_timelines(self, managetl_mock, tkui):
         tkui.on_request_window(WindowKind.MANAGE_TIMELINES)
         assert managetl_mock.called
 
-    @patch('tilia.ui.tkinterui.MediaMetadataWindow')
-    def test_on_request_window_media_metadata(self, mmtdata_mock, tkui):
-        tkui.on_request_window(WindowKind.MEDIA_METADATA)
-        assert mmtdata_mock.called
+    @patch("tilia.ui.tkinterui.MediaMetadataWindow")
+    def test_on_request_window_media_metadata(self, mngmtdata_mock, tilia):
+        tilia.ui.on_request_window(WindowKind.MEDIA_METADATA)
+        assert mngmtdata_mock.called
 
-
-    @patch('tilia.ui.tkinterui.About')
+    @patch("tilia.ui.tkinterui.About")
     def test_on_request_window_about(self, about_mock, tkui):
         tkui.on_request_window(WindowKind.ABOUT)
         assert about_mock.called
-

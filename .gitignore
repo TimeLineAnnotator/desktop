@@ -9,3 +9,4 @@
 /build/build/
 /build/dist/
 /build/ffmpeg/ffmpeg.exe
+__pycache__/

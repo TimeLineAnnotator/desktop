@@ -1,6 +1,6 @@
 import functools
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import logging
@@ -31,18 +31,17 @@ class DummyBeat:
         self.ui = DummyBeatUI()
 
     def __str__(self):
-        return f'DummyBeat({self.time})'
+        return f"DummyBeat({self.time})"
+
 
 class DummyBeatUI:
     def __init__(self):
         self.first_in_measure = False
-        self.label = ''
+        self.label = ""
         self.update_position = MagicMock()
 
     def update_drawing_as_first_in_measure(self, value):
         self.first_in_measure = value
-
-
 
 
 # noinspection PyAttributeOutsideInit
@@ -52,14 +51,14 @@ class DummyUI:
 
 
 class TestBeatTlComponentManager:
-
     def test_create_overlapping_beat_raises_error(self, cm):
         cm.create_component(time=1)
         with pytest.raises(ValueError):
-            cm.create_component(time=1)
+            with patch("tkinter.messagebox.showerror", lambda *args, **kwargs: None):
+                cm.create_component(time=1)
 
     def test_update_beat_uis_1(self, cm):
-        cm.timeline.measure_numbers = ['a', 'b', 'c']
+        cm.timeline.measure_numbers = ["a", "b", "c"]
         measure_index_map = {0: 0, 1: 0, 2: 0, 3: 1, 4: 2}
         cm.timeline.get_measure_index = lambda i: measure_index_map[i]
         cm._components = [
@@ -80,7 +79,7 @@ class TestBeatTlComponentManager:
             assert beat.ui.label == expected_labels[i]
 
     def test_update_beat_uis_2(self, cm):
-        cm.timeline.measure_numbers = ['a', 'b', 'c']
+        cm.timeline.measure_numbers = ["a", "b", "c"]
         measure_index_map = {0: 0, 1: 0, 2: 1, 3: 1, 4: 2}
         cm.timeline.get_measure_index = lambda i: measure_index_map[i]
         cm._components = [
@@ -142,5 +141,5 @@ class TestBeatTlComponentManager:
         cm.timeline.measure_count = 2
 
         with pytest.raises(ValueError):
-            cm.distribute_beats(1)
-
+            with patch("tkinter.messagebox.showerror", lambda *args, **kwargs: None):
+                cm.distribute_beats(1)

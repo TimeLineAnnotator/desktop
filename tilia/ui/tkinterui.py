@@ -15,9 +15,10 @@ import tkinter.messagebox
 import tkinter.simpledialog
 import time
 
-
+import tilia.repr
 from tilia import globals_, events, settings
-from tilia.player import player_ui
+from tilia.ui import player
+from tilia.repr import default_str
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
@@ -30,9 +31,6 @@ from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
-
-if TYPE_CHECKING:
-    from ..tilia import TiLiA
 
 import logging
 
@@ -67,7 +65,7 @@ class TkinterUI:
 
         self.app = None
         self.root = root
-        self._config_root()
+        self._setup_root()
 
         self.SUBSCRIPTIONS = [
             (Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media),
@@ -127,12 +125,23 @@ class TkinterUI:
 
         logger.debug("Tkinter UI started.")
 
+    def __str__(self):
+        return default_str(self)
+
     def _setup_subscriptions(self):
         for event, callback in self.SUBSCRIPTIONS:
             subscribe(self, event, callback)
 
-    def _config_root(self):
-        set_startup_geometry(self.root)
+    def _setup_root(self):
+        def get_root_geometry():
+            w = settings.get("general", "window_width")
+            h = settings.get("general", "window_height")
+            x = settings.get("general", "window_x")
+            y = settings.get("general", "window_y")
+
+            return f"{w}x{h}+{x}+{y}"
+
+        self.root.geometry(get_root_geometry())
         self.root.focus_set()
 
         self.root.report_callback_exception = handle_exception
@@ -141,9 +150,15 @@ class TkinterUI:
         self.icon = tk.PhotoImage(master=self.root, file=globals_.APP_ICON_PATH)
         self.root.iconphoto(True, self.icon)
 
-        self.root.protocol(
-            "WM_DELETE_WINDOW", lambda: events.post(Event.REQUEST_CLOSE_APP)
-        )
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _on_close(self):
+        settings.edit("general", "window_width", self.root.winfo_width())
+        settings.edit("general", "window_height", self.root.winfo_height())
+        settings.edit("general", "window_x", self.root.winfo_x())
+        settings.edit("general", "window_y", self.root.winfo_y())
+
+        events.post(Event.REQUEST_CLOSE_APP)
 
     def _make_default_canvas_bindings(self) -> None:
         for sequence, callback in event_handler.DEFAULT_CANVAS_BINDINGS:
@@ -201,7 +216,7 @@ class TkinterUI:
             WindowKind.INSPECT: self.open_inspect_window,
             WindowKind.MANAGE_TIMELINES: self.open_manage_timelines_window,
             WindowKind.MEDIA_METADATA: self.open_media_metadata_window,
-            WindowKind.ABOUT: self.open_about_window
+            WindowKind.ABOUT: self.open_about_window,
         }
 
         if not self._windows[kind]:
@@ -216,7 +231,9 @@ class TkinterUI:
         return About(self.root)
 
     def open_manage_timelines_window(self):
-        return ManageTimelines(self, self.get_timeline_info_for_manage_timelines_window())
+        return ManageTimelines(
+            self, self.get_timeline_info_for_manage_timelines_window()
+        )
 
     def open_media_metadata_window(self):
         return MediaMetadataWindow(
@@ -289,11 +306,16 @@ class TkinterUI:
         path = tk.filedialog.asksaveasfilename(
             defaultextension=f"{globals_.FILE_EXTENSION}",
             initialfile=initial_filename,
-            filetypes=((f"{globals_.APP_NAME} files", f"*.{globals_.FILE_EXTENSION}"),),
+            filetypes=((f"{globals_.APP_NAME} files", f".{globals_.FILE_EXTENSION}"),),
         )
 
         if not path:
             raise UserCancelledSaveError("User cancelled or closed save window dialog.")
+
+        if path.endswith(f"{globals_.FILE_EXTENSION}") and not path.endswith(
+            f".{globals_.FILE_EXTENSION}"
+        ):
+            path = path[:-3] + ".tla"
 
         return path
 
@@ -301,7 +323,10 @@ class TkinterUI:
     def get_file_open_path():
         path = tk.filedialog.askopenfilename(
             title=f"Open {globals_.APP_NAME} file...",
-            filetypes=((f"{globals_.APP_NAME} files", f"*.{globals_.FILE_EXTENSION}"),),
+            filetypes=(
+                (f"{globals_.APP_NAME} files", f".{globals_.FILE_EXTENSION}"),
+                ("All files", "*.*"),
+            ),
         )
 
         if not path:
@@ -336,7 +361,7 @@ class AppToolbarsFrame(tk.Frame):
     def __init__(self, *args, **kwargs):
         super(AppToolbarsFrame, self).__init__(*args, **kwargs)
 
-        self.playback_frame = player_ui.PlayerUI(self)
+        self.playback_frame = player.PlayerUI(self)
 
         self.auto_scroll_checkbox = CheckboxItem(
             label="Auto-scroll",
@@ -396,45 +421,3 @@ class CheckboxItem(tk.Frame):
 
         self.checkbox.pack(side=tk.LEFT)
         self.label.pack(side=tk.LEFT)
-
-
-def get_curr_screen_geometry(root):
-    """
-    Workaround to get the size of the current screen in a multi-screen setup.
-
-    Returns:
-        geometry (str): The standard Tk geometry string.
-            [width]x[height]+[left]+[top]
-    """
-    root.update_idletasks()
-    root.attributes("-fullscreen", True)
-    geometry = root.winfo_geometry()
-
-    return geometry
-
-
-def get_startup_geometry(root: tk.Tk):
-    """
-    Uses get_curr_screen_geometry to return initial window size in tkinter's geometry format.
-    """
-
-    STARTUP_HEIGHT = 300
-
-    root.update_idletasks()
-    root.attributes("-fullscreen", True)
-    screen_geometry = root.winfo_geometry()
-
-    root.attributes("-fullscreen", False)
-
-    screen_width = int(screen_geometry.split("x")[0])
-    window_geometry = f"{screen_width - 50}x{STARTUP_HEIGHT}+18+10"
-
-    return window_geometry
-
-
-def set_startup_geometry(root):
-
-    geometry = get_startup_geometry(root)
-    root.overrideredirect(True)
-    root.geometry(geometry)
-    root.overrideredirect(False)

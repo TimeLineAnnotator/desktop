@@ -15,12 +15,11 @@ import time
 import tkinter as tk
 from pathlib import Path
 
-import vlc
-
 from abc import ABC, abstractmethod
 import logging
 
 from tilia import dirs
+from tilia.repr import default_str
 
 logger = logging.getLogger(__name__)
 import threading
@@ -32,6 +31,12 @@ import tilia.events as events
 from tilia.events import Event, subscribe
 from tilia.exceptions import AppException
 
+try:
+    import vlc
+except OSError:
+    # VLC is not installed, error will be raised when trying to load a media file
+    pass
+
 
 class MediaLoadError(AppException):
     pass
@@ -40,13 +45,15 @@ class MediaLoadError(AppException):
 class NoMediaLoadedError(AppException):
     pass
 
+
 class VLCNotInstalledError(AppException):
     pass
+
 
 class Player(ABC):
     """Interface for media playback engines."""
 
-    update_interval = 100
+    update_interval = 25
 
     def __init__(self, previous_media_length: float = 1.0):
         super().__init__()
@@ -72,6 +79,9 @@ class Player(ABC):
         self.media_path = ""
         self.playing = False
 
+    def __str__(self):
+        return default_str(self)
+
     @property
     def playback_length(self):
         return self.playback_end - self.playback_start
@@ -84,11 +94,12 @@ class Player(ABC):
         try:
             self._engine_load_media(media_path)
         except MediaLoadError:
-            events.post(Event.REQUEST_DISPLAY_ERROR,
-                        title='Media load error',
-                        message=f'Could not load "{media_path}".'
-                                f'Try loading another media file.'
-                        )
+            events.post(
+                Event.REQUEST_DISPLAY_ERROR,
+                title="Media load error",
+                message=f'Could not load "{media_path}".'
+                f"Try loading another media file.",
+            )
             return
 
         self.media_path = media_path
@@ -191,7 +202,9 @@ class Player(ABC):
     def _play_loop(self) -> None:
         while self.playing:
             self.current_time = self._engine_get_current_time() - self.playback_start
-            events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time, logging_level=5)
+            events.post(
+                Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time, logging_level=5
+            )
             if self.current_time >= self.playback_length:
                 self.stop()
             time.sleep(self.update_interval / 1000)
@@ -262,9 +275,12 @@ class VlcPlayer(Player):
     def __init__(self, previous_media_length: float = 1.0):
         super().__init__(previous_media_length)
 
-        self.vlc_instance = vlc.Instance()
-        if not self.vlc_instance:
+        try:
+            self.vlc_instance = vlc.Instance()
+        except NameError:
             raise VLCNotInstalledError
+
+        self.vlc_instance.log_unset()
         self.media_player = self.vlc_instance.media_player_new()
         self._media_length = 0.0
 
@@ -326,7 +342,8 @@ class VlcPlayer(Player):
         return self.media_player.get_position() * self._media_length
 
     def _engine_exit(self):
-        self.vlc_instance.vlm_del_media(self.media_path)
+        self.media_player.release()
+        self.vlc_instance.release()
         self.player_window.destroy()
 
 
@@ -431,7 +448,6 @@ class PygamePlayer(Player):
 
     def _engine_unload_media(self):
         pygame.mixer.music.unload()
-
 
     def _engine_get_media_length(self) -> float:
         return pygame.mixer.Sound(self.media_path).get_length()

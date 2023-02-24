@@ -11,7 +11,7 @@ import tilia.ui.common
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, subscribe
 from tilia.misc_enums import Side
-from tilia.timelines.state_actions import StateAction
+from tilia.timelines.state_actions import Action
 
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -22,10 +22,8 @@ if TYPE_CHECKING:
 import logging
 
 logger = logging.getLogger(__name__)
-import tkinter as tk
 
 from tilia import events
-from tilia import ui
 from tilia.ui.timelines.timeline import (
     TimelineUI,
     RightClickOption,
@@ -35,15 +33,13 @@ from tilia.ui.timelines.beat.element import BeatUI
 from tilia.ui.timelines.beat.toolbar import BeatTimelineToolbar
 
 from tilia.ui.timelines.copy_paste import (
-    Copyable,
     get_copy_data_from_element,
-    paste_into_element,
 )
 from tilia.ui.element_kinds import UIElementKind
 
 
 class BeatTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = 30
+    DEFAULT_HEIGHT = 35
 
     TOOLBAR_CLASS = BeatTimelineToolbar
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.BEAT_UI: BeatUI}
@@ -78,7 +74,12 @@ class BeatTimelineUI(TimelineUI):
             **kwargs,
         )
 
-        subscribe(self, Event.BEAT_TOOLBAR_BUTTON_DELETE, self.on_delete_beat_button)
+    def _setup_user_actions_to_callbacks(self):
+
+        self.action_to_callback = {
+            "add": self.add_beat,
+            "delete": self.delete_selected_elements,
+        }
 
     @property
     def ordered_elements(self):
@@ -88,16 +89,25 @@ class BeatTimelineUI(TimelineUI):
     def ordered_selected_elements(self):
         return sorted(self.selected_elements, key=lambda b: b.time)
 
-    def create_beat(self, time: float, record=True, **kwargs) -> None:
+    def add_beat(self):
+        self.create_beat(self.timeline_ui_collection.get_current_playback_time())
 
-        self.timeline.create_timeline_component(ComponentKind.BEAT, time=time, **kwargs)
+    def create_beat(self, time: float, **kwargs) -> None:
+        beat = self.timeline.create_timeline_component(
+            ComponentKind.BEAT, time=time, **kwargs
+        )
         self.timeline.recalculate_measures()
 
-        if record:
-            events.post(Event.REQUEST_RECORD_STATE, StateAction.CREATE_BEAT)
+        return beat
 
-    def on_delete_beat_button(self):
-        self.delete_selected_elements()
+    def delete_selected_elements(self):
+        if not self.selected_elements:
+            return
+
+        for component in self.selected_components:
+            self.timeline.on_request_to_delete_components([component])
+
+        self.timeline.recalculate_measures()
 
     def _deselect_all_but_last(self):
         if len(self.ordered_selected_elements) > 1:
@@ -138,7 +148,6 @@ class BeatTimelineUI(TimelineUI):
         if not self.has_selected_elements:
             logger.debug(f"User pressed left arrow but no elements were selected.")
             return
-
 
         if side == Side.RIGHT:
             self._deselect_all_but_last()
@@ -191,7 +200,7 @@ class BeatTimelineUI(TimelineUI):
         measure_index = self.timeline.get_measure_index(beat_index)
         self.timeline.change_measure_number(measure_index, number)
 
-        events.post(Event.REQUEST_RECORD_STATE, "measure number change")
+        events.post(Event.REQUEST_RECORD_STATE, Action.MEASURE_NUMBER_CHANGE)
 
     def right_click_menu_reset_measure_number(self):
         beat_index = self.timeline.get_beat_index(
@@ -200,7 +209,7 @@ class BeatTimelineUI(TimelineUI):
         measure_index = self.timeline.get_measure_index(beat_index)
         self.timeline.reset_measure_number(measure_index)
 
-        events.post(Event.REQUEST_RECORD_STATE, "measure number reset")
+        events.post(Event.REQUEST_RECORD_STATE, Action.MEASURE_NUMBER_RESET)
 
     def right_click_menu_distribute_beats(self):
         beat_index = self.timeline.get_beat_index(
@@ -209,7 +218,7 @@ class BeatTimelineUI(TimelineUI):
         measure_index = self.timeline.get_measure_index(beat_index)
         self.timeline.distribute_beats(measure_index)
 
-        events.post(Event.REQUEST_RECORD_STATE, "distribute beats")
+        events.post(Event.REQUEST_RECORD_STATE, Action.DISTRIBUTE_BEATS)
 
     def right_click_menu_change_beats_in_measure(self):
         number = tilia.ui.common.ask_for_int(
@@ -225,7 +234,7 @@ class BeatTimelineUI(TimelineUI):
         measure_index = self.timeline.get_measure_index(beat_index)
         self.timeline.change_beats_in_measure(measure_index, number)
 
-        events.post(Event.REQUEST_RECORD_STATE, "beats in measure change")
+        events.post(Event.REQUEST_RECORD_STATE, Action.BEATS_IN_MEASURE_CHANGE)
 
     def right_click_menu_delete(self) -> None:
         self.timeline.on_request_to_delete_components(
@@ -265,7 +274,7 @@ class BeatTimelineUI(TimelineUI):
             self.timeline_ui_collection.get_current_playback_time(),
         )
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.PASTE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def create_pasted_beats(
         self, paste_data: list[dict], reference_time: float, target_time: float
@@ -281,5 +290,4 @@ class BeatTimelineUI(TimelineUI):
                 **beat_data["by_component_value"],
                 **beat_data["support_by_element_value"],
                 **beat_data["support_by_component_value"],
-                record=False,
             )

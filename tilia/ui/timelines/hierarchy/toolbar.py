@@ -15,17 +15,17 @@ class HierarchyTimelineToolbar(TimelineToolbar):
         self.button_info = [
             (
                 "split30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_SPLIT),
                 "Split unit at current position (s)",
             ),
             (
                 "merge30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_MERGE),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_MERGE),
                 "Merge units (Shift+m)",
             ),
             (
                 "group30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_GROUP),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_GROUP),
                 "Group units (g)",
             ),
             (
@@ -33,34 +33,34 @@ class HierarchyTimelineToolbar(TimelineToolbar):
                 lambda: events.post(
                     Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE
                 ),
-                "Increase level",
+                "Increase level (Ctrl + Up)",
             ),
             (
                 "lvldwn30",
                 lambda: events.post(
                     Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE
                 ),
-                "Decrease level",
+                "Decrease level (Ctrl + Down)",
             ),
             (
                 "below30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_CREATE_CHILD),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_CREATE_CHILD),
                 "Create unit below",
             ),
             (
                 "delete30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_DELETE),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_DELETE),
                 "Delete unit (Delete)",
             ),
             (
                 "paste30",
-                lambda: events.post(Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT),
-                "Paste unit (Ctrl + V",
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_PASTE),
+                "Paste unit (Ctrl + V)",
             ),
             (
                 "paste_with_data30",
                 lambda: events.post(
-                    Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_UNIT_WITH_CHILDREN
+                    Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_PASTE_WITH_CHILDREN
                 ),
                 "Paste unit with all attributes\n(including children) (Ctrl + Shift + V)",
             ),

@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Any, TYPE_CHECKING
 
-from tilia.ui.canvas_tags import CLICK_THROUGH
+from tilia.ui.canvas_tags import TRANSPARENT
 
 if TYPE_CHECKING:
     from tilia.ui.tkinterui import TkinterUI
@@ -14,8 +14,8 @@ from tilia import events, settings
 from tilia.events import subscribe, Event
 from tilia.misc_enums import Side, UpOrDown, InOrOut
 from tilia.timelines.common import Timeline
-from tilia.timelines.state_actions import StateAction
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.state_actions import Action
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar, SomeTimelineUI
 from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
@@ -46,14 +46,87 @@ class TimelineUICollection:
         toolbar_frame: tk.Frame,
     ):
         self.SUBSCRIPTIONS = [
-            (Event.BEAT_TOOLBAR_BUTTON_ADD, self.on_beat_timeline_add_beat_button),
+            (
+                Event.BEAT_TOOLBAR_BUTTON_ADD,
+                lambda: self.on_timeline_toolbar_button(TlKind.BEAT_TIMELINE, "add"),
+            ),
+            (
+                Event.BEAT_TOOLBAR_BUTTON_DELETE,
+                lambda: self.on_timeline_toolbar_button(TlKind.BEAT_TIMELINE, "delete"),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_CREATE_CHILD,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "create_child"
+                ),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_LEVEL_INCREASE,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "increase_level"
+                ),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_LEVEL_DECREASE,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "decrease_level"
+                ),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_GROUP,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "group"
+                ),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_MERGE,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "merge"
+                ),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_PASTE,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "paste"
+                ),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_PASTE_WITH_CHILDREN,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "paste_with_children"
+                ),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_DELETE,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "delete"
+                ),
+            ),
+            (
+                Event.HIERARCHY_TOOLBAR_SPLIT,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.HIERARCHY_TIMELINE, "split"
+                ),
+            ),
+            (
+                Event.MARKER_TOOLBAR_BUTTON_ADD,
+                lambda: self.on_timeline_toolbar_button(TlKind.MARKER_TIMELINE, "add"),
+            ),
+            (
+                Event.MARKER_TOOLBAR_BUTTON_DELETE,
+                lambda: self.on_timeline_toolbar_button(
+                    TlKind.MARKER_TIMELINE, "delete"
+                ),
+            ),
             (Event.CANVAS_LEFT_CLICK, self._on_timeline_ui_left_click),
             (Event.CANVAS_RIGHT_CLICK, self._on_timeline_ui_right_click),
             (Event.DEBUG_SELECTED_ELEMENTS, self._on_debug_selected_elements),
             (Event.ELEMENT_DRAG_END, lambda: self.on_element_drag(False)),
             (Event.ELEMENT_DRAG_START, lambda: self.on_element_drag(True)),
-            (Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.on_create_initial_hierarchy),
-            (Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_SPLIT, self._on_hierarchy_timeline_split_button),
+            (
+                Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY,
+                self.on_create_initial_hierarchy,
+            ),
             (Event.KEY_PRESS_CONTROL_C, self._on_request_to_copy),
             (Event.KEY_PRESS_CONTROL_SHIFT_V, self._on_request_to_paste_with_children),
             (Event.KEY_PRESS_CONTROL_V, self._on_request_to_paste),
@@ -63,23 +136,40 @@ class TimelineUICollection:
             (Event.KEY_PRESS_LEFT, lambda: self._on_side_arrow_press(Side.LEFT)),
             (Event.KEY_PRESS_RIGHT, lambda: self._on_side_arrow_press(Side.RIGHT)),
             (Event.KEY_PRESS_UP, lambda: self._on_up_down_arrow_press(UpOrDown.UP)),
-            (Event.MARKER_TOOLBAR_BUTTON_ADD, self.on_marker_timeline_add_marker_button),
             (Event.PLAYER_MEDIA_TIME_CHANGE, self.on_media_time_change),
-            (Event.REQUEST_CHANGE_TIMELINE_WIDTH, self.on_request_change_timeline_width),
+            (
+                Event.REQUEST_CHANGE_TIMELINE_WIDTH,
+                self.on_request_change_timeline_width,
+            ),
             (Event.REQUEST_CLEAR_ALL_TIMELINES, self.on_request_to_clear_all_timelines),
             (Event.REQUEST_CLEAR_TIMELINE, self.on_request_to_clear_timeline),
             (Event.REQUEST_DELETE_TIMELINE, self.on_request_to_delete_timeline),
             (Event.REQUEST_FOCUS_TIMELINES, self.on_request_to_focus_timelines),
             (Event.REQUEST_ZOOM_IN, lambda: self.zoomer(InOrOut.IN)),
             (Event.REQUEST_ZOOM_OUT, lambda: self.zoomer(InOrOut.OUT)),
-            (Event.SELECTION_BOX_REQUEST_DESELECT, self.on_selection_box_request_deselect),
+            (
+                Event.SELECTION_BOX_REQUEST_DESELECT,
+                self.on_selection_box_request_deselect,
+            ),
             (Event.SELECTION_BOX_REQUEST_SELECT, self.on_selection_box_request_select),
             (Event.SLIDER_DRAG_END, lambda: self.on_element_drag(False)),
             (Event.SLIDER_DRAG_START, lambda: self.on_element_drag(True)),
-            (Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER, lambda tlui_id: self._move_in_display_order(tlui_id, UpOrDown.DOWN)),
-            (Event.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER, lambda tlui_id: self._move_in_display_order(tlui_id, UpOrDown.UP)),
-            (Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, self.on_request_to_hide_timeline),
-            (Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, self.on_request_to_show_timeline),
+            (
+                Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER,
+                lambda tlui_id: self._move_in_display_order(tlui_id, UpOrDown.DOWN),
+            ),
+            (
+                Event.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER,
+                lambda tlui_id: self._move_in_display_order(tlui_id, UpOrDown.UP),
+            ),
+            (
+                Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE,
+                self.on_request_to_hide_timeline,
+            ),
+            (
+                Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE,
+                self.on_request_to_show_timeline,
+            ),
             (Event.TIMELINE_LEFT_BUTTON_DRAG, self._on_timeline_ui_left_drag),
         ]
 
@@ -154,7 +244,7 @@ class TimelineUICollection:
             tl_ui.update_elements_position()
             logging.disable(logging.NOTSET)
 
-            if not tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+            if not tl_ui.timeline.KIND == TlKind.SLIDER_TIMELINE:
                 change_playback_line_x(
                     tl_ui,
                     self._timeline_uis_to_playback_line_ids[tl_ui],
@@ -163,7 +253,7 @@ class TimelineUICollection:
 
         self.scroll_to_x(self.get_x_by_time(scroll_time))
 
-    def create_timeline_ui(self, kind: TimelineKind, name: str, **kwargs) -> TimelineUI:
+    def create_timeline_ui(self, kind: TlKind, name: str, **kwargs) -> TimelineUI:
 
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
         canvas = self.create_timeline_canvas(name, timeline_class.DEFAULT_HEIGHT)
@@ -191,7 +281,7 @@ class TimelineUICollection:
         self._add_to_timeline_ui_select_order(tl_ui)
         self._add_to_timeline_ui_display_order(tl_ui)
 
-        if not kind == TimelineKind.SLIDER_TIMELINE:
+        if not kind == TlKind.SLIDER_TIMELINE:
             self.create_playback_line(tl_ui)
 
         return tl_ui
@@ -317,17 +407,17 @@ class TimelineUICollection:
             timeline_ui.toolbar.process_visiblity_change(True)
 
     @staticmethod
-    def get_timeline_ui_class_from_kind(kind: TimelineKind) -> type(TimelineUI):
+    def get_timeline_ui_class_from_kind(kind: TlKind) -> type(TimelineUI):
         from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
         from tilia.ui.timelines.slider import SliderTimelineUI
         from tilia.ui.timelines.marker import MarkerTimelineUI
         from tilia.ui.timelines.beat import BeatTimelineUI
 
         kind_to_class_dict = {
-            TimelineKind.HIERARCHY_TIMELINE: HierarchyTimelineUI,
-            TimelineKind.SLIDER_TIMELINE: SliderTimelineUI,
-            TimelineKind.MARKER_TIMELINE: MarkerTimelineUI,
-            TimelineKind.BEAT_TIMELINE: BeatTimelineUI,
+            TlKind.HIERARCHY_TIMELINE: HierarchyTimelineUI,
+            TlKind.SLIDER_TIMELINE: SliderTimelineUI,
+            TlKind.MARKER_TIMELINE: MarkerTimelineUI,
+            TlKind.BEAT_TIMELINE: BeatTimelineUI,
         }
 
         class_ = kind_to_class_dict[kind]
@@ -382,9 +472,7 @@ class TimelineUICollection:
         return self._app_ui.get_window_size()
 
     def _get_timeline_ui_by_canvas(self, canvas):
-        return next(
-            (tlui for tlui in self if tlui.canvas == canvas), None
-        )
+        return next((tlui for tlui in self if tlui.canvas == canvas), None)
 
     def _get_toolbar_by_type(self, canvas):
         return next(
@@ -399,6 +487,8 @@ class TimelineUICollection:
         clicked_item_id: int,
         modifier: ModifierEnum,
         double: bool,
+        root_x: int,
+        root_y: int,
     ) -> None:
 
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
@@ -414,6 +504,8 @@ class TimelineUICollection:
                 button=Side.RIGHT,
                 modifier=modifier,
                 double=double,
+                root_x=root_x,
+                root_y=root_y,
             )
         else:
             raise ValueError(
@@ -442,7 +534,7 @@ class TimelineUICollection:
         if modifier == ModifierEnum.NONE:
             self.deselect_all_elements_in_timeline_uis()
 
-        if clicked_timeline_ui:
+        if clicked_timeline_ui is not None:
             self._send_to_top_of_select_order(clicked_timeline_ui)
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about left click."
@@ -455,6 +547,7 @@ class TimelineUICollection:
                 modifier=modifier,
                 double=double,
             )
+
             if not self.element_is_being_dragged:
                 logger.debug(f"{x=}")
                 logger.debug(f"{y=}")
@@ -604,28 +697,16 @@ class TimelineUICollection:
             self.selection_box_elements_to_selected_triggers.pop(element)
             timeline_ui.deselect_element(element)
 
-    def _on_delete_press(self):
-
-        if not any([tlui.has_selected_elements for tlui in self]):
-            return
-
-        for timeline_ui in self:
-            timeline_ui.on_delete_press()
-
-        events.post(Event.REQUEST_RECORD_STATE, "delete timeline component(s)")
-
     def _on_enter_press(self):
         if any([tlui.has_selected_elements for tlui in self]):
             events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
 
     def _on_side_arrow_press(self, side: Side):
-
         for timeline_ui in self:
             if hasattr(timeline_ui, "on_side_arrow_press"):
                 timeline_ui.on_side_arrow_press(side)
 
     def _on_up_down_arrow_press(self, direction: UpOrDown):
-
         for timeline_ui in self:
             if hasattr(timeline_ui, "on_up_down_arrow_press"):
                 timeline_ui.on_up_down_arrow_press(direction)
@@ -662,7 +743,7 @@ class TimelineUICollection:
             },
         )
 
-    def get_elements_for_pasting(self) -> dict[str: dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> dict[str : dict | TlKind]:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
 
         if not clipboard_elements:
@@ -703,7 +784,7 @@ class TimelineUICollection:
                         clipboard_data["components"]
                     )
         else:  # no elements are selected
-            timeline_to_paste = self._get_first_from_select_order_by_kinds(
+            timeline_to_paste = self._get_first_from_select_order_by_kind(
                 [clipboard_data["timeline_kind"]]
             )
             if paste_cardinality == "SINGLE" and hasattr(
@@ -722,18 +803,18 @@ class TimelineUICollection:
     def _on_request_to_paste_with_children(self) -> None:
         clipboard_elements = self.get_elements_for_pasting()
 
-        if clipboard_elements["timeline_kind"] != TimelineKind.HIERARCHY_TIMELINE:
+        if clipboard_elements["timeline_kind"] != TlKind.HIERARCHY_TIMELINE:
             logger.debug(
-                f"Copied elements are not hierarchies. Can't paste with children."
+                f"Copied elements are not hierarchies." f" Can't paste with children."
             )
             return
 
-        for timeline_ui in self:
+        for tl_ui in self:
             if (
-                timeline_ui.has_selected_elements
-                and timeline_ui.TIMELINE_KIND == TimelineKind.HIERARCHY_TIMELINE
+                tl_ui.has_selected_elements
+                and tl_ui.TIMELINE_KIND == TlKind.HIERARCHY_TIMELINE
             ):
-                timeline_ui.paste_with_children_into_selected_elements(
+                tl_ui.paste_with_children_into_selected_elements(
                     clipboard_elements["components"]
                 )
 
@@ -767,31 +848,96 @@ class TimelineUICollection:
             / self._app_ui.timeline_width
         )
 
-    def _on_hierarchy_timeline_split_button(self) -> None:
-        first_hierarchy_timeline_ui = self._get_first_from_select_order_by_kinds(
-            [TimelineKind.HIERARCHY_TIMELINE]
+    tlkind_to_action_to_call_type = {
+        TlKind.HIERARCHY_TIMELINE: {
+            "create_child": "all",
+            "increase_level": "all",
+            "decrease_level": "all",
+            "group": "all",
+            "merge": "all",
+            "paste": "all",
+            "paste_with_children": "all",
+            "delete": "all",
+            "split": "first",
+        },
+        TlKind.MARKER_TIMELINE: {"add": "first", "delete": "all"},
+        TlKind.BEAT_TIMELINE: {"add": "first", "delete": "all"},
+    }
+
+    def _on_delete_press(self):
+        self.on_timeline_toolbar_button(
+            [TlKind.HIERARCHY_TIMELINE, TlKind.MARKER_TIMELINE, TlKind.BEAT_TIMELINE],
+            "delete",
         )
 
-        if first_hierarchy_timeline_ui:
-            first_hierarchy_timeline_ui.on_split_button()
+    def on_timeline_toolbar_button(
+        self, kinds: TlKind | list[TlKind], button: str
+    ) -> None:
+
+        if not isinstance(kinds, list):
+            kinds = [kinds]
+
+        for kind in kinds:
+            if self.tlkind_to_action_to_call_type[kind][button] == "all":
+                self.timeline_toolbar_button_call_on_all(kind, button)
+            else:
+                self.timeline_toolbar_button_call_on_first(kind, button)
+
+        self.timeline_toolbar_button_record(button)
+
+    def timeline_toolbar_button_call_on_all(self, kind: TlKind, button: str):
+
+        for tlui in self.get_timeline_uis_by_kind(kind):
+            tlui.action_to_callback[button]()
+
+    def timeline_toolbar_button_call_on_first(self, kind: TlKind, button: str):
+
+        first_timeline_ui = self._get_first_from_select_order_by_kind([kind])
+
+        first_timeline_ui.action_to_callback[button]()
+
+    @staticmethod
+    def timeline_toolbar_button_record(button: str):
+
+        button_to_method = {
+            "create_child": Action.CREATE_CHILD,
+            "increase_level": Action.LEVEL_INCREASE,
+            "decrease_level": Action.LEVEL_DECREASE,
+            "group": Action.GROUP,
+            "merge": Action.MERGE,
+            "paste": Action.PASTE,
+            "paste_with_children": Action.PASTE_WITH_CHILDREN,
+            "delete": Action.DELETE_TIMELINE_COMPONENT,
+            "split": Action.SPLIT,
+            "add": Action.ADD_COMPONENT,
+        }
+
+        events.post(Event.REQUEST_RECORD_STATE, button_to_method[button])
 
     def on_marker_timeline_add_marker_button(self) -> None:
-        first_marker_timeline_ui = self._get_first_from_select_order_by_kinds(
-            [TimelineKind.MARKER_TIMELINE]
+        first_marker_timeline_ui = self._get_first_from_select_order_by_kind(
+            [TlKind.MARKER_TIMELINE]
         )
 
         if first_marker_timeline_ui:
             first_marker_timeline_ui.create_marker(self.get_current_playback_time())
 
     def on_beat_timeline_add_beat_button(self) -> None:
-        first_beat_timeline_ui = self._get_first_from_select_order_by_kinds(
-            [TimelineKind.BEAT_TIMELINE]
+        first_beat_timeline_ui = self._get_first_from_select_order_by_kind(
+            [TlKind.BEAT_TIMELINE]
         )
 
         if first_beat_timeline_ui:
             first_beat_timeline_ui.create_beat(time=self.get_current_playback_time())
 
-    def _get_first_from_select_order_by_kinds(self, classes: list[TimelineKind]) -> SomeTimelineUI:
+        events.post(Event.REQUEST_RECORD_STATE, Action.CREATE_BEAT)
+
+    def get_timeline_uis_by_kind(self, kind: TlKind):
+        return [tl for tl in self._timeline_uis if tl.TIMELINE_KIND == kind]
+
+    def _get_first_from_select_order_by_kind(
+        self, classes: list[TlKind]
+    ) -> SomeTimelineUI:
         for tl_ui in self._select_order:
             if tl_ui.TIMELINE_KIND in classes:
                 return tl_ui
@@ -804,7 +950,7 @@ class TimelineUICollection:
 
     def create_playback_lines(self):
         for tl_ui in self:
-            if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+            if tl_ui.timeline.KIND == TlKind.SLIDER_TIMELINE:
                 continue
 
             self.create_playback_line(tl_ui)
@@ -817,7 +963,7 @@ class TimelineUICollection:
 
     def after_restore_state(self):
         for tl_ui in self:
-            if tl_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+            if tl_ui.timeline.KIND == TlKind.SLIDER_TIMELINE:
                 continue
 
             tl_ui.canvas.tag_raise(self._timeline_uis_to_playback_line_ids[tl_ui])
@@ -830,9 +976,8 @@ class TimelineUICollection:
 
     def on_media_time_change(self, time: float) -> None:
         for tl_ui in self:
-            if (
-                not self.element_is_being_dragged
-                and settings.get("general", "auto-scroll")
+            if not self.element_is_being_dragged and settings.get(
+                "general", "auto-scroll"
             ):
                 self.auto_scroll(tl_ui, time)
             self.change_playback_line_position(tl_ui, time)
@@ -857,7 +1002,7 @@ class TimelineUICollection:
         timeline_ui.canvas.xview_moveto(scroll_fraction)
 
     def change_playback_line_position(self, timeline_ui: TimelineUI, time: float):
-        if timeline_ui.timeline.KIND == TimelineKind.SLIDER_TIMELINE:
+        if timeline_ui.timeline.KIND == TlKind.SLIDER_TIMELINE:
             return
 
         change_playback_line_x(
@@ -902,9 +1047,7 @@ class TimelineUICollection:
             f"Checking if it is necessary to delete {deleted_timeline_ui} toolbar."
         )
         existing_timeline_uis_of_same_kind = [
-            tlui
-            for tlui in self
-            if type(tlui) == type(deleted_timeline_ui)
+            tlui for tlui in self if type(tlui) == type(deleted_timeline_ui)
         ]
         if not existing_timeline_uis_of_same_kind:
             logger.debug(f"No more timelines of same kind. Deleting toolbar.")
@@ -933,7 +1076,7 @@ class TimelineUICollection:
         if self._ask_delete_timeline(timeline_ui):
             self._timeline_collection.delete_timeline(timeline_ui.timeline)
 
-        events.post(Event.REQUEST_RECORD_STATE, StateAction.TIMELINE_DELETE)
+        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_DELETE)
 
     def on_request_to_clear_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)
@@ -945,26 +1088,25 @@ class TimelineUICollection:
             self._timeline_collection.clear_all_timelines()
 
     @staticmethod
-    def _ask_delete_timeline(timeline_ui: TimelineUI) -> None:
+    def _ask_delete_timeline(timeline_ui: TimelineUI) -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to delete timeline {str(timeline_ui)}?",
         )
 
     @staticmethod
-    def _ask_clear_timeline(timeline_ui: TimelineUI) -> None:
+    def _ask_clear_timeline(timeline_ui: TimelineUI) -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to clear timeline {str(timeline_ui)}?",
         )
 
     @staticmethod
-    def _ask_clear_all_timelines() -> None:
+    def _ask_clear_all_timelines() -> bool | None:
         return tk.messagebox.askyesno(
             "Delete timeline",
             f"Are you sure you want to clear ALL timelines?",
         )
-
 
     def on_request_to_hide_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)
@@ -1011,7 +1153,7 @@ def draw_playback_line(timeline_ui: TimelineUI, initial_time: float) -> int:
         timeline_ui.height,
         dash=(3, 3),
         fill="black",
-        tags=(CLICK_THROUGH,),
+        tags=(TRANSPARENT,),
     )
 
     timeline_ui.canvas.tag_raise(line_id)

@@ -2,17 +2,17 @@ import os
 import time
 from unittest.mock import patch
 
+import pygame
 import pytest
 from pathlib import Path
 
 import tilia
-from tilia.events import Event, logger
+from tilia.events import Event
 from tilia import events
 from tilia import globals_
 from tilia.player.player import (
     PygamePlayer,
     VlcPlayer,
-    MediaLoadError,
     NoMediaLoadedError,
 )
 
@@ -21,12 +21,11 @@ SEEKABLE_AUDIO_FORMATS = tuple([f for f in AUDIO_FORMATS if f != "wav"])
 
 VIDEO_FORMATS = tuple(globals_.SUPPORTED_VIDEO_FORMATS)
 
-
 # FIXTURES
 @pytest.fixture
 def pygame_player_notloaded():
     player = PygamePlayer()
-
+    pygame.mixer.music.set_volume(0)
     yield player
     player.destroy()
 
@@ -34,7 +33,7 @@ def pygame_player_notloaded():
 @pytest.fixture
 def pygame_player(pygame_player_notloaded, request):
     os.chdir(Path(Path(tilia.__file__).absolute().parents[1], "tests"))
-    pygame_player_notloaded.load_media(r"testaudio_1." + request.param)
+    pygame_player_notloaded.load_media(r"testaudio." + request.param)
     yield pygame_player_notloaded
 
 
@@ -56,7 +55,7 @@ def vlc_player_notloaded():
 @pytest.fixture
 def vlc_player(vlc_player_notloaded, request):
     os.chdir(Path(Path(tilia.__file__).absolute().parents[1], "tests"))
-    vlc_player_notloaded.load_media(r"testvideo_1." + request.param)
+    vlc_player_notloaded.load_media(r"testvideo." + request.param)
     yield vlc_player_notloaded
 
 
@@ -76,7 +75,7 @@ class TestPygamePlayer:
     @pytest.mark.parametrize("file_format", AUDIO_FORMATS)
     def test_media_load(self, file_format):
         player = PygamePlayer()
-        media_path = r"testaudio_1." + file_format
+        media_path = r"testaudio." + file_format
         os.chdir(Path(Path(tilia.__file__).absolute().parents[1], "tests"))
         player.load_media(media_path)
         assert player.media_path == media_path
@@ -140,20 +139,20 @@ class TestPygamePlayer:
     @pytest.mark.parametrize("pygame_player", SEEKABLE_AUDIO_FORMATS, indirect=True)
     def test_seek_playing_media(self, pygame_play_media, pygame_player):
         player = pygame_play_media
-        events.post(Event.PLAYER_REQUEST_TO_SEEK, 10.0)
-        assert player.current_time == pytest.approx(10.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 5)
+        assert player.current_time == pytest.approx(5)
 
     @pytest.mark.parametrize("pygame_player", SEEKABLE_AUDIO_FORMATS, indirect=True)
     def test_seek_media_stopped(self, pygame_player):
-        events.post(Event.PLAYER_REQUEST_TO_SEEK, 10.0)
-        assert pygame_player.current_time == pytest.approx(10.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 5)
+        assert pygame_player.current_time == pytest.approx(5)
 
     @pytest.mark.parametrize("pygame_player", SEEKABLE_AUDIO_FORMATS, indirect=True)
     def test_seek_media_paused(self, pygame_play_media, pygame_player):
         player = pygame_play_media
         player.play_pause()
-        events.post(Event.PLAYER_REQUEST_TO_SEEK, 10.0)
-        assert player.current_time == pytest.approx(10.0)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, 5)
+        assert player.current_time == pytest.approx(5)
 
 
 class TestVlcPlayer:
@@ -165,12 +164,11 @@ class TestVlcPlayer:
     @pytest.mark.parametrize("file_format", VIDEO_FORMATS)
     def test_media_load(self, vlc_player_notloaded, file_format):
         player = vlc_player_notloaded
-        media_path = "testvideo_1." + file_format
+        media_path = "testvideo." + file_format
         player.load_media(media_path)
         assert player.media_path == media_path
-        player.destroy()
 
-    @patch('tilia.events.post')
+    @patch("tilia.events.post")
     def test_media_load_failed(self, post_mock, vlc_player_notloaded):
         player = vlc_player_notloaded
 
@@ -178,9 +176,9 @@ class TestVlcPlayer:
 
         assert post_mock.called_with(
             Event.REQUEST_DISPLAY_ERROR,
-                title='Media load error',
-                message=f'Could not load "invalid media".'
-                                f'Try loading another media file.'
+            title="Media load error",
+            message=f'Could not load "invalid media".'
+            f"Try loading another media file.",
         )
 
     @pytest.mark.parametrize("vlc_player", VIDEO_FORMATS, indirect=True)

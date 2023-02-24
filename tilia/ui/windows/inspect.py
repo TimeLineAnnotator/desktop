@@ -15,6 +15,7 @@ from typing import Callable
 
 from tilia import events
 from tilia.events import Event, subscribe, unsubscribe_from_all
+from tilia.repr import default_str
 from tilia.timelines.common import TimelineComponent
 from tilia.ui.windows.kinds import WindowKind
 
@@ -66,6 +67,9 @@ class Inspect:
             "<Escape>", lambda _: events.post(Event.REQUEST_FOCUS_TIMELINES)
         )
         events.post(Event.INSPECTOR_WINDOW_OPENED)
+
+    def __str__(self):
+        return default_str(self)
 
     def focus(self):
         self.toplevel.focus_set()
@@ -158,7 +162,7 @@ class Inspect:
             elif type(widget) == tk.Entry:
                 # pause strvar trace
                 strvar = self.widgets_to_strvars[widget]
-                strvar.trace_vdelete('w', strvar.trace_id)
+                strvar.trace_vdelete("w", strvar.trace_id)
                 # change entry value
                 widget.delete(0, "end")
                 widget.insert(0, value)
@@ -247,13 +251,13 @@ class Inspect:
         logger.debug(f"{fieldname=}")
         logger.debug(f"{value=}")
 
-        events.post(
-            Event.INSPECTOR_FIELD_EDITED, fieldname, value, self.element_id
-        )
+        events.post(Event.INSPECTOR_FIELD_EDITED, fieldname, value, self.element_id)
 
     @property
     def widgets_to_fieldnames(self):
-        return {widget: fieldname for fieldname, widget in self.fieldname_to_widgets.items()}
+        return {
+            widget: fieldname for fieldname, widget in self.fieldname_to_widgets.items()
+        }
 
 
 class LabelAndEntry(tk.Frame):
@@ -291,7 +295,6 @@ class LabelAndScrolledText:
         self.scrolled_text.edit_modified(False)
         self.scrolled_text.bind("<<Modified>>", self.on_modified)
 
-
     def on_modified(self, _):
-        self.callback(self.scrolled_text, self.scrolled_text.get(1.0, 'end-1c'))
+        self.callback(self.scrolled_text, self.scrolled_text.get(1.0, "end-1c"))
         self.scrolled_text.edit_modified(False)
