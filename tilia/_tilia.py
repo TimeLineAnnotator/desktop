@@ -285,7 +285,7 @@ class TiLiA:
         events.post(Evt.TILIA_FILE_LOADED)
         logger.info(f"Loaded file.")
 
-    def on_add_timeline(self, kind: TimelineKind) -> None:
+    def on_add_timeline(self, kind: TimelineKind, name=None) -> None:
         logger.debug(f"User requested to add timeline...")
         if (
             kind not in IMPLEMENTED_TIMELINE_KINDS
@@ -295,9 +295,10 @@ class TiLiA:
                 f'Can not create timeline. Invalid timeline kind "{kind}"'
             )
 
-        name = self.ui.ask_string(
-            title="Name for new timeline", prompt="Choose name for new timeline"
-        )
+        if name is None:
+            name = self.ui.ask_string(
+                title="Name for new timeline", prompt="Choose name for new timeline"
+            )
 
         create_timeline(
             kind, self._timeline_collection, self._timeline_ui_collection, name

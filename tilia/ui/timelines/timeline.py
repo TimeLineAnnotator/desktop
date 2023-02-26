@@ -249,14 +249,12 @@ class TimelineUI(ABC):
             **kwargs,
         )
 
-    def on_click(
+    def on_right_click(
         self,
         x: int,
         y: int,
         item_id: int,
-        button: Side,
         modifier: ModifierEnum,
-        double: bool,
         root_x: int = None,
         root_y: int = None,
     ) -> None:
@@ -264,32 +262,43 @@ class TimelineUI(ABC):
         logger.debug(f"Processing click on {self}...")
 
         if not item_id:
-            if button == Side.LEFT:
-                logger.debug(f"No canvas item was clicked.")
-            else:
-                self.display_right_click_menu_for_timeline(x, y)
+            self.display_right_click_menu_for_timeline(x, y)
             return
 
-        clicked_elements = self.get_clicked_element(item_id)
-
-        if not clicked_elements:
+        if not (clicked_elements := self.get_clicked_element(item_id)):
             logger.debug(f"No ui element was clicked.")
             return
 
         for (
             elm
         ) in clicked_elements:  # clicked item might be owned by more than on element
-            if button == Side.LEFT:
-                if not double:
-                    self._process_ui_element_left_click(elm, item_id)
-                else:
-                    double_clicked = self._process_ui_element_double_left_click(
-                        elm, item_id
-                    )
-                    if not double_clicked:  # consider as single click
-                        self._process_ui_element_left_click(elm, item_id)
-            elif button == Side.RIGHT:
-                self._process_ui_element_right_click(root_x, root_y, elm, item_id)
+            self._on_element_right_click(root_x, root_y, elm, item_id)
+
+        logger.debug(f"Processed click on {self}.")
+
+    def on_left_click(self, item_id: int, modifier: ModifierEnum, double: bool) -> None:
+
+        logger.debug(f"Processing click on {self}...")
+
+        if not item_id:
+            logger.debug(f"No canvas item was clicked.")
+
+        clicked_elements = self.get_clicked_element(item_id)
+
+        if not clicked_elements:
+            logger.debug(f"No ui element was clicked.")
+
+        for (
+            elm
+        ) in clicked_elements:  # clicked item might be owned by more than on element
+            if not double:
+                self.on_element_left_click(elm, item_id)
+            else:
+                double_clicked = self._on_element_double_left_click(elm, item_id)
+                if not double_clicked:  # consider as single click
+                    self.on_element_left_click(elm, item_id)
+
+        self.deselect_all_elements(excluding=clicked_elements)
 
         logger.debug(f"Processed click on {self}.")
 
@@ -303,7 +312,7 @@ class TimelineUI(ABC):
 
         return clicked_elements
 
-    def select_element_if_appropriate(
+    def select_element_if_selectable(
         self, element: TimelineUIElement, canvas_item_id: int
     ) -> bool:
         if (
@@ -316,16 +325,15 @@ class TimelineUI(ABC):
             logger.debug(f"Element is not selectable.")
             return False
 
-    def _process_ui_element_left_click(
+    def on_element_left_click(
         self, clicked_element: TimelineUIElement, clicked_item_id: int
     ) -> None:
 
         logger.debug(f"Processing left click on ui element '{clicked_element}'...")
 
-        was_selected = self.select_element_if_appropriate(
-            clicked_element, clicked_item_id
-        )
-        if was_selected and isinstance(clicked_element, CanSeekTo):
+        selected = self.select_element_if_selectable(clicked_element, clicked_item_id)
+
+        if selected and isinstance(clicked_element, CanSeekTo):
             events.post(
                 Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, clicked_element.seek_time
             )
@@ -340,13 +348,13 @@ class TimelineUI(ABC):
 
         logger.debug(f"Processed click on ui element '{clicked_element}'.")
 
-    def _process_ui_element_double_left_click(
+    def _on_element_double_left_click(
         self, clicked_element: TimelineUIElement, clicked_item_id: int
     ) -> None | bool:
 
         logger.debug(f"Processing double click on ui element '{clicked_element}'...")
 
-        was_selected = self.select_element_if_appropriate(
+        was_selected = self.select_element_if_selectable(
             clicked_element, clicked_item_id
         )
         if was_selected and isinstance(clicked_element, CanSeekTo):
@@ -364,7 +372,7 @@ class TimelineUI(ABC):
             logger.debug(f"Element is not double clickable.")
             return False
 
-    def _process_ui_element_right_click(
+    def _on_element_right_click(
         self,
         root_x: int,
         root_y: int,
@@ -407,8 +415,13 @@ class TimelineUI(ABC):
 
             events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
-    def deselect_all_elements(self):
+    def deselect_all_elements(self, excluding: list[TimelineUIElement] = None):
+        if excluding is None:
+            excluding = []
+
         for element in self.selected_elements.copy():
+            if element in excluding:
+                continue
             self.deselect_element(element)
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
@@ -610,6 +623,8 @@ class TimelineUI(ABC):
 
 
 class RightClickOption(Enum):
+    ADD_PRE_START = auto()
+    ADD_POST_END = auto()
     RESET_MEASURE_NUMBER = auto()
     CHANGE_BEATS_IN_MEASURE = auto()
     DISTRIBUTE_BEATS = auto()

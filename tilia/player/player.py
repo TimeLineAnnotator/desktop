@@ -73,8 +73,8 @@ class Player(ABC):
         self.media_loaded = False
         self.previous_media_length = previous_media_length
         self.media_length = previous_media_length
-        self.playback_start = 0.0
-        self.playback_end = 0.0
+        self.pre_start = 0.0
+        self.post_end = 0.0
         self.current_time = 0.0
         self.media_path = ""
         self.playing = False
@@ -84,7 +84,7 @@ class Player(ABC):
 
     @property
     def playback_length(self):
-        return self.playback_end - self.playback_start
+        return self.post_end - self.pre_start
 
     def load_media(self, media_path: str, start: float = 0.0, end: float = 0.0):
         """Loads media into pygame mixer and resizes timelines"""
@@ -106,12 +106,12 @@ class Player(ABC):
 
         previous_media_length = self.media_length
         self.media_length = self._engine_get_media_length()
-        self.playback_start = start
+        self.pre_start = start
 
         if end:
-            self.playback_end = end
+            self.post_end = end
         else:
-            self.playback_end = self.media_length
+            self.post_end = self.media_length
 
         if start:
             self._engine_seek(start)
@@ -174,8 +174,8 @@ class Player(ABC):
         self._engine_stop()
         self.playing = False
 
-        self._engine_seek(self.playback_start)
-        self.current_time = self.playback_start
+        self._engine_seek(self.pre_start)
+        self.current_time = self.pre_start
 
         events.post(Event.PLAYER_STOPPED)
         events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time)
@@ -201,7 +201,7 @@ class Player(ABC):
 
     def _play_loop(self) -> None:
         while self.playing:
-            self.current_time = self._engine_get_current_time() - self.playback_start
+            self.current_time = self._engine_get_current_time() - self.pre_start
             events.post(
                 Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time, logging_level=5
             )

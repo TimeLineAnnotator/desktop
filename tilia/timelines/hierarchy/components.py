@@ -34,9 +34,9 @@ class Hierarchy(TimelineComponent):
     # serializer attributes
     SERIALIZABLE_BY_VALUE = [
         "start",
+        "pre_start",
         "end",
-        "playback_start",
-        "playback_end",
+        "post_end",
         "level",
         "formal_type",
         "formal_function",
@@ -58,8 +58,8 @@ class Hierarchy(TimelineComponent):
         parent=None,
         children=None,
         comments="",
-        playback_start=None,
-        playback_end=None,
+        pre_start=None,
+        post_end=None,
         formal_type="",
         formal_function="",
         **_,
@@ -78,26 +78,26 @@ class Hierarchy(TimelineComponent):
         self.parent = parent
 
         self.children = children if children else []
-        self.playback_start = playback_start if playback_start else self.start
-        self.playback_end = playback_end if playback_end else self.end
+        self.pre_start = pre_start if pre_start else self.start
+        self.post_end = post_end if post_end else self.end
 
         self.ui = None
 
     @classmethod
     def create(
         cls,
-            timeline: HierarchyTimeline,
-            start: float,
-            end: float,
-            level: int,
-            parent=None,
-            children=None,
-            comments="",
-            playback_start=None,
-            playback_end=None,
-            formal_type="",
-            formal_function="",
-            **kwargs,
+        timeline: HierarchyTimeline,
+        start: float,
+        end: float,
+        level: int,
+        parent=None,
+        children=None,
+        comments="",
+        pre_start=None,
+        post_end=None,
+        formal_type="",
+        formal_function="",
+        **kwargs,
     ):
         return Hierarchy(
             timeline,
@@ -107,11 +107,11 @@ class Hierarchy(TimelineComponent):
             parent,
             children,
             comments,
-            playback_start,
-            playback_end,
+            pre_start,
+            post_end,
             formal_type,
             formal_function,
-            **kwargs
+            **kwargs,
         )
 
     def receive_delete_request_from_ui(self) -> None:
@@ -127,8 +127,8 @@ class Hierarchy(TimelineComponent):
         logger.debug(f"Setting {self} start to {value}")
         prev_start = self._start
         self._start = value
-        if self.playback_start > value or self.playback_start == prev_start:
-            self.playback_start = value
+        if self.pre_start > value or self.pre_start == prev_start:
+            self.pre_start = value
 
     @property
     def end(self):
@@ -139,9 +139,8 @@ class Hierarchy(TimelineComponent):
         logger.debug(f"Setting {self} end to {value}")
         prev_end = self._end
         self._end = value
-        if self.playback_end < value or self.playback_end == prev_end:
-            self.playback_end = value
-
+        if self.post_end < value or self.post_end == prev_end:
+            self.post_end = value
 
     def __repr__(self):
         repr_ = f"Hierarchy({self.start}, {self.end}, {self.level}"

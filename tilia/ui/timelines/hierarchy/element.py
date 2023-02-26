@@ -5,10 +5,11 @@ Defines the ui corresponding to a Hierarchy object.
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import font
 import logging
 
 from typing import TYPE_CHECKING
+
+from ...windows.inspect import HIDE_FIELD
 
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineUI
@@ -59,6 +60,7 @@ class HierarchyUI(TimelineUIElement):
     INSPECTOR_FIELDS = [
         ("Label", "entry"),
         ("Start / end", "label"),
+        ("Pre-start / post-end", "label"),
         ("Length", "label"),
         ("Formal type", "entry"),
         ("Formal function", "entry"),
@@ -77,10 +79,10 @@ class HierarchyUI(TimelineUIElement):
         by_element_value=["label", "color"],
         by_component_value=["formal_type", "formal_function", "comments"],
         support_by_element_value=[],
-        support_by_component_value=["start", "end", "level"],
+        support_by_component_value=["start", "pre_start", "end", "level"],
     )
 
-    RIGHT_CLICK_OPTIONS = [
+    DEFAULT_RIGHT_CLICK_OPTIONS = [
         ("Edit...", RightClickOption.EDIT),
         ("", RightClickOption.SEPARATOR),
         ("Increase level", RightClickOption.INCREASE_LEVEL),
@@ -127,8 +129,8 @@ class HierarchyUI(TimelineUIElement):
         self.label_id = self.draw_label()
         self.comments_ind_id = self.draw_comments_indicator()
         self.start_marker, self.end_marker = self.draw_markers()
-        self.playstart_ind_id = self.draw_playback_start_indicator()
-        self.playend_ind_id = self.draw_playback_end_indicator()
+        self.pre_start_ind_id = None
+        self.post_end_ind_id = None
 
         self.drag_data = {}
 
@@ -160,24 +162,32 @@ class HierarchyUI(TimelineUIElement):
         return self.timeline_ui.get_x_by_time(self.end)
 
     @property
-    def playback_start(self):
-        return self.tl_component.playback_start
+    def pre_start(self):
+        return self.tl_component.pre_start
 
     @property
-    def playback_start_x(self):
-        return self.timeline_ui.get_x_by_time(self.playback_start)
+    def has_pre_start(self):
+        return self.pre_start != self.start
 
     @property
-    def playback_end(self):
-        return self.tl_component.playback_end
+    def has_post_end(self):
+        return self.post_end != self.end
 
     @property
-    def playback_end_x(self):
-        return self.timeline_ui.get_x_by_time(self.playback_end)
+    def pre_start_x(self):
+        return self.timeline_ui.get_x_by_time(self.pre_start)
+
+    @property
+    def post_end(self):
+        return self.tl_component.post_end
+
+    @property
+    def post_end_x(self):
+        return self.timeline_ui.get_x_by_time(self.post_end)
 
     @property
     def seek_time(self):
-        return self.tl_component.start
+        return self.tl_component.pre_start
 
     @property
     def level(self):
@@ -327,14 +337,22 @@ class HierarchyUI(TimelineUIElement):
             self.color = self.get_default_level_color(new_level)
 
     @property
-    def canvas_drawings_ids(self):
-        return (
+    def canvas_drawings_ids(self) -> list[int, ..., int]:
+        ids = [
             self.body_id,
             self.label_id,
             self.comments_ind_id,
             self.start_marker,
             self.end_marker,
-        )
+        ]
+
+        if self.pre_start_ind_id:
+            ids += list(self.pre_start_ind_id)
+
+        if self.post_end_ind_id:
+            ids += list(self.post_end_ind_id)
+
+        return ids
 
     def update_position(self):
 
@@ -345,6 +363,8 @@ class HierarchyUI(TimelineUIElement):
         self.update_label_position()
         self.update_displayed_label()
         self.update_markers_position()
+        self.update_pre_start_position()
+        self.update_post_end_position()
 
     def update_rectangle_position(self):
         self.canvas.coords(
@@ -367,6 +387,38 @@ class HierarchyUI(TimelineUIElement):
     def update_markers_position(self):
         self.canvas.coords(self.start_marker, *self.get_marker_coords(StartOrEnd.START))
         self.canvas.coords(self.end_marker, *self.get_marker_coords(StartOrEnd.END))
+
+    def update_pre_start_position(self):
+        self.update_pre_start_existence()
+        if self.has_pre_start:
+            self.canvas.coords(
+                self.pre_start_ind_id[0], *self.get_pre_start_indicator_vline_coords()
+            )
+            self.canvas.coords(
+                self.pre_start_ind_id[1], *self.get_pre_start_indicator_hline_coords()
+            )
+
+    def update_post_end_position(self):
+        self.update_post_end_existence()
+        if self.has_post_end:
+            self.canvas.coords(
+                self.post_end_ind_id[0], *self.get_post_end_indicator_vline_coords()
+            )
+            self.canvas.coords(
+                self.post_end_ind_id[1], *self.get_post_end_indicator_hline_coords()
+            )
+
+    def update_pre_start_existence(self):
+        if not self.pre_start_ind_id and self.has_pre_start:
+            self.pre_start_ind_id = self.draw_pre_start_indicator()
+        elif self.pre_start_ind_id and not self.has_pre_start:
+            self.delete_pre_start_indicator()
+
+    def update_post_end_existence(self):
+        if not self.post_end_ind_id and self.has_post_end:
+            self.post_end_ind_id = self.draw_post_end_indicator()
+        elif self.post_end_ind_id and not self.has_post_end:
+            self.delete_post_end_indicator()
 
     def draw_body(self) -> int:
         coords = self.get_body_coords()
@@ -393,67 +445,27 @@ class HierarchyUI(TimelineUIElement):
             text=self.COMMENTS_INDICATOR_CHAR if self.comments else "",
         )
 
-    def draw_playback_start_indicator(self) -> tuple[int, int] | None:
-        if self.start_x == self.playback_start_x:
-            return
+    def draw_pre_start_indicator(self) -> tuple[int, int] | None:
+        vline_coords = self.get_pre_start_indicator_vline_coords()
+        hline_coords = self.get_pre_start_indicator_hline_coords()
 
-        vline_coords = self.get_playback_start_indicator_vline_coords()
-        hline_coords = self.get_playback_start_indicator_hline_coords()
-
-        vline_id = self.canvas.create_line(*vline_coords)
-        hline_id = self.canvas.create_line(*hline_coords)
+        vline_id = self.canvas.create_line(
+            *vline_coords, tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS), width=3
+        )
+        hline_id = self.canvas.create_line(*hline_coords, dash=(2, 2))
 
         return vline_id, hline_id
 
-    def get_playback_start_indicator_vline_coords(self):
-        tl_height = self.timeline_ui.get_timeline_height()
+    def draw_post_end_indicator(self) -> tuple[int, int] | None:
+        vline_coords = self.get_post_end_indicator_vline_coords()
+        hline_coords = self.get_post_end_indicator_hline_coords()
 
-        x0 = x1 = self.playback_start_x
-        y0 = (
-            tl_height
-            - self.YOFFSET
-            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
+        vline_id = self.canvas.create_line(
+            *vline_coords, tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS), width=3
         )
-        y1 = tl_height - self.YOFFSET
+        hline_id = self.canvas.create_line(*hline_coords, dash=(2, 2))
 
-        return x0, y0, x1, y1
-
-    def get_playback_start_indicator_hline_coords(self):
-        tl_height = self.timeline_ui.get_timeline_height()
-
-        x0 = self.playback_start_x
-        y0 = y1 = (
-            tl_height
-            - self.YOFFSET
-            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR)) / 2
-        )
-        x1 = self.start_x + self.XOFFSET
-
-        return x0, y0, x1, y1
-
-    def get_unit_coords(self):
-        tl_height = self.timeline_ui.get_timeline_height()
-
-        x0 = self.start_x + self.XOFFSET
-        y0 = (
-            tl_height
-            - self.YOFFSET
-            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
-        )
-        x1 = self.end_x - self.XOFFSET
-
-        y1 = tl_height - self.YOFFSET
-        return x0, y0, x1, y1
-
-    @log_object_deletion
-    def delete(self):
-        logger.debug(f"Deleting rectangle '{self.rect_id}'")
-        self.canvas.delete(self.rect_id)
-        logger.debug(f"Deleting label '{self.label_id}'")
-        self.canvas.delete(self.label_id)
-        logger.debug(f"Deleting comments indicator '{self.comments_ind_id}'")
-        self.canvas.delete(self.comments_ind_id)
-        self._delete_markers_if_not_shared()
+        return vline_id, hline_id
 
     def draw_markers(self) -> tuple[int, int]:
         """If there are already markers at start or end position,
@@ -488,6 +500,82 @@ class HierarchyUI(TimelineUIElement):
             fill="black",
             tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS),
         )
+
+    def delete_pre_start_indicator(self) -> None:
+        self.canvas.delete(*self.pre_start_ind_id)
+        self.pre_start_ind_id = None
+
+    def delete_post_end_indicator(self) -> None:
+        self.canvas.delete(*self.post_end_ind_id)
+        self.post_end_ind_id = None
+
+    def get_pre_start_indicator_vline_coords(self):
+
+        _, body_y0, _, body_y1 = self.get_body_coords()
+        body_mid_y = (body_y0 + body_y1) // 2
+        segment_height = 7
+
+        x = self.pre_start_x
+        y0 = body_mid_y - segment_height
+        y1 = body_mid_y + segment_height + 1  # why do we need this + 1
+
+        return x, y0, x, y1
+
+    def get_pre_start_indicator_hline_coords(self):
+
+        _, body_y0, _, body_y1 = self.get_body_coords()
+
+        x0 = self.pre_start_x
+        y = (body_y0 + body_y1) // 2
+        x1 = self.start_x + self.XOFFSET
+
+        return x0, y, x1, y
+
+    def get_post_end_indicator_vline_coords(self):
+
+        _, body_y0, _, body_y1 = self.get_body_coords()
+        body_mid_y = (body_y0 + body_y1) // 2
+        segment_height = 7
+
+        x = self.post_end_x
+        y0 = body_mid_y - segment_height
+        y1 = body_mid_y + segment_height + 1  # why do we need this + 1
+
+        return x, y0, x, y1
+
+    def get_post_end_indicator_hline_coords(self):
+
+        _, body_y0, _, body_y1 = self.get_body_coords()
+
+        x0 = self.end_x + self.XOFFSET
+        y = (body_y0 + body_y1) // 2
+        x1 = self.post_end_x
+
+        return x0, y, x1, y
+
+    def get_unit_coords(self):
+        tl_height = self.timeline_ui.height
+
+        x0 = self.start_x + self.XOFFSET
+        y0 = (
+            tl_height
+            - self.YOFFSET
+            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
+        )
+        x1 = self.end_x - self.XOFFSET
+
+        y1 = tl_height - self.YOFFSET
+        return x0, y0, x1, y1
+
+    @log_object_deletion
+    def delete(self):
+        logger.debug(f"Deleting rectangle '{self.body_id}'")
+        self.canvas.delete(self.body_id)
+        logger.debug(f"Deleting label '{self.label_id}'")
+        self.canvas.delete(self.label_id)
+        logger.debug(f"Deleting comments indicator '{self.comments_ind_id}'")
+        self.canvas.delete(self.comments_ind_id)
+        self._delete_markers_if_not_shared()
 
     def get_body_coords(self):
         tl_height = self.timeline_ui.height
@@ -556,30 +644,47 @@ class HierarchyUI(TimelineUIElement):
         return self.body_id, self.label_id, self.comments_ind_id
 
     @property
-    def left_click_triggers(self) -> tuple[int, ...]:
-        return self.start_marker, self.end_marker
+    def left_click_triggers(self) -> list[int, ...]:
+        triggers = [self.start_marker, self.end_marker]
 
-    def on_left_click(self, marker_id: int) -> None:
-        extremity = self._get_extremity_from_marker_id(marker_id)
-        self.make_drag_data(extremity)
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
+        if self.pre_start_ind_id:
+            triggers += list(self.pre_start_ind_id)
+
+        if self.post_end_ind_id:
+            triggers += list(self.post_end_ind_id)
+
+        return triggers
+
+    def on_left_click(self, id: int) -> None:
+        if id in (self.start_marker, self.end_marker):
+            self.start_marker_drag(id)
+        elif self.pre_start_ind_id and id in self.pre_start_ind_id:
+            self.start_pre_start_drag()
+        elif self.post_end_ind_id and id in self.post_end_ind_id:
+            self.start_post_end_drag()
 
     @property
     def double_left_click_triggers(self) -> tuple[int, ...]:
         return self.body_id, self.comments_ind_id, self.label_id
 
     def on_double_left_click(self, _) -> None:
-        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.tl_component.start)
+        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.seek_time)
 
     @property
     def right_click_triggers(self) -> tuple[int, ...]:
         return self.body_id, self.label_id, self.comments_ind_id
 
     def on_right_click(self, x: int, y: int, _) -> None:
-        self.timeline_ui.display_right_click_menu_for_element(
-            x, y, self.RIGHT_CLICK_OPTIONS
-        )
+        options = self.DEFAULT_RIGHT_CLICK_OPTIONS.copy()
+
+        if not self.has_pre_start:
+            options.insert(6, ("Add pre-start...", RightClickOption.ADD_PRE_START))
+
+        if not self.has_post_end:
+            options.insert(6, ("Add post-end...", RightClickOption.ADD_POST_END))
+
+        self.timeline_ui.display_right_click_menu_for_element(x, y, options)
+
         self.timeline_ui.listen_for_uielement_rightclick_options(self)
 
     def _get_extremity_from_marker_id(self, marker_id: int):
@@ -592,7 +697,7 @@ class HierarchyUI(TimelineUIElement):
                 f"Can't get extremity: '{marker_id} is not marker id in {self}"
             )
 
-    def make_drag_data(self, extremity: StartOrEnd):
+    def make_marker_drag_data(self, extremity: StartOrEnd):
         logger.debug(f"{self} is preparing to drag {extremity} marker...")
         min_x, max_x = self.get_drag_limit(extremity)
         self.drag_data = {
@@ -601,6 +706,12 @@ class HierarchyUI(TimelineUIElement):
             "min_x": min_x,
             "x": None,
         }
+
+    def start_marker_drag(self, marker_id: int) -> None:
+        extremity = self._get_extremity_from_marker_id(marker_id)
+        self.make_marker_drag_data(extremity)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag_marker)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_marker_drag)
 
     def get_drag_limit(self, extremity: StartOrEnd) -> tuple[int, int]:
         logger.debug(f"Getting drag limitis for {extremity} marker.")
@@ -638,7 +749,7 @@ class HierarchyUI(TimelineUIElement):
 
         return min_x, max_x
 
-    def drag(self, x: int, _) -> None:
+    def drag_marker(self, x: int, _) -> None:
 
         if self.drag_data["x"] is None:
             events.post(Event.ELEMENT_DRAG_START)
@@ -668,8 +779,7 @@ class HierarchyUI(TimelineUIElement):
         self.drag_data["x"] = drag_x
         self.update_position()
 
-    def end_drag(self):
-
+    def end_marker_drag(self):
         if self.drag_data["x"] is not None:
             logger.debug(f"Dragged {self}. New x is {self.drag_data['x']}")
             events.post(
@@ -678,6 +788,114 @@ class HierarchyUI(TimelineUIElement):
                 no_repeat=True,
                 repeat_identifier=f'{self.timeline_ui}_drag_to_{self.drag_data["x"]}',
             )
+            events.post(Event.ELEMENT_DRAG_END)
+
+        if self.pre_start_ind_id:
+            self.delete_pre_start_indicator()
+
+        if self.post_end_ind_id:
+            self.delete_post_end_indicator()
+
+        self.drag_data = {}
+        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
+        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
+
+    def start_pre_start_drag(self) -> None:
+        self.make_pre_start_drag_data()
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag_pre_start)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_pre_start_drag)
+
+    def start_post_end_drag(self) -> None:
+        self.make_post_end_drag_data()
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag_post_end)
+        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_post_end_drag)
+
+    def make_pre_start_drag_data(self):
+        logger.debug(f"{self} is preparing to drag playback start...")
+        self.drag_data = {
+            "max_x": self.start_x,
+            "min_x": self.timeline_ui.get_left_margin_x(),
+            "x": None,
+        }
+
+    def make_post_end_drag_data(self):
+        logger.debug(f"{self} is preparing to drag playback start...")
+        self.drag_data = {
+            "max_x": self.timeline_ui.get_right_margin_x(),
+            "min_x": self.end_x,
+            "x": None,
+        }
+
+    def drag_pre_start(self, x: int, _) -> None:
+
+        if self.drag_data["x"] is None:
+            events.post(Event.ELEMENT_DRAG_START)
+
+        drag_x = x
+
+        if x > self.drag_data["max_x"]:
+            logger.debug(f"Mouse is beyond right drag limit. Deleting pre-start.'")
+            self.tl_component.pre_start = self.tl_component.start
+            self.end_pre_start_drag()
+            self.update_pre_start_position()
+            return
+        elif x < self.drag_data["min_x"]:
+            logger.debug(
+                f"Mouse is beyond left drag limit. "
+                f"Dragging to min x='{self.drag_data['min_x']}'"
+            )
+            drag_x = self.drag_data["min_x"]
+        else:
+            logger.debug(f"Dragging to x='{x}'.")
+
+        # update timeline component value
+        self.tl_component.pre_start = self.timeline_ui.get_time_by_x(drag_x)
+
+        self.drag_data["x"] = drag_x
+        self.update_pre_start_position()
+
+    def drag_post_end(self, x: int, _) -> None:
+
+        if self.drag_data["x"] is None:
+            events.post(Event.ELEMENT_DRAG_START)
+
+        drag_x = x
+
+        if x > self.drag_data["max_x"]:
+            logger.debug(
+                f"Mouse is beyond right drag limit. "
+                f"Dragging to max x='{self.drag_data['max_x']}.'"
+            )
+            drag_x = self.drag_data["max_x"]
+        elif x < self.drag_data["min_x"]:
+            logger.debug(f"Mouse is beyond left drag limit. Deleting post-end'")
+            self.tl_component.post_end = self.tl_component.end
+            self.end_post_end_drag()
+            self.update_post_end_position()
+            return
+
+        else:
+            logger.debug(f"Dragging to x='{x}'.")
+
+        # update timeline component value
+        self.tl_component.post_end = self.timeline_ui.get_time_by_x(drag_x)
+
+        self.drag_data["x"] = drag_x
+        self.update_post_end_position()
+
+    def end_pre_start_drag(self):
+        if self.drag_data["x"] is not None:
+            logger.debug(f"Dragged {self} pre-start. New x is {self.drag_data['x']}")
+            events.post(Event.REQUEST_RECORD_STATE, "hierarchy pre-start drag")
+            events.post(Event.ELEMENT_DRAG_END)
+        self.drag_data = {}
+        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
+        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
+
+    def end_post_end_drag(self):
+        if self.drag_data["x"] is not None:
+            logger.debug(f"Dragged {self} post-end. New x is {self.drag_data['x']}")
+            events.post(Event.REQUEST_RECORD_STATE, "hierarchy post-end drag")
             events.post(Event.ELEMENT_DRAG_END)
         self.drag_data = {}
         unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
@@ -696,9 +914,16 @@ class HierarchyUI(TimelineUIElement):
         self.canvas.itemconfig(
             self.body_id, fill=self.shaded_color, width=1, outline="black"
         )
+        self.update_pre_start_existence()
+        self.update_post_end_existence()
 
     def display_as_deselected(self) -> None:
         self.canvas.itemconfig(self.body_id, fill=self.color, width=0, outline="black")
+        if self.pre_start_ind_id:
+            self.delete_pre_start_indicator()
+
+        if self.post_end_ind_id:
+            self.delete_post_end_indicator()
 
     def marker_is_shared(self, marker_id: int) -> bool:
         units_with_marker = self.timeline_ui.get_units_using_marker(marker_id)
@@ -735,10 +960,30 @@ class HierarchyUI(TimelineUIElement):
     def length_formatted(self) -> str:
         return format_media_time(self.tl_component.end - self.tl_component.start)
 
+    @property
+    def pre_start_formatted(self) -> str:
+        return format_media_time(self.pre_start)
+
+    @property
+    def post_end_formatted(self) -> str:
+        return format_media_time(self.post_end)
+
+    @property
+    def inspector_pre_start_post_end(self):
+        if not self.has_pre_start and not self.has_post_end:
+            return HIDE_FIELD
+        elif self.has_pre_start and self.has_post_end:
+            return f"{self.pre_start_formatted} / {self.post_end_formatted}"
+        elif self.has_pre_start:
+            return f"{self.pre_start_formatted} / -"
+        else:
+            return f"- / {self.post_end_formatted}"
+
     def get_inspector_dict(self) -> dict:
         return {
             "Label": self.label,
             "Start / end": self.start_and_end_formatted,
+            "Pre-start / post-end": self.inspector_pre_start_post_end,
             "Length": self.length_formatted,
             "Formal type": self.tl_component.formal_type,
             "Formal function": self.tl_component.formal_function,
