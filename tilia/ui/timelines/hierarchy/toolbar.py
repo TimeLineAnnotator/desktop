@@ -30,16 +30,12 @@ class HierarchyTimelineToolbar(TimelineToolbar):
             ),
             (
                 "lvlup30",
-                lambda: events.post(
-                    Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_INCREASE
-                ),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_LEVEL_INCREASE),
                 "Increase level (Ctrl + Up)",
             ),
             (
                 "lvldwn30",
-                lambda: events.post(
-                    Event.HIERARCHY_TOOLBAR_BUTTON_PRESS_LEVEL_DECREASE
-                ),
+                lambda: events.post(Event.HIERARCHY_TOOLBAR_LEVEL_DECREASE),
                 "Decrease level (Ctrl + Down)",
             ),
             (
