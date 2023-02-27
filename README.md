@@ -48,6 +48,10 @@ There are many more features that I would like to implement than can be listed h
 - Automatic cut detection for video
 - Automatic beat detection for audio
 
+## Releases
+
+Releases can be found on: https://timelineannotator.com/downloads.html
+
 ## Documentation
 
 Documentation is almost non-existent at this point. After more of the core features get implemented some work will be put into that.
@@ -58,9 +62,13 @@ Read the CONTRIBUTING.md file at the root directory.
 
 ## Website
 
-A **very bare-bones** website is at www.timelineannotator.com. In the near future it will feature more information, documentation and examples of TiLiA usage.
+A minimal website is at www.timelineannotator.com. In the near future it will feature more information, documentation and examples of TiLiA usage.
 
 ## License
 
 TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The complete license can be found in the LICENSE file in this directory.
+
+## Acknowledgments
+
+The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for developing and freely distributing his software.  
 
