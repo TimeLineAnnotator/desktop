@@ -1,4 +1,4 @@
-Thank you for considering contributing to TiLiA! I really believe that, with the help of an active community, this software might significantly change (for the better) the way we study, understand and write about music, cinema and other topics related to audio and video.
+Thank you for considering contributing to TiLiA! I really believe that, with the help of an active community, this software might significantly change the way we study, understand and write about music, cinema and other topics related to audio and video.
 
 # Where to contribute
 In this early stage, the contributing process is not really structured, and help is needed is almost every front. Feel free to make PR or Some of the issues where contributions would be most appreciated:
