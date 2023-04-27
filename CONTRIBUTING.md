@@ -6,7 +6,7 @@ In this early stage, the contributing process is not really structured, and help
 ## Testing:
 Somewhat thorough tests have been written for the logic of the timelines, but the UI has practically nothing written. That is mainly to the difficulty of testing tkinter UI's and the possibility of changing the engine to PyQT in the future. However, there are many UI features that could be tested without relying too heavily on tkinter.
 Overall, the test coverage is borderline unnacceptable the way it is now.
-  
+
 ## Tutorials/guides:
 The program should be fairly intuitive for the users, but tutorials and guides will need to be done at some point, as they will significantly facilitate the adoption by new users. They can be either written or in video form, ideally both. [This video](https://vimeo.com/767282249) serves as rough general quickstart guide, for now.
 
@@ -38,6 +38,6 @@ Be sure that your code:
 - Uses type hints for all parameters of functions;
 - Is formatted using [black](https://github.com/psf/black);
 
-TiLiA was tested using Python 3.11.1. You will also need to have ffmpeg installed to use the export and convert audio features. [VLC player](https://www.videolan.org/) is needed for video playback. 
- 
+TiLiA was tested using Python 3.11.1. You will also need to have ffmpeg installed to use the export and convert audio features. [VLC player](https://www.videolan.org/) is needed for video playback.
+
 If you need any help getting around the repository (you probably will, given its current state) don't hesitate to e-mail me at felipe.martins4@hotmail.com.

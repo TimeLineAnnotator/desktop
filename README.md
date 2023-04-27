@@ -24,8 +24,8 @@ Some examples of what TiLiA visualizations look like:
  - Customizable metadata can be attached to files
  - Creation of unlimited number of timelines
  - Easy timeline edition during playback
- - Timelines can be temporarily hidden 
- - Audio of hierarchy unit can be exported separatedly 
+ - Timelines can be temporarily hidden
+ - Audio of hierarchy unit can be exported separatedly
 
 ## Planned features
 
@@ -63,4 +63,3 @@ A **very bare-bones** website is at www.timelineannotator.com. In the near futur
 ## License
 
 TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The complete license can be found in the LICENSE file in this directory.
-

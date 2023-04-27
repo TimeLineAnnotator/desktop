@@ -5,8 +5,8 @@ from tilia import globals_
 
 from pathlib import Path
 
-README_PATH = Path(Path().absolute().resolve().parent, 'README.md')
-LICENSE_PATH = Path(Path().absolute().resolve().parent, 'LICENSE')
+README_PATH = Path(Path().absolute().resolve().parent, "README.md")
+LICENSE_PATH = Path(Path().absolute().resolve().parent, "LICENSE")
 
 
 def confirm_version_number_update():
@@ -98,7 +98,7 @@ Name: "{{autodesktop}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}";
 Filename: "{{app}}\\{{#MyAppExeName}}"; Description: "{{cm:LaunchProgram,{{#StringChange(MyAppName, '&', '&&')}}}}"; Flags: nowait postinstall skipifsilent
 """
 
-    with open('installer_script.iss', 'w') as f:
+    with open("installer_script.iss", "w") as f:
         f.write(iss_script)
 
 

@@ -37,8 +37,7 @@ class BeatTimeline(Timeline):
 
     KIND = TimelineKind.BEAT_TIMELINE
     DISPLAY_MEASURE_NUMBER_PERIOD = settings.get(
-        "beat_timeline",
-        "display_measure_periodicity"
+        "beat_timeline", "display_measure_periodicity"
     )
 
     def __init__(
@@ -65,7 +64,6 @@ class BeatTimeline(Timeline):
             else measures_to_force_number_display
         )
 
-
     @property
     def display_measure_number_bool_array(self):
         return [
@@ -84,10 +82,10 @@ class BeatTimeline(Timeline):
 
     def restore_state(self, state: dict):
         super().restore_state(state)
-        self.beat_pattern = state['beat_pattern'].copy()
-        self.beats_in_measure = state['beats_in_measure'].copy()
-        self.measure_numbers = state['measure_numbers'].copy()
-        self.measures_to_force_display = state['measures_to_force_display'].copy()
+        self.beat_pattern = state["beat_pattern"].copy()
+        self.beats_in_measure = state["beats_in_measure"].copy()
+        self.measure_numbers = state["measure_numbers"].copy()
+        self.measures_to_force_display = state["measures_to_force_display"].copy()
         self.recalculate_measures()
 
     def recalculate_measures(self):
@@ -245,7 +243,7 @@ class BeatTimeline(Timeline):
         return self.component_manager.ordered_beats.index(beat)
 
     def propagate_measure_number_change(self, start_index: int):
-        for j, measure in enumerate(self.measure_numbers[start_index + 1:]):
+        for j, measure in enumerate(self.measure_numbers[start_index + 1 :]):
             propagate_index = j + start_index + 1
             if propagate_index in self.measures_to_force_display:
                 break
@@ -319,7 +317,9 @@ class BeatTLComponentManager(TimelineComponentManager):
                 "Can not create beat.\n"
                 f"There is already a beat on '{self.timeline}' at the selected time.",
             )
-            raise ValueError(f"Can't create beat. There's already a beat one {self} at {time}")
+            raise ValueError(
+                f"Can't create beat. There's already a beat one {self} at {time}"
+            )
 
     def update_beat_uis(self):
         beats = self.ordered_beats.copy()

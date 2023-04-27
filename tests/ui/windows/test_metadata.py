@@ -13,57 +13,47 @@ from tilia.ui.windows.metadata import (
 
 
 class TestMetadataWindow:
-
-    @patch('tkinter.Toplevel')
-    @patch('tkinter.StringVar')
+    @patch("tkinter.Toplevel")
+    @patch("tkinter.StringVar")
     @pytest.fixture
     def metadata_window(self, tk_session):
-        mediametadata_mock = OrderedDict(
-            {
-                'field1': 'a',
-                'field2': 'b',
-                'field3': 'c'
-            }
-        )
+        mediametadata_mock = OrderedDict({"field1": "a", "field2": "b", "field3": "c"})
         _metadata_window = MediaMetadataWindow(
             parent=tk_session,
             media_metadata=mediametadata_mock,
-            non_editable_fields=OrderedDict())
+            non_editable_fields=OrderedDict(),
+        )
         yield _metadata_window
         _metadata_window.destroy()
 
-
-    @patch('tkinter.Toplevel')
-    @patch('tkinter.StringVar')
-    @patch('tkinter.Label')
-    @patch('tkinter.Text')
+    @patch("tkinter.Toplevel")
+    @patch("tkinter.StringVar")
+    @patch("tkinter.Label")
+    @patch("tkinter.Text")
     def test_constructor(self, tk_session, *_):
-        mediametadata_mock = OrderedDict(
-            {
-                'field1': 'a',
-                'field2': 'b',
-                'field3': 'c'
-            }
-        )
+        mediametadata_mock = OrderedDict({"field1": "a", "field2": "b", "field3": "c"})
 
         non_editable_fields_mock = OrderedDict(
             {
-                'noedit1': 'a',
-                'noedit2': 'b',
+                "noedit1": "a",
+                "noedit2": "b",
             }
         )
         metadata_window = MediaMetadataWindow(
             parent=tk_session,
             media_metadata=mediametadata_mock,
-            non_editable_fields=non_editable_fields_mock)
+            non_editable_fields=non_editable_fields_mock,
+        )
 
-        assert list(metadata_window.fieldnames_to_widgets.keys()) == list(mediametadata_mock.keys()) + list(non_editable_fields_mock.keys())
+        assert list(metadata_window.fieldnames_to_widgets.keys()) == list(
+            mediametadata_mock.keys()
+        ) + list(non_editable_fields_mock.keys())
 
         metadata_window.destroy()
 
     def test_update_values(self, metadata_window):
-        test_value1 = ['new_field']
-        test_value2 = ['field1', 'field3']
+        test_value1 = ["new_field"]
+        test_value2 = ["field1", "field3"]
 
         metadata_window.update_metadata_fields(test_value1)
         assert list(metadata_window._metadata) == test_value1
@@ -72,8 +62,8 @@ class TestMetadataWindow:
         assert list(metadata_window._metadata) == test_value2
 
     def test_refresh_fields(self, metadata_window):
-        test_value1 = ['new_field']
-        test_value2 = ['field1', 'field3']
+        test_value1 = ["new_field"]
+        test_value2 = ["field1", "field3"]
 
         metadata_window.update_metadata_fields(test_value1)
         metadata_window.refresh_fields()
@@ -86,15 +76,12 @@ class TestMetadataWindow:
 
 class TestEditMetadataFieldsWindow:
     def test_get_metadata_fields_as_str(self):
-        metadata_mock = {
-            'field1': 'a',
-            'field2': 'b',
-            'field3': 'c'
-        }
+        metadata_mock = {"field1": "a", "field2": "b", "field3": "c"}
 
-        assert EditMetadataFieldsWindow.get_metadata_fields_as_str(list(metadata_mock)) == 'field1\nfield2\nfield3'
-
-
+        assert (
+            EditMetadataFieldsWindow.get_metadata_fields_as_str(list(metadata_mock))
+            == "field1\nfield2\nfield3"
+        )
 
     def test_get_metadata_fields_from_widget(self):
         window_mock = MagicMock()
@@ -105,9 +92,11 @@ class TestEditMetadataFieldsWindow:
         """
         window_mock.scrolled_text.get = lambda *_: test_str
 
-        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
+        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(
+            window_mock
+        )
 
-        assert metadata_fields == ['field1', 'field2', 'field3'] + PERMANENT_FIELDS
+        assert metadata_fields == ["field1", "field2", "field3"] + PERMANENT_FIELDS
 
         test_str = """
         field1
@@ -116,9 +105,11 @@ class TestEditMetadataFieldsWindow:
         field2
         """
 
-        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
+        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(
+            window_mock
+        )
 
-        assert metadata_fields == ['field1', 'field2'] + PERMANENT_FIELDS
+        assert metadata_fields == ["field1", "field2"] + PERMANENT_FIELDS
 
         test_str = r"""
         field1
@@ -126,6 +117,11 @@ class TestEditMetadataFieldsWindow:
         field2
         """
 
-        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
+        metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(
+            window_mock
+        )
 
-        assert metadata_fields == ['field1', r'!@#$%¨&*()\/{}[]', 'field2'] + PERMANENT_FIELDS
+        assert (
+            metadata_fields
+            == ["field1", r"!@#$%¨&*()\/{}[]", "field2"] + PERMANENT_FIELDS
+        )

@@ -5,8 +5,8 @@ from tilia import dirs
 DEFAULT_SETTINGS = """
 [general]
 auto-scroll = false
-window_width = 800 
-window_height = 400 
+window_width = 800
+window_height = 400
 window_x = 20
 window_y = 10
 
