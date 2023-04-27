@@ -120,7 +120,7 @@ class TestEditMetadataFieldsWindow:
 
         assert metadata_fields == ['field1', 'field2'] + PERMANENT_FIELDS
 
-        test_str = """
+        test_str = r"""
         field1
         !@#$%¨&*()\/{}[]
         field2
@@ -128,4 +128,4 @@ class TestEditMetadataFieldsWindow:
 
         metadata_fields = EditMetadataFieldsWindow.get_metadata_fields_from_widget(window_mock)
 
-        assert metadata_fields == ['field1', '!@#$%¨&*()\/{}[]', 'field2'] + PERMANENT_FIELDS
+        assert metadata_fields == ['field1', r'!@#$%¨&*()\/{}[]', 'field2'] + PERMANENT_FIELDS

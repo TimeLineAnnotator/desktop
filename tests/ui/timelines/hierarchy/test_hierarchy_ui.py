@@ -95,7 +95,7 @@ class TestHierarchyUI:
 
         id = hui.draw_body()
         x0, y0, x1, y1 = hui.canvas.coords(id)
-        assert (x0, y0, x1, y1)
+        assert all([x0, y0, x1, y1])
         assert x1 - x0 == (hui.end_x - hui.start_x) - 2 * hui.XOFFSET
         assert hui.canvas.itemcget(id, "fill") == hui.color
 
@@ -104,7 +104,7 @@ class TestHierarchyUI:
 
         id = hui.draw_label()
         x, y = hui.canvas.coords(id)
-        assert (x, y)
+        assert x and y
         # check must be done with 'in' to account for cases when display_label != label
         assert hui.canvas.itemcget(id, "text") in "dummy_label"
 
@@ -113,7 +113,7 @@ class TestHierarchyUI:
 
         id = hui.draw_comments_indicator()
         x, y = hui.canvas.coords(id)
-        assert (x, y)
+        assert x and y
         assert hui.canvas.itemcget(id, "text") == hui.COMMENTS_INDICATOR_CHAR
 
     def test_draw_coments_indicator_no_comments(self, hierarchy_tlui):
