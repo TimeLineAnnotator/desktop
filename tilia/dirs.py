@@ -7,11 +7,11 @@ import shutil
 
 from tilia import globals_, settings
 
-settings_path = ""
-autosaves_path = ""
-log_path = ""
-data_path = ""
-temp_path = ""
+settings_path = Path()
+autosaves_path = Path()
+log_path = Path()
+data_path = Path()
+temp_path = Path()
 img_path = Path("ui", "img")
 ffmpeg_path = Path("ffmpeg", "ffmpeg.exe")
 SITE_DATA_DIR = Path(appdirs.site_data_dir(globals_.APP_NAME))

@@ -71,7 +71,7 @@ dev_mode = false
 """
 
 _settings = tomlkit.loads(DEFAULT_SETTINGS)
-_settings_path = ""
+_settings_path = Path()
 
 
 def load(settings_path: Path):
