@@ -16,7 +16,7 @@ from ...common import format_media_time
 if TYPE_CHECKING:
     from .timeline import BeatTimelineUI
     from tilia.timelines.beat.components import Beat
-    from tilia.ui.timelines.common import TimelineCanvas, RightClickOption
+    from tilia.ui.timelines.common import TimelineCanvas
 
 import logging
 
