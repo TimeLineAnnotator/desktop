@@ -31,12 +31,12 @@ class SliderTimelineUI(TimelineUI):
     ELEMENT_KINDS_TO_ELEMENT_CLASSES = {}
     COMPONENT_KIND_TO_UIELEMENT_KIND = {}
 
-    DEFAULT_HEIGHT = settings.get('slider_timeline', 'default_height')
+    DEFAULT_HEIGHT = settings.get("slider_timeline", "default_height")
 
-    TROUGH_RADIUS = settings.get('slider_timeline', 'trough_radius')
-    TROUGH_DEFAULT_COLOR = settings.get('slider_timeline', 'trough_color')
-    LINE_DEFAULT_COLOR = settings.get('slider_timeline', 'line_color')
-    LINE_WEIGHT = settings.get('slider_timeline', 'line_weight')
+    TROUGH_RADIUS = settings.get("slider_timeline", "trough_radius")
+    TROUGH_DEFAULT_COLOR = settings.get("slider_timeline", "trough_color")
+    LINE_DEFAULT_COLOR = settings.get("slider_timeline", "line_color")
+    LINE_WEIGHT = settings.get("slider_timeline", "line_weight")
 
     TIMELINE_KIND = TimelineKind.SLIDER_TIMELINE
 
@@ -77,9 +77,7 @@ class SliderTimelineUI(TimelineUI):
         )
 
         self.trough = self.canvas.create_oval(
-            *self.get_trough_coords(),
-            fill=self.TROUGH_DEFAULT_COLOR,
-            width=0
+            *self.get_trough_coords(), fill=self.TROUGH_DEFAULT_COLOR, width=0
         )
 
         self.dragging = False
@@ -107,8 +105,7 @@ class SliderTimelineUI(TimelineUI):
             self.height / 2 + (self.LINE_WEIGHT + self.TROUGH_RADIUS * 2) / 2,
         )
 
-    def on_click(self, x: int, _, clicked_item_id: int, **_kw) -> None:
-
+    def on_left_click(self, clicked_item_id: int, *_, **__) -> None:
         logger.debug(f"Processing click on {self}...")
 
         if not clicked_item_id:

@@ -13,15 +13,13 @@ from tilia import globals_, settings
 
 logger = logging.getLogger(__name__)
 
-MANDATORY_METADATA_FIELDS = [
-    "title"
-]
+MANDATORY_METADATA_FIELDS = ["title"]
 
 DEFAULT_TITLE = "Untitled"
 
 
 def create_new_media_metadata():
-    default_metadata_fields = settings.get('media_metadata', 'default_fields')
+    default_metadata_fields = settings.get("media_metadata", "default_fields")
     media_metadata = OrderedDict()
     for field in MANDATORY_METADATA_FIELDS + default_metadata_fields:
         media_metadata[field] = ""

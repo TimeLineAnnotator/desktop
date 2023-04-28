@@ -1,10 +1,10 @@
-class AppException(Exception):
+class TiliaException(Exception):
     pass
 
 
-class UserCancelledSaveError(AppException):
+class UserCancelledSaveError(TiliaException):
     pass
 
 
-class UserCancelledOpenError(AppException):
+class UserCancelledOpenError(TiliaException):
     pass

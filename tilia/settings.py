@@ -1,12 +1,11 @@
 from pathlib import Path
 import tomlkit
-from tilia import dirs
 
 DEFAULT_SETTINGS = """
 [general]
 auto-scroll = false
-window_width = 800 
-window_height = 400 
+window_width = 800
+window_height = 400
 window_x = 20
 window_y = 10
 
@@ -71,7 +70,7 @@ dev_mode = false
 """
 
 _settings = tomlkit.loads(DEFAULT_SETTINGS)
-_settings_path = ""
+_settings_path = Path()
 
 
 def load(settings_path: Path):

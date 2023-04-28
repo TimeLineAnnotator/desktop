@@ -81,6 +81,7 @@ def hash_timeline_components(
 def hash_hierarchies_data(hierarchy_data: dict) -> str:
     hash_attributes = [
         "start",
+        "pre_start",
         "end",
         "level",
         "label",

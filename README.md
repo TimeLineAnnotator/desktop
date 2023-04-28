@@ -24,8 +24,8 @@ Some examples of what TiLiA visualizations look like:
  - Customizable metadata can be attached to files
  - Creation of unlimited number of timelines
  - Easy timeline edition during playback
- - Timelines can be temporarily hidden 
- - Audio of hierarchy unit can be exported separatedly 
+ - Timelines can be temporarily hidden
+ - Audio of hierarchy unit can be exported separatedly
 
 ## Planned features
 
@@ -70,5 +70,4 @@ TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The com
 
 ## Acknowledgments
 
-The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for developing and freely distributing his software.  
-
+The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for developing and freely distributing his software.

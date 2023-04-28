@@ -16,7 +16,7 @@ from ...common import format_media_time
 if TYPE_CHECKING:
     from .timeline import MarkerTimelineUI
     from tilia.timelines.marker.components import Marker
-    from tilia.ui.timelines.common import TimelineCanvas, RightClickOption
+    from tilia.ui.timelines.common import TimelineCanvas
 
 import logging
 

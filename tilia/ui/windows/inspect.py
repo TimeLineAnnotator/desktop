@@ -11,7 +11,7 @@ from tkinter import ttk
 
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
-from typing import Callable
+from typing import Callable, Any
 
 from tilia import events
 from tilia.events import Event, subscribe, unsubscribe_from_all
@@ -23,6 +23,8 @@ PADX = 5
 PADY = 5
 
 logger = logging.getLogger(__name__)
+
+HIDE_FIELD = "__INSPECT_HIDEFIELD"
 
 
 class Inspect:
@@ -92,9 +94,9 @@ class Inspect:
 
     def on_timeline_component_selected(
         self,
-        element_class: type(TimelineComponent),
+        element_class: type[TimelineComponent],
         inspector_fields: tuple[str, str],
-        inspector_values: dict[str:str],
+        inspector_values: dict[str, str],
         element_id: str,
     ):
 
@@ -110,7 +112,7 @@ class Inspect:
 
     def update_frame(
         self,
-        element_class: type(TimelineComponent),
+        element_class: type[TimelineComponent],
         inspector_fields: tuple[str, str],
     ):
         if element_class != self.currently_inspected_class:
@@ -143,41 +145,49 @@ class Inspect:
             self.update_values(inspector_values, element_id)
         else:
             self.clear_values()
-            for _, widget in self.fieldname_to_widgets.items():
-                widget.config(state="disabled")
+            for _, (_, right_widget) in self.fieldname_to_widgets.items():
+                right_widget.config(state="disabled")
 
-    def update_values(self, field_values: dict[str:str], element_id: str):
+    def update_values(self, field_values: dict[str, str], element_id: str):
 
         self.element_id = element_id
         for field_name, value in field_values.items():
-            try:
-                widget = self.fieldname_to_widgets[field_name]
-            except KeyError:
-                logging.warning(f"Inspect has no field named {field_name}")
-                continue
+            widget = self.fieldname_to_widgets[field_name][1]
 
-            widget.config(state="normal")
-            if type(widget) == tk.Label:
-                widget.config(text=value)
-            elif type(widget) == tk.Entry:
-                # pause strvar trace
-                strvar = self.widgets_to_strvars[widget]
-                strvar.trace_vdelete("w", strvar.trace_id)
-                # change entry value
-                widget.delete(0, "end")
-                widget.insert(0, value)
-                # resume strvar trace
-                strvar.trace_id = strvar.trace_add("write", self.on_entry_edited)
-            elif type(widget) == ScrolledText:
-                widget.delete(1.0, "end")
-                widget.insert(1.0, value)
-            else:
-                raise TypeError(
-                    f"Non recognized widget type {type(widget)} for inspector field."
-                )
+            self.update_value(widget, value)
+            self.hide_or_show_field(field_name, value)
 
             if self.starting_focus_widget:
                 self.starting_focus_widget.selection_range(0, tk.END)
+
+    def update_value(self, widget: tk.Entry | ScrolledText | tk.Label, value: Any):
+        widget.config(state="normal")
+        if type(widget) == tk.Label:
+            widget.config(text=value)
+        elif type(widget) == tk.Entry:
+            # pause strvar trace
+            strvar = self.widgets_to_strvars[widget]
+            strvar.trace_vdelete("w", strvar.trace_id)
+            # change entry value
+            widget.delete(0, "end")
+            widget.insert(0, value)
+            # resume strvar trace
+            strvar.trace_id = strvar.trace_add("write", self.on_entry_edited)
+        elif type(widget) == ScrolledText:
+            widget.delete(1.0, "end")
+            widget.insert(1.0, value)
+        else:
+            raise TypeError(
+                f"Non recognized widget type {type(widget)} for inspector field."
+            )
+
+    def hide_or_show_field(self, field_name, value):
+        if value == HIDE_FIELD:
+            self.fieldname_to_widgets[field_name][0].grid_forget()
+            self.fieldname_to_widgets[field_name][1].grid_forget()
+        else:
+            self.fieldname_to_widgets[field_name][0].grid()
+            self.fieldname_to_widgets[field_name][1].grid()
 
     def clear_values(self):
         clearing_dict = {}
@@ -227,7 +237,7 @@ class Inspect:
             widget1.grid(row=row, column=0, sticky=tk.W)
             widget2.grid(row=row, column=1, padx=5, pady=2, sticky=tk.EW)
 
-            self.fieldname_to_widgets[field_name] = widget2
+            self.fieldname_to_widgets[field_name] = (widget1, widget2)
             if strvar:
                 self.strvar_to_fieldname[str(strvar)] = field_name
                 self.widgets_to_strvars[widget2] = strvar
@@ -241,22 +251,23 @@ class Inspect:
 
     def on_entry_edited(self, var_name: str, *_):
         field_name = self.strvar_to_fieldname[var_name]
-        entry = self.fieldname_to_widgets[field_name]
+        entry = self.fieldname_to_widgets[field_name][1]
         events.post(
             Event.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.element_id
         )
 
     def on_scrolled_text_edited(self, widget: ScrolledText, value: str):
-        fieldname = self.widgets_to_fieldnames[widget]
+        fieldname = self.widget2_to_fieldnames[widget]
         logger.debug(f"{fieldname=}")
         logger.debug(f"{value=}")
 
         events.post(Event.INSPECTOR_FIELD_EDITED, fieldname, value, self.element_id)
 
     @property
-    def widgets_to_fieldnames(self):
+    def widget2_to_fieldnames(self):
         return {
-            widget: fieldname for fieldname, widget in self.fieldname_to_widgets.items()
+            widget: fieldname
+            for fieldname, (_, widget) in self.fieldname_to_widgets.items()
         }
 
 

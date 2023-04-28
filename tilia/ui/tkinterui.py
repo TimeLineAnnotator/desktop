@@ -5,6 +5,7 @@ The TkinterUI is responsible for high-level control of the GUI.
 
 from __future__ import annotations
 
+import traceback
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable
 import sys
@@ -34,6 +35,8 @@ from .windows.kinds import WindowKind
 
 import logging
 
+from ..clipboard import ClipboardContents
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,11 +45,11 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
 
+    # log exception
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-    # traceback.print_tb(exc_traceback)
-    time.sleep(0.1)  # needed so traceback gets fully printed before type and value
-    # print(exc_type)
-    # print(exc_value)
+
+    # print exception to stdout
+    traceback.print_exc()
 
 
 class TkinterUI:
@@ -261,7 +264,7 @@ class TkinterUI:
     def on_display_error(title: str, message: str):
         tk.messagebox.showerror(title, message)
 
-    def get_metadata_non_editable_fields(self) -> dict[str]:
+    def get_metadata_non_editable_fields(self) -> dict[str, OrderedDict]:
         return OrderedDict(
             {
                 "media length": self.app.media_length,
@@ -284,7 +287,7 @@ class TkinterUI:
             )
         ]
 
-    def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> ClipboardContents:
         return self.app.get_elements_for_pasting()
 
     def get_id(self) -> str:

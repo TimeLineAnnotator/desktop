@@ -9,8 +9,8 @@ from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
 
-from tilia import settings, local_dev_code, events, media_exporter, globals_
-from tilia.clipboard import Clipboard
+from tilia import settings, local_dev_code, events, media_exporter, globals_, dirs
+from tilia.clipboard import Clipboard, ClipboardContents
 from tilia.events import subscribe
 from tilia.events import Event as Evt
 from tilia.exceptions import UserCancelledSaveError
@@ -189,6 +189,7 @@ class TiLiA:
 
     def on_request_to_close(self) -> None:
         self._file_manager.ask_save_if_necessary()
+        dirs.delete_temp_dir()
 
         sys.exit()
 
@@ -243,7 +244,7 @@ class TiLiA:
     def get_timelines_as_dict(self) -> dict:
         return self._timeline_collection.serialize_timelines()
 
-    def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> ClipboardContents:
         logger.debug(f"Getting clipboard contents for pasting...")
         elements = self._clipboard.get_contents_for_pasting()
         logger.debug(f"Got '{elements}'")
@@ -284,7 +285,7 @@ class TiLiA:
         events.post(Evt.TILIA_FILE_LOADED)
         logger.info(f"Loaded file.")
 
-    def on_add_timeline(self, kind: TimelineKind) -> None:
+    def on_add_timeline(self, kind: TimelineKind, name=None) -> None:
         logger.debug(f"User requested to add timeline...")
         if (
             kind not in IMPLEMENTED_TIMELINE_KINDS
@@ -294,9 +295,10 @@ class TiLiA:
                 f'Can not create timeline. Invalid timeline kind "{kind}"'
             )
 
-        name = self.ui.ask_string(
-            title="Name for new timeline", prompt="Choose name for new timeline"
-        )
+        if name is None:
+            name = self.ui.ask_string(
+                title="Name for new timeline", prompt="Choose name for new timeline"
+            )
 
         create_timeline(
             kind, self._timeline_collection, self._timeline_ui_collection, name

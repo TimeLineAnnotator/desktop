@@ -7,11 +7,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import tilia.ui.timelines.copy_paste
+from tilia.ui.common import ask_for_float
 from tilia.ui.timelines.copy_paste import paste_into_element
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event
 from tilia.misc_enums import Side, UpOrDown
-from tilia.timelines.state_actions import Action
 
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -407,6 +407,8 @@ class HierarchyTimelineUI(TimelineUI):
             RightClickOption.CHANGE_TIMELINE_NAME: self.right_click_menu_change_timeline_name,
             RightClickOption.INCREASE_LEVEL: self.right_click_menu_increase_level,
             RightClickOption.DECREASE_LEVEL: self.right_click_menu_decrease_level,
+            RightClickOption.ADD_PRE_START: self.right_click_menu_add_pre_start,
+            RightClickOption.ADD_POST_END: self.right_click_menu_add_post_end,
             RightClickOption.CREATE_UNIT_BELOW: self.right_click_menu_decrease_level,
             RightClickOption.EDIT: self.right_click_menu_edit,
             RightClickOption.CHANGE_COLOR: self.right_click_menu_change_color,
@@ -424,6 +426,26 @@ class HierarchyTimelineUI(TimelineUI):
 
     def right_click_menu_decrease_level(self) -> None:
         self.timeline.change_level(-1, [self.right_clicked_element.tl_component])
+
+    def right_click_menu_add_pre_start(self) -> None:
+        component = self.right_clicked_element.tl_component
+        pre_start_length = ask_for_float(
+            "Add pre-start", "How many seconds before start?"
+        )
+        if pre_start_length is None:
+            return
+        component.pre_start = component.start - pre_start_length
+        self.select_element(self.right_clicked_element)
+        self.right_clicked_element.update_pre_start_position()
+
+    def right_click_menu_add_post_end(self) -> None:
+        component = self.right_clicked_element.tl_component
+        post_end_length = ask_for_float("Add post-end", "How many seconds after end?")
+        if post_end_length is None:
+            return
+        component.post_end = component.end + post_end_length
+        self.select_element(self.right_clicked_element)
+        self.right_clicked_element.update_post_end_position()
 
     def right_click_menu_edit(self) -> None:
         self.deselect_all_elements()
@@ -470,7 +492,7 @@ class HierarchyTimelineUI(TimelineUI):
             end_time=self.right_clicked_element.tl_component.end,
         )
 
-    def get_previous_marker_x_by_x(self, x: int) -> None | int:
+    def get_previous_marker_x_by_x(self, x: float) -> None | int:
         all_marker_xs = self.get_all_elements_boundaries()
         earlier_marker_xs = [x_ for x_ in all_marker_xs if x_ < x]
 
@@ -479,7 +501,7 @@ class HierarchyTimelineUI(TimelineUI):
         else:
             return None
 
-    def get_next_marker_x_by_x(self, x: int) -> None | int:
+    def get_next_marker_x_by_x(self, x: float) -> None | int:
         all_marker_xs = self.get_all_elements_boundaries()
         later_marker_xs = [x_ for x_ in all_marker_xs if x_ > x]
 

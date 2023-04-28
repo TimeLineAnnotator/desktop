@@ -116,6 +116,32 @@ class TestHierarchyTimelineUI:
 
         assert hrc1.ui.color == hrc1.ui.get_default_level_color(hrc1.level)
 
+    @patch("tilia.ui.timelines.hierarchy.timeline.ask_for_float")
+    def test_right_click_add_pre_start(self, ask_for_float_mock, hierarchy_tlui):
+
+        ask_for_float_mock.return_value = 0.1
+
+        hrc1 = hierarchy_tlui.create_hierarchy(0.1, 1, 1)
+
+        hierarchy_tlui.right_clicked_element = hrc1.ui
+
+        hierarchy_tlui.right_click_menu_add_pre_start()
+
+        assert hrc1.ui.pre_start != hrc1.ui.start
+
+    @patch("tilia.ui.timelines.hierarchy.timeline.ask_for_float")
+    def test_right_click_add_post_end(self, ask_for_float_mock, hierarchy_tlui):
+
+        ask_for_float_mock.return_value = 0.1
+
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 0, 1)
+
+        hierarchy_tlui.right_clicked_element = hrc1.ui
+
+        hierarchy_tlui.right_click_menu_add_post_end()
+
+        assert hrc1.ui.post_end != hrc1.ui.end
+
     def test_rearrange_elements_two_levels(self, hierarchy_tlui):
         unit2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
         unit3 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)

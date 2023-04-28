@@ -18,10 +18,12 @@ def hex_to_rgb(value):
 
 
 def shade_rgb_color(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
-    """Returns shaded color as hex, takes an rgb tuple as argument"""
 
     shade_factor = 0.2
-    return tuple(int(color * (1 - shade_factor)) for color in rgb)
+    r = int(rgb[0] * (1 - shade_factor))
+    g = int(rgb[1] * (1 - shade_factor))
+    b = int(rgb[2] * (1 - shade_factor))
+    return r, g, b
 
 
 def hex_to_shaded_hex(rgb):

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import itertools
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
@@ -37,18 +37,19 @@ class BeatTimeline(Timeline):
 
     KIND = TimelineKind.BEAT_TIMELINE
     DISPLAY_MEASURE_NUMBER_PERIOD = settings.get(
-        "beat_timeline",
-        "display_measure_periodicity"
+        "beat_timeline", "display_measure_periodicity"
     )
+
+    component_manager: BeatTLComponentManager
 
     def __init__(
         self,
         collection: TimelineCollection,
         component_manager: BeatTLComponentManager,
-        beat_pattern: int | list[int],
-        beats_in_measure: list[int] = None,
-        measure_numbers: list[int] = None,
-        measures_to_force_number_display: list[int] = None,
+        beat_pattern: list[int],
+        beats_in_measure: Optional[list[int]] = None,
+        measure_numbers: Optional[list[int]] = None,
+        measures_to_force_number_display: Optional[list[int]] = None,
         **kwargs,
     ):
         super().__init__(
@@ -56,15 +57,10 @@ class BeatTimeline(Timeline):
         )
 
         self.beat_pattern = beat_pattern
-        self.beats_in_measure = [] if not beats_in_measure else beats_in_measure
-        self.measure_numbers = [] if not measure_numbers else measure_numbers
+        self.beats_in_measure = beats_in_measure or []
+        self.measure_numbers = measure_numbers or []
         self.update_beats_that_start_measures()
-        self.measures_to_force_display = (
-            []
-            if not measures_to_force_number_display
-            else measures_to_force_number_display
-        )
-
+        self.measures_to_force_display = measures_to_force_number_display or []
 
     @property
     def display_measure_number_bool_array(self):
@@ -84,10 +80,10 @@ class BeatTimeline(Timeline):
 
     def restore_state(self, state: dict):
         super().restore_state(state)
-        self.beat_pattern = state['beat_pattern'].copy()
-        self.beats_in_measure = state['beats_in_measure'].copy()
-        self.measure_numbers = state['measure_numbers'].copy()
-        self.measures_to_force_display = state['measures_to_force_display'].copy()
+        self.beat_pattern = state["beat_pattern"].copy()
+        self.beats_in_measure = state["beats_in_measure"].copy()
+        self.measure_numbers = state["measure_numbers"].copy()
+        self.measures_to_force_display = state["measures_to_force_display"].copy()
         self.recalculate_measures()
 
     def recalculate_measures(self):
@@ -245,7 +241,7 @@ class BeatTimeline(Timeline):
         return self.component_manager.ordered_beats.index(beat)
 
     def propagate_measure_number_change(self, start_index: int):
-        for j, measure in enumerate(self.measure_numbers[start_index + 1:]):
+        for j, measure in enumerate(self.measure_numbers[start_index + 1 :]):
             propagate_index = j + start_index + 1
             if propagate_index in self.measures_to_force_display:
                 break
@@ -299,6 +295,8 @@ class BeatTimeline(Timeline):
 class BeatTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.BEAT]
 
+    timeline: Optional[BeatTimeline]
+
     @log_object_creation
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
@@ -319,7 +317,9 @@ class BeatTLComponentManager(TimelineComponentManager):
                 "Can not create beat.\n"
                 f"There is already a beat on '{self.timeline}' at the selected time.",
             )
-            raise ValueError(f"Can't create beat. There's already a beat one {self} at {time}")
+            raise ValueError(
+                f"Can't create beat. There's already a beat one {self} at {time}"
+            )
 
     def update_beat_uis(self):
         beats = self.ordered_beats.copy()
@@ -337,13 +337,19 @@ class BeatTLComponentManager(TimelineComponentManager):
                 beat.ui.label = ""
 
     def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
+
+        if self.timeline is None:
+            raise ValueError("self.timeline is None.")
+
         beats = self.ordered_beats.copy()
         measure_start = self.timeline.beats_that_start_measures[measure_index]
         measure_end = self.timeline.beats_that_start_measures[measure_index + 1]
-
         return beats[measure_start:measure_end]
 
     def distribute_beats(self, measure_index: int) -> None:
+
+        if self.timeline is None:
+            raise ValueError("self.timeline is None.")
 
         if measure_index == self.timeline.measure_count - 1:
             prompt = "Can't distribute measures on last measure."

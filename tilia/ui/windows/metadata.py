@@ -46,7 +46,7 @@ class MediaMetadataWindow:
         parent: tk.Tk,
         media_metadata: OrderedDict,
         non_editable_fields: OrderedDict,
-        fields_to_formatters: dict[str, Callable[[str], str]] = None,
+        fields_to_formatters: dict[str, Callable[[str], str]] | None = None,
     ):
 
         self.mf_window = None
@@ -71,14 +71,16 @@ class MediaMetadataWindow:
 
         events.post(Event.METADATA_WINDOW_OPENED)
 
-    def make_editable_row(self, label: str, value: Any) -> tuple[tk.Label, tk.Entry, tk.StringVar]:
+    def make_editable_row(
+        self, label: str, value: Any
+    ) -> tuple[tk.Label, tk.Entry, tk.StringVar]:
         entry = tk.Entry(self.toplevel)
         entry.str_var = tk.StringVar()
         entry.config(textvariable=entry.str_var)
         entry.insert(0, value)
         entry.str_var.trace_add("write", self.on_entry_edited)
 
-        label = tk.Label(self.toplevel, text=label + ':')
+        label = tk.Label(self.toplevel, text=label + ":")
 
         return label, entry, entry.str_var
 
@@ -90,7 +92,6 @@ class MediaMetadataWindow:
         text_widget.config(state="disabled", font=("Arial", 9), bg="#F0F0F0")
 
         return label, text_widget
-
 
     def grid_row(self, left_widget: tk.Widget, right_widget: tk.Widget) -> None:
         left_widget.grid(row=self.row_count, column=0, sticky=tk.W)
@@ -118,7 +119,9 @@ class MediaMetadataWindow:
             elif field_name in self.fields_to_formatters:
                 value = self.fields_to_formatters[field_name](value)
 
-            label, entry, str_var = self.make_editable_row(field_name.capitalize(), value)
+            label, entry, str_var = self.make_editable_row(
+                field_name.capitalize(), value
+            )
 
             self.grid_row(label, entry)
             self.update_dicts(field_name, entry, str_var)
@@ -129,7 +132,9 @@ class MediaMetadataWindow:
             if field_name in self.fields_to_formatters:
                 value = self.fields_to_formatters[field_name](value)
 
-            label, text_widget = self.make_non_editable_row(field_name.capitalize(), value)
+            label, text_widget = self.make_non_editable_row(
+                field_name.capitalize(), value
+            )
             self.grid_row(label, text_widget)
 
             self.fieldnames_to_widgets[field_name] = text_widget
@@ -159,22 +164,23 @@ class MediaMetadataWindow:
             pady=(10, 5),
         )
 
-
     def on_edit_metadata_fields_button(self):
         logger.debug(f"User requested to open edit metadata fields window.")
         if self.mf_window:
             logger.debug(f"Window is already open.")
             return
 
-        self.mf_window = EditMetadataFieldsWindow(self, self.toplevel, list(self._metadata))
+        self.mf_window = EditMetadataFieldsWindow(
+            self, self.toplevel, list(self._metadata)
+        )
         self.mf_window.wait_window()
         self.refresh_fields()
         self.mf_window = None
 
     def on_metadata_edited(self, field_name: str, value: str | float) -> None:
-        if field_name == 'notes':
+        if field_name == "notes":
             logger.debug(f"Updating metadata value on {self}")
-            self._metadata['notes'] = value
+            self._metadata["notes"] = value
 
     def on_notes_button(self):
         logger.debug(f"User requested to open notes window.")

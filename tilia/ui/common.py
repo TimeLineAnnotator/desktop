@@ -4,6 +4,7 @@ import tkinter.colorchooser
 import tkinter.messagebox
 import tkinter.simpledialog
 import tkinter.filedialog
+from typing import Optional
 
 
 class LabelAndEntry(tk.Frame):
@@ -35,8 +36,16 @@ def ask_for_string(title: str, prompt: str, initialvalue: str) -> str | None:
     return tk.simpledialog.askstring(title, prompt, initialvalue=initialvalue)
 
 
-def ask_for_int(title: str, prompt: str, initialvalue: int = "") -> int | None:
+def ask_for_int(
+    title: str, prompt: str, initialvalue: Optional[int] = None
+) -> int | None:
     return tk.simpledialog.askinteger(title, prompt, initialvalue=initialvalue)
+
+
+def ask_for_float(
+    title: str, prompt: str, initialvalue: Optional[float] = None
+) -> float | None:
+    return tk.simpledialog.askfloat(title, prompt, initialvalue=initialvalue)
 
 
 def ask_yes_no(title: str, prompt: str) -> bool:
@@ -60,6 +69,4 @@ def destroy_children_recursively(widget: tk.Widget | tk.Toplevel) -> None:
 
 
 def format_media_time(audio_time: float | str) -> str:
-    return (
-        f"""{str(int(audio_time // 60)).zfill(2)}:{f'{audio_time % 60:.1f}'.zfill(4)}"""
-    )
+    return f"""{str(int(float(audio_time) // 60)).zfill(2)}:{f'{audio_time % 60:.1f}'.zfill(4)}"""

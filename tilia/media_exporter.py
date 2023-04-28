@@ -14,5 +14,5 @@ def export_audio_segment(
     segment = pydub.AudioSegment.from_file(audio_path)
     requested_section = segment[start_time * 1000 : end_time * 1000]
 
-    path = Path(dir, f"{file_title}_{segment_name}").with_suffix('.ogg')
+    path = Path(dir, f"{file_title}_{segment_name}").with_suffix(".ogg")
     requested_section.export(path, format="ogg")

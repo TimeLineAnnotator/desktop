@@ -77,17 +77,17 @@ class TkinterUIMenus(tk.Menu):
         def get_add_timeline_options():
             options = []
             for kind in USER_CREATABLE_TIMELINE_KINDS:
-                label = kind.value[:-len('_TIMELINE')].capitalize()
-                command = lambda kind_=kind: events.post(Event.REQUEST_ADD_TIMELINE, kind_)
+                label = kind.value[: -len("_TIMELINE")].capitalize()
+                command = lambda kind_=kind: events.post(
+                    Event.REQUEST_ADD_TIMELINE, kind_
+                )
                 options.append((label, command))
 
             return options
 
         for label, command in get_add_timeline_options():
             timelines_menu.add_timelines.add_command(
-                label=label,
-                command=command,
-                underline=0
+                label=label, command=command, underline=0
             )
 
         timelines_menu.add_cascade(
@@ -112,9 +112,7 @@ class TkinterUIMenus(tk.Menu):
         view_menu = tk.Menu(self, tearoff=0)
         self.add_cascade(label="View", menu=view_menu, underline=0)
         view_window_menu = tk.Menu(view_menu, tearoff=0)
-        view_menu.add_cascade(
-            label="Window", menu=view_window_menu, underline=0
-        )
+        view_menu.add_cascade(label="Window", menu=view_window_menu, underline=0)
         view_window_menu.add_command(
             label="Inspect",
             command=lambda: events.post(Event.UI_REQUEST_WINDOW_INSPECTOR),

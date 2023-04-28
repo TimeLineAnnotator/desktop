@@ -77,7 +77,7 @@ TLOBJS_SEARCH_VALIDATORS = {
 FILE_SEARCH_VALIDATORS = {str: lambda: True}
 
 # tuple of the form (operator, negate, inclusive)
-OPERATORS_TO_PARAMS: dict[str : tuple[str, Optional[bool]]] = {
+OPERATORS_TO_PARAMS: dict[str, tuple[str, Optional[bool]]] = {
     "<": ("SMALLER", False, False),
     "<=": ("SMALLER", False, True),
     ">": ("GREATER", False, False),

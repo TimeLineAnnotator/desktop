@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Any, TYPE_CHECKING
 
+from tilia.clipboard import ClipboardContents
 from tilia.ui.canvas_tags import TRANSPARENT
 
 if TYPE_CHECKING:
@@ -407,7 +408,7 @@ class TimelineUICollection:
             timeline_ui.toolbar.process_visiblity_change(True)
 
     @staticmethod
-    def get_timeline_ui_class_from_kind(kind: TlKind) -> type(TimelineUI):
+    def get_timeline_ui_class_from_kind(kind: TlKind) -> type[TimelineUI]:
         from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
         from tilia.ui.timelines.slider import SliderTimelineUI
         from tilia.ui.timelines.marker import MarkerTimelineUI
@@ -444,7 +445,7 @@ class TimelineUICollection:
         return {type(toolbar) for toolbar in self._toolbars}
 
     def get_toolbar_for_timeline_ui(
-        self, toolbar_type: type(TimelineToolbar)
+        self, toolbar_type: type[TimelineToolbar]
     ) -> TimelineToolbar | None:
 
         if not toolbar_type:
@@ -463,7 +464,7 @@ class TimelineUICollection:
 
             return new_toolbar
 
-    def _get_toolbar_from_toolbars_by_type(self, type_: type(TimelineToolbar)):
+    def _get_toolbar_from_toolbars_by_type(self, type_: type[TimelineToolbar]):
         return next(
             iter(toolbar for toolbar in self._toolbars if type(toolbar) == type_)
         )
@@ -497,13 +498,11 @@ class TimelineUICollection:
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about right click."
             )
-            clicked_timeline_ui.on_click(
+            clicked_timeline_ui.on_right_click(
                 x,
                 y,
                 clicked_item_id,
-                button=Side.RIGHT,
                 modifier=modifier,
-                double=double,
                 root_x=root_x,
                 root_y=root_y,
             )
@@ -514,10 +513,18 @@ class TimelineUICollection:
 
     def ask_beat_pattern(self) -> list[int] | None:
         result = AskBeatPattern.ask(self._app_ui.root)
-        if result:
-            return result
-        else:
+
+        if result is False:
             return None
+        elif len(result) == 0:
+            events.post(
+                Event.REQUEST_DISPLAY_ERROR,
+                "Insert beat pattern",
+                "Beat pattern must be one or more numbers.",
+            )
+            return self.ask_beat_pattern()
+        else:
+            return result
 
     def _on_timeline_ui_left_click(
         self,
@@ -532,20 +539,15 @@ class TimelineUICollection:
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
 
         if modifier == ModifierEnum.NONE:
-            self.deselect_all_elements_in_timeline_uis()
+            self.deselect_all_elements_in_timeline_uis(excluding=clicked_timeline_ui)
 
         if clicked_timeline_ui is not None:
             self._send_to_top_of_select_order(clicked_timeline_ui)
             logger.debug(
                 f"Notifying timeline ui '{clicked_timeline_ui}' about left click."
             )
-            clicked_timeline_ui.on_click(
-                x,
-                y,
-                clicked_item_id,
-                button=Side.LEFT,
-                modifier=modifier,
-                double=double,
+            clicked_timeline_ui.on_left_click(
+                clicked_item_id, modifier=modifier, double=double
             )
 
             if not self.element_is_being_dragged:
@@ -658,9 +660,7 @@ class TimelineUICollection:
         except IndexError:
             return
 
-        was_selected = timeline_ui.select_element_if_appropriate(
-            element, canvas_item_id
-        )
+        was_selected = timeline_ui.select_element_if_selectable(element, canvas_item_id)
 
         # track selection triggers under selection box
         if was_selected:
@@ -743,7 +743,7 @@ class TimelineUICollection:
             },
         )
 
-    def get_elements_for_pasting(self) -> dict[str : dict | TlKind]:
+    def get_elements_for_pasting(self) -> ClipboardContents:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
 
         if not clipboard_elements:
@@ -1022,8 +1022,10 @@ class TimelineUICollection:
 
         self.timeline_width = width
 
-    def deselect_all_elements_in_timeline_uis(self):
+    def deselect_all_elements_in_timeline_uis(self, excluding: TimelineUI):
         for timeline_ui in self:
+            if timeline_ui == excluding:
+                continue
             timeline_ui.deselect_all_elements()
 
         self.selection_box_elements_to_selected_triggers = {}
@@ -1151,7 +1153,7 @@ def draw_playback_line(timeline_ui: TimelineUI, initial_time: float) -> int:
         0,
         timeline_ui.get_x_by_time(initial_time),
         timeline_ui.height,
-        dash=(3, 3),
+        dash=(2, 2),  # my windows only supports two dash patterns
         fill="black",
         tags=(TRANSPARENT,),
     )

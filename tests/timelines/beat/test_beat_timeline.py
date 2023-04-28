@@ -34,6 +34,19 @@ def beat_tl():
 
 
 class TestBeatTimeline:
+    def test_default_arguments(self):
+        beat_tl = BeatTimeline(
+            DummyTimelineCollection(),
+            component_manager=BeatTLComponentManager(),
+            beat_pattern=[1],
+        )
+
+        assert beat_tl.beats_in_measure == []
+        assert beat_tl.measure_numbers == []
+        assert beat_tl.measures_to_force_display == []
+
+        beat_tl.delete()
+
     def test_get_extension_mult_of_bp_without_beats_in_measure(self, beat_tl):
         beat_tl.beat_pattern = [4, 3, 2]
         assert beat_tl._get_beats_in_measure_extension(9) == [4, 3, 2]

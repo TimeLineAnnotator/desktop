@@ -58,6 +58,16 @@ def test_create_autosaves_dir():
     shutil.rmtree(test_dir)
 
 
+def test_create_temp_dir():
+    test_dir = Path("site_dir")
+    Path.mkdir(test_dir)
+    dirs.create_temp_dir(test_dir)
+
+    assert os.path.exists(Path(test_dir, ".temp"))
+
+    shutil.rmtree(test_dir)
+
+
 def os_path_exists_site_data(path: Path) -> bool:
     if path == dirs.SITE_DATA_DIR:
         return True
