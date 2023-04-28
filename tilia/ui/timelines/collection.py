@@ -407,7 +407,7 @@ class TimelineUICollection:
             timeline_ui.toolbar.process_visiblity_change(True)
 
     @staticmethod
-    def get_timeline_ui_class_from_kind(kind: TlKind) -> type(TimelineUI):
+    def get_timeline_ui_class_from_kind(kind: TlKind) -> type[TimelineUI]:
         from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
         from tilia.ui.timelines.slider import SliderTimelineUI
         from tilia.ui.timelines.marker import MarkerTimelineUI
@@ -444,7 +444,7 @@ class TimelineUICollection:
         return {type(toolbar) for toolbar in self._toolbars}
 
     def get_toolbar_for_timeline_ui(
-        self, toolbar_type: type(TimelineToolbar)
+        self, toolbar_type: type[TimelineToolbar]
     ) -> TimelineToolbar | None:
 
         if not toolbar_type:
@@ -463,7 +463,7 @@ class TimelineUICollection:
 
             return new_toolbar
 
-    def _get_toolbar_from_toolbars_by_type(self, type_: type(TimelineToolbar)):
+    def _get_toolbar_from_toolbars_by_type(self, type_: type[TimelineToolbar]):
         return next(
             iter(toolbar for toolbar in self._toolbars if type(toolbar) == type_)
         )
