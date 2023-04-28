@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Any, TYPE_CHECKING
 
+from tilia.clipboard import ClipboardContents
 from tilia.ui.canvas_tags import TRANSPARENT
 
 if TYPE_CHECKING:
@@ -734,7 +735,7 @@ class TimelineUICollection:
             },
         )
 
-    def get_elements_for_pasting(self) -> dict[str : dict | TlKind]:
+    def get_elements_for_pasting(self) -> ClipboardContents:
         clipboard_elements = self._app_ui.get_elements_for_pasting()
 
         if not clipboard_elements:
