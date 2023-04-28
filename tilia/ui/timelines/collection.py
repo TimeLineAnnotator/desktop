@@ -513,10 +513,18 @@ class TimelineUICollection:
 
     def ask_beat_pattern(self) -> list[int] | None:
         result = AskBeatPattern.ask(self._app_ui.root)
-        if result:
-            return result
-        else:
+
+        if result is False:
             return None
+        elif len(result) == 0:
+            events.post(
+                Event.REQUEST_DISPLAY_ERROR,
+                "Insert beat pattern",
+                "Beat pattern must be one or more numbers.",
+            )
+            return self.ask_beat_pattern()
+        else:
+            return result
 
     def _on_timeline_ui_left_click(
         self,

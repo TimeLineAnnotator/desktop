@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import scrolledtext
+from typing import Literal
 
 from tilia.ui.timelines.common import create_tool_tip
 
@@ -20,6 +21,7 @@ Examples:
         self.toplevel.focus_set()
 
         self.input_string = initial_value
+
         self.upper_frame = tk.Frame(self.toplevel)
         self.label = tk.Label(
             self.upper_frame,
@@ -33,6 +35,7 @@ Examples:
         self.confirm_button = tk.Button(
             self.toplevel, text="Confirm", command=self.confirm
         )
+        self.is_cancel = False
         self.cancel_button = tk.Button(
             self.toplevel, text="Cancel", command=self.cancel
         )
@@ -46,18 +49,21 @@ Examples:
         self.confirm_cancel_frame.pack()
 
     def confirm(self):
-        self.input_string = self.text.get(1.0, tk.END)
+        self.input_string = self.text.get(1.0, tk.END).strip()
         self.toplevel.destroy()
 
     def cancel(self):
+        self.is_cancel = True
         self.input_string = ""
         self.toplevel.destroy()
 
     @classmethod
-    def ask(cls, parent: tk.Tk, initial_value="") -> list[int]:
+    def ask(cls, parent: tk.Tk, initial_value="") -> list[int] | Literal[False]:
         """Asks user for beats per measure pattern"""
         instance = AskBeatPattern(parent, initial_value=initial_value)
         instance.toplevel.wait_window()
+        if instance.is_cancel:
+            return False
         beats_per_measure = instance.input_string
         beats_per_measure = beats_per_measure.split()
         beats_per_measure = [int(m) for m in beats_per_measure]

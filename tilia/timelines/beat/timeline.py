@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import itertools
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
@@ -44,10 +44,10 @@ class BeatTimeline(Timeline):
         self,
         collection: TimelineCollection,
         component_manager: BeatTLComponentManager,
-        beat_pattern: int | list[int],
-        beats_in_measure: list[int] = None,
-        measure_numbers: list[int] = None,
-        measures_to_force_number_display: list[int] = None,
+        beat_pattern: list[int],
+        beats_in_measure: Optional[list[int]] = None,
+        measure_numbers: Optional[list[int]] = None,
+        measures_to_force_number_display: Optional[list[int]] = None,
         **kwargs,
     ):
         super().__init__(
@@ -55,14 +55,10 @@ class BeatTimeline(Timeline):
         )
 
         self.beat_pattern = beat_pattern
-        self.beats_in_measure = [] if not beats_in_measure else beats_in_measure
-        self.measure_numbers = [] if not measure_numbers else measure_numbers
+        self.beats_in_measure = beats_in_measure or []
+        self.measure_numbers = measure_numbers or []
         self.update_beats_that_start_measures()
-        self.measures_to_force_display = (
-            []
-            if not measures_to_force_number_display
-            else measures_to_force_number_display
-        )
+        self.measures_to_force_display = measures_to_force_number_display or []
 
     @property
     def display_measure_number_bool_array(self):
