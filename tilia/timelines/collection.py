@@ -135,7 +135,7 @@ class TimelineCollection:
         logger.debug(f"Serializing all timelines...")
         return {tl.id: tl.get_state() for tl in self}
 
-    def restore_state(self, timeline_states: dict[dict]) -> None:
+    def restore_state(self, timeline_states: dict[str, dict]) -> None:
         def _delete_timeline_ui_with_workaround(timeline):
             timeline_delete_func = timeline.ui.delete
             timeline.ui.delete = timeline.ui.delete_workaround_with_grid_forget
