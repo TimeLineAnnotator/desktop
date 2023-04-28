@@ -37,7 +37,7 @@ class FileManager:
         "media_path",
     ]
 
-    def __init__(self, app: TiLiA, file: TiliaFile = None):
+    def __init__(self, app: TiLiA, file: TiliaFile | None = None):
         subscribe(self, Event.PLAYER_MEDIA_LOADED, self.on_media_loaded)
         subscribe(self, Event.FILE_REQUEST_TO_SAVE, self.save)
         subscribe(self, Event.FILE_REQUEST_TO_OPEN, self.open)

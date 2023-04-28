@@ -255,8 +255,8 @@ class TimelineUI(ABC):
         y: int,
         item_id: int,
         modifier: ModifierEnum,
-        root_x: int = None,
-        root_y: int = None,
+        root_x: int | None = None,
+        root_y: int | None = None,
     ) -> None:
 
         logger.debug(f"Processing click on {self}...")
@@ -415,7 +415,7 @@ class TimelineUI(ABC):
 
             events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
-    def deselect_all_elements(self, excluding: list[TimelineUIElement] = None):
+    def deselect_all_elements(self, excluding: list[TimelineUIElement] | None = None):
         if excluding is None:
             excluding = []
 

@@ -46,7 +46,7 @@ class MediaMetadataWindow:
         parent: tk.Tk,
         media_metadata: OrderedDict,
         non_editable_fields: OrderedDict,
-        fields_to_formatters: dict[str, Callable[[str], str]] = None,
+        fields_to_formatters: dict[str, Callable[[str], str]] | None = None,
     ):
 
         self.mf_window = None
