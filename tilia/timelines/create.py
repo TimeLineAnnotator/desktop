@@ -1,4 +1,9 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from tilia.timelines.common import TimelineComponent
 
 from tilia.timelines.collection import TimelineCollection
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -10,7 +15,7 @@ def create_timeline(
     timeline_collection: TimelineCollection,
     timeline_ui_collection: TimelineUICollection,
     name: str = "",
-    components: dict[int] = None,
+    components: dict[int, TimelineComponent] = None,
     **kwargs,
 ):
     _validate_timeline_kind(timeline_kind)
