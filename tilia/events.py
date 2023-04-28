@@ -131,8 +131,8 @@ class Event(Enum):
     UI_REQUEST_WINDOW_METADATA = auto()
 
 
-events_to_subscribers = {}
-subscribers_to_events = {}
+events_to_subscribers: dict[Event, Any] = {}
+subscribers_to_events: dict[Any, list[Event]] = {}
 
 for event in Event:
     events_to_subscribers[event] = {}
