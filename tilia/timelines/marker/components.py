@@ -12,7 +12,7 @@ from tilia.timelines.component_kinds import ComponentKind
 if TYPE_CHECKING:
     from tilia.timelines.marker.timeline import MarkerTimeline
 
-from tilia.exceptions import AppException
+from tilia.exceptions import TiliaException
 
 from tilia.timelines.common import (
     TimelineComponent,
@@ -74,5 +74,5 @@ class Marker(TimelineComponent):
         return f"Marker({self.time})"
 
 
-class MarkerOperationError(AppException):
+class MarkerOperationError(TiliaException):
     pass

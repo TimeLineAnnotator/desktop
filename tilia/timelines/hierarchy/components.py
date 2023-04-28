@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 import tkinter as tk
 
-from tilia.exceptions import AppException
+from tilia.exceptions import TiliaException
 
 from tilia.timelines.common import (
     TimelineComponent,
@@ -153,5 +153,5 @@ class Hierarchy(TimelineComponent):
         return repr_
 
 
-class HierarchyOperationError(AppException):
+class HierarchyOperationError(TiliaException):
     pass

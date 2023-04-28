@@ -12,7 +12,7 @@ from tilia.timelines.component_kinds import ComponentKind
 if TYPE_CHECKING:
     from tilia.timelines.beat.timeline import BeatTimeline
 
-from tilia.exceptions import AppException
+from tilia.exceptions import TiliaException
 
 from tilia.timelines.common import (
     TimelineComponent,
@@ -74,5 +74,5 @@ class Beat(TimelineComponent):
         return f"Beat({self.time})"
 
 
-class BeatOperationError(AppException):
+class BeatOperationError(TiliaException):
     pass

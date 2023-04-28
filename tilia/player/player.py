@@ -29,7 +29,7 @@ import pygame
 import tilia.globals_ as globals_
 import tilia.events as events
 from tilia.events import Event, subscribe
-from tilia.exceptions import AppException
+from tilia.exceptions import TiliaException
 
 try:
     import vlc
@@ -38,15 +38,15 @@ except OSError:
     pass
 
 
-class MediaLoadError(AppException):
+class MediaLoadError(TiliaException):
     pass
 
 
-class NoMediaLoadedError(AppException):
+class NoMediaLoadedError(TiliaException):
     pass
 
 
-class VLCNotInstalledError(AppException):
+class VLCNotInstalledError(TiliaException):
     pass
 
 

@@ -6,7 +6,7 @@ from typing import Any, Protocol, runtime_checkable, TYPE_CHECKING
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineUIElement
 
-from tilia.exceptions import AppException
+from tilia.exceptions import TiliaException
 from tilia.timelines.common import TimelineComponent
 
 import logging
@@ -15,11 +15,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class CopyError(AppException):
+class CopyError(TiliaException):
     pass
 
 
-class PasteError(AppException):
+class PasteError(TiliaException):
     pass
 
 
