@@ -94,7 +94,7 @@ class Inspect:
 
     def on_timeline_component_selected(
         self,
-        element_class: type(TimelineComponent),
+        element_class: type[TimelineComponent],
         inspector_fields: tuple[str, str],
         inspector_values: dict[str, str],
         element_id: str,
@@ -112,7 +112,7 @@ class Inspect:
 
     def update_frame(
         self,
-        element_class: type(TimelineComponent),
+        element_class: type[TimelineComponent],
         inspector_fields: tuple[str, str],
     ):
         if element_class != self.currently_inspected_class:

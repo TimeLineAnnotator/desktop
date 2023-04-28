@@ -121,7 +121,7 @@ class TimelineComponentManager:
 
     def _get_component_class_by_kind(
         self, kind: ComponentKind
-    ) -> type(TimelineComponent):
+    ) -> type[TimelineComponent]:
         self._validate_component_kind(kind)
         return get_component_class_by_kind(kind)
 
