@@ -45,7 +45,7 @@ class Inspectable(Protocol):
     INSPECTOR_FIELDS: list[tuple[str, str]]
     FIELD_NAMES_TO_ATTRIBUTES: dict[str, str]
 
-    def get_inspector_dict(self) -> dict[str:Any]:
+    def get_inspector_dict(self) -> dict[str, Any]:
         ...
 
 
@@ -137,8 +137,8 @@ class TimelineUI(ABC):
         *args,
         timeline_ui_collection: TimelineUICollection,
         timeline_ui_element_manager: TimelineUIElementManager,
-        component_kinds_to_classes: dict[UIElementKind : type(TimelineUIElement)],
-        component_kinds_to_ui_element_kinds: dict[ComponentKind:UIElementKind],
+        component_kinds_to_classes: dict[UIElementKind, type[TimelineUIElement]],
+        component_kinds_to_ui_element_kinds: dict[ComponentKind, UIElementKind],
         canvas: TimelineCanvas,
         toolbar: TimelineToolbar | None,
         name: str,
@@ -713,7 +713,7 @@ class TimelineUIElementManager:
 
     @log_object_creation
     def __init__(
-        self, element_kinds_to_classes: dict[UIElementKind : type(TimelineUIElement)]
+        self, element_kinds_to_classes: dict[UIElementKind, type[TimelineUIElement]]
     ):
 
         self._elements = set()
@@ -800,7 +800,7 @@ class TimelineUIElementManager:
 
     def _get_element_class_by_kind(
         self, kind: UIElementKind
-    ) -> type(SomeTimelineUIElement):
+    ) -> type[SomeTimelineUIElement]:
         self._validate_element_kind(kind)
         return self._element_kinds_to_classes[kind]
 
