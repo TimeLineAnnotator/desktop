@@ -337,7 +337,7 @@ class HierarchyUI(TimelineUIElement):
             self.color = self.get_default_level_color(new_level)
 
     @property
-    def canvas_drawings_ids(self) -> list[int, ..., int]:
+    def canvas_drawings_ids(self) -> list[int]:
         ids = [
             self.body_id,
             self.label_id,
@@ -644,7 +644,7 @@ class HierarchyUI(TimelineUIElement):
         return self.body_id, self.label_id, self.comments_ind_id
 
     @property
-    def left_click_triggers(self) -> list[int, ...]:
+    def left_click_triggers(self) -> list[int]:
         triggers = [self.start_marker, self.end_marker]
 
         if self.pre_start_ind_id:
