@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 
 from tilia import settings, local_dev_code, events, media_exporter, globals_, dirs
-from tilia.clipboard import Clipboard
+from tilia.clipboard import Clipboard, ClipboardContents
 from tilia.events import subscribe
 from tilia.events import Event as Evt
 from tilia.exceptions import UserCancelledSaveError
@@ -244,7 +244,7 @@ class TiLiA:
     def get_timelines_as_dict(self) -> dict:
         return self._timeline_collection.serialize_timelines()
 
-    def get_elements_for_pasting(self) -> dict[str : dict | TimelineKind]:
+    def get_elements_for_pasting(self) -> ClipboardContents:
         logger.debug(f"Getting clipboard contents for pasting...")
         elements = self._clipboard.get_contents_for_pasting()
         logger.debug(f"Got '{elements}'")
