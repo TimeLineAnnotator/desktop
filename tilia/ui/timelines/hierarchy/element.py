@@ -567,16 +567,6 @@ class HierarchyUI(TimelineUIElement):
         y1 = tl_height - self.YOFFSET
         return x0, y0, x1, y1
 
-    @log_object_deletion
-    def delete(self):
-        logger.debug(f"Deleting rectangle '{self.body_id}'")
-        self.canvas.delete(self.body_id)
-        logger.debug(f"Deleting label '{self.label_id}'")
-        self.canvas.delete(self.label_id)
-        logger.debug(f"Deleting comments indicator '{self.comments_ind_id}'")
-        self.canvas.delete(self.comments_ind_id)
-        self._delete_markers_if_not_shared()
-
     def get_body_coords(self):
         tl_height = self.timeline_ui.height
 
