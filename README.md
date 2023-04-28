@@ -54,7 +54,7 @@ Releases can be found on: https://timelineannotator.com/downloads.html
 
 ## Documentation
 
-Documentation is almost non-existent at this point. After more of the core features get implemented some work will be put into that.
+Slowly building up at https://tilia-ad98d.web.app/help/
 
 ## How to contribute
 
@@ -62,7 +62,7 @@ Read the CONTRIBUTING.md file at the root directory.
 
 ## Website
 
-A minimal website is at www.timelineannotator.com. In the near future it will feature more information, documentation and examples of TiLiA usage.
+A minimal website is at www.timelineannotator.com. A new and much improved is at https://tilia-ad98d.web.app/, still in the proof of concept stage.
 
 ## License
 
