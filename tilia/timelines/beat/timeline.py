@@ -40,6 +40,8 @@ class BeatTimeline(Timeline):
         "beat_timeline", "display_measure_periodicity"
     )
 
+    component_manager: BeatTLComponentManager
+
     def __init__(
         self,
         collection: TimelineCollection,
@@ -293,6 +295,8 @@ class BeatTimeline(Timeline):
 class BeatTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.BEAT]
 
+    timeline: Optional[BeatTimeline]
+
     @log_object_creation
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
@@ -333,13 +337,19 @@ class BeatTLComponentManager(TimelineComponentManager):
                 beat.ui.label = ""
 
     def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
+
+        if self.timeline is None:
+            raise ValueError("self.timeline is None.")
+
         beats = self.ordered_beats.copy()
         measure_start = self.timeline.beats_that_start_measures[measure_index]
         measure_end = self.timeline.beats_that_start_measures[measure_index + 1]
-
         return beats[measure_start:measure_end]
 
     def distribute_beats(self, measure_index: int) -> None:
+
+        if self.timeline is None:
+            raise ValueError("self.timeline is None.")
 
         if measure_index == self.timeline.measure_count - 1:
             prompt = "Can't distribute measures on last measure."

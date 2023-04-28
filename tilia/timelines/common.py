@@ -8,7 +8,7 @@ Contains the following interfaces, that should be implemented by specific timeli
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, TypeVar, Optional
 
 import tilia.repr
 import tilia.timelines.serialize
@@ -67,7 +67,7 @@ class TimelineComponentManager:
         self._components = set()
         self.component_kinds = component_kinds
 
-        self.timeline = None
+        self.timeline: Optional[Timeline] = None
 
     @property
     def component_count(self):
