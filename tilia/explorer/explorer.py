@@ -94,7 +94,7 @@ def get_measure_length(
     return MeasureLength(measure_part, beat_part)
 
 
-def get_start_measure_and_beat(unit: dict, measures: list) -> dict[str:int]:
+def get_start_measure_and_beat(unit: dict, measures: list) -> dict[str, int]:
     try:
         start_measure = [
             m for m in measures if m[1]["start"] <= unit["start"] < m[1]["end"]
@@ -136,7 +136,7 @@ def get_start_measure_and_beat(unit: dict, measures: list) -> dict[str:int]:
     return return_data
 
 
-def get_end_measure_and_beat(unit: dict, measures: list) -> dict[str:int]:
+def get_end_measure_and_beat(unit: dict, measures: list) -> dict[str, int]:
     try:
         end_measure = [
             m for m in measures if m[1]["start"] <= unit["end"] < m[1]["end"]

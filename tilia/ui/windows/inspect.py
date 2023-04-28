@@ -96,7 +96,7 @@ class Inspect:
         self,
         element_class: type(TimelineComponent),
         inspector_fields: tuple[str, str],
-        inspector_values: dict[str:str],
+        inspector_values: dict[str, str],
         element_id: str,
     ):
 
@@ -148,7 +148,7 @@ class Inspect:
             for _, (_, right_widget) in self.fieldname_to_widgets.items():
                 right_widget.config(state="disabled")
 
-    def update_values(self, field_values: dict[str:str], element_id: str):
+    def update_values(self, field_values: dict[str, str], element_id: str):
 
         self.element_id = element_id
         for field_name, value in field_values.items():

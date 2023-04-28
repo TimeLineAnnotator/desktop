@@ -67,7 +67,7 @@ def get_copy_data_from_element(element: Copyable, copy_attrs: CopyAttributes) ->
     return copy_data
 
 
-def paste_into_element(element: TimelineUIElement, paste_data: dict[str:Any]):
+def paste_into_element(element: TimelineUIElement, paste_data: dict[str, Any]):
 
     logger.debug(f"{element} is receiving paste...")
 
