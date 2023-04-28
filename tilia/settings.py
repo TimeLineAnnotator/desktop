@@ -1,6 +1,5 @@
 from pathlib import Path
 import tomlkit
-from tilia import dirs
 
 DEFAULT_SETTINGS = """
 [general]
