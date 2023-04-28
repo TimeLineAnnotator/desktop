@@ -27,7 +27,7 @@ from tilia.ui.tkinterui import TkinterUI
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
     dirs.setup_dirs()
     settings.load(dirs.settings_path)
 
