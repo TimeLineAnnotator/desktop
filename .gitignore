@@ -10,3 +10,4 @@
 /build/dist/
 /build/ffmpeg/ffmpeg.exe
 __pycache__/
+mypy.ini
