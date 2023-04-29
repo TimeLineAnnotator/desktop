@@ -7,7 +7,7 @@ from __future__ import annotations
 import tkinter as tk
 import logging
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ...windows.inspect import HIDE_FIELD
 

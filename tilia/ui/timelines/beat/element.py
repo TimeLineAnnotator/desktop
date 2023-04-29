@@ -47,7 +47,7 @@ class BeatUI(TimelineUIElement):
 
     INSPECTOR_FIELDS = [("Time", "label"), ("Measure", "label")]
 
-    FIELD_NAMES_TO_ATTRIBUTES = {}
+    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = {}
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         by_element_value=[],

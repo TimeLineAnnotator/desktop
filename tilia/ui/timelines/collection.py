@@ -18,7 +18,7 @@ from tilia.timelines.common import Timeline
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.modifier_enum import ModifierEnum
-from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar, SomeTimelineUI
+from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar
 from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
 from tilia.ui.timelines.copy_paste import CopyError, PasteError
 from tilia.ui.timelines.selection_box import SelectionBox
@@ -935,9 +935,7 @@ class TimelineUICollection:
     def get_timeline_uis_by_kind(self, kind: TlKind):
         return [tl for tl in self._timeline_uis if tl.TIMELINE_KIND == kind]
 
-    def _get_first_from_select_order_by_kind(
-        self, classes: list[TlKind]
-    ) -> SomeTimelineUI:
+    def _get_first_from_select_order_by_kind(self, classes: list[TlKind]) -> TimelineUI:
         for tl_ui in self._select_order:
             if tl_ui.TIMELINE_KIND in classes:
                 return tl_ui
