@@ -9,7 +9,7 @@ from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
 
-from tilia import settings, local_dev_code, events, media_exporter, globals_, dirs
+from tilia import settings, events, media_exporter, globals_, dirs
 from tilia.clipboard import Clipboard, ClipboardContents
 from tilia.events import subscribe
 from tilia.events import Event as Evt
@@ -61,7 +61,9 @@ class TiLiA:
         logger.info("TiLiA started.")
 
         if settings.get("dev", "dev_mode"):
-            local_dev_code.func(self)
+            from tilia import _dev
+
+            _dev.run(self)
 
     def __str__(self):
         return default_str(self)

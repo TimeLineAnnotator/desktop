@@ -10,4 +10,5 @@
 /build/dist/
 /build/ffmpeg/ffmpeg.exe
 __pycache__/
+tilia/_dev.py
 mypy.ini
