@@ -78,6 +78,30 @@ class BeatTimeline(Timeline):
     def beat_count(self):
         return self.component_manager.component_count
 
+    def get_time_by_measure(self, index: int, fraction: float = 0) -> int:
+        """
+        Given the measure index, returns the start time of the measure.
+        If fraction is supplied, sums that fraction of the measure's
+        length to the result.
+        """
+
+        if not self.measure_count:
+            raise ValueError("No beats in timeline. Can't get time.")
+
+        if index > self.measure_count - 1 or index < 0:
+            raise IndexError("No measure with index=" + str(index))
+
+        beat_number = self.beats_that_start_measures[index]
+        measure_time = self.component_manager.ordered_beats[beat_number].time
+
+        if index == self.measure_count - 1:
+            next_measure_time = measure_time
+        else:
+            beat_number = self.beats_that_start_measures[index + 1]
+            next_measure_time = self.component_manager.ordered_beats[beat_number].time
+
+        return measure_time + (next_measure_time - measure_time) * fraction
+
     def restore_state(self, state: dict):
         super().restore_state(state)
         self.beat_pattern = state["beat_pattern"].copy()
