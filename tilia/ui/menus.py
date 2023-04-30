@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from dataclasses import dataclass
+from enum import Enum, auto
 from typing import Optional, Any
 
 from tilia import events
@@ -40,17 +41,29 @@ def add_menu_commands(menu: tk.Menu, commands: list[CommandParams]) -> None:
             )
 
 
+class DynamicMenu(Enum):
+    MARKER_TIMELINE = auto()
+
+
 class TkinterUIMenus(tk.Menu):
     def __init__(self):
         super().__init__()
-        self.setup_menus()
+        self.file_menu = self.setup_file_menu()
+        self.edit_menu = self.setup_edit_menu()
+        self.timelines_menu = self.setup_timelines_menu()
+        self.view_menu = self.setup_view_menu()
+        self.help_menu = self.setup_help_menu()
 
-    def setup_menus(self):
-        self.setup_file_menu()
-        self.setup_edit_menu()
-        self.setup_timelines_menu()
-        self.setup_view_menu()
-        self.setup_help_menu()
+        self.dynamic_menus: list[DynamicMenu] = []
+
+        self.menu_to_attr = {DynamicMenu.MARKER_TIMELINE: self.timelines_menu.marker}
+
+    def update_dynamic_menus(self, menus_to_display: list[DynamicMenu]) -> None:
+        for menu, attr in self.menu_to_attr.items():
+            if menu in menus_to_display:
+                self.timelines_menu.configure(state="normal")
+            else:
+                self.timelines_menu.configure(state="disabled")
 
     def setup_file_menu(self):
         commands = [
@@ -81,10 +94,12 @@ class TkinterUIMenus(tk.Menu):
         ]
 
         # FILE MENU
-        file_menu = tk.Menu(self, tearoff=0)
-        add_menu_commands(file_menu, commands)
+        menu = tk.Menu(self, tearoff=0)
+        add_menu_commands(menu, commands)
 
-        self.add_cascade(label="File", menu=file_menu, underline=0)
+        self.add_cascade(label="File", menu=menu, underline=0)
+
+        return menu
 
     def setup_edit_menu(self):
         commands = [
@@ -107,6 +122,8 @@ class TkinterUIMenus(tk.Menu):
 
         self.add_cascade(label="Edit", menu=menu, underline=0)
 
+        return menu
+
     def setup_timelines_menu(self):
         commands = [
             CommandParams(
@@ -124,8 +141,9 @@ class TkinterUIMenus(tk.Menu):
         ]
 
         menu = tk.Menu(self, tearoff=0)
+
+        ## ADD TIMELINE MENU
         menu.add_timelines = tk.Menu(menu, tearoff=0)
-        menu.add_cascade(label="Add...", menu=menu.add_timelines, underline=0)
 
         def get_add_timeline_options():
             options = []
@@ -141,9 +159,28 @@ class TkinterUIMenus(tk.Menu):
         for label, command in get_add_timeline_options():
             menu.add_timelines.add_command(label=label, command=command, underline=0)
 
+        menu.add_cascade(label="Add...", menu=menu.add_timelines, underline=0)
+
+        # ADD REMAINING COMMANDS
         add_menu_commands(menu, commands)
 
+        ## ADD MARKER MENU
+        menu.marker = tk.Menu(menu, tearoff=0)
+        marker_commands = [
+            CommandParams(
+                "Import from csv...",
+                Event.REQUEST_IMPORT_FROM_CSV,
+                {"underline": 0},
+                {},
+            )
+        ]
+
+        add_menu_commands(menu.marker, marker_commands)
+        menu.add_cascade(label="Marker", menu=menu.marker, underline=0)
+
         self.add_cascade(label="Timelines", menu=menu, underline=0)
+
+        return menu
 
     def setup_view_menu(self):
         commands = [
@@ -178,6 +215,8 @@ class TkinterUIMenus(tk.Menu):
 
         self.add_cascade(label="View", menu=menu, underline=0)
 
+        return menu
+
     def setup_help_menu(self):
         commands = [
             CommandParams(
@@ -195,3 +234,5 @@ class TkinterUIMenus(tk.Menu):
         add_menu_commands(menu, commands)
 
         self.add_cascade(label="Help", menu=menu, underline=0)
+
+        return menu

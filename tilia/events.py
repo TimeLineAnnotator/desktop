@@ -89,6 +89,7 @@ class Event(Enum):
     REQUEST_DISPLAY_ERROR = auto()
     REQUEST_EXPORT_AUDIO_SEGMENT = auto()
     REQUEST_FOCUS_TIMELINES = auto()
+    REQUEST_IMPORT_FROM_CSV = auto()
     REQUEST_LOAD_MEDIA = auto()
     REQUEST_MERGE = auto()
     REQUEST_NEW_FILE = auto()
@@ -141,7 +142,6 @@ log_events = settings.get("dev", "log_events")
 
 
 def post(event: Event, *args, logging_level=10, **kwargs) -> None:
-
     if log_events:
         logger.log(
             logging_level, f"Posting event {event.name} with {args=} and {kwargs=}."
@@ -162,7 +162,6 @@ def post(event: Event, *args, logging_level=10, **kwargs) -> None:
 
 
 def subscribe(subscriber: Any, event: Event, callback: Callable) -> None:
-
     events_to_subscribers[event][subscriber] = callback
 
     if subscriber not in subscribers_to_events.keys():
@@ -172,7 +171,6 @@ def subscribe(subscriber: Any, event: Event, callback: Callable) -> None:
 
 
 def unsubscribe(subscriber: Any, event: Event) -> None:
-
     try:
         events_to_subscribers[event].pop(subscriber)
     except KeyError:
@@ -186,7 +184,6 @@ def unsubscribe(subscriber: Any, event: Event) -> None:
 
 
 def unsubscribe_from_all(subscriber: Any) -> None:
-
     if subscriber not in subscribers_to_events.keys():
         return
 
