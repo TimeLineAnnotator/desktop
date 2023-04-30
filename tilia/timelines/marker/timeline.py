@@ -41,6 +41,10 @@ class MarkerTimeline(Timeline):
             collection, component_manager, TimelineKind.MARKER_TIMELINE, **kwargs
         )
 
+    @property
+    def ordered_markers(self):
+        return sorted(self.component_manager.get_components(), key=lambda m: m.time)
+
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
 
