@@ -1,78 +1,131 @@
 from __future__ import annotations
 
 import tkinter as tk
+from dataclasses import dataclass
+from typing import Optional, Any
 
 from tilia import events
 from tilia.events import Event
 from tilia.timelines.timeline_kinds import USER_CREATABLE_TIMELINE_KINDS
 
 
+SEPARATOR = "separator"
+
+
+@dataclass
+class CommandParams:
+    label: str
+    event: Event
+    command_kwargs: Optional[dict[str:Any]]
+    event_kwargs: Optional[dict[str:Any]]
+
+
+def get_command_callback(event: Event, **kwargs):
+    return lambda: events.post(event, **kwargs)
+
+
+def add_menu_commands(menu: tk.Menu, commands: list[CommandParams]) -> None:
+    """
+    Adds commands to menu using a list of CommandParams.
+    The callback to the menu option will post the event specified in CommandParams.event.
+    """
+    for command in commands:
+        if command == SEPARATOR:
+            menu.add_separator()
+        else:
+            menu.add_command(
+                label=command.label,
+                command=get_command_callback(command.event, **command.event_kwargs),
+                **command.command_kwargs,
+            )
+
+
 class TkinterUIMenus(tk.Menu):
     def __init__(self):
         super().__init__()
+        self.setup_menus()
+
+    def setup_menus(self):
+        self.setup_file_menu()
+        self.setup_edit_menu()
+        self.setup_timelines_menu()
+        self.setup_view_menu()
+        self.setup_help_menu()
+
+    def setup_file_menu(self):
+        commands = [
+            CommandParams("New...", Event.REQUEST_NEW_FILE, {"underline": 0}, {}),
+            CommandParams("Open...", Event.FILE_REQUEST_TO_OPEN, {"underline": 0}, {}),
+            CommandParams(
+                "Save", Event.FILE_REQUEST_TO_SAVE, {"underline": 0}, {"save_as": False}
+            ),
+            CommandParams(
+                "Save as...",
+                Event.FILE_REQUEST_TO_SAVE,
+                {"underline": 5},
+                {"save_as": True},
+            ),
+            CommandParams(
+                "Load media file...",
+                Event.MENU_OPTION_FILE_LOAD_MEDIA,
+                {"underline": 0},
+                {},
+            ),
+            SEPARATOR,
+            CommandParams(
+                "Media metadata...",
+                Event.UI_REQUEST_WINDOW_METADATA,
+                {"underline": 0},
+                {},
+            ),
+        ]
 
         # FILE MENU
         file_menu = tk.Menu(self, tearoff=0)
+        add_menu_commands(file_menu, commands)
+
         self.add_cascade(label="File", menu=file_menu, underline=0)
 
-        file_menu.add_command(
-            label="New...",
-            command=lambda: events.post(Event.REQUEST_NEW_FILE),
-        )
-        file_menu.add_command(
-            label="Open...",
-            command=lambda: events.post(Event.FILE_REQUEST_TO_OPEN),
-            underline=0,
-        )
-        file_menu.add_command(
-            label="Save",
-            command=lambda: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=False),
-            accelerator="Ctrl+S",
-            underline=0,
-        )
-        file_menu.add_command(
-            label="Save as...",
-            command=lambda: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=True),
-            accelerator="Ctrl+Shift+S",
-            underline=5,
-        )
-        file_menu.add_command(
-            label="Load media file...",
-            underline=0,
-            command=lambda: events.post(Event.MENU_OPTION_FILE_LOAD_MEDIA),
-        )
-        file_menu.add_separator()
+    def setup_edit_menu(self):
+        commands = [
+            CommandParams(
+                "Undo",
+                Event.REQUEST_TO_UNDO,
+                {"underline": 0, "accelerator": "Ctrl + Z"},
+                {},
+            ),
+            CommandParams(
+                "Redo",
+                Event.REQUEST_TO_REDO,
+                {"underline": 0, "accelerator": "Ctrl + Y"},
+                {},
+            ),
+        ]
 
-        file_menu.add_command(
-            label="Media metadata...",
-            command=lambda: events.post(Event.UI_REQUEST_WINDOW_METADATA),
-            underline=0,
-        )
+        menu = tk.Menu(self, tearoff=0)
+        add_menu_commands(menu, commands)
 
-        # EDIT MENU
-        edit_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="Edit", menu=edit_menu, underline=0)
+        self.add_cascade(label="Edit", menu=menu, underline=0)
 
-        edit_menu.add_command(
-            label="Undo",
-            command=lambda: events.post(Event.REQUEST_TO_UNDO),
-            underline=0,
-            accelerator="Ctrl + Z",
-        )
-        edit_menu.add_command(
-            label="Redo",
-            command=lambda: events.post(Event.REQUEST_TO_REDO),
-            underline=0,
-            accelerator="Ctrl + Y",
-        )
+    def setup_timelines_menu(self):
+        commands = [
+            CommandParams(
+                "Manage...",
+                Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
+                {"underline": 0},
+                {},
+            ),
+            CommandParams(
+                "Clear all",
+                Event.REQUEST_CLEAR_ALL_TIMELINES,
+                {"underline": 0},
+                {},
+            ),
+        ]
 
-        # edit_menu.add_command(label='Clear timeline', command=event_handlers.on_cleartimeline, underline=0)
-
-        # TIMELINES MENU
-        timelines_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="Timelines", menu=timelines_menu, underline=0)
-
-        timelines_menu.add_timelines = tk.Menu(timelines_menu, tearoff=0)
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_timelines = tk.Menu(menu, tearoff=0)
+        menu.add_cascade(label="Add...", menu=menu.add_timelines, underline=0)
 
         def get_add_timeline_options():
             options = []
@@ -86,64 +139,59 @@ class TkinterUIMenus(tk.Menu):
             return options
 
         for label, command in get_add_timeline_options():
-            timelines_menu.add_timelines.add_command(
-                label=label, command=command, underline=0
-            )
+            menu.add_timelines.add_command(label=label, command=command, underline=0)
 
-        timelines_menu.add_cascade(
-            label="Add...",
-            menu=timelines_menu.add_timelines,
-            underline=0,
-        )
+        add_menu_commands(menu, commands)
 
-        timelines_menu.add_command(
-            label="Manage...",
-            underline=0,
-            command=lambda: events.post(Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES),
-        )
+        self.add_cascade(label="Timelines", menu=menu, underline=0)
 
-        timelines_menu.add_command(
-            label="Clear all",
-            underline=0,
-            command=lambda: events.post(Event.REQUEST_CLEAR_ALL_TIMELINES),
-        )
+    def setup_view_menu(self):
+        commands = [
+            CommandParams(
+                "Zoom in",
+                Event.REQUEST_ZOOM_IN,
+                {"accelerator": "Ctrl + +"},
+                {},
+            ),
+            CommandParams(
+                "Zoom out",
+                Event.REQUEST_ZOOM_OUT,
+                {"accelerator": "Ctrl + -"},
+                {},
+            ),
+        ]
 
-        # VIEW MENU
-        view_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="View", menu=view_menu, underline=0)
-        view_window_menu = tk.Menu(view_menu, tearoff=0)
-        view_menu.add_cascade(label="Window", menu=view_window_menu, underline=0)
+        menu = tk.Menu(self, tearoff=0)
+
+        view_window_menu = tk.Menu(menu, tearoff=0)
+        menu.add_cascade(label="Window", menu=view_window_menu, underline=0)
+
         view_window_menu.add_command(
             label="Inspect",
             command=lambda: events.post(Event.UI_REQUEST_WINDOW_INSPECTOR),
             underline=0,
         )
-        view_menu.add_separator()
-        view_menu.add_command(
-            label="Zoom in",
-            accelerator="Ctrl + +",
-            command=lambda: events.post(Event.REQUEST_ZOOM_IN),
-        )
-        view_menu.add_command(
-            label="Zoom out",
-            accelerator="Ctrl + -",
-            command=lambda: events.post(Event.REQUEST_ZOOM_OUT),
-        )
 
-        # # DEVELOPMENT WINDOW OPTION
-        # if settings.get('dev', 'dev_mode'):
-        #     view_window_menu.add_command(
-        #         label="Development",
-        #         command=lambda: events.post(Event.UI_REQUEST_WINDOW_DEVELOPMENT),
-        #         underline=0,
-        #     )
+        menu.add_separator()
 
-        # HELP MENU
-        help_menu = tk.Menu(self, tearoff=0)
-        self.add_cascade(label="Help", menu=help_menu, underline=0)
-        help_menu.add_command(label="Help...", state="disabled", underline=0)
-        help_menu.add_command(
-            label="About...",
-            underline=0,
-            command=lambda: events.post(Event.UI_REQUEST_WINDOW_ABOUT),
-        )
+        add_menu_commands(menu, commands)
+
+        self.add_cascade(label="View", menu=menu, underline=0)
+
+    def setup_help_menu(self):
+        commands = [
+            CommandParams(
+                "About...",
+                Event.UI_REQUEST_WINDOW_ABOUT,
+                {"underline": 0},
+                {},
+            ),
+        ]
+
+        menu = tk.Menu(self, tearoff=0)
+
+        menu.add_command(label="Help...", state="disabled", underline=0)
+
+        add_menu_commands(menu, commands)
+
+        self.add_cascade(label="Help", menu=menu, underline=0)
