@@ -108,6 +108,9 @@ class TimelineComponentManager:
         cmp_set = self._get_component_set_by_kind(kind)
         return [c for c in cmp_set if condition(c)]
 
+    def get_components(self) -> list[TimelineComponent]:
+        return list(self._components)
+
     def get_existing_values_for_attr(self, attr_name: str, kind: ComponentKind) -> set:
         cmp_set = self._get_component_set_by_kind(kind)
         return set([getattr(cmp, attr_name) for cmp in cmp_set])
