@@ -172,3 +172,49 @@ class TestTimelineUICollection:
         assert not marker_tlui.elements
         assert not hierarchy_tlui.elements
         assert not beat_tlui.elements
+
+    def test_ask_choose_timeline(
+        self, tlui_clct, beat_tlui, hierarchy_tlui, marker_tlui
+    ):
+        with patch("tilia.ui.timelines.collection.ChooseWindow.ask", lambda _: 0):
+            assert tlui_clct._ask_choose_timeline("", "") == beat_tlui
+
+        with patch("tilia.ui.timelines.collection.ChooseWindow.ask", lambda _: 1):
+            assert tlui_clct._ask_choose_timeline("", "") == hierarchy_tlui
+
+        with patch("tilia.ui.timelines.collection.ChooseWindow.ask", lambda _: 2):
+            assert tlui_clct._ask_choose_timeline("", "") == marker_tlui
+
+    def test_ask_choose_timeline_restrict_kind(
+        self, tlui_clct, beat_tlui, hierarchy_tlui, marker_tlui
+    ):
+
+        with (
+            patch("tilia.ui.timelines.collection.ChooseWindow") as choose_window_mock,
+        ):
+
+            class ChooseWindowDummy:
+                call_count = 0
+
+                def ask(self):
+                    """
+                    ChooseWindow.ask must return the display_position of
+                    'hierarchy_tlui' and 'marker_tlui', respectively.
+                    That is, 1 and 2.
+                    """
+                    self.call_count += 1
+                    return self.call_count
+
+            choose_window_mock.return_value = ChooseWindowDummy()
+
+            tlui_clct._ask_choose_timeline("title", "prompt", TlKind.HIERARCHY_TIMELINE)
+
+            choose_window_mock.assert_called_with(
+                "title", "prompt", [(1, str(hierarchy_tlui))]
+            )
+
+            tlui_clct._ask_choose_timeline("title", "prompt", TlKind.MARKER_TIMELINE)
+
+            choose_window_mock.assert_called_with(
+                "title", "prompt", [(2, str(marker_tlui))]
+            )

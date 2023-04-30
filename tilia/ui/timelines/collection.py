@@ -7,6 +7,7 @@ from typing import Any, TYPE_CHECKING
 
 from tilia.clipboard import ClipboardContents
 from tilia.ui.canvas_tags import TRANSPARENT
+from tilia.ui.windows.choose import ChooseWindow
 
 if TYPE_CHECKING:
     from tilia.ui.tkinterui import TkinterUI
@@ -16,7 +17,7 @@ from tilia.events import subscribe, Event
 from tilia.misc_enums import Side, UpOrDown, InOrOut
 from tilia.timelines.common import Timeline
 from tilia.timelines.state_actions import Action
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar
 from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
@@ -1107,6 +1108,47 @@ class TimelineUICollection:
             "Delete timeline",
             f"Are you sure you want to clear ALL timelines?",
         )
+
+    def _get_choose_timeline_window(
+        self,
+        title: str,
+        prompt: str,
+        kind: TimelineKind | list[TimelineKind] | None = None,
+    ) -> ChooseWindow:
+        if kind and not isinstance(kind, list):
+            kind = [kind]
+
+        options = [
+            (tlui.display_position, str(tlui))
+            for tlui in sorted(self._timeline_uis, key=lambda x: x.display_position)
+            if ((tlui.TIMELINE_KIND in kind) if kind else True)
+        ]
+
+        return ChooseWindow(title, prompt, options)
+
+    def _ask_choose_timeline(
+        self,
+        title: str,
+        prompt: str,
+        kind: TimelineKind | list[TimelineKind] | None = None,
+    ) -> TimelineUI:
+        """
+        Opens a dialog where the user may choose an existing timeline.
+        Choices are restricted to the kinds in 'kind'. If no kind is passed,
+        all kinds are considered.
+        """
+
+        chosen_display_position = self._get_choose_timeline_window(
+            title, prompt, kind
+        ).ask()
+
+        chosen_tlui = [
+            tlui
+            for tlui in self._timeline_uis
+            if tlui.display_position == chosen_display_position
+        ][0]
+
+        return chosen_tlui
 
     def on_request_to_hide_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)
