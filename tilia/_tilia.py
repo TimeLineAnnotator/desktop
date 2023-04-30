@@ -144,7 +144,6 @@ class TiLiA:
         return str(next(self._id_counter))
 
     def on_request_to_load_media(self, media_path: str) -> None:
-
         extension = os.path.splitext(media_path)[1][1:]
 
         self._change_player_according_to_extension(extension)
@@ -156,7 +155,6 @@ class TiLiA:
     def on_request_to_export_audio_segment(
         self, segment_name: str, start_time: float, end_time: float
     ):
-
         logger.debug(f"User requested audio segment export.")
 
         if sys.platform != "win32":
@@ -191,12 +189,15 @@ class TiLiA:
 
     def on_request_to_close(self) -> None:
         self._file_manager.ask_save_if_necessary()
-        dirs.delete_temp_dir()
+        try:
+            dirs.delete_temp_dir()
+        except FileNotFoundError:
+            # temp dir already deleted
+            pass
 
         sys.exit()
 
     def _change_player_according_to_extension(self, extension: str) -> None:
-
         if (
             extension.lower()
             in globals_.SUPPORTED_AUDIO_FORMATS + globals_.CONVERTIBLE_AUDIO_FORMATS
