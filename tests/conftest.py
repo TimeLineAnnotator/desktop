@@ -16,7 +16,7 @@ from tilia.timelines.create import create_timeline
 from tilia.timelines.hierarchy.common import ParentChildRelation
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
-from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.timelines.beat import BeatTimelineUI
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
@@ -153,3 +153,14 @@ def marker_tlui(tl_clct, tlui_clct) -> MarkerTimelineUI:
 
     yield tl.ui
     tl_clct.delete_timeline(tl)
+
+
+@pytest.fixture
+def mrk_tl() -> MarkerTimeline:
+    component_manager = MarkerTLComponentManager()
+    timeline = MarkerTimeline(MagicMock(), component_manager)
+
+    timeline.ui = MagicMock()
+    component_manager.associate_to_timeline(timeline)
+    yield timeline
+    unsubscribe_from_all(timeline)
