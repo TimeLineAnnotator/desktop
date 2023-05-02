@@ -24,7 +24,8 @@ from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
 from . import file, event_handler
-from .common import ask_yes_no, ask_for_directory, format_media_time
+from .common import ask_yes_no, ask_for_directory, format_media_time, display_error
+from .dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 from .menus import TkinterUIMenus, DynamicMenu
 from .timelines.collection import TimelineUICollection
 from .windows.manage_timelines import ManageTimelines
@@ -36,6 +37,7 @@ from .windows.kinds import WindowKind
 import logging
 
 from ..clipboard import ClipboardContents
+from ..parsers.csv import markers_by_time_from_csv, markers_by_measure_from_csv
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +94,6 @@ class TkinterUI:
                 Event.INSPECT_WINDOW_CLOSED,
                 lambda: self.on_window_closed(WindowKind.INSPECT),
             ),
-            (Event.TIMELINE_KIND_INSTANCED, self._on_timeline_kind_instanced),
-            (Event.TIMELINE_KIND_UNINSTANCED, self._on_timeline_kind_uninstanced),
             (
                 Event.MANAGE_TIMELINES_WINDOW_CLOSED,
                 lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES),
@@ -107,6 +107,9 @@ class TkinterUI:
                 lambda: self.on_window_closed(WindowKind.ABOUT),
             ),
             (Event.TILIA_FILE_LOADED, self.on_tilia_file_loaded),
+            (Event.TIMELINE_KIND_INSTANCED, self._on_timeline_kind_instanced),
+            (Event.TIMELINE_KIND_UNINSTANCED, self._on_timeline_kind_uninstanced),
+            (Event.REQUEST_IMPORT_FROM_CSV, self.on_menu_import_markers_from_csv),
         ]
 
         self.default_font = tkinter.font.nametofont("TkDefaultFont")
@@ -327,6 +330,59 @@ class TkinterUI:
             events.post(Event.REQUEST_LOAD_MEDIA, media_path)
         else:
             logger.debug(f"User cancelled media load.")
+
+    def on_menu_import_markers_from_csv(self):
+        if not self.timeline_ui_collection.get_timeline_uis_by_kind(
+            TimelineKind.MARKER_TIMELINE
+        ):
+            display_error(
+                "Import markers error",
+                "No marker timelines found. Must have a marker timeline to import to.",
+            )
+            return
+
+        marker_tl = self.timeline_ui_collection.ask_choose_timeline(
+            "Import markers from .csv",
+            "Choose timeline where markers will be created",
+            TimelineKind.MARKER_TIMELINE,
+        )
+        if not marker_tl:
+            return
+
+        time_or_measure = ByTimeOrByMeasure(self.root).ask()
+        if not time_or_measure:
+            return
+
+        if time_or_measure == "measure":
+            if not self.timeline_ui_collection.get_timeline_uis_by_kind(
+                TimelineKind.BEAT_TIMELINE
+            ):
+                display_error(
+                    "Import markers error",
+                    "No beat timelines found. Must have a beat timeline if importing makers by measure.",
+                )
+                return
+
+            beat_tl = self.timeline_ui_collection.ask_choose_timeline(
+                "Import markers from .csv",
+                "Choose timeline with measures to be used when importing",
+                TimelineKind.BEAT_TIMELINE,
+            )
+
+            if not beat_tl:
+                return
+
+        path = tk.filedialog.askopenfilename(
+            title="Import markers", filetypes=[("CSV files", "*.csv")]
+        )
+
+        if not path:
+            return
+
+        if time_or_measure == "time":
+            markers_by_time_from_csv(marker_tl, path)
+        else:
+            markers_by_measure_from_csv(marker_tl, beat_tl, path)
 
     @staticmethod
     def get_file_save_path(initial_filename: str) -> str | None:
