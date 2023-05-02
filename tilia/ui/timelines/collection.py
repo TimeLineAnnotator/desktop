@@ -1108,7 +1108,7 @@ class TimelineUICollection:
 
         return ChooseDialog(self._app_ui.root, title, prompt, options)
 
-    def _ask_choose_timeline(
+    def ask_choose_timeline(
         self,
         title: str,
         prompt: str,
