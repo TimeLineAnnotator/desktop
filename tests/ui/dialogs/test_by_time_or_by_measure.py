@@ -1,4 +1,4 @@
-from tilia.ui.dialogs.import_markers_from_csv import ByTimeOrByMeasure
+from tilia.ui.dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 
 
 class TestByTimeOrByMeasure:
