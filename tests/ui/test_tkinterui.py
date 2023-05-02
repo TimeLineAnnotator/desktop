@@ -6,6 +6,8 @@ from unittest.mock import patch, PropertyMock
 
 import pytest
 
+from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.menus import DynamicMenu
 from tilia.ui.tkinterui import TkinterUI
 from tests.conftest import pump_events
 from tilia.ui.windows import WindowKind
@@ -24,7 +26,6 @@ class TiliaDummy:
 class TestTkinterUI:
     @patch("tilia.ui.tkinterui.Inspect")
     def test_on_request_window_inspect(self, inspect_mock, tkui):
-
         tkui.on_request_window(WindowKind.INSPECT)
         assert inspect_mock.called
 
@@ -45,3 +46,20 @@ class TestTkinterUI:
     def test_on_request_window_about(self, about_mock, tkui):
         tkui.on_request_window(WindowKind.ABOUT)
         assert about_mock.called
+
+    def test_on_timeline_kind_instanced(self, tkui):
+        assert not tkui.enabled_dynamic_menus
+
+        tkui._on_timeline_kind_instanced(TimelineKind.MARKER_TIMELINE)
+
+        assert tkui.enabled_dynamic_menus == {DynamicMenu.MARKER_TIMELINE}
+
+        tkui._on_timeline_kind_instanced(TimelineKind.MARKER_TIMELINE)
+        tkui._on_timeline_kind_instanced(TimelineKind.MARKER_TIMELINE)
+
+        assert tkui.enabled_dynamic_menus == {DynamicMenu.MARKER_TIMELINE}
+
+    def test_on_timeline_kind_uninstanced(self, tkui):
+        tkui._on_timeline_kind_instanced(TimelineKind.MARKER_TIMELINE)
+        tkui._on_timeline_kind_uninstanced(TimelineKind.MARKER_TIMELINE)
+        assert tkui.enabled_dynamic_menus == set()

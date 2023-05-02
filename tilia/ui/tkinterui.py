@@ -25,7 +25,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.events import Event, subscribe
 from . import file, event_handler
 from .common import ask_yes_no, ask_for_directory, format_media_time
-from .menus import TkinterUIMenus
+from .menus import TkinterUIMenus, DynamicMenu
 from .timelines.collection import TimelineUICollection
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MediaMetadataWindow
@@ -63,7 +63,6 @@ class TkinterUI:
     """
 
     def __init__(self, root: tk.Tk):
-
         logger.debug("Starting TkinterUI...")
 
         self.app = None
@@ -93,6 +92,8 @@ class TkinterUI:
                 Event.INSPECT_WINDOW_CLOSED,
                 lambda: self.on_window_closed(WindowKind.INSPECT),
             ),
+            (Event.TIMELINE_KIND_INSTANCED, self._on_timeline_kind_instanced),
+            (Event.TIMELINE_KIND_UNINSTANCED, self._on_timeline_kind_uninstanced),
             (
                 Event.MANAGE_TIMELINES_WINDOW_CLOSED,
                 lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES),
@@ -115,6 +116,7 @@ class TkinterUI:
 
         self._setup_subscriptions()
         self._setup_widgets()
+        self.enabled_dynamic_menus: set[DynamicMenu] = set()
         self._setup_menus()
         self._make_default_canvas_bindings()
         self._create_timeline_ui_collection()
@@ -168,7 +170,30 @@ class TkinterUI:
             self.root.bind_class("Canvas", sequence, callback)
 
     def _setup_menus(self):
-        self.root.config(menu=TkinterUIMenus())
+        self._menus = TkinterUIMenus()
+        self.root.config(menu=self._menus)
+
+        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
+
+    tlkind_to_dynamic_menu = {
+        TimelineKind.MARKER_TIMELINE: DynamicMenu.MARKER_TIMELINE,
+    }
+
+    def _on_timeline_kind_instanced(self, kind: TimelineKind) -> None:
+        if kind not in self.tlkind_to_dynamic_menu:
+            return
+
+        self.enabled_dynamic_menus.add(self.tlkind_to_dynamic_menu[kind])
+
+        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
+
+    def _on_timeline_kind_uninstanced(self, kind: TimelineKind) -> None:
+        if kind not in self.tlkind_to_dynamic_menu:
+            return
+
+        self.enabled_dynamic_menus.remove(self.tlkind_to_dynamic_menu[kind])
+
+        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
 
     def launch(self):
         logger.debug("Entering Tkinter UI mainloop.")
@@ -179,7 +204,6 @@ class TkinterUI:
         return self.timeline_width + 2 * self.timeline_padx
 
     def _create_timeline_ui_collection(self):
-
         self.timeline_ui_collection = TimelineUICollection(
             self, self.scrollable_frame, self.hscrollbar, self.timelines_toolbar_frame
         )

@@ -51,8 +51,14 @@ class TimelineCollection:
     def __str__(self):
         return default_str(self)
 
-    def create_timeline(self, timeline_kind: TimelineKind, **kwargs) -> Timeline:
-        match timeline_kind:
+    @property
+    def timeline_kinds(self):
+        return {tl.KIND for tl in self._timelines}
+
+    def create_timeline(self, kind: TimelineKind, **kwargs) -> Timeline:
+        is_first_of_kind = kind not in self.timeline_kinds
+
+        match kind:
             case TimelineKind.HIERARCHY_TIMELINE:
                 tl = self._create_hierarchy_timeline(**kwargs)
             case TimelineKind.SLIDER_TIMELINE:
@@ -65,6 +71,9 @@ class TimelineCollection:
                 raise NotImplementedError
 
         self._timelines.append(tl)
+
+        if is_first_of_kind:
+            events.post(Event.TIMELINE_KIND_INSTANCED, kind)
 
         return tl
 
@@ -103,6 +112,9 @@ class TimelineCollection:
         timeline.delete()
         self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
         self._timelines.remove(timeline)
+
+        if timeline.kind not in self.timeline_kinds:
+            events.post(Event.TIMELINE_KIND_UNINSTANCED, timeline.kind)
 
     @staticmethod
     def clear_timeline(timeline: Timeline):

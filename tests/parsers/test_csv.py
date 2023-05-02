@@ -59,7 +59,7 @@ def test_markers_by_time_from_csv(marker_tlui):
 
     markers_by_time_from_csv(
         marker_tlui.timeline,
-        Path("parsers", "test_markers_from_csv.csv").resolve(),
+        Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
     )
 
     markers = marker_tlui.timeline.ordered_markers

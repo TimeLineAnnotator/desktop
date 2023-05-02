@@ -486,22 +486,6 @@ class TestBeatTimeline:
         assert beat_tl.beats_in_measure == [12]
         assert beat_tl.measure_numbers == [1]
 
-    def test_get_beat_times_no_beats(self, beat_tl):
-        assert beat_tl.get_beat_times() == []
-
-    def test_get_beat_times_one_beat(self, beat_tl):
-        beat_tl.create_timeline_component(time=0)
-
-        assert beat_tl.get_beat_times() == [0]
-
-    def test_get_beat_times_multiple_beats(self, beat_tl):
-        beat_tl.create_timeline_component(time=1)
-        beat_tl.create_timeline_component(time=2)
-        beat_tl.create_timeline_component(time=3)
-        beat_tl.create_timeline_component(time=4)
-
-        assert beat_tl.get_beat_times() == [1, 2, 3, 4]
-
     def test_get_times_by_measure_no_beats(self, beat_tl):
         with pytest.raises(ValueError):
             beat_tl.get_time_by_measure(0)

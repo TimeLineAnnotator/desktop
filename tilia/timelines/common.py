@@ -62,7 +62,8 @@ class TimelineComponentManager:
         component_kinds: list[ComponentKind],
     ):
         """Interface for object that composes timeline and creates, handles queries for and interactions between TimelineComponents.
-        E.g. The HierarchyTimelineComponentManager is responsible for calling the create() method on the Hierarchy class and also handles splitting, grouping and merging hierarchies."""
+        E.g. The HierarchyTimelineComponentManager is responsible for calling the create() method on the Hierarchy class and also handles splitting, grouping and merging hierarchies.
+        """
 
         self._components = set()
         self.component_kinds = component_kinds
@@ -256,7 +257,7 @@ class Timeline(ABC):
     ):
         self.id = collection.get_id()
         self.collection = collection
-        self._kind = kind
+        self.kind = kind
 
         self.component_manager = component_manager
 
@@ -320,7 +321,7 @@ class Timeline(ABC):
             state[attr] = value
 
         state["components"] = self.component_manager.serialize_components()
-        state["kind"] = self._kind.name
+        state["kind"] = self.kind.name
 
         return state
 

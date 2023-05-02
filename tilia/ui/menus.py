@@ -3,7 +3,7 @@ from __future__ import annotations
 import tkinter as tk
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Optional, Any
+from typing import Optional, Any, Iterable
 
 from tilia import events
 from tilia.events import Event
@@ -56,14 +56,17 @@ class TkinterUIMenus(tk.Menu):
 
         self.dynamic_menus: list[DynamicMenu] = []
 
-        self.menu_to_attr = {DynamicMenu.MARKER_TIMELINE: self.timelines_menu.marker}
+        self.dynamic_menu_to_parent = {DynamicMenu.MARKER_TIMELINE: self.timelines_menu}
+        self.dynamic_menu_to_index = {DynamicMenu.MARKER_TIMELINE: 3}
 
-    def update_dynamic_menus(self, menus_to_display: list[DynamicMenu]) -> None:
-        for menu, attr in self.menu_to_attr.items():
+    def update_dynamic_menus(self, menus_to_display: Iterable[DynamicMenu]) -> None:
+        for menu in DynamicMenu:
+            parent = self.dynamic_menu_to_parent[menu]
+            index = self.dynamic_menu_to_index[menu]
             if menu in menus_to_display:
-                self.timelines_menu.configure(state="normal")
+                parent.entryconfig(index, state="normal")
             else:
-                self.timelines_menu.configure(state="disabled")
+                parent.entryconfig(index, state="disabled")
 
     def setup_file_menu(self):
         commands = [
