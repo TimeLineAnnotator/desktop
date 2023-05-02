@@ -4,7 +4,6 @@ from .tilia_dialog import TiliaDialog
 
 
 class ChooseDialog(TiliaDialog):
-
     NON_EDITABLE_FIELDS = ["media path", "audio length"]
     SEPARATE_WINDOW_FIELDS = ["notes"]
 
@@ -17,8 +16,8 @@ class ChooseDialog(TiliaDialog):
         *args,
         **kwargs
     ) -> None:
-
-        super().__init__(parent, title, width=400)
+        super().__init__(parent, title)
+        self._toplevel.geometry("350x200")
         self.prompt_text = prompt
         self.options = options
         self.return_value = None
@@ -33,7 +32,7 @@ class ChooseDialog(TiliaDialog):
         self.list_box.activate(0)
 
         self.prompt_label.pack(side=tk.TOP)
-        self.list_box.pack(side=tk.TOP)
+        self.list_box.pack(side=tk.TOP, expand=True, fill="x")
 
     def get_selected_index(self) -> tuple[int]:
         return self.list_box.curselection()[0]
