@@ -1113,7 +1113,7 @@ class TimelineUICollection:
         title: str,
         prompt: str,
         kind: TimelineKind | list[TimelineKind] | None = None,
-    ) -> TimelineUI:
+    ) -> Timeline:
         """
         Opens a dialog where the user may choose an existing timeline.
         Choices are restricted to the kinds in 'kind'. If no kind is passed,
@@ -1130,7 +1130,7 @@ class TimelineUICollection:
             if tlui.display_position == chosen_display_position
         ][0]
 
-        return chosen_tlui
+        return chosen_tlui.timeline
 
     def on_request_to_hide_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)

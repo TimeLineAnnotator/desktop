@@ -171,13 +171,13 @@ class TestTimelineUICollection:
         self, tlui_clct, beat_tlui, hierarchy_tlui, marker_tlui
     ):
         with patch("tilia.ui.timelines.collection.ChooseDialog.ask", lambda _: 0):
-            assert tlui_clct.ask_choose_timeline("", "") == beat_tlui
+            assert tlui_clct.ask_choose_timeline("", "") == beat_tlui.timeline
 
         with patch("tilia.ui.timelines.collection.ChooseDialog.ask", lambda _: 1):
-            assert tlui_clct.ask_choose_timeline("", "") == hierarchy_tlui
+            assert tlui_clct.ask_choose_timeline("", "") == hierarchy_tlui.timeline
 
         with patch("tilia.ui.timelines.collection.ChooseDialog.ask", lambda _: 2):
-            assert tlui_clct.ask_choose_timeline("", "") == marker_tlui
+            assert tlui_clct.ask_choose_timeline("", "") == marker_tlui.timeline
 
     def test_ask_choose_timeline_restrict_kind(
         self, tkui, tlui_clct, beat_tlui, hierarchy_tlui, marker_tlui
