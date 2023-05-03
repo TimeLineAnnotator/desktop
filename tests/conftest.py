@@ -77,6 +77,7 @@ def tilia(tkui):
 
     tilia_ = TiLiA(tkui)
     tilia_.clear_app()  # undo blank file setup
+    tilia_._player.media_length = 100.0
     yield tilia_
     tilia_.clear_app()
     unsubscribe_from_all(tilia_)
@@ -159,6 +160,7 @@ def marker_tlui(tl_clct, tlui_clct) -> MarkerTimelineUI:
 def mrk_tl() -> MarkerTimeline:
     component_manager = MarkerTLComponentManager()
     timeline = MarkerTimeline(MagicMock(), component_manager)
+    timeline.get_media_length = lambda: 100
 
     timeline.ui = MagicMock()
     component_manager.associate_to_timeline(timeline)

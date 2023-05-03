@@ -11,6 +11,7 @@ from tilia.timelines.state_actions import Action
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
+from ...exceptions import CreateComponentError
 
 logger = logging.getLogger(__name__)
 from typing import TYPE_CHECKING
@@ -28,7 +29,6 @@ from tilia import events
 
 
 class HierarchyTimeline(Timeline):
-
     SERIALIZABLE_BY_VALUE = []
     SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
 
@@ -65,7 +65,6 @@ class HierarchyTimeline(Timeline):
         self.component_manager.create_unit_below(component)
 
     def change_level(self, amount: int, components: list[Hierarchy]) -> None:
-
         if amount > 0:
             reverse = True
         elif amount < 0:
@@ -108,8 +107,38 @@ class HierarchyTLComponentManager(TimelineComponentManager):
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
 
-    def deserialize_components(self, serialized_components: dict[int, dict[str]]):
+    def _validate_component_creation(
+        self,
+        timeline: HierarchyTimeline,
+        start: float,
+        end: float,
+        level: int,
+        parent=None,
+        children=None,
+        comments="",
+        pre_start=None,
+        post_end=None,
+        formal_type="",
+        formal_function="",
+        **_,
+    ):
+        media_length = self.timeline.get_media_length()
+        if start > media_length:
+            raise CreateComponentError(
+                f"Start time '{start}' is bigger than medium time '{media_length}'"
+            )
 
+        if end > media_length:
+            raise CreateComponentError(
+                f"End time '{end}' is bigger than medium time '{media_length}'"
+            )
+
+        if end <= start:
+            raise CreateComponentError(
+                f"End time '{end}' should be bigger than start time '{start}'"
+            )
+
+    def deserialize_components(self, serialized_components: dict[int, dict[str]]):
         self.clear()  # TODO temporary solution to remove starting hierarchy
 
         super().deserialize_components(serialized_components)
@@ -206,13 +235,11 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 )
 
         def _validate_no_boundary_crossing(start_time: float, end_time: float):
-
             units_to_check = [
                 unit for unit in self._components if unit not in units_to_group
             ]
 
             for unit_to_check in units_to_check:
-
                 start_inside_grouping = start_time <= unit_to_check.start < end_time
                 ends_inside_grouping = start_time < unit_to_check.end <= end_time
                 comprehends_grouping = (
@@ -505,7 +532,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         # TODO handle selection after merge
 
     def delete_component(self, component: Hierarchy) -> None:
-
         self.timeline.request_delete_ui_for_component(component)
 
         unsubscribe_from_all(component)

@@ -16,6 +16,9 @@ class DummyTimelineCollection:
     def get_id(self):
         return next(self.ID_ITER)
 
+    def get_media_length(self):
+        return 100
+
 
 @pytest.fixture
 def beat_tl():

@@ -28,6 +28,7 @@ def tl_with_ui() -> MarkerTimeline:
 
     tl_coll_mock = MagicMock()
     tl_coll_mock.get_id = lambda: next(id_counter)
+    tl_coll_mock.get_media_length.return_value = 100
 
     tlui_coll_mock = MagicMock()
     tlui_coll_mock.get_id = lambda: next(id_counter)
@@ -51,7 +52,6 @@ def tl_with_ui() -> MarkerTimeline:
 
 
 class TestMarkerTimeline:
-
     # TEST CREATE
     def test_create_marker(self, tl_with_ui):
         tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
@@ -137,7 +137,6 @@ class TestMarkerTimeline:
     # TEST RIGHT CLICK OPTIONS
     @patch("tilia.ui.common.ask_for_color")
     def test_right_click_change_color(self, ask_for_color_mock, tl_with_ui):
-
         ask_for_color_mock.return_value = "#000000"
 
         mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
@@ -150,7 +149,6 @@ class TestMarkerTimeline:
 
     @patch("tilia.ui.common.ask_for_color")
     def test_right_click_reset_color(self, ask_for_color_mock, tl_with_ui):
-
         ask_for_color_mock.return_value = "#000000"
 
         mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
@@ -164,10 +162,12 @@ class TestMarkerTimeline:
 
 
 class TestMarkerTimelineComponentManager:
-
     # TEST CREATE COMPONENT
     def test_create_component(self):
         component_manager = MarkerTLComponentManager()
+        timeline = MagicMock()
+        timeline.get_media_length = lambda: 100
+        component_manager.timeline = timeline
         hunit = component_manager.create_component(
             ComponentKind.MARKER, timeline=MagicMock(), time=0
         )

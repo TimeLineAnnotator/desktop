@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import logging
 
+from tilia.exceptions import CreateComponentError
 from tilia.timelines.beat.timeline import BeatTLComponentManager
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -14,13 +15,14 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def cm():
     timeline = MagicMock()
+    timeline.get_media_length.return_value = 100
     timeline.beat_pattern = [2]
     timeline.beats_in_measure = []
     _cm = BeatTLComponentManager()
     _cm.create_component = functools.partial(
         _cm.create_component, timeline=timeline, kind=ComponentKind.BEAT
     )
-    _cm.timeline = MagicMock()
+    _cm.timeline = timeline
     yield _cm
     _cm.clear()
 
@@ -53,9 +55,8 @@ class DummyUI:
 class TestBeatTlComponentManager:
     def test_create_overlapping_beat_raises_error(self, cm):
         cm.create_component(time=1)
-        with pytest.raises(ValueError):
-            with patch("tkinter.messagebox.showerror", lambda *args, **kwargs: None):
-                cm.create_component(time=1)
+        with pytest.raises(CreateComponentError):
+            cm.create_component(time=1)
 
     def test_update_beat_uis_1(self, cm):
         cm.timeline.measure_numbers = ["a", "b", "c"]
