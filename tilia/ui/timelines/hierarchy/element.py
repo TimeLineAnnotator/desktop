@@ -7,7 +7,7 @@ from __future__ import annotations
 import tkinter as tk
 import logging
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict, Optional
 
 from ...windows.inspect import HIDE_FIELD
 
@@ -33,6 +33,13 @@ from tilia.timelines.common import (
 from tilia.ui.timelines.common import TimelineUIElement
 
 logger = logging.getLogger(__name__)
+
+
+class DragData(TypedDict):
+    extremity: StartOrEnd
+    max_x: int
+    min_x: int
+    x: Optional[int]
 
 
 class HierarchyUI(TimelineUIElement):
@@ -120,7 +127,7 @@ class HierarchyUI(TimelineUIElement):
         self.canvas = canvas
 
         self._label = ""
-        self.label_measures = []
+        self.label_measures: list[int] = []
         self._setup_label(label)
 
         self._setup_color(color)
@@ -132,7 +139,12 @@ class HierarchyUI(TimelineUIElement):
         self.pre_start_ind_id = None
         self.post_end_ind_id = None
 
-        self.drag_data = {}
+        self.drag_data: DragData = {
+            "extremity": StartOrEnd.START,
+            "max_x": 0,
+            "min_x": 0,
+            "x": 0,
+        }
 
     @classmethod
     def create(

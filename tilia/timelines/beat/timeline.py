@@ -8,6 +8,8 @@ import logging
 import itertools
 from typing import TYPE_CHECKING, Optional
 
+from tilia.exceptions import CreateComponentError
+
 if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
     from tilia.timelines.beat.components import Beat
@@ -78,6 +80,37 @@ class BeatTimeline(Timeline):
     def beat_count(self):
         return self.component_manager.component_count
 
+    def get_time_by_measure(self, number: int, fraction: float = 0) -> list[int]:
+        """
+        Given the measure index, returns the start time of the measure.
+        If fraction is supplied, sums that fraction of the measure's
+        length to the result.
+        """
+
+        if not self.measure_count:
+            raise ValueError("No beats in timeline. Can't get time.")
+
+        measure_indices = [i for i, n in enumerate(self.measure_numbers) if n == number]
+        measure_times = []
+
+        for index in measure_indices:
+            beat_number = self.beats_that_start_measures[index]
+            measure_time = self.component_manager.ordered_beats[beat_number].time
+
+            if index == self.measure_count - 1:
+                next_measure_time = measure_time
+            else:
+                beat_number = self.beats_that_start_measures[index + 1]
+                next_measure_time = self.component_manager.ordered_beats[
+                    beat_number
+                ].time
+
+            measure_times.append(
+                measure_time + (next_measure_time - measure_time) * fraction
+            )
+
+        return measure_times
+
     def restore_state(self, state: dict):
         super().restore_state(state)
         self.beat_pattern = state["beat_pattern"].copy()
@@ -107,7 +140,6 @@ class BeatTimeline(Timeline):
         start_index: int = 0,
         beats_on_starting_measure: int = 0,
     ) -> list[int]:
-
         if amount == 0:
             return []
 
@@ -149,7 +181,6 @@ class BeatTimeline(Timeline):
         return extension
 
     def _get_beats_in_measure_extension(self, amount: int):
-
         if not self.beat_pattern:
             raise ValueError(f"Beat pattern is empty, can't get measure extension.")
 
@@ -309,7 +340,18 @@ class BeatTLComponentManager(TimelineComponentManager):
     def beat_times(self):
         return {b.time for b in self._components}
 
-    def _validate_component_creation(self, *args, time: float, **kwargs):
+    def _validate_component_creation(
+        self,
+        timeline: BeatTimeline,
+        time: float,
+        comments="",
+        **_,
+    ):
+        if time > (media_length := self.timeline.get_media_length()):
+            raise CreateComponentError(
+                f"Time '{time}' is bigger than total time '{media_length}'"
+            )
+
         if time in self.beat_times:
             events.post(
                 Event.REQUEST_DISPLAY_ERROR,
@@ -317,8 +359,8 @@ class BeatTLComponentManager(TimelineComponentManager):
                 "Can not create beat.\n"
                 f"There is already a beat on '{self.timeline}' at the selected time.",
             )
-            raise ValueError(
-                f"Can't create beat. There's already a beat one {self} at {time}"
+            raise CreateComponentError(
+                f"Can't create beat. There's already a beat on {self} at {time}"
             )
 
     def update_beat_uis(self):
@@ -337,7 +379,6 @@ class BeatTLComponentManager(TimelineComponentManager):
                 beat.ui.label = ""
 
     def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
-
         if self.timeline is None:
             raise ValueError("self.timeline is None.")
 
@@ -347,7 +388,6 @@ class BeatTLComponentManager(TimelineComponentManager):
         return beats[measure_start:measure_end]
 
     def distribute_beats(self, measure_index: int) -> None:
-
         if self.timeline is None:
             raise ValueError("self.timeline is None.")
 

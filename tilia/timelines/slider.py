@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class SliderTimeline(Timeline):
-
     SERIALIZABLE_BY_UI_VALUE = ["is_visible", "display_position", "height"]
     SERIALIZABLE_BY_VALUE = []
 
@@ -34,7 +33,7 @@ class SliderTimeline(Timeline):
         for attr in self.SERIALIZABLE_BY_UI_VALUE:
             result[attr] = getattr(self.ui, attr)
 
-        result["kind"] = self._kind.name
+        result["kind"] = self.kind.name
         result["components"] = {}
 
         return result

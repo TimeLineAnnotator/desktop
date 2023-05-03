@@ -62,7 +62,8 @@ class TimelineComponentManager:
         component_kinds: list[ComponentKind],
     ):
         """Interface for object that composes timeline and creates, handles queries for and interactions between TimelineComponents.
-        E.g. The HierarchyTimelineComponentManager is responsible for calling the create() method on the Hierarchy class and also handles splitting, grouping and merging hierarchies."""
+        E.g. The HierarchyTimelineComponentManager is responsible for calling the create() method on the Hierarchy class and also handles splitting, grouping and merging hierarchies.
+        """
 
         self._components = set()
         self.component_kinds = component_kinds
@@ -107,6 +108,9 @@ class TimelineComponentManager:
     ) -> list:
         cmp_set = self._get_component_set_by_kind(kind)
         return [c for c in cmp_set if condition(c)]
+
+    def get_components(self) -> list[TimelineComponent]:
+        return list(self._components)
 
     def get_existing_values_for_attr(self, attr_name: str, kind: ComponentKind) -> set:
         cmp_set = self._get_component_set_by_kind(kind)
@@ -235,12 +239,6 @@ class TimelineComponentManager:
         serialize.deserialize_components(self.timeline, serialized_components)
 
 
-SomeTimelineComponent = TypeVar("SomeTimelineComponent", bound="TimelineComponent")
-SomeTimelineComponentManager = TypeVar(
-    "SomeTimelineComponentManager", bound="TimelineComponentManager"
-)
-
-
 class Timeline(ABC):
     """Interface for timelines.
     Is composed of a ComponentManager, which implements most of the timeline component operations and functions
@@ -253,13 +251,13 @@ class Timeline(ABC):
     def __init__(
         self,
         collection: TimelineCollection,
-        component_manager: SomeTimelineComponentManager | None,
+        component_manager: TimelineComponentManager | None,
         kind: TimelineKind,
         **_,
     ):
         self.id = collection.get_id()
         self.collection = collection
-        self._kind = kind
+        self.kind = kind
 
         self.component_manager = component_manager
 
@@ -267,7 +265,7 @@ class Timeline(ABC):
 
     def create_timeline_component(
         self, kind: ComponentKind, *args, **kwargs
-    ) -> SomeTimelineComponent:
+    ) -> TimelineComponentManager:
         """Creates a TimelineComponent of the given kind. Request timeline ui to create a ui for the component."""
         component = self.component_manager.create_component(kind, self, *args, **kwargs)
         component_ui = self.ui.get_ui_for_component(kind, component, **kwargs)
@@ -278,7 +276,7 @@ class Timeline(ABC):
 
     @staticmethod
     def _make_reference_to_ui_in_component(
-        component: SomeTimelineComponent, component_ui: SomeTimelineComponent
+        component: TimelineComponent, component_ui: TimelineComponent
     ):
         logger.debug(f"Setting '{component}' ui as {component_ui}.'")
         component.ui = component_ui
@@ -286,19 +284,17 @@ class Timeline(ABC):
     # noinspection PyMethodMayBeStatic
 
     def on_request_to_delete_components(
-        self, components: list[SomeTimelineComponent], record=True
+        self, components: list[TimelineComponent], record=True
     ) -> None:
         self._validate_delete_components(components)
 
         for component in components:
             self.component_manager.delete_component(component)
 
-    def request_delete_ui_for_component(self, component: SomeTimelineComponent) -> None:
+    def request_delete_ui_for_component(self, component: TimelineComponent) -> None:
         self.ui.delete_element(component.ui)
 
-    def _validate_delete_components(
-        self, components: list[SomeTimelineComponent]
-    ) -> None:
+    def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
         pass
 
     def clear(self, record=True):
@@ -325,7 +321,7 @@ class Timeline(ABC):
             state[attr] = value
 
         state["components"] = self.component_manager.serialize_components()
-        state["kind"] = self._kind.name
+        state["kind"] = self.kind.name
 
         return state
 

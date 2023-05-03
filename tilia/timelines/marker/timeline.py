@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 
+from tilia.exceptions import CreateComponentError
 from tilia.timelines.state_actions import Action
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -25,7 +26,6 @@ from tilia.timelines.common import (
 
 
 class MarkerTimeline(Timeline):
-
     SERIALIZABLE_BY_VALUE = []
     SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
 
@@ -40,6 +40,10 @@ class MarkerTimeline(Timeline):
         super().__init__(
             collection, component_manager, TimelineKind.MARKER_TIMELINE, **kwargs
         )
+
+    @property
+    def ordered_markers(self):
+        return sorted(self.component_manager.get_components(), key=lambda m: m.time)
 
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
@@ -69,3 +73,11 @@ class MarkerTLComponentManager(TimelineComponentManager):
         for marker in self._components.copy():
             if marker.time > length:
                 self.delete_component(marker)
+
+    def _validate_component_creation(
+        self, timeline: MarkerTimeline, time: float, **_
+    ) -> None:
+        if time > (media_length := self.timeline.get_media_length()):
+            raise CreateComponentError(
+                f"Time '{time}' is bigger than total time '{media_length}'"
+            )

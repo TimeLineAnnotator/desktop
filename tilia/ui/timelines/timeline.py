@@ -6,7 +6,15 @@ import tkinter as tk
 from abc import ABC
 from enum import Enum, auto
 
-from typing import runtime_checkable, Protocol, Any, Callable, TYPE_CHECKING, TypeVar
+from typing import (
+    runtime_checkable,
+    Protocol,
+    Any,
+    Callable,
+    TYPE_CHECKING,
+    TypeVar,
+    Optional,
+)
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection import TimelineUICollection
@@ -164,7 +172,7 @@ class TimelineUI(ABC):
         self.component_kinds_to_classes = component_kinds_to_classes
         self.toolbar = toolbar
 
-        self.right_clicked_element = None
+        self.right_clicked_element: Optional[TimelineUIElement] = None
 
         self._setup_visiblity(is_visible)
         self._setup_user_actions_to_callbacks()
@@ -255,8 +263,8 @@ class TimelineUI(ABC):
         y: int,
         item_id: int,
         modifier: ModifierEnum,
-        root_x: int | None = None,
-        root_y: int | None = None,
+        root_x: int,
+        root_y: int,
     ) -> None:
 
         logger.debug(f"Processing click on {self}...")
@@ -393,7 +401,7 @@ class TimelineUI(ABC):
         else:
             logger.debug(f"Element is not right clickable.")
 
-    def select_element(self, element: Selectable):
+    def select_element(self, element):
 
         self.element_manager.select_element(element)
 
@@ -407,7 +415,7 @@ class TimelineUI(ABC):
                 functools.partial(on_inspector_field_edited, element),
             )
 
-    def deselect_element(self, element: Selectable):
+    def deselect_element(self, element):
         self.element_manager.deselect_element(element)
 
         if isinstance(element, Inspectable):
@@ -650,6 +658,9 @@ class RightClickOption(Enum):
 def display_right_click_menu(
     x: int, y: int, options: list[tuple[str, RightClickOption]]
 ) -> None:
+    def get_right_click_callback(option) -> Callable[[], None]:
+        return lambda: events.post(Event.RIGHT_CLICK_MENU_OPTION_CLICK, option)
+
     class RightClickMenu:
         def __init__(self, x: int, y: int, options: list[tuple[str, RightClickOption]]):
             self.tk_menu = tk.Menu(tearoff=False)
@@ -663,10 +674,7 @@ def display_right_click_menu(
                     self.tk_menu.add_separator()
                 else:
                     self.tk_menu.add_command(
-                        label=option[0],
-                        command=lambda _option=option[1]: events.post(
-                            Event.RIGHT_CLICK_MENU_OPTION_CLICK, _option
-                        ),
+                        label=option[0], command=get_right_click_callback(option[1])
                     )
 
     RightClickMenu(x, y, options)
@@ -709,8 +717,6 @@ class TimelineUIElementManager:
         - Deleting timeline elements;
     """
 
-    SomeTimelineUIElement = TypeVar("SomeTimelineUIElement", bound="TimelineUIElement")
-
     @log_object_creation
     def __init__(
         self, element_kinds_to_classes: dict[UIElementKind, type[TimelineUIElement]]
@@ -743,18 +749,18 @@ class TimelineUIElementManager:
         **kwargs,
     ):
         self._validate_element_kind(kind)
-        element_class = self._get_element_class_by_kind(kind)
+        element_class: type[TimelineUIElement] = self._get_element_class_by_kind(kind)
         element = element_class.create(component, timeline_ui, canvas, *args, **kwargs)
 
         self._add_to_elements_set(element)
 
         return element
 
-    def _add_to_elements_set(self, element: SomeTimelineUIElement) -> None:
+    def _add_to_elements_set(self, element: TimelineUIElement) -> None:
         logger.debug(f"Adding element '{element}' to {self}.")
         self._elements.add(element)
 
-    def _remove_from_elements_set(self, element: SomeTimelineUIElement) -> None:
+    def _remove_from_elements_set(self, element: TimelineUIElement) -> None:
         logger.debug(f"Removing element '{element}' from {self}.")
         try:
             self._elements.remove(element)
@@ -774,14 +780,14 @@ class TimelineUIElementManager:
         return self._get_elements_from_set_by_attribute(element_set, attr_name, value)
 
     def get_elements_by_condition(
-        self, condition: Callable[[SomeTimelineUIElement], bool], kind: UIElementKind
+        self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
     ) -> list:
         element_set = self._get_element_set_by_kind(kind)
         return [e for e in element_set if condition(e)]
 
     def get_element_by_condition(
-        self, condition: Callable[[SomeTimelineUIElement], bool], kind: UIElementKind
-    ) -> SomeTimelineUIElement:
+        self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
+    ) -> TimelineUIElement | None:
         element_set = self._get_element_set_by_kind(kind)
         return next((e for e in element_set if condition(e)), None)
 
@@ -794,13 +800,13 @@ class TimelineUIElementManager:
     def _get_element_set_by_kind(self, kind: UIElementKind) -> set:
         if kind == UIElementKind.ANY:
             return self._elements
-        cmp_class = self._get_element_class_by_kind(kind)
+        cmp_class: type[TimelineUIElement] = self._get_element_class_by_kind(kind)
 
         return {elmt for elmt in self._elements if isinstance(elmt, cmp_class)}
 
     def _get_element_class_by_kind(
         self, kind: UIElementKind
-    ) -> type[SomeTimelineUIElement]:
+    ) -> type[TimelineUIElement]:
         self._validate_element_kind(kind)
         return self._element_kinds_to_classes[kind]
 
@@ -820,7 +826,7 @@ class TimelineUIElementManager:
     ) -> list:
         return [e for e in cmp_list if getattr(e, attr_name) == value]
 
-    def select_element(self, element: SomeTimelineUIElement) -> None:
+    def select_element(self, element: TimelineUIElement) -> None:
         logger.debug(f"Selecting element '{element}'")
         if element not in self._selected_elements:
             self._add_to_selected_elements_set(element)
@@ -828,14 +834,14 @@ class TimelineUIElementManager:
         else:
             logger.debug(f"Element '{element}' is already selected.")
 
-    def deselect_element(self, element: SomeTimelineUIElement) -> None:
+    def deselect_element(self, element: TimelineUIElement) -> None:
 
         if element in self._selected_elements:
             logger.debug(f"Deselecting element '{element}'")
             self._remove_from_selected_elements_set(element)
             element.on_deselect()
 
-    def _deselect_if_selected(self, element: SomeTimelineUIElement):
+    def _deselect_if_selected(self, element: TimelineUIElement):
         logger.debug(f"Will deselect {element} if it is selected.")
         if element in self._selected_elements:
             self.deselect_element(element)
@@ -847,13 +853,11 @@ class TimelineUIElementManager:
         for element in self._selected_elements.copy():
             self.deselect_element(element)
 
-    def _add_to_selected_elements_set(self, element: SomeTimelineUIElement) -> None:
+    def _add_to_selected_elements_set(self, element: TimelineUIElement) -> None:
         logger.debug(f"Adding element '{element}' to selected elements {self}.")
         self._selected_elements.append(element)
 
-    def _remove_from_selected_elements_set(
-        self, element: SomeTimelineUIElement
-    ) -> None:
+    def _remove_from_selected_elements_set(self, element: TimelineUIElement) -> None:
         logger.debug(f"Removing element '{element}' from selected elements of {self}.")
         try:
             self._selected_elements.remove(element)
@@ -862,17 +866,17 @@ class TimelineUIElementManager:
                 f"Can't remove element '{element}' from selected objects of {self}: not in self._selected_elements."
             )
 
-    def get_selected_elements(self) -> list[SomeTimelineUIElement]:
+    def get_selected_elements(self) -> list[TimelineUIElement]:
         return self._selected_elements
 
-    def delete_element(self, element: SomeTimelineUIElement):
+    def delete_element(self, element: TimelineUIElement):
         logger.debug(f"Deleting UI element '{element}'")
         element.delete()
         self._remove_from_elements_set(element)
 
     @staticmethod
     def get_canvas_drawings_ids_from_elements(
-        elements: list[SomeTimelineUIElement],
+        elements: list[TimelineUIElement],
     ) -> list[int]:
         drawings_ids = []
         for element in elements:

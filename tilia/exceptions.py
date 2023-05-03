@@ -8,3 +8,7 @@ class UserCancelledSaveError(TiliaException):
 
 class UserCancelledOpenError(TiliaException):
     pass
+
+
+class CreateComponentError(TiliaException):
+    pass

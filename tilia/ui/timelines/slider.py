@@ -6,7 +6,9 @@ Pretty simple, so it doesn't need its own package.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.modifier_enum import ModifierEnum
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
@@ -28,8 +30,8 @@ logger = logging.getLogger(__name__)
 class SliderTimelineUI(TimelineUI):
 
     TOOLBAR_CLASS = None
-    ELEMENT_KINDS_TO_ELEMENT_CLASSES = {}
-    COMPONENT_KIND_TO_UIELEMENT_KIND = {}
+    ELEMENT_KINDS_TO_ELEMENT_CLASSES: dict = {}
+    COMPONENT_KIND_TO_UIELEMENT_KIND: dict = {}
 
     DEFAULT_HEIGHT = settings.get("slider_timeline", "default_height")
 
@@ -105,14 +107,14 @@ class SliderTimelineUI(TimelineUI):
             self.height / 2 + (self.LINE_WEIGHT + self.TROUGH_RADIUS * 2) / 2,
         )
 
-    def on_left_click(self, clicked_item_id: int, *_, **__) -> None:
+    def on_left_click(self, item_id: int, modifier: ModifierEnum, double: bool) -> None:
         logger.debug(f"Processing click on {self}...")
 
-        if not clicked_item_id:
+        if not item_id:
             logger.debug(f"No canvas item was clicked.")
-        elif clicked_item_id == self.line:
+        elif item_id == self.line:
             logger.debug(f"Line was cliked. Nothing to do.")
-        elif clicked_item_id == self.trough:
+        elif item_id == self.trough:
             self.prepare_to_drag()
 
         logger.debug(f"Processed click on {self}.")
@@ -169,7 +171,7 @@ class SliderTimelineUI(TimelineUI):
             self._update_trough_position()
 
     def get_ui_for_component(
-        self, kind: UIElementKind, component: TimelineComponent, *args, **kwargs
+        self, component_kind: ComponentKind, component: TimelineComponent, **kwargs
     ):
         """No components in SliderTimeline. Must implement abstract method."""
 

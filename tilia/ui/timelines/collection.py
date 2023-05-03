@@ -7,6 +7,7 @@ from typing import Any, TYPE_CHECKING
 
 from tilia.clipboard import ClipboardContents
 from tilia.ui.canvas_tags import TRANSPARENT
+from tilia.ui.dialogs.choose import ChooseDialog
 
 if TYPE_CHECKING:
     from tilia.ui.tkinterui import TkinterUI
@@ -16,9 +17,9 @@ from tilia.events import subscribe, Event
 from tilia.misc_enums import Side, UpOrDown, InOrOut
 from tilia.timelines.common import Timeline
 from tilia.timelines.state_actions import Action
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
 from tilia.ui.modifier_enum import ModifierEnum
-from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar, SomeTimelineUI
+from tilia.ui.timelines.common import TimelineCanvas, TimelineToolbar
 from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
 from tilia.ui.timelines.copy_paste import CopyError, PasteError
 from tilia.ui.timelines.selection_box import SelectionBox
@@ -236,7 +237,6 @@ class TimelineUICollection:
         self._app_ui.timeline_width = value
 
         for tl_ui in self:
-
             tl_ui.canvas.config(
                 scrollregion=(0, 0, self.get_timeline_total_size(), tl_ui.height)
             )
@@ -255,7 +255,6 @@ class TimelineUICollection:
         self.scroll_to_x(self.get_x_by_time(scroll_time))
 
     def create_timeline_ui(self, kind: TlKind, name: str, **kwargs) -> TimelineUI:
-
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
         canvas = self.create_timeline_canvas(name, timeline_class.DEFAULT_HEIGHT)
         toolbar = self.get_toolbar_for_timeline_ui(timeline_class.TOOLBAR_CLASS)
@@ -390,7 +389,6 @@ class TimelineUICollection:
 
     @staticmethod
     def hide_timeline_ui(timeline_ui: TimelineUI):
-
         timeline_ui.canvas.grid_forget()
         timeline_ui.is_visible = False
 
@@ -398,7 +396,6 @@ class TimelineUICollection:
             timeline_ui.toolbar.process_visiblity_change(False)
 
     def show_timeline_ui(self, timeline_ui: TimelineUI):
-
         timeline_ui.canvas.grid(
             row=self.get_timeline_display_position(timeline_ui), column=0, sticky="ew"
         )
@@ -447,7 +444,6 @@ class TimelineUICollection:
     def get_toolbar_for_timeline_ui(
         self, toolbar_type: type[TimelineToolbar]
     ) -> TimelineToolbar | None:
-
         if not toolbar_type:
             logger.debug(f"Timeline kind has no toolbar.")
             return
@@ -491,7 +487,6 @@ class TimelineUICollection:
         root_x: int,
         root_y: int,
     ) -> None:
-
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
 
         if clicked_timeline_ui:
@@ -535,7 +530,6 @@ class TimelineUICollection:
         modifier: ModifierEnum,
         double: bool,
     ) -> None:
-
         clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
 
         if modifier == ModifierEnum.NONE:
@@ -592,7 +586,6 @@ class TimelineUICollection:
             )
 
         def create_selection_box_above():
-
             last_selection_box_timeline = self._get_timeline_ui_by_canvas(
                 self.selection_boxes[-1].canvas
             )
@@ -620,7 +613,6 @@ class TimelineUICollection:
             return
 
         if y > self.next_sbx_boundary_below:
-
             if self.selection_boxes_above:
                 self.selection_boxes = self.selection_boxes[:1]
                 self.selection_boxes_above = False
@@ -633,7 +625,6 @@ class TimelineUICollection:
 
             create_selection_box_below()
         elif y < self.next_sbx_boundary_above:
-
             if self.selection_boxes_below:
                 self.selection_boxes = self.selection_boxes[:1]
                 self.selection_boxes_below = False
@@ -652,7 +643,6 @@ class TimelineUICollection:
     def on_selection_box_request_select(
         self, canvas: tk.Canvas, canvas_item_id: int
     ) -> None:
-
         timeline_ui = self._get_timeline_ui_by_canvas(canvas)
 
         try:
@@ -676,7 +666,6 @@ class TimelineUICollection:
     def on_selection_box_request_deselect(
         self, canvas: tk.Canvas, canvas_item_id: int
     ) -> None:
-
         timeline_ui = self._get_timeline_ui_by_canvas(canvas)
 
         try:
@@ -712,7 +701,6 @@ class TimelineUICollection:
                 timeline_ui.on_up_down_arrow_press(direction)
 
     def _on_request_to_copy(self):
-
         ui_with_selected_elements = [
             tlui for tlui in self if tlui.has_selected_elements
         ]
@@ -752,7 +740,6 @@ class TimelineUICollection:
         return clipboard_elements
 
     def _on_request_to_paste(self) -> None:
-
         clipboard_data = self.get_elements_for_pasting()
 
         paste_cardinality = (
@@ -873,7 +860,6 @@ class TimelineUICollection:
     def on_timeline_toolbar_button(
         self, kinds: TlKind | list[TlKind], button: str
     ) -> None:
-
         if not isinstance(kinds, list):
             kinds = [kinds]
 
@@ -886,19 +872,16 @@ class TimelineUICollection:
         self.timeline_toolbar_button_record(button)
 
     def timeline_toolbar_button_call_on_all(self, kind: TlKind, button: str):
-
         for tlui in self.get_timeline_uis_by_kind(kind):
             tlui.action_to_callback[button]()
 
     def timeline_toolbar_button_call_on_first(self, kind: TlKind, button: str):
-
         first_timeline_ui = self._get_first_from_select_order_by_kind([kind])
 
         first_timeline_ui.action_to_callback[button]()
 
     @staticmethod
     def timeline_toolbar_button_record(button: str):
-
         button_to_method = {
             "create_child": Action.CREATE_CHILD,
             "increase_level": Action.LEVEL_INCREASE,
@@ -935,9 +918,7 @@ class TimelineUICollection:
     def get_timeline_uis_by_kind(self, kind: TlKind):
         return [tl for tl in self._timeline_uis if tl.TIMELINE_KIND == kind]
 
-    def _get_first_from_select_order_by_kind(
-        self, classes: list[TlKind]
-    ) -> SomeTimelineUI:
+    def _get_first_from_select_order_by_kind(self, classes: list[TlKind]) -> TimelineUI:
         for tl_ui in self._select_order:
             if tl_ui.TIMELINE_KIND in classes:
                 return tl_ui
@@ -1109,6 +1090,47 @@ class TimelineUICollection:
             "Delete timeline",
             f"Are you sure you want to clear ALL timelines?",
         )
+
+    def _get_choose_timeline_dialog(
+        self,
+        title: str,
+        prompt: str,
+        kind: TimelineKind | list[TimelineKind] | None = None,
+    ) -> ChooseDialog:
+        if kind and not isinstance(kind, list):
+            kind = [kind]
+
+        options = [
+            (tlui.display_position, str(tlui))
+            for tlui in sorted(self._timeline_uis, key=lambda x: x.display_position)
+            if ((tlui.TIMELINE_KIND in kind) if kind else True)
+        ]
+
+        return ChooseDialog(self._app_ui.root, title, prompt, options)
+
+    def ask_choose_timeline(
+        self,
+        title: str,
+        prompt: str,
+        kind: TimelineKind | list[TimelineKind] | None = None,
+    ) -> Timeline:
+        """
+        Opens a dialog where the user may choose an existing timeline.
+        Choices are restricted to the kinds in 'kind'. If no kind is passed,
+        all kinds are considered.
+        """
+
+        chosen_display_position = self._get_choose_timeline_dialog(
+            title, prompt, kind
+        ).ask()
+
+        chosen_tlui = [
+            tlui
+            for tlui in self._timeline_uis
+            if tlui.display_position == chosen_display_position
+        ][0]
+
+        return chosen_tlui.timeline
 
     def on_request_to_hide_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)

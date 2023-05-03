@@ -4,6 +4,7 @@ import pytest
 
 from tilia import events
 from tilia.events import Event
+from tilia.exceptions import CreateComponentError
 from tilia.misc_enums import Side
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.state_actions import Action
@@ -31,7 +32,7 @@ class TestBeatTimelineUI:
     @patch("tkinter.messagebox.showerror")
     def test_create_beat_at_same_time_raises_error(self, showerror_mock, beat_tlui):
         beat_tlui.create_beat(0)
-        with pytest.raises(ValueError):
+        with pytest.raises(CreateComponentError):
             beat_tlui.create_beat(0)
 
     def test_deselect_all_but_last(self, beat_tlui):
@@ -186,7 +187,6 @@ class TestBeatTimelineUI:
     def test_right_click_menu_change_measure_number_single_measure(
         self, ask_int_mock, beat_tlui
     ):
-
         ask_int_mock.return_value = 11
 
         beat_tlui.create_beat(0)
@@ -202,7 +202,6 @@ class TestBeatTimelineUI:
     def test_right_click_menu_change_measure_number_multiple_measures(
         self, ask_int_mock, beat_tlui
     ):
-
         ask_int_mock.return_value = 11
         beat_tlui.timeline.beat_pattern = [3]
 
@@ -220,7 +219,6 @@ class TestBeatTimelineUI:
     def test_right_click_menu_change_measure_number_not_first_beat_in_measure(
         self, ask_int_mock, beat_tlui
     ):
-
         ask_int_mock.return_value = 11
         beat_tlui.timeline.beat_pattern = [3]
 
@@ -235,7 +233,6 @@ class TestBeatTimelineUI:
         assert beat_tlui.timeline.measure_numbers[0] == 11
 
     def test_right_click_menu_reset_measure_number(self, beat_tlui):
-
         beat_tlui.create_beat(0)
         beat0 = beat_tlui.ordered_elements[0]
 
@@ -248,7 +245,6 @@ class TestBeatTimelineUI:
         assert beat_tlui.timeline.measure_numbers[0] == 1
 
     def test_right_click_menu_distribute_beats(self, beat_tlui):
-
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
@@ -266,7 +262,6 @@ class TestBeatTimelineUI:
 
     @patch("tilia.ui.common.ask_for_int")
     def test_change_beats_in_measure(self, ask_int_mock, beat_tlui):
-
         ask_int_mock.return_value = 11
         beat_tlui.create_beat(0)
 
@@ -289,7 +284,6 @@ class TestBeatTimelineUI:
         assert not beat_tlui.selected_elements
 
     def test_get_copy_data_from_beat_uis(self, beat_tlui):
-
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
@@ -360,7 +354,6 @@ class TestBeatTimelineUI:
         "tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time"
     )
     def test_paste_single_into_timeline(self, playback_time_mock, beat_tlui, tlui_clct):
-
         playback_time_mock.return_value = 0.5
 
         beat_tlui.create_beat(0)
@@ -381,7 +374,6 @@ class TestBeatTimelineUI:
     def test_paste_multiple_into_timeline(
         self, playback_time_mock, beat_tlui, tlui_clct
     ):
-
         playback_time_mock.return_value = 0.4
 
         beat_tlui.create_beat(0)
@@ -405,7 +397,6 @@ class TestBeatTimelineUI:
         assert beat_tlui.ordered_elements[7].time == pytest.approx(0.7)
 
     def test_on_add_beat_button(self, beat_tlui, tlui_clct):
-
         with patch(
             "tilia.ui.timelines.collection.TimelineUICollection.get_current_playback_time",
             lambda _: 0.101,
@@ -416,7 +407,6 @@ class TestBeatTimelineUI:
         assert list(beat_tlui.elements)[0].time == 0.101
 
     def test_undo_redo_add_beat(self, beat_tlui, tlui_clct):
-
         events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
         with patch(
@@ -451,7 +441,6 @@ class TestBeatTimelineUI:
         assert len(beat_tlui.elements) == 0
 
     def test_undo_redo_delete_beat_multiple_beats(self, beat_tlui, tlui_clct):
-
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)

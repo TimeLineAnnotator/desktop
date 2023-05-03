@@ -16,6 +16,9 @@ class DummyTimelineCollection:
     def get_id(self):
         return next(self.ID_ITER)
 
+    def get_media_length(self):
+        return 100
+
 
 @pytest.fixture
 def beat_tl():
@@ -485,3 +488,46 @@ class TestBeatTimeline:
         beat_tl.change_beats_in_measure(0, 12)
         assert beat_tl.beats_in_measure == [12]
         assert beat_tl.measure_numbers == [1]
+
+    def test_get_times_by_measure_no_beats(self, beat_tl):
+        with pytest.raises(ValueError):
+            beat_tl.get_time_by_measure(0)
+
+    def test_get_times_by_measure_one_measure(self, beat_tl):
+        beat_tl.create_timeline_component(time=1)
+        beat_tl.create_timeline_component(time=2)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(1) == [1]
+
+    def test_get_times_by_measure_multiple_measures(self, beat_tl):
+        beat_tl.create_timeline_component(time=1)
+        beat_tl.create_timeline_component(time=2)
+        beat_tl.create_timeline_component(time=3)
+        beat_tl.create_timeline_component(time=4)
+        beat_tl.create_timeline_component(time=5)
+        beat_tl.create_timeline_component(time=6)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(1) == [1]
+        assert beat_tl.get_time_by_measure(2) == [3]
+        assert beat_tl.get_time_by_measure(3) == [5]
+
+    def test_get_times_by_measure_index_bigger_than_measure_count(self, beat_tl):
+        beat_tl.create_timeline_component(time=1)
+        beat_tl.create_timeline_component(time=2)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(2) == []
+
+        assert beat_tl.get_time_by_measure(999) == []
+
+    def test_get_times_by_measure_negative_index(self, beat_tl):
+        beat_tl.create_timeline_component(time=1)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(-1) == []

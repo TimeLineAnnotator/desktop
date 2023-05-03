@@ -28,6 +28,7 @@ def tl_with_ui() -> MarkerTimeline:
 
     tl_coll_mock = MagicMock()
     tl_coll_mock.get_id = lambda: next(id_counter)
+    tl_coll_mock.get_media_length.return_value = 100
 
     tlui_coll_mock = MagicMock()
     tlui_coll_mock.get_id = lambda: next(id_counter)
@@ -50,19 +51,7 @@ def tl_with_ui() -> MarkerTimeline:
     unsubscribe_from_all(timeline.ui)
 
 
-@pytest.fixture
-def tl() -> MarkerTimeline:
-    component_manager = MarkerTLComponentManager()
-    timeline = MarkerTimeline(MagicMock(), component_manager)
-
-    timeline.ui = MagicMock()
-    component_manager.associate_to_timeline(timeline)
-    yield timeline
-    unsubscribe_from_all(timeline)
-
-
 class TestMarkerTimeline:
-
     # TEST CREATE
     def test_create_marker(self, tl_with_ui):
         tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
@@ -70,12 +59,12 @@ class TestMarkerTimeline:
         assert len(tl_with_ui.component_manager._components) == 1
 
     # TEST DELETE
-    def test_delete_marker(self, tl):
-        mrk1 = tl.create_timeline_component(ComponentKind.MARKER, time=0)
+    def test_delete_marker(self, mrk_tl):
+        mrk1 = mrk_tl.create_timeline_component(ComponentKind.MARKER, time=0)
 
-        tl.on_request_to_delete_components([mrk1])
+        mrk_tl.on_request_to_delete_components([mrk1])
 
-        assert not tl.component_manager._components
+        assert not mrk_tl.component_manager._components
 
     # TEST SERIALIZE
     def test_serialize_unit(self, tl_with_ui):
@@ -148,7 +137,6 @@ class TestMarkerTimeline:
     # TEST RIGHT CLICK OPTIONS
     @patch("tilia.ui.common.ask_for_color")
     def test_right_click_change_color(self, ask_for_color_mock, tl_with_ui):
-
         ask_for_color_mock.return_value = "#000000"
 
         mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
@@ -161,7 +149,6 @@ class TestMarkerTimeline:
 
     @patch("tilia.ui.common.ask_for_color")
     def test_right_click_reset_color(self, ask_for_color_mock, tl_with_ui):
-
         ask_for_color_mock.return_value = "#000000"
 
         mrk1 = tl_with_ui.create_timeline_component(ComponentKind.MARKER, time=0)
@@ -175,10 +162,12 @@ class TestMarkerTimeline:
 
 
 class TestMarkerTimelineComponentManager:
-
     # TEST CREATE COMPONENT
     def test_create_component(self):
         component_manager = MarkerTLComponentManager()
+        timeline = MagicMock()
+        timeline.get_media_length = lambda: 100
+        component_manager.timeline = timeline
         hunit = component_manager.create_component(
             ComponentKind.MARKER, timeline=MagicMock(), time=0
         )
@@ -189,14 +178,14 @@ class TestMarkerTimelineComponentManager:
             component_manager.create_component("INVALID KIND", time=0)
 
     # TEST CLEAR
-    def test_clear(self, tl):
-        _ = tl.create_timeline_component(ComponentKind.MARKER, time=0)
-        _ = tl.create_timeline_component(ComponentKind.MARKER, time=0)
-        _ = tl.create_timeline_component(ComponentKind.MARKER, time=0)
+    def test_clear(self, mrk_tl):
+        _ = mrk_tl.create_timeline_component(ComponentKind.MARKER, time=0)
+        _ = mrk_tl.create_timeline_component(ComponentKind.MARKER, time=0)
+        _ = mrk_tl.create_timeline_component(ComponentKind.MARKER, time=0)
 
-        tl.component_manager.clear()
+        mrk_tl.component_manager.clear()
 
-        assert not tl.component_manager._components
+        assert not mrk_tl.component_manager._components
 
     # TEST SERIALIZE
     # noinspection PyUnresolvedReferences

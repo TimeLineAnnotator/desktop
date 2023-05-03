@@ -61,11 +61,15 @@ class DummyTimelineCollection:
     def get_id(self):
         return next(self.ID_ITER)
 
+    def get_media_length(self):
+        return 100
+
 
 @pytest.fixture
 def tl(tilia) -> HierarchyTimeline:
     component_manager = HierarchyTLComponentManager()
     timeline = HierarchyTimeline(DummyTimelineCollection(), component_manager)
+    timeline.get_media_length = lambda: 100
 
     ui = HierarchyTimelineUIDummy()
 
@@ -88,7 +92,6 @@ class TkFontDummy:
 
 
 class TestHierarchyTimeline:
-
     # TEST CREATE
     def test_create_hierarchy(self, tl):
         tl.ui = MagicMock()
@@ -133,7 +136,6 @@ class TestHierarchyTimeline:
         assert srlz_hrc1["children"] == []
 
     def test_serialize_unit_with_parent(self, tl):
-
         hrc1 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
 
         hrc2 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2)
@@ -147,7 +149,6 @@ class TestHierarchyTimeline:
         assert srlz_hrc1["parent"] == hrc2.id
 
     def test_serialize_unit_with_children(self, tl):
-
         hrc1 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
 
         hrc2 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
@@ -198,7 +199,6 @@ class TestHierarchyTimeline:
     # noinspection PyTypeChecker, PyUnresolvedReferences
 
     def test_deserialize_unit_with_parent(self, tl):
-
         hrc1 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 1)
 
         hrc2 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2)
@@ -215,7 +215,6 @@ class TestHierarchyTimeline:
 
     # noinspection PyTypeChecker, PyUnresolvedReferences
     def test_deserialize_unit_with_children(self, tl):
-
         hrc1 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0, 0.5, 1)
         hrc2 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0.5, 1, 1)
         hrc3 = tl.create_timeline_component(ComponentKind.HIERARCHY, 0, 1, 2)
@@ -257,34 +256,35 @@ class TestHierarchyTimeline:
 
 
 class TestHierarchyTimelineComponentManager:
-
     # TEST CREATE COMPONENT
     def test_create_component(self):
+        timeline_mock = MagicMock()
+        timeline_mock.get_media_length.return_value = 100
+
         component_manager = HierarchyTLComponentManager()
+        component_manager.timeline = timeline_mock
         hunit = component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=MagicMock(), start=0, end=0, level=1
+            ComponentKind.HIERARCHY, timeline=MagicMock(), start=0, end=1, level=1
         )
         assert hunit
 
         with pytest.raises(InvalidComponentKindError):
             # noinspection PyTypeChecker
-            component_manager.create_component("INVALID KIND", start=0, end=0, level=1)
+            component_manager.create_component("INVALID KIND", start=0, end=1, level=1)
 
-    def test_create_unit_below(self):
-        component_manager = HierarchyTLComponentManager()
-        component_manager.timeline = MagicMock()
-        parent = component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=MagicMock(), start=0, end=0, level=3
+    def test_create_unit_below(self, tl):
+        parent = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=MagicMock(), start=0, end=1, level=3
         )
-        child = component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=MagicMock(), start=0, end=0, level=1
+        child = tl.component_manager.create_component(
+            ComponentKind.HIERARCHY, timeline=MagicMock(), start=0, end=1, level=1
         )
 
-        component_manager._make_parent_child_relation(
+        tl.component_manager._make_parent_child_relation(
             ParentChildRelation(parent=parent, children=[child])
         )
 
-        component_manager.create_unit_below(parent)
+        tl.component_manager.create_unit_below(parent)
 
         assert parent.children[0] == child.parent
 
@@ -881,7 +881,6 @@ class TestHierarchyTimelineComponentManager:
 
     # TEST CROP
     def test_crop(self, tl):
-
         hrc1 = tl.create_hierarchy(start=0.0, end=0.3, level=1)
 
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
@@ -901,7 +900,6 @@ class TestHierarchyTimelineComponentManager:
         assert hrc4.end == 0.1
 
     def test_scale(self, tl):
-
         hrc1 = tl.create_hierarchy(start=0, end=1, level=1)
 
         hrc2 = tl.create_hierarchy(start=1, end=3, level=2)
@@ -919,19 +917,16 @@ class TestHierarchyTimelineComponentManager:
         assert hrc3.end == 3
 
     def test_increase_level(self, tl, cm):
-
         hrc = tl.create_hierarchy(0, 1, 1)
         cm.change_level(hrc, 1)
         assert hrc.level == 2
 
     def test_decrease_level(self, tl, cm):
-
         hrc = tl.create_hierarchy(0, 1, 2)
         cm.change_level(hrc, -1)
         assert hrc.level == 1
 
     def test_decrease_level_below_one_raises_error(self, tl, cm):
-
         hrc = tl.create_hierarchy(0, 1, 1)
         with pytest.raises(HierarchyOperationError):
             cm.change_level(hrc, -1)

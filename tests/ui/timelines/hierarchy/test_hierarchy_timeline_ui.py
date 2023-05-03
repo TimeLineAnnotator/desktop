@@ -70,8 +70,7 @@ class TestHierarchyTimelineUI:
         assert len(hierarchy_tlui.elements) == 3
 
     def test_right_click_increase_level(self, hierarchy_tlui):
-
-        hrc1 = hierarchy_tlui.create_hierarchy(0, 0, 1)
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         hierarchy_tlui.right_clicked_element = hrc1.ui
 
@@ -80,8 +79,7 @@ class TestHierarchyTimelineUI:
         assert hrc1.level == 2
 
     def test_right_click_decrease_level(self, hierarchy_tlui):
-
-        hrc1 = hierarchy_tlui.create_hierarchy(0, 0, 2)
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
 
         hierarchy_tlui.right_clicked_element = hrc1.ui
 
@@ -91,10 +89,9 @@ class TestHierarchyTimelineUI:
 
     @patch("tilia.ui.common.ask_for_color")
     def test_right_click_change_color(self, ask_for_color_mock, hierarchy_tlui):
-
         ask_for_color_mock.return_value = "#000000"
 
-        hrc1 = hierarchy_tlui.create_hierarchy(0, 0, 1)
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         hierarchy_tlui.right_clicked_element = hrc1.ui
 
@@ -104,10 +101,9 @@ class TestHierarchyTimelineUI:
 
     @patch("tilia.ui.common.ask_for_color")
     def test_right_click_reset_color(self, ask_for_color_mock, hierarchy_tlui):
-
         ask_for_color_mock.return_value = "#000000"
 
-        hrc1 = hierarchy_tlui.create_hierarchy(0, 0, 1)
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         hierarchy_tlui.right_clicked_element = hrc1.ui
 
@@ -118,7 +114,6 @@ class TestHierarchyTimelineUI:
 
     @patch("tilia.ui.timelines.hierarchy.timeline.ask_for_float")
     def test_right_click_add_pre_start(self, ask_for_float_mock, hierarchy_tlui):
-
         ask_for_float_mock.return_value = 0.1
 
         hrc1 = hierarchy_tlui.create_hierarchy(0.1, 1, 1)
@@ -131,10 +126,9 @@ class TestHierarchyTimelineUI:
 
     @patch("tilia.ui.timelines.hierarchy.timeline.ask_for_float")
     def test_right_click_add_post_end(self, ask_for_float_mock, hierarchy_tlui):
-
         ask_for_float_mock.return_value = 0.1
 
-        hrc1 = hierarchy_tlui.create_hierarchy(0, 0, 1)
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         hierarchy_tlui.right_clicked_element = hrc1.ui
 
@@ -259,7 +253,6 @@ class TestHierarchyTimelineUI:
         #######################
 
     def test_paste_without_children_into_selected_elements(self, hierarchy_tlui):
-
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
 
         set_dummy_copy_attributes(hrc1)
@@ -304,7 +297,6 @@ class TestHierarchyTimelineUI:
     def test_paste_with_children_into_selected_elements_without_rescaling(
         self, hierarchy_tlui
     ):
-
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
         hrc3 = hierarchy_tlui.create_hierarchy(0, 1, 2)
@@ -342,7 +334,6 @@ class TestHierarchyTimelineUI:
     def test_paste_with_children_into_selected_elements_with_rescaling(
         self, hierarchy_tlui
     ):
-
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
         hrc3 = hierarchy_tlui.create_hierarchy(0, 1, 2)
@@ -372,7 +363,6 @@ class TestHierarchyTimelineUI:
         assert copied_children_2.end == 1.5
 
     def test_paste_with_children_that_have_children(self, hierarchy_tlui):
-
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
         hrc3 = hierarchy_tlui.create_hierarchy(0, 0.5, 2)
@@ -408,7 +398,6 @@ class TestHierarchyTimelineUI:
     def test_paste_with_children_into_different_level_raises_error(
         self, hierarchy_tlui
     ):
-
         hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
         hrc3 = hierarchy_tlui.create_hierarchy(0, 1, 2)

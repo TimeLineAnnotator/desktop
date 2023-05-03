@@ -36,7 +36,7 @@ class HasColoredLevels(Protocol):
     level: int
 
     @staticmethod
-    def get_default_level_color(lvl) -> bool:
+    def get_default_level_color(self, level) -> str:
         ...
 
 

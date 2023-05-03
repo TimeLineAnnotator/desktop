@@ -10,7 +10,8 @@ import _tkinter
 from tilia.ui.canvas_tags import CURSOR_ARROWS, CURSOR_HAND, TAG_TO_CURSOR
 
 if TYPE_CHECKING:
-    pass
+    from tilia.timelines.common import TimelineComponent
+    from tilia.ui.timelines.timeline import TimelineUI
 
 import logging
 
@@ -20,9 +21,6 @@ import tkinter.messagebox
 
 from tilia.events import Event, subscribe
 from tilia.timelines.common import log_object_creation
-
-SomeTimelineComponent = TypeVar("SomeTimelineComponent", bound="TimelineComponent")
-SomeTimelineUI = TypeVar("SomeTimelineUI", bound="TimelineUI")
 
 
 class TimelineCanvas(tk.Canvas):
@@ -109,8 +107,8 @@ class TimelineUIElement(ABC):
     def __init__(
         self,
         *args,
-        tl_component: Generic[SomeTimelineComponent],
-        timeline_ui: Generic[SomeTimelineUI],
+        tl_component,
+        timeline_ui,
         canvas: tk.Canvas,
         **kwargs,
     ):
