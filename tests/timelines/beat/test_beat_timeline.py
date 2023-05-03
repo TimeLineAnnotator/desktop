@@ -499,7 +499,7 @@ class TestBeatTimeline:
 
         beat_tl.recalculate_measures()
 
-        assert beat_tl.get_time_by_measure(0) == 1
+        assert beat_tl.get_time_by_measure(1) == [1]
 
     def test_get_times_by_measure_multiple_measures(self, beat_tl):
         beat_tl.create_timeline_component(time=1)
@@ -511,9 +511,9 @@ class TestBeatTimeline:
 
         beat_tl.recalculate_measures()
 
-        assert beat_tl.get_time_by_measure(0) == 1
-        assert beat_tl.get_time_by_measure(1) == 3
-        assert beat_tl.get_time_by_measure(2) == 5
+        assert beat_tl.get_time_by_measure(1) == [1]
+        assert beat_tl.get_time_by_measure(2) == [3]
+        assert beat_tl.get_time_by_measure(3) == [5]
 
     def test_get_times_by_measure_index_bigger_than_measure_count(self, beat_tl):
         beat_tl.create_timeline_component(time=1)
@@ -521,16 +521,13 @@ class TestBeatTimeline:
 
         beat_tl.recalculate_measures()
 
-        with pytest.raises(IndexError):
-            beat_tl.get_time_by_measure(1)
+        assert beat_tl.get_time_by_measure(2) == []
 
-        with pytest.raises(IndexError):
-            beat_tl.get_time_by_measure(999)
+        assert beat_tl.get_time_by_measure(999) == []
 
     def test_get_times_by_measure_negative_index(self, beat_tl):
         beat_tl.create_timeline_component(time=1)
 
         beat_tl.recalculate_measures()
 
-        with pytest.raises(IndexError):
-            beat_tl.get_time_by_measure(-1)
+        assert beat_tl.get_time_by_measure(-1) == []

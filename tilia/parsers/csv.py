@@ -125,10 +125,10 @@ def markers_by_measure_from_csv(
             if "fraction" in params_to_indices:
                 fraction = float(row[params_to_indices["fraction"]])
 
-            try:
-                time = beat_tl.get_time_by_measure(measure - 1, fraction)
-            except (ValueError, IndexError) as exc:
-                errors.append(f"{measure=} | {str(exc)}")
+            times = beat_tl.get_time_by_measure(measure, fraction)
+
+            if not times:
+                errors.append(f"{measure=} | No measure with number {measure}")
                 continue
 
             params = ["label", "comments"]
@@ -140,11 +140,12 @@ def markers_by_measure_from_csv(
                     index = params_to_indices[param]
                     constructor_kwargs[param] = parser(row[index])
 
-            try:
-                marker_tl.create_timeline_component(
-                    ComponentKind.MARKER, time=time, **constructor_kwargs
-                )
-            except CreateComponentError as exc:
-                errors.append(f"{measure=} | {str(exc)}")
+            for time in times:
+                try:
+                    marker_tl.create_timeline_component(
+                        ComponentKind.MARKER, time=time, **constructor_kwargs
+                    )
+                except CreateComponentError as exc:
+                    errors.append(f"{measure=} | {str(exc)}")
 
         return errors

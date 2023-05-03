@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from unittest.mock import patch, mock_open
 
 import pytest
 from tilia.parsers.csv import *
@@ -39,6 +40,32 @@ def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
     assert markers[0].time == 1
     assert markers[1].time == 2.5
     assert markers[2].time == 4
+
+
+def test_markers_by_measure_from_csv_multiple_measures_with_number(
+    beat_tlui, marker_tlui
+):
+    beat_tl = beat_tlui.timeline
+    marker_tl = marker_tlui.timeline
+    beat_tl.beat_pattern = [1]
+    beat_tlui.create_beat(time=1)
+    beat_tlui.create_beat(time=2)
+    beat_tlui.create_beat(time=3)
+
+    beat_tl.measure_numbers = [1, 1, 1]
+
+    beat_tl.recalculate_measures()
+
+    data = "measure\n1"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        markers_by_measure_from_csv(marker_tl, beat_tl, Path())
+
+    markers = marker_tl.ordered_markers
+
+    assert markers[0].time == 1
+    assert markers[1].time == 2
+    assert markers[2].time == 3
 
 
 def test_markers_by_measure_from_csv_raises_error_if_no_measure_column(

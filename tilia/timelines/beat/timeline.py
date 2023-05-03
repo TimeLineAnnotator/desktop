@@ -80,7 +80,7 @@ class BeatTimeline(Timeline):
     def beat_count(self):
         return self.component_manager.component_count
 
-    def get_time_by_measure(self, index: int, fraction: float = 0) -> int:
+    def get_time_by_measure(self, number: int, fraction: float = 0) -> list[int]:
         """
         Given the measure index, returns the start time of the measure.
         If fraction is supplied, sums that fraction of the measure's
@@ -90,19 +90,26 @@ class BeatTimeline(Timeline):
         if not self.measure_count:
             raise ValueError("No beats in timeline. Can't get time.")
 
-        if index > self.measure_count - 1 or index < 0:
-            raise IndexError("No measure with index=" + str(index))
+        measure_indices = [i for i, n in enumerate(self.measure_numbers) if n == number]
+        measure_times = []
 
-        beat_number = self.beats_that_start_measures[index]
-        measure_time = self.component_manager.ordered_beats[beat_number].time
+        for index in measure_indices:
+            beat_number = self.beats_that_start_measures[index]
+            measure_time = self.component_manager.ordered_beats[beat_number].time
 
-        if index == self.measure_count - 1:
-            next_measure_time = measure_time
-        else:
-            beat_number = self.beats_that_start_measures[index + 1]
-            next_measure_time = self.component_manager.ordered_beats[beat_number].time
+            if index == self.measure_count - 1:
+                next_measure_time = measure_time
+            else:
+                beat_number = self.beats_that_start_measures[index + 1]
+                next_measure_time = self.component_manager.ordered_beats[
+                    beat_number
+                ].time
 
-        return measure_time + (next_measure_time - measure_time) * fraction
+            measure_times.append(
+                measure_time + (next_measure_time - measure_time) * fraction
+            )
+
+        return measure_times
 
     def restore_state(self, state: dict):
         super().restore_state(state)
