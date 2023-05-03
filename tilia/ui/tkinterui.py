@@ -289,6 +289,9 @@ class TkinterUI:
 
     @staticmethod
     def on_display_error(title: str, message: str):
+        lines = message.split("\n")
+        if len(lines) > 35:
+            message = "\n".join(lines[:35]) + "\n..."
         tk.messagebox.showerror(title, message)
 
     def get_metadata_non_editable_fields(self) -> dict[str, OrderedDict]:

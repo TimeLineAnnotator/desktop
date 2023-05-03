@@ -172,9 +172,16 @@ class TestTkinterUI:
                 ),
                 patch("builtins.open", mock_open(read_data=data)),
             ):
-
                 beat_tlui.create_beat(1)
 
                 tkui.on_menu_import_markers_from_csv()
 
                 assert "999" in post_mock.call_args.args[2]
+
+    def test_on_display_error_crops_long_message(self, tkui):
+        message = "\n".join(["." for _ in range(50)])  # 50 lines with a dot
+
+        with patch("tkinter.messagebox.showerror") as showerror_mock:
+            tkui.on_display_error("", message)
+
+        assert showerror_mock.call_args.args[1].count("\n") == 35
