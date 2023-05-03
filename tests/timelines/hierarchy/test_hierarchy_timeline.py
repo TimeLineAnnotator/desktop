@@ -69,6 +69,7 @@ class DummyTimelineCollection:
 def tl(tilia) -> HierarchyTimeline:
     component_manager = HierarchyTLComponentManager()
     timeline = HierarchyTimeline(DummyTimelineCollection(), component_manager)
+    timeline.get_media_length = lambda: 100
 
     ui = HierarchyTimelineUIDummy()
 

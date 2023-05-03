@@ -380,9 +380,19 @@ class TkinterUI:
             return
 
         if time_or_measure == "time":
-            markers_by_time_from_csv(marker_tl, path)
+            errors = markers_by_time_from_csv(marker_tl, path)
         else:
-            markers_by_measure_from_csv(marker_tl, beat_tl, path)
+            errors = markers_by_measure_from_csv(marker_tl, beat_tl, path)
+
+        if errors:
+            errors_str = "\n".join(errors)
+            print(errors_str)
+            events.post(
+                Event.REQUEST_DISPLAY_ERROR,
+                "Import markers from csv",
+                "Some markers were not imported. The following errors occured:\n"
+                + errors_str,
+            )
 
     @staticmethod
     def get_file_save_path(initial_filename: str) -> str | None:

@@ -124,3 +124,57 @@ class TestTkinterUI:
                 assert created_marker.time == 2.5
                 assert created_marker.ui.label == "abc"
                 assert created_marker.comments == "def"
+
+    def test_on_menu_import_markers_from_csv_displays_errors_during_creation(
+        self, tkui, marker_tlui, beat_tlui
+    ):
+        def get_by_kind(kind):
+            if kind == TimelineKind.MARKER_TIMELINE:
+                return marker_tlui.timeline
+            elif kind == TimelineKind.BEAT_TIMELINE:
+                return beat_tlui.timeline
+            else:
+                raise ValueError
+
+        def get_timeline_uis_mock(self, kind):
+            return get_by_kind(kind)
+
+        def ask_choose_timeline_mock(self, _1, _2, kind):
+            return get_by_kind(kind)
+
+        tlui_coll_path = "tilia.ui.timelines.collection.TimelineUICollection"
+        with (
+            patch(tlui_coll_path + ".get_timeline_uis_by_kind", get_timeline_uis_mock),
+            patch(tlui_coll_path + ".ask_choose_timeline", ask_choose_timeline_mock),
+            patch("tkinter.filedialog.askopenfilename", lambda **_: "dummy"),
+            patch("tilia.events.post") as post_mock,
+        ):
+            data = "time,label,comments\n101,,\n102,,\n103,,"
+            with (
+                patch(
+                    "tilia.ui.dialogs.by_time_or_by_measure.ByTimeOrByMeasure.ask",
+                    lambda _: "time",
+                ),
+                patch("builtins.open", mock_open(read_data=data)),
+            ):
+                tkui.on_menu_import_markers_from_csv()
+
+                post_mock.assert_called_once()
+                assert "101" in post_mock.call_args.args[2]
+                assert "102" in post_mock.call_args.args[2]
+                assert "103" in post_mock.call_args.args[2]
+
+            data = """measure,fraction,label,comments\n999,0.5,,"""
+            with (
+                patch(
+                    "tilia.ui.dialogs.by_time_or_by_measure.ByTimeOrByMeasure.ask",
+                    lambda _: "measure",
+                ),
+                patch("builtins.open", mock_open(read_data=data)),
+            ):
+
+                beat_tlui.create_beat(1)
+
+                tkui.on_menu_import_markers_from_csv()
+
+                assert "999" in post_mock.call_args.args[2]

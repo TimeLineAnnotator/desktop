@@ -3,6 +3,7 @@ from pathlib import Path
 import csv
 from typing import Any, Optional
 
+from tilia.exceptions import CreateComponentError
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.marker.timeline import MarkerTimeline
@@ -49,13 +50,17 @@ def markers_by_time_from_csv(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> None:
+) -> list[str]:
     """
     Create markers in a timeline from a csv file with times.
     Assumes the first row of the file will contain headers.
     Header names should match marker properties. All properties
     but 'time' are optional.
+    Returns an array with descriptions of any CreateComponentErrors
+    raised during marker creation.
     """
+
+    errors = []
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
         params_to_indices = get_params_indices(
@@ -75,9 +80,15 @@ def markers_by_time_from_csv(
                     index = params_to_indices[param]
                     constructor_kwargs[param] = parser(row[index])
 
-            timeline.create_timeline_component(
-                ComponentKind.MARKER, **constructor_kwargs
-            )
+            try:
+                timeline.create_timeline_component(
+                    ComponentKind.MARKER, **constructor_kwargs
+                )
+            except CreateComponentError as exc:
+                time = params_to_indices["time"]
+                errors.append(f"{time=} | {str(exc)}")
+
+        return errors
 
 
 def markers_by_measure_from_csv(
@@ -86,17 +97,20 @@ def markers_by_measure_from_csv(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> None:
+) -> list[str]:
     """
     Create markers in a timeline from a csv file with 1-based measure indices.
     Assumes the first row of the file will contain headers.
     Header names should match marker propertiesAll properties
     but 'measure' are optional.
+    Returns an array with descriptions of any CreateComponentErrors
+    raised during marker creation.
 
     Note: The measure column should have measure indices, not measure numbers.
     That means that repeated measure numbers should not be taken into account.
     """
 
+    errors = []
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
         params_to_indices = get_params_indices(
             ["measure", "fraction", "label", "comments"], next(reader)
@@ -111,7 +125,11 @@ def markers_by_measure_from_csv(
             if "fraction" in params_to_indices:
                 fraction = float(row[params_to_indices["fraction"]])
 
-            time = beat_tl.get_time_by_measure(measure - 1, fraction)
+            try:
+                time = beat_tl.get_time_by_measure(measure - 1, fraction)
+            except (ValueError, IndexError) as exc:
+                errors.append(f"{measure=} | {str(exc)}")
+                continue
 
             params = ["label", "comments"]
             parsers = [str, str]
@@ -122,6 +140,11 @@ def markers_by_measure_from_csv(
                     index = params_to_indices[param]
                     constructor_kwargs[param] = parser(row[index])
 
-            marker_tl.create_timeline_component(
-                ComponentKind.MARKER, time=time, **constructor_kwargs
-            )
+            try:
+                marker_tl.create_timeline_component(
+                    ComponentKind.MARKER, time=time, **constructor_kwargs
+                )
+            except CreateComponentError as exc:
+                errors.append(f"{measure=} | {str(exc)}")
+
+        return errors
