@@ -71,6 +71,15 @@ def markers_by_time_from_csv(
             raise ValueError("Column 'time' not found on first row of csv file.")
 
         for row in reader:
+            # validate time
+            index = params_to_indices["time"]
+            time_value = row[index]
+            try:
+                time = int(time_value)
+            except ValueError:
+                errors.append(f"{time_value=} | {time_value} is not a valid time")
+                continue
+
             params = ["time", "label", "comments"]
             parsers = [float, str, str]
             constructor_kwargs = {}
@@ -120,10 +129,27 @@ def markers_by_measure_from_csv(
             raise ValueError("Column 'measure' not found on first row of csv file.")
 
         for row in reader:
-            measure = int(row[params_to_indices["measure"]])
+            # get and validate measure
+            measure_value = row[params_to_indices["measure"]]
+            try:
+                measure = int(measure_value)
+            except ValueError:
+                errors.append(
+                    f"{measure_value=} | {measure_value} is not a valid measure number"
+                )
+                continue
             fraction = 0
+
+            # get and validate fraction
             if "fraction" in params_to_indices:
-                fraction = float(row[params_to_indices["fraction"]])
+                fraction_value = row[params_to_indices["fraction"]]
+                try:
+                    fraction = float(fraction_value)
+                except ValueError:
+                    errors.append(
+                        f"{measure_value=} | {fraction_value} is not a fraction value. Using 0 as a backup."
+                    )
+                    fraction = 0
 
             times = beat_tl.get_time_by_measure(measure, fraction)
 

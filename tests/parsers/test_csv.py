@@ -112,3 +112,43 @@ def test_markers_by_time_from_csv_raises_error_if_no_time_column(marker_tlui):
             marker_tlui.timeline,
             Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
         )
+
+
+def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):
+    data = "time\nnonsense"
+    with patch("builtins.open", mock_open(read_data=data)):
+        errors = markers_by_time_from_csv(marker_tlui.timeline, Path())
+
+    assert "nonsense" in errors[0]
+
+
+def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
+    marker_tlui, beat_tlui
+):
+    data = "measure\nnonsense"
+    with patch("builtins.open", mock_open(read_data=data)):
+        errors = markers_by_measure_from_csv(
+            marker_tlui.timeline, beat_tlui.timeline, Path()
+        )
+
+    assert "nonsense" in errors[0]
+
+
+def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
+    marker_tlui, beat_tlui
+):
+    beat_tl = beat_tlui.timeline
+    marker_tl = marker_tlui.timeline
+    beat_tl.beat_pattern = [1]
+    beat_tlui.create_beat(time=1)
+    beat_tlui.create_beat(time=2)
+
+    data = "measure,fraction\n1,nonsense"
+    with patch("builtins.open", mock_open(read_data=data)):
+        errors = markers_by_measure_from_csv(
+            marker_tlui.timeline, beat_tlui.timeline, Path()
+        )
+
+    assert "nonsense" in errors[0]
+
+    assert marker_tl.ordered_markers[0].time == 1
