@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class Event(Enum):
+    REQUEST_OPEN_SETTINGS = auto()
     ABOUT_WINDOW_CLOSED = auto()
     ADD_RANGE_BUTTON = auto()
     REQUEST_ADD_TIMELINE = auto()

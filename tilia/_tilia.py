@@ -24,6 +24,7 @@ from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind, IMPLEMENTED_TIMELINE_KINDS
 from tilia.ui.timelines.collection import TimelineUICollection
 from tilia.undo_manager import UndoManager
+from tilia.utils.os_run import os_run
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class TiLiA:
             (Evt.REQUEST_CLOSE_APP, self.on_request_to_close),
             (Evt.REQUEST_RECORD_STATE, self.on_request_to_record_state),
             (Evt.REQUEST_RESTORE_APP_STATE, self.on_request_to_restore_state),
+            (Evt.REQUEST_OPEN_SETTINGS, self.on_request_open_settings),
             (Evt.METADATA_FIELD_EDITED, self.on_metadata_field_edited),
             (Evt.METADATA_NEW_FIELDS, self.on_metadata_new_fields),
             (Evt.REQUEST_EXPORT_AUDIO_SEGMENT, self.on_request_to_export_audio_segment),
@@ -196,6 +198,12 @@ class TiLiA:
             pass
 
         sys.exit()
+
+    def on_request_open_settings(self) -> None:
+        from dirs import settings_path
+
+        print("opening settings")
+        os_run(dirs.settings_path)
 
     def _change_player_according_to_extension(self, extension: str) -> None:
         if (

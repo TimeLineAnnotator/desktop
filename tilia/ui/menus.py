@@ -94,6 +94,10 @@ class TkinterUIMenus(tk.Menu):
                 {"underline": 0},
                 {},
             ),
+            SEPARATOR,
+            CommandParams(
+                "Settings...", Event.REQUEST_OPEN_SETTINGS, {"underline": 0}, {}
+            ),
         ]
 
         # FILE MENU
