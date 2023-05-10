@@ -75,12 +75,18 @@ def load(settings_path: Path):
     _settings_path = settings_path
 
 
-def get(table: str, name: str):
+def get(table_name: str, setting: str):
     try:
-        return _settings[table][name]
+        table = _settings[table_name]
     except KeyError:
-        _create_entry(table, name)
-        return get(table, name)
+        _set_default_table(table_name)
+        return get(table_name, setting)
+
+    try:
+        return table[setting]
+    except KeyError:
+        _set_default_setting(table_name, setting)
+        return get(table, setting)
 
 
 def edit(table: str, name: str, value) -> None:
@@ -93,5 +99,10 @@ def _save():
         tomlkit.dump(_settings, f)
 
 
-def _create_entry(table, name):
+def _set_default_setting(table, name):
     edit(table, name, DEFAULT_SETTINGS[table][name])
+
+
+def _set_default_table(table):
+    _settings[table] = DEFAULT_SETTINGS[table]
+    _save()
