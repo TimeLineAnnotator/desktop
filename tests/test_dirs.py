@@ -25,7 +25,7 @@ def test_dir():
         pass
 
 
-@patch("tilia.dirs.SITE_DATA_DIR", Path("site_dir"))
+@patch("tilia.dirs._SITE_DATA_DIR", Path("site_dir"))
 def test_create_data_dir_site():
     dirs.create_data_dir()
 
@@ -35,13 +35,13 @@ def test_create_data_dir_site():
 
 
 def makedirs_mock_raise_permissionerror_if_sitedirs(dir_path: str) -> None:
-    if dir_path == dirs.SITE_DATA_DIR:
+    if dir_path == dirs._SITE_DATA_DIR:
         raise PermissionError
     else:
         Path(dir_path).mkdir()
 
 
-@patch("tilia.dirs.USER_DATA_DIR", Path("user_dir"))
+@patch("tilia.dirs._USER_DATA_DIR", Path("user_dir"))
 @patch("os.makedirs", side_effect=makedirs_mock_raise_permissionerror_if_sitedirs)
 def test_create_data_dir_user(_):
     dirs.create_data_dir()
@@ -75,14 +75,14 @@ def test_create_temp_dir(test_dir):
 
 
 def os_path_exists_site_data(path: Path) -> bool:
-    if path == dirs.SITE_DATA_DIR:
+    if path == dirs._SITE_DATA_DIR:
         return True
     else:
         return False
 
 
 def os_path_exists_user_data(path: Path) -> bool:
-    if path == dirs.USER_DATA_DIR:
+    if path == dirs._USER_DATA_DIR:
         return True
     else:
         return False

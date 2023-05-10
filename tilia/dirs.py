@@ -11,12 +11,12 @@ from tilia import globals_, settings
 settings_path = Path()
 autosaves_path = Path()
 log_path = Path()
-data_path = Path()
 temp_path = Path()
 img_path = Path("ui", "img")
 ffmpeg_path = Path("ffmpeg", "ffmpeg.exe")
-SITE_DATA_DIR = Path(appdirs.site_data_dir(globals_.APP_NAME))
-USER_DATA_DIR = Path(appdirs.user_data_dir(globals_.APP_NAME, roaming=True))
+_SITE_DATA_DIR = Path(appdirs.site_data_dir(globals_.APP_NAME))
+_USER_DATA_DIR = Path(appdirs.user_data_dir(globals_.APP_NAME, roaming=True))
+data_path = _SITE_DATA_DIR
 
 
 def get_parent_path() -> Path:
@@ -32,12 +32,14 @@ def get_tests_path() -> Path:
 
 
 def setup_data_dir() -> Path:
-    if os.path.exists(SITE_DATA_DIR):
-        return SITE_DATA_DIR
-    elif os.path.exists(USER_DATA_DIR):
-        return USER_DATA_DIR
+    if os.path.exists(_SITE_DATA_DIR):
+        data_path = _SITE_DATA_DIR
+    elif os.path.exists(_USER_DATA_DIR):
+        data_path = _USER_DATA_DIR
     else:
-        return create_data_dir()
+        create_data_dir()
+
+    return data_path
 
 
 def setup_settings_file(data_dir):
@@ -76,11 +78,13 @@ def setup_dirs() -> None:
 
 def create_data_dir() -> Path:
     try:
-        os.makedirs(SITE_DATA_DIR)
-        return SITE_DATA_DIR
+        os.makedirs(_SITE_DATA_DIR)
+        data_path = _SITE_DATA_DIR
     except PermissionError:
-        os.makedirs(USER_DATA_DIR)
-        return USER_DATA_DIR
+        os.makedirs(_USER_DATA_DIR)
+        data_path = _USER_DATA_DIR
+
+    return data_path
 
 
 def create_settings_file(data_dir: Path):
