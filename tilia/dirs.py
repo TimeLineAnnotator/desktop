@@ -4,6 +4,7 @@ from pathlib import Path
 import tilia
 import appdirs
 import shutil
+import tomlkit
 
 from tilia import globals_, settings
 
@@ -83,9 +84,8 @@ def create_data_dir() -> Path:
 
 
 def create_settings_file(data_dir: Path):
-
     with open(Path(data_dir, "settings.toml"), "w") as f:
-        f.write(settings.DEFAULT_SETTINGS)
+        f.write(tomlkit.dumps(settings.DEFAULT_SETTINGS))
 
 
 def create_autosaves_dir(data_dir: Path):
