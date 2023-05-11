@@ -59,6 +59,7 @@ DEFAULT_SETTINGS = {
         "marker_height": 10,
         "marker_default_color": "#999999",
     },
+    "playback": {"ffmpeg_path": ""},
     "dev": {"log_events": False, "dev_mode": False},
 }
 

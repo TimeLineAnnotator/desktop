@@ -365,8 +365,8 @@ class PygamePlayer(Player):
 
         self.playback_offset = 0.0
 
-    def load_media(self, media_path: str, start: float = 0.0, end: float = 0.0):
-        extension = Path(media_path).suffix[1:]
+    def load_media(self, path: str, start: float = 0.0, end: float = 0.0):
+        extension = Path(path).suffix[1:]
 
         if extension not in globals_.SUPPORTED_AUDIO_FORMATS:
             ERROR_MESSAGE = (
@@ -374,20 +374,49 @@ class PygamePlayer(Player):
                 "Windows. Convert audio file to OGG before loading."
             )
 
-            if sys.platform != "win32":
+            if sys.platform == "darwin":
                 events.post(
                     Event.REQUEST_DISPLAY_ERROR,
                     title="Convert audio",
                     message=ERROR_MESSAGE,
                 )
                 return
+            elif sys.platform == "linux":
+                if self._ffmpeg_check_linux():
+                    self._convert_to_ogg_linux(path)
+                else:
+                    ERROR_MESSAGE = "To convert to .ogg, ffmpeg needs to be installed. Install it or convert the file before loading."
+                    events.post(
+                        Event.REQUEST_DISPLAY_ERROR,
+                        title="Convert audio",
+                        message=ERROR_MESSAGE,
+                    )
+            elif sys.platform == "win32":
+                path = self._convert_to_ogg_win32(path)
 
-            media_path = self._convert_audio_to_ogg(media_path)
-
-        super().load_media(media_path)
+        super().load_media(path)
 
     @staticmethod
-    def _convert_audio_to_ogg(audio_path: str) -> str:
+    def _ffmpeg_check_linux():
+        p = subprocess.Popen(["./sh/ffmpeg_check.sh"])
+        p.wait()
+        return bool(p)
+
+    @staticmethod
+    def _convert_to_ogg_linux(path: str):
+        output_path = os.path.splitext(path)[0] + ".ogg"
+
+        logger.info(f"Converting audio file {path}")
+        p = subprocess.Popen([f'ffmpeg -i "{path}" "{output_path}"'])
+        process_out, process_err = p.communicate()
+        p.wait()
+
+        logger.info(f"Audio convert finished with code {process_out}, {process_err}")
+
+        return output_path
+
+    @staticmethod
+    def _convert_to_ogg_win32(audio_path: str) -> str:
         """Converts audio to .ogg. Save converted audio to same folder."""
 
         output_path = os.path.splitext(audio_path)[0] + ".ogg"
