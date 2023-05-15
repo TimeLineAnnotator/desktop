@@ -51,6 +51,12 @@ class HierarchyTimeline(Timeline):
         """Prevents False form being returned when timeline is empty."""
         return True
 
+    @property
+    def ordered_hierarchies(self):
+        return sorted(
+            self.component_manager.get_components(), key=lambda h: (h.level, h.start)
+        )
+
     def create_hierarchy(
         self, start: float, end: float, level: int, **kwargs
     ) -> Hierarchy:
