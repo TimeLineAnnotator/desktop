@@ -398,16 +398,23 @@ class PygamePlayer(Player):
 
     @staticmethod
     def _ffmpeg_check_linux():
-        p = subprocess.Popen(["./sh/ffmpeg_check.sh"])
+        import os
+        print(os.getcwd())
+        p = subprocess.Popen(["ffmpeg -version"], shell=True)
         p.wait()
-        return bool(p)
+        print('------')
+        print(p.returncode)
+        print('------')
+
+        return p.returncode != 127
 
     @staticmethod
     def _convert_to_ogg_linux(path: str):
         output_path = os.path.splitext(path)[0] + ".ogg"
 
         logger.info(f"Converting audio file {path}")
-        p = subprocess.Popen([f'ffmpeg -i "{path}" "{output_path}"'])
+        print()
+        p = subprocess.Popen(['ffmpeg', '-i', f"{path}", f"{output_path}", '-y'])
         process_out, process_err = p.communicate()
         p.wait()
 
