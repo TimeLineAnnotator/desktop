@@ -29,11 +29,14 @@ def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
 
     os.chdir(Path(Path(__file__).absolute().parents[1]))
 
-    markers_by_measure_from_csv(
-        marker_tl,
-        beat_tl,
-        Path("parsers", "test_markers_by_measure_from_csv.csv").resolve(),
-    )
+    data = "measure,fraction,label,comments\n1,0,first,a\n2,0.5,second,b\n3,1,third,c"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        markers_by_measure_from_csv(
+            marker_tl,
+            beat_tl,
+            Path("parsers", "test_markers_by_measure_from_csv.csv").resolve(),
+        )
 
     markers = marker_tl.ordered_markers
 
@@ -73,45 +76,54 @@ def test_markers_by_measure_from_csv_raises_error_if_no_measure_column(
 ):
     os.chdir(Path(Path(__file__).absolute().parents[1]))
 
-    with pytest.raises(ValueError):
-        markers_by_measure_from_csv(
-            beat_tlui.timeline,
-            marker_tlui.timeline,
-            Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
-        )
+    data = "label,comments\nfirst,a\nsecond,b\nthird,c"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        with pytest.raises(ValueError):
+            markers_by_measure_from_csv(
+                beat_tlui.timeline,
+                marker_tlui.timeline,
+                Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
+            )
 
 
 def test_markers_by_time_from_csv(marker_tlui):
     os.chdir(Path(Path(__file__).absolute().parents[1]))
 
-    markers_by_time_from_csv(
-        marker_tlui.timeline,
-        Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
-    )
+    data = "time,label,comments\n1,first,a\n5,second,b\n10,third,c"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        markers_by_time_from_csv(
+            marker_tlui.timeline,
+            Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
+        )
 
     markers = marker_tlui.timeline.ordered_markers
 
     assert markers[0].time == 1
     assert markers[0].ui.label == "first"
-    assert markers[0].comments == "first comment"
+    assert markers[0].comments == "a"
 
     assert markers[1].time == 5
     assert markers[1].ui.label == "second"
-    assert markers[1].comments == "second comment"
+    assert markers[1].comments == "b"
 
     assert markers[2].time == 10
     assert markers[2].ui.label == "third"
-    assert markers[2].comments == "third comment"
+    assert markers[2].comments == "c"
 
 
 def test_markers_by_time_from_csv_raises_error_if_no_time_column(marker_tlui):
     os.chdir(Path(Path(__file__).absolute().parents[1]))
 
-    with pytest.raises(ValueError):
-        markers_by_time_from_csv(
-            marker_tlui.timeline,
-            Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
-        )
+    data = "label,comments\nfirst,a\nsecond,b\nthird,c"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        with pytest.raises(ValueError):
+            markers_by_time_from_csv(
+                marker_tlui.timeline,
+                Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
+            )
 
 
 def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):
