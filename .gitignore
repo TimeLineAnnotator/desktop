@@ -8,7 +8,7 @@
 /build/*.exe
 /build/build/
 /build/dist/
-/build/ffmpeg/ffmpeg.exe
+/build/ffmpeg/
 __pycache__/
 tilia/_dev.py
 mypy.ini
