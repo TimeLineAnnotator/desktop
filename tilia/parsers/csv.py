@@ -6,6 +6,7 @@ from typing import Any, Optional
 from tilia.exceptions import CreateComponentError
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 
 
@@ -173,5 +174,73 @@ def markers_by_measure_from_csv(
                     )
                 except CreateComponentError as exc:
                     errors.append(f"{measure=} | {str(exc)}")
+
+        return errors
+
+
+def hierarchies_by_time_from_csv(
+    timeline: HierarchyTimeline,
+    path: Path,
+    file_kwargs: Optional[dict[str, Any]] = None,
+    reader_kwargs: Optional[dict[str, Any]] = None,
+) -> list[str]:
+    """
+    Create hierarchies in a timeline from a csv file with times.
+    Assumes the first row of the file will contain headers.
+    Header names should match hierarchy properties.
+    At least, 'start', 'end' and 'level' should be present.
+    Returns an array with descriptions of any CreateComponentErrors
+    raised during creation.
+    """
+
+    errors = []
+
+    with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
+        params = [
+            "start",
+            "end",
+            "level",
+            "pre_start",
+            "post_end",
+            "label",
+            "color",
+            "comments",
+            "formal_type",
+            "formal_function",
+        ]
+        parsers = [float, float, int, float, float, str, str, str]
+        params_to_indices = get_params_indices(params, next(reader))
+
+        for attr in ["start", "end", "level"]:
+            if attr not in params_to_indices:
+                raise ValueError(f"Column '{attr}' not found on first row of csv file.")
+
+        for row in reader:
+            constructor_args = {}
+            for i, attr in enumerate(["start", "end", "level"]):
+                index = params_to_indices[attr]
+                value = row[index]
+
+                try:
+                    constructor_args[attr] = parsers[i](value)
+                except ValueError:
+                    errors.append(f"{value=} | {value} is not a valid {attr}")
+                    continue
+
+            for param, parser in zip(params, parsers):
+                if param in params_to_indices:
+                    index = params_to_indices[param]
+                    constructor_args[param] = parser(row[index])
+
+            try:
+                timeline.create_timeline_component(
+                    ComponentKind.HIERARCHY, **constructor_args
+                )
+            except CreateComponentError as exc:
+                start = params_to_indices["start"]
+                end = params_to_indices["end"]
+                level = params_to_indices["level"]
+
+                errors.append(f"{start=}, {end=}, {level=} | {str(exc)}")
 
         return errors

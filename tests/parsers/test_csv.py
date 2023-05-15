@@ -152,3 +152,32 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
     assert "nonsense" in errors[0]
 
     assert marker_tl.ordered_markers[0].time == 1
+
+
+def test_hierarchies_by_time_from_csv(hierarchy_tlui):
+    os.chdir(Path(Path(__file__).absolute().parents[1]))
+
+    data = "start,end,level,label\n0,1,1,first\n1,2,2,second\n2,3,3,third"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        hierarchies_by_time_from_csv(
+            hierarchy_tlui.timeline,
+            Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
+        )
+
+    hierarchies = hierarchy_tlui.timeline.ordered_hierarchies
+
+    assert hierarchies[0].start == 0
+    assert hierarchies[0].end == 1
+    assert hierarchies[0].level == 1
+    assert hierarchies[0].ui.label == "first"
+
+    assert hierarchies[1].start == 1
+    assert hierarchies[1].end == 2
+    assert hierarchies[1].level == 2
+    assert hierarchies[1].ui.label == "second"
+
+    assert hierarchies[2].start == 2
+    assert hierarchies[2].end == 3
+    assert hierarchies[2].level == 3
+    assert hierarchies[2].ui.label == "third"
