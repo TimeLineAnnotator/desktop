@@ -369,12 +369,8 @@ class PygamePlayer(Player):
         extension = Path(path).suffix[1:]
 
         if extension not in globals_.SUPPORTED_AUDIO_FORMATS:
-            ERROR_MESSAGE = (
-                "Conversion when loading is currently only available on "
-                "Windows. Convert audio file to OGG before loading."
-            )
-
             if sys.platform == "darwin":
+                ERROR_MESSAGE = "Convert file to .ogg before loading."
                 events.post(
                     Event.REQUEST_DISPLAY_ERROR,
                     title="Convert audio",
@@ -399,12 +395,13 @@ class PygamePlayer(Player):
     @staticmethod
     def _ffmpeg_check_linux():
         import os
+
         print(os.getcwd())
         p = subprocess.Popen(["ffmpeg -version"], shell=True)
         p.wait()
-        print('------')
+        print("------")
         print(p.returncode)
-        print('------')
+        print("------")
 
         return p.returncode != 127
 
@@ -414,7 +411,7 @@ class PygamePlayer(Player):
 
         logger.info(f"Converting audio file {path}")
         print()
-        p = subprocess.Popen(['ffmpeg', '-i', f"{path}", f"{output_path}", '-y'])
+        p = subprocess.Popen(["ffmpeg", "-i", f"{path}", f"{output_path}", "-y"])
         process_out, process_err = p.communicate()
         p.wait()
 
