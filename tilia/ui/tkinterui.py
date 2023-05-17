@@ -14,14 +14,14 @@ import tkinter.font
 import tkinter.filedialog
 import tkinter.messagebox
 import tkinter.simpledialog
-import time
+from functools import partial
 
 import tilia.repr
 from tilia import globals_, events, settings
 from tilia.ui import player
 from tilia.repr import default_str
 from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.events import Event, subscribe
 from . import file, event_handler
 from .common import ask_yes_no, ask_for_directory, format_media_time, display_error
@@ -37,7 +37,12 @@ from .windows.kinds import WindowKind
 import logging
 
 from ..clipboard import ClipboardContents
-from ..parsers.csv import markers_by_time_from_csv, markers_by_measure_from_csv
+from ..parsers.csv import (
+    markers_by_time_from_csv,
+    markers_by_measure_from_csv,
+    hierarchies_by_time_from_csv,
+    hierarchies_by_measure_from_csv,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +114,14 @@ class TkinterUI:
             (Event.TILIA_FILE_LOADED, self.on_tilia_file_loaded),
             (Event.TIMELINE_KIND_INSTANCED, self._on_timeline_kind_instanced),
             (Event.TIMELINE_KIND_UNINSTANCED, self._on_timeline_kind_uninstanced),
-            (Event.REQUEST_IMPORT_FROM_CSV, self.on_menu_import_markers_from_csv),
+            (
+                Event.REQUEST_IMPORT_CSV_MARKERS,
+                partial(self.on_import_from_csv, TlKind.MARKER_TIMELINE),
+            ),
+            (
+                Event.REQUEST_IMPORT_CSV_HIERARCHIES,
+                partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE),
+            ),
         ]
 
         self.default_font = tkinter.font.nametofont("TkDefaultFont")
@@ -179,10 +191,11 @@ class TkinterUI:
         self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
 
     tlkind_to_dynamic_menu = {
-        TimelineKind.MARKER_TIMELINE: DynamicMenu.MARKER_TIMELINE,
+        TlKind.MARKER_TIMELINE: DynamicMenu.MARKER_TIMELINE,
+        TlKind.HIERARCHY_TIMELINE: DynamicMenu.HIERARCHY_TIMELINE,
     }
 
-    def _on_timeline_kind_instanced(self, kind: TimelineKind) -> None:
+    def _on_timeline_kind_instanced(self, kind: TlKind) -> None:
         if kind not in self.tlkind_to_dynamic_menu:
             return
 
@@ -190,7 +203,7 @@ class TkinterUI:
 
         self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
 
-    def _on_timeline_kind_uninstanced(self, kind: TimelineKind) -> None:
+    def _on_timeline_kind_uninstanced(self, kind: TlKind) -> None:
         if kind not in self.tlkind_to_dynamic_menu:
             return
 
@@ -304,7 +317,7 @@ class TkinterUI:
 
     def get_timeline_info_for_manage_timelines_window(self) -> list[tuple[int, str]]:
         def get_tlui_display_string(tlui):
-            if tlui.TIMELINE_KIND == TimelineKind.SLIDER_TIMELINE:
+            if tlui.TIMELINE_KIND == TlKind.SLIDER_TIMELINE:
                 return "SliderTimeline"
             else:
                 return f"{tlui.name} | {tlui.timeline.__class__.__name__}"
@@ -334,22 +347,20 @@ class TkinterUI:
         else:
             logger.debug(f"User cancelled media load.")
 
-    def on_menu_import_markers_from_csv(self):
-        if not self.timeline_ui_collection.get_timeline_uis_by_kind(
-            TimelineKind.MARKER_TIMELINE
-        ):
+    def on_import_from_csv(self, tlkind: TlKind) -> None:
+        if not self.timeline_ui_collection.get_timeline_uis_by_kind(tlkind):
             display_error(
-                "Import markers error",
-                "No marker timelines found. Must have a marker timeline to import to.",
+                "Import from CSV error",
+                f"No timelines of type '{tlkind}' found.",
             )
             return
 
-        marker_tl = self.timeline_ui_collection.ask_choose_timeline(
-            "Import markers from .csv",
-            "Choose timeline where markers will be created",
-            TimelineKind.MARKER_TIMELINE,
+        timeline = self.timeline_ui_collection.ask_choose_timeline(
+            "Import components from CSV",
+            "Choose timeline where components will be created",
+            tlkind,
         )
-        if not marker_tl:
+        if not timeline:
             return
 
         time_or_measure = ByTimeOrByMeasure(self.root).ask()
@@ -358,42 +369,53 @@ class TkinterUI:
 
         if time_or_measure == "measure":
             if not self.timeline_ui_collection.get_timeline_uis_by_kind(
-                TimelineKind.BEAT_TIMELINE
+                TlKind.BEAT_TIMELINE
             ):
                 display_error(
-                    "Import markers error",
-                    "No beat timelines found. Must have a beat timeline if importing makers by measure.",
+                    "Import from CSV error",
+                    "No beat timelines found. Must have a beat timeline if importing by measure.",
                 )
                 return
 
             beat_tl = self.timeline_ui_collection.ask_choose_timeline(
-                "Import markers from .csv",
+                "Import components from CSV",
                 "Choose timeline with measures to be used when importing",
-                TimelineKind.BEAT_TIMELINE,
+                TlKind.BEAT_TIMELINE,
             )
 
             if not beat_tl:
                 return
 
         path = tk.filedialog.askopenfilename(
-            title="Import markers", filetypes=[("CSV files", "*.csv")]
+            title="Import components", filetypes=[("CSV files", "*.csv")]
         )
 
         if not path:
             return
 
+        tlkind_to_funcs = {
+            TlKind.MARKER_TIMELINE: {
+                "time": markers_by_time_from_csv,
+                "measure": markers_by_measure_from_csv,
+            },
+            TlKind.HIERARCHY_TIMELINE: {
+                "time": hierarchies_by_time_from_csv,
+                "measure": hierarchies_by_measure_from_csv,
+            },
+        }
+
         if time_or_measure == "time":
-            errors = markers_by_time_from_csv(marker_tl, path)
+            errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
         else:
-            errors = markers_by_measure_from_csv(marker_tl, beat_tl, path)
+            errors = tlkind_to_funcs[tlkind]["measure"](timeline, beat_tl, path)
 
         if errors:
             errors_str = "\n".join(errors)
             print(errors_str)
             events.post(
                 Event.REQUEST_DISPLAY_ERROR,
-                "Import markers from csv",
-                "Some markers were not imported. The following errors occured:\n"
+                "Import components from csv",
+                "Some components were not imported. The following errors occured:\n"
                 + errors_str,
             )
 

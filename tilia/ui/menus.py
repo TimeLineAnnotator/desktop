@@ -43,6 +43,7 @@ def add_menu_commands(menu: tk.Menu, commands: list[CommandParams]) -> None:
 
 class DynamicMenu(Enum):
     MARKER_TIMELINE = auto()
+    HIERARCHY_TIMELINE = auto()
 
 
 class TkinterUIMenus(tk.Menu):
@@ -56,8 +57,15 @@ class TkinterUIMenus(tk.Menu):
 
         self.dynamic_menus: list[DynamicMenu] = []
 
-        self.dynamic_menu_to_parent = {DynamicMenu.MARKER_TIMELINE: self.timelines_menu}
-        self.dynamic_menu_to_index = {DynamicMenu.MARKER_TIMELINE: 3}
+        self.dynamic_menu_to_parent = {
+            DynamicMenu.HIERARCHY_TIMELINE: self.timelines_menu,
+            DynamicMenu.MARKER_TIMELINE: self.timelines_menu,
+        }
+
+        self.dynamic_menu_to_index = {
+            DynamicMenu.HIERARCHY_TIMELINE: 3,
+            DynamicMenu.MARKER_TIMELINE: 4,
+        }
 
     def update_dynamic_menus(self, menus_to_display: Iterable[DynamicMenu]) -> None:
         for menu in DynamicMenu:
@@ -171,12 +179,26 @@ class TkinterUIMenus(tk.Menu):
         # ADD REMAINING COMMANDS
         add_menu_commands(menu, commands)
 
+        ## ADD HIERARCHY MENU
+        menu.hierarchy = tk.Menu(menu, tearoff=0)
+        hierarchy_commands = [
+            CommandParams(
+                "Import from csv...",
+                Event.REQUEST_IMPORT_CSV_HIERARCHIES,
+                {"underline": 0},
+                {},
+            )
+        ]
+
+        add_menu_commands(menu.hierarchy, hierarchy_commands)
+        menu.add_cascade(label="Hierarchies", menu=menu.hierarchy, underline=0)
+
         ## ADD MARKER MENU
         menu.marker = tk.Menu(menu, tearoff=0)
         marker_commands = [
             CommandParams(
                 "Import from csv...",
-                Event.REQUEST_IMPORT_FROM_CSV,
+                Event.REQUEST_IMPORT_CSV_MARKERS,
                 {"underline": 0},
                 {},
             )

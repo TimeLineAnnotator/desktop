@@ -47,7 +47,7 @@ class TestTkinterUI:
         tkui.on_request_window(WindowKind.ABOUT)
         assert about_mock.called
 
-    def test_on_timeline_kind_instanced(self, tkui):
+    def test_on_marker_timeline_kind_instanced(self, tkui):
         assert not tkui.enabled_dynamic_menus
 
         tkui._on_timeline_kind_instanced(TimelineKind.MARKER_TIMELINE)
@@ -59,9 +59,32 @@ class TestTkinterUI:
 
         assert tkui.enabled_dynamic_menus == {DynamicMenu.MARKER_TIMELINE}
 
-    def test_on_timeline_kind_uninstanced(self, tkui):
+        # cleanup
+        tkui.enabled_dynamic_menus = set()
+
+    def test_on_hierarchy_timeline_kind_instanced(self, tkui):
+        assert not tkui.enabled_dynamic_menus
+
+        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
+
+        assert tkui.enabled_dynamic_menus == {DynamicMenu.HIERARCHY_TIMELINE}
+
+        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
+        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
+
+        assert tkui.enabled_dynamic_menus == {DynamicMenu.HIERARCHY_TIMELINE}
+
+        # cleanup
+        tkui.enabled_dynamic_menus = set()
+
+    def test_on_marker_timeline_kind_uninstanced(self, tkui):
         tkui._on_timeline_kind_instanced(TimelineKind.MARKER_TIMELINE)
         tkui._on_timeline_kind_uninstanced(TimelineKind.MARKER_TIMELINE)
+        assert tkui.enabled_dynamic_menus == set()
+
+    def test_on_hierarchy_timeline_kind_uninstanced(self, tkui):
+        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
+        tkui._on_timeline_kind_uninstanced(TimelineKind.HIERARCHY_TIMELINE)
         assert tkui.enabled_dynamic_menus == set()
 
     def test_on_menu_import_markers_from_csv(self, tkui, marker_tlui, beat_tlui):
@@ -93,7 +116,7 @@ class TestTkinterUI:
                 ),
                 patch("builtins.open", mock_open(read_data=data)),
             ):
-                tkui.on_menu_import_markers_from_csv()
+                tkui.on_import_from_csv(TimelineKind.MARKER_TIMELINE)
 
                 created_marker = marker_tlui.timeline.ordered_markers[0]
                 assert created_marker.time == 10
@@ -118,12 +141,78 @@ class TestTkinterUI:
 
                 beat_tlui.timeline.recalculate_measures()
 
-                tkui.on_menu_import_markers_from_csv()
+                tkui.on_import_from_csv(TimelineKind.MARKER_TIMELINE)
 
                 created_marker = marker_tlui.timeline.ordered_markers[0]
                 assert created_marker.time == 2.5
                 assert created_marker.ui.label == "abc"
                 assert created_marker.comments == "def"
+
+    def test_on_menu_import_hierarchies_from_csv(self, tkui, hierarchy_tlui, beat_tlui):
+        def get_by_kind(kind):
+            if kind == TimelineKind.HIERARCHY_TIMELINE:
+                return hierarchy_tlui.timeline
+            elif kind == TimelineKind.BEAT_TIMELINE:
+                return beat_tlui.timeline
+            else:
+                raise ValueError
+
+        def get_timeline_uis_mock(self, kind):
+            return get_by_kind(kind)
+
+        def ask_choose_timeline_mock(self, _1, _2, kind):
+            return get_by_kind(kind)
+
+        tlui_coll_path = "tilia.ui.timelines.collection.TimelineUICollection"
+        with (
+            patch(tlui_coll_path + ".get_timeline_uis_by_kind", get_timeline_uis_mock),
+            patch(tlui_coll_path + ".ask_choose_timeline", ask_choose_timeline_mock),
+            patch("tkinter.filedialog.askopenfilename", lambda **_: "dummy"),
+        ):
+            data = """start,end,level,label,comments\n10,20,1,hierarchy,imported"""
+            with (
+                patch(
+                    "tilia.ui.dialogs.by_time_or_by_measure.ByTimeOrByMeasure.ask",
+                    lambda _: "time",
+                ),
+                patch("builtins.open", mock_open(read_data=data)),
+            ):
+                tkui.on_import_from_csv(TimelineKind.HIERARCHY_TIMELINE)
+
+                created = hierarchy_tlui.timeline.ordered_hierarchies[0]
+                assert created.start == 10
+                assert created.end == 20
+                assert created.ui.label == "hierarchy"
+                assert created.comments == "imported"
+
+                hierarchy_tlui.timeline.on_request_to_delete_components([created])
+
+            data = (
+                "start,start_fraction,end,end_fraction,level,label,comments\n"
+                "1,0.5,2,0.1,1,mylabel,fromcsv"
+            )
+            with (
+                patch(
+                    "tilia.ui.dialogs.by_time_or_by_measure.ByTimeOrByMeasure.ask",
+                    lambda _: "measure",
+                ),
+                patch("builtins.open", mock_open(read_data=data)),
+            ):
+                beat_tlui.timeline.beat_pattern = [1]
+
+                beat_tlui.create_beat(1)
+                beat_tlui.create_beat(2)
+                beat_tlui.create_beat(3)
+
+                beat_tlui.timeline.recalculate_measures()
+
+                tkui.on_import_from_csv(TimelineKind.HIERARCHY_TIMELINE)
+
+                created = hierarchy_tlui.timeline.ordered_hierarchies[0]
+                assert created.start == 1.5
+                assert created.end == 2.1
+                assert created.ui.label == "mylabel"
+                assert created.comments == "fromcsv"
 
     def test_on_menu_import_markers_from_csv_displays_errors_during_creation(
         self, tkui, marker_tlui, beat_tlui
@@ -157,7 +246,7 @@ class TestTkinterUI:
                 ),
                 patch("builtins.open", mock_open(read_data=data)),
             ):
-                tkui.on_menu_import_markers_from_csv()
+                tkui.on_import_from_csv(TimelineKind.MARKER_TIMELINE)
 
                 post_mock.assert_called_once()
                 assert "101" in post_mock.call_args.args[2]
@@ -174,7 +263,60 @@ class TestTkinterUI:
             ):
                 beat_tlui.create_beat(1)
 
-                tkui.on_menu_import_markers_from_csv()
+                tkui.on_import_from_csv(TimelineKind.MARKER_TIMELINE)
+
+                assert "999" in post_mock.call_args.args[2]
+
+    def test_on_menu_import_hierarchies_from_csv_displays_errors_during_creation(
+        self, tkui, hierarchy_tlui, beat_tlui
+    ):
+        def get_by_kind(kind):
+            if kind == TimelineKind.HIERARCHY_TIMELINE:
+                return hierarchy_tlui.timeline
+            elif kind == TimelineKind.BEAT_TIMELINE:
+                return beat_tlui.timeline
+            else:
+                raise ValueError
+
+        def get_timeline_uis_mock(self, kind):
+            return get_by_kind(kind)
+
+        def ask_choose_timeline_mock(self, _1, _2, kind):
+            return get_by_kind(kind)
+
+        tlui_coll_path = "tilia.ui.timelines.collection.TimelineUICollection"
+        with (
+            patch(tlui_coll_path + ".get_timeline_uis_by_kind", get_timeline_uis_mock),
+            patch(tlui_coll_path + ".ask_choose_timeline", ask_choose_timeline_mock),
+            patch("tkinter.filedialog.askopenfilename", lambda **_: "dummy"),
+            patch("tilia.events.post") as post_mock,
+        ):
+            data = "start,end,level\n101,2,1\n102,2,1\n103,2,1"
+            with (
+                patch(
+                    "tilia.ui.dialogs.by_time_or_by_measure.ByTimeOrByMeasure.ask",
+                    lambda _: "time",
+                ),
+                patch("builtins.open", mock_open(read_data=data)),
+            ):
+                tkui.on_import_from_csv(TimelineKind.HIERARCHY_TIMELINE)
+
+                post_mock.assert_called_once()
+                assert "101" in post_mock.call_args.args[2]
+                assert "102" in post_mock.call_args.args[2]
+                assert "103" in post_mock.call_args.args[2]
+
+            data = """start,start_fraction,end,level,label,comments\n999,0.5,2,1,,"""
+            with (
+                patch(
+                    "tilia.ui.dialogs.by_time_or_by_measure.ByTimeOrByMeasure.ask",
+                    lambda _: "measure",
+                ),
+                patch("builtins.open", mock_open(read_data=data)),
+            ):
+                beat_tlui.create_beat(1)
+
+                tkui.on_import_from_csv(TimelineKind.HIERARCHY_TIMELINE)
 
                 assert "999" in post_mock.call_args.args[2]
 
