@@ -13,7 +13,6 @@ from tilia.events import unsubscribe_from_all
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.create import create_timeline
-from tilia.timelines.hierarchy.common import ParentChildRelation
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
@@ -132,9 +131,7 @@ def hierarchy_tlui(tilia, tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
         )
 
     def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
-        return tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=parent, children=children)
-        )
+        return tl.component_manager._update_genealogy(parent, children)
 
     tl: HierarchyTimeline = create_timeline(
         TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct

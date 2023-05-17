@@ -12,7 +12,6 @@ from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
     HierarchyTimeline,
 )
-from tilia.timelines.hierarchy.common import ParentChildRelation
 
 # noinspection PyProtectedMember
 from tilia.timelines.serialize import serialize_component, _deserialize_component
@@ -45,9 +44,6 @@ class HierarchyTimelineUIDummy:
 
     def get_ui_for_component(self, _, component, **kwargs):
         return HierarchyUIDummy(component, **kwargs)
-
-    def update_parent_child_relation(self, relation: ParentChildRelation) -> None:
-        return
 
     def delete_element(self, element):
         return
@@ -137,9 +133,7 @@ class TestHierarchyTimeline:
 
         hrc2 = tl.create_hierarchy(0, 1, 2)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc2, children=[hrc1])
-        )
+        tl.component_manager._update_genealogy(hrc2, [hrc1])
         # noinspection PyTypeChecker
         srlz_hrc1 = serialize_component(hrc1)
 
@@ -152,9 +146,7 @@ class TestHierarchyTimeline:
 
         hrc3 = tl.create_hierarchy(0, 1, 2)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
-        )
+        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
         # noinspection PyTypeChecker
         srlz_hrc3 = serialize_component(hrc3)
 
@@ -200,9 +192,7 @@ class TestHierarchyTimeline:
 
         hrc2 = tl.create_hierarchy(0, 1, 2)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc2, children=[hrc1])
-        )
+        tl.component_manager._update_genealogy(hrc2, [hrc1])
 
         serialized_hrc1 = serialize_component(hrc1)
 
@@ -220,9 +210,7 @@ class TestHierarchyTimeline:
         hrc2 = tl.create_hierarchy(0.5, 1, 1)
         hrc3 = tl.create_hierarchy(0, 1, 2)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
-        )
+        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
 
         serialized_hrc3 = serialize_component(hrc3)
 
@@ -281,9 +269,7 @@ class TestHierarchyTimelineComponentManager:
         parent = tl.create_hierarchy(start=0, end=1, level=3)
         child = tl.create_hierarchy(start=0, end=1, level=1)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=parent, children=[child])
-        )
+        tl.component_manager._update_genealogy(parent, [child])
 
         tl.component_manager.create_unit_below(parent)
 
@@ -343,9 +329,7 @@ class TestHierarchyTimelineComponentManager:
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
         hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
         hrc4 = tl.create_hierarchy(start=0.1, end=0.3, level=2)
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc4, children=[hrc2, hrc3])
-        )
+        tl.component_manager._update_genealogy(hrc4, [hrc2, hrc3])
         hrc5 = tl.create_hierarchy(start=0.3, end=0.4, level=2)
 
         tl.component_manager.group([hrc1, hrc5])
@@ -403,9 +387,7 @@ class TestHierarchyTimelineComponentManager:
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
         hrc3 = tl.create_hierarchy(start=0.0, end=0.2, level=3)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
-        )
+        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
 
         tl.component_manager.group([hrc1, hrc2])
 
@@ -422,13 +404,9 @@ class TestHierarchyTimelineComponentManager:
         hrc5 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
         hrc6 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc1, children=[hrc2])
-        )
+        tl.component_manager._update_genealogy(hrc1, [hrc2])
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc2, children=[hrc3, hrc4, hrc5, hrc6])
-        )
+        tl.component_manager._update_genealogy(hrc2, [hrc3, hrc4, hrc5, hrc6])
 
         tl.component_manager.group([hrc3, hrc4])
 
@@ -472,18 +450,14 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1 not in tl.component_manager._components
         assert len(tl.component_manager._components) == 2
 
-    @patch(
-        "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
-    )
-    def test_split_unit_with_parent(self, update_ui_parent_child_mock, tl):
-        update_ui_parent_child_mock.return_value = None
+    @patch("tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_genealogy")
+    def test_split_unit_with_parent(self, update_ui_genealogy_mock, tl):
+        update_ui_genealogy_mock.return_value = None
 
         hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
         hrc2 = tl.create_hierarchy(start=0.0, end=1, level=2)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc2, children=[hrc1])
-        )
+        tl.component_manager._update_genealogy(hrc2, [hrc1])
 
         tl.component_manager.split(hrc1, 0.5)
 
@@ -506,25 +480,19 @@ class TestHierarchyTimelineComponentManager:
             level=2,
         )
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc2, children=[hrc1])
-        )
+        tl.component_manager._update_genealogy(hrc2, [hrc1])
 
         assert hrc2.children[0].comments == "test comment"
 
-    @patch(
-        "tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_with_parent_child_relation"
-    )
-    def test_split_unit_with_children(self, update_ui_parent_child_mock, tl):
-        update_ui_parent_child_mock.return_value = None
+    @patch("tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_genealogy")
+    def test_split_unit_with_children(self, update_ui_genealogy_mock, tl):
+        update_ui_genealogy_mock.return_value = None
 
         hrc1 = tl.create_hierarchy(start=0.0, end=0.5, level=1)
         hrc2 = tl.create_hierarchy(start=0.5, end=1, level=1)
         hrc3 = tl.create_hierarchy(start=0, end=1, level=2)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
-        )
+        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
 
         tl.component_manager.split(hrc3, 0.5)
 
@@ -574,14 +542,10 @@ class TestHierarchyTimelineComponentManager:
     def test_merge_two_units_with_children(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.5, level=1)
         hrc2 = tl.create_hierarchy(start=0.0, end=0.5, level=2)
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc2, children=[hrc1])
-        )
+        tl.component_manager._update_genealogy(hrc2, [hrc1])
         hrc3 = tl.create_hierarchy(start=0.5, end=1.0, level=1)
         hrc4 = tl.create_hierarchy(start=0.5, end=1.0, level=2)
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc4, children=[hrc3])
-        )
+        tl.component_manager._update_genealogy(hrc4, [hrc3])
 
         tl.component_manager.merge([hrc2, hrc4])
 
@@ -592,9 +556,7 @@ class TestHierarchyTimelineComponentManager:
         hrc2 = tl.create_hierarchy(start=0.5, end=1, level=1)
         hrc3 = tl.create_hierarchy(start=0.0, end=1, level=2)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
-        )
+        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
 
         tl.component_manager.merge([hrc1, hrc2])
 
@@ -606,9 +568,7 @@ class TestHierarchyTimelineComponentManager:
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=2)
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
         hrc3 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc2, children=[hrc3])
-        )
+        tl.component_manager._update_genealogy(hrc2, [hrc3])
         hrc4 = tl.create_hierarchy(start=0.2, end=0.3, level=2)
 
         tl.component_manager.merge([hrc1, hrc4])
@@ -687,9 +647,7 @@ class TestHierarchyTimelineComponentManager:
         hrc2 = tl.create_hierarchy(start=1, end=2, level=2)
         hrc3 = tl.create_hierarchy(start=0, end=2, level=3)
 
-        tl.component_manager._make_parent_child_relation(
-            ParentChildRelation(parent=hrc3, children=[hrc1, hrc2])
-        )
+        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
 
         serialized_components = tl.component_manager.serialize_components()
 

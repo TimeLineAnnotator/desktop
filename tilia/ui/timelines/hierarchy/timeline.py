@@ -4,30 +4,19 @@ Defines the tkinter ui corresponding a HierarchyTimeline.
 
 from __future__ import annotations
 
+import logging
+import tkinter as tk
 from typing import TYPE_CHECKING
-
-import tilia.ui.timelines.copy_paste
-from tilia.ui.common import ask_for_float
-from tilia.ui.timelines.copy_paste import paste_into_element
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event
-from tilia.misc_enums import Side, UpOrDown
-
-from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineCanvas
     from tilia.ui.timelines.collection import TimelineUICollection
+    from tilia.timelines.hierarchy.components import Hierarchy
 
-import logging
-
-logger = logging.getLogger(__name__)
-import tkinter as tk
 
 from tilia import events, settings
 from tilia.timelines.hierarchy.common import (
-    ParentChildRelation,
-    process_parent_child_relation,
+    update_component_genealogy,
 )
 from tilia.ui.timelines.timeline import (
     TimelineUI,
@@ -43,6 +32,17 @@ from tilia.ui.timelines.copy_paste import (
     get_copy_data_from_element,
 )
 from tilia.ui.element_kinds import UIElementKind
+
+import tilia.ui.timelines.copy_paste
+from tilia.ui.common import ask_for_float
+from tilia.ui.timelines.copy_paste import paste_into_element
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.events import Event
+from tilia.misc_enums import Side, UpOrDown
+
+from tilia.timelines.timeline_kinds import TimelineKind
+
+logger = logging.getLogger(__name__)
 
 
 class HierarchyTimelineUI(TimelineUI):
@@ -68,7 +68,6 @@ class HierarchyTimelineUI(TimelineUI):
         is_visible: bool = True,
         **kwargs,
     ):
-
         super().__init__(
             *args,
             timeline_ui_collection=timeline_ui_collection,
@@ -95,7 +94,6 @@ class HierarchyTimelineUI(TimelineUI):
         return True
 
     def _setup_user_actions_to_callbacks(self):
-
         self.action_to_callback = {
             "create_child": self.create_child,
             "increase_level": self.increase_level,
@@ -204,26 +202,17 @@ class HierarchyTimelineUI(TimelineUI):
         logger.debug(f"Got units {units_using_marker}.")
         return units_using_marker
 
-    @staticmethod
-    def _swap_components_with_uis_in_relation(
-        relation: ParentChildRelation,
-    ) -> ParentChildRelation:
-
-        return ParentChildRelation(
-            parent=relation[0].ui, children=[child.ui for child in relation[1]]
-        )
-
-    def update_parent_child_relation(self, relation: ParentChildRelation) -> None:
+    def update_genealogy(self, parent: Hierarchy, children: list[Hierarchy]) -> None:
         def get_lowest_in_stacking_order(ids: list, canvas: tk.Canvas) -> int:
             ids_in_order = [id_ for id_ in canvas.find_all() if id_ in ids]
             return ids_in_order[0]
 
         logging.debug(
-            f"Arranging elements in {self} to parent/child relation '{relation}'"
+            f"Arranging elements in {self} to parent/child relation '{parent, children}'"
         )
 
-        ui_relation = self._swap_components_with_uis_in_relation(relation)
-        parent_ui, children_uis = ui_relation
+        parent_ui = parent.ui
+        children_uis = [comp.ui for comp in children]
 
         if not parent_ui or not children_uis:
             logger.debug(f"No parent or children in relation. Nothing to do.")
@@ -319,7 +308,6 @@ class HierarchyTimelineUI(TimelineUI):
                 self.element_manager.deselect_element(element)
 
     def on_up_down_arrow_press(self, direction: UpOrDown):
-
         if not self.has_selected_elements:
             logger.debug(
                 f"User pressed {direction.value} arrow but no elements were selected."
@@ -522,7 +510,6 @@ class HierarchyTimelineUI(TimelineUI):
         return earlier_boundaries.union(later_boundaries)
 
     def paste_single_into_selected_elements(self, paste_data: list[dict]):
-
         for element in self.element_manager.get_selected_elements():
             self.deselect_element(element)
             paste_into_element(element, paste_data[0])
@@ -603,12 +590,7 @@ class HierarchyTimelineUI(TimelineUI):
 
                 children_of_element.append(child_component)
 
-            parent_child_relation = ParentChildRelation(
-                parent=element.tl_component, children=children_of_element
-            )
-
-            self._swap_components_with_uis_in_relation(parent_child_relation)
-            process_parent_child_relation(parent_child_relation)
+            update_component_genealogy(element.tl_component, children_of_element)
 
     def paste_with_children_into_selected_elements(self, paste_data: list[dict]):
         def validate_paste_with_children() -> None:
@@ -669,7 +651,6 @@ class HierarchyTimelineUI(TimelineUI):
         return self.get_copy_data_from_hierarchy_uis(selected_elements)
 
     def get_copy_data_from_hierarchy_uis(self, hierarchy_uis: list[HierarchyUI]):
-
         copy_data = []
         for ui in hierarchy_uis:
             copy_data.append(self.get_copy_data_from_hierarchy_ui(ui))

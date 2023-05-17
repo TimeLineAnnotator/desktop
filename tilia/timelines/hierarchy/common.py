@@ -14,21 +14,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class ParentChildRelation(NamedTuple):
-    """Named tuple to facilitate the handling of parent and children attribute of hierarchies."""
-
-    parent: Hierarchy | HierarchyUI
-    children: list[Hierarchy | HierarchyUI]
-
-
-def process_parent_child_relation(relation: ParentChildRelation):
+def update_component_genealogy(parent: Hierarchy, children: list[Hierarchy]):
     """Changes parent and child atributes of the units
     that are arguments of the relation as to end with the parent/child
     structure given."""
-
-    logger.debug(f"Processing parent/child relation '{relation}'")
-
-    parent, children = relation
 
     logger.debug(f"Clearing children list of {parent}.")
     parent.children = []

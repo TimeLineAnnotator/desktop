@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 
-from .common import process_parent_child_relation, ParentChildRelation
+from .common import update_component_genealogy
 from tilia.timelines.state_actions import Action
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, unsubscribe_from_all
@@ -102,8 +102,8 @@ class HierarchyTimeline(Timeline):
     def crop(self, length: float) -> None:
         self.component_manager.crop(length)
 
-    def update_ui_with_parent_child_relation(self, relation: ParentChildRelation):
-        self.ui.update_parent_child_relation(relation)
+    def update_ui_genealogy(self, parent: Hierarchy, children: list[Hierarchy]):
+        self.ui.update_genealogy(parent, children)
 
 
 class HierarchyTLComponentManager(TimelineComponentManager):
@@ -151,15 +151,13 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         self.timeline.ui.rearrange_canvas_drawings()
 
-    def _make_parent_child_relation(self, relation: ParentChildRelation):
+    def _update_genealogy(self, parent: Hierarchy, children: list[Hierarchy]):
         """
-        Calls process_parent_child_relation and notifies timeline UI so it
-        updates the ui for the involved components.
+        Calls genealogy update on timeline and timeline UI
         """
 
-        process_parent_child_relation(relation)
-
-        self.timeline.update_ui_with_parent_child_relation(relation)
+        update_component_genealogy(parent, children)
+        self.timeline.update_ui_genealogy(parent, children)
 
     def create_unit_below(self, unit: Hierarchy):
         """Create child unit one level below with same start and end.
@@ -190,18 +188,14 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         if unit.children:
             logging.debug(f"Making former children child to unit created below {self}.")
-            self._make_parent_child_relation(
-                ParentChildRelation(parent=created_unit, children=unit.children)
-            )
+            self._update_genealogy(created_unit, unit.children)
         else:
             logging.debug(
                 f"No previous children. No need to make them child of unit created below."
             )
 
         # make parent/child relation between unit and create unit
-        self._make_parent_child_relation(
-            ParentChildRelation(parent=unit, children=[created_unit])
-        )
+        self._update_genealogy(unit, [created_unit])
 
     def change_level(self, unit: Hierarchy, amount: int):
         def _validate_change_level(unit: Hierarchy, new_level: int):
@@ -341,20 +335,14 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         ]
 
         # make parent/child relations between grouping unit, children units and previous cmmon parent (if existing)
-        self._make_parent_child_relation(
-            ParentChildRelation(parent=grouping_unit, children=grouping_unit_children)
-        )
+        self._update_genealogy(grouping_unit, grouping_unit_children)
 
         if previous_common_parent:
             previous_parent_new_children = [
                 c for c in previous_common_parent.children if c not in units_to_group
             ] + [grouping_unit]
 
-            self._make_parent_child_relation(
-                ParentChildRelation(
-                    parent=previous_common_parent, children=previous_parent_new_children
-                )
-            )
+            self._update_genealogy(previous_common_parent, previous_parent_new_children)
 
         # TODO handle selects and deselects
 
@@ -406,37 +394,27 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         # pass previous parent to new units
         if unit_to_split.parent:
-            self._make_parent_child_relation(
-                ParentChildRelation(
-                    parent=unit_to_split.parent,
-                    children=_get_new_children_for_unit_to_split_parent(
-                        unit_to_split, left_unit, right_unit
-                    ),
-                )
+            self._update_genealogy(
+                unit_to_split.parent,
+                _get_new_children_for_unit_to_split_parent(
+                    unit_to_split, left_unit, right_unit
+                ),
             )
 
         # pass previous children to new units
         if unit_to_split.children:
-            self._make_parent_child_relation(
-                ParentChildRelation(
-                    parent=left_unit,
-                    children=[
-                        child
-                        for child in unit_to_split.children
-                        if child.start < split_time
-                    ],
-                )
+            self._update_genealogy(
+                left_unit,
+                [child for child in unit_to_split.children if child.start < split_time],
             )
 
-            self._make_parent_child_relation(
-                ParentChildRelation(
-                    parent=right_unit,
-                    children=[
-                        child
-                        for child in unit_to_split.children
-                        if child.start >= split_time
-                    ],
-                )
+            self._update_genealogy(
+                right_unit,
+                [
+                    child
+                    for child in unit_to_split.children
+                    if child.start >= split_time
+                ],
             )
 
         UI_ATTRIBUTES_TO_PASS_ON = ["label", "color"]
@@ -517,11 +495,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         previous_parent = units_to_merge[0].parent
 
         if previous_parent:
-            self._make_parent_child_relation(
-                ParentChildRelation(
-                    parent=previous_parent,
-                    children=previous_parent.children + [merger_unit],
-                )
+            self._update_genealogy(
+                previous_parent, previous_parent.children + [merger_unit]
             )
 
         # get merged_unit children
@@ -529,20 +504,14 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         for unit in units_to_merge:
             merger_children += unit.children
 
-        self._make_parent_child_relation(
-            ParentChildRelation(parent=merger_unit, children=merger_children)
-        )
-
-        # TODO set label as units_to_merge[0].label
-        # TODO set comments as units_to_merge[0].comments
-        # TODO handle selection after merge
+        self._update_genealogy(merger_unit, merger_children)
 
     def delete_component(self, component: Hierarchy) -> None:
         self.timeline.request_delete_ui_for_component(component)
 
         unsubscribe_from_all(component)
 
-        self._update_parent_child_relation_after_deletion(component)
+        self._update_genealogy_after_deletion(component)
 
         self._remove_from_components_set(component)
 
@@ -577,9 +546,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.timeline
         )
 
-    def _update_parent_child_relation_after_deletion(
-        self, component: Hierarchy
-    ) -> None:
+    def _update_genealogy_after_deletion(self, component: Hierarchy) -> None:
         logger.debug(f"Updating component's parent/children relation after deletion...")
 
         if not component.parent:
@@ -598,8 +565,4 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         logger.debug(f"Parent's new children are {component_parent_new_children}")
 
-        self._make_parent_child_relation(
-            ParentChildRelation(
-                parent=component.parent, children=component_parent_new_children
-            )
-        )
+        self._update_genealogy(component.parent, component_parent_new_children)

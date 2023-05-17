@@ -2,7 +2,6 @@ import pytest
 
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.create import create_timeline
-from tilia.timelines.hierarchy.common import ParentChildRelation as PCRel
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.hierarchy import HierarchyUI, HierarchyTimelineUI
@@ -25,10 +24,9 @@ def hierarchy_tlui(tl_clct, tlui_clct):
         ).ui
 
     def relate_hierarchy_uis(parent: HierarchyUI, children: list[HierarchyUI]):
-        relation = PCRel(
-            parent=parent.tl_component, children=[c.tl_component for c in children]
+        return tl.component_manager._update_genealogy(
+            parent.tl_component, [ui.tl_component for ui in children]
         )
-        return tl.component_manager._make_parent_child_relation(relation)
 
     tl: HierarchyTimeline = create_timeline(
         TimelineKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct
