@@ -149,6 +149,11 @@ def hierarchy_tlui(tilia, tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
 
 
 @pytest.fixture
+def hierarchy_tl(hierarchy_tlui):
+    return hierarchy_tlui.timeline
+
+
+@pytest.fixture
 def marker_tlui(tl_clct, tlui_clct) -> MarkerTimelineUI:
     tl: MarkerTimeline = create_timeline(TlKind.MARKER_TIMELINE, tl_clct, tlui_clct)
 
