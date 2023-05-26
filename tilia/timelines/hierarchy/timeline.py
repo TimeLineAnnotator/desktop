@@ -53,9 +53,7 @@ class HierarchyTimeline(Timeline):
 
     @property
     def ordered_hierarchies(self):
-        return sorted(
-            self.component_manager.get_components(), key=lambda h: (h.level, h.start)
-        )
+        return self.component_manager.ordered_hierarchies
 
     def create_hierarchy(
         self, start: float, end: float, level: int, **kwargs
@@ -186,6 +184,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     ):
                         child.parent = hrc
                         hrc.children += [child]
+    @property
+    def ordered_hierarchies(self):
+        return sorted([h for h in self._components], key=lambda x: (x.level, x.start))
 
     def create_unit_below(self, unit: Hierarchy):
         """Create child unit one level below with same start and end.
