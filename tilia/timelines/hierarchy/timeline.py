@@ -102,6 +102,9 @@ class HierarchyTimeline(Timeline):
     def crop(self, length: float) -> None:
         self.component_manager.crop(length)
 
+    def do_genealogy(self):
+        self.component_manager.do_genealogy()
+
     def update_ui_genealogy(self, parent: Hierarchy, children: list[Hierarchy]):
         self.ui.update_genealogy(parent, children)
 
@@ -158,6 +161,31 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         update_component_genealogy(parent, children)
         self.timeline.update_ui_genealogy(parent, children)
+
+    def do_genealogy(self):
+        """
+        Sets parent and children attributes of all timelines based on their
+        position and level. Previous parent/child relations are ignored.
+        Assumes child and parent attributes are empty for all hierarchies involved.
+        Very inefficient, but should be good enough for now.
+        """
+
+        levels = sorted([hrc.level for hrc in self._components])
+
+        hierarchies = sorted(
+            [h for h in self._components], key=lambda x: (x.level, x.start)
+        )
+        for lvl in levels:
+            for child in [hrc for hrc in self._components if hrc.level == lvl]:
+                for hrc in hierarchies:
+                    if (
+                        not child.parent
+                        and child.start >= hrc.start
+                        and child.end <= hrc.end
+                        and child.level < hrc.level
+                    ):
+                        child.parent = hrc
+                        hrc.children += [child]
 
     def create_unit_below(self, unit: Hierarchy):
         """Create child unit one level below with same start and end.

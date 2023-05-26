@@ -720,3 +720,118 @@ class TestHierarchyTimelineComponentManager:
 
         with pytest.raises(HierarchyOperationError):
             cm.change_level(hrc, -2)
+
+    def test_do_genealogy_empty_timeline(self, tl):
+        tl.do_genealogy()
+
+    def test_do_genealogy_single_hierarchy(self, tl):
+        hrc = tl.create_hierarchy(0, 1, 1)
+
+        tl.do_genealogy()
+
+        assert not hrc.parent
+        assert not hrc.children
+
+    def test_do_genealogy_unrelated_hierarchies(self, tl):
+        first = tl.create_hierarchy(0, 1, 1)
+        second = tl.create_hierarchy(1, 2, 1)
+
+        tl.do_genealogy()
+
+        assert not first.parent
+        assert not second.parent
+        assert not first.children
+        assert not second.children
+
+    def test_do_genealogy_simple_parent_child(self, tl):
+        parent = tl.create_hierarchy(0, 1, 2)
+        child = tl.create_hierarchy(0, 1, 1)
+
+        tl.do_genealogy()
+
+        assert set(parent.children) == {child}
+        assert child.parent == parent
+        assert child.children == []
+
+    def test_do_genealogy_empty_space_after_child(self, tl):
+        parent = tl.create_hierarchy(0, 2, 2)
+        child = tl.create_hierarchy(0, 1, 1)
+
+        tl.do_genealogy()
+
+        assert set(parent.children) == {child}
+        assert child.parent == parent
+        assert child.children == []
+
+    def test_do_genealogy_parent_two_levels_up(self, tl):
+        parent = tl.create_hierarchy(0, 1, 3)
+        child = tl.create_hierarchy(0, 1, 1)
+
+        tl.do_genealogy()
+
+        assert set(parent.children) == {child}
+        assert child.parent == parent
+        assert child.children == []
+
+    def test_do_genealogy_two_children(self, tl):
+        parent = tl.create_hierarchy(0, 2, 2)
+        child1 = tl.create_hierarchy(0, 1, 1)
+        child2 = tl.create_hierarchy(1, 2, 1)
+
+        tl.do_genealogy()
+
+        assert set(parent.children) == {child1, child2}
+        assert child1.parent == parent
+        assert child2.parent == parent
+        assert child1.children == []
+        assert child2.children == []
+
+    def test_do_genealogy_nested_single_children(self, tl):
+        top = tl.create_hierarchy(0, 1, 3)
+        mid = tl.create_hierarchy(0, 1, 2)
+        bot = tl.create_hierarchy(0, 1, 1)
+
+        tl.do_genealogy()
+
+        assert bot.parent == mid
+        assert mid.parent == top
+        assert set(top.children) == {mid}
+        assert set(mid.children) == {bot}
+        assert bot.children == []
+
+    def test_do_genealogy_nested_two_sets_of_children(self, tl):
+        top = tl.create_hierarchy(0, 2, 3)
+        mid1 = tl.create_hierarchy(0, 1, 2)
+        mid2 = tl.create_hierarchy(0, 2, 2)
+        bot1 = tl.create_hierarchy(0, 1, 1)
+        bot2 = tl.create_hierarchy(0, 2, 1)
+
+        tl.do_genealogy()
+
+        assert bot1.parent == mid1
+        assert bot2.parent == mid2
+        assert mid1.parent == top
+        assert mid2.parent == top
+        assert set(top.children) == {mid1, mid2}
+        assert set(mid1.children) == {bot1}
+        assert set(mid2.children) == {bot2}
+        assert bot1.children == []
+        assert bot2.children == []
+
+    def test_do_genealogy_parent_child_pairs_with_no_common_parent(self, tl):
+        parent1 = tl.create_hierarchy(0, 1, 2)
+        parent2 = tl.create_hierarchy(1, 2, 2)
+        child1 = tl.create_hierarchy(0, 1, 1)
+        child2 = tl.create_hierarchy(1, 2, 1)
+
+        tl.do_genealogy()
+
+        assert parent1.children == [child1]
+        assert parent1.parent is None
+        assert child1.parent == parent1
+        assert child1.children == []
+
+        assert parent2.children == [child2]
+        assert parent2.parent is None
+        assert child2.parent == parent2
+        assert child2.children == []
