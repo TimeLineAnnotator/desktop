@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.cli.timelines.timeline import TimelineUI
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.ui.cli.timelines.base import TimelineUI
 
 if TYPE_CHECKING:
     from tilia.ui.cli.ui import CLI
@@ -11,14 +11,16 @@ if TYPE_CHECKING:
 class TimelineUICollection:
     def __init__(self, app_ui: CLI):
         self.app_ui = app_ui
+        self._timeline_uis = []
 
-    def create_timeline_ui(self, kind: TimelineKind, name: str, **kwargs) -> TimelineUI:
+    def create_timeline_ui(self, kind: TlKind, name: str, **kwargs) -> TimelineUI:
         timeline_class = self.get_timelineui_class(kind)
 
-        tl_ui = timeline_class(name, **kwargs)
+        tl_ui = timeline_class(name, display_position=len(self._timeline_uis), **kwargs)
+        self._timeline_uis.append(tl_ui)
         return tl_ui
 
-    def get_timelineui_class(self, kind: TimelineKind):
+    def get_timelineui_class(self, kind: TlKind):
         from tilia.ui.cli.timelines.hierarchy import HierarchyTimelineUI
         from tilia.ui.cli.timelines.slider import SliderTimelineUI
         from tilia.ui.cli.timelines.marker import MarkerTimelineUI
@@ -31,6 +33,4 @@ class TimelineUICollection:
             TlKind.BEAT_TIMELINE: BeatTimelineUI,
         }
 
-        class_ = kind_to_class_dict[kind]
-
-        return class_
+        return kind_to_class_dict[kind]
