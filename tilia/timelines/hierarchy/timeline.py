@@ -167,15 +167,11 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         Assumes child and parent attributes are empty for all hierarchies involved.
         Very inefficient, but should be good enough for now.
         """
+        ordered_hierarchies = self.ordered_hierarchies
 
-        levels = sorted([hrc.level for hrc in self._components])
-
-        hierarchies = sorted(
-            [h for h in self._components], key=lambda x: (x.level, x.start)
-        )
-        for lvl in levels:
+        for lvl in sorted([hrc.level for hrc in self._components]):
             for child in [hrc for hrc in self._components if hrc.level == lvl]:
-                for hrc in hierarchies:
+                for hrc in ordered_hierarchies:
                     if (
                         not child.parent
                         and child.start >= hrc.start
@@ -184,6 +180,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     ):
                         child.parent = hrc
                         hrc.children += [child]
+                        break
+
     @property
     def ordered_hierarchies(self):
         return sorted([h for h in self._components], key=lambda x: (x.level, x.start))
