@@ -800,11 +800,18 @@ class TestHierarchyTimelineComponentManager:
         assert bot.children == []
 
     def test_do_genealogy_nested_two_sets_of_children(self, tl):
+        """
+                top
+               /   \
+             mid1 mid2
+              |    |
+            bot1  bot2
+        """
         top = tl.create_hierarchy(0, 2, 3)
         mid1 = tl.create_hierarchy(0, 1, 2)
-        mid2 = tl.create_hierarchy(0, 2, 2)
         bot1 = tl.create_hierarchy(0, 1, 1)
-        bot2 = tl.create_hierarchy(0, 2, 1)
+        mid2 = tl.create_hierarchy(1, 2, 2)
+        bot2 = tl.create_hierarchy(1, 2, 1)
 
         tl.do_genealogy()
 
