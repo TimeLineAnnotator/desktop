@@ -31,7 +31,7 @@ def main() -> None:
         root = tk.Tk()
         ui = TkinterUI(root)
     elif args.user_interface == "cli":
-        ui = CLI(parser)
+        ui = CLI()
     else:
         raise ValueError(
             f'Got invalid value "{args.user_interface}" for "user_interface"'
