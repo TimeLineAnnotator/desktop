@@ -5,27 +5,27 @@ Defines a HierarchyTimeline and a HierarachyTLComponentManager.
 from __future__ import annotations
 
 import logging
-
-from .common import update_component_genealogy
-from tilia.timelines.state_actions import Action
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event, unsubscribe_from_all
-from tilia.timelines.timeline_kinds import TimelineKind
-from ...exceptions import CreateComponentError
-
-logger = logging.getLogger(__name__)
+import itertools
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
 
+from tilia import events
+from .common import update_component_genealogy
+from tilia.timelines.state_actions import Action
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.events import Event, unsubscribe_from_all
+from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy, HierarchyOperationError
 from tilia.timelines.common import (
     Timeline,
     TimelineComponentManager,
     log_object_creation,
 )
-from tilia import events
+from ...exceptions import CreateComponentError
+
+logger = logging.getLogger(__name__)
 
 
 class HierarchyTimeline(Timeline):
@@ -102,6 +102,9 @@ class HierarchyTimeline(Timeline):
 
     def do_genealogy(self):
         self.component_manager.do_genealogy()
+
+    def get_boundary_conflicts(self):
+        return self.component_manager.get_boundary_conflicts()
 
     def update_ui_genealogy(self, parent: Hierarchy, children: list[Hierarchy]):
         self.ui.update_genealogy(parent, children)
@@ -185,6 +188,41 @@ class HierarchyTLComponentManager(TimelineComponentManager):
     @property
     def ordered_hierarchies(self):
         return sorted([h for h in self._components], key=lambda x: (x.level, x.start))
+
+    def get_boundary_conflicts(self) -> list[tuple[Hierarchy, Hierarchy]]:
+        """
+        Returns a list with of tuples with conflicting hierarchies. Returns an empty list
+        if there are no conflicts.
+        """
+
+        conflicts = []
+
+        for hrc1, hrc2 in itertools.combinations(self._components, 2):
+            if hrc1.start < hrc2.start < hrc1.end or hrc1.start < hrc2.end < hrc1.end:
+                # hrc2 starts or ends inside hrc1
+                if hrc2.level >= hrc1.level:
+                    # if its on the same level or higher, there's a conflict
+                    conflicts.append((hrc1, hrc2))
+                elif not hrc1.start > hrc2.start and hrc1.end < hrc2.end:
+                    # if its doesn't start AND end inside, there's a conflict
+                    conflicts.append((hrc1, hrc2))
+
+            # repeat swapping hr1 and hrc2
+            if hrc2.start < hrc1.start < hrc2.end or hrc2.start < hrc1.end < hrc2.end:
+                if hrc1.level >= hrc2.level:
+                    conflicts.append((hrc2, hrc1))
+                elif not hrc2.start > hrc1.start and hrc2.end < hrc1.end:
+                    conflicts.append((hrc2, hrc1))
+
+            if (
+                hrc1.start == hrc2.start
+                and hrc1.end == hrc2.end
+                and hrc1.level == hrc2.level
+            ):
+                # if hierachies have same times and level, there's a conflict
+                conflicts.append((hrc1, hrc2))
+
+        return conflicts
 
     def create_unit_below(self, unit: Hierarchy):
         """Create child unit one level below with same start and end.

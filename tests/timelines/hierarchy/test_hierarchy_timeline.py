@@ -835,3 +835,109 @@ class TestHierarchyTimelineComponentManager:
         assert parent2.parent is None
         assert child2.parent == parent2
         assert child2.children == []
+
+    def test_get_boundary_conflicts_empty_timeline(self, tl):
+        assert not tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_one_hierarchy(self, tl):
+        tl.create_hierarchy(0, 1, 1)
+        assert not tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_duplicate_hierarchy(self, tl):
+        h1 = tl.create_hierarchy(0, 1, 1)
+        h2 = tl.create_hierarchy(0, 1, 1)
+
+        assert set(tl.get_boundary_conflicts()[0]) == {h1, h2}
+
+    def test_get_boundary_conflicts_separate_hierarchies(self, tl):
+        tl.create_hierarchy(0, 1, 1)
+        tl.create_hierarchy(2, 3, 1)
+        assert not tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_adjacent_hierarchies(self, tl):
+        tl.create_hierarchy(0, 1, 1)
+        tl.create_hierarchy(1, 2, 1)
+        tl.create_hierarchy(2, 3, 1)
+        assert not tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_parent_and_child(self, tl):
+        tl.create_hierarchy(0, 1, 2)
+        tl.create_hierarchy(0, 1, 1)
+        assert not tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_parent_and_child_boundaries_do_not_coincide(
+        self, tl
+    ):
+        tl.create_hierarchy(0, 3, 2)
+        tl.create_hierarchy(1, 2, 1)
+        assert not tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_parent_and_children(self, tl):
+        tl.create_hierarchy(0, 2, 2)
+        tl.create_hierarchy(0, 1, 1)
+        tl.create_hierarchy(1, 2, 1)
+        assert not tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_parent_and_nested_children(self, tl):
+        tl.create_hierarchy(0, 1, 1)
+        tl.create_hierarchy(0, 1, 2)
+        tl.create_hierarchy(0, 1, 3)
+        assert not tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_end_crosses_on_same_level(self, tl):
+        h1 = tl.create_hierarchy(1, 3, 1)
+        h2 = tl.create_hierarchy(0, 2, 1)
+        assert set(tl.get_boundary_conflicts()[0]) == {h1, h2}
+
+    def test_get_boundary_conflicts_end_crosses_on_higher_level(self, tl):
+        h1 = tl.create_hierarchy(1, 3, 1)
+        h2 = tl.create_hierarchy(0, 2, 2)
+        assert set(tl.get_boundary_conflicts()[0]) == {h1, h2}
+
+    def test_get_boundary_conflicts_end_crosses_on_lower_level(self, tl):
+        h1 = tl.create_hierarchy(1, 3, 2)
+        h2 = tl.create_hierarchy(0, 2, 1)
+        assert set(tl.get_boundary_conflicts()[0]) == {h1, h2}
+
+    def test_get_boundary_conflicts_start_crosses_on_same_level(self, tl):
+        h1 = tl.create_hierarchy(0, 2, 1)
+        h2 = tl.create_hierarchy(1, 3, 1)
+        assert set(tl.get_boundary_conflicts()[0]) == {h1, h2}
+
+    def test_get_boundary_conflicts_start_crosses_on_higher_level(self, tl):
+        h1 = tl.create_hierarchy(0, 2, 1)
+        h2 = tl.create_hierarchy(1, 3, 2)
+        assert set(tl.get_boundary_conflicts()[0]) == {h1, h2}
+
+    def test_get_boundary_conflicts_start_crosses_on_lower_level(self, tl):
+        h1 = tl.create_hierarchy(0, 2, 2)
+        h2 = tl.create_hierarchy(1, 3, 1)
+        assert set(tl.get_boundary_conflicts()[0]) == {h1, h2}
+
+    def test_get_boundary_conflicts_crosses_multiple_on_same_level(self, tl):
+        h1 = tl.create_hierarchy(1, 2, 1)
+        h2 = tl.create_hierarchy(2, 3, 1)
+        h3 = tl.create_hierarchy(0, 4, 1)
+        conflicts = [set(c) for c in tl.get_boundary_conflicts()]
+        assert len(conflicts) == 2
+        assert {h1, h3} in conflicts
+        assert {h2, h3} in conflicts
+
+    def test_get_boundary_conflicts_crosses_multiple_on_different_levels(self, tl):
+        h1 = tl.create_hierarchy(1, 2, 2)
+        h2 = tl.create_hierarchy(2, 3, 3)
+        h3 = tl.create_hierarchy(0, 4, 1)
+        conflicts = [set(c) for c in tl.get_boundary_conflicts()]
+        assert len(conflicts) == 2
+        assert {h1, h3} in conflicts
+        assert {h2, h3} in conflicts
+
+    def test_get_boundary_conflicts_three_mutual_conflicts(self, tl):
+        h1 = tl.create_hierarchy(0, 1, 1)
+        h2 = tl.create_hierarchy(0, 1, 1)
+        h3 = tl.create_hierarchy(0, 1, 1)
+        conflicts = [set(c) for c in tl.get_boundary_conflicts()]
+        assert len(conflicts) == 3
+        assert {h1, h2} in conflicts
+        assert {h1, h3} in conflicts
+        assert {h2, h3} in conflicts
