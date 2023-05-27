@@ -30,7 +30,7 @@ class CLI:
         tl = self.subparsers.add_parser("timeline")
         tl_subparser = tl.add_subparsers(dest="timeline_command")
 
-        # add subparser
+        # 'add' subparser
         add = tl_subparser.add_parser("add")
         add.add_argument(
             "kind", choices=["hierarchy", "hrc", "marker", "mrk", "beat", "bea"]
@@ -38,9 +38,16 @@ class CLI:
         add.add_argument("--name", default="")
         add.set_defaults(func=self.add_timeline)
 
-        # list subparser
+        # 'list' subparser
         list = tl_subparser.add_parser("list")
         list.set_defaults(func=self.list_timelines)
+
+        # 'remove' subparser
+        remove = tl_subparser.add_parser('remove')
+        remove.add_mutually_exclusive_group(required=True)
+        remove.add_argument('--name', '-n')
+        remove.add_argument('--id')
+        remove.set_defaults(func=self.remove_timeline)
 
     def setup_quit_parser(self):
         self.subparsers.add_parser("quit")
@@ -100,6 +107,11 @@ class CLI:
         output(f"Adding timeline with {kind=}, {name=}")
 
         post(Event.REQUEST_ADD_TIMELINE, kind_to_tlkind[kind], name)
+
+    @staticmethod
+    def remove_timeline(namespace):
+        pass
+
 
     def list_timelines(self, _):
         timeline_uis = self.timeline_ui_collection.timeline_uis
