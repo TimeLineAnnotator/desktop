@@ -1,5 +1,7 @@
 import argparse
+import sys
 
+from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli.timelines.collection import TimelineUICollection
 from tilia.events import post, Event
 
@@ -29,26 +31,41 @@ class CLI:
 
     def launch(self):
         print("--- TiLiA CLI v0.0 ---")
-        while True:
+        quit = False
+        while not quit:
             cmd = input(">>> ")
-            self.run(cmd.split(" "))
+            quit = self.run(cmd.split(" "))
 
-    def run(self, cmd):
-        args = self.parser.parse_args(cmd)
+    def run(self, cmd) -> bool:
+        """
+        Parses the command entered by the user. Return True if the user requested to quit.
+        """
+        try:
+            args = self.parser.parse_args(cmd)
+            if args.command == "create":
+                self.create(args.kind, args.name)
+            elif args.command == "delete":
+                self.delete(args.arguments)
+            elif args.command == "quit":
+                self.quit()
+                return True
+            elif args.command == "timeline":
+                self.timeline(args.arguments)
+            else:
+                print("Invalid command. Use -h for help.")
+        except SystemExit:
+            pass
 
-        if args.command == "create":
-            self.create(args.kind, args.name)
-        elif args.command == "delete":
-            self.delete(args.arguments)
-        elif args.command == "quit":
-            self.quit()
-        elif args.command == "timeline":
-            self.timeline(args.arguments)
-        else:
-            print("Invalid command. Use -h for help.")
+        return False
 
     def create(self, kind, name):
-        print(f"Creating {kind} with name: {name}")
+        kind_to_tlkind = {
+            "hierarchy": TimelineKind.HIERARCHY_TIMELINE,
+            "marker": TimelineKind.MARKER_TIMELINE,
+            "beat": TimelineKind.BEAT_TIMELINE,
+        }
+
+        post(Event.REQUEST_ADD_TIMELINE, kind_to_tlkind[kind], name)
 
     def delete(self, args):
         print(f"Deleting with arguments: {args}")
