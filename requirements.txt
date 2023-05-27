@@ -4,3 +4,4 @@ python_vlc>=3.0.16120
 appdirs>=1.4.4
 tomlkit>=0.11.6
 pydub>=0.25.1
+prettytable>=3.7.0
