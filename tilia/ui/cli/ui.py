@@ -12,13 +12,16 @@ class CLI:
         self.timeline_ui_collection = TimelineUICollection(self)
 
         self.parser = argparse.ArgumentParser()
-        self.config_parser()
+        self.subparsers = self.parser.add_subparsers(dest="command")
+        self.config_parsers()
 
-    def config_parser(self):
-        subparsers = self.parser.add_subparsers(dest="command")
+    def config_parsers(self):
+        self.setup_timeline_parser()
+        self.setup_quit_parser()
+        self.setup_run_parser()
 
-        # timeline parser
-        tl = subparsers.add_parser("timeline")
+    def setup_timeline_parser(self):
+        tl = self.subparsers.add_parser("timeline")
         tl_subparser = tl.add_subparsers(dest="timeline_command")
 
         # add subparser
@@ -33,15 +36,11 @@ class CLI:
         list = tl_subparser.add_parser("list")
         list.set_defaults(func=self.list_timelines)
 
-        # delete parser
-        delete = subparsers.add_parser("delete")
-        delete.add_argument("arguments", nargs="*")
+    def setup_quit_parser(self):
+        self.subparsers.add_parser("quit")
 
-        # quit parser
-        subparsers.add_parser("quit")
-
-        # run parser
-        run = subparsers.add_parser("run")
+    def setup_run_parser(self):
+        run = self.subparsers.add_parser("run")
         run.add_argument("path")
         run.set_defaults(func=self.run_script)
 
