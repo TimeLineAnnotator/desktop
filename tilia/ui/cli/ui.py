@@ -1,5 +1,6 @@
 import argparse
 import sys
+import prettytable
 
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli.timelines.collection import TimelineUICollection
@@ -18,19 +19,23 @@ class CLI:
 
         # timeline parser
         tl = subparsers.add_parser("timeline")
-        tl_subp = tl.add_subparsers(dest="timeline_command")
+        tl_subparser = tl.add_subparsers(dest="timeline_command")
 
-        # create parser
-        create = tl_subp.add_parser("create")
-        create.add_argument("kind", choices=["hierarchy", "marker", "beat"])
-        create.add_argument("--name", default="")
+        # add subparser
+        add = tl_subparser.add_parser("add")
+        add.add_argument(
+            "kind", choices=["hierarchy", "hrc", "marker", "mrk", "beat", "bea"]
+        )
+        add.add_argument("--name", default="")
+        add.set_defaults(func=self.add_timeline)
+
+        # list subparser
+        list = tl_subparser.add_parser("list")
+        list.set_defaults(func=self.list_timelines)
 
         # delete parser
         delete = subparsers.add_parser("delete")
         delete.add_argument("arguments", nargs="*")
-
-        # quit parser
-        quit_parser = subparsers.add_parser("quit")
 
     def launch(self):
         print("--- TiLiA CLI v0.0 ---")
@@ -44,40 +49,66 @@ class CLI:
         Parses the command entered by the user. Return True if the user requested to quit.
         """
         try:
-            args = self.parser.parse_args(cmd)
-            if args.command == "create":
-                self.create(args.kind, args.name)
-            elif args.command == "delete":
-                self.delete(args.arguments)
-            elif args.command == "quit":
-                self.quit()
+            namespace = self.parser.parse_args(cmd)
+            if namespace.command == "quit":
+                quit()
                 return True
-            elif args.command == "timeline":
-                self.timeline(args.timeline_command)
-            else:
-                print("Invalid command. Use -h for help.")
+            elif hasattr(namespace, "func"):
+                namespace.func(namespace)
         except SystemExit:
             pass
 
         return False
 
-    def create(self, kind, name):
+    def get_timeline_ui_collection(self):
+        return self.timeline_ui_collection
+
+    @staticmethod
+    def add_timeline(namespace):
+        kind = namespace.kind
+        name = namespace.name
+
         kind_to_tlkind = {
             "hierarchy": TimelineKind.HIERARCHY_TIMELINE,
+            "hrc": TimelineKind.HIERARCHY_TIMELINE,
             "marker": TimelineKind.MARKER_TIMELINE,
+            "mrk": TimelineKind.MARKER_TIMELINE,
             "beat": TimelineKind.BEAT_TIMELINE,
+            "bea": TimelineKind.BEAT_TIMELINE,
         }
+
+        output(f"Adding timeline with {kind=}, {name=}")
 
         post(Event.REQUEST_ADD_TIMELINE, kind_to_tlkind[kind], name)
 
-    def delete(self, args):
-        print(f"Deleting with arguments: {args}")
+    def list_timelines(self, _):
+        timeline_uis = self.timeline_ui_collection.timeline_uis
+        headers = ["id", "name", "kind"]
+        data = [
+            (
+                str(tlui.display_position),
+                str(tlui.name),
+                pprint_tlkind(tlui.TIMELINE_KIND),
+            )
+            for tlui in timeline_uis
+        ]
+        tabulate(headers, data)
 
-    def quit(self):
-        print("Quitting...")
 
-    def timeline(self, args):
-        print(f"Managing timeline with arguments: {args}")
+def output(message: str) -> None:
+    print(message)
 
-    def get_timeline_ui_collection(self):
-        return self.timeline_ui_collection
+
+def tabulate(headers: list[str], data: list[tuple[str]]) -> None:
+    table = prettytable.PrettyTable()
+    table.field_names = headers
+    table.add_rows(data)
+    output(table)
+
+
+def pprint_tlkind(kind: TimelineKind) -> str:
+    return kind.value.strip("_TIMELINE").capitalize()
+
+
+def quit():
+    print("Quitting...")

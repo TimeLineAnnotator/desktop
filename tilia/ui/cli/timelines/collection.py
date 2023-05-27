@@ -13,6 +13,10 @@ class TimelineUICollection:
         self.app_ui = app_ui
         self._timeline_uis = []
 
+    @property
+    def timeline_uis(self):
+        return self._timeline_uis
+
     def create_timeline_ui(self, kind: TlKind, name: str, **kwargs) -> TimelineUI:
         timeline_class = self.get_timelineui_class(kind)
 
