@@ -1,6 +1,8 @@
-import argparse
-import prettytable
+from __future__ import annotations
 from typing import TYPE_CHECKING
+
+import prettytable
+import argparse
 
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli.timelines.collection import TimelineUICollection
