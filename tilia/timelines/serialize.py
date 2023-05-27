@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tilia.timelines.common import TimelineComponent, Timeline
+    from tilia.timelines.common import TimelineComponent
+    from tilia.timelines.base.timeline import Timeline
     from tilia.ui.timelines.common import TimelineUIElement
 
 from typing import Protocol

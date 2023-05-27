@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 from tilia import events, globals_
 from tilia.events import Event
-from tilia.timelines.common import Timeline
+from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 
 import logging

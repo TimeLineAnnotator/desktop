@@ -432,7 +432,7 @@ class TestHierarchyTimelineUI:
         hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         with patch(
-            "tilia.timelines.common.Timeline.get_current_playback_time", lambda _: 0.5
+            "tilia.timelines.base.timeline.Timeline.get_current_playback_time", lambda _: 0.5
         ):
             hierarchy_tlui.split()
 
@@ -530,7 +530,7 @@ class TestHierarchyTimelineUI:
         events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
         with patch(
-            "tilia.timelines.common.Timeline.get_current_playback_time", lambda _: 0.5
+            "tilia.timelines.base.timeline.Timeline.get_current_playback_time", lambda _: 0.5
         ):
             tlui_clct.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "split")
 

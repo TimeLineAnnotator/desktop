@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from tilia.ui.timelines.collection import TimelineUICollection
 
 from tilia import events
-from tilia.events import Event, unsubscribe, unsubscribe_from_all, subscribe
+from tilia.events import Event, unsubscribe, unsubscribe_from_all, subscribe, post
 from tilia.misc_enums import Side
 from tilia.repr import default_str
 from tilia.timelines.common import (
@@ -536,6 +536,10 @@ class TimelineUI(ABC):
 
         for component in self.selected_components:
             self.timeline.on_request_to_delete_components([component])
+
+            post(Event.REQUEST_DELETE_COMPONENT, component.id)
+
+
 
     def delete_element(self, element: TimelineUIElement):
         if element in self.selected_elements:

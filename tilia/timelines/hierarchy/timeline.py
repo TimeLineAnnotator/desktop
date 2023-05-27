@@ -21,10 +21,9 @@ if TYPE_CHECKING:
 
 from .components import Hierarchy, HierarchyOperationError
 from tilia.timelines.common import (
-    Timeline,
-    TimelineComponentManager,
     log_object_creation,
 )
+from ..base.timeline import Timeline, TimelineComponentManager
 from tilia import events
 
 
