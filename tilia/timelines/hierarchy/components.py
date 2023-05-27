@@ -1,26 +1,15 @@
-"""
-Defines the Hierarchy class, the single TimelineComponent kind of a HierarchyTimeline.
-"""
-
 from __future__ import annotations
-
 from typing import TYPE_CHECKING
+import logging
 
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.misc_enums import StartOrEnd
-
-if TYPE_CHECKING:
-    from tilia.timelines.hierarchy.timeline import HierarchyTimeline
-
-import tkinter as tk
-
 from tilia.exceptions import TiliaException
-
 from tilia.timelines.common import (
     TimelineComponent,
 )
 
-import logging
+if TYPE_CHECKING:
+    from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +27,13 @@ class Hierarchy(TimelineComponent):
         "end",
         "post_end",
         "level",
+        "label",
         "formal_type",
         "formal_function",
         "comments",
     ]
 
-    SERIALIZABLE_BY_UI_VALUE = ["label", "color"]
+    SERIALIZABLE_BY_UI_VALUE = ["color"]
     SERIALIZABLE_BY_ID = ["parent"]
     SERIALIZABLE_BY_ID_LIST = ["children"]
 
@@ -55,6 +45,7 @@ class Hierarchy(TimelineComponent):
         start: float,
         end: float,
         level: int,
+        label: str,
         parent=None,
         children=None,
         comments="",
@@ -70,6 +61,7 @@ class Hierarchy(TimelineComponent):
         self._start = start
         self._end = end
         self.level = level
+        self.label = label
         self.comments = comments
 
         self.formal_type = formal_type
@@ -92,6 +84,7 @@ class Hierarchy(TimelineComponent):
         level: int,
         parent=None,
         children=None,
+        label='',
         comments="",
         pre_start=None,
         post_end=None,
@@ -101,16 +94,17 @@ class Hierarchy(TimelineComponent):
     ):
         return Hierarchy(
             timeline,
-            start,
-            end,
-            level,
-            parent,
-            children,
-            comments,
-            pre_start,
-            post_end,
-            formal_type,
-            formal_function,
+            start=start,
+            end=end,
+            level=level,
+            label=label,
+            parent=parent,
+            children=children,
+            comments=comments,
+            pre_start=pre_start,
+            post_end=post_end,
+            formal_type=formal_type,
+            formal_function=formal_function,
             **kwargs,
         )
 

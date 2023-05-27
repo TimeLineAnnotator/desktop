@@ -83,8 +83,8 @@ class HierarchyUI(TimelineUIElement):
     }
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_element_value=["label", "color"],
-        by_component_value=["formal_type", "formal_function", "comments"],
+        by_element_value=["color"],
+        by_component_value=["formal_type", "formal_function", "comments", "label"],
         support_by_element_value=[],
         support_by_component_value=["start", "pre_start", "end", "level"],
     )
@@ -114,7 +114,6 @@ class HierarchyUI(TimelineUIElement):
         unit: Hierarchy,
         timeline_ui: HierarchyTimelineUI,
         canvas: tk.Canvas,
-        label: str = "",
         color: str = "",
         **_,
     ):
@@ -126,9 +125,8 @@ class HierarchyUI(TimelineUIElement):
         self.timeline_ui = timeline_ui
         self.canvas = canvas
 
-        self._label = ""
         self.label_measures: list[int] = []
-        self._setup_label(label)
+        self._setup_label()
 
         self._setup_color(color)
 
@@ -205,15 +203,17 @@ class HierarchyUI(TimelineUIElement):
     def level(self):
         return self.tl_component.level
 
+
     @property
     def label(self):
-        return self._label
+        return self.tl_component.label
 
     @label.setter
     def label(self, value):
-        self._label = value
+        self.tl_component.label = value
         self.update_label_measures()
         self.canvas.itemconfig(self.label_id, text=self.display_label)
+
 
     @property
     def display_label(self):
@@ -221,16 +221,16 @@ class HierarchyUI(TimelineUIElement):
         Returns largest substring of self.label that fits inside its HierarchyUI
         """
 
-        if not self._label:
+        if not self.label:
             return ""
 
         max_width = self.end_x - self.start_x
 
         for i, measure in enumerate(self.label_measures):
             if measure > max_width:
-                return self._label[:i]
+                return self.label[:i]
 
-        return self._label
+        return self.label
 
     @property
     def comments(self):
@@ -311,15 +311,14 @@ class HierarchyUI(TimelineUIElement):
 
         return full_name
 
-    def _setup_label(self, label: str):
-        self._label = label
+    def _setup_label(self):
         self.update_label_measures()
 
     def update_label_measures(self):
         """Calculates length of substrings of label and stores it in self.label_measures"""
         tk_font = tk.font.Font()
         self.label_measures = [
-            tk_font.measure(self._label[: i + 1]) for i in range(len(self._label))
+            tk_font.measure(self.label[: i + 1]) for i in range(len(self.label))
         ]
 
     def get_default_level_color(self, level: int) -> str:

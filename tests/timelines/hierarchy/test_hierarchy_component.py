@@ -18,6 +18,7 @@ class TestHierarchyComponent:
             "level": 2,
             "parent": "test_parent",
             "children": ["test_children"],
+            'label': 'test_label',
             "comments": "test_comments",
             "pre_start": "test_pre_start",
             "post_end": "test_post_end",

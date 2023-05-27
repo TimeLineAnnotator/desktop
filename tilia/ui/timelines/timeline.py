@@ -539,8 +539,6 @@ class TimelineUI(ABC):
 
             post(Event.REQUEST_DELETE_COMPONENT, component.id)
 
-
-
     def delete_element(self, element: TimelineUIElement):
         if element in self.selected_elements:
             self.deselect_element(element)
