@@ -24,6 +24,16 @@ class TimelineUICollection:
         self._timeline_uis.append(tl_ui)
         return tl_ui
 
+    def delete_timeline_ui(self, tlui: TimelineUI):
+        try:
+            self._timeline_uis.remove(tlui)
+        except ValueError:
+            # TimelineUI not in collection. Maybe it was already deleted?
+            # TODO: output a warning to the user
+            pass
+
+        pass
+
     def get_timelineui_class(self, kind: TlKind):
         from tilia.ui.cli.timelines.hierarchy import HierarchyTimelineUI
         from tilia.ui.cli.timelines.slider import SliderTimelineUI
