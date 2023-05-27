@@ -1,10 +1,14 @@
 import argparse
-import sys
 import prettytable
+from typing import TYPE_CHECKING
 
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli.timelines.collection import TimelineUICollection
 from tilia.events import post, Event
+
+if TYPE_CHECKING:
+    from tilia.ui.cli.timelines.base import TimelineUI
+
 
 
 class CLI:
@@ -107,6 +111,14 @@ class CLI:
             for tlui in timeline_uis
         ]
         tabulate(headers, data)
+
+    def get_timeline_ui_by_name(self, name: str) -> list[TimelineUI]:
+        return [tlui for tlui in self.timeline_ui_collection.timeline_uis if tlui.name == name]
+
+    def get_timeline_ui_by_display_position(self, position: int) -> TimelineUI:
+        result = [tlui for tlui in self.timeline_ui_collection.timeline_uis if tlui.display_position == position]
+        return result[0] if result else None
+
 
 
 def output(message: str) -> None:
