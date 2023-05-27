@@ -30,19 +30,3 @@ def hex_to_shaded_hex(rgb):
     r, g, b = shade_rgb_color(hex_to_rgb(rgb))
     return f"#{r:02x}{g:02x}{b:02x}"
 
-
-class HasColoredLevels(Protocol):
-    color: str
-    level: int
-
-    @staticmethod
-    def get_default_level_color(self, level) -> str:
-        ...
-
-
-def has_custom_color(ui_element: HasColoredLevels) -> bool:
-    """Return True if unit has custom color, False otherwise"""
-    if ui_element.color == ui_element.get_default_level_color(ui_element.level):
-        return False
-    else:
-        return True

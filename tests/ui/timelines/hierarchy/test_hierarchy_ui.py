@@ -79,7 +79,7 @@ class TestHierarchyUI:
 
         hui.process_color_before_level_change(2)
 
-        assert hui.color == hui.get_default_level_color(2)
+        assert hui.color == hui.get_default_color(2)
 
     def test_process_color_before_level_change_custom_color(self, hierarchy_tlui):
         hui = hierarchy_tlui.create_hui(label="child", color="#1a3a5a")

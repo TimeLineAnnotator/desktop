@@ -64,18 +64,6 @@ class DummyTimelineCollection:
 
 @pytest.fixture
 def tl(hierarchy_tl) -> HierarchyTimeline:
-    # component_manager = HierarchyTLComponentManager()
-    # timeline = HierarchyTimeline(DummyTimelineCollection(), component_manager)
-    # timeline.get_media_length = lambda: 100
-    #
-    # ui = HierarchyTimelineUIDummy()
-    #
-    # timeline.ui = ui
-    # ui.timeline = timeline
-    #
-    # component_manager.associate_to_timeline(timeline)
-    # yield timeline
-    # tilia._undo_manager.clear()
     return hierarchy_tl
 
 
@@ -157,9 +145,11 @@ class TestHierarchyTimeline:
             "start": 0,
             "end": 1,
             "level": 1,
+            "label": 'my label',
             "comments": "my comments",
             "formal_type": "my formal type",
             "formal_function": "my formal function",
+            "color": '#000000',
         }
 
         hrc1 = tl.create_hierarchy(**unit_kwargs)
@@ -171,19 +161,6 @@ class TestHierarchyTimeline:
 
         for attr in unit_kwargs:
             assert getattr(hrc1, attr) == getattr(deserialized_hrc1, attr)
-
-    def test_deserialize_unit_with_serializable_by_ui_attributes(self, tl):
-        serializable_by_ui_attrs = {"color": "#000000", "label": "my label"}
-
-        hrc1 = tl.create_hierarchy(0, 1, 1, **serializable_by_ui_attrs)
-
-        # noinspection PyTypeChecker
-        serialized_hrc1 = serialize_component(hrc1)
-
-        deserialized_hrc1 = _deserialize_component(tl, serialized_hrc1)
-
-        for attr in serializable_by_ui_attrs:
-            assert getattr(hrc1.ui, attr) == getattr(deserialized_hrc1.ui, attr)
 
     # noinspection PyTypeChecker, PyUnresolvedReferences
 

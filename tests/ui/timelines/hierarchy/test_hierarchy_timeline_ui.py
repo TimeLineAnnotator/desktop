@@ -19,14 +19,10 @@ def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
 
 def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:
     for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
-        setattr(hierarchy, attr, f"test {attr} - {id(hierarchy)}")
-
-    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_element_value:
         if attr == "color":
             setattr(hierarchy.ui, attr, f"#FFFFFF")
             continue
-        setattr(hierarchy.ui, attr, f"test {attr} - {id(hierarchy.ui)}")
-
+        setattr(hierarchy, attr, f"test {attr} - {id(hierarchy)}")
 
 def assert_are_copies(hierarchy1: Hierarchy, hierarchy2: Hierarchy):
     for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
@@ -97,7 +93,7 @@ class TestHierarchyTimelineUI:
 
         hierarchy_tlui.right_click_menu_change_color()
 
-        assert hrc1.ui.color == "#000000"
+        assert hrc1.color == "#000000"
 
     @patch("tilia.ui.common.ask_for_color")
     def test_right_click_reset_color(self, ask_for_color_mock, hierarchy_tlui):
@@ -110,7 +106,7 @@ class TestHierarchyTimelineUI:
         hierarchy_tlui.right_click_menu_change_color()
         hierarchy_tlui.right_click_menu_reset_color()
 
-        assert hrc1.ui.color == hrc1.ui.get_default_level_color(hrc1.level)
+        assert hrc1.color == hrc1.ui.get_default_color(hrc1.level)
 
     @patch("tilia.ui.timelines.hierarchy.timeline.ask_for_float")
     def test_right_click_add_pre_start(self, ask_for_float_mock, hierarchy_tlui):
@@ -122,7 +118,7 @@ class TestHierarchyTimelineUI:
 
         hierarchy_tlui.right_click_menu_add_pre_start()
 
-        assert hrc1.ui.pre_start != hrc1.ui.start
+        assert hrc1.pre_start != hrc1.start
 
     @patch("tilia.ui.timelines.hierarchy.timeline.ask_for_float")
     def test_right_click_add_post_end(self, ask_for_float_mock, hierarchy_tlui):
@@ -134,7 +130,7 @@ class TestHierarchyTimelineUI:
 
         hierarchy_tlui.right_click_menu_add_post_end()
 
-        assert hrc1.ui.post_end != hrc1.ui.end
+        assert hrc1.post_end != hrc1.end
 
     def test_rearrange_elements_two_levels(self, hierarchy_tlui):
         unit2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -253,11 +249,11 @@ class TestHierarchyTimelineUI:
         #######################
 
     def test_paste_without_children_into_selected_elements(self, hierarchy_tlui):
-        hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
+        hrc1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1, color='#000000')
 
         set_dummy_copy_attributes(hrc1)
 
-        hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
+        hrc2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1, color='#000000')
 
         copy_data = hierarchy_tlui.get_copy_data_from_hierarchy_uis([hrc1.ui])
         hierarchy_tlui.select_element(hrc2.ui)
@@ -505,7 +501,7 @@ class TestHierarchyTimelineUI:
         hierarchy_tlui.select_element(hrc2.ui)
         hierarchy_tlui.paste()
 
-        assert hrc2.ui.label == "paste test"
+        assert hrc2.label == "paste test"
 
     def test_paste_with_children(self, hierarchy_tlui):
         parent = hierarchy_tlui.create_hierarchy(0, 2, 2)
@@ -648,7 +644,7 @@ class TestHierarchyTimelineUI:
         hierarchy_tlui.select_element(hrc2.ui)
         tlui_clct.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "paste")
 
-        assert hrc2.ui.label == "paste test"
+        assert hrc2.label == "paste test"
 
         events.post(Event.REQUEST_TO_UNDO)
         hrc_ui2 = hierarchy_tlui.element_manager.ordered_elements[1]
