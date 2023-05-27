@@ -37,6 +37,14 @@ class CLI:
         delete = subparsers.add_parser("delete")
         delete.add_argument("arguments", nargs="*")
 
+        # quit parser
+        subparsers.add_parser("quit")
+
+        # run parser
+        run = subparsers.add_parser("run")
+        run.add_argument("path")
+        run.set_defaults(func=self.run_script)
+
     def launch(self):
         print("--- TiLiA CLI v0.0 ---")
         quit = False
@@ -59,6 +67,13 @@ class CLI:
             pass
 
         return False
+
+    def run_script(self, namespace):
+        with open(namespace.path, "r") as file:
+            commands = file.read().splitlines()
+
+        for command in commands:
+            self.run(command.split(" "))
 
     def get_timeline_ui_collection(self):
         return self.timeline_ui_collection
