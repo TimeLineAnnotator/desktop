@@ -21,6 +21,8 @@ from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.timelines.beat import BeatTimelineUI
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 from tilia.ui.timelines.marker import MarkerTimelineUI
+from tilia.ui.cli.timelines.collection import TimelineUICollection as CLITimelineUICollection
+
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -190,4 +192,10 @@ def marker_tl(marker_tlui):
         return tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
 
     tl.create_marker = create_marker
-    return marker_tlui.timeline
+    yield tl
+    unsubscribe_from_all(tl)
+
+
+@pytest.fixture(scope='session')
+def cli():
+    yield cli
