@@ -11,23 +11,26 @@ class CLI:
         self.timeline_ui_collection = TimelineUICollection(self)
 
         self.parser = argparse.ArgumentParser()
+        self.config_parser()
+
+    def config_parser(self):
         subparsers = self.parser.add_subparsers(dest="command")
 
+        # timeline parser
+        tl = subparsers.add_parser("timeline")
+        tl_subp = tl.add_subparsers(dest="timeline_command")
+
         # create parser
-        create_parser = subparsers.add_parser("create")
-        create_parser.add_argument("kind", choices=["hierarchy", "marker", "beat"])
-        create_parser.add_argument("--name", default="")
+        create = tl_subp.add_parser("create")
+        create.add_argument("kind", choices=["hierarchy", "marker", "beat"])
+        create.add_argument("--name", default="")
 
         # delete parser
-        delete_parser = subparsers.add_parser("delete")
-        delete_parser.add_argument("arguments", nargs="*")
+        delete = subparsers.add_parser("delete")
+        delete.add_argument("arguments", nargs="*")
 
         # quit parser
         quit_parser = subparsers.add_parser("quit")
-
-        # timeline parser
-        timeline_parser = subparsers.add_parser("timeline")
-        timeline_parser.add_argument("arguments", nargs="*")
 
     def launch(self):
         print("--- TiLiA CLI v0.0 ---")
@@ -50,7 +53,7 @@ class CLI:
                 self.quit()
                 return True
             elif args.command == "timeline":
-                self.timeline(args.arguments)
+                self.timeline(args.timeline_command)
             else:
                 print("Invalid command. Use -h for help.")
         except SystemExit:
