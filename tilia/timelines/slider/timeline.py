@@ -1,27 +1,22 @@
-"""SliderTimeline class. Is wat simpler than other timelines so it doesn't need a separate module."""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
+import logging
 
-if TYPE_CHECKING:
-    from tilia.timelines.collection import TimelineCollection
-    from tilia.timelines.common import TimelineComponent
-
-from tilia import events, globals_
-from tilia.events import Event
+from tilia import settings
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 
-import logging
-
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from tilia.timelines.base.component import TimelineComponent
 
 
 class SliderTimeline(Timeline):
-    SERIALIZABLE_BY_UI_VALUE = ["is_visible", "display_position", "height"]
-    SERIALIZABLE_BY_VALUE = []
+    SERIALIZABLE_BY_VALUE = ["is_visible", "display_position", "height"]
 
     KIND = TimelineKind.SLIDER_TIMELINE
+    DEFAULT_HEIGHT = settings.get("slider_timeline", "default_height")
 
     def _validate_delete_components(self, component: TimelineComponent):
         """Nothing to do. Must impement abstract method."""
@@ -30,8 +25,8 @@ class SliderTimeline(Timeline):
         logger.debug(f"Serializing {self}...")
         result = {}
 
-        for attr in self.SERIALIZABLE_BY_UI_VALUE:
-            result[attr] = getattr(self.ui, attr)
+        for attr in self.SERIALIZABLE_BY_VALUE:
+            result[attr] = getattr(self, attr)
 
         result["kind"] = self.kind.name
         result["components"] = {}

@@ -12,3 +12,7 @@ class UserCancelledOpenError(TiliaException):
 
 class CreateComponentError(TiliaException):
     pass
+
+
+class InvalidComponentKindError(TiliaException):
+    pass

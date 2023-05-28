@@ -1,10 +1,8 @@
-from unittest.mock import patch
-
 import pytest
+from unittest.mock import patch
 
 from tilia import events
 from tilia.events import Event
-from tilia.timelines.create import create_timeline
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
@@ -16,42 +14,42 @@ from tilia.ui.timelines.slider import SliderTimelineUI
 
 class TestTimelineUICollection:
     def test_create_timeline_ui_hierarchy_timeline(self, tl_clct, tlui_clct):
-        tlui = create_timeline(
-            TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct, name="test"
-        ).ui
+        tl_clct.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test")
 
-        assert tlui.__class__ == HierarchyTimelineUI
-        assert tlui in tlui_clct._timeline_uis
-        assert tlui_clct._select_order[0] == tlui
+        ui = list(tlui_clct.get_timeline_uis())[0]
 
-        tl_clct.delete_timeline(tlui.timeline)
+        assert ui.__class__ == HierarchyTimelineUI
+        assert ui in tlui_clct._timeline_uis
+        assert tlui_clct._select_order[0] == ui
+
+        # cleanup
+        tl_clct.delete_timeline(ui.timeline)
 
     def test_create_timeline_ui_slider_timeline(self, tl_clct, tlui_clct):
-        tlui = create_timeline(
-            TlKind.SLIDER_TIMELINE, tl_clct, tlui_clct, name="test"
-        ).ui
+        tl_clct.create_timeline(TlKind.SLIDER_TIMELINE, name="test")
 
-        assert tlui.__class__ == SliderTimelineUI
-        assert tlui in tlui_clct._timeline_uis
-        assert tlui_clct._select_order[0] == tlui
+        ui = list(tlui_clct.get_timeline_uis())[0]
 
-        tl_clct.delete_timeline(tlui.timeline)
+        assert ui.__class__ == SliderTimelineUI
+        assert ui in tlui_clct._timeline_uis
+        assert tlui_clct._select_order[0] == ui
+
+        # cleanup
+        tl_clct.delete_timeline(ui.timeline)
 
     def test_create_two_timeline_uis(self, tl_clct, tlui_clct):
-        tlui1 = create_timeline(
-            TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct, name="test"
-        ).ui
+        tl_clct.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test1")
 
-        tlui2 = create_timeline(
-            TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct, name="test"
-        ).ui
+        tl_clct.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test2")
 
-        assert tlui1 in tlui_clct._timeline_uis
-        assert tlui2 in tlui_clct._timeline_uis
-        assert tlui_clct._select_order[0] == tlui2
+        ui1, ui2 = tlui_clct._select_order
 
-        tl_clct.delete_timeline(tlui1.timeline)
-        tl_clct.delete_timeline(tlui2.timeline)
+        assert ui1.name == "test2"
+        assert ui2.name == "test1"
+
+        # cleanup
+        tl_clct.delete_timeline(ui1.timeline)
+        tl_clct.delete_timeline(ui2.timeline)
 
     def test_crete_timeline_uis_of_all_kinds(self, tl_clct, tlui_clct):
         for kind in IMPLEMENTED_TIMELINE_KINDS:
@@ -59,7 +57,7 @@ class TestTimelineUICollection:
                 "tilia.ui.timelines.collection.TimelineUICollection.ask_beat_pattern"
             ) as mock:
                 mock.return_value = [1]
-                create_timeline(kind, tl_clct, tlui_clct)
+                tl_clct.create_timeline(kind)
 
         assert len(tlui_clct.get_timeline_uis()) == len(IMPLEMENTED_TIMELINE_KINDS)
 
@@ -67,9 +65,9 @@ class TestTimelineUICollection:
             tl_clct.delete_timeline(timeline)
 
     def test_delete_timeline_ui(self, tl_clct, tlui_clct):
-        tlui = create_timeline(
-            TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct, name="test"
-        ).ui
+        tl_clct.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test")
+
+        tlui = list(tlui_clct.get_timeline_uis())[0]
 
         tl_clct.delete_timeline(tlui.timeline)
 
@@ -78,13 +76,12 @@ class TestTimelineUICollection:
         assert not tlui_clct._display_order
 
     def test_update_select_order(self, tl_clct, tlui_clct):
-        tlui1 = create_timeline(
-            TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct, name="test1"
-        ).ui
+        tl1 = tl_clct.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test1")
 
-        tlui2 = create_timeline(
-            TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct, name="test2"
-        ).ui
+        tl2 = tl_clct.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test2")
+
+        tlui1 = tlui_clct.get_timeline_ui_by_id(tl1.id)
+        tlui2 = tlui_clct.get_timeline_ui_by_id(tl2.id)
 
         assert tlui_clct._select_order[0] == tlui2
 
@@ -130,12 +127,12 @@ class TestTimelineUICollection:
                 record_mock.assert_called_with(button)
 
     def test_on_delete_button(self, tlui_clct, beat_tlui, hierarchy_tlui, marker_tlui):
-        marker = marker_tlui.create_marker(0)
-        marker_tlui.select_element(marker.ui)
-        hierarchy = hierarchy_tlui.create_hierarchy(0, 1, 1)
-        hierarchy_tlui.select_element(hierarchy.ui)
+        marker, marker_ui = marker_tlui.create_marker(0)
+        marker_tlui.select_element(marker_ui)
+        hierarchy, hierarchy_ui = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hierarchy_tlui.select_element(hierarchy_ui)
         beat = beat_tlui.create_beat(0)
-        beat_tlui.select_element(beat.ui)
+        beat_tlui.select_element(beat_tlui.get_component_ui(beat))
 
         tlui_clct._on_delete_press()
 
@@ -146,12 +143,12 @@ class TestTimelineUICollection:
     def test_undo_redo_delete_button(
         self, tlui_clct, beat_tlui, hierarchy_tlui, marker_tlui
     ):
-        marker = marker_tlui.create_marker(0)
-        marker_tlui.select_element(marker.ui)
-        hierarchy = hierarchy_tlui.create_hierarchy(0, 1, 1)
-        hierarchy_tlui.select_element(hierarchy.ui)
+        _, marker_ui = marker_tlui.create_marker(0)
+        marker_tlui.select_element(marker_ui)
+        _, hierarchy_ui = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hierarchy_tlui.select_element(hierarchy_ui)
         beat = beat_tlui.create_beat(0)
-        beat_tlui.select_element(beat.ui)
+        beat_tlui.select_element(beat_tlui.get_component_ui(beat))
 
         events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
 

@@ -1,17 +1,13 @@
 from __future__ import annotations
-
 import logging
 import tkinter as tk
+from functools import partial
 from tkinter import messagebox
 from typing import Any, TYPE_CHECKING
 
 from tilia.clipboard import ClipboardContents
 from tilia.ui.canvas_tags import TRANSPARENT
 from tilia.ui.dialogs.choose import ChooseDialog
-
-if TYPE_CHECKING:
-    from tilia.ui.tkinterui import TkinterUI
-
 from tilia import events, settings
 from tilia.events import subscribe, Event
 from tilia.misc_enums import Side, UpOrDown, InOrOut
@@ -26,6 +22,9 @@ from tilia.ui.timelines.selection_box import SelectionBox
 from tilia.ui.windows.beat_pattern import AskBeatPattern
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from tilia.ui.tkinterui import TkinterUI
 
 
 class TimelineUICollection:
@@ -48,6 +47,23 @@ class TimelineUICollection:
         toolbar_frame: tk.Frame,
     ):
         self.SUBSCRIPTIONS = [
+            (Event.TIMELINE_CREATED, self.on_timeline_created),
+            (Event.TIMELINE_DELETED, self.on_timeline_deleted),
+            (Event.BEAT_UPDATED, partial(self.on_component_event, Event.BEAT_UPDATED)),
+            (
+                Event.HIERARCHY_GENEALOGY_CHANGED,
+                partial(self.on_component_event, Event.HIERARCHY_GENEALOGY_CHANGED),
+            ),
+            (
+                Event.HIERARCHY_LEVEL_CHANGED,
+                partial(self.on_component_event, Event.HIERARCHY_LEVEL_CHANGED),
+            ),
+            (
+                Event.HIERARCHY_POSITION_CHANGED,
+                partial(self.on_component_event, Event.HIERARCHY_POSITION_CHANGED),
+            ),
+            (Event.TIMELINE_COMPONENT_CREATED, self.on_timeline_component_created),
+            (Event.TIMELINE_COMPONENT_DELETED, self.on_timeline_component_deleted),
             (
                 Event.BEAT_TOOLBAR_BUTTON_ADD,
                 lambda: self.on_timeline_toolbar_button(TlKind.BEAT_TIMELINE, "add"),
@@ -254,21 +270,19 @@ class TimelineUICollection:
 
         self.scroll_to_x(self.get_x_by_time(scroll_time))
 
-    def create_timeline_ui(self, kind: TlKind, name: str, **kwargs) -> TimelineUI:
+    def create_timeline_ui(self, kind: TlKind, id: str, **kwargs) -> TimelineUI:
         timeline_class = self.get_timeline_ui_class_from_kind(kind)
-        canvas = self.create_timeline_canvas(name, timeline_class.DEFAULT_HEIGHT)
+        canvas = self.create_timeline_canvas()
         toolbar = self.get_toolbar_for_timeline_ui(timeline_class.TOOLBAR_CLASS)
 
-        element_manager = TimelineUIElementManager(
-            timeline_class.ELEMENT_KINDS_TO_ELEMENT_CLASSES
-        )
+        element_manager = TimelineUIElementManager(timeline_class.ELEMENT_CLASS)
 
         tl_ui = timeline_class(
-            timeline_ui_collection=self,
+            id=id,
+            collection=self,
             element_manager=element_manager,
             canvas=canvas,
             toolbar=toolbar,
-            name=name,
             **kwargs,
         )
 
@@ -285,6 +299,24 @@ class TimelineUICollection:
             self.create_playback_line(tl_ui)
 
         return tl_ui
+
+    def get_timeline_ui(self, tl_kind: TimelineKind, tl_id: int) -> TimelineUI:
+        """Presupposes timeline ui of 'tl_kind' and with 'tl_id' exists"""
+        tluis_of_kind = self.get_timeline_uis_by_kind(tl_kind)
+        return next(tlui for tlui in tluis_of_kind if tlui.timeline.id == tl_id)
+
+    def get_timeline(self, id: str) -> Timeline | None:
+        return self._timeline_collection.get_timeline(id)
+
+    def on_timeline_component_created(
+        self, tl_kind: TimelineKind, tl_id: int, component_id: int
+    ):
+        self.get_timeline_ui(tl_kind, tl_id).on_timeline_component_created(component_id)
+
+    def on_timeline_component_deleted(
+        self, tl_kind: TimelineKind, tl_id: int, component_id: int
+    ):
+        self.get_timeline_ui(tl_kind, tl_id).on_timeline_component_deleted(component_id)
 
     def delete_timeline_ui(self, timeline_ui: TimelineUI):
         """Deletes given timeline ui. To be called by TimelineCollection
@@ -335,8 +367,8 @@ class TimelineUICollection:
                 f"Can't remove timeline ui '{tl_ui}' from display order: not in select order."
             )
 
-    def _move_in_display_order(self, tl_ui_id: int, direction: UpOrDown):
-        tl_ui = self.get_timeline_ui_by_id(tl_ui_id)
+    def _move_in_display_order(self, id: str, direction: UpOrDown):
+        tl_ui = self.get_timeline_ui_by_id(id)
         logger.debug(f"Moving {tl_ui} {direction.value} in display order.")
         logger.debug(f"Current display order is {self._display_order}.")
 
@@ -364,8 +396,8 @@ class TimelineUICollection:
 
         logger.debug(f"New display order is {self._display_order}.")
 
-    def get_timeline_display_position(self, tl_ui: TimelineUI):
-        return self._display_order.index(tl_ui)
+    def get_timeline_display_position(self, id: str):
+        return self._display_order.index(self.get_timeline_ui_by_id(id))
 
     def _send_to_top_of_select_order(self, tl_ui: TimelineUI):
         """
@@ -422,18 +454,14 @@ class TimelineUICollection:
 
         return class_
 
-    def create_timeline_canvas(self, name: str, starting_height: int):
+    def create_timeline_canvas(self):
         canvas = TimelineCanvas(
             parent=self.frame,
             scrollbar=self.scrollbar,
             width=self.get_tlcanvas_width(),
             left_margin_width=self._app_ui.timeline_padx,
-            height=starting_height,
-            initial_name=name,
         )
-        canvas.config(
-            scrollregion=(0, 0, self.get_timeline_total_size(), starting_height)
-        )
+        canvas.config(scrollregion=(0, 0, self.get_timeline_total_size(), 1))
         canvas.xview_moveto(self.get_scroll_fraction())
         return canvas
 
@@ -992,10 +1020,9 @@ class TimelineUICollection:
             x=self.get_x_by_time(time),
         )
 
-    def on_create_initial_hierarchy(self, timeline: Timeline) -> None:
-        timeline.ui.canvas.tag_raise(
-            self._timeline_uis_to_playback_line_ids[timeline.ui]
-        )
+    def on_create_initial_hierarchy(self, timeline_id: str) -> None:
+        tlui = self.get_timeline_ui_by_id(timeline_id)
+        tlui.canvas.tag_raise(self._timeline_uis_to_playback_line_ids[tlui])
 
     def on_request_change_timeline_width(self, width: float) -> None:
         if width < 0:
@@ -1051,8 +1078,8 @@ class TimelineUICollection:
     def get_timeline_uis(self):
         return self._timeline_uis
 
-    def get_timeline_ui_by_id(self, tl_ui_id: int) -> TimelineUI:
-        return self._timeline_collection.get_timeline_by_id(tl_ui_id).ui
+    def get_timeline_ui_by_id(self, id: str) -> TimelineUI:
+        return next(tlui for tlui in self._timeline_uis if tlui.id == id)
 
     def on_request_to_delete_timeline(self, id_: int) -> None:
         timeline_ui = self._get_timeline_ui_by_id(id_)
@@ -1153,6 +1180,38 @@ class TimelineUICollection:
 
     def on_request_to_focus_timelines(self):
         self._select_order[0].canvas.focus_set()
+
+    def on_component_event(
+        self,
+        event: Event,
+        tl_kind: TimelineKind,
+        tl_id: int,
+        component_id: int,
+        *args,
+        **kwargs,
+    ):
+        from tilia.ui.timelines.hierarchy import HierarchyTimelineUI as HrcTlUI
+        from tilia.ui.timelines.beat import BeatTimelineUI as BeatTlUI
+
+        event_to_callback = {
+            Event.HIERARCHY_LEVEL_CHANGED: HrcTlUI.on_hierarchy_level_changed,
+            Event.HIERARCHY_POSITION_CHANGED: HrcTlUI.on_hierarchy_position_changed,
+            Event.HIERARCHY_GENEALOGY_CHANGED: HrcTlUI.update_genealogy,
+            Event.BEAT_UPDATED: BeatTlUI.on_beat_position_change,
+        }
+
+        tlui = self.get_timeline_ui(tl_kind, tl_id)
+
+        event_to_callback[event](tlui, component_id, *args, **kwargs)
+
+    def on_timeline_created(self, kind: TimelineKind, id: str):
+        self.create_timeline_ui(kind, id)
+
+    def on_timeline_deleted(self, id: str):
+        self.delete_timeline_ui(self.get_timeline_ui_by_id(id))
+
+    def on_hierarchy_components_deserialized(self, id: str):
+        self.get_timeline_ui_by_id(id).rearrange_canvas_drawings()
 
 
 def change_playback_line_x(

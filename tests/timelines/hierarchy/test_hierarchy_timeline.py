@@ -1,11 +1,9 @@
 import pytest
-
-from unittest.mock import MagicMock, ANY, patch
+from unittest.mock import MagicMock
 import itertools
 import logging
 
-from tilia.timelines.collection import TimelineCollection
-from tilia.timelines.common import InvalidComponentKindError
+from tilia.exceptions import InvalidComponentKindError
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.components import HierarchyOperationError, Hierarchy
 from tilia.timelines.hierarchy.timeline import (
@@ -23,9 +21,6 @@ logger = logging.getLogger(__name__)
 
 class HierarchyUIDummy:
     def __init__(self, component, **kwargs):
-        for attr in Hierarchy.SERIALIZABLE_BY_UI_VALUE:
-            setattr(self, attr, f"test_value-{attr}")
-
         self.tl_component = component
         for attr, value in kwargs.items():
             setattr(self, attr, value)
@@ -35,21 +30,6 @@ class HierarchyUIDummy:
 
     def process_color_before_level_change(self, *args, **kwargs):
         return
-
-
-class HierarchyTimelineUIDummy:
-    def __init__(self):
-        for attr in HierarchyTimeline.SERIALIZABLE_BY_UI_VALUE:
-            setattr(self, attr, f"test_value-{attr}")
-
-    def get_ui_for_component(self, _, component, **kwargs):
-        return HierarchyUIDummy(component, **kwargs)
-
-    def delete_element(self, element):
-        return
-
-    def rearrange_canvas_drawings(self):
-        ...
 
 
 class DummyTimelineCollection:
@@ -427,10 +407,7 @@ class TestHierarchyTimelineComponentManager:
         assert hrc1 not in tl.component_manager._components
         assert len(tl.component_manager._components) == 2
 
-    @patch("tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_genealogy")
-    def test_split_unit_with_parent(self, update_ui_genealogy_mock, tl):
-        update_ui_genealogy_mock.return_value = None
-
+    def test_split_unit_with_parent(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
         hrc2 = tl.create_hierarchy(start=0.0, end=1, level=2)
 
@@ -461,10 +438,7 @@ class TestHierarchyTimelineComponentManager:
 
         assert hrc2.children[0].comments == "test comment"
 
-    @patch("tilia.timelines.hierarchy.timeline.HierarchyTimeline.update_ui_genealogy")
-    def test_split_unit_with_children(self, update_ui_genealogy_mock, tl):
-        update_ui_genealogy_mock.return_value = None
-
+    def test_split_unit_with_children(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.5, level=1)
         hrc2 = tl.create_hierarchy(start=0.5, end=1, level=1)
         hrc3 = tl.create_hierarchy(start=0, end=1, level=2)
@@ -665,9 +639,7 @@ class TestHierarchyTimelineComponentManager:
 
     def test_scale(self, tl):
         hrc1 = tl.create_hierarchy(start=0, end=1, level=1)
-
         hrc2 = tl.create_hierarchy(start=1, end=3, level=2)
-
         hrc3 = tl.create_hierarchy(start=3, end=6, level=3)
 
         tl.component_manager.scale(0.5)

@@ -5,7 +5,7 @@ Defines the TimelineCollection class, which compose the TiLiA class.
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
-from tilia.events import subscribe, Event
+from tilia.events import subscribe, Event, post
 from tilia.repr import default_str
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
@@ -15,6 +15,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia._tilia import TiLiA
+    from tilia.timelines.base.component import TimelineComponent
 
 import logging
 
@@ -27,7 +28,7 @@ from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
 )
 
-from tilia.timelines.slider import SliderTimeline
+from tilia.timelines.slider.timeline import SliderTimeline
 
 
 class TimelineCollection:
@@ -55,7 +56,19 @@ class TimelineCollection:
     def timeline_kinds(self):
         return {tl.KIND for tl in self._timelines}
 
-    def create_timeline(self, kind: TimelineKind, **kwargs) -> Timeline:
+    @staticmethod
+    def _validate_timeline_kind(kind: TimelineKind):
+        if not isinstance(kind, TimelineKind):
+            raise ValueError(f"Can't create timeline: invalid timeline kind '{kind}'")
+
+    def create_timeline(
+        self,
+        kind: TimelineKind,
+        components: dict[int, TimelineComponent] = None,
+        **kwargs,
+    ) -> Timeline:
+        self._validate_timeline_kind(kind)
+
         is_first_of_kind = kind not in self.timeline_kinds
 
         match kind:
@@ -71,11 +84,27 @@ class TimelineCollection:
                 raise NotImplementedError
 
         self._timelines.append(tl)
+        post(Event.TIMELINE_CREATED, kind, tl.id)
 
         if is_first_of_kind:
             events.post(Event.TIMELINE_KIND_INSTANCED, kind)
 
+        if components:
+            # can't be done untial timeline UI has been created
+            tl.deserialize_components(components)
+
+        if kind == TimelineKind.HIERARCHY_TIMELINE:
+            tl.create_initial_hierarchy()
+            # so user has a starting hierarchy to split
+            # can't be done untial timeline UI has been created
+
         return tl
+
+    def get_timeline(self, id: int) -> Timeline | None:
+        return next((tl for tl in self._timelines if tl.id == id), None)
+
+    def get_display_position(self, timeline: Timeline):
+        return self._timeline_ui_collection.get_timeline_display_position(timeline.id)
 
     def _create_hierarchy_timeline(self, **kwargs) -> HierarchyTimeline:
         component_manager = HierarchyTLComponentManager()
@@ -85,7 +114,7 @@ class TimelineCollection:
         return timeline
 
     def _create_slider_timeline(self) -> SliderTimeline:
-        return SliderTimeline(self, None, TimelineKind.SLIDER_TIMELINE)
+        return SliderTimeline(self)
 
     def _create_marker_timeline(self, **kwargs) -> MarkerTimeline:
         component_manager = MarkerTLComponentManager()
@@ -108,23 +137,23 @@ class TimelineCollection:
         return timeline
 
     def delete_timeline(self, timeline: Timeline):
-        logger.debug(f"Deleting timeline {timeline}")
+        logger.info(f"Deleting timeline {timeline}")
         timeline.delete()
-        self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
         self._timelines.remove(timeline)
+        post(Event.TIMELINE_DELETED, timeline.id)
 
         if timeline.kind not in self.timeline_kinds:
             events.post(Event.TIMELINE_KIND_UNINSTANCED, timeline.kind)
 
     @staticmethod
     def clear_timeline(timeline: Timeline):
-        logger.debug(f"Clearing timeline {timeline}...")
+        logger.info(f"Clearing timeline {timeline}...")
         timeline.clear()
 
         events.post(Event.REQUEST_RECORD_STATE, Action.CLEAR_TIMELINE)
 
     def clear_all_timelines(self):
-        logger.debug(f"Clearing all timelines...")
+        logger.info(f"Clearing all timelines...")
         for timeline in self:
             timeline.clear()
 
@@ -167,11 +196,9 @@ class TimelineCollection:
 
         # create timelines only in restored state
         for id in list(set(timeline_states) - set(shared_tl_ids)):
-            from tilia.timelines.create import create_timeline
-
             params = timeline_states[id].copy()
             timeline_kind = TimelineKind[params.pop("kind")]
-            create_timeline(timeline_kind, self, self._timeline_ui_collection, **params)
+            self.create_timeline(timeline_kind, **params)
 
         self._timeline_ui_collection.after_restore_state()
 
@@ -257,6 +284,4 @@ class TimelineCollection:
     def clear(self):
         logger.debug(f"Clearing timeline collection...")
         for timeline in self._timelines.copy():
-            timeline.delete()
-            self._remove_from_timelines(timeline)
-            self._timeline_ui_collection.delete_timeline_ui(timeline.ui)
+            self.delete_timeline(timeline)

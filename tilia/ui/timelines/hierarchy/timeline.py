@@ -1,18 +1,6 @@
-"""
-Defines the tkinter ui corresponding a HierarchyTimeline.
-"""
-
 from __future__ import annotations
-
 import logging
 import tkinter as tk
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.common import TimelineCanvas
-    from tilia.ui.timelines.collection import TimelineUICollection
-    from tilia.timelines.hierarchy.components import Hierarchy
-
 
 from tilia import events, settings
 from tilia.timelines.hierarchy.common import (
@@ -21,10 +9,8 @@ from tilia.timelines.hierarchy.common import (
 from tilia.ui.timelines.timeline import (
     TimelineUI,
     RightClickOption,
-    TimelineUIElementManager,
 )
 from tilia.ui.timelines.hierarchy import HierarchyTimelineToolbar, HierarchyUI
-
 from tilia.ui.timelines.copy_paste import (
     CopyError,
     PasteError,
@@ -32,14 +18,12 @@ from tilia.ui.timelines.copy_paste import (
     get_copy_data_from_element,
 )
 from tilia.ui.element_kinds import UIElementKind
-
 import tilia.ui.timelines.copy_paste
 from tilia.ui.common import ask_for_float
 from tilia.ui.timelines.copy_paste import paste_into_element
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event
 from tilia.misc_enums import Side, UpOrDown
-
 from tilia.timelines.timeline_kinds import TimelineKind
 
 logger = logging.getLogger(__name__)
@@ -47,51 +31,9 @@ logger = logging.getLogger(__name__)
 
 class HierarchyTimelineUI(TimelineUI):
     DEFAULT_HEIGHT = settings.get("hierarchy_timeline", "default_height")
-
     TOOLBAR_CLASS = HierarchyTimelineToolbar
-    ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.HIERARCHY_TKUI: HierarchyUI}
-    COMPONENT_KIND_TO_UIELEMENT_KIND = {
-        ComponentKind.HIERARCHY: UIElementKind.HIERARCHY_TKUI
-    }
-
+    ELEMENT_CLASS = HierarchyUI
     TIMELINE_KIND = TimelineKind.HIERARCHY_TIMELINE
-
-    def __init__(
-        self,
-        *args,
-        timeline_ui_collection: TimelineUICollection,
-        element_manager: TimelineUIElementManager,
-        canvas: TimelineCanvas,
-        toolbar: HierarchyTimelineToolbar,
-        name: str,
-        height: int = DEFAULT_HEIGHT,
-        is_visible: bool = True,
-        **kwargs,
-    ):
-        super().__init__(
-            *args,
-            timeline_ui_collection=timeline_ui_collection,
-            timeline_ui_element_manager=element_manager,
-            component_kinds_to_classes=self.ELEMENT_KINDS_TO_ELEMENT_CLASSES,
-            component_kinds_to_ui_element_kinds=self.COMPONENT_KIND_TO_UIELEMENT_KIND,
-            canvas=canvas,
-            toolbar=toolbar,
-            name=name,
-            height=height,
-            is_visible=is_visible,
-            **kwargs,
-        )
-        self.collection = timeline_ui_collection
-        self._name = name
-        self.timeline = None
-        self.right_clicked_element = None
-
-    def __len__(self):
-        return len(self.elements)
-
-    def __bool__(self):
-        """Prevents False form being returned when timeline is empty."""
-        return True
 
     def _setup_user_actions_to_callbacks(self):
         self.action_to_callback = {
@@ -120,7 +62,7 @@ class HierarchyTimelineUI(TimelineUI):
                 and e.tl_component.end <= parent.tl_component.end
             )
             elements_in_branch = self.element_manager.get_elements_by_condition(
-                is_in_branch, kind=UIElementKind.HIERARCHY_TKUI
+                is_in_branch
             )
             return elements_in_branch
 
@@ -172,9 +114,7 @@ class HierarchyTimelineUI(TimelineUI):
 
     def get_markerid_at_x(self, x: float):
         starts_or_ends_at_time = lambda u: u.start_x == x or u.end_x == x
-        element = self.element_manager.get_element_by_condition(
-            starts_or_ends_at_time, UIElementKind.HIERARCHY_TKUI
-        )
+        element = self.element_manager.get_element_by_condition(starts_or_ends_at_time)
 
         if not element:
             return
@@ -197,22 +137,22 @@ class HierarchyTimelineUI(TimelineUI):
             lambda e: e.start_marker == marker_id or e.end_marker == marker_id
         )
         units_using_marker = self.element_manager.get_elements_by_condition(
-            id_as_start_or_end_marker, kind=UIElementKind.ANY
+            id_as_start_or_end_marker
         )
         logger.debug(f"Got units {units_using_marker}.")
         return units_using_marker
 
-    def update_genealogy(self, parent: Hierarchy, children: list[Hierarchy]) -> None:
+    def update_genealogy(self, parent_id: str, children_ids: list[str]) -> None:
         def get_lowest_in_stacking_order(ids: list, canvas: tk.Canvas) -> int:
             ids_in_order = [id_ for id_ in canvas.find_all() if id_ in ids]
             return ids_in_order[0]
 
         logging.debug(
-            f"Arranging elements in {self} to parent/child relation '{parent, children}'"
+            f"Arranging elements in {self} to parent/child relation of ids '{parent_id, children_ids}'"
         )
 
-        parent_ui = parent.ui
-        children_uis = [comp.ui for comp in children]
+        parent_ui = self.get_element(parent_id)
+        children_uis = [self.get_element(id) for id in children_ids]
 
         if not parent_ui or not children_uis:
             logger.debug(f"No parent or children in relation. Nothing to do.")
@@ -320,11 +260,14 @@ class HierarchyTimelineUI(TimelineUI):
 
         element_to_select = None
         if direction == UpOrDown.UP and selected_element.tl_component.parent:
-            element_to_select = selected_element.tl_component.parent.ui
+            element_to_select = self.get_component_ui(
+                selected_element.tl_component.parent
+            )
         elif direction == UpOrDown.DOWN and selected_element.tl_component.children:
-            element_to_select = sorted(
+            component_to_select = sorted(
                 selected_element.tl_component.children, key=lambda x: x.start
-            )[0].ui
+            )[0]
+            element_to_select = self.get_component_ui(component_to_select)
 
         if element_to_select:
             self.element_manager.deselect_element(selected_element)
@@ -341,7 +284,7 @@ class HierarchyTimelineUI(TimelineUI):
                 and h.tl_component.level == elm.tl_component.level
             )
             later_elements = self.element_manager.get_elements_by_condition(
-                is_later_at_same_level, UIElementKind.HIERARCHY_TKUI
+                is_later_at_same_level
             )
             if later_elements:
                 return sorted(later_elements, key=lambda x: x.tl_component.start)[0]
@@ -354,7 +297,7 @@ class HierarchyTimelineUI(TimelineUI):
                 and h.tl_component.level == elm.tl_component.level
             )
             earlier_elements = self.element_manager.get_elements_by_condition(
-                is_earlier_at_same_level, UIElementKind.HIERARCHY_TKUI
+                is_earlier_at_same_level
             )
             if earlier_elements:
                 return sorted(earlier_elements, key=lambda x: x.tl_component.start)[-1]
@@ -586,7 +529,7 @@ class HierarchyTimelineUI(TimelineUI):
 
                 if child_paste_data.get("children", None):
                     self._paste_with_children_into_element(
-                        child_paste_data, child_component.ui
+                        child_paste_data, self.get_component_ui(child_component)
                     )
 
                 children_of_element.append(child_component)
@@ -620,7 +563,7 @@ class HierarchyTimelineUI(TimelineUI):
                 and e.tl_component.end <= parent.tl_component.end
             )
             elements_in_branch = self.element_manager.get_elements_by_condition(
-                is_in_branch, kind=UIElementKind.HIERARCHY_TKUI
+                is_in_branch
             )
             elements_in_branch.remove(parent)
             return elements_in_branch
@@ -663,10 +606,18 @@ class HierarchyTimelineUI(TimelineUI):
             hierarchy_ui, HierarchyUI.DEFAULT_COPY_ATTRIBUTES
         )
 
-        if hierarchy_ui.tl_component.children:
+        if hierarchy_ui.children:
             ui_data["children"] = [
-                self.get_copy_data_from_hierarchy_ui(child.ui)
-                for child in hierarchy_ui.tl_component.children
+                self.get_copy_data_from_hierarchy_ui(self.id_to_element[child.id])
+                for child in hierarchy_ui.children
             ]
 
         return ui_data
+
+    def on_hierarchy_level_changed(
+        self, component_id: str, prev_level: int, new_level: int
+    ):
+        self.id_to_element[component_id].update_color(prev_level, new_level)
+
+    def on_hierarchy_position_changed(self, component_id: str):
+        self.id_to_element[component_id].update_position()

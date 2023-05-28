@@ -1,10 +1,12 @@
 import functools
+import itertools
 import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
 import logging
 
+from tilia.events import Event
 from tilia.exceptions import CreateComponentError
 from tilia.timelines.beat.timeline import BeatTLComponentManager
 from tilia.timelines.component_kinds import ComponentKind
@@ -19,31 +21,28 @@ def cm():
     timeline.beat_pattern = [2]
     timeline.beats_in_measure = []
     _cm = BeatTLComponentManager()
-    _cm.create_component = functools.partial(
-        _cm.create_component, timeline=timeline, kind=ComponentKind.BEAT
-    )
+
+    def create_component(*args, **kwargs):
+        return BeatTLComponentManager.create_component(
+            _cm, ComponentKind.BEAT, timeline, *args, **kwargs
+        )
+
+    _cm.create_component = create_component
     _cm.timeline = timeline
     yield _cm
-    _cm.clear()
+    del _cm._components
+    del _cm.id_to_component
 
 
 class DummyBeat:
+    id_counter = itertools.count()
+
     def __init__(self, time):
+        self.id = next(self.id_counter)
         self.time = time
-        self.ui = DummyBeatUI()
 
     def __str__(self):
         return f"DummyBeat({self.time})"
-
-
-class DummyBeatUI:
-    def __init__(self):
-        self.first_in_measure = False
-        self.label = ""
-        self.update_position = MagicMock()
-
-    def update_drawing_as_first_in_measure(self, value):
-        self.first_in_measure = value
 
 
 # noinspection PyAttributeOutsideInit
@@ -70,14 +69,21 @@ class TestBeatTlComponentManager:
             DummyBeat(5),
         ]
         cm.timeline.beats_that_start_measures = [1, 3, 4]
-        cm.update_beat_uis()
+        with patch(
+            "tilia.timelines.beat.timeline.BeatTLComponentManager.post_component_event"
+        ) as post_mock:
+            cm.update_beat_uis()
 
         expected_first_in_measure = [False, True, False, True, True]
         expected_labels = ["", "a", "", "b", "c"]
 
         for i, beat in enumerate(cm._components):
-            assert beat.ui.first_in_measure == expected_first_in_measure[i]
-            assert beat.ui.label == expected_labels[i]
+            post_mock.assert_any_call(
+                Event.BEAT_UPDATED,
+                beat.id,
+                expected_first_in_measure[i],
+                expected_labels[i],
+            )
 
     def test_update_beat_uis_2(self, cm):
         cm.timeline.measure_numbers = ["a", "b", "c"]
@@ -91,14 +97,21 @@ class TestBeatTlComponentManager:
             DummyBeat(5),
         ]
         cm.timeline.beats_that_start_measures = [0, 2, 4]
-        cm.update_beat_uis()
+        with patch(
+            "tilia.timelines.beat.timeline.BeatTLComponentManager.post_component_event"
+        ) as post_mock:
+            cm.update_beat_uis()
 
         expected_first_in_measure = [True, False, True, False, True]
         expected_labels = ["a", "", "b", "", "c"]
 
         for i, beat in enumerate(cm._components):
-            assert beat.ui.first_in_measure == expected_first_in_measure[i]
-            assert beat.ui.label == expected_labels[i]
+            post_mock.assert_any_call(
+                Event.BEAT_UPDATED,
+                beat.id,
+                expected_first_in_measure[i],
+                expected_labels[i],
+            )
 
     def test_distribute_beats_2beats(self, cm):
         cm.timeline.beats_that_start_measures = [0, 2, 4]

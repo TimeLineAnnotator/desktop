@@ -33,8 +33,11 @@ class BeatTimeline(Timeline):
         "beats_in_measure",
         "measure_numbers",
         "measures_to_force_display",
+        "height",
+        "is_visible",
+        "name",
+        "display_position",
     ]
-    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
 
     KIND = TimelineKind.BEAT_TIMELINE
     DISPLAY_MEASURE_NUMBER_PERIOD = settings.get(
@@ -48,13 +51,20 @@ class BeatTimeline(Timeline):
         collection: TimelineCollection,
         component_manager: BeatTLComponentManager,
         beat_pattern: list[int],
+        name: str = "",
+        height: int = 0,
         beats_in_measure: Optional[list[int]] = None,
         measure_numbers: Optional[list[int]] = None,
         measures_to_force_number_display: Optional[list[int]] = None,
         **kwargs,
     ):
         super().__init__(
-            collection, component_manager, TimelineKind.BEAT_TIMELINE, **kwargs
+            name=name,
+            height=height,
+            collection=collection,
+            component_manager=component_manager,
+            kind=TimelineKind.BEAT_TIMELINE,
+            **kwargs,
         )
 
         self.beat_pattern = beat_pattern
@@ -366,16 +376,19 @@ class BeatTLComponentManager(TimelineComponentManager):
         beats = self.ordered_beats.copy()
         for beat in self._components:
             beat_index = beats.index(beat)
-            first_in_measure = beat_index in self.timeline.beats_that_start_measures
-            beat.ui.update_drawing_as_first_in_measure(first_in_measure)
-            if first_in_measure:
+            is_first_in_measure = beat_index in self.timeline.beats_that_start_measures
+            if is_first_in_measure:
                 measure_index = self.timeline.get_measure_index(beat_index)
                 if self.timeline.display_measure_number_bool_array[measure_index]:
-                    beat.ui.label = self.timeline.measure_numbers[measure_index]
+                    label = self.timeline.measure_numbers[measure_index]
                 else:
-                    beat.ui.label = ""
+                    label = ""
             else:
-                beat.ui.label = ""
+                label = ""
+
+            self.post_component_event(
+                Event.BEAT_UPDATED, beat.id, is_first_in_measure, label
+            )
 
     def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
         if self.timeline is None:
@@ -404,13 +417,13 @@ class BeatTLComponentManager(TimelineComponentManager):
 
         for index, beat in enumerate(beats_in_measure):
             beat.time = measure_start_time + index * interval
-            beat.ui.update_position()
+            self.post_component_event(Event.BEAT_TIME_CHANGED, beat.id)
 
     def scale(self, factor: float) -> None:
         logger.debug(f"Scaling beats in {self}...")
         for beat in self._components:
             beat.time *= factor
-            beat.ui.update_position()
+            self.post_component_event(Event.BEAT_TIME_CHANGED, beat.id)
 
     def crop(self, length: float) -> None:
         logger.debug(f"Cropping beats in {self}...")

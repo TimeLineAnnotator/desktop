@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from unittest.mock import patch, mock_open
 
 import pytest
@@ -101,15 +100,15 @@ def test_markers_by_time_from_csv(marker_tlui):
     markers = marker_tlui.timeline.ordered_markers
 
     assert markers[0].time == 1
-    assert markers[0].ui.label == "first"
+    assert markers[0].label == "first"
     assert markers[0].comments == "a"
 
     assert markers[1].time == 5
-    assert markers[1].ui.label == "second"
+    assert markers[1].label == "second"
     assert markers[1].comments == "b"
 
     assert markers[2].time == 10
-    assert markers[2].ui.label == "third"
+    assert markers[2].label == "third"
     assert markers[2].comments == "c"
 
 
@@ -182,17 +181,17 @@ def test_hierarchies_by_time_from_csv(hierarchy_tlui):
     assert hierarchies[0].start == 0
     assert hierarchies[0].end == 1
     assert hierarchies[0].level == 1
-    assert hierarchies[0].ui.label == "first"
+    assert hierarchies[0].label == "first"
 
     assert hierarchies[1].start == 1
     assert hierarchies[1].end == 2
     assert hierarchies[1].level == 2
-    assert hierarchies[1].ui.label == "second"
+    assert hierarchies[1].label == "second"
 
     assert hierarchies[2].start == 2
     assert hierarchies[2].end == 3
     assert hierarchies[2].level == 3
-    assert hierarchies[2].ui.label == "third"
+    assert hierarchies[2].label == "third"
 
 
 def test_hierarchies_by_measure_from_csv(beat_tlui, hierarchy_tlui):
@@ -222,17 +221,17 @@ def test_hierarchies_by_measure_from_csv(beat_tlui, hierarchy_tlui):
     assert hierarchies[0].start == 1
     assert hierarchies[0].end == 2
     assert hierarchies[0].level == 1
-    assert hierarchies[0].ui.label == "a"
+    assert hierarchies[0].label == "a"
 
     assert hierarchies[1].start == 2
     assert hierarchies[1].end == 3
     assert hierarchies[1].level == 2
-    assert hierarchies[1].ui.label == "b"
+    assert hierarchies[1].label == "b"
 
     assert hierarchies[2].start == 3
     assert hierarchies[2].end == 4
     assert hierarchies[2].level == 3
-    assert hierarchies[2].ui.label == "c"
+    assert hierarchies[2].label == "c"
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_start_value(

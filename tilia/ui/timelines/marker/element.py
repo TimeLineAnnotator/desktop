@@ -33,11 +33,8 @@ from tilia.ui.timelines.common import TimelineUIElement
 
 
 class MarkerUI(TimelineUIElement):
-
     WIDTH = settings.get("marker_timeline", "marker_width")
     HEIGHT = settings.get("marker_timeline", "marker_height")
-
-    DEFAULT_COLOR = settings.get("marker_timeline", "marker_default_color")
 
     LABEL_PADX = 7
 
@@ -68,23 +65,14 @@ class MarkerUI(TimelineUIElement):
         ("Delete", RightClickOption.DELETE),
     ]
 
-    @log_object_creation
     def __init__(
         self,
-        timeline_component: Marker,
+        id: str,
         timeline_ui: MarkerTimelineUI,
         canvas: tk.Canvas,
-        label: str = "",
-        color: str = DEFAULT_COLOR,
         **_,
     ):
-
-        super().__init__(
-            tl_component=timeline_component, timeline_ui=timeline_ui, canvas=canvas
-        )
-
-        self._label = label
-        self._color = color
+        super().__init__(id=id, timeline_ui=timeline_ui, canvas=canvas)
 
         self.marker_proper_id = self.draw_unit()
         self.label_id = self.draw_label()
@@ -92,22 +80,28 @@ class MarkerUI(TimelineUIElement):
         self.drag_data = {}
 
     def __str__(self) -> str:
-        return f"UI->{self.tl_component}"
+        try:
+            return f"UI->{self.tl_component}"
+        except KeyError:
+            return f"UI-><deleted>"
 
     @classmethod
     def create(
         cls,
-        unit: Marker,
+        id: str,
         timeline_ui: MarkerTimelineUI,
-        canvas: TimelineCanvas,
+        canvas: tk.Canvas,
         **kwargs,
     ) -> MarkerUI:
-
-        return MarkerUI(unit, timeline_ui, canvas, **kwargs)
+        return MarkerUI(id, timeline_ui, canvas, **kwargs)
 
     @property
     def time(self):
         return self.tl_component.time
+
+    @property
+    def label(self):
+        return self.tl_component.label
 
     @property
     def comments(self):
@@ -115,10 +109,6 @@ class MarkerUI(TimelineUIElement):
 
     @comments.setter
     def comments(self, value):
-        logger.debug(
-            f"{self} is setting the value of attribute 'comments' of its timeline component..."
-        )
-        logger.debug(f"... to '{value}'.")
         self.tl_component.comments = value
 
     @property
@@ -129,39 +119,37 @@ class MarkerUI(TimelineUIElement):
     def seek_time(self):
         return self.time
 
-    @property
-    def label(self):
-        return self._label
-
     @label.setter
     def label(self, value):
-        self._label = value
-        self.canvas.itemconfig(self.label_id, text=self._label)
+        self.tl_component.label = value
 
     @property
     def color(self):
-        return self._color
+        return self.tl_component.color
 
-    # noinspection PyAttributeOutsideInit
     @color.setter
     def color(self, value):
         logger.debug(f"Setting {self} color to {value}")
-        self._color = value
-        self.canvas.itemconfig(self.marker_proper_id, fill=self._color)
+        self.tl_component.color = value
 
     @property
     def shaded_color(self):
         return tilia.utils.color.hex_to_shaded_hex(self.color)
 
     def reset_color(self) -> None:
-        self.color = self.DEFAULT_COLOR
+        self.color = settings.get("marker_timeline", "marker_default_color")
 
     @property
     def canvas_drawings_ids(self):
         return self.marker_proper_id, self.label_id
 
-    def update_position(self):
+    def update_label(self):
+        self.canvas.itemconfig(self.label_id, text=self.color)
 
+    def update_color(self):
+        self.canvas.itemconfig(self.marker_proper_id, fill=self.color)
+
+    def update_position(self):
         logger.debug(f"Updating {self} canvas drawings positions...")
 
         # update marker proper
@@ -188,7 +176,6 @@ class MarkerUI(TimelineUIElement):
         return self.canvas.create_text(*coords, text=self.label)
 
     def get_unit_coords(self):
-
         x0 = self.x - self.WIDTH / 2
         y0 = self.HEIGHT
         x1 = self.x
@@ -241,7 +228,6 @@ class MarkerUI(TimelineUIElement):
         }
 
     def drag(self, x: int, _) -> None:
-
         if self.drag_data["x"] is None:
             events.post(Event.ELEMENT_DRAG_START)
 

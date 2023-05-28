@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 
+from tilia import settings
 from tilia.exceptions import CreateComponentError
 from tilia.timelines.state_actions import Action
 from tilia.timelines.component_kinds import ComponentKind
@@ -19,30 +20,22 @@ if TYPE_CHECKING:
 
 from tilia.timelines.common import (
     log_object_creation,
-    TimelineComponent,
 )
+from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 
 
 class MarkerTimeline(Timeline):
-    SERIALIZABLE_BY_VALUE = []
-    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
-
     KIND = TimelineKind.MARKER_TIMELINE
-
-    def __init__(
-        self,
-        collection: TimelineCollection,
-        component_manager: MarkerTLComponentManager,
-        **kwargs,
-    ):
-        super().__init__(
-            collection, component_manager, TimelineKind.MARKER_TIMELINE, **kwargs
-        )
+    DEFAULT_HEIGHT = settings.get("marker_timeline", "default_height")
 
     @property
     def ordered_markers(self):
         return sorted(self.component_manager.get_components(), key=lambda m: m.time)
+
+    @property
+    def markers(self):
+        return self.component_manager.get_components()
 
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass

@@ -12,13 +12,12 @@ import _tkinter
 from tilia.events import unsubscribe_from_all
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.create import create_timeline
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
-from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.timelines.beat import BeatTimelineUI
-from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
+from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 from tilia.ui.timelines.marker import MarkerTimelineUI
 
 
@@ -78,7 +77,11 @@ def tilia(tkui):
     tilia_.clear_app()  # undo blank file setup
     tilia_._player.media_length = 100.0
     yield tilia_
-    tilia_.clear_app()
+    try:
+        tilia_.clear_app()
+    except AttributeError:
+        # test failed and element was not created properly
+        pass
     unsubscribe_from_all(tilia_)
     unsubscribe_from_all(tilia_._timeline_collection)
     unsubscribe_from_all(tilia_._timeline_ui_collection)
@@ -107,9 +110,11 @@ def beat_tlui(tl_clct, tlui_clct) -> BeatTimelineUI:
         "tilia.ui.timelines.collection.TimelineUICollection.ask_beat_pattern"
     ) as mock:
         mock.return_value = [4]
-        tl: BeatTimeline = create_timeline(TlKind.BEAT_TIMELINE, tl_clct, tlui_clct)
+        tl: BeatTimeline = tl_clct.create_timeline(TlKind.BEAT_TIMELINE)
 
-    yield tl.ui
+    ui = tlui_clct.get_timeline_ui_by_id(tl.id)
+
+    yield ui
     tl_clct.delete_timeline(tl)
 
 
@@ -125,22 +130,27 @@ class TestHierarchyTimelineUI(HierarchyTimelineUI):
 
 @pytest.fixture
 def hierarchy_tlui(tilia, tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
-    def create_hierarchy(start: float, end: float, level: int, **kwargs) -> Hierarchy:
-        return tl.create_timeline_component(
+    def create_hierarchy(
+        start: float, end: float, level: int, **kwargs
+    ) -> tuple[Hierarchy, HierarchyUI]:
+        component = tl.create_timeline_component(
             ComponentKind.HIERARCHY, start, end, level, **kwargs
         )
+        element = ui.get_element(component.id)
+        return component, element
 
     def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
         return tl.component_manager._update_genealogy(parent, children)
 
-    tl: HierarchyTimeline = create_timeline(
-        TlKind.HIERARCHY_TIMELINE, tl_clct, tlui_clct
-    )
+    tl: HierarchyTimeline = tl_clct.create_timeline(TlKind.HIERARCHY_TIMELINE)
+    ui = tlui_clct.get_timeline_ui_by_id(tl.id)
 
+    # remove initial hierarchy
     tl.clear()
-    tl.ui.create_hierarchy = create_hierarchy
-    tl.ui.relate_hierarchies = relate_hierarchies
-    yield tl.ui
+
+    ui.create_hierarchy = create_hierarchy
+    ui.relate_hierarchies = relate_hierarchies
+    yield ui
     tl_clct.delete_timeline(tl)
     tilia._undo_manager.clear()
 
@@ -152,19 +162,27 @@ def hierarchy_tl(hierarchy_tlui):
 
 @pytest.fixture
 def marker_tlui(tl_clct, tlui_clct) -> MarkerTimelineUI:
-    tl: MarkerTimeline = create_timeline(TlKind.MARKER_TIMELINE, tl_clct, tlui_clct)
+    tl: MarkerTimeline = tl_clct.create_timeline(TlKind.MARKER_TIMELINE)
+    ui = tlui_clct.get_timeline_ui_by_id(tl.id)
 
-    yield tl.ui
+    def create_marker(*args, **kwargs):
+        component = tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
+        element = ui.get_element(component.id)
+        return component, element
+
+    tl.create_marker = create_marker
+    ui.create_marker = create_marker
+
+    yield ui
     tl_clct.delete_timeline(tl)
 
 
 @pytest.fixture
-def mrk_tl() -> MarkerTimeline:
-    component_manager = MarkerTLComponentManager()
-    timeline = MarkerTimeline(MagicMock(), component_manager)
-    timeline.get_media_length = lambda: 100
+def marker_tl(marker_tlui):
+    tl = marker_tlui.timeline
 
-    timeline.ui = MagicMock()
-    component_manager.associate_to_timeline(timeline)
-    yield timeline
-    unsubscribe_from_all(timeline)
+    def create_marker(*args, **kwargs):
+        return tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
+
+    tl.create_marker = create_marker
+    return marker_tlui.timeline

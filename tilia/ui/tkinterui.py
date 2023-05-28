@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import traceback
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable
 import sys
 import tkinter as tk
 import tkinter.font
@@ -16,7 +16,6 @@ import tkinter.messagebox
 import tkinter.simpledialog
 from functools import partial
 
-import tilia.repr
 from tilia import globals_, events, settings
 from tilia.ui import player
 from tilia.repr import default_str
@@ -411,7 +410,6 @@ class TkinterUI:
 
         if errors:
             errors_str = "\n".join(errors)
-            print(errors_str)
             events.post(
                 Event.REQUEST_DISPLAY_ERROR,
                 "Import components from csv",

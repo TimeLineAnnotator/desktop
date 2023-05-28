@@ -3,8 +3,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from tilia.events import post, Event
+from tilia.exceptions import CreateComponentError
+
 if TYPE_CHECKING:
-    from tilia.timelines.common import TimelineComponent
+    from tilia.timelines.base.component import TimelineComponent
     from tilia.timelines.base.timeline import Timeline
     from tilia.ui.timelines.common import TimelineUIElement
 
@@ -23,7 +26,6 @@ class Serializable(Protocol):
     KIND: ComponentKind
 
     SERIALIZABLE_BY_VALUE: list[str]
-    SERIALIZABLE_BY_UI_VALUE: list[str]
     SERIALIZABLE_BY_ID: list[str]
     SERIALIZABLE_BY_ID_LIST: list[str]
 
@@ -45,12 +47,6 @@ def serialize_component(component: Serializable) -> dict[str]:
     # serialize attributes by value
     for attr in component.SERIALIZABLE_BY_VALUE:
         if isinstance(value := getattr(component, attr), list):
-            value = value.copy()
-        serialized_component[attr] = value
-
-    # serialize attributes by ui value
-    for attr in component.SERIALIZABLE_BY_UI_VALUE:
-        if isinstance(value := getattr(component.ui, attr), list):
             value = value.copy()
         serialized_component[attr] = value
 
@@ -80,10 +76,25 @@ def deserialize_components(
     """Creates the given serialized components in 'timeline'."""
 
     id_to_component_dict = {}
+    errors = []
 
     for id_, serialized_component in serialized_components.items():
-        id_to_component_dict[id_] = _deserialize_component(
-            timeline, serialized_component
+        try:
+            id_to_component_dict[id_] = _deserialize_component(
+                timeline, serialized_component
+            )
+        except CreateComponentError as err:
+            logger.warning(f"Error when creating component with id={id=}")
+            logger.warning(err)
+            errors.append(f"{id_=} | {str(err)}")
+
+    if errors:
+        errors_str = "\n".join(errors)
+        post(
+            Event.REQUEST_DISPLAY_ERROR,
+            "Load components error",
+            "Some components were not loaded. The following errors occured:\n"
+            + errors_str,
         )
 
     _substitute_ids_for_reference_to_components(id_to_component_dict)
@@ -119,9 +130,7 @@ def _get_component_constructor_kwargs(
     return {
         k: v
         for k, v in serialized_component.items()
-        if k
-        in component_class.SERIALIZABLE_BY_VALUE
-        + component_class.SERIALIZABLE_BY_UI_VALUE
+        if k in component_class.SERIALIZABLE_BY_VALUE
     }
 
 
@@ -136,7 +145,6 @@ def _set_serializable_by_id_or_id_list(component, serialized_component: dict) ->
 def _substitute_ids_for_reference_to_components(
     id_to_component: dict[str, Serializable]
 ) -> None:
-
     for id_, component in id_to_component.items():
         component_class = type(component)
 
@@ -147,5 +155,7 @@ def _substitute_ids_for_reference_to_components(
         for attr in component_class.SERIALIZABLE_BY_ID_LIST:
             if attr_as_id_list := getattr(component, attr):
                 setattr(
-                    component, attr, [id_to_component[id_] for id_ in attr_as_id_list]
+                    component,
+                    attr,
+                    [id_to_component[id_] for id_ in attr_as_id_list],
                 )

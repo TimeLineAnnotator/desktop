@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 
 import _tkinter
 
+from tilia.repr import default_str
 from tilia.ui.canvas_tags import CURSOR_ARROWS, CURSOR_HAND, TAG_TO_CURSOR
 
 if TYPE_CHECKING:
-    from tilia.timelines.common import TimelineComponent
+    from tilia.timelines.base.component import TimelineComponent
     from tilia.ui.timelines.timeline import TimelineUI
 
 import logging
@@ -38,12 +39,10 @@ class TimelineCanvas(tk.Canvas):
         scrollbar: tk.Scrollbar,
         width: int,
         left_margin_width: int,
-        height: int,
-        initial_name: str,
     ):
         super().__init__(
             parent,
-            height=height,
+            height=1,
             width=width,
             bg=self.DEFAULT_BG,
             highlightthickness=0,
@@ -53,9 +52,9 @@ class TimelineCanvas(tk.Canvas):
 
         self._label_width = left_margin_width
 
-        self._setup_label(initial_name)
+        self._setup_label("")
 
-        self.config(scrollregion=(0, 0, width, height))
+        self.config(scrollregion=(0, 0, width, 1))
         self.config(xscrollcommand=scrollbar.set)
         self.focus_set()
 
@@ -102,22 +101,29 @@ class TimelineCanvas(tk.Canvas):
 
 class TimelineUIElement(ABC):
     """Interface for the tkinter ui objects corresponding to to a TimelineComponent instance.
-    E.g.: the HierarchyUI in the ui element corresponding to the Hierarchy timeline component."""
+    E.g.: the HierarchyUI in the ui element corresponding to the Hierarchy timeline component.
+    """
 
     def __init__(
         self,
         *args,
-        tl_component,
+        id: str,
         timeline_ui,
         canvas: tk.Canvas,
         **kwargs,
     ):
         super().__init__()
 
-        self.tl_component = tl_component
         self.timeline_ui = timeline_ui
-        self.id = timeline_ui.get_id()
+        self.id = id
         self.canvas = canvas
+
+    def __repr__(self):
+        return default_str(self)
+
+    @property
+    def tl_component(self):
+        return self.timeline_ui.get_timeline_component(self.id)
 
     @abstractmethod
     def delete(self):

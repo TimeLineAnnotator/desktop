@@ -90,9 +90,9 @@ class TestTkinterUI:
     def test_on_menu_import_markers_from_csv(self, tkui, marker_tlui, beat_tlui):
         def get_by_kind(kind):
             if kind == TimelineKind.MARKER_TIMELINE:
-                return marker_tlui.timeline
+                return [marker_tlui]
             elif kind == TimelineKind.BEAT_TIMELINE:
-                return beat_tlui.timeline
+                return [beat_tlui]
             else:
                 raise ValueError
 
@@ -100,7 +100,7 @@ class TestTkinterUI:
             return get_by_kind(kind)
 
         def ask_choose_timeline_mock(self, _1, _2, kind):
-            return get_by_kind(kind)
+            return get_by_kind(kind)[0].timeline
 
         tlui_coll_path = "tilia.ui.timelines.collection.TimelineUICollection"
         with (
@@ -120,7 +120,7 @@ class TestTkinterUI:
 
                 created_marker = marker_tlui.timeline.ordered_markers[0]
                 assert created_marker.time == 10
-                assert created_marker.ui.label == "marker"
+                assert created_marker.label == "marker"
                 assert created_marker.comments == "imported"
 
                 marker_tlui.timeline.on_request_to_delete_components([created_marker])
@@ -145,15 +145,15 @@ class TestTkinterUI:
 
                 created_marker = marker_tlui.timeline.ordered_markers[0]
                 assert created_marker.time == 2.5
-                assert created_marker.ui.label == "abc"
+                assert created_marker.label == "abc"
                 assert created_marker.comments == "def"
 
     def test_on_menu_import_hierarchies_from_csv(self, tkui, hierarchy_tlui, beat_tlui):
         def get_by_kind(kind):
             if kind == TimelineKind.HIERARCHY_TIMELINE:
-                return hierarchy_tlui.timeline
+                return [hierarchy_tlui]
             elif kind == TimelineKind.BEAT_TIMELINE:
-                return beat_tlui.timeline
+                return [beat_tlui]
             else:
                 raise ValueError
 
@@ -161,7 +161,7 @@ class TestTkinterUI:
             return get_by_kind(kind)
 
         def ask_choose_timeline_mock(self, _1, _2, kind):
-            return get_by_kind(kind)
+            return get_by_kind(kind)[0].timeline
 
         tlui_coll_path = "tilia.ui.timelines.collection.TimelineUICollection"
         with (
@@ -182,7 +182,7 @@ class TestTkinterUI:
                 created = hierarchy_tlui.timeline.ordered_hierarchies[0]
                 assert created.start == 10
                 assert created.end == 20
-                assert created.ui.label == "hierarchy"
+                assert created.label == "hierarchy"
                 assert created.comments == "imported"
 
                 hierarchy_tlui.timeline.on_request_to_delete_components([created])
@@ -211,7 +211,7 @@ class TestTkinterUI:
                 created = hierarchy_tlui.timeline.ordered_hierarchies[0]
                 assert created.start == 1.5
                 assert created.end == 2.1
-                assert created.ui.label == "mylabel"
+                assert created.label == "mylabel"
                 assert created.comments == "fromcsv"
 
     def test_on_menu_import_markers_from_csv_displays_errors_during_creation(
@@ -219,9 +219,9 @@ class TestTkinterUI:
     ):
         def get_by_kind(kind):
             if kind == TimelineKind.MARKER_TIMELINE:
-                return marker_tlui.timeline
+                return [marker_tlui]
             elif kind == TimelineKind.BEAT_TIMELINE:
-                return beat_tlui.timeline
+                return [beat_tlui]
             else:
                 raise ValueError
 
@@ -229,7 +229,7 @@ class TestTkinterUI:
             return get_by_kind(kind)
 
         def ask_choose_timeline_mock(self, _1, _2, kind):
-            return get_by_kind(kind)
+            return get_by_kind(kind)[0].timeline
 
         tlui_coll_path = "tilia.ui.timelines.collection.TimelineUICollection"
         with (
@@ -254,27 +254,39 @@ class TestTkinterUI:
                 assert "103" in post_mock.call_args.args[2]
 
             data = """measure,fraction,label,comments\n999,0.5,,"""
+
+            # TODO: refactor this mess of nested context managers
             with (
                 patch(
                     "tilia.ui.dialogs.by_time_or_by_measure.ByTimeOrByMeasure.ask",
                     lambda _: "measure",
                 ),
                 patch("builtins.open", mock_open(read_data=data)),
+                patch(
+                    "tilia.ui.timelines.beat.timeline.BeatTimelineUI.on_beat_position_change"
+                ),
+                patch(
+                    "tilia.ui.timelines.beat.timeline.BeatTimelineUI.on_timeline_component_deleted"
+                ),
             ):
                 beat_tlui.create_beat(1)
-
                 tkui.on_import_from_csv(TimelineKind.MARKER_TIMELINE)
 
                 assert "999" in post_mock.call_args.args[2]
+
+                beat_tlui.timeline.clear()
+                # as post was mocked, a ui was not created for the beat at 1, so
+                # we need to clear the timeline manually to prevent a KeyError
+                # during cleanup
 
     def test_on_menu_import_hierarchies_from_csv_displays_errors_during_creation(
         self, tkui, hierarchy_tlui, beat_tlui
     ):
         def get_by_kind(kind):
             if kind == TimelineKind.HIERARCHY_TIMELINE:
-                return hierarchy_tlui.timeline
+                return [hierarchy_tlui]
             elif kind == TimelineKind.BEAT_TIMELINE:
-                return beat_tlui.timeline
+                return [beat_tlui]
             else:
                 raise ValueError
 
@@ -282,7 +294,7 @@ class TestTkinterUI:
             return get_by_kind(kind)
 
         def ask_choose_timeline_mock(self, _1, _2, kind):
-            return get_by_kind(kind)
+            return get_by_kind(kind)[0].timeline
 
         tlui_coll_path = "tilia.ui.timelines.collection.TimelineUICollection"
         with (
@@ -313,12 +325,23 @@ class TestTkinterUI:
                     lambda _: "measure",
                 ),
                 patch("builtins.open", mock_open(read_data=data)),
+                patch(
+                    "tilia.ui.timelines.beat.timeline.BeatTimelineUI.on_beat_position_change"
+                ),
+                patch(
+                    "tilia.ui.timelines.beat.timeline.BeatTimelineUI.on_timeline_component_deleted"
+                ),
             ):
                 beat_tlui.create_beat(1)
 
                 tkui.on_import_from_csv(TimelineKind.HIERARCHY_TIMELINE)
 
                 assert "999" in post_mock.call_args.args[2]
+
+                beat_tlui.timeline.clear()
+                # as post was mocked, a ui was not created for the beat at 1, so
+                # we need to clear the timeline manually to prevent a KeyError
+                # during cleanup
 
     def test_on_display_error_crops_long_message(self, tkui):
         message = "\n".join(["." for _ in range(50)])  # 50 lines with a dot

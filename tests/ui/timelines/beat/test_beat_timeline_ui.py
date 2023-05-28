@@ -6,11 +6,8 @@ from tilia import events
 from tilia.events import Event
 from tilia.exceptions import CreateComponentError
 from tilia.misc_enums import Side
-from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.timelines.beat.timeline import BeatTimelineUI
-from tilia.timelines.create import create_timeline
 from tilia.ui.windows import WindowKind
 
 
@@ -66,7 +63,7 @@ class TestBeatTimelineUI:
         beat0 = beat_tlui.ordered_elements[0]
         beat1 = beat_tlui.ordered_elements[1]
         assert beat_tlui.get_next_beat(beat0) == beat1
-        assert beat_tlui.get_next_beat(beat1) == None
+        assert beat_tlui.get_next_beat(beat1) is None
 
     def test_get_previous_beat(self, beat_tlui):
         beat_tlui.create_beat(0)
@@ -75,7 +72,7 @@ class TestBeatTimelineUI:
         beat0 = beat_tlui.ordered_elements[0]
         beat1 = beat_tlui.ordered_elements[1]
         assert beat_tlui.get_previous_beat(beat1) == beat0
-        assert beat_tlui.get_previous_beat(beat0) == None
+        assert beat_tlui.get_previous_beat(beat0) is None
 
     def test_get_measure_number(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [3]

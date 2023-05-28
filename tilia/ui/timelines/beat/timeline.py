@@ -3,79 +3,36 @@ Defines the tkinter ui corresponding a BeatTimeline.
 """
 
 from __future__ import annotations
-
+import logging
 import copy
-from typing import TYPE_CHECKING
 
 import tilia.ui.common
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event, subscribe
+from tilia.events import Event
 from tilia.misc_enums import Side
 from tilia.timelines.state_actions import Action
-
 from tilia.timelines.timeline_kinds import TimelineKind
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.common import TimelineCanvas
-    from tilia.ui.timelines.collection import TimelineUICollection
-
-import logging
-
-logger = logging.getLogger(__name__)
-
 from tilia import events
 from tilia.ui.timelines.timeline import (
     TimelineUI,
     RightClickOption,
-    TimelineUIElementManager,
 )
 from tilia.ui.timelines.beat.element import BeatUI
 from tilia.ui.timelines.beat.toolbar import BeatTimelineToolbar
-
 from tilia.ui.timelines.copy_paste import (
     get_copy_data_from_element,
 )
-from tilia.ui.element_kinds import UIElementKind
+
+logger = logging.getLogger(__name__)
 
 
 class BeatTimelineUI(TimelineUI):
     DEFAULT_HEIGHT = 35
-
     TOOLBAR_CLASS = BeatTimelineToolbar
-    ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.BEAT_UI: BeatUI}
-    COMPONENT_KIND_TO_UIELEMENT_KIND = {ComponentKind.BEAT: UIElementKind.BEAT_UI}
-
+    ELEMENT_CLASS = BeatUI
     TIMELINE_KIND = TimelineKind.BEAT_TIMELINE
 
-    def __init__(
-        self,
-        *args,
-        timeline_ui_collection: TimelineUICollection,
-        element_manager: TimelineUIElementManager,
-        canvas: TimelineCanvas,
-        toolbar: BeatTimelineToolbar,
-        name: str,
-        height: int = DEFAULT_HEIGHT,
-        is_visible: bool = True,
-        **kwargs,
-    ):
-
-        super().__init__(
-            *args,
-            timeline_ui_collection=timeline_ui_collection,
-            timeline_ui_element_manager=element_manager,
-            component_kinds_to_classes=self.ELEMENT_KINDS_TO_ELEMENT_CLASSES,
-            component_kinds_to_ui_element_kinds=self.COMPONENT_KIND_TO_UIELEMENT_KIND,
-            canvas=canvas,
-            toolbar=toolbar,
-            name=name,
-            height=height,
-            is_visible=is_visible,
-            **kwargs,
-        )
-
     def _setup_user_actions_to_callbacks(self):
-
         self.action_to_callback = {
             "add": self.add_beat,
             "delete": self.delete_selected_elements,
@@ -86,11 +43,15 @@ class BeatTimelineUI(TimelineUI):
         return sorted(self.elements, key=lambda b: b.time)
 
     @property
+    def beats(self):
+        return self.elements
+
+    @property
     def ordered_selected_elements(self):
         return sorted(self.selected_elements, key=lambda b: b.time)
 
     def add_beat(self):
-        self.create_beat(self.timeline_ui_collection.get_current_playback_time())
+        self.create_beat(self.collection.get_current_playback_time())
 
     def create_beat(self, time: float, **kwargs) -> None:
         beat = self.timeline.create_timeline_component(
@@ -121,7 +82,7 @@ class BeatTimelineUI(TimelineUI):
 
     def get_next_beat(self, elm):
         later_elements = self.element_manager.get_elements_by_condition(
-            lambda m: m.time > elm.time, UIElementKind.BEAT_UI
+            lambda m: m.time > elm.time
         )
         if later_elements:
             return sorted(later_elements, key=lambda m: m.time)[0]
@@ -130,7 +91,7 @@ class BeatTimelineUI(TimelineUI):
 
     def get_previous_beat(self, elm):
         earlier_elements = self.element_manager.get_elements_by_condition(
-            lambda m: m.time < elm.time, UIElementKind.BEAT_UI
+            lambda m: m.time < elm.time
         )
         if earlier_elements:
             return sorted(earlier_elements, key=lambda m: m.time)[-1]
@@ -143,8 +104,18 @@ class BeatTimelineUI(TimelineUI):
 
         return self.timeline.measure_numbers[measure_index]
 
-    def on_side_arrow_press(self, side: Side):
+    def on_beat_position_change(self, id: str, is_first_in_measure: bool, label: str):
+        """
+        For when the position in relation to other beats changes. E.g. when a beat gets deleted or added. NOT for when the beat changes its *time*. For that, see on_beat_time_change.
+        """
+        beat_ui = self.id_to_element[id]
+        beat_ui.update_drawing_as_first_in_measure(is_first_in_measure)
+        beat_ui.label = label
 
+    def on_beat_time_change(self, id: str):
+        self.id_to_element[id].update_position()
+
+    def on_side_arrow_press(self, side: Side):
         if not self.has_selected_elements:
             logger.debug(f"User pressed left arrow but no elements were selected.")
             return
@@ -249,7 +220,6 @@ class BeatTimelineUI(TimelineUI):
         return self.get_copy_data_from_beat_uis(self.selected_elements)
 
     def get_copy_data_from_beat_uis(self, beat_uis: list[BeatUI]):
-
         copy_data = []
         for ui in beat_uis:
             copy_data.append(self.get_copy_data_from_beat_ui(ui))
@@ -271,7 +241,7 @@ class BeatTimelineUI(TimelineUI):
         self.create_pasted_beats(
             paste_data,
             reference_time,
-            self.timeline_ui_collection.get_current_playback_time(),
+            self.collection.get_current_playback_time(),
         )
 
         events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)

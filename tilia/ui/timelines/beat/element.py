@@ -70,15 +70,12 @@ class BeatUI(TimelineUIElement):
     @log_object_creation
     def __init__(
         self,
-        timeline_component: Beat,
+        id: str,
         timeline_ui: BeatTimelineUI,
         canvas: tk.Canvas,
         **_,
     ):
-
-        super().__init__(
-            tl_component=timeline_component, timeline_ui=timeline_ui, canvas=canvas
-        )
+        super().__init__(id=id, timeline_ui=timeline_ui, canvas=canvas)
 
         self.beat_proper_id = self.draw_beat_proper()
         self._label = ""
@@ -88,18 +85,20 @@ class BeatUI(TimelineUIElement):
         self.is_first_in_measure = False
 
     def __str__(self) -> str:
-        return f"UI->{self.tl_component}"
+        try:
+            return f"UI->{self.tl_component}"
+        except KeyError:
+            return f"UI-><deleted>"
 
     @classmethod
     def create(
         cls,
-        beat: Beat,
+        id: str,
         timeline_ui: BeatTimelineUI,
         canvas: TimelineCanvas,
         **kwargs,
     ) -> BeatUI:
-
-        return BeatUI(beat, timeline_ui, canvas, **kwargs)
+        return BeatUI(id, timeline_ui, canvas, **kwargs)
 
     @property
     def label(self):
@@ -131,7 +130,6 @@ class BeatUI(TimelineUIElement):
         return self.beat_proper_id, self.label_id
 
     def update_position(self):
-
         logger.debug(f"Updating {self} canvas drawings positions...")
 
         coords = (
@@ -178,7 +176,6 @@ class BeatUI(TimelineUIElement):
         return self.canvas.create_text(*coords, text=self.label, anchor="n")
 
     def get_beat_coords(self):
-
         x0 = self.x - self.WIDTH / 2
         y0 = self.HEIGHT
         x1 = self.x + self.WIDTH / 2
@@ -187,7 +184,6 @@ class BeatUI(TimelineUIElement):
         return x0, y0, x1, y1
 
     def get_first_beat_in_measure_coords(self):
-
         x0 = self.x - self.FIRST_IN_MEASURE_WIDTH / 2
         y0 = self.FIRST_IN_MEASURE_HEIGHT
         x1 = self.x + self.FIRST_IN_MEASURE_WIDTH / 2
@@ -262,7 +258,6 @@ class BeatUI(TimelineUIElement):
         )
 
     def drag(self, x: int, _) -> None:
-
         if self.drag_data["x"] is None:
             events.post(Event.ELEMENT_DRAG_START)
 

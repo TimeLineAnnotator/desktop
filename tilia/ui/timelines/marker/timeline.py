@@ -1,33 +1,18 @@
-"""
-Defines the tkinter ui corresponding a MarkerTimeline.
-"""
-
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING
-
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event, subscribe
-from tilia.misc_enums import Side
-from tilia.timelines.state_actions import Action
-
-from tilia.timelines.timeline_kinds import TimelineKind
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.common import TimelineCanvas
-    from tilia.ui.timelines.collection import TimelineUICollection
-
 import logging
 
-logger = logging.getLogger(__name__)
-
-from tilia import events, settings
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.events import Event
+from tilia.misc_enums import Side
+from tilia.timelines.state_actions import Action
+from tilia.timelines.timeline_kinds import TimelineKind
+from tilia import events
 from tilia import ui
 from tilia.ui.timelines.timeline import (
     TimelineUI,
     RightClickOption,
-    TimelineUIElementManager,
 )
 from tilia.ui.timelines.marker.element import MarkerUI
 from tilia.ui.timelines.marker.toolbar import MarkerTimelineToolbar
@@ -39,45 +24,16 @@ from tilia.ui.timelines.copy_paste import (
 )
 from tilia.ui.element_kinds import UIElementKind
 
+logger = logging.getLogger(__name__)
+
 
 class MarkerTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = settings.get("marker_timeline", "default_height")
-
     TOOLBAR_CLASS = MarkerTimelineToolbar
-    ELEMENT_KINDS_TO_ELEMENT_CLASSES = {UIElementKind.MARKER_TKUI: MarkerUI}
-    COMPONENT_KIND_TO_UIELEMENT_KIND = {ComponentKind.MARKER: UIElementKind.MARKER_TKUI}
+    ELEMENT_CLASS = MarkerUI
 
     TIMELINE_KIND = TimelineKind.MARKER_TIMELINE
 
-    def __init__(
-        self,
-        *args,
-        timeline_ui_collection: TimelineUICollection,
-        element_manager: TimelineUIElementManager,
-        canvas: TimelineCanvas,
-        toolbar: MarkerTimelineToolbar,
-        name: str,
-        height: int = DEFAULT_HEIGHT,
-        is_visible: bool = True,
-        **kwargs,
-    ):
-
-        super().__init__(
-            *args,
-            timeline_ui_collection=timeline_ui_collection,
-            timeline_ui_element_manager=element_manager,
-            component_kinds_to_classes=self.ELEMENT_KINDS_TO_ELEMENT_CLASSES,
-            component_kinds_to_ui_element_kinds=self.COMPONENT_KIND_TO_UIELEMENT_KIND,
-            canvas=canvas,
-            toolbar=toolbar,
-            name=name,
-            height=height,
-            is_visible=is_visible,
-            **kwargs,
-        )
-
     def _setup_user_actions_to_callbacks(self):
-
         self.action_to_callback = {
             "add": self.add_marker,
             "delete": self.delete_selected_elements,
@@ -87,7 +43,7 @@ class MarkerTimelineUI(TimelineUI):
         return self.height
 
     def add_marker(self):
-        self.create_marker(self.timeline_ui_collection.get_current_playback_time())
+        self.create_marker(self.collection.get_current_playback_time())
 
     def create_marker(self, time: float, **kwargs) -> None:
         return self.timeline.create_timeline_component(
@@ -182,7 +138,7 @@ class MarkerTimelineUI(TimelineUI):
         self.element_manager.deselect_all_elements()
         self.element_manager.select_element(self.right_clicked_element)
         self.paste_single_into_selected_elements(
-            self.timeline_ui_collection.get_elements_for_pasting()
+            self.collection.get_elements_for_pasting()
         )
 
     def right_click_menu_delete(self) -> None:
@@ -201,7 +157,6 @@ class MarkerTimelineUI(TimelineUI):
         return self.get_copy_data_from_marker_uis(selected_elements)
 
     def get_copy_data_from_marker_uis(self, marker_uis: list[MarkerUI]):
-
         copy_data = []
         for ui in marker_uis:
             copy_data.append(self.get_copy_data_from_marker_ui(ui))
@@ -225,7 +180,6 @@ class MarkerTimelineUI(TimelineUI):
         events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
 
     def paste_multiple_into_selected_elements(self, paste_data: list[dict] | dict):
-
         selected_elements = self.element_manager.get_selected_elements()
         self.validate_paste(paste_data, selected_elements)
 
@@ -257,7 +211,7 @@ class MarkerTimelineUI(TimelineUI):
         self.create_pasted_markers(
             paste_data,
             reference_time,
-            self.timeline_ui_collection.get_current_playback_time(),
+            self.collection.get_current_playback_time(),
         )
 
         events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)

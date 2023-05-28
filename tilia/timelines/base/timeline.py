@@ -1,62 +1,97 @@
 from __future__ import annotations
-
 import logging
 from abc import ABC
 from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from tilia import events
 from tilia.timelines import serialize
-
-from tilia.timelines.common import TimelineComponent, logger, InvalidComponentKindError
+from tilia.timelines.common import logger
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.exceptions import InvalidComponentKindError
+from ...events import Event, post
 
 if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
+    from .component import TimelineComponent
+
 
 class Timeline(ABC):
-    """Interface for timelines.
-    Is composed of a ComponentManager, which implements most of the timeline component operations and functions
-    to pass global information (e.g. media length) to timeline components. Keeps a reference to its ui, which is a
-    TimelineUI object."""
-
-    SERIALIZABLE_BY_VALUE = []
-    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "display_position"]
+    SERIALIZABLE_BY_VALUE = ["name", "height", "is_visible", "display_position"]
+    DEFAULT_HEIGHT = 1
+    KIND = None
 
     def __init__(
         self,
         collection: TimelineCollection,
-        component_manager: TimelineComponentManager | None,
-        kind: TimelineKind,
+        component_manager: Optional[TimelineComponentManager] = None,
+        name: str = "",
+        height: int = 0,
+        is_visible: bool = True,
         **_,
     ):
         self.id = collection.get_id()
         self.collection = collection
-        self.kind = kind
+        self.kind = (
+            self.KIND
+        )  # TODO: remove this and update references to point to self.KIND
+
+        self._name = name
+        self.is_visible = is_visible
+        self._height = height or self.DEFAULT_HEIGHT
 
         self.component_manager = component_manager
 
-        self.ui = None
+    def __iter__(self):
+        return iter(self.components)
+
+    def __len__(self):
+        return self.component_manager.component_count
+
+    def __bool__(self):
+        """Prevents False form being returned when timeline is empty."""
+        return True
+
+    def __str__(self):
+        return self.__class__.__name__ + f"({id(self)})"
+
+    @property
+    def components(self):
+        return self.component_manager.get_components()
+
+    @property
+    def display_position(self):
+        return self.collection.get_display_position(self)
+
+    @property
+    def height(self):
+        return self._height
+
+    @height.setter
+    def height(self, value):
+        self._height = value
+        post(Event.TIMELINE_HEIGHT_CHANGED, self.id)
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+        post(Event.TIMELINE_NAME_CHANGED, self.id)
 
     def create_timeline_component(
         self, kind: ComponentKind, *args, **kwargs
-    ) -> TimelineComponentManager:
+    ) -> TimelineComponent:
         """Creates a TimelineComponent of the given kind. Request timeline ui to create a ui for the component."""
         component = self.component_manager.create_component(kind, self, *args, **kwargs)
-        component_ui = self.ui.get_ui_for_component(kind, component, **kwargs)
 
-        self._make_reference_to_ui_in_component(component, component_ui)
+        events.post(Event.TIMELINE_COMPONENT_CREATED, self.kind, self.id, component.id)
 
         return component
 
-    @staticmethod
-    def _make_reference_to_ui_in_component(
-        component: TimelineComponent, component_ui: TimelineComponent
-    ):
-        logger.debug(f"Setting '{component}' ui as {component_ui}.'")
-        component.ui = component_ui
-
-    # noinspection PyMethodMayBeStatic
+    def get_component(self, id: int) -> TimelineComponent:
+        return self.component_manager.get_component(id)
 
     def on_request_to_delete_components(
         self, components: list[TimelineComponent], record=True
@@ -65,9 +100,6 @@ class Timeline(ABC):
 
         for component in components:
             self.component_manager.delete_component(component)
-
-    def request_delete_ui_for_component(self, component: TimelineComponent) -> None:
-        self.ui.delete_element(component.ui)
 
     def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
         pass
@@ -81,17 +113,15 @@ class Timeline(ABC):
         logger.debug(f"Deleting timeline '{self}'")
         self.component_manager.clear()
 
+    def deserialize_components(self, components: dict[int, dict[str]]):
+        return self.component_manager.deserialize_components(components)
+
     def get_state(self) -> dict:
         """Creates a dict with timeline components and attributes."""
         logger.debug(f"Serializing {self}...")
         state = {}
         for attr in self.SERIALIZABLE_BY_VALUE:
             if isinstance(value := getattr(self, attr), list):
-                value = value.copy()
-            state[attr] = value
-
-        for attr in self.SERIALIZABLE_BY_UI_VALUE:
-            if isinstance(value := getattr(self.ui, attr), list):
                 value = value.copy()
             state[attr] = value
 
@@ -103,8 +133,8 @@ class Timeline(ABC):
     def restore_state(self, state: dict):
         self.clear(record=False)
         self.component_manager.deserialize_components(state["components"])
-        self.ui.height = state["height"]
-        self.ui.name = state["name"]
+        self.height = state["height"]
+        self.name = state["name"]
 
     def get_id_for_component(self) -> int:
         id_ = self.collection.get_id()
@@ -116,12 +146,6 @@ class Timeline(ABC):
 
     def get_current_playback_time(self):
         return self.collection.get_current_playback_time()
-
-    def __str__(self):
-        if self.ui:
-            return str(self.ui)
-        else:
-            return self.__class__.__name__ + f"({id(self)})"
 
 
 class TimelineComponentManager:
@@ -135,6 +159,7 @@ class TimelineComponentManager:
 
         self._components = set()
         self.component_kinds = component_kinds
+        self.id_to_component = {}
 
         self.timeline: Optional[Timeline] = None
 
@@ -155,7 +180,7 @@ class TimelineComponentManager:
         component_class = self._get_component_class_by_kind(kind)
         component = component_class.create(*args, **kwargs)
 
-        self._add_to_components_set(component)
+        self._add_to_components(component)
 
         return component
 
@@ -179,6 +204,9 @@ class TimelineComponentManager:
 
     def get_components(self) -> list[TimelineComponent]:
         return list(self._components)
+
+    def get_component(self, id: int) -> TimelineComponent:
+        return self.id_to_component[id]
 
     def get_existing_values_for_attr(self, attr_name: str, kind: ComponentKind) -> set:
         cmp_set = self._get_component_set_by_kind(kind)
@@ -213,14 +241,16 @@ class TimelineComponentManager:
     ) -> list:
         return [c for c in cmp_list if getattr(c, attr_name) == value]
 
-    def _add_to_components_set(self, component: TimelineComponent) -> None:
+    def _add_to_components(self, component: TimelineComponent) -> None:
         logger.debug(f"Adding component '{component}' to {self}.")
         self._components.add(component)
+        self.id_to_component[component.id] = component
 
     def _remove_from_components_set(self, component: TimelineComponent) -> None:
         logger.debug(f"Removing component '{component}' from {self}.")
         try:
             self._components.remove(component)
+            self.id_to_component.pop(component.id)
         except KeyError:
             raise KeyError(
                 f"Can't remove component '{component}' from {self}: not in self.components."
@@ -287,12 +317,14 @@ class TimelineComponentManager:
 
     def delete_component(self, component: TimelineComponent) -> None:
         logger.debug(f"Deleting component '{component}'")
-
-        self.timeline.request_delete_ui_for_component(component)
-
         events.unsubscribe_from_all(component)
-
         self._remove_from_components_set(component)
+        post(
+            Event.TIMELINE_COMPONENT_DELETED,
+            self.timeline.kind,
+            self.timeline.id,
+            component.id,
+        )
 
     def clear(self):
         logging.debug(f"Clearing component manager '{self}'...")
@@ -305,3 +337,6 @@ class TimelineComponentManager:
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):
         serialize.deserialize_components(self.timeline, serialized_components)
+
+    def post_component_event(self, event: Event, component_id: id, *args, **kwargs):
+        post(event, self.timeline.kind, self.timeline.id, component_id, *args, **kwargs)

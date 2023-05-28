@@ -60,7 +60,6 @@ class FileManager:
         return default_str(self)
 
     def was_file_modified(self):
-
         current_tilia_data = self.get_save_parameters()
 
         # necessary tweak when there's only a slider timeline in file
@@ -148,7 +147,7 @@ class FileManager:
         logger.info(f"New file created.")
 
     def open(self):
-        logger.debug(f"Processing open file request.")
+        logger.info(f"Processing open file request.")
         self.ask_save_if_necessary()
         logger.debug(f"Getting path of file to open.")
         try:
@@ -162,7 +161,7 @@ class FileManager:
         self.open_file_by_path(file_path)
 
     def open_file_by_path(self, file_path: str):
-        logger.debug(f"Opening file path {file_path}.")
+        logger.info(f"Opening file path {file_path}.")
 
         with open(file_path, "r", encoding="utf-8") as file:
             file_dict = json.load(file)

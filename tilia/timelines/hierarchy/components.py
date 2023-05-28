@@ -5,9 +5,7 @@ import logging
 from tilia import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.exceptions import TiliaException
-from tilia.timelines.common import (
-    TimelineComponent,
-)
+from tilia.timelines.base.component import TimelineComponent
 
 if TYPE_CHECKING:
     from tilia.timelines.hierarchy.timeline import HierarchyTimeline
@@ -20,7 +18,6 @@ class HierarchyLoadError(Exception):
 
 
 class Hierarchy(TimelineComponent):
-
     # serializer attributes
     SERIALIZABLE_BY_VALUE = [
         "start",
@@ -35,7 +32,6 @@ class Hierarchy(TimelineComponent):
         "comments",
     ]
 
-    SERIALIZABLE_BY_UI_VALUE = []
     SERIALIZABLE_BY_ID = ["parent"]
     SERIALIZABLE_BY_ID_LIST = ["children"]
 
@@ -58,7 +54,6 @@ class Hierarchy(TimelineComponent):
         formal_function="",
         **_,
     ):
-
         super().__init__(timeline)
 
         self._start = start
@@ -77,8 +72,6 @@ class Hierarchy(TimelineComponent):
         self.pre_start = pre_start if pre_start else self.start
         self.post_end = post_end if post_end else self.end
 
-        self.ui = None
-
     @classmethod
     def create(
         cls,
@@ -88,7 +81,7 @@ class Hierarchy(TimelineComponent):
         level: int,
         parent=None,
         children=None,
-        label='',
+        label="",
         comments="",
         pre_start=None,
         post_end=None,
@@ -116,7 +109,6 @@ class Hierarchy(TimelineComponent):
 
     def receive_delete_request_from_ui(self) -> None:
         self.timeline.on_request_to_delete_components([self])
-        self.ui.delete()
 
     @property
     def start(self):
@@ -142,12 +134,11 @@ class Hierarchy(TimelineComponent):
         if self.post_end < value or self.post_end == prev_end:
             self.post_end = value
 
-
     def __repr__(self):
         repr_ = f"Hierarchy({self.start}, {self.end}, {self.level}"
         try:
-            if self.ui.label:
-                repr_ += f", {self.ui.label}"
+            if self.label:
+                repr_ += f", {self.label}"
         except AttributeError:
             pass  # UI has not been created yet
         repr_ += ")"

@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from tilia.ui.timelines.common import TimelineUIElement
 
 from tilia.exceptions import TiliaException
-from tilia.timelines.common import TimelineComponent
+from tilia.timelines.base.component import TimelineComponent
 
 import logging
 
@@ -77,6 +77,8 @@ def paste_into_element(element: TimelineUIElement, paste_data: dict[str, Any]):
 
     for attr, value in paste_data["by_component_value"].items():
         logger.debug(f"Pasting '{attr}' with value='{value}'.")
+        if element == None:
+            pass
         setattr(element.tl_component, attr, value)
 
 

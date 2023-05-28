@@ -16,7 +16,7 @@ from typing import Callable, Any
 from tilia import events
 from tilia.events import Event, subscribe, unsubscribe_from_all
 from tilia.repr import default_str
-from tilia.timelines.common import TimelineComponent
+from tilia.timelines.base.component import TimelineComponent
 from tilia.ui.windows.kinds import WindowKind
 
 PADX = 5

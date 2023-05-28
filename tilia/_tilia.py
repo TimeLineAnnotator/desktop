@@ -19,7 +19,6 @@ from tilia.files import create_new_media_metadata, TiliaFile
 from tilia.player import player
 from tilia.repr import default_str
 from tilia.timelines.collection import TimelineCollection
-from tilia.timelines.create import create_timeline
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind, IMPLEMENTED_TIMELINE_KINDS
 from tilia.ui.timelines.collection import TimelineUICollection
@@ -58,6 +57,7 @@ class TiLiA:
         self._setup_components()
         self._setup_subscriptions()
         self.media_type = None
+        self._media_metadata = {}
         self._setup_file()
 
         logger.info("TiLiA started.")
@@ -110,13 +110,10 @@ class TiLiA:
 
     def _blank_file_setup(self):
         """
-        Creates a slider timeline. To be used on newly created timelines.
+        Creates a slider timeline. To be used on newly created files.
         """
-        create_timeline(
+        self._timeline_collection.create_timeline(
             TimelineKind.SLIDER_TIMELINE,
-            self._timeline_collection,
-            self._timeline_ui_collection,
-            "",
         )
 
     @property
@@ -199,10 +196,8 @@ class TiLiA:
 
         sys.exit()
 
+    @staticmethod
     def on_request_open_settings(self) -> None:
-        from dirs import settings_path
-
-        print("opening settings")
         os_run(dirs.settings_path)
 
     def _change_player_according_to_extension(self, extension: str) -> None:
@@ -271,25 +266,22 @@ class TiLiA:
         logger.info(f"App cleared.")
 
     def load_file(self, file: TiliaFile) -> None:
-        logger.info(f"Loading file '{file}'...")
+        logger.info(f"Loading file...")
 
         if file.media_path:
             self.on_request_to_load_media(file.media_path)
 
-        file_copy = dataclasses.asdict(
-            file
-        )  # must copy so keys don't get popped in passed _file
+        # must copy so keys don't get popped in passed _file
+        file_copy = dataclasses.asdict(file)
 
         for _, tl_data in file_copy["timelines"].items():
             kind_str = tl_data.pop("kind")
             if kind_str not in [kind.value for kind in IMPLEMENTED_TIMELINE_KINDS]:
-                logger.debug(f"Timeline kind '{kind_str} is not implemented.")
+                logger.warning(f"Timeline kind '{kind_str} is not implemented.")
                 continue
             kind = TimelineKind[kind_str]
 
-            create_timeline(
-                kind, self._timeline_collection, self._timeline_ui_collection, **tl_data
-            )
+            self._timeline_collection.create_timeline(kind, **tl_data)
 
         self._undo_manager.clear()
         self._undo_manager.record(self.get_state(), Action.FILE_LOAD)
@@ -311,9 +303,7 @@ class TiLiA:
                 title="Name for new timeline", prompt="Choose name for new timeline"
             )
 
-        create_timeline(
-            kind, self._timeline_collection, self._timeline_ui_collection, name
-        )
+        self._timeline_collection.create_timeline(kind, name=name)
 
         events.post(Evt.REQUEST_RECORD_STATE, Action.TIMELINE_CREATE)
 

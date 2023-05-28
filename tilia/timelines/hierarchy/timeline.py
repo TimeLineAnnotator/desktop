@@ -2,18 +2,12 @@ from __future__ import annotations
 
 import logging
 import itertools
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from tilia.timelines.collection import TimelineCollection
-
-
-from tilia import events
+from tilia import events, settings
 from .common import update_component_genealogy
-from tilia.timelines.state_actions import Action
 from ..base.timeline import Timeline, TimelineComponentManager
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event, unsubscribe_from_all
+from tilia.events import Event, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy, HierarchyOperationError
 from tilia.timelines.common import (
@@ -25,27 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 class HierarchyTimeline(Timeline):
-    SERIALIZABLE_BY_VALUE = []
-    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
-
     KIND = TimelineKind.HIERARCHY_TIMELINE
-
-    def __init__(
-        self,
-        collection: TimelineCollection,
-        component_manager: HierarchyTLComponentManager,
-        **kwargs,
-    ):
-        super().__init__(
-            collection, component_manager, TimelineKind.HIERARCHY_TIMELINE, **kwargs
-        )
-
-    def __len__(self):
-        return self.component_manager.component_count
-
-    def __bool__(self):
-        """Prevents False form being returned when timeline is empty."""
-        return True
+    DEFAULT_HEIGHT = settings.get("hierarchy_timeline", "default_height")
 
     @property
     def ordered_hierarchies(self):
@@ -57,6 +32,18 @@ class HierarchyTimeline(Timeline):
         return self.create_timeline_component(
             ComponentKind.HIERARCHY, start, end, level, **kwargs
         )
+
+    def create_initial_hierarchy(self):
+        """Create unit of level 1 encompassing whole timeline"""
+        logging.debug(f"Creating starting hierarchy for timeline '{self}'")
+        self.create_timeline_component(
+            kind=ComponentKind.HIERARCHY,
+            start=0,
+            end=self.get_media_length(),
+            level=1,
+        )
+
+        events.post(Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.id)
 
     def _validate_delete_components(self, component: Hierarchy) -> None:
         pass
@@ -102,9 +89,6 @@ class HierarchyTimeline(Timeline):
     def get_boundary_conflicts(self):
         return self.component_manager.get_boundary_conflicts()
 
-    def update_ui_genealogy(self, parent: Hierarchy, children: list[Hierarchy]):
-        self.ui.update_genealogy(parent, children)
-
 
 class HierarchyTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.HIERARCHY]
@@ -149,7 +133,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         super().deserialize_components(serialized_components)
 
-        self.timeline.ui.rearrange_canvas_drawings()
+        post(Event.HIERARCHY_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def _update_genealogy(self, parent: Hierarchy, children: list[Hierarchy]):
         """
@@ -157,7 +141,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         """
 
         update_component_genealogy(parent, children)
-        self.timeline.update_ui_genealogy(parent, children)
+        self.post_component_event(
+            Event.HIERARCHY_GENEALOGY_CHANGED, parent.id, [c.id for c in children]
+        )
 
     def do_genealogy(self):
         """
@@ -277,16 +263,16 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     f"Can't change level: new level would be <= child level."
                 )
 
+        prev_level = unit.level
         new_level = unit.level + amount
 
         _validate_change_level(unit, new_level)
-
-        # change color
-        unit.ui.process_color_before_level_change(new_level)
-
         unit.level = new_level
 
-        unit.ui.update_position()
+        self.post_component_event(
+            Event.HIERARCHY_LEVEL_CHANGED, unit.id, prev_level, new_level
+        )
+        self.post_component_event(Event.HIERARCHY_POSITION_CHANGED, unit.id)
 
     def group(self, units_to_group: list[Hierarchy]) -> None:
         def _validate_at_least_two_selected(units_to_group):
@@ -482,10 +468,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         TL_COMPONENT_ATTRIBUTES_TO_PASS_ON = ["comments"]
 
-        for attr in UI_ATTRIBUTES_TO_PASS_ON:
-            setattr(left_unit.ui, attr, getattr(unit_to_split.ui, attr))
-            setattr(right_unit.ui, attr, getattr(unit_to_split.ui, attr))
-
         for attr in TL_COMPONENT_ATTRIBUTES_TO_PASS_ON:
             setattr(left_unit, attr, getattr(unit_to_split, attr))
             setattr(right_unit, attr, getattr(unit_to_split, attr))
@@ -568,20 +550,16 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         self._update_genealogy(merger_unit, merger_children)
 
     def delete_component(self, component: Hierarchy) -> None:
-        self.timeline.request_delete_ui_for_component(component)
-
-        unsubscribe_from_all(component)
+        super().delete_component(component)
 
         self._update_genealogy_after_deletion(component)
-
-        self._remove_from_components_set(component)
 
     def scale(self, factor: float) -> None:
         logger.debug(f"Scaling hierarchies in {self}...")
         for hrc in self._components:
             hrc.start *= factor
             hrc.end *= factor
-            hrc.ui.update_position()
+            self.post_component_event(Event.HIERARCHY_POSITION_CHANGED, hrc.id)
 
     def crop(self, length: float) -> None:
         logger.debug(f"Cropping hierarchies in {self}...")
@@ -591,21 +569,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     self.delete_component(hrc)
                 else:
                     hrc.end = length
-            hrc.ui.update_position()
-
-    def create_initial_hierarchy(self):
-        """Create unit of level 1 encompassing whole audio"""
-        logging.debug(f"Creating starting hierarchy for timeline '{self.timeline}'")
-        self.timeline.create_timeline_component(
-            kind=ComponentKind.HIERARCHY,
-            start=0,
-            end=self.timeline.get_media_length(),
-            level=1,
-        )
-
-        events.post(
-            Event.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.timeline
-        )
+                    self.post_component_event(Event.HIERARCHY_POSITION_CHANGED, hrc.id)
 
     def _update_genealogy_after_deletion(self, component: Hierarchy) -> None:
         logger.debug(f"Updating component's parent/children relation after deletion...")

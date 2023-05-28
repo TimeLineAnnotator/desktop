@@ -1,14 +1,17 @@
-"""
-Tkinter ui for the SliderTimeline interface.
-Pretty simple, so it doesn't need its own package.
-"""
-
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+import logging
 
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.modifier_enum import ModifierEnum
+from tilia import events, settings
+from tilia.events import Event, subscribe, unsubscribe
+from tilia.timelines.base.component import TimelineComponent
+from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
+
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
@@ -16,24 +19,9 @@ if TYPE_CHECKING:
     )
     from tilia.ui.timelines.collection import TimelineUICollection
 
-from tilia import events, settings
-from tilia.events import Event, subscribe, unsubscribe
-from tilia.timelines.common import TimelineComponent
-from tilia.ui.element_kinds import UIElementKind
-from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
-
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 class SliderTimelineUI(TimelineUI):
-
     TOOLBAR_CLASS = None
-    ELEMENT_KINDS_TO_ELEMENT_CLASSES: dict = {}
-    COMPONENT_KIND_TO_UIELEMENT_KIND: dict = {}
-
-    DEFAULT_HEIGHT = settings.get("slider_timeline", "default_height")
 
     TROUGH_RADIUS = settings.get("slider_timeline", "trough_radius")
     TROUGH_DEFAULT_COLOR = settings.get("slider_timeline", "trough_color")
@@ -44,27 +32,17 @@ class SliderTimelineUI(TimelineUI):
 
     def __init__(
         self,
-        *args,
-        timeline_ui_collection: TimelineUICollection,
+        collection: TimelineUICollection,
         element_manager: TimelineUIElementManager,
         canvas: TimelineCanvas,
-        toolbar: None,
-        name: str,
-        height: int = DEFAULT_HEIGHT,
-        is_visible: bool = True,
+        toolbar: Literal[None],
         **kwargs,
     ):
         super().__init__(
-            *args,
-            timeline_ui_collection=timeline_ui_collection,
-            timeline_ui_element_manager=element_manager,
-            component_kinds_to_classes=[],
-            component_kinds_to_ui_element_kinds=[],
+            collection=collection,
+            element_manager=element_manager,
             canvas=canvas,
             toolbar=toolbar,
-            name=name,
-            height=height,
-            is_visible=is_visible,
             **kwargs,
         )
 
