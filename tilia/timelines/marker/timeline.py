@@ -18,11 +18,10 @@ if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
 
 from tilia.timelines.common import (
-    Timeline,
-    TimelineComponentManager,
     log_object_creation,
     TimelineComponent,
 )
+from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 
 
 class MarkerTimeline(Timeline):

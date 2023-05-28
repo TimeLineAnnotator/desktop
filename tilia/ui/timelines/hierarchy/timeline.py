@@ -513,6 +513,7 @@ class HierarchyTimelineUI(TimelineUI):
         for element in self.element_manager.get_selected_elements():
             self.deselect_element(element)
             paste_into_element(element, paste_data[0])
+            element.update_label()
             self.select_element(element)
 
     def validate_copy(self, elements: list[Copyable]) -> None:

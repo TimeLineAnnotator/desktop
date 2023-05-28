@@ -23,7 +23,6 @@ from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
 from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
 from ...common import format_media_time
-from tilia.utils.color import has_custom_color
 from tilia import events, settings
 from tilia.timelines.common import (
     log_object_creation,
@@ -62,8 +61,6 @@ class HierarchyUI(TimelineUIElement):
 
     MARKER_OUTLINE_WIDTH = 0
 
-    DEFAULT_COLORS = settings.get("hierarchy_timeline", "hierarchy_default_colors")
-
     INSPECTOR_FIELDS = [
         ("Label", "entry"),
         ("Start / end", "label"),
@@ -83,8 +80,8 @@ class HierarchyUI(TimelineUIElement):
     }
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_element_value=["label", "color"],
-        by_component_value=["formal_type", "formal_function", "comments"],
+        by_element_value=[],
+        by_component_value=["formal_type", "formal_function", "comments", "label", "color"],
         support_by_element_value=[],
         support_by_component_value=["start", "pre_start", "end", "level"],
     )
@@ -114,7 +111,6 @@ class HierarchyUI(TimelineUIElement):
         unit: Hierarchy,
         timeline_ui: HierarchyTimelineUI,
         canvas: tk.Canvas,
-        label: str = "",
         color: str = "",
         **_,
     ):
@@ -126,9 +122,8 @@ class HierarchyUI(TimelineUIElement):
         self.timeline_ui = timeline_ui
         self.canvas = canvas
 
-        self._label = ""
         self.label_measures: list[int] = []
-        self._setup_label(label)
+        self._setup_label()
 
         self._setup_color(color)
 
@@ -205,15 +200,15 @@ class HierarchyUI(TimelineUIElement):
     def level(self):
         return self.tl_component.level
 
+
     @property
     def label(self):
-        return self._label
+        return self.tl_component.label
 
     @label.setter
     def label(self, value):
-        self._label = value
-        self.update_label_measures()
-        self.canvas.itemconfig(self.label_id, text=self.display_label)
+        self.tl_component.label = value
+        self.update_label()
 
     @property
     def display_label(self):
@@ -221,16 +216,16 @@ class HierarchyUI(TimelineUIElement):
         Returns largest substring of self.label that fits inside its HierarchyUI
         """
 
-        if not self._label:
+        if not self.label:
             return ""
 
         max_width = self.end_x - self.start_x
 
         for i, measure in enumerate(self.label_measures):
             if measure > max_width:
-                return self._label[:i]
+                return self.label[:i]
 
-        return self._label
+        return self.label
 
     @property
     def comments(self):
@@ -278,14 +273,14 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def color(self):
-        return self._color
+        return self.tl_component.color
 
     # noinspection PyAttributeOutsideInit
     @color.setter
     def color(self, value):
         logger.debug(f"Setting {self} color to {value}")
-        self._color = value
-        self.canvas.itemconfig(self.body_id, fill=self._color)
+        self.tl_component.color = value
+        self.canvas.itemconfig(self.body_id, fill=value)
 
     @property
     def shaded_color(self):
@@ -311,42 +306,43 @@ class HierarchyUI(TimelineUIElement):
 
         return full_name
 
-    def _setup_label(self, label: str):
-        self._label = label
+    def _setup_label(self):
         self.update_label_measures()
 
     def update_label_measures(self):
         """Calculates length of substrings of label and stores it in self.label_measures"""
         tk_font = tk.font.Font()
         self.label_measures = [
-            tk_font.measure(self._label[: i + 1]) for i in range(len(self._label))
+            tk_font.measure(self.label[: i + 1]) for i in range(len(self.label))
         ]
 
-    def get_default_level_color(self, level: int) -> str:
+    @staticmethod
+    def get_default_color(level: int) -> str:
         logger.debug(f"Getting default color for level '{level}'")
-        level_color = self.DEFAULT_COLORS[level % len(self.DEFAULT_COLORS)]
-        logger.debug(f"Got color '{level_color}'")
-        return level_color
+        colors = settings.get("hierarchy_timeline", "hierarchy_default_colors")
+        color = colors[level % len(colors)]
+        logger.debug(f"Got color '{color}'")
+        return color
 
     def _setup_color(self, color: str):
         logger.debug(f"Setting up unit color with {color=}")
         if not color:
-            self._color = self.get_default_level_color(self.level)
+            self._color = self.get_default_color(self.level)
         else:
             self._color = color
 
     def reset_color(self) -> None:
-        self.color = self.get_default_level_color(self.level)
+        self.color = self.get_default_color(self.level)
 
     # noinspection PyTypeChecker
     def process_color_before_level_change(self, new_level: int) -> None:
         logger.debug(f"Updating unit ui color...")
 
-        if has_custom_color(self):
+        if self.color != self.get_default_color(self.level):
             logger.debug("Unit has custom color, don't apply new level color.")
         else:
             logger.debug("Changing unit color to new level color.")
-            self.color = self.get_default_level_color(new_level)
+            self.color = self.get_default_color(new_level)
 
     @property
     def canvas_drawings_ids(self) -> list[int]:
@@ -365,6 +361,12 @@ class HierarchyUI(TimelineUIElement):
             ids += list(self.post_end_ind_id)
 
         return ids
+
+    def update_label(self):
+        """Recalculates label widths and updates displayed label according to label attr of timeline component."""
+
+        self.update_label_measures()
+        self.canvas.itemconfig(self.label_id, text=self.display_label)
 
     def update_position(self):
 

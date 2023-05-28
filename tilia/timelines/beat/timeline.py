@@ -22,10 +22,9 @@ from tilia.timelines.timeline_kinds import TimelineKind
 logger = logging.getLogger(__name__)
 
 from tilia.timelines.common import (
-    Timeline,
-    TimelineComponentManager,
     log_object_creation,
 )
+from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 
 
 class BeatTimeline(Timeline):

@@ -1,26 +1,16 @@
-"""
-Defines the Hierarchy class, the single TimelineComponent kind of a HierarchyTimeline.
-"""
-
 from __future__ import annotations
-
 from typing import TYPE_CHECKING
+import logging
 
+from tilia import settings
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.misc_enums import StartOrEnd
-
-if TYPE_CHECKING:
-    from tilia.timelines.hierarchy.timeline import HierarchyTimeline
-
-import tkinter as tk
-
 from tilia.exceptions import TiliaException
-
 from tilia.timelines.common import (
     TimelineComponent,
 )
 
-import logging
+if TYPE_CHECKING:
+    from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +28,14 @@ class Hierarchy(TimelineComponent):
         "end",
         "post_end",
         "level",
+        "label",
+        "color",
         "formal_type",
         "formal_function",
         "comments",
     ]
 
-    SERIALIZABLE_BY_UI_VALUE = ["label", "color"]
+    SERIALIZABLE_BY_UI_VALUE = []
     SERIALIZABLE_BY_ID = ["parent"]
     SERIALIZABLE_BY_ID_LIST = ["children"]
 
@@ -55,11 +47,13 @@ class Hierarchy(TimelineComponent):
         start: float,
         end: float,
         level: int,
+        label: str,
         parent=None,
         children=None,
         comments="",
         pre_start=None,
         post_end=None,
+        color=None,
         formal_type="",
         formal_function="",
         **_,
@@ -70,7 +64,9 @@ class Hierarchy(TimelineComponent):
         self._start = start
         self._end = end
         self.level = level
+        self.label = label
         self.comments = comments
+        self.color = color or get_default_color(level)
 
         self.formal_type = formal_type
         self.formal_function = formal_function
@@ -92,25 +88,29 @@ class Hierarchy(TimelineComponent):
         level: int,
         parent=None,
         children=None,
+        label='',
         comments="",
         pre_start=None,
         post_end=None,
+        color=None,
         formal_type="",
         formal_function="",
         **kwargs,
     ):
         return Hierarchy(
             timeline,
-            start,
-            end,
-            level,
-            parent,
-            children,
-            comments,
-            pre_start,
-            post_end,
-            formal_type,
-            formal_function,
+            start=start,
+            end=end,
+            level=level,
+            label=label,
+            parent=parent,
+            children=children,
+            comments=comments,
+            pre_start=pre_start,
+            post_end=post_end,
+            color=color,
+            formal_type=formal_type,
+            formal_function=formal_function,
             **kwargs,
         )
 
@@ -142,6 +142,7 @@ class Hierarchy(TimelineComponent):
         if self.post_end < value or self.post_end == prev_end:
             self.post_end = value
 
+
     def __repr__(self):
         repr_ = f"Hierarchy({self.start}, {self.end}, {self.level}"
         try:
@@ -151,6 +152,11 @@ class Hierarchy(TimelineComponent):
             pass  # UI has not been created yet
         repr_ += ")"
         return repr_
+
+
+def get_default_color(level: int) -> str:
+    colors = settings.get("hierarchy_timeline", "hierarchy_default_colors")
+    return colors[level % len(colors)]
 
 
 class HierarchyOperationError(TiliaException):

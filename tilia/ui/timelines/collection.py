@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from tilia import events, settings
 from tilia.events import subscribe, Event
 from tilia.misc_enums import Side, UpOrDown, InOrOut
-from tilia.timelines.common import Timeline
+from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
 from tilia.ui.modifier_enum import ModifierEnum

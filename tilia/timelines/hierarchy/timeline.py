@@ -1,7 +1,3 @@
-"""
-Defines a HierarchyTimeline and a HierarachyTLComponentManager.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -11,16 +7,16 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from tilia.timelines.collection import TimelineCollection
 
+
 from tilia import events
 from .common import update_component_genealogy
 from tilia.timelines.state_actions import Action
+from ..base.timeline import Timeline, TimelineComponentManager
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.events import Event, unsubscribe_from_all
 from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy, HierarchyOperationError
 from tilia.timelines.common import (
-    Timeline,
-    TimelineComponentManager,
     log_object_creation,
 )
 from ...exceptions import CreateComponentError
