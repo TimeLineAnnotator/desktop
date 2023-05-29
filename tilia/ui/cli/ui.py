@@ -1,27 +1,20 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-
 import prettytable
 import argparse
 
+from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.cli.timelines.collection import TimelineUICollection
 from tilia.events import post, Event
-
-if TYPE_CHECKING:
-    from tilia.ui.cli.timelines.base import TimelineUI
-
 
 
 class CLI:
     def __init__(self):
-        self.timeline_ui_collection = TimelineUICollection(self)
-
+        self.app = None
         self.parser = argparse.ArgumentParser()
         self.subparsers = self.parser.add_subparsers(dest="command")
-        self.config_parsers()
+        self.setup_parsers()
 
-    def config_parsers(self):
+    def setup_parsers(self):
         self.setup_timeline_parser()
         self.setup_quit_parser()
         self.setup_run_parser()
@@ -43,10 +36,10 @@ class CLI:
         list.set_defaults(func=self.list_timelines)
 
         # 'remove' subparser
-        remove = tl_subparser.add_parser('remove')
+        remove = tl_subparser.add_parser("remove")
         remove.add_mutually_exclusive_group(required=True)
-        remove.add_argument('--name', '-n')
-        remove.add_argument('--id')
+        remove.add_argument("--name", "-n")
+        remove.add_argument("--id")
         remove.set_defaults(func=self.remove_timeline)
 
     def setup_quit_parser(self):
@@ -87,8 +80,8 @@ class CLI:
         for command in commands:
             self.run(command.split(" "))
 
-    def get_timeline_ui_collection(self):
-        return self.timeline_ui_collection
+    def get_timelines(self):
+        return self.app.get_timelines()
 
     @staticmethod
     def add_timeline(namespace):
@@ -112,38 +105,37 @@ class CLI:
     def remove_timeline(namespace):
         pass
 
-
     def list_timelines(self, _):
-        timeline_uis = self.timeline_ui_collection.timeline_uis
+        timelines = self.get_timelines()
         headers = ["id", "name", "kind"]
         data = [
             (
-                str(tlui.display_position),
-                str(tlui.name),
-                pprint_tlkind(tlui.TIMELINE_KIND),
+                tl.id,
+                tl.name,
+                pprint_tlkind(tl.TIMELINE_KIND),
             )
-            for tlui in timeline_uis
+            for tl in timelines
         ]
         tabulate(headers, data)
 
-    def get_timeline_ui_by_name(self, name: str) -> list[TimelineUI]:
-        return [tlui for tlui in self.timeline_ui_collection.timeline_uis if tlui.name == name]
-
-    def get_timeline_ui_by_display_position(self, position: int) -> TimelineUI:
-        result = [tlui for tlui in self.timeline_ui_collection.timeline_uis if tlui.display_position == position]
+    def get_timeline_by_name(self, name: str) -> Timeline:
+        result = [tl for tl in self.get_timelines() if tl.name == name]
         return result[0] if result else None
 
+    def get_timeline_by_id(self, id: str) -> Timeline | None:
+        result = [tl for tl in self.get_timelines() if tl.id == id]
+        return result[0] if result else None
 
 
 def output(message: str) -> None:
     print(message)
 
 
-def tabulate(headers: list[str], data: list[tuple[str]]) -> None:
+def tabulate(headers: list[str], data: list[tuple[str, ...]]) -> None:
     table = prettytable.PrettyTable()
     table.field_names = headers
     table.add_rows(data)
-    output(table)
+    output(str(table))
 
 
 def pprint_tlkind(kind: TimelineKind) -> str:

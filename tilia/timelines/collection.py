@@ -104,6 +104,9 @@ class Timelines:
     def timeline_kinds(self):
         return {tl.KIND for tl in self._timelines}
 
+    def get_timelines(self) -> list[Timeline]:
+        return list(self._timelines)
+
     @staticmethod
     def _validate_timeline_kind(kind: TlKind | str):
         if isinstance(kind, str):
