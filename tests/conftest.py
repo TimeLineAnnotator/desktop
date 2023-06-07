@@ -18,6 +18,7 @@ from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.ui.cli.ui import CLI
 from tilia.ui.timelines.beat import BeatTimelineUI
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 from tilia.ui.timelines.marker import MarkerTimelineUI
@@ -193,6 +194,6 @@ def marker_tl(marker_tlui):
     yield tl
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def cli():
-    yield cli
+    return CLI()
