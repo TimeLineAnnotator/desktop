@@ -28,6 +28,9 @@ class CLI:
         run.set_defaults(func=self.run_script)
 
     def launch(self):
+        """
+        Launches the CLI.
+        """
         print("--- TiLiA CLI v0.0 ---")
         while True:
             cmd = input(">>> ")
@@ -35,8 +38,7 @@ class CLI:
 
     def run(self, cmd):
         """
-        Parses the command entered by the user.
-        Returns True if the user requested to quit.
+        Parses the commands entered by the user.
         """
         try:
             namespace = self.parser.parse_args(cmd)
