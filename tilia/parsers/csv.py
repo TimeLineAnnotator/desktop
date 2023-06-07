@@ -31,8 +31,10 @@ class TiliaCSVReader:
 
 def get_params_indices(params: list[str], headers: list[str]) -> dict[str, int]:
     """
-    Returns a dictionary with parameters in 'params' as keys and their first index in 'headers'
-    as values. If the parameters is not found in 'headers', it is not included in the result.
+    Returns a dictionary with parameters in 'params' as keys
+    and their first index in 'headers'  as values.
+    If the parameters is not found in 'headers',
+    it is not included in the result.
     """
 
     result = {}
@@ -148,7 +150,8 @@ def markers_by_measure_from_csv(
                     fraction = float(fraction_value)
                 except ValueError:
                     errors.append(
-                        f"{measure_value=} | {fraction_value} is not a fraction value. Using 0 as a backup."
+                        f"{measure_value=} | {fraction_value} "
+                        f"is not a fraction value. Using 0 as a backup."
                     )
                     fraction = 0
 
@@ -360,7 +363,10 @@ def hierarchies_by_measure_from_csv(
                         fractions[ext] = float(fraction_value)
                     except ValueError:
                         errors.append(
-                            f"start={required_values['start']}, end={required_values['end']} | {fraction_value} is not a fraction value. Defaulting to 0."
+                            f"start={required_values['start']}, "
+                            f"end={required_values['end']} | "
+                            f"{fraction_value} is not a fraction value. "
+                            "Defaulting to 0."
                         )
                         fractions[ext] = 0
 
@@ -390,7 +396,9 @@ def hierarchies_by_measure_from_csv(
                         kwargs[param] = parser(row[index])
                     except ValueError:
                         errors.append(
-                            f"'start'={required_values['start']}, end={required_values['end']} | '{row[index]}' is not a valid {param} value."
+                            f"'start'={required_values['start']}, "
+                            f"end={required_values['end']} | '{row[index]}' "
+                            f"is not a valid {param} value."
                         )
 
             # create hierarchies

@@ -1,16 +1,18 @@
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-
-import pytest
-from tilia import dirs
-
-from tilia import settings
 import tkinter as tk
 import _tkinter
 
-from tilia.events import unsubscribe_from_all
+import pytest
+
+from tests.mock import PatchGet
+from tilia import dirs
+from tilia import settings
+from tilia.boot import _setup_logic
+from tilia.requests import stop_listening_to_all, Get, stop_serving_all
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.collection import Timelines
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
@@ -57,65 +59,71 @@ def pump_events():
 
 @pytest.fixture(scope="module")
 def tkui(tk_session):
-    from tilia.ui.tkinterui import TkinterUI
+    from tilia.ui.tkinterui import TkinterUI  # why is this here?
 
     os.chdir(Path(Path(__file__).absolute().parents[1], "tilia"))
     with patch("tilia.ui.player.PlayerUI", MagicMock()):
         tkui_ = TkinterUI(pytest.root)
     yield tkui_
-    unsubscribe_from_all(tkui_.timeline_ui_collection)
-    unsubscribe_from_all(tkui_)
+    stop_listening_to_all(tkui_.timeline_ui_collection)
+    stop_serving_all(tkui_.timeline_ui_collection)
+    stop_listening_to_all(tkui_)
+    stop_serving_all(tkui_)
 
 
 # noinspection PyProtectedMember
 @pytest.fixture(scope="module")
 def tilia(tkui):
-    os.chdir(Path(Path(__file__).absolute().parents[1], "tilia"))
-    from tilia._tilia import TiLiA
-
-    tilia_ = TiLiA(tkui)
+    tilia_ = _setup_logic()
     tilia_.clear_app()  # undo blank file setup
-    tilia_._player.media_length = 100.0
+    tilia_.player.media_length = 100.0
     yield tilia_
     try:
         tilia_.clear_app()
     except AttributeError:
         # test failed and element was not created properly
         pass
-    unsubscribe_from_all(tilia_)
-    unsubscribe_from_all(tilia_._timeline_collection)
-    unsubscribe_from_all(tilia_._timeline_ui_collection)
-    unsubscribe_from_all(tilia_._file_manager)
-    unsubscribe_from_all(tilia_._player)
-    unsubscribe_from_all(tilia_._undo_manager)
-    unsubscribe_from_all(tilia_._clipboard)
+
+    stop_listening_to_all(tilia_)
+    stop_listening_to_all(tilia_.timeline_collection)
+    stop_listening_to_all(tilia_.file_manager)
+    stop_listening_to_all(tilia_.player)
+    stop_listening_to_all(tilia_.undo_manager)
+    stop_listening_to_all(tilia_.clipboard)
+
+    stop_serving_all(tilia_)
+    stop_serving_all(tilia_.timeline_collection)
+    stop_serving_all(tilia_.file_manager)
+    stop_serving_all(tilia_.player)
+    stop_serving_all(tilia_.undo_manager)
+    stop_serving_all(tilia_.clipboard)
 
 
 @pytest.fixture(scope="module")
-def tlui_clct(tkui, tilia):
-    return tilia._timeline_ui_collection
+def tluis(tkui):
+    return tkui.timeline_ui_collection
 
 
-@pytest.fixture(scope="module")
-def tl_clct(tkui, tilia):
-    return tilia._timeline_collection
+@pytest.fixture()
+def tls(tilia):
+    _tls = tilia.timeline_collection
 
+    def create_timeline(*args, **kwargs):
+        return Timelines.create_timeline(_tls, *args, ask_user_for_name=False, **kwargs)
 
-## FIXTURES FOR CREATING TIMELINES
+    _tls.create_timeline = create_timeline
+    yield _tls
+    _tls.clear()  # deletes created timelines
 
 
 @pytest.fixture
-def beat_tlui(tl_clct, tlui_clct) -> BeatTimelineUI:
-    with patch(
-        "tilia.ui.timelines.collection.TimelineUICollection.ask_beat_pattern"
-    ) as mock:
-        mock.return_value = [4]
-        tl: BeatTimeline = tl_clct.create_timeline(TlKind.BEAT_TIMELINE)
+def beat_tlui(tls, tluis) -> BeatTimelineUI:
+    with PatchGet("tilia.timelines.collection", Get.BEAT_PATTERN_FROM_USER, [4]):
+        tl: BeatTimeline = tls.create_timeline(TlKind.BEAT_TIMELINE)
 
-    ui = tlui_clct.get_timeline_ui_by_id(tl.id)
+    ui = tluis.get_timeline_ui_by_id(tl.id)
 
-    yield ui
-    tl_clct.delete_timeline(tl)
+    yield ui  # will be deleted by tls
 
 
 class TestHierarchyTimelineUI(HierarchyTimelineUI):
@@ -129,7 +137,7 @@ class TestHierarchyTimelineUI(HierarchyTimelineUI):
 
 
 @pytest.fixture
-def hierarchy_tlui(tilia, tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
+def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
     def create_hierarchy(
         start: float, end: float, level: int, **kwargs
     ) -> tuple[Hierarchy, HierarchyUI]:
@@ -142,17 +150,15 @@ def hierarchy_tlui(tilia, tl_clct, tlui_clct) -> TestHierarchyTimelineUI:
     def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
         return tl.component_manager._update_genealogy(parent, children)
 
-    tl: HierarchyTimeline = tl_clct.create_timeline(TlKind.HIERARCHY_TIMELINE)
-    ui = tlui_clct.get_timeline_ui_by_id(tl.id)
+    tl: HierarchyTimeline = tls.create_timeline(TlKind.HIERARCHY_TIMELINE)
+    ui = tluis.get_timeline_ui_by_id(tl.id)
 
     # remove initial hierarchy
     tl.clear()
 
     ui.create_hierarchy = create_hierarchy
     ui.relate_hierarchies = relate_hierarchies
-    yield ui
-    tl_clct.delete_timeline(tl)
-    tilia._undo_manager.clear()
+    return ui  # will be deleted by tls
 
 
 @pytest.fixture
@@ -161,9 +167,9 @@ def hierarchy_tl(hierarchy_tlui):
 
 
 @pytest.fixture
-def marker_tlui(tl_clct, tlui_clct) -> MarkerTimelineUI:
-    tl: MarkerTimeline = tl_clct.create_timeline(TlKind.MARKER_TIMELINE)
-    ui = tlui_clct.get_timeline_ui_by_id(tl.id)
+def marker_tlui(tls, tluis) -> MarkerTimelineUI:
+    tl: MarkerTimeline = tls.create_timeline(TlKind.MARKER_TIMELINE)
+    ui = tluis.get_timeline_ui_by_id(tl.id)
 
     def create_marker(*args, **kwargs):
         component = tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
@@ -173,8 +179,7 @@ def marker_tlui(tl_clct, tlui_clct) -> MarkerTimelineUI:
     tl.create_marker = create_marker
     ui.create_marker = create_marker
 
-    yield ui
-    tl_clct.delete_timeline(tl)
+    yield ui  # will be deleted by tls
 
 
 @pytest.fixture

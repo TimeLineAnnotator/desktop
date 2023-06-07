@@ -1,13 +1,11 @@
+"""Partially completed donwloader and installer from ffmpeg. Currently unused."""
+
 import os
-import shutil
 import subprocess
 import sys
-import zipfile
 import urllib.request
-from pathlib import Path
 
-from tilia.dirs import temp_path, data_path
-from tilia import settings
+from tilia.dirs import data_path
 
 import logging
 

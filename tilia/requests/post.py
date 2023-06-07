@@ -7,7 +7,8 @@ from tilia import settings
 logger = logging.getLogger(__name__)
 
 
-class Event(Enum):
+class Post(Enum):
+    TIMELINE_ORDER_SWAPPED = auto()
     ABOUT_WINDOW_CLOSED = auto()
     ADD_RANGE_BUTTON = auto()
     BEAT_TIME_CHANGED = auto()
@@ -16,6 +17,7 @@ class Event(Enum):
     BEAT_UPDATED = auto()
     CANVAS_LEFT_CLICK = auto()
     CANVAS_RIGHT_CLICK = auto()
+    COMPONENT_CREATE_REQUEST = auto()
     CREATE_RANGE_FROM_BUTTON = auto()
     DEBUG_SELECTED_ELEMENTS = auto()
     DELETE_RANGE_BUTTON = auto()
@@ -27,11 +29,9 @@ class Event(Enum):
     EXPLORER_LOAD_MEDIA = auto()
     EXPLORER_PLAY = auto()
     EXPLORER_SEARCH = auto()
-    FILE_REQUEST_TO_OPEN = auto()
-    FILE_REQUEST_TO_SAVE = auto()
     FOCUS_TIMELINES = auto()
     FREEZE_LABELS_SET = auto()
-    HIERARCHY_COMPONENTS_DESERIALIZED = auto()
+    HIERARCHIES_DESERIALIZED = auto()
     HIERARCHY_GENEALOGY_CHANGED = auto()
     HIERARCHY_LEVEL_CHANGED = auto()
     HIERARCHY_POSITION_CHANGED = auto()
@@ -66,8 +66,6 @@ class Event(Enum):
     MARKER_TOOLBAR_BUTTON_DELETE = auto()
     MENU_OPTION_FILE_LOAD_MEDIA = auto()
     MERGE_RANGE_BUTTON = auto()
-    METADATA_FIELD_EDITED = auto()
-    METADATA_NEW_FIELDS = auto()
     METADATA_WINDOW_CLOSED = auto()
     METADATA_WINDOW_OPENED = auto()
     PLAYER_CHANGE_TO_AUDIO_PLAYER = auto()
@@ -85,27 +83,38 @@ class Event(Enum):
     PLAYER_STOPPED = auto()
     PLAYER_STOPPING = auto()
     PLAYER_UNPAUSED = auto()
-    REQUEST_ADD_TIMELINE = auto()
+    REQUEST_ADD_MEDIA_METADATA_FIELD = auto()
     REQUEST_AUTO_SAVE_START = auto()
     REQUEST_CHANGE_TIMELINE_WIDTH = auto()
     REQUEST_CLEAR_ALL_TIMELINES = auto()
+    REQUEST_CLEAR_APP = auto()
     REQUEST_CLEAR_TIMELINE = auto()
+    REQUEST_CLEAR_UI = auto()
     REQUEST_CLOSE_APP = auto()
     REQUEST_DELETE_COMPONENT = auto()
     REQUEST_DELETE_TIMELINE = auto()
     REQUEST_DISPLAY_ERROR = auto()
-    REQUEST_EXPORT_AUDIO_SEGMENT = auto()
+    REQUEST_EXPORT_AUDIO = auto()
+    REQUEST_FILE_NEW = auto()
+    REQUEST_FILE_OPEN = auto()
+    REQUEST_FILE_OPEN_PATH = auto()
     REQUEST_FOCUS_TIMELINES = auto()
     REQUEST_IMPORT_CSV_HIERARCHIES = auto()
     REQUEST_IMPORT_CSV_MARKERS = auto()
+    REQUEST_LOAD_FILE = auto()
     REQUEST_LOAD_MEDIA = auto()
     REQUEST_MERGE = auto()
-    REQUEST_NEW_FILE = auto()
     REQUEST_OPEN_SETTINGS = auto()
     REQUEST_RECORD_STATE = auto()
+    REQUEST_REMOVE_MEDIA_METADATA_FIELD = auto()
     REQUEST_RESTORE_APP_STATE = auto()
-    REQUEST_TIMELINES__LOAD_TIMELINE = auto()
-    REQUEST_TIMELINE_FRONTEND__RESET_TIMELINE_SIZE = auto()
+    REQUEST_SAVE = auto()
+    REQUEST_SAVE_AS = auto()
+    REQUEST_SETUP_BLANK_FILE = auto()
+    REQUEST_TIMELINE_CLEAR = auto()
+    REQUEST_TIMELINE_CLEAR_ALL = auto()
+    REQUEST_TIMELINE_CREATE = auto()
+    REQUEST_TIMELINE_DELETE = auto()
     REQUEST_TO_REDO = auto()
     REQUEST_TO_UNDO = auto()
     REQUEST_ZOOM_IN = auto()
@@ -117,14 +126,15 @@ class Event(Enum):
     SELECTED_OBJECT = auto()
     SELECTION_BOX_REQUEST_DESELECT = auto()
     SELECTION_BOX_REQUEST_SELECT = auto()
+    REQUEST_SET_MEDIA_METADATA_FIELD = auto()
     SLIDER_DRAG_END = auto()
     SLIDER_DRAG_START = auto()
     SPLIT_RANGE_BUTTON = auto()
-    TILIA_FILE_LOADED = auto()
-    TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER = auto()
-    TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER = auto()
+    REQUEST_MOVE_TIMELINE_DOWN_IN_ORDER = auto()
+    REQUEST_MOVE_TIMELINE_UP_IN_ORDER = auto()
     TIMELINES_REQUEST_TO_HIDE_TIMELINE = auto()
     TIMELINES_REQUEST_TO_SHOW_TIMELINE = auto()
+    TIMELINE_COLLECTION_STATE_RESTORED = auto()
     TIMELINE_COMPONENT_COPIED = auto()
     TIMELINE_COMPONENT_CREATED = auto()
     TIMELINE_COMPONENT_DELETED = auto()
@@ -142,6 +152,8 @@ class Event(Enum):
     TIMELINE_MOUSE_DRAG = auto()
     TIMELINE_NAME_CHANGED = auto()
     TIMELINE_PREPARING_TO_DRAG = auto()
+    TIMELINE_WIDTH_CHANGED = auto()
+    TIMELINE_WIDTH_CHANGE_REQUEST = auto()
     UI_REQUEST_WINDOW_ABOUT = auto()
     UI_REQUEST_WINDOW_DEVELOPMENT = auto()
     UI_REQUEST_WINDOW_INSPECTOR = auto()
@@ -149,60 +161,67 @@ class Event(Enum):
     UI_REQUEST_WINDOW_METADATA = auto()
 
 
-events_to_subscribers: dict[Event, Any] = {}
-subscribers_to_events: dict[Any, list[Event]] = {}
+posts_to_listeners: dict[Post, Any] = {}
+listeners_to_posts: dict[Any, list[Post]] = {}
 
-for event in Event:
-    events_to_subscribers[event] = {}
+for post in Post:
+    posts_to_listeners[post] = {}
 
-log_events = settings.get("dev", "log_events")
+log_posts = settings.get("dev", "log_requests")
 
 
-def post(event: Event, *args, logging_level=10, **kwargs) -> None:
-    if log_events:
+def post(post: Post, *args, logging_level=10, **kwargs) -> None:
+    if log_posts:
         logger.log(
-            logging_level, f"Posting event {event.name} with {args=} and {kwargs=}."
+            logging_level, f"Posting post {post.name} with {args=} and {kwargs=}."
         )
 
-    for subscriber, callback in events_to_subscribers[event].copy().items():
-        if log_events:
-            logger.log(logging_level, f"    Notifying {subscriber}...")
+    for listener, callback in posts_to_listeners[post].copy().items():
+        if log_posts:
+            logger.log(logging_level, f"    Notifying {listener}...")
         try:
             callback(*args, **kwargs)
         except Exception as exc:
             raise Exception(
-                f"Exception when notifying about {event} with {args=}, {kwargs=}"
+                f"Exception when notifying about {post} with {args=}, {kwargs=}"
             ) from exc
 
-    if log_events:
-        logger.log(logging_level, f"Notified subscribers about event '{event}'.")
+    if log_posts:
+        logger.log(logging_level, f"Notified about post '{post}'.")
 
 
-def subscribe(subscriber: Any, event: Event, callback: Callable) -> None:
-    events_to_subscribers[event][subscriber] = callback
+def listen(listener: Any, post: Post, callback: Callable) -> None:
+    posts_to_listeners[post][listener] = callback
 
-    if subscriber not in subscribers_to_events.keys():
-        subscribers_to_events[subscriber] = [event]
+    if listener not in listeners_to_posts.keys():
+        listeners_to_posts[listener] = [post]
     else:
-        subscribers_to_events[subscriber].append(event)
+        listeners_to_posts[listener].append(post)
 
 
-def unsubscribe(subscriber: Any, event: Event) -> None:
+def listen_to_multiple(
+    listener: Any, posts_and_callbacks: list[tuple[Post, Callable]]
+) -> None:
+    for post, callback in posts_and_callbacks:
+        listen(listener, post, callback)
+
+
+def stop_listening(listener: Any, post: Post) -> None:
     try:
-        events_to_subscribers[event].pop(subscriber)
+        posts_to_listeners[post].pop(listener)
     except KeyError:
-        logger.debug(f"Can't unsubscribe. '{subscriber} is a subscriber of {event}'")
+        logger.debug(f"Can't unsubscribe. '{listener} is a listener of {post}'")
         return
 
-    subscribers_to_events[subscriber].remove(event)
+    listeners_to_posts[listener].remove(post)
 
-    if not subscribers_to_events[subscriber]:
-        subscribers_to_events.pop(subscriber)
+    if not listeners_to_posts[listener]:
+        listeners_to_posts.pop(listener)
 
 
-def unsubscribe_from_all(subscriber: Any) -> None:
-    if subscriber not in subscribers_to_events.keys():
+def stop_listening_to_all(listener: Any) -> None:
+    if listener not in listeners_to_posts.keys():
         return
 
-    for event in subscribers_to_events[subscriber].copy():
-        unsubscribe(subscriber, event)
+    for post in listeners_to_posts[listener].copy():
+        stop_listening(listener, post)

@@ -1,14 +1,13 @@
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext as tk_scrolledtext
 
 import logging
 from collections import OrderedDict
-from typing import Callable, Any
+from typing import Any
 
-from tilia import events
-from tilia.events import Event
-from tilia.ui.windows import WindowKind, UniqueWindowDuplicate
-from tilia.ui.common import destroy_children_recursively
+from tilia.requests import get, Get, listen, post, Post
+from tilia.ui.windows import WindowKind
+from tilia.ui.common import destroy_children_recursively, format_media_time
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,6 @@ class LabelAndEntry(tk.Frame):
     width = 32
 
     def __init__(self, parent, label, attr_to_link=None):
-
         super().__init__(parent)
         label_text = label + ":"
         self.label = tk.Label(parent, text=label_text)
@@ -45,22 +43,24 @@ class MediaMetadataWindow:
         self,
         parent: tk.Tk,
         media_metadata: OrderedDict,
-        non_editable_fields: OrderedDict,
-        fields_to_formatters: dict[str, Callable[[str], str]] | None = None,
     ):
+        self.non_editable_fields = {
+            "media length": get(Get.MEDIA_DURATION),
+            "media path": get(Get.MEDIA_PATH),
+        }
+
+        self.fields_to_formatters = {"media length": format_media_time}
 
         self.mf_window = None
         self.notes_window = None
-        logger.debug(f"Opening media metadata window... ")
+        logger.debug("Opening media metadata window... ")
         logger.debug(f"{media_metadata=}")
 
         self.toplevel = tk.Toplevel(parent)
         self.toplevel.transient(parent)
         self.toplevel.title("Media metadata")
         self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
-        self._metadata = media_metadata
-        self._non_editable_fields = non_editable_fields
-        self.fields_to_formatters = fields_to_formatters if fields_to_formatters else {}
+        self.media_metadata = media_metadata
 
         self.widgets_to_varnames = None
         self.fieldnames_to_widgets = None
@@ -69,7 +69,7 @@ class MediaMetadataWindow:
 
         self.focus()
 
-        events.post(Event.METADATA_WINDOW_OPENED)
+        post(Post.METADATA_WINDOW_OPENED)
 
     def make_editable_row(
         self, label: str, value: Any
@@ -103,7 +103,6 @@ class MediaMetadataWindow:
         self.widgets_to_varnames[str(str_var)] = field_name
 
     def setup_widgets(self) -> None:
-
         self.row_count = 0
         self.fieldnames_to_widgets = {}
         self.widgets_to_varnames = {}
@@ -111,9 +110,7 @@ class MediaMetadataWindow:
         self.toplevel.grid_columnconfigure(1, weight=1)
 
         # setup editable fields
-        row_number = 0
-        for field_name, value in self._metadata.items():
-
+        for field_name, value in self.media_metadata.items():
             if field_name in self.SEPARATE_WINDOW_FIELDS + self.NON_EDITABLE_FIELDS:
                 continue
             elif field_name in self.fields_to_formatters:
@@ -127,8 +124,7 @@ class MediaMetadataWindow:
             self.update_dicts(field_name, entry, str_var)
 
         # setup non-editable fields
-        for field_name, value in self._non_editable_fields.items():
-
+        for field_name, value in self.non_editable_fields.items():
             if field_name in self.fields_to_formatters:
                 value = self.fields_to_formatters[field_name](value)
 
@@ -158,20 +154,20 @@ class MediaMetadataWindow:
         )
 
         edit_metadata_fields_button.grid(
-            row=len(self._metadata) + len(self._non_editable_fields) + 1,
+            row=len(self.media_metadata) + len(self.non_editable_fields) + 1,
             column=0,
             columnspan=2,
             pady=(10, 5),
         )
 
     def on_edit_metadata_fields_button(self):
-        logger.debug(f"User requested to open edit metadata fields window.")
+        logger.debug("User requested to open edit metadata fields window.")
         if self.mf_window:
-            logger.debug(f"Window is already open.")
+            logger.debug("Window is already open.")
             return
 
         self.mf_window = EditMetadataFieldsWindow(
-            self, self.toplevel, list(self._metadata)
+            self, self.toplevel, list(self.media_metadata)
         )
         self.mf_window.wait_window()
         self.refresh_fields()
@@ -180,17 +176,17 @@ class MediaMetadataWindow:
     def on_metadata_edited(self, field_name: str, value: str | float) -> None:
         if field_name == "notes":
             logger.debug(f"Updating metadata value on {self}")
-            self._metadata["notes"] = value
+            self.media_metadata["notes"] = value
 
     def on_notes_button(self):
-        logger.debug(f"User requested to open notes window.")
+        logger.debug("User requested to open notes window.")
         if self.notes_window:
-            logger.debug(f"Window is already open.")
+            logger.debug("Window is already open.")
             return
 
-        events.subscribe(self, Event.METADATA_FIELD_EDITED, self.on_metadata_edited)
+        listen(self, Post.REQUEST_SET_MEDIA_METADATA_FIELD, self.on_metadata_edited)
 
-        self.notes_window = NotesWindow(self.toplevel, self._metadata["notes"])
+        self.notes_window = NotesWindow(self.toplevel, self.media_metadata["notes"])
         self.notes_window.wait_window()
         self.refresh_fields()
         self.notes_window = None
@@ -200,34 +196,40 @@ class MediaMetadataWindow:
         self.setup_widgets()
 
     def on_entry_edited(self, var_name: str, *_):
-        logger.debug(f"Media metadata entry edited.")
+        logger.debug("Media metadata entry edited.")
         field_name = self.widgets_to_varnames[var_name]
         logger.debug(f"Field name is '{field_name}'")
         entry = self.fieldnames_to_widgets[field_name]
         value = entry.get()
         logger.debug(f"Value is '{value}'")
-        events.post(Event.METADATA_FIELD_EDITED, field_name, value)
+        post(Post.REQUEST_SET_MEDIA_METADATA_FIELD, field_name, value)
 
     def focus(self):
         self.toplevel.focus_set()
 
     def destroy(self):
         self.toplevel.destroy()
-        events.post(Event.METADATA_WINDOW_CLOSED)
+        post(Post.METADATA_WINDOW_CLOSED)
 
     def update_metadata_fields(self, new_fields: list[str]):
+        metadata_fields = list(self.media_metadata)
 
-        if list(self._metadata) == new_fields:
+        if metadata_fields == new_fields:
             return
 
-        new_metadata = OrderedDict()
-        for field in new_fields:
-            new_metadata[field] = ""
+        new_metadata = {f: "" for f in new_fields}
 
-            if field in self._metadata:
-                new_metadata[field] = self._metadata[field]
+        for i, field in enumerate(new_fields):
+            if field not in metadata_fields:
+                post(Post.REQUEST_ADD_MEDIA_METADATA_FIELD, field, i)
+            else:
+                new_metadata[field] = self.media_metadata[field]
 
-        self._metadata = new_metadata
+        for field in metadata_fields:
+            if field not in new_fields:
+                post(Post.REQUEST_REMOVE_MEDIA_METADATA_FIELD, field)
+
+        self.media_metadata = new_metadata
 
 
 class EditMetadataFieldsWindow(tk.Toplevel):
@@ -242,7 +244,7 @@ class EditMetadataFieldsWindow(tk.Toplevel):
         self.metadata_window = metadata_window
         self.transient(metadata_toplevel)
 
-        self.scrolled_text = tk.scrolledtext.ScrolledText(self)
+        self.scrolled_text = tk_scrolledtext.ScrolledText(self)
         self.scrolled_text.insert(1.0, self.get_metadata_fields_as_str(metadata_fields))
         self.scrolled_text.pack()
 
@@ -274,7 +276,6 @@ class EditMetadataFieldsWindow(tk.Toplevel):
     def on_save(self) -> None:
         new_metadata_fields = self.get_metadata_fields_from_widget()
         self.metadata_window.update_metadata_fields(new_metadata_fields)
-        events.post(Event.METADATA_NEW_FIELDS, new_metadata_fields)
         self.destroy()
 
     def get_metadata_fields_from_widget(self):
@@ -291,16 +292,15 @@ class NotesWindow(tk.Toplevel):
         self.transient(metadata_toplevel)
         self.title("Notes")
 
-        self.scrolled_text = tk.scrolledtext.ScrolledText(self)
+        self.scrolled_text = tk_scrolledtext.ScrolledText(self)
         self.scrolled_text.insert(1.0, notes_metadata_value)
         self.scrolled_text.pack()
         self.scrolled_text.bind("<<Modified>>", self.on_notes_edited)
 
     def on_notes_edited(self, *_):
         if self.scrolled_text.edit_modified():
-
-            events.post(
-                Event.METADATA_FIELD_EDITED,
+            post(
+                Post.REQUEST_SET_MEDIA_METADATA_FIELD,
                 "notes",
                 self.get_notes(),
             )

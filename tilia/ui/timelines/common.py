@@ -1,33 +1,24 @@
 from __future__ import annotations
-
-import time
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import TYPE_CHECKING, Generic, TypeVar
-
-import _tkinter
-
-from tilia.repr import default_str
-from tilia.ui.canvas_tags import CURSOR_ARROWS, CURSOR_HAND, TAG_TO_CURSOR
-
-if TYPE_CHECKING:
-    from tilia.timelines.base.component import TimelineComponent
-    from tilia.ui.timelines.timeline import TimelineUI
-
 import logging
-
-logger = logging.getLogger(__name__)
+import _tkinter
 import tkinter as tk
 import tkinter.messagebox
+import time
 
-from tilia.events import Event, subscribe
+from abc import ABC, abstractmethod
+from pathlib import Path
+from tilia.repr import default_str
+from tilia.ui.canvas_tags import TAG_TO_CURSOR
+from tilia.requests import Post, listen
 from tilia.timelines.common import log_object_creation
+
+logger = logging.getLogger(__name__)
 
 
 class TimelineCanvas(tk.Canvas):
-    """Interface for the canvas that composes a timeline.
-    Is, right now, an actual tk.Canvas. Will hopefully be replaced with a class that redirects
-    draw requests to the appropriate coords in a single canvas for all the timelines."""
+    """Interface for the canvas that composes a timeline. Is, right now, an actual
+    tk.Canvas. Will hopefully be replaced with a class that redirects draw requests
+    to the appropriate coords in a single canvas for all the timelines."""
 
     DEFAULT_BG = "#FFFFFF"
     LABEL_PAD = 20
@@ -48,7 +39,7 @@ class TimelineCanvas(tk.Canvas):
             highlightthickness=0,
         )
 
-        subscribe(self, Event.ROOT_WINDOW_RESIZED, self.on_root_window_resized)
+        listen(self, Post.ROOT_WINDOW_RESIZED, self.on_root_window_resized)
 
         self._label_width = left_margin_width
 
@@ -100,8 +91,10 @@ class TimelineCanvas(tk.Canvas):
 
 
 class TimelineUIElement(ABC):
-    """Interface for the tkinter ui objects corresponding to to a TimelineComponent instance.
-    E.g.: the HierarchyUI in the ui element corresponding to the Hierarchy timeline component.
+    """
+    Interface for the tkinter ui objects corresponding to to a TimelineComponent
+    instance. E.g.: the HierarchyUI in the ui element corresponding to the Hierarchy
+    timeline component.
     """
 
     def __init__(
@@ -132,10 +125,10 @@ class TimelineUIElement(ABC):
 
 class TimelineToolbar(tk.LabelFrame):
     """
-    Toolbar that enables users to edit TimelineComponents.
-    Keeps track of how maby timeilnes of a certain kind are instanced and hides itself
-    in case there are none.
-    There must be only one instance of a toolbar of a certain kind at any given moment.
+    Toolbar that enables users to edit TimelineComponents. Keeps track of how maby
+    timeilnes of a certain kind are instanced and hides itself in case there are
+    none. There must be only one instance of a toolbar of a certain kind at any given
+    moment.
     """
 
     PACK_ARGS = {"side": "left"}
@@ -184,7 +177,8 @@ class TimelineToolbar(tk.LabelFrame):
             button.pack(side=tk.LEFT, padx=6)
             create_tool_tip(button, tooltip_text)
 
-            # if attribute name is provided, set button as toolbar attribute to allow future modification.
+            # if attribute name is provided, set button as toolbar attribute to allow
+            # future modification.
             try:
                 setattr(self, info[3] + "_button", button)
             except IndexError:
@@ -196,10 +190,10 @@ class TimelineToolbar(tk.LabelFrame):
 
         Raises ValueError if final count is negative."""
         if increment:
-            logging.debug(f"Incremeting visible timelines count...")
+            logger.debug("Incremeting visible timelines count...")
             self._visible_timelines_count += 1
         else:
-            logging.debug(f"Decrementing visible timelines count...")
+            logger.debug("Decrementing visible timelines count...")
             self._visible_timelines_count -= 1
 
         if self._visible_timelines_count < 0:
@@ -207,7 +201,7 @@ class TimelineToolbar(tk.LabelFrame):
                 f"Visible timeline count of {self} decremented below zero."
             )
 
-        logging.debug(
+        logger.debug(
             f"New is_visible timeline count is {self._visible_timelines_count}"
         )
 
@@ -215,26 +209,26 @@ class TimelineToolbar(tk.LabelFrame):
         """increments or decrements is_visible timeline count accordingly.
         Hides toolbar if final count > 1, displays toolbar if count = 0"""
         self._increment_decrement_timelines_count(visible)
-        self._show_display_according_to_visible_timelines_count()
+        self._show_or_display_according_to_visible_timelines_count()
 
-    def _show_display_according_to_visible_timelines_count(self):
+    def _show_or_display_according_to_visible_timelines_count(self):
         if self._visible_timelines_count > 0 and not self.visible:
-            logging.debug(f"Displaying toolbar.")
+            logger.debug("Displaying toolbar.")
             self.visible = True
             self.pack(**self.PACK_ARGS)
         elif self._visible_timelines_count == 0 and self.visible:
-            logging.debug(f"Hiding toolbar.")
+            logger.debug("Hiding toolbar.")
             self.visible = False
             self.pack_forget()
 
     def on_timeline_delete(self):
         """Decrements visible count and hides timelines if count reaches zero."""
         self._increment_decrement_timelines_count(False)
-        self._show_display_according_to_visible_timelines_count()
+        self._show_or_display_according_to_visible_timelines_count()
 
     def on_timeline_create(self):
         self._increment_decrement_timelines_count(True)
-        self._show_display_according_to_visible_timelines_count()
+        self._show_or_display_according_to_visible_timelines_count()
 
     def delete(self):
         logger.debug(f"Deleting timeline toolbar {self}.")

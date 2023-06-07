@@ -2,8 +2,8 @@ from unittest.mock import patch
 import pytest
 import tkinter as tk
 
-from tilia import events
-from tilia.events import Event
+from tests.mock import PatchGet
+from tilia.requests import Post, Get, post
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
@@ -19,7 +19,7 @@ def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
 def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:
     for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
         if attr == "color":
-            setattr(hierarchy, attr, f"#FFFFFF")
+            setattr(hierarchy, attr, "#FFFFFF")
             continue
         setattr(hierarchy, attr, f"test {attr} - {id(hierarchy)}")
 
@@ -80,52 +80,51 @@ class TestHierarchyTimelineUI:
 
         assert hrc1.level == 1
 
-    @patch("tilia.ui.common.ask_for_color")
-    def test_right_click_change_color(self, ask_for_color_mock, hierarchy_tlui):
-        ask_for_color_mock.return_value = "#000000"
+    def test_right_click_change_color(self, hierarchy_tlui):
+        with PatchGet(
+            "tilia.ui.timelines.hierarchy.timeline", Get.COLOR_FROM_USER, "#000000"
+        ):
+            hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
-        hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+            hierarchy_tlui.right_clicked_element = ui1
 
-        hierarchy_tlui.right_clicked_element = ui1
+            hierarchy_tlui.right_click_menu_change_color()
 
-        hierarchy_tlui.right_click_menu_change_color()
+            assert hrc1.color == "#000000"
 
-        assert hrc1.color == "#000000"
+    def test_right_click_reset_color(self, hierarchy_tlui):
+        with PatchGet(
+            "tilia.ui.timelines.hierarchy.timeline", Get.COLOR_FROM_USER, "#000000"
+        ):
+            hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
-    @patch("tilia.ui.common.ask_for_color")
-    def test_right_click_reset_color(self, ask_for_color_mock, hierarchy_tlui):
-        ask_for_color_mock.return_value = "#000000"
+            hierarchy_tlui.right_clicked_element = ui1
 
-        hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+            hierarchy_tlui.right_click_menu_change_color()
+            hierarchy_tlui.right_click_menu_reset_color()
 
-        hierarchy_tlui.right_clicked_element = ui1
+            assert hrc1.color == ui1.get_default_color(hrc1.level)
 
-        hierarchy_tlui.right_click_menu_change_color()
-        hierarchy_tlui.right_click_menu_reset_color()
-
-        assert hrc1.color == ui1.get_default_color(hrc1.level)
-
-    @patch("tilia.ui.timelines.hierarchy.timeline.ask_for_float")
-    def test_right_click_add_pre_start(self, ask_for_float_mock, hierarchy_tlui):
-        ask_for_float_mock.return_value = 0.1
-
+    def test_right_click_add_pre_start(self, hierarchy_tlui):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0.1, 1, 1)
 
         hierarchy_tlui.right_clicked_element = ui1
-
-        hierarchy_tlui.right_click_menu_add_pre_start()
+        with PatchGet(
+            "tilia.ui.timelines.hierarchy.timeline", Get.FLOAT_FROM_USER, 0.1
+        ):
+            hierarchy_tlui.right_click_menu_add_pre_start()
 
         assert hrc1.pre_start != hrc1.start
 
-    @patch("tilia.ui.timelines.hierarchy.timeline.ask_for_float")
-    def test_right_click_add_post_end(self, ask_for_float_mock, hierarchy_tlui):
-        ask_for_float_mock.return_value = 0.1
-
+    def test_right_click_add_post_end(self, hierarchy_tlui):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         hierarchy_tlui.right_clicked_element = ui1
 
-        hierarchy_tlui.right_click_menu_add_post_end()
+        with PatchGet(
+            "tilia.ui.timelines.hierarchy.timeline", Get.FLOAT_FROM_USER, 0.1
+        ):
+            hierarchy_tlui.right_click_menu_add_post_end()
 
         assert hrc1.post_end != hrc1.end
 
@@ -241,9 +240,7 @@ class TestHierarchyTimelineUI:
         assert is_in_front(ui13.body_id, ui14.body_id, hierarchy_tlui.canvas)
         assert is_in_front(ui14.body_id, ui15.body_id, hierarchy_tlui.canvas)
 
-        #######################
-        ### TEST COPY.PASTE ###
-        #######################
+    # -- TEST COPY.PASTE -- #
 
     def test_paste_without_children_into_selected_elements(self, hierarchy_tlui):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1, color="#000000")
@@ -423,10 +420,8 @@ class TestHierarchyTimelineUI:
 
     def test_split(self, hierarchy_tlui):
         hierarchy_tlui.create_hierarchy(0, 1, 1)
-
-        with patch(
-            "tilia.timelines.base.timeline.Timeline.get_current_playback_time",
-            lambda _: 0.5,
+        with PatchGet(
+            "tilia.ui.timelines.hierarchy.timeline", Get.CURRENT_PLAYBACK_TIME, 0.5
         ):
             hierarchy_tlui.split()
 
@@ -520,142 +515,137 @@ class TestHierarchyTimelineUI:
 
         assert len(hierarchy_tlui) == 6
 
-    def test_undo_redo_split(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_split(self, hierarchy_tlui, tluis):
         hierarchy_tlui.create_hierarchy(0, 1, 1)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
-        with patch(
-            "tilia.timelines.base.timeline.Timeline.get_current_playback_time",
-            lambda _: 0.5,
+        with PatchGet(
+            "tilia.ui.timelines.hierarchy.timeline", Get.CURRENT_PLAYBACK_TIME, 0.5
         ):
-            tlui_clct.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "split")
+            tluis.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "split")
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         assert len(hierarchy_tlui) == 1
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         assert len(hierarchy_tlui) == 2
 
-    def test_undo_redo_merge(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_merge(self, hierarchy_tlui, tluis):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
 
         hierarchy_tlui.select_element(ui1)
         hierarchy_tlui.select_element(ui2)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
-        tlui_clct.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "merge")
+        tluis.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "merge")
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         assert len(hierarchy_tlui) == 2
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         assert len(hierarchy_tlui) == 1
 
-    def test_undo_redo_increase_level(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_increase_level(self, hierarchy_tlui, tluis):
         hrc, ui = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
-        tlui_clct.on_timeline_toolbar_button(
-            TlKind.HIERARCHY_TIMELINE, "increase_level"
-        )
+        tluis.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "increase_level")
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         assert hierarchy_tlui.elements[0].level == 1
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         assert hierarchy_tlui.elements[0].level == 2
 
-    def test_undo_redo_decrease_level(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_decrease_level(self, hierarchy_tlui, tluis):
         hrc, ui = hierarchy_tlui.create_hierarchy(0, 1, 2)
         hierarchy_tlui.select_element(ui)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
-        tlui_clct.on_timeline_toolbar_button(
-            TlKind.HIERARCHY_TIMELINE, "decrease_level"
-        )
+        tluis.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "decrease_level")
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         assert hierarchy_tlui.elements[0].level == 2
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         assert hierarchy_tlui.elements[0].level == 1
 
-    def test_undo_redo_group(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_group(self, hierarchy_tlui, tluis):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
 
         hierarchy_tlui.select_element(ui1)
         hierarchy_tlui.select_element(ui2)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
-        tlui_clct.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "group")
+        tluis.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "group")
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         assert len(hierarchy_tlui) == 2
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         assert len(hierarchy_tlui) == 3
 
-    def test_undo_redo_delete(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_delete(self, hierarchy_tlui, tluis):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         hierarchy_tlui.select_element(ui1)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
-        tlui_clct.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "delete")
+        tluis.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "delete")
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         assert len(hierarchy_tlui) == 1
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         assert len(hierarchy_tlui) == 0
 
-    def test_undo_redo_create_unit_below(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_create_unit_below(self, hierarchy_tlui, tluis):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
 
         hierarchy_tlui.select_element(ui1)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
-        tlui_clct.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "create_child")
+        tluis.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "create_child")
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         assert len(hierarchy_tlui) == 1
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         assert len(hierarchy_tlui) == 2
 
-    def test_undo_redo_paste(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_paste(self, hierarchy_tlui, tluis):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1, label="paste test")
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(0, 1, 2)
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
         hierarchy_tlui.select_element(ui1)
         hierarchy_tlui.collection._on_request_to_copy()
         hierarchy_tlui.deselect_element(ui1)
 
         hierarchy_tlui.select_element(ui2)
-        tlui_clct.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "paste")
+        tluis.on_timeline_toolbar_button(TlKind.HIERARCHY_TIMELINE, "paste")
 
         assert hrc2.label == "paste test"
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         hrc_ui2 = hierarchy_tlui.element_manager.ordered_elements[1]
         assert hrc_ui2.label == ""
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         hrc_ui2 = hierarchy_tlui.element_manager.ordered_elements[1]
         assert hrc_ui2.label == "paste test"
 
-    def test_undo_redo_paste_with_children(self, hierarchy_tlui, tlui_clct):
+    def test_undo_redo_paste_with_children(self, hierarchy_tlui, tluis):
         parent, parent_ui = hierarchy_tlui.create_hierarchy(0, 2, 2)
         child1, _ = hierarchy_tlui.create_hierarchy(0, 1, 1)
         child2, _ = hierarchy_tlui.create_hierarchy(1, 2, 1)
@@ -663,19 +653,19 @@ class TestHierarchyTimelineUI:
 
         hierarchy_tlui.relate_hierarchies(parent, [child1, child2])
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TEST_STATE)
+        post(Post.REQUEST_RECORD_STATE, Action.TEST_STATE)
 
         hierarchy_tlui.select_element(parent_ui)
-        tlui_clct._on_request_to_copy()
+        tluis._on_request_to_copy()
         hierarchy_tlui.deselect_element(parent_ui)
 
         hierarchy_tlui.select_element(receptor_ui)
-        tlui_clct.on_timeline_toolbar_button(
+        tluis.on_timeline_toolbar_button(
             TlKind.HIERARCHY_TIMELINE, "paste_with_children"
         )
 
-        events.post(Event.REQUEST_TO_UNDO)
+        post(Post.REQUEST_TO_UNDO)
         assert len(hierarchy_tlui) == 4
 
-        events.post(Event.REQUEST_TO_REDO)
+        post(Post.REQUEST_TO_REDO)
         assert len(hierarchy_tlui) == 6

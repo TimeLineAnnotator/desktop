@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext as tk_scrolledtext
 from typing import Literal
 
 from tilia.ui.timelines.common import create_tool_tip
@@ -14,10 +14,12 @@ Examples:
   - '5' = 5 beats per measure;
   - '4 3 3' = a cycle of 4, then 3, then 3 beats per measure."""
 
-    def __init__(self, parent: tk.Tk, initial_value=""):
-        self.toplevel = tk.Toplevel(parent)
+    def __init__(self, initial_value=""):
+        self.toplevel = tk.Toplevel()
         self.toplevel.title("Insert beats per measure")
-        self.toplevel.transient(parent)
+        self.toplevel.transient(
+            self.toplevel._root()
+        )  # kind of hacky, but this way root doesn't need to be passed as an argument
         self.toplevel.focus_set()
 
         self.input_string = initial_value
@@ -29,7 +31,7 @@ Examples:
         )
         self.help_label = tk.Label(self.upper_frame, text="ⓘ")
         create_tool_tip(self.help_label, text=self.TOOLTIP_TEXT)
-        self.text = tk.scrolledtext.ScrolledText(self.toplevel, width=30, height=5)
+        self.text = tk_scrolledtext.ScrolledText(self.toplevel, width=30, height=5)
         self.text.focus()
         self.confirm_cancel_frame = tk.Frame(self.toplevel)
         self.confirm_button = tk.Button(
@@ -58,9 +60,9 @@ Examples:
         self.toplevel.destroy()
 
     @classmethod
-    def ask(cls, parent: tk.Tk, initial_value="") -> list[int] | Literal[False]:
+    def ask(cls, initial_value="") -> list[int] | Literal[False]:
         """Asks user for beats per measure pattern"""
-        instance = AskBeatPattern(parent, initial_value=initial_value)
+        instance = AskBeatPattern(initial_value=initial_value)
         instance.toplevel.wait_window()
         if instance.is_cancel:
             return False

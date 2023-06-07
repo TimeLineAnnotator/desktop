@@ -2,11 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 import logging
 
+from tilia.requests import get, Get, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui import coords
 from tilia.ui.modifier_enum import ModifierEnum
-from tilia import events, settings
-from tilia.events import Event, subscribe, unsubscribe
+from tilia import settings
+from tilia.requests import Post, listen, stop_listening
 from tilia.timelines.base.component import TimelineComponent
 from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
 
@@ -17,7 +19,7 @@ if TYPE_CHECKING:
     from tilia.ui.timelines.common import (
         TimelineCanvas,
     )
-    from tilia.ui.timelines.collection import TimelineUICollection
+    from tilia.ui.timelines.collection import TimelineUIs
 
 
 class SliderTimelineUI(TimelineUI):
@@ -32,23 +34,23 @@ class SliderTimelineUI(TimelineUI):
 
     def __init__(
         self,
-        collection: TimelineUICollection,
+        id: str,
+        collection: TimelineUIs,
         element_manager: TimelineUIElementManager,
         canvas: TimelineCanvas,
         toolbar: Literal[None],
-        **kwargs,
     ):
         super().__init__(
+            id=id,
             collection=collection,
             element_manager=element_manager,
             canvas=canvas,
             toolbar=toolbar,
-            **kwargs,
         )
 
-        subscribe(self, Event.PLAYER_MEDIA_TIME_CHANGE, self.on_audio_time_change)
+        listen(self, Post.PLAYER_MEDIA_TIME_CHANGE, self.on_audio_time_change)
 
-        self._x = self.get_left_margin_x()
+        self._x = get(Get.LEFT_MARGIN_X)
 
         self.line = self.canvas.create_line(
             *self.get_line_coords(),
@@ -89,9 +91,9 @@ class SliderTimelineUI(TimelineUI):
         logger.debug(f"Processing click on {self}...")
 
         if not item_id:
-            logger.debug(f"No canvas item was clicked.")
+            logger.debug("No canvas item was clicked.")
         elif item_id == self.line:
-            logger.debug(f"Line was cliked. Nothing to do.")
+            logger.debug("Line was cliked. Nothing to do.")
         elif item_id == self.trough:
             self.prepare_to_drag()
 
@@ -99,23 +101,23 @@ class SliderTimelineUI(TimelineUI):
 
     def get_line_coords(self) -> tuple:
         return (
-            self.get_left_margin_x(),
+            get(Get.LEFT_MARGIN_X),
             self.height / 2 + self.LINE_WEIGHT / 2,
-            self.get_right_margin_x(),
+            get(Get.RIGHT_MARGIN_X),
             self.height / 2 + self.LINE_WEIGHT / 2,
         )
 
     def prepare_to_drag(self):
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
-        events.post(Event.SLIDER_DRAG_START)
+        listen(self, Post.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
+        listen(self, Post.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
+        post(Post.SLIDER_DRAG_START)
 
     def drag(self, x: int, _) -> None:
         logger.debug(f"Dragging {self} trough...")
         self.dragging = True
 
-        max_x = self.get_right_margin_x()
-        min_x = self.get_left_margin_x()
+        max_x = get(Get.LEFT_MARGIN_X)
+        min_x = get(Get.RIGHT_MARGIN_X)
 
         drag_x = x
         if x > max_x:
@@ -132,20 +134,20 @@ class SliderTimelineUI(TimelineUI):
             logger.debug(f"Dragging to x='{drag_x}'.")
 
         self.x = drag_x
-        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.get_time_by_x(self._x))
+        post(Post.PLAYER_REQUEST_TO_SEEK, coords.get_time_by_x(self._x))
         self._update_trough_position()
 
     def end_drag(self):
         logger.debug(f"Ending drag of {self}.")
         self.dragging = False
-        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.get_time_by_x(self._x))
-        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
-        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
-        events.post(Event.SLIDER_DRAG_END)
+        post(Post.PLAYER_REQUEST_TO_SEEK, coords.get_time_by_x(self._x))
+        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_DRAG)
+        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_RELEASE)
+        post(Post.SLIDER_DRAG_END)
 
     def on_audio_time_change(self, time: float) -> None:
         if not self.dragging:
-            self._x = self.get_x_by_time(time)
+            self._x = coords.get_x_by_time(time)
             self._update_trough_position()
 
     def get_ui_for_component(
@@ -154,7 +156,7 @@ class SliderTimelineUI(TimelineUI):
         """No components in SliderTimeline. Must implement abstract method."""
 
     def update_elements_position(self):
-        self.x = self.get_x_by_time(self.timeline.get_current_playback_time())
+        self.x = coords.get_x_by_time(get(Get.CURRENT_PLAYBACK_TIME))
         self._update_trough_position()
         self._update_line_position()
 
@@ -169,4 +171,4 @@ class SliderTimelineUI(TimelineUI):
         """Slider timeline does not have a playback line (as it has a slider trough)."""
 
     def __str__(self):
-        return f"Slider Timeline"
+        return "Slider Timeline"

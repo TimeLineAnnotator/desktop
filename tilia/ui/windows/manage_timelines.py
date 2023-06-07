@@ -1,12 +1,7 @@
 import tkinter as tk
-from typing import TYPE_CHECKING
 
-from tilia import events
-from tilia.events import Event
-from tilia.misc_enums import UpOrDown
-
-if TYPE_CHECKING:
-    from tilia.ui.tkinterui import TkinterUI
+from tilia.requests import Post, post, Get, get
+from tilia.enums import UpOrDown
 
 import logging
 
@@ -20,7 +15,7 @@ class ManageTimelines:
         Window that allow user to change the order, toggle visibility
         and delete timelines.
         """
-        logger.debug(f"Opening manage timelines window... ")
+        logger.debug("Opening manage timelines window... ")
 
         self._app_ui = app_ui
 
@@ -30,7 +25,8 @@ class ManageTimelines:
         self.toplevel.transient(self._app_ui.root)
 
         logger.debug(
-            f"Existing timelines ids and display strings are {timeline_ids_and_display_strings}"
+            "Existing timelines ids and display strings are"
+            f" {timeline_ids_and_display_strings}"
         )
         self.tl_ids_and_strings = timeline_ids_and_display_strings
 
@@ -41,7 +37,6 @@ class ManageTimelines:
         self.initial_config()
 
     def _setup_widgets(self):
-
         self.outer_frame = tk.Frame(self.toplevel)
 
         # create right parent
@@ -109,11 +104,9 @@ class ManageTimelines:
 
         selected_timeline_id = self.tl_ids_and_strings[index][0]
 
-        is_visible = self._app_ui.get_timeline_ui_attribute_by_id(
-            selected_timeline_id, "is_visible"
-        )
+        timeline = get(Get.TIMELINE, selected_timeline_id)
 
-        if is_visible:
+        if timeline.is_visible:
             self.visible_checkbox.select()
         else:
             self.visible_checkbox.deselect()
@@ -126,36 +119,37 @@ class ManageTimelines:
         is_checked = self.visible_checkbox_var.get()
 
         if is_checked:
-            events.post(Event.TIMELINES_REQUEST_TO_SHOW_TIMELINE, selected_timeline_id)
+            post(Post.TIMELINES_REQUEST_TO_SHOW_TIMELINE, selected_timeline_id)
         else:
-            events.post(Event.TIMELINES_REQUEST_TO_HIDE_TIMELINE, selected_timeline_id)
+            post(Post.TIMELINES_REQUEST_TO_HIDE_TIMELINE, selected_timeline_id)
 
     def move_up(self):
         """Move timeline up"""
         item = self.list_box.get(self.list_box.curselection())
         index = self.list_box.index(self.list_box.curselection())
         if index == 0:
-            logger.debug(f"Item is already at top.")
+            logger.debug("Item is already at top.")
             return
 
         timeline_id = self.tl_ids_and_strings[index][0]
+        timeline = get(Get.TIMELINE, timeline_id)
+        post(Post.REQUEST_MOVE_TIMELINE_UP_IN_ORDER, timeline.id)
         self.move_listbox_item(index, item, UpOrDown.UP)
-        events.post(Event.TIMELINES_REQUEST_MOVE_UP_IN_DISPLAY_ORDER, timeline_id)
 
     def move_down(self):
         """Move timeline down"""
         item = self.list_box.get(self.list_box.curselection())
         index = self.list_box.index(self.list_box.curselection())
         if index == self.list_box.index("end") - 1:
-            logger.debug(f"Item is already at bottom.")
+            logger.debug("Item is already at bottom.")
             return  # already at bottom
 
         timeline_id = self.tl_ids_and_strings[index][0]
+        timeline = get(Get.TIMELINE, timeline_id)
+        post(Post.REQUEST_MOVE_TIMELINE_DOWN_IN_ORDER, timeline.id)
         self.move_listbox_item(index, item, UpOrDown.DOWN)
-        events.post(Event.TIMELINES_REQUEST_MOVE_DOWN_IN_DISPLAY_ORDER, timeline_id)
 
     def move_listbox_item(self, index: int, item: str, direction: UpOrDown) -> None:
-
         self.list_box.delete(index, index)
 
         index_difference = direction.value * -1
@@ -166,7 +160,6 @@ class ManageTimelines:
         self.move_item_in_ids_and_display_string_order(index, direction)
 
     def move_item_in_ids_and_display_string_order(self, index, direction):
-
         (
             self.tl_ids_and_strings[index],
             self.tl_ids_and_strings[index - direction.value],
@@ -179,7 +172,7 @@ class ManageTimelines:
         index = self.list_box.index(self.list_box.curselection())
         timeline_id = self.tl_ids_and_strings[index][0]
 
-        events.post(Event.REQUEST_DELETE_TIMELINE, timeline_id)
+        post(Post.REQUEST_DELETE_TIMELINE, timeline_id)
 
         self.update_tl_ids_and_strings()
 
@@ -187,14 +180,14 @@ class ManageTimelines:
         index = self.list_box.index(self.list_box.curselection())
         timeline_id = self.tl_ids_and_strings[index][0]
 
-        events.post(Event.REQUEST_CLEAR_TIMELINE, timeline_id)
+        post(Post.REQUEST_CLEAR_TIMELINE, timeline_id)
 
     def focus(self):
         self.toplevel.focus_set()
 
     def destroy(self):
         self.toplevel.destroy()
-        events.post(Event.MANAGE_TIMELINES_WINDOW_CLOSED)
+        post(Post.MANAGE_TIMELINES_WINDOW_CLOSED)
 
     def update_tl_ids_and_strings(self):
         self.tl_ids_and_strings = (

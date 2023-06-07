@@ -8,11 +8,6 @@ class StartOrEnd(Enum):
     END = "end"
 
 
-class SingleOrMultiple(Enum):
-    SINGLE = "single"
-    MULTIPLE = "multiple"
-
-
 class InOrOut(Enum):
     IN = 1
     OUT = -1

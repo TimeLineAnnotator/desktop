@@ -1,9 +1,3 @@
-"""
-Defines the Inspect class.
-A window that allows the user to sse the relevant attributes of a TimelineComponent or its
-UI.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -13,8 +7,7 @@ import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 from typing import Callable, Any
 
-from tilia import events
-from tilia.events import Event, subscribe, unsubscribe_from_all
+from tilia.requests import Post, listen, stop_listening_to_all, post
 from tilia.repr import default_str
 from tilia.timelines.base.component import TimelineComponent
 from tilia.ui.windows.kinds import WindowKind
@@ -29,24 +22,24 @@ HIDE_FIELD = "__INSPECT_HIDEFIELD"
 
 class Inspect:
     """
-    A window that allows the user to sse the relevant attributes of a TimelineComponent or its UI.
-    Listens for a inspectable element selected event and updates according to a dict send alongside it.
-    Keeps track of selected inspectable and listens for a deselect inspectable event to allow for
-    correct updating.
+    A window that allows the user to sse the relevant attributes of a
+    TimelineComponent or its UI. Listens for a inspectable element selected event and
+    updates according to a dict send alongside it. Keeps track of selected
+    inspectable and listens for a deselect inspectable event to allow for correct
+    updating.
     """
 
     KIND = WindowKind.INSPECT
 
     def __init__(self, parent) -> None:
-
-        subscribe(
+        listen(
             self,
-            Event.INSPECTABLE_ELEMENT_SELECTED,
+            Post.INSPECTABLE_ELEMENT_SELECTED,
             self.on_timeline_component_selected,
         )
-        subscribe(
+        listen(
             self,
-            Event.INSPECTABLE_ELEMENT_DESELECTED,
+            Post.INSPECTABLE_ELEMENT_DESELECTED,
             self.on_timeline_component_deselected,
         )
 
@@ -61,14 +54,14 @@ class Inspect:
         self.currently_inspected_class = None
         self.fieldname_to_widgets = None
         self.strvar_to_fieldname = None
+        self.widgets_to_strvars = None
+        self.starting_focus_widget = None
         self.inspector_frame = tk.Frame(self.toplevel)
         self.inspector_frame.pack()
         self.display_not_selected_frame()
 
-        self.toplevel.bind(
-            "<Escape>", lambda _: events.post(Event.REQUEST_FOCUS_TIMELINES)
-        )
-        events.post(Event.INSPECTOR_WINDOW_OPENED)
+        self.toplevel.bind("<Escape>", lambda _: post(Post.REQUEST_FOCUS_TIMELINES))
+        post(Post.INSPECTOR_WINDOW_OPENED)
 
     def __str__(self):
         return default_str(self)
@@ -81,9 +74,9 @@ class Inspect:
             self.starting_focus_widget.selection_range(0, tk.END)
 
     def destroy(self):
-        unsubscribe_from_all(self)
+        stop_listening_to_all(self)
         self.toplevel.destroy()
-        events.post(Event.INSPECT_WINDOW_CLOSED)
+        post(Post.INSPECT_WINDOW_CLOSED)
 
     def display_not_selected_frame(self):
         tk.Label(
@@ -99,7 +92,6 @@ class Inspect:
         inspector_values: dict[str, str],
         element_id: str,
     ):
-
         self.update_frame(element_class, inspector_fields)
         self.update_values(inspector_values, element_id)
         self.update_inspected_object_stack(
@@ -149,7 +141,6 @@ class Inspect:
                 right_widget.config(state="disabled")
 
     def update_values(self, field_values: dict[str, str], element_id: str):
-
         self.element_id = element_id
         for field_name, value in field_values.items():
             widget = self.fieldname_to_widgets[field_name][1]
@@ -210,7 +201,6 @@ class Inspect:
             field_kind = field_tuple[1]
             strvar = None
             if field_kind == "entry":
-
                 label_and_entry = LabelAndEntry(frame, field_name)
                 widget1 = label_and_entry.label
                 widget2 = label_and_entry.entry
@@ -252,16 +242,14 @@ class Inspect:
     def on_entry_edited(self, var_name: str, *_):
         field_name = self.strvar_to_fieldname[var_name]
         entry = self.fieldname_to_widgets[field_name][1]
-        events.post(
-            Event.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.element_id
-        )
+        post(Post.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.element_id)
 
     def on_scrolled_text_edited(self, widget: ScrolledText, value: str):
         fieldname = self.widget2_to_fieldnames[widget]
         logger.debug(f"{fieldname=}")
         logger.debug(f"{value=}")
 
-        events.post(Event.INSPECTOR_FIELD_EDITED, fieldname, value, self.element_id)
+        post(Post.INSPECTOR_FIELD_EDITED, fieldname, value, self.element_id)
 
     @property
     def widget2_to_fieldnames(self):

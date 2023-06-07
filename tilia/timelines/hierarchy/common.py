@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-from typing import NamedTuple
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tilia.timelines.hierarchy.components import Hierarchy
-    from tilia.ui.timelines.hierarchy import HierarchyUI
-
 
 import logging
 

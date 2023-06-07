@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from tilia.events import post, Event
+from tilia.requests import post, Post
 from tilia.exceptions import CreateComponentError
 
 if TYPE_CHECKING:
@@ -91,7 +91,7 @@ def deserialize_components(
     if errors:
         errors_str = "\n".join(errors)
         post(
-            Event.REQUEST_DISPLAY_ERROR,
+            Post.REQUEST_DISPLAY_ERROR,
             "Load components error",
             "Some components were not loaded. The following errors occured:\n"
             + errors_str,

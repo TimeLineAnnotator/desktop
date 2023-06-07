@@ -37,7 +37,7 @@ def setup_data_dir() -> Path:
     elif os.path.exists(_USER_DATA_DIR):
         data_path = _USER_DATA_DIR
     else:
-        create_data_dir()
+        data_path = create_data_dir()
 
     return data_path
 

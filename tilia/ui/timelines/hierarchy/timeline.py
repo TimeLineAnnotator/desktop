@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import tkinter as tk
 
-from tilia import events, settings
+from tilia import settings
 from tilia.timelines.hierarchy.common import (
     update_component_genealogy,
 )
@@ -17,13 +17,11 @@ from tilia.ui.timelines.copy_paste import (
     Copyable,
     get_copy_data_from_element,
 )
-from tilia.ui.element_kinds import UIElementKind
 import tilia.ui.timelines.copy_paste
-from tilia.ui.common import ask_for_float
 from tilia.ui.timelines.copy_paste import paste_into_element
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event
-from tilia.misc_enums import Side, UpOrDown
+from tilia.requests import Post, post, get, Get
+from tilia.enums import Side, UpOrDown
 from tilia.timelines.timeline_kinds import TimelineKind
 
 logger = logging.getLogger(__name__)
@@ -102,7 +100,8 @@ class HierarchyTimelineUI(TimelineUI):
 
             for element in elements_in_level:
                 logger.debug(
-                    f"Lowering drawings '{element.canvas_drawings_ids}' of element '{element}'"
+                    f"Lowering drawings '{element.canvas_drawings_ids}' of element"
+                    f" '{element}'"
                 )
                 self.canvas.tag_lower(element.body_id, lowest_drawing_in_lower_elements)
                 self.canvas.tag_lower(
@@ -113,7 +112,9 @@ class HierarchyTimelineUI(TimelineUI):
                 )
 
     def get_markerid_at_x(self, x: float):
-        starts_or_ends_at_time = lambda u: u.start_x == x or u.end_x == x
+        def starts_or_ends_at_time(ui: HierarchyUI) -> bool:
+            return ui.start_x == x or ui.end_x == x
+
         element = self.element_manager.get_element_by_condition(starts_or_ends_at_time)
 
         if not element:
@@ -147,15 +148,16 @@ class HierarchyTimelineUI(TimelineUI):
             ids_in_order = [id_ for id_ in canvas.find_all() if id_ in ids]
             return ids_in_order[0]
 
-        logging.debug(
-            f"Arranging elements in {self} to parent/child relation of ids '{parent_id, children_ids}'"
+        logger.debug(
+            f"Arranging elements in {self} to parent/child relation of ids"
+            f" '{parent_id, children_ids}'"
         )
 
         parent_ui = self.get_element(parent_id)
         children_uis = [self.get_element(id) for id in children_ids]
 
         if not parent_ui or not children_uis:
-            logger.debug(f"No parent or children in relation. Nothing to do.")
+            logger.debug("No parent or children in relation. Nothing to do.")
             return
 
         children_canvas_drawings_ids = (
@@ -176,10 +178,10 @@ class HierarchyTimelineUI(TimelineUI):
             return
 
         for component in self.selected_components:
-            logging.debug(f"Requesting timeline to create unit below {component}.")
+            logger.debug(f"Requesting timeline to create unit below {component}.")
             self.timeline.create_unit_below(component)
 
-        logging.debug(f"Processed create unit below button.")
+        logger.debug("Processed create unit below button.")
 
     def increase_level(self):
         self.change_level(1)
@@ -191,51 +193,49 @@ class HierarchyTimelineUI(TimelineUI):
         if not self.selected_elements:
             return
 
-        logging.debug(
+        logger.debug(
             f"Requesting timeline to change level of selected elements by {amount}."
         )
 
         self.timeline.change_level(amount, self.selected_components)
 
-        logging.debug(f"Processed change level button.")
+        logger.debug("Processed change level button.")
 
     def group(self):
         if not self.selected_elements:
             return
 
-        logging.debug(f"Requesting timeline to group {self.selected_components}.")
+        logger.debug(f"Requesting timeline to group {self.selected_components}.")
         self.timeline.group(self.selected_components)
 
-        logging.debug(f"Processed group level button.")
+        logger.debug("Processed group level button.")
 
     def split(self):
-        logging.debug(f"Processing split button press...")
-        split_time = self.timeline.get_current_playback_time()
-        logging.debug(f"Requesting timeline to split at time={split_time}.")
+        logger.debug("Processing split button press...")
+        split_time = get(Get.CURRENT_PLAYBACK_TIME)
+        logger.debug(f"Requesting timeline to split at time={split_time}.")
         self.timeline.split(split_time)
-        logging.debug(f"Processed split button press.")
+        logger.debug("Processed split button press.")
 
     def merge(self):
         if not self.selected_elements:
             return
 
-        logging.debug(f"Requesting timeline to merge {self.selected_components}.")
+        logger.debug(f"Requesting timeline to merge {self.selected_components}.")
         self.timeline.merge(self.selected_components)
 
     def paste(self) -> None:
         if not self.selected_elements:
             return
 
-        self.paste_single_into_selected_elements(
-            self.collection.get_elements_for_pasting()["components"]
-        )
+        self.paste_single_into_selected_elements(get(Get.CLIPBOARD)["components"])
 
     def paste_with_children(self) -> None:
         if not self.selected_elements:
             return
 
         self.paste_with_children_into_selected_elements(
-            self.collection.get_elements_for_pasting()["components"]
+            get(Get.CLIPBOARD)["components"]
         )
 
     def _deselect_all_but_last(self):
@@ -273,9 +273,9 @@ class HierarchyTimelineUI(TimelineUI):
             self.element_manager.deselect_element(selected_element)
             self.select_element(element_to_select)
         elif direction == UpOrDown.UP:
-            logger.debug(f"Selected element has no parent. Can't select up.")
+            logger.debug("Selected element has no parent. Can't select up.")
         else:
-            logger.debug(f"Selected element has no children. Can't select down.")
+            logger.debug("Selected element has no children. Can't select down.")
 
     def on_side_arrow_press(self, side: Side):
         def _get_next_element_in_same_level(elm):
@@ -325,17 +325,21 @@ class HierarchyTimelineUI(TimelineUI):
             self.select_element(element_to_select)
         elif side == Side.RIGHT:
             logger.debug(
-                f"Selected element is last element in level. Can't select next."
+                "Selected element is last element in level. Can't select next."
             )
         else:
             logger.debug(
-                f"Selected element is first element in level. Can't select previous."
+                "Selected element is first element in level. Can't select previous."
             )
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
         option_to_callback = {
-            RightClickOption.CHANGE_TIMELINE_HEIGHT: self.right_click_menu_change_timeline_height,
-            RightClickOption.CHANGE_TIMELINE_NAME: self.right_click_menu_change_timeline_name,
+            RightClickOption.CHANGE_TIMELINE_HEIGHT: (
+                self.right_click_menu_change_timeline_height
+            ),
+            RightClickOption.CHANGE_TIMELINE_NAME: (
+                self.right_click_menu_change_timeline_name
+            ),
             RightClickOption.INCREASE_LEVEL: self.right_click_menu_increase_level,
             RightClickOption.DECREASE_LEVEL: self.right_click_menu_decrease_level,
             RightClickOption.ADD_PRE_START: self.right_click_menu_add_pre_start,
@@ -346,7 +350,9 @@ class HierarchyTimelineUI(TimelineUI):
             RightClickOption.RESET_COLOR: self.right_click_menu_reset_color,
             RightClickOption.COPY: self.right_click_menu_copy,
             RightClickOption.PASTE: self.right_click_menu_paste,
-            RightClickOption.PASTE_WITH_ALL_ATTRIBUTES: self.right_click_menu_paste_with_all_attributes,
+            RightClickOption.PASTE_WITH_ALL_ATTRIBUTES: (
+                self.right_click_menu_paste_with_all_attributes
+            ),
             RightClickOption.DELETE: self.right_click_menu_delete,
             RightClickOption.EXPORT_TO_AUDIO: self.right_click_menu_export_to_audio,
         }
@@ -360,9 +366,10 @@ class HierarchyTimelineUI(TimelineUI):
 
     def right_click_menu_add_pre_start(self) -> None:
         component = self.right_clicked_element.tl_component
-        pre_start_length = ask_for_float(
-            "Add pre-start", "How many seconds before start?"
+        pre_start_length = get(
+            Get.FLOAT_FROM_USER, "Add pre-start", "How many seconds before start?"
         )
+
         if pre_start_length is None:
             return
         component.pre_start = component.start - pre_start_length
@@ -371,7 +378,9 @@ class HierarchyTimelineUI(TimelineUI):
 
     def right_click_menu_add_post_end(self) -> None:
         component = self.right_clicked_element.tl_component
-        post_end_length = ask_for_float("Add post-end", "How many seconds after end?")
+        post_end_length = get(
+            Get.FLOAT_FROM_USER, "Add post-end", "How many seconds after end?"
+        )
         if post_end_length is None:
             return
         component.post_end = component.end + post_end_length
@@ -381,34 +390,30 @@ class HierarchyTimelineUI(TimelineUI):
     def right_click_menu_edit(self) -> None:
         self.deselect_all_elements()
         self.select_element(self.right_clicked_element)
-        events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
+        post(Post.UI_REQUEST_WINDOW_INSPECTOR)
 
     def right_click_menu_change_color(self) -> None:
-        if color := tilia.ui.common.ask_for_color(self.right_clicked_element.color):
+        if color := get(Get.COLOR_FROM_USER, self.right_clicked_element.color):
             self.right_clicked_element.color = color
 
     def right_click_menu_reset_color(self) -> None:
         self.right_clicked_element.reset_color()
 
     def right_click_menu_copy(self) -> None:
-        events.post(
-            Event.TIMELINE_COMPONENT_COPIED,
+        post(
+            Post.TIMELINE_COMPONENT_COPIED,
             self.get_copy_data_from_hierarchy_uis([self.right_clicked_element]),
         )
 
     def right_click_menu_paste(self) -> None:
         self.element_manager.deselect_all_elements()
         self.element_manager.select_element(self.right_clicked_element)
-        self.paste_single_into_selected_elements(
-            self.collection.get_elements_for_pasting()
-        )
+        self.paste_single_into_selected_elements(get(Get.CLIPBOARD))
 
     def right_click_menu_paste_with_all_attributes(self) -> None:
         self.element_manager.deselect_all_elements()
         self.element_manager.select_element(self.right_clicked_element)
-        self.paste_with_children_into_selected_elements(
-            self.collection.get_elements_for_pasting()
-        )
+        self.paste_with_children_into_selected_elements(get(Get.CLIPBOARD))
 
     def right_click_menu_delete(self) -> None:
         self.timeline.on_request_to_delete_components(
@@ -416,8 +421,8 @@ class HierarchyTimelineUI(TimelineUI):
         )
 
     def right_click_menu_export_to_audio(self) -> None:
-        events.post(
-            Event.REQUEST_EXPORT_AUDIO_SEGMENT,
+        post(
+            Post.REQUEST_EXPORT_AUDIO,
             segment_name=self.right_clicked_element.full_name,
             start_time=self.right_clicked_element.tl_component.start,
             end_time=self.right_clicked_element.tl_component.end,
@@ -444,10 +449,10 @@ class HierarchyTimelineUI(TimelineUI):
     def get_all_elements_boundaries(self) -> set[int]:
         """Returns all the start_x and end_x values for hierarchy ui's in timeline."""
         earlier_boundaries = self.element_manager.get_existing_values_for_attribute(
-            "start_x", kind=UIElementKind.HIERARCHY_TKUI
+            "start_x"
         )
         later_boundaries = self.element_manager.get_existing_values_for_attribute(
-            "end_x", kind=UIElementKind.HIERARCHY_TKUI
+            "end_x"
         )
 
         return earlier_boundaries.union(later_boundaries)
@@ -461,12 +466,12 @@ class HierarchyTimelineUI(TimelineUI):
 
     def validate_copy(self, elements: list[Copyable]) -> None:
         if len(elements) > 1:
-            events.post(
-                Event.REQUEST_DISPLAY_ERROR,
+            post(
+                Post.REQUEST_DISPLAY_ERROR,
                 title="Copy error",
                 message="Can't copy more than one hierarchy at once.",
             )
-            raise CopyError(f"Can't copy more than one hierarchy at once.")
+            raise CopyError("Can't copy more than one hierarchy at once.")
 
     def _create_child_from_paste_data(
         self,
@@ -513,7 +518,8 @@ class HierarchyTimelineUI(TimelineUI):
 
     def _paste_with_children_into_element(self, paste_data: dict, element: HierarchyUI):
         logger.debug(
-            f"Pasting with children into element '{element}' with paste data = {paste_data}'"
+            f"Pasting with children into element '{element}' with paste data ="
+            f" {paste_data}'"
         )
         tilia.ui.timelines.copy_paste.paste_into_element(element, paste_data)
 
@@ -550,8 +556,8 @@ class HierarchyTimelineUI(TimelineUI):
                 if element.level != int(
                     paste_data[0]["support_by_component_value"]["level"]
                 ):
-                    events.post(
-                        Event.REQUEST_DISPLAY_ERROR,
+                    post(
+                        Post.REQUEST_DISPLAY_ERROR,
                         title="Paste error",
                         message=PASTE_ERROR_LVL_PROMPT,
                     )
@@ -568,7 +574,7 @@ class HierarchyTimelineUI(TimelineUI):
             elements_in_branch.remove(parent)
             return elements_in_branch
 
-        logger.debug(f"Pasting with children into selected elements...")
+        logger.debug("Pasting with children into selected elements...")
         logger.debug(f"Selected elements are: {self.selected_elements}")
 
         validate_paste_with_children()

@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 import tilia.repr
+from tilia.requests import get, Get
 from tilia.timelines.base.timeline import Timeline
 
 
@@ -12,7 +13,7 @@ class TimelineComponent(ABC):
 
     def __init__(self, timeline: Timeline):
         self.timeline = timeline
-        self.id = timeline.get_id_for_component()
+        self.id = get(Get.ID)
 
     @classmethod
     @abstractmethod

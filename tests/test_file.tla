@@ -22,10 +22,14 @@
         "0": {
             "height": 220,
             "is_visible": true,
+            "ordinal": 1,
+            "name": "test",
             "components": {
                 "1": {
-                    "start": 0,
+                    "start": 0.1,
+                    "pre_start": 0,
                     "end": 0.2,
+                    "post_end": 0.3,
                     "level": 2,
                     "formal_type": "",
                     "formal_function": "",
@@ -38,7 +42,9 @@
                 },
                 "3": {
                     "start": 0.2,
+                    "pre_start": 0.1,
                     "end": 0.4,
+                    "post_end": 0.5,
                     "level": 3,
                     "formal_type": "",
                     "formal_function": "",
@@ -54,5 +60,5 @@
         }
     },
     "app_name": "TiLiA",
-    "version": "0.0.1"
+    "version": "0.1.1"
 }

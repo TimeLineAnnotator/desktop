@@ -11,4 +11,4 @@
 /build/ffmpeg/
 __pycache__/
 tilia/_dev.py
-mypy.ini
+pytest.ini

@@ -10,7 +10,7 @@ def hash_function(string: str) -> str:
 
 def hash_timeline_collection_data(timeline_collection_data: dict):
     sorted_tlcoll_data = sorted(
-        timeline_collection_data.values(), key=lambda x: x["display_position"]
+        timeline_collection_data.values(), key=lambda x: x["ordinal"]
     )
 
     str_to_hash = "|"
@@ -90,17 +90,18 @@ def hash_hierarchies_data(hierarchy_data: dict) -> str:
         "comments",
         "color",
     ]
-    sort_func = lambda x: (x["start"], x["level"])
+
+    def sort_func(x):
+        return x["start"], x["level"]
+
     return hash_timeline_components(hash_attributes, sort_func, hierarchy_data)
 
 
 def hash_markers_data(marker_data: dict) -> str:
     hash_attributes = ["time", "label", "comments", "color"]
-    sort_func = lambda x: x["time"]
-    return hash_timeline_components(hash_attributes, sort_func, marker_data)
+    return hash_timeline_components(hash_attributes, lambda x: x["time"], marker_data)
 
 
 def hash_beat_data(marker_data: dict) -> str:
     hash_attributes = ["time"]
-    sort_func = lambda x: x["time"]
-    return hash_timeline_components(hash_attributes, sort_func, marker_data)
+    return hash_timeline_components(hash_attributes, lambda x: x["time"], marker_data)

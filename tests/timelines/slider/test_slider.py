@@ -5,13 +5,13 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 
 @pytest.fixture
-def slider_tl(tilia, tl_clct, tlui_clct) -> SliderTimeline:
-    tl: SliderTimeline = tl_clct.create_timeline(TimelineKind.SLIDER_TIMELINE)
+def slider_tl(tilia, tls, tluis) -> SliderTimeline:
+    tl: SliderTimeline = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
 
     tl.clear()
     yield tl
-    tl_clct.delete_timeline(tl)
-    tilia._undo_manager.clear()
+    tls.delete_timeline(tl)
+    tilia.undo_manager.clear()
 
 
 class TestSliderTimeline:
@@ -20,4 +20,3 @@ class TestSliderTimeline:
 
         assert serialized_timeline["height"] == SliderTimeline.DEFAULT_HEIGHT
         assert serialized_timeline["is_visible"] is True
-        print(serialized_timeline["display_position"])

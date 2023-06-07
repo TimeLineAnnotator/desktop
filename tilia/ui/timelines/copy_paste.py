@@ -40,7 +40,6 @@ def get_copy_data_from_elements(
 
 
 def get_copy_data_from_element(element: Copyable, copy_attrs: CopyAttributes) -> dict:
-
     by_element_value = {}
     for attr in copy_attrs.by_element_value:
         by_element_value[attr] = getattr(element, attr)
@@ -68,7 +67,6 @@ def get_copy_data_from_element(element: Copyable, copy_attrs: CopyAttributes) ->
 
 
 def paste_into_element(element: TimelineUIElement, paste_data: dict[str, Any]):
-
     logger.debug(f"{element} is receiving paste...")
 
     for attr, value in paste_data["by_element_value"].items():
@@ -77,7 +75,7 @@ def paste_into_element(element: TimelineUIElement, paste_data: dict[str, Any]):
 
     for attr, value in paste_data["by_component_value"].items():
         logger.debug(f"Pasting '{attr}' with value='{value}'.")
-        if element == None:
+        if element is None:
             pass
         setattr(element.tl_component, attr, value)
 

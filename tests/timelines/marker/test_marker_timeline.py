@@ -94,7 +94,8 @@ class TestMarkerTimeline:
 
 class TestMarkerTimelineComponentManager:
     # TEST CREATE COMPONENT
-    def test_create_component(self):
+    def test_create_component(self, marker_tl):
+        assert marker_tl.create_marker(0)
         component_manager = MarkerTLComponentManager()
         timeline = MagicMock()
         timeline.get_media_length = lambda: 100

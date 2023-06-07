@@ -1,23 +1,18 @@
-import functools
 import itertools
-import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
-import logging
 
-from tilia.events import Event
+from tests.mock import PatchPost
+from tilia.requests import Post
 from tilia.exceptions import CreateComponentError
 from tilia.timelines.beat.timeline import BeatTLComponentManager
 from tilia.timelines.component_kinds import ComponentKind
 
-logger = logging.getLogger(__name__)
-
 
 @pytest.fixture
-def cm():
+def cm(tilia):
     timeline = MagicMock()
-    timeline.get_media_length.return_value = 100
     timeline.beat_pattern = [2]
     timeline.beats_in_measure = []
     _cm = BeatTLComponentManager()
@@ -54,8 +49,9 @@ class DummyUI:
 class TestBeatTlComponentManager:
     def test_create_overlapping_beat_raises_error(self, cm):
         cm.create_component(time=1)
-        with pytest.raises(CreateComponentError):
-            cm.create_component(time=1)
+        with PatchPost("tilia.timelines.beat.timeline", Post.REQUEST_DISPLAY_ERROR):
+            with pytest.raises(CreateComponentError):
+                cm.create_component(time=1)
 
     def test_update_beat_uis_1(self, cm):
         cm.timeline.measure_numbers = ["a", "b", "c"]
@@ -79,7 +75,7 @@ class TestBeatTlComponentManager:
 
         for i, beat in enumerate(cm._components):
             post_mock.assert_any_call(
-                Event.BEAT_UPDATED,
+                Post.BEAT_UPDATED,
                 beat.id,
                 expected_first_in_measure[i],
                 expected_labels[i],
@@ -107,7 +103,7 @@ class TestBeatTlComponentManager:
 
         for i, beat in enumerate(cm._components):
             post_mock.assert_any_call(
-                Event.BEAT_UPDATED,
+                Post.BEAT_UPDATED,
                 beat.id,
                 expected_first_in_measure[i],
                 expected_labels[i],

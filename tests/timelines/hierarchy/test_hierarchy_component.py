@@ -1,9 +1,13 @@
 import itertools
 
 from tilia.timelines.hierarchy.components import Hierarchy
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 
 
-class DummyHierarchyTL:
+class DummyHierarchyTL(HierarchyTimeline):
+    def __init__(self):
+        pass
+
     id_counter = itertools.count()
 
     def get_id_for_component(self):
@@ -18,7 +22,7 @@ class TestHierarchyComponent:
             "level": 2,
             "parent": "test_parent",
             "children": ["test_children"],
-            'label': 'test_label',
+            "label": "test_label",
             "comments": "test_comments",
             "pre_start": "test_pre_start",
             "post_end": "test_post_end",

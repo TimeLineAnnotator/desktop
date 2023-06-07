@@ -10,7 +10,7 @@
   "timelines": {
     "0": {
       "is_visible": true,
-      "display_position": 0,
+      "ordinal": 0,
       "height": 25,
       "kind": "SLIDER_TIMELINE",
       "components": {}

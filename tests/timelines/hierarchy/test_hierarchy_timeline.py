@@ -5,7 +5,7 @@ import logging
 
 from tilia.exceptions import InvalidComponentKindError
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.hierarchy.components import HierarchyOperationError, Hierarchy
+from tilia.timelines.hierarchy.components import HierarchyOperationError
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
     HierarchyTimeline,
@@ -32,7 +32,7 @@ class HierarchyUIDummy:
         return
 
 
-class DummyTimelineCollection:
+class DummyTimelines:
     ID_ITER = itertools.count()
 
     def get_id(self):
@@ -180,7 +180,7 @@ class TestHierarchyTimeline:
         deserialized_hrc3.children = []
 
     def test_serialize_timeline(self, tl):
-        _ = tl.create_hierarchy(0, 0.5, 1)
+        tl.create_hierarchy(0, 0.5, 1)
 
         serialized_timeline = tl.get_state()
 
@@ -314,9 +314,9 @@ class TestHierarchyTimelineComponentManager:
             tl.component_manager.group([])
 
     def test_group_crossing_end_boundary_raises_error(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
+        tl.create_hierarchy(start=0.0, end=0.1, level=1)
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc3 = tl.create_hierarchy(start=0.0, end=0.2, level=2)
+        tl.create_hierarchy(start=0.0, end=0.2, level=2)
         hrc4 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
 
         with pytest.raises(HierarchyOperationError):
@@ -325,8 +325,8 @@ class TestHierarchyTimelineComponentManager:
     def test_group_crossing_start_boundary_raises_error(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
-        hrc4 = tl.create_hierarchy(start=0.1, end=0.3, level=2)
+        tl.create_hierarchy(start=0.2, end=0.3, level=1)
+        tl.create_hierarchy(start=0.1, end=0.3, level=2)
 
         with pytest.raises(HierarchyOperationError):
             tl.component_manager.group([hrc1, hrc2])
@@ -334,7 +334,7 @@ class TestHierarchyTimelineComponentManager:
     def test_group_overlapping_with_higher_unit_raises_error(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc3 = tl.create_hierarchy(start=0.0, end=0.2, level=2)
+        tl.create_hierarchy(start=0.0, end=0.2, level=2)
 
         with pytest.raises(HierarchyOperationError):
             tl.component_manager.group([hrc1, hrc2])
@@ -383,8 +383,8 @@ class TestHierarchyTimelineComponentManager:
         assert unit_for_split == hrc1
 
     def test_get_unit_for_split_from_unit_boundary(self, tl):
-        _ = tl.create_hierarchy(start=0.0, end=0.5, level=1)
-        _ = tl.create_hierarchy(start=0.5, end=1, level=1)
+        tl.create_hierarchy(start=0.0, end=0.5, level=1)
+        tl.create_hierarchy(start=0.5, end=1, level=1)
 
         unit_for_split = tl.component_manager.get_unit_to_split(0.5)
 
@@ -392,8 +392,8 @@ class TestHierarchyTimelineComponentManager:
 
     def test_get_unit_for_split_from_units_of_different_levels_spanning_time(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.0, end=1, level=2)
-        hrc3 = tl.create_hierarchy(start=0.0, end=1, level=3)
+        tl.create_hierarchy(start=0.0, end=1, level=2)
+        tl.create_hierarchy(start=0.0, end=1, level=3)
 
         unit_for_split = tl.component_manager.get_unit_to_split(0.5)
 
@@ -463,8 +463,8 @@ class TestHierarchyTimelineComponentManager:
 
     def test_merge_two_units_with_units_in_between(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
+        tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        tl.create_hierarchy(start=0.2, end=0.3, level=1)
         hrc4 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
 
         tl.component_manager.merge([hrc1, hrc4])
@@ -542,7 +542,7 @@ class TestHierarchyTimelineComponentManager:
 
     def test_merge_with_unit_of_different_level_in_between_raises_error(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
+        tl.create_hierarchy(start=0.1, end=0.2, level=2)
         hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
 
         with pytest.raises(HierarchyOperationError):
@@ -550,7 +550,7 @@ class TestHierarchyTimelineComponentManager:
 
     def test_merge_with_different_parent_raises_error(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        tl.create_hierarchy(start=0.1, end=0.2, level=1)
         hrc3 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
 
         with pytest.raises(HierarchyOperationError):
@@ -623,7 +623,7 @@ class TestHierarchyTimelineComponentManager:
 
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
 
-        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=3)
+        tl.create_hierarchy(start=0.2, end=0.3, level=3)
 
         hrc4 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
 

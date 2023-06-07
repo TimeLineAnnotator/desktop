@@ -1,8 +1,15 @@
 import os
+from pathlib import Path
 from unittest.mock import patch, mock_open
 
 import pytest
-from tilia.parsers.csv import *
+from tilia.parsers.csv import (
+    get_params_indices,
+    markers_by_measure_from_csv,
+    markers_by_time_from_csv,
+    hierarchies_by_measure_from_csv,
+    hierarchies_by_time_from_csv,
+)
 
 
 def test_get_params_columns():

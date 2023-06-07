@@ -4,12 +4,10 @@ import copy
 import logging
 
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.events import Event
-from tilia.misc_enums import Side
+from tilia.requests import Post, Get, get, post
+from tilia.enums import Side
 from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia import events
-from tilia import ui
 from tilia.ui.timelines.timeline import (
     TimelineUI,
     RightClickOption,
@@ -43,7 +41,7 @@ class MarkerTimelineUI(TimelineUI):
         return self.height
 
     def add_marker(self):
-        self.create_marker(self.collection.get_current_playback_time())
+        self.create_marker(get(Get.CURRENT_PLAYBACK_TIME))
 
     def create_marker(self, time: float, **kwargs) -> None:
         return self.timeline.create_timeline_component(
@@ -99,14 +97,18 @@ class MarkerTimelineUI(TimelineUI):
             self.deselect_element(selected_element)
             self.select_element(element_to_select)
         elif side == Side.RIGHT:
-            logger.debug(f"Selected element is last. Can't select next.")
+            logger.debug("Selected element is last. Can't select next.")
         else:
-            logger.debug(f"Selected element is first. Can't select previous.")
+            logger.debug("Selected element is first. Can't select previous.")
 
     def on_right_click_menu_option_click(self, option: RightClickOption):
         option_to_callback = {
-            RightClickOption.CHANGE_TIMELINE_HEIGHT: self.right_click_menu_change_timeline_height,
-            RightClickOption.CHANGE_TIMELINE_NAME: self.right_click_menu_change_timeline_name,
+            RightClickOption.CHANGE_TIMELINE_HEIGHT: (
+                self.right_click_menu_change_timeline_height
+            ),
+            RightClickOption.CHANGE_TIMELINE_NAME: (
+                self.right_click_menu_change_timeline_name
+            ),
             RightClickOption.EDIT: self.right_click_menu_edit,
             RightClickOption.CHANGE_COLOR: self.right_click_menu_change_color,
             RightClickOption.RESET_COLOR: self.right_click_menu_reset_color,
@@ -119,27 +121,25 @@ class MarkerTimelineUI(TimelineUI):
     def right_click_menu_edit(self) -> None:
         self.deselect_all_elements()
         self.select_element(self.right_clicked_element)
-        events.post(Event.UI_REQUEST_WINDOW_INSPECTOR)
+        post(Post.UI_REQUEST_WINDOW_INSPECTOR)
 
     def right_click_menu_change_color(self) -> None:
-        if color := ui.common.ask_for_color(self.right_clicked_element.color):
+        if color := get(Get.COLOR_FROM_USER, self.right_clicked_element.color):
             self.right_clicked_element.color = color
 
     def right_click_menu_reset_color(self) -> None:
         self.right_clicked_element.reset_color()
 
     def right_click_menu_copy(self) -> None:
-        events.post(
-            Event.TIMELINE_COMPONENT_COPIED,
+        post(
+            Post.TIMELINE_COMPONENT_COPIED,
             self.get_copy_data_from_marker_uis([self.right_clicked_element]),
         )
 
     def right_click_menu_paste(self) -> None:
         self.element_manager.deselect_all_elements()
         self.element_manager.select_element(self.right_clicked_element)
-        self.paste_single_into_selected_elements(
-            self.collection.get_elements_for_pasting()
-        )
+        self.paste_single_into_selected_elements(self.collection.get_clipboard())
 
     def right_click_menu_delete(self) -> None:
         self.timeline.on_request_to_delete_components(
@@ -177,7 +177,7 @@ class MarkerTimelineUI(TimelineUI):
             paste_into_element(element, paste_data[0])
             self.select_element(element)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
+        post(Post.REQUEST_RECORD_STATE, Action.PASTE)
 
     def paste_multiple_into_selected_elements(self, paste_data: list[dict] | dict):
         selected_elements = self.element_manager.get_selected_elements()
@@ -198,7 +198,7 @@ class MarkerTimelineUI(TimelineUI):
             selected_elements[0].time,
         )
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
+        post(Post.REQUEST_RECORD_STATE, Action.PASTE)
 
     def paste_single_into_timeline(self, paste_data: list[dict] | dict):
         return self.paste_multiple_into_timeline(paste_data)
@@ -211,10 +211,10 @@ class MarkerTimelineUI(TimelineUI):
         self.create_pasted_markers(
             paste_data,
             reference_time,
-            self.collection.get_current_playback_time(),
+            get(Get.CURRENT_PLAYBACK_TIME),
         )
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.PASTE)
+        post(Post.REQUEST_RECORD_STATE, Action.PASTE)
 
     def create_pasted_markers(
         self, paste_data: list[dict], reference_time: float, target_time: float

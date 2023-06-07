@@ -3,33 +3,27 @@ Defines the ui corresponding to a Marker object.
 """
 
 from __future__ import annotations
-
 from typing import TYPE_CHECKING
+import logging
+import tkinter as tk
 
 import tilia.utils.color
-from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
+from tilia.requests import Post, listen, stop_listening, stop_listening_to_all, post
 from tilia.timelines.state_actions import Action
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
 from ...common import format_media_time
+from ...coords import get_x_by_time, get_time_by_x
+from tilia import settings
+from tilia.timelines.common import (
+    log_object_deletion,
+)
+from tilia.ui.timelines.common import TimelineUIElement
 
 if TYPE_CHECKING:
     from .timeline import MarkerTimelineUI
-    from tilia.timelines.marker.components import Marker
-    from tilia.ui.timelines.common import TimelineCanvas
-
-import logging
 
 logger = logging.getLogger(__name__)
-import tkinter as tk
-
-from tilia import events, settings
-from tilia.timelines.common import (
-    log_object_creation,
-    log_object_deletion,
-)
-
-from tilia.ui.timelines.common import TimelineUIElement
 
 
 class MarkerUI(TimelineUIElement):
@@ -83,7 +77,7 @@ class MarkerUI(TimelineUIElement):
         try:
             return f"UI->{self.tl_component}"
         except KeyError:
-            return f"UI-><deleted>"
+            return "UI-><unavailable>"
 
     @classmethod
     def create(
@@ -113,7 +107,7 @@ class MarkerUI(TimelineUIElement):
 
     @property
     def x(self):
-        return self.timeline_ui.get_x_by_time(self.time)
+        return get_x_by_time(self.time)
 
     @property
     def seek_time(self):
@@ -194,7 +188,7 @@ class MarkerUI(TimelineUIElement):
         self.canvas.delete(self.marker_proper_id)
         logger.debug(f"Deleting label '{self.label_id}'")
         self.canvas.delete(self.label_id)
-        unsubscribe_from_all(self)
+        stop_listening_to_all(self)
 
     @property
     def selection_triggers(self) -> tuple[int, ...]:
@@ -206,8 +200,8 @@ class MarkerUI(TimelineUIElement):
 
     def on_left_click(self, _) -> None:
         self.make_drag_data()
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
+        listen(self, Post.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
+        listen(self, Post.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
 
     @property
     def right_click_triggers(self) -> tuple[int, ...]:
@@ -229,32 +223,34 @@ class MarkerUI(TimelineUIElement):
 
     def drag(self, x: int, _) -> None:
         if self.drag_data["x"] is None:
-            events.post(Event.ELEMENT_DRAG_START)
+            post(Post.ELEMENT_DRAG_START)
 
         drag_x = x
         if x > self.drag_data["max_x"]:
             logger.debug(
-                f"Mouse is beyond right drag limit. Dragging to max x='{self.drag_data['max_x']}'"
+                "Mouse is beyond right drag limit. Dragging to max"
+                f" x='{self.drag_data['max_x']}'"
             )
             drag_x = self.drag_data["max_x"]
         elif x < self.drag_data["min_x"]:
             logger.debug(
-                f"Mouse is beyond left drag limit. Dragging to min x='{self.drag_data['min_x']}'"
+                "Mouse is beyond left drag limit. Dragging to min"
+                f" x='{self.drag_data['min_x']}'"
             )
             drag_x = self.drag_data["min_x"]
 
-        self.tl_component.time = self.timeline_ui.get_time_by_x(drag_x)
+        self.tl_component.time = get_time_by_x(drag_x)
 
         self.drag_data["x"] = drag_x
         self.update_position()
 
     def end_drag(self):
-        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
-        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
+        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_DRAG)
+        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_RELEASE)
         if self.drag_data["x"] is not None:
             logger.debug(f"Dragged {self}. New x is {self.x}")
-            events.post(Event.REQUEST_RECORD_STATE, Action.MARKER_DRAG)
-            events.post(Event.ELEMENT_DRAG_END)
+            post(Post.REQUEST_RECORD_STATE, Action.MARKER_DRAG)
+            post(Post.ELEMENT_DRAG_END)
 
         self.drag_data = {}
 

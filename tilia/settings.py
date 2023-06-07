@@ -1,6 +1,8 @@
 from pathlib import Path
 import tomlkit
 
+from tilia.utils.os_run import os_run
+
 DEFAULT_SETTINGS = {
     "general": {
         "auto-scroll": False,
@@ -60,7 +62,7 @@ DEFAULT_SETTINGS = {
         "marker_default_color": "#999999",
     },
     "playback": {"ffmpeg_path": ""},
-    "dev": {"log_events": False, "dev_mode": False},
+    "dev": {"log_events": False, "log_requests": False, "dev_mode": False},
 }
 
 _settings = DEFAULT_SETTINGS
@@ -107,3 +109,7 @@ def _set_default_setting(table, name):
 def _set_default_table(table):
     _settings[table] = DEFAULT_SETTINGS[table]
     _save()
+
+
+def open_settings_on_os():
+    os_run(_settings_path)

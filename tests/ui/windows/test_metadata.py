@@ -3,8 +3,9 @@ import pytest
 
 from unittest.mock import MagicMock, patch
 from collections import OrderedDict
-import tkinter as tk
 
+from tests.mock import PatchGetMultiple
+from tilia.requests import Get
 from tilia.ui.windows.metadata import (
     MediaMetadataWindow,
     EditMetadataFieldsWindow,
@@ -18,60 +19,75 @@ class TestMetadataWindow:
     @pytest.fixture
     def metadata_window(self, tk_session):
         mediametadata_mock = OrderedDict({"field1": "a", "field2": "b", "field3": "c"})
-        _metadata_window = MediaMetadataWindow(
-            parent=tk_session,
-            media_metadata=mediametadata_mock,
-            non_editable_fields=OrderedDict(),
-        )
-        yield _metadata_window
-        _metadata_window.destroy()
+        with PatchGetMultiple(
+            "tilia.ui.windows.metadata",
+            {Get.MEDIA_DURATION: 100, Get.MEDIA_PATH: ""},
+        ):
+            window = MediaMetadataWindow(
+                parent=tk_session,
+                media_metadata=mediametadata_mock,
+            )
+
+        yield window
+
+        window.destroy()
 
     @patch("tkinter.Toplevel")
     @patch("tkinter.StringVar")
     @patch("tkinter.Label")
     @patch("tkinter.Text")
     def test_constructor(self, tk_session, *_):
-        mediametadata_mock = OrderedDict({"field1": "a", "field2": "b", "field3": "c"})
+        dummy_metadata = OrderedDict({"field1": "a", "field2": "b", "field3": "c"})
 
         non_editable_fields_mock = OrderedDict(
             {
-                "noedit1": "a",
-                "noedit2": "b",
+                "media length": 100,
+                "media path": "",
             }
         )
-        metadata_window = MediaMetadataWindow(
-            parent=tk_session,
-            media_metadata=mediametadata_mock,
-            non_editable_fields=non_editable_fields_mock,
-        )
+        with PatchGetMultiple(
+            "tilia.ui.windows.metadata",
+            {Get.MEDIA_DURATION: 100, Get.MEDIA_PATH: ""},
+        ):
+            window = MediaMetadataWindow(
+                parent=tk_session,
+                media_metadata=dummy_metadata,
+            )
 
-        assert list(metadata_window.fieldnames_to_widgets.keys()) == list(
-            mediametadata_mock.keys()
+        assert list(window.fieldnames_to_widgets.keys()) == list(
+            dummy_metadata.keys()
         ) + list(non_editable_fields_mock.keys())
 
-        metadata_window.destroy()
+        window.destroy()
 
-    def test_update_values(self, metadata_window):
-        test_value1 = ["new_field"]
-        test_value2 = ["field1", "field3"]
-
-        metadata_window.update_metadata_fields(test_value1)
-        assert list(metadata_window._metadata) == test_value1
-
-        metadata_window.update_metadata_fields(test_value2)
-        assert list(metadata_window._metadata) == test_value2
-
-    def test_refresh_fields(self, metadata_window):
-        test_value1 = ["new_field"]
-        test_value2 = ["field1", "field3"]
-
-        metadata_window.update_metadata_fields(test_value1)
+    def test_insert_single_field(self, metadata_window):
+        metadata_window.update_metadata_fields(
+            ["field1", "field2", "field3", "new_field"]
+        )
         metadata_window.refresh_fields()
-        assert list(metadata_window.fieldnames_to_widgets) == test_value1
+        assert list(metadata_window.fieldnames_to_widgets) == [
+            "field1",
+            "field2",
+            "field3",
+            "new_field",
+            "media length",
+            "media path",
+        ]
 
-        metadata_window.update_metadata_fields(test_value2)
+    def test_insert_multiple_fields(self, metadata_window):
+        metadata_window.update_metadata_fields(
+            ["field1", "field2", "field3", "field4", "field5"]
+        )
         metadata_window.refresh_fields()
-        assert list(metadata_window.fieldnames_to_widgets) == test_value2
+        assert list(metadata_window.fieldnames_to_widgets) == [
+            "field1",
+            "field2",
+            "field3",
+            "field4",
+            "field5",
+            "media length",
+            "media path",
+        ]
 
 
 class TestEditMetadataFieldsWindow:

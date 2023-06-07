@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tilia.events import Event, unsubscribe_from_all
+from tilia.requests import Post, stop_listening_to_all
 from tilia.timelines.state_actions import Action
 from tilia.undo_manager import UndoManager
 
@@ -12,16 +12,16 @@ def um():
     _um = UndoManager()
     _um.record(
         "state0", Action.FILE_LOAD
-    )  # simulate the fact that there will always be this record at the bootom of the stack
+    )  # simulate the presence of this record at the bottom of the stack
     yield _um
-    unsubscribe_from_all(_um)
+    stop_listening_to_all(_um)
 
 
-@patch("tilia.events.post")
+@patch("tilia.undo_manager.post")
 class TestUndoManager:
     def test_constructor(self, _):
         um = UndoManager()
-        unsubscribe_from_all(um)
+        stop_listening_to_all(um)
 
     def test_record_state(self, _, um):
         um.record("state1", "action1")
@@ -60,7 +60,7 @@ class TestUndoManager:
         um.undo()
 
         assert um.current_state_index == -2
-        post_mock.assert_called_with(Event.REQUEST_RESTORE_APP_STATE, "state0")
+        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state0")
 
     def test_undo_no_action_to_undo(self, post_mock, um):
         um.undo()
@@ -74,7 +74,7 @@ class TestUndoManager:
         um.undo()
 
         assert um.current_state_index == -3
-        post_mock.assert_called_with(Event.REQUEST_RESTORE_APP_STATE, "state0")
+        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state0")
 
     def test_redo(self, post_mock, um):
         um.record("state1", "action1")
@@ -83,7 +83,7 @@ class TestUndoManager:
         um.redo()
 
         assert um.current_state_index == -1
-        post_mock.assert_called_with(Event.REQUEST_RESTORE_APP_STATE, "state1")
+        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state1")
 
     def test_redo_no_actions_to_redo(self, post_mock, um):
         um.record("state1", "action1")
@@ -93,7 +93,7 @@ class TestUndoManager:
         um.redo()
 
         assert um.current_state_index == -1
-        post_mock.assert_called_with(Event.REQUEST_RESTORE_APP_STATE, "state1")
+        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state1")
 
     def test_redo_twice(self, post_mock, um):
         um.record("state1", "action1")
@@ -105,7 +105,7 @@ class TestUndoManager:
         um.redo()
 
         assert um.current_state_index == -1
-        post_mock.assert_called_with(Event.REQUEST_RESTORE_APP_STATE, "state2")
+        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state2")
 
     def test_alternate_undo_and_redo(self, post_mock, um):
         um.record("state1", "action1")
@@ -117,9 +117,9 @@ class TestUndoManager:
         um.redo()
 
         assert um.current_state_index == -1
-        post_mock.assert_called_with(Event.REQUEST_RESTORE_APP_STATE, "state2")
+        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state2")
 
-    def test_undo_then_record(self, post_mock, um):
+    def test_undo_then_record(self, _, um):
         um.record("state1", "action1")
         um.record("state2", "action2")
 
@@ -133,7 +133,7 @@ class TestUndoManager:
             {"state": "state3", "action": "action3"},
         ]
 
-    def test_undo_redo_then_record(self, post_mock, um):
+    def test_undo_redo_then_record(self, _, um):
         um.record("state1", "action1")
         um.record("state2", "action2")
         um.record("state3", "action3")

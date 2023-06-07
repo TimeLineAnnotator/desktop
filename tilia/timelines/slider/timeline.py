@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class SliderTimeline(Timeline):
-    SERIALIZABLE_BY_VALUE = ["is_visible", "display_position", "height"]
+    SERIALIZABLE_BY_VALUE = ["is_visible", "ordinal", "height"]
 
     KIND = TimelineKind.SLIDER_TIMELINE
     DEFAULT_HEIGHT = settings.get("slider_timeline", "default_height")
@@ -28,7 +28,7 @@ class SliderTimeline(Timeline):
         for attr in self.SERIALIZABLE_BY_VALUE:
             result[attr] = getattr(self, attr)
 
-        result["kind"] = self.kind.name
+        result["kind"] = self.KIND.name
         result["components"] = {}
 
         return result
