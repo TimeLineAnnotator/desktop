@@ -4,7 +4,7 @@ import traceback
 
 import argparse
 
-from tilia.ui.cli import timelines, output, run
+from tilia.ui.cli import timelines, output, run, quit
 
 
 class CLI:
@@ -16,11 +16,7 @@ class CLI:
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
         run.setup_parser(self.subparsers)
-        self.setup_quit_parser()
-
-    def setup_quit_parser(self):
-        _quit = self.subparsers.add_parser("quit")
-        _quit.set_defaults(func=quit)
+        quit.setup_parser(self.subparsers)
 
     def launch(self):
         """
@@ -45,6 +41,4 @@ class CLI:
             traceback.print_exc()
 
 
-def quit(_):
-    print("Quitting...")
-    sys.exit()
+
