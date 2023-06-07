@@ -1,17 +1,11 @@
-import argparse
-from typing import Protocol
-
 from tilia.requests import post, Post, get, Get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.ui.cli.common import Subparsers
 from tilia.ui.cli.output import tabulate
 
 
-class Subparser(Protocol):
-    def add_parser(self, *args, **kwargs) -> argparse.ArgumentParser: ...
-
-
-def setup_parser(subparsers: Subparser):
+def setup_parser(subparsers: Subparsers):
     tl = subparsers.add_parser("timeline")
     tl_subparser = tl.add_subparsers(dest="timeline_command")
 

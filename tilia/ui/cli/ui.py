@@ -4,7 +4,7 @@ import traceback
 
 import argparse
 
-from tilia.ui.cli import timelines, output
+from tilia.ui.cli import timelines, output, run
 
 
 class CLI:
@@ -15,17 +15,12 @@ class CLI:
 
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
+        run.setup_parser(self.subparsers)
         self.setup_quit_parser()
-        self.setup_run_parser()
 
     def setup_quit_parser(self):
         _quit = self.subparsers.add_parser("quit")
         _quit.set_defaults(func=quit)
-
-    def setup_run_parser(self):
-        run = self.subparsers.add_parser("run")
-        run.add_argument("path")
-        run.set_defaults(func=self.run_script)
 
     def launch(self):
         """
@@ -48,14 +43,6 @@ class CLI:
             output.print(err.message)
         except Exception:
             traceback.print_exc()
-
-
-    def run_script(self, namespace):
-        with open(namespace.path, "r") as file:
-            commands = file.read().splitlines()
-
-        for command in commands:
-            self.run(command.split(" "))
 
 
 def quit(_):
