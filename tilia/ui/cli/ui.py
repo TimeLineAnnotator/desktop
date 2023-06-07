@@ -1,4 +1,7 @@
 from __future__ import annotations
+import sys
+import traceback
+
 import prettytable
 import argparse
 
@@ -10,7 +13,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 class CLI:
     def __init__(self):
         self.app = None
-        self.parser = argparse.ArgumentParser()
+        self.parser = argparse.ArgumentParser(exit_on_error=False)
         self.subparsers = self.parser.add_subparsers(dest="command")
         self.setup_parsers()
 
@@ -42,8 +45,10 @@ class CLI:
         remove.add_argument("--id")
         remove.set_defaults(func=self.remove_timeline)
 
+
     def setup_quit_parser(self):
-        self.subparsers.add_parser("quit")
+        _quit = self.subparsers.add_parser("quit")
+        _quit.set_defaults(func=quit)
 
     def setup_run_parser(self):
         run = self.subparsers.add_parser("run")
@@ -52,27 +57,24 @@ class CLI:
 
     def launch(self):
         print("--- TiLiA CLI v0.0 ---")
-        quit = False
-        while not quit:
+        while True:
             cmd = input(">>> ")
-            quit = self.run(cmd.split(" "))
+            self.run(cmd.split(" "))
 
-    def run(self, cmd) -> bool:
+    def run(self, cmd):
         """
         Parses the command entered by the user.
         Returns True if the user requested to quit.
         """
         try:
             namespace = self.parser.parse_args(cmd)
-            if namespace.command == "quit":
-                quit()
-                return True
-            elif hasattr(namespace, "func"):
+            if hasattr(namespace, "func"):
                 namespace.func(namespace)
-        except SystemExit:
-            pass
+        except argparse.ArgumentError as err:
+            output(err)
+        except Exception:
+            traceback.print_exc()
 
-        return False
 
     def run_script(self, namespace):
         with open(namespace.path, "r") as file:
@@ -143,5 +145,6 @@ def pprint_tlkind(kind: TimelineKind) -> str:
     return kind.value.strip("_TIMELINE").capitalize()
 
 
-def quit():
+def quit(_):
     print("Quitting...")
+    sys.exit()
