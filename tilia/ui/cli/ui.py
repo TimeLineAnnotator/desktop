@@ -5,14 +5,13 @@ import traceback
 import prettytable
 import argparse
 
-from tilia.requests import post, Post
+from tilia.requests import post, Post, get, Get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class CLI:
     def __init__(self):
-        self.app = None
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         self.subparsers = self.parser.add_subparsers(dest="command")
         self.setup_parsers()
@@ -83,9 +82,6 @@ class CLI:
         for command in commands:
             self.run(command.split(" "))
 
-    def get_timelines(self):
-        return self.app.get_timelines()
-
     @staticmethod
     def add_timeline(namespace):
         kind = namespace.kind
@@ -105,28 +101,27 @@ class CLI:
         post(Post.REQUEST_TIMELINE_CREATE, kind_to_tlkind[kind], name)
 
     @staticmethod
-    def remove_timeline(namespace):
-        pass
-
-    def list_timelines(self, _):
-        timelines = self.get_timelines()
+    def list_timelines(_):
+        timelines = get(Get.TIMELINES)
         headers = ["id", "name", "kind"]
         data = [
             (
                 tl.id,
                 tl.name,
-                pprint_tlkind(tl.TIMELINE_KIND),
+                pprint_tlkind(tl.KIND),
             )
             for tl in timelines
         ]
         tabulate(headers, data)
 
-    def get_timeline_by_name(self, name: str) -> Timeline:
-        result = [tl for tl in self.get_timelines() if tl.name == name]
+    @staticmethod
+    def get_timeline_by_name(name: str) -> Timeline:
+        result = [tl for tl in get(Get.TIMELINES) if tl.name == name]
         return result[0] if result else None
 
-    def get_timeline_by_id(self, id: str) -> Timeline | None:
-        result = [tl for tl in self.get_timelines() if tl.id == id]
+    @staticmethod
+    def get_timeline_by_id(id: str) -> Timeline | None:
+        result = [tl for tl in get(Get.TIMELINES) if tl.id == id]
         return result[0] if result else None
 
 
