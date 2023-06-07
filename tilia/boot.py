@@ -37,11 +37,11 @@ def boot() -> None:
 
 
 def setup_parser():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(exit_on_error=False)
     parser.add_argument(
         "--logging",
         "-l",
-        choices=["CRITICAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"],
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "TRACE"],
         default="INFO",
     )
     parser.add_argument("file", nargs="?", default="")
