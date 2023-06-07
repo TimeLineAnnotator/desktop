@@ -9,9 +9,16 @@ def hash_function(string: str) -> str:
 
 
 def hash_timeline_collection_data(timeline_collection_data: dict):
-    sorted_tlcoll_data = sorted(
-        timeline_collection_data.values(), key=lambda x: x["ordinal"]
-    )
+    try:
+        sorted_tlcoll_data = sorted(
+            timeline_collection_data.values(), key=lambda x: x["ordinal"]
+        )
+    except KeyError:
+        #  for backwards compatibility with TiLiA v0.1.1
+        #  timeline data still has attr 'display_position' instead of 'ordinal'
+        sorted_tlcoll_data = sorted(
+            timeline_collection_data.values(), key=lambda x: x["display_position"]
+        )
 
     str_to_hash = "|"
     for tl_data in sorted_tlcoll_data:

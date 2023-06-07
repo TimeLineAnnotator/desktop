@@ -2,9 +2,9 @@ from __future__ import annotations
 import prettytable
 import argparse
 
+from tilia.requests import post, Post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.events import post, Event
 
 
 class CLI:
@@ -59,7 +59,8 @@ class CLI:
 
     def run(self, cmd) -> bool:
         """
-        Parses the command entered by the user. Return True if the user requested to quit.
+        Parses the command entered by the user.
+        Returns True if the user requested to quit.
         """
         try:
             namespace = self.parser.parse_args(cmd)
@@ -99,7 +100,7 @@ class CLI:
 
         output(f"Adding timeline with {kind=}, {name=}")
 
-        post(Event.REQUEST_ADD_TIMELINE, kind_to_tlkind[kind], name)
+        post(Post.REQUEST_TIMELINE_CREATE, kind_to_tlkind[kind], name)
 
     @staticmethod
     def remove_timeline(namespace):

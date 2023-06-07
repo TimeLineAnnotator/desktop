@@ -9,7 +9,7 @@ import pytest
 from tests.mock import PatchGet
 from tilia import dirs
 from tilia import settings
-from tilia.boot import _setup_logic
+from tilia.boot import setup_logic
 from tilia.requests import stop_listening_to_all, Get, stop_serving_all
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.collection import Timelines
@@ -74,7 +74,7 @@ def tkui(tk_session):
 # noinspection PyProtectedMember
 @pytest.fixture(scope="module")
 def tilia(tkui):
-    tilia_ = _setup_logic()
+    tilia_ = setup_logic()
     tilia_.clear_app()  # undo blank file setup
     tilia_.player.media_length = 100.0
     yield tilia_
@@ -191,7 +191,6 @@ def marker_tl(marker_tlui):
 
     tl.create_marker = create_marker
     yield tl
-    unsubscribe_from_all(tl)
 
 
 @pytest.fixture(scope="session")

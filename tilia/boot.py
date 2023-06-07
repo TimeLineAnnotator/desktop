@@ -9,6 +9,7 @@ from tilia.clipboard import Clipboard
 from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
 from tilia.media.player import PygamePlayer
+from tilia.ui.cli.ui import CLI
 from tilia.ui.tkinterui import TkinterUI
 from tilia.undo_manager import UndoManager
 
@@ -16,14 +17,18 @@ logger = logging.getLogger(__name__)
 
 
 def boot() -> None:
-    _setup_dirs()
-    _setup_logging()  # relies on logging path set by dirs setup
-    _setup_settings()
-    app = _setup_logic()
-    ui = _setup_ui()
+    args = setup_parser()
+    print(args.logging)
+    print(args.user_interface)
+    print(args.file)
+    setup_dirs()
+    setup_logging(args.logging)  # relies on logging path set by dirs setup
+    setup_settings()
+    app = setup_logic()
+    ui = setup_ui(args.user_interface)
 
     # has to be done after ui has been created, so timelines will get displayed
-    if file := _get_initial_file():
+    if file := get_initial_file(args.file):
         app.file_manager.open(file)
     else:
         app.setup_blank_file()
@@ -31,34 +36,37 @@ def boot() -> None:
     ui.launch()
 
 
-def _setup_dirs():
-    dirs.setup_dirs()
-
-
-def _setup_settings():
-    settings.load(dirs.settings_path)
-
-
-def _setup_logging():
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument(
+def setup_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
         "--logging",
         "-l",
         choices=["CRITICAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"],
         default="INFO",
     )
-    argparser.add_argument("file", nargs=argparse.REMAINDER)
-    args = argparser.parse_args()
+    parser.add_argument("file", nargs="?", default="")
+    parser.add_argument("--user-interface", choices=["tk", "cli"], default="tk")
+    return parser.parse_args()
 
+
+def setup_dirs():
+    dirs.setup_dirs()
+
+
+def setup_settings():
+    settings.load(dirs.settings_path)
+
+
+def setup_logging(level: str):
     logging.basicConfig(
         filename=dirs.log_path,
         filemode="w",
-        level=args.logging,
+        level=level,
         format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s",
     )
 
 
-def _setup_logic():
+def setup_logic():
     player = PygamePlayer()
     file_manager = FileManager()
     clipboard = Clipboard()
@@ -76,23 +84,21 @@ def _setup_logic():
     return app
 
 
-def _setup_ui():
-    root = tk.Tk()
-    return TkinterUI(root)
+def setup_ui(interface: str):
+    if interface == "tk":
+        root = tk.Tk()
+        return TkinterUI(root)
+    elif interface == "cli":
+        return CLI()
 
 
-def _get_initial_file():
+def get_initial_file(file: str):
     """
     Checks if a file path was passed as an argument to process.
     If it was, returns its path. Else, returns the empty string.
     """
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("file", nargs="?")
-    args = parser.parse_args()
-
-    if args.file and os.path.isfile(args.file) and args.file.endswith(".tla"):
-        logger.info(f"Opening file provided at startup: {args.file}")
-        return args.file
+    if file and os.path.isfile(file) and file.endswith(".tla"):
+        logger.info(f"Opening file provided at startup: {file}")
+        return file
     else:
         return ""
