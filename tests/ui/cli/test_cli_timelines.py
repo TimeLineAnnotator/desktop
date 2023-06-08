@@ -27,9 +27,9 @@ class TestTimelineList:
             printed = mock_print.call_args[0][0]
 
             assert 'name' in printed
-            assert 'id' in printed
+            assert 'ord' in printed
             assert 'kind' in printed
-            assert '0' not in printed
+            assert '1' not in printed
 
     def test_list_timelines_single_timeline(self, tls, cli):
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE, name='test1')

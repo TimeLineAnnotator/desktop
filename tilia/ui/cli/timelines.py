@@ -49,10 +49,10 @@ def add(namespace):
 
 def list(_):
     timelines = get(Get.TIMELINES)
-    headers = ["id", "name", "kind"]
+    headers = ["ord.", "name", "kind"]
     data = [
         (
-            tl.id,
+            tl.ordinal,
             tl.name,
             pprint_tlkind(tl.KIND),
         )
