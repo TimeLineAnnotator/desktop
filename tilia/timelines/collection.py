@@ -100,6 +100,12 @@ class Timelines:
     def __str__(self):
         return default_str(self)
 
+    def __len__(self):
+        return len(self._timelines)
+
+    def __bool__(self):
+        return True  # so it doesn't evaluate to False when there are no timelines
+
     @property
     def timeline_kinds(self):
         return {tl.KIND for tl in self._timelines}
