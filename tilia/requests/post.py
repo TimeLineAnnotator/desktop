@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class Post(Enum):
+    REQUEST_SAVE_TO_PATH = auto()
     TIMELINE_ORDER_SWAPPED = auto()
     ABOUT_WINDOW_CLOSED = auto()
     ADD_RANGE_BUTTON = auto()

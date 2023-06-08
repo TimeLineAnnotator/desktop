@@ -25,6 +25,7 @@ class FileManager:
         listen(self, Post.PLAYER_MEDIA_LOADED, self.on_media_loaded)
         listen(self, Post.REQUEST_SAVE, self.on_save_request)
         listen(self, Post.REQUEST_SAVE_AS, self.on_save_as_request)
+        listen(self, Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request)
         listen(self, Post.REQUEST_FILE_OPEN, self.on_request_open_file)
         listen(self, Post.REQUEST_FILE_NEW, self.on_request_new_file)
         listen(
@@ -54,12 +55,19 @@ class FileManager:
             post(Post.REQUEST_DISPLAY_ERROR, "Error when saving file.")
 
     def on_save_as_request(self):
-        """Saves tilia file to user-specified path."""
+        """Prompts user for a path, and saves tilia file to it."""
         try:
             path = get(Get.SAVE_PATH_FROM_USER, get(Get.MEDIA_TITLE))
         except UserCancel:
             return
 
+        try:
+            self.save(get(Get.APP_STATE), path)
+        except TiliaFileWriteError:
+            post(Post.REQUEST_DISPLAY_ERROR, "Error when saving file.")
+
+    def on_save_to_path_request(self, path: Path):
+        """Saves tilia file to specified path."""
         try:
             self.save(get(Get.APP_STATE), path)
         except TiliaFileWriteError:
