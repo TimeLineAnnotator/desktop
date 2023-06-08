@@ -5,6 +5,10 @@ class TiliaException(Exception):
     pass
 
 
+class TiliaExit(TiliaException):
+    pass
+
+
 class UserCancel(TiliaException):
     pass
 
