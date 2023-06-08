@@ -24,6 +24,10 @@ from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 from tilia.ui.timelines.marker import MarkerTimelineUI
 
 
+class EmptyObject:
+    pass
+
+
 @pytest.fixture(scope="session", autouse=True)
 def tilia_session():
     def settings_get_patch(table, value, default_value=None):
