@@ -1,5 +1,3 @@
-import os
-
 from tilia.file.common import validate_save_path
 from tilia.requests import post, Post
 from tilia.ui.cli import io
@@ -36,5 +34,3 @@ def save(namespace):
 
     validate_save_path(path)
     post(Post.REQUEST_SAVE_TO_PATH, path)
-
-

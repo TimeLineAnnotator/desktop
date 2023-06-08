@@ -182,5 +182,3 @@ class TestTimelines:
 
         assert tl3.ordinal == 1
         assert tl4.ordinal == 2
-
-

@@ -40,7 +40,6 @@ class TestApp:
         stop_listening_to_all(app.timeline_collection)
         stop_serving_all(app.timeline_collection)
 
-
     def test_get_id(self, app):
         assert app.get_id() == '0'
 
@@ -57,10 +56,9 @@ class TestApp:
     def test_on_request_to_close_changes_user_accepts_save(self, app):
         app.file_manager.ask_save_changes_if_modified.return_value = True
 
-        with patch('tilia.dirs.delete_temp_dir') as delete_temp_dir_mock:
+        with patch('tilia.dirs.delete_temp_dir'):
             with pytest.raises(SystemExit):
                 app.on_request_to_close()
-
 
     def test_on_request_to_close_changes_user_cancels(self, app):
         def raise_user_cancel():
@@ -77,9 +75,3 @@ class TestApp:
 
             media_loader_mock().load.assert_called_with(Path(path))
             app.file_manager.set_media_path.assert_called_with(path)
-
-
-
-
-
-

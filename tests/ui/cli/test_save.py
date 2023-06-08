@@ -95,4 +95,3 @@ def test_save_valid_save(tilia, tmp_path):
     namespace.path = str(path)
     save(namespace)
     assert os.listdir(tmp_path) == [path.name]
-

@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch
 
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -43,14 +42,14 @@ class TestTimelineList:
 
             assert "test1" in printed
             assert "Hierarchy" in printed
-            assert tl.id in printed
+            assert str(tl.ordinal) in printed
 
     def test_list_timelines_multiple_timelines(self, tls, cli):
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE, name="test1")
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE, name="test2")
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE, name="test3")
 
-        tl = tls.get_timelines()[0]
+        _ = tls.get_timelines()[0]
         with patch("builtins.print") as mock_print:
             cli.run(["timeline", "list"])
 

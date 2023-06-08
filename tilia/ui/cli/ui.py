@@ -6,7 +6,6 @@ import traceback
 import argparse
 
 from tilia.exceptions import TiliaExit
-from tilia.requests import serve, Get
 from tilia.ui.cli import timelines, run, quit, save, io
 
 

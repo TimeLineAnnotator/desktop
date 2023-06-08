@@ -1,5 +1,3 @@
-import pytest
-
 from tilia.ui.cli.ui import CLI
 
 from unittest.mock import patch
@@ -16,8 +14,3 @@ class TestCLI:
             mock_print.assert_called_once()
             assert 'nonsense' in mock_print.call_args[0][0]
             assert 'invalid choice' in mock_print.call_args[0][0]
-
-
-
-
-
