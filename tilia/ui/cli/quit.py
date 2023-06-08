@@ -1,11 +1,9 @@
-import sys
-
 from tilia.exceptions import TiliaExit
 from tilia.ui.cli.common import Subparsers
 
 
 def setup_parser(subparsers: Subparsers):
-    _quit = subparsers.add_parser("quit")
+    _quit = subparsers.add_parser("quit", aliases=["exit", "q"])
     _quit.set_defaults(func=quit)
 
 

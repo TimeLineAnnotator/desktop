@@ -6,7 +6,9 @@ from tilia.ui.cli.output import tabulate
 
 
 def setup_parser(subparsers: Subparsers):
-    tl = subparsers.add_parser("timeline", exit_on_error=False)
+    tl = subparsers.add_parser(
+        "timelines", exit_on_error=False, aliases=["tl", "timeline"]
+    )
     tl_subparser = tl.add_subparsers(dest="timeline_command")
 
     # 'add' subparser
@@ -18,11 +20,11 @@ def setup_parser(subparsers: Subparsers):
     add_subp.set_defaults(func=add)
 
     # 'list' subparser
-    list_subp = tl_subparser.add_parser("list", exit_on_error=False)
+    list_subp = tl_subparser.add_parser("list", exit_on_error=False, aliases=["ls"])
     list_subp.set_defaults(func=list)
 
     # 'remove' subparser
-    remove_subp = tl_subparser.add_parser("remove", exit_on_error=False)
+    remove_subp = tl_subparser.add_parser("remove", exit_on_error=False, aliases=["rm"])
     remove_subcommands = remove_subp.add_subparsers(dest="type", required=True)
 
     # 'remove by name' subcommand
