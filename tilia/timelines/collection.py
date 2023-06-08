@@ -202,7 +202,7 @@ class Timelines:
     def delete_timeline(self, timeline: Timeline):
         logger.info(f"Deleting timeline {timeline}")
         timeline.delete()
-        self._timelines.remove(timeline)
+        self._remove_from_timelines(timeline)
         post(Post.TIMELINE_DELETED, timeline.id)
 
         if timeline.KIND not in self.timeline_kinds:

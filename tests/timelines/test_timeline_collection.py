@@ -157,3 +157,30 @@ class TestTimelines:
 
         # assert that no error is raised
         hash_timelines.hash_timeline_collection_data(tls.serialize_timelines())
+
+    def test_delete_timeline_updates_ordinals_correctly(self, tls):
+        tl1 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
+        tl2 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
+        tl3 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
+        tl4 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
+        tl5 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
+
+        tls.delete_timeline(tl2)
+
+        assert tl1.ordinal == 1
+        assert tl3.ordinal == 2
+        assert tl4.ordinal == 3
+        assert tl5.ordinal == 4
+
+        tls.delete_timeline(tl5)
+
+        assert tl1.ordinal == 1
+        assert tl3.ordinal == 2
+        assert tl4.ordinal == 3
+
+        tls.delete_timeline(tl1)
+
+        assert tl3.ordinal == 1
+        assert tl4.ordinal == 2
+
+
