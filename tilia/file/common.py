@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 from pathlib import Path
 
 from tilia.file.tilia_file import TiliaFile
@@ -29,3 +30,12 @@ def compare_tilia_data(data1: dict, data2: dict) -> bool:
 def write_tilia_file_to_disk(file: TiliaFile, path: str | Path):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(dataclasses.asdict(file), f, **JSON_CONFIG)
+
+
+def validate_save_path(path: Path):
+    if not path.parent.exists():
+        raise ValueError(f'Parent directory {path.parent} does not exist.')
+    if path.parent.is_file():
+        raise ValueError(f'Parent directory {path.parent} is a file.')
+    if not os.access(path.parent, os.W_OK):
+        raise ValueError(f'Parent directory {path.parent} is not writable.')
