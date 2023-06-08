@@ -1,14 +1,17 @@
 from pathlib import Path
 import pytest
 
-from tilia.requests import Post, post
+from tilia.requests import Post, post, stop_listening_to_all, stop_serving_all
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.file_manager import FileManager
 
 
 @pytest.fixture
 def file_manager():
-    return FileManager()
+    _file_manager = FileManager()
+    yield _file_manager
+    stop_listening_to_all(_file_manager)
+    stop_serving_all(_file_manager)
 
 
 def get_empty_save_params():
@@ -20,17 +23,17 @@ def get_empty_save_params():
 
 
 class TestFileManager:
-    def test_open(self, tilia, file_manager):
+    def test_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"
         tilia.clear_app()
-        file_manager.open(path)
+        tilia.file_manager.open(path)
         tilia.clear_app()
 
-    def test_file_not_modified_after_open(self, tilia, file_manager):
+    def test_file_not_modified_after_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"
         tilia.clear_app()
-        file_manager.open(path)
-        assert not file_manager.is_file_modified(file_manager.file.__dict__)
+        tilia.file_manager.open(path)
+        assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
 
     def test_add_metadata_field_at_start(self, file_manager):
         post(Post.REQUEST_ADD_MEDIA_METADATA_FIELD, "newfield", 0)
@@ -58,8 +61,7 @@ class TestFileManager:
             ("test_field3", "c"),
         ]
 
-    def test_is_file_modified_empty_file(self, tilia, file_manager):
-        # get save parameters of empty file
+    def test_is_file_modified_empty_file(self, file_manager):
         assert not file_manager.is_file_modified(get_empty_save_params())
 
     def test_is_file_modified_not_modified_after_update(self, file_manager):
@@ -69,7 +71,6 @@ class TestFileManager:
         assert not file_manager.is_file_modified(params)
 
     def test_is_file_modified_when_modified_timelines(self, file_manager):
-        # get save parameters of empty file
         params = get_empty_save_params()
 
         params["timelines"] = {

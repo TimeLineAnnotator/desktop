@@ -80,14 +80,12 @@ class TkinterUIMenus(tk.Menu):
         commands = [
             CommandParams("New...", Post.REQUEST_FILE_NEW, {"underline": 0}, {}),
             CommandParams("Open...", Post.REQUEST_FILE_OPEN, {"underline": 0}, {}),
-            CommandParams(
-                "Save", Post.REQUEST_SAVE, {"underline": 0}, {"save_as": False}
-            ),
+            CommandParams("Save", Post.REQUEST_SAVE, {"underline": 0}, {}),
             CommandParams(
                 "Save as...",
-                Post.REQUEST_SAVE,
+                Post.REQUEST_SAVE_AS,
                 {"underline": 5},
-                {"save_as": True},
+                {},
             ),
             CommandParams(
                 "Load media file...",

@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import tkinter as tk
 import _tkinter
+import traceback
 
 import pytest
 
@@ -10,6 +11,7 @@ from tests.mock import PatchGet
 from tilia import dirs
 from tilia import settings
 from tilia.boot import setup_logic
+from tilia.exceptions import NoCallbackAttached
 from tilia.requests import stop_listening_to_all, Get, stop_serving_all
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.collection import Timelines
@@ -62,6 +64,18 @@ def pump_events():
         pass
 
 
+def handle_exc(exc_type, exc_value, exc_traceback) -> None:
+    """
+    Tilia overrides the callback handler in tk.Tk, as reccomended, in such a way
+    that unhandled errors won't immediately cause a crash. The problem is that such
+    handling also prevents the error from reaching pytest, and so some tests that
+    should fail, don't. This happens only when using a few tkinter functions,
+    as tk.Menu.invoke
+    """
+    traceback.print_exc()
+    raise (exc_type, exc_value)
+
+
 @pytest.fixture(scope="module")
 def tkui(tk_session):
     from tilia.ui.tkinterui import TkinterUI  # why is this here?
@@ -69,6 +83,9 @@ def tkui(tk_session):
     os.chdir(Path(Path(__file__).absolute().parents[1], "tilia"))
     with patch("tilia.ui.player.PlayerUI", MagicMock()):
         tkui_ = TkinterUI(pytest.root)
+    tkui_.root.report_callback_exception = (
+        handle_exc  # ensures exceptions will bubble up
+    )
     yield tkui_
     stop_listening_to_all(tkui_.timeline_ui_collection)
     stop_serving_all(tkui_.timeline_ui_collection)
@@ -98,7 +115,11 @@ def tilia(tkui):
 
     stop_serving_all(tilia_)
     stop_serving_all(tilia_.timeline_collection)
-    stop_serving_all(tilia_.file_manager)
+    try:
+        stop_serving_all(tilia_.file_manager)
+    except NoCallbackAttached:
+        #  file manager does its own cleanup at test_file_manager.py
+        pass
     stop_serving_all(tilia_.player)
     stop_serving_all(tilia_.undo_manager)
     stop_serving_all(tilia_.clipboard)

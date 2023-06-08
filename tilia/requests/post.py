@@ -180,12 +180,12 @@ def post(post: Post, *args, logging_level=10, **kwargs) -> None:
     for listener, callback in posts_to_listeners[post].copy().items():
         if log_posts:
             logger.log(logging_level, f"    Notifying {listener}...")
-        try:
-            callback(*args, **kwargs)
-        except Exception as exc:
-            raise Exception(
-                f"Exception when notifying about {post} with {args=}, {kwargs=}"
-            ) from exc
+        # try:
+        callback(*args, **kwargs)
+        # except Exception as exc:
+        #     raise Exception(
+        #         f"Exception when notifying about {post} with {args=}, {kwargs=}"
+        #     ) from exc
 
     if log_posts:
         logger.log(logging_level, f"Notified about post '{post}'.")

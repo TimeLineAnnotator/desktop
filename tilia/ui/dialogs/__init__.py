@@ -23,7 +23,7 @@ def ask_string(title: str, prompt: str) -> str:
 
 
 def ask_yes_no(title: str, prompt: str) -> bool:
-    return ask_yes_no(title, prompt)
+    return tk.messagebox.askyesno(title, prompt)
 
 
 def ask_for_tilia_file_to_open():

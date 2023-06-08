@@ -54,7 +54,6 @@ class MediaMetadataWindow:
         self.mf_window = None
         self.notes_window = None
         logger.debug("Opening media metadata window... ")
-        logger.debug(f"{media_metadata=}")
 
         self.toplevel = tk.Toplevel(parent)
         self.toplevel.transient(parent)

@@ -300,7 +300,7 @@ class TkinterUI:
         )
 
     def open_media_metadata_window(self):
-        return MediaMetadataWindow(self.root)
+        return MediaMetadataWindow(self.root, get(Get.MEDIA_METADATA))
 
     def on_window_closed(self, kind: WindowKind):
         self._windows[kind] = None
