@@ -2,7 +2,7 @@ from tilia.requests import post, Post, get, Get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.cli.common import Subparsers
-from tilia.ui.cli.output import tabulate
+from tilia.ui.cli.io import tabulate
 
 
 def setup_parser(subparsers: Subparsers):

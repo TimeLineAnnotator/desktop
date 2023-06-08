@@ -6,7 +6,8 @@ import traceback
 import argparse
 
 from tilia.exceptions import TiliaExit
-from tilia.ui.cli import timelines, output, run, quit
+from tilia.requests import serve, Get
+from tilia.ui.cli import timelines, run, quit, save, io
 
 
 class CLI:
@@ -20,6 +21,7 @@ class CLI:
         timelines.setup_parser(self.subparsers)
         run.setup_parser(self.subparsers)
         quit.setup_parser(self.subparsers)
+        save.setup_parser(self.subparsers)
 
     def launch(self):
         """
@@ -42,7 +44,7 @@ class CLI:
                 namespace.func(namespace)
             return False
         except argparse.ArgumentError as err:
-            output.print(str(err))
+            io.print(str(err))
             self.exception = err
             return True
         except SystemExit as err:
