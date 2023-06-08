@@ -18,9 +18,6 @@ logger = logging.getLogger(__name__)
 
 def boot() -> None:
     args = setup_parser()
-    print(args.logging)
-    print(args.user_interface)
-    print(args.file)
     setup_dirs()
     setup_logging(args.logging)  # relies on logging path set by dirs setup
     setup_settings()
