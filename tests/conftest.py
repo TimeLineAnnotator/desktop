@@ -119,6 +119,7 @@ def tilia(tkui):
         stop_serving_all(tilia_.file_manager)
     except NoCallbackAttached:
         #  file manager does its own cleanup at test_file_manager.py
+        #  so it will already have called stop_serving_all
         pass
     stop_serving_all(tilia_.player)
     stop_serving_all(tilia_.undo_manager)
