@@ -20,6 +20,7 @@ from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.ui.tkinterui import TkinterUI
 from tilia.ui.cli.ui import CLI
 from tilia.ui.timelines.beat import BeatTimelineUI
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
@@ -78,8 +79,6 @@ def handle_exc(exc_type, exc_value, exc_traceback) -> None:
 
 @pytest.fixture(scope="module")
 def tkui(tk_session):
-    from tilia.ui.tkinterui import TkinterUI  # why is this here?
-
     os.chdir(Path(Path(__file__).absolute().parents[1], "tilia"))
     with patch("tilia.ui.player.PlayerUI", MagicMock()):
         tkui_ = TkinterUI(pytest.root)
