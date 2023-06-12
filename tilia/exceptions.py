@@ -49,3 +49,7 @@ class MediaMetadataFieldNotFound(TiliaException):
 
 class TimelineValidationError(TiliaException):
     pass
+
+
+class WrongTimelineForImport(TiliaException):
+    pass
