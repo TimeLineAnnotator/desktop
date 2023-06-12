@@ -1,7 +1,7 @@
-from tilia.ui.cli.common import Subparsers
+from argparse import _SubParsersAction
 
 
-def setup_parser(subparsers: Subparsers):
+def setup_parser(subparsers: _SubParsersAction):
     run_subp = subparsers.add_parser("run")
     run_subp.add_argument("path")
     run_subp.set_defaults(func=run_script)
