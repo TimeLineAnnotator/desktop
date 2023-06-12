@@ -23,6 +23,7 @@ class MediaLoader:
                 message=f"Media file of type '{extension}' not supported."
                 f"Try loading a supported file type.",
             )
+            return
 
         # change player to audio or video if needed
         if self.player.MEDIA_TYPE == "video" and media_type == "audio":
