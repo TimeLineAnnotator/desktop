@@ -42,7 +42,7 @@ def setup_parser():
         default="INFO",
     )
     parser.add_argument("file", nargs="?", default="")
-    parser.add_argument("--user-interface", choices=["tk", "cli"], default="tk")
+    parser.add_argument("--user-interface", "-i", choices=["tk", "cli"], default="tk")
     return parser.parse_args()
 
 
