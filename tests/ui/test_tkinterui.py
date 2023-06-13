@@ -24,7 +24,7 @@ def import_from_csv_patched_environment(marker_tlui, beat_tlui, hierarchy_tlui):
     Patches the following functions:
         - TimelineUIs.get_timeline_uis_by_kind
         - TimelineUIs.ask_choose_timeline
-        - TimelineUIs.get (for Get.FILE_OPEN_PATH_FROM_USER)
+        - TimelineUIs.get (for Get.TILIA_FILE_PATH_FROM_USER)
 
     get_timeline_uis_by_kind will return the matching fixtures, either marker_tlui,
     beat_tlui or hierarchy_tlui. ask_choose_timeline will use those fixtures
@@ -55,7 +55,7 @@ def import_from_csv_patched_environment(marker_tlui, beat_tlui, hierarchy_tlui):
         patch(tlui_coll_path + ".ask_choose_timeline", ask_choose_timeline_mock),
     ):
         with PatchGet(
-            "tilia.ui.tkinterui", Get.FILE_OPEN_PATH_FROM_USER, "****"
+            "tilia.ui.tkinterui", Get.TILIA_FILE_PATH_FROM_USER, "****"
         ):  # can't be empty or import will abort
             yield
 

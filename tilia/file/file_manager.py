@@ -81,7 +81,7 @@ class FileManager:
             return
         logger.debug("Getting path of file to open.")
         try:
-            file_path = get(Get.FILE_OPEN_PATH_FROM_USER)
+            file_path = get(Get.TILIA_FILE_PATH_FROM_USER)
             logger.debug(f"Got path {file_path}")
         except UserCancel:
             return
@@ -128,7 +128,7 @@ class FileManager:
 
     def save(self, data: dict, path: Path | str):
         logger.info("Saving file...")
-        write_tilia_file_to_disk(TiliaFile(**data), path)
+        write_tilia_file_to_disk(TiliaFile(**data), str(path))
 
         logger.info("File saved.")
         self.file = TiliaFile(**data)
@@ -151,9 +151,9 @@ class FileManager:
         # can't use dataclasses.asdict() here
         # because it doesn't work with OrderedDict, which is media_metadata's type
 
-    def on_media_loaded(self, path: str, length: float, *_) -> None:
+    def on_media_loaded(self, path: str | Path, length: float, *_) -> None:
         logger.debug(f"Updating media metadata 'media path' to '{path}'")
-        self.file.media_path = path
+        self.file.media_path = str(path)
         logger.debug(f"Updating media metadata 'media length' to '{length}'")
         self.file.media_metadata["media length"] = length
 

@@ -41,6 +41,15 @@ def ask_for_tilia_file_to_open():
     return path
 
 
+def ask_for_file_to_open(title: str, filetypes: tuple[tuple[str, str]]) -> str:
+    path = tk.filedialog.askopenfilename(title=title, filetypes=filetypes)
+
+    if not path:
+        raise UserCancel("User cancelled or closed open window dialog.")
+
+    return path
+
+
 def ask_for_color(starting_color: str) -> str | None:
     return tk.colorchooser.askcolor(title="Choose unit color", color=starting_color)[1]
 

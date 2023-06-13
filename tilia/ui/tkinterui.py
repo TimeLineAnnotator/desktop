@@ -171,7 +171,8 @@ class TkinterUI:
         serve(self, Get.SHOULD_SAVE_CHANGES_FROM_USER, dialogs.ask_should_save_changes)
         serve(self, Get.DIR_FROM_USER, dialogs.ask_for_directory)
         serve(self, Get.SAVE_PATH_FROM_USER, dialogs.ask_for_path_to_save_tilia_file)
-        serve(self, Get.FILE_OPEN_PATH_FROM_USER, dialogs.ask_for_tilia_file_to_open)
+        serve(self, Get.TILIA_FILE_PATH_FROM_USER, dialogs.ask_for_tilia_file_to_open)
+        serve(self, Get.FILE_PATH_FROM_USER, dialogs.ask_for_file_to_open),
         serve(self, Get.STRING_FROM_USER, dialogs.ask_for_string)
         serve(self, Get.BEAT_PATTERN_FROM_USER, dialogs.ask_for_beat_pattern)
         serve(self, Get.FLOAT_FROM_USER, dialogs.ask_for_float)
@@ -380,7 +381,7 @@ class TkinterUI:
                 return
 
         path = get(
-            Get.FILE_OPEN_PATH_FROM_USER, "Import components", [("CSV files", "*.csv")]
+            Get.FILE_PATH_FROM_USER, "Import components", [("CSV files", "*.csv")]
         )
 
         if not path:
