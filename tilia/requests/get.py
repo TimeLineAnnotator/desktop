@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class Get(Enum):
+    FILE_PATH_FROM_USER = auto()
     TIMELINES_BY_ATTR = auto()
     TIMELINE_BY_ATTR = auto()
     ORDINAL_FOR_NEW_TIMELINE = auto()
@@ -16,7 +17,7 @@ class Get(Enum):
     COLOR_FROM_USER = auto()
     BEAT_PATTERN_FROM_USER = auto()
     DIR_FROM_USER = auto()
-    FILE_OPEN_PATH_FROM_USER = auto()
+    TILIA_FILE_PATH_FROM_USER = auto()
     FLOAT_FROM_USER = auto()
     INT_FROM_USER = auto()
     SAVE_PATH_FROM_USER = auto()

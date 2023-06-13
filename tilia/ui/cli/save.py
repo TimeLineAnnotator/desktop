@@ -10,7 +10,7 @@ from pathlib import Path
 def setup_parser(subparsers: _SubParsersAction):
     parser = subparsers.add_parser("save", exit_on_error=False)
 
-    parser.add_argument("path", help="Path to save file to.")
+    parser.add_argument("path", help="Path to save file to.", nargs="+")
 
     parser.set_defaults(func=save)
 
@@ -26,7 +26,7 @@ def ask_overwrite_save_path(path: Path):
 
 
 def save(namespace):
-    path = Path(namespace.path)
+    path = Path(" ".join(namespace.path).strip('"'))
     path = ensure_tla_extension(path)
 
     if path.exists():

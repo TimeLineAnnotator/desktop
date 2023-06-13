@@ -80,7 +80,7 @@ class Player(ABC):
             )
             return
 
-        self.media_path = media_path
+        self.media_path = str(media_path)
 
         previous_media_length = self.media_length
         self.media_length = self._engine_get_media_length()

@@ -1,4 +1,5 @@
 from argparse import _SubParsersAction
+from pathlib import Path
 from typing import Optional, Tuple, Literal
 
 from tilia.parsers import csv
@@ -9,6 +10,7 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.cli import io
 
 
 def setup_parser(subparsers: _SubParsersAction):
@@ -63,12 +65,10 @@ def setup_import_by_measure(subparser: _SubParsersAction):
     ref_group = named_args.add_mutually_exclusive_group(required=True)
 
     ref_group.add_argument(
-        "--reference-tl-ordinal",
-        help="Reference beat timeline ordinal",
+        "--reference-tl-ordinal", type=int, help="Reference beat timeline ordinal"
     )
     ref_group.add_argument(
-        "--reference-tl-name",
-        help="Reference beat timeline name",
+        "--reference-tl-name", type=str, help="Reference beat timeline name"
     )
 
 
@@ -76,12 +76,16 @@ def setup_import_file_and_target_args(subparser: _SubParsersAction):
     named_args = subparser.add_argument_group("required named arguments")
 
     named_args.add_argument(
-        "--file", "-f", required=True, help="File to import data from"
+        "--file", "-f", required=True, help="File to import data from", nargs="+"
     )
 
     target_group = named_args.add_mutually_exclusive_group(required=True)
-    target_group.add_argument("--target-ordinal", "-o", help="Target timeline ordinal")
-    target_group.add_argument("--target-name", "-n", help="Target timeline name")
+    target_group.add_argument(
+        "--target-ordinal", "-o", type=int, help="Target timeline ordinal"
+    )
+    target_group.add_argument(
+        "--target-name", "-n", type=str, help="Target timeline name"
+    )
 
     return named_args
 
@@ -105,6 +109,11 @@ def validate_timelines_for_import(
 
 
 def import_timeline(namespace):
+    if "reference_tl_ordinal" not in namespace and "reference_tl_name" not in namespace:
+        # importing by time, reference timeline was not passed
+        namespace.reference_tl_ordinal = None
+        namespace.reference_tl_name = None
+
     tl, ref_tl = get_timelines_for_import(
         namespace.target_ordinal,
         namespace.target_name,
@@ -114,29 +123,34 @@ def import_timeline(namespace):
     )
 
     tl_kind, measure_or_time = namespace.tl_kind, namespace.measure_or_time
+    file = Path(" ".join(namespace.file).strip('"'))
 
     validate_timelines_for_import(tl, ref_tl, tl_kind, measure_or_time)
     ref_tl: BeatTimeline | None
 
+    errors = None
     if tl_kind == "marker":
         tl: MarkerTimeline
         if measure_or_time == "measure":
-            csv.markers_by_measure_from_csv(tl, ref_tl, namespace.file)
+            errors = csv.markers_by_measure_from_csv(tl, ref_tl, file)
         else:
-            csv.markers_by_time_from_csv(tl, namespace.file)
+            errors = csv.markers_by_time_from_csv(tl, file)
     elif tl_kind == "hierarchy":
         tl: HierarchyTimeline
         if measure_or_time == "measure":
-            csv.hierarchies_by_measure_from_csv(tl, ref_tl, namespace.file)
+            errors = csv.hierarchies_by_measure_from_csv(tl, ref_tl, file)
         else:
-            csv.hierarchies_by_time_from_csv(tl, namespace.file)
+            errors = csv.hierarchies_by_time_from_csv(tl, file)
+
+    if errors:
+        io.print(f"Errors: {errors}")
 
 
 def get_timelines_for_import(
     target_ordinal: int,
     target_name: str,
-    reference_ordinal: int,
-    reference_name: str,
+    reference_ordinal: int | None,
+    reference_name: str | None,
     measure_or_time: Literal["measure", "time"],
 ) -> Tuple[Timeline, Timeline | None]:
     target_tl = get_timeline_for_import(target_ordinal, target_name)
