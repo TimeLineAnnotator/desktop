@@ -55,7 +55,7 @@ def import_from_csv_patched_environment(marker_tlui, beat_tlui, hierarchy_tlui):
         patch(tlui_coll_path + ".ask_choose_timeline", ask_choose_timeline_mock),
     ):
         with PatchGet(
-            "tilia.ui.tkinterui", Get.TILIA_FILE_PATH_FROM_USER, "****"
+            "tilia.ui.tkinterui", Get.FILE_PATH_FROM_USER, "****"
         ):  # can't be empty or import will abort
             yield
 
@@ -130,7 +130,7 @@ class TestTkinterUI:
     )
 
     def test_on_menu_import_markers_from_csv_by_time(
-        self, tkui, marker_tlui, beat_tlui, import_from_csv_patched_environment
+        self, tkui, marker_tlui, import_from_csv_patched_environment
     ):
         data = """time,label,comments\n10,marker,imported"""
         with (
