@@ -133,7 +133,17 @@ class App:
 
         # load media
         if file.media_path:
-            self.on_request_to_load_media(file.media_path)
+            try:
+                self.on_request_to_load_media(file.media_path)
+            except FileNotFoundError:
+                post(
+                    Post.REQUEST_DISPLAY_ERROR,
+                    title="Media load error",
+                    message=f"{file.media_path} was not found. Load another media via File > Load media...",
+                )
+                self.player.media_length = file.media_metadata["media length"]
+                self.file_manager.set_media_path("")
+                self
 
         self.timeline_collection.deserialize_timelines(file.timelines)
         self.setup_blank_file()
