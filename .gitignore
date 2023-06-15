@@ -13,3 +13,4 @@ __pycache__/
 tilia/_dev.py
 pytest.ini
 .coverage
+.vscode
