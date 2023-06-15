@@ -36,6 +36,9 @@ class PygamePlayer(Player):
         self.playback_offset = 0.0
 
     def load_media(self, path: str, start: float = 0.0, end: float = 0.0):
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File not found: {path}")
+
         extension = Path(path).suffix[1:]
 
         if extension not in globals_.SUPPORTED_AUDIO_FORMATS:
