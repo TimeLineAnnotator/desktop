@@ -7,6 +7,6 @@ def get_timeline_by_name(name: str) -> Timeline:
     return result[0] if result else None
 
 
-def get_timeline_by_id(id: str) -> Timeline | None:
-    result = [tl for tl in get(Get.TIMELINES) if tl.id == id]
+def get_timeline_by_ordinal(ord: int) -> Timeline | None:
+    result = [tl for tl in get(Get.TIMELINES) if tl.ordinal == ord]
     return result[0] if result else None
