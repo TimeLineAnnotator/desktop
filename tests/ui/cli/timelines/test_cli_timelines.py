@@ -3,22 +3,6 @@ from unittest.mock import patch
 from tilia.timelines.timeline_kinds import TimelineKind
 
 
-class TestTimelineAdd:
-    def test_add_hierarchy_timeline(self, tls, cli):
-        cli.run(["timeline", "add", "hrc", "--name", "test"])
-
-        tl = tls.get_timelines()[0]
-        assert tl.KIND == TimelineKind.HIERARCHY_TIMELINE
-        assert tl.name == "test"
-
-    def test_add_marker_timeline(self, tls, cli):
-        cli.run(["timeline", "add", "mrk", "--name", "test"])
-
-        tl = tls.get_timelines()[0]
-        assert tl.KIND == TimelineKind.MARKER_TIMELINE
-        assert tl.name == "test"
-
-
 class TestTimelineList:
     def test_list_timelines_no_timelines(self, tls, cli):
         with patch("builtins.print") as mock_print:

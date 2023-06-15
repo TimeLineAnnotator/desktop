@@ -6,7 +6,7 @@ import traceback
 import argparse
 
 from tilia.exceptions import TiliaExit
-from tilia.ui.cli import load_media, timelines, run, quit, save, io
+from tilia.ui.cli import components, load_media, timelines, run, quit, save, io
 
 
 class CLI:
@@ -22,6 +22,7 @@ class CLI:
         quit.setup_parser(self.subparsers)
         save.setup_parser(self.subparsers)
         load_media.setup_parser(self.subparsers)
+        components.setup_parser(self.subparsers)
 
     def launch(self):
         """
