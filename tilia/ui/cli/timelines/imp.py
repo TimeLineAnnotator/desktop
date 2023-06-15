@@ -123,7 +123,7 @@ def import_timeline(namespace):
     )
 
     tl_kind, measure_or_time = namespace.tl_kind, namespace.measure_or_time
-    file = Path(" ".join(namespace.file).strip('"'))
+    file = Path("".join(namespace.file).strip('"'))
 
     validate_timelines_for_import(tl, ref_tl, tl_kind, measure_or_time)
     ref_tl: BeatTimeline | None
