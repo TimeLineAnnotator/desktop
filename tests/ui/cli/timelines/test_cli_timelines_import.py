@@ -1,5 +1,6 @@
+from pathlib import Path
 from unittest.mock import patch
-
+import argparse
 import pytest
 
 from tests.mock import PatchGet
@@ -30,14 +31,15 @@ class DummyBeatTl:
 
 class TestImportTimeline:
     def test_markers_by_measure(self):
-        class MockNamespace:
-            target_ordinal = 1
-            target_name = "target_name"
-            reference_tl_ordinal = 2
-            reference_tl_name = "ref_name"
-            measure_or_time = "measure"
-            tl_kind = "marker"
-            file = "test.csv"
+        namespace = argparse.Namespace(
+            target_ordinal=1,
+            target_name="target_name",
+            reference_tl_ordinal=2,
+            reference_tl_name="ref_name",
+            measure_or_time="measure",
+            tl_kind="marker",
+            file="test.csv",
+        )
 
         tl, ref_tl = DummyMarkerTl(), DummyBeatTl()
 
@@ -51,19 +53,20 @@ class TestImportTimeline:
                 return_value="csv_data",
             ) as parse_mock,
         ):
-            import_timeline(MockNamespace())
+            import_timeline(namespace)
             get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "measure")
-            parse_mock.assert_called_once_with(tl, ref_tl, "test.csv")
+            parse_mock.assert_called_once_with(tl, ref_tl, Path("test.csv"))
 
     def test_markers_by_time(self):
-        class MockNamespace:
-            target_ordinal = 1
-            target_name = "target_name"
-            reference_tl_ordinal = 2
-            reference_tl_name = "ref_name"
-            measure_or_time = "time"
-            tl_kind = "marker"
-            file = "test.csv"
+        namespace = argparse.Namespace(
+            target_ordinal=1,
+            target_name="target_name",
+            reference_tl_ordinal=2,
+            reference_tl_name="ref_name",
+            measure_or_time="time",
+            tl_kind="marker",
+            file="test.csv",
+        )
 
         tl, ref_tl = DummyMarkerTl(), DummyBeatTl()
 
@@ -76,19 +79,20 @@ class TestImportTimeline:
                 CSV_PARSER_PATH + ".markers_by_time_from_csv", return_value="csv_data"
             ) as parse_mock,
         ):
-            import_timeline(MockNamespace())
+            import_timeline(namespace)
             get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "time")
-            parse_mock.assert_called_once_with(tl, "test.csv")
+            parse_mock.assert_called_once_with(tl, Path("test.csv"))
 
     def test_hierarchies_by_measure(self):
-        class MockNamespace:
-            target_ordinal = 1
-            target_name = "target_name"
-            reference_tl_ordinal = 2
-            reference_tl_name = "ref_name"
-            measure_or_time = "measure"
-            tl_kind = "hierarchy"
-            file = "test.csv"
+        namespace = argparse.Namespace(
+            target_ordinal=1,
+            target_name="target_name",
+            reference_tl_ordinal=2,
+            reference_tl_name="ref_name",
+            measure_or_time="measure",
+            tl_kind="hierarchy",
+            file="test.csv",
+        )
 
         tl, ref_tl = DummyHierarchyTl(), DummyBeatTl()
 
@@ -102,19 +106,20 @@ class TestImportTimeline:
                 return_value="csv_data",
             ) as parse_mock,
         ):
-            import_timeline(MockNamespace())
+            import_timeline(namespace)
             get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "measure")
-            parse_mock.assert_called_once_with(tl, ref_tl, "test.csv")
+            parse_mock.assert_called_once_with(tl, ref_tl, Path("test.csv"))
 
     def test_hierarchies_by_time(self):
-        class MockNamespace:
-            target_ordinal = 1
-            target_name = "target_name"
-            reference_tl_ordinal = 2
-            reference_tl_name = "ref_name"
-            measure_or_time = "time"
-            tl_kind = "hierarchy"
-            file = "test.csv"
+        namespace = argparse.Namespace(
+            target_ordinal=1,
+            target_name="target_name",
+            reference_tl_ordinal=2,
+            reference_tl_name="ref_name",
+            measure_or_time="time",
+            tl_kind="hierarchy",
+            file="test.csv",
+        )
 
         tl, ref_tl = DummyHierarchyTl(), DummyBeatTl()
 
@@ -128,9 +133,9 @@ class TestImportTimeline:
                 return_value="csv_data",
             ) as parse_mock,
         ):
-            import_timeline(MockNamespace())
+            import_timeline(namespace)
             get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "time")
-            parse_mock.assert_called_once_with(tl, "test.csv")
+            parse_mock.assert_called_once_with(tl, Path("test.csv"))
 
 
 class ImportTestCase:
