@@ -44,6 +44,15 @@ class Beat(TimelineComponent):
         self._time = time
         self.comments = comments
 
+    def __lt__(self, other):
+        return self.time < other.time
+
+    def __str__(self):
+        return f"Beat({self.time})"
+
+    def __repr__(self):
+        return f"Beat({self.time})"
+
     @classmethod
     def create(cls, timeline: BeatTimeline, time: float):
         return Beat(timeline, time)
@@ -60,12 +69,6 @@ class Beat(TimelineComponent):
     def time(self, value):
         logger.debug(f"Setting {self} time to {value}")
         self._time = value
-
-    def __str__(self):
-        return f"Beat({self.time})"
-
-    def __repr__(self):
-        return f"Beat({self.time})"
 
 
 class BeatOperationError(TiliaException):

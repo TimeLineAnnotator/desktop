@@ -48,6 +48,9 @@ class Marker(TimelineComponent):
         self.color = color
         self.comments = comments
 
+    def __lt__(self, other):
+        return self.time < other.time
+
     @classmethod
     def create(cls, *args, **kwargs):
         return Marker(*args, **kwargs)

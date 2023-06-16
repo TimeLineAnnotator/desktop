@@ -72,6 +72,9 @@ class Hierarchy(TimelineComponent):
         self.pre_start = pre_start if pre_start else self.start
         self.post_end = post_end if post_end else self.end
 
+    def __lt__(self, other):
+        return (self.level, self.start) < (other.level, other.start)
+
     @classmethod
     def create(
         cls,
