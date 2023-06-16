@@ -13,7 +13,6 @@ from tilia.media.loader import MediaLoader
 from tilia.repr import default_str
 from tilia.requests import get, post, serve, listen, Get, Post
 from tilia.timelines.collection import Timelines
-from tilia.timelines.state_actions import Action
 from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:

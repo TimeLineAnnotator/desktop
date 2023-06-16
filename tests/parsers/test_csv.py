@@ -4,6 +4,7 @@ from unittest.mock import patch, mock_open
 
 import pytest
 from tilia.parsers.csv import (
+    beats_from_csv,
     get_params_indices,
     markers_by_measure_from_csv,
     markers_by_time_from_csv,
@@ -358,3 +359,22 @@ def test_hierarchies_by_measure_from_csv_bad_optional_attrs_values(
 
     assert "nonsense1" in errors[0]
     assert "nonsense2" in errors[1]
+
+
+def test_beats_from_csv(beat_tlui):
+    os.chdir(Path(Path(__file__).absolute().parents[1]))
+
+    data = "time\n5\n10\n15\n20"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        beats_from_csv(
+            beat_tlui.timeline,
+            Path(),
+        )
+
+    beats = sorted(beat_tlui.timeline.components)
+
+    assert beats[0].time == 5
+    assert beats[1].time == 10
+    assert beats[2].time == 15
+    assert beats[3].time == 20
