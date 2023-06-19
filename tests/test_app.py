@@ -2,12 +2,14 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from tests.mock import PatchPost
 
 from tilia.app import App
 from tilia.exceptions import UserCancel
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
 from tilia.requests import stop_serving_all, stop_listening_to_all
+from tilia.requests.post import Post
 
 
 class TestApp:
@@ -95,3 +97,18 @@ class TestApp:
 
         app.file_manager.set_media_path.assert_called_with("")
         app.player.media_length == 101
+
+    def test_on_request_to_set_media_length(self, app):
+        app.player.media_loaded = False
+        app.on_request_to_set_media_length(10)
+        assert app.player.media_length == 10
+        assert app.file_manager.set_media_metadata.called_with({"metadata": 10})
+
+    def test_on_request_to_set_media_length_media_is_loaded(self, app):
+        app.player.media_loaded = True
+        with PatchPost("tilia.app", Post.REQUEST_DISPLAY_ERROR) as post_mock:
+            app.on_request_to_set_media_length(10)
+            assert post_mock.called
+
+        assert app.player.media_length != 10
+        app.file_manager.set_media_metadata.assert_not_called()

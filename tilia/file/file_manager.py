@@ -163,6 +163,9 @@ class FileManager:
     def set_media_path(self, value: Path | str):
         self.file.media_path = str(value)
 
+    def set_media_duration(self, value: float):
+        self.file.media_metadata["media length"] = value
+
     def set_timelines(self, value: dict):
         self.file.timelines = value
 

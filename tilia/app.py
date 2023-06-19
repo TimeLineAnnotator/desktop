@@ -54,6 +54,7 @@ class App:
             # listening on tilia.settings would cause circular import
             (Post.REQUEST_LOAD_FILE, self.load_file),
             (Post.REQUEST_LOAD_MEDIA, self.on_request_to_load_media),
+            (Post.REQUEST_CHANGE_MEDIA_LENGTH, self.on_request_to_set_media_length),
             (Post.REQUEST_RECORD_STATE, self.on_request_to_record_state),
             (Post.REQUEST_RESTORE_APP_STATE, self.on_request_to_restore_state),
             (Post.REQUEST_SETUP_BLANK_FILE, self.setup_blank_file),
@@ -99,6 +100,18 @@ class App:
             pass
 
         sys.exit()
+
+    def on_request_to_set_media_length(self, length: int) -> None:
+        if self.player.media_loaded:
+            post(
+                Post.REQUEST_DISPLAY_ERROR,
+                title="Change media length",
+                message="Can't change media length when a media file is loaded.",
+            )
+            return
+
+        self.player.media_length = length
+        self.file_manager.set_media_metadata({"media length": length})
 
     def on_request_to_load_media(self, path: str) -> None:
         self.player = MediaLoader(self.player).load(Path(path))
