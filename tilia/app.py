@@ -54,7 +54,7 @@ class App:
             # listening on tilia.settings would cause circular import
             (Post.REQUEST_LOAD_FILE, self.load_file),
             (Post.REQUEST_LOAD_MEDIA, self.on_request_to_load_media),
-            (Post.REQUEST_CHANGE_MEDIA_LENGTH, self.on_request_to_set_media_length),
+            (Post.REQUEST_SET_MEDIA_LENGTH, self.on_request_to_set_media_length),
             (Post.REQUEST_RECORD_STATE, self.on_request_to_record_state),
             (Post.REQUEST_RESTORE_APP_STATE, self.on_request_to_restore_state),
             (Post.REQUEST_SETUP_BLANK_FILE, self.setup_blank_file),

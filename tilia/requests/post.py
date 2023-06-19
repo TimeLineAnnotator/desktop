@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class Post(Enum):
     REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH = auto()
-    REQUEST_CHANGE_MEDIA_LENGTH = auto()
+    REQUEST_SET_MEDIA_LENGTH = auto()
     REQUEST_IMPORT_CSV_BEATS = auto()
     REQUEST_SAVE_TO_PATH = auto()
     TIMELINE_ORDER_SWAPPED = auto()
