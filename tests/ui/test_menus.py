@@ -18,7 +18,7 @@ class TestFileMenu:
         tilia.clear_app()
 
     def test_file_menu_open(self, tilia, file_menu):
-        test_file_path = Path(__file__).parents[1] / "test_file.tla"
+        test_file_path = Path(__file__).parents[1] / "file" / "test_file.tla"
         with patch("tkinter.filedialog.askopenfilename", return_value=test_file_path):
             file_menu.invoke(1)
         tilia.clear_app()  # tilia fixture will only call cleanup after module is done

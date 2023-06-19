@@ -15,3 +15,9 @@ class MediaMetadata(OrderedDict):
             self[field] = ""
 
         self["title"] = self.DEFAULT_TITLE
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        metadata = cls()
+        metadata.update(data)
+        return metadata

@@ -18,7 +18,7 @@ class TestGetInitialFilePath:
         assert get_initial_file(str(Path(__file__))) == ""
 
     def test_get_initial_file_path_good_path(self):
-        path = str(Path(__file__).parent / "test_file.tla")
+        path = str(Path(__file__).parent / "file" / "test_file.tla")
         assert Path(get_initial_file(path)) == Path(path)
 
 
