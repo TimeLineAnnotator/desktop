@@ -137,6 +137,32 @@ class TestImportTimeline:
             get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "time")
             parse_mock.assert_called_once_with(tl, Path("test.csv"))
 
+    def test_beats(self):
+        namespace = argparse.Namespace(
+            target_ordinal=1,
+            target_name="target_name",
+            reference_tl_ordinal=2,
+            reference_tl_name="ref_name",
+            tl_kind="beat",
+            file="test.csv",
+        )
+
+        tl, ref_tl = DummyBeatTl(), None
+
+        with (
+            patch(
+                GET_TIMELINES_FOR_IMPORT_PATH,
+                return_value=(tl, ref_tl),
+            ) as get_tls_mock,
+            patch(
+                CSV_PARSER_PATH + ".beats_from_csv",
+                return_value="csv_data",
+            ) as parse_mock,
+        ):
+            import_timeline(namespace)
+            get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", None)
+            parse_mock.assert_called_once_with(tl, Path("test.csv"))
+
 
 class ImportTestCase:
     def __init__(self, timelines, get_timelines_params, expected_tl, expected_ref_tl):
@@ -282,6 +308,36 @@ class TestGetTimelinesForImport:
             get_timelines_params=(None, "hierarchy1", None, None, "time"),
             expected_tl="hierarchy1",
             expected_ref_tl=None,
+        )
+
+        self.run_test_case(case, tls)
+
+    def test_beat_timeline_by_name(self, tls):
+        case = ImportTestCase(
+            [
+                (TimelineKind.MARKER_TIMELINE, "marker1"),
+                (TimelineKind.MARKER_TIMELINE, "marker2"),
+                (TimelineKind.BEAT_TIMELINE, "beat1"),
+                (TimelineKind.BEAT_TIMELINE, "beat2"),
+            ],
+            (None, "beat1", None, None, "time"),
+            "beat1",
+            None,
+        )
+
+        self.run_test_case(case, tls)
+
+    def test_beat_timeline_by_ordinal(self, tls):
+        case = ImportTestCase(
+            [
+                (TimelineKind.MARKER_TIMELINE, "marker1"),
+                (TimelineKind.MARKER_TIMELINE, "marker2"),
+                (TimelineKind.BEAT_TIMELINE, "beat1"),
+                (TimelineKind.BEAT_TIMELINE, "beat2"),
+            ],
+            (4, None, None, None, "time"),
+            "beat2",
+            None,
         )
 
         self.run_test_case(case, tls)

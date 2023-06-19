@@ -13,7 +13,7 @@ def setup_parser(subparser: _SubParsersAction):
     )
     add_subp.add_argument("--name", "-n", type=str, default="")
     add_subp.add_argument("--height", "-e", type=int, default=None)
-    add_subp.add_argument("--beat-pattern", "-b", type=int, nargs="+", default=4)
+    add_subp.add_argument("--beat-pattern", "-b", type=int, nargs="+", default=[4])
     add_subp.set_defaults(func=add)
 
 

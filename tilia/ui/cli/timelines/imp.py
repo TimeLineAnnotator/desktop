@@ -27,6 +27,16 @@ def setup_parser(subparsers: _SubParsersAction):
 
     import_subparsers = import_parser.add_subparsers(dest="tl_kind")
     setup_import_marker_and_hierarchy_parser(import_subparsers)
+    setup_import_beat_parser(import_subparsers)
+
+
+def setup_import_beat_parser(subparser: _SubParsersAction):
+    parser = subparser.add_parser(
+        "beat",
+        help="Import beat timelines",
+        aliases=["b"],
+    )
+    setup_import_file_and_target_args(parser)
 
 
 def setup_import_marker_and_hierarchy_parser(subparser: _SubParsersAction):
@@ -100,6 +110,8 @@ def validate_timelines_for_import(
         raise WrongTimelineForImport(f"{tl} is not a marker timeline")
     elif kind_str == "hierarchy" and tl.KIND != TimelineKind.HIERARCHY_TIMELINE:
         raise WrongTimelineForImport(f"{tl} is not a hierarchy timeline")
+    elif kind_str == "beat" and tl.KIND != TimelineKind.BEAT_TIMELINE:
+        raise WrongTimelineForImport(f"{tl} is not a beat timeline")
 
     if ref_tl and ref_tl.KIND != TimelineKind.BEAT_TIMELINE:
         raise WrongTimelineForImport(f"{ref_tl} is not a beat timeline")
@@ -114,15 +126,21 @@ def import_timeline(namespace):
         namespace.reference_tl_ordinal = None
         namespace.reference_tl_name = None
 
+    tl_kind = namespace.tl_kind
+
+    if tl_kind == "beat":
+        measure_or_time = None
+    else:
+        measure_or_time = namespace.measure_or_time
+
     tl, ref_tl = get_timelines_for_import(
         namespace.target_ordinal,
         namespace.target_name,
         namespace.reference_tl_ordinal,
         namespace.reference_tl_name,
-        namespace.measure_or_time,
+        measure_or_time,
     )
 
-    tl_kind, measure_or_time = namespace.tl_kind, namespace.measure_or_time
     file = Path("".join(namespace.file).strip('"'))
 
     validate_timelines_for_import(tl, ref_tl, tl_kind, measure_or_time)
@@ -141,6 +159,9 @@ def import_timeline(namespace):
             errors = csv.hierarchies_by_measure_from_csv(tl, ref_tl, file)
         else:
             errors = csv.hierarchies_by_time_from_csv(tl, file)
+    elif tl_kind == "beat":
+        tl: BeatTimeline
+        errors = csv.beats_from_csv(tl, file)
 
     if errors:
         io.print(f"Errors: {errors}")

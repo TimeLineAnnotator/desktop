@@ -35,3 +35,15 @@ class TestTimelineAdd:
         assert tl.KIND == TimelineKind.BEAT_TIMELINE
         assert tl.name == "test"
         assert tl.beat_pattern == [1, 2, 3]
+
+    def test_add_beat_timeline_no_beat_pattern_provided(self, tls, cli):
+        cli.run(
+            [
+                "timeline",
+                "add",
+                "beat",
+            ]
+        )
+
+        tl = tls.get_timelines()[0]
+        assert tl.beat_pattern == [4]
