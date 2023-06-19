@@ -30,6 +30,11 @@ class FileManager:
         listen(self, Post.REQUEST_FILE_NEW, self.on_request_new_file)
         listen(
             self,
+            Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH,
+            self.on_import_media_metadata_request,
+        )
+        listen(
+            self,
             Post.REQUEST_SET_MEDIA_METADATA_FIELD,
             self.on_set_media_metadata_field,
         )
@@ -125,6 +130,22 @@ class FileManager:
             self.file.media_metadata.pop(field)
         except KeyError:
             raise MediaMetadataFieldNotFound(f"Field {field} not found.")
+
+    def on_import_media_metadata_request(self, path: Path | str) -> None:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.decoder.JSONDecodeError as err:
+            post(
+                Post.REQUEST_DISPLAY_ERROR,
+                f"Error when parsing file {path}:\n{err}",
+            )
+            return
+        except FileNotFoundError:
+            post(Post.REQUEST_DISPLAY_ERROR, f"File {path} not found.")
+            return
+
+        self.set_media_metadata(MediaMetadata.from_dict(data))
 
     def save(self, data: dict, path: Path | str):
         logger.info("Saving file...")
