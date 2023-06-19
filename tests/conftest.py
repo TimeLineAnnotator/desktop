@@ -221,4 +221,6 @@ def marker_tl(marker_tlui):
 
 @pytest.fixture
 def cli():
-    return CLI()
+    _cli = CLI()
+    yield _cli
+    stop_listening_to_all(_cli)

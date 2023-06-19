@@ -6,7 +6,17 @@ import traceback
 import argparse
 
 from tilia.exceptions import TiliaExit
-from tilia.ui.cli import components, load_media, timelines, run, quit, save, io
+from tilia.requests.post import Post, listen
+from tilia.ui.cli import (
+    components,
+    load_media,
+    timelines,
+    run,
+    quit,
+    save,
+    io,
+    metadata,
+)
 
 
 class CLI:
@@ -16,6 +26,10 @@ class CLI:
         self.setup_parsers()
         self.exception = None
 
+        listen(
+            self, Post.REQUEST_DISPLAY_ERROR, self.on_request_to_display_error
+        )  # ignores error title
+
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
         run.setup_parser(self.subparsers)
@@ -23,6 +37,7 @@ class CLI:
         save.setup_parser(self.subparsers)
         load_media.setup_parser(self.subparsers)
         components.setup_parser(self.subparsers)
+        metadata.setup_parser(self.subparsers)
 
     def launch(self):
         """
@@ -57,3 +72,7 @@ class CLI:
             self.exception = err
             traceback.print_exc()
             return True
+
+    def on_request_to_display_error(self, _, message: str) -> None:
+        """Ignores title and prints error message to output"""
+        io.print(message)
