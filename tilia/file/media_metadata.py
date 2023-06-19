@@ -4,20 +4,20 @@ from tilia import settings
 
 
 class MediaMetadata(OrderedDict):
-    DEFAULT_TITLE = "Untitled"
-    REQUIRED_FIELDS = ["title"]
+    REQUIRED_FIELDS = [("title", "Untitled"), ("notes", "")]
 
-    def __init__(self):
+    def __init__(self, init_default_fields=True):
         super().__init__()
-        for field in self.REQUIRED_FIELDS + settings.get(
-            "media_metadata", "default_fields"
-        ):
-            self[field] = ""
+        for field, value in self.REQUIRED_FIELDS:
+            self[field] = value
 
-        self["title"] = self.DEFAULT_TITLE
+        # should not be initialized if set media metadata directly
+        if init_default_fields:
+            for field in settings.get("media_metadata", "default_fields"):
+                self[field] = ""
 
     @classmethod
     def from_dict(cls, data: dict):
-        metadata = cls()
+        metadata = cls(init_default_fields=False)
         metadata.update(data)
         return metadata
