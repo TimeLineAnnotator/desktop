@@ -100,29 +100,26 @@ class TestTkinterUI:
         # cleanup
         tkui.enabled_dynamic_menus = set()
 
-    def test_on_hierarchy_timeline_kind_instanced(self, tkui):
+    @pytest.mark.parametrize("tlkind", [e.name for e in DynamicMenu])
+    def test_on_timeline_kind_instanced(self, tlkind, tkui):
         assert not tkui.enabled_dynamic_menus
 
-        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
+        tkui._on_timeline_kind_instanced(TimelineKind[tlkind])
 
-        assert tkui.enabled_dynamic_menus == {DynamicMenu.HIERARCHY_TIMELINE}
+        assert tkui.enabled_dynamic_menus == {DynamicMenu[tlkind]}
 
-        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
-        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
+        tkui._on_timeline_kind_instanced(TimelineKind[tlkind])
+        tkui._on_timeline_kind_instanced(TimelineKind[tlkind])
 
-        assert tkui.enabled_dynamic_menus == {DynamicMenu.HIERARCHY_TIMELINE}
+        assert tkui.enabled_dynamic_menus == {DynamicMenu[tlkind]}
 
         # cleanup
         tkui.enabled_dynamic_menus = set()
 
-    def test_on_marker_timeline_kind_uninstanced(self, tkui):
-        tkui._on_timeline_kind_instanced(TimelineKind.MARKER_TIMELINE)
-        tkui._on_timeline_kind_uninstanced(TimelineKind.MARKER_TIMELINE)
-        assert tkui.enabled_dynamic_menus == set()
-
-    def test_on_hierarchy_timeline_kind_uninstanced(self, tkui):
-        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
-        tkui._on_timeline_kind_uninstanced(TimelineKind.HIERARCHY_TIMELINE)
+    @pytest.mark.parametrize("tlkind", DynamicMenu)
+    def test_on_timeline_kind_uninstanced(self, tlkind, tkui):
+        tkui._on_timeline_kind_instanced(tlkind)
+        tkui._on_timeline_kind_uninstanced(tlkind)
         assert tkui.enabled_dynamic_menus == set()
 
     BY_TIME_OR_MEASURE_PATCH_TARGET = (
@@ -311,3 +308,16 @@ class TestTkinterUI:
             post(Post.REQUEST_DISPLAY_ERROR, "", message)
 
         assert showerror_mock.call_args.args[1].count("\n") == 35
+
+    def test_on_menu_import_beats_from_csv(
+        self, tkui, beat_tlui, import_from_csv_patched_environment
+    ):
+        data = "time\n5\n10\n15\n20"
+        with (patch("builtins.open", mock_open(read_data=data)),):
+            tkui.on_import_from_csv(TimelineKind.BEAT_TIMELINE)
+
+            beats = sorted(beat_tlui.timeline.components)
+            assert beats[0].time == 5
+            assert beats[1].time == 10
+            assert beats[2].time == 15
+            assert beats[3].time == 20

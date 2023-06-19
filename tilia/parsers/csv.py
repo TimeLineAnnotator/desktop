@@ -467,4 +467,5 @@ def beats_from_csv(
                 time = params_to_indices["time"]
                 errors.append(f"{time=} | {str(exc)}")
 
+            timeline.recalculate_measures()
         return errors

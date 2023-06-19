@@ -19,6 +19,7 @@ from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
 from ..parsers.csv import (
+    beats_from_csv,
     markers_by_time_from_csv,
     markers_by_measure_from_csv,
     hierarchies_by_time_from_csv,
@@ -99,6 +100,10 @@ class TkinterUI:
                 Post.REQUEST_IMPORT_CSV_HIERARCHIES,
                 partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE),
             ),
+            (
+                Post.REQUEST_IMPORT_CSV_BEATS,
+                partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE),
+            ),
             (Post.REQUEST_DISPLAY_ERROR, dialogs.display_error),
         ]
 
@@ -164,6 +169,7 @@ class TkinterUI:
     tlkind_to_dynamic_menu = {
         TlKind.MARKER_TIMELINE: DynamicMenu.MARKER_TIMELINE,
         TlKind.HIERARCHY_TIMELINE: DynamicMenu.HIERARCHY_TIMELINE,
+        TlKind.BEAT_TIMELINE: DynamicMenu.BEAT_TIMELINE,
     }
 
     def _setup_requests(self):
@@ -354,31 +360,34 @@ class TkinterUI:
         if not timeline:
             return
 
-        time_or_measure = ByTimeOrByMeasure(self.root).ask()
-        if not time_or_measure:
-            return
+        if tlkind == TlKind.BEAT_TIMELINE:
+            time_or_measure = "time"
+        else:
+            time_or_measure = ByTimeOrByMeasure(self.root).ask()
+            if not time_or_measure:
+                return
 
-        if time_or_measure == "measure":
-            if not self.timeline_ui_collection.get_timeline_uis_by_kind(
-                TlKind.BEAT_TIMELINE
-            ):
-                display_error(
-                    "Import from CSV error",
-                    (
-                        "No beat timelines found. Must have a beat timeline if"
-                        " importing by measure."
-                    ),
+            if time_or_measure == "measure":
+                if not self.timeline_ui_collection.get_timeline_uis_by_kind(
+                    TlKind.BEAT_TIMELINE
+                ):
+                    display_error(
+                        "Import from CSV error",
+                        (
+                            "No beat timelines found. Must have a beat timeline if"
+                            " importing by measure."
+                        ),
+                    )
+                    return
+
+                beat_tl = self.timeline_ui_collection.ask_choose_timeline(
+                    "Import components from CSV",
+                    "Choose timeline with measures to be used when importing",
+                    TlKind.BEAT_TIMELINE,
                 )
-                return
 
-            beat_tl = self.timeline_ui_collection.ask_choose_timeline(
-                "Import components from CSV",
-                "Choose timeline with measures to be used when importing",
-                TlKind.BEAT_TIMELINE,
-            )
-
-            if not beat_tl:
-                return
+                if not beat_tl:
+                    return
 
         path = get(
             Get.FILE_PATH_FROM_USER, "Import components", [("CSV files", "*.csv")]
@@ -396,6 +405,7 @@ class TkinterUI:
                 "time": hierarchies_by_time_from_csv,
                 "measure": hierarchies_by_measure_from_csv,
             },
+            TlKind.BEAT_TIMELINE: {"time": beats_from_csv},
         }
 
         if time_or_measure == "time":

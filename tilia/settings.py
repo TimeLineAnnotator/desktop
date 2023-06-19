@@ -36,7 +36,7 @@ DEFAULT_SETTINGS = {
         "line_color": "#000000",
         "line_weight": 3,
     },
-    "beat_timeline": {"display_measure_periodicity": 5},
+    "beat_timeline": {"display_measure_periodicity": 5, "default_height": 30},
     "hierarchy_timeline": {
         "default_height": 120,
         "hierarchy_default_colors": [

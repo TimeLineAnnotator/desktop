@@ -372,7 +372,9 @@ def test_beats_from_csv(beat_tlui):
             Path(),
         )
 
-    beats = sorted(beat_tlui.timeline.components)
+    tl = beat_tlui.timeline
+    tl.beat_pattern = [2]
+    beats = sorted(tl.components)
 
     assert beats[0].time == 5
     assert beats[1].time == 10

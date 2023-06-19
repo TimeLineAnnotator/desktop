@@ -44,6 +44,7 @@ def add_menu_commands(menu: tk.Menu, commands: list[CommandParams]) -> None:
 class DynamicMenu(Enum):
     MARKER_TIMELINE = auto()
     HIERARCHY_TIMELINE = auto()
+    BEAT_TIMELINE = auto()
 
 
 class TkinterUIMenus(tk.Menu):
@@ -60,11 +61,13 @@ class TkinterUIMenus(tk.Menu):
         self.dynamic_menu_to_parent = {
             DynamicMenu.HIERARCHY_TIMELINE: self.timelines_menu,
             DynamicMenu.MARKER_TIMELINE: self.timelines_menu,
+            DynamicMenu.BEAT_TIMELINE: self.timelines_menu,
         }
 
         self.dynamic_menu_to_index = {
             DynamicMenu.HIERARCHY_TIMELINE: 3,
             DynamicMenu.MARKER_TIMELINE: 4,
+            DynamicMenu.BEAT_TIMELINE: 5,
         }
 
     def update_dynamic_menus(self, menus_to_display: Iterable[DynamicMenu]) -> None:
@@ -204,6 +207,20 @@ class TkinterUIMenus(tk.Menu):
 
         add_menu_commands(menu.marker, marker_commands)
         menu.add_cascade(label="Marker", menu=menu.marker, underline=0)
+
+        # ADD BEAT MENU
+        menu.beat = tk.Menu(menu, tearoff=0)
+        beat_commands = [
+            CommandParams(
+                "Import from csv...",
+                Post.REQUEST_IMPORT_CSV_BEATS,
+                {"underline": 0},
+                {},
+            )
+        ]
+
+        add_menu_commands(menu.beat, beat_commands)
+        menu.add_cascade(label="Beat", menu=menu.beat, underline=0)
 
         self.add_cascade(label="Timelines", menu=menu, underline=0)
 

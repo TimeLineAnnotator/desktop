@@ -40,7 +40,7 @@ class BeatTimeline(Timeline):
     DISPLAY_MEASURE_NUMBER_PERIOD = settings.get(
         "beat_timeline", "display_measure_periodicity"
     )
-
+    DEFAULT_HEIGHT = settings.get("beat_timeline", "default_height")
     component_manager: BeatTLComponentManager
 
     def __init__(
@@ -48,7 +48,7 @@ class BeatTimeline(Timeline):
         component_manager: BeatTLComponentManager,
         beat_pattern: list[int],
         name: str = "",
-        height: int = 0,
+        height: Optional[int] = None,
         beats_in_measure: Optional[list[int]] = None,
         measure_numbers: Optional[list[int]] = None,
         measures_to_force_display: Optional[list[int]] = None,
