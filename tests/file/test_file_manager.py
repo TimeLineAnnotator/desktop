@@ -32,7 +32,6 @@ class TestFileManager:
         path = Path(__file__).parent / "test_file.tla"
         tilia.clear_app()
         tilia.file_manager.open(path)
-        tilia.clear_app()
 
     def test_file_not_modified_after_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"
@@ -41,12 +40,18 @@ class TestFileManager:
         assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
 
     def test_add_metadata_field_at_start(self, file_manager):
+        previous_fields = list(file_manager.file.media_metadata)
         post(Post.REQUEST_ADD_MEDIA_METADATA_FIELD, "newfield", 0)
         assert list(file_manager.file.media_metadata)[0] == "newfield"
+        assert list(file_manager.file.media_metadata)[1:] == previous_fields
 
     def test_add_metadata_field_at_middle(self, file_manager):
+        previous_fields = list(file_manager.file.media_metadata)
         post(Post.REQUEST_ADD_MEDIA_METADATA_FIELD, "newfield", 2)
+        result = list(file_manager.file.media_metadata)
         assert list(file_manager.file.media_metadata)[2] == "newfield"
+        result.pop(2)
+        assert result == previous_fields
 
     def test_set_metadata_field(self, file_manager):
         post(Post.REQUEST_SET_MEDIA_METADATA_FIELD, "title", "new title")
