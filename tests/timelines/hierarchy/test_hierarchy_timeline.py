@@ -1,10 +1,8 @@
 import pytest
-from unittest.mock import MagicMock
 import itertools
 import logging
 
 from tilia.exceptions import InvalidComponentKindError
-from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.components import HierarchyOperationError
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
@@ -206,21 +204,12 @@ class TestHierarchyTimeline:
 
 
 class TestHierarchyTimelineComponentManager:
-    # TEST CREATE COMPONENT
-    def test_create_component(self):
-        timeline_mock = MagicMock()
-        timeline_mock.get_media_length.return_value = 100
-
-        component_manager = HierarchyTLComponentManager()
-        component_manager.timeline = timeline_mock
-        hunit = component_manager.create_component(
-            ComponentKind.HIERARCHY, timeline=MagicMock(), start=0, end=1, level=1
-        )
-        assert hunit
-
+    def test_create_invalid_component_kind_raises_error(self, tl):
         with pytest.raises(InvalidComponentKindError):
             # noinspection PyTypeChecker
-            component_manager.create_component("INVALID KIND", start=0, end=1, level=1)
+            tl.component_manager.create_component(
+                "INVALID KIND", start=0, end=1, level=1
+            )
 
     def test_create_unit_below(self, tl):
         parent = tl.create_hierarchy(start=0, end=1, level=3)
