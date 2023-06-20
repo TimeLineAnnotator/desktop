@@ -93,7 +93,7 @@ def tkui(tk_session):
 
 
 # noinspection PyProtectedMember
-@pytest.fixture(scope="module")
+@pytest.fixture
 def tilia(tkui):
     tilia_ = setup_logic()
     tilia_.clear_app()  # undo blank file setup
