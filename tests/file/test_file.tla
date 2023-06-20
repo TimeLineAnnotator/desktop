@@ -16,7 +16,8 @@
         "genre": "",
         "lyrics": "",
         "audio_length": "",
-        "notes": ""
+        "notes": "",
+        "media length": 100
     },
     "timelines": {
         "0": {
