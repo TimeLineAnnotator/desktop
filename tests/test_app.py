@@ -79,7 +79,9 @@ class TestApp:
             media_loader_mock().load.assert_called_with(Path(path))
             app.file_manager.set_media_path.assert_called_with(path)
 
-    def test_load_file_sets_length_correctly_when_no_media_found(self, app):
+    def test_load_file_sets_length_correctly_when_no_media_found_at_given_path(
+        self, app
+    ):
         def load_mock(*_):
             raise FileNotFoundError
 
@@ -96,6 +98,19 @@ class TestApp:
             app.load_file(file)
 
         app.file_manager.set_media_path.assert_called_with("")
+        app.player.media_length == 101
+
+    def test_load_file_sets_length_correctly_when_no_media_path(self, app):
+        metadata = MediaMetadata()
+        metadata["media length"] = 101
+        file = TiliaFile(
+            media_metadata=metadata,
+        )
+        with patch("tilia.app.App.setup_blank_file"), patch(
+            "tilia.app.App.reset_undo_manager"
+        ):
+            app.load_file(file)
+
         app.player.media_length == 101
 
     def test_on_request_to_set_media_length(self, app):

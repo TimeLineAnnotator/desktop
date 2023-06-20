@@ -110,6 +110,9 @@ class App:
             )
             return
 
+        self.set_media_length(length)
+
+    def set_media_length(self, length: int) -> None:
         self.player.media_length = length
         self.file_manager.set_media_metadata({"media length": length})
 
@@ -154,9 +157,12 @@ class App:
                     title="Media load error",
                     message=f"{file.media_path} was not found. Load another media via File > Load media...",
                 )
-                self.player.media_length = file.media_metadata["media length"]
                 self.file_manager.set_media_path("")
-                self
+                if media_length := file.media_metadata["media length"]:
+                    self.set_media_length(media_length)
+
+        if media_length := file.media_metadata["media length"]:
+            self.set_media_length(media_length)
 
         self.timeline_collection.deserialize_timelines(file.timelines)
         self.setup_blank_file()
