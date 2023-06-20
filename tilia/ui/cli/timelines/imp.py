@@ -11,6 +11,7 @@ from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli import io
+import time
 
 
 def setup_parser(subparsers: _SubParsersAction):
@@ -104,7 +105,7 @@ def validate_timelines_for_import(
     tl: Timeline,
     ref_tl: Optional[Timeline],
     kind_str: Literal["marker", "hierarchy"],
-    measure_or_time: Literal["measure", "time"],
+    by: Literal["by-measure", "by-time"],
 ) -> None:
     if kind_str == "marker" and tl.KIND != TimelineKind.MARKER_TIMELINE:
         raise WrongTimelineForImport(f"{tl} is not a marker timeline")
@@ -116,7 +117,7 @@ def validate_timelines_for_import(
     if ref_tl and ref_tl.KIND != TimelineKind.BEAT_TIMELINE:
         raise WrongTimelineForImport(f"{ref_tl} is not a beat timeline")
 
-    if measure_or_time == "measure" and not ref_tl:
+    if by == "by-measure" and not ref_tl:
         raise ValueError("Reference beat timeline is required for importing by measure")
 
 
@@ -149,16 +150,24 @@ def import_timeline(namespace):
     errors = None
     if tl_kind == "marker":
         tl: MarkerTimeline
-        if measure_or_time == "measure":
+        if measure_or_time == "by-measure":
             errors = csv.markers_by_measure_from_csv(tl, ref_tl, file)
-        else:
+        elif measure_or_time == "by-time":
             errors = csv.markers_by_time_from_csv(tl, file)
+        else:
+            raise ValueError(
+                f"Unknown value: {measure_or_time}. Should be 'measure' or 'time'"
+            )
     elif tl_kind == "hierarchy":
         tl: HierarchyTimeline
-        if measure_or_time == "measure":
+        if measure_or_time == "by-measure":
             errors = csv.hierarchies_by_measure_from_csv(tl, ref_tl, file)
-        else:
+        elif measure_or_time == "by-time":
             errors = csv.hierarchies_by_time_from_csv(tl, file)
+        else:
+            raise ValueError(
+                f"Unknown value: {measure_or_time}. Should be 'measure' or 'time'"
+            )
     elif tl_kind == "beat":
         tl: BeatTimeline
         errors = csv.beats_from_csv(tl, file)
@@ -172,11 +181,11 @@ def get_timelines_for_import(
     target_name: str,
     reference_ordinal: int | None,
     reference_name: str | None,
-    measure_or_time: Literal["measure", "time"],
+    measure_or_time: Literal["by-measure", "by-time"],
 ) -> Tuple[Timeline, Timeline | None]:
     target_tl = get_timeline_for_import(target_ordinal, target_name)
 
-    if measure_or_time == "measure":
+    if measure_or_time == "by-measure":
         reference_tl = get_timeline_for_import(reference_ordinal, reference_name)
         return target_tl, reference_tl
     else:
