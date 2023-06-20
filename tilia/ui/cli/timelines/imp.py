@@ -147,27 +147,24 @@ def import_timeline(namespace):
     validate_timelines_for_import(tl, ref_tl, tl_kind, measure_or_time)
     ref_tl: BeatTimeline | None
 
+    if measure_or_time and measure_or_time not in ["by-measure", "by-time"]:
+        raise ValueError(
+            f"Unknown value: {measure_or_time}. Should be 'by-measure' or 'by-time'"
+        )
+
     errors = None
     if tl_kind == "marker":
         tl: MarkerTimeline
         if measure_or_time == "by-measure":
             errors = csv.markers_by_measure_from_csv(tl, ref_tl, file)
-        elif measure_or_time == "by-time":
-            errors = csv.markers_by_time_from_csv(tl, file)
         else:
-            raise ValueError(
-                f"Unknown value: {measure_or_time}. Should be 'measure' or 'time'"
-            )
+            errors = csv.markers_by_time_from_csv(tl, file)
     elif tl_kind == "hierarchy":
         tl: HierarchyTimeline
         if measure_or_time == "by-measure":
             errors = csv.hierarchies_by_measure_from_csv(tl, ref_tl, file)
-        elif measure_or_time == "by-time":
-            errors = csv.hierarchies_by_time_from_csv(tl, file)
         else:
-            raise ValueError(
-                f"Unknown value: {measure_or_time}. Should be 'measure' or 'time'"
-            )
+            errors = csv.hierarchies_by_time_from_csv(tl, file)
     elif tl_kind == "beat":
         tl: BeatTimeline
         errors = csv.beats_from_csv(tl, file)

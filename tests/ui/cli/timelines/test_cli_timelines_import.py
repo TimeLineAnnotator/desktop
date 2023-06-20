@@ -36,7 +36,7 @@ class TestImportTimeline:
             target_name="target_name",
             reference_tl_ordinal=2,
             reference_tl_name="ref_name",
-            measure_or_time="measure",
+            measure_or_time="by-measure",
             tl_kind="marker",
             file="test.csv",
         )
@@ -54,7 +54,9 @@ class TestImportTimeline:
             ) as parse_mock,
         ):
             import_timeline(namespace)
-            get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "measure")
+            get_tls_mock.assert_called_with(
+                1, "target_name", 2, "ref_name", "by-measure"
+            )
             parse_mock.assert_called_once_with(tl, ref_tl, Path("test.csv"))
 
     def test_markers_by_time(self):
@@ -63,7 +65,7 @@ class TestImportTimeline:
             target_name="target_name",
             reference_tl_ordinal=2,
             reference_tl_name="ref_name",
-            measure_or_time="time",
+            measure_or_time="by-time",
             tl_kind="marker",
             file="test.csv",
         )
@@ -80,7 +82,7 @@ class TestImportTimeline:
             ) as parse_mock,
         ):
             import_timeline(namespace)
-            get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "time")
+            get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "by-time")
             parse_mock.assert_called_once_with(tl, Path("test.csv"))
 
     def test_hierarchies_by_measure(self):
@@ -89,7 +91,7 @@ class TestImportTimeline:
             target_name="target_name",
             reference_tl_ordinal=2,
             reference_tl_name="ref_name",
-            measure_or_time="measure",
+            measure_or_time="by-measure",
             tl_kind="hierarchy",
             file="test.csv",
         )
@@ -107,7 +109,9 @@ class TestImportTimeline:
             ) as parse_mock,
         ):
             import_timeline(namespace)
-            get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "measure")
+            get_tls_mock.assert_called_with(
+                1, "target_name", 2, "ref_name", "by-measure"
+            )
             parse_mock.assert_called_once_with(tl, ref_tl, Path("test.csv"))
 
     def test_hierarchies_by_time(self):
@@ -116,7 +120,7 @@ class TestImportTimeline:
             target_name="target_name",
             reference_tl_ordinal=2,
             reference_tl_name="ref_name",
-            measure_or_time="time",
+            measure_or_time="by-time",
             tl_kind="hierarchy",
             file="test.csv",
         )
@@ -134,7 +138,7 @@ class TestImportTimeline:
             ) as parse_mock,
         ):
             import_timeline(namespace)
-            get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "time")
+            get_tls_mock.assert_called_with(1, "target_name", 2, "ref_name", "by-time")
             parse_mock.assert_called_once_with(tl, Path("test.csv"))
 
     def test_beats(self):
@@ -200,7 +204,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            (2, None, None, None, "time"),
+            (2, None, None, None, "by-time"),
             "marker2",
             None,
         )
@@ -215,7 +219,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            get_timelines_params=(None, "marker1", None, None, "time"),
+            get_timelines_params=(None, "marker1", None, None, "by-time"),
             expected_tl="marker1",
             expected_ref_tl=None,
         )
@@ -230,7 +234,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            get_timelines_params=(2, None, 4, None, "measure"),
+            get_timelines_params=(2, None, 4, None, "by-measure"),
             expected_tl="marker2",
             expected_ref_tl="beat2",
         )
@@ -245,7 +249,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            get_timelines_params=(None, "marker1", None, "beat1", "measure"),
+            get_timelines_params=(None, "marker1", None, "beat1", "by-measure"),
             expected_tl="marker1",
             expected_ref_tl="beat1",
         )
@@ -260,7 +264,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            get_timelines_params=(None, "marker1", 3, None, "measure"),
+            get_timelines_params=(None, "marker1", 3, None, "by-measure"),
             expected_tl="marker1",
             expected_ref_tl="beat1",
         )
@@ -275,7 +279,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            get_timelines_params=(2, None, None, "beat1", "measure"),
+            get_timelines_params=(2, None, None, "beat1", "by-measure"),
             expected_tl="marker2",
             expected_ref_tl="beat1",
         )
@@ -290,7 +294,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            (2, None, None, None, "time"),
+            (2, None, None, None, "by-time"),
             "hierarchy2",
             None,
         )
@@ -305,7 +309,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            get_timelines_params=(None, "hierarchy1", None, None, "time"),
+            get_timelines_params=(None, "hierarchy1", None, None, "by-time"),
             expected_tl="hierarchy1",
             expected_ref_tl=None,
         )
@@ -320,7 +324,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            (None, "beat1", None, None, "time"),
+            (None, "beat1", None, None, "by-time"),
             "beat1",
             None,
         )
@@ -335,7 +339,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            (4, None, None, None, "time"),
+            (4, None, None, None, "by-time"),
             "beat2",
             None,
         )
@@ -350,7 +354,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            get_timelines_params=(99, None, None, None, "time"),
+            get_timelines_params=(99, None, None, None, "by-time"),
             expected_tl=None,
             expected_ref_tl=None,
         )
@@ -366,7 +370,7 @@ class TestGetTimelinesForImport:
                 (TimelineKind.BEAT_TIMELINE, "beat1"),
                 (TimelineKind.BEAT_TIMELINE, "beat2"),
             ],
-            get_timelines_params=(None, "wrong name", None, None, "time"),
+            get_timelines_params=(None, "wrong name", None, None, "by-time"),
             expected_tl=None,
             expected_ref_tl=None,
         )
@@ -379,19 +383,19 @@ class TestValidateTimelinesForImport:
     def test_tl_of_wrong_type_when_importing_marker_tl_raises_error(self, tls):
         tl = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
         with pytest.raises(WrongTimelineForImport):
-            validate_timelines_for_import(tl, None, "marker", "time")
+            validate_timelines_for_import(tl, None, "marker", "by-time")
 
     def test_tl_of_wrong_type_when_importing_hierarchy_tl_raises_error(self, tls):
         tl = tls.create_timeline(TimelineKind.MARKER_TIMELINE)
         with pytest.raises(WrongTimelineForImport):
-            validate_timelines_for_import(tl, None, "hierarchy", "time")
+            validate_timelines_for_import(tl, None, "hierarchy", "by-time")
 
     def test_ref_tl_of_wrong_type_raises_error(self, tls):
         tl = tls.create_timeline(TimelineKind.MARKER_TIMELINE)
         with pytest.raises(WrongTimelineForImport):
-            validate_timelines_for_import(tl, tl, "marker", "time")
+            validate_timelines_for_import(tl, tl, "marker", "by-time")
 
     def test_no_ref_tl_when_importing_by_measure_raises_error(self, tls):
         tl = tls.create_timeline(TimelineKind.MARKER_TIMELINE)
         with pytest.raises(ValueError):
-            validate_timelines_for_import(tl, None, "marker", "measure")
+            validate_timelines_for_import(tl, None, "marker", "by-measure")
