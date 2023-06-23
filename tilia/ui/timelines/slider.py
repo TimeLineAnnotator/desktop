@@ -116,8 +116,8 @@ class SliderTimelineUI(TimelineUI):
         logger.debug(f"Dragging {self} trough...")
         self.dragging = True
 
-        max_x = get(Get.LEFT_MARGIN_X)
-        min_x = get(Get.RIGHT_MARGIN_X)
+        max_x = get(Get.RIGHT_MARGIN_X)
+        min_x = get(Get.LEFT_MARGIN_X)
 
         drag_x = x
         if x > max_x:
