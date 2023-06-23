@@ -66,11 +66,6 @@ class App:
 
         logger.info("App started.")
 
-        if settings.get("dev", "dev_mode"):
-            from tilia import _dev
-
-            _dev.run(self)
-
     def __str__(self):
         return default_str(self)
 
