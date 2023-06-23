@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from tilia.clipboard import Clipboard
     from tilia.undo_manager import UndoManager
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -33,11 +32,11 @@ class MediaType(Enum):
 
 class App:
     def __init__(
-        self,
-        player: Player,
-        file_manager: FileManager,
-        clipboard: Clipboard,
-        undo_manager: UndoManager,
+            self,
+            player: Player,
+            file_manager: FileManager,
+            clipboard: Clipboard,
+            undo_manager: UndoManager,
     ):
         logger.info("TiLia starting...")
 
@@ -129,7 +128,7 @@ class App:
         logging.disable(logging.NOTSET)
 
     def on_request_to_record_state(
-        self, action: Action, no_repeat=False, repeat_identifier=""
+            self, action: Action, no_repeat=False, repeat_identifier=""
     ):
         self.undo_manager.record(
             self.get_app_state(),

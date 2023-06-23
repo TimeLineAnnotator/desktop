@@ -11,7 +11,7 @@ from tilia.ui.cli import (
     components,
     load_media,
     timelines,
-    run,
+    script,
     quit,
     save,
     io,
@@ -32,12 +32,12 @@ class CLI:
 
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
-        run.setup_parser(self.subparsers)
         quit.setup_parser(self.subparsers)
         save.setup_parser(self.subparsers)
         load_media.setup_parser(self.subparsers)
         components.setup_parser(self.subparsers)
         metadata.setup_parser(self.subparsers)
+        script.setup_parser(self.subparsers, self.run)
 
     def launch(self):
         """
