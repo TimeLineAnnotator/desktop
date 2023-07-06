@@ -5,6 +5,7 @@ import tkinter as tk
 from tilia import settings
 from tilia.requests import Post, post
 from tilia.ui import player
+from tilia.ui.timelines.common import TimelineCanvas
 from tilia.ui.widgets import CheckboxItem
 
 
@@ -34,7 +35,7 @@ class ScrollableFrame(tk.Frame):
 
     def __init__(self, parent) -> None:
         super().__init__(parent)
-        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0, bg=TimelineCanvas.DEFAULT_BG)
         self.frame = tk.Frame(self.canvas)
         self.vsb = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
