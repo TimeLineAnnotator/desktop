@@ -6,9 +6,11 @@ from __future__ import annotations
 
 import tkinter as tk
 import logging
+from enum import Enum
 
 from typing import TYPE_CHECKING, TypedDict, Optional
 
+from ..drag import DragManager
 from ... import coords
 from ...windows.inspect import HIDE_FIELD
 
@@ -26,7 +28,6 @@ from tilia.requests import (
     get,
     Get,
 )
-from tilia.enums import StartOrEnd
 from ..copy_paste import CopyAttributes
 from ..timeline import RightClickOption
 from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
@@ -41,11 +42,11 @@ from tilia.ui.timelines.common import TimelineUIElement
 logger = logging.getLogger(__name__)
 
 
-class DragData(TypedDict):
-    extremity: StartOrEnd
-    max_x: int
-    min_x: int
-    x: Optional[int]
+class Extremity(Enum):
+    START = "start"
+    END = "end"
+    PRE_START = 'pre_start'
+    POST_END = 'post_end'
 
 
 class HierarchyUI(TimelineUIElement):
@@ -118,12 +119,12 @@ class HierarchyUI(TimelineUIElement):
     FULL_NAME_SEPARATOR = "-"
 
     def __init__(
-        self,
-        id: str,
-        timeline_ui: HierarchyTimelineUI,
-        canvas: tk.Canvas,
-        color: str = "",
-        **_,
+            self,
+            id: str,
+            timeline_ui: HierarchyTimelineUI,
+            canvas: tk.Canvas,
+            color: str = "",
+            **_,
     ):
         super().__init__(id=id, timeline_ui=timeline_ui, canvas=canvas)
 
@@ -143,20 +144,16 @@ class HierarchyUI(TimelineUIElement):
         self.pre_start_ind_id = None
         self.post_end_ind_id = None
 
-        self.drag_data: DragData = {
-            "extremity": StartOrEnd.START,
-            "max_x": 0,
-            "min_x": 0,
-            "x": 0,
-        }
+        self.dragged = False
+        self.drag_extremity = None
 
     @classmethod
     def create(
-        cls,
-        id: str,
-        timeline_ui: HierarchyTimelineUI,
-        canvas: TimelineCanvas,
-        **kwargs,
+            cls,
+            id: str,
+            timeline_ui: HierarchyTimelineUI,
+            canvas: TimelineCanvas,
+            **kwargs,
     ) -> HierarchyUI:
         return HierarchyUI(id, timeline_ui, canvas, **kwargs)
 
@@ -410,8 +407,8 @@ class HierarchyUI(TimelineUIElement):
         self.canvas.itemconfig(self.label_id, text=self.display_label)
 
     def update_markers_position(self):
-        self.canvas.coords(self.start_marker, *self.get_marker_coords(StartOrEnd.START))
-        self.canvas.coords(self.end_marker, *self.get_marker_coords(StartOrEnd.END))
+        self.canvas.coords(self.start_marker, *self.get_marker_coords(Extremity.START))
+        self.canvas.coords(self.end_marker, *self.get_marker_coords(Extremity.END))
 
     def update_pre_start_position(self):
         self.update_pre_start_existence()
@@ -501,7 +498,7 @@ class HierarchyUI(TimelineUIElement):
         start_marker = self.timeline_ui.get_markerid_at_x(self.start_x)
         if not start_marker:
             logger.debug(f"No marker at start_x '{self.start_x}'. Drawing new marker.")
-            start_marker = self.draw_marker(StartOrEnd.START)
+            start_marker = self.draw_marker(Extremity.START)
         else:
             logger.debug(f"Got existing marker '{start_marker}' as start marker.")
             self.canvas.tag_raise(start_marker, self.body_id)
@@ -509,14 +506,14 @@ class HierarchyUI(TimelineUIElement):
         end_marker = self.timeline_ui.get_markerid_at_x(self.end_x)
         if not end_marker:
             logger.debug(f"No marker at end_x '{self.start_x}'. Drawing new marker.")
-            end_marker = self.draw_marker(StartOrEnd.END)
+            end_marker = self.draw_marker(Extremity.END)
         else:
             logger.debug(f"Got existing marker '{end_marker}' as end marker.")
             self.canvas.tag_raise(end_marker, self.body_id)
 
         return start_marker, end_marker
 
-    def draw_marker(self, marker_extremity: StartOrEnd):
+    def draw_marker(self, marker_extremity: Extremity):
         return self.canvas.create_rectangle(
             *self.get_marker_coords(marker_extremity),
             outline="black",
@@ -578,9 +575,9 @@ class HierarchyUI(TimelineUIElement):
 
         x0 = self.start_x + self.XOFFSET
         y0 = (
-            tl_height
-            - self.YOFFSET
-            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
+                tl_height
+                - self.YOFFSET
+                - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
         )
         x1 = self.end_x - self.XOFFSET
 
@@ -592,9 +589,9 @@ class HierarchyUI(TimelineUIElement):
 
         x0 = self.start_x + self.XOFFSET
         y0 = (
-            tl_height
-            - self.YOFFSET
-            - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
+                tl_height
+                - self.YOFFSET
+                - (self.BASE_HEIGHT + ((self.level - 1) * self.LVL_HEIGHT_INCR))
         )
         x1 = self.end_x - self.XOFFSET
 
@@ -625,13 +622,13 @@ class HierarchyUI(TimelineUIElement):
         stop_listening_to_all(self)
 
     def get_marker_coords(
-        self, marker_extremity: StartOrEnd
+            self, marker_extremity: Extremity
     ) -> tuple[float, float, float, float]:
         draw_h = self.timeline_ui.height - self.MARKER_YOFFSET
 
-        if marker_extremity == StartOrEnd.START:
+        if marker_extremity == Extremity.START:
             marker_x = self.start_x
-        elif marker_extremity == StartOrEnd.END:
+        elif marker_extremity == Extremity.END:
             marker_x = self.end_x
         else:
             raise ValueError(
@@ -698,111 +695,75 @@ class HierarchyUI(TimelineUIElement):
 
     def _get_extremity_from_marker_id(self, marker_id: int):
         if marker_id == self.start_marker:
-            return StartOrEnd.START
+            return Extremity.START
         elif marker_id == self.end_marker:
-            return StartOrEnd.END
+            return Extremity.END
         else:
             raise ValueError(
                 f"Can't get extremity: '{marker_id} is not marker id in {self}"
             )
 
-    def make_marker_drag_data(self, extremity: StartOrEnd):
+    def make_marker_drag_data(self, extremity: Extremity):
         logger.debug(f"{self} is preparing to drag {extremity} marker...")
-        min_x, max_x = self.get_drag_limit(extremity)
-        self.drag_data = {
-            "extremity": extremity,
-            "max_x": max_x,
-            "min_x": min_x,
-            "x": None,
-        }
 
     def start_marker_drag(self, marker_id: int) -> None:
-        extremity = self._get_extremity_from_marker_id(marker_id)
-        self.make_marker_drag_data(extremity)
-        listen(self, Post.TIMELINE_LEFT_BUTTON_DRAG, self.drag_marker)
-        listen(self, Post.TIMELINE_LEFT_BUTTON_RELEASE, self.end_marker_drag)
+        self.drag_extremity = self._get_extremity_from_marker_id(marker_id)
+        min_x, max_x = self.get_drag_limit(self.drag_extremity)
+        post(Post.ELEMENT_DRAG_START)
+        DragManager(
+            get_min_x=lambda: min_x,
+            get_max_x=lambda: max_x,
+            before_each=self.before_each_drag,
+            after_each=self.after_each_drag,
+            on_release=self.on_drag_end,
+        )
 
-    def get_drag_limit(self, extremity: StartOrEnd) -> tuple[int, int]:
+    def get_reference_x_for_drag(self, extremity: Extremity):
         logger.debug(f"Getting drag limitis for {extremity} marker.")
-        if extremity == StartOrEnd.START:
+
+        if extremity == Extremity.START:
             reference_x = self.start_x
-        elif extremity == StartOrEnd.END:
+        elif extremity == Extremity.END:
             reference_x = self.end_x
         else:
             raise ValueError(f"Extremity must be StartOrEnd. Got {extremity}")
 
-        previous_marker_x = self.timeline_ui.get_previous_marker_x_by_x(reference_x)
-        next_marker_x = self.timeline_ui.get_next_marker_x_by_x(reference_x)
+        return reference_x
 
-        if previous_marker_x:
-            min_x = previous_marker_x + self.DRAG_PROXIMITY_LIMIT
-            logger.debug(
-                "Miniminum x is previous marker's x (plus drag proximity limit), which"
-                f" is '{min_x}'"
-            )
-        else:
-            min_x = get(Get.LEFT_MARGIN_X)
-            logger.debug(
-                "There is no previous marker. Miniminum x is timeline's padx, which is"
-                f" '{min_x}'"
-            )
+    def get_drag_limit(self, extremity: Extremity) -> tuple[int, int]:
+        reference_x = self.get_reference_x_for_drag(extremity)
+        prev_mrk_x = self.timeline_ui.get_previous_marker_x_by_x(reference_x)
+        nxt_mrk_x = self.timeline_ui.get_next_marker_x_by_x(reference_x)
 
-        if next_marker_x:
-            max_x = next_marker_x - self.DRAG_PROXIMITY_LIMIT
-            logger.debug(
-                "Maximum x is next marker's x (plus drag proximity limit) , which is"
-                f" '{max_x}'"
-            )
-        else:
-            max_x = get(Get.RIGHT_MARGIN_X)
-            logger.debug(
-                "There is no next marker. Maximum x is end of playback line, which is"
-                f" '{max_x}'"
-            )
+        min_x = prev_mrk_x + self.DRAG_PROXIMITY_LIMIT if prev_mrk_x else get(Get.LEFT_MARGIN_X)
+        max_x = nxt_mrk_x - self.DRAG_PROXIMITY_LIMIT if nxt_mrk_x else get(Get.RIGHT_MARGIN_X)
 
         return min_x, max_x
 
-    def drag_marker(self, x: int, _) -> None:
-        if self.drag_data["x"] is None:
-            post(Post.ELEMENT_DRAG_START)
+    def before_each_drag(self):
+        self.dragged = True
 
-        drag_x = x
-
-        if x > self.drag_data["max_x"]:
-            logger.debug(
-                "Mouse is beyond right drag limit. Dragging to max"
-                f" x='{self.drag_data['max_x']}'"
-            )
-            drag_x = self.drag_data["max_x"]
-        elif x < self.drag_data["min_x"]:
-            logger.debug(
-                "Mouse is beyond left drag limit. Dragging to min"
-                f" x='{self.drag_data['min_x']}'"
-            )
-            drag_x = self.drag_data["min_x"]
-        else:
-            logger.debug(f"Dragging to x='{x}'.")
-
+    def after_each_drag(self, x: int) -> None:
         # update timeline component value
         setattr(
             self.tl_component,
-            self.drag_data["extremity"].value,
-            coords.get_time_by_x(drag_x),
+            self.drag_extremity.value,
+            coords.get_time_by_x(x),
         )
-
-        self.drag_data["x"] = drag_x
         self.update_position()
 
-    def end_marker_drag(self):
-        if self.drag_data["x"] is not None:
-            logger.debug(f"Dragged {self}. New x is {self.drag_data['x']}")
+    def on_drag_end(self):
+        if self.dragged:
+            drag_x = getattr(self, self.drag_extremity.value)
             post(
                 Post.REQUEST_RECORD_STATE,
                 "hierarchy drag",
                 no_repeat=True,
-                repeat_identifier=f'{self.timeline_ui}_drag_to_{self.drag_data["x"]}',
+                repeat_identifier=f'{self.timeline_ui}_drag_to_{drag_x}',
             )
             post(Post.ELEMENT_DRAG_END)
+            self.dragged = False
+            self.drag_extremity = None
 
         if self.pre_start_ind_id:
             self.delete_pre_start_indicator()
@@ -810,108 +771,43 @@ class HierarchyUI(TimelineUIElement):
         if self.post_end_ind_id:
             self.delete_post_end_indicator()
 
-        self.drag_data = {}
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_DRAG)
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_RELEASE)
-
     def start_pre_start_drag(self) -> None:
-        self.make_pre_start_drag_data()
-        listen(self, Post.TIMELINE_LEFT_BUTTON_DRAG, self.drag_pre_start)
-        listen(self, Post.TIMELINE_LEFT_BUTTON_RELEASE, self.end_pre_start_drag)
+        self.drag_extremity = Extremity.PRE_START
+        post(Post.ELEMENT_DRAG_START)
+        DragManager(
+            get_min_x=lambda: get(Get.LEFT_MARGIN_X),
+            get_max_x=lambda: self.start_x,
+            before_each=self.before_each_drag,
+            after_each=self.after_each_frame_drag,
+            on_release=self.on_frame_drag_end,
+        )
 
     def start_post_end_drag(self) -> None:
-        self.make_post_end_drag_data()
-        listen(self, Post.TIMELINE_LEFT_BUTTON_DRAG, self.drag_post_end)
-        listen(self, Post.TIMELINE_LEFT_BUTTON_RELEASE, self.end_post_end_drag)
+        self.drag_extremity = Extremity.POST_END
+        post(Post.ELEMENT_DRAG_START)
+        DragManager(
+            get_min_x=lambda: self.end_x,
+            get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
+            before_each=self.before_each_drag,
+            after_each=self.after_each_frame_drag,
+            on_release=self.on_frame_drag_end,
+        )
 
-    def make_pre_start_drag_data(self):
-        logger.debug(f"{self} is preparing to drag playback start...")
-        self.drag_data = {
-            "max_x": self.start_x,
-            "min_x": get(Get.LEFT_MARGIN_X),
-            "x": None,
-        }
-
-    def make_post_end_drag_data(self):
-        logger.debug(f"{self} is preparing to drag playback start...")
-        self.drag_data = {
-            "max_x": get(Get.RIGHT_MARGIN_X),
-            "min_x": self.end_x,
-            "x": None,
-        }
-
-    def drag_pre_start(self, x: int, _) -> None:
-        if self.drag_data["x"] is None:
-            post(Post.ELEMENT_DRAG_START)
-
-        drag_x = x
-
-        if x > self.drag_data["max_x"]:
-            logger.debug("Mouse is beyond right drag limit. Deleting pre-start.'")
-            self.tl_component.pre_start = self.tl_component.start
-            self.end_pre_start_drag()
-            self.update_pre_start_position()
-            return
-        elif x < self.drag_data["min_x"]:
-            logger.debug(
-                "Mouse is beyond left drag limit. "
-                f"Dragging to min x='{self.drag_data['min_x']}'"
-            )
-            drag_x = self.drag_data["min_x"]
-        else:
-            logger.debug(f"Dragging to x='{x}'.")
-
+    def after_each_frame_drag(self, x: int):
         # update timeline component value
-        self.tl_component.pre_start = coords.get_time_by_x(drag_x)
+        setattr(
+            self.tl_component,
+            self.drag_extremity.value,
+            coords.get_time_by_x(x),
+        )
+        self.update_position()
 
-        self.drag_data["x"] = drag_x
-        self.update_pre_start_position()
-
-    def drag_post_end(self, x: int, _) -> None:
-        if self.drag_data["x"] is None:
-            post(Post.ELEMENT_DRAG_START)
-
-        drag_x = x
-
-        if x > self.drag_data["max_x"]:
-            logger.debug(
-                "Mouse is beyond right drag limit. "
-                f"Dragging to max x='{self.drag_data['max_x']}.'"
-            )
-            drag_x = self.drag_data["max_x"]
-        elif x < self.drag_data["min_x"]:
-            logger.debug("Mouse is beyond left drag limit. Deleting post-end'")
-            self.tl_component.post_end = self.tl_component.end
-            self.end_post_end_drag()
-            self.update_post_end_position()
-            return
-
-        else:
-            logger.debug(f"Dragging to x='{x}'.")
-
-        # update timeline component value
-        self.tl_component.post_end = coords.get_time_by_x(drag_x)
-
-        self.drag_data["x"] = drag_x
-        self.update_post_end_position()
-
-    def end_pre_start_drag(self):
-        if self.drag_data["x"] is not None:
-            logger.debug(f"Dragged {self} pre-start. New x is {self.drag_data['x']}")
-            post(Post.REQUEST_RECORD_STATE, "hierarchy pre-start drag")
+    def on_frame_drag_end(self):
+        if self.dragged:
+            post(Post.REQUEST_RECORD_STATE, f"hierarchy {self.drag_extremity} drag")
             post(Post.ELEMENT_DRAG_END)
-        self.drag_data = {}
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_DRAG)
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_RELEASE)
-
-    def end_post_end_drag(self):
-        if self.drag_data["x"] is not None:
-            logger.debug(f"Dragged {self} post-end. New x is {self.drag_data['x']}")
-            post(Post.REQUEST_RECORD_STATE, "hierarchy post-end drag")
-            post(Post.ELEMENT_DRAG_END)
-        self.drag_data = {}
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_DRAG)
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_RELEASE)
+            self.dragged = False
+            self.drag_extremity = None
 
     def on_select(self) -> None:
         self.display_as_selected()

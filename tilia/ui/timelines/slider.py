@@ -8,10 +8,10 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import coords
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia import settings
-from tilia.requests import Post, listen, stop_listening
+from tilia.requests import Post, listen
 from tilia.timelines.base.component import TimelineComponent
 from tilia.ui.timelines.timeline import TimelineUI, TimelineUIElementManager
-
+from tilia.ui.timelines.drag import DragManager
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class SliderTimelineUI(TimelineUI):
         elif item_id == self.line:
             logger.debug("Line was cliked. Nothing to do.")
         elif item_id == self.trough:
-            self.prepare_to_drag()
+            self.setup_drag()
 
         logger.debug(f"Processed click on {self}.")
 
@@ -107,42 +107,27 @@ class SliderTimelineUI(TimelineUI):
             self.height / 2 + self.LINE_WEIGHT / 2,
         )
 
-    def prepare_to_drag(self):
-        listen(self, Post.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
-        listen(self, Post.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
+    def setup_drag(self) -> None:
         post(Post.SLIDER_DRAG_START)
+        DragManager(
+            get_min_x=lambda: get(Get.LEFT_MARGIN_X),
+            get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
+            before_each=self.before_each_drag,
+            after_each=self.after_each_drag,
+            on_release=self.on_drag_end,
+        )
 
-    def drag(self, x: int, _) -> None:
-        logger.debug(f"Dragging {self} trough...")
+    def before_each_drag(self):
         self.dragging = True
 
-        max_x = get(Get.RIGHT_MARGIN_X)
-        min_x = get(Get.LEFT_MARGIN_X)
-
-        drag_x = x
-        if x > max_x:
-            logger.debug(
-                f"Mouse is beyond right drag limit. Dragging to max x='{max_x}'"
-            )
-            drag_x = max_x
-        elif x < min_x:
-            logger.debug(
-                f"Mouse is beyond left drag limit. Dragging to min x='{min_x}'"
-            )
-            drag_x = min_x
-        else:
-            logger.debug(f"Dragging to x='{drag_x}'.")
-
-        self.x = drag_x
+    def after_each_drag(self, x: int):
+        self.x = x
         post(Post.PLAYER_REQUEST_TO_SEEK, coords.get_time_by_x(self._x))
         self._update_trough_position()
 
-    def end_drag(self):
-        logger.debug(f"Ending drag of {self}.")
+    def on_drag_end(self):
+        post(Post.PLAYER_REQUEST_TO_SEEK, coords.get_time_by_x(self._x))  # maybe not necessary
         self.dragging = False
-        post(Post.PLAYER_REQUEST_TO_SEEK, coords.get_time_by_x(self._x))
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_DRAG)
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_RELEASE)
         post(Post.SLIDER_DRAG_END)
 
     def on_audio_time_change(self, time: float) -> None:
@@ -172,3 +157,6 @@ class SliderTimelineUI(TimelineUI):
 
     def __str__(self):
         return "Slider Timeline"
+
+
+

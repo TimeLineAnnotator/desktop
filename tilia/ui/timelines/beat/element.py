@@ -6,9 +6,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from tilia.requests import Post, listen, stop_listening, stop_listening_to_all, post
+from tilia.requests import Post, stop_listening_to_all, post, Get, get
 from tilia.timelines.state_actions import Action
 from ..copy_paste import CopyAttributes
+from ..drag import DragManager
 from ..timeline import RightClickOption
 from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
 from ...common import format_media_time
@@ -76,7 +77,7 @@ class BeatUI(TimelineUIElement):
         self._label = ""
         self.label_id = self.draw_label()
 
-        self.drag_data = {}
+        self.dragged = False
         self.is_first_in_measure = False
 
     def __str__(self) -> str:
@@ -206,9 +207,7 @@ class BeatUI(TimelineUIElement):
         return (self.beat_proper_id,)
 
     def on_left_click(self, _) -> None:
-        self.make_drag_data()
-        listen(self, Post.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
-        listen(self, Post.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
+        self.setup_drag()
 
     @property
     def double_left_click_triggers(self) -> tuple[int, ...]:
@@ -227,59 +226,42 @@ class BeatUI(TimelineUIElement):
         )
         self.timeline_ui.listen_for_uielement_rightclick_options(self)
 
-    def make_drag_data(self):
-        self.drag_data = {
-            "max_x": self.get_drag_right_limit(),
-            "min_x": self.get_drag_left_limit(),
-            "dragged": False,
-            "x": None,
-        }
+    def setup_drag(self):
+        post(Post.ELEMENT_DRAG_START)
+        DragManager(
+            get_min_x=self.get_drag_left_limit,
+            get_max_x=self.get_drag_right_limit,
+            before_each=self.before_each_drag,
+            after_each=self.after_each_drag,
+            on_release=self.on_drag_end,
+        )
 
     def get_drag_left_limit(self):
         previous_beat = self.timeline_ui.get_previous_beat(self)
         if not previous_beat:
-            return self.timeline_ui.get_left_margin_x() + self.DRAG_PROXIMITY_LIMIT
+            return get(Get.LEFT_MARGIN_X)
         return get_x_by_time(previous_beat.time) + self.DRAG_PROXIMITY_LIMIT
 
     def get_drag_right_limit(self):
         next_beat = self.timeline_ui.get_next_beat(self)
         if not next_beat:
-            return self.timeline_ui.get_right_margin_x() - self.DRAG_PROXIMITY_LIMIT
+            return get(Get.RIGHT_MARGIN_X)
         return get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
 
-    def drag(self, x: int, _) -> None:
-        if self.drag_data["x"] is None:
-            post(Post.ELEMENT_DRAG_START)
+    def before_each_drag(self):
+        self.dragged = True
 
-        drag_x = x
-        if x > self.drag_data["max_x"]:
-            logger.debug(
-                "Mouse is beyond right drag limit. Dragging to max"
-                f" x='{self.drag_data['max_x']}'"
-            )
-            drag_x = self.drag_data["max_x"]
-        elif x < self.drag_data["min_x"]:
-            logger.debug(
-                "Mouse is beyond left drag limit. Dragging to min"
-                f" x='{self.drag_data['min_x']}'"
-            )
-            drag_x = self.drag_data["min_x"]
-
+    def after_each_drag(self, drag_x: int):
         self.tl_component.time = get_time_by_x(drag_x)
-
-        self.drag_data["x"] = drag_x
         self.update_position()
 
-    def end_drag(self):
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_DRAG)
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_RELEASE)
-
-        if self.drag_data["x"] is not None:
+    def on_drag_end(self):
+        if self.dragged:
             logger.debug(f"Dragged {self}. New x is {self.x}")
             post(Post.REQUEST_RECORD_STATE, Action.BEAT_DRAG)
             post(Post.ELEMENT_DRAG_END)
 
-        self.drag_data = {}
+        self.dragged = False
 
     def on_select(self) -> None:
         self.display_as_selected()

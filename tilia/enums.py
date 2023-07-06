@@ -3,11 +3,6 @@ from __future__ import annotations
 from enum import Enum
 
 
-class StartOrEnd(Enum):
-    START = "start"
-    END = "end"
-
-
 class InOrOut(Enum):
     IN = 1
     OUT = -1

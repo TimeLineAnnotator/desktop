@@ -8,9 +8,10 @@ import logging
 import tkinter as tk
 
 import tilia.utils.color
-from tilia.requests import Post, listen, stop_listening, stop_listening_to_all, post
+from tilia.requests import Post, listen, stop_listening, stop_listening_to_all, post, get, Get
 from tilia.timelines.state_actions import Action
 from ..copy_paste import CopyAttributes
+from ..drag import DragManager
 from ..timeline import RightClickOption
 from ...common import format_media_time
 from ...coords import get_x_by_time, get_time_by_x
@@ -71,7 +72,7 @@ class MarkerUI(TimelineUIElement):
         self.marker_proper_id = self.draw_unit()
         self.label_id = self.draw_label()
 
-        self.drag_data = {}
+        self.dragged = None
 
     def __str__(self) -> str:
         try:
@@ -199,9 +200,7 @@ class MarkerUI(TimelineUIElement):
         return (self.marker_proper_id,)
 
     def on_left_click(self, _) -> None:
-        self.make_drag_data()
-        listen(self, Post.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
-        listen(self, Post.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
+        self.setup_drag()
 
     @property
     def right_click_triggers(self) -> tuple[int, ...]:
@@ -213,46 +212,30 @@ class MarkerUI(TimelineUIElement):
         )
         self.timeline_ui.listen_for_uielement_rightclick_options(self)
 
-    def make_drag_data(self):
-        self.drag_data = {
-            "max_x": self.timeline_ui.get_right_margin_x(),
-            "min_x": self.timeline_ui.get_left_margin_x(),
-            "dragged": False,
-            "x": None,
-        }
-
-    def drag(self, x: int, _) -> None:
-        if self.drag_data["x"] is None:
-            post(Post.ELEMENT_DRAG_START)
-
-        drag_x = x
-        if x > self.drag_data["max_x"]:
-            logger.debug(
-                "Mouse is beyond right drag limit. Dragging to max"
-                f" x='{self.drag_data['max_x']}'"
-            )
-            drag_x = self.drag_data["max_x"]
-        elif x < self.drag_data["min_x"]:
-            logger.debug(
-                "Mouse is beyond left drag limit. Dragging to min"
-                f" x='{self.drag_data['min_x']}'"
-            )
-            drag_x = self.drag_data["min_x"]
-
+    def setup_drag(self) -> None:
+        post(Post.SLIDER_DRAG_START)
+        DragManager(
+            get_min_x=lambda: get(Get.LEFT_MARGIN_X),
+            get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
+            before_each=self.before_each_drag,
+            after_each=self.after_each_drag,
+            on_release=self.on_drag_end,
+        )
+        
+    def before_each_drag(self):
+        self.dragged = True
+    
+    def after_each_drag(self, drag_x: int):    
         self.tl_component.time = get_time_by_x(drag_x)
-
-        self.drag_data["x"] = drag_x
         self.update_position()
 
-    def end_drag(self):
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_DRAG)
-        stop_listening(self, Post.TIMELINE_LEFT_BUTTON_RELEASE)
-        if self.drag_data["x"] is not None:
+    def on_drag_end(self):
+        if self.dragged:
             logger.debug(f"Dragged {self}. New x is {self.x}")
             post(Post.REQUEST_RECORD_STATE, Action.MARKER_DRAG)
             post(Post.ELEMENT_DRAG_END)
 
-        self.drag_data = {}
+        self.dragged = False
 
     def on_select(self) -> None:
         self.display_as_selected()
