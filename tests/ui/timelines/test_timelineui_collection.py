@@ -78,8 +78,8 @@ class TestTimelineUICollection:
 
         tl2 = tls.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test2")
 
-        tlui1 = tluis.get_timeline_ui_by_id(tl1.id)
-        tlui2 = tluis.get_timeline_ui_by_id(tl2.id)
+        tlui1 = tluis.get_timeline_ui(tl1.id)
+        tlui2 = tluis.get_timeline_ui(tl2.id)
 
         assert tluis._select_order[0] == tlui2
 

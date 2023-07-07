@@ -345,7 +345,7 @@ class TkinterUI:
             logger.debug("User cancelled media load.")
 
     def on_import_from_csv(self, tlkind: TlKind) -> None:
-        if not self.timeline_ui_collection.get_timeline_uis_by_kind(tlkind):
+        if not self.timeline_ui_collection.get_timeline_uis_by_attr('TIMELINE_KIND', tlkind):
             display_error(
                 "Import from CSV error",
                 f"No timelines of type '{tlkind}' found.",
@@ -368,7 +368,8 @@ class TkinterUI:
                 return
 
             if time_or_measure == "measure":
-                if not self.timeline_ui_collection.get_timeline_uis_by_kind(
+                if not self.timeline_ui_collection.get_timeline_uis_by_attr(
+                    'TIMELINE_KIND',
                     TlKind.BEAT_TIMELINE
                 ):
                     display_error(
@@ -421,8 +422,3 @@ class TkinterUI:
                 "Some components were not imported. The following errors occured:\n"
                 + errors_str,
             )
-
-    def get_timeline_ui_attribute_by_id(self, id_: int, attribute: str) -> Any:
-        return self.timeline_ui_collection.get_timeline_ui_attribute_by_id(
-            id_, attribute
-        )

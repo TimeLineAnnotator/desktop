@@ -5,6 +5,7 @@ from tests.mock import PatchGet, PatchPost
 from tilia.requests import post, Post, Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.menus import DynamicMenu
+from tilia.ui.timelines.collection import TimelineUIs
 from tilia.ui.windows import WindowKind
 
 
@@ -22,37 +23,25 @@ class TiliaDummy:
 def import_from_csv_patched_environment(marker_tlui, beat_tlui, hierarchy_tlui):
     """
     Patches the following functions:
-        - TimelineUIs.get_timeline_uis_by_kind
         - TimelineUIs.ask_choose_timeline
         - TimelineUIs.get (for Get.TILIA_FILE_PATH_FROM_USER)
-
-    get_timeline_uis_by_kind will return the matching fixtures, either marker_tlui,
-    beat_tlui or hierarchy_tlui. ask_choose_timeline will use those fixtures
-    to return the appropriate timeline.
     """
 
-    def get_by_kind(kind):
+    def ask_choose_timeline_mock(_1, _2, _3, kind):
         if kind == TimelineKind.MARKER_TIMELINE:
-            return [marker_tlui]
+            return marker_tlui.timeline
         elif kind == TimelineKind.BEAT_TIMELINE:
-            return [beat_tlui]
+            return beat_tlui.timeline
         elif kind == TimelineKind.HIERARCHY_TIMELINE:
-            return [hierarchy_tlui]
+            return hierarchy_tlui.timeline
         else:
             raise ValueError
 
-    def get_timeline_uis_mock(
-        _, kind
-    ):  # ignoring self, which will get implicitly passed
-        return get_by_kind(kind)
-
-    def ask_choose_timeline_mock(self, _1, _2, kind):
-        return get_timeline_uis_mock(self, kind)[0].timeline
-
-    tlui_coll_path = "tilia.ui.timelines.collection.TimelineUIs"
     with (
-        patch(tlui_coll_path + ".get_timeline_uis_by_kind", get_timeline_uis_mock),
-        patch(tlui_coll_path + ".ask_choose_timeline", ask_choose_timeline_mock),
+        patch(
+            "tilia.ui.timelines.collection.TimelineUIs.ask_choose_timeline",
+            ask_choose_timeline_mock
+        ),
     ):
         with PatchGet(
             "tilia.ui.tkinterui", Get.FILE_PATH_FROM_USER, "****"

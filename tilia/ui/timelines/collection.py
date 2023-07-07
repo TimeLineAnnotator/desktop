@@ -70,7 +70,7 @@ class TimelineUIs:
         return self.__class__.__name__ + "-" + str(id(self))
 
     def __iter__(self):
-        return iter(sorted(self._timeline_uis))
+        return iter(self._timeline_uis)
 
     def __getitem__(self, item):
         return sorted(self._timeline_uis)[item]
@@ -259,23 +259,15 @@ class TimelineUIs:
 
         return tl_ui
 
-    def get_timeline_ui(self, tl_kind: TimelineKind, tl_id: int) -> TimelineUI:
-        """Presupposes timeline ui of 'tl_kind' and with 'tl_id' exists"""
-        tluis_of_kind = self.get_timeline_uis_by_kind(tl_kind)
-        try:
-            return next(tlui for tlui in tluis_of_kind if tlui.timeline.id == tl_id)
-        except StopIteration:
-            raise TimelineUINotFound("No timeline UI with id=" + tl_id)
-
     def on_timeline_component_created(
-        self, tl_kind: TimelineKind, tl_id: int, component_id: int
+        self, _: TimelineKind, tl_id: int, component_id: int
     ):
-        self.get_timeline_ui(tl_kind, tl_id).on_timeline_component_created(component_id)
+        self.get_timeline_ui(tl_id).on_timeline_component_created(component_id)
 
     def on_timeline_component_deleted(
-        self, tl_kind: TimelineKind, tl_id: int, component_id: int
+        self, _: TimelineKind, tl_id: int, component_id: int
     ):
-        self.get_timeline_ui(tl_kind, tl_id).on_timeline_component_deleted(component_id)
+        self.get_timeline_ui(tl_id).on_timeline_component_deleted(component_id)
 
     def delete_timeline_ui(self, timeline_ui: TimelineUI):
         """Deletes given timeline ui. To be called by Timelines
@@ -328,8 +320,8 @@ class TimelineUIs:
         self._select_order.insert(0, tl_ui)
 
     def on_timeline_order_swapped(self, id1: str, id2: str):
-        tl_ui1 = self.get_timeline_ui_by_id(id1)
-        tl_ui2 = self.get_timeline_ui_by_id(id2)
+        tl_ui1 = self.get_timeline_ui(id1)
+        tl_ui2 = self.get_timeline_ui(id2)
 
         for tl_ui in [tl_ui1, tl_ui2]:
             if tl_ui.is_visible:
@@ -419,9 +411,6 @@ class TimelineUIs:
             iter(toolbar for toolbar in self._toolbars if type(toolbar) == type_)
         )
 
-    def _get_timeline_ui_by_canvas(self, canvas):
-        return next((tlui for tlui in self if tlui.canvas == canvas), None)
-
     def _get_toolbar_by_type(self, canvas):
         return next(
             (toolbar for toolbar in self._toolbars if toolbar.canvas == canvas), None
@@ -438,7 +427,7 @@ class TimelineUIs:
         root_y: int,
         **_,  # ignores the double argument
     ) -> None:
-        clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
+        clicked_timeline_ui = self.get_timeline_ui_by_attr('canvas', canvas)
 
         if clicked_timeline_ui:
             logger.debug(
@@ -467,7 +456,7 @@ class TimelineUIs:
         modifier: ModifierEnum,
         double: bool,
     ) -> None:
-        clicked_timeline_ui = self._get_timeline_ui_by_canvas(canvas)
+        clicked_timeline_ui = self.get_timeline_ui_by_attr('canvas', canvas)
 
         if modifier == ModifierEnum.NONE:
             self.deselect_all_elements_in_timeline_uis(excluding=clicked_timeline_ui)
@@ -507,7 +496,8 @@ class TimelineUIs:
             """
             Extends the selection box to the timeline below the current one
             """
-            curr_timeline_ord = self._get_timeline_ui_by_canvas(
+            curr_timeline_ord = self.get_timeline_ui_by_attr(
+                'canvas',
                 self.selection_boxes[-1].canvas
             ).ordinal
 
@@ -515,18 +505,18 @@ class TimelineUIs:
                 # no more timelines below
                 return
 
-            next_timeline = get(Get.TIMELINE_BY_ATTR, "ordinal", curr_timeline_ord + 1)
+            next_timeline_ui = self.get_timeline_ui_by_attr('ordinal', curr_timeline_ord + 1)
 
             self.selection_boxes.append(
                 SelectionBox(
-                    next_timeline.canvas,
+                    next_timeline_ui.canvas,
                     [self.selection_boxes[-1].upper_left[0], -1],
                     self.next_sbx_boundary_below * -1,
                 )
             )
 
         def create_selection_box_above():
-            curr_timeline_ord = self._get_timeline_ui_by_canvas(
+            curr_timeline_ord = self.get_timeline_ui_by_attr('canvas',
                 self.selection_boxes[-1].canvas
             ).ordinal
 
@@ -534,17 +524,17 @@ class TimelineUIs:
                 # no more timelines above
                 return
 
-            next_timeline = get(Get.TIMELINE_BY_ATTR, "ordinal", curr_timeline_ord - 1)
+            next_timeline_ui = self.get_timeline_ui_by_attr('ordinal', curr_timeline_ord - 1)
 
             self.selection_boxes.append(
                 SelectionBox(
-                    next_timeline.canvas,
+                    next_timeline_ui.canvas,
                     [
                         self.selection_boxes[-1].upper_left[0],
-                        next_timeline.canvas.winfo_height(),
+                        next_timeline_ui.canvas.winfo_height(),
                     ],
                     sum([sbx.canvas.winfo_height() for sbx in self.selection_boxes][1:])
-                    + next_timeline.canvas.winfo_height(),
+                    + next_timeline_ui.canvas.winfo_height(),
                 )
             )
 
@@ -582,7 +572,7 @@ class TimelineUIs:
     def on_selection_box_request_select(
         self, canvas: tk.Canvas, canvas_item_id: int
     ) -> None:
-        timeline_ui = self._get_timeline_ui_by_canvas(canvas)
+        timeline_ui = self.get_timeline_ui_by_attr('canvas', canvas)
 
         try:
             element = timeline_ui.get_clicked_element(canvas_item_id)[0]
@@ -605,7 +595,7 @@ class TimelineUIs:
     def on_selection_box_request_deselect(
         self, canvas: tk.Canvas, canvas_item_id: int
     ) -> None:
-        timeline_ui = self._get_timeline_ui_by_canvas(canvas)
+        timeline_ui = self.get_timeline_ui_by_attr('canvas', canvas)
 
         try:
             element = timeline_ui.get_clicked_element(canvas_item_id)[0]
@@ -799,7 +789,7 @@ class TimelineUIs:
         self.timeline_toolbar_button_record(button)
 
     def timeline_toolbar_button_call_on_all(self, kind: TlKind, button: str):
-        for tlui in self.get_timeline_uis_by_kind(kind):
+        for tlui in self.get_timeline_uis_by_attr('TIMELINE_KIND', kind):
             tlui.action_to_callback[button]()
 
     def timeline_toolbar_button_call_on_first(self, kind: TlKind, button: str):
@@ -849,9 +839,6 @@ class TimelineUIs:
             )
 
             post(Post.REQUEST_RECORD_STATE, Action.CREATE_BEAT)
-
-    def get_timeline_uis_by_kind(self, kind: TlKind):
-        return [tl for tl in self._timeline_uis if tl.TIMELINE_KIND == kind]
 
     def get_first_from_select_order_by_kind(self, classes: list[TlKind]) -> TimelineUI:
         for tl_ui in self._select_order:
@@ -929,7 +916,7 @@ class TimelineUIs:
         )
 
     def on_create_initial_hierarchy(self, timeline_id: str) -> None:
-        tlui = self.get_timeline_ui_by_id(timeline_id)
+        tlui = self.get_timeline_ui(timeline_id)
         tlui.canvas.tag_raise(self._timeline_uis_to_playback_line_ids[tlui])
 
     def deselect_all_elements_in_timeline_uis(self, excluding: TimelineUI):
@@ -967,28 +954,31 @@ class TimelineUIs:
                 "There are still timelines of the same kind. Do not delete toolbar."
             )
 
-    def get_timeline_ui_attribute_by_id(self, id_: int, attribute: str) -> Any:
-        timeline = self._get_timeline_ui_by_id(id_)
-        return getattr(timeline, attribute)
-
-    def _get_timeline_ui_by_id(self, id_: int) -> TimelineUI:
-        return next((e for e in self if e.timeline.id == id_), None)
-
     def get_timeline_uis(self):
         return sorted(list(self._timeline_uis))
 
-    def get_timeline_ui_by_id(self, id: str) -> TimelineUI:
-        return next(tlui for tlui in self._timeline_uis if tlui.id == id)
+    def get_timeline_ui(self, tl_id: int) -> TimelineUI:
+        """Presupposes timeline ui of 'tl_kind' and with 'tl_id' exists"""
+        try:
+            return next(tlui for tlui in self if tlui.id == tl_id)
+        except StopIteration:
+            raise TimelineUINotFound("No timeline UI with id=" + tl_id)
+
+    def get_timeline_ui_by_attr(self, attr: str, value: Any) -> TimelineUI | None:
+        return next((tlui for tlui in self if getattr(tlui, attr) == value), None)
+
+    def get_timeline_uis_by_attr(self, attr: str, value: Any) -> [TimelineUI]:
+        return [tlui for tlui in self if getattr(tlui, attr) == value]
 
     def on_request_to_delete_timeline(self, id_: int) -> None:
-        timeline_ui = self._get_timeline_ui_by_id(id_)
+        timeline_ui = self.get_timeline_ui(id_)
         if dialogs.ask_delete_timeline(str(timeline_ui)):
             post(Post.REQUEST_TIMELINE_DELETE, timeline_ui.id)
 
         post(Post.REQUEST_RECORD_STATE, Action.TIMELINE_DELETE)
 
     def on_request_to_clear_timeline(self, id_: int) -> None:
-        timeline_ui = self._get_timeline_ui_by_id(id_)
+        timeline_ui = self.get_timeline_ui(id_)
         if dialogs.ask_clear_timeline(str(timeline_ui)):
             post(Post.REQUEST_TIMELINE_CLEAR, timeline_ui.id)
 
@@ -1035,7 +1025,7 @@ class TimelineUIs:
         return chosen_tlui.timeline
 
     def on_request_to_hide_timeline(self, id_: int) -> None:
-        timeline_ui = self._get_timeline_ui_by_id(id_)
+        timeline_ui = self.get_timeline_ui(id_)
         logger.debug(f"User requested to hide timeline {timeline_ui}")
         if not timeline_ui.is_visible:
             logger.debug("Timeline is already hidden.")
@@ -1044,7 +1034,7 @@ class TimelineUIs:
             self.hide_timeline_ui(timeline_ui)
 
     def on_request_to_show_timeline(self, id_: int) -> None:
-        timeline_ui = self._get_timeline_ui_by_id(id_)
+        timeline_ui = self.get_timeline_ui(id_)
         logger.debug(f"User requested to show timeline {timeline_ui}")
         if timeline_ui.is_visible:
             logger.debug("Timeline is already visible.")
@@ -1075,7 +1065,7 @@ class TimelineUIs:
             Post.BEAT_UPDATED: BeatTlUI.on_beat_position_change,
         }
 
-        tlui = self.get_timeline_ui(tl_kind, tl_id)
+        tlui = self.get_timeline_ui(tl_id)
 
         event_to_callback[event](tlui, component_id, *args, **kwargs)
 
@@ -1085,7 +1075,7 @@ class TimelineUIs:
         event_to_callback = {
             Post.HIERARCHIES_DESERIALIZED: HrcTlUI.rearrange_canvas_drawings,
         }
-        tlui = self.get_timeline_ui_by_id(tl_id)
+        tlui = self.get_timeline_ui(tl_id)
 
         event_to_callback[event](tlui, *args, **kwargs)
 
@@ -1093,7 +1083,7 @@ class TimelineUIs:
         self.create_timeline_ui(kind, id)
 
     def on_timeline_deleted(self, id: str):
-        self.delete_timeline_ui(self.get_timeline_ui_by_id(id))
+        self.delete_timeline_ui(self.get_timeline_ui(id))
 
 
 def change_playback_line_x(

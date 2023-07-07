@@ -147,7 +147,7 @@ def beat_tlui(tls, tluis) -> BeatTimelineUI:
     with PatchGet("tilia.timelines.collection", Get.BEAT_PATTERN_FROM_USER, [4]):
         tl: BeatTimeline = tls.create_timeline(TlKind.BEAT_TIMELINE)
 
-    ui = tluis.get_timeline_ui_by_id(tl.id)
+    ui = tluis.get_timeline_ui(tl.id)
 
     yield ui  # will be deleted by tls
 
@@ -177,7 +177,7 @@ def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
         return tl.component_manager._update_genealogy(parent, children)
 
     tl: HierarchyTimeline = tls.create_timeline(TlKind.HIERARCHY_TIMELINE)
-    ui = tluis.get_timeline_ui_by_id(tl.id)
+    ui = tluis.get_timeline_ui(tl.id)
 
     # remove initial hierarchy
     tl.clear()
@@ -195,7 +195,7 @@ def hierarchy_tl(hierarchy_tlui):
 @pytest.fixture
 def marker_tlui(tls, tluis) -> MarkerTimelineUI:
     tl: MarkerTimeline = tls.create_timeline(TlKind.MARKER_TIMELINE)
-    ui = tluis.get_timeline_ui_by_id(tl.id)
+    ui = tluis.get_timeline_ui(tl.id)
 
     def create_marker(*args, **kwargs):
         component = tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
