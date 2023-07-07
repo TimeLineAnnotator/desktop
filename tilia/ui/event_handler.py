@@ -49,9 +49,27 @@ def get_click_event_params(event: tk.Event) -> tuple[tk.Canvas, int, int, int | 
     return canvas, canvas_x, canvas_y, id
 
 
+def on_b1_motion(event: tk.Event) -> None:
+    """
+    Triggered when dragging with left click
+    """
+    if not isinstance(event.widget, tk.Canvas):
+        return
+
+    post(
+        Post.TIMELINE_LEFT_BUTTON_DRAG,
+        event.widget.canvasx(event.x),
+        event.widget.canvasy(event.y),
+        logging_level=5,
+    )
+
+
 def on_motion(event: tk.Event) -> None:
     """Sets cursor based on hovered canvas item tags.
     Ignores items tagged with TRANSPARENT"""
+    if not isinstance(event.widget, tk.Canvas):
+        return
+
     item_id = get_click_event_params(event)[3]
 
     if not item_id:
@@ -86,12 +104,7 @@ DEFAULT_CANVAS_BINDINGS = [
     ),
     (
         "<B1-Motion>",
-        lambda e: post(
-            Post.TIMELINE_LEFT_BUTTON_DRAG,
-            e.widget.canvasx(e.x),
-            e.widget.canvasy(e.y),
-            logging_level=5,
-        ),
+        on_b1_motion
     ),
     ("<Motion>", on_motion),
     (
@@ -152,6 +165,8 @@ DEFAULT_CANVAS_BINDINGS = [
 
 def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     """Handles mouse click"""
+    if not isinstance(event.widget, tk.Canvas):
+        return
 
     post(
         Post.CANVAS_LEFT_CLICK,
@@ -162,6 +177,9 @@ def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
 
 
 def on_right_click(event: tk.Event, modifier: ModifierEnum, double: bool):
+    if not isinstance(event.widget, tk.Canvas):
+        return
+
     post(
         Post.CANVAS_RIGHT_CLICK,
         *get_click_event_params(event),
