@@ -79,13 +79,17 @@ class SliderTimelineUI(TimelineUI):
     def _update_line_position(self) -> None:
         self.canvas.coords(self.line, *self.get_line_coords())
 
+    def get_line_coords(self) -> tuple:
+        x1 = get(Get.LEFT_MARGIN_X)
+        x2 = get(Get.RIGHT_MARGIN_X)
+        y = self.height / 2
+        return x1, y, x2, y
+
     def get_trough_coords(self) -> tuple:
-        return (
-            self._x - self.TROUGH_RADIUS,
-            self.height / 2 - (self.TROUGH_RADIUS * 2 - self.LINE_WEIGHT) / 2,
-            self._x + self.TROUGH_RADIUS,
-            self.height / 2 + (self.LINE_WEIGHT + self.TROUGH_RADIUS * 2) / 2,
-        )
+        r = self.TROUGH_RADIUS
+        mid_y = self.height / 2
+        x = self._x
+        return x - r, mid_y - r, x + r, mid_y + r
 
     def on_left_click(self, item_id: int, modifier: ModifierEnum, double: bool) -> None:
         logger.debug(f"Processing click on {self}...")
@@ -98,14 +102,6 @@ class SliderTimelineUI(TimelineUI):
             self.setup_drag()
 
         logger.debug(f"Processed click on {self}.")
-
-    def get_line_coords(self) -> tuple:
-        return (
-            get(Get.LEFT_MARGIN_X),
-            self.height / 2 + self.LINE_WEIGHT / 2,
-            get(Get.RIGHT_MARGIN_X),
-            self.height / 2 + self.LINE_WEIGHT / 2,
-        )
 
     def setup_drag(self) -> None:
         post(Post.SLIDER_DRAG_START)
