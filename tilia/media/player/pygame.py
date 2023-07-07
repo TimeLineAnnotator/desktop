@@ -158,6 +158,7 @@ class PygamePlayer(Player):
 
     def _engine_unload_media(self):
         pygame.mixer.music.unload()
+        self.playback_offset = 0.0
 
     def _engine_get_media_length(self) -> float:
         return pygame.mixer.Sound(self.media_path).get_length()
