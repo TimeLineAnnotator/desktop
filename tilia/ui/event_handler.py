@@ -123,10 +123,6 @@ DEFAULT_CANVAS_BINDINGS = [
     ("<Button-4>", lambda _: post(Post.REQUEST_ZOOM_IN)),
     ("<Button-5>", lambda _: post(Post.REQUEST_ZOOM_OUT)),
     # -- KEYBOARD BINDINGS -- #
-    (
-        "<Control-D>",
-        lambda _: post(Post.DEBUG_SELECTED_ELEMENTS),
-    ),
     ("<Delete>", lambda _: post(Post.KEY_PRESS_DELETE)),
     ("<Return>", lambda _: post(Post.KEY_PRESS_ENTER)),
     ("<Left>", lambda _: post(Post.KEY_PRESS_LEFT)),
