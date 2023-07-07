@@ -108,7 +108,7 @@ class App:
 
     def set_media_length(self, length: int) -> None:
         self.player.media_length = length
-        self.file_manager.set_media_metadata({"media length": length})
+        self.file_manager.set_media_duration(length)
 
     def on_request_to_load_media(self, path: str) -> None:
         self.player = MediaLoader(self.player).load(Path(path))
