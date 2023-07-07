@@ -120,6 +120,7 @@ class Player(ABC):
         self.media_path = ""
         self.playing = False
         logger.info("Media unloaded succesfully.")
+        post(Post.PLAYER_MEDIA_UNLOADED)
 
     def toggle_play(self):
         """Plays or pauses the current song.

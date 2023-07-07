@@ -11,12 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 class PlayerUI(tk.Frame):
+    INITIAL_TIME_DISPLAY = "00:00.0/00:00.0"
+
     def __init__(self, parent):
         logger.debug("Creating PlayerUI...")
         super().__init__(parent)
 
         listen(self, Post.PLAYER_MEDIA_TIME_CHANGE, self.on_new_audio_time)
         listen(self, Post.PLAYER_MEDIA_LOADED, self.on_media_load)
+        listen(self, Post.PLAYER_MEDIA_UNLOADED, self.on_media_unload)
         listen(self, Post.PLAYER_STOPPED, self.on_player_stop)
         listen(self, Post.PLAYER_PAUSED, lambda: self.change_playpause_icon("play"))
         listen(self, Post.PLAYER_UNPAUSED, lambda: self.change_playpause_icon("pause"))
@@ -59,7 +62,7 @@ class PlayerUI(tk.Frame):
         self.stop_btn.grid(row=0, column=4, padx=10)
 
         # Create song time indicator
-        self.time_label = tk.Label(self, text="00:00/00:00")
+        self.time_label = tk.Label(self, text=self.INITIAL_TIME_DISPLAY)
         self.time_label.pack(side=tk.RIGHT, padx=5, pady=5)
 
         logger.debug("Created PlayerUI.")
@@ -95,6 +98,9 @@ class PlayerUI(tk.Frame):
     def on_media_load(self, _1, _2, playback_length: float, _3) -> None:
         self.media_length_str = format_media_time(playback_length)
         self.time_label.config(text=f"0:00:00/{self.media_length_str}")
+
+    def on_media_unload(self) -> None:
+        self.time_label.config(text=self.INITIAL_TIME_DISPLAY)
 
     def destroy(self):
         tk.Frame.destroy(self)
