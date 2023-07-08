@@ -117,6 +117,7 @@ class MarkerUI(TimelineUIElement):
     @label.setter
     def label(self, value):
         self.tl_component.label = value
+        self.update_label()
 
     @property
     def color(self):
@@ -139,7 +140,7 @@ class MarkerUI(TimelineUIElement):
         return self.marker_proper_id, self.label_id
 
     def update_label(self):
-        self.canvas.itemconfig(self.label_id, text=self.color)
+        self.canvas.itemconfig(self.label_id, text=self.label)
 
     def update_color(self):
         self.canvas.itemconfig(self.marker_proper_id, fill=self.color)
