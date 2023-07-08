@@ -130,7 +130,7 @@ def ask_delete_timeline(timeline_str: str) -> bool | None:
 def ask_clear_timeline(timeline_str: str) -> bool | None:
     return tk.messagebox.askyesno(
         "Delete timeline",
-        f"Are you sure you want to clear timeline {timeline_str: str}?",
+        f"Are you sure you want to clear timeline {timeline_str}?",
     )
 
 
