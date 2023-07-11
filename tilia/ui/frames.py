@@ -35,7 +35,7 @@ class ScrollableFrame(tk.Frame):
 
     def __init__(self, parent) -> None:
         super().__init__(parent)
-        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0, bg=TimelineCanvas.DEFAULT_BG)
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0, bg='light gray')
         self.frame = tk.Frame(self.canvas)
         self.vsb = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
