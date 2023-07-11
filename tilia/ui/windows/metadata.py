@@ -1,5 +1,7 @@
+import sys
 import tkinter as tk
 from tkinter import scrolledtext as tk_scrolledtext
+import tkinter.font as tk_font
 
 import logging
 from collections import OrderedDict
@@ -88,7 +90,11 @@ class MediaMetadataWindow:
         text_widget = tk.Text(self.toplevel, height=1, borderwidth=0, width=40)
 
         text_widget.insert(1.0, value)
-        text_widget.config(state="disabled", font=("Arial", 9), bg="#F0F0F0")
+        if sys.platform in ['linux', 'darwin']:
+            # may look ugly, but ensures that text will be visible when in dark mode
+            text_widget.config(state="disabled")
+        else:
+            text_widget.config(state="disabled", font=("Arial", 10), bg="#F0F0F0")
 
         return label, text_widget
 
