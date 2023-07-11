@@ -214,7 +214,6 @@ class MarkerUI(TimelineUIElement):
         self.timeline_ui.listen_for_uielement_rightclick_options(self)
 
     def setup_drag(self) -> None:
-        post(Post.SLIDER_DRAG_START)
         DragManager(
             get_min_x=lambda: get(Get.LEFT_MARGIN_X),
             get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
@@ -224,7 +223,9 @@ class MarkerUI(TimelineUIElement):
         )
         
     def before_each_drag(self):
-        self.dragged = True
+        if not self.dragged:
+            post(Post.ELEMENT_DRAG_START)
+            self.dragged = True
     
     def after_each_drag(self, drag_x: int):    
         self.tl_component.time = get_time_by_x(drag_x)

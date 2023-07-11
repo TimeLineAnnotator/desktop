@@ -227,7 +227,6 @@ class BeatUI(TimelineUIElement):
         self.timeline_ui.listen_for_uielement_rightclick_options(self)
 
     def setup_drag(self):
-        post(Post.ELEMENT_DRAG_START)
         DragManager(
             get_min_x=self.get_drag_left_limit,
             get_max_x=self.get_drag_right_limit,
@@ -249,7 +248,9 @@ class BeatUI(TimelineUIElement):
         return get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
 
     def before_each_drag(self):
-        self.dragged = True
+        if not self.dragged:
+            post(Post.ELEMENT_DRAG_START)
+            self.dragged = True
 
     def after_each_drag(self, drag_x: int):
         self.tl_component.time = get_time_by_x(drag_x)

@@ -709,7 +709,7 @@ class HierarchyUI(TimelineUIElement):
     def start_marker_drag(self, marker_id: int) -> None:
         self.drag_extremity = self._get_extremity_from_marker_id(marker_id)
         min_x, max_x = self.get_drag_limit(self.drag_extremity)
-        post(Post.ELEMENT_DRAG_START)
+
         DragManager(
             get_min_x=lambda: min_x,
             get_max_x=lambda: max_x,
@@ -741,7 +741,9 @@ class HierarchyUI(TimelineUIElement):
         return min_x, max_x
 
     def before_each_drag(self):
-        self.dragged = True
+        if not self.dragged:
+            post(Post.ELEMENT_DRAG_START)
+            self.dragged = True
 
     def after_each_drag(self, x: int) -> None:
         # update timeline component value

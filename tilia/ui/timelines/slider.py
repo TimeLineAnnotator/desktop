@@ -104,7 +104,7 @@ class SliderTimelineUI(TimelineUI):
         logger.debug(f"Processed click on {self}.")
 
     def setup_drag(self) -> None:
-        post(Post.SLIDER_DRAG_START)
+
         DragManager(
             get_min_x=lambda: get(Get.LEFT_MARGIN_X),
             get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
@@ -114,7 +114,9 @@ class SliderTimelineUI(TimelineUI):
         )
 
     def before_each_drag(self):
-        self.dragging = True
+        if not self.dragging:
+            post(Post.SLIDER_DRAG_START)
+            self.dragging = True
 
     def after_each_drag(self, x: int):
         self.x = x
