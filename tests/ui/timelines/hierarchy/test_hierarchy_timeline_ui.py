@@ -115,6 +115,7 @@ class TestHierarchyTimelineUI:
             hierarchy_tlui.right_click_menu_add_pre_start()
 
         assert hrc1.pre_start != hrc1.start
+        assert ui1.pre_start_ind_id
 
     def test_right_click_add_post_end(self, hierarchy_tlui):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
@@ -127,6 +128,7 @@ class TestHierarchyTimelineUI:
             hierarchy_tlui.right_click_menu_add_post_end()
 
         assert hrc1.post_end != hrc1.end
+        assert ui1.post_end_ind_id
 
     def test_rearrange_elements_two_levels(self, hierarchy_tlui):
         unit2, ui2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
