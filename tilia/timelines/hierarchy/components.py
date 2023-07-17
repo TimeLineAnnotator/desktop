@@ -69,8 +69,8 @@ class Hierarchy(TimelineComponent):
         self.parent = parent
 
         self.children = children if children else []
-        self.pre_start = pre_start if pre_start else self.start
-        self.post_end = post_end if post_end else self.end
+        self.pre_start = pre_start if pre_start is not None else self.start
+        self.post_end = post_end if post_end is not None else self.end
 
     def __lt__(self, other):
         return (self.level, self.start) < (other.level, other.start)

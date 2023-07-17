@@ -411,8 +411,7 @@ class HierarchyUI(TimelineUIElement):
         self.canvas.coords(self.end_marker, *self.get_marker_coords(Extremity.END))
 
     def update_pre_start_position(self):
-        self.update_pre_start_existence()
-        if self.has_pre_start:
+        if self.has_pre_start and self.pre_start_ind_id:
             self.canvas.coords(
                 self.pre_start_ind_id[0], *self.get_pre_start_indicator_vline_coords()
             )
@@ -421,8 +420,7 @@ class HierarchyUI(TimelineUIElement):
             )
 
     def update_post_end_position(self):
-        self.update_post_end_existence()
-        if self.has_post_end:
+        if self.has_post_end and self.post_end_ind_id:
             self.canvas.coords(
                 self.post_end_ind_id[0], *self.get_post_end_indicator_vline_coords()
             )
