@@ -521,12 +521,14 @@ class HierarchyUI(TimelineUIElement):
         )
 
     def delete_pre_start_indicator(self) -> None:
-        self.canvas.delete(*self.pre_start_ind_id)
-        self.pre_start_ind_id = None
+        if self.pre_start_ind_id:
+            self.canvas.delete(*self.pre_start_ind_id)
+            self.pre_start_ind_id = None
 
     def delete_post_end_indicator(self) -> None:
-        self.canvas.delete(*self.post_end_ind_id)
-        self.post_end_ind_id = None
+        if self.post_end_ind_id:
+            self.canvas.delete(*self.post_end_ind_id)
+            self.post_end_ind_id = None
 
     def get_pre_start_indicator_vline_coords(self):
         _, body_y0, _, body_y1 = self.get_body_coords()
@@ -610,13 +612,12 @@ class HierarchyUI(TimelineUIElement):
 
     @log_object_deletion
     def delete(self):
-        logger.debug(f"Deleting rectangle '{self.body_id}'")
         self.canvas.delete(self.body_id)
-        logger.debug(f"Deleting label '{self.label_id}'")
         self.canvas.delete(self.label_id)
-        logger.debug(f"Deleting comments indicator '{self.comments_ind_id}'")
         self.canvas.delete(self.comments_ind_id)
         self._delete_markers_if_not_shared()
+        self.delete_post_end_indicator()
+        self.delete_pre_start_indicator()
         stop_listening_to_all(self)
 
     def get_marker_coords(

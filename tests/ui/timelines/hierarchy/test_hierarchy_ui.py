@@ -193,19 +193,19 @@ class TestFramingIndicators:
     def test_update_position_preserves_drawn_post_end(self):
         _, hui = self.tlui.create_hierarchy(0, 0.9, 1, post_end=1)
 
-        hui.draw_pre_start_indicator()
-        prev_id = hui.pre_start_ind_id
+        hui.draw_post_end_indicator()
+        prev_id = hui.post_end_ind_id
         hui.update_position()
 
-        assert hui.pre_start_ind_id == prev_id
+        assert hui.post_end_ind_id == prev_id
 
-    def test_update_position_preserves_undrawn_pre_start(self):
+    def test_update_position_preserves_undrawn_post_end(self):
         _, hui = self.tlui.create_hierarchy(.1, 1, 1)
 
-        hui.draw_pre_start_indicator()
+        hui.draw_post_end_indicator()
         hui.update_position()
 
-        assert hui.pre_start_ind_id is None
+        assert hui.post_end_ind_id is None
 
 
 
