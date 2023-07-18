@@ -385,7 +385,9 @@ class HierarchyUI(TimelineUIElement):
         self.update_label_position()
         self.update_displayed_label()
         self.update_markers_position()
+        self.update_pre_start_existence()
         self.update_pre_start_position()
+        self.update_post_end_existence()
         self.update_post_end_position()
 
     def update_rectangle_position(self):
