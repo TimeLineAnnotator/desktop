@@ -522,6 +522,7 @@ class HierarchyTimelineUI(TimelineUI):
             f" {paste_data}'"
         )
         tilia.ui.timelines.copy_paste.paste_into_element(element, paste_data)
+        element.update_label()
 
         if "children" in paste_data:
             children_of_element = []
