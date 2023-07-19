@@ -4,6 +4,7 @@ Defines the ui corresponding to a Hierarchy object.
 
 from __future__ import annotations
 
+import sys
 import tkinter as tk
 import logging
 from enum import Enum
@@ -56,9 +57,9 @@ class HierarchyUI(TimelineUIElement):
     XOFFSET = 1
     LVL_HEIGHT_INCR = settings.get("hierarchy_timeline", "hierarchy_level_height_diff")
 
-    COMMENTS_INDICATOR_CHAR = "💬"
-    COMMENTS_INDICATOR_YOFFSET = 5
-    COMMENTS_INDICATOR_XOFFSET = -7
+    COMMENTS_INDICATOR_CHAR = "💬" if sys.platform != 'linux' else "✎"  # 💬 is not on tkinter's font for linux
+    COMMENTS_INDICATOR_YOFFSET = 5 if sys.platform != 'linux' else 10
+    COMMENTS_INDICATOR_XOFFSET = -7 if sys.platform != 'linux' else -10
 
     LABEL_YOFFSET = 10
 
@@ -246,6 +247,7 @@ class HierarchyUI(TimelineUIElement):
         )
         logger.debug(f"... to '{value}'.")
         self.tl_component.comments = value
+        self.update_comments_indicator_text()
 
     @property
     def formal_function(self):
@@ -445,6 +447,9 @@ class HierarchyUI(TimelineUIElement):
         elif self.post_end_ind_id and not self.has_post_end:
             self.delete_post_end_indicator()
 
+    def update_comments_indicator_text(self):
+        self.canvas.itemconfig(self.comments_ind_id, text=self.COMMENTS_INDICATOR_CHAR if self.comments else "")
+
     def draw_body(self) -> int:
         coords = self.get_body_coords()
         logger.debug(f"Drawing hierarchy rectangle with {coords} ans {self.color=}")
@@ -461,13 +466,9 @@ class HierarchyUI(TimelineUIElement):
         return self.canvas.create_text(*coords, text=self.display_label)
 
     def draw_comments_indicator(self) -> int:
-        coords = self.get_comments_indicator_coords()
-        logger.debug(
-            f"Drawing hierarchy comments indicator with {coords=} and {self.comments=}"
-        )
         return self.canvas.create_text(
             *self.get_comments_indicator_coords(),
-            text=self.COMMENTS_INDICATOR_CHAR if self.comments else "",
+            text=self.COMMENTS_INDICATOR_CHAR if self.comments else ""
         )
 
     def draw_pre_start_indicator(self) -> tuple[int, int] | None:

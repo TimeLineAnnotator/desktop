@@ -462,6 +462,7 @@ class HierarchyTimelineUI(TimelineUI):
             self.deselect_element(element)
             paste_into_element(element, paste_data[0])
             element.update_label()
+            element.update_comments_indicator_text()
             self.select_element(element)
 
     def validate_copy(self, elements: list[Copyable]) -> None:
@@ -523,6 +524,7 @@ class HierarchyTimelineUI(TimelineUI):
         )
         tilia.ui.timelines.copy_paste.paste_into_element(element, paste_data)
         element.update_label()
+        element.update_comments_indicator_text()
 
         if "children" in paste_data:
             children_of_element = []
