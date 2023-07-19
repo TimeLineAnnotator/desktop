@@ -20,13 +20,21 @@ CSV_PARSER_PATH = "tilia.parsers.csv"
 class DummyMarkerTl:
     KIND = TimelineKind.MARKER_TIMELINE
 
+    def clear(self):
+        pass
 
 class DummyHierarchyTl:
     KIND = TimelineKind.HIERARCHY_TIMELINE
 
+    def clear(self):
+        pass
+
 
 class DummyBeatTl:
     KIND = TimelineKind.BEAT_TIMELINE
+
+    def clear(self):
+        pass
 
 
 class TestImportTimeline:

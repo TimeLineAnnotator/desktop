@@ -409,6 +409,8 @@ class TkinterUI:
             TlKind.BEAT_TIMELINE: {"time": beats_from_csv},
         }
 
+        timeline.clear()
+
         if time_or_measure == "time":
             errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
         else:

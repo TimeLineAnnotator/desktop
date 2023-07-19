@@ -152,6 +152,8 @@ def import_timeline(namespace):
             f"Unknown value: {measure_or_time}. Should be 'by-measure' or 'by-time'"
         )
 
+    tl.clear()
+
     errors = None
     if tl_kind == "marker":
         tl: MarkerTimeline
