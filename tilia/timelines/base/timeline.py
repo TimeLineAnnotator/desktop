@@ -44,6 +44,9 @@ class Timeline(ABC):
     def __iter__(self):
         return iter(self.components)
 
+    def __getitem__(self, item):
+        return sorted(self.components)[item]
+
     def __len__(self):
         return self.component_manager.component_count
 

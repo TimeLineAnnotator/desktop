@@ -147,6 +147,9 @@ class HierarchyUI(TimelineUIElement):
         self.dragged = False
         self.drag_extremity = None
 
+    def __lt__(self, other):
+        return self.tl_component < other.tl_component
+
     @classmethod
     def create(
             cls,
