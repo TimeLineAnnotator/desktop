@@ -52,6 +52,6 @@ class TestFileMenu:
         file_menu.invoke(5)
 
     def test_file_menu_settings(self, file_menu):
-        with patch("tilia.settings.os_run") as os_run_mock:
+        with patch("tilia.settings.open_with_os") as open_with_os_mock:
             file_menu.invoke(6)
-            assert os_run_mock.called_with(settings._settings_path)
+            assert open_with_os_mock.called_with(settings._settings_path)

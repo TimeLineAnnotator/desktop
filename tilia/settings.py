@@ -1,7 +1,7 @@
 from pathlib import Path
 import tomlkit
 
-from tilia.utils.os_run import os_run
+from tilia.utils.os import open_with_os
 
 DEFAULT_SETTINGS = {
     "general": {
@@ -112,4 +112,4 @@ def _set_default_table(table):
 
 
 def open_settings_on_os():
-    os_run(_settings_path)
+    open_with_os(_settings_path)
