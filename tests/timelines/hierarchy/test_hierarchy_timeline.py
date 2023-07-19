@@ -364,83 +364,6 @@ class TestHierarchyTimelineComponentManager:
         assert hrc5 in hrc2.children
         assert hrc6 in hrc2.children
 
-    # TEST SPLIT
-    def test_get_unit_for_split_from_single_unit(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
-        unit_for_split = tl.component_manager.get_unit_to_split(0.5)
-
-        assert unit_for_split == hrc1
-
-    def test_get_unit_for_split_from_unit_boundary(self, tl):
-        tl.create_hierarchy(start=0.0, end=0.5, level=1)
-        tl.create_hierarchy(start=0.5, end=1, level=1)
-
-        unit_for_split = tl.component_manager.get_unit_to_split(0.5)
-
-        assert unit_for_split is None
-
-    def test_get_unit_for_split_from_units_of_different_levels_spanning_time(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
-        tl.create_hierarchy(start=0.0, end=1, level=2)
-        tl.create_hierarchy(start=0.0, end=1, level=3)
-
-        unit_for_split = tl.component_manager.get_unit_to_split(0.5)
-
-        assert unit_for_split is hrc1
-
-    def test_split_unit_without_parent(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
-
-        tl.component_manager.split(hrc1, 0.5)
-
-        assert hrc1 not in tl.component_manager._components
-        assert len(tl.component_manager._components) == 2
-
-    def test_split_unit_with_parent(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.0, end=1, level=2)
-
-        tl.component_manager._update_genealogy(hrc2, [hrc1])
-
-        tl.component_manager.split(hrc1, 0.5)
-
-        assert hrc1 not in tl.component_manager._components
-        assert hrc1 not in hrc2.children
-        assert len(tl.component_manager._components) == 3
-        assert len(hrc2.children) == 2
-
-    def test_split_unit_passes_attributes(self, tl):
-        """Does not test for passing of ui attributes."""
-        hrc1 = tl.create_hierarchy(
-            start=0.0,
-            end=1,
-            level=1,
-            comments="test comment",
-        )
-        hrc2 = tl.create_hierarchy(
-            start=0.0,
-            end=1,
-            level=2,
-        )
-
-        tl.component_manager._update_genealogy(hrc2, [hrc1])
-
-        assert hrc2.children[0].comments == "test comment"
-
-    def test_split_unit_with_children(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=0.5, level=1)
-        hrc2 = tl.create_hierarchy(start=0.5, end=1, level=1)
-        hrc3 = tl.create_hierarchy(start=0, end=1, level=2)
-
-        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
-
-        tl.component_manager.split(hrc3, 0.5)
-
-        assert len(tl.component_manager._components) == 4
-        assert hrc1.parent
-        assert hrc2.parent
-        assert hrc1.parent != hrc2.parent
-
     # TEST MERGE
     def test_merge_two_units_without_units_between(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.5, level=1)
@@ -886,3 +809,105 @@ class TestHierarchyTimelineComponentManager:
         assert {h1, h2} in conflicts
         assert {h1, h3} in conflicts
         assert {h2, h3} in conflicts
+
+class TestSplit:
+    # TEST SPLIT
+    def test_get_unit_for_split_from_single_unit(self, tl):
+        hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
+        unit_for_split = tl.component_manager.get_unit_to_split(0.5)
+
+        assert unit_for_split == hrc1
+
+    def test_get_unit_for_split_from_unit_boundary(self, tl):
+        tl.create_hierarchy(start=0.0, end=0.5, level=1)
+        tl.create_hierarchy(start=0.5, end=1, level=1)
+
+        unit_for_split = tl.component_manager.get_unit_to_split(0.5)
+
+        assert unit_for_split is None
+
+    def test_get_unit_for_split_from_units_of_different_levels_spanning_time(self, tl):
+        hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
+        tl.create_hierarchy(start=0.0, end=1, level=2)
+        tl.create_hierarchy(start=0.0, end=1, level=3)
+
+        unit_for_split = tl.component_manager.get_unit_to_split(0.5)
+
+        assert unit_for_split is hrc1
+
+    def test_split_unit_without_parent(self, tl):
+        hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
+
+        tl.component_manager.split(hrc1, 0.5)
+
+        assert hrc1 not in tl.component_manager._components
+        assert len(tl.component_manager._components) == 2
+
+    def test_split_unit_with_parent(self, tl):
+        hrc1 = tl.create_hierarchy(start=0.0, end=1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.0, end=1, level=2)
+
+        tl.component_manager._update_genealogy(hrc2, [hrc1])
+
+        tl.component_manager.split(hrc1, 0.5)
+
+        assert hrc1 not in tl.component_manager._components
+        assert hrc1 not in hrc2.children
+        assert len(tl.component_manager._components) == 3
+        assert len(hrc2.children) == 2
+
+    def test_split_unit_passes_comments(self, tl):
+        """Comments should be inherited by both resulting units"""
+        tl.create_hierarchy(
+            start=0.0,
+            end=1,
+            level=1,
+            comments='inherit me'
+        )
+
+        tl.split(.5)
+
+        assert tl[0].comments == "inherit me"
+        assert tl[1].comments == "inherit me"
+
+    def test_split_unit_passes_pre_start(self, tl):
+        """Pre-start should be inherited only by the left unit"""
+        tl.create_hierarchy(
+            pre_start=0,
+            start=.2,
+            end=1,
+            level=1,
+        )
+
+        tl.split(.5)
+
+        assert tl[0].pre_start == 0
+        assert tl[1].pre_start == .5
+
+    def test_split_unit_passes_post_end(self, tl):
+        """Pre-start should be inherited only by the left unit"""
+        tl.create_hierarchy(
+            post_end=1,
+            start=0,
+            end=0.9,
+            level=1,
+        )
+
+        tl.split(.5)
+
+        assert tl[0].post_end == .5
+        assert tl[1].post_end == 1
+
+    def test_split_unit_with_children(self, tl):
+        hrc1 = tl.create_hierarchy(start=0.0, end=0.5, level=1)
+        hrc2 = tl.create_hierarchy(start=0.5, end=1, level=1)
+        hrc3 = tl.create_hierarchy(start=0, end=1, level=2)
+
+        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
+
+        tl.component_manager.split(hrc3, 0.5)
+
+        assert len(tl.component_manager._components) == 4
+        assert hrc1.parent
+        assert hrc2.parent
+        assert hrc1.parent != hrc2.parent

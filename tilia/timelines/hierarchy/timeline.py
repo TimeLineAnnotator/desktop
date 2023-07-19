@@ -429,6 +429,21 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
             return new_children
 
+        def pass_on_attributes():
+            both_inherit = ["label", "color", "comments"]
+            left_inherits = ['pre_start']
+            right_inherits = ['post_end']
+
+            for attr in both_inherit:
+                setattr(left_unit, attr, getattr(unit_to_split, attr))
+                setattr(right_unit, attr, getattr(unit_to_split, attr))
+
+            for attr in left_inherits:
+                setattr(left_unit, attr, getattr(unit_to_split, attr))
+
+            for attr in right_inherits:
+                setattr(right_unit, attr, getattr(unit_to_split, attr))
+
         _validate_split(unit_to_split, split_time)
 
         self.delete_component(unit_to_split)
@@ -472,11 +487,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 ],
             )
 
-        TL_COMPONENT_ATTRIBUTES_TO_PASS_ON = ["label", "color", "comments"]
+        pass_on_attributes()
 
-        for attr in TL_COMPONENT_ATTRIBUTES_TO_PASS_ON:
-            setattr(left_unit, attr, getattr(unit_to_split, attr))
-            setattr(right_unit, attr, getattr(unit_to_split, attr))
 
     def merge(self, units_to_merge: list[Hierarchy]):
         def _validate_at_least_two_units(units: list[Hierarchy]) -> None:
