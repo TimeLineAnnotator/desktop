@@ -3,6 +3,8 @@ from pathlib import Path
 from unittest.mock import patch, mock_open
 
 import pytest
+
+from tests.mock import PatchPost
 from tilia.parsers.csv import (
     beats_from_csv,
     get_params_indices,
@@ -11,6 +13,7 @@ from tilia.parsers.csv import (
     hierarchies_by_measure_from_csv,
     hierarchies_by_time_from_csv,
 )
+from tilia.requests import Post
 
 
 def test_get_params_columns():
@@ -86,12 +89,14 @@ def test_markers_by_measure_from_csv_raises_error_if_no_measure_column(
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        with pytest.raises(ValueError):
+        with PatchPost('tilia.parsers.csv', Post.REQUEST_DISPLAY_ERROR) as post_mock:
             markers_by_measure_from_csv(
                 beat_tlui.timeline,
                 marker_tlui.timeline,
                 Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
             )
+
+    assert post_mock.called
 
 
 def test_markers_by_time_from_csv(marker_tlui):
@@ -126,11 +131,13 @@ def test_markers_by_time_from_csv_raises_error_if_no_time_column(marker_tlui):
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        with pytest.raises(ValueError):
+        with PatchPost('tilia.parsers.csv', Post.REQUEST_DISPLAY_ERROR) as post_mock:
             markers_by_time_from_csv(
                 marker_tlui.timeline,
-                Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
+                Path(),
             )
+
+    assert post_mock.called
 
 
 def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):

@@ -8,6 +8,7 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.requests.post import post, Post
 
 
 class TiliaCSVReader:
@@ -27,6 +28,14 @@ class TiliaCSVReader:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.file.close()
+
+
+def display_column_not_found_error(column: str) -> None:
+    post(
+        Post.REQUEST_DISPLAY_ERROR,
+        title='Import error',
+        message=f"Column '{column}' not found on first row of csv file."
+    )
 
 
 def get_params_indices(params: list[str], headers: list[str]) -> dict[str, int]:
@@ -71,7 +80,8 @@ def markers_by_time_from_csv(
         )
 
         if "time" not in params_to_indices:
-            raise ValueError("Column 'time' not found on first row of csv file.")
+            display_column_not_found_error('time')
+            return errors
 
         for row in reader:
             # validate time
@@ -129,7 +139,8 @@ def markers_by_measure_from_csv(
         )
 
         if "measure" not in params_to_indices:
-            raise ValueError("Column 'measure' not found on first row of csv file.")
+            display_column_not_found_error('measure')
+            return errors
 
         for row in reader:
             # get and validate measure
@@ -216,7 +227,8 @@ def hierarchies_by_time_from_csv(
 
         for attr in ["start", "end", "level"]:
             if attr not in params_to_indices:
-                raise ValueError(f"Column '{attr}' not found on first row of csv file.")
+                display_column_not_found_error(attr)
+                return errors
 
         for row in reader:
             constructor_args = {}
@@ -339,7 +351,8 @@ def hierarchies_by_measure_from_csv(
 
         for attr, _ in required_params:
             if attr not in params_to_indices:
-                raise ValueError(f"Column '{attr}' not found on first row of csv file.")
+                display_column_not_found_error(attr)
+                return errors
 
         for row in reader:
             required_values = {}
@@ -438,7 +451,8 @@ def beats_from_csv(
         params_to_indices = get_params_indices(["time"], next(reader))
 
         if "time" not in params_to_indices:
-            raise ValueError("Column 'time' not found on first row of csv file.")
+            display_column_not_found_error('time')
+            return errors
 
         for row in reader:
             # validate time
