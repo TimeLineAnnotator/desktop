@@ -132,7 +132,7 @@ class Timelines:
         ask_user_for_name: bool = True,
         components: dict[int, TimelineComponent] = None,
         **kwargs,
-    ) -> Timeline:
+    ) -> Timeline | None:
         try:
             kind = self._validate_timeline_kind(kind)
         except TimelineValidationError:
@@ -147,11 +147,15 @@ class Timelines:
             and "name" not in kwargs
             and kind != TlKind.SLIDER_TIMELINE
         ):
-            kwargs["name"] = get(
+            name = get(
                 Get.STRING_FROM_USER,
                 title="Name for new timeline",
                 prompt="Choose name for new timeline",
             )
+            if name is None:
+                return
+
+            kwargs['name'] = name
 
         kind_to_callback = {
             TlKind.HIERARCHY_TIMELINE: _create_hierarchy_timeline,

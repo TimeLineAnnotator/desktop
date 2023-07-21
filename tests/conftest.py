@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import tkinter as tk
@@ -137,6 +138,7 @@ def tls(tilia):
     def create_timeline(*args, **kwargs):
         return Timelines.create_timeline(_tls, *args, ask_user_for_name=False, **kwargs)
 
+    _tls._create_timeline = partial(Timelines.create_timeline, _tls)  # in case the original is needed
     _tls.create_timeline = create_timeline
     yield _tls
     _tls.clear()  # deletes created timelines

@@ -1,9 +1,20 @@
+from unittest.mock import Mock
+
 import pytest
 
-from tests.mock import PatchPost
-from tilia.requests import Post
+from tests.mock import PatchPost, PatchGetMultiple, PatchGet
+from tilia.requests import Post, Get
 from tilia.timelines import hash_timelines
+from tilia.timelines.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
+
+
+class TestCreateTimeline:
+    def test_create_timeline_user_cancels_dialog(self, tls):
+        with PatchGet('tilia.timelines.collection', Get.STRING_FROM_USER, None):
+            tls._create_timeline(TimelineKind.MARKER_TIMELINE)
+
+        assert len(tls) == 0
 
 
 class TestTimelines:
