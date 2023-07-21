@@ -237,6 +237,9 @@ class TimelineUI(ABC):
     def get_element(self, id: str) -> TimelineUIElement:
         return self.element_manager.get_element(id)
 
+    def get_elements_by_attr(self, attr: str, value: Any) -> list[TimelineUIElement]:
+        return [el for el in self.elements if getattr(el, attr) == value]
+
     def get_timeline_component(self, id: int):
         return self.timeline.get_component(id)
 
@@ -301,17 +304,15 @@ class TimelineUI(ABC):
         if not clicked_elements:
             logger.debug("No ui element was clicked.")
 
-        for (
-            elm
-        ) in clicked_elements:  # clicked item might be owned by more than on element
+        self.deselect_all_elements(excluding=clicked_elements)
+
+        for elm in clicked_elements:  # clicked item might be in multiple elements
             if not double:
                 self.on_element_left_click(elm, item_id)
             else:
                 double_clicked = self._on_element_double_left_click(elm, item_id)
                 if not double_clicked:  # consider as single click
                     self.on_element_left_click(elm, item_id)
-
-        self.deselect_all_elements(excluding=clicked_elements)
 
         logger.debug(f"Processed click on {self}.")
 

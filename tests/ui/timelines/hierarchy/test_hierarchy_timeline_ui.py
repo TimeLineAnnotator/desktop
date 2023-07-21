@@ -14,6 +14,7 @@ from tilia.ui.timelines.hierarchy import HierarchyUI
 def is_in_front(id1: int, id2: int, canvas: tk.Canvas) -> bool:
     stacking_order = canvas.find_all()
     return stacking_order.index(id1) > stacking_order.index(id2)
+    return stacking_order.index(id1) > stacking_order.index(id2)
 
 
 def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:

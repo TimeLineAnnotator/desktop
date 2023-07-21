@@ -8,6 +8,7 @@ import sys
 import tkinter as tk
 import logging
 from enum import Enum
+from functools import partial
 
 from typing import TYPE_CHECKING, TypedDict, Optional
 
@@ -390,9 +391,9 @@ class HierarchyUI(TimelineUIElement):
         self.update_label_position()
         self.update_displayed_label()
         self.update_markers_position()
-        self.update_pre_start_existence()
+        self.update_pre_start_visibility()
         self.update_pre_start_position()
-        self.update_post_end_existence()
+        self.update_post_end_visibility()
         self.update_post_end_position()
 
     def update_rectangle_position(self):
@@ -435,17 +436,17 @@ class HierarchyUI(TimelineUIElement):
                 self.post_end_ind_id[1], *self.get_post_end_indicator_hline_coords()
             )
 
-    def update_pre_start_existence(self):
+    def update_pre_start_visibility(self):
         if not self.pre_start_ind_id and self.has_pre_start:
-            self.pre_start_ind_id = self.draw_pre_start_indicator()
+            self.show_pre_start()
         elif self.pre_start_ind_id and not self.has_pre_start:
-            self.delete_pre_start_indicator()
+            self.hide_pre_start()
 
-    def update_post_end_existence(self):
+    def update_post_end_visibility(self):
         if not self.post_end_ind_id and self.has_post_end:
-            self.post_end_ind_id = self.draw_post_end_indicator()
+            self.show_post_end()
         elif self.post_end_ind_id and not self.has_post_end:
-            self.delete_post_end_indicator()
+            self.hide_post_end()
 
     def update_comments_indicator_text(self):
         self.canvas.itemconfig(self.comments_ind_id, text=self.COMMENTS_INDICATOR_CHAR if self.comments else "")
@@ -526,12 +527,18 @@ class HierarchyUI(TimelineUIElement):
             tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS),
         )
 
-    def delete_pre_start_indicator(self) -> None:
+    def show_pre_start(self):
+        self.pre_start_ind_id = self.draw_pre_start_indicator()
+
+    def hide_pre_start(self) -> None:
         if self.pre_start_ind_id:
             self.canvas.delete(*self.pre_start_ind_id)
             self.pre_start_ind_id = None
 
-    def delete_post_end_indicator(self) -> None:
+    def show_post_end(self):
+        self.post_end_ind_id = self.draw_post_end_indicator()
+
+    def hide_post_end(self) -> None:
         if self.post_end_ind_id:
             self.canvas.delete(*self.post_end_ind_id)
             self.post_end_ind_id = None
@@ -622,8 +629,8 @@ class HierarchyUI(TimelineUIElement):
         self.canvas.delete(self.label_id)
         self.canvas.delete(self.comments_ind_id)
         self._delete_markers_if_not_shared()
-        self.delete_post_end_indicator()
-        self.delete_pre_start_indicator()
+        self.hide_post_end()
+        self.hide_pre_start()
         stop_listening_to_all(self)
 
     def get_marker_coords(
@@ -773,40 +780,46 @@ class HierarchyUI(TimelineUIElement):
             self.drag_extremity = None
 
         if self.pre_start_ind_id:
-            self.delete_pre_start_indicator()
+            self.hide_pre_start()
 
         if self.post_end_ind_id:
-            self.delete_post_end_indicator()
+            self.hide_post_end()
 
     def start_pre_start_drag(self) -> None:
         self.drag_extremity = Extremity.PRE_START
         post(Post.ELEMENT_DRAG_START)
+        uis_at_start = self.timeline_ui.get_elements_by_attr('start', self.start)
+
         DragManager(
             get_min_x=lambda: get(Get.LEFT_MARGIN_X),
             get_max_x=lambda: self.start_x,
             before_each=self.before_each_drag,
-            after_each=self.after_each_frame_drag,
+            after_each=partial(self.after_each_frame_drag, uis_at_start),
             on_release=self.on_frame_drag_end,
         )
 
     def start_post_end_drag(self) -> None:
         self.drag_extremity = Extremity.POST_END
         post(Post.ELEMENT_DRAG_START)
+        uis_at_end = self.timeline_ui.get_elements_by_attr('end', self.end)
+
         DragManager(
             get_min_x=lambda: self.end_x,
             get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
             before_each=self.before_each_drag,
-            after_each=self.after_each_frame_drag,
+            after_each=partial(self.after_each_frame_drag, uis_at_end),
             on_release=self.on_frame_drag_end,
         )
 
-    def after_each_frame_drag(self, x: int):
+    def after_each_frame_drag(self, uis: [HierarchyUI], x: int):
         # update timeline component value
-        setattr(
-            self.tl_component,
-            self.drag_extremity.value,
-            coords.get_time_by_x(x),
-        )
+        for ui in uis:
+            setattr(
+                ui.tl_component,
+                self.drag_extremity.value,
+                coords.get_time_by_x(x),
+            )
+
         self.update_position()
 
     def on_frame_drag_end(self):
@@ -826,16 +839,59 @@ class HierarchyUI(TimelineUIElement):
         self.canvas.itemconfig(
             self.body_id, fill=self.shaded_color, width=1, outline="black"
         )
-        self.update_pre_start_existence()
-        self.update_post_end_existence()
+        self.display_pre_start_as_selected()
+        self.display_post_end_as_selected()
+
+    def selected_ascendants(self) -> [HierarchyUI]:
+        """Returns hierarchies in the same branch that are both selected and higher-leveled than self"""
+        uis_at_start = self.timeline_ui.get_elements_by_attr('start', self.start)
+        selected_uis = self.timeline_ui.selected_elements
+
+        return [ui for ui in uis_at_start if ui in selected_uis and ui.level > self.level]
+
+    def selected_descendants(self) -> [HierarchyUI]:
+        """Returns hierarchies in the same branch that are both selected and lower-leveled than self"""
+        uis_at_start = self.timeline_ui.get_elements_by_attr('start', self.start)
+        selected_uis = self.timeline_ui.selected_elements
+
+        return [ui for ui in uis_at_start if ui in selected_uis and ui.level < self.level]
+
+    def display_pre_start_as_selected(self):
+        if not self.selected_ascendants():
+            self.update_pre_start_visibility()
+
+        if selected_descendants := self.selected_descendants():
+            for ui in selected_descendants:
+                ui.hide_pre_start()
+
+    def display_post_end_as_selected(self):
+        if not self.selected_ascendants():
+            self.update_post_end_visibility()
+
+        if selected_descendants := self.selected_descendants():
+            for ui in selected_descendants:
+                ui.hide_post_end()
 
     def display_as_deselected(self) -> None:
         self.canvas.itemconfig(self.body_id, fill=self.color, width=0, outline="black")
-        if self.pre_start_ind_id:
-            self.delete_pre_start_indicator()
+        self.display_pre_start_as_deselected()
+        self.display_post_end_as_deselected()
 
+    def display_pre_start_as_deselected(self):
+        if self.pre_start_ind_id:
+            self.hide_pre_start()
+
+        if selected_descendants := self.selected_descendants():
+            higher_selected_descendant = sorted(selected_descendants)[-1]
+            higher_selected_descendant.show_pre_start()
+
+    def display_post_end_as_deselected(self):
         if self.post_end_ind_id:
-            self.delete_post_end_indicator()
+            self.hide_post_end()
+
+        if selected_descendants := self.selected_descendants():
+            higher_selected_descendant = sorted(selected_descendants)[-1]
+            higher_selected_descendant.show_post_end()
 
     def marker_is_shared(self, marker_id: int) -> bool:
         units_with_marker = self.timeline_ui.get_units_using_marker(marker_id)

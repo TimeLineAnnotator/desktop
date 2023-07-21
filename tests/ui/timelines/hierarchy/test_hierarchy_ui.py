@@ -90,7 +90,7 @@ class TestHierarchyUI:
         assert hui.canvas.itemcget(id, "text") == ""
 
 
-class TestFramingIndicators:
+class TestPreStartIndicator:
     @pytest.fixture(autouse=True)
     def _tlui(self, hierarchy_tlui):
         self.tlui = hierarchy_tlui
@@ -105,8 +105,8 @@ class TestFramingIndicators:
     def test_delete_pre_start(self):
         _, hui = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
 
-        hui.update_pre_start_existence()
-        hui.delete_pre_start_indicator()
+        hui.update_pre_start_visibility()
+        hui.hide_pre_start()
 
         assert hui.pre_start_ind_id is None
 
@@ -123,21 +123,21 @@ class TestFramingIndicators:
     def test_update_pre_start_when_element_has_pre_start(self):
         _, hui = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
 
-        hui.update_pre_start_existence()
+        hui.update_pre_start_visibility()
 
         assert hui.pre_start_ind_id
 
     def test_update_pre_start_when_element_has_no_pre_start(self):
         _, hui = self.tlui.create_hierarchy(.1, 1, 1)
 
-        hui.update_pre_start_existence()
+        hui.update_pre_start_visibility()
 
         assert not hui.pre_start_ind_id
 
     def test_update_position_preserves_drawn_pre_start(self):
         _, hui = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
 
-        hui.update_pre_start_existence()
+        hui.update_pre_start_visibility()
         prev_id = hui.pre_start_ind_id
         hui.update_position()
 
@@ -151,8 +151,90 @@ class TestFramingIndicators:
 
         assert hui.pre_start_ind_id is None
 
+    def test_display_as_selected_no_ascendant_or_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
+
+        hui.display_pre_start_as_selected()
+
+        assert hui.pre_start_ind_id
+
+    def test_display_as_selected_with_selected_ascendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
+        _, asc = self.tlui.create_hierarchy(.1, 1, 2, pre_start=0)
+
+        self.tlui.select_element(asc)
+        hui.display_pre_start_as_selected()
+
+        assert hui.pre_start_ind_id is None
+
+    def test_display_as_selected_with_deselected_ascendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
+        _, asc = self.tlui.create_hierarchy(.1, 1, 2, pre_start=0)
+
+        hui.display_pre_start_as_selected()
+
+        assert hui.pre_start_ind_id
+
+    def test_display_as_selected_with_selected_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, 1, 2, pre_start=0)
+        _, dsc = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
+
+        self.tlui.select_element(dsc)
+        hui.display_pre_start_as_selected()
+
+        assert hui.pre_start_ind_id
+        assert dsc.pre_start_ind_id is None
+
+    def test_display_as_selected_with_deselected_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, 1, 2, pre_start=0)
+        _, dsc = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
+
+        hui.display_pre_start_as_selected()
+
+        assert hui.pre_start_ind_id
+        assert dsc.pre_start_ind_id is None
+
+    def test_display_as_deselected_with_selected_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, 1, 2, pre_start=0)
+        _, dsc = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
+
+        self.tlui.select_element(hui)
+        self.tlui.select_element(dsc)
+        hui.display_pre_start_as_deselected()
+
+        assert hui.pre_start_ind_id is None
+        assert dsc.pre_start_ind_id
+
+    def test_display_as_deselected_with_two_selected_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, 1, 3, pre_start=0)
+        _, child = self.tlui.create_hierarchy(.1, 1, 2, pre_start=0)
+        _, grandchild = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
+
+        self.tlui.select_element(hui)
+        self.tlui.select_element(child)
+        self.tlui.select_element(grandchild)
+        hui.display_pre_start_as_deselected()
+
+        assert hui.pre_start_ind_id is None
+        assert child.pre_start_ind_id
+        assert grandchild.pre_start_ind_id is None
+
+    def test_display_as_deselected_with_no_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, 1, 1, pre_start=0)
+
+        self.tlui.select_element(hui)
+        hui.display_pre_start_as_deselected()
+
+        assert hui.pre_start_ind_id is None
+
+
+class TestPostEndIndicator:
+    @pytest.fixture(autouse=True)
+    def _tlui(self, hierarchy_tlui):
+        self.tlui = hierarchy_tlui
+
     def test_draw_post_end(self):
-        _, hui = self.tlui.create_hierarchy(.1, 1, 1, post_end=0)
+        _, hui = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
 
         hline, vline = hui.draw_post_end_indicator()
 
@@ -161,8 +243,8 @@ class TestFramingIndicators:
     def test_delete_post_end(self):
         _, hui = self.tlui.create_hierarchy(0, 0.9, 1, post_end=1)
 
-        hui.update_post_end_existence()
-        hui.delete_post_end_indicator()
+        hui.update_post_end_visibility()
+        hui.hide_post_end()
 
         assert hui.post_end_ind_id is None
 
@@ -179,21 +261,21 @@ class TestFramingIndicators:
     def test_update_post_end_when_element_has_post_end(self):
         _, hui = self.tlui.create_hierarchy(0, 0.9, 1, post_end=1)
 
-        hui.update_post_end_existence()
+        hui.update_post_end_visibility()
 
         assert hui.post_end_ind_id
 
     def test_update_post_end_when_element_has_no_post_end(self):
         _, hui = self.tlui.create_hierarchy(.1, 1, 1)
 
-        hui.update_post_end_existence()
+        hui.update_post_end_visibility()
 
         assert not hui.post_end_ind_id
 
     def test_update_position_preserves_drawn_post_end(self):
         _, hui = self.tlui.create_hierarchy(0, 0.9, 1, post_end=1)
 
-        hui.update_post_end_existence()
+        hui.update_post_end_visibility()
         prev_id = hui.post_end_ind_id
         hui.update_position()
 
@@ -202,8 +284,84 @@ class TestFramingIndicators:
     def test_update_position_preserves_undrawn_post_end(self):
         _, hui = self.tlui.create_hierarchy(.1, 1, 1)
 
-        hui.update_pre_start_existence()
+        hui.update_post_end_visibility()
         hui.update_position()
+
+        assert hui.post_end_ind_id is None
+
+    def test_display_as_selected_no_ascendant_or_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
+
+        hui.display_post_end_as_selected()
+
+        assert hui.post_end_ind_id
+
+    def test_display_as_selected_with_selected_ascendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
+        _, asc = self.tlui.create_hierarchy(.1, .9, 2, post_end=1)
+
+        self.tlui.select_element(asc)
+        hui.display_post_end_as_selected()
+
+        assert hui.post_end_ind_id is None
+
+    def test_display_as_selected_with_deselected_ascendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
+        _, asc = self.tlui.create_hierarchy(.1, .9, 2, post_end=1)
+
+        hui.display_post_end_as_selected()
+
+        assert hui.post_end_ind_id
+
+    def test_display_as_selected_with_selected_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, .9, 2, post_end=1)
+        _, dsc = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
+
+        self.tlui.select_element(dsc)
+        hui.display_post_end_as_selected()
+
+        assert hui.post_end_ind_id
+        assert dsc.post_end_ind_id is None
+
+    def test_display_as_selected_with_deselected_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, .9, 2, post_end=1)
+        _, dsc = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
+
+        hui.display_post_end_as_selected()
+
+        assert hui.post_end_ind_id
+        assert dsc.post_end_ind_id is None
+
+    def test_display_as_deselected_with_selected_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, .9, 2, post_end=1)
+        _, dsc = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
+
+        self.tlui.select_element(hui)
+        self.tlui.select_element(dsc)
+        hui.display_post_end_as_deselected()
+
+        assert hui.post_end_ind_id is None
+        assert dsc.post_end_ind_id
+
+    def test_display_as_deselected_with_two_selected_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, .9, 3, post_end=1)
+        _, child = self.tlui.create_hierarchy(.1, .9, 2, post_end=1)
+        _, grandchild = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
+
+        self.tlui.select_element(hui)
+        self.tlui.select_element(child)
+        self.tlui.select_element(grandchild)
+        hui.display_post_end_as_deselected()
+
+        assert hui.post_end_ind_id is None
+        assert child.post_end_ind_id
+        assert grandchild.post_end_ind_id is None
+
+    def test_display_as_deselected_with_no_descendant(self):
+        _, hui = self.tlui.create_hierarchy(.1, .9, 1, post_end=1)
+
+        self.tlui.select_element(hui)
+        hui.display_post_end_as_deselected()
 
         assert hui.post_end_ind_id is None
 

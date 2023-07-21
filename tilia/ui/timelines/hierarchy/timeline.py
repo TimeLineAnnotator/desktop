@@ -374,7 +374,7 @@ class HierarchyTimelineUI(TimelineUI):
             return
         component.pre_start = component.start - pre_start_length
         self.select_element(self.right_clicked_element)
-        self.right_clicked_element.update_pre_start_existence()
+        self.right_clicked_element.update_pre_start_visibility()
 
     def right_click_menu_add_post_end(self) -> None:
         component = self.right_clicked_element.tl_component
@@ -385,7 +385,7 @@ class HierarchyTimelineUI(TimelineUI):
             return
         component.post_end = component.end + post_end_length
         self.select_element(self.right_clicked_element)
-        self.right_clicked_element.update_post_end_existence()
+        self.right_clicked_element.update_post_end_visibility()
 
     def right_click_menu_edit(self) -> None:
         self.deselect_all_elements()
