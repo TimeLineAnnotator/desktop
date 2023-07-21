@@ -49,7 +49,7 @@ def import_from_csv_patched_environment(marker_tlui, beat_tlui, hierarchy_tlui):
             yield
 
 
-class TestTkinterUI:
+class TestRequestWindow:
     @patch("tilia.ui.tkinterui.Inspect")
     def test_on_request_window_inspect(self, inspect_mock, tkui):
         tkui.on_request_window(WindowKind.INSPECT)
@@ -66,7 +66,8 @@ class TestTkinterUI:
     @patch("tilia.ui.tkinterui.MediaMetadataWindow")
     def test_on_request_window_media_metadata(self, window_mock, tkui):
         with PatchGet("tilia.ui.windows.metadata", Get.MEDIA_DURATION, 100):
-            tkui.on_request_window(WindowKind.MEDIA_METADATA)
+            with PatchGet("tilia.ui.tkinterui", Get.MEDIA_METADATA, {}):
+                tkui.on_request_window(WindowKind.MEDIA_METADATA)
         assert window_mock.called
 
     @patch("tilia.ui.tkinterui.About")
@@ -74,6 +75,8 @@ class TestTkinterUI:
         tkui.on_request_window(WindowKind.ABOUT)
         assert about_mock.called
 
+
+class TestTimelineInstanced:
     def test_on_marker_timeline_kind_instanced(self, tkui):
         assert not tkui.enabled_dynamic_menus
 
@@ -111,12 +114,14 @@ class TestTkinterUI:
         tkui._on_timeline_kind_uninstanced(tlkind)
         assert tkui.enabled_dynamic_menus == set()
 
+
+class TestImportFromCSV:
     BY_TIME_OR_MEASURE_PATCH_TARGET = (
         "tilia.ui.dialogs.by_time_or_by_measure.ByTimeOrByMeasure.ask"
     )
 
     def test_on_menu_import_markers_from_csv_by_time(
-        self, tkui, marker_tlui, import_from_csv_patched_environment
+            self, tkui, marker_tlui, import_from_csv_patched_environment
     ):
         data = """time,label,comments\n10,marker,imported"""
         with (
@@ -310,3 +315,4 @@ class TestTkinterUI:
             assert beats[1].time == 10
             assert beats[2].time == 15
             assert beats[3].time == 20
+
