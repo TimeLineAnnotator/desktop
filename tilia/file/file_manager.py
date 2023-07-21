@@ -53,8 +53,12 @@ class FileManager:
 
     def on_save_request(self):
         """Saves tilia file to current file path."""
+        app_state = get(Get.APP_STATE)
+        if not app_state["file_path"]:
+            # in case file has not been saved before
+            self.on_save_as_request()
+
         try:
-            app_state = get(Get.APP_STATE)
             self.save(app_state, app_state["file_path"])
         except TiliaFileWriteError:
             post(Post.REQUEST_DISPLAY_ERROR, "Error when saving file.")
