@@ -5,7 +5,7 @@ from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.component_kinds import ComponentKind
 
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.cli import io
+from tilia.ui.cli.io import output
 from tilia.ui.cli.timelines.getters import get_timeline_by_name, get_timeline_by_ordinal
 
 TL_KIND_TO_COMPONENT_KIND = {
@@ -64,4 +64,4 @@ def add(tl_kind: TlKind, namespace: argparse.Namespace):
 
     tl.create_timeline_component(cmp_kind, **params)
 
-    print(f"Adding component to timeline {tl}")
+    output(f"Adding component to timeline {tl}")

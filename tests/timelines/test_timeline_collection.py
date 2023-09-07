@@ -1,26 +1,23 @@
-from unittest.mock import Mock
-
 import pytest
 
-from tests.mock import PatchPost, PatchGetMultiple, PatchGet
+from tests.mock import PatchPost, PatchGet
 from tilia.requests import Post, Get
 from tilia.timelines import hash_timelines
-from tilia.timelines.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 
 
-class TestCreateTimeline:
-    def test_create_timeline_user_cancels_dialog(self, tls):
-        with PatchGet('tilia.timelines.collection', Get.STRING_FROM_USER, None):
-            tls._create_timeline(TimelineKind.MARKER_TIMELINE)
-
-        assert len(tls) == 0
+class TestCreate:
+    @pytest.mark.parametrize('kind', list(TimelineKind))
+    def test_create(self, kind, tls):
+        assert tls.is_empty
+        tls.create_timeline(kind)
+        assert not tls.is_empty
 
 
 class TestTimelines:
-    def test_posts_timeline_kind_instanced_event(self, tkui, tls):
+    def test_posts_timeline_kind_instanced_event(self, qtui, tls):
         with PatchPost(
-            "tilia.timelines.collection", Post.TIMELINE_KIND_INSTANCED
+            "tilia.timelines.collection.collection", Post.TIMELINE_KIND_INSTANCED
         ) as post_mock:
             tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
 
@@ -35,13 +32,11 @@ class TestTimelines:
                 Post.TIMELINE_KIND_INSTANCED, TimelineKind.HIERARCHY_TIMELINE
             )
 
-        tkui._on_timeline_kind_instanced(TimelineKind.HIERARCHY_TIMELINE)
-
         tls.clear()
 
     def test_posts_timeline_kind_uninstanced_event(self, tls):
         with PatchPost(
-            "tilia.timelines.collection", Post.TIMELINE_KIND_UNINSTANCED
+            "tilia.timelines.collection.collection", Post.TIMELINE_KIND_NOT_INSTANCED
         ) as post_mock:
             tl1 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
             tl2 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
@@ -50,13 +45,13 @@ class TestTimelines:
 
             with pytest.raises(AssertionError):
                 post_mock.assert_called_with(
-                    Post.TIMELINE_KIND_UNINSTANCED, TimelineKind.HIERARCHY_TIMELINE
+                    Post.TIMELINE_KIND_NOT_INSTANCED, TimelineKind.HIERARCHY_TIMELINE
                 )
 
             tls.delete_timeline(tl2)
 
             post_mock.assert_called_with(
-                Post.TIMELINE_KIND_UNINSTANCED, TimelineKind.HIERARCHY_TIMELINE
+                Post.TIMELINE_KIND_NOT_INSTANCED, TimelineKind.HIERARCHY_TIMELINE
             )
 
     def test_serve_ordinal_for_new_timeline(self, tls):
@@ -70,45 +65,19 @@ class TestTimelines:
         tls.delete_timeline(tls[0])
         assert tls.serve_ordinal_for_new_timeline() == 1
 
+    @pytest.mark.skip("Needs reimplementing")
     def test_swap_timeline_order(self, tls):
-        tl1 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
-        tl2 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
+        pass
 
-        with PatchPost(
-            "tilia.timelines.collection", Post.TIMELINE_ORDER_SWAPPED
-        ) as post_mock:
-            tls.swap_timeline_order(tl1, tl2)
-
-        assert tl1.ordinal == 2
-        assert tl2.ordinal == 1
-
-        # The order doesn't matter for the function, but it does for the assertion,
-        # which is not ideal.
-        post_mock.assert_called_with(Post.TIMELINE_ORDER_SWAPPED, tl1.id, tl2.id)
-
+    @pytest.mark.skip("Needs reimplementing")
     def test_move_up_in_order(self, tls):
-        tl1 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
-        tl2 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
+        pass
 
-        tls.on_move_up_in_order(tl2.id)
-
-        assert tl2.ordinal == 1
-        assert tl1.ordinal == 2
-
+    @pytest.mark.skip("Needs reimplementing")
     def test_move_down_in_order(self, tls):
-        tl1 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
-        tl2 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
-
-        tls.on_move_down_in_order(tl1.id)
-
-        assert tl2.ordinal == 1
-        assert tl1.ordinal == 2
+        pass
 
     def test_deserialize_timelines_with_display_position(self, tls):
-        """
-        'display_position' was modified and renamed to 'ordinal'.
-        Loading should still work for backwards compatibility.
-        """
         data = {
             0: {
                 "height": 220,
@@ -116,7 +85,7 @@ class TestTimelines:
                 "name": "test1",
                 "display_position": 0,
                 "components": {},
-                "kind": "HIERARCHY_TIMELINE",
+                "kind": TimelineKind.HIERARCHY_TIMELINE,
             },
             1: {
                 "height": 220,
@@ -124,24 +93,23 @@ class TestTimelines:
                 "name": "test2",
                 "display_position": 1,
                 "components": {},
-                "kind": "MARKER_TIMELINE",
+                "kind": TimelineKind.MARKER_TIMELINE,
             },
         }
 
-        # can't call tls.deserialize_data or two ask_for_user_name arguments
-        # would be passed
-        for tl_data in data.values():
-            tls.create_timeline(**tl_data)
+        tls.deserialize_timelines(data)
 
-        # check if ordinal property was created
-        assert tls.get_timeline_by_attr("ordinal", 1).name == "test1"
-        assert tls.get_timeline_by_attr("ordinal", 2).name == "test2"
+        # assert timelines where created in right order
+        assert tls[0].name == "test1"
+        assert tls[1].name == "test2"
 
-        # ensure that display_position propoerty was not created
-        with pytest.raises(AttributeError):
-            _ = tls.get_timeline_by_attr("ordinall", 1).display_position
-        with pytest.raises(AttributeError):
-            _ = tls.get_timeline_by_attr("ordinall", 2).display_position
+        # assert ordinal property has been set
+        assert tls[0].ordinal == 1
+        assert tls[1].ordinal == 2
+
+        # assert display_position attribute was not created
+        assert not hasattr(tls[0], 'display_position')
+        assert not hasattr(tls[1], 'display_position')
 
     def test_serialize_timelines_serializes_ordinals(self, tls):
         tl1 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)

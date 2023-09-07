@@ -1,41 +1,45 @@
-import tkinter as tk
+from typing import Any
 
-from .tilia_dialog import TiliaDialog
+from PyQt6.QtWidgets import (
+    QDialog,
+    QMainWindow,
+    QLabel,
+    QComboBox,
+    QVBoxLayout,
+    QDialogButtonBox,
+)
 
 
-class ChooseDialog(TiliaDialog):
-    NON_EDITABLE_FIELDS = ["media path", "audio length"]
-    SEPARATE_WINDOW_FIELDS = ["notes"]
-
+class ChooseDialog(QDialog):
     def __init__(
         self,
-        parent: tk.Tk | tk.Toplevel,
+        parent: QMainWindow,
         title: str,
-        prompt: str,
-        options: list[tuple[int, str]],
-        *args,
-        **kwargs
-    ) -> None:
-        super().__init__(parent, title)
-        self._toplevel.geometry("350x200")
-        self.prompt_text = prompt
-        self.options = options
-        self.return_value = None
+        prompt_text: str,
+        options: list[tuple[str, Any]],
+    ):
+        super().__init__(parent)
+        self.setWindowTitle(title)
 
-        self.setup_widgets()
+        layout = QVBoxLayout()
+        self.setLayout(layout)
 
-    # noinspection PyAttributeOutsideInit
-    def setup_widgets(self):
-        self.prompt_label = tk.Label(self._toplevel, text=self.prompt_text)
-        self.list_box = tk.Listbox(self._toplevel)
-        self.list_box.insert(0, *[opt[1] for opt in self.options])
-        self.list_box.activate(0)
+        prompt = QLabel(prompt_text)
+        combo_box = QComboBox()
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
 
-        self.prompt_label.pack(side=tk.TOP)
-        self.list_box.pack(side=tk.TOP, expand=True, fill="x")
+        layout.addWidget(prompt)
+        layout.addWidget(combo_box)
+        layout.addWidget(button_box)
 
-    def get_selected_index(self) -> tuple[int]:
-        return self.list_box.curselection()[0]
+        for i, (name, data) in enumerate(options):
+            combo_box.insertItem(i, name, data)
 
-    def get_return_value(self):
-        return self.options[self.get_selected_index()][0]
+        def get_option():
+            return combo_box.currentData()
+
+        self.get_option = get_option

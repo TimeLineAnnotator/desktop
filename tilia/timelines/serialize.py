@@ -9,7 +9,7 @@ from tilia.exceptions import CreateComponentError
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
     from tilia.timelines.base.timeline import Timeline
-    from tilia.ui.timelines.common import TimelineUIElement
+    from tilia.ui.timelines.base.element import TimelineUIElement
 
 from typing import Protocol
 
@@ -79,19 +79,19 @@ def deserialize_components(
     errors = []
 
     for id_, serialized_component in serialized_components.items():
-        try:
-            id_to_component_dict[id_] = _deserialize_component(
+        component = _deserialize_component(
                 timeline, serialized_component
             )
-        except CreateComponentError as err:
-            logger.warning(f"Error when creating component with id={id=}")
-            logger.warning(err)
-            errors.append(f"{id_=} | {str(err)}")
+        if not component:
+            errors.append(f"{id_=} | Error when creating component with id={id_}")
+            continue
+
+        id_to_component_dict[id_] = component
 
     if errors:
         errors_str = "\n".join(errors)
         post(
-            Post.REQUEST_DISPLAY_ERROR,
+            Post.DISPLAY_ERROR,
             "Load components error",
             "Some components were not loaded. The following errors occured:\n"
             + errors_str,
@@ -118,8 +118,9 @@ def _deserialize_component(
     # create component
     component = timeline.create_timeline_component(component_kind, **constructor_kwargs)
 
-    # attributes that are serializable by id or by id list get set separatedly
-    _set_serializable_by_id_or_id_list(component, serialized_component)
+    if component:
+        # attributes that are serializable by id or by id list get set separatedly
+        _set_serializable_by_id_or_id_list(component, serialized_component)
 
     return component
 

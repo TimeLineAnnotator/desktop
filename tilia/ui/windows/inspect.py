@@ -1,14 +1,25 @@
 from __future__ import annotations
 
+import functools
 import logging
-from tkinter import ttk
+from enum import Enum, auto
 
-import tkinter as tk
-from tkinter.scrolledtext import ScrolledText
-from typing import Callable, Any
+from typing import Any, Callable
 
-from tilia.requests import Post, listen, stop_listening_to_all, post
-from tilia.repr import default_str
+from PyQt6.QtWidgets import (
+    QDockWidget,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QTextEdit,
+    QWidget,
+    QSizePolicy,
+    QSpinBox,
+    QComboBox,
+)
+
+from tilia.requests import Post, listen, stop_listening_to_all, post, Get, get
+from tilia.utils import get_tilia_class_string
 from tilia.timelines.base.component import TimelineComponent
 from tilia.ui.windows.kinds import WindowKind
 
@@ -20,100 +31,98 @@ logger = logging.getLogger(__name__)
 HIDE_FIELD = "__INSPECT_HIDEFIELD"
 
 
-class Inspect:
-    """
-    A window that allows the user to sse the relevant attributes of a
-    TimelineComponent or its UI. Listens for a inspectable element selected event and
-    updates according to a dict send alongside it. Keeps track of selected
-    inspectable and listens for a deselect inspectable event to allow for correct
-    updating.
-    """
-
+class Inspect(QDockWidget):
     KIND = WindowKind.INSPECT
 
-    def __init__(self, parent) -> None:
+    def __init__(self) -> None:
+        super().__init__()
         listen(
             self,
             Post.INSPECTABLE_ELEMENT_SELECTED,
-            self.on_timeline_component_selected,
+            self.on_element_selected,
         )
         listen(
             self,
             Post.INSPECTABLE_ELEMENT_DESELECTED,
-            self.on_timeline_component_deselected,
+            self.on_element_deselected,
         )
-
+        listen(
+            self,
+            Post.TIMELINE_COMPONENT_SET_DATA_DONE,
+            self.on_component_set_data_done,
+        )
         self.inspected_objects_stack = []
         self.element_id = ""
-        self.toplevel = tk.Toplevel(parent)
-        self.toplevel.transient(parent)
-        self.toplevel.title("Inspect")
-        self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
-        self.toplevel.focus()
+        self.widget = QWidget(self)
+        self.setWidget(self.widget)
+        self.layout = QFormLayout(self.widget)
+        self.widget.setLayout(self.layout)
 
         self.currently_inspected_class = None
-        self.fieldname_to_widgets = None
-        self.strvar_to_fieldname = None
-        self.widgets_to_strvars = None
-        self.starting_focus_widget = None
-        self.inspector_frame = tk.Frame(self.toplevel)
-        self.inspector_frame.pack()
-        self.display_not_selected_frame()
-
-        self.toplevel.bind("<Escape>", lambda _: post(Post.REQUEST_FOCUS_TIMELINES))
-        post(Post.INSPECTOR_WINDOW_OPENED)
+        self.field_name_to_widgets = None
+        post(Post.WINDOW_INSPECT_OPENED)
 
     def __str__(self):
-        return default_str(self)
+        return get_tilia_class_string(self)
 
-    def focus(self):
-        self.toplevel.focus_set()
-
-        if self.starting_focus_widget:
-            self.starting_focus_widget.focus_set()
-            self.starting_focus_widget.selection_range(0, tk.END)
-
-    def destroy(self):
+    def closeEvent(self, event, **kwargs):
         stop_listening_to_all(self)
-        self.toplevel.destroy()
-        post(Post.INSPECT_WINDOW_CLOSED)
+        post(Post.WINDOW_INSPECT_CLOSED)
+        super().closeEvent(event)
 
     def display_not_selected_frame(self):
-        tk.Label(
-            self.inspector_frame,
-            text="No object selected",
-            font=("Helvetica", 16),
-        ).pack(padx=PADX, pady=PADY)
+        raise NotImplementedError
 
-    def on_timeline_component_selected(
+    def on_component_set_data_done(self, timeline_id, element_id, *__):
+        ids_in_inspected_stack = [id for *_, id in self.inspected_objects_stack]
+        if element_id not in ids_in_inspected_stack:
+            return
+
+        element = get(Get.TIMELINE_UI_ELEMENT, timeline_id, element_id)
+        if not hasattr(element, "get_inspector_dict"):
+            return
+
+        self.update_values(element.get_inspector_dict(), element_id)
+
+    def on_element_selected(
         self,
         element_class: type[TimelineComponent],
-        inspector_fields: tuple[str, str],
+        inspector_fields: tuple[str, InspectRowKind],
         inspector_values: dict[str, str],
-        element_id: str,
+        element_id: int,
     ):
-        self.update_frame(element_class, inspector_fields)
+        self.update_rows(element_class, inspector_fields)
         self.update_values(inspector_values, element_id)
         self.update_inspected_object_stack(
             element_class, inspector_fields, inspector_values, element_id
         )
 
-    def update_inspected_object_stack(self, *uielement_args):
-        if uielement_args not in self.inspected_objects_stack:
-            self.inspected_objects_stack.append(uielement_args)
+        try:
+            self.widget.focusProxy().selectAll()
+        except AttributeError:
+            pass  # focus proxy is not a QLineEdit
 
-    def update_frame(
+    def update_inspected_object_stack(self, cls, field, values, id):
+        if (cls, field, values, id) not in self.inspected_objects_stack:
+            self.inspected_objects_stack.append((cls, field, values, id))
+
+    def update_rows(
         self,
         element_class: type[TimelineComponent],
-        inspector_fields: tuple[str, str],
+        inspector_fields: tuple[str, InspectRowKind],
     ):
         if element_class != self.currently_inspected_class:
-            self.inspector_frame.destroy()
-            self.inspector_frame = self.create_inspector_frame(inspector_fields)
-            self.inspector_frame.pack(padx=5, pady=5, expand=True, fill=tk.X)
+            self.clear_layout()
+            self.add_rows(inspector_fields)
             self.currently_inspected_class = element_class
 
-    def on_timeline_component_deselected(self, element_id: str):
+    def clear_layout(self):
+        self.widget = QWidget(self)
+        self.setWidget(self.widget)
+        self.layout = QFormLayout(self.widget)
+        self.widget.setLayout(self.layout)
+
+    def on_element_deselected(self, element_id: int):
         try:
             element_index = [
                 self.inspected_objects_stack.index(obj)
@@ -133,167 +142,146 @@ class Inspect:
                 element_id,
             ) = self.inspected_objects_stack[-1]
 
-            self.update_frame(element_class, inspector_fields)
+            self.update_rows(element_class, inspector_fields)
             self.update_values(inspector_values, element_id)
         else:
-            self.clear_values()
-            for _, (_, right_widget) in self.fieldname_to_widgets.items():
-                right_widget.config(state="disabled")
+            self.clear_widgets()
+            for _, (_, right_widget) in self.field_name_to_widgets.items():
+                right_widget.setEnabled(False)
 
-    def update_values(self, field_values: dict[str, str], element_id: str):
+    def update_values(self, field_values: dict[str, str], element_id: int):
         self.element_id = element_id
         for field_name, value in field_values.items():
-            widget = self.fieldname_to_widgets[field_name][1]
+            widget = self.field_name_to_widgets[field_name][1]
 
             self.update_value(widget, value)
             self.hide_or_show_field(field_name, value)
 
-            if self.starting_focus_widget:
-                self.starting_focus_widget.selection_range(0, tk.END)
+    def update_value(self, widget: QLineEdit | QLabel | QTextEdit, value: Any):
+        widget.setEnabled(True)
+        self.set_widget_value(widget, value)
 
-    def update_value(self, widget: tk.Entry | ScrolledText | tk.Label, value: Any):
-        widget.config(state="normal")
-        if type(widget) == tk.Label:
-            widget.config(text=value)
-        elif type(widget) == tk.Entry:
-            # pause strvar trace
-            strvar = self.widgets_to_strvars[widget]
-            strvar.trace_vdelete("w", strvar.trace_id)
-            # change entry value
-            widget.delete(0, "end")
-            widget.insert(0, value)
-            # resume strvar trace
-            strvar.trace_id = strvar.trace_add("write", self.on_entry_edited)
-        elif type(widget) == ScrolledText:
-            widget.delete(1.0, "end")
-            widget.insert(1.0, value)
-        else:
-            raise TypeError(
-                f"Non recognized widget type {type(widget)} for inspector field."
-            )
+    @staticmethod
+    def set_widget_value(widget, value):
+        if isinstance(widget, (QLineEdit, QLabel, QTextEdit)):
+            widget.setText(value)
+        elif isinstance(widget, QComboBox):
+            widget.setCurrentIndex(widget.findData(value))
+        elif isinstance(widget, QSpinBox):
+            widget.setValue(value)
 
     def hide_or_show_field(self, field_name, value):
         if value == HIDE_FIELD:
-            self.fieldname_to_widgets[field_name][0].grid_forget()
-            self.fieldname_to_widgets[field_name][1].grid_forget()
+            self.field_name_to_widgets[field_name][0].hide()
+            self.field_name_to_widgets[field_name][1].hide()
         else:
-            self.fieldname_to_widgets[field_name][0].grid()
-            self.fieldname_to_widgets[field_name][1].grid()
+            self.field_name_to_widgets[field_name][0].show()
+            self.field_name_to_widgets[field_name][1].show()
 
-    def clear_values(self):
-        clearing_dict = {}
-        for key in self.fieldname_to_widgets.keys():
-            clearing_dict[key] = ""
+    def clear_widgets(self):
+        for _, widget in self.field_name_to_widgets.values():
+            if isinstance(widget, (QLineEdit, QLabel, QTextEdit)):
+                widget.setText("")
+            elif isinstance(widget, QComboBox):
+                widget.setCurrentIndex(0)
+            elif isinstance(widget, QSpinBox):
+                widget.setValue(widget.minimum())
 
-        self.update_values(clearing_dict, "id_cleared")
+    def delete_all_rows(self):
+        for _ in range(self.layout.rowCount()):
+            self.layout.removeRow(0)
 
-    def create_inspector_frame(self, field_tuples: tuple[str, str]):
-        frame = tk.Frame(self.toplevel)
-        widget1 = None
-        widget2 = None
-        self.starting_focus_widget = None
-        self.fieldname_to_widgets = {}
-        self.strvar_to_fieldname = {}
-        self.widgets_to_strvars = {}
+    def on_line_edit_changed(self, field_name, value):
+        post(Post.INSPECTOR_FIELD_EDITED, field_name, value, self.element_id)
 
-        for row, field_tuple in enumerate(field_tuples):
-            field_name = field_tuple[0]
-            field_kind = field_tuple[1]
-            strvar = None
-            if field_kind == "entry":
-                label_and_entry = LabelAndEntry(frame, field_name)
-                widget1 = label_and_entry.label
-                widget2 = label_and_entry.entry
-                strvar = label_and_entry.entry_var
-                strvar.trace_id = strvar.trace_add("write", self.on_entry_edited)
-                if not self.starting_focus_widget:
-                    self.starting_focus_widget = widget2
+    def on_text_edit_changed(self, field_name, text_edit):
+        post(
+            Post.INSPECTOR_FIELD_EDITED,
+            field_name,
+            text_edit.toPlainText(),
+            self.element_id,
+        )
 
-            elif field_kind == "label":
-                widget1 = tk.Label(frame, text=f"{field_name}:")
-                widget2 = tk.Label(frame)
-            elif field_kind == "scrolled_text":
-                label_and_scrolled_text = LabelAndScrolledText(
-                    frame, field_name, self.on_scrolled_text_edited
+    def on_spin_box_changed(self, field_name, spin_box):
+        post(
+            Post.INSPECTOR_FIELD_EDITED,
+            field_name,
+            spin_box.value(),
+            self.element_id,
+        )
+
+    def on_combo_box_changed(self, field_name, combo_box):
+        post(
+            Post.INSPECTOR_FIELD_EDITED,
+            field_name,
+            combo_box.currentData(),
+            self.element_id,
+        )
+
+    def _get_widget_for_row(self, kind: InspectRowKind, name: str, kwargs):
+        match kind:
+            case InspectRowKind.LABEL:
+                widget = QLabel(self.widget)
+            case InspectRowKind.SINGLE_LINE_EDIT:
+                widget = QLineEdit(self.widget)
+                widget.textEdited.connect(
+                    functools.partial(self.on_line_edit_changed, name)
                 )
-                widget1 = label_and_scrolled_text.label
-                widget2 = label_and_scrolled_text.scrolled_text
-                if not self.starting_focus_widget:
-                    self.starting_focus_widget = widget2
-            elif field_kind == "separator":
-                widget1 = tk.Label(frame, text=f"{field_name}")
-                widget2 = ttk.Separator(frame, orient=tk.HORIZONTAL)
+            case InspectRowKind.MULTI_LINE_EDIT:
+                widget = QTextEdit(self.widget)
+                widget.setAcceptRichText(False)
+                widget.textChanged.connect(
+                    functools.partial(self.on_text_edit_changed, name, widget)
+                )
+            case InspectRowKind.SEPARATOR:
+                widget = QLabel(
+                    "-" * 50, self.layout
+                )  # TODO: implement a proper separator
+            case InspectRowKind.SPIN_BOX:
+                widget = QSpinBox()
+                widget.setMinimum(kwargs["min"])
+                widget.setMaximum(kwargs["max"])
+                widget.valueChanged.connect(
+                    functools.partial(self.on_spin_box_changed, name, widget)
+                )
+            case InspectRowKind.COMBO_BOX:
+                widget = QComboBox()
+                for value, data in kwargs["items"]:
+                    widget.addItem(str(value), data)
+                widget.currentIndexChanged.connect(
+                    functools.partial(self.on_combo_box_changed, name, widget)
+                )
+            case _:
+                widget = None
 
-            widget1.grid(row=row, column=0, sticky=tk.W)
-            widget2.grid(row=row, column=1, padx=5, pady=2, sticky=tk.EW)
+        return widget
 
-            self.fieldname_to_widgets[field_name] = (widget1, widget2)
-            if strvar:
-                self.strvar_to_fieldname[str(strvar)] = field_name
-                self.widgets_to_strvars[widget2] = strvar
-
-            frame.columnconfigure(1, weight=1)
-
-            if self.starting_focus_widget:
-                self.starting_focus_widget.focus_set()
-
-        return frame
-
-    def on_entry_edited(self, var_name: str, *_):
-        field_name = self.strvar_to_fieldname[var_name]
-        entry = self.fieldname_to_widgets[field_name][1]
-        post(Post.INSPECTOR_FIELD_EDITED, field_name, entry.get(), self.element_id)
-
-    def on_scrolled_text_edited(self, widget: ScrolledText, value: str):
-        fieldname = self.widget2_to_fieldnames[widget]
-        logger.debug(f"{fieldname=}")
-        logger.debug(f"{value=}")
-
-        post(Post.INSPECTOR_FIELD_EDITED, fieldname, value, self.element_id)
-
-    @property
-    def widget2_to_fieldnames(self):
-        return {
-            widget: fieldname
-            for fieldname, (_, widget) in self.fieldname_to_widgets.items()
-        }
-
-
-class LabelAndEntry(tk.Frame):
-    """Create a tk.Label(), tk.Entry() pair and a associated tk.StrVar()"""
-
-    WIDTH = 32
-
-    def __init__(self, parent, label, attr_to_link=None):
-        super().__init__(parent)
-        label_text = label + ":"
-        self.label = tk.Label(parent, text=label_text)
-
-        self.entry = tk.Entry(parent)
-        self.entry_var = tk.StringVar()
-        self.entry.config(textvariable=self.entry_var)
-
-        self.linked_attr = attr_to_link
-
-
-class LabelAndScrolledText:
-    HEIGHT = 5
-    WIDTH = 20
-
-    def __init__(
-        self,
-        parent,
-        name,
-        callback: Callable[[ScrolledText, str], None],
-        text: str = "",
+    def add_rows(
+        self, field_params: tuple[str, InspectRowKind, Callable[[], Any | None]]
     ):
-        self.label = tk.Label(parent, text=f"{name}:")
-        self.callback = callback
-        self.scrolled_text = ScrolledText(parent, height=self.HEIGHT, width=self.WIDTH)
-        self.scrolled_text.insert(1.0, text)
-        self.scrolled_text.edit_modified(False)
-        self.scrolled_text.bind("<<Modified>>", self.on_modified)
+        self.field_name_to_widgets = {}
 
-    def on_modified(self, _):
-        self.callback(self.scrolled_text, self.scrolled_text.get(1.0, "end-1c"))
-        self.scrolled_text.edit_modified(False)
+        for name, kind, get_kwargs in field_params:
+            left_widget = QLabel(name, self.widget)
+            right_widget = self._get_widget_for_row(
+                kind, name, get_kwargs() if get_kwargs else None
+            )
+
+            right_widget.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+            )
+            right_widget.setMaximumHeight(50)
+            self.layout.addRow(left_widget, right_widget)
+
+            self.field_name_to_widgets[name] = (left_widget, right_widget)
+
+        self.widget.setFocusProxy(self.layout.itemAt(1).widget())
+
+
+class InspectRowKind(Enum):
+    SPIN_BOX = auto()
+    COMBO_BOX = auto()
+    SINGLE_LINE_EDIT = auto()
+    MULTI_LINE_EDIT = auto()
+    LABEL = auto()
+    SEPARATOR = auto()

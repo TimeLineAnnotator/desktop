@@ -1,0 +1,17 @@
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QGuiApplication
+
+
+class CursorMixIn:
+    def __init__(self, cursor_shape, *args, **kwargs):
+        super().__init__(*args, *kwargs)
+        self.cursor_shape = cursor_shape
+        self.setAcceptHoverEvents(True)
+
+    def hoverEnterEvent(self, event) -> None:
+        QGuiApplication.setOverrideCursor(self.cursor_shape)
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event) -> None:
+        QGuiApplication.setOverrideCursor(Qt.CursorShape.ArrowCursor)
+        super().hoverEnterEvent(event)

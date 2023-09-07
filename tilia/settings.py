@@ -1,7 +1,7 @@
 from pathlib import Path
 import tomlkit
 
-from tilia.utils.os import open_with_os
+from tilia.utils import open_with_os
 
 DEFAULT_SETTINGS = {
     "general": {
@@ -10,6 +10,7 @@ DEFAULT_SETTINGS = {
         "window_height": 400,
         "window_x": 20,
         "window_y": 10,
+        "timeline_bg": "#EEE",
     },
     "auto-save": {"max_saved_files": 100, "interval": 300},
     "media_metadata": {
@@ -36,7 +37,7 @@ DEFAULT_SETTINGS = {
         "line_color": "#000000",
         "line_weight": 3,
     },
-    "beat_timeline": {"display_measure_periodicity": 5, "default_height": 35},
+    "beat_timeline": {"display_measure_periodicity": 4, "default_height": 35},
     "hierarchy_timeline": {
         "default_height": 120,
         "hierarchy_default_colors": [
@@ -61,6 +62,7 @@ DEFAULT_SETTINGS = {
         "marker_height": 10,
         "marker_default_color": "#999999",
     },
+    "harmony_timeline": {"default_harmony_display_mode": "chord"},
     "playback": {"ffmpeg_path": ""},
     "dev": {"log_events": False, "log_requests": False, "dev_mode": False},
 }

@@ -60,7 +60,7 @@ class TestUndoManager:
         um.undo()
 
         assert um.current_state_index == -2
-        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state0")
+        post_mock.assert_called_with(Post.APP_STATE_RESTORE, "state0")
 
     def test_undo_no_action_to_undo(self, post_mock, um):
         um.undo()
@@ -74,7 +74,7 @@ class TestUndoManager:
         um.undo()
 
         assert um.current_state_index == -3
-        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state0")
+        post_mock.assert_called_with(Post.APP_STATE_RESTORE, "state0")
 
     def test_redo(self, post_mock, um):
         um.record("state1", "action1")
@@ -83,7 +83,7 @@ class TestUndoManager:
         um.redo()
 
         assert um.current_state_index == -1
-        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state1")
+        post_mock.assert_called_with(Post.APP_STATE_RESTORE, "state1")
 
     def test_redo_no_actions_to_redo(self, post_mock, um):
         um.record("state1", "action1")
@@ -93,7 +93,7 @@ class TestUndoManager:
         um.redo()
 
         assert um.current_state_index == -1
-        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state1")
+        post_mock.assert_called_with(Post.APP_STATE_RESTORE, "state1")
 
     def test_redo_twice(self, post_mock, um):
         um.record("state1", "action1")
@@ -105,7 +105,7 @@ class TestUndoManager:
         um.redo()
 
         assert um.current_state_index == -1
-        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state2")
+        post_mock.assert_called_with(Post.APP_STATE_RESTORE, "state2")
 
     def test_alternate_undo_and_redo(self, post_mock, um):
         um.record("state1", "action1")
@@ -117,7 +117,7 @@ class TestUndoManager:
         um.redo()
 
         assert um.current_state_index == -1
-        post_mock.assert_called_with(Post.REQUEST_RESTORE_APP_STATE, "state2")
+        post_mock.assert_called_with(Post.APP_STATE_RESTORE, "state2")
 
     def test_undo_then_record(self, _, um):
         um.record("state1", "action1")

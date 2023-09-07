@@ -9,7 +9,7 @@ class TiliaExit(TiliaException):
     pass
 
 
-class UserCancel(TiliaException):
+class UserCancelledDialog(TiliaException):
     pass
 
 
@@ -52,4 +52,20 @@ class TimelineValidationError(TiliaException):
 
 
 class WrongTimelineForImport(TiliaException):
+    pass
+
+
+class SetComponentDataError(TiliaException):
+    pass
+
+
+class GetComponentDataError(TiliaException):
+    pass
+
+
+class SetTimelineDataError(TiliaException):
+    pass
+
+
+class GetTimelineDataError(TiliaException):
     pass

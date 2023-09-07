@@ -11,7 +11,6 @@ from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli import io
-import time
 
 
 def setup_parser(subparsers: _SubParsersAction):
@@ -172,7 +171,7 @@ def import_timeline(namespace):
         errors = csv.beats_from_csv(tl, file)
 
     if errors:
-        io.print(f"Errors: {errors}")
+        io.output(f"Errors: {errors}")
 
 
 def get_timelines_for_import(

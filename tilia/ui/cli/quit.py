@@ -1,6 +1,7 @@
 from argparse import _SubParsersAction
 
 from tilia.exceptions import TiliaExit
+from tilia.ui.cli import io
 
 
 def setup_parser(subparsers: _SubParsersAction):
@@ -9,5 +10,5 @@ def setup_parser(subparsers: _SubParsersAction):
 
 
 def quit(_):
-    print("Quitting...")
+    io.output("Quitting...")
     raise TiliaExit

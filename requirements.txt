@@ -1,6 +1,10 @@
 pandas>=1.4.3
-pygame>=2.1.2
 appdirs>=1.4.4
 tomlkit>=0.11.6
 pydub>=0.25.1
 prettytable>=3.7.0
+music21>=9.1
+PyQt6>=6.6.0
+PyQt6-WebEngine>=6.6.0
+setuptools~=67.7.2
+python-dotenv>=1.0.1

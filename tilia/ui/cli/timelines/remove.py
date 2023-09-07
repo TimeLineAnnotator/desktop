@@ -28,7 +28,7 @@ def remove_by_name(namespace):
 
     print(f"Removing timeline {tl=}")
 
-    post(Post.REQUEST_TIMELINE_DELETE, tl.id)
+    post(Post.TIMELINE_DELETE, tl.id)
 
 
 def remove_by_ordinal(namespace):
@@ -39,4 +39,4 @@ def remove_by_ordinal(namespace):
 
     print(f"Removing timeline {tl=}")
 
-    post(Post.REQUEST_TIMELINE_DELETE, tl.id)
+    post(Post.TIMELINE_DELETE, tl.id)

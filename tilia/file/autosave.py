@@ -6,8 +6,9 @@ from threading import Thread
 from typing import Callable
 import logging
 
-from tilia import settings, globals_, dirs
-from .common import compare_tilia_data, write_tilia_file_to_disk
+import tilia.constants
+from tilia import settings, dirs
+from .common import are_tilia_data_equal, write_tilia_file_to_disk
 from .tilia_file import TiliaFile
 from tilia.requests import get, Get
 
@@ -32,13 +33,10 @@ class AutoSaver:
         while True:
             try:
                 time.sleep(settings.get("auto-save", "interval"))
-                logger.debug("Checking if autosave is necessary...")
                 if self.needs_auto_save():
                     data = self.get_app_state()
                     autosave(data)
                     self._last_autosave_data = data
-                else:
-                    logger.debug("Autosave is not necessary.")
             except Exception as excp:
                 self._autosave_exception_list.append(excp)
                 _raise_save_loop_exception(excp)
@@ -47,7 +45,7 @@ class AutoSaver:
         if not self._last_autosave_data:
             return True
 
-        return not compare_tilia_data(self._last_autosave_data, self.get_app_state())
+        return not are_tilia_data_equal(self._last_autosave_data, self.get_app_state())
 
 
 def _raise_save_loop_exception(excp: Exception):
@@ -55,10 +53,8 @@ def _raise_save_loop_exception(excp: Exception):
 
 
 def autosave(data: dict):
-    logger.debug("Autosaving file...")
     make_room_for_new_autosave()
     write_tilia_file_to_disk(TiliaFile(**data), get_autosave_path())
-    logger.debug("Autosaved file.")
 
 
 def get_autosave_path():
@@ -68,7 +64,7 @@ def get_autosave_path():
 def get_autosave_filename():
     title = get(Get.MEDIA_TITLE)
     date = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    return f"{date}_{title}.{globals_.FILE_EXTENSION}"
+    return f"{date}_{title}.{tilia.constants.FILE_EXTENSION}"
 
 
 def get_autosaves_paths() -> list[str]:

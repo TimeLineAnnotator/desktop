@@ -10,7 +10,8 @@
 /build/dist/
 /build/ffmpeg/
 __pycache__/
-tilia/_dev.py
+tilia/dev/dev.py
 pytest.ini
 .coverage
 .vscode
+.env

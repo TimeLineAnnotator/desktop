@@ -1,0 +1,9 @@
+from tilia.requests import Post
+
+requests = [
+    Post.TIMELINES_CLEAR,
+    Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
+    Post.TIMELINE_ADD_MARKER_TIMELINE,
+    Post.TIMELINE_ADD_BEAT_TIMELINE,
+    Post.TIMELINE_ADD_HARMONY_TIMELINE,
+]

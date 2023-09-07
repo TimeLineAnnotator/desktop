@@ -4,16 +4,17 @@ import pygame
 import pytest
 from pathlib import Path
 
+import tilia.media.constants
 from tests.mock import PatchPost
 from tilia.requests import Post, post
 from tilia import globals_
 from tilia.media.player import PygamePlayer, VlcPlayer
 from tilia.media.player.base import NoMediaLoadedError
 
-AUDIO_FORMATS = tuple(globals_.SUPPORTED_AUDIO_FORMATS)
+AUDIO_FORMATS = tuple(tilia.media.constants.SUPPORTED_AUDIO_FORMATS)
 SEEKABLE_AUDIO_FORMATS = tuple([f for f in AUDIO_FORMATS if f != "wav"])
 
-VIDEO_FORMATS = tuple(globals_.SUPPORTED_VIDEO_FORMATS)
+VIDEO_FORMATS = tuple(tilia.media.constants.SUPPORTED_VIDEO_FORMATS)
 
 
 # FIXTURES
@@ -119,7 +120,7 @@ class TestPygamePlayer:
 
     @pytest.mark.parametrize("pygame_player", AUDIO_FORMATS, indirect=True)
     def test_stop_media(self, pygame_player, pygame_play_media):
-        post(Post.PLAYER_REQUEST_TO_STOP)
+        post(Post.PLAYER_STOP)
         assert not pygame_player.playing
         assert pygame_player.current_time == 0.0
 
@@ -133,19 +134,19 @@ class TestPygamePlayer:
     @pytest.mark.parametrize("pygame_player", SEEKABLE_AUDIO_FORMATS, indirect=True)
     def test_seek_playing_media(self, pygame_play_media, pygame_player):
         player = pygame_play_media
-        post(Post.PLAYER_REQUEST_TO_SEEK, 5)
+        post(Post.PLAYER_SEEK, 5)
         assert player.current_time == pytest.approx(5)
 
     @pytest.mark.parametrize("pygame_player", SEEKABLE_AUDIO_FORMATS, indirect=True)
     def test_seek_media_stopped(self, pygame_player):
-        post(Post.PLAYER_REQUEST_TO_SEEK, 5)
+        post(Post.PLAYER_SEEK, 5)
         assert pygame_player.current_time == pytest.approx(5)
 
     @pytest.mark.parametrize("pygame_player", SEEKABLE_AUDIO_FORMATS, indirect=True)
     def test_seek_media_paused(self, pygame_play_media, pygame_player):
         player = pygame_play_media
         player.toggle_play()
-        post(Post.PLAYER_REQUEST_TO_SEEK, 5)
+        post(Post.PLAYER_SEEK, 5)
         assert player.current_time == pytest.approx(5)
 
 
@@ -166,9 +167,7 @@ class TestVlcPlayer:
     def test_media_load_failed(self, vlc_player_notloaded):
         player = vlc_player_notloaded
 
-        with PatchPost(
-            "tilia.media.player.base", Post.REQUEST_DISPLAY_ERROR
-        ) as post_mock:
+        with PatchPost("tilia.media.player.base", Post.DISPLAY_ERROR) as post_mock:
             player.load_media("invalid media")
 
             post_mock.assert_called_once()
@@ -219,17 +218,17 @@ class TestVlcPlayer:
     @pytest.mark.parametrize("vlc_player", VIDEO_FORMATS, indirect=True)
     def test_seek_playing_media(self, vlc_play_media, vlc_player):
         player = vlc_play_media
-        post(Post.PLAYER_REQUEST_TO_SEEK, 5.0)
+        post(Post.PLAYER_SEEK, 5.0)
         assert player.current_time == pytest.approx(5.0)
 
     @pytest.mark.parametrize("vlc_player", VIDEO_FORMATS, indirect=True)
     def test_seek_media_stopped(self, vlc_player):
-        post(Post.PLAYER_REQUEST_TO_SEEK, 5.0)
+        post(Post.PLAYER_SEEK, 5.0)
         assert vlc_player.current_time == pytest.approx(5.0)
 
     @pytest.mark.parametrize("vlc_player", VIDEO_FORMATS, indirect=True)
     def test_seek_media_paused(self, vlc_play_media, vlc_player):
         player = vlc_play_media
         player.toggle_play()
-        post(Post.PLAYER_REQUEST_TO_SEEK, 5.0)
+        post(Post.PLAYER_SEEK, 5.0)
         assert player.current_time == pytest.approx(5.0)

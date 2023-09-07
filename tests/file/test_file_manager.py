@@ -30,31 +30,31 @@ def get_empty_save_params():
 class TestFileManager:
     def test_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"
-        tilia.clear_app()
+        tilia.on_clear()
         tilia.file_manager.open(path)
 
     def test_file_not_modified_after_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"
-        tilia.clear_app()
+        tilia.on_clear()
         tilia.file_manager.open(path)
         assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
 
     def test_add_metadata_field_at_start(self, file_manager):
         previous_fields = list(file_manager.file.media_metadata)
-        post(Post.REQUEST_ADD_MEDIA_METADATA_FIELD, "newfield", 0)
+        post(Post.METADATA_ADD_FIELD, "newfield", 0)
         assert list(file_manager.file.media_metadata)[0] == "newfield"
         assert list(file_manager.file.media_metadata)[1:] == previous_fields
 
     def test_add_metadata_field_at_middle(self, file_manager):
         previous_fields = list(file_manager.file.media_metadata)
-        post(Post.REQUEST_ADD_MEDIA_METADATA_FIELD, "newfield", 2)
+        post(Post.METADATA_ADD_FIELD, "newfield", 2)
         result = list(file_manager.file.media_metadata)
         assert list(file_manager.file.media_metadata)[2] == "newfield"
         result.pop(2)
         assert result == previous_fields
 
     def test_set_metadata_field(self, file_manager):
-        post(Post.REQUEST_SET_MEDIA_METADATA_FIELD, "title", "new title")
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "new title")
         assert file_manager.file.media_metadata["title"] == "new title"
 
     def test_open_file_with_custom_metadata_fields(self, file_manager):
@@ -131,17 +131,13 @@ class TestFileManager:
         data = "nonsense"
 
         with patch("builtins.open", mock_open(read_data=data)):
-            with PatchPost(
-                "tilia.file.file_manager", Post.REQUEST_DISPLAY_ERROR
-            ) as post_mock:
+            with PatchPost("tilia.file.file_manager", Post.DISPLAY_ERROR) as post_mock:
                 post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "")
 
                 post_mock.assert_called()
 
     def test_import_metadata_file_does_not_exist(self, file_manager):
-        with PatchPost(
-            "tilia.file.file_manager", Post.REQUEST_DISPLAY_ERROR
-        ) as post_mock:
+        with PatchPost("tilia.file.file_manager", Post.DISPLAY_ERROR) as post_mock:
             post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "nonexistent.json")
 
             post_mock.assert_called()

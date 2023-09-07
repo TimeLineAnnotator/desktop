@@ -9,7 +9,7 @@ from tilia.requests import Get
 from tilia.ui.windows.metadata import (
     MediaMetadataWindow,
     EditMetadataFieldsWindow,
-    PERMANENT_FIELDS,
+    FIELDS_WITH_NO_ROW,
 )
 
 
@@ -112,7 +112,7 @@ class TestEditMetadataFieldsWindow:
             window_mock
         )
 
-        assert metadata_fields == ["field1", "field2", "field3"] + PERMANENT_FIELDS
+        assert metadata_fields == ["field1", "field2", "field3"] + FIELDS_WITH_NO_ROW
 
         test_str = """
         field1
@@ -125,7 +125,7 @@ class TestEditMetadataFieldsWindow:
             window_mock
         )
 
-        assert metadata_fields == ["field1", "field2"] + PERMANENT_FIELDS
+        assert metadata_fields == ["field1", "field2"] + FIELDS_WITH_NO_ROW
 
         test_str = r"""
         field1
@@ -139,5 +139,5 @@ class TestEditMetadataFieldsWindow:
 
         assert (
             metadata_fields
-            == ["field1", r"!@#$%¨&*()\/{}[]", "field2"] + PERMANENT_FIELDS
+            == ["field1", r"!@#$%¨&*()\/{}[]", "field2"] + FIELDS_WITH_NO_ROW
         )

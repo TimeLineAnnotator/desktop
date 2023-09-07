@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-from tilia import globals_
+import tilia.constants
 
 from pathlib import Path
 
@@ -11,7 +11,7 @@ LICENSE_PATH = Path(Path().absolute().resolve().parent, "LICENSE")
 
 def confirm_version_number_update():
     answer = input(
-        f"Did you remember to update the version number (current version number is {globals_.VERSION})? y/n "
+        f"Did you remember to update the version number (current version number is {tilia.constants.VERSION})? y/n "
     )
 
     if answer.lower() == "y":
@@ -26,7 +26,7 @@ def make_pyinstaller_build():
 
 
 def make_installer():
-    create_iss_script(globals_.VERSION, globals_.APP_NAME)
+    create_iss_script(tilia.constants.VERSION, tilia.constants.APP_NAME)
 
     path_to_inno = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 

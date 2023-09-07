@@ -18,7 +18,7 @@ def validate_value(value: float) -> bool:
         float(value)
     except ValueError:
         post(
-            Post.REQUEST_DISPLAY_ERROR,
+            Post.DISPLAY_ERROR,
             "Set media metadata",
             "Can't set media metadata to {value}. Media length must be a number.",
         )
@@ -26,11 +26,11 @@ def validate_value(value: float) -> bool:
 
     if value < 0:
         post(
-            Post.REQUEST_DISPLAY_ERROR,
+            Post.DISPLAY_ERROR,
             "Set media metadata",
             "Can't set media metadata to {value}. Media length must be a number.",
         )
-        io.print("Can't set to {value}. Media length must be positive.")
+        io.output("Can't set to {value}. Media length must be positive.")
         return False
 
     return True
@@ -38,4 +38,4 @@ def validate_value(value: float) -> bool:
 
 def set_media_length(namespace: argparse.Namespace):
     if validate_value(namespace.value):
-        post(Post.REQUEST_SET_MEDIA_LENGTH, namespace.value)
+        post(Post.PLAYER_DURATION_CHANGED, namespace.value)

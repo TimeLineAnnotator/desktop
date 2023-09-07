@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!DOCTYPE html>
+    <link rel="stylesheet" href="youtube.css">
+<html>
+  <body>
+    <iframe id="yt-player-iframe"
+        width="640" height="360"
+        src="https://www.youtube.com/embed?enablejsapi=1"
+    ></iframe>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script type="text/javascript">
+      var backend;
+      new QWebChannel(qt.webChannelTransport, function (channel) {
+            backend = channel.objects.backend;
+      });
+
+      var tag = document.createElement('script');
+      tag.id = 'iframe-temp';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      var firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      var player;
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player('yt-player-iframe', {
+            events: {
+              'onStateChange': onPlayerStateChange
+            }
+        });
+      }
+
+      var playerUpdateLoop = 0
+      function onPlayerStateChange(event) {
+        const playerStatus = event.data
+        backend.on_player_state_change(playerStatus)
+        if (playerStatus == 0 || playerStatus == 2) {
+            clearInterval(playerUpdateLoop)
+        }
+        else if (playerStatus == 1) {
+            playerUpdateLoop = setInterval(updateTime, 100)
+        }
+      }
+
+      function updateTime() {
+        backend.on_new_time(player.getCurrentTime())
+      }
+
+      function loadVideo(id) {
+        player.loadVideoById(id)
+        return true
+      }
+
+      function seekTo(time) {
+        player.seekTo(time, allowSeekAhead=true)
+      }
+
+      function getDuration() {
+        return player.getDuration()
+      }
+
+      function getCurrentTime() {
+        return player.getCurrentTime()
+      }
+
+      function play() {
+        return player.playVideo() 
+      }
+
+      function pause() {
+        return player.pauseVideo()
+      }
+
+      function stop() {
+        return player.stopVideo()
+      }
+
+</script>
+
+
+  </body>
+</html>
+</title>
+</head>
+<body>
+
+</body>
+</html>

@@ -3,7 +3,6 @@ import itertools
 import logging
 
 from tilia.exceptions import InvalidComponentKindError
-from tilia.timelines.hierarchy.components import HierarchyOperationError
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
     HierarchyTimeline,
@@ -66,7 +65,7 @@ class TestHierarchyTimeline:
     def test_delete_hierarchy(self, tl):
         hrc1 = tl.create_hierarchy(0, 1, 1)
 
-        tl.on_request_to_delete_components([hrc1])
+        tl.delete_components([hrc1])
 
         assert not tl.component_manager._components
 
@@ -194,7 +193,7 @@ class TestHierarchyTimeline:
 
         state = tl.get_state()
 
-        tl.on_request_to_delete_components([hrc1, hrc2])
+        tl.delete_components([hrc1, hrc2])
 
         assert len(tl.component_manager._components) == 0
 
@@ -207,9 +206,7 @@ class TestHierarchyTimelineComponentManager:
     def test_create_invalid_component_kind_raises_error(self, tl):
         with pytest.raises(InvalidComponentKindError):
             # noinspection PyTypeChecker
-            tl.component_manager.create_component(
-                "INVALID KIND", start=0, end=1, level=1
-            )
+            tl.component_manager.create_component("INVALID KIND", None, 0, 1, 1)
 
     def test_create_unit_below(self, tl):
         parent = tl.create_hierarchy(start=0, end=1, level=3)
@@ -217,7 +214,7 @@ class TestHierarchyTimelineComponentManager:
 
         tl.component_manager._update_genealogy(parent, [child])
 
-        tl.component_manager.create_unit_below(parent)
+        tl.component_manager.create_child(parent)
 
         assert child.parent in parent.children
 
@@ -230,139 +227,6 @@ class TestHierarchyTimelineComponentManager:
         tl.component_manager.clear()
 
         assert not tl.component_manager._components
-
-    # TEST GROUP
-    def test_group_two_units(self, tl):
-        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-
-        tl.component_manager.group([hrc1, hrc2])
-
-        assert hrc1.parent == hrc2.parent
-        assert hrc1.parent.level == 2
-
-    def test_group_two_units_out_of_order(self, tl):
-        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-
-        tl.component_manager.group([hrc2, hrc1])
-
-        assert hrc1.parent == hrc2.parent
-
-    def test_group_two_units_with_units_of_same_level_in_between(self, tl):
-        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
-        hrc4 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
-
-        tl.component_manager.group([hrc1, hrc4])
-
-        assert hrc1.parent == hrc2.parent == hrc3.parent == hrc4.parent
-
-    def test_group_two_units_with_units_of_different_level_in_between(self, tl):
-        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
-        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=3)
-        hrc4 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
-
-        tl.component_manager.group([hrc1, hrc4])
-
-        assert hrc1.parent == hrc2.parent == hrc3.parent == hrc4.parent
-        assert hrc1.parent.level == 4
-
-    def test_group_two_units_with_unit_with_children_in_between(self, tl):
-        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=2)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
-        hrc4 = tl.create_hierarchy(start=0.1, end=0.3, level=2)
-        tl.component_manager._update_genealogy(hrc4, [hrc2, hrc3])
-        hrc5 = tl.create_hierarchy(start=0.3, end=0.4, level=2)
-
-        tl.component_manager.group([hrc1, hrc5])
-
-        assert hrc1.parent == hrc4.parent == hrc5.parent
-
-    def test_group_three_units_with_units_between_grouped_units(self, tl):
-        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
-        hrc4 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
-        hrc5 = tl.create_hierarchy(start=0.4, end=0.5, level=1)
-
-        tl.component_manager.group([hrc1, hrc3, hrc5])
-
-        assert hrc1.parent == hrc2.parent == hrc3.parent == hrc4.parent
-
-    def test_group_one_unit_raises_error(self, tl):
-        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.group([hrc1])
-
-    def test_group_empty_list_raises_error(self, tl):
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.group([])
-
-    def test_group_crossing_end_boundary_raises_error(self, tl):
-        tl.create_hierarchy(start=0.0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        tl.create_hierarchy(start=0.0, end=0.2, level=2)
-        hrc4 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
-
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.group([hrc2, hrc4])
-
-    def test_group_crossing_start_boundary_raises_error(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        tl.create_hierarchy(start=0.2, end=0.3, level=1)
-        tl.create_hierarchy(start=0.1, end=0.3, level=2)
-
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.group([hrc1, hrc2])
-
-    def test_group_overlapping_with_higher_unit_raises_error(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        tl.create_hierarchy(start=0.0, end=0.2, level=2)
-
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.group([hrc1, hrc2])
-
-    def test_group_two_units_with_parent_two_levels_higher(self, tl):
-        hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc3 = tl.create_hierarchy(start=0.0, end=0.2, level=3)
-
-        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
-
-        tl.component_manager.group([hrc1, hrc2])
-
-        assert hrc1.parent == hrc2.parent
-        assert not hrc1.parent == hrc3 or hrc2.parent == hrc3
-        assert hrc1.parent in hrc3.children
-
-    def test_group_two_units_with_parent_that_has_parent(self, hierarchy_tl):
-        tl = hierarchy_tl
-        hrc1 = tl.create_hierarchy(start=0.0, end=0.4, level=4)
-        hrc2 = tl.create_hierarchy(start=0.0, end=0.4, level=3)
-        hrc3 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
-        hrc4 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hrc5 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
-        hrc6 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
-
-        tl.component_manager._update_genealogy(hrc1, [hrc2])
-
-        tl.component_manager._update_genealogy(hrc2, [hrc3, hrc4, hrc5, hrc6])
-
-        tl.component_manager.group([hrc3, hrc4])
-
-        assert hrc3.parent == hrc4.parent
-        assert hrc3.parent.parent == hrc2
-        assert hrc5.parent == hrc2
-        assert hrc6.parent == hrc2
-        assert hrc3.parent in hrc2.children
-        assert hrc5 in hrc2.children
-        assert hrc6 in hrc2.children
 
     # TEST MERGE
     def test_merge_two_units_without_units_between(self, tl):
@@ -442,31 +306,27 @@ class TestHierarchyTimelineComponentManager:
     def test_merge_one_unit_raises_error(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
 
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.merge([hrc1])
+        success, _ = tl.component_manager.merge([hrc1])
 
     def test_merge_units_of_different_level_raises_error(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
         hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
 
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.merge([hrc1, hrc2])
+        success, _ = tl.component_manager.merge([hrc1, hrc2])
 
     def test_merge_with_unit_of_different_level_in_between_raises_error(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
         tl.create_hierarchy(start=0.1, end=0.2, level=2)
         hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
 
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.merge([hrc1, hrc3])
+        success, _ = tl.component_manager.merge([hrc1, hrc3])
 
     def test_merge_with_different_parent_raises_error(self, tl):
         hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
         tl.create_hierarchy(start=0.1, end=0.2, level=1)
         hrc3 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
 
-        with pytest.raises(HierarchyOperationError):
-            tl.component_manager.merge([hrc1, hrc3])
+        success, _ = tl.component_manager.merge([hrc1, hrc3])
 
     # TEST SERIALIZE
     # noinspection PyUnresolvedReferences
@@ -564,23 +424,23 @@ class TestHierarchyTimelineComponentManager:
         assert hrc3.start == 1.5
         assert hrc3.end == 3
 
-    def test_increase_level(self, tl, cm):
+    def test_increase_level(self, tl):
         hrc = tl.create_hierarchy(0, 1, 1)
-        cm.change_level(hrc, 1)
+        tl.alter_levels([hrc], 1)
         assert hrc.level == 2
 
-    def test_decrease_level(self, tl, cm):
+    def test_decrease_level(self, tl):
         hrc = tl.create_hierarchy(0, 1, 2)
-        cm.change_level(hrc, -1)
+        tl.alter_levels([hrc], -1)
         assert hrc.level == 1
 
-    def test_decrease_level_below_one_raises_error(self, tl, cm):
+    def test_decrease_level_below_one_fails(self, tl):
         hrc = tl.create_hierarchy(0, 1, 1)
-        with pytest.raises(HierarchyOperationError):
-            cm.change_level(hrc, -1)
+        tl.alter_levels([hrc], -1)
+        assert hrc.level == 1
 
-        with pytest.raises(HierarchyOperationError):
-            cm.change_level(hrc, -2)
+        tl.alter_levels([hrc], -10)
+        assert hrc.level == 1
 
     def test_do_genealogy_empty_timeline(self, tl):
         tl.do_genealogy()
@@ -810,6 +670,7 @@ class TestHierarchyTimelineComponentManager:
         assert {h1, h3} in conflicts
         assert {h2, h3} in conflicts
 
+
 class TestSplit:
     # TEST SPLIT
     def test_get_unit_for_split_from_single_unit(self, tl):
@@ -858,14 +719,9 @@ class TestSplit:
 
     def test_split_unit_passes_comments(self, tl):
         """Comments should be inherited by both resulting units"""
-        tl.create_hierarchy(
-            start=0.0,
-            end=1,
-            level=1,
-            comments='inherit me'
-        )
+        tl.create_hierarchy(start=0.0, end=1, level=1, comments="inherit me")
 
-        tl.split(.5)
+        tl.split(0.5)
 
         assert tl[0].comments == "inherit me"
         assert tl[1].comments == "inherit me"
@@ -874,15 +730,15 @@ class TestSplit:
         """Pre-start should be inherited only by the left unit"""
         tl.create_hierarchy(
             pre_start=0,
-            start=.2,
+            start=0.2,
             end=1,
             level=1,
         )
 
-        tl.split(.5)
+        tl.split(0.5)
 
         assert tl[0].pre_start == 0
-        assert tl[1].pre_start == .5
+        assert tl[1].pre_start == 0.5
 
     def test_split_unit_passes_post_end(self, tl):
         """Pre-start should be inherited only by the left unit"""
@@ -893,9 +749,9 @@ class TestSplit:
             level=1,
         )
 
-        tl.split(.5)
+        tl.split(0.5)
 
-        assert tl[0].post_end == .5
+        assert tl[0].post_end == 0.5
         assert tl[1].post_end == 1
 
     def test_split_unit_with_children(self, tl):
@@ -911,3 +767,136 @@ class TestSplit:
         assert hrc1.parent
         assert hrc2.parent
         assert hrc1.parent != hrc2.parent
+
+
+class TestGroup:
+    # TEST GROUP
+    def test_group_two_units(self, tl):
+        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+
+        tl.component_manager.group([hrc1, hrc2])
+
+        assert hrc1.parent == hrc2.parent
+        assert hrc1.parent.level == 2
+
+    def test_two_units_out_of_order(self, tl):
+        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+
+        tl.component_manager.group([hrc2, hrc1])
+
+        assert hrc1.parent == hrc2.parent
+
+    def test_two_units_with_units_of_same_level_in_between(self, tl):
+        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
+        hrc4 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
+
+        tl.component_manager.group([hrc1, hrc4])
+
+        assert hrc1.parent == hrc2.parent == hrc3.parent == hrc4.parent
+
+    def test_two_units_with_unit_with_children_in_between(self, tl):
+        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=2)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
+        hrc4 = tl.create_hierarchy(start=0.1, end=0.3, level=2)
+        tl.component_manager._update_genealogy(hrc4, [hrc2, hrc3])
+        hrc5 = tl.create_hierarchy(start=0.3, end=0.4, level=2)
+
+        tl.component_manager.group([hrc1, hrc5])
+
+        assert hrc1.parent == hrc4.parent == hrc5.parent
+
+    def test_three_units_with_units_between_grouped_units(self, tl):
+        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
+        hrc4 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
+        hrc5 = tl.create_hierarchy(start=0.4, end=0.5, level=1)
+
+        tl.component_manager.group([hrc1, hrc3, hrc5])
+
+        assert hrc1.parent == hrc2.parent == hrc3.parent == hrc4.parent
+
+    def test_two_units_with_parent_two_levels_higher(self, tl):
+        hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        hrc3 = tl.create_hierarchy(start=0.0, end=0.2, level=3)
+
+        tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
+
+        tl.component_manager.group([hrc1, hrc2])
+
+        assert hrc1.parent == hrc2.parent
+        assert not hrc1.parent == hrc3 or hrc2.parent == hrc3
+        assert hrc1.parent in hrc3.children
+
+    def test_two_units_with_parent_that_has_parent(self, hierarchy_tl):
+        tl = hierarchy_tl
+        hrc1 = tl.create_hierarchy(start=0.0, end=0.4, level=4)
+        hrc2 = tl.create_hierarchy(start=0.0, end=0.4, level=3)
+        hrc3 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
+        hrc4 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        hrc5 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
+        hrc6 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
+
+        tl.component_manager._update_genealogy(hrc1, [hrc2])
+
+        tl.component_manager._update_genealogy(hrc2, [hrc3, hrc4, hrc5, hrc6])
+
+        tl.component_manager.group([hrc3, hrc4])
+
+        assert hrc3.parent == hrc4.parent
+        assert hrc3.parent.parent == hrc2
+        assert hrc5.parent == hrc2
+        assert hrc6.parent == hrc2
+        assert hrc3.parent in hrc2.children
+        assert hrc5 in hrc2.children
+        assert hrc6 in hrc2.children
+
+    def test_two_units_with_units_of_higher_level_in_between_fails(self, tl):
+        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
+        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=3)
+        hrc4 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
+
+        success, _ = tl.component_manager.group([hrc1, hrc4])
+        assert not success
+
+    def test_single_unit_fails(self, tl):
+        hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
+        success, _ = tl.component_manager.group([hrc1])
+        assert not success
+
+    def test_empty_list_fails(self, tl):
+        success, _ = tl.component_manager.group([])
+        assert not success
+
+    def test_crossing_end_boundary_fails(self, tl):
+        tl.create_hierarchy(start=0.0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        tl.create_hierarchy(start=0.0, end=0.2, level=2)
+        hrc4 = tl.create_hierarchy(start=0.2, end=0.3, level=1)
+
+        success, _ = tl.component_manager.group([hrc2, hrc4])
+        assert not success
+
+    def test_crossing_start_boundary_fails(self, tl):
+        hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        tl.create_hierarchy(start=0.2, end=0.3, level=1)
+        tl.create_hierarchy(start=0.1, end=0.3, level=2)
+
+        success, _ = tl.component_manager.group([hrc1, hrc2])
+        assert not success
+
+    def test_overlapping_with_higher_unit_fails(self, tl):
+        hrc1 = tl.create_hierarchy(start=0.0, end=0.1, level=1)
+        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=1)
+        tl.create_hierarchy(start=0.0, end=0.2, level=2)
+
+        success, _ = tl.component_manager.group([hrc1, hrc2])
+        assert not success

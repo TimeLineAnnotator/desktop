@@ -1,5 +1,6 @@
 from typing import Callable, Any, Optional
 
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 import hashlib
 
@@ -9,16 +10,9 @@ def hash_function(string: str) -> str:
 
 
 def hash_timeline_collection_data(timeline_collection_data: dict):
-    try:
-        sorted_tlcoll_data = sorted(
-            timeline_collection_data.values(), key=lambda x: x["ordinal"]
-        )
-    except KeyError:
-        #  for backwards compatibility with TiLiA v0.1.1
-        #  timeline data still has attr 'display_position' instead of 'ordinal'
-        sorted_tlcoll_data = sorted(
-            timeline_collection_data.values(), key=lambda x: x["display_position"]
-        )
+    sorted_tlcoll_data = sorted(
+        timeline_collection_data.values(), key=lambda x: x["ordinal"]
+    )
 
     str_to_hash = "|"
     for tl_data in sorted_tlcoll_data:
@@ -53,6 +47,12 @@ def hash_timeline_data_by_kind(kind: TimelineKind, tl_data: dict):
                 hash_beat_data,
                 tl_data,
             )
+        case TimelineKind.HARMONY_TIMELINE.name:
+            return hash_timeline_data(
+                ["level_height", "level_count", "is_visible", "name"],
+                hash_harmony_timeline_components_data,
+                tl_data,
+            )
         case _:
             raise NotImplementedError
 
@@ -85,6 +85,36 @@ def hash_timeline_components(
     return hash_function(str_to_hash)
 
 
+def hash_harmony_timeline_components_data(components_data: dict) -> str:
+    from tilia.timelines.harmony.components import Mode, Harmony
+
+    def sort_harmonies(x):
+        return x["level"], x["time"]
+
+    harmony_data = {
+        id: data
+        for id, data in components_data.items()
+        if data["kind"] == ComponentKind.HARMONY.name
+    }
+    harmonies_hash = hash_timeline_components(
+        Harmony.SERIALIZABLE_BY_VALUE, sort_harmonies, harmony_data
+    )
+
+    def sort_modes(x):
+        return x["level"], x["time"]
+
+    mode_data = {
+        id: data
+        for id, data in components_data.items()
+        if data["kind"] == ComponentKind.MODE.name
+    }
+    modes_hash = hash_timeline_components(
+        Mode.SERIALIZABLE_BY_VALUE, sort_modes, mode_data
+    )
+
+    return hash_function(harmonies_hash + "|" + modes_hash)
+
+
 def hash_hierarchies_data(hierarchy_data: dict) -> str:
     hash_attributes = [
         "start",
@@ -112,3 +142,21 @@ def hash_markers_data(marker_data: dict) -> str:
 def hash_beat_data(marker_data: dict) -> str:
     hash_attributes = ["time"]
     return hash_timeline_components(hash_attributes, lambda x: x["time"], marker_data)
+
+
+def hash_harmony_data(harmony_data: dict) -> str:
+    def sort_func(x):
+        return x["level"], x["time"]
+
+    hash_attributes = [
+        "time",
+        "step",
+        "accidental",
+        "quality",
+        "inversion",
+        "applied_to",
+        "level",
+        "comments",
+    ]
+
+    return hash_timeline_components(hash_attributes, sort_func, harmony_data)

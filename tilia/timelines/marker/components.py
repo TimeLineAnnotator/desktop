@@ -8,40 +8,48 @@ from typing import TYPE_CHECKING
 import logging
 
 from tilia import settings
+from tilia.timelines.base.validators import (
+    validate_time,
+    validate_color,
+    validate_string,
+)
 from tilia.timelines.component_kinds import ComponentKind
 
 if TYPE_CHECKING:
     from tilia.timelines.marker.timeline import MarkerTimeline
-
-from tilia.exceptions import TiliaException
 
 from tilia.timelines.base.component import TimelineComponent
 
 logger = logging.getLogger(__name__)
 
 
-class MarkerLoadError(Exception):
-    pass
-
-
 class Marker(TimelineComponent):
-    # serializer attributes
     SERIALIZABLE_BY_VALUE = ["time", "comments", "label", "color"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
 
     KIND = ComponentKind.MARKER
 
+    validators = {
+        "timeline": lambda _: False,
+        "id": lambda _: False,
+        "time": validate_time,
+        "label": validate_string,
+        "color": validate_color,
+        "comments": validate_string,
+    }
+
     def __init__(
         self,
         timeline: MarkerTimeline,
+        id: int,
         time: float,
         label="",
         color=settings.get("marker_timeline", "marker_default_color"),
         comments="",
         **_,
     ):
-        super().__init__(timeline)
+        super().__init__(timeline, id)
 
         self.time = time
         self.label = label
@@ -51,16 +59,12 @@ class Marker(TimelineComponent):
     def __lt__(self, other):
         return self.time < other.time
 
-    @classmethod
-    def create(cls, *args, **kwargs):
-        return Marker(*args, **kwargs)
-
-    def receive_delete_request_from_ui(self) -> None:
-        self.timeline.on_request_to_delete_components([self])
-
     def __str__(self):
         return f"Marker({self.time})"
 
+    def __repr__(self):
+        return str(dict(self.__dict__.items()))
 
-class MarkerOperationError(TiliaException):
-    pass
+    @classmethod
+    def create(cls, *args, **kwargs):
+        return Marker(*args, **kwargs)

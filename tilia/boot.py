@@ -1,26 +1,30 @@
 import argparse
 import logging
 import os
-import tkinter as tk
+
+import dotenv
 
 from tilia import dirs, settings
 from tilia.app import App
 from tilia.clipboard import Clipboard
 from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
-from tilia.media.player import PygamePlayer
 from tilia.ui.cli.ui import CLI
-from tilia.ui.tkinterui import TkinterUI
+from tilia.ui.qtui import QtUI
 from tilia.undo_manager import UndoManager
 
 logger = logging.getLogger(__name__)
 
+app = None
 
-def boot() -> None:
+
+def boot():
+    dotenv.load_dotenv()
     args = setup_parser()
     setup_dirs()
     setup_logging(args.logging)  # relies on logging path set by dirs setup
     setup_settings()
+    global app
     app = setup_logic()
     ui = setup_ui(args.user_interface)
 
@@ -42,7 +46,7 @@ def setup_parser():
         default="INFO",
     )
     parser.add_argument("file", nargs="?", default="")
-    parser.add_argument("--user-interface", "-i", choices=["tk", "cli"], default="tk")
+    parser.add_argument("--user-interface", "-i", choices=["qt", "cli"], default="qt")
     return parser.parse_args()
 
 
@@ -63,28 +67,26 @@ def setup_logging(level: str):
     )
 
 
-def setup_logic():
-    player = PygamePlayer()
+def setup_logic(autosaver=True):
     file_manager = FileManager()
     clipboard = Clipboard()
     undo_manager = UndoManager()
 
-    app = App(
-        player=player,
+    _app = App(
         file_manager=file_manager,
         clipboard=clipboard,
         undo_manager=undo_manager,
     )
 
-    AutoSaver(app.get_app_state)
+    if autosaver:
+        AutoSaver(_app.get_app_state)
 
-    return app
+    return _app
 
 
 def setup_ui(interface: str):
-    if interface == "tk":
-        root = tk.Tk()
-        return TkinterUI(root)
+    if interface == "qt":
+        return QtUI()
     elif interface == "cli":
         return CLI()
 

@@ -2,7 +2,6 @@ from tilia.ui.dialogs.choose import ChooseDialog
 
 
 class TestChooseDialog:
-
     options = [
         (1, "first"),
         (2, "second"),

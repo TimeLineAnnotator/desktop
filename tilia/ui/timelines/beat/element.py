@@ -6,44 +6,51 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from tilia.requests import Post, stop_listening_to_all, post, Get, get
-from tilia.timelines.state_actions import Action
+from PyQt6.QtCore import Qt, QLineF, QPointF
+from PyQt6.QtGui import QPen, QColor, QFont
+from PyQt6.QtWidgets import QGraphicsScene, QGraphicsLineItem, QGraphicsTextItem
+
+from tilia.requests import Post, post, Get, get
+from .context_menu import BeatContextMenu
 from ..copy_paste import CopyAttributes
+from ..cursors import CursorMixIn
 from ..drag import DragManager
-from ..timeline import RightClickOption
-from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
-from ...common import format_media_time
+from ...format import format_media_time
 from ...coords import get_x_by_time, get_time_by_x
-import tkinter as tk
-from tilia.timelines.common import (
-    log_object_creation,
-    log_object_deletion,
-)
-from tilia.ui.timelines.common import TimelineUIElement
+from tilia.ui.timelines.base.element import TimelineUIElement
+from ...windows.inspect import InspectRowKind
 
 if TYPE_CHECKING:
     from .timeline import BeatTimelineUI
-    from tilia.ui.timelines.common import TimelineCanvas
+    from tilia.ui.timelines.scene import TimelineScene
 
 logger = logging.getLogger(__name__)
 
 
 class BeatUI(TimelineUIElement):
-    WIDTH = 1
-    HEIGHT = 7
-    FIRST_IN_MEASURE_WIDTH = 1
-    FIRST_IN_MEASURE_HEIGHT = 15
+    WIDTH_THIN = 1
+    WIDTH_THICK = 3
+    HEIGHT_SHORT = 7
+    HEIGHT_TALL = 15
 
     FILL = "gray"
     FIRST_IN_MEASURE_FILL = "black"
 
-    LABEL_PADX = 3
+    UPDATE_TRIGGERS = ["is_first_in_measure", "time"]
+
+    LABEL_MARGIN = 0
 
     DRAG_PROXIMITY_LIMIT = 2
 
-    INSPECTOR_FIELDS = [("Time", "label"), ("Measure", "label")]
+    INSPECTOR_FIELDS = [
+        ("Time", InspectRowKind.LABEL, None),
+        ("Measure", InspectRowKind.LABEL, None),
+        ("Beat", InspectRowKind.LABEL, None),
+    ]
 
-    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = {}
+    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = (
+        {}
+    )  # only needed if attrs will be set by Inspect
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         by_element_value=[],
@@ -52,58 +59,41 @@ class BeatUI(TimelineUIElement):
         support_by_component_value=["time"],
     )
 
-    RIGHT_CLICK_OPTIONS = [
-        ("Inspect...", RightClickOption.INSPECT),
-        ("", RightClickOption.SEPARATOR),
-        ("Change measure number...", RightClickOption.CHANGE_MEASURE_NUMBER),
-        ("Reset measure number", RightClickOption.RESET_MEASURE_NUMBER),
-        ("Distribute beats", RightClickOption.DISTRIBUTE_BEATS),
-        ("Change beats in measure", RightClickOption.CHANGE_BEATS_IN_MEASURE),
-        ("", RightClickOption.SEPARATOR),
-        ("Delete", RightClickOption.DELETE),
-    ]
+    CONTEXT_MENU_CLASS = BeatContextMenu
 
-    @log_object_creation
     def __init__(
         self,
-        id: str,
+        id: int,
         timeline_ui: BeatTimelineUI,
-        canvas: tk.Canvas,
+        scene: QGraphicsScene,
         **_,
     ):
-        super().__init__(id=id, timeline_ui=timeline_ui, canvas=canvas)
+        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
 
-        self.beat_proper_id = self.draw_beat_proper()
-        self._label = ""
-        self.label_id = self.draw_label()
+        self.is_first_in_measure = False
+        self._setup_body()
+        self._setup_label()
 
         self.dragged = False
-        self.is_first_in_measure = False
 
-    def __str__(self) -> str:
-        try:
-            return f"UI->{self.tl_component}"
-        except KeyError:
-            return "UI-><unavailable>"
 
     @classmethod
     def create(
         cls,
-        id: str,
+        id: int,
         timeline_ui: BeatTimelineUI,
-        canvas: TimelineCanvas,
+        scene: TimelineScene,
         **kwargs,
     ) -> BeatUI:
-        return BeatUI(id, timeline_ui, canvas, **kwargs)
+        return BeatUI(id, timeline_ui, scene, **kwargs)
 
-    @property
-    def label(self):
-        return self._label
+    def _setup_body(self):
+        self.body = BeatBody(self.x - self.WIDTH_THIN / 2, self.height)
+        self.scene.addItem(self.body)
 
-    @label.setter
-    def label(self, value):
-        self._label = value
-        self.canvas.itemconfig(self.label_id, text=value)
+    def _setup_label(self):
+        self.label = BeatLabel(self.x, self.label_y, "")
+        self.scene.addItem(self.label)
 
     @property
     def time(self):
@@ -114,117 +104,60 @@ class BeatUI(TimelineUIElement):
         return get_x_by_time(self.time)
 
     @property
+    def label_y(self):
+        return self.height + self.LABEL_MARGIN
+
+    @property
+    def height(self):
+        return (
+            self.HEIGHT_TALL
+            if self.get_data("is_first_in_measure")
+            else self.HEIGHT_SHORT
+        )
+
+    @property
     def seek_time(self):
         return self.time
 
-    @property
-    def measure_number(self):
-        return self.timeline_ui.get_measure_number(self)
+    def child_items(self):
+        return self.body, self.label
 
-    @property
-    def canvas_drawings_ids(self):
-        return self.beat_proper_id, self.label_id
+    def update_time(self):
+        self.update_position()
 
     def update_position(self):
-        logger.debug(f"Updating {self} canvas drawings positions...")
+        self.body.set_position(self.x, self.height)
+        self.label.set_position(self.x, self.height)
 
-        coords = (
-            self.get_beat_coords()
-            if not self.is_first_in_measure
-            else self.get_first_beat_in_measure_coords()
-        )
+    def update_is_first_in_measure(self) -> None:
+        self.body.set_position(self.x, self.height)
+        text = ""
+        if self.get_data(
+            "is_first_in_measure"
+        ) and self.timeline_ui.should_display_measure_number(self):
+            text = str(self.get_data("measure_number"))
 
-        # update beat proper
-        self.canvas.coords(
-            self.beat_proper_id,
-            *coords,
-        )
+        self.label.set_text(text)
+        self.label.set_position(self.x, self.label_y)
 
-        # update label
-        self.canvas.coords(self.label_id, *self.get_label_coords())
+    def selection_triggers(self):
+        return self.body, self.label
 
-    def update_drawing_as_first_in_measure(self, is_first_in_measure: bool) -> None:
-        if is_first_in_measure:
-            self.canvas.coords(
-                self.beat_proper_id, *self.get_first_beat_in_measure_coords()
-            )
-            self.canvas.itemconfig(self.beat_proper_id, fill=self.FIRST_IN_MEASURE_FILL)
-            self.is_first_in_measure = True
-        else:
-            self.canvas.coords(self.beat_proper_id, *self.get_beat_coords())
-            self.canvas.itemconfig(self.beat_proper_id, fill=self.FILL)
-            self.is_first_in_measure = False
-
-    def draw_beat_proper(self) -> int:
-        coords = self.get_beat_coords()
-        logger.debug(f"Drawing beat proper with {coords}")
-        return self.canvas.create_rectangle(
-            *coords,
-            tags=(CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS),
-            fill=self.FILL,
-            outline="",
-            width=3,
-        )
-
-    def draw_label(self):
-        coords = self.get_label_coords()
-        logger.debug(f"Drawing beat label with {coords=}")
-        return self.canvas.create_text(*coords, text=self.label, anchor="n")
-
-    def get_beat_coords(self):
-        x0 = self.x - self.WIDTH / 2
-        y0 = self.HEIGHT
-        x1 = self.x + self.WIDTH / 2
-        y1 = 0
-
-        return x0, y0, x1, y1
-
-    def get_first_beat_in_measure_coords(self):
-        x0 = self.x - self.FIRST_IN_MEASURE_WIDTH / 2
-        y0 = self.FIRST_IN_MEASURE_HEIGHT
-        x1 = self.x + self.FIRST_IN_MEASURE_WIDTH / 2
-        y1 = 0
-
-        return x0, y0, x1, y1
-
-    def get_label_coords(self):
-        return self.x, self.FIRST_IN_MEASURE_HEIGHT + self.LABEL_PADX
-
-    @log_object_deletion
-    def delete(self):
-        logger.debug(f"Deleting beat proper '{self.beat_proper_id}'")
-        self.canvas.delete(self.beat_proper_id)
-        logger.debug(f"Deleting label '{self.label_id}'")
-        self.canvas.delete(self.label_id)
-        stop_listening_to_all(self)
-
-    @property
-    def selection_triggers(self) -> tuple[int, ...]:
-        return self.beat_proper_id, self.label_id
-
-    @property
-    def left_click_triggers(self) -> tuple[int, ...]:
-        return (self.beat_proper_id,)
+    def left_click_triggers(self):
+        return (self.body,)
 
     def on_left_click(self, _) -> None:
         self.setup_drag()
 
-    @property
-    def double_left_click_triggers(self) -> tuple[int, ...]:
-        return self.beat_proper_id, self.label_id
+    def double_left_click_triggers(self):
+        return self.body, self.label
 
     def on_double_left_click(self, _) -> None:
-        post(Post.PLAYER_REQUEST_TO_SEEK, self.time)
+        post(Post.PLAYER_SEEK, self.time)
 
     @property
-    def right_click_triggers(self) -> tuple[int, ...]:
-        return self.beat_proper_id, self.label_id
-
-    def on_right_click(self, x: float, y: float, _) -> None:
-        self.timeline_ui.display_right_click_menu_for_element(
-            x, y, self.RIGHT_CLICK_OPTIONS
-        )
-        self.timeline_ui.listen_for_uielement_rightclick_options(self)
+    def right_click_triggers(self):
+        return self.body, self.label
 
     def setup_drag(self):
         DragManager(
@@ -258,26 +191,79 @@ class BeatUI(TimelineUIElement):
 
     def on_drag_end(self):
         if self.dragged:
-            logger.debug(f"Dragged {self}. New x is {self.x}")
-            post(Post.REQUEST_RECORD_STATE, Action.BEAT_DRAG)
+            post(Post.APP_RECORD_STATE, "beat drag")
             post(Post.ELEMENT_DRAG_END)
 
         self.dragged = False
 
     def on_select(self) -> None:
-        self.display_as_selected()
+        self.body.on_select()
 
     def on_deselect(self) -> None:
-        self.display_as_deselected()
-
-    def display_as_selected(self) -> None:
-        self.canvas.itemconfig(self.beat_proper_id, width=1, outline="black")
-
-    def display_as_deselected(self) -> None:
-        self.canvas.itemconfig(self.beat_proper_id, width=3, outline="")
-
-    def request_delete_to_component(self):
-        self.tl_component.receive_delete_request_from_ui()
+        self.body.on_deselect()
 
     def get_inspector_dict(self) -> dict:
-        return {"Time": format_media_time(self.time), "Measure": self.measure_number}
+        return {
+            "Time": format_media_time(self.time),
+            "Measure": str(self.get_data("measure_number")),
+        }
+
+
+class BeatBody(CursorMixIn, QGraphicsLineItem):
+    def __init__(self, x: float, height: float):
+        super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
+        self.setLine(self.get_line(x, height))
+        self.set_pen_style_default()
+        self.setCursor(Qt.CursorShape.SizeHorCursor)
+
+    def set_pen_style_default(self):
+        pen = QPen(QColor("black"))
+        pen.setStyle(Qt.PenStyle.SolidLine)
+        pen.setWidth(1)
+        self.setPen(pen)
+
+    def set_pen_style_thick(self):
+        pen = QPen(QColor("black"))
+        pen.setStyle(Qt.PenStyle.SolidLine)
+        pen.setWidth(3)
+        self.setPen(pen)
+
+    def set_position(self, x, height):
+        self.setLine(self.get_line(x, height))
+
+    def on_select(self):
+        self.set_pen_style_thick()
+
+    def on_deselect(self):
+        self.set_pen_style_default()
+
+    @staticmethod
+    def get_line(x, height):
+        return QLineF(QPointF(x, 0), QPointF(x, height))
+
+
+class BeatLabel(QGraphicsTextItem):
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        text: str,
+    ):
+        super().__init__()
+        self._setup_font()
+        self.set_text(text)
+        self.set_position(x, y)
+
+    def _setup_font(self):
+        font = QFont("Arial", 10)
+        self.setFont(font)
+        self.setDefaultTextColor(QColor("black"))
+
+    def get_point(self, x: float, y: float):
+        return QPointF(x - self.boundingRect().width() / 2, y)
+
+    def set_position(self, x, y):
+        self.setPos(self.get_point(x, y))
+
+    def set_text(self, value: str):
+        self.setPlainText(value)

@@ -7,12 +7,9 @@ from tilia import settings
 from .common import update_component_genealogy
 from ..base.timeline import Timeline, TimelineComponentManager
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.requests import Post, post, get, Get
+from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
-from .components import Hierarchy, HierarchyOperationError
-from tilia.timelines.common import (
-    log_object_creation,
-)
+from .components import Hierarchy
 from ...exceptions import CreateComponentError
 
 logger = logging.getLogger(__name__)
@@ -23,10 +20,6 @@ class HierarchyTimeline(Timeline):
     DEFAULT_HEIGHT = settings.get("hierarchy_timeline", "default_height")
 
     component_manager: HierarchyTLComponentManager
-
-    @property
-    def ordered_hierarchies(self):
-        return self.component_manager.ordered_hierarchies
 
     def create_hierarchy(
         self, start: float, end: float, level: int, **kwargs
@@ -45,39 +38,67 @@ class HierarchyTimeline(Timeline):
             level=1,
         )
 
-        post(Post.HIERARCHY_TIMELINE_UI_CREATED_INITIAL_HIERARCHY, self.id)
-
     def _validate_delete_components(self, component: Hierarchy) -> None:
         pass
 
-    def create_unit_below(self, component: Hierarchy) -> None:
-        self.component_manager.create_unit_below(component)
+    def create_children(self, components: [Hierarchy]) -> None:
+        for component in components:
+            success, reason = self.component_manager.create_child(component)
+            if not success:
+                post(
+                    Post.DISPLAY_ERROR,
+                    "Create child hierarchy",
+                    "Create child failed: " + reason,
+                )
 
-    def change_level(self, amount: int, components: list[Hierarchy]) -> None:
-        if amount > 0:
-            reverse = True
-        elif amount < 0:
-            reverse = False
-        else:
+    def alter_levels(self, components: list[Hierarchy], amount: int) -> None:
+        def validate_level(hierarchy, level):
+            if level < 1:
+                return False, "minimum level is 1."
+            elif hierarchy.parent and hierarchy.parent.level == level:
+                return False, "would overlap with parent"
+
+            max_child_level = 0
+            for child in hierarchy.children:
+                max_child_level = max(max_child_level, child.level)
+            if level <= max_child_level:
+                return False, "would overlap with children"
+            return True, ""
+
+        if not amount:
             return
 
         for component in sorted(
-            components, key=lambda x: (x.level, x.start), reverse=reverse
+            components, key=lambda x: (x.level, x.start), reverse=amount > 0
         ):
-            self.component_manager.change_level(component, amount)
+            success, reason = validate_level(component, component.level + amount)
+            if not success:
+                post(
+                    Post.DISPLAY_ERROR,
+                    "Change hierarchy level",
+                    "Change level failed: " + reason,
+                )
+                return
 
-    def group(self, units: list[Hierarchy]) -> None:
-        self.component_manager.group(units)
+            self.component_manager.set_component_data(
+                component.id, "level", component.level + amount
+            )
+
+    def group(self, components: list[Hierarchy]) -> None:
+        success, reason = self.component_manager.group(components)
+        if not success:
+            post(Post.DISPLAY_ERROR, "Group hierarchies", "Grouping failed: " + reason)
 
     def split(self, time: float) -> None:
-        unit_to_split = self.component_manager.get_unit_to_split(time)
-        if not unit_to_split:
-            logger.debug("No hierarchy at the current playback level. Can not split.")
-            return
-        self.component_manager.split(unit_to_split, time)
+        if unit_to_split := self.component_manager.get_unit_to_split(time):
+            success, reason = self.component_manager.split(unit_to_split, time)
+            if not success:
+                post(Post.DISPLAY_ERROR, "Split hierarchies", "Split failed: " + reason)
 
     def merge(self, units: list[Hierarchy]) -> None:
-        self.component_manager.merge(units)
+        success, reason = self.component_manager.merge(units)
+        if not success:
+            post(Post.DISPLAY_ERROR, "Merge hierarchies", "Merge failed: " + reason)
 
     def scale(self, factor: float) -> None:
         self.component_manager.scale(factor)
@@ -95,47 +116,30 @@ class HierarchyTimeline(Timeline):
 class HierarchyTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.HIERARCHY]
 
-    @log_object_creation
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
 
-    def _validate_component_creation(
-        self,
-        timeline: HierarchyTimeline,
-        start: float,
-        end: float,
-        level: int,
-        parent=None,
-        children=None,
-        comments="",
-        pre_start=None,
-        post_end=None,
-        formal_type="",
-        formal_function="",
-        **_,
-    ):
+    def _validate_component_creation(self, start: float, end: float, *_, **__):
         media_duration = get(Get.MEDIA_DURATION)
         if start > media_duration:
-            raise CreateComponentError(
-                f"Start time '{start}' is bigger than media time '{media_duration}'"
+            return (
+                False,
+                f"Start time '{start}' is bigger than media time '{media_duration}'",
             )
-
-        if end > media_duration:
-            raise CreateComponentError(
-                f"End time '{end}' is bigger than media time '{media_duration}'"
+        elif end > media_duration:
+            return (
+                False,
+                f"End time '{end}' is bigger than media time '{media_duration}'",
             )
+        elif end <= start:
+            return False, f"End time '{end}' should be bigger than start time '{start}'"
+        else:
+            return True, ""
 
-        if end <= start:
-            raise CreateComponentError(
-                f"End time '{end}' should be bigger than start time '{start}'"
-            )
-
-    def deserialize_components(self, serialized_components: dict[int, dict[str]]):
+    def deserialize_components(self, components: dict[int, dict[str]]):
         self.clear()  # remove starting hierarchy
 
-        super().deserialize_components(serialized_components)
-
-        post(Post.HIERARCHIES_DESERIALIZED, self.timeline.id)
+        super().deserialize_components(components)
 
     def _update_genealogy(self, parent: Hierarchy, children: list[Hierarchy]):
         """
@@ -149,16 +153,15 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
     def do_genealogy(self):
         """
-        Sets parent and children attributes of all timelines based on their
+        Sets parent and children attributes of all components based on their
         position and level. Previous parent/child relations are ignored.
         Assumes child and parent attributes are empty for all hierarchies involved.
         Very inefficient, but should be good enough for now.
         """
-        ordered_hierarchies = self.ordered_hierarchies
 
         for lvl in sorted([hrc.level for hrc in self._components]):
             for child in [hrc for hrc in self._components if hrc.level == lvl]:
-                for hrc in ordered_hierarchies:
+                for hrc in sorted(list(self.timeline)):
                     if (
                         not child.parent
                         and child.start >= hrc.start
@@ -168,10 +171,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                         child.parent = hrc
                         hrc.children += [child]
                         break
-
-    @property
-    def ordered_hierarchies(self):
-        return sorted([h for h in self._components], key=lambda x: (x.level, x.start))
 
     def get_boundary_conflicts(self) -> list[tuple[Hierarchy, Hierarchy]]:
         """
@@ -208,25 +207,23 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         return conflicts
 
-    def create_unit_below(self, unit: Hierarchy):
+    def create_child(self, unit: Hierarchy):
         """Create child unit one level below with same start and end.
         Returns parent/child relation between unit and unit created below.
         """
 
-        def _validate_create_unit_below(unit: Hierarchy) -> None:
+        def _validate_create_unit_below(unit: Hierarchy):
             if unit.level == 1:
-                raise HierarchyOperationError(
-                    f"Can't create unit below: unit {unit} is at lowest level."
-                )
+                return False, "Hierarchy is at lowest level"
             if unit.children:
                 for child in unit.children:
                     if child.level == unit.level - 1:
-                        raise HierarchyOperationError(
-                            f"Can't create unit below: child '{child}' already exists"
-                            " at intended level."
-                        )
+                        return False, "Hierarchy would overlap with existing hierarchy."
+            return True, ""
 
-        _validate_create_unit_below(unit)
+        success, reason = _validate_create_unit_below(unit)
+        if not success:
+            return success, reason
 
         # create new child
         created_unit = self.timeline.create_timeline_component(
@@ -247,68 +244,62 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         # make parent/child relation between unit and create unit
         self._update_genealogy(unit, [created_unit])
+        return True, ""
 
-    def change_level(self, unit: Hierarchy, amount: int):
-        def _validate_change_level(unit: Hierarchy, new_level: int):
-            if new_level < 1:
-                raise HierarchyOperationError(
-                    "Can't change level: new level would be < 1."
-                )
-            elif unit.parent and unit.parent.level <= new_level:
-                raise HierarchyOperationError(
-                    "Can't change level: new level would be >= parent level."
-                )
-
-            max_child_level = 0
-            for child in unit.children:
-                max_child_level = max(max_child_level, child.level)
-            if new_level <= max_child_level:
-                raise HierarchyOperationError(
-                    "Can't change level: new level would be <= child level."
-                )
-
-        prev_level = unit.level
-        new_level = unit.level + amount
-
-        _validate_change_level(unit, new_level)
-        unit.level = new_level
-
-        self.post_component_event(
-            Post.HIERARCHY_LEVEL_CHANGED, unit.id, prev_level, new_level
-        )
-        self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, unit.id)
-
-    def group(self, units_to_group: list[Hierarchy]) -> None:
+    def group(self, units_to_group: list[Hierarchy]):
         def _validate_at_least_two_selected(units_to_group):
             if len(units_to_group) <= 1:
-                raise HierarchyOperationError(
-                    "Can't group: at least two units are needed to group"
-                )
+                return False, "At least two units are needed for grouping"
+            return True, ""
 
-        def _validate_no_boundary_crossing(start_time: float, end_time: float):
+        def _validate_no_boundary_crossing(
+            start_time: float, end_time: float, group_level: int
+        ):
             units_to_check = [
                 unit for unit in self._components if unit not in units_to_group
             ]
 
             for unit_to_check in units_to_check:
-                start_inside_grouping = start_time <= unit_to_check.start < end_time
-                ends_inside_grouping = start_time < unit_to_check.end <= end_time
-                comprehends_grouping = (
+                start_inside_group = start_time <= unit_to_check.start < end_time
+                ends_inside_group = start_time < unit_to_check.end <= end_time
+                comprehends_group = (
                     unit_to_check.start <= start_time and end_time <= unit_to_check.end
                 )
 
-                # if unit_to_check either (1) starts inside and does not
-                # end inside or (2) starts outside and ends inside it is
-                # crossing grouping boundaries, unless (3) it comprehends
-                # the whole grouping
                 if (
-                    start_inside_grouping != ends_inside_grouping
-                    and not comprehends_grouping
+                    # if unit_to_check either (1) starts inside and does not
+                    # end inside or (2) starts outside and ends inside it is
+                    # crossing group boundaries, unless (3) it comprehends
+                    # the whole group
+                    start_inside_group != ends_inside_group
+                    and not comprehends_group
+                ) or (
+                    # if (1) unit_to_check is at same or higher level and (2) starts
+                    # or ends inside the group and (3) does not comprehend group it
+                    # is also crossing group boundaries
+                    unit_to_check.level >= group_level
+                    and (start_inside_group or ends_inside_group)
+                    and not comprehends_group
                 ):
-                    raise HierarchyOperationError(
-                        "Can't group: grouping unit would cross boundary of"
-                        " {unit_to_check}"
+                    return (
+                        False,
+                        f"Grouping unit would cross boundary of {unit_to_check}",
                     )
+            return True, ""
+
+        def _validate_no_overlap_in_grouping_level(
+            start_time: float, end_time: float, grouping_level: int
+        ):
+            """Raises error if there is a unit in grouping level that spans
+            or exceeds the interval between 'start_time' and 'end_time'."""
+            if any(
+                [
+                    u.start <= start_time < u.end or u.start < end_time <= u.end
+                    for u in [u for u in self.timeline if u.level == grouping_level]
+                ]
+            ):
+                return False, "Grouping unit would overlap with unit in grouping level."
+            return True, ""
 
         def _get_previous_common_parent(
             units_to_group: list[Hierarchy],
@@ -322,44 +313,37 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             else:
                 return None
 
-        def _validate_no_overlap_with_higher_unit(
-            start_time: float, end_time: float, grouping_unit_level: int
-        ):
-            """Raises error if there is a unit in grouping level that spans
-            or exceeds the interval between 'start_time' and 'end_time'."""
-            units_in_grouping_level = [
-                unit for unit in self._components if unit.level == grouping_unit_level
-            ]
-            if bool(
-                [
-                    u
-                    for u in units_in_grouping_level
-                    if u.start <= start_time and u.end >= end_time
-                ]
-            ):
-                raise HierarchyOperationError(
-                    "Can't group: grouping unit would overlap with unit in higher"
-                    " level."
-                )
-
-        # GROUPING PROPER
-        _validate_at_least_two_selected(units_to_group)
+        success, reason = _validate_at_least_two_selected(units_to_group)
+        if not success:
+            return success, reason
 
         earliest_unit = sorted(units_to_group, key=lambda u: u.start)[0]
         latest_unit = sorted(units_to_group, key=lambda u: u.end)[-1]
         start_time = earliest_unit.start
         end_time = latest_unit.end
+        max_group_level = max([unit.level for unit in units_to_group])
 
-        _validate_no_boundary_crossing(start_time, end_time)
-
-        def has_same_parent(u: Hierarchy):
-            return u.parent == _get_previous_common_parent(units_to_group)
-
-        def is_inside_grouping(u: Hierarchy):
-            return u.start > earliest_unit.start and u.end < latest_unit.end
+        success, reason = _validate_no_boundary_crossing(
+            start_time, end_time, max_group_level
+        )
+        if not success:
+            return success, reason
 
         def is_between_grouped_units(u: Hierarchy):
-            return has_same_parent(u) and is_inside_grouping(u)
+            def has_same_parent(u: Hierarchy):
+                return u.parent == _get_previous_common_parent(units_to_group)
+
+            def is_inside_grouping(u: Hierarchy):
+                return u.start > earliest_unit.start and u.end < latest_unit.end
+
+            def has_same_level_or_lower(u: Hierarchy):
+                return u.level <= max_group_level
+
+            return (
+                has_same_parent(u)
+                and is_inside_grouping(u)
+                and has_same_level_or_lower(u)
+            )
 
         units_to_group += self.get_components_by_condition(
             is_between_grouped_units, kind=ComponentKind.HIERARCHY
@@ -367,7 +351,11 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         grouping_unit_level = max([unit.level for unit in units_to_group]) + 1
 
-        _validate_no_overlap_with_higher_unit(start_time, end_time, grouping_unit_level)
+        success, reason = _validate_no_overlap_in_grouping_level(
+            start_time, end_time, grouping_unit_level
+        )
+        if not success:
+            return success, reason
 
         grouping_unit = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
@@ -395,6 +383,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
             self._update_genealogy(previous_common_parent, previous_parent_new_children)
 
+        return True, ""
+
         # TODO handle selects and deselects
 
     def get_unit_to_split(self, time: float) -> Hierarchy | None:
@@ -409,15 +399,13 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if units_at_time_sorted_by_time:
             return units_at_time_sorted_by_time[0]
 
-    def split(self, unit_to_split: Hierarchy, split_time: float) -> None:
+    def split(self, unit_to_split: Hierarchy, split_time: float):
         """Split a unit into two new ones"""
 
         def _validate_split(unit: Hierarchy, time: float):
             if not unit.start < time < unit.end:
-                raise HierarchyOperationError(
-                    f"Can't split: time '{time}' is not inside unit '{unit}'"
-                    " boundaries."
-                )
+                return False, f"Time '{time}' is not inside unit '{unit}' boundaries."
+            return True, ""
 
         def _get_new_children_for_unit_to_split_parent(
             unit_to_split, left_unit, right_unit
@@ -431,20 +419,30 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         def pass_on_attributes():
             both_inherit = ["label", "color", "comments"]
-            left_inherits = ['pre_start']
-            right_inherits = ['post_end']
+            left_inherits = ["pre_start"]
+            right_inherits = ["post_end"]
 
             for attr in both_inherit:
-                setattr(left_unit, attr, getattr(unit_to_split, attr))
-                setattr(right_unit, attr, getattr(unit_to_split, attr))
+                self.timeline.set_component_data(
+                    left_unit.id, attr, getattr(unit_to_split, attr)
+                )
+                self.timeline.set_component_data(
+                    right_unit.id, attr, getattr(unit_to_split, attr)
+                )
 
             for attr in left_inherits:
-                setattr(left_unit, attr, getattr(unit_to_split, attr))
+                self.timeline.set_component_data(
+                    left_unit.id, attr, getattr(unit_to_split, attr)
+                )
 
             for attr in right_inherits:
-                setattr(right_unit, attr, getattr(unit_to_split, attr))
+                self.timeline.set_component_data(
+                    right_unit.id, attr, getattr(unit_to_split, attr)
+                )
 
-        _validate_split(unit_to_split, split_time)
+        success, reason = _validate_split(unit_to_split, split_time)
+        if not success:
+            return success, reason
 
         self.delete_component(unit_to_split)
 
@@ -489,23 +487,23 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         pass_on_attributes()
 
+        return True, ""
 
     def merge(self, units_to_merge: list[Hierarchy]):
-        def _validate_at_least_two_units(units: list[Hierarchy]) -> None:
+        def _validate_at_least_two_units(units: list[Hierarchy]):
             if len(units) <= 1:
-                raise HierarchyOperationError("Can't merge: need at least two units.")
+                return False, "At least two hierarchies are needed."
+            return True, ""
 
-        def _validate_at_same_level(units: list[Hierarchy]) -> None:
+        def _validate_at_same_level(units: list[Hierarchy]):
             if any(unit.level != units[0].level for unit in units):
-                raise HierarchyOperationError(
-                    "Can't merge: units need to be of the same level."
-                )
+                return False, "Hierarchies need to be on the same level."
+            return True, ""
 
-        def _validate_common_parent(units: list[Hierarchy]) -> None:
+        def _validate_common_parent(units: list[Hierarchy]):
             if any(unit.parent != units[0].parent for unit in units):
-                raise HierarchyOperationError(
-                    "Can't merge: units need to have a common parent."
-                )
+                return False, "Hierarchies need to have a common parent."
+            return True, ""
 
         def _get_units_to_merge_from_unit_list(
             units: list[Hierarchy],
@@ -537,12 +535,19 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
             return list(set(units + units_between))
 
-        _validate_common_parent(units_to_merge)
-        _validate_at_least_two_units(units_to_merge)
+        success, reason = _validate_common_parent(units_to_merge)
+        if not success:
+            return success, reason
+
+        success, reason = _validate_at_least_two_units(units_to_merge)
+        if not success:
+            return success, reason
         units_to_merge = sorted(
             _get_units_to_merge_from_unit_list(units_to_merge), key=lambda u: u.start
         )
-        _validate_at_same_level(units_to_merge)
+        success, reason = _validate_at_same_level(units_to_merge)
+        if not success:
+            return success, reason
 
         for unit in units_to_merge:
             self.delete_component(unit)
@@ -567,6 +572,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             merger_children += unit.children
 
         self._update_genealogy(merger_unit, merger_children)
+        return True, ""
 
     def delete_component(self, component: Hierarchy) -> None:
         super().delete_component(component)

@@ -16,7 +16,7 @@ class TestAddBeat:
             add(TimelineKind.BEAT_TIMELINE, namespace)
 
     def test_bad_ordinal_raises_error(cli, tls):
-        with PatchGet("tilia.timelines.collection", Get.BEAT_PATTERN_FROM_USER, [4]):
+        with PatchGet("tilia.timelines.collection", Get.FROM_USER_BEAT_PATTERN, [4]):
             tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
 
         namespace = argparse.Namespace(tl_ordinal=0, tl_name="")
@@ -24,7 +24,7 @@ class TestAddBeat:
             add(TimelineKind.BEAT_TIMELINE, namespace)
 
     def test_bad_name_raises_error(cli, tls):
-        with PatchGet("tilia.timelines.collection", Get.BEAT_PATTERN_FROM_USER, [4]):
+        with PatchGet("tilia.timelines.collection", Get.FROM_USER_BEAT_PATTERN, [4]):
             tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE, name="this")
 
         namespace = argparse.Namespace(tl_ordinal=None, tl_name="other")
@@ -32,7 +32,7 @@ class TestAddBeat:
             add(TimelineKind.BEAT_TIMELINE, namespace)
 
     def test_add_single(cli, tls):
-        with PatchGet("tilia.timelines.collection", Get.BEAT_PATTERN_FROM_USER, [4]):
+        with PatchGet("tilia.timelines.collection", Get.FROM_USER_BEAT_PATTERN, [4]):
             tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
 
         namespace = argparse.Namespace(tl_ordinal=1, tl_name=None, time=1)
@@ -41,7 +41,7 @@ class TestAddBeat:
         assert tls[0].components[0].time == 1
 
     def test_add_multiple(cli, tls):
-        with PatchGet("tilia.timelines.collection", Get.BEAT_PATTERN_FROM_USER, [4]):
+        with PatchGet("tilia.timelines.collection", Get.FROM_USER_BEAT_PATTERN, [4]):
             tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
 
         for i in range(10):

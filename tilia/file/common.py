@@ -10,16 +10,16 @@ from tilia.timelines.hash_timelines import hash_timeline_collection_data
 JSON_CONFIG = {"indent": 2}
 
 
-def compare_tilia_data(data1: dict, data2: dict) -> bool:
+def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
     """Returns True if data1 is equivalent to data2, False otherwise."""
 
     ATTRS_TO_CHECK = ["media_metadata", "timelines", "media_path"]
 
     for attr in ATTRS_TO_CHECK:
         if attr == "timelines":
-            if hash_timeline_collection_data(
-                data1["timelines"]
-            ) != hash_timeline_collection_data(data2["timelines"]):
+            hash1 = hash_timeline_collection_data(data1["timelines"])
+            hash2 = hash_timeline_collection_data(data2["timelines"])
+            if hash1 != hash2:
                 return False
         elif data1[attr] != data2[attr]:
             return False

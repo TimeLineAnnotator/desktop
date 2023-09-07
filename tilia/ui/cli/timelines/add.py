@@ -3,7 +3,7 @@ import argparse
 
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.requests import post, Post
-from tilia.ui.cli.io import print
+from tilia.ui.cli.io import output
 
 
 def setup_parser(subparser: _SubParsersAction):
@@ -44,9 +44,9 @@ def add(namespace: argparse.Namespace):
     kind = namespace.kind
     name = namespace.name
 
-    print(f"Adding timeline with {kind=}, {name=}")
+    output(f"Adding timeline with {kind=}, {name=}")
 
     tl_kind = KIND_STR_TO_TLKIND[kind]
     kwargs = get_kwargs_by_timeline_kind(namespace, tl_kind)
 
-    post(Post.REQUEST_TIMELINE_CREATE, tl_kind, **kwargs)
+    post(Post.TIMELINE_ADD, tl_kind, **kwargs)

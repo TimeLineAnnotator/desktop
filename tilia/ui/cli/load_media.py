@@ -19,4 +19,4 @@ def setup_parser(subparsers: _SubParsersAction):
 def load_media(namespace):
     path = " ".join(namespace.path).strip('"')  # for paths with spaces or double quotes
 
-    post(Post.REQUEST_LOAD_MEDIA, path)
+    post(Post.APP_MEDIA_LOAD, path)

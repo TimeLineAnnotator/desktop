@@ -17,17 +17,17 @@ logger = logging.getLogger(__name__)
 class TestMarkerTimeline:
     # TEST CREATE
     def test_create_marker(self, marker_tl):
-        marker_tl.create_marker(time=0)
+        marker_tl.create_marker(0)
 
-        assert len(marker_tl.markers) == 1
+        assert len(marker_tl) == 1
 
     # TEST DELETE
     def test_delete_marker(self, marker_tl):
-        mrk1 = marker_tl.create_marker(time=0)
+        mrk1 = marker_tl.create_marker(0)
 
-        marker_tl.on_request_to_delete_components([mrk1])
+        marker_tl.delete_components([mrk1])
 
-        assert not marker_tl.markers
+        assert len(marker_tl) == 0
 
     # TEST SERIALIZE
     def test_serialize_unit(self, marker_tl):
@@ -65,7 +65,7 @@ class TestMarkerTimeline:
             assert getattr(mrk1, attr) == getattr(deserialized_mrk1, attr)
 
     def test_serialize_timeline(self, marker_tl):
-        marker_tl.create_marker(time=0)
+        marker_tl.create_marker(0)
 
         serialized_timeline = marker_tl.get_state()
 
@@ -76,44 +76,28 @@ class TestMarkerTimeline:
 
     # TEST UNDO
     def test_restore_state(self, marker_tl):
-        marker_tl.create_marker(time=0)
-        marker_tl.create_marker(time=1)
+        marker_tl.create_marker(0)
+        marker_tl.create_marker(1)
 
         state = marker_tl.get_state()
 
         marker_tl.clear()
 
-        assert len(marker_tl.markers) == 0
+        assert len(marker_tl) == 0
 
         marker_tl.restore_state(state)
 
-        assert len(marker_tl.markers) == 2
+        assert len(marker_tl) == 2
 
     # TEST RIGHT CLICK OPTIONS
 
 
 class TestMarkerTimelineComponentManager:
-    # TEST CREATE COMPONENT
-    def test_create_component(self, marker_tl):
-        assert marker_tl.create_marker(0)
-        component_manager = MarkerTLComponentManager()
-        timeline = MagicMock()
-        timeline.get_media_length = lambda: 100
-        component_manager.timeline = timeline
-        hunit = component_manager.create_component(
-            ComponentKind.MARKER, timeline=MagicMock(), time=0
-        )
-        assert hunit
-
-        with pytest.raises(InvalidComponentKindError):
-            # noinspection PyTypeChecker
-            component_manager.create_component("INVALID KIND", time=0)
-
     # TEST CLEAR
     def test_clear(self, marker_tl):
-        marker_tl.create_marker(time=0)
-        marker_tl.create_marker(time=0)
-        marker_tl.create_marker(time=0)
+        marker_tl.create_marker(0)
+        marker_tl.create_marker(0)
+        marker_tl.create_marker(0)
 
         marker_tl.component_manager.clear()
 
@@ -122,9 +106,9 @@ class TestMarkerTimelineComponentManager:
     # TEST SERIALIZE
     # noinspection PyUnresolvedReferences
     def test_serialize_components(self, marker_tl):
-        mrk1 = marker_tl.create_marker(time=0)
-        mrk2 = marker_tl.create_marker(time=1)
-        mrk3 = marker_tl.create_marker(time=2)
+        mrk1 = marker_tl.create_marker(0)
+        mrk2 = marker_tl.create_marker(1)
+        mrk3 = marker_tl.create_marker(2)
 
         serialized_components = marker_tl.component_manager.serialize_components()
 
@@ -133,9 +117,9 @@ class TestMarkerTimelineComponentManager:
 
     # noinspection PyUnresolvedReferences
     def test_deserialize_components(self, marker_tl):
-        mrk1 = marker_tl.create_marker(time=0)
-        mrk2 = marker_tl.create_marker(time=1)
-        mrk3 = marker_tl.create_marker(time=2)
+        mrk1 = marker_tl.create_marker(0)
+        mrk2 = marker_tl.create_marker(1)
+        mrk3 = marker_tl.create_marker(2)
 
         serialized_components = marker_tl.component_manager.serialize_components()
 
@@ -143,7 +127,7 @@ class TestMarkerTimelineComponentManager:
 
         marker_tl.component_manager.deserialize_components(serialized_components)
 
-        assert len(marker_tl.markers) == 3
+        assert len(marker_tl) == 3
         assert {
             dsr_mrk.time for dsr_mrk in marker_tl.component_manager._components
         } == {u.time for u in [mrk1, mrk2, mrk3]}

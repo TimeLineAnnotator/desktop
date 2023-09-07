@@ -1,11 +1,25 @@
 from __future__ import annotations
+
+import functools
 import logging
 from abc import ABC
 from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from tilia.timelines import serialize
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
-from tilia.exceptions import InvalidComponentKindError
+from tilia.exceptions import (
+    InvalidComponentKindError,
+    SetTimelineDataError,
+    GetTimelineDataError,
+    CreateComponentError,
+)
+from .validators import (
+    validate_string,
+    validate_read_only,
+    validate_bounded_integer,
+    validate_timeline_ordinal,
+    validate_boolean,
+)
 from ...requests import get, Get, post, Post, stop_listening_to_all
 
 if TYPE_CHECKING:
@@ -19,6 +33,14 @@ class Timeline(ABC):
     DEFAULT_HEIGHT = 1
     KIND = None
 
+    validators = {
+        "name": validate_string,
+        "id": validate_read_only,
+        "height": functools.partial(validate_bounded_integer, lower=10),
+        "ordinal": validate_timeline_ordinal,
+        "is_visible": validate_boolean,
+    }
+
     def __init__(
         self,
         component_manager: Optional[TimelineComponentManager] = None,
@@ -26,18 +48,14 @@ class Timeline(ABC):
         height: int = 0,
         is_visible: bool = True,
         ordinal: int = None,
-        display_position: int = None,  # here for backwards compatibility
     ):
         self.id = get(Get.ID)
 
-        self._name = name
+        self.name = name
         self.is_visible = is_visible
-        self._height = height or self.DEFAULT_HEIGHT
+        self.height = height or self.DEFAULT_HEIGHT
 
-        if display_position:
-            self.ordinal = int(display_position) + 1
-        else:
-            self.ordinal = ordinal or get(Get.ORDINAL_FOR_NEW_TIMELINE)
+        self.ordinal = ordinal or get(Get.TIMELINE_ORDINAL_FOR_NEW)
 
         self.component_manager = component_manager
 
@@ -57,6 +75,9 @@ class Timeline(ABC):
     def __str__(self):
         return self.__class__.__name__ + f"({id(self)})"
 
+    def __repr__(self):
+        return f"{type(self).__name__}(id={self.id}, ordinal={self.ordinal}, name={self.name}))"
+
     def __lt__(self, other):
         return self.ordinal < other.ordinal
 
@@ -64,41 +85,61 @@ class Timeline(ABC):
     def components(self):
         return self.component_manager.get_components()
 
-    @property
-    def height(self):
-        return self._height
+    def validate_set_data(self, attr, value):
+        if not hasattr(self, attr):
+            raise SetTimelineDataError(
+                f"Timeline '{self}' has no attribute named '{attr}'. Can't set to '{value}'."
+            )
+        try:
+            return self.validators[attr](value)
+        except KeyError:
+            raise KeyError(
+                f"{self} has no validator for attribute {attr}. Can't set to '{value}'."
+            )
 
-    @height.setter
-    def height(self, value):
-        self._height = value
-        post(Post.TIMELINE_HEIGHT_CHANGED, self.id)
+    def set_data(self, attr: str, value: Any):
+        if not self.validate_set_data(attr, value):
+            return None, False
+        setattr(self, attr, value)
+        return value, True
 
-    @property
-    def name(self):
-        return self._name
+    def validate_get_data(self, attr):
+        if not hasattr(self, attr):
+            raise GetTimelineDataError(
+                f"Timeline '{self}' has no attribute named '{attr}'"
+            )
+        return True
 
-    @name.setter
-    def name(self, value):
-        self._name = value
-        post(Post.TIMELINE_NAME_CHANGED, self.id)
+    def get_data(self, attr: str):
+        if self.validate_get_data(attr):
+            return getattr(self, attr)
 
     def create_timeline_component(
         self, kind: ComponentKind, *args, **kwargs
-    ) -> TimelineComponent:
-        """Creates a TimelineComponent of the given kind.
-        Get timeline ui to create a ui for the component."""
-        component = self.component_manager.create_component(kind, self, *args, **kwargs)
+    ) -> TimelineComponent | None:
+        component_id = get(Get.ID)
+        success, component = self.component_manager.create_component(
+            kind, self, component_id, *args, **kwargs
+        )
 
-        post(Post.TIMELINE_COMPONENT_CREATED, self.KIND, self.id, component.id)
-
-        return component
+        if success:
+            post(
+                Post.TIMELINE_COMPONENT_CREATED, self.KIND, self.id, kind, component.id
+            )
+            return component
+        else:
+            return None
 
     def get_component(self, id: int) -> TimelineComponent:
         return self.component_manager.get_component(id)
 
-    def on_request_to_delete_components(
-        self, components: list[TimelineComponent]
-    ) -> None:
+    def set_component_data(self, id: int, attr: str, value: Any):
+        return self.component_manager.set_component_data(id, attr, value)
+
+    def get_component_data(self, id: int, attr: str):
+        return self.component_manager.get_component_data(id, attr)
+
+    def delete_components(self, components: list[TimelineComponent]) -> None:
         self._validate_delete_components(components)
 
         for component in components:
@@ -107,13 +148,10 @@ class Timeline(ABC):
     def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
         pass
 
-    def clear(self, record=True):
-        logger.debug(f"Clearing timeline '{self}'")
-
+    def clear(self):
         self.component_manager.clear()
 
     def delete(self):
-        logger.debug(f"Deleting timeline '{self}'")
         self.component_manager.clear()
 
     def deserialize_components(self, components: dict[int, dict[str]]):
@@ -134,10 +172,10 @@ class Timeline(ABC):
         return state
 
     def restore_state(self, state: dict):
-        self.clear(record=False)
+        self.clear()
         self.component_manager.deserialize_components(state["components"])
-        self.height = state["height"]
-        self.name = state["name"]
+        self.set_data("height", state["height"])
+        self.set_data("name", state["name"])
 
 
 class TimelineComponentManager:
@@ -151,26 +189,50 @@ class TimelineComponentManager:
 
         self.timeline: Optional[Timeline] = None
 
+    def __iter__(self):
+        return iter(self._components)
+
     @property
     def component_count(self):
         return len(self._components)
 
     def associate_to_timeline(self, timeline: Timeline):
-        logger.debug(f"Seting {self}.timeline to {timeline}")
+        logger.debug(f"Setting {self}.timeline to {timeline}")
         self.timeline = timeline
 
     def _validate_component_creation(self, *args, **kwargs):
-        pass
+        return True, ""
 
-    def create_component(self, kind: ComponentKind, *args, **kwargs):
+    def create_component(self, kind: ComponentKind, timeline, id, *args, **kwargs):
         self._validate_component_kind(kind)
-        self._validate_component_creation(*args, **kwargs)
+        valid, reason = self._validate_component_creation(*args, **kwargs)
+        if not valid:
+            return False, None
+
         component_class = self._get_component_class_by_kind(kind)
-        component = component_class.create(*args, **kwargs)
+        component = component_class(timeline, id, *args, **kwargs)
 
         self._add_to_components(component)
 
-        return component
+        return True, component
+
+    def set_component_data(self, id: int, attr: str, value: Any):
+        value, success = self.get_component(id).set_data(attr, value)
+        if success:
+            post(
+                Post.TIMELINE_COMPONENT_SET_DATA_DONE, self.timeline.id, id, attr, value
+            )
+        if not success:
+            post(
+                Post.TIMELINE_COMPONENT_SET_DATA_FAILED,
+                self.timeline.id,
+                id,
+                attr,
+                value,
+            )
+
+    def get_component_data(self, id: int, attr: str):
+        return self.get_component(id).get_data(attr)
 
     def get_component_by_attribute(
         self, attr_name: str, value: Any, kind: ComponentKind
@@ -230,12 +292,10 @@ class TimelineComponentManager:
         return [c for c in cmp_list if getattr(c, attr_name) == value]
 
     def _add_to_components(self, component: TimelineComponent) -> None:
-        logger.debug(f"Adding component '{component}' to {self}.")
         self._components.add(component)
         self.id_to_component[component.id] = component
 
     def _remove_from_components_set(self, component: TimelineComponent) -> None:
-        logger.debug(f"Removing component '{component}' from {self}.")
         try:
             self._components.remove(component)
             self.id_to_component.pop(component.id)
@@ -245,67 +305,7 @@ class TimelineComponentManager:
                 " self.components."
             )
 
-    def find_previous_by_attr(self, attr: str, value, kind="all", custom_list=None):
-        """Find object with greatest attribute value smaller than value"""
-
-        if custom_list:
-            object_list = custom_list
-        elif kind != "all":
-            object_list = self.find_by_kind(kind)
-        else:
-            object_list = self.objects
-
-        if not object_list:
-            return None
-
-        object_list.sort(key=lambda x: getattr(x, attr))
-        attr_list = [getattr(obj, attr) for obj in object_list]
-        attr_list.append(value)
-        attr_list.sort()
-        index = attr_list.index(value)
-        if index > 0:
-            return object_list[index - 1]
-        else:
-            return None
-
-    def find_next_by_attr(self, attr, value, kind="all", custom_list=None):
-        """Find object with largest position smaller than pos"""
-
-        if custom_list:
-            object_list = custom_list
-        elif kind != "all":
-            object_list = self.find_by_kind(kind)
-        else:
-            object_list = self.objects
-
-        if not object_list:
-            return None
-
-        return min(
-            [obj for obj in object_list if getattr(obj, attr) > value],
-            key=lambda x: getattr(x, attr),
-            default=None,
-        )
-
-    def find_closest_by_attr(self, attr, value, kind="all"):
-        """Find object with largest position smaller than pos"""
-
-        if kind != "all":
-            object_list = self.find_by_kind(kind)
-        else:
-            object_list = self.objects
-
-        if not object_list:
-            return None
-
-        return min(
-            [obj for obj in object_list],
-            key=lambda x: abs(getattr(x, attr) - value),
-            default=None,
-        )
-
     def delete_component(self, component: TimelineComponent) -> None:
-        logger.debug(f"Deleting component '{component}'")
         stop_listening_to_all(component)
         self._remove_from_components_set(component)
         post(
@@ -316,12 +316,10 @@ class TimelineComponentManager:
         )
 
     def clear(self):
-        logger.debug(f"Clearing component manager '{self}'...")
         for component in self._components.copy():
             self.delete_component(component)
 
     def serialize_components(self):
-        logger.debug(f"Serializing components on '{self}.'")
         return serialize.serialize_components(self._components)
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):

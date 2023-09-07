@@ -2,10 +2,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch, mock_open
 
-import pytest
-
 from tests.mock import PatchPost
-from tilia.parsers.csv import (
+from tilia.parsers.csv.csv import (
     beats_from_csv,
     get_params_indices,
     markers_by_measure_from_csv,
@@ -48,7 +46,7 @@ def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
             Path("parsers", "test_markers_by_measure_from_csv.csv").resolve(),
         )
 
-    markers = marker_tl.ordered_markers
+    markers = sorted(marker_tl)
 
     assert markers[0].time == 1
     assert markers[1].time == 2.5
@@ -74,7 +72,7 @@ def test_markers_by_measure_from_csv_multiple_measures_with_number(
     with patch("builtins.open", mock_open(read_data=data)):
         markers_by_measure_from_csv(marker_tl, beat_tl, Path())
 
-    markers = marker_tl.ordered_markers
+    markers = sorted(marker_tl)
 
     assert markers[0].time == 1
     assert markers[1].time == 2
@@ -89,7 +87,7 @@ def test_markers_by_measure_from_csv_raises_error_if_no_measure_column(
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        with PatchPost('tilia.parsers.csv', Post.REQUEST_DISPLAY_ERROR) as post_mock:
+        with PatchPost("tilia.parsers.csv", Post.DISPLAY_ERROR) as post_mock:
             markers_by_measure_from_csv(
                 beat_tlui.timeline,
                 marker_tlui.timeline,
@@ -110,7 +108,7 @@ def test_markers_by_time_from_csv(marker_tlui):
             Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
         )
 
-    markers = marker_tlui.timeline.ordered_markers
+    markers = sorted(marker_tlui.timeline)
 
     assert markers[0].time == 1
     assert markers[0].label == "first"
@@ -131,7 +129,7 @@ def test_markers_by_time_from_csv_raises_error_if_no_time_column(marker_tlui):
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        with PatchPost('tilia.parsers.csv', Post.REQUEST_DISPLAY_ERROR) as post_mock:
+        with PatchPost("tilia.parsers.csv", Post.DISPLAY_ERROR) as post_mock:
             markers_by_time_from_csv(
                 marker_tlui.timeline,
                 Path(),
@@ -177,7 +175,7 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
 
     assert "nonsense" in errors[0]
 
-    assert marker_tl.ordered_markers[0].time == 1
+    assert sorted(marker_tl)[0].time == 1
 
 
 def test_hierarchies_by_time_from_csv(hierarchy_tlui):
