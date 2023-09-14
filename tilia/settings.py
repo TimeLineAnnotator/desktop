@@ -30,7 +30,7 @@ DEFAULT_SETTINGS = {
         ]
     },
     "slider_timeline": {
-        "default_height": 15,
+        "default_height": 40,
         "trough_radius": 5,
         "trough_color": "#FF0000",
         "line_color": "#000000",
