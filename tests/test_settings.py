@@ -1,20 +1,29 @@
-from unittest.mock import patch
-
 import pytest
-import tomlkit
 
 from tilia import settings
 
 
-@pytest.fixture(autouse=True)
-def use_test_settings():
+def test_get_missing_setting_gets_default():
+    settings._settings["dev"].pop("dev_mode")
 
-    TEST_SETTINGS_PATH = "test_settings.toml"
+    assert (
+        settings.get("dev", "dev_mode") == settings.DEFAULT_SETTINGS["dev"]["dev_mode"]
+    )
 
-    with open(TEST_SETTINGS_PATH, "r") as f:
-        settings.settings = tomlkit.load(f)
 
-    with patch("dirs.settings_path", TEST_SETTINGS_PATH):
-        yield
+def test_get_non_existent_setting_raises_error():
+    with pytest.raises(KeyError):
+        settings.get("dev", "nonsense")
 
-    settings.settings = settings._load_settings()
+
+def test_get_missing_table_gets_default():
+    settings._settings.pop("dev")
+
+    assert (
+        settings.get("dev", "dev_mode") == settings.DEFAULT_SETTINGS["dev"]["dev_mode"]
+    )
+
+
+def test_get_non_existent_table_raises_error():
+    with pytest.raises(KeyError):
+        settings.get("nonsense", "whatever")

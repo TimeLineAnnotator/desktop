@@ -14,10 +14,7 @@ if TYPE_CHECKING:
 
 from tilia.exceptions import TiliaException
 
-from tilia.timelines.common import (
-    TimelineComponent,
-)
-
+from tilia.timelines.base.component import TimelineComponent
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +24,9 @@ class BeatLoadError(Exception):
 
 
 class Beat(TimelineComponent):
-
     # serializer attributes
     SERIALIZABLE_BY_VALUE = ["time"]
 
-    SERIALIZABLE_BY_UI_VALUE = []
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
 
@@ -44,11 +39,19 @@ class Beat(TimelineComponent):
         comments="",
         **_,
     ):
-
         super().__init__(timeline)
 
         self._time = time
         self.comments = comments
+
+    def __lt__(self, other):
+        return self.time < other.time
+
+    def __str__(self):
+        return f"Beat({self.time})"
+
+    def __repr__(self):
+        return f"Beat({self.time})"
 
     @classmethod
     def create(cls, timeline: BeatTimeline, time: float):
@@ -66,12 +69,6 @@ class Beat(TimelineComponent):
     def time(self, value):
         logger.debug(f"Setting {self} time to {value}")
         self._time = value
-
-    def __str__(self):
-        return f"Beat({self.time})"
-
-    def __repr__(self):
-        return f"Beat({self.time})"
 
 
 class BeatOperationError(TiliaException):

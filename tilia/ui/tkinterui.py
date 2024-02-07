@@ -1,43 +1,34 @@
-"""
-Defines the TkinterUI class, which composes the TiLiA object, and its dependencies.
-The TkinterUI is responsible for high-level control of the GUI.
-"""
-
 from __future__ import annotations
-
 import traceback
-from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any
 import sys
 import tkinter as tk
-import tkinter.font
-import tkinter.filedialog
-import tkinter.messagebox
-import tkinter.simpledialog
-import time
+import tkinter.font as tk_font
+from functools import partial
+import logging
 
-import tilia.repr
-from tilia import globals_, events, settings
-from tilia.ui import player
-from tilia.repr import default_str
-from tilia.exceptions import UserCancelledSaveError, UserCancelledOpenError
-from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.events import Event, subscribe
-from . import file, event_handler
-from .common import ask_yes_no, ask_for_directory, format_media_time, display_error
+from . import event_handler, dialogs
+from .common import display_error
 from .dialogs.by_time_or_by_measure import ByTimeOrByMeasure
+from .frames import AppToolbarsFrame, ScrollableFrame
 from .menus import TkinterUIMenus, DynamicMenu
-from .timelines.collection import TimelineUICollection
+from .timelines.collection import TimelineUIs
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
-
-import logging
-
-from ..clipboard import ClipboardContents
-from ..parsers.csv import markers_by_time_from_csv, markers_by_measure_from_csv
+from ..parsers.csv import (
+    beats_from_csv,
+    markers_by_time_from_csv,
+    markers_by_measure_from_csv,
+    hierarchies_by_time_from_csv,
+    hierarchies_by_measure_from_csv,
+)
+from tilia import globals_, settings
+from tilia.repr import default_str
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.requests import Post, listen, post, serve, Get, get
 
 logger = logging.getLogger(__name__)
 
@@ -50,79 +41,84 @@ def handle_exception(exc_type, exc_value, exc_traceback) -> None:
     # log exception
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
-    # print exception to stdout
+    # exception to stdout
     traceback.print_exc()
 
 
 class TkinterUI:
-    """
-    Responsible for high-level control of the GUI:
-        - Instances the tk.TK object;
-        - Is composed of the high level tkinter frames (toolbar parent, timelines parent, etc...);
-        - Is composed of the TkinterUIMenus class;
-        - Is composed of a TkEventHandler which translates tkinter events into events.py events;
-        - Keeps 'global' interface data such as window and timeline dimensions.
-    """
-
     def __init__(self, root: tk.Tk):
         logger.debug("Starting TkinterUI...")
 
-        self.app = None
-        self.root = root
-        self._setup_root()
+        self._setup_root(root)
 
         self.SUBSCRIPTIONS = [
-            (Event.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media),
             (
-                Event.UI_REQUEST_WINDOW_INSPECTOR,
+                Post.TIMELINE_WIDTH_CHANGE_REQUEST,
+                self.on_timeline_width_change_request,
+            ),
+            (Post.MENU_OPTION_FILE_LOAD_MEDIA, self.on_menu_file_load_media),
+            (
+                Post.UI_REQUEST_WINDOW_INSPECTOR,
                 lambda: self.on_request_window(WindowKind.INSPECT),
             ),
             (
-                Event.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
+                Post.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
                 lambda: self.on_request_window(WindowKind.MANAGE_TIMELINES),
             ),
             (
-                Event.UI_REQUEST_WINDOW_METADATA,
+                Post.UI_REQUEST_WINDOW_METADATA,
                 lambda: self.on_request_window(WindowKind.MEDIA_METADATA),
             ),
             (
-                Event.UI_REQUEST_WINDOW_ABOUT,
+                Post.UI_REQUEST_WINDOW_ABOUT,
                 lambda: self.on_request_window(WindowKind.ABOUT),
             ),
-            (Event.REQUEST_DISPLAY_ERROR, self.on_display_error),
             (
-                Event.INSPECT_WINDOW_CLOSED,
+                Post.INSPECT_WINDOW_CLOSED,
                 lambda: self.on_window_closed(WindowKind.INSPECT),
             ),
             (
-                Event.MANAGE_TIMELINES_WINDOW_CLOSED,
+                Post.MANAGE_TIMELINES_WINDOW_CLOSED,
                 lambda: self.on_window_closed(WindowKind.MANAGE_TIMELINES),
             ),
             (
-                Event.METADATA_WINDOW_CLOSED,
+                Post.METADATA_WINDOW_CLOSED,
                 lambda: self.on_window_closed(WindowKind.MEDIA_METADATA),
             ),
             (
-                Event.ABOUT_WINDOW_CLOSED,
+                Post.ABOUT_WINDOW_CLOSED,
                 lambda: self.on_window_closed(WindowKind.ABOUT),
             ),
-            (Event.TILIA_FILE_LOADED, self.on_tilia_file_loaded),
-            (Event.TIMELINE_KIND_INSTANCED, self._on_timeline_kind_instanced),
-            (Event.TIMELINE_KIND_UNINSTANCED, self._on_timeline_kind_uninstanced),
-            (Event.REQUEST_IMPORT_FROM_CSV, self.on_menu_import_markers_from_csv),
+            (Post.REQUEST_CLEAR_UI, self.on_request_clear_ui),
+            (Post.TIMELINE_KIND_INSTANCED, self._on_timeline_kind_instanced),
+            (Post.TIMELINE_KIND_UNINSTANCED, self._on_timeline_kind_uninstanced),
+            (
+                Post.REQUEST_IMPORT_CSV_MARKERS,
+                partial(self.on_import_from_csv, TlKind.MARKER_TIMELINE),
+            ),
+            (
+                Post.REQUEST_IMPORT_CSV_HIERARCHIES,
+                partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE),
+            ),
+            (
+                Post.REQUEST_IMPORT_CSV_BEATS,
+                partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE),
+            ),
+            (Post.REQUEST_DISPLAY_ERROR, dialogs.display_error),
         ]
 
-        self.default_font = tkinter.font.nametofont("TkDefaultFont")
+        self.default_font = tk_font.nametofont("TkDefaultFont")
 
         self.timeline_width = globals_.DEFAULT_TIMELINE_WIDTH
         self.timeline_padx = globals_.DEFAULT_TIMELINE_PADX
 
         self._setup_subscriptions()
+        self._setup_requests()
         self._setup_widgets()
         self.enabled_dynamic_menus: set[DynamicMenu] = set()
         self._setup_menus()
-        self._make_default_canvas_bindings()
-        self._create_timeline_ui_collection()
+        self._setup_canvas_bindings()
+        self._setup_timeline_ui_collection()
 
         self._windows = {
             WindowKind.INSPECT: None,
@@ -138,84 +134,7 @@ class TkinterUI:
 
     def _setup_subscriptions(self):
         for event, callback in self.SUBSCRIPTIONS:
-            subscribe(self, event, callback)
-
-    def _setup_root(self):
-        def get_root_geometry():
-            w = settings.get("general", "window_width")
-            h = settings.get("general", "window_height")
-            x = settings.get("general", "window_x")
-            y = settings.get("general", "window_y")
-
-            return f"{w}x{h}+{x}+{y}"
-
-        self.root.geometry(get_root_geometry())
-        self.root.focus_set()
-
-        self.root.report_callback_exception = handle_exception
-
-        self.root.title(globals_.APP_NAME)
-        self.icon = tk.PhotoImage(master=self.root, file=globals_.APP_ICON_PATH)
-        self.root.iconphoto(True, self.icon)
-
-        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-
-    def _on_close(self):
-        settings.edit("general", "window_width", self.root.winfo_width())
-        settings.edit("general", "window_height", self.root.winfo_height())
-        settings.edit("general", "window_x", self.root.winfo_x())
-        settings.edit("general", "window_y", self.root.winfo_y())
-
-        events.post(Event.REQUEST_CLOSE_APP)
-
-    def _make_default_canvas_bindings(self) -> None:
-        for sequence, callback in event_handler.DEFAULT_CANVAS_BINDINGS:
-            self.root.bind_class("Canvas", sequence, callback)
-
-    def _setup_menus(self):
-        self._menus = TkinterUIMenus()
-        self.root.config(menu=self._menus)
-
-        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
-
-    tlkind_to_dynamic_menu = {
-        TimelineKind.MARKER_TIMELINE: DynamicMenu.MARKER_TIMELINE,
-    }
-
-    def _on_timeline_kind_instanced(self, kind: TimelineKind) -> None:
-        if kind not in self.tlkind_to_dynamic_menu:
-            return
-
-        self.enabled_dynamic_menus.add(self.tlkind_to_dynamic_menu[kind])
-
-        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
-
-    def _on_timeline_kind_uninstanced(self, kind: TimelineKind) -> None:
-        if kind not in self.tlkind_to_dynamic_menu:
-            return
-
-        self.enabled_dynamic_menus.remove(self.tlkind_to_dynamic_menu[kind])
-
-        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
-
-    def launch(self):
-        logger.debug("Entering Tkinter UI mainloop.")
-        self.root.mainloop()
-
-    @property
-    def timeline_total_size(self):
-        return self.timeline_width + 2 * self.timeline_padx
-
-    def _create_timeline_ui_collection(self):
-        self.timeline_ui_collection = TimelineUICollection(
-            self, self.scrollable_frame, self.hscrollbar, self.timelines_toolbar_frame
-        )
-
-    def get_window_size(self):
-        return self.root.winfo_width()
-
-    def get_timeline_ui_collection(self):
-        return self.timeline_ui_collection
+            listen(self, event, callback)
 
     def _setup_widgets(self):
         # create frames
@@ -236,6 +155,128 @@ class TkinterUI:
         _scrollable_frame.pack(side=tk.TOP, fill="both", expand=True)
 
         self.main_frame.pack(fill="both", expand=True)
+
+    def _setup_canvas_bindings(self) -> None:
+        for sequence, callback in event_handler.DEFAULT_CANVAS_BINDINGS:
+            self.root.bind_class("Canvas", sequence, callback)
+
+    def _setup_menus(self):
+        self._menus = TkinterUIMenus()
+        self.root.config(menu=self._menus)
+
+        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
+
+    tlkind_to_dynamic_menu = {
+        TlKind.MARKER_TIMELINE: DynamicMenu.MARKER_TIMELINE,
+        TlKind.HIERARCHY_TIMELINE: DynamicMenu.HIERARCHY_TIMELINE,
+        TlKind.BEAT_TIMELINE: DynamicMenu.BEAT_TIMELINE,
+    }
+
+    def _setup_requests(self):
+        # dialog requests
+        serve(self, Get.SHOULD_SAVE_CHANGES_FROM_USER, dialogs.ask_should_save_changes)
+        serve(self, Get.DIR_FROM_USER, dialogs.ask_for_directory)
+        serve(self, Get.SAVE_PATH_FROM_USER, dialogs.ask_for_path_to_save_tilia_file)
+        serve(self, Get.TILIA_FILE_PATH_FROM_USER, dialogs.ask_for_tilia_file_to_open)
+        serve(self, Get.FILE_PATH_FROM_USER, dialogs.ask_for_file_to_open),
+        serve(self, Get.STRING_FROM_USER, dialogs.ask_for_string)
+        serve(self, Get.BEAT_PATTERN_FROM_USER, dialogs.ask_for_beat_pattern)
+        serve(self, Get.FLOAT_FROM_USER, dialogs.ask_for_float)
+        serve(self, Get.INT_FROM_USER, dialogs.ask_for_int)
+        serve(self, Get.YES_OR_NO_FROM_USER, dialogs.ask_yes_no)
+        serve(self, Get.COLOR_FROM_USER, dialogs.ask_for_color)
+        # canvas-related requests
+        serve(self, Get.TIMELINE_WIDTH, lambda: self.timeline_width)
+        serve(
+            self,
+            Get.TIMELINE_FRAME_WIDTH,
+            lambda: self.timeline_width + 2 * self.timeline_padx,
+        )
+        serve(self, Get.LEFT_MARGIN_X, lambda: self.timeline_padx)
+        serve(
+            self,
+            Get.RIGHT_MARGIN_X,
+            lambda: self.timeline_width + self.timeline_padx,
+        )
+
+    def _setup_root(self, root: tk.Tk):
+        self.root = root
+
+        def get_root_geometry():
+            w = settings.get("general", "window_width")
+            h = settings.get("general", "window_height")
+            x = settings.get("general", "window_x")
+            y = settings.get("general", "window_y")
+
+            return f"{w}x{h}+{x}+{y}"
+
+        self.root.geometry(get_root_geometry())
+        self.root.focus_set()
+
+        self.root.report_callback_exception = handle_exception
+
+        self.root.title(globals_.APP_NAME)
+        self.icon = tk.PhotoImage(master=self.root, file=globals_.APP_ICON_PATH)
+        self.root.iconphoto(True, self.icon)
+
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _setup_timeline_ui_collection(self):
+        self.timeline_ui_collection = TimelineUIs(self, self.hscrollbar)
+
+    def _on_close(self):
+        settings.edit("general", "window_width", self.root.winfo_width())
+        settings.edit("general", "window_height", self.root.winfo_height())
+        settings.edit("general", "window_x", self.root.winfo_x())
+        settings.edit("general", "window_y", self.root.winfo_y())
+
+        post(Post.REQUEST_CLOSE_APP)
+
+    def _on_timeline_kind_instanced(self, kind: TlKind) -> None:
+        if kind not in self.tlkind_to_dynamic_menu:
+            return
+
+        self.enabled_dynamic_menus.add(self.tlkind_to_dynamic_menu[kind])
+
+        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
+
+    def _on_timeline_kind_uninstanced(self, kind: TlKind) -> None:
+        if kind not in self.tlkind_to_dynamic_menu:
+            return
+
+        self.enabled_dynamic_menus.remove(self.tlkind_to_dynamic_menu[kind])
+
+        self._menus.update_dynamic_menus(self.enabled_dynamic_menus)
+
+    def on_timeline_width_change_request(self, value: int) -> None:
+        if value < 0:
+            raise ValueError(f"Timeline v must be positive. Got {value=}")
+
+        logger.debug(f"Changing to timeline width to {value}.")
+        self.timeline_width = value
+        post(Post.TIMELINE_WIDTH_CHANGED)
+
+    def launch(self):
+        logger.debug("Entering Tkinter UI mainloop.")
+        self.root.mainloop()
+
+    def get_timeline_total_width(self):
+        return self.timeline_width + 2 * self.timeline_padx
+
+    def get_window_size(self):
+        return self.root.winfo_width()
+
+    def get_timeline_ui_collection(self):
+        return self.timeline_ui_collection
+
+    def get_timelines_frame(self):
+        return self.scrollable_frame
+
+    def get_timelines_scrollbar(self):
+        return self.hscrollbar
+
+    def get_toolbar_frame(self):
+        return self.timelines_toolbar_frame
 
     # noinspection PyTypeChecker,PyUnresolvedReferences
     def on_request_window(self, kind: WindowKind):
@@ -266,17 +307,13 @@ class TkinterUI:
         )
 
     def open_media_metadata_window(self):
-        return MediaMetadataWindow(
-            self.root,
-            self.app.media_metadata,
-            self.get_metadata_non_editable_fields(),
-            {"media length": format_media_time},
-        )
+        return MediaMetadataWindow(self.root, get(Get.MEDIA_METADATA))
 
     def on_window_closed(self, kind: WindowKind):
         self._windows[kind] = None
 
-    def on_tilia_file_loaded(self):
+    def on_request_clear_ui(self):
+        """Closes all UI windows."""
         windows_to_close = [
             WindowKind.INSPECT,
             WindowKind.MANAGE_TIMELINES,
@@ -287,233 +324,103 @@ class TkinterUI:
             if window := self._windows[window_kind]:
                 window.destroy()
 
-    @staticmethod
-    def on_display_error(title: str, message: str):
-        lines = message.split("\n")
-        if len(lines) > 35:
-            message = "\n".join(lines[:35]) + "\n..."
-        tk.messagebox.showerror(title, message)
-
-    def get_metadata_non_editable_fields(self) -> dict[str, OrderedDict]:
-        return OrderedDict(
-            {
-                "media length": self.app.media_length,
-                "media path": self.app.media_path,
-            }
-        )
-
     def get_timeline_info_for_manage_timelines_window(self) -> list[tuple[int, str]]:
         def get_tlui_display_string(tlui):
-            if tlui.TIMELINE_KIND == TimelineKind.SLIDER_TIMELINE:
+            if tlui.TIMELINE_KIND == TlKind.SLIDER_TIMELINE:
                 return "SliderTimeline"
             else:
                 return f"{tlui.name} | {tlui.timeline.__class__.__name__}"
 
         return [
-            (tlui.timeline.id, get_tlui_display_string(tlui))
-            for tlui in sorted(
-                self.timeline_ui_collection.get_timeline_uis(),
-                key=lambda t: t.display_position,
-            )
+            (tlui.id, get_tlui_display_string(tlui))
+            for tlui in self.timeline_ui_collection.get_timeline_uis()
         ]
-
-    def get_elements_for_pasting(self) -> ClipboardContents:
-        return self.app.get_elements_for_pasting()
-
-    def get_id(self) -> str:
-        return self.app.get_id()
-
-    def get_media_length(self):
-        return self.app.media_length
 
     @staticmethod
     def on_menu_file_load_media():
-        media_path = file.choose_media_file()
+        media_path = dialogs.ask_for_media_file()
         if media_path:
-            events.post(Event.REQUEST_LOAD_MEDIA, media_path)
+            post(Post.REQUEST_LOAD_MEDIA, media_path)
         else:
-            logger.debug(f"User cancelled media load.")
+            logger.debug("User cancelled media load.")
 
-    def on_menu_import_markers_from_csv(self):
-        if not self.timeline_ui_collection.get_timeline_uis_by_kind(
-            TimelineKind.MARKER_TIMELINE
-        ):
+    def on_import_from_csv(self, tlkind: TlKind) -> None:
+        if not self.timeline_ui_collection.get_timeline_uis_by_attr('TIMELINE_KIND', tlkind):
             display_error(
-                "Import markers error",
-                "No marker timelines found. Must have a marker timeline to import to.",
+                "Import from CSV error",
+                f"No timelines of type '{tlkind}' found.",
             )
             return
 
-        marker_tl = self.timeline_ui_collection.ask_choose_timeline(
-            "Import markers from .csv",
-            "Choose timeline where markers will be created",
-            TimelineKind.MARKER_TIMELINE,
+        timeline = self.timeline_ui_collection.ask_choose_timeline(
+            "Import components from CSV",
+            "Choose timeline where components will be created",
+            tlkind,
         )
-        if not marker_tl:
+        if not timeline:
             return
 
-        time_or_measure = ByTimeOrByMeasure(self.root).ask()
-        if not time_or_measure:
-            return
+        if tlkind == TlKind.BEAT_TIMELINE:
+            time_or_measure = "time"
+        else:
+            time_or_measure = ByTimeOrByMeasure(self.root).ask()
+            if not time_or_measure:
+                return
 
-        if time_or_measure == "measure":
-            if not self.timeline_ui_collection.get_timeline_uis_by_kind(
-                TimelineKind.BEAT_TIMELINE
-            ):
-                display_error(
-                    "Import markers error",
-                    "No beat timelines found. Must have a beat timeline if importing makers by measure.",
+            if time_or_measure == "measure":
+                if not self.timeline_ui_collection.get_timeline_uis_by_attr(
+                    'TIMELINE_KIND',
+                    TlKind.BEAT_TIMELINE
+                ):
+                    display_error(
+                        "Import from CSV error",
+                        (
+                            "No beat timelines found. Must have a beat timeline if"
+                            " importing by measure."
+                        ),
+                    )
+                    return
+
+                beat_tl = self.timeline_ui_collection.ask_choose_timeline(
+                    "Import components from CSV",
+                    "Choose timeline with measures to be used when importing",
+                    TlKind.BEAT_TIMELINE,
                 )
-                return
 
-            beat_tl = self.timeline_ui_collection.ask_choose_timeline(
-                "Import markers from .csv",
-                "Choose timeline with measures to be used when importing",
-                TimelineKind.BEAT_TIMELINE,
-            )
+                if not beat_tl:
+                    return
 
-            if not beat_tl:
-                return
-
-        path = tk.filedialog.askopenfilename(
-            title="Import markers", filetypes=[("CSV files", "*.csv")]
+        path = get(
+            Get.FILE_PATH_FROM_USER, "Import components", [("CSV files", "*.csv")]
         )
 
         if not path:
             return
 
+        tlkind_to_funcs = {
+            TlKind.MARKER_TIMELINE: {
+                "time": markers_by_time_from_csv,
+                "measure": markers_by_measure_from_csv,
+            },
+            TlKind.HIERARCHY_TIMELINE: {
+                "time": hierarchies_by_time_from_csv,
+                "measure": hierarchies_by_measure_from_csv,
+            },
+            TlKind.BEAT_TIMELINE: {"time": beats_from_csv},
+        }
+
+        timeline.clear()
+
         if time_or_measure == "time":
-            errors = markers_by_time_from_csv(marker_tl, path)
+            errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
         else:
-            errors = markers_by_measure_from_csv(marker_tl, beat_tl, path)
+            errors = tlkind_to_funcs[tlkind]["measure"](timeline, beat_tl, path)
 
         if errors:
             errors_str = "\n".join(errors)
-            print(errors_str)
-            events.post(
-                Event.REQUEST_DISPLAY_ERROR,
-                "Import markers from csv",
-                "Some markers were not imported. The following errors occured:\n"
+            post(
+                Post.REQUEST_DISPLAY_ERROR,
+                "Import components from csv",
+                "Some components were not imported. The following errors occured:\n"
                 + errors_str,
             )
-
-    @staticmethod
-    def get_file_save_path(initial_filename: str) -> str | None:
-        path = tk.filedialog.asksaveasfilename(
-            defaultextension=f"{globals_.FILE_EXTENSION}",
-            initialfile=initial_filename,
-            filetypes=((f"{globals_.APP_NAME} files", f".{globals_.FILE_EXTENSION}"),),
-        )
-
-        if not path:
-            raise UserCancelledSaveError("User cancelled or closed save window dialog.")
-
-        if path.endswith(f"{globals_.FILE_EXTENSION}") and not path.endswith(
-            f".{globals_.FILE_EXTENSION}"
-        ):
-            path = path[:-3] + ".tla"
-
-        return path
-
-    @staticmethod
-    def get_file_open_path():
-        path = tk.filedialog.askopenfilename(
-            title=f"Open {globals_.APP_NAME} file...",
-            filetypes=(
-                (f"{globals_.APP_NAME} files", f".{globals_.FILE_EXTENSION}"),
-                ("All files", "*.*"),
-            ),
-        )
-
-        if not path:
-            raise UserCancelledOpenError("User cancelled or closed open window dialog.")
-
-        return path
-
-    @staticmethod
-    def ask_save_changes():
-        return tk.messagebox.askyesnocancel(
-            "Save changes?", f"Save changes to current file?"
-        )
-
-    @staticmethod
-    def ask_string(title: str, prompt: str) -> str:
-        return tk.simpledialog.askstring(title, prompt=prompt)
-
-    def ask_yes_no(self, title: str, prompt: str) -> bool:
-        return ask_yes_no(title, prompt)
-
-    def get_timeline_ui_attribute_by_id(self, id_: int, attribute: str) -> Any:
-        return self.timeline_ui_collection.get_timeline_ui_attribute_by_id(
-            id_, attribute
-        )
-
-    @staticmethod
-    def ask_for_directory(title: str) -> str | None:
-        return ask_for_directory(title)
-
-
-class AppToolbarsFrame(tk.Frame):
-    def __init__(self, *args, **kwargs):
-        super(AppToolbarsFrame, self).__init__(*args, **kwargs)
-
-        self.playback_frame = player.PlayerUI(self)
-
-        self.auto_scroll_checkbox = CheckboxItem(
-            label="Auto-scroll",
-            value=settings.get("general", "auto-scroll"),
-            set_func=lambda: settings.edit(
-                "general", "auto-scroll", self.auto_scroll_checkbox.variable.get()
-            ),
-            parent=self,
-        )
-
-        self.playback_frame.pack(side=tk.LEFT, anchor=tk.W)
-        self.auto_scroll_checkbox.pack(side=tk.LEFT, anchor=tk.W)
-
-
-class ScrollableFrame(tk.Frame):
-    """Tk.Frame does not support scrolling. This workaround relies
-    on a frame placed inside a canvas, a widget which does support scrolling.
-    self.frame is the frame that must be used by outside widgets."""
-
-    def __init__(self, parent) -> None:
-        super().__init__(parent)
-        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
-        self.frame = tk.Frame(self.canvas)
-        self.vsb = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=self.vsb.set)
-
-        self.vsb.pack(side="right", fill="y")
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.canvas.create_window((0, 0), window=self.frame, anchor="nw")
-
-        self.frame.bind("<Configure>", self.on_frame_configure)
-        self.canvas.bind(
-            "<Configure>",
-            lambda e: events.post(Event.ROOT_WINDOW_RESIZED, e.width, e.height),
-        )
-
-    def on_frame_configure(self, event):
-        """Reset the scroll region to encompass the inner frame"""
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
-
-class CheckboxItem(tk.Frame):
-    def __init__(
-        self, label: str, value: bool, set_func: Callable, parent, *args, **kwargs
-    ):
-        """Checkbox toolbar item to be displayed above timeline toolbars.
-        value is the default boolean value of the checkbox.
-        set_func is the function that will be called on checkbox change.
-        set_func will be called with the checkbox itself as first parameter,
-        emulating a method call (with self as first parameter)."""
-        super().__init__(parent, *args, **kwargs)
-        self.variable = tk.BooleanVar(value=value)
-        self.checkbox = tk.Checkbutton(
-            self, command=set_func, variable=self.variable, takefocus=False
-        )
-        self.label = tk.Label(self, text=label)
-
-        self.checkbox.pack(side=tk.LEFT)
-        self.label.pack(side=tk.LEFT)

@@ -4,7 +4,6 @@ import tkinter.colorchooser
 import tkinter.messagebox
 import tkinter.simpledialog
 import tkinter.filedialog
-from typing import Optional
 
 
 class LabelAndEntry(tk.Frame):
@@ -28,34 +27,6 @@ def display_error(title: str, message: str) -> None:
     tkinter.messagebox.showerror(title, message)
 
 
-def ask_for_color(starting_color: str) -> str | None:
-    return tk.colorchooser.askcolor(title="Choose unit color", color=starting_color)[1]
-
-
-def ask_for_string(title: str, prompt: str, initialvalue: str) -> str | None:
-    return tk.simpledialog.askstring(title, prompt, initialvalue=initialvalue)
-
-
-def ask_for_int(
-    title: str, prompt: str, initialvalue: Optional[int] = None
-) -> int | None:
-    return tk.simpledialog.askinteger(title, prompt, initialvalue=initialvalue)
-
-
-def ask_for_float(
-    title: str, prompt: str, initialvalue: Optional[float] = None
-) -> float | None:
-    return tk.simpledialog.askfloat(title, prompt, initialvalue=initialvalue)
-
-
-def ask_yes_no(title: str, prompt: str) -> bool:
-    return tk.messagebox.askyesno(title, prompt)
-
-
-def ask_for_directory(title: str) -> str | None:
-    return tk.filedialog.askdirectory(title=title)
-
-
 def destroy_children_recursively(widget: tk.Widget | tk.Toplevel) -> None:
     """Recursively destroys all children of 'widget'"""
     children = widget.winfo_children()
@@ -69,4 +40,6 @@ def destroy_children_recursively(widget: tk.Widget | tk.Toplevel) -> None:
 
 
 def format_media_time(audio_time: float | str) -> str:
-    return f"""{str(int(float(audio_time) // 60)).zfill(2)}:{f'{audio_time % 60:.1f}'.zfill(4)}"""
+    minutes = str(int(float(audio_time) // 60)).zfill(2)
+    seconds_and_fraction = f"{audio_time % 60:.1f}".zfill(4)
+    return f"{minutes}:{seconds_and_fraction}"

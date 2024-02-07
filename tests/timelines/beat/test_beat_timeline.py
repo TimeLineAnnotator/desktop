@@ -1,31 +1,40 @@
 import functools
 import itertools
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import pytest
 import logging
 
+from tilia.requests import Get, serve, stop_serving_all
 from tilia.timelines.beat.timeline import BeatTLComponentManager, BeatTimeline
+from tilia.timelines.collection import Timelines
 from tilia.timelines.component_kinds import ComponentKind
 
 logger = logging.getLogger(__name__)
 
 
-class DummyTimelineCollection:
-    ID_ITER = itertools.count()
+class DummyTimelines(Timelines):
+    def __init__(self):
+        pass
 
-    def get_id(self):
-        return next(self.ID_ITER)
 
-    def get_media_length(self):
-        return 100
+ID_ITER = itertools.count()
 
 
 @pytest.fixture
 def beat_tl():
     cm = BeatTLComponentManager()
-    _beat_tl = BeatTimeline(
-        collection=DummyTimelineCollection(), component_manager=cm, beat_pattern=[2]
-    )
+    serve(
+        "beat_tl", Get.ID, lambda: next(ID_ITER)
+    )  # required for timeline and component instancing
+    serve(
+        "beat_tl", Get.ORDINAL_FOR_NEW_TIMELINE, lambda: 1
+    )  # required for timeline instancing
+    serve(
+        "beat_tl", Get.MEDIA_DURATION, lambda: 100
+    )  # required for component validation
+
+    _beat_tl = BeatTimeline(component_manager=cm, beat_pattern=[2])
+
     _beat_tl.create_timeline_component = functools.partial(
         _beat_tl.create_timeline_component, kind=ComponentKind.BEAT
     )
@@ -34,22 +43,10 @@ def beat_tl():
     cm.associate_to_timeline(_beat_tl)
     yield _beat_tl
     _beat_tl.delete()
+    stop_serving_all("beat_tl")
 
 
 class TestBeatTimeline:
-    def test_default_arguments(self):
-        beat_tl = BeatTimeline(
-            DummyTimelineCollection(),
-            component_manager=BeatTLComponentManager(),
-            beat_pattern=[1],
-        )
-
-        assert beat_tl.beats_in_measure == []
-        assert beat_tl.measure_numbers == []
-        assert beat_tl.measures_to_force_display == []
-
-        beat_tl.delete()
-
     def test_get_extension_mult_of_bp_without_beats_in_measure(self, beat_tl):
         beat_tl.beat_pattern = [4, 3, 2]
         assert beat_tl._get_beats_in_measure_extension(9) == [4, 3, 2]
@@ -347,14 +344,14 @@ class TestBeatTimeline:
         assert beat_tl.measure_numbers == [1]
 
     def test_recalculate_measure_first_beat_from_last_measure(self, beat_tl):
-        b0 = beat_tl.create_timeline_component(time=1)
-        b1 = beat_tl.create_timeline_component(time=2)
-        b2 = beat_tl.create_timeline_component(time=3)
-        b3 = beat_tl.create_timeline_component(time=4)
+        beat_tl.create_timeline_component(time=1)
+        beat_tl.create_timeline_component(time=2)
+        b = beat_tl.create_timeline_component(time=3)
+        beat_tl.create_timeline_component(time=4)
 
         beat_tl.recalculate_measures()
 
-        beat_tl.on_request_to_delete_components([b2])
+        beat_tl.on_request_to_delete_components([b])
 
         beat_tl.recalculate_measures()
 

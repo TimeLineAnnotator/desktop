@@ -1,8 +1,7 @@
 import sys
 import tkinter as tk
-import tilia.events as events
 
-from tilia.events import Event
+from tilia.requests import Post, post
 from tilia.ui.canvas_tags import TRANSPARENT, TAG_TO_CURSOR, CURSOR_TAGS
 from tilia.ui.modifier_enum import ModifierEnum
 
@@ -12,9 +11,9 @@ def on_mouse_wheel(event: tk.Event):
         event.delta *= -1
 
     if event.delta > 0:
-        events.post(Event.REQUEST_ZOOM_IN)
+        post(Post.REQUEST_ZOOM_IN)
     elif event.delta < 0:
-        events.post(Event.REQUEST_ZOOM_OUT)
+        post(Post.REQUEST_ZOOM_OUT)
 
 
 if sys.platform == "win32" or "linux":
@@ -50,9 +49,27 @@ def get_click_event_params(event: tk.Event) -> tuple[tk.Canvas, int, int, int | 
     return canvas, canvas_x, canvas_y, id
 
 
+def on_b1_motion(event: tk.Event) -> None:
+    """
+    Triggered when dragging with left click
+    """
+    if not isinstance(event.widget, tk.Canvas):
+        return
+
+    post(
+        Post.TIMELINE_LEFT_BUTTON_DRAG,
+        event.widget.canvasx(event.x),
+        event.widget.canvasy(event.y),
+        logging_level=5,
+    )
+
+
 def on_motion(event: tk.Event) -> None:
     """Sets cursor based on hovered canvas item tags.
     Ignores items tagged with TRANSPARENT"""
+    if not isinstance(event.widget, tk.Canvas):
+        return
+
     item_id = get_click_event_params(event)[3]
 
     if not item_id:
@@ -68,9 +85,7 @@ def on_motion(event: tk.Event) -> None:
 
 
 DEFAULT_CANVAS_BINDINGS = [
-    ######################
-    ### MOUSE BINDINGS ###
-    ######################
+    # -- MOUSE BINDINGS -- #
     (
         "<ButtonPress-1>",
         lambda e: on_left_click(e, modifier=ModifierEnum.NONE, double=False),
@@ -89,17 +104,12 @@ DEFAULT_CANVAS_BINDINGS = [
     ),
     (
         "<B1-Motion>",
-        lambda e: events.post(
-            Event.TIMELINE_LEFT_BUTTON_DRAG,
-            e.widget.canvasx(e.x),
-            e.widget.canvasy(e.y),
-            logging_level=5,
-        ),
+        on_b1_motion
     ),
     ("<Motion>", on_motion),
     (
         "<ButtonRelease-1>",
-        lambda _: events.post(Event.TIMELINE_LEFT_BUTTON_RELEASE),
+        lambda _: post(Post.TIMELINE_LEFT_BUTTON_RELEASE),
     ),
     (
         "<Double-Button-1>",
@@ -110,58 +120,52 @@ DEFAULT_CANVAS_BINDINGS = [
         lambda e: on_right_click(e, modifier=ModifierEnum.NONE, double=False),
     ),
     ("<MouseWheel>", on_mouse_wheel),
-    ("<Button-4>", lambda _: events.post(Event.REQUEST_ZOOM_IN)),
-    ("<Button-5>", lambda _: events.post(Event.REQUEST_ZOOM_OUT)),
-    #########################
-    ### KEYBOARD BINDINGS ###
-    #########################
-    (
-        "<Control-D>",
-        lambda _: events.post(Event.DEBUG_SELECTED_ELEMENTS),
-    ),
-    ("<Delete>", lambda _: events.post(Event.KEY_PRESS_DELETE)),
-    ("<Return>", lambda _: events.post(Event.KEY_PRESS_ENTER)),
-    ("<Left>", lambda _: events.post(Event.KEY_PRESS_LEFT)),
-    ("<Right>", lambda _: events.post(Event.KEY_PRESS_RIGHT)),
-    ("<Up>", lambda _: events.post(Event.KEY_PRESS_UP)),
-    ("<Down>", lambda _: events.post(Event.KEY_PRESS_DOWN)),
+    ("<Button-4>", lambda _: post(Post.REQUEST_ZOOM_IN)),
+    ("<Button-5>", lambda _: post(Post.REQUEST_ZOOM_OUT)),
+    # -- KEYBOARD BINDINGS -- #
+    ("<Delete>", lambda _: post(Post.KEY_PRESS_DELETE)),
+    ("<Return>", lambda _: post(Post.KEY_PRESS_ENTER)),
+    ("<Left>", lambda _: post(Post.KEY_PRESS_LEFT)),
+    ("<Right>", lambda _: post(Post.KEY_PRESS_RIGHT)),
+    ("<Up>", lambda _: post(Post.KEY_PRESS_UP)),
+    ("<Down>", lambda _: post(Post.KEY_PRESS_DOWN)),
     (
         "<Control-i>",
-        lambda _: events.post(Event.UI_REQUEST_WINDOW_INSPECTOR),
+        lambda _: post(Post.UI_REQUEST_WINDOW_INSPECTOR),
     ),
-    ("<Control-c>", lambda _: events.post(Event.KEY_PRESS_CONTROL_C)),
-    ("<Control-v>", lambda _: events.post(Event.KEY_PRESS_CONTROL_V)),
-    ("<Control-V>", lambda _: events.post(Event.KEY_PRESS_CONTROL_SHIFT_V)),
-    ("<Control-z>", lambda _: events.post(Event.REQUEST_TO_UNDO)),
-    ("<Control-y>", lambda _: events.post(Event.REQUEST_TO_REDO)),
-    ("<Control-s>", lambda _: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=False)),
-    ("<Control-S>", lambda _: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=True)),
-    ("<Control-S>", lambda _: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=True)),
-    ("<Control-S>", lambda _: events.post(Event.FILE_REQUEST_TO_SAVE, save_as=True)),
-    ("<Control-plus>", lambda _: events.post(Event.REQUEST_ZOOM_IN)),
-    ("<Control-minus>", lambda _: events.post(Event.REQUEST_ZOOM_OUT)),
-    ("<g>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_GROUP)),
-    ("<s>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_SPLIT)),
-    ("<M>", lambda _: events.post(Event.HIERARCHY_TOOLBAR_MERGE)),
+    ("<Control-c>", lambda _: post(Post.KEY_PRESS_CONTROL_C)),
+    ("<Control-v>", lambda _: post(Post.KEY_PRESS_CONTROL_V)),
+    ("<Control-V>", lambda _: post(Post.KEY_PRESS_CONTROL_SHIFT_V)),
+    ("<Control-z>", lambda _: post(Post.REQUEST_TO_UNDO)),
+    ("<Control-y>", lambda _: post(Post.REQUEST_TO_REDO)),
+    ("<Control-s>", lambda _: post(Post.REQUEST_SAVE)),
+    ("<Control-S>", lambda _: post(Post.REQUEST_SAVE_AS)),
+    ("<Control-plus>", lambda _: post(Post.REQUEST_ZOOM_IN)),
+    ("<Control-minus>", lambda _: post(Post.REQUEST_ZOOM_OUT)),
+    ("<g>", lambda _: post(Post.HIERARCHY_TOOLBAR_GROUP)),
+    ("<s>", lambda _: post(Post.HIERARCHY_TOOLBAR_SPLIT)),
+    ("<M>", lambda _: post(Post.HIERARCHY_TOOLBAR_MERGE)),
     (
         "<Control-Up>",
-        lambda _: events.post(Event.HIERARCHY_TOOLBAR_LEVEL_INCREASE),
+        lambda _: post(Post.HIERARCHY_TOOLBAR_LEVEL_INCREASE),
     ),
     (
         "<Control-Down>",
-        lambda _: events.post(Event.HIERARCHY_TOOLBAR_LEVEL_DECREASE),
+        lambda _: post(Post.HIERARCHY_TOOLBAR_LEVEL_DECREASE),
     ),
-    ("<m>", lambda _: events.post(Event.MARKER_TOOLBAR_BUTTON_ADD)),
-    ("<b>", lambda _: events.post(Event.BEAT_TOOLBAR_BUTTON_ADD)),
-    ("<space>", lambda _: events.post(Event.PLAYER_REQUEST_TO_PLAYPAUSE)),
+    ("<m>", lambda _: post(Post.MARKER_TOOLBAR_BUTTON_ADD)),
+    ("<b>", lambda _: post(Post.BEAT_TOOLBAR_BUTTON_ADD)),
+    ("<space>", lambda _: post(Post.PLAYER_REQUEST_TO_PLAYPAUSE)),
 ]
 
 
 def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
     """Handles mouse click"""
+    if not isinstance(event.widget, tk.Canvas):
+        return
 
-    events.post(
-        Event.CANVAS_LEFT_CLICK,
+    post(
+        Post.CANVAS_LEFT_CLICK,
         *get_click_event_params(event),
         modifier=modifier,
         double=double
@@ -169,8 +173,11 @@ def on_left_click(event: tk.Event, modifier: ModifierEnum, double: bool):
 
 
 def on_right_click(event: tk.Event, modifier: ModifierEnum, double: bool):
-    events.post(
-        Event.CANVAS_RIGHT_CLICK,
+    if not isinstance(event.widget, tk.Canvas):
+        return
+
+    post(
+        Post.CANVAS_RIGHT_CLICK,
         *get_click_event_params(event),
         modifier=modifier,
         double=double,

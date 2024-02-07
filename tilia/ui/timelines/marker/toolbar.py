@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from tilia import events
-from tilia.events import Event
+from tilia.requests import Post, post
 from tilia.ui.timelines.common import TimelineToolbar
 
 
@@ -12,12 +11,12 @@ class MarkerTimelineToolbar(TimelineToolbar):
         self.button_info = [
             (
                 "add_marker30",
-                lambda: events.post(Event.MARKER_TOOLBAR_BUTTON_ADD),
+                lambda: post(Post.MARKER_TOOLBAR_BUTTON_ADD),
                 "Add marker at current position (m)",
             ),
             (
                 "delete_marker30",
-                lambda: events.post(Event.MARKER_TOOLBAR_BUTTON_DELETE),
+                lambda: post(Post.MARKER_TOOLBAR_BUTTON_DELETE),
                 "Delete marker (Delete)",
             ),
         ]

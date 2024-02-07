@@ -3,33 +3,29 @@ Defines the ui corresponding to a Beat object.
 """
 
 from __future__ import annotations
-
+import logging
 from typing import TYPE_CHECKING
 
-from tilia.events import Event, subscribe, unsubscribe, unsubscribe_from_all
+from tilia.requests import Post, stop_listening_to_all, post, Get, get
 from tilia.timelines.state_actions import Action
 from ..copy_paste import CopyAttributes
+from ..drag import DragManager
 from ..timeline import RightClickOption
 from ...canvas_tags import CAN_DRAG_HORIZONTALLY, CURSOR_ARROWS
 from ...common import format_media_time
-
-if TYPE_CHECKING:
-    from .timeline import BeatTimelineUI
-    from tilia.timelines.beat.components import Beat
-    from tilia.ui.timelines.common import TimelineCanvas
-
-import logging
-
-logger = logging.getLogger(__name__)
+from ...coords import get_x_by_time, get_time_by_x
 import tkinter as tk
-
-from tilia import events
 from tilia.timelines.common import (
     log_object_creation,
     log_object_deletion,
 )
-
 from tilia.ui.timelines.common import TimelineUIElement
+
+if TYPE_CHECKING:
+    from .timeline import BeatTimelineUI
+    from tilia.ui.timelines.common import TimelineCanvas
+
+logger = logging.getLogger(__name__)
 
 
 class BeatUI(TimelineUIElement):
@@ -70,36 +66,35 @@ class BeatUI(TimelineUIElement):
     @log_object_creation
     def __init__(
         self,
-        timeline_component: Beat,
+        id: str,
         timeline_ui: BeatTimelineUI,
         canvas: tk.Canvas,
         **_,
     ):
-
-        super().__init__(
-            tl_component=timeline_component, timeline_ui=timeline_ui, canvas=canvas
-        )
+        super().__init__(id=id, timeline_ui=timeline_ui, canvas=canvas)
 
         self.beat_proper_id = self.draw_beat_proper()
         self._label = ""
         self.label_id = self.draw_label()
 
-        self.drag_data = {}
+        self.dragged = False
         self.is_first_in_measure = False
 
     def __str__(self) -> str:
-        return f"UI->{self.tl_component}"
+        try:
+            return f"UI->{self.tl_component}"
+        except KeyError:
+            return "UI-><unavailable>"
 
     @classmethod
     def create(
         cls,
-        beat: Beat,
+        id: str,
         timeline_ui: BeatTimelineUI,
         canvas: TimelineCanvas,
         **kwargs,
     ) -> BeatUI:
-
-        return BeatUI(beat, timeline_ui, canvas, **kwargs)
+        return BeatUI(id, timeline_ui, canvas, **kwargs)
 
     @property
     def label(self):
@@ -116,7 +111,7 @@ class BeatUI(TimelineUIElement):
 
     @property
     def x(self):
-        return self.timeline_ui.get_x_by_time(self.time)
+        return get_x_by_time(self.time)
 
     @property
     def seek_time(self):
@@ -131,7 +126,6 @@ class BeatUI(TimelineUIElement):
         return self.beat_proper_id, self.label_id
 
     def update_position(self):
-
         logger.debug(f"Updating {self} canvas drawings positions...")
 
         coords = (
@@ -178,7 +172,6 @@ class BeatUI(TimelineUIElement):
         return self.canvas.create_text(*coords, text=self.label, anchor="n")
 
     def get_beat_coords(self):
-
         x0 = self.x - self.WIDTH / 2
         y0 = self.HEIGHT
         x1 = self.x + self.WIDTH / 2
@@ -187,7 +180,6 @@ class BeatUI(TimelineUIElement):
         return x0, y0, x1, y1
 
     def get_first_beat_in_measure_coords(self):
-
         x0 = self.x - self.FIRST_IN_MEASURE_WIDTH / 2
         y0 = self.FIRST_IN_MEASURE_HEIGHT
         x1 = self.x + self.FIRST_IN_MEASURE_WIDTH / 2
@@ -204,7 +196,7 @@ class BeatUI(TimelineUIElement):
         self.canvas.delete(self.beat_proper_id)
         logger.debug(f"Deleting label '{self.label_id}'")
         self.canvas.delete(self.label_id)
-        unsubscribe_from_all(self)
+        stop_listening_to_all(self)
 
     @property
     def selection_triggers(self) -> tuple[int, ...]:
@@ -215,16 +207,14 @@ class BeatUI(TimelineUIElement):
         return (self.beat_proper_id,)
 
     def on_left_click(self, _) -> None:
-        self.make_drag_data()
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG, self.drag)
-        subscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE, self.end_drag)
+        self.setup_drag()
 
     @property
     def double_left_click_triggers(self) -> tuple[int, ...]:
         return self.beat_proper_id, self.label_id
 
     def on_double_left_click(self, _) -> None:
-        events.post(Event.PLAYER_REQUEST_TO_SEEK, self.time)
+        post(Post.PLAYER_REQUEST_TO_SEEK, self.time)
 
     @property
     def right_click_triggers(self) -> tuple[int, ...]:
@@ -236,63 +226,43 @@ class BeatUI(TimelineUIElement):
         )
         self.timeline_ui.listen_for_uielement_rightclick_options(self)
 
-    def make_drag_data(self):
-        self.drag_data = {
-            "max_x": self.get_drag_right_limit(),
-            "min_x": self.get_drag_left_limit(),
-            "dragged": False,
-            "x": None,
-        }
+    def setup_drag(self):
+        DragManager(
+            get_min_x=self.get_drag_left_limit,
+            get_max_x=self.get_drag_right_limit,
+            before_each=self.before_each_drag,
+            after_each=self.after_each_drag,
+            on_release=self.on_drag_end,
+        )
 
     def get_drag_left_limit(self):
         previous_beat = self.timeline_ui.get_previous_beat(self)
         if not previous_beat:
-            return self.timeline_ui.get_left_margin_x() + self.DRAG_PROXIMITY_LIMIT
-        return (
-            self.timeline_ui.get_x_by_time(previous_beat.time)
-            + self.DRAG_PROXIMITY_LIMIT
-        )
+            return get(Get.LEFT_MARGIN_X)
+        return get_x_by_time(previous_beat.time) + self.DRAG_PROXIMITY_LIMIT
 
     def get_drag_right_limit(self):
         next_beat = self.timeline_ui.get_next_beat(self)
         if not next_beat:
-            return self.timeline_ui.get_right_margin_x() - self.DRAG_PROXIMITY_LIMIT
-        return (
-            self.timeline_ui.get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
-        )
+            return get(Get.RIGHT_MARGIN_X)
+        return get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
 
-    def drag(self, x: int, _) -> None:
+    def before_each_drag(self):
+        if not self.dragged:
+            post(Post.ELEMENT_DRAG_START)
+            self.dragged = True
 
-        if self.drag_data["x"] is None:
-            events.post(Event.ELEMENT_DRAG_START)
-
-        drag_x = x
-        if x > self.drag_data["max_x"]:
-            logger.debug(
-                f"Mouse is beyond right drag limit. Dragging to max x='{self.drag_data['max_x']}'"
-            )
-            drag_x = self.drag_data["max_x"]
-        elif x < self.drag_data["min_x"]:
-            logger.debug(
-                f"Mouse is beyond left drag limit. Dragging to min x='{self.drag_data['min_x']}'"
-            )
-            drag_x = self.drag_data["min_x"]
-
-        self.tl_component.time = self.timeline_ui.get_time_by_x(drag_x)
-
-        self.drag_data["x"] = drag_x
+    def after_each_drag(self, drag_x: int):
+        self.tl_component.time = get_time_by_x(drag_x)
         self.update_position()
 
-    def end_drag(self):
-        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_DRAG)
-        unsubscribe(self, Event.TIMELINE_LEFT_BUTTON_RELEASE)
-
-        if self.drag_data["x"] is not None:
+    def on_drag_end(self):
+        if self.dragged:
             logger.debug(f"Dragged {self}. New x is {self.x}")
-            events.post(Event.REQUEST_RECORD_STATE, Action.BEAT_DRAG)
-            events.post(Event.ELEMENT_DRAG_END)
+            post(Post.REQUEST_RECORD_STATE, Action.BEAT_DRAG)
+            post(Post.ELEMENT_DRAG_END)
 
-        self.drag_data = {}
+        self.dragged = False
 
     def on_select(self) -> None:
         self.display_as_selected()

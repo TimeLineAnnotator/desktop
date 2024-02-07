@@ -1,37 +1,24 @@
 from __future__ import annotations
-
 import functools
 import logging
 import tkinter as tk
 from abc import ABC
 from enum import Enum, auto
-
 from typing import (
     runtime_checkable,
     Protocol,
     Any,
     Callable,
     TYPE_CHECKING,
-    TypeVar,
     Optional,
 )
 
-if TYPE_CHECKING:
-    from tilia.ui.timelines.collection import TimelineUICollection
-
-from tilia import events
-from tilia.events import Event, unsubscribe, unsubscribe_from_all, subscribe
-from tilia.misc_enums import Side
+from tilia.requests import Post, stop_listening, stop_listening_to_all, listen, post
 from tilia.repr import default_str
-from tilia.timelines.common import (
-    TimelineComponent,
-    log_object_creation,
-    InvalidComponentKindError,
-)
-from tilia.timelines.component_kinds import ComponentKind
+from tilia.requests import get, Get
+from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.state_actions import Action
-from tilia.ui.common import ask_for_int, ask_for_string
-from tilia.ui.element_kinds import UIElementKind
+from tilia.ui import dialogs
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.timelines.common import TimelineUIElement, TimelineCanvas, TimelineToolbar
 from tilia.ui.timelines.copy_paste import (
@@ -40,13 +27,19 @@ from tilia.ui.timelines.copy_paste import (
     Copyable,
 )
 
+if TYPE_CHECKING:
+    from tilia.ui.timelines.collection import TimelineUIs
+
 logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
 class Inspectable(Protocol):
-    """Protocol for timeline elements that may be inspected by the inspector window.
-    When selected, they must pass a dict with the attributes to be displayed via an event."""
+    """
+    Protocol for timeline elements that may be inspected by the inspector window.
+    When selected, they must pass a dict with the attributes to be displayed via an
+    event.
+    """
 
     id: int
     timeline_ui: TimelineUI
@@ -60,11 +53,10 @@ class Inspectable(Protocol):
 @runtime_checkable
 class Selectable(Protocol):
     """
-    Interface for objects that can be selected.
-    Selectables must 'selection_triggers', a list of the canvas drawing ids
-    that count for selecting it.
-    Obs.: selection triggers may not coincide with all the elements canvas drawings,
-    as in the case of HierarchyUnitTkUI.
+    Interface for objects that can be selected. Selectables must
+    'selection_triggers', a list of the canvas drawing ids that count for selecting
+    it. Obs.: selection triggers may not coincide with all the elements canvas
+    drawings, as in the case of HierarchyUnitTkUI.
     """
 
     selection_triggers: tuple[int, ...]
@@ -77,9 +69,9 @@ class Selectable(Protocol):
 class LeftClickable(Protocol):
     """
     Interface for objects that respond to left clicks (independent of selection).
-    Used, for instance, to trigger dragging of a hierarchy ui boundary marker.
-    Left clickable must have the property 'left_click_triggers',
-    a list of the canvas drawing ids that count for triggering its on_left_click method.
+    Used, for instance, to trigger dragging of a hierarchy ui boundary marker. Left
+    clickable must have the property 'left_click_triggers', a list of the canvas
+    drawing ids that count for triggering its on_left_click method.
     """
 
     left_click_triggers: tuple[int, ...]
@@ -104,10 +96,10 @@ class RightClickable(Protocol):
 @runtime_checkable
 class DoubleLeftClickable(Protocol):
     """
-    Interface for objects that respond to double left clicks (independent of selection).
-    Used, for instance, to trigger dragging of a hierarchy ui boundary marker.
-    Left clickable must 'double_left_cilck_triggers', a list of the canvas drawing ids
-    that count for triggering its on_double_left_click method.
+    Interface for objects that respond to double left clicks (independent of
+    selection). Used, for instance, to trigger dragging of a hierarchy ui boundary
+    marker. Left clickable must 'double_left_cilck_triggers', a list of the canvas
+    drawing ids that count for triggering its on_double_left_click method.
     """
 
     double_left_click_triggers: tuple[int, ...]
@@ -123,100 +115,116 @@ class CanSeekTo(Protocol):
 
 class TimelineUI(ABC):
     """
-    Interface for the ui of a Timeline object.
+    Interface for the UI of a Timeline.
     Is composed of:
         - a tk.Canvas;
         - a TimelineToolbar (which is shared between other uis of the same class);
         - a TimelineUiElementManager;
 
-    Keeps a reference to the main TimelineUICollection object.
-
-    Is responsible for processing tkinter events send to the timeline via TimelineUICollection.
-
+    Is responsible for processing tkinter events send to the timeline
+    via TimelineUIs.
     """
 
     TIMELINE_KIND = None
     TOOLBAR_CLASS = None
     COPY_PASTE_MANGER_CLASS = None
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes([], [], [], [])
+    ELEMENT_CLASS = TimelineUIElement
 
     def __init__(
         self,
-        *args,
-        timeline_ui_collection: TimelineUICollection,
-        timeline_ui_element_manager: TimelineUIElementManager,
-        component_kinds_to_classes: dict[UIElementKind, type[TimelineUIElement]],
-        component_kinds_to_ui_element_kinds: dict[ComponentKind, UIElementKind],
+        id: str,
+        collection: TimelineUIs,
+        element_manager: TimelineUIElementManager,
         canvas: TimelineCanvas,
         toolbar: TimelineToolbar | None,
-        name: str,
-        height: int,
-        is_visible: bool,
-        **kwargs,
     ):
         super().__init__()
-
-        self.timeline_ui_collection = timeline_ui_collection
+        self.id = id
+        self.collection = collection
         self.canvas = canvas
-        self._timeline = None
 
-        self._name = name
-        self.visible = is_visible
-        self._height = height
-        self.canvas.update_height(
-            height
-        )  # can't call height setter as some attributes have not yet been set
-
-        self.component_kinds_to_ui_element_kinds = component_kinds_to_ui_element_kinds
-        self.element_manager = timeline_ui_element_manager
-        self.component_kinds_to_classes = component_kinds_to_classes
+        self.element_manager = element_manager
         self.toolbar = toolbar
 
         self.right_clicked_element: Optional[TimelineUIElement] = None
 
-        self._setup_visiblity(is_visible)
+        self._setup_visiblity()
+        self._setup_height()
+        self._setup_name()
         self._setup_user_actions_to_callbacks()
 
-        subscribe(self, Event.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
+        listen(self, Post.INSPECTOR_WINDOW_OPENED, self.on_inspector_window_opened)
+
+    def __iter__(self):
+        return iter(self.elements)
+
+    def __getitem__(self, item):
+        return sorted(self.elements)[item]
+
+    def __len__(self):
+        return len(self.elements)
+
+    def __bool__(self):
+        """Prevents False form being returned when timeline is empty."""
+        return True
+
+    def __lt__(self, other):
+        return self.ordinal < other.ordinal
+
+    def _setup_visiblity(self):
+        if not self.is_visible:
+            self.collection.hide_timeline_ui(self)
+
+    def _setup_name(self):
+        self.canvas.update_label(self.name)
+
+    def _setup_height(self):
+        self.canvas.update_height(self.height)
 
     @property
     def timeline(self):
-        return self._timeline
-
-    @timeline.setter
-    def timeline(self, value):
-        logger.debug(f"Setting {self} timeline as {value}")
-        self._timeline = value
-
-    @property
-    def display_position(self):
-        return self.timeline_ui_collection.get_timeline_display_position(self)
-
-    def get_id(self) -> str:
-        return self.timeline_ui_collection.get_id()
+        return get(Get.TIMELINE, self.id)
 
     @property
     def name(self):
-        return self._name
+        return self.timeline.name
 
     @name.setter
     def name(self, value):
-        self._name = value
+        self.timeline.name = value
         self.canvas.update_label(value)
 
     @property
+    def is_visible(self):
+        return self.timeline.is_visible
+
+    @is_visible.setter
+    def is_visible(self, value):
+        self.timeline.is_visible = value
+        self.canvas.update_label(value)
+
+    @property
+    def ordinal(self):
+        return self.timeline.ordinal
+
+    @property
     def height(self):
-        return self._height
+        return self.timeline.height
 
     @height.setter
     def height(self, value):
-        self._height = value
+        self.timeline.height = value
         self.canvas.update_height(value)
         self.update_elements_position()
 
     @property
     def elements(self):
         return list(self.element_manager.get_all_elements())
+
+    @property
+    def id_to_element(self):
+        return self.element_manager.id_to_element
 
     @property
     def selected_elements(self):
@@ -226,12 +234,19 @@ class TimelineUI(ABC):
     def selected_components(self):
         return [element.tl_component for element in self.selected_elements]
 
-    # noinspection PyUnresolvedReferences
-    def _setup_visiblity(self, is_visible: bool):
-        self.is_visible = is_visible
+    def get_element(self, id: str) -> TimelineUIElement:
+        return self.element_manager.get_element(id)
 
-        if not self.is_visible:
-            self.timeline_ui_collection.hide_timeline_ui(self)
+    def get_elements_by_attr(self, attr: str, value: Any) -> list[TimelineUIElement]:
+        return [el for el in self.elements if getattr(el, attr) == value]
+
+    def get_timeline_component(self, id: int):
+        return self.timeline.get_component(id)
+
+    def get_component_ui(self, component: TimelineComponent):
+        return self.id_to_element[component.id]
+
+    # noinspection PyUnresolvedReferences
 
     def _setup_user_actions_to_callbacks(self):
         """
@@ -241,32 +256,26 @@ class TimelineUI(ABC):
         action: str = user action
         callback: Callable = function to be called when action is performed
 
-        TimelineUICollection will use this dictionary to call the appropriate function
+        TimelineUIs will use this dictionary to call the appropriate function
         according to user request.
         """
         self.action_to_callback = {}
 
-    def get_ui_for_component(
-        self, component_kind: ComponentKind, component: TimelineComponent, **kwargs
-    ):
-        return self.element_manager.create_element(
-            self.component_kinds_to_ui_element_kinds[component_kind],
-            component,
-            self,
-            self.canvas,
-            **kwargs,
-        )
+    def on_timeline_component_created(self, id: int):
+        return self.element_manager.create_element(id, self, self.canvas)
+
+    def on_timeline_component_deleted(self, id: int):
+        self.delete_element(self.id_to_element[id])
 
     def on_right_click(
         self,
         x: int,
         y: int,
         item_id: int,
-        modifier: ModifierEnum,
         root_x: int,
         root_y: int,
+        **_,  # ignores the 'modifier' argument
     ) -> None:
-
         logger.debug(f"Processing click on {self}...")
 
         if not item_id:
@@ -274,7 +283,7 @@ class TimelineUI(ABC):
             return
 
         if not (clicked_elements := self.get_clicked_element(item_id)):
-            logger.debug(f"No ui element was clicked.")
+            logger.debug("No ui element was clicked.")
             return
 
         for (
@@ -285,20 +294,19 @@ class TimelineUI(ABC):
         logger.debug(f"Processed click on {self}.")
 
     def on_left_click(self, item_id: int, modifier: ModifierEnum, double: bool) -> None:
-
         logger.debug(f"Processing click on {self}...")
 
         if not item_id:
-            logger.debug(f"No canvas item was clicked.")
+            logger.debug("No canvas item was clicked.")
 
         clicked_elements = self.get_clicked_element(item_id)
 
         if not clicked_elements:
-            logger.debug(f"No ui element was clicked.")
+            logger.debug("No ui element was clicked.")
 
-        for (
-            elm
-        ) in clicked_elements:  # clicked item might be owned by more than on element
+        self.deselect_all_elements(excluding=clicked_elements)
+
+        for elm in clicked_elements:  # clicked item might be in multiple elements
             if not double:
                 self.on_element_left_click(elm, item_id)
             else:
@@ -306,16 +314,12 @@ class TimelineUI(ABC):
                 if not double_clicked:  # consider as single click
                     self.on_element_left_click(elm, item_id)
 
-        self.deselect_all_elements(excluding=clicked_elements)
-
         logger.debug(f"Processed click on {self}.")
 
     def get_clicked_element(self, clicked_item_id: int) -> list[TimelineUIElement]:
-
-        owns_clicked_item = lambda e: clicked_item_id in e.canvas_drawings_ids
-
+        """Returns the element that owns the item with the given id"""
         clicked_elements = self.element_manager.get_elements_by_condition(
-            owns_clicked_item, kind=UIElementKind.ANY
+            lambda e: clicked_item_id in e.canvas_drawings_ids
         )
 
         return clicked_elements
@@ -330,21 +334,18 @@ class TimelineUI(ABC):
             self.select_element(element)
             return True
         else:
-            logger.debug(f"Element is not selectable.")
+            logger.debug("Element is not selectable.")
             return False
 
     def on_element_left_click(
         self, clicked_element: TimelineUIElement, clicked_item_id: int
     ) -> None:
-
         logger.debug(f"Processing left click on ui element '{clicked_element}'...")
 
         selected = self.select_element_if_selectable(clicked_element, clicked_item_id)
 
         if selected and isinstance(clicked_element, CanSeekTo):
-            events.post(
-                Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, clicked_element.seek_time
-            )
+            post(Post.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, clicked_element.seek_time)
 
         if (
             isinstance(clicked_element, LeftClickable)
@@ -352,23 +353,20 @@ class TimelineUI(ABC):
         ):
             clicked_element.on_left_click(clicked_item_id)
         else:
-            logger.debug(f"Element is not left clickable.")
+            logger.debug("Element is not left clickable.")
 
         logger.debug(f"Processed click on ui element '{clicked_element}'.")
 
     def _on_element_double_left_click(
         self, clicked_element: TimelineUIElement, clicked_item_id: int
     ) -> None | bool:
-
         logger.debug(f"Processing double click on ui element '{clicked_element}'...")
 
         was_selected = self.select_element_if_selectable(
             clicked_element, clicked_item_id
         )
         if was_selected and isinstance(clicked_element, CanSeekTo):
-            events.post(
-                Event.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, clicked_element.seek_time
-            )
+            post(Post.PLAYER_REQUEST_TO_SEEK_IF_NOT_PLAYING, clicked_element.seek_time)
 
         if (
             isinstance(clicked_element, DoubleLeftClickable)
@@ -377,7 +375,7 @@ class TimelineUI(ABC):
             clicked_element.on_double_left_click(clicked_item_id)
             return True
         else:
-            logger.debug(f"Element is not double clickable.")
+            logger.debug("Element is not double clickable.")
             return False
 
     def _on_element_right_click(
@@ -387,31 +385,29 @@ class TimelineUI(ABC):
         clicked_element: TimelineUIElement,
         clicked_item_id: int,
     ) -> None:
-
         if (
             isinstance(clicked_element, RightClickable)
             and clicked_item_id in clicked_element.right_click_triggers
         ):
-            events.subscribe(
+            listen(
                 self,
-                Event.RIGHT_CLICK_MENU_OPTION_CLICK,
+                Post.RIGHT_CLICK_MENU_OPTION_CLICK,
                 self.on_right_click_menu_option_click,
             )
             clicked_element.on_right_click(root_x, root_y, clicked_item_id)
         else:
-            logger.debug(f"Element is not right clickable.")
+            logger.debug("Element is not right clickable.")
 
     def select_element(self, element):
-
         self.element_manager.select_element(element)
 
         if isinstance(element, Inspectable):
-            logger.debug(f"Element is inspectable. Sending data to inspector.")
+            logger.debug("Element is inspectable. Sending data to inspector.")
             self.post_inspectable_selected_event(element)
 
-            events.subscribe(
+            listen(
                 element,
-                Event.INSPECTOR_FIELD_EDITED,
+                Post.INSPECTOR_FIELD_EDITED,
                 functools.partial(on_inspector_field_edited, element),
             )
 
@@ -419,9 +415,9 @@ class TimelineUI(ABC):
         self.element_manager.deselect_element(element)
 
         if isinstance(element, Inspectable):
-            events.unsubscribe(element, Event.INSPECTOR_FIELD_EDITED)
+            stop_listening(element, Post.INSPECTOR_FIELD_EDITED)
 
-            events.post(Event.INSPECTABLE_ELEMENT_DESELECTED, element.id)
+            post(Post.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
     def deselect_all_elements(self, excluding: list[TimelineUIElement] | None = None):
         if excluding is None:
@@ -436,8 +432,8 @@ class TimelineUI(ABC):
         ...
 
     def on_right_click_menu_new(self) -> None:
-        unsubscribe(self, Event.RIGHT_CLICK_MENU_OPTION_CLICK)
-        unsubscribe(self, Event.RIGHT_CLICK_MENU_NEW)
+        stop_listening(self, Post.RIGHT_CLICK_MENU_OPTION_CLICK)
+        stop_listening(self, Post.RIGHT_CLICK_MENU_NEW)
 
     def listen_for_uielement_rightclick_options(
         self, element: TimelineUIElement
@@ -451,10 +447,10 @@ class TimelineUI(ABC):
         root_y: int,
         options: list[tuple[str, RightClickOption]],
     ):
-        events.post(Event.RIGHT_CLICK_MENU_NEW)
-        events.subscribe(
+        post(Post.RIGHT_CLICK_MENU_NEW)
+        listen(
             self,
-            Event.RIGHT_CLICK_MENU_OPTION_CLICK,
+            Post.RIGHT_CLICK_MENU_OPTION_CLICK,
             self.on_right_click_menu_option_click,
         )
 
@@ -464,7 +460,7 @@ class TimelineUI(ABC):
             options,
         )
 
-        events.subscribe(self, Event.RIGHT_CLICK_MENU_NEW, self.on_right_click_menu_new)
+        listen(self, Post.RIGHT_CLICK_MENU_NEW, self.on_right_click_menu_new)
 
     def display_right_click_menu_for_timeline(self, canvas_x: float, canvas_y: float):
         RIGHT_CLICK_OPTIONS = [
@@ -472,10 +468,10 @@ class TimelineUI(ABC):
             ("Change timeline height...", RightClickOption.CHANGE_TIMELINE_HEIGHT),
         ]
 
-        events.post(Event.RIGHT_CLICK_MENU_NEW)
-        events.subscribe(
+        post(Post.RIGHT_CLICK_MENU_NEW)
+        listen(
             self,
-            Event.RIGHT_CLICK_MENU_OPTION_CLICK,
+            Post.RIGHT_CLICK_MENU_OPTION_CLICK,
             self.on_right_click_menu_option_click,
         )
 
@@ -485,10 +481,10 @@ class TimelineUI(ABC):
             RIGHT_CLICK_OPTIONS,
         )
 
-        events.subscribe(self, Event.RIGHT_CLICK_MENU_NEW, self.on_right_click_menu_new)
+        listen(self, Post.RIGHT_CLICK_MENU_NEW, self.on_right_click_menu_new)
 
     def right_click_menu_change_timeline_height(self) -> None:
-        height = ask_for_int(
+        height = dialogs.ask_for_int(
             "Change timeline height",
             "Insert new timeline height",
             initialvalue=self.height,
@@ -496,19 +492,19 @@ class TimelineUI(ABC):
         if height:
             logger.debug(f"User requested new timeline height of '{height}'")
             self.height = height
-            self.timeline_ui_collection.after_height_change(self)
+            self.collection.after_height_change(self)
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_HEIGHT_CHANGE)
+        post(Post.REQUEST_RECORD_STATE, Action.TIMELINE_HEIGHT_CHANGE)
 
     def right_click_menu_change_timeline_name(self) -> None:
-        name = ask_for_string(
+        name = dialogs.ask_for_string(
             "Change timeline name", "Insert new timeline name", initialvalue=self.name
         )
         if name:
             logger.debug(f"User requested new timeline name of '{name}'")
             self.name = name
 
-        events.post(Event.REQUEST_RECORD_STATE, Action.TIMELINE_NAME_CHANGE)
+        post(Post.REQUEST_RECORD_STATE, Action.TIMELINE_NAME_CHANGE)
 
     def on_inspector_window_opened(self):
         for element in self.selected_elements:
@@ -519,8 +515,8 @@ class TimelineUI(ABC):
 
     @staticmethod
     def post_inspectable_selected_event(element: Inspectable):
-        events.post(
-            Event.INSPECTABLE_ELEMENT_SELECTED,
+        post(
+            Post.INSPECTABLE_ELEMENT_SELECTED,
             type(element),
             element.INSPECTOR_FIELDS,
             element.get_inspector_dict(),
@@ -537,22 +533,17 @@ class TimelineUI(ABC):
         for component in self.selected_components:
             self.timeline.on_request_to_delete_components([component])
 
+            post(Post.REQUEST_DELETE_COMPONENT, component.id)
+
     def delete_element(self, element: TimelineUIElement):
         if element in self.selected_elements:
-            self.deselect_element(element)
+            try:
+                self.deselect_element(element)
+            except KeyError:
+                # can't access component, as it is already deleted
+                pass
 
         self.element_manager.delete_element(element)
-
-    def debug_selected_elements(self):
-        logger.debug(f"========== {self} ==========")
-        for element in self.selected_elements.copy():
-            from pprint import pprint
-
-            logger.debug(f"----- {element} -----")
-            logger.debug("--- UIElement attributes ---")
-            pprint(element.__dict__)
-            logger.debug("--- Component attributes ---")
-            pprint(element.tl_component.__dict__)
 
     def validate_copy(self, elements: list[TimelineUIElement]) -> None:
         """Can be overwritten by subcalsses to implement validation"""
@@ -575,29 +566,6 @@ class TimelineUI(ABC):
             ]
         )
 
-    # noinspection PyUnresolvedReferences
-    def get_left_margin_x(self):
-        return self.timeline_ui_collection.left_margin_x
-
-    # noinspection PyUnresolvedReferences
-    def get_right_margin_x(self):
-        return self.timeline_ui_collection.right_margin_x
-
-    # noinspection PyUnresolvedReferences
-    def get_timeline_width(self):
-        return self.timeline_ui_collection.timeline_width
-
-    # noinspection PyUnresolvedReferences
-    def get_time_by_x(self, x: float) -> float:
-        return self.timeline_ui_collection.get_time_by_x(x)
-
-    # noinspection PyUnresolvedReferences
-    def get_x_by_time(self, time: float) -> float:
-        return self.timeline_ui_collection.get_x_by_time(time)
-
-    def get_id_for_element(self):
-        return self.timeline_ui_collection.get_id()
-
     @property
     def has_selected_elements(self):
         return self.element_manager.has_selected_elements
@@ -609,7 +577,7 @@ class TimelineUI(ABC):
         to not respond to keyboard shortcuts. This workaround
         uses grid_forget() instead, which causes small memory leaks.
         """
-        unsubscribe_from_all(self)
+        stop_listening_to_all(self)
         self.canvas.grid_forget()
         if self.toolbar:
             self.toolbar.on_timeline_delete()
@@ -617,8 +585,8 @@ class TimelineUI(ABC):
     def delete(self):
         logger.info(f"Deleting timeline ui {self}...")
 
-        unsubscribe_from_all(self)
-        unsubscribe_from_all(self.canvas)
+        stop_listening_to_all(self)
+        stop_listening_to_all(self.canvas)
         self.canvas.destroy()
         if self.toolbar:
             self.toolbar.on_timeline_delete()
@@ -627,7 +595,10 @@ class TimelineUI(ABC):
         return default_str(self)
 
     def __str__(self):
-        return f"{self.name} | {self.TIMELINE_KIND.value.capitalize().split('_')[0]} Timeline"
+        return (
+            f"{self.name if self.timeline else '<unavailable>'} |"
+            f" {self.TIMELINE_KIND.value.capitalize().split('_')[0]} Timeline"
+        )
 
 
 class RightClickOption(Enum):
@@ -659,7 +630,7 @@ def display_right_click_menu(
     x: int, y: int, options: list[tuple[str, RightClickOption]]
 ) -> None:
     def get_right_click_callback(option) -> Callable[[], None]:
-        return lambda: events.post(Event.RIGHT_CLICK_MENU_OPTION_CLICK, option)
+        return lambda: post(Post.RIGHT_CLICK_MENU_OPTION_CLICK, option)
 
     class RightClickMenu:
         def __init__(self, x: int, y: int, options: list[tuple[str, RightClickOption]]):
@@ -668,7 +639,6 @@ def display_right_click_menu(
             self.tk_menu.tk_popup(x, y)
 
         def register_options(self, options: list[tuple[str, RightClickOption]]):
-
             for option in options:
                 if option[1] == RightClickOption.SEPARATOR:
                     self.tk_menu.add_separator()
@@ -683,7 +653,6 @@ def display_right_click_menu(
 def on_inspector_field_edited(
     element: Inspectable, field_name: str, value: str, inspected_id: int
 ) -> None:
-
     if not inspected_id == element.id:
         return
 
@@ -699,8 +668,8 @@ def on_inspector_field_edited(
     setattr(element, attr, value)
     logger.debug(f"New value is '{value}'.")
 
-    events.post(
-        Event.REQUEST_RECORD_STATE,
+    post(
+        Post.REQUEST_RECORD_STATE,
         Action.ATTRIBUTE_EDIT_VIA_INSPECTOR,
         no_repeat=True,
         repeat_identifier=f"{attr}_{element.id}",
@@ -712,18 +681,16 @@ class TimelineUIElementManager:
     Composes a TimelineUI object.
     Is responsible for:
         - Creating timeline elements;
-        - Querying timeline ui elements and its attributes (e.g. to know which one was clicked);
+        - Querying timeline ui elements and its attributes (e.g. to know which one
+        was clicked);
         - Handling selections and deselections;
         - Deleting timeline elements;
     """
 
-    @log_object_creation
-    def __init__(
-        self, element_kinds_to_classes: dict[UIElementKind, type[TimelineUIElement]]
-    ):
-
+    def __init__(self, element_class: type[TimelineUIElement]):
         self._elements = set()
-        self._element_kinds_to_classes = element_kinds_to_classes
+        self.id_to_element = {}
+        self.element_class = element_class
 
         self._selected_elements = []
 
@@ -732,25 +699,16 @@ class TimelineUIElementManager:
         return bool(self._selected_elements)
 
     @property
-    def element_kinds(self):
-        return [kind for kind, _ in self._element_kinds_to_classes.items()]
-
-    @property
     def ordered_elements(self):
         return sorted(self._elements, key=lambda e: (e.level, e.start))
 
     def create_element(
         self,
-        kind: UIElementKind,
-        component: TimelineComponent,
+        id: int,
         timeline_ui: TimelineUI,
         canvas: TimelineCanvas,
-        *args,
-        **kwargs,
     ):
-        self._validate_element_kind(kind)
-        element_class: type[TimelineUIElement] = self._get_element_class_by_kind(kind)
-        element = element_class.create(component, timeline_ui, canvas, *args, **kwargs)
+        element = self.element_class.create(id, timeline_ui, canvas)
 
         self._add_to_elements_set(element)
 
@@ -759,60 +717,41 @@ class TimelineUIElementManager:
     def _add_to_elements_set(self, element: TimelineUIElement) -> None:
         logger.debug(f"Adding element '{element}' to {self}.")
         self._elements.add(element)
+        self.id_to_element[element.id] = element
 
     def _remove_from_elements_set(self, element: TimelineUIElement) -> None:
         logger.debug(f"Removing element '{element}' from {self}.")
         try:
             self._elements.remove(element)
+            del self.id_to_element[element.id]
         except ValueError:
             raise ValueError(
                 f"Can't remove element '{element}' from {self}: not in self._elements."
             )
 
-    def get_element_by_attribute(self, attr_name: str, value: Any, kind: UIElementKind):
-        element_set = self._get_element_set_by_kind(kind)
-        return self._get_element_from_set_by_attribute(element_set, attr_name, value)
+    def get_element(self, id: str) -> TimelineUIElement:
+        return self.id_to_element[id]
 
-    def get_elements_by_attribute(
-        self, attr_name: str, value: Any, kind: UIElementKind
-    ) -> list:
-        element_set = self._get_element_set_by_kind(kind)
-        return self._get_elements_from_set_by_attribute(element_set, attr_name, value)
+    def get_element_by_attribute(self, attr_name: str, value: Any):
+        return self._get_element_from_set_by_attribute(self._elements, attr_name, value)
+
+    def get_elements_by_attribute(self, attr_name: str, value: Any) -> list:
+        return self._get_elements_from_set_by_attribute(
+            self._elements, attr_name, value
+        )
 
     def get_elements_by_condition(
-        self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
+        self, condition: Callable[[TimelineUIElement], bool]
     ) -> list:
-        element_set = self._get_element_set_by_kind(kind)
-        return [e for e in element_set if condition(e)]
+        return [e for e in self._elements if condition(e)]
 
     def get_element_by_condition(
-        self, condition: Callable[[TimelineUIElement], bool], kind: UIElementKind
+        self, condition: Callable[[TimelineUIElement], bool]
     ) -> TimelineUIElement | None:
-        element_set = self._get_element_set_by_kind(kind)
-        return next((e for e in element_set if condition(e)), None)
+        return next((e for e in self._elements if condition(e)), None)
 
-    def get_existing_values_for_attribute(
-        self, attr_name: str, kind: UIElementKind
-    ) -> set:
-        element_set = self._get_element_set_by_kind(kind)
-        return set([getattr(cmp, attr_name) for cmp in element_set])
-
-    def _get_element_set_by_kind(self, kind: UIElementKind) -> set:
-        if kind == UIElementKind.ANY:
-            return self._elements
-        cmp_class: type[TimelineUIElement] = self._get_element_class_by_kind(kind)
-
-        return {elmt for elmt in self._elements if isinstance(elmt, cmp_class)}
-
-    def _get_element_class_by_kind(
-        self, kind: UIElementKind
-    ) -> type[TimelineUIElement]:
-        self._validate_element_kind(kind)
-        return self._element_kinds_to_classes[kind]
-
-    def _validate_element_kind(self, kind: UIElementKind):
-        if kind not in self.element_kinds:
-            raise InvalidComponentKindError(f"Got invalid element kind {kind}")
+    def get_existing_values_for_attribute(self, attr_name: str) -> set:
+        return set([getattr(cmp, attr_name) for cmp in self._elements])
 
     @staticmethod
     def _get_element_from_set_by_attribute(
@@ -835,7 +774,6 @@ class TimelineUIElementManager:
             logger.debug(f"Element '{element}' is already selected.")
 
     def deselect_element(self, element: TimelineUIElement) -> None:
-
         if element in self._selected_elements:
             logger.debug(f"Deselecting element '{element}'")
             self._remove_from_selected_elements_set(element)
@@ -846,7 +784,7 @@ class TimelineUIElementManager:
         if element in self._selected_elements:
             self.deselect_element(element)
         else:
-            logger.debug(f"Element was not selected.")
+            logger.debug("Element was not selected.")
 
     def deselect_all_elements(self):
         logger.debug(f"Deselecting all elements of {self}")
@@ -863,14 +801,14 @@ class TimelineUIElementManager:
             self._selected_elements.remove(element)
         except ValueError:
             raise ValueError(
-                f"Can't remove element '{element}' from selected objects of {self}: not in self._selected_elements."
+                f"Can't remove element '{element}' from selected objects of {self}: not"
+                " in self._selected_elements."
             )
 
     def get_selected_elements(self) -> list[TimelineUIElement]:
         return self._selected_elements
 
     def delete_element(self, element: TimelineUIElement):
-        logger.debug(f"Deleting UI element '{element}'")
         element.delete()
         self._remove_from_elements_set(element)
 

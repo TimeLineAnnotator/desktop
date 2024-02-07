@@ -3,29 +3,25 @@ Defines a BeatTimeline and a BeatTLComponentManager.
 """
 
 from __future__ import annotations
-
 import logging
 import itertools
 from typing import TYPE_CHECKING, Optional
 
 from tilia.exceptions import CreateComponentError
-
-if TYPE_CHECKING:
-    from tilia.timelines.collection import TimelineCollection
-    from tilia.timelines.beat.components import Beat
-
-from tilia import events, settings
-from tilia.events import Event
+from tilia.requests import get, Get, post, Post
+from tilia import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-
-logger = logging.getLogger(__name__)
-
 from tilia.timelines.common import (
-    Timeline,
-    TimelineComponentManager,
     log_object_creation,
 )
+from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
+
+
+if TYPE_CHECKING:
+    from tilia.timelines.beat.components import Beat
+
+logger = logging.getLogger(__name__)
 
 
 class BeatTimeline(Timeline):
@@ -34,35 +30,42 @@ class BeatTimeline(Timeline):
         "beats_in_measure",
         "measure_numbers",
         "measures_to_force_display",
+        "height",
+        "is_visible",
+        "name",
+        "ordinal",
     ]
-    SERIALIZABLE_BY_UI_VALUE = ["height", "is_visible", "name", "display_position"]
 
     KIND = TimelineKind.BEAT_TIMELINE
     DISPLAY_MEASURE_NUMBER_PERIOD = settings.get(
         "beat_timeline", "display_measure_periodicity"
     )
-
+    DEFAULT_HEIGHT = settings.get("beat_timeline", "default_height")
     component_manager: BeatTLComponentManager
 
     def __init__(
         self,
-        collection: TimelineCollection,
         component_manager: BeatTLComponentManager,
         beat_pattern: list[int],
+        name: str = "",
+        height: Optional[int] = None,
         beats_in_measure: Optional[list[int]] = None,
         measure_numbers: Optional[list[int]] = None,
-        measures_to_force_number_display: Optional[list[int]] = None,
+        measures_to_force_display: Optional[list[int]] = None,
         **kwargs,
     ):
         super().__init__(
-            collection, component_manager, TimelineKind.BEAT_TIMELINE, **kwargs
+            name=name,
+            height=height,
+            component_manager=component_manager,
+            **kwargs,
         )
 
         self.beat_pattern = beat_pattern
         self.beats_in_measure = beats_in_measure or []
         self.measure_numbers = measure_numbers or []
         self.update_beats_that_start_measures()
-        self.measures_to_force_display = measures_to_force_number_display or []
+        self.measures_to_force_display = measures_to_force_display or []
 
     @property
     def display_measure_number_bool_array(self):
@@ -163,7 +166,7 @@ class BeatTimeline(Timeline):
                 remaining_beats = amount
             else:
                 raise ValueError(
-                    "More beats on starting measure than found in the " "iterator"
+                    "More beats on starting measure than found in the iterator"
                 )
         else:
             extension = []
@@ -182,7 +185,7 @@ class BeatTimeline(Timeline):
 
     def _get_beats_in_measure_extension(self, amount: int):
         if not self.beat_pattern:
-            raise ValueError(f"Beat pattern is empty, can't get measure extension.")
+            raise ValueError("Beat pattern is empty, can't get measure extension.")
 
         if self.beats_in_measure:
             beats_on_starting_measure = self.beats_in_measure[-1]
@@ -298,7 +301,7 @@ class BeatTimeline(Timeline):
         try:
             self.unforce_display_measure_number(measure_index)
         except ValueError:
-            logger.debug(f"Measure number was already at default.")
+            logger.debug("Measure number was already at default.")
             pass
 
     def force_display_measure_number(self, measure_index: int) -> None:
@@ -347,17 +350,19 @@ class BeatTLComponentManager(TimelineComponentManager):
         comments="",
         **_,
     ):
-        if time > (media_length := self.timeline.get_media_length()):
+        if time > (media_length := get(Get.MEDIA_DURATION)):
             raise CreateComponentError(
                 f"Time '{time}' is bigger than total time '{media_length}'"
             )
 
         if time in self.beat_times:
-            events.post(
-                Event.REQUEST_DISPLAY_ERROR,
+            post(
+                Post.REQUEST_DISPLAY_ERROR,
                 "Create beat",
-                "Can not create beat.\n"
-                f"There is already a beat on '{self.timeline}' at the selected time.",
+                (
+                    "Can not create beat.\nThere is already a beat on"
+                    f" '{self.timeline}' at the selected time."
+                ),
             )
             raise CreateComponentError(
                 f"Can't create beat. There's already a beat on {self} at {time}"
@@ -367,16 +372,19 @@ class BeatTLComponentManager(TimelineComponentManager):
         beats = self.ordered_beats.copy()
         for beat in self._components:
             beat_index = beats.index(beat)
-            first_in_measure = beat_index in self.timeline.beats_that_start_measures
-            beat.ui.update_drawing_as_first_in_measure(first_in_measure)
-            if first_in_measure:
+            is_first_in_measure = beat_index in self.timeline.beats_that_start_measures
+            if is_first_in_measure:
                 measure_index = self.timeline.get_measure_index(beat_index)
                 if self.timeline.display_measure_number_bool_array[measure_index]:
-                    beat.ui.label = self.timeline.measure_numbers[measure_index]
+                    label = self.timeline.measure_numbers[measure_index]
                 else:
-                    beat.ui.label = ""
+                    label = ""
             else:
-                beat.ui.label = ""
+                label = ""
+
+            self.post_component_event(
+                Post.BEAT_UPDATED, beat.id, is_first_in_measure, label
+            )
 
     def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
         if self.timeline is None:
@@ -393,7 +401,7 @@ class BeatTLComponentManager(TimelineComponentManager):
 
         if measure_index == self.timeline.measure_count - 1:
             prompt = "Can't distribute measures on last measure."
-            events.post(Event.REQUEST_DISPLAY_ERROR, "Distribute measure", prompt)
+            post(Post.REQUEST_DISPLAY_ERROR, "Distribute measure", prompt)
             raise ValueError(prompt)
 
         beats_in_measure = self.get_beats_in_measure(measure_index)
@@ -405,13 +413,13 @@ class BeatTLComponentManager(TimelineComponentManager):
 
         for index, beat in enumerate(beats_in_measure):
             beat.time = measure_start_time + index * interval
-            beat.ui.update_position()
+            self.post_component_event(Post.BEAT_TIME_CHANGED, beat.id)
 
     def scale(self, factor: float) -> None:
         logger.debug(f"Scaling beats in {self}...")
         for beat in self._components:
             beat.time *= factor
-            beat.ui.update_position()
+            self.post_component_event(Post.BEAT_TIME_CHANGED, beat.id)
 
     def crop(self, length: float) -> None:
         logger.debug(f"Cropping beats in {self}...")
