@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Callable
-
 from tilia.ui.actions import TiliaAction
-from tilia.ui.menus import TiliaMenu, MenuItemKind
-from tilia.ui.timelines.base.context_menu import TimelineUIContextMenu
+from tilia.ui.menus import MenuItemKind
+from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 
 
-class HierarchyContextMenu(TimelineUIContextMenu):
+class HierarchyContextMenu(TimelineUIElementContextMenu):
     title = "Hierarchy"
     items = [
         (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_INSPECT),
@@ -26,15 +24,15 @@ class HierarchyContextMenu(TimelineUIContextMenu):
     ]
 
     def __init__(
-        self, timeline_ui, has_pre_start: Callable[[], bool], has_post_end: Callable[[], bool]
+        self, element
     ):
-        super().__init__(timeline_ui)
-        if not has_pre_start():
+        super().__init__(element)
+        if not element.has_pre_start:
             self.items.insert(
                 6, (MenuItemKind.ACTION, TiliaAction.HIERARCHY_ADD_PRE_START)
             )
 
-        if not has_post_end():
+        if not element.has_post_end:
             self.items.insert(
                 6, (MenuItemKind.ACTION, TiliaAction.HIERARCHY_ADD_POST_END)
             )

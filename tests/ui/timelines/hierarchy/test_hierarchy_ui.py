@@ -51,6 +51,7 @@ class TestHierarchyUI:
 
         exec_mock.assert_called_once()
 
+
 class TestPreStartIndicator:
     @pytest.fixture(autouse=True)
     def _tlui(self, hierarchy_tlui):

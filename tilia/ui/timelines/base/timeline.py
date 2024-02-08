@@ -12,7 +12,7 @@ from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtWidgets import QGraphicsItem
 
 from tilia.timelines.component_kinds import ComponentKind
-from .context_menu import TimelineUIContextMenu
+from .context_menus import TimelineUIContextMenu
 from tilia.requests import Post, stop_listening, stop_listening_to_all, listen, post
 from tilia.utils import get_tilia_class_string
 from tilia.requests import get, Get

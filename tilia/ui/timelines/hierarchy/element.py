@@ -111,6 +111,7 @@ class HierarchyUI(TimelineUIElement):
         "comments",
         "color",
     ]
+    CONTEXT_MENU_CLASS = HierarchyContextMenu
 
     def __init__(
         self,
@@ -120,10 +121,6 @@ class HierarchyUI(TimelineUIElement):
         **_,
     ):
         super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
-
-        self.CONTEXT_MENU_CLASS = functools.partial(
-            HierarchyContextMenu, has_pre_start=lambda: self.has_pre_start, has_post_end=lambda: self.has_post_end
-        )
 
         self.previous_width = 0
         self.timeline_ui = timeline_ui

@@ -12,3 +12,12 @@ class TimelineUIContextMenu(TiliaMenu):
     def __init__(self, timeline_ui):
         super().__init__()
         self.timeline_ui = timeline_ui
+
+
+class TimelineUIElementContextMenu(TiliaMenu):
+    title = 'TimelineElement'
+    items = []
+
+    def __init__(self, element):
+        super().__init__()
+        self.element = element

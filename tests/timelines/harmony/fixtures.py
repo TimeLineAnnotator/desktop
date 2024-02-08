@@ -1,14 +1,16 @@
 import pytest
 
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.harmony.components import Harmony
+from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.timelines.harmony import HarmonyTimelineUI, HarmonyUI
+from tilia.ui.timelines.harmony import HarmonyTimelineUI, HarmonyUI, ModeUI
 
 
 class TestHarmonyTimelineUI(HarmonyTimelineUI):
     def create_harmony(self, time=0, step=0, accidental=0, quality='major', **kwargs) -> tuple[Harmony, HarmonyUI]: ...
+
+    def create_mode(self, time=0, step=0, accidental=0, type='major', **kwargs) -> tuple[Mode, ModeUI]: ...
 
 
 @pytest.fixture
@@ -21,8 +23,15 @@ def harmony_tlui(tls, tluis) -> TestHarmonyTimelineUI:
         element = ui.get_element(component.id)
         return component, element
 
+    def create_mode(time=0, step=0, accidental=0, type='major', **kwargs):
+        component = tl.create_timeline_component(ComponentKind.MODE, time, step, accidental, type, **kwargs)
+        element = ui.get_element(component.id)
+        return component, element
+
     tl.create_harmony = create_harmony
     ui.create_harmony = create_harmony
+    tl.create_mode = create_mode
+    ui.create_mode = create_mode
 
     yield ui  # will be deleted by tls
 

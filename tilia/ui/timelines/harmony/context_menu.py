@@ -1,10 +1,10 @@
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
-from tilia.ui.menus import TiliaMenu, MenuItemKind
-from tilia.ui.timelines.base.context_menu import TimelineUIContextMenu
+from tilia.ui.menus import MenuItemKind
+from tilia.ui.timelines.base.context_menus import TimelineUIContextMenu, TimelineUIElementContextMenu
 
 
-class ModeContextMenu(TiliaMenu):
+class ModeContextMenu(TimelineUIElementContextMenu):
     name = "Mode"
     items = [
         (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_EDIT),
@@ -16,7 +16,7 @@ class ModeContextMenu(TiliaMenu):
     ]
 
 
-class HarmonyContextMenu(TiliaMenu):
+class HarmonyContextMenu(TimelineUIElementContextMenu):
     name = "Harmony"
     items = [
         (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_EDIT),

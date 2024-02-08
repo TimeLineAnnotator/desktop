@@ -6,6 +6,7 @@ from typing import Optional, Any
 
 from PyQt6.QtCore import QPoint
 
+from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 from tilia.utils import get_tilia_class_string
 
 from PyQt6.QtWidgets import QGraphicsScene
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class TimelineUIElement(ABC):
     UPDATE_TRIGGERS = []
-    CONTEXT_MENU_CLASS: Optional[type(TiliaMenu)] = None
+    CONTEXT_MENU_CLASS: Optional[type(TimelineUIElementContextMenu)] = None
 
     def __init__(
         self,
