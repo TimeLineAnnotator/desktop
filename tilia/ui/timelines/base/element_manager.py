@@ -49,9 +49,9 @@ class ElementManager:
         scene: TimelineScene,
     ):
         if self.is_single_element:
-            element = self.element_classes[0].create(id, timeline_ui, scene)
+            element = self.element_classes[0](id, timeline_ui, scene)
         else:
-            element = get_element_class_by_kind(kind).create(id, timeline_ui, scene)
+            element = get_element_class_by_kind(kind)(id, timeline_ui, scene)
 
         self._add_to_elements_set(element)
 

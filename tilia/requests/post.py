@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class Post(Enum):
+    TIMELINE_ELEMENT_PASTE_COMPLETE = auto()
     HARMONY_IMPORT_FROM_CSV = auto()
     MODE_DISPLAY_AS_ROMAN_NUMERAL = auto()
     MODE_ADD = auto()
@@ -70,7 +71,6 @@ class Post(Enum):
     HIERARCHY_CREATE_CHILD = auto()
     HIERARCHY_DECREASE_LEVEL = auto()
     HIERARCHY_DELETE = auto()
-    HIERARCHY_DESELECTED = auto()
     HIERARCHY_GENEALOGY_CHANGED = auto()
     HIERARCHY_GROUP = auto()
     HIERARCHY_IMPORT_FROM_CSV = auto()
@@ -79,7 +79,6 @@ class Post(Enum):
     HIERARCHY_MERGE = auto()
     HIERARCHY_PASTE = auto()
     HIERARCHY_POSITION_CHANGED = auto()
-    HIERARCHY_SELECTED = auto()
     HIERARCHY_SPLIT = auto()
     INSPECTABLE_ELEMENT_DESELECTED = auto()
     INSPECTABLE_ELEMENT_SELECTED = auto()
@@ -131,7 +130,6 @@ class Post(Enum):
     TIMELINES_AUTO_SCROLL_DISABLE = auto()
     TIMELINES_AUTO_SCROLL_ENABLE = auto()
     TIMELINES_CLEAR = auto()
-    TIMELINES_CROP_DONE = auto()
     TIMELINE_ADD = auto()
     TIMELINE_CLEAR_FROM_MANAGE_TIMELINES = auto()
     TIMELINE_COLLECTION_STATE_RESTORED = auto()
