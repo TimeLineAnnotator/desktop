@@ -4,8 +4,6 @@ Defines the ui corresponding to a Hierarchy object.
 
 from __future__ import annotations
 
-import logging
-
 from typing import TYPE_CHECKING, Literal
 
 from PyQt6.QtCore import Qt, QRectF, QPointF
@@ -41,8 +39,6 @@ from ...format import format_media_time
 from tilia import settings
 
 from tilia.ui.timelines.base.element import TimelineUIElement
-
-logger = logging.getLogger(__name__)
 
 
 class HierarchyUI(TimelineUIElement):
@@ -397,7 +393,7 @@ class HierarchyUI(TimelineUIElement):
         self.post_end_handle = HierarchyFrameHandle(self.end_x, self.post_end_x, y)
         self.scene.addItem(self.post_end_handle)
 
-    def extremity_to_handle(self, extremity: Extremity):
+    def extremity_to_handle(self, extremity: Extremity) -> HierarchyBodyHandle | HierarchyFrameHandle:
         try:
             return {
                 Extremity.START: self.start_handle,
