@@ -219,10 +219,10 @@ class HarmonyTimelineUI(TimelineUI):
         self, paste_data: list[dict], reference_time: float, target_time: float
     ) -> None:
         for harmony_data in paste_data:
-            harmony_time = harmony_data["support_by_component_value"]['time']
+            harmony_time = harmony_data["support_by_component_value"]["time"]
 
             self.timeline.create_timeline_component(
-                harmony_data["support_by_component_value"]['KIND'],
+                harmony_data["support_by_component_value"]["KIND"],
                 target_time + (harmony_time - reference_time),
                 **harmony_data["by_component_value"],
             )

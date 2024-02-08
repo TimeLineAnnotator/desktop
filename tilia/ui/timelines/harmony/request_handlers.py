@@ -71,11 +71,11 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
     @staticmethod
     def _get_copy_data_from_element(element: HarmonyUI | ModeUI):
         return {
-                    "components": get_copy_data_from_element(
-                        element, element.DEFAULT_COPY_ATTRIBUTES
-                    ),
-                    "timeline_kind": TimelineKind.HARMONY_TIMELINE,
-                }
+            "components": get_copy_data_from_element(
+                element, element.DEFAULT_COPY_ATTRIBUTES
+            ),
+            "timeline_kind": TimelineKind.HARMONY_TIMELINE,
+        }
 
     def on_copy(self, elements):
         return [self._get_copy_data_from_element(e) for e in elements]

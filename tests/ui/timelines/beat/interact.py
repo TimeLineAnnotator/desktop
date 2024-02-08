@@ -10,5 +10,5 @@ def click_beat_ui(beat_ui, button="left", modifier=None, double=False):
         beat_ui.height / 2,
         beat_ui.body,
         modifier,
-        double
+        double,
     )

@@ -393,7 +393,9 @@ class HierarchyUI(TimelineUIElement):
         self.post_end_handle = HierarchyFrameHandle(self.end_x, self.post_end_x, y)
         self.scene.addItem(self.post_end_handle)
 
-    def extremity_to_handle(self, extremity: Extremity) -> HierarchyBodyHandle | HierarchyFrameHandle:
+    def extremity_to_handle(
+        self, extremity: Extremity
+    ) -> HierarchyBodyHandle | HierarchyFrameHandle:
         try:
             return {
                 Extremity.START: self.start_handle,
