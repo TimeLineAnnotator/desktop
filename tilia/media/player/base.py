@@ -74,7 +74,9 @@ class Player(ABC):
     def playback_length(self):
         return self.playback_end - self.playback_start
 
-    def load_media(self, path: str | Path, start: float = 0.0, end: float = 0.0) -> bool:
+    def load_media(
+        self, path: str | Path, start: float = 0.0, end: float = 0.0
+    ) -> bool:
         if self.playing:
             self.stop()
 
@@ -172,9 +174,7 @@ class Player(ABC):
             reason=MediaTimeChangeReason.SEEK,
         )
 
-    def on_export_audio(
-        self, segment_name: str, start_time: float, end_time: float
-    ):
+    def on_export_audio(self, segment_name: str, start_time: float, end_time: float):
         if self.MEDIA_TYPE != "audio":
             post(
                 Post.DISPLAY_ERROR,

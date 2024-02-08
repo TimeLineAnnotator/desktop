@@ -76,7 +76,6 @@ class BeatUI(TimelineUIElement):
 
         self.dragged = False
 
-
     @classmethod
     def create(
         cls,

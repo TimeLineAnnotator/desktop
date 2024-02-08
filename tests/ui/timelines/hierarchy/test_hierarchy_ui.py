@@ -46,7 +46,9 @@ class TestHierarchyUI:
 
     def test_right_click(self, hierarchy_tlui):
         _, hui = hierarchy_tlui.create_hierarchy(0, 1, 1)
-        with patch('tilia.ui.timelines.hierarchy.context_menu.HierarchyContextMenu.exec') as exec_mock:
+        with patch(
+            "tilia.ui.timelines.hierarchy.context_menu.HierarchyContextMenu.exec"
+        ) as exec_mock:
             hui.on_right_click(0, 0, None)
 
         exec_mock.assert_called_once()

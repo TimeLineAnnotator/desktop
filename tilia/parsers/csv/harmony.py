@@ -36,17 +36,11 @@ def import_by_time(
             ("custom_text_font_type", str),
         ]
 
-        required_attrs = [
-            "harmony_or_key",
-            "time",
-            "symbol"
-        ]
+        required_attrs = ["harmony_or_key", "time", "symbol"]
 
         indices = _get_attrs_indices([x[0] for x in attrs_with_parsers], header)
 
-        if not _validate_required_attrs(
-            required_attrs, indices
-        ):
+        if not _validate_required_attrs(required_attrs, indices):
             return errors
 
         attr_data = _get_attr_data(attrs_with_parsers, indices)
@@ -55,8 +49,8 @@ def import_by_time(
             if not row_data:
                 continue
 
-            component_type = row_data[indices[required_attrs.index('harmony_or_key')]]
-            if component_type not in ['harmony', 'key']:
+            component_type = row_data[indices[required_attrs.index("harmony_or_key")]]
+            if component_type not in ["harmony", "key"]:
                 errors += [
                     f"{component_type=} | {component_type} is not a valid value for 'harmony_or_key'. Must be 'harmony' or 'key'"
                 ]

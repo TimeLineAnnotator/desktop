@@ -222,13 +222,13 @@ class TestAutoScroll:
 
     def test_set_timeline_height_updates_playback_line_height(self, tls, tluis):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        tls.set_timeline_data(tls[0].id, 'height', 100)
+        tls.set_timeline_data(tls[0].id, "height", 100)
         assert tluis[0].scene.playback_line.line().dy() == 100
 
     def test_zooming_updates_playback_line_position(self, tls, tluis):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE)
         post(Post.PLAYER_SEEK, 50)
         post(Post.VIEW_ZOOM_IN)
-        assert tluis[0].scene.playback_line.line().x1() == pytest.approx(get_x_by_time(50))
-
-
+        assert tluis[0].scene.playback_line.line().x1() == pytest.approx(
+            get_x_by_time(50)
+        )

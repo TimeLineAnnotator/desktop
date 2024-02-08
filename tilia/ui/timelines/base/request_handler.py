@@ -63,7 +63,6 @@ class RequestHandler(ABC):
         if confirmed:
             get(Get.TIMELINE_COLLECTION).clear_timeline(self.timeline_ui.timeline)
 
-
     @staticmethod
     def _display_create_timeline_without_media_error():
         post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)

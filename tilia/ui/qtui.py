@@ -183,7 +183,7 @@ class QtUI:
             ),
             (
                 Post.HARMONY_IMPORT_FROM_CSV,
-                partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE)
+                partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE),
             ),
             (Post.DISPLAY_ERROR, dialogs.basic.display_error),
         ]
@@ -363,7 +363,7 @@ class QtUI:
         for window_kind in windows_to_close:
             if window := self._windows[window_kind]:
                 window.destroy()
-                
+
     def _get_by_time_or_by_measure_from_user(self):
         dialog = ByTimeOrByMeasure(self.main_window)
         if not dialog.exec():
@@ -383,7 +383,10 @@ class QtUI:
             return
 
         timeline = get(Get.TIMELINE, timeline_ui.id)
-        if timeline.components and not self._confirm_timeline_overwrite_on_import_from_csv(timeline):
+        if (
+            timeline.components
+            and not self._confirm_timeline_overwrite_on_import_from_csv(timeline)
+        ):
             return
 
         if tlkind == TlKind.BEAT_TIMELINE:
@@ -425,7 +428,7 @@ class QtUI:
 
         if time_or_measure == "time":
             errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
-        elif time_or_measure == 'measure':
+        elif time_or_measure == "measure":
             errors = tlkind_to_funcs[tlkind]["measure"](timeline, beat_tl, path)
         else:
             raise ValueError("Invalid time_or_measure value '{time_or_measure}'")
@@ -454,7 +457,7 @@ class QtUI:
 
     def _get_beat_timeline_ui_for_import_from_csv(self):
         if not self.timeline_uis.get_timeline_uis_by_attr(
-                "TIMELINE_KIND", TlKind.BEAT_TIMELINE
+            "TIMELINE_KIND", TlKind.BEAT_TIMELINE
         ):
             display_error(
                 "Import from CSV error",

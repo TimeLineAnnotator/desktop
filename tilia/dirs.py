@@ -102,4 +102,3 @@ def create_autosaves_dir(data_dir: Path):
 
 def create_temp_dir(data_dir: Path):
     os.mkdir(Path(data_dir, ".temp"))
-

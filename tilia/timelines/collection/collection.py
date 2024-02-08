@@ -230,8 +230,8 @@ class Timelines:
         data_copy = copy.deepcopy(data)  # so pop does not modify original data
 
         for tl_data in data_copy.values():
-            if 'display_position' in tl_data:
-                tl_data['ordinal'] = tl_data.pop('display_position') + 1
+            if "display_position" in tl_data:
+                tl_data["ordinal"] = tl_data.pop("display_position") + 1
             kind = TimelineKind(tl_data.pop("kind"))
             self.create_timeline(kind, **tl_data)
 

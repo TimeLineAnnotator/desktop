@@ -130,12 +130,12 @@ class TimelineUI(ABC):
         getattr(self, update_func_name)()
 
     def update_is_visible(self):
-        self.view.set_is_visible(self.get_data('is_visible'))
+        self.view.set_is_visible(self.get_data("is_visible"))
         self.collection.update_timeline_uis_position()
         self.collection.update_toolbar_visibility()
 
     def update_height(self):
-        height = self.get_data('height')
+        height = self.get_data("height")
         self.scene.set_height(height)
         self.view.set_height(height)
         self.element_manager.update_time_on_elements()

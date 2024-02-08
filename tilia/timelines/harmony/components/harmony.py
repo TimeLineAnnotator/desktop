@@ -19,7 +19,10 @@ from tilia.timelines.harmony.validators import (
     validate_custom_text_font_type,
 )
 from tilia.timelines.marker.timeline import MarkerTimeline
-from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT, CHORD_COMMON_NAME_TO_TYPE
+from tilia.ui.timelines.harmony.constants import (
+    NOTE_NAME_TO_INT,
+    CHORD_COMMON_NAME_TO_TYPE,
+)
 
 
 class Harmony(TimelineComponent):
@@ -102,16 +105,18 @@ class Harmony(TimelineComponent):
         return Harmony(*args, **kwargs)
 
     @classmethod
-    def from_string(cls, time: float, string: str, key: music21.key.Key = music21.key.Key('C')):
-        music21_object, object_type = _get_music21_object_from_text(
-            string, key
-        )
+    def from_string(
+        cls, time: float, string: str, key: music21.key.Key = music21.key.Key("C")
+    ):
+        music21_object, object_type = _get_music21_object_from_text(string, key)
 
         if not string:
             return None
 
         if not object_type:
-            raise ValueError("Can't create harmony: can't create music21 object from '{string}'")
+            raise ValueError(
+                "Can't create harmony: can't create music21 object from '{string}'"
+            )
 
         params = _get_params_from_music21_object(music21_object, object_type)
         return Harmony(*params)
@@ -127,12 +132,8 @@ def _get_music21_object_from_text(text, key):
             pass
     elif text.startswith(("I", "i", "V", "v")):
         try:
-            roman_numeral = music21.roman.RomanNumeral(
-                prefixed_accidental + text, key
-            )
-            chord_common_name = music21.chord.Chord(
-                roman_numeral.pitches
-            ).commonName
+            roman_numeral = music21.roman.RomanNumeral(prefixed_accidental + text, key)
+            chord_common_name = music21.chord.Chord(roman_numeral.pitches).commonName
             roman_numeral.chord_type = CHORD_COMMON_NAME_TO_TYPE[chord_common_name]
             return roman_numeral, "roman"
         except (ValueError, KeyError):

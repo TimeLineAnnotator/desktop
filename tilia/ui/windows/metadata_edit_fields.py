@@ -8,7 +8,7 @@ from tilia.requests import Get, get
 class EditMetadataFieldsDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Edit metadata fields')
+        self.setWindowTitle("Edit metadata fields")
         self._setup_widgets()
 
     def _setup_widgets(self):

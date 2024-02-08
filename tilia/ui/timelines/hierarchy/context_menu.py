@@ -23,9 +23,7 @@ class HierarchyContextMenu(TimelineUIElementContextMenu):
         (MenuItemKind.ACTION, TiliaAction.HIERARCHY_DELETE),
     ]
 
-    def __init__(
-        self, element
-    ):
+    def __init__(self, element):
         super().__init__(element)
         if not element.has_pre_start:
             self.items.insert(

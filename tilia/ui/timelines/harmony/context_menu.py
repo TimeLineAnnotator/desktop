@@ -1,7 +1,10 @@
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.ui.menus import MenuItemKind
-from tilia.ui.timelines.base.context_menus import TimelineUIContextMenu, TimelineUIElementContextMenu
+from tilia.ui.timelines.base.context_menus import (
+    TimelineUIContextMenu,
+    TimelineUIElementContextMenu,
+)
 
 
 class ModeContextMenu(TimelineUIElementContextMenu):

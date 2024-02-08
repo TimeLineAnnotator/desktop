@@ -56,7 +56,7 @@ class TestApp:
         path = "media.ogg"
         with (
             patch("tilia.app.MediaLoader") as media_loader_mock,
-            PatchPost('tilia.app', Post.PLAYER_DURATION_CHANGED)
+            PatchPost("tilia.app", Post.PLAYER_DURATION_CHANGED),
         ):
             app.load_media(path)
 
@@ -72,13 +72,13 @@ class TestFileLoad:
             media_metadata=metadata,
         )
         with (
-            patch('tilia.app.App.reset_undo_manager') as reset_undo_manager_mock,
-            PatchPost('tilia.app', Post.PLAYER_URL_CHANGED) as patch_post
+            patch("tilia.app.App.reset_undo_manager") as reset_undo_manager_mock,
+            PatchPost("tilia.app", Post.PLAYER_URL_CHANGED) as patch_post,
         ):
             app.on_file_load(file)
 
         reset_undo_manager_mock.assert_called_once()
-        patch_post.assert_called_with(Post.PLAYER_URL_CHANGED, '')
+        patch_post.assert_called_with(Post.PLAYER_URL_CHANGED, "")
         app.player.duration = 101
 
     def test_media_path_does_not_exist_and_media_length_not_available(self, app):
@@ -88,26 +88,26 @@ class TestFileLoad:
             media_metadata=metadata,
         )
         with (
-            patch('tilia.app.App.reset_undo_manager') as reset_undo_manager_mock,
-            PatchPost('tilia.app', Post.PLAYER_URL_CHANGED) as patch_post
+            patch("tilia.app.App.reset_undo_manager") as reset_undo_manager_mock,
+            PatchPost("tilia.app", Post.PLAYER_URL_CHANGED) as patch_post,
         ):
             app.on_file_load(file)
 
         reset_undo_manager_mock.assert_called_once()
-        patch_post.assert_called_with(Post.PLAYER_URL_CHANGED, '')
+        patch_post.assert_called_with(Post.PLAYER_URL_CHANGED, "")
         app.player.duration.assert_not_called()
 
     def test_media_path_exists(self, app, tmp_path):
         metadata = MediaMetadata()
-        (tmp_path / 'media.ogg').touch()
-        path = str((tmp_path / 'media.ogg').resolve())
+        (tmp_path / "media.ogg").touch()
+        path = str((tmp_path / "media.ogg").resolve())
         file = TiliaFile(
             media_path=path,
             media_metadata=metadata,
         )
         with (
-            patch('tilia.app.App.load_media') as load_media_mock,
-            patch('tilia.app.App.reset_undo_manager') as reset_undo_manager_mock,
+            patch("tilia.app.App.load_media") as load_media_mock,
+            patch("tilia.app.App.reset_undo_manager") as reset_undo_manager_mock,
         ):
             app.on_file_load(file)
 

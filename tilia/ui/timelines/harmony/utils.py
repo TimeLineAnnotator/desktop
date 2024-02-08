@@ -16,7 +16,6 @@ def _handle_special_qualities(quality: str) -> str | None:
 
 
 QUALITY_TO_ROMAN_NUMERAL_SUFFIX = {
-
     "major": ("", "6", "64", None),
     "minor": ("", "6", "64", None),
     "augmented": ("+", "+6", "+64", None),

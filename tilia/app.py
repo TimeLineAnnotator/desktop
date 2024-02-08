@@ -110,7 +110,7 @@ class App:
     def _setup_file_media(self, path: str, duration: float | None):
         if not Path(path).exists():
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
-            post(Post.PLAYER_URL_CHANGED, '')
+            post(Post.PLAYER_URL_CHANGED, "")
             if duration:
                 post(Post.PLAYER_DURATION_CHANGED, duration)
                 self.player.duration = duration
@@ -120,7 +120,9 @@ class App:
 
     def on_file_load(self, file: TiliaFile) -> None:
         if file.media_path:
-            self._setup_file_media(file.media_path, file.media_metadata.get("media length", None))
+            self._setup_file_media(
+                file.media_path, file.media_metadata.get("media length", None)
+            )
 
         self.timelines.deserialize_timelines(file.timelines)
         self.setup_blank_file()

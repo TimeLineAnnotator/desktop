@@ -36,7 +36,9 @@ class TestMarker:
 
     def test_right_click(self, marker_tlui):
         _, hui = marker_tlui.create_marker(0)
-        with patch('tilia.ui.timelines.marker.context_menu.MarkerContextMenu.exec') as exec_mock:
+        with patch(
+            "tilia.ui.timelines.marker.context_menu.MarkerContextMenu.exec"
+        ) as exec_mock:
             hui.on_right_click(0, 0, None)
 
         exec_mock.assert_called_once()

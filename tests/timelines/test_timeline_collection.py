@@ -7,7 +7,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class TestCreate:
-    @pytest.mark.parametrize('kind', list(TimelineKind))
+    @pytest.mark.parametrize("kind", list(TimelineKind))
     def test_create(self, kind, tls):
         assert tls.is_empty
         tls.create_timeline(kind)
@@ -108,8 +108,8 @@ class TestTimelines:
         assert tls[1].ordinal == 2
 
         # assert display_position attribute was not created
-        assert not hasattr(tls[0], 'display_position')
-        assert not hasattr(tls[1], 'display_position')
+        assert not hasattr(tls[0], "display_position")
+        assert not hasattr(tls[1], "display_position")
 
     def test_serialize_timelines_serializes_ordinals(self, tls):
         tl1 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)

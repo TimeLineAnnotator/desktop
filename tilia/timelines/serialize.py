@@ -79,9 +79,7 @@ def deserialize_components(
     errors = []
 
     for id_, serialized_component in serialized_components.items():
-        component = _deserialize_component(
-                timeline, serialized_component
-            )
+        component = _deserialize_component(timeline, serialized_component)
         if not component:
             errors.append(f"{id_=} | Error when creating component with id={id_}")
             continue

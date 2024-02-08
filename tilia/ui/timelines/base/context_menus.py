@@ -15,7 +15,7 @@ class TimelineUIContextMenu(TiliaMenu):
 
 
 class TimelineUIElementContextMenu(TiliaMenu):
-    title = 'TimelineElement'
+    title = "TimelineElement"
     items = []
 
     def __init__(self, element):

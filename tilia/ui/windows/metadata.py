@@ -34,7 +34,7 @@ class MediaMetadataWindow(QDialog):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Metadata')
+        self.setWindowTitle("Metadata")
         self.metadata = {}
         self.fields_to_formatters = {"media length": format_media_time}
         self._setup_widgets()

@@ -8,9 +8,13 @@ from tilia.ui.timelines.harmony import HarmonyTimelineUI, HarmonyUI, ModeUI
 
 
 class TestHarmonyTimelineUI(HarmonyTimelineUI):
-    def create_harmony(self, time=0, step=0, accidental=0, quality='major', **kwargs) -> tuple[Harmony, HarmonyUI]: ...
+    def create_harmony(
+        self, time=0, step=0, accidental=0, quality="major", **kwargs
+    ) -> tuple[Harmony, HarmonyUI]: ...
 
-    def create_mode(self, time=0, step=0, accidental=0, type='major', **kwargs) -> tuple[Mode, ModeUI]: ...
+    def create_mode(
+        self, time=0, step=0, accidental=0, type="major", **kwargs
+    ) -> tuple[Mode, ModeUI]: ...
 
 
 @pytest.fixture
@@ -18,13 +22,17 @@ def harmony_tlui(tls, tluis) -> TestHarmonyTimelineUI:
     tl: HarmonyTimeline = tls.create_timeline(TlKind.HARMONY_TIMELINE)
     ui = tluis.get_timeline_ui(tl.id)
 
-    def create_harmony(time=0, step=0, accidental=0, quality='major', **kwargs):
-        component = tl.create_timeline_component(ComponentKind.HARMONY, time, step, accidental, quality, **kwargs)
+    def create_harmony(time=0, step=0, accidental=0, quality="major", **kwargs):
+        component = tl.create_timeline_component(
+            ComponentKind.HARMONY, time, step, accidental, quality, **kwargs
+        )
         element = ui.get_element(component.id)
         return component, element
 
-    def create_mode(time=0, step=0, accidental=0, type='major', **kwargs):
-        component = tl.create_timeline_component(ComponentKind.MODE, time, step, accidental, type, **kwargs)
+    def create_mode(time=0, step=0, accidental=0, type="major", **kwargs):
+        component = tl.create_timeline_component(
+            ComponentKind.MODE, time, step, accidental, type, **kwargs
+        )
         element = ui.get_element(component.id)
         return component, element
 

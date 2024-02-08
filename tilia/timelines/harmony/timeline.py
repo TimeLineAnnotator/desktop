@@ -30,7 +30,7 @@ class HarmonyTimeline(Timeline):
     def __init__(
         self,
         component_manager: HarmonyTLComponentManager,
-        name: str = '',
+        name: str = "",
         level_count: int = 1,
         level_height: int = DEFAULT_LEVEL_HEIGHT,
         visible_level_count: int = 2,
@@ -98,10 +98,13 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             return False, f"Time '{time}' is bigger than media time '{media_duration}'"
         elif time < 0:
             return False, f"Time can't be negative. Got '{time}'"
-        elif time in [h.get_data('time') for h in self.timeline]:
-            return False, f"Can't create harmony.\nThere is already a harmony at time='{time}'."
+        elif time in [h.get_data("time") for h in self.timeline]:
+            return (
+                False,
+                f"Can't create harmony.\nThere is already a harmony at time='{time}'.",
+            )
         else:
-            return True, ''
+            return True, ""
 
     def scale(self, factor: float) -> None:
         for component in self:
