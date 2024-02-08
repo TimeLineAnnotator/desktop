@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 from bisect import bisect
 import logging
 
-import tilia.errors
 from tilia.exceptions import TimelineValidationError
 from tilia.requests import Post, post, serve, Get, get
 from tilia.timelines.harmony.timeline import HarmonyTimeline, HarmonyTLComponentManager

@@ -2,7 +2,7 @@ import sys
 from typing import Any
 
 from tilia.exceptions import TiliaException
-from tilia.requests import Post, post, Get, get
+from tilia.requests import Post, post
 
 NEEDS_POST_PROCESSING = [
     Post.TIMELINE_ELEMENT_COPY,

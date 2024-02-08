@@ -5,7 +5,6 @@ from PyQt6.QtCore import QDir, QTemporaryDir
 
 import tilia
 import appdirs
-import shutil
 import tomlkit
 
 import tilia.constants

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.validators import validate_time, validate_string
 from tilia.timelines.component_kinds import ComponentKind

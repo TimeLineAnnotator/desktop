@@ -4,13 +4,12 @@ import re
 import sys
 from functools import partial
 import logging
-from pathlib import Path
 
 from typing import Optional
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import QKeyCombination, Qt
-from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 
 import tilia.constants

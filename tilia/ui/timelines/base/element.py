@@ -11,8 +11,7 @@ from tilia.utils import get_tilia_class_string
 
 from PyQt6.QtWidgets import QGraphicsScene
 
-from tilia.requests import stop_listening_to_all, post, Post
-from tilia.ui.menus import TiliaMenu
+from tilia.requests import stop_listening_to_all
 
 logger = logging.getLogger(__name__)
 

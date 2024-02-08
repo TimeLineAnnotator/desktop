@@ -5,7 +5,6 @@ from typing import Any
 
 from tilia.utils import get_tilia_class_string
 from tilia.exceptions import SetComponentDataError, GetComponentDataError
-from tilia.requests import get, Get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.base.validators import validate_read_only
 

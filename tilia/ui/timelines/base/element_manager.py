@@ -5,7 +5,7 @@ from typing import Any, Callable, TYPE_CHECKING
 
 from PyQt6.QtWidgets import QGraphicsItem
 
-from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui.timelines.element_kinds import get_element_class_by_kind
 from tilia.utils import get_tilia_class_string
 from tilia.ui.timelines.scene import TimelineScene

@@ -273,7 +273,7 @@ class TimelineUI(ABC):
     def _on_element_double_left_click(
         self, element: TimelineUIElement, item: QGraphicsItem
     ) -> None | bool:
-        was_selected = self.select_element_if_selectable(element, item)
+        self.select_element_if_selectable(element, item)
         if (
             hasattr(element, "on_double_left_click")
             and item in element.double_left_click_triggers()

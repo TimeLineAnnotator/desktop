@@ -11,7 +11,6 @@ from tilia.exceptions import (
     InvalidComponentKindError,
     SetTimelineDataError,
     GetTimelineDataError,
-    CreateComponentError,
 )
 from .validators import (
     validate_string,

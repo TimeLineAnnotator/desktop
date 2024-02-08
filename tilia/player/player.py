@@ -1,11 +1,3 @@
-"""
-Handles media playback.
-
-Defines an interface Player, which is implemented, currently, by a PygamePlayer (for audio playback)
-and a VlcPlayer (for video playback).
-
-"""
-
 from __future__ import annotations
 
 import os.path
@@ -16,12 +8,10 @@ import tkinter as tk
 from pathlib import Path
 
 from abc import ABC, abstractmethod
-import logging
 
 from tilia import dirs
 from tilia.repr import default_str
 
-logger = logging.getLogger(__name__)
 import threading
 
 import pygame
@@ -69,7 +59,6 @@ class Player(ABC):
         subscribe(self, Event.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self.unload_media)
         subscribe(self, Event.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media)
 
-        logger.debug("Creating Player...")
         self.media_loaded = False
         self.previous_media_length = previous_media_length
         self.media_length = previous_media_length
@@ -127,10 +116,6 @@ class Player(ABC):
 
         events.post(Event.PLAYER_MEDIA_TIME_CHANGE, 0.0)
 
-        logger.info(
-            f"Media loaded succesfully: path='{self.media_path}' length='{self.media_length}'"
-        )
-
     def unload_media(self):
         self._engine_unload_media()
         self.media_loaded = False
@@ -139,7 +124,6 @@ class Player(ABC):
         self.current_time = 0.0
         self.media_path = ""
         self.playing = False
-        logger.info(f"Media unloaded succesfully.")
 
     def play_pause(self):
         """Plays or pauses the current song.
@@ -155,18 +139,15 @@ class Player(ABC):
             self.playing = True
             self._start_play_loop()
             events.post(Event.PLAYER_UNPAUSED)
-            logger.debug(f"Media is now playing.")
 
         else:
             self._engine_pause()
             self.playing = False
             events.post(Event.PLAYER_PAUSED)
-            logger.debug(f"Media is now paused.")
 
     def stop(self):
         """Stops music playback and resets slider position"""
         events.post(Event.PLAYER_STOPPING)
-        logger.debug("Stopping media playback.")
         if not self.playing and self.current_time == 0.0:
             return
 
@@ -181,17 +162,12 @@ class Player(ABC):
 
     def on_request_to_seek(self, time: float, if_paused: bool = False) -> None:
 
-        logger.debug(f"Processing request to seek with {time=}, {if_paused=}")
         if if_paused and self.playing:
-            logger.debug(f"Media is playing. Will not seek.")
             return
 
         if self.media_loaded:
-            logger.debug(f"Seeking to {time}...")
             self._engine_seek(time)
-            logger.debug(f"New playback time is {self.current_time}.")
-        else:
-            logger.debug(f"No media loaded. No need to seek.")
+
         self.current_time = time
         events.post(Event.PLAYER_MEDIA_TIME_CHANGE, self.current_time)
 
@@ -209,7 +185,6 @@ class Player(ABC):
             time.sleep(self.update_interval / 1000)
 
     def clear(self):
-        logger.debug(f"Clearing player...")
         self.unload_media()
 
     def destroy(self):
@@ -385,13 +360,9 @@ class PygamePlayer(Player):
             f"""{dirs.ffmpeg_path} -i "{audio_path}" "{output_path}\""""
         )
 
-        logger.info(f"Converting audio file {audio_path}")
-
         process = subprocess.Popen(conversion_command)
         process_out, process_err = process.communicate()
         process.wait()
-
-        logger.info(f"Audio convert finished with code {process_out}, {process_err}")
 
         return output_path
 

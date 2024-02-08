@@ -1,10 +1,7 @@
-"""Functions for serializing timeline components"""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from tilia.requests import post, Post
-from tilia.exceptions import CreateComponentError
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
@@ -14,10 +11,6 @@ if TYPE_CHECKING:
 from typing import Protocol
 
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class Serializable(Protocol):
@@ -35,7 +28,6 @@ def serialize_components(
 ) -> dict[int, dict[str]]:
     serialized_components = {}
     for component in components:
-        logger.debug(f"Serializing component {component}...")
         serialized_components[component.id] = serialize_component(component)
 
     return serialized_components

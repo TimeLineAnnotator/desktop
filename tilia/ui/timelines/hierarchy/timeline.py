@@ -5,20 +5,15 @@ from tilia import settings
 from tilia.timelines.hierarchy.common import (
     update_component_genealogy,
 )
-from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
 from tilia.ui.timelines.hierarchy import HierarchyTimelineToolbar, HierarchyUI
-from tilia.ui.timelines.copy_paste import (
-    CopyError,
-    get_copy_data_from_element,
-)
+from tilia.ui.timelines.copy_paste import get_copy_data_from_element
 import tilia.ui.timelines.copy_paste
 from tilia.ui.timelines.copy_paste import paste_into_element
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.requests import Post, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.hierarchy.handles import HierarchyBodyHandle
 from tilia.ui.timelines.hierarchy.key_press_manager import (

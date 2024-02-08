@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 import itertools
-from typing import TYPE_CHECKING, Optional, Self
+from typing import TYPE_CHECKING, Optional
 
 from tilia.requests import get, Get, post, Post
 from tilia import settings

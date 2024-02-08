@@ -10,7 +10,6 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy
-from ...exceptions import CreateComponentError
 
 logger = logging.getLogger(__name__)
 

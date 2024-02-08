@@ -4,12 +4,11 @@ Defines the ui corresponding to a Hierarchy object.
 
 from __future__ import annotations
 
-import functools
 import logging
 
 from typing import TYPE_CHECKING, Literal
 
-from PyQt6.QtCore import Qt, QRectF, QPointF, QPoint
+from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QColor, QPen, QFont, QFontMetrics
 from PyQt6.QtWidgets import (
     QGraphicsScene,
@@ -29,7 +28,6 @@ from ...windows.inspect import HIDE_FIELD, InspectRowKind
 
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineUI
-    from tilia.ui.timelines.scene import TimelineScene
 
 from tilia.requests import (
     Post,

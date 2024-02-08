@@ -2,8 +2,7 @@ import re
 from pathlib import Path
 import logging
 
-import tilia
-from tilia import errors
+import tilia.errors
 import tilia.media.constants
 from tilia.media import player
 from tilia.media.player import Player

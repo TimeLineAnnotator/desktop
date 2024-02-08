@@ -2,14 +2,12 @@ from __future__ import annotations
 import itertools
 import logging
 import sys
-from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import tilia
-from tilia import errors
+import tilia.errors
 import tilia.constants
-from tilia import settings, dirs
+from tilia import settings
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import MediaLoader
 from tilia.utils import get_tilia_class_string

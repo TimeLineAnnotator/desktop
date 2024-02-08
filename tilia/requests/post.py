@@ -1,11 +1,6 @@
-import logging
 import os
 from enum import Enum, auto
 from typing import Callable, Any
-
-from tilia import settings
-
-logger = logging.getLogger(__name__)
 
 
 class Post(Enum):
@@ -234,7 +229,6 @@ def stop_listening(listener: Any, post: Post) -> None:
     try:
         posts_to_listeners[post].pop(listener)
     except KeyError:
-        logger.debug(f"Can't unsubscribe. '{listener} is a listener of {post}'")
         return
 
     listeners_to_posts[listener].remove(post)

@@ -9,8 +9,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QTimer
 
-import tilia
-from tilia import errors
+import tilia.errors
 from tilia.media import exporter
 from tilia.utils import get_tilia_class_string
 from tilia.requests import (
@@ -184,8 +183,8 @@ class Player(ABC):
             return
 
         if sys.platform != "darwin":
-            ERROR_MESSAGE = "Exporting audio is not available or macOS."
-            post(Post.DISPLAY_ERROR, title="Export audio", message=ERROR_MESSAGE)
+            error_message = "Exporting audio is not available or macOS."
+            post(Post.DISPLAY_ERROR, title="Export audio", message=error_message)
             return
 
         path, _ = get(

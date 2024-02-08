@@ -5,7 +5,6 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QLabel,
     QDialogButtonBox,
-    QPushButton,
     QLineEdit,
 )
 
@@ -15,7 +14,6 @@ from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,
-    ROMAN_TO_INT,
     CHORD_COMMON_NAME_TO_TYPE,
 )
 from tilia.ui.timelines.harmony.utils import (

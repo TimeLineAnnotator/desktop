@@ -4,8 +4,7 @@ import functools
 from abc import ABC
 from typing import Callable, TYPE_CHECKING
 
-import tilia
-from tilia import errors
+import tilia.errors
 from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.enums import PasteCardinality

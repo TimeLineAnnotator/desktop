@@ -5,7 +5,6 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt, QUrl, pyqtSlot, QObject, QTimer
 from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QWidget
 
 from tilia.media.player import Player
 

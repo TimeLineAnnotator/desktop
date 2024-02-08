@@ -1,18 +1,12 @@
 from __future__ import annotations
-import logging
-from typing import Self
 
-from tilia import settings
-from tilia.exceptions import CreateComponentError
-from tilia.requests import Get, get, post, Post
+from tilia.requests import Get, get
 from tilia.timelines.base.validators import validate_positive_integer
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.validators import validate_level_count
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
-
-logger = logging.getLogger(__name__)
 
 
 class HarmonyTimeline(Timeline):
@@ -101,7 +95,7 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             return False, f"Time can't be negative. Got '{time}'"
         if time in [h.get_data("time") for h in self.timeline]:
             component_at_same_time = self.timeline.get_component_by_attr('time', time)
-            if type(component_at_same_time) == self._get_component_class_by_kind(kind):
+            if type(component_at_same_time) is self._get_component_class_by_kind(kind):
                 return (
                     False,
                     f"Can't create harmony.\nThere is already a harmony at time='{time}'.",
