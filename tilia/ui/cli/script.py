@@ -1,11 +1,8 @@
-
 from functools import partial
 from typing import Callable
 
 
-def setup_parser(
-    subparsers, run_command: Callable[[str, None], None]
-):
+def setup_parser(subparsers, run_command: Callable[[str, None], None]):
     run_subp = subparsers.add_parser("script")
     run_subp.add_argument("path", type=str, nargs="+")
     run_subp.set_defaults(func=partial(run, run_command))

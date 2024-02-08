@@ -86,11 +86,9 @@ class TimelineUIElement(ABC):
         menu = self.CONTEXT_MENU_CLASS(self)
         menu.exec(QPoint(x, y))
 
-    def on_select(self):
-        ...
+    def on_select(self): ...
 
-    def on_deselect(self):
-        ...
+    def on_deselect(self): ...
 
     def delete(self):
         for item in self.child_items():

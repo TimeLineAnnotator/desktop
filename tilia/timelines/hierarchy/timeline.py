@@ -118,7 +118,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
 
-    def _validate_component_creation(self, _, start: float, end: float, *args, **kwargs):
+    def _validate_component_creation(
+        self, _, start: float, end: float, *args, **kwargs
+    ):
         media_duration = get(Get.MEDIA_DURATION)
         if start > media_duration:
             return (
@@ -249,9 +251,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 return False, "At least two units are needed for grouping"
             return True, ""
 
-        def _validate_no_boundary_crossing(
-            start: float, end: float, group_level: int
-        ):
+        def _validate_no_boundary_crossing(start: float, end: float, group_level: int):
             units_to_check = [
                 unit for unit in self._components if unit not in hierarchies
             ]
@@ -260,7 +260,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 start_inside_group = start <= unit_to_check.start < end
                 ends_inside_group = start < unit_to_check.end <= end
                 comprehends_group = (
-                        unit_to_check.start <= start and end <= unit_to_check.end
+                    unit_to_check.start <= start and end <= unit_to_check.end
                 )
 
                 if (
@@ -337,9 +337,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 return u.level <= max_group_level
 
             return (
-                has_same_parent()
-                and is_inside_grouping()
-                and has_same_level_or_lower()
+                has_same_parent() and is_inside_grouping() and has_same_level_or_lower()
             )
 
         hierarchies += self.get_components_by_condition(
@@ -401,7 +399,10 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         def _validate_split(hierarchy: Hierarchy, time: float):
             if not hierarchy.start < time < hierarchy.end:
-                return False, f"Time '{time}' is not inside unit '{hierarchy}' boundaries."
+                return (
+                    False,
+                    f"Time '{time}' is not inside unit '{hierarchy}' boundaries.",
+                )
             return True, ""
 
         def _get_new_children_for_unit_to_split_parent(
@@ -520,9 +521,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             def is_between_selected_units_and_has_same_parent(h: Hierarchy):
                 units_sorted_by_time = sorted(hs, key=sort_by_time)
                 return (
-                        h.start >= units_sorted_by_time[0].end
-                        and h.end <= units_sorted_by_time[-1].start
-                        and h.parent == hs[0].parent
+                    h.start >= units_sorted_by_time[0].end
+                    and h.end <= units_sorted_by_time[-1].start
+                    and h.parent == hs[0].parent
                 )
 
             units_between = self.get_components_by_condition(

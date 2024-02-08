@@ -1,5 +1,3 @@
-
-
 from tilia.requests import Get, get
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.cli.io import tabulate

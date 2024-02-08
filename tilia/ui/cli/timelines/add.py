@@ -1,4 +1,3 @@
-
 import argparse
 
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind

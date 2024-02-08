@@ -1,5 +1,3 @@
-
-
 from tilia.file.common import validate_save_path
 from tilia.requests import post, Post
 from tilia.ui.cli import io

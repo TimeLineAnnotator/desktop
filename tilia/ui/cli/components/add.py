@@ -1,4 +1,3 @@
-
 import argparse
 from functools import partial
 from tilia.timelines.base.timeline import Timeline
