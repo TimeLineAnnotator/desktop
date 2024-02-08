@@ -139,7 +139,6 @@ class TestActions:
 
 
 class TestCopyPaste:
-
     def test_paste(self, hierarchy_tlui):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1, label="paste test")
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(0, 1, 2)
@@ -297,13 +296,13 @@ class TestCopyPaste:
         actions.TiliaAction(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE)
 
 
-class TestHierarchyTimelineUI:
-    def test_create_hierarchy(self, hierarchy_tlui):
+class TestCreateHierarchy:
+    def test_create_single(self, hierarchy_tlui):
         hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         assert len(hierarchy_tlui.elements) == 1
 
-    def test_create_multiple_hierarchies(self, hierarchy_tlui):
+    def test_create_multiple(self, hierarchy_tlui):
         hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.create_hierarchy(0.1, 1, 1)
         hierarchy_tlui.create_hierarchy(0.2, 1, 1)

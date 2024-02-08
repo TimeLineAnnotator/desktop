@@ -12,21 +12,29 @@ from tilia.ui.actions import TiliaAction
 from tilia.ui.windows import WindowKind
 
 
-class TestBeatTimelineUI:
-    def test_init(self, beat_tlui):
-        assert beat_tlui
-
-    def test_create_beat(self, beat_tlui):
+class TestCreateDeleteBeat:
+    def test_create_single(self, beat_tlui):
         beat_tlui.create_beat(0)
 
         assert len(beat_tlui) == 1
 
-    def test_create_multiple_beats(self, beat_tlui):
+    def test_create_multiple(self, beat_tlui):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
         assert len(beat_tlui) == 3
 
+    def test_delete(self, beat_tlui):
+        beat_tlui.create_beat(0)
+        beat_tlui.select_all_elements()
+
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+
+        assert len(beat_tlui) == 0
+        assert not beat_tlui.selected_elements
+
+
+class TestSelect:
     def test_deselect_all_but_last(self, beat_tlui):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
@@ -48,50 +56,6 @@ class TestBeatTimelineUI:
         beat_tlui._deselect_all_but_first()
 
         assert beat_tlui.selected_elements == [beat_tlui[0]]
-
-    def test_get_next_beat(self, beat_tlui):
-        beat_tlui.create_beat(0)
-        beat_tlui.create_beat(0.1)
-
-        beat0 = beat_tlui[0]
-        beat1 = beat_tlui[1]
-        assert beat_tlui.get_next_beat(beat0) == beat1
-        assert beat_tlui.get_next_beat(beat1) is None
-
-    def test_get_previous_beat(self, beat_tlui):
-        beat_tlui.create_beat(0)
-        beat_tlui.create_beat(0.1)
-
-        beat0 = beat_tlui[0]
-        beat1 = beat_tlui[1]
-        assert beat_tlui.get_previous_beat(beat1) == beat0
-        assert beat_tlui.get_previous_beat(beat0) is None
-
-    def test_get_measure_number(self, beat_tlui):
-        beat_tlui.timeline.beat_pattern = [3]
-
-        for i in range(12):
-            beat_tlui.create_beat(i / 10)
-
-        beat_tlui.timeline.recalculate_measures()
-
-        expected_measure_numbers = {
-            0: 1,
-            1: 1,
-            2: 1,
-            3: 2,
-            4: 2,
-            5: 2,
-            6: 3,
-            7: 3,
-            8: 3,
-            9: 4,
-            10: 4,
-            11: 4,
-        }
-
-        for i, beat in enumerate(sorted(beat_tlui)):
-            assert beat.get_data("measure_number") == expected_measure_numbers[i]
 
     def test_on_right_arrow_press_one_element_selected(self, beat_tlui):
         beat_tlui.create_beat(0)
@@ -157,26 +121,27 @@ class TestBeatTimelineUI:
         beat_tlui.on_side_arrow_press(Side.LEFT)
         assert beat_tlui.selected_elements == [beat0]
 
-    def test_change_beats_in_measure(self, beat_tlui):
+
+class TestGetBeat:
+    def test_get_next_beat(self, beat_tlui):
         beat_tlui.create_beat(0)
+        beat_tlui.create_beat(0.1)
 
-        beat_tlui.select_element(beat_tlui[0])
+        beat0 = beat_tlui[0]
+        beat1 = beat_tlui[1]
+        assert beat_tlui.get_next_beat(beat0) == beat1
+        assert beat_tlui.get_next_beat(beat1) is None
 
-        beat_tlui.timeline.set_beat_amount_in_measure = MagicMock()
-        with patch("tilia.ui.dialogs.basic.ask_for_int", lambda *_: (11, True)):
-            actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
-
-        beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)
-
-    def test_delete(self, beat_tlui):
+    def test_get_previous_beat(self, beat_tlui):
         beat_tlui.create_beat(0)
-        beat_tlui.select_all_elements()
+        beat_tlui.create_beat(0.1)
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+        beat0 = beat_tlui[0]
+        beat1 = beat_tlui[1]
+        assert beat_tlui.get_previous_beat(beat1) == beat0
+        assert beat_tlui.get_previous_beat(beat0) is None
 
-        assert len(beat_tlui) == 0
-        assert not beat_tlui.selected_elements
-
+class TestCopyPaste:
     def test_get_copy_data_from_beat_uis(self, beat_tlui):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
@@ -263,6 +228,34 @@ class TestBeatTimelineUI:
         assert beat_tlui[3].time == 3
 
 
+class TestOther:
+    def test_get_measure_number(self, beat_tlui):
+        beat_tlui.timeline.beat_pattern = [3]
+
+        for i in range(12):
+            beat_tlui.create_beat(i / 10)
+
+        beat_tlui.timeline.recalculate_measures()
+
+        expected_measure_numbers = {
+            0: 1,
+            1: 1,
+            2: 1,
+            3: 2,
+            4: 2,
+            5: 2,
+            6: 3,
+            7: 3,
+            8: 3,
+            9: 4,
+            10: 4,
+            11: 4,
+        }
+
+        for i, beat in enumerate(sorted(beat_tlui)):
+            assert beat.get_data("measure_number") == expected_measure_numbers[i]
+
+
 class TestActions:
     @pytest.mark.skip("Test needs reimplementing")
     def test_on_right_click_menu_inspect(self, beat_tlui):
@@ -344,6 +337,18 @@ class TestActions:
         assert beat_tlui[1].get_data("time") == 2
         assert beat_tlui[2].get_data("time") == 4
         assert beat_tlui[3].get_data("time") == 6
+
+
+    def test_change_beats_in_measure(self, beat_tlui):
+        beat_tlui.create_beat(0)
+
+        beat_tlui.select_element(beat_tlui[0])
+
+        beat_tlui.timeline.set_beat_amount_in_measure = MagicMock()
+        with patch("tilia.ui.dialogs.basic.ask_for_int", lambda *_: (11, True)):
+            actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
+
+        beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)
 
 
 class TestUndoRedo:
