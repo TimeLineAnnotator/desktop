@@ -72,6 +72,9 @@ def _get_args_for_timeline_add_beat_timeline(_):
 
 
 def _get_args_for_timeline_add_harmony_timeline(_):
+    if not _get_media_duration_valid_for_add_timeline():
+        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        return (False, ""), {}
     return _get_timeline_name()
 
 
