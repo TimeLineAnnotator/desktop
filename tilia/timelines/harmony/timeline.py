@@ -89,6 +89,7 @@ class HarmonyTLComponentManager(TimelineComponentManager):
 
     def _validate_component_creation(
         self,
+        kind: ComponentKind,
         time: float,
         *_,
         **__,
@@ -96,15 +97,17 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         media_duration = get(Get.MEDIA_DURATION)
         if time > media_duration:
             return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        elif time < 0:
+        if time < 0:
             return False, f"Time can't be negative. Got '{time}'"
-        elif time in [h.get_data("time") for h in self.timeline]:
-            return (
-                False,
-                f"Can't create harmony.\nThere is already a harmony at time='{time}'.",
-            )
-        else:
-            return True, ""
+        if time in [h.get_data("time") for h in self.timeline]:
+            component_at_same_time = self.timeline.get_component_by_attr('time', time)
+            if type(component_at_same_time) == self._get_component_class_by_kind(kind):
+                return (
+                    False,
+                    f"Can't create harmony.\nThere is already a harmony at time='{time}'.",
+                )
+
+        return True, ""
 
     def scale(self, factor: float) -> None:
         for component in self:

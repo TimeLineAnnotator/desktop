@@ -34,7 +34,7 @@ class MarkerTLComponentManager(TimelineComponentManager):
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
 
-    def _validate_component_creation(self, time, *args, **kwargs):
+    def _validate_component_creation(self, _, time, *args, **kwargs):
         media_duration = get(Get.MEDIA_DURATION)
         if time > media_duration:
             return False, f"Time '{time}' is bigger than media time '{media_duration}'"

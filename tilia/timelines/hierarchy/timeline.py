@@ -119,7 +119,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
 
-    def _validate_component_creation(self, start: float, end: float, *_, **__):
+    def _validate_component_creation(self, _, start: float, end: float, *args, **kwargs):
         media_duration = get(Get.MEDIA_DURATION)
         if start > media_duration:
             return (

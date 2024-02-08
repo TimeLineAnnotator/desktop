@@ -133,6 +133,12 @@ class Timeline(ABC):
     def get_component(self, id: int) -> TimelineComponent:
         return self.component_manager.get_component(id)
 
+    def get_component_by_attr(self, attr: str, value: Any) -> TimelineComponent:
+        return next((c for c in self if c.get_data(attr) == value), None)
+
+    def get_components_by_attr(self, attr: str, value: Any) -> [TimelineComponent]:
+        return [c for c in self if c.get_data(attr) == value]
+
     def set_component_data(self, id: int, attr: str, value: Any):
         return self.component_manager.set_component_data(id, attr, value)
 
@@ -205,7 +211,7 @@ class TimelineComponentManager:
 
     def create_component(self, kind: ComponentKind, timeline, id, *args, **kwargs):
         self._validate_component_kind(kind)
-        valid, reason = self._validate_component_creation(*args, **kwargs)
+        valid, reason = self._validate_component_creation(kind, *args, **kwargs)
         if not valid:
             return False, None
 

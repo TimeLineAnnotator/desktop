@@ -330,9 +330,10 @@ class BeatTLComponentManager(TimelineComponentManager):
 
     def _validate_component_creation(
         self,
+        _: ComponentKind,
         time: float,
-        *_,
-        **__,
+        *args,
+        **kwargs,
     ):
         media_duration = get(Get.MEDIA_DURATION)
         if time > media_duration:
