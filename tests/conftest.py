@@ -5,7 +5,6 @@ from tilia.exceptions import NoCallbackAttached
 from tilia.requests import stop_listening_to_all, stop_serving_all, Post, stop_listening
 from tilia.ui.qtui import QtUI
 from tilia.ui.cli.ui import CLI
-from tilia.ui.timelines.marker import MarkerTimelineUI, MarkerUI
 
 pytest_plugins = [
     "tests.timelines.hierarchy.fixtures",

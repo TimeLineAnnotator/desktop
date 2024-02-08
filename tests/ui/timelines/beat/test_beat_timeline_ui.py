@@ -1,4 +1,3 @@
-import math
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -140,6 +139,7 @@ class TestGetBeat:
         beat1 = beat_tlui[1]
         assert beat_tlui.get_previous_beat(beat1) == beat0
         assert beat_tlui.get_previous_beat(beat0) is None
+
 
 class TestCopyPaste:
     def test_get_copy_data_from_beat_uis(self, beat_tlui):
@@ -313,7 +313,6 @@ class TestActions:
 
     def test_reset_measure_number(self, beat_tlui):
         beat_tlui.create_beat(0)
-        beat0 = beat_tlui[0]
 
         beat_tlui.timeline.measure_numbers[0] = 11
 
@@ -337,7 +336,6 @@ class TestActions:
         assert beat_tlui[1].get_data("time") == 2
         assert beat_tlui[2].get_data("time") == 4
         assert beat_tlui[3].get_data("time") == 6
-
 
     def test_change_beats_in_measure(self, beat_tlui):
         beat_tlui.create_beat(0)

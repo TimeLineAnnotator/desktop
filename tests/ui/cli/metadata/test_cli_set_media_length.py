@@ -1,5 +1,4 @@
 import argparse
-from unittest.mock import patch
 from tests.mock import PatchPost
 from tilia.requests.post import Post
 from tilia.ui.cli.metadata.set_media_length import set_media_length

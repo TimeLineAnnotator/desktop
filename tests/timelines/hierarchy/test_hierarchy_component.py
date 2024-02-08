@@ -1,7 +1,4 @@
-import itertools
-
 from tilia.timelines.hierarchy.components import Hierarchy
-from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 
 
 class DummyHierarchyTL:

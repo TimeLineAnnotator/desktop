@@ -1,11 +1,6 @@
-import pytest
 import logging
-from unittest.mock import MagicMock
 
-from tilia.exceptions import InvalidComponentKindError
-from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.marker.timeline import (
-    MarkerTLComponentManager,
     MarkerTimeline,
 )
 from tilia.timelines.serialize import serialize_component, _deserialize_component

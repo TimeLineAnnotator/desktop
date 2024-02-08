@@ -3,9 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tests.mock import PatchPost
 from tilia.requests import Post
-from tilia.exceptions import CreateComponentError
 from tilia.timelines.beat.timeline import BeatTLComponentManager
 from tilia.timelines.component_kinds import ComponentKind
 

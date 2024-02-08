@@ -1,14 +1,7 @@
-import functools
 import itertools
 import math
-from unittest.mock import MagicMock
 import pytest
 import logging
-
-from tilia.requests import Get, serve, stop_serving_all
-from tilia.timelines.beat.timeline import BeatTLComponentManager, BeatTimeline
-from tilia.timelines.collection.collection import Timelines
-from tilia.timelines.component_kinds import ComponentKind
 
 logger = logging.getLogger(__name__)
 

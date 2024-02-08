@@ -1,11 +1,9 @@
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 from tests.mock import PatchPost
 
 from tilia.app import App
-from tilia.exceptions import UserCancelledDialog
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
 from tilia.requests import stop_serving_all, stop_listening_to_all
@@ -58,7 +56,7 @@ class TestApp:
         path = "media.ogg"
         with (
             patch("tilia.app.MediaLoader") as media_loader_mock,
-            PatchPost('tilia.app', Post.PLAYER_DURATION_CHANGED) as post_mock
+            PatchPost('tilia.app', Post.PLAYER_DURATION_CHANGED)
         ):
             app.load_media(path)
 
@@ -115,4 +113,3 @@ class TestFileLoad:
 
         load_media_mock.assert_called_with(path)
         reset_undo_manager_mock.assert_called_once()
-

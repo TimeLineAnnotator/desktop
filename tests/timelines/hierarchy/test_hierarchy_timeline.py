@@ -859,8 +859,8 @@ class TestGroup:
 
     def test_two_units_with_units_of_higher_level_in_between_fails(self, tl):
         hrc1 = tl.create_hierarchy(start=0, end=0.1, level=1)
-        hrc2 = tl.create_hierarchy(start=0.1, end=0.2, level=2)
-        hrc3 = tl.create_hierarchy(start=0.2, end=0.3, level=3)
+        _ = tl.create_hierarchy(start=0.1, end=0.2, level=2)
+        _ = tl.create_hierarchy(start=0.2, end=0.3, level=3)
         hrc4 = tl.create_hierarchy(start=0.3, end=0.4, level=1)
 
         success, _ = tl.component_manager.group([hrc1, hrc4])
