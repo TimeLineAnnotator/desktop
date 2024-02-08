@@ -19,10 +19,6 @@ class TimelineUIsRequestHandler(RequestHandler):
         self.timeline_uis = timeline_uis
         self.timelines = get(Get.TIMELINE_COLLECTION)
 
-    @staticmethod
-    def _display_create_timeline_without_media_error():
-        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
-
     def on_timeline_add_hierarchy_timeline(self, confirmed: bool, name: str):
         if confirmed:
             self.timelines.create_timeline(
