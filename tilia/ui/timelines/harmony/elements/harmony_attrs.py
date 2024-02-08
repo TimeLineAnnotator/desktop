@@ -85,7 +85,7 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         "custom_text_font_type",
     ],
     support_by_element_value=[],
-    support_by_component_value=["time"],
+    support_by_component_value=["time", "KIND"],
 )
 
 

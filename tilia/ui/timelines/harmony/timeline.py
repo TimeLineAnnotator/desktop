@@ -195,7 +195,7 @@ class HarmonyTimelineUI(TimelineUI):
         paste_into_element(selected_elements[0], paste_data[0])
         self.select_element(selected_elements[0])
 
-        self.create_pasted_harmonies(
+        self.create_pasted_components(
             paste_data[1:],
             paste_data[0]["support_by_component_value"]["time"],
             selected_elements[0].get_data("time"),
@@ -209,22 +209,20 @@ class HarmonyTimelineUI(TimelineUI):
             md["support_by_component_value"]["time"] for md in paste_data
         )
 
-        self.create_pasted_harmonies(
+        self.create_pasted_components(
             paste_data,
             reference_time,
             get(Get.MEDIA_CURRENT_TIME),
         )
 
-    def create_pasted_harmonies(
+    def create_pasted_components(
         self, paste_data: list[dict], reference_time: float, target_time: float
     ) -> None:
-        for harmony_data in copy.deepcopy(
-            paste_data
-        ):  # deepcopying so popping won't affect original data
-            harmony_time = harmony_data["support_by_component_value"].pop("time")
+        for harmony_data in paste_data:
+            harmony_time = harmony_data["support_by_component_value"]['time']
 
             self.timeline.create_timeline_component(
-                ComponentKind.HARMONY,
+                harmony_data["support_by_component_value"]['KIND'],
                 target_time + (harmony_time - reference_time),
                 **harmony_data["by_component_value"],
-            )  # TODO: remove excess unpacking
+            )

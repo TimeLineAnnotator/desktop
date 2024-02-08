@@ -35,12 +35,12 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
     by_component_value=[
         "step",
         "accidental",
-        "kind",
+        "type",
         "level",
         "comments",
     ],
     support_by_element_value=[],
-    support_by_component_value=["time"],
+    support_by_component_value=["time", "KIND"],
 )
 
 

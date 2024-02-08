@@ -8,7 +8,7 @@ from tilia.ui.timelines.base.request_handlers import (
     TimelineRequestHandler,
 )
 from tilia.ui.timelines.copy_paste import get_copy_data_from_element
-from tilia.ui.timelines.harmony import HarmonyUI
+from tilia.ui.timelines.harmony import HarmonyUI, ModeUI
 
 
 class HarmonyUIRequestHandler(ElementRequestHandler):
@@ -69,19 +69,16 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         self.timeline_ui.set_elements_attr(elements, "display_mode", "roman")
 
     @staticmethod
-    def on_copy(elements):
-        copy_data = []
-        for elm in elements:
-            copy_data.append(
-                {
+    def _get_copy_data_from_element(element: HarmonyUI | ModeUI):
+        return {
                     "components": get_copy_data_from_element(
-                        elm, HarmonyUI.DEFAULT_COPY_ATTRIBUTES
+                        element, element.DEFAULT_COPY_ATTRIBUTES
                     ),
                     "timeline_kind": TimelineKind.HARMONY_TIMELINE,
                 }
-            )
 
-        return copy_data
+    def on_copy(self, elements):
+        return [self._get_copy_data_from_element(e) for e in elements]
 
 
 class HarmonyTimelineUIRequestHandler(TimelineRequestHandler):
