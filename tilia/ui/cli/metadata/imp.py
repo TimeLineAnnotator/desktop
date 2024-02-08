@@ -2,7 +2,7 @@ import argparse
 from tilia.requests import post, Post
 
 
-def setup_parser(subparsers: argparse._SubParsersAction):
+def setup_parser(subparsers):
     parser = subparsers.add_parser("import", help="Import metadata from JSON file.")
     parser.add_argument("path", type=str, help="Path to JSON file.", nargs="+")
 

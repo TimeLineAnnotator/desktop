@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 class TimelineUIElement(ABC):
     UPDATE_TRIGGERS = []
     CONTEXT_MENU_CLASS: Optional[type(TimelineUIElementContextMenu)] = None
+    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = {}
 
     def __init__(
         self,
@@ -78,12 +79,18 @@ class TimelineUIElement(ABC):
     def double_left_click_triggers(self):
         return self.child_items()
 
-    def on_right_click(self, x, y, item):
+    def on_right_click(self, x, y, _):
         if not self.CONTEXT_MENU_CLASS:
             return
 
         menu = self.CONTEXT_MENU_CLASS(self)
         menu.exec(QPoint(x, y))
+
+    def on_select(self):
+        ...
+
+    def on_deselect(self):
+        ...
 
     def delete(self):
         for item in self.child_items():

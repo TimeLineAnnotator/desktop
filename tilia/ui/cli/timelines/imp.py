@@ -1,4 +1,4 @@
-from argparse import _SubParsersAction
+
 from pathlib import Path
 from typing import Optional, Tuple, Literal
 
@@ -13,7 +13,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli import io
 
 
-def setup_parser(subparsers: _SubParsersAction):
+def setup_parser(subparsers):
     # Import command
     import_parser = subparsers.add_parser(
         "import", help="Import data from a file into a " "timeline"
@@ -30,7 +30,7 @@ def setup_parser(subparsers: _SubParsersAction):
     setup_import_beat_parser(import_subparsers)
 
 
-def setup_import_beat_parser(subparser: _SubParsersAction):
+def setup_import_beat_parser(subparser):
     parser = subparser.add_parser(
         "beat",
         help="Import beat timelines",
@@ -39,7 +39,7 @@ def setup_import_beat_parser(subparser: _SubParsersAction):
     setup_import_file_and_target_args(parser)
 
 
-def setup_import_marker_and_hierarchy_parser(subparser: _SubParsersAction):
+def setup_import_marker_and_hierarchy_parser(subparser):
     component_info = [
         ("marker", "markers", ["mrk"]),
         ("hierarchy", "hierarchies", ["hrc"]),
@@ -55,7 +55,7 @@ def setup_import_marker_and_hierarchy_parser(subparser: _SubParsersAction):
         setup_import_by_measure(subparsers)
 
 
-def setup_import_by_time(subparser: _SubParsersAction):
+def setup_import_by_time(subparser):
     import_time_parser = subparser.add_parser(
         "by-time",
         help="Import components by time",
@@ -64,7 +64,7 @@ def setup_import_by_time(subparser: _SubParsersAction):
     setup_import_file_and_target_args(import_time_parser)
 
 
-def setup_import_by_measure(subparser: _SubParsersAction):
+def setup_import_by_measure(subparser):
     parser = subparser.add_parser(
         "by-measure",
         help="Import components by measure and fraction",
@@ -82,7 +82,7 @@ def setup_import_by_measure(subparser: _SubParsersAction):
     )
 
 
-def setup_import_file_and_target_args(subparser: _SubParsersAction):
+def setup_import_file_and_target_args(subparser):
     named_args = subparser.add_argument_group("required named arguments")
 
     named_args.add_argument(

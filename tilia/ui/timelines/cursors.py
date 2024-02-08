@@ -2,6 +2,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QGuiApplication
 
 
+# noinspection PyUnresolvedReferences
 class CursorMixIn:
     def __init__(self, cursor_shape, *args, **kwargs):
         super().__init__(*args, *kwargs)

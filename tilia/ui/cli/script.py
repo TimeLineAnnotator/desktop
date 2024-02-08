@@ -1,10 +1,10 @@
-from argparse import _SubParsersAction
+
 from functools import partial
 from typing import Callable
 
 
 def setup_parser(
-    subparsers: _SubParsersAction, run_command: Callable[[str, None], None]
+    subparsers, run_command: Callable[[str, None], None]
 ):
     run_subp = subparsers.add_parser("script")
     run_subp.add_argument("path", type=str, nargs="+")

@@ -114,7 +114,7 @@ class FileManager:
         post(Post.APP_SETUP_BLANK_FILE)
 
     def on_set_media_metadata_field(self, field_name: str, value: str) -> None:
-        """Sets the value of a sinle media metadata field."""
+        """Sets the value of a single media metadata field."""
         if field_name not in self.file.media_metadata:
             raise MediaMetadataFieldNotFound(f"Field {field_name} not found.")
 

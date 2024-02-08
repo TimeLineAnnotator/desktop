@@ -360,7 +360,7 @@ class QtUI:
         ]
 
         for window_kind in windows_to_close:
-            if window := self._windows[window_kind]:
+            if window := self._windows[window_kind] is not None:
                 window.destroy()
 
     def _get_by_time_or_by_measure_from_user(self):
@@ -384,7 +384,7 @@ class QtUI:
         timeline = get(Get.TIMELINE, timeline_ui.id)
         if (
             timeline.components
-            and not self._confirm_timeline_overwrite_on_import_from_csv(timeline)
+            and not self._confirm_timeline_overwrite_on_import_from_csv()
         ):
             return
 
@@ -399,6 +399,8 @@ class QtUI:
                 return
 
             beat_tl = get(Get.TIMELINE, beat_tlui.id)
+        else:
+            beat_tl = None
 
         success, path = get(
             Get.FROM_USER_FILE_PATH, "Import components", ["CSV files (*.csv)"]
@@ -447,7 +449,7 @@ class QtUI:
         return True
 
     @staticmethod
-    def _confirm_timeline_overwrite_on_import_from_csv(timeline):
+    def _confirm_timeline_overwrite_on_import_from_csv():
         return get(
             Get.FROM_USER_YES_OR_NO,
             "Import from CSV",

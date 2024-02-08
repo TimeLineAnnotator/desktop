@@ -36,7 +36,7 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         )
         self.timeline_ui.on_mode_add_done()
 
-    def on_mode_delete(self, elements, *_, **kwargs):
+    def on_mode_delete(self, elements, *_, **__):
         self.timeline.delete_components(self.elements_to_components(elements))
         self.timeline_ui.on_mode_delete_done()
 
@@ -62,10 +62,10 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         if needs_recalculation:
             self.timeline_ui.on_mode_delete_done()
 
-    def on_display_as_chord_symbol(self, elements, *_, **kwargs):
+    def on_display_as_chord_symbol(self, elements, *_, **__):
         self.timeline_ui.set_elements_attr(elements, "display_mode", "chord")
 
-    def on_display_as_roman_numeral(self, elements, *_, **kwargs):
+    def on_display_as_roman_numeral(self, elements, *_, **__):
         self.timeline_ui.set_elements_attr(elements, "display_mode", "roman")
 
     @staticmethod

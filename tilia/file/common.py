@@ -13,9 +13,9 @@ JSON_CONFIG = {"indent": 2}
 def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
     """Returns True if data1 is equivalent to data2, False otherwise."""
 
-    ATTRS_TO_CHECK = ["media_metadata", "timelines", "media_path"]
+    attrs_to_check = ["media_metadata", "timelines", "media_path"]
 
-    for attr in ATTRS_TO_CHECK:
+    for attr in attrs_to_check:
         if attr == "timelines":
             hash1 = hash_timeline_collection_data(data1["timelines"])
             hash2 = hash_timeline_collection_data(data2["timelines"])

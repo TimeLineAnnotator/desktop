@@ -53,7 +53,7 @@ def get_drag_limits(hierarchy_ui, extremity):
     elif extremity in [Extremity.PRE_START, Extremity.POST_END]:
         return get_frame_handles_drag_limits(hierarchy_ui, extremity)
     else:
-        raise ValueError("Unrecognized extermity")
+        raise ValueError("Unrecognized extremity")
 
 
 def get_body_handle_drag_limits(

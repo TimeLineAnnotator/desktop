@@ -1,4 +1,4 @@
-from argparse import _SubParsersAction
+
 
 from tilia.requests import Get, get
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
@@ -9,11 +9,12 @@ def pprint_tlkind(kind: TlKind) -> str:
     return kind.value.strip("_TIMELINE").capitalize()
 
 
-def setup_parser(subparser: _SubParsersAction):
+def setup_parser(subparser):
     list_subp = subparser.add_parser("list", exit_on_error=False, aliases=["ls"])
     list_subp.set_defaults(func=list)
 
 
+# noinspection PyShadowingBuiltins
 def list(_):
     timelines = get(Get.TIMELINES)
     headers = ["ord.", "name", "kind"]

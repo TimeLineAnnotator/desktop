@@ -54,10 +54,6 @@ class MediaMetadataWindow(QDialog):
         layout.addLayout(self.button_layout)
         self.setup_button_layout()
 
-    def delete_widgets(self):
-        while item := self.layout().takeAt(0):
-            item.delete()
-
     def setup_button_layout(self):
         edit_notes_button = QPushButton("Edit notes...")
         self.button_layout.addWidget(edit_notes_button)

@@ -57,7 +57,7 @@ class TestBeatTlComponentManager:
     def test_update_beat_uis_1(self, cm):
         cm.timeline.measure_numbers = ["a", "b", "c"]
         measure_index_map = {0: 0, 1: 0, 2: 0, 3: 1, 4: 2}
-        cm.timeline.get_measure_index = lambda i: measure_index_map[i]
+        cm.timeline.get_measure_index = lambda x: measure_index_map[x]
         cm._components = [
             DummyBeat(1),
             DummyBeat(2),
@@ -86,7 +86,7 @@ class TestBeatTlComponentManager:
     def test_update_beat_uis_2(self, cm):
         cm.timeline.measure_numbers = ["a", "b", "c"]
         measure_index_map = {0: 0, 1: 0, 2: 1, 3: 1, 4: 2}
-        cm.timeline.get_measure_index = lambda i: measure_index_map[i]
+        cm.timeline.get_measure_index = lambda x: measure_index_map[x]
         cm._components = [
             DummyBeat(1),
             DummyBeat(2),

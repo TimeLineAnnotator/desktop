@@ -256,7 +256,9 @@ class BeatTimeline(Timeline):
                 return measure_index, 0
             prev_n = n
         else:
+            # noinspection PyUnboundLocalVariable
             if beat_index > n:
+                # noinspection PyUnboundLocalVariable
                 return measure_index, 1
             else:
                 raise ValueError(f'No beat with index "{beat_index}" at {self}.')

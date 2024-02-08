@@ -44,7 +44,7 @@ class HierarchyTimelineUI(TimelineUI):
         def starts_or_ends_at_time(ui: HierarchyUI) -> bool:
             return ui.start_x == x or ui.end_x == x
 
-        element: HierarchyUI = self.element_manager.get_element_by_condition(
+        element: HierarchyUI | None = self.element_manager.get_element_by_condition(
             starts_or_ends_at_time
         )
 
@@ -63,7 +63,7 @@ class HierarchyTimelineUI(TimelineUI):
     def get_units_sharing_handle(
         self, handle: HierarchyBodyHandle
     ) -> list[HierarchyBodyHandle]:
-        def is_using_handle(e):
+        def is_using_handle(e: HierarchyUI):
             return e.start_handle == handle or e.end_handle == handle
 
         return self.element_manager.get_elements_by_condition(is_using_handle)
@@ -191,7 +191,7 @@ class HierarchyTimelineUI(TimelineUI):
                     self.timeline.delete_components([descendant.tl_component])
 
             # create children according to paste data
-            self._paste_with_children_into_element(data[0], elm)
+            self.paste_with_children_into_element(data[0], elm)
 
         # TODO preserve selection
 

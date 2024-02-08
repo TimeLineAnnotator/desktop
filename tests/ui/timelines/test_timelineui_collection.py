@@ -2,8 +2,6 @@ from unittest.mock import patch, Mock
 
 import pytest
 
-import tilia
-from tilia import settings
 from tilia import errors as tilia_errors
 from tests.mock import PatchGet, PatchPost
 from tilia.media.player.base import MediaTimeChangeReason
@@ -15,7 +13,6 @@ from tilia.timelines.timeline_kinds import (
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.ui.coords import get_x_by_time
-from tilia.ui.timelines.collection.collection import TimelineUIs
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
 from tilia.ui.timelines.slider.timeline import SliderTimelineUI
 

@@ -48,6 +48,7 @@ from ..harmony import HarmonyTimelineToolbar
 from ..hierarchy import HierarchyTimelineToolbar
 from ..marker import MarkerTimelineToolbar
 from ..selection_box import SelectionBoxQt
+from ..slider.timeline import SliderTimelineUI
 from ...actions import taction_to_qaction, TiliaAction
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ class TimelineUIs:
         main_window.setCentralWidget(self.view)
 
     def _setup_listen(self):
-        requests = [
+        requests_ = [
             (Post.TIMELINE_CREATE_DONE, self.on_timeline_created),
             (Post.TIMELINE_DELETE_DONE, self.on_timeline_deleted),
             (Post.TIMELINE_COMPONENT_CREATED, self.on_timeline_component_created),
@@ -168,7 +169,7 @@ class TimelineUIs:
             (Post.HIERARCHY_DESELECTED, self.on_hierarchy_deselected),
         ]
 
-        for request, callback in requests:
+        for request, callback in requests_:
             listen(self, request, callback)
 
     def _setup_timeline_uis_requests(self):
@@ -353,6 +354,7 @@ class TimelineUIs:
     @staticmethod
     def update_timeline_times(tlui: TimelineUI):
         if tlui.TIMELINE_KIND == TlKind.SLIDER_TIMELINE:
+            tlui: SliderTimelineUI
             tlui.update_width()
         else:
             tlui.element_manager.update_time_on_elements()
@@ -630,7 +632,7 @@ class TimelineUIs:
     def pre_process_timeline_request(
         self,
         request: Post,
-        kinds: Optional[TlKind],
+        kinds: [TlKind],
         selector: Optional[TimelineSelector],
     ):
         timeline_uis = self.get_timelines_uis_for_request(kinds, selector)
@@ -645,7 +647,8 @@ class TimelineUIs:
 
         return timeline_uis, args, kwargs, True
 
-    def pre_process_timeline_uis_request(self, request, *args, **kwargs):
+    @staticmethod
+    def pre_process_timeline_uis_request(request, *args, **kwargs):
         args, kwargs = get_args_for_request(request, [], *args, **kwargs)
 
         return args, kwargs, True
@@ -780,10 +783,12 @@ class TimelineUIs:
         self.set_playback_lines_position(time)
 
     def on_element_drag(self, is_dragging: bool) -> None:
+        # noinspection PyAttributeOutsideInit
         self.element_is_being_dragged = is_dragging
 
     def set_auto_scroll(self, value: bool):
         settings.edit("general", "auto-scroll", value)
+        # noinspection PyAttributeOutsideInit
         self.auto_scroll_is_enabled = value
 
     def center_on_time(self, time: float):

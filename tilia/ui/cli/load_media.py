@@ -1,9 +1,9 @@
-from argparse import _SubParsersAction
+
 
 from tilia.requests import Post, post
 
 
-def setup_parser(subparsers: _SubParsersAction):
+def setup_parser(subparsers):
     parser = subparsers.add_parser("load-media", exit_on_error=False)
 
     parser.add_argument(

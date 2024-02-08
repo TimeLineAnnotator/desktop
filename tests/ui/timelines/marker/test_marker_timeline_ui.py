@@ -1,13 +1,10 @@
 from unittest.mock import patch
 
-import pytest
-from PyQt6.QtCore import Qt, QPoint
+from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QColor
 
 from tests.mock import PatchGet
-from tilia import settings
 from tilia.requests import Post, Get, post
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 

@@ -1,4 +1,4 @@
-from argparse import _SubParsersAction
+
 import argparse
 
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
@@ -6,7 +6,7 @@ from tilia.requests import post, Post
 from tilia.ui.cli.io import output
 
 
-def setup_parser(subparser: _SubParsersAction):
+def setup_parser(subparser):
     add_subp = subparser.add_parser("add", exit_on_error=False)
     add_subp.add_argument(
         "kind", choices=["hierarchy", "hrc", "marker", "mrk", "beat", "bea"]

@@ -22,7 +22,7 @@ class HierarchyTimeline(Timeline):
 
     def create_hierarchy(
         self, start: float, end: float, level: int, **kwargs
-    ) -> Hierarchy:
+    ) -> Hierarchy | None:
         return self.create_timeline_component(
             ComponentKind.HIERARCHY, start, end, level, **kwargs
         )
@@ -232,14 +232,12 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             level=hierarchy.level - 1,
         )
 
+        if not created_unit:
+            raise ValueError("Couldn't create unit below, despite validation succeding")
+
         if hierarchy.children:
-            logger.debug(f"Making former children child to unit created below {self}.")
+            # Making former children child to unit created below {self}
             self._update_genealogy(created_unit, hierarchy.children)
-        else:
-            logger.debug(
-                "No previous children. No need to make them child of unit created"
-                " below."
-            )
 
         # make parent/child relation between unit and create unit
         self._update_genealogy(hierarchy, [created_unit])

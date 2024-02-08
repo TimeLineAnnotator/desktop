@@ -3,7 +3,6 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.timelines.base.request_handler import ElementRequestHandler
-from tilia.ui.timelines.hierarchy import HierarchyUI
 from tilia.ui.timelines.hierarchy.copy_paste import (
     _display_copy_error,
     _validate_copy_cardinality,
@@ -62,6 +61,8 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
         self.on_add_frame(elements, value, Extremity.POST_END)
 
     def on_add_frame(self, elements, value, extremity):
+        from tilia.ui.timelines.hierarchy.element import HierarchyUI
+
         elements_to_set = []
         x_attr = extremity.value + "_x"
         for elm in elements:

@@ -1,9 +1,7 @@
-from argparse import _SubParsersAction
-
 from tilia.requests import get, Get, Post, post
 
 
-def setup_parser(subparser: _SubParsersAction):
+def setup_parser(subparser):
     remove_subp = subparser.add_parser("remove", exit_on_error=False, aliases=["rm"])
     remove_subcommands = remove_subp.add_subparsers(dest="type", required=True)
 

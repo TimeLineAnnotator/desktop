@@ -3,7 +3,7 @@ from tilia.requests import post, Post
 from tilia.ui.cli import io
 
 
-def setup_parser(subparsers: argparse._SubParsersAction):
+def setup_parser(subparsers):
     parser = subparsers.add_parser(
         "set-media-length", help="Import metadata from JSON file."
     )

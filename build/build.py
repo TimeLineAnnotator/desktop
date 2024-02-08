@@ -1,4 +1,3 @@
-import os
 import subprocess
 
 import tilia.constants
@@ -28,7 +27,7 @@ def make_pyinstaller_build():
 def make_installer():
     create_iss_script(tilia.constants.VERSION, tilia.constants.APP_NAME)
 
-    path_to_inno = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+    path_to_inno = r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 
     p = subprocess.Popen(f"{path_to_inno} installer_script.iss")
     p.wait()

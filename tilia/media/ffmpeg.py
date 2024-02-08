@@ -1,4 +1,4 @@
-"""Partially completed donwloader and installer from ffmpeg. Currently unused."""
+"""Partially completed ddownloader and installer from ffmpeg. Currently unused."""
 
 import os
 import subprocess

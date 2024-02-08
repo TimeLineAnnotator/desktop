@@ -27,6 +27,7 @@ def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
         return component, element
 
     def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
+        # noinspection PyProtectedMember
         return tl.component_manager._update_genealogy(parent, children)
 
     tl: HierarchyTimeline = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)

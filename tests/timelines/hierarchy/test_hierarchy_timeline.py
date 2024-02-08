@@ -35,7 +35,8 @@ class DummyTimelines:
     def get_id(self):
         return next(self.ID_ITER)
 
-    def get_media_length(self):
+    @staticmethod
+    def get_media_length():
         return 100
 
 
@@ -47,11 +48,6 @@ def tl(hierarchy_tl) -> HierarchyTimeline:
 @pytest.fixture
 def cm(tl) -> HierarchyTLComponentManager:
     return tl.component_manager
-
-
-class TkFontDummy:
-    def measure(self, _):
-        return 0
 
 
 class TestHierarchyTimeline:

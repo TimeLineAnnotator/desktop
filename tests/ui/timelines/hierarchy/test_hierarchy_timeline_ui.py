@@ -167,8 +167,8 @@ class TestCopyPaste:
 
     @pytest.mark.skip("needs fixing since v0.2")
     def test_get_copy_data_from_hierarchy_ui_with_children(self, hierarchy_tlui):
-        hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
-        hrc2, ui2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
+        _ = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
+        _ = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
         hrc3, ui3 = hierarchy_tlui.create_hierarchy(0, 1, 2)
 
         set_dummy_copy_attributes(hrc3)

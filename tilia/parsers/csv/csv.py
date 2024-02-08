@@ -370,12 +370,12 @@ def hierarchies_by_measure_from_csv(
 
             # get remaining params
             kwargs = {}
-            reamining_params = [
+            reamaining_params = [
                 p
                 for p in optional_params
                 if p[0] not in ["start_fraction", "end_fraction"]
             ]
-            for param, parser in reamining_params:
+            for param, parser in reamaining_params:
                 if param in params_to_indices:
                     index = params_to_indices[param]
                     try:

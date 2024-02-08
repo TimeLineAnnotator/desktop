@@ -28,7 +28,7 @@ If you find a bug, [check](https://github.com/FelipeDefensor/TiLiA/issues) if th
 - Description of the issue;
 - Steps to reproduce it.
 
-# Suggesting features or enchancements
+# Suggesting features or enhancements
 
 We are very much looking for ideas of new features for TiLiA. If you would like to suggest one, [check](https://github.com/FelipeDefensor/TiLiA/issues) if there isn't an issue requesting. If not, [open a new one](https://github.com/FelipeDefensor/TiLiA/issues/new) detailing your suggestion.
 

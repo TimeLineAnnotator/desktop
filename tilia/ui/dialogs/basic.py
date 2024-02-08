@@ -46,13 +46,14 @@ def ask_for_directory(title: str) -> str | None:
     return QFileDialog.getExistingDirectory(None, title)
 
 
-def display_error(title: str, message: str):
-    def truncate_error_message(message: str):
-        if len(lines := message.split("\n")) > 35:
-            message = "\n".join(lines[:35]) + "\n..."
-        return message
+def _truncate_error_message(message: str):
+    if len(lines := message.split("\n")) > 35:
+        message = "\n".join(lines[:35]) + "\n..."
+    return message
 
-    message = truncate_error_message(message)
+
+def display_error(title: str, message: str):
+    message = _truncate_error_message(message)
     QMessageBox(
         QMessageBox.Icon.Critical, title, message, QMessageBox.StandardButton.Close
     ).exec()

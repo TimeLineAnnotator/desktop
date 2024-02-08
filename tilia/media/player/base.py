@@ -198,7 +198,7 @@ class Player(ABC):
 
         exporter.export_audio(
             source_path=get(Get.MEDIA_PATH),
-            dest_path=path,
+            destination_path=path,
             start_time=start_time,
             end_time=end_time,
         )

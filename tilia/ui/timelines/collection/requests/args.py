@@ -4,6 +4,7 @@ import tilia.errors
 from tilia.exceptions import UserCancelledDialog
 from tilia.requests import get, Get, Post, post
 from tilia.ui import dialogs
+import tilia.ui.dialogs.basic
 from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
 from tilia.ui.dialogs.mode_params import SelectModeParams
 from tilia.ui.timelines.base.timeline import TimelineUI
@@ -186,7 +187,7 @@ def _get_args_for_mode_add(_):
     return (accept,), dialog.result()
 
 
-def get_args_for_request(request: Post, timeline_uis: [TimelineUI], *args, **kwargs):
+def get_args_for_request(request: Post, timeline_uis: [TimelineUI], *_, **__):
     try:
         return getattr(sys.modules[__name__], "_get_args_for_" + request.name.lower())(
             timeline_uis

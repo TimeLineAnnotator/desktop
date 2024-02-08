@@ -1,4 +1,4 @@
-from argparse import _SubParsersAction
+
 
 from tilia.file.common import validate_save_path
 from tilia.requests import post, Post
@@ -7,7 +7,7 @@ from tilia.ui.cli import io
 from pathlib import Path
 
 
-def setup_parser(subparsers: _SubParsersAction):
+def setup_parser(subparsers):
     parser = subparsers.add_parser("save", exit_on_error=False)
 
     parser.add_argument("path", help="Path to save file to.", nargs="+")

@@ -4,7 +4,7 @@ from tilia.requests.get import Get, get
 from tilia.ui.cli import io
 
 
-def setup_parser(subparsers: argparse._SubParsersAction):
+def setup_parser(subparsers):
     parser = subparsers.add_parser("show", help="Import metadata from JSON file.")
     parser.set_defaults(func=show)
 

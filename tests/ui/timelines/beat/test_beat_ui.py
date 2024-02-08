@@ -1,7 +1,7 @@
 from unittest.mock import Mock, patch
 
 from tests.mock import PatchPost
-from tilia.requests import Post
+from tilia.requests import Post, get, Get
 
 
 class TestRightClick:
@@ -16,12 +16,10 @@ class TestRightClick:
 
 
 class TestDoubleClick:
-    def test_posts_seek(self, beat_tlui):
+    def test_triggers_seek(self, beat_tlui):
         beat_tlui.create_beat(10)
-        with PatchPost("tilia.ui.timelines.beat.element", Post.PLAYER_SEEK) as mock:
-            beat_tlui[0].on_double_left_click(None)
-
-        mock.assert_called_with(Post.PLAYER_SEEK, 10)
+        beat_tlui[0].on_double_left_click(None)
+        assert get(Get.MEDIA_CURRENT_TIME) == 10
 
     def test_does_not_trigger_drag(self, beat_tlui):
         beat_tlui.create_beat(0)

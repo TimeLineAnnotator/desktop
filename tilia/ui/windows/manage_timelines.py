@@ -1,5 +1,6 @@
 from typing import Optional
 
+import typing
 from PyQt6 import QtGui
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -129,10 +130,15 @@ class TimelineListItem(QListWidgetItem):
         self.timeline_ui = timeline_ui
         super().__init__(self.get_timeline_ui_str(timeline_ui))
 
-    def get_timeline_ui_str(self, timeline_ui: TimelineUI):
+    @staticmethod
+    def get_timeline_ui_str(timeline_ui: TimelineUI):
         if timeline_ui.TIMELINE_KIND == TimelineKind.SLIDER_TIMELINE:
             return "Slider"
         return timeline_ui.get_data("name")
+
+
+class TimelinesListWidgetItem(QListWidgetItem):
+    timeline_ui: TimelineUI
 
 
 class TimelinesListWidget(QListWidget):
@@ -145,6 +151,15 @@ class TimelinesListWidget(QListWidget):
         listen(self, Post.TIMELINE_SET_DATA_DONE, self.on_timeline_set_data_done)
         listen(self, Post.TIMELINE_DELETE_DONE, self.on_timeline_set_changed)
         listen(self, Post.TIMELINE_CREATE_DONE, self.on_timeline_set_changed)
+
+    def item(self, row: int) -> typing.Optional[TimelineListItem]:
+        return super().item(row)
+
+    def currentItem(self) -> typing.Optional[TimelineListItem]:
+        return super().currentItem()
+
+    def selectedItems(self) -> [TimelineListItem]:
+        return super().selectedItems()
 
     def _setup_items(self):
         for tl in get(Get.TIMELINE_UIS):
@@ -185,8 +200,8 @@ class TimelinesListWidget(QListWidget):
             return
         selected = self.selectedItems()[0]
         index = self.selectedIndexes()[0].row()
-        next = self.item(index + 1)
-        if next:
+        next_item = self.item(index + 1)
+        if next_item:
             self.timeline_uis_to_permute = (selected.timeline_ui, next.timeline_ui)
             post(Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES)
             self.timeline_uis_to_permute = None

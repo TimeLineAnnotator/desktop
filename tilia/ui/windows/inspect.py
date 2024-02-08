@@ -109,7 +109,7 @@ class Inspect(QDockWidget):
     def update_rows(
         self,
         element_class: type[TimelineComponent],
-        inspector_fields: tuple[str, InspectRowKind],
+        inspector_fields: tuple[str, InspectRowKind, Callable[[], Any | None]],
     ):
         if element_class != self.currently_inspected_class:
             self.clear_layout()
