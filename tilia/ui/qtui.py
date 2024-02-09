@@ -78,11 +78,11 @@ class TiliaMainWindow(QMainWindow):
 
         for comb, taction in key_comb_to_taction:
             if event.keyCombination() == comb:
-                actions.taction_to_qaction[taction].trigger()
+                actions.actions.get_qaction(taction).trigger()
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
-        post(Post.UI_CLOSE)
+        actions.trigger(TiliaAction.UI_CLOSE)
         event.ignore()
 
     def on_close(self):

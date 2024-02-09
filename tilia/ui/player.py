@@ -29,10 +29,8 @@ class PlayerToolbar(QToolBar):
         self.current_time_string = "0:00:00"
         self.duration_string = "0:00:00"
 
-        self.play_action = actions.taction_to_qaction[
-            TiliaAction.MEDIA_TOGGLE_PLAY_PAUSE
-        ]
-        self.stop_action = actions.taction_to_qaction[TiliaAction.MEDIA_STOP]
+        self.play_action = actions.get_qaction(TiliaAction.MEDIA_TOGGLE_PLAY_PAUSE)
+        self.stop_action = actions.get_qaction(TiliaAction.MEDIA_STOP)
         self.addAction(self.play_action)
         self.addAction(self.stop_action)
         self.time_label = QLabel(f"{self.current_time_string}/{self.duration_string}")

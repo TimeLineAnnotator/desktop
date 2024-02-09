@@ -10,6 +10,7 @@ from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
 
 class TiliaAction(Enum):
+    UI_CLOSE = auto()
     HARMONY_IMPORT_FROM_CSV = auto()
     MODE_ADD = auto()
     MODE_DELETE = auto()
@@ -90,7 +91,7 @@ class ActionParams:
 def setup_actions(parent: QMainWindow):
     for action in TiliaAction:
         qaction = setup_action(action, parent)
-        taction_to_qaction[action] = qaction
+        _taction_to_qaction[action] = qaction
 
 
 def setup_action(action: TiliaAction, parent: QMainWindow):
@@ -154,6 +155,9 @@ def set_tooltip(action: QAction, text: str, shortcut: str):
 
 
 taction_to_params = {
+    TiliaAction.UI_CLOSE: ActionParams(
+        Post.UI_CLOSE, "Close tilia", "Close", ""
+    ),
     TiliaAction.BEAT_ADD: ActionParams(
         Post.BEAT_ADD, "Add beat at current position", "beat_add", "b"
     ),
@@ -359,8 +363,12 @@ taction_to_params = {
     ),
 }
 
-taction_to_qaction: dict[TiliaAction, QAction] = {}  # will be populated on startup
+_taction_to_qaction: dict[TiliaAction, QAction] = {}  # will be populated on startup
+
+
+def get_qaction(tilia_action: TiliaAction):
+    return _taction_to_qaction[tilia_action]
 
 
 def trigger(tilia_action: TiliaAction):
-    taction_to_qaction[tilia_action].trigger()
+    _taction_to_qaction[tilia_action].trigger()

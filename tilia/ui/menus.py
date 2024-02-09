@@ -4,7 +4,7 @@ from typing import Literal
 
 from PyQt6.QtWidgets import QMenu
 
-from tilia.ui.actions import TiliaAction, taction_to_qaction
+from tilia.ui.actions import TiliaAction, get_qaction
 
 
 class MenuItemKind:
@@ -44,7 +44,7 @@ class TiliaMenu(QMenu):
         self.addMenu(submenu)
 
     def add_action(self, t_action: TiliaAction):
-        self.addAction(taction_to_qaction[t_action])
+        self.addAction(get_qaction(t_action))
 
     def get_submenu(self, cls: type(TiliaMenu)):
         return self.class_to_submenu[cls]

@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 )
 
 import tilia
+from tilia.ui import actions
 from tilia import settings
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.timelines import timeline_kinds
@@ -49,7 +50,7 @@ from ..hierarchy import HierarchyTimelineToolbar
 from ..marker import MarkerTimelineToolbar
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
-from ...actions import taction_to_qaction, TiliaAction
+from ...actions import TiliaAction
 
 logger = logging.getLogger(__name__)
 
@@ -617,7 +618,7 @@ class TimelineUIs:
 
     @staticmethod
     def on_hierarchy_selected():
-        taction_to_qaction[TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE].setVisible(True)
+        actions.get_qaction(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE).setVisible(True)
 
     def on_hierarchy_deselected(self):
         selected_hierarchies = []
@@ -625,7 +626,7 @@ class TimelineUIs:
             if tlui.TIMELINE_KIND == TlKind.HIERARCHY_TIMELINE:
                 selected_hierarchies += tlui.selected_elements
         if not selected_hierarchies:
-            taction_to_qaction[TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE].setVisible(
+            actions.get_qaction(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE).setVisible(
                 False
             )
 

@@ -10,6 +10,8 @@ import tilia.constants
 from tilia import settings
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import MediaLoader
+from tilia.ui import actions
+from tilia.ui.actions import TiliaAction
 from tilia.utils import get_tilia_class_string
 from tilia.requests import get, post, serve, listen, Get, Post
 from tilia.timelines.collection.collection import Timelines
@@ -75,7 +77,7 @@ class App:
         if not success:
             return
         if confirm_save:
-            self.file_manager.on_save_request()
+            actions.trigger(TiliaAction.FILE_SAVE)
 
         post(Post.APP_CLOSE)
         sys.exit()

@@ -11,6 +11,8 @@ from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.media_metadata import MediaMetadata
+from tilia.ui import actions
+from tilia.ui.actions import TiliaAction
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +95,7 @@ class FileManager:
         if not success:
             return
         if should_save:
-            self.on_save_request()
+            actions.trigger(TiliaAction.FILE_SAVE)
 
         success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
         if not success:
@@ -108,7 +110,7 @@ class FileManager:
         if not success:
             return
         if confirm:
-            self.on_save_request()
+            actions.trigger(TiliaAction.FILE_SAVE)
 
         post(Post.APP_CLEAR)
         post(Post.APP_SETUP_BLANK_FILE)

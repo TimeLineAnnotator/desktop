@@ -45,18 +45,12 @@ class HarmonyTimelineUIContextMenu(TimelineUIContextMenu):
     ]
 
     def __init__(self, timeline_ui):
+        hide_keys_action = actions.get_qaction(TiliaAction.HARMONY_TIMELINE_HIDE_KEYS)
+        show_keys_action = actions.get_qaction(TiliaAction.HARMONY_TIMELINE_SHOW_KEYS)
         if timeline_ui.get_data("visible_level_count") == 1:
-            actions.taction_to_qaction[
-                TiliaAction.HARMONY_TIMELINE_HIDE_KEYS
-            ].setVisible(False)
-            actions.taction_to_qaction[
-                TiliaAction.HARMONY_TIMELINE_SHOW_KEYS
-            ].setVisible(True)
+            hide_keys_action.setVisible(False)
+            show_keys_action.setVisible(True)
         else:
-            actions.taction_to_qaction[
-                TiliaAction.HARMONY_TIMELINE_HIDE_KEYS
-            ].setVisible(True)
-            actions.taction_to_qaction[
-                TiliaAction.HARMONY_TIMELINE_SHOW_KEYS
-            ].setVisible(False)
+            hide_keys_action.setVisible(True)
+            show_keys_action.setVisible(False)
         super().__init__(timeline_ui)

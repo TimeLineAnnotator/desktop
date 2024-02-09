@@ -20,10 +20,6 @@ class OptionsToolbar(QToolBar):
 
     def on_state_changed(self):
         if self.check_box.isChecked():
-            actions.taction_to_qaction[
-                TiliaAction.TIMELINES_AUTO_SCROLL_ENABLE
-            ].trigger()
+            actions.trigger(TiliaAction.TIMELINES_AUTO_SCROLL_ENABLE)
         else:
-            actions.taction_to_qaction[
-                TiliaAction.TIMELINES_AUTO_SCROLL_DISABLE
-            ].trigger()
+            actions.trigger(TiliaAction.TIMELINES_AUTO_SCROLL_DISABLE)
