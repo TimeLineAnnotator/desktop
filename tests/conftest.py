@@ -1,5 +1,6 @@
 import pytest
 
+from tilia.app import App
 from tilia.boot import setup_logic
 from tilia.exceptions import NoCallbackAttached
 from tilia.requests import stop_listening_to_all, stop_serving_all, Post, stop_listening
@@ -23,6 +24,28 @@ def qtui():
     stop_serving_all(qtui_.timeline_uis)
     stop_listening_to_all(qtui_)
     stop_serving_all(qtui_)
+
+
+class TiliaState:
+    def __init__(self, tilia: App):
+        self.player = tilia.player
+
+    def reset(self):
+        self.player.duration = 100
+        self.player.current_time = 0
+
+    def set_current_time(self, value):
+        self.player.current_time = value
+
+    def set_duration(self, value):
+        self.player.duration = value
+
+
+@pytest.fixture
+def tilia_state(tilia):
+    state = TiliaState(tilia)
+    yield state
+    state.reset()
 
 
 # noinspection PyProtectedMember

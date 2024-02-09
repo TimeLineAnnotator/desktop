@@ -78,7 +78,6 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         "quality",
         "inversion",
         "applied_to",
-        "level",
         "comments",
         "display_mode",
         "custom_text",

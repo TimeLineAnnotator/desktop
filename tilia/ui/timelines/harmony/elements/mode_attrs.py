@@ -36,7 +36,6 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         "step",
         "accidental",
         "type",
-        "level",
         "comments",
     ],
     support_by_element_value=[],
