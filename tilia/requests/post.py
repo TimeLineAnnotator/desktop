@@ -21,7 +21,6 @@ class Post(Enum):
     TIMELINE_ADD_BEAT_TIMELINE = auto()
     PLAYER_AVAILABLE = auto()
     APP_CLEAR = auto()
-    APP_CLOSE = auto()
     APP_FILE_LOAD = auto()
     APP_MEDIA_LOAD = auto()
     APP_RECORD_STATE = auto()

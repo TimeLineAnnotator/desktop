@@ -8,7 +8,6 @@ from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
 from tilia.requests import stop_serving_all, stop_listening_to_all, get, Get
 from tilia.requests.post import Post
-from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 
 
@@ -29,25 +28,31 @@ def app():
 
 
 class TestSaveFileOnClose:
-    def test_no_changes(self, app):
+    def test_no_changes(self, app, actions):
         app.file_manager.ask_save_changes_if_modified.return_value = (True, False)
 
-        with pytest.raises(SystemExit):
+        with patch('sys.exit') as exit_mock:
             actions.trigger(TiliaAction.UI_CLOSE)
 
-        actions.was_triggered(TiliaAction.UI_CLOSE)
-        # noinspection PyUnresolvedReferences
-        app.file_manager.on_save_request.assert_not_called()
+        exit_mock.assert_called()
+        actions.assert_not_triggered(TiliaAction.FILE_SAVE)
 
-    def test_user_accepts_save(self, app):
+    def test_user_accepts_save(self, app, actions):
         app.file_manager.ask_save_changes_if_modified.return_value = (True, True)
 
-        with pytest.raises(SystemExit):
-            app.on_close()
+        with patch('sys.exit') as exit_mock:
+            actions.trigger(TiliaAction.UI_CLOSE)
 
-    def test_user_cancels_dialog(self, app):
+        exit_mock.assert_called()
+        actions.assert_triggered(TiliaAction.FILE_SAVE)
+
+    def test_user_cancels_dialog(self, app, actions):
         app.file_manager.ask_save_changes_if_modified.return_value = (False, True)
-        app.on_close()  # should not raise SystemExit
+        with patch('sys.exit') as exit_mock:
+            actions.trigger(TiliaAction.UI_CLOSE)
+
+        exit_mock.assert_not_called()
+        actions.assert_not_triggered(TiliaAction.FILE_SAVE)
 
 
 class TestApp:

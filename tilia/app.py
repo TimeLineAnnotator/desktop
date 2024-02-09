@@ -79,7 +79,6 @@ class App:
         if confirm_save:
             actions.trigger(TiliaAction.FILE_SAVE)
 
-        post(Post.APP_CLOSE)
         sys.exit()
 
     def load_media(self, path: str) -> None:

@@ -1,11 +1,16 @@
+import functools
+
 import pytest
 
+from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
 from tilia.boot import setup_logic
 from tilia.exceptions import NoCallbackAttached
 from tilia.requests import stop_listening_to_all, stop_serving_all, Post, stop_listening
+from tilia.ui.actions import TiliaAction
 from tilia.ui.qtui import QtUI
 from tilia.ui.cli.ui import CLI
+
 
 pytest_plugins = [
     "tests.timelines.hierarchy.fixtures",
@@ -102,3 +107,33 @@ def cli():
     _cli = CLI()
     yield _cli
     stop_listening_to_all(_cli)
+
+
+class ActionManager:
+    def __init__(self):
+        self.action_to_trigger_count = {}
+        for action in tilia_actions_module.TiliaAction:
+            qaction = tilia_actions_module.get_qaction(action)
+            qaction.triggered.connect(functools.partial(self._increment_trigger_count, action))
+
+    def trigger(self, action: TiliaAction):
+        tilia_actions_module.trigger(action)
+        self._increment_trigger_count(action)
+
+    def _increment_trigger_count(self, action):
+        if action not in self.action_to_trigger_count:
+            self.action_to_trigger_count[action] = 1
+        else:
+            self.action_to_trigger_count[action] += 1
+
+    def assert_triggered(self, action):
+        assert action in self.action_to_trigger_count
+
+    def assert_not_triggered(self, action):
+        assert action not in self.action_to_trigger_count
+
+
+@pytest.fixture
+def actions(qtui):
+    action_manager = ActionManager()
+    yield action_manager
