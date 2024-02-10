@@ -202,7 +202,7 @@ class TimelinesListWidget(QListWidget):
         index = self.selectedIndexes()[0].row()
         next_item = self.item(index + 1)
         if next_item:
-            self.timeline_uis_to_permute = (selected.timeline_ui, next.timeline_ui)
+            self.timeline_uis_to_permute = (selected.timeline_ui, next_item.timeline_ui)
             post(Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES)
             self.timeline_uis_to_permute = None
 
