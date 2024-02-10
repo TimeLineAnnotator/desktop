@@ -28,7 +28,6 @@ from .requests.timeline import TlRequestSelector
 from .requests.element import TlElmRequestSelector
 from .scene import TimelineUIsScene
 from .validators import validate
-from tilia.clipboard import ClipboardContents
 from tilia.exceptions import TimelineUINotFound, UserCancelledDialog
 from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
@@ -39,7 +38,6 @@ from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.timeline import TimelineUI
-from tilia.ui.timelines.copy_paste import PasteError
 from tilia.ui.timelines.scene import TimelineScene
 from tilia.ui.timelines.toolbar import TimelineToolbar
 from tilia.ui.timelines.view import TimelineView
@@ -724,7 +722,7 @@ class TimelineUIs:
                     return [tl_ui]
 
         def filter_for_pasting(_) -> [TimelineUI]:
-            clipboard_data = get_clipboard()
+            clipboard_data = get(Get.CLIPBOARD_CONTENTS)
             if not clipboard_data["components"]:
                 return []
 
@@ -926,11 +924,3 @@ class TimelineUIs:
     def on_timeline_deleted(self, id: int):
         self.delete_timeline_ui(self.get_timeline_ui(id))
 
-
-def get_clipboard() -> ClipboardContents:
-    clipboard_elements = get(Get.CLIPBOARD_CONTENTS)
-
-    if not clipboard_elements:
-        raise PasteError("Can't paste: got no elements from clipboard.")
-
-    return clipboard_elements

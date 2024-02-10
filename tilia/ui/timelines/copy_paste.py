@@ -6,21 +6,6 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from tilia.ui.timelines.base.element import TimelineUIElement
 
-from tilia.exceptions import TiliaException
-
-import logging
-
-
-logger = logging.getLogger(__name__)
-
-
-class CopyError(TiliaException):
-    pass
-
-
-class PasteError(TiliaException):
-    pass
-
 
 def get_copy_data_from_elements(
     elements: list[tuple[TimelineUIElement, CopyAttributes]]
