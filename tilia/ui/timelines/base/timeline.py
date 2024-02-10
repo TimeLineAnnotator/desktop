@@ -5,7 +5,7 @@ from abc import ABC
 from typing import (
     Any,
     TYPE_CHECKING,
-    Optional,
+    TypeVar, Optional,
 )
 
 from PyQt6.QtCore import Qt, QPoint
@@ -35,13 +35,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar('T', bound='TimelineUIElement')
+
 
 class TimelineUI(ABC):
     TIMELINE_KIND = None
     TOOLBAR_CLASS = None
     COPY_PASTE_MANGER_CLASS = None
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes([], [], [], [])
-    ELEMENT_CLASS = TimelineUIElement
+    ELEMENT_CLASS: type(TimelineUIElement) = TimelineUIElement
     UPDATE_TRIGGERS = ["name", "height", "is_visible", "ordinal"]
     CONTEXT_MENU_CLASS: type(TiliaMenu) = TimelineUIContextMenu
     ACCEPTS_VERTICAL_ARROWS = False
@@ -62,8 +64,6 @@ class TimelineUI(ABC):
         self.view = view
 
         self.element_manager = element_manager
-
-        self.right_clicked_element: Optional[TimelineUIElement] = None
 
         self._setup_visibility()
         self._setup_collection_requests()
@@ -146,10 +146,10 @@ class TimelineUI(ABC):
     def update_ordinal(self):
         self.collection.update_timeline_ui_ordinal()
 
-    def get_element(self, id: int) -> TimelineUIElement:
+    def get_element(self, id: int) -> T:
         return self.element_manager.get_element(id)
 
-    def get_elements_by_attr(self, attr: str, value: Any) -> list[TimelineUIElement]:
+    def get_elements_by_attr(self, attr: str, value: Any) -> [T]:
         return [el for el in self.elements if getattr(el, attr) == value]
 
     def get_elements_by_selector(self, selector: ElementSelector):
@@ -162,7 +162,7 @@ class TimelineUI(ABC):
         return selector_to_elements[selector]
 
     def set_elements_attr(
-        self, elements: list[TimelineUIElement], attr: str, value: Any
+        self, elements: [T], attr: str, value: Any
     ):
         for elm in elements:
             self.set_component_data(elm.id, attr, value)
@@ -193,7 +193,7 @@ class TimelineUI(ABC):
 
     def update_selection_on_right_click(
         self,
-        elements: list[TimelineUIElement],
+        elements: [T],
         item: QGraphicsItem,
         modifier: ModifierEnum,
     ):
@@ -241,7 +241,7 @@ class TimelineUI(ABC):
 
         logger.debug(f"Processed click on {self}.")
 
-    def get_item_owner(self, item: QGraphicsItem) -> list[TimelineUIElement]:
+    def get_item_owner(self, item: QGraphicsItem) -> [T]:
         """Returns the element that owns the item with the given id"""
         clicked_elements = self.element_manager.get_elements_by_condition(
             lambda e: item in e.child_items()
@@ -250,7 +250,7 @@ class TimelineUI(ABC):
         return clicked_elements
 
     def select_element_if_selectable(
-        self, element: TimelineUIElement, scene_item: QGraphicsItem
+        self, element: T, scene_item: QGraphicsItem
     ) -> bool:
         if hasattr(element, "on_select") and scene_item in element.selection_triggers():
             self.select_element(element)
@@ -260,7 +260,7 @@ class TimelineUI(ABC):
             return False
 
     def on_element_left_click(
-        self, element: TimelineUIElement, item: QGraphicsItem
+        self, element: T, item: QGraphicsItem
     ) -> None:
         selected = self.select_element_if_selectable(element, item)
 
@@ -271,7 +271,7 @@ class TimelineUI(ABC):
             element.on_left_click(item)
 
     def _on_element_double_left_click(
-        self, element: TimelineUIElement, item: QGraphicsItem
+        self, element: T, item: QGraphicsItem
     ) -> None | bool:
         self.select_element_if_selectable(element, item)
         if (
@@ -307,7 +307,7 @@ class TimelineUI(ABC):
 
             post(Post.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
-    def deselect_all_elements(self, excluding: list[TimelineUIElement] | None = None):
+    def deselect_all_elements(self, excluding: Optional[T] = None):
         if excluding is None:
             excluding = []
 
@@ -343,7 +343,7 @@ class TimelineUI(ABC):
         )
 
     def on_inspector_field_edited(
-        self, element: TimelineUIElement, field_name: str, value: str, inspected_id: int
+        self, element: T, field_name: str, value: str, inspected_id: int
     ) -> None:
         if not inspected_id == element.id:
             return
@@ -371,7 +371,7 @@ class TimelineUI(ABC):
 
             post(Post.TIMELINE_COMPONENT_DELETE_DONE, component.id)
 
-    def delete_element(self, element: TimelineUIElement):
+    def delete_element(self, element: T):
         if element in self.selected_elements:
             try:
                 self.deselect_element(element)
@@ -381,11 +381,11 @@ class TimelineUI(ABC):
 
         self.element_manager.delete_element(element)
 
-    def validate_copy(self, elements: list[TimelineUIElement]) -> None:
+    def validate_copy(self, elements: [T]) -> None:
         """Can be overwritten by subclsses"""
 
     def validate_paste(
-        self, paste_data: dict, elements_to_receive_paste: list[TimelineUIElement]
+        self, paste_data: dict, elements_to_receive_paste: [T]
     ) -> None:
         """Can be overwritten by subclasses"""
 

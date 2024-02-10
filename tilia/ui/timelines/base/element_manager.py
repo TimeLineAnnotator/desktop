@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
 
 from PyQt6.QtWidgets import QGraphicsItem
 
@@ -12,19 +12,21 @@ from tilia.ui.timelines.scene import TimelineScene
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.base.timeline import TimelineUI
+    # noinspection PyUnresolvedReferences
     from tilia.ui.timelines.base.element import TimelineUIElement
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar('T', bound='TimelineUIElement')
 
-class ElementManager:
 
+class ElementManager(Generic[T]):
     def __init__(
-        self, element_class: type[TimelineUIElement] | [type[TimelineUIElement]]
+        self, element_class: T | list[T]
     ):
-        self._elements = set()
+        self._elements: Set[T] = set()
         self.id_to_element = {}
-        self.element_classes = (
+        self.element_classes: T | list[T] = (
             element_class if isinstance(element_class, list) else [element_class]
         )
 
@@ -57,11 +59,11 @@ class ElementManager:
 
         return element
 
-    def _add_to_elements_set(self, element: TimelineUIElement) -> None:
+    def _add_to_elements_set(self, element: T) -> None:
         self._elements.add(element)
         self.id_to_element[element.id] = element
 
-    def _remove_from_elements_set(self, element: TimelineUIElement) -> None:
+    def _remove_from_elements_set(self, element: T) -> None:
         try:
             self._elements.remove(element)
             del self.id_to_element[element.id]
@@ -70,25 +72,25 @@ class ElementManager:
                 f"Can't remove element '{element}' from {self}: not in self._elements."
             )
 
-    def get_element(self, id: int) -> TimelineUIElement:
+    def get_element(self, id: int) -> T:
         return self.id_to_element[id]
 
-    def get_element_by_attribute(self, attr_name: str, value: Any):
+    def get_element_by_attribute(self, attr_name: str, value: Any) -> T:
         return self._get_element_from_set_by_attribute(self._elements, attr_name, value)
 
-    def get_elements_by_attribute(self, attr_name: str, value: Any) -> list:
+    def get_elements_by_attribute(self, attr_name: str, value: Any) -> list[T]:
         return self._get_elements_from_set_by_attribute(
             self._elements, attr_name, value
         )
 
     def get_elements_by_condition(
-        self, condition: Callable[[TimelineUIElement], bool]
-    ) -> list:
+        self, condition: Callable[[T], bool]
+    ) -> list[T]:
         return [e for e in self._elements if condition(e)]
 
     def get_element_by_condition(
-        self, condition: Callable[[TimelineUIElement], bool]
-    ) -> TimelineUIElement | None:
+        self, condition: Callable[[list[T]], bool]
+    ) -> T | None:
         return next((e for e in self._elements if condition(e)), None)
 
     def get_existing_values_for_attribute(self, attr_name: str) -> set:
@@ -97,26 +99,26 @@ class ElementManager:
     @staticmethod
     def _get_element_from_set_by_attribute(
         cmp_list: set, attr_name: str, value: Any
-    ) -> Any | None:
+    ) -> T | None:
         return next((e for e in cmp_list if getattr(e, attr_name) == value), None)
 
     @staticmethod
     def _get_elements_from_set_by_attribute(
         cmp_list: set, attr_name: str, value: Any
-    ) -> list:
+    ) -> list[T]:
         return [e for e in cmp_list if getattr(e, attr_name) == value]
 
-    def select_element(self, element: TimelineUIElement) -> None:
+    def select_element(self, element: T) -> None:
         if element not in self._selected_elements:
             self._add_to_selected_elements_set(element)
             element.on_select()
 
-    def deselect_element(self, element: TimelineUIElement) -> None:
+    def deselect_element(self, element: T) -> None:
         if element in self._selected_elements:
             self._remove_from_selected_elements_set(element)
             element.on_deselect()
 
-    def _deselect_if_selected(self, element: TimelineUIElement):
+    def _deselect_if_selected(self, element: T):
         if element in self._selected_elements:
             self.deselect_element(element)
 
@@ -124,10 +126,10 @@ class ElementManager:
         for element in self._selected_elements.copy():
             self.deselect_element(element)
 
-    def _add_to_selected_elements_set(self, element: TimelineUIElement) -> None:
+    def _add_to_selected_elements_set(self, element: T) -> None:
         self._selected_elements.append(element)
 
-    def _remove_from_selected_elements_set(self, element: TimelineUIElement) -> None:
+    def _remove_from_selected_elements_set(self, element: T) -> None:
         try:
             self._selected_elements.remove(element)
         except ValueError:
@@ -136,16 +138,16 @@ class ElementManager:
                 " in self._selected_elements."
             )
 
-    def get_selected_elements(self) -> list[TimelineUIElement]:
+    def get_selected_elements(self) -> list[T]:
         return self._selected_elements
 
-    def delete_element(self, element: TimelineUIElement):
+    def delete_element(self, element: T):
         element.delete()
         self._remove_from_elements_set(element)
 
     @staticmethod
     def get_child_items_from_elements(
-        elements: list[TimelineUIElement],
+        elements: list[T],
     ) -> list[int]:
         drawings_ids = []
         for element in elements:
