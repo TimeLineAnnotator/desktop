@@ -15,8 +15,8 @@ class TestMediaLoader:
         # by staying referenced in requests.post
 
     def test_get_media_type_from_path(self):
-        assert get_media_type_from_path(Path("test.ogg")) == ("ogg", "audio")
-        assert get_media_type_from_path(Path("test.mp4")) == ("mp4", "video")
+        assert get_media_type_from_path(Path("../resources/example.ogg")) == ("ogg", "audio")
+        assert get_media_type_from_path(Path("../resources/example.mp4")) == ("mp4", "video")
         assert get_media_type_from_path(Path("test.xyz")) == ("xyz", "unsupported")
 
     def test_load_audio(self):

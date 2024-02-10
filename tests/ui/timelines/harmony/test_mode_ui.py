@@ -23,7 +23,7 @@ class TestCopyPaste:
         click_mode_ui(mui)
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_timeline_ui(harmony_tlui, 10)
-        tilia_state.set_current_time(50)
+        tilia_state.current_time = 50
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
         assert len(harmony_tlui) == 2
         assert harmony_tlui[1].get_data("time") == 50
@@ -37,7 +37,7 @@ class TestCopyPaste:
         click_mode_ui(mui3, modifier="shift")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_timeline_ui(harmony_tlui, 10)
-        tilia_state.set_current_time(50)
+        tilia_state.current_time = 50
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
         assert len(harmony_tlui) == 6
         assert harmony_tlui[3].get_data("time") == 50

@@ -22,6 +22,10 @@ class UndoManager:
     def __str__(self):
         return get_tilia_class_string(self)
 
+    @property
+    def is_cleared(self):
+        return len(self.stack) == 1
+
     def set_is_recording(self, value: bool):
         if not isinstance(value, bool):
             raise ValueError("UndoManager.is_recording must be a boolean")

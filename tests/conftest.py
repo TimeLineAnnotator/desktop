@@ -2,11 +2,12 @@ import functools
 
 import pytest
 
+from tilia.media.player.base import MediaTimeChangeReason
 from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
 from tilia.boot import setup_logic
 from tilia.exceptions import NoCallbackAttached
-from tilia.requests import stop_listening_to_all, stop_serving_all, Post, stop_listening
+from tilia.requests import stop_listening_to_all, stop_serving_all, Post, stop_listening, post, Get, get
 from tilia.ui.actions import TiliaAction
 from tilia.ui.qtui import QtUI
 from tilia.ui.cli.ui import CLI
@@ -33,17 +34,50 @@ def qtui():
 
 class TiliaState:
     def __init__(self, tilia: App):
+        self.app = tilia
         self.player = tilia.player
+        self.undo_manager = tilia.undo_manager
 
     def reset(self):
         self.player.duration = 100
         self.player.current_time = 0
+        self.player.media_path = ''
+        self._reset_undo_manager()
 
-    def set_current_time(self, value):
+    def _reset_undo_manager(self):
+        self.app.reset_undo_manager()
+        self.undo_manager.record(self.app.get_app_state(), "load file")
+
+    @property
+    def current_time(self):
+        return self.player.current_time
+    
+    @current_time.setter
+    def current_time(self, value):
         self.player.current_time = value
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, value, reason=MediaTimeChangeReason.PLAYBACK)
 
-    def set_duration(self, value):
+    @property
+    def duration(self):
+        return get(Get.MEDIA_DURATION)
+    
+    @duration.setter
+    def duration(self, value):
         self.player.duration = value
+        post(Post.PLAYER_DURATION_CHANGED, value)
+    
+    @property
+    def media_path(self):
+        return get(Get.MEDIA_PATH)
+    
+    @media_path.setter
+    def media_path(self, value):
+        self.player.media_path = value
+        post(Post.PLAYER_URL_CHANGED, value)
+
+    @property
+    def is_undo_manager_cleared(self):
+        return self.undo_manager.is_cleared
 
 
 @pytest.fixture
