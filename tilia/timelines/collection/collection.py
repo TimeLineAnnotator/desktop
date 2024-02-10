@@ -135,11 +135,11 @@ class Timelines:
         **kwargs,
     ) -> Timeline | None:
 
-        # has to be stored before timeline is created
-        is_first_of_kind = kind not in self.timeline_kinds
-
         if isinstance(kind, str):
             kind = get_timeline_kind_from_string(kind)
+
+        # has to be stored before timeline is created
+        is_first_of_kind = kind not in self.timeline_kinds
 
         tl = {
             TlKind.HIERARCHY_TIMELINE: _create_hierarchy_timeline,
