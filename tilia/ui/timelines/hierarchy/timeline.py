@@ -169,7 +169,7 @@ class HierarchyTimelineUI(TimelineUI):
             update_component_genealogy(element.tl_component, children_of_element)
 
     def paste_with_children_into_elements(
-        self, elements: [HierarchyUI], data: list[dict]
+        self, elements: list[HierarchyUI], data: list[dict]
     ):
         def get_descendants(parent: HierarchyUI):
             is_in_branch = (

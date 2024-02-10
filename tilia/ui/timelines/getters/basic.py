@@ -20,7 +20,7 @@ def last_selected(*args, timelines=None, **kwargs):
 GetterCall = tuple[Callable, tuple[Any, ...], dict[str, Any]]
 
 
-def compose(getters: [GetterCall]):
+def compose(getters: list[GetterCall]):
     result = []
     for func, args, kwargs in reversed(getters):
         result = func(*args, timelines=result, **kwargs)

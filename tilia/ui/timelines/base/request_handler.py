@@ -120,7 +120,7 @@ class ElementRequestHandler(RequestHandler):
     DO_NOT_RECORD = [Post.TIMELINE_ELEMENT_COPY]
 
     @staticmethod
-    def elements_to_components(elements: [TimelineUIElement]):
+    def elements_to_components(elements: list[TimelineUIElement]):
         return [e.tl_component for e in elements]
 
     def on_request(self, request, selector: ElementSelector, *args, **kwargs):

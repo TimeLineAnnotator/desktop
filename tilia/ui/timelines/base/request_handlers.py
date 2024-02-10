@@ -68,7 +68,7 @@ class ElementRequestHandler(RequestHandler):
         return get(Get.TIMELINE, self.timeline_ui.id)
 
     @staticmethod
-    def elements_to_components(elements: [TimelineUIElement]):
+    def elements_to_components(elements: list[TimelineUIElement]):
         return [e.tl_component for e in elements]
 
     def on_paste(self, *_, **__):

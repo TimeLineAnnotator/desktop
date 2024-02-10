@@ -405,7 +405,7 @@ class TimelineUIs:
             self.kind_to_toolbar[tl_kind] = toolbar
 
     @staticmethod
-    def get_toolbar_class(kind: TlKind) -> type(TimelineToolbar):
+    def get_toolbar_class(kind: TlKind) -> type[TimelineToolbar]:
         return {
             TlKind.BEAT_TIMELINE: BeatTimelineToolbar,
             TlKind.MARKER_TIMELINE: MarkerTimelineToolbar,
@@ -631,7 +631,7 @@ class TimelineUIs:
     def pre_process_timeline_request(
         self,
         request: Post,
-        kinds: [TlKind],
+        kinds: list[TlKind],
         selector: Optional[TimelineSelector],
     ):
         timeline_uis = self.get_timelines_uis_for_request(kinds, selector)
@@ -708,20 +708,20 @@ class TimelineUIs:
             post(Post.APP_RECORD_STATE, f"timeline request: {request.name}")
 
     def get_timelines_uis_for_request(
-        self, kinds: [TlKind], selector: TimelineSelector
-    ) -> [TimelineUI]:
-        def get_by_kinds(_kinds: [TlKind]) -> [TimelineUI]:
+        self, kinds: list[TlKind], selector: TimelineSelector
+    ) -> list[TimelineUI]:
+        def get_by_kinds(_kinds: list[TlKind]) -> list[TimelineUI]:
             return [tlui for tlui in self if tlui.TIMELINE_KIND in _kinds]
 
-        def filter_if_has_selected_elements(timeline_uis: [TimelineUI]) -> [TimelineUI]:
+        def filter_if_has_selected_elements(timeline_uis: list[TimelineUI]) -> list[TimelineUI]:
             return [tlui for tlui in timeline_uis if tlui.has_selected_elements]
 
-        def filter_if_first_on_select_order(timeline_uis: [TimelineUI]) -> [TimelineUI]:
+        def filter_if_first_on_select_order(timeline_uis: list[TimelineUI]) -> list[TimelineUI]:
             for tl_ui in self._select_order:
                 if tl_ui in timeline_uis:
                     return [tl_ui]
 
-        def filter_for_pasting(_) -> [TimelineUI]:
+        def filter_for_pasting(_) -> list[TimelineUI]:
             clipboard_data = get(Get.CLIPBOARD_CONTENTS)
             if not clipboard_data["components"]:
                 return []
@@ -854,7 +854,7 @@ class TimelineUIs:
     def get_timeline_ui_by_attr(self, attr: str, value: Any) -> TimelineUI | None:
         return next((tlui for tlui in self if getattr(tlui, attr) == value), None)
 
-    def get_timeline_uis_by_attr(self, attr: str, value: Any) -> [TimelineUI]:
+    def get_timeline_uis_by_attr(self, attr: str, value: Any) -> list[TimelineUI]:
         return [tlui for tlui in self if getattr(tlui, attr) == value]
 
     def _get_choose_timeline_dialog(

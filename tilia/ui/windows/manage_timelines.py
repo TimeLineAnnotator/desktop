@@ -158,7 +158,7 @@ class TimelinesListWidget(QListWidget):
     def currentItem(self) -> typing.Optional[TimelineListItem]:
         return super().currentItem()
 
-    def selectedItems(self) -> [TimelineListItem]:
+    def selectedItems(self) -> list[TimelineListItem]:
         return super().selectedItems()
 
     def _setup_items(self):

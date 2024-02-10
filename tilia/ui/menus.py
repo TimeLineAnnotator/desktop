@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Self, TypeAlias
 
 from PyQt6.QtWidgets import QMenu
 
@@ -13,9 +13,12 @@ class MenuItemKind:
     SUBMENU = "menu"
 
 
+TiliaMenuItem: TypeAlias = None | type(Self) | TiliaAction
+
+
 class TiliaMenu(QMenu):
     title = ""
-    items: [TiliaAction, Literal["separator"]] = []
+    items: list[TiliaMenuItem] = []
 
     def __init__(self):
         super().__init__()
@@ -24,7 +27,7 @@ class TiliaMenu(QMenu):
         for kind, item in self.items:
             self.add_item(kind, item)
 
-    def add_item(self, kind: MenuItemKind, item: None | type(TiliaMenu) | TiliaAction):
+    def add_item(self, kind: MenuItemKind, item: TiliaMenuItem):
         if kind == MenuItemKind.SEPARATOR:
             self.add_separator()
         elif kind == MenuItemKind.SUBMENU:
@@ -35,7 +38,7 @@ class TiliaMenu(QMenu):
     def add_separator(self):
         self.addSeparator()
 
-    def add_submenu(self, cls: type(TiliaMenu)):
+    def add_submenu(self, cls: type[TiliaMenu]):
         #  submenus can't be instanced as a class property,
         #  since QApplication is not yet instanced at
         #  declaration-time, so instancing is delayed until now
@@ -46,7 +49,7 @@ class TiliaMenu(QMenu):
     def add_action(self, t_action: TiliaAction):
         self.addAction(get_qaction(t_action))
 
-    def get_submenu(self, cls: type(TiliaMenu)):
+    def get_submenu(self, cls: type[TiliaMenu]):
         return self.class_to_submenu[cls]
 
 

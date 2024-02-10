@@ -140,7 +140,7 @@ class Timeline(ABC, Generic[TC]):
     def get_component_by_attr(self, attr: str, value: Any) -> TC:
         return next((c for c in self if c.get_data(attr) == value), None)
 
-    def get_components_by_attr(self, attr: str, value: Any) -> [TC]:
+    def get_components_by_attr(self, attr: str, value: Any) -> list[TC]:
         return [c for c in self if c.get_data(attr) == value]
 
     def set_component_data(self, id: int, attr: str, value: Any):
@@ -149,13 +149,13 @@ class Timeline(ABC, Generic[TC]):
     def get_component_data(self, id: int, attr: str):
         return self.component_manager.get_component_data(id, attr)
 
-    def delete_components(self, components: [TC]) -> None:
+    def delete_components(self, components: list[TC]) -> None:
         self._validate_delete_components(components)
 
         for component in components:
             self.component_manager.delete_component(component)
 
-    def _validate_delete_components(self, components: [TC]) -> None:
+    def _validate_delete_components(self, components: list[TC]) -> None:
         pass
 
     def clear(self):
@@ -262,7 +262,7 @@ class TimelineComponentManager(Generic[T, TC]):
         cmp_set = self._get_component_set_by_kind(kind)
         return [c for c in cmp_set if condition(c)]
 
-    def get_components(self) -> [TC]:
+    def get_components(self) -> list[TC]:
         return list(self._components)
 
     def get_component(self, id: int) -> TC:
@@ -281,7 +281,7 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def _get_component_class_by_kind(
             self, kind: ComponentKind
-    ) -> [TC]:
+    ) -> list[TC]:
         self._validate_component_kind(kind)
         return get_component_class_by_kind(kind)
 
@@ -335,5 +335,5 @@ class TimelineComponentManager(Generic[T, TC]):
     def deserialize_components(self, serialized_components: dict[int, dict[str, Any]]):
         serialize.deserialize_components(self.timeline, serialized_components)
 
-    def post_component_event(self, event: Post, component_id: id, *args, **kwargs):
+    def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(event, self.timeline.KIND, self.timeline.id, component_id, *args, **kwargs)

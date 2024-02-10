@@ -187,7 +187,7 @@ def _get_args_for_mode_add(_):
     return (accept,), dialog.result()
 
 
-def get_args_for_request(request: Post, timeline_uis: [TimelineUI], *_, **__):
+def get_args_for_request(request: Post, timeline_uis: list[TimelineUI], *_, **__):
     try:
         return getattr(sys.modules[__name__], "_get_args_for_" + request.name.lower())(
             timeline_uis

@@ -188,7 +188,7 @@ posts_to_listeners: dict[Post, Any] = {post: {} for post in Post}
 listeners_to_posts: dict[Any, list[Post]] = {}
 
 
-def _get_posts_excluded_from_log() -> [Post]:
+def _get_posts_excluded_from_log() -> list[Post]:
     result = []
     for name in os.environ.get("EXCLUDE_FROM_LOG", "").split(";"):
         result.append(Post[name])

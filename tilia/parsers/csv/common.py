@@ -3,7 +3,7 @@ from typing import Any
 from tilia.parsers.csv.csv import display_column_not_found_error, AttributeData
 
 
-def _get_attrs_indices(params: [str], headers: [str]) -> [int]:
+def _get_attrs_indices(params: list[str], headers: list[str]) -> [int]:
     result = []
 
     for p in params:
@@ -15,7 +15,7 @@ def _get_attrs_indices(params: [str], headers: [str]) -> [int]:
     return result
 
 
-def _validate_required_attrs(params: [str], indices: [int | None]):
+def _validate_required_attrs(params: list[str], indices: [int | None]):
     for i, param in enumerate(params):
         if indices[i] is None:
             display_column_not_found_error(param)
@@ -24,7 +24,7 @@ def _validate_required_attrs(params: [str], indices: [int | None]):
 
 
 def _parse_attr_data(
-    row_data: dict[str:Any], attr_data: AttributeData, required_attrs: [str]
+    row_data: dict[str:Any], attr_data: AttributeData, required_attrs: list[str]
 ):
     attr_to_value = {}
     errors = []
@@ -41,8 +41,8 @@ def _parse_attr_data(
 
 
 def _get_attr_data(
-    attrs_with_parsers: [tuple[str:int]], indices: [int]
-) -> [AttributeData]:
+    attrs_with_parsers: list[tuple[str, int]], indices: list[int]
+) -> list[AttributeData]:
     return [
         (attr, parser, indices[i])
         for i, (attr, parser) in enumerate(attrs_with_parsers)

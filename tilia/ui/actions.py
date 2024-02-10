@@ -122,7 +122,7 @@ def set_request(
     action.triggered.connect(callback)
 
 
-def _get_request_callback(request: Post, args: [Any], kwargs: dict[str, Any]):
+def _get_request_callback(request: Post, args: tuple[Any], kwargs: dict[str, Any]):
     if args or kwargs:
 
         def callback():
