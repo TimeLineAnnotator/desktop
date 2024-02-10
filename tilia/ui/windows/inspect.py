@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import logging
 from enum import Enum, auto
 
 from typing import Any, Callable
@@ -26,9 +25,19 @@ from tilia.ui.windows.kinds import WindowKind
 PADX = 5
 PADY = 5
 
-logger = logging.getLogger(__name__)
-
 HIDE_FIELD = "__INSPECT_HIDEFIELD"
+
+
+class InspectRowKind(Enum):
+    SPIN_BOX = auto()
+    COMBO_BOX = auto()
+    SINGLE_LINE_EDIT = auto()
+    MULTI_LINE_EDIT = auto()
+    LABEL = auto()
+    SEPARATOR = auto()
+
+
+RowInfo = tuple[str, InspectRowKind, Callable[[], Any | None]]
 
 
 class Inspect(QDockWidget):
@@ -87,7 +96,7 @@ class Inspect(QDockWidget):
     def on_element_selected(
         self,
         element_class: type[TimelineComponent],
-        inspector_fields: tuple[str, InspectRowKind],
+        inspector_fields: RowInfo,
         inspector_values: dict[str, str],
         element_id: int,
     ):
@@ -109,7 +118,7 @@ class Inspect(QDockWidget):
     def update_rows(
         self,
         element_class: type[TimelineComponent],
-        inspector_fields: tuple[str, InspectRowKind, Callable[[], Any | None]],
+        inspector_fields: RowInfo,
     ):
         if element_class != self.currently_inspected_class:
             self.clear_layout()
@@ -276,12 +285,3 @@ class Inspect(QDockWidget):
             self.field_name_to_widgets[name] = (left_widget, right_widget)
 
         self.widget.setFocusProxy(self.layout.itemAt(1).widget())
-
-
-class InspectRowKind(Enum):
-    SPIN_BOX = auto()
-    COMBO_BOX = auto()
-    SINGLE_LINE_EDIT = auto()
-    MULTI_LINE_EDIT = auto()
-    LABEL = auto()
-    SEPARATOR = auto()
