@@ -248,11 +248,11 @@ class TimelineUIs:
         self.get_timeline_ui(tl_id).on_timeline_component_deleted(component_id)
 
     def on_timeline_component_set_data_done(
-        self, timeline_id: int, component_id: int, attr: str, value: Any
+        self, timeline_id: int, component_id: int, attr: str, _: Any
     ):
         self.get_timeline_ui_element(timeline_id, component_id).update(attr)
 
-    def on_timeline_set_data_done(self, id: int, attr: str, value):
+    def on_timeline_set_data_done(self, id: int, attr: str, _: Any):
         self.get_timeline_ui(id).update(attr)
         if attr in self.UPDATE_TRIGGERS:
             getattr(self, "update_" + attr)()
@@ -900,7 +900,7 @@ class TimelineUIs:
     def on_component_event(
         self,
         event: Post,
-        tl_kind: TlKind,
+        _: TlKind,
         tl_id: int,
         component_id: int,
         *args,
