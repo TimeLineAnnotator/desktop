@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import itertools
+from typing import Any
 
 from tilia import settings
 from .common import update_component_genealogy
@@ -40,7 +41,7 @@ class HierarchyTimeline(Timeline):
     def _validate_delete_components(self, component: Hierarchy) -> None:
         pass
 
-    def create_children(self, components: [Hierarchy]) -> None:
+    def create_children(self, components: list[Hierarchy]) -> None:
         for component in components:
             success, reason = self.component_manager.create_child(component)
             if not success:
@@ -137,7 +138,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         else:
             return True, ""
 
-    def deserialize_components(self, components: dict[int, dict[str]]):
+    def deserialize_components(self, components: dict[int, dict[str, Any]]):
         self.clear()  # remove starting hierarchy
 
         super().deserialize_components(components)
@@ -287,7 +288,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         def _validate_no_overlap_in_grouping_level(
             start: float, end: float, grouping_level: int
         ):
-            """Raises error if there is a unit in grouping level that spans
+            """Raises False if there is a unit in grouping level that spans
             or exceeds the interval between 'start_time' and 'end_time'."""
             if any(
                 [
@@ -310,6 +311,20 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             else:
                 return None
 
+        def is_between_grouped_units(u):
+            def has_same_parent():
+                return u.parent == _get_previous_common_parent(hierarchies)
+
+            def is_inside_grouping():
+                return u.start > earliest_unit.start and u.end < latest_unit.end
+
+            def has_same_level_or_lower():
+                return u.level <= max_group_level
+
+            return (
+                has_same_parent() and is_inside_grouping() and has_same_level_or_lower()
+            )
+
         success, reason = _validate_at_least_two_selected(hierarchies)
         if not success:
             return success, reason
@@ -325,20 +340,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         )
         if not success:
             return success, reason
-
-        def is_between_grouped_units(u):
-            def has_same_parent():
-                return u.parent == _get_previous_common_parent(hierarchies)
-
-            def is_inside_grouping():
-                return u.start > earliest_unit.start and u.end < latest_unit.end
-
-            def has_same_level_or_lower():
-                return u.level <= max_group_level
-
-            return (
-                has_same_parent() and is_inside_grouping() and has_same_level_or_lower()
-            )
 
         hierarchies += self.get_components_by_condition(
             is_between_grouped_units, kind=ComponentKind.HIERARCHY
@@ -380,8 +381,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         return True, ""
 
-        # TODO handle selects and deselects
-
     def get_unit_to_split(self, time: float) -> Hierarchy | None:
         """
         Returns lowest level unit that begins
@@ -393,6 +392,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         units_at_time_sorted_by_time = sorted(units_at_time, key=lambda u: u.level)
         if units_at_time_sorted_by_time:
             return units_at_time_sorted_by_time[0]
+        else:
+            return None
 
     def split(self, unit_to_split: Hierarchy, split_time: float):
         """Split a unit into two new ones"""
@@ -487,25 +488,25 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         return True, ""
 
-    def merge(self, hierarchies: [Hierarchy]):
-        def _validate_at_least_two_units(units: [Hierarchy]):
+    def merge(self, hierarchies: list[Hierarchy]):
+        def _validate_at_least_two_units(units: list[Hierarchy]):
             if len(units) <= 1:
                 return False, "At least two hierarchies are needed."
             return True, ""
 
-        def _validate_at_same_level(hs: [Hierarchy]):
+        def _validate_at_same_level(hs: list[Hierarchy]):
             if any(h.level != hs[0].level for h in hs):
                 return False, "Hierarchies need to be on the same level."
             return True, ""
 
-        def _validate_common_parent(hs: [Hierarchy]):
+        def _validate_common_parent(hs: list[Hierarchy]):
             if any(h.parent != hs[0].parent for h in hs):
                 return False, "Hierarchies need to have a common parent."
             return True, ""
 
         def _get_units_to_merge_from_unit_list(
-            hs: [Hierarchy],
-        ) -> [Hierarchy]:
+            hs: list[Hierarchy],
+        ) -> list[Hierarchy]:
             """
             Returns units that:
             (1) start after (inclusive) first given unit's start;
@@ -565,7 +566,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             )
 
         # get merged_unit children
-        merger_children = []
+        merger_children: list[Hierarchy] = []
         for unit in hierarchies:
             merger_children += unit.children
 

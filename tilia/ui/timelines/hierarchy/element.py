@@ -459,7 +459,7 @@ class HierarchyUI(TimelineUIElement):
 
         return triggers
 
-    def on_left_click(self, item: HierarchyBodyHandle | HierarchyFrameHandle) -> None:
+    def on_left_click(self, item: HierarchyBodyHandle | HierarchyFrameHandle.VLine) -> None:
         start_drag(self, item)
 
     def double_left_click_triggers(self):
@@ -490,7 +490,7 @@ class HierarchyUI(TimelineUIElement):
         self.post_end_handle.setVisible(False)
         post(Post.HIERARCHY_DESELECTED)
 
-    def selected_ascendants(self) -> [HierarchyUI]:
+    def selected_ascendants(self) -> list[HierarchyUI]:
         """Returns hierarchies in the same branch that
         are both selected and higher-leveled than self"""
         uis_at_start = self.timeline_ui.get_elements_by_attr("start_x", self.start_x)
@@ -502,7 +502,7 @@ class HierarchyUI(TimelineUIElement):
             if ui in selected_uis and ui.get_data("level") > self.get_data("level")
         ]
 
-    def selected_descendants(self) -> [HierarchyUI]:
+    def selected_descendants(self) -> list[HierarchyUI]:
         """Returns hierarchies in the same branch that are both
         selected and lower-leveled than self"""
         uis_at_start = self.timeline_ui.get_elements_by_attr("start_x", self.start_x)

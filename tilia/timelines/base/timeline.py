@@ -22,6 +22,7 @@ from .validators import (
 from ...requests import get, Get, post, Post, stop_listening_to_all
 
 if TYPE_CHECKING:
+    from tilia.timelines.timeline_kinds import TimelineKind
     # noinspection PyUnresolvedReferences
     from .component import TimelineComponent
 
@@ -34,7 +35,7 @@ T = TypeVar('T', bound='Timeline')
 class Timeline(ABC, Generic[TC]):
     SERIALIZABLE_BY_VALUE = ["name", "height", "is_visible", "ordinal"]
     DEFAULT_HEIGHT = 1
-    KIND = None
+    KIND: TimelineKind | None = None
 
     validators = {
         "name": validate_string,
@@ -331,7 +332,7 @@ class TimelineComponentManager(Generic[T, TC]):
     def serialize_components(self):
         return serialize.serialize_components(self._components)
 
-    def deserialize_components(self, serialized_components: dict[int, dict[str]]):
+    def deserialize_components(self, serialized_components: dict[int, dict[str, Any]]):
         serialize.deserialize_components(self.timeline, serialized_components)
 
     def post_component_event(self, event: Post, component_id: id, *args, **kwargs):
