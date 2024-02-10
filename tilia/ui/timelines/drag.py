@@ -6,7 +6,7 @@ from tilia.requests import listen, Post, stop_listening
 logger = logging.getLogger(__name__)
 
 
-def noop(*args, **kwargs):
+def noop(*_, **__):
     pass
 
 

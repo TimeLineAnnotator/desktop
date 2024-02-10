@@ -118,7 +118,7 @@ class SliderTimelineUI(TimelineUI):
         self.dragging = False
         post(Post.SLIDER_DRAG_END)
 
-    def on_audio_time_change(self, time: float, reason: MediaTimeChangeReason) -> None:
+    def on_audio_time_change(self, time: float, _: MediaTimeChangeReason) -> None:
         if not self.dragging:
             self.x = coords.get_x_by_time(time)
             self.set_trough_position()

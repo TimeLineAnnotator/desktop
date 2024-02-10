@@ -7,12 +7,12 @@ def all_timelines():
     return get(Get.TIMELINE_UIS)
 
 
-def by_kinds(kinds, *args, timelines=None, **kwargs):
+def by_kinds(kinds, *_, timelines=None, **__):
     timelines = timelines or all_timelines()
     return [tlui for tlui in timelines if tlui.timeline.KIND in kinds]
 
 
-def last_selected(*args, timelines=None, **kwargs):
+def last_selected(*_, timelines=None, **__):
     timelines = timelines or all_timelines()
     return get(Get.TIMELINE_UI_LAST_SELECTED, timelines)
 

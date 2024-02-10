@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Self, TypeAlias
+from typing import Self, TypeAlias
 
 from PyQt6.QtWidgets import QMenu
 
