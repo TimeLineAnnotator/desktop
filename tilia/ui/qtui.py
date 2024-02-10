@@ -5,7 +5,7 @@ import sys
 from functools import partial
 import logging
 
-from typing import Optional
+from typing import Optional, Callable
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import QKeyCombination, Qt
@@ -56,6 +56,8 @@ class TiliaMainWindow(QMainWindow):
         self.setStatusTip("Main window")
 
     def keyPressEvent(self, event: Optional[QtGui.QKeyEvent]) -> None:
+        if event is None:
+            return
         # these shortcuts have to be 'captured' manually. I don't know why.
         key_comb_to_taction = [
             (
@@ -78,7 +80,7 @@ class TiliaMainWindow(QMainWindow):
 
         for comb, taction in key_comb_to_taction:
             if event.keyCombination() == comb:
-                actions.actions.get_qaction(taction).trigger()
+                actions.get_qaction(taction).trigger()
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
@@ -409,7 +411,7 @@ class QtUI:
         if not success:
             return
 
-        tlkind_to_funcs = {
+        tlkind_to_funcs: dict[TlKind, dict[str, Callable]] = {
             TlKind.MARKER_TIMELINE: {
                 "time": markers_by_time_from_csv,
                 "measure": markers_by_measure_from_csv,
