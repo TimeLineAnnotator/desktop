@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Self, TypeAlias
+from typing import TypeAlias
 
 from PyQt6.QtWidgets import QMenu
 
@@ -13,12 +13,12 @@ class MenuItemKind:
     SUBMENU = "menu"
 
 
-TiliaMenuItem: TypeAlias = None | type(Self) | TiliaAction
+TiliaMenuItem: TypeAlias = None | TiliaAction | type['TiliaMenu']
 
 
 class TiliaMenu(QMenu):
     title = ""
-    items: list[TiliaMenuItem] = []
+    items: list[tuple[MenuItemKind, TiliaMenuItem]] = []
 
     def __init__(self):
         super().__init__()
