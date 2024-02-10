@@ -19,7 +19,7 @@ class TimelineComponent(ABC):
         "id": validate_read_only,
     }
 
-    def __init__(self, timeline: Timeline, id: int):
+    def __init__(self, timeline: Timeline, id: int, *args, **kwargs):
         self.timeline = timeline
         self.id = id
 

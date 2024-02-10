@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 import logging
 from abc import ABC
-from typing import Optional, Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
 
 from tilia.timelines import serialize
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
@@ -22,12 +22,16 @@ from .validators import (
 from ...requests import get, Get, post, Post, stop_listening_to_all
 
 if TYPE_CHECKING:
+    # noinspection PyUnresolvedReferences
     from .component import TimelineComponent
 
 logger = logging.getLogger(__name__)
 
+TC = TypeVar('TC', bound='TimelineComponent')
+T = TypeVar('T', bound='Timeline')
 
-class Timeline(ABC):
+
+class Timeline(ABC, Generic[TC]):
     SERIALIZABLE_BY_VALUE = ["name", "height", "is_visible", "ordinal"]
     DEFAULT_HEIGHT = 1
     KIND = None
@@ -41,12 +45,12 @@ class Timeline(ABC):
     }
 
     def __init__(
-        self,
-        component_manager: Optional[TimelineComponentManager] = None,
-        name: str = "",
-        height: int = 0,
-        is_visible: bool = True,
-        ordinal: int = None,
+            self,
+            component_manager: TimelineComponentManager | None = None,
+            name: str = "",
+            height: int = 0,
+            is_visible: bool = True,
+            ordinal: int = None,
     ):
         self.id = get(Get.ID)
 
@@ -114,8 +118,8 @@ class Timeline(ABC):
             return getattr(self, attr)
 
     def create_timeline_component(
-        self, kind: ComponentKind, *args, **kwargs
-    ) -> TimelineComponent | None:
+            self, kind: ComponentKind, *args, **kwargs
+    ) -> TC | None:
         component_id = get(Get.ID)
         success, component = self.component_manager.create_component(
             kind, self, component_id, *args, **kwargs
@@ -129,13 +133,13 @@ class Timeline(ABC):
         else:
             return None
 
-    def get_component(self, id: int) -> TimelineComponent:
+    def get_component(self, id: int) -> TC:
         return self.component_manager.get_component(id)
 
-    def get_component_by_attr(self, attr: str, value: Any) -> TimelineComponent:
+    def get_component_by_attr(self, attr: str, value: Any) -> TC:
         return next((c for c in self if c.get_data(attr) == value), None)
 
-    def get_components_by_attr(self, attr: str, value: Any) -> [TimelineComponent]:
+    def get_components_by_attr(self, attr: str, value: Any) -> [TC]:
         return [c for c in self if c.get_data(attr) == value]
 
     def set_component_data(self, id: int, attr: str, value: Any):
@@ -144,13 +148,13 @@ class Timeline(ABC):
     def get_component_data(self, id: int, attr: str):
         return self.component_manager.get_component_data(id, attr)
 
-    def delete_components(self, components: list[TimelineComponent]) -> None:
+    def delete_components(self, components: [TC]) -> None:
         self._validate_delete_components(components)
 
         for component in components:
             self.component_manager.delete_component(component)
 
-    def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
+    def _validate_delete_components(self, components: [TC]) -> None:
         pass
 
     def clear(self):
@@ -183,16 +187,16 @@ class Timeline(ABC):
         self.set_data("name", state["name"])
 
 
-class TimelineComponentManager:
+class TimelineComponentManager(Generic[T, TC]):
     def __init__(
-        self,
-        component_kinds: list[ComponentKind],
+            self,
+            component_kinds: list[ComponentKind],
     ):
-        self._components = set()
+        self._components: Set[TC] = set()
         self.component_kinds = component_kinds
-        self.id_to_component = {}
+        self.id_to_component: dict[int, TC] = {}
 
-        self.timeline: Optional[Timeline] = None
+        self.timeline: T | None = None
 
     def __iter__(self):
         return iter(self._components)
@@ -240,27 +244,27 @@ class TimelineComponentManager:
         return self.get_component(id).get_data(attr)
 
     def get_component_by_attribute(
-        self, attr_name: str, value: Any, kind: ComponentKind
+            self, attr_name: str, value: Any, kind: ComponentKind
     ):
         cmp_set = self._get_component_set_by_kind(kind)
         return self._get_component_from_set_by_attribute(cmp_set, attr_name, value)
 
     def get_components_by_attribute(
-        self, attr_name: str, value: Any, kind: ComponentKind
+            self, attr_name: str, value: Any, kind: ComponentKind
     ) -> list:
         cmp_set = self._get_component_set_by_kind(kind)
         return self._get_components_from_set_by_attribute(cmp_set, attr_name, value)
 
     def get_components_by_condition(
-        self, condition: Callable[[TimelineComponent], bool], kind: ComponentKind
+            self, condition: Callable[[TC], bool], kind: ComponentKind
     ) -> list:
         cmp_set = self._get_component_set_by_kind(kind)
         return [c for c in cmp_set if condition(c)]
 
-    def get_components(self) -> list[TimelineComponent]:
+    def get_components(self) -> [TC]:
         return list(self._components)
 
-    def get_component(self, id: int) -> TimelineComponent:
+    def get_component(self, id: int) -> TC:
         return self.id_to_component[id]
 
     def get_existing_values_for_attr(self, attr_name: str, kind: ComponentKind) -> set:
@@ -275,8 +279,8 @@ class TimelineComponentManager:
         return {cmp for cmp in self._components if isinstance(cmp, cmp_class)}
 
     def _get_component_class_by_kind(
-        self, kind: ComponentKind
-    ) -> type[TimelineComponent]:
+            self, kind: ComponentKind
+    ) -> [TC]:
         self._validate_component_kind(kind)
         return get_component_class_by_kind(kind)
 
@@ -286,21 +290,21 @@ class TimelineComponentManager:
 
     @staticmethod
     def _get_component_from_set_by_attribute(
-        cmp_list: set, attr_name: str, value: Any
+            cmp_list: set, attr_name: str, value: Any
     ) -> Any | None:
         return next((c for c in cmp_list if getattr(c, attr_name) == value), None)
 
     @staticmethod
     def _get_components_from_set_by_attribute(
-        cmp_list: set, attr_name: str, value: Any
+            cmp_list: set, attr_name: str, value: Any
     ) -> list:
         return [c for c in cmp_list if getattr(c, attr_name) == value]
 
-    def _add_to_components(self, component: TimelineComponent) -> None:
+    def _add_to_components(self, component: TC) -> None:
         self._components.add(component)
         self.id_to_component[component.id] = component
 
-    def _remove_from_components_set(self, component: TimelineComponent) -> None:
+    def _remove_from_components_set(self, component: TC) -> None:
         try:
             self._components.remove(component)
             self.id_to_component.pop(component.id)
@@ -310,7 +314,7 @@ class TimelineComponentManager:
                 " self.components."
             )
 
-    def delete_component(self, component: TimelineComponent) -> None:
+    def delete_component(self, component: TC) -> None:
         stop_listening_to_all(component)
         self._remove_from_components_set(component)
         post(
