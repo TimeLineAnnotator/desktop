@@ -71,10 +71,10 @@ def _create_harmony_timeline(*args, **kwargs) -> HarmonyTimeline:
 class Timelines:
     def __init__(self, app: App):
         self._app = app
-        self._timelines = []
+        self._timelines: list[Timeline] = []
         self.cached_media_duration = 0.0
 
-        listen(self, Post.PLAYER_DURATION_CHANGED, self.on_media_duration_changed),
+        listen(self, Post.PLAYER_DURATION_CHANGED, self.on_media_duration_changed)
 
         serve(self, Get.TIMELINE_COLLECTION, lambda: self)
         serve(self, Get.TIMELINES, self.get_timelines)
@@ -130,7 +130,7 @@ class Timelines:
     def create_timeline(
         self,
         kind: TlKind | str,
-        components: dict[int, TimelineComponent] = None,
+        components: dict[int, dict[str, Any]] | None = None,
         *args,
         **kwargs,
     ) -> Timeline | None:
@@ -309,13 +309,9 @@ class Timelines:
             tl.scale(factor)
 
     def crop_timeline_components(self, new_length: float) -> None:
-        for tl in [tl for tl in self if hasattr(tl, "scale")]:
+        for tl in [tl for tl in self if hasattr(tl, "crop")]:
             tl.crop(new_length)
         post(Post.TIMELINES_CROP_DONE)
-
-    def update_ui_elements_position_by_timeline_kind(self, kind: TlKind) -> None:
-        for tl in [tl for tl in self if tl.KIND == kind]:
-            tl.ui.update_time_on_elements()
 
     def get_beat_timeline_for_measure_calculation(self):
         return sorted(self.get_timelines_by_attr("KIND", TimelineKind.BEAT_TIMELINE))[0]

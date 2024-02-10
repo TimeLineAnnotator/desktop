@@ -10,19 +10,20 @@ from tilia.ui.timelines.element_kinds import get_element_class_by_kind
 from tilia.utils import get_tilia_class_string
 from tilia.ui.timelines.scene import TimelineScene
 
+from tilia.ui.timelines.base.element import TimelineUIElement
+
 if TYPE_CHECKING:
     from tilia.ui.timelines.base.timeline import TimelineUI
     # noinspection PyUnresolvedReferences
-    from tilia.ui.timelines.base.element import TimelineUIElement
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', bound='TimelineUIElement')
+T = TypeVar('T', bound=TimelineUIElement)
 
 
 class ElementManager(Generic[T]):
     def __init__(
-        self, element_class: T | list[T]
+        self, element_class: type[T] | list[type[T]]
     ):
         self._elements: Set[T] = set()
         self.id_to_element = {}
@@ -89,7 +90,7 @@ class ElementManager(Generic[T]):
         return [e for e in self._elements if condition(e)]
 
     def get_element_by_condition(
-        self, condition: Callable[[list[T]], bool]
+        self, condition: Callable[[T], bool]
     ) -> T | None:
         return next((e for e in self._elements if condition(e)), None)
 

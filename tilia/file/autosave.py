@@ -19,7 +19,7 @@ class AutoSaver:
     def __init__(self, get_app_state: Callable[[], dict]):
         self.get_app_state = get_app_state
         self._last_autosave_data = None
-        self._autosave_exception_list = []
+        self._autosave_exception_list: list[Exception] = []
         self._autosave_thread = Thread(
             target=self._auto_save_loop,
             args=(self._autosave_exception_list,),

@@ -35,7 +35,7 @@ class App:
         undo_manager: UndoManager,
     ):
         self._id_counter = itertools.count()
-        self.player = None
+        self.player: Player | None = None
         self.file_manager = file_manager
         self.clipboard = clipboard
         self.undo_manager = undo_manager

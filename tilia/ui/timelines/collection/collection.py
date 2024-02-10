@@ -879,7 +879,7 @@ class TimelineUIs:
         title: str,
         prompt: str,
         kind: TlKind | list[TlKind] | None = None,
-    ) -> Optional[Timeline]:
+    ) -> Optional[Timeline] | None:
         """
         Opens a dialog where the user may choose an existing timeline.
         Choices are restricted to the kinds in 'kind'. If no kind is passed,

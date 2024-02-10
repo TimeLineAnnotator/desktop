@@ -73,6 +73,7 @@ class CLI:
             traceback.print_exc()
             return True
 
-    def on_request_to_display_error(self, _, message: str) -> None:
+    @staticmethod
+    def on_request_to_display_error(_, message: str) -> None:
         """Ignores title and prints error message to output"""
         io.output(message)

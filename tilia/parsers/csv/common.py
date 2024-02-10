@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable
 
 from tilia.parsers.csv.csv import display_column_not_found_error, AttributeData
 
@@ -24,7 +24,7 @@ def _validate_required_attrs(params: list[str], indices: [int | None]):
 
 
 def _parse_attr_data(
-    row_data: dict[str:Any], attr_data: AttributeData, required_attrs: list[str]
+    row_data: dict[str:Any], attr_data: list[AttributeData], required_attrs: list[str]
 ):
     attr_to_value = {}
     errors = []
@@ -41,7 +41,7 @@ def _parse_attr_data(
 
 
 def _get_attr_data(
-    attrs_with_parsers: list[tuple[str, int]], indices: list[int]
+    attrs_with_parsers: list[tuple[str, Callable]], indices: list[int]
 ) -> list[AttributeData]:
     return [
         (attr, parser, indices[i])

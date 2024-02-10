@@ -82,4 +82,4 @@ def import_by_measure(
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
 ) -> list[str]:
-    pass
+    raise NotImplementedError

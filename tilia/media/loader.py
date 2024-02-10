@@ -44,8 +44,7 @@ def get_media_type_from_path(path: str):
     if re.match(YOUTUBE_URL_REGEX, path):
         return "", "youtube"
 
-    path = Path(path)
-    extension = path.suffix[1:].lower()
+    extension = Path(path).suffix[1:].lower()
     audio_extensions = (
         tilia.media.constants.SUPPORTED_AUDIO_FORMATS
         + tilia.media.constants.CONVERTIBLE_AUDIO_FORMATS
