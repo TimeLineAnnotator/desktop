@@ -1,11 +1,6 @@
-"""
-Defines the Beat class, the single TimelineComponent kind of a BeatTimeline.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-import logging
 
 from tilia.timelines.base.validators import validate_time
 from tilia.timelines.component_kinds import ComponentKind
@@ -13,15 +8,7 @@ from tilia.timelines.component_kinds import ComponentKind
 if TYPE_CHECKING:
     from tilia.timelines.beat.timeline import BeatTimeline
 
-from tilia.exceptions import TiliaException
-
 from tilia.timelines.base.component import TimelineComponent
-
-logger = logging.getLogger(__name__)
-
-
-class BeatLoadError(Exception):
-    pass
 
 
 class Beat(TimelineComponent):
@@ -77,7 +64,3 @@ class Beat(TimelineComponent):
     @property
     def beat_number(self):
         return self.metric_position[1]
-
-
-class BeatOperationError(TiliaException):
-    pass

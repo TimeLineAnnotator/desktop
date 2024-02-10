@@ -1,18 +1,12 @@
 import sys
 from typing import Any
 
-from tilia.exceptions import TiliaException
 from tilia.requests import Post, post
 
 NEEDS_POST_PROCESSING = [
     Post.TIMELINE_ELEMENT_COPY,
     Post.TIMELINE_DELETE_DONE,
 ]
-
-
-class PostProcessingError(TiliaException):
-    pass
-
 
 def _post_process_timeline_element_copy(results):
     if not any([bool(r) for r in results]):
@@ -34,7 +28,7 @@ def post_process_request(request: Post, result: list[Any]):
     func_name = "_post_process_" + request.name.lower()
 
     if not hasattr(sys.modules[__name__], func_name):
-        raise PostProcessingError(
+        raise NotImplementedError(
             f"Request {request} needs post-processing,"
             f" but no post-processor func was found."
         )
