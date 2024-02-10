@@ -196,7 +196,7 @@ class TestAutoScroll:
         tluis.center_on_time = mock
         tluis.auto_scroll_is_enabled = True
         post(
-            Post.PLAYER_CURRENT_TIME_CHANGED, 50, reason=MediaTimeChangeReason.PLAYBACK
+            Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK
         )
         mock.assert_called()
 
@@ -213,7 +213,7 @@ class TestAutoScroll:
         tluis.auto_scroll_is_enabled = True
         tluis.view.is_hscrollbar_pressed = Mock(return_value=True)
         post(
-            Post.PLAYER_CURRENT_TIME_CHANGED, 50, reason=MediaTimeChangeReason.PLAYBACK
+            Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK
         )
         center_on_time_mock.assert_not_called()
 

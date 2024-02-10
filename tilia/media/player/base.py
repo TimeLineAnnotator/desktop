@@ -95,7 +95,7 @@ class Player(ABC):
             self.media_path,
         )
 
-        post(Post.PLAYER_CURRENT_TIME_CHANGED, 0.0, reason=MediaTimeChangeReason.LOAD)
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 0.0, MediaTimeChangeReason.LOAD)
 
         self.media_loaded = True
 
@@ -156,7 +156,7 @@ class Player(ABC):
         post(
             Post.PLAYER_CURRENT_TIME_CHANGED,
             self.current_time,
-            reason=MediaTimeChangeReason.PLAYBACK,
+            MediaTimeChangeReason.PLAYBACK,
         )
 
     def on_seek(self, time: float, if_paused: bool = False) -> None:
@@ -170,7 +170,7 @@ class Player(ABC):
         post(
             Post.PLAYER_CURRENT_TIME_CHANGED,
             self.current_time,
-            reason=MediaTimeChangeReason.SEEK,
+            MediaTimeChangeReason.SEEK,
         )
 
     def on_export_audio(self, segment_name: str, start_time: float, end_time: float):
@@ -214,7 +214,7 @@ class Player(ABC):
         post(
             Post.PLAYER_CURRENT_TIME_CHANGED,
             self.current_time,
-            reason=MediaTimeChangeReason.PLAYBACK,
+            MediaTimeChangeReason.PLAYBACK,
         )
         if self.current_time >= self.playback_length:
             self.stop()

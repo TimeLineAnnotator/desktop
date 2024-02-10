@@ -29,7 +29,7 @@ class PlayerTracker(QObject):
         post(
             Post.PLAYER_CURRENT_TIME_CHANGED,
             time,
-            reason=MediaTimeChangeReason.PLAYBACK,
+            MediaTimeChangeReason.PLAYBACK,
         )
 
     @pyqtSlot("int")
@@ -100,7 +100,7 @@ class YouTubePlayer(Player):
             self.media_path,
         )
 
-        post(Post.PLAYER_CURRENT_TIME_CHANGED, 0.0, reason=MediaTimeChangeReason.LOAD)
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 0.0, MediaTimeChangeReason.LOAD)
 
         self.media_loaded = True
 
@@ -143,7 +143,7 @@ class YouTubePlayer(Player):
             post(
                 Post.PLAYER_CURRENT_TIME_CHANGED,
                 time,
-                reason=MediaTimeChangeReason.PLAYBACK,
+                MediaTimeChangeReason.PLAYBACK,
             )
 
         self.view.page().runJavaScript("getCurrentTime()", post_time_change_event)

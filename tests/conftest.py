@@ -55,7 +55,7 @@ class TiliaState:
     @current_time.setter
     def current_time(self, value):
         self.player.current_time = value
-        post(Post.PLAYER_CURRENT_TIME_CHANGED, value, reason=MediaTimeChangeReason.PLAYBACK)
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, value, MediaTimeChangeReason.PLAYBACK)
 
     @property
     def duration(self):
