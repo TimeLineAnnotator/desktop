@@ -107,12 +107,13 @@ class App:
         return next(self._id_counter)
 
     def _setup_file_media(self, path: str, duration: float | None):
+        if duration:
+            post(Post.PLAYER_DURATION_CHANGED, duration)
+            self.player.duration = duration
+
         if not Path(path).exists():
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
             post(Post.PLAYER_URL_CHANGED, "")
-            if duration:
-                post(Post.PLAYER_DURATION_CHANGED, duration)
-                self.player.duration = duration
             return
 
         self.load_media(path)

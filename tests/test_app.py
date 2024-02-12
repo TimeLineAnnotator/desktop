@@ -70,9 +70,12 @@ class TestFileLoad:
         tmp_file = tmp_path / 'test_file_load.tla'
         media_path = str(Path('resources', 'example.ogg').resolve())
         file_data['media_path'] = media_path
+        file_data['media_metadata']['media length'] = 101
         tmp_file.write_text(json.dumps(file_data))
         with PatchGet('tilia.file.file_manager', Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
         assert tilia_state.media_path == media_path
+        assert tilia_state.duration == 101
+
