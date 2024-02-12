@@ -21,17 +21,6 @@ pytest_plugins = [
 ]
 
 
-@pytest.fixture(scope="module")
-def qtui():
-    qtui_ = QtUI()
-    stop_listening(qtui_, Post.DISPLAY_ERROR)
-    yield qtui_
-    stop_listening_to_all(qtui_.timeline_uis)
-    stop_serving_all(qtui_.timeline_uis)
-    stop_listening_to_all(qtui_)
-    stop_serving_all(qtui_)
-
-
 class TiliaState:
     def __init__(self, tilia: App):
         self.app = tilia
@@ -51,7 +40,7 @@ class TiliaState:
     @property
     def current_time(self):
         return self.player.current_time
-    
+
     @current_time.setter
     def current_time(self, value):
         self.player.current_time = value
@@ -60,7 +49,7 @@ class TiliaState:
     @property
     def duration(self):
         return get(Get.MEDIA_DURATION)
-    
+
     @duration.setter
     def duration(self, value):
         self.app.set_media_duration(value)
@@ -68,7 +57,7 @@ class TiliaState:
     @property
     def media_path(self):
         return get(Get.MEDIA_PATH)
-    
+
     @media_path.setter
     def media_path(self, value):
         self.player.media_path = value
@@ -86,37 +75,48 @@ def tilia_state(tilia):
     state.reset()
 
 
+@pytest.fixture(scope="session")
+def qtui():
+    qtui_ = QtUI()
+    stop_listening(qtui_, Post.DISPLAY_ERROR)
+    yield qtui_
+    # stop_listening_to_all(qtui_.timeline_uis)
+    # stop_serving_all(qtui_.timeline_uis)
+    # stop_listening_to_all(qtui_)
+    # stop_serving_all(qtui_)
+
+
 # noinspection PyProtectedMember
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def tilia(qtui):
     tilia_ = setup_logic(autosaver=False)
     tilia_.player = qtui.player
     tilia_.set_media_duration(100)
     yield tilia_
-    try:
-        tilia_.on_clear()
-    except AttributeError:
-        # test failed and element was not created properly
-        pass
-
-    stop_listening_to_all(tilia_)
-    stop_listening_to_all(tilia_.timelines)
-    stop_listening_to_all(tilia_.file_manager)
-    stop_listening_to_all(tilia_.player)
-    stop_listening_to_all(tilia_.undo_manager)
-    stop_listening_to_all(tilia_.clipboard)
-
-    stop_serving_all(tilia_)
-    stop_serving_all(tilia_.timelines)
-    try:
-        stop_serving_all(tilia_.file_manager)
-    except NoCallbackAttached:
-        #  file manager does its own cleanup at test_file_manager.py
-        #  so it will already have called stop_serving_all
-        pass
-    stop_serving_all(tilia_.player)
-    stop_serving_all(tilia_.undo_manager)
-    stop_serving_all(tilia_.clipboard)
+    # try:
+    #     tilia_.on_clear()
+    # except AttributeError:
+    #     # test failed and element was not created properly
+    #     pass
+    #
+    # stop_listening_to_all(tilia_)
+    # stop_listening_to_all(tilia_.timelines)
+    # stop_listening_to_all(tilia_.file_manager)
+    # stop_listening_to_all(tilia_.player)
+    # stop_listening_to_all(tilia_.undo_manager)
+    # stop_listening_to_all(tilia_.clipboard)
+    #
+    # stop_serving_all(tilia_)
+    # stop_serving_all(tilia_.timelines)
+    # try:
+    #     stop_serving_all(tilia_.file_manager)
+    # except NoCallbackAttached:
+    #     #  file manager does its own cleanup at test_file_manager.py
+    #     #  so it will already have called stop_serving_all
+    #     pass
+    # stop_serving_all(tilia_.player)
+    # stop_serving_all(tilia_.undo_manager)
+    # stop_serving_all(tilia_.clipboard)
 
 
 @pytest.fixture
