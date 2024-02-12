@@ -28,7 +28,6 @@ from tilia.ui.timelines.copy_paste import (
 from .request_handlers import TimelineRequestHandler
 from ..collection.requests.enums import ElementSelector
 from ..view import TimelineView
-from ...menus import TiliaMenu
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
@@ -45,7 +44,7 @@ class TimelineUI(ABC):
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes([], [], [], [])
     ELEMENT_CLASS: type[TimelineUIElement] = TimelineUIElement
     UPDATE_TRIGGERS = ["name", "height", "is_visible", "ordinal"]
-    CONTEXT_MENU_CLASS: type[TiliaMenu] = TimelineUIContextMenu
+    CONTEXT_MENU_CLASS: type[TimelineUIContextMenu] = TimelineUIContextMenu
     ACCEPTS_VERTICAL_ARROWS = False
     ACCEPTS_HORIZONTAL_ARROWS = False
 
@@ -307,7 +306,7 @@ class TimelineUI(ABC):
 
             post(Post.INSPECTABLE_ELEMENT_DESELECTED, element.id)
 
-    def deselect_all_elements(self, excluding: Optionallist[T] = None):
+    def deselect_all_elements(self, excluding: Optional[list[T]] = None):
         if excluding is None:
             excluding = []
 
