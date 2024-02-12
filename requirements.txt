@@ -8,3 +8,7 @@ PyQt6>=6.6.0
 PyQt6-WebEngine>=6.6.0
 setuptools~=67.7.2
 python-dotenv>=1.0.1
+
+pytest>=8.0.0
+requests>=2.31.0
+icecream>=2.1.3
