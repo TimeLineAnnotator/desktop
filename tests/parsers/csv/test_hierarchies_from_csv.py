@@ -16,7 +16,7 @@ def test_hierarchies_by_time_from_csv(hierarchy_tlui):
             Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
         )
 
-    hierarchies = hierarchy_tlui.timeline.ordered_hierarchies
+    hierarchies = sorted(hierarchy_tlui.timeline)
 
     assert hierarchies[0].start == 0
     assert hierarchies[0].end == 1
@@ -56,7 +56,7 @@ def test_hierarchies_by_measure_from_csv(beat_tlui, hierarchy_tlui):
             Path(),
         )
 
-    hierarchies = hierarchy_tl.ordered_hierarchies
+    hierarchies = sorted(hierarchy_tl)
 
     assert hierarchies[0].start == 1
     assert hierarchies[0].end == 2
@@ -127,7 +127,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_start_fraction_val
 
     assert "nonsense" in errors[0]
 
-    assert hierarchy_tl.ordered_hierarchies[0].start == 1
+    assert sorted(hierarchy_tl)[0].start == 1
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_end_fraction_value(
@@ -147,7 +147,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_end_fraction_value
 
     assert "nonsense" in errors[0]
 
-    assert hierarchy_tl.ordered_hierarchies[0].start == 1
+    assert sorted(hierarchy_tl)[0].start == 1
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_no_measure_found(

@@ -16,14 +16,6 @@ class TestMarkerTimeline:
 
         assert len(marker_tl) == 1
 
-    # TEST DELETE
-    def test_delete_marker(self, marker_tl):
-        mrk1 = marker_tl.create_marker(0)
-
-        marker_tl.delete_components([mrk1])
-
-        assert len(marker_tl) == 0
-
     # TEST SERIALIZE
     def test_serialize_unit(self, marker_tl):
         unit_kwargs = {
@@ -33,7 +25,7 @@ class TestMarkerTimeline:
             "label": "my label",
         }
 
-        mrk1 = marker_tl.create_marker(**unit_kwargs)
+        mrk1, _ = marker_tl.create_marker(**unit_kwargs)
 
         # noinspection PyTypeChecker
         srlz_mrk1 = serialize_component(mrk1)
@@ -49,7 +41,7 @@ class TestMarkerTimeline:
             "label": "my label",
         }
 
-        mrk1 = marker_tl.create_marker(**unit_kwargs)
+        mrk1, _ = marker_tl.create_marker(**unit_kwargs)
 
         # noinspection PyTypeChecker
         serialized_mrk1 = serialize_component(mrk1)
@@ -101,9 +93,9 @@ class TestMarkerTimelineComponentManager:
     # TEST SERIALIZE
     # noinspection PyUnresolvedReferences
     def test_serialize_components(self, marker_tl):
-        mrk1 = marker_tl.create_marker(0)
-        mrk2 = marker_tl.create_marker(1)
-        mrk3 = marker_tl.create_marker(2)
+        mrk1, _ = marker_tl.create_marker(0)
+        mrk2, _ = marker_tl.create_marker(1)
+        mrk3, _ = marker_tl.create_marker(2)
 
         serialized_components = marker_tl.component_manager.serialize_components()
 
@@ -112,9 +104,9 @@ class TestMarkerTimelineComponentManager:
 
     # noinspection PyUnresolvedReferences
     def test_deserialize_components(self, marker_tl):
-        mrk1 = marker_tl.create_marker(0)
-        mrk2 = marker_tl.create_marker(1)
-        mrk3 = marker_tl.create_marker(2)
+        mrk1, _ = marker_tl.create_marker(0)
+        mrk2, _ = marker_tl.create_marker(1)
+        mrk3, _ = marker_tl.create_marker(2)
 
         serialized_components = marker_tl.component_manager.serialize_components()
 

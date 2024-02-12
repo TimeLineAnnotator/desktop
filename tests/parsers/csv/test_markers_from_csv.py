@@ -62,7 +62,7 @@ def test_markers_by_measure_from_csv_multiple_measures_with_number(
     assert markers[2].time == 3
 
 
-def test_markers_by_measure_from_csv_raises_error_if_no_measure_column(
+def test_markers_by_measure_from_csv_fails_if_no_measure_column(
     beat_tlui, marker_tlui
 ):
     os.chdir(Path(Path(__file__).absolute().parents[1]))
@@ -70,14 +70,13 @@ def test_markers_by_measure_from_csv_raises_error_if_no_measure_column(
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        with PatchPost("tilia.parsers.csv", Post.DISPLAY_ERROR) as post_mock:
-            markers_by_measure_from_csv(
-                beat_tlui.timeline,
-                marker_tlui.timeline,
-                Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
-            )
+        markers_by_measure_from_csv(
+            beat_tlui.timeline,
+            marker_tlui.timeline,
+            Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
+        )
 
-    assert post_mock.called
+    assert marker_tlui.is_empty
 
 
 def test_markers_by_time_from_csv(marker_tlui):
@@ -106,19 +105,18 @@ def test_markers_by_time_from_csv(marker_tlui):
     assert markers[2].comments == "c"
 
 
-def test_markers_by_time_from_csv_raises_error_if_no_time_column(marker_tlui):
+def test_markers_by_time_from_csv_fails_if_no_time_column(marker_tlui):
     os.chdir(Path(Path(__file__).absolute().parents[1]))
 
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        with PatchPost("tilia.parsers.csv", Post.DISPLAY_ERROR) as post_mock:
-            markers_by_time_from_csv(
-                marker_tlui.timeline,
-                Path(),
-            )
+        markers_by_time_from_csv(
+            marker_tlui.timeline,
+            Path(),
+        )
 
-    assert post_mock.called
+    assert marker_tlui.is_empty
 
 
 def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):
@@ -127,6 +125,15 @@ def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):
         errors = markers_by_time_from_csv(marker_tlui.timeline, Path())
 
     assert "nonsense" in errors[0]
+
+
+def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(marker_tlui, tilia_state):
+    tilia_state.duration = 100
+    data = "time\n999"
+    with patch("builtins.open", mock_open(read_data=data)):
+        errors = markers_by_time_from_csv(marker_tlui.timeline, Path())
+
+    assert "999" in errors[0]
 
 
 def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(

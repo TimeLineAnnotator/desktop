@@ -5,7 +5,6 @@ from PyQt6.QtGui import QColor
 from tests.mock import PatchGet
 from tilia.requests import Post, Get, post, get
 from tilia.timelines.hierarchy.components import Hierarchy
-from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.ui.timelines.hierarchy import HierarchyUI
 
@@ -33,21 +32,21 @@ def assert_is_copy_data_of(copy_data: dict, hierarchy_ui: HierarchyUI):
 
 
 class TestActions:
-    def test_increase_level(self, hierarchy_tlui):
+    def test_increase_level(self, hierarchy_tlui, actions):
         hrc, ui = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui)
         actions.trigger(TiliaAction.HIERARCHY_INCREASE_LEVEL)
 
         assert hrc.level == 2
 
-    def test_decrease_level(self, hierarchy_tlui):
+    def test_decrease_level(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
         hierarchy_tlui.select_element(ui1)
         actions.trigger(TiliaAction.HIERARCHY_DECREASE_LEVEL)
 
         assert hrc1.level == 1
 
-    def test_set_color(self, hierarchy_tlui):
+    def test_set_color(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui1)
 
@@ -56,7 +55,7 @@ class TestActions:
 
         assert hrc1.color == "#000000"
 
-    def test_reset_color(self, hierarchy_tlui):
+    def test_reset_color(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui1)
 
@@ -67,7 +66,7 @@ class TestActions:
 
         assert hrc1.color is None
 
-    def test_add_pre_start(self, hierarchy_tlui):
+    def test_add_pre_start(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0.1, 1, 1)
         hierarchy_tlui.select_element(ui1)
 
@@ -77,7 +76,7 @@ class TestActions:
         assert hrc1.pre_start != hrc1.start
         assert ui1.pre_start_handle
 
-    def test_add_post_end(self, hierarchy_tlui):
+    def test_add_post_end(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui1)
 
@@ -87,7 +86,7 @@ class TestActions:
         assert hrc1.post_end != hrc1.end
         assert ui1.post_end_handle
 
-    def test_split(self, hierarchy_tlui):
+    def test_split(self, hierarchy_tlui, actions):
         hierarchy_tlui.create_hierarchy(0, 1, 1)
         assert len(hierarchy_tlui) == 1
         with PatchGet(
@@ -97,7 +96,7 @@ class TestActions:
 
         assert len(hierarchy_tlui) == 2
 
-    def test_merge(self, hierarchy_tlui):
+    def test_merge(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
 
@@ -108,7 +107,7 @@ class TestActions:
 
         assert len(hierarchy_tlui) == 1
 
-    def test_group(self, hierarchy_tlui):
+    def test_group(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
 
@@ -119,7 +118,7 @@ class TestActions:
 
         assert len(hierarchy_tlui) == 3
 
-    def test_delete_elements(self, hierarchy_tlui):
+    def test_delete_elements(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         hierarchy_tlui.select_element(ui1)
@@ -128,7 +127,7 @@ class TestActions:
 
         assert len(hierarchy_tlui) == 0
 
-    def test_create_hierarchy_below(self, hierarchy_tlui):
+    def test_create_hierarchy_below(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
 
         hierarchy_tlui.select_element(ui1)
@@ -139,7 +138,7 @@ class TestActions:
 
 
 class TestCopyPaste:
-    def test_paste(self, hierarchy_tlui):
+    def test_paste(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1, label="paste test")
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(0, 1, 2)
 
@@ -181,7 +180,7 @@ class TestCopyPaste:
         # assert that clipboard contents match ui3
 
     def test_paste_with_children_into_selected_elements_without_rescaling(
-        self, hierarchy_tlui
+        self, hierarchy_tlui, actions, tilia_state
     ):
         hrc1, _ = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2, _ = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -217,7 +216,7 @@ class TestCopyPaste:
         assert_are_copies(copied_children_2, hrc2)
 
     def test_paste_with_children_into_selected_elements_with_rescaling(
-        self, hierarchy_tlui
+        self, hierarchy_tlui, actions
     ):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -246,7 +245,7 @@ class TestCopyPaste:
         assert copied_children_2.start == 1.25
         assert copied_children_2.end == 1.5
 
-    def test_paste_with_children_that_have_children(self, hierarchy_tlui):
+    def test_paste_with_children_that_have_children(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
         hrc3, ui3 = hierarchy_tlui.create_hierarchy(0, 0.5, 2)
@@ -278,8 +277,8 @@ class TestCopyPaste:
         assert copied_children_2.children[0].start == 1.5
         assert copied_children_2.children[0].end == 2.0
 
-    def test_paste_with_children_into_different_level_raises_error(
-        self, hierarchy_tlui
+    def test_paste_with_children_into_different_level_fails(
+        self, hierarchy_tlui, actions
     ):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
@@ -293,7 +292,11 @@ class TestCopyPaste:
         hierarchy_tlui.deselect_all_elements()
 
         hierarchy_tlui.select_element(ui2)
-        actions.TiliaAction(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE)
+        component_state1 = hierarchy_tlui.timeline.components
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE)
+        component_state2 = hierarchy_tlui.timeline.components
+
+        assert component_state1 == component_state2
 
 
 class TestCreateHierarchy:
@@ -310,7 +313,7 @@ class TestCreateHierarchy:
 
 
 class TestUndoRedo:
-    def test_split(self, hierarchy_tlui, tluis):
+    def test_split(self, hierarchy_tlui, tluis, actions):
         hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         post(Post.APP_RECORD_STATE, "test state")
@@ -326,7 +329,7 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(hierarchy_tlui) == 2
 
-    def test_merge(self, hierarchy_tlui, tluis):
+    def test_merge(self, hierarchy_tlui, tluis, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
 
@@ -343,7 +346,7 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(hierarchy_tlui) == 1
 
-    def test_increase_level(self, hierarchy_tlui, tluis):
+    def test_increase_level(self, hierarchy_tlui, tluis, actions):
         hrc, ui = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui)
 
@@ -357,7 +360,7 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert hierarchy_tlui.elements[0].get_data("level") == 2
 
-    def test_decrease_level(self, hierarchy_tlui, tluis):
+    def test_decrease_level(self, hierarchy_tlui, tluis, actions):
         hrc, ui = hierarchy_tlui.create_hierarchy(0, 1, 2)
         hierarchy_tlui.select_element(ui)
 
@@ -371,7 +374,7 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert hierarchy_tlui.elements[0].get_data("level") == 1
 
-    def test_group(self, hierarchy_tlui, tluis):
+    def test_group(self, hierarchy_tlui, tluis, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
 
@@ -388,7 +391,7 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(hierarchy_tlui) == 3
 
-    def test_delete(self, hierarchy_tlui, tluis):
+    def test_delete(self, hierarchy_tlui, tluis, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
 
         hierarchy_tlui.select_element(ui1)
@@ -403,7 +406,7 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(hierarchy_tlui) == 0
 
-    def test_create_unit_below(self, hierarchy_tlui, tluis):
+    def test_create_unit_below(self, hierarchy_tlui, tluis, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
 
         hierarchy_tlui.select_element(ui1)
@@ -419,7 +422,7 @@ class TestUndoRedo:
         assert len(hierarchy_tlui) == 2
 
     @pytest.mark.skip("tested behavior works, needs fixing since v0.2.")
-    def test_paste(self, hierarchy_tlui, tluis):
+    def test_paste(self, hierarchy_tlui, tluis, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1, label="paste test")
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(0, 1, 2)
         post(Post.APP_RECORD_STATE, "test state")
@@ -439,7 +442,7 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert hrc2.get_data("label") == "paste test"
 
-    def test_paste_with_children(self, hierarchy_tlui, tluis):
+    def test_paste_with_children(self, hierarchy_tlui, tluis, actions):
         parent, parent_ui = hierarchy_tlui.create_hierarchy(0, 2, 2)
         child1, _ = hierarchy_tlui.create_hierarchy(0, 1, 1)
         child2, _ = hierarchy_tlui.create_hierarchy(1, 2, 1)
