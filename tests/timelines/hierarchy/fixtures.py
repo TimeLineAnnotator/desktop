@@ -37,7 +37,9 @@ def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
     # remove initial hierarchy
     tl.clear()
 
+    tl.create_hierarchy = create_hierarchy
     ui.create_hierarchy = create_hierarchy
+    tl.relate_hierarchies = relate_hierarchies
     ui.relate_hierarchies = relate_hierarchies
     return ui  # will be deleted by tls
 

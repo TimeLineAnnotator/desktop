@@ -21,16 +21,8 @@ class HierarchyTimeline(Timeline):
 
     component_manager: HierarchyTLComponentManager
 
-    def create_hierarchy(
-        self, start: float, end: float, level: int, **kwargs
-    ) -> Hierarchy | None:
-        return self.create_timeline_component(
-            ComponentKind.HIERARCHY, start, end, level, **kwargs
-        )
-
     def create_initial_hierarchy(self):
         """Create unit of level 1 encompassing whole timeline"""
-        logger.debug(f"Creating starting hierarchy for timeline '{self}'")
         self.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
             start=0,
