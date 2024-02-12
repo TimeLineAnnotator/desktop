@@ -1,4 +1,5 @@
 import logging
+import weakref
 from enum import Enum, auto
 from typing import Callable, Any
 
@@ -52,8 +53,8 @@ class Get(Enum):
     WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE = auto()
 
 
-requests_to_callbacks: dict[Get, Callable] = {}
-servers_to_requests: dict[Any, set[Get]] = {}
+_requests_to_callbacks: weakref.WeakKeyDictionary[Get, Callable] = weakref.WeakKeyDictionary()
+_servers_to_requests: weakref.WeakKeyDictionary[Any, set[Get]] = weakref.WeakKeyDictionary()
 
 log_requests = settings.get("dev", "log_requests")
 
@@ -68,7 +69,7 @@ def get(request: Get, *args, **kwargs) -> Any:
     if log_requests:
         logger.log(logging_level, f"Posting {request} with {args=} and {kwargs=}.")
     try:
-        return requests_to_callbacks[request](*args, **kwargs)
+        return _requests_to_callbacks[request](*args, **kwargs)
     except KeyError:
         raise NoReplyToRequest(f"{request} has no repliers attached.")
     except Exception as exc:
@@ -82,11 +83,11 @@ def serve(replier: Any, request: Get, callback: Callable) -> None:
     Attaches a callback to a request.
     """
 
-    requests_to_callbacks[request] = callback
-    if replier not in servers_to_requests.keys():
-        servers_to_requests[replier] = set()
+    _requests_to_callbacks[request] = callback
+    if replier not in _servers_to_requests.keys():
+        _servers_to_requests[replier] = set()
     else:
-        servers_to_requests[replier].add(request)
+        _servers_to_requests[replier].add(request)
 
 
 def stop_serving(replier: Any, request: Get) -> None:
@@ -94,18 +95,18 @@ def stop_serving(replier: Any, request: Get) -> None:
     Detaches a calback from a request.
     """
     try:
-        requests_to_callbacks.pop(request)
+        _requests_to_callbacks.pop(request)
     except KeyError:
         raise NoCallbackAttached()
 
-    servers_to_requests[replier].remove(request)
-    if not servers_to_requests[replier]:
-        servers_to_requests.pop(replier)
+    _servers_to_requests[replier].remove(request)
+    if not _servers_to_requests[replier]:
+        _servers_to_requests.pop(replier)
 
 
 def stop_serving_all(replier: Any) -> None:
-    if replier not in servers_to_requests:
+    if replier not in _servers_to_requests:
         return
 
-    for request in servers_to_requests[replier].copy():
+    for request in _servers_to_requests[replier].copy():
         stop_serving(replier, request)

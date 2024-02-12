@@ -1,4 +1,5 @@
 import os
+import weakref
 from enum import Enum, auto
 from typing import Callable, Any
 
@@ -185,8 +186,8 @@ class Post(Enum):
     WINDOW_SETTINGS_OPEN = auto()
 
 
-posts_to_listeners: dict[Post, Any] = {post: {} for post in Post}
-listeners_to_posts: dict[Any, list[Post]] = {}
+_posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary({post: {} for post in Post})
+_listeners_to_posts: weakref.WeakKeyDictionary[Any, list[Post]] = weakref.WeakKeyDictionary()
 
 
 def _get_posts_excluded_from_log() -> list[Post]:
@@ -198,24 +199,24 @@ def _get_posts_excluded_from_log() -> list[Post]:
 
 def _log_post(post, *args, **kwargs):
     print(
-        f"{post.name:<40} {str((args, kwargs)):<100} {list(posts_to_listeners[post])}"
+        f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners[post])}"
     )
 
 
 def post(post: Post, *args, **kwargs) -> None:
     if os.environ.get("LOG_REQUESTS", 0) and post not in _get_posts_excluded_from_log():
         _log_post(post, args, kwargs)
-    for listener, callback in posts_to_listeners[post].copy().items():
+    for listener, callback in _posts_to_listeners[post].copy().items():
         callback(*args, **kwargs)
 
 
 def listen(listener: Any, post: Post, callback: Callable) -> None:
-    posts_to_listeners[post][listener] = callback
+    _posts_to_listeners[post][listener] = callback
 
-    if listener not in listeners_to_posts.keys():
-        listeners_to_posts[listener] = [post]
+    if listener not in _listeners_to_posts.keys():
+        _listeners_to_posts[listener] = [post]
     else:
-        listeners_to_posts[listener].append(post)
+        _listeners_to_posts[listener].append(post)
 
 
 def listen_to_multiple(
@@ -227,19 +228,19 @@ def listen_to_multiple(
 
 def stop_listening(listener: Any, post: Post) -> None:
     try:
-        posts_to_listeners[post].pop(listener)
+        _posts_to_listeners[post].pop(listener)
     except KeyError:
         return
 
-    listeners_to_posts[listener].remove(post)
+    _listeners_to_posts[listener].remove(post)
 
-    if not listeners_to_posts[listener]:
-        listeners_to_posts.pop(listener)
+    if not _listeners_to_posts[listener]:
+        _listeners_to_posts.pop(listener)
 
 
 def stop_listening_to_all(listener: Any) -> None:
-    if listener not in listeners_to_posts.keys():
+    if listener not in _listeners_to_posts.keys():
         return
 
-    for post in listeners_to_posts[listener].copy():
+    for post in _listeners_to_posts[listener].copy():
         stop_listening(listener, post)
