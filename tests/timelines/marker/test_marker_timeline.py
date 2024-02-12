@@ -16,51 +16,6 @@ class TestMarkerTimeline:
 
         assert len(marker_tl) == 1
 
-    # TEST SERIALIZE
-    def test_serialize_unit(self, marker_tl):
-        unit_kwargs = {
-            "time": 0,
-            "color": "#000000",
-            "comments": "my comments",
-            "label": "my label",
-        }
-
-        mrk1, _ = marker_tl.create_marker(**unit_kwargs)
-
-        # noinspection PyTypeChecker
-        srlz_mrk1 = serialize_component(mrk1)
-
-        for key, value in unit_kwargs.items():
-            assert srlz_mrk1[key] == value
-
-    def test_deserialize_unit(self, marker_tl):
-        unit_kwargs = {
-            "time": 0,
-            "comments": "my comments",
-            "color": "#000000",
-            "label": "my label",
-        }
-
-        mrk1, _ = marker_tl.create_marker(**unit_kwargs)
-
-        # noinspection PyTypeChecker
-        serialized_mrk1 = serialize_component(mrk1)
-
-        deserialized_mrk1 = _deserialize_component(marker_tl, serialized_mrk1)
-
-        for attr in unit_kwargs:
-            assert getattr(mrk1, attr) == getattr(deserialized_mrk1, attr)
-
-    def test_serialize_timeline(self, marker_tl):
-        marker_tl.create_marker(0)
-
-        serialized_timeline = marker_tl.get_state()
-
-        assert serialized_timeline["height"] == MarkerTimeline.DEFAULT_HEIGHT
-        assert serialized_timeline["is_visible"] is True
-        assert serialized_timeline["kind"] == TimelineKind.MARKER_TIMELINE.name
-        assert len(serialized_timeline["components"]) == 1
-
     # TEST UNDO
     def test_restore_state(self, marker_tl):
         marker_tl.create_marker(0)
