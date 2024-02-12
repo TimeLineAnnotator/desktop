@@ -13,4 +13,3 @@ BEAT_PATTERN_DIALOG_TOOLTIP = """Empty spaces separate measures, line breaks are
 Examples:
   - '5' = 5 beats per measure;
   - '4 3 3' = a cycle of 4, then 3, then 3 beats per measure."""
-YOUTUBE_URL_REGEX = r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"

@@ -3,10 +3,11 @@ from pathlib import Path
 import logging
 
 import tilia.errors
+import tilia.constants
 import tilia.media.constants
 from tilia.media import player
 from tilia.media.player import Player
-from tilia.ui.strings import YOUTUBE_URL_REGEX
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class MediaLoader:
 
         if media_type == "unsupported":
             tilia.errors.display(tilia.errors.UNSUPPORTED_MEDIA_FORMAT, extension)
-            return False, None
+            return None
 
         # change player to audio or video if needed
         if self.player.MEDIA_TYPE != media_type:
@@ -41,7 +42,7 @@ class MediaLoader:
 
 
 def get_media_type_from_path(path: str):
-    if re.match(YOUTUBE_URL_REGEX, path):
+    if re.match(tilia.constants.YOUTUBE_URL_REGEX, path):
         return "", "youtube"
 
     extension = Path(path).suffix[1:].lower()

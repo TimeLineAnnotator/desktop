@@ -74,7 +74,7 @@ class Timelines:
         self._timelines: list[Timeline] = []
         self.cached_media_duration = 0.0
 
-        listen(self, Post.PLAYER_DURATION_CHANGED, self.on_media_duration_changed)
+        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
 
         serve(self, Get.TIMELINE_COLLECTION, lambda: self)
         serve(self, Get.TIMELINES, self.get_timelines)

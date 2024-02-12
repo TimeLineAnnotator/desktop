@@ -1,6 +1,7 @@
 from __future__ import annotations
 import itertools
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -39,6 +40,7 @@ class App:
         self.file_manager = file_manager
         self.clipboard = clipboard
         self.undo_manager = undo_manager
+        self.duration = 0.0
         self._setup_timelines()
         self._setup_requests()
 
@@ -55,6 +57,7 @@ class App:
             (Post.APP_SETUP_BLANK_FILE, self.setup_blank_file),
             (Post.APP_RECORD_STATE, self.on_record_state),
             (Post.PLAYER_AVAILABLE, self.on_player_available),
+            (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
             # listening on tilia.settings would cause circular import
             (Post.WINDOW_SETTINGS_OPEN, settings.open_settings_on_os),
         ]
@@ -62,15 +65,19 @@ class App:
         for event, callback in self.SUBSCRIPTIONS:
             listen(self, event, callback)
 
-        serve(self, Get.FILE_SAVE_PARAMETERS, self.get_app_state)
         serve(self, Get.ID, self.get_id)
         serve(self, Get.APP_STATE, self.get_app_state)
+        serve(self, Get.MEDIA_DURATION, lambda: self.duration),
 
     def _setup_timelines(self):
         self.timelines = Timelines(self)
 
     def on_player_available(self, player: Player):
         self.player = player
+
+    def on_player_duration_available(self, duration: float):
+        self.duration = duration
+        post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
 
     def on_close(self) -> None:
         success, confirm_save = self.file_manager.ask_save_changes_if_modified()
@@ -106,12 +113,19 @@ class App:
         """
         return next(self._id_counter)
 
+    def set_media_duration(self, duration):
+        post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+        self.duration = duration
+
+    @staticmethod
+    def _check_if_media_exists(path: str) -> bool:
+        return not re.match(path, tilia.constants.YOUTUBE_URL_REGEX) or Path(path).exists()
+
     def _setup_file_media(self, path: str, duration: float | None):
         if duration:
-            post(Post.PLAYER_DURATION_CHANGED, duration)
-            self.player.duration = duration
+            self.set_media_duration(duration)
 
-        if not Path(path).exists():
+        if not self._check_if_media_exists(path):
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
             post(Post.PLAYER_URL_CHANGED, "")
             return
@@ -136,7 +150,8 @@ class App:
     def on_clear(self) -> None:
         self.timelines.clear()
         self.file_manager.new()
-        self.player.clear()
+        if self.player:
+            self.player.clear()
         self.undo_manager.clear()
         post(Post.REQUEST_CLEAR_UI)
 

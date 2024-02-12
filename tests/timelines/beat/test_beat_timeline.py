@@ -3,6 +3,8 @@ import math
 import pytest
 import logging
 
+from tilia.ui.actions import TiliaAction
+
 logger = logging.getLogger(__name__)
 
 
@@ -10,17 +12,20 @@ ID_ITER = itertools.count()
 
 
 class TestBeatTimeline:
-    def test_create_beat_at_same_time_fails(self, beat_tl):
-        beat_tl.create_beat(0)
-        beat_tl.create_beat(0)
+    def test_create_beat_at_same_time_fails(self, beat_tl, actions):
+        actions.trigger(TiliaAction.BEAT_ADD)
+        actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 1
 
-    def test_create_beat_at_negative_time_fails(self, beat_tl):
-        beat_tl.create_beat(-10)
+    def test_create_beat_at_negative_time_fails(self, beat_tl, tilia_state, actions):
+        tilia_state.current_time = -10
+        actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 0
 
-    def test_create_beat_at_time_bigger_than_media_duration_fails(self, beat_tl):
-        beat_tl.create_beat(math.inf)
+    def test_create_beat_at_time_bigger_than_media_duration_fails(self, beat_tl, tilia_state, actions):
+        tilia_state.duration = 100
+        tilia_state.current_time = 101
+        actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 0
 
     def test_get_extension_mult_of_bp_without_beats_in_measure(self, beat_tl):

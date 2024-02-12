@@ -21,7 +21,7 @@ class PlayerToolbar(QToolBar):
         listen(
             self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_player_current_time_changed
         )
-        listen(self, Post.PLAYER_DURATION_CHANGED, self.on_media_duration_changed)
+        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
         listen(self, Post.PLAYER_MEDIA_UNLOADED, self.on_media_unload)
         listen(self, Post.PLAYER_STOPPED, self.on_stop)
         listen(self, Post.PLAYER_DISABLE_CONTROLS, self.on_disable_controls)

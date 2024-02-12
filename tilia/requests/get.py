@@ -12,7 +12,6 @@ class Get(Enum):
     ARE_TIMELINE_ELEMENTS_SELECTED = auto()
     APP_STATE = auto()
     CLIPBOARD_CONTENTS = auto()
-    FILE_SAVE_PARAMETERS = auto()
     FROM_USER_BEAT_PATTERN = auto()
     FROM_USER_COLOR = auto()
     FROM_USER_DIR = auto()

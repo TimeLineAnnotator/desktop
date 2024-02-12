@@ -28,7 +28,7 @@ class FileManager:
         serve(self, Get.MEDIA_METADATA, lambda: self.file.media_metadata)
         serve(self, Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"])
         listen(self, Post.PLAYER_URL_CHANGED, self.on_player_url_changed)
-        listen(self, Post.PLAYER_DURATION_CHANGED, self.on_player_duration_changed)
+        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_player_duration_changed)
         listen(self, Post.FILE_SAVE, self.on_save_request)
         listen(self, Post.FILE_SAVE_AS, self.on_save_as_request)
         listen(self, Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request)

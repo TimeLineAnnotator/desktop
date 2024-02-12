@@ -38,4 +38,4 @@ def validate_value(value: float) -> bool:
 
 def set_media_length(namespace: argparse.Namespace):
     if validate_value(namespace.value):
-        post(Post.PLAYER_DURATION_CHANGED, namespace.value)
+        post(Post.FILE_MEDIA_DURATION_CHANGED, namespace.value)

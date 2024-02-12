@@ -39,7 +39,7 @@ class TiliaState:
         self.undo_manager = tilia.undo_manager
 
     def reset(self):
-        self.player.duration = 100
+        self.app.duration = 100
         self.player.current_time = 0
         self.player.media_path = ''
         self._reset_undo_manager()
@@ -63,9 +63,8 @@ class TiliaState:
     
     @duration.setter
     def duration(self, value):
-        self.player.duration = value
-        post(Post.PLAYER_DURATION_CHANGED, value)
-    
+        self.app.set_media_duration(value)
+
     @property
     def media_path(self):
         return get(Get.MEDIA_PATH)
@@ -92,7 +91,7 @@ def tilia_state(tilia):
 def tilia(qtui):
     tilia_ = setup_logic(autosaver=False)
     tilia_.player = qtui.player
-    tilia_.player.duration = 100
+    tilia_.set_media_duration(100)
     yield tilia_
     try:
         tilia_.on_clear()

@@ -17,9 +17,11 @@ def beat_tlui(tls, tluis) -> TestBeatTimelineUI:
     ui = tluis.get_timeline_ui(tl.id)
 
     def create_beat(*args, **kwargs):
-        beat, _ = tl.create_timeline_component(ComponentKind.BEAT, *args, **kwargs)
+        beat, error = tl.create_timeline_component(ComponentKind.BEAT, *args, **kwargs)
+        if error:
+            raise ValueError(f'Unable to create beat: {error}')
         tl.recalculate_measures()
-        return beat, ui.get_element(beat.id) if beat else None
+        return beat, ui.get_element(beat.id)
 
     tl.create_beat = create_beat
     ui.create_beat = create_beat

@@ -4,6 +4,7 @@ from typing import Callable, Any
 
 
 class Post(Enum):
+    PLAYER_DURATION_AVAILABLE = auto()
     TIMELINE_ELEMENT_PASTE_COMPLETE = auto()
     HARMONY_IMPORT_FROM_CSV = auto()
     MODE_DISPLAY_AS_ROMAN_NUMERAL = auto()
@@ -28,7 +29,7 @@ class Post(Enum):
     PLAYER_ENABLE_CONTROLS = auto()
     PLAYER_DISABLE_CONTROLS = auto()
     UI_MEDIA_LOAD_YOUTUBE = auto()
-    PLAYER_DURATION_CHANGED = auto()
+    FILE_MEDIA_DURATION_CHANGED = auto()
     HIERARCHY_SELECTED = auto()
     HIERARCHY_DESELECTED = auto()
     TIMELINE_VIEW_DOUBLE_LEFT_CLICK = auto()

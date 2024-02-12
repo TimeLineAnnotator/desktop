@@ -52,7 +52,6 @@ class Player(ABC):
         listen(self, Post.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media)
         listen(self, Post.PLAYER_EXPORT_AUDIO, self.on_export_audio),
         serve(self, Get.MEDIA_CURRENT_TIME, lambda: self.current_time)
-        serve(self, Get.MEDIA_DURATION, lambda: self.duration)
         serve(self, Get.MEDIA_PATH, lambda: self.media_path)
 
         self.media_loaded = False
@@ -101,7 +100,7 @@ class Player(ABC):
 
     def on_media_duration_available(self, duration):
         self.playback_end = self.duration = duration
-        post(Post.PLAYER_DURATION_CHANGED, duration)
+        post(Post.PLAYER_DURATION_AVAILABLE, duration)
 
     def setup_playback_start_and_end(self, start, end):
         self.playback_start = start

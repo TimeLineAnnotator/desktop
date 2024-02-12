@@ -25,7 +25,6 @@ from tilia.ui.timelines.collection.collection import TimelineUIs
 from .menus import TimelinesMenu, HierarchyMenu, MarkerMenu, BeatMenu, HarmonyMenu
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
-from .strings import YOUTUBE_URL_REGEX
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
@@ -340,7 +339,7 @@ class QtUI:
         url, success = get(
             Get.FROM_USER_STRING, "Load from Youtube", "Enter YouTube URL"
         )
-        match = re.match(YOUTUBE_URL_REGEX, url)
+        match = re.match(tilia.constants.YOUTUBE_URL_REGEX, url)
         if not success:
             return
         if not match:

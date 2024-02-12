@@ -6,6 +6,8 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, QUrl, pyqtSlot, QObject, QTimer
 from PyQt6.QtWebChannel import QWebChannel
 
+import tilia.constants
+
 from tilia.media.player import Player
 
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -13,7 +15,6 @@ from PyQt6.QtWebEngineCore import QWebEngineSettings
 
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post
-from tilia.ui.strings import YOUTUBE_URL_REGEX
 
 
 class PlayerTracker(QObject):
@@ -118,7 +119,7 @@ class YouTubePlayer(Player):
 
     @staticmethod
     def get_id_from_url(url):
-        return re.match(YOUTUBE_URL_REGEX, url)[6]
+        return re.match(tilia.constants.YOUTUBE_URL_REGEX, url)[6]
 
     def _on_web_page_load_finished(self):
         self.web_page_loaded = True
