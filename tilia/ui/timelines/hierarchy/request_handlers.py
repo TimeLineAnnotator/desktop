@@ -2,7 +2,7 @@ from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
-from tilia.ui.timelines.base.request_handler import ElementRequestHandler
+from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
 from tilia.ui.timelines.hierarchy.copy_paste import (
     _display_copy_error,
     _validate_copy_cardinality,
