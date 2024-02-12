@@ -183,7 +183,7 @@ class Player(ABC):
             return
 
         if sys.platform != "darwin":
-            error_message = "Exporting audio is not available or macOS."
+            error_message = "Exporting audio is not available on macOS."
             post(Post.DISPLAY_ERROR, title="Export audio", message=error_message)
             return
 
