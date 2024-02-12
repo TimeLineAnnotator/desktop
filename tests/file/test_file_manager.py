@@ -2,13 +2,16 @@ import json
 from pathlib import Path
 from unittest.mock import mock_open
 import pytest
-from tests.mock import PatchPost
+from tests.mock import PatchPost, PatchGet
 from tilia.file.media_metadata import MediaMetadata
 
-from tilia.requests import Post, post, stop_listening_to_all, stop_serving_all
+import tests.utils
+from tilia.requests import Post, post, stop_listening_to_all, stop_serving_all, Get
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.file_manager import FileManager
 from unittest.mock import patch
+
+from tilia.ui.actions import TiliaAction
 
 
 @pytest.fixture
@@ -32,6 +35,43 @@ class TestFileManager:
         path = Path(__file__).parent / "test_file.tla"
         tilia.on_clear()
         tilia.file_manager.open(path)
+
+    def test_open_with_timeline(self, tilia, tls, tmp_path, actions):
+        timelines_data = {
+            "0": {
+                "height": 220,
+                "is_visible": True,
+                "ordinal": 1,
+                "name": "test",
+                "kind": "HIERARCHY_TIMELINE",
+                "components": {}
+            }
+        }
+        hierarchy_attrs = [(0, 1, 1), (1, 2, 1), (2, 3, 2)]
+
+        for i, (start, end, level) in enumerate(hierarchy_attrs):
+            timelines_data['0']['components'][i] = {
+                        "start": start,
+                        "end": end,
+                        "level": level,
+                        "comments": "",
+                        "label": "Unit 1",
+                        "parent": None,
+                        "children": [],
+                        "kind": "HIERARCHY"
+            }
+
+        file_data = tests.utils.get_blank_file_data()
+        file_data['timelines'] = timelines_data
+        file_data['media_metadata']['media length'] = 100
+
+        tmp_file = tmp_path / 'test_open_with_hierarchies.tla'
+        tmp_file.write_text(json.dumps(file_data))
+        with PatchGet('tilia.file.file_manager', Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
+            actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert len(tls) == 1
+        assert len(tls[0]) == 3
 
     def test_file_not_modified_after_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"

@@ -31,8 +31,6 @@ class TestMarkerTimeline:
 
         assert len(marker_tl) == 2
 
-    # TEST RIGHT CLICK OPTIONS
-
 
 class TestMarkerTimelineComponentManager:
     # TEST CLEAR

@@ -119,9 +119,12 @@ class App:
         self.load_media(path)
 
     def on_file_load(self, file: TiliaFile) -> None:
-        if file.media_path:
+        media_path = file.media_path
+        media_duration = file.media_metadata.get("media length", None)
+
+        if file.media_path or media_duration:
             self._setup_file_media(
-                file.media_path, file.media_metadata.get("media length", None)
+                media_path, media_duration
             )
 
         self.timelines.deserialize_timelines(file.timelines)
