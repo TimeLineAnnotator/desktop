@@ -99,6 +99,8 @@ class SelectHarmonyParams(QDialog):
 
         layout.addWidget(button_box, 3, 3, 1, 3)
 
+        line_edit.setFocus()
+
         self.show()
 
     def result(self):
