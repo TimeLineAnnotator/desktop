@@ -28,6 +28,10 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
             },
         )
 
+    @staticmethod
+    def filter_harmonies(elements: list[HarmonyUI | ModeUI]):
+        return filter(lambda e: isinstance(e, HarmonyUI), elements)
+
     def on_mode_add(self, _, confirmed, **kwargs):
         if not confirmed:
             return
@@ -63,9 +67,11 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
             self.timeline_ui.on_mode_delete_done()
 
     def on_display_as_chord_symbol(self, elements, *_, **__):
+        elements = self.filter_harmonies(elements)
         self.timeline_ui.set_elements_attr(elements, "display_mode", "chord")
 
     def on_display_as_roman_numeral(self, elements, *_, **__):
+        elements = self.filter_harmonies(elements)
         self.timeline_ui.set_elements_attr(elements, "display_mode", "roman")
 
     @staticmethod
