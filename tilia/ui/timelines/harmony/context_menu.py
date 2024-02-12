@@ -38,7 +38,6 @@ class HarmonyTimelineUIContextMenu(TimelineUIContextMenu):
     name = "Harmony timeline"
     items = [
         (MenuItemKind.ACTION, TiliaAction.TIMELINE_NAME_SET),
-        (MenuItemKind.ACTION, TiliaAction.TIMELINE_HEIGHT_SET),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.ACTION, TiliaAction.HARMONY_TIMELINE_SHOW_KEYS),
         (MenuItemKind.ACTION, TiliaAction.HARMONY_TIMELINE_HIDE_KEYS),
