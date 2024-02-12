@@ -136,5 +136,6 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
             success, reason = _validate_paste_complete_level(element, data)
             if not success:
                 _display_paste_complete_error(reason)
+                return
 
             self.timeline_ui.paste_with_children_into_element(data, element)

@@ -23,14 +23,14 @@ def harmony_tlui(tls, tluis) -> TestHarmonyTimelineUI:
     ui = tluis.get_timeline_ui(tl.id)
 
     def create_harmony(time=0, step=0, accidental=0, quality="major", **kwargs):
-        component = tl.create_timeline_component(
+        component, _ = tl.create_timeline_component(
             ComponentKind.HARMONY, time, step, accidental, quality, **kwargs
         )
         element = ui.get_element(component.id) if component else None
         return component, element
 
     def create_mode(time=0, step=0, accidental=0, type="major", **kwargs):
-        component = tl.create_timeline_component(
+        component, _ = tl.create_timeline_component(
             ComponentKind.MODE, time, step, accidental, type, **kwargs
         )
         element = ui.get_element(component.id) if component else None

@@ -107,13 +107,12 @@ def markers_by_time_from_csv(
                     index = params_to_indices[param]
                     constructor_kwargs[param] = parser(row[index])
 
-            try:
-                timeline.create_timeline_component(
-                    ComponentKind.MARKER, **constructor_kwargs
-                )
-            except CreateComponentError as exc:
-                time = params_to_indices["time"]
-                errors.append(f"{time=} | {str(exc)}")
+            component, reason = timeline.create_timeline_component(
+                ComponentKind.MARKER, **constructor_kwargs
+            )
+
+            if not component:
+                errors.append(reason)
 
         return errors
 
@@ -189,12 +188,11 @@ def markers_by_measure_from_csv(
                     constructor_kwargs[param] = parser(row[index])
 
             for time in times:
-                try:
-                    marker_tl.create_timeline_component(
-                        ComponentKind.MARKER, time=time, **constructor_kwargs
-                    )
-                except CreateComponentError as exc:
-                    errors.append(f"{measure=} | {str(exc)}")
+                marker, fail_reason = marker_tl.create_timeline_component(
+                    ComponentKind.MARKER, time=time, **constructor_kwargs
+                )
+                if not marker:
+                    errors.append(f"{measure=} | {fail_reason}")
 
         return errors
 

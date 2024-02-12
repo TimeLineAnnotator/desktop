@@ -106,7 +106,7 @@ def _deserialize_component(
     )
 
     # create component
-    component = timeline.create_timeline_component(component_kind, **constructor_kwargs)
+    component, _ = timeline.create_timeline_component(component_kind, **constructor_kwargs)
 
     if component:
         # attributes that are serializable by id or by id list get set separatedly

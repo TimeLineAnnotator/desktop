@@ -17,7 +17,7 @@ def marker_tlui(tls, tluis) -> TestMarkerTimelineUI:
     ui = tluis.get_timeline_ui(tl.id)
 
     def create_marker(*args, **kwargs):
-        component = tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
+        component, _ = tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
         element = ui.get_element(component.id) if component else None
         return component, element
 

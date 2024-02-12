@@ -110,9 +110,6 @@ class HierarchyTimelineUI(TimelineUI):
         prev_parent_end: float,
         child_pastedata_: dict,
     ):
-        logger.debug(
-            f"Creating child for '{new_parent}' from paste data '{child_pastedata_}'"
-        )
 
         new_parent_length = new_parent.tl_component.end - new_parent.tl_component.start
 
@@ -137,7 +134,7 @@ class HierarchyTimelineUI(TimelineUI):
         ) + new_parent.tl_component.end
         logger.debug(f"New child end is '{new_child_end}'")
 
-        return self.timeline.create_timeline_component(
+        component, _ = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
             start=new_child_start,
             end=new_child_end,
@@ -145,6 +142,8 @@ class HierarchyTimelineUI(TimelineUI):
             **child_pastedata_["by_element_value"],
             **child_pastedata_["by_component_value"],
         )
+
+        return component
 
     def paste_with_children_into_element(self, paste_data: dict, element: HierarchyUI):
         tilia.ui.timelines.copy_paste.paste_into_element(element, paste_data)

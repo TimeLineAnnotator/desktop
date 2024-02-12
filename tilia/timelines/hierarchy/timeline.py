@@ -220,7 +220,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             return success, reason
 
         # create new child
-        created_unit = self.timeline.create_timeline_component(
+        created_unit, fail_reason = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
             start=hierarchy.start,
             end=hierarchy.end,
@@ -228,7 +228,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         )
 
         if not created_unit:
-            raise ValueError("Couldn't create unit below, despite validation succeding")
+            return False, f"Couldn't create unit below: {reason}"
 
         if hierarchy.children:
             # Making former children child to unit created below {self}
@@ -345,12 +345,15 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if not success:
             return success, reason
 
-        grouping_unit = self.timeline.create_timeline_component(
+        grouping_unit, fail_reason = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
             start=start_time,
             end=end_time,
             level=grouping_unit_level,
         )
+
+        if not grouping_unit:
+            return False, fail_reason
 
         # find out who is supposed to be a children of grouping unit
         previous_common_parent = _get_previous_common_parent(hierarchies)
@@ -437,19 +440,25 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         self.delete_component(unit_to_split)
 
-        left_unit = self.timeline.create_timeline_component(
+        left_unit, fail_reason = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
             start=unit_to_split.start,
             end=split_time,
             level=unit_to_split.level,
         )
 
-        right_unit = self.timeline.create_timeline_component(
+        if not left_unit:
+            return False, fail_reason
+
+        right_unit, fail_reason = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
             start=split_time,
             end=unit_to_split.end,
             level=unit_to_split.level,
         )
+
+        if not right_unit:
+            return False, fail_reason
 
         # pass previous parent to new units
         if unit_to_split.parent:
@@ -543,12 +552,15 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         for unit in hierarchies:
             self.delete_component(unit)
 
-        merger_unit = self.timeline.create_timeline_component(
+        merger_unit, fail_reason = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,
             start=hierarchies[0].start,
             end=hierarchies[-1].end,
             level=hierarchies[0].level,
         )
+
+        if not merger_unit:
+            return False, fail_reason
 
         previous_parent = hierarchies[0].parent
 

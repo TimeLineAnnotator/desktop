@@ -10,7 +10,7 @@ from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 class TestHierarchyTimelineUI(HierarchyTimelineUI):
     def create_hierarchy(
         self, start: float, end: float, level: int, **kwargs
-    ) -> tuple[Hierarchy, HierarchyUI]: ...
+    ) -> tuple[Hierarchy | None, HierarchyUI | None]: ...
 
     def relate_hierarchies(self, parent: Hierarchy, children: list[Hierarchy]): ...
 
@@ -20,7 +20,7 @@ def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
     def create_hierarchy(
         start: float, end: float, level: int, **kwargs
     ) -> tuple[Hierarchy | None, HierarchyUI | None]:
-        component = tl.create_timeline_component(
+        component, _ = tl.create_timeline_component(
             ComponentKind.HIERARCHY, start, end, level, **kwargs
         )
         element = ui.get_element(component.id) if component else None

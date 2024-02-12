@@ -86,6 +86,10 @@ class TimelineUI(ABC):
         return self.get_data("ordinal") < other.get_data("ordinal")
 
     @property
+    def is_empty(self):
+        return len(self) == 0
+
+    @property
     def timeline(self):
         return get(Get.TIMELINE, self.id)
 

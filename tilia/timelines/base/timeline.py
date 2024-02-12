@@ -86,6 +86,10 @@ class Timeline(ABC, Generic[TC]):
         return self.ordinal < other.ordinal
 
     @property
+    def is_empty(self):
+        return len(self) == 0
+
+    @property
     def components(self):
         return self.component_manager.get_components()
 
@@ -120,9 +124,9 @@ class Timeline(ABC, Generic[TC]):
 
     def create_timeline_component(
             self, kind: ComponentKind, *args, **kwargs
-    ) -> TC | None:
+    ) -> tuple[TC | None, str | None]:
         component_id = get(Get.ID)
-        success, component = self.component_manager.create_component(
+        success, component, reason = self.component_manager.create_component(
             kind, self, component_id, *args, **kwargs
         )
 
@@ -130,9 +134,9 @@ class Timeline(ABC, Generic[TC]):
             post(
                 Post.TIMELINE_COMPONENT_CREATED, self.KIND, self.id, kind, component.id
             )
-            return component
+            return component, None
         else:
-            return None
+            return None, reason
 
     def get_component(self, id: int) -> TC:
         return self.component_manager.get_component(id)
@@ -213,18 +217,18 @@ class TimelineComponentManager(Generic[T, TC]):
     def _validate_component_creation(self, *args, **kwargs):
         return True, ""
 
-    def create_component(self, kind: ComponentKind, timeline, id, *args, **kwargs):
+    def create_component(self, kind: ComponentKind, timeline, id, *args, **kwargs) -> tuple[bool, TC | None, str]:
         self._validate_component_kind(kind)
         valid, reason = self._validate_component_creation(kind, *args, **kwargs)
         if not valid:
-            return False, None
+            return False, None, reason
 
         component_class = self._get_component_class_by_kind(kind)
         component = component_class(timeline, id, *args, **kwargs)
 
         self._add_to_components(component)
 
-        return True, component
+        return True, component, ''
 
     def set_component_data(self, id: int, attr: str, value: Any):
         value, success = self.get_component(id).set_data(attr, value)
