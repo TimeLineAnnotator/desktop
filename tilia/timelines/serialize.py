@@ -71,9 +71,9 @@ def deserialize_components(
     errors = []
 
     for id_, serialized_component in serialized_components.items():
-        component = _deserialize_component(timeline, serialized_component)
+        component, error = _deserialize_component(timeline, serialized_component)
         if not component:
-            errors.append(f"{id_=} | Error when creating component with id={id_}")
+            errors.append(f"id={id_} | {error}")
             continue
 
         id_to_component_dict[id_] = component
@@ -92,7 +92,7 @@ def deserialize_components(
 
 def _deserialize_component(
     timeline: Timeline, serialized_component: dict[str]
-) -> TimelineComponent:
+) -> tuple[TimelineComponent, str]:
     """Creates the serialized TimelineComponent in the given timeline.
     Attributes that originally referenced other TimelineComponents are
     , in this stage, set as references to save ids."""
@@ -106,13 +106,13 @@ def _deserialize_component(
     )
 
     # create component
-    component, _ = timeline.create_timeline_component(component_kind, **constructor_kwargs)
+    component, fail_reason = timeline.create_timeline_component(component_kind, **constructor_kwargs)
 
     if component:
         # attributes that are serializable by id or by id list get set separatedly
         _set_serializable_by_id_or_id_list(component, serialized_component)
 
-    return component
+    return component, fail_reason
 
 
 def _get_component_constructor_kwargs(
