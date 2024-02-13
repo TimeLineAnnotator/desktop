@@ -164,21 +164,6 @@ class TestCopyPaste:
 
         assert_are_copies(hrc1, hrc2)
 
-    @pytest.mark.skip("needs fixing since v0.2")
-    def test_get_copy_data_from_hierarchy_ui_with_children(self, hierarchy_tlui):
-        _ = hierarchy_tlui.create_hierarchy(0, 0.5, 1)
-        _ = hierarchy_tlui.create_hierarchy(0.5, 1, 1)
-        hrc3, ui3 = hierarchy_tlui.create_hierarchy(0, 1, 2)
-
-        set_dummy_copy_attributes(hrc3)
-        hierarchy_tlui.timeline.component_manager.do_genealogy()
-        hierarchy_tlui.select_element(ui3)
-
-        post(Post.TIMELINE_ELEMENT_COPY)
-        clipboard_contents = get(Get.CLIPBOARD_CONTENTS)
-
-        # assert that clipboard contents match ui3
-
     def test_paste_with_children_into_selected_elements_without_rescaling(
         self, hierarchy_tlui, actions, tilia_state
     ):

@@ -65,18 +65,6 @@ class TestTimelines:
         tls.delete_timeline(tls[0])
         assert tls.serve_ordinal_for_new_timeline() == 1
 
-    @pytest.mark.skip("Needs reimplementing")
-    def test_swap_timeline_order(self, tls):
-        pass
-
-    @pytest.mark.skip("Needs reimplementing")
-    def test_move_up_in_order(self, tls):
-        pass
-
-    @pytest.mark.skip("Needs reimplementing")
-    def test_move_down_in_order(self, tls):
-        pass
-
     def test_deserialize_timelines_with_display_position(self, tls):
         data = {
             0: {
