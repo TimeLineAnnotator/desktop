@@ -406,7 +406,6 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(hierarchy_tlui) == 2
 
-    @pytest.mark.skip("tested behavior works, needs fixing since v0.2.")
     def test_paste(self, hierarchy_tlui, tluis, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1, label="paste test")
         hrc2, ui2 = hierarchy_tlui.create_hierarchy(0, 1, 2)
@@ -419,13 +418,13 @@ class TestUndoRedo:
         hierarchy_tlui.select_element(ui2)
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
 
-        assert hrc2.get_data("label") == "paste test"
+        assert hierarchy_tlui[1].get_data("label") == "paste test"
 
-        post(Post.EDIT_UNDO)
-        assert hrc2.get_data("label") == ""
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        assert hierarchy_tlui[1].get_data("label") == ""
 
-        post(Post.EDIT_REDO)
-        assert hrc2.get_data("label") == "paste test"
+        actions.trigger(TiliaAction.EDIT_REDO)
+        assert hierarchy_tlui[1].get_data("label") == "paste test"
 
     def test_paste_with_children(self, hierarchy_tlui, tluis, actions):
         parent, parent_ui = hierarchy_tlui.create_hierarchy(0, 2, 2)
