@@ -115,14 +115,7 @@ class HarmonyTimelineUI(TimelineUI):
         )
 
     def get_key_by_time(self, time: float):
-        modes = sorted(self.modes())
-        idx = bisect.bisect([mode.get_data("time") for mode in modes], time)
-        if not idx:
-            return music21.key.Key("CM")
-        elif idx == len(modes):
-            idx = 0
-
-        return modes[idx - 1].key
+        return self.timeline.get_key_by_time(time)
 
     def _deselect_all_but_last(self):
         ordered_selected_elements = sorted(

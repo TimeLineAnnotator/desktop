@@ -121,6 +121,17 @@ class Harmony(TimelineComponent):
         return Harmony(*params)
 
 
+def get_params_from_text(text, key):
+    music21_object, object_type = _get_music21_object_from_text(
+        text, key
+    )
+    if not object_type:
+        return False, None
+
+    params = _get_params_from_music21_object(music21_object, object_type)
+    return True, params
+
+
 def _get_music21_object_from_text(text, key):
     text, prefixed_accidental = _extract_prefixed_accidental(text)
     text = _format_postfix_accidental(text)
@@ -142,7 +153,7 @@ def _get_music21_object_from_text(text, key):
 
 
 def _get_params_from_music21_object(obj, kind):
-    step = obj.root().step
+    step = NOTE_NAME_TO_INT[obj.root().step]
     accidental = int(obj.root().alter)
     inversion = obj.inversion()
     if kind == "roman":

@@ -9,8 +9,8 @@ from PyQt6.QtWidgets import (
 )
 
 from tilia import settings
-from tilia.requests import post, Post
 from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
+from tilia.timelines.harmony.components.harmony import get_params_from_text as get_harmony_params_from_text
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,
@@ -142,84 +142,8 @@ class SelectHarmonyParams(QDialog):
             if self.inversion_combobox.findData(3) == -1:
                 self.inversion_combobox.addItem("3rd", 3)
 
-    @staticmethod
-    def _display_cant_get_harmony_params_from_text_error(text):
-        post(
-            Post.DISPLAY_ERROR,
-            "Add harmony",
-            f"Can't get harmony parameters: '{text}' is not a valid harmony",
-        )
-
-    @staticmethod
-    def _format_postfix_accidental(text):
-        if len(text) > 1 and text[1] == "b":
-            text = text[0] + "-" + text[2:]
-            if len(text) > 2 and text[2] == "b":
-                text = text[:2] + "-" + text[3:]
-        return text
-
-    @staticmethod
-    def _extract_prefixed_accidental(text):
-        if not text:
-            return "", ""
-
-        accidental = ""
-
-        while text and text[0] in ["-", "#", "b"]:
-            accidental += text[0]
-            text = text[1:]
-
-        return text, accidental
-
-    def _get_music21_object_from_text(self, text, key):
-        text, prefixed_accidental = self._extract_prefixed_accidental(text)
-        text = self._format_postfix_accidental(text)
-        if text.startswith(tuple(NOTE_NAME_TO_INT)) and not prefixed_accidental:
-            try:
-                return music21.harmony.ChordSymbol(text), "chord"
-            except ValueError:
-                pass
-        elif text.startswith(("I", "i", "V", "v")):
-            try:
-                roman_numeral = music21.roman.RomanNumeral(
-                    prefixed_accidental + text, key
-                )
-                chord_common_name = music21.chord.Chord(
-                    roman_numeral.pitches
-                ).commonName
-                roman_numeral.chord_type = CHORD_COMMON_NAME_TO_TYPE[chord_common_name]
-                return roman_numeral, "roman"
-            except (ValueError, KeyError):
-                pass
-
-        return None, None
-
-    @staticmethod
-    def _get_params_from_music21_object(obj, kind):
-        step = obj.root().step
-        accidental = int(obj.root().alter)
-        inversion = obj.inversion()
-        if kind == "roman":
-            quality = obj.chord_type
-            applied_to = (
-                obj.secondaryRomanNumeral.figure.upper()
-                if obj.secondaryRomanNumeral
-                else None
-            )
-        else:
-            quality = obj.chordKind
-            applied_to = None
-
-        return {
-            "step": step,
-            "accidental": accidental,
-            "inversion": inversion,
-            "quality": quality,
-            "applied_to": applied_to,
-        }
-
     def _populate_widgets(self, params):
-        self.step_combobox.setCurrentIndex(self.step_combobox.findText(params["step"]))
+        self.step_combobox.setCurrentIndex(self.step_combobox.findData(params["step"]))
         self.accidental_combobox.setCurrentIndex(
             self.accidental_combobox.findData(params["accidental"])
         )
@@ -239,12 +163,9 @@ class SelectHarmonyParams(QDialog):
         if not text:
             return False
 
-        music21_object, object_type = self._get_music21_object_from_text(
-            text, self.current_key
-        )
-        if not object_type:
+        success, params = get_harmony_params_from_text(text, self.current_key)
+        if not success:
             return False
 
-        params = self._get_params_from_music21_object(music21_object, object_type)
         self._populate_widgets(params)
         return True

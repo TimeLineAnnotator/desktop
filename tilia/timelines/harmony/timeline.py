@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from bisect import bisect
+
+import music21
+
 from tilia.requests import Get, get
 from tilia.timelines.base.validators import validate_positive_integer
 from tilia.timelines.component_kinds import ComponentKind
@@ -22,13 +26,13 @@ class HarmonyTimeline(Timeline):
     ]
 
     def __init__(
-        self,
-        component_manager: HarmonyTLComponentManager,
-        name: str = "",
-        level_count: int = 1,
-        level_height: int = DEFAULT_LEVEL_HEIGHT,
-        visible_level_count: int = 2,
-        **kwargs,
+            self,
+            component_manager: HarmonyTLComponentManager,
+            name: str = "",
+            level_count: int = 1,
+            level_height: int = DEFAULT_LEVEL_HEIGHT,
+            visible_level_count: int = 2,
+            **kwargs,
     ):
         self.level_count = level_count
         self.level_height = level_height
@@ -56,8 +60,28 @@ class HarmonyTimeline(Timeline):
             "level_height", value / self.visible_level_count
         )  # should we set level_height to value instead?
 
+    def modes(self):
+        return self.component_manager.get_components_by_condition(
+            lambda _: True, ComponentKind.MODE
+        )
+
+    def harmonies(self):
+        return self.component_manager.get_components_by_condition(
+            lambda _: True, ComponentKind.HARMONY
+        )
+
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
+
+    def get_key_by_time(self, time: float):
+        modes = sorted(self.modes())
+        idx = bisect([mode.get_data("time") for mode in modes], time)
+        if not idx:
+            return music21.key.Key("CM")
+        elif idx == len(modes):
+            idx = 0
+
+        return modes[idx - 1].key
 
     def scale(self, factor: float) -> None:
         self.component_manager: HarmonyTLComponentManager
@@ -82,11 +106,11 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         super().__init__(self.COMPONENT_TYPES)
 
     def _validate_component_creation(
-        self,
-        kind: ComponentKind,
-        time: float,
-        *_,
-        **__,
+            self,
+            kind: ComponentKind,
+            time: float,
+            *_,
+            **__,
     ):
         media_duration = get(Get.MEDIA_DURATION)
         if time > media_duration:

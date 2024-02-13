@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import music21
+
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.validators import validate_time, validate_string
 from tilia.timelines.component_kinds import ComponentKind
@@ -10,6 +12,7 @@ from tilia.timelines.harmony.validators import (
     validate_level,
 )
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT, INT_TO_NOTE_NAME
 
 
 class Mode(TimelineComponent):
@@ -58,6 +61,42 @@ class Mode(TimelineComponent):
     def __repr__(self):
         return str(dict(self.__dict__.items()))
 
-    @classmethod
-    def create(cls, *args, **kwargs):
-        return Mode(*args, **kwargs)
+    @property
+    def key(self):
+        tonic = INT_TO_NOTE_NAME[self.step]
+        symbol = tonic.lower() if self.get_data('type') == 'minor' else tonic
+        return music21.key.Key(symbol)
+
+
+def _format_postfix_accidental(text):
+    if len(text) > 1 and text[1] == "b":
+        text = text[0] + "-" + text[2:]
+        if len(text) > 2 and text[2] == "b":
+            text = text[:2] + "-" + text[3:]
+    return text
+
+
+def get_params_from_text(text):
+    success, music21_object = _get_music21_object_from_text(text)
+    if not success:
+        return False, None
+
+    return True, _get_params_from_music21_object(music21_object)
+
+
+def _get_music21_object_from_text(text):
+    text = _format_postfix_accidental(text)
+    valid_initial_chars = list(NOTE_NAME_TO_INT) + list(map(str.lower, NOTE_NAME_TO_INT))
+    if text.startswith(tuple(valid_initial_chars)):
+        try:
+            return True, music21.key.Key(text)
+        except ValueError:
+            return False, None
+
+
+def _get_params_from_music21_object(obj: music21.key.Key):
+    return {
+        'step': NOTE_NAME_TO_INT[obj.tonic.step],
+        'accidental': int(obj.tonic.alter),
+        'type': obj.mode
+    }

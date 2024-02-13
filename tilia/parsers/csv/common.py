@@ -18,9 +18,8 @@ def _get_attrs_indices(params: list[str], headers: list[str]) -> [int]:
 def _validate_required_attrs(params: list[str], indices: [int | None]):
     for i, param in enumerate(params):
         if indices[i] is None:
-            display_column_not_found_error(param)
-            return False
-    return True
+            return False, f'"{param}" not found on CSV header.'
+    return True, ''
 
 
 def _parse_attr_data(
@@ -29,15 +28,23 @@ def _parse_attr_data(
     attr_to_value = {}
     errors = []
     for attr, parse_func, i in attr_data:
-        value = row_data[i]
+        try:
+            value = row_data[i]
+        except IndexError:
+            if attr in required_attrs:
+                return False, [f"Missing value for {attr}"], {}
+            else:
+                errors.append(f"Missing value for {attr}")
+                continue
         try:
             attr_to_value[attr] = parse_func(value)
-        except ValueError:
+        except ValueError as exc:
+            appended_text = str(exc).replace('APPEND:', '') if str(exc).startswith('APPEND:') else ''
             if attr in required_attrs:
-                return False, [f"{value=} | {value} is not a valid {attr}"], {}
+                return False, [f"{value=} is not a valid {attr}. " + appended_text], {}
             else:
-                errors.append(f"{value=} | {value} is not a valid {attr}")
-    return True, "", attr_to_value
+                errors.append(f"{value=} is not a valid {attr}. " + appended_text)
+    return True, errors, attr_to_value
 
 
 def _get_attr_data(
