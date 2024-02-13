@@ -13,10 +13,6 @@ class UserCancelledDialog(TiliaException):
     pass
 
 
-class CreateComponentError(TiliaException):
-    pass
-
-
 class InvalidComponentKindError(TiliaException):
     pass
 
