@@ -112,7 +112,7 @@ class TestPreStartIndicator:
         assert hui.pre_start_handle.isVisible() is True
         assert dsc.pre_start_handle.isVisible() is False
 
-    @pytest.mark.xfail(reason="feature not implemented")
+    @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_selected_descendant(self):
         _, hui = self.tlui.create_hierarchy(0.1, 1, 2, pre_start=0)
         _, dsc = self.tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
@@ -124,7 +124,7 @@ class TestPreStartIndicator:
         assert hui.pre_start_handle.isVisible() is False
         assert dsc.pre_start_handle.isVisible() is True
 
-    @pytest.mark.xfail(reason="feature not implemented")
+    @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_two_selected_descendant(self):
         _, hui = self.tlui.create_hierarchy(0.1, 1, 3, pre_start=0)
         _, child = self.tlui.create_hierarchy(0.1, 1, 2, pre_start=0)
@@ -206,7 +206,7 @@ class TestPostEndIndicator:
         assert hui.post_end_handle.isVisible() is True
         assert dsc.post_end_handle.isVisible() is False
 
-    @pytest.mark.xfail(reason="feature not implemented")
+    @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_selected_descendant(self):
         _, hui = self.tlui.create_hierarchy(0.1, 1, 2, post_end=1.10)
         _, dsc = self.tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
@@ -218,7 +218,7 @@ class TestPostEndIndicator:
         assert hui.post_end_handle.isVisible() is False
         assert dsc.post_end_handle.isVisible() is True
 
-    @pytest.mark.xfail(reason="feature not implemented")
+    @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_two_selected_descendant(self):
         _, hui = self.tlui.create_hierarchy(0.1, 1, 3, post_end=1.10)
         _, child = self.tlui.create_hierarchy(0.1, 1, 2, post_end=1.10)
