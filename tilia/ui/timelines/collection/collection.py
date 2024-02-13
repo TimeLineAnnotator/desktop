@@ -13,19 +13,16 @@ from PyQt6.QtWidgets import (
 )
 
 import tilia
+import tilia.ui.timelines.collection.request_handler
+import tilia.ui.timelines.collection.requests.timeline_uis
+import tilia.ui.timelines.collection.requests.args
+import tilia.ui.timelines.collection.requests.enums
+import tilia.ui.timelines.collection.requests.post_process
 from tilia.ui import actions
 from tilia import settings
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.timelines import timeline_kinds
-from tilia.ui.timelines.collection.request_handler import TimelineUIsRequestHandler
 from tilia.timelines.component_kinds import ComponentKind
-from . import requests
-from .requests import timeline_uis, timeline, element
-from .requests.args import get_args_for_request
-from .requests.enums import TimelineSelector
-from .requests.post_process import post_process_request
-from .requests.timeline import TlRequestSelector
-from .requests.element import TlElmRequestSelector
 from .scene import TimelineUIsScene
 from .validators import validate
 from tilia.exceptions import TimelineUINotFound, UserCancelledDialog
@@ -41,6 +38,11 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.scene import TimelineScene
 from tilia.ui.timelines.toolbar import TimelineToolbar
 from tilia.ui.timelines.view import TimelineView
+from tilia.ui.timelines.collection.requests.timeline import (
+    TimelineSelector,
+    TlRequestSelector,
+)
+from tilia.ui.timelines.collection.requests.element import TlElmRequestSelector
 from .view import TimelineUIsView
 from ..beat import BeatTimelineToolbar
 from ..harmony import HarmonyTimelineToolbar
@@ -172,13 +174,16 @@ class TimelineUIs:
             listen(self, request, callback)
 
     def _setup_timeline_uis_requests(self):
-        for request in requests.timeline_uis.requests:
+        for request in tilia.ui.timelines.collection.requests.timeline_uis.requests:
             listen(
                 self, request, functools.partial(self.on_timeline_ui_request, request)
             )
 
     def _setup_timeline_element_requests(self):
-        for request, selector in requests.element.request_to_scope.items():
+        for (
+            request,
+            selector,
+        ) in tilia.ui.timelines.collection.requests.element.request_to_scope.items():
             listen(
                 self,
                 request,
@@ -186,7 +191,10 @@ class TimelineUIs:
             )
 
     def _setup_timeline_requests(self):
-        for request, selector in requests.timeline.request_to_scope.items():
+        for (
+            request,
+            selector,
+        ) in tilia.ui.timelines.collection.requests.timeline.request_to_scope.items():
             listen(
                 self,
                 request,
@@ -616,7 +624,9 @@ class TimelineUIs:
 
     @staticmethod
     def on_hierarchy_selected():
-        actions.get_qaction(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE).setVisible(True)
+        actions.get_qaction(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE).setVisible(
+            True
+        )
 
     def on_hierarchy_deselected(self):
         selected_hierarchies = []
@@ -632,12 +642,16 @@ class TimelineUIs:
         self,
         request: Post,
         kinds: list[TlKind],
-        selector: Optional[TimelineSelector],
+        selector: tilia.ui.timelines.collection.requests.timeline.TimelineSelector,
     ):
         timeline_uis = self.get_timelines_uis_for_request(kinds, selector)
 
         try:
-            args, kwargs = get_args_for_request(request, timeline_uis)
+            args, kwargs = (
+                tilia.ui.timelines.collection.requests.args.get_args_for_request(
+                    request, timeline_uis
+                )
+            )
         except UserCancelledDialog:
             return None, None, None, False
 
@@ -648,7 +662,9 @@ class TimelineUIs:
 
     @staticmethod
     def pre_process_timeline_uis_request(request, *args, **kwargs):
-        args, kwargs = get_args_for_request(request, [], *args, **kwargs)
+        args, kwargs = tilia.ui.timelines.collection.requests.args.get_args_for_request(
+            request, [], *args, **kwargs
+        )
 
         return args, kwargs, True
 
@@ -673,7 +689,9 @@ class TimelineUIs:
                 )
             )
 
-        post_process_request(request, result)
+        tilia.ui.timelines.collection.requests.post_process.post_process_request(
+            request, result
+        )
         if request not in self.DO_NOT_RECORD:
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
@@ -684,7 +702,9 @@ class TimelineUIs:
         if not success:
             return
 
-        TimelineUIsRequestHandler(self).on_request(request, *args, **kwargs)
+        tilia.ui.timelines.collection.request_handler.TimelineUIsRequestHandler(
+            self
+        ).on_request(request, *args, **kwargs)
 
         if request not in self.DO_NOT_RECORD:
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
@@ -703,7 +723,9 @@ class TimelineUIs:
         for tlui in timeline_uis:
             result.append(tlui.on_timeline_request(request, *args, **kwargs))
 
-        post_process_request(request, result)
+        tilia.ui.timelines.collection.requests.post_process.post_process_request(
+            request, result
+        )
         if request not in self.DO_NOT_RECORD:
             post(Post.APP_RECORD_STATE, f"timeline request: {request.name}")
 
@@ -713,10 +735,14 @@ class TimelineUIs:
         def get_by_kinds(_kinds: list[TlKind]) -> list[TimelineUI]:
             return [tlui for tlui in self if tlui.TIMELINE_KIND in _kinds]
 
-        def filter_if_has_selected_elements(timeline_uis: list[TimelineUI]) -> list[TimelineUI]:
+        def filter_if_has_selected_elements(
+            timeline_uis: list[TimelineUI],
+        ) -> list[TimelineUI]:
             return [tlui for tlui in timeline_uis if tlui.has_selected_elements]
 
-        def filter_if_first_on_select_order(timeline_uis: list[TimelineUI]) -> list[TimelineUI]:
+        def filter_if_first_on_select_order(
+            timeline_uis: list[TimelineUI],
+        ) -> list[TimelineUI]:
             for tl_ui in self._select_order:
                 if tl_ui in timeline_uis:
                     return [tl_ui]
@@ -923,4 +949,3 @@ class TimelineUIs:
 
     def on_timeline_deleted(self, id: int):
         self.delete_timeline_ui(self.get_timeline_ui(id))
-
