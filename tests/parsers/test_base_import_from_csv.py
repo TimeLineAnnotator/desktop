@@ -1,6 +1,7 @@
-from tilia.parsers.csv.csv import (
+from tilia.parsers.csv.base import (
     get_params_indices,
 )
+
 
 def test_get_params_columns():
     headers = ["_", "h1", "h2", "_", "h3"]
@@ -10,5 +11,3 @@ def test_get_params_columns():
     assert get_params_indices(["h1", "h2", "h3"], headers) == expected
     assert get_params_indices(["_"], headers) == {"_": 0}
     assert get_params_indices(["notthere"], headers) == {}
-
-

@@ -10,7 +10,7 @@ from tilia.parsers.csv.common import (
     _parse_attr_data,
     _get_attr_data,
 )
-from tilia.parsers.csv.csv import TiliaCSVReader
+from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.timeline import HarmonyTimeline

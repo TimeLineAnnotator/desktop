@@ -3,7 +3,10 @@ from pathlib import Path
 from unittest.mock import patch, mock_open
 
 from tests.mock import PatchPost
-from tilia.parsers.csv.csv import markers_by_measure_from_csv, markers_by_time_from_csv
+from tilia.parsers.csv.marker import (
+    markers_by_time_from_csv,
+    markers_by_measure_from_csv,
+)
 from tilia.requests import Post
 
 
@@ -62,9 +65,7 @@ def test_markers_by_measure_from_csv_multiple_measures_with_number(
     assert markers[2].time == 3
 
 
-def test_markers_by_measure_from_csv_fails_if_no_measure_column(
-    beat_tlui, marker_tlui
-):
+def test_markers_by_measure_from_csv_fails_if_no_measure_column(beat_tlui, marker_tlui):
     os.chdir(Path(Path(__file__).absolute().parents[1]))
 
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
@@ -127,7 +128,9 @@ def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):
     assert "nonsense" in errors[0]
 
 
-def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(marker_tlui, tilia_state):
+def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
+    marker_tlui, tilia_state
+):
     tilia_state.duration = 100
     data = "time\n999"
     with patch("builtins.open", mock_open(read_data=data)):

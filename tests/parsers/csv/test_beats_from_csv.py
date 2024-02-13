@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch, mock_open
 
-from tilia.parsers.csv.csv import beats_from_csv
+from tilia.parsers.csv.beat import beats_from_csv
 
 
 def test_beats_from_csv(beat_tlui):

@@ -31,10 +31,9 @@ from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
 from ..media.player import QtAudioPlayer
-from tilia.parsers.csv.csv import (
-    beats_from_csv,
-    markers_by_time_from_csv,
-    markers_by_measure_from_csv,
+from ..parsers.csv.marker import markers_by_time_from_csv, markers_by_measure_from_csv
+from ..parsers.csv.beat import beats_from_csv
+from ..parsers.csv.hierarchy import (
     hierarchies_by_time_from_csv,
     hierarchies_by_measure_from_csv,
 )
