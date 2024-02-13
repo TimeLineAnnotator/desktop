@@ -119,7 +119,9 @@ class App:
 
     @staticmethod
     def _check_if_media_exists(path: str) -> bool:
-        return not re.match(path, tilia.constants.YOUTUBE_URL_REGEX) or Path(path).exists()
+        return (
+            not re.match(path, tilia.constants.YOUTUBE_URL_REGEX) or Path(path).exists()
+        )
 
     def _setup_file_media(self, path: str, duration: float | None):
         if duration:
@@ -137,9 +139,7 @@ class App:
         media_duration = file.media_metadata.get("media length", None)
 
         if file.media_path or media_duration:
-            self._setup_file_media(
-                media_path, media_duration
-            )
+            self._setup_file_media(media_path, media_duration)
 
         self.timelines.deserialize_timelines(file.timelines)
         self.setup_blank_file()

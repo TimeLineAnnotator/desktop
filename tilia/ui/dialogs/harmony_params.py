@@ -10,7 +10,9 @@ from PyQt6.QtWidgets import (
 
 from tilia import settings
 from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
-from tilia.timelines.harmony.components.harmony import get_params_from_text as get_harmony_params_from_text
+from tilia.timelines.harmony.components.harmony import (
+    get_params_from_text as get_harmony_params_from_text,
+)
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,

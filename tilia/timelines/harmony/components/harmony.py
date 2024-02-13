@@ -122,9 +122,7 @@ class Harmony(TimelineComponent):
 
 
 def get_params_from_text(text, key):
-    music21_object, object_type = _get_music21_object_from_text(
-        text, key
-    )
+    music21_object, object_type = _get_music21_object_from_text(text, key)
     if not object_type:
         return False, None
 

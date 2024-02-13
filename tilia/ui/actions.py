@@ -156,9 +156,7 @@ def set_tooltip(action: QAction, text: str, shortcut: str):
 
 
 taction_to_params = {
-    TiliaAction.UI_CLOSE: ActionParams(
-        Post.UI_CLOSE, "Close tilia", "Close", ""
-    ),
+    TiliaAction.UI_CLOSE: ActionParams(Post.UI_CLOSE, "Close tilia", "Close", ""),
     TiliaAction.BEAT_ADD: ActionParams(
         Post.BEAT_ADD, "Add beat at current position", "beat_add", "b"
     ),
@@ -362,7 +360,9 @@ taction_to_params = {
     TiliaAction.MEDIA_TOGGLE_PLAY_PAUSE: ActionParams(
         Post.PLAYER_TOGGLE_PLAY_PAUSE, "Play/pause", "playpause", "Space"
     ),
-    TiliaAction.INSPECT_WINDOW_CLOSE: ActionParams(Post.WINDOW_INSPECT_CLOSE, "Close", '', '')
+    TiliaAction.INSPECT_WINDOW_CLOSE: ActionParams(
+        Post.WINDOW_INSPECT_CLOSE, "Close", "", ""
+    ),
 }
 
 _taction_to_qaction: dict[TiliaAction, QAction] = {}  # will be populated on startup

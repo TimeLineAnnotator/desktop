@@ -5,7 +5,8 @@ from abc import ABC
 from typing import (
     Any,
     TYPE_CHECKING,
-    TypeVar, Optional,
+    TypeVar,
+    Optional,
 )
 
 from PyQt6.QtCore import Qt, QPoint
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', bound='TimelineUIElement')
+T = TypeVar("T", bound="TimelineUIElement")
 
 
 class TimelineUI(ABC):
@@ -164,9 +165,7 @@ class TimelineUI(ABC):
 
         return selector_to_elements[selector]
 
-    def set_elements_attr(
-        self, elements: list[T], attr: str, value: Any
-    ):
+    def set_elements_attr(self, elements: list[T], attr: str, value: Any):
         for elm in elements:
             self.set_component_data(elm.id, attr, value)
 
@@ -262,9 +261,7 @@ class TimelineUI(ABC):
             logger.debug("Element is not selectable.")
             return False
 
-    def on_element_left_click(
-        self, element: T, item: QGraphicsItem
-    ) -> None:
+    def on_element_left_click(self, element: T, item: QGraphicsItem) -> None:
         selected = self.select_element_if_selectable(element, item)
 
         if selected and hasattr(element, "seek_time"):

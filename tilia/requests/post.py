@@ -187,8 +187,12 @@ class Post(Enum):
     WINDOW_SETTINGS_OPEN = auto()
 
 
-_posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary({post: {} for post in Post})
-_listeners_to_posts: weakref.WeakKeyDictionary[Any, list[Post]] = weakref.WeakKeyDictionary()
+_posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary(
+    {post: {} for post in Post}
+)
+_listeners_to_posts: weakref.WeakKeyDictionary[Any, list[Post]] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 def _get_posts_excluded_from_log() -> list[Post]:

@@ -64,7 +64,7 @@ class Mode(TimelineComponent):
     @property
     def key(self):
         tonic = INT_TO_NOTE_NAME[self.step]
-        symbol = tonic.lower() if self.get_data('type') == 'minor' else tonic
+        symbol = tonic.lower() if self.get_data("type") == "minor" else tonic
         return music21.key.Key(symbol)
 
 
@@ -86,7 +86,9 @@ def get_params_from_text(text):
 
 def _get_music21_object_from_text(text):
     text = _format_postfix_accidental(text)
-    valid_initial_chars = list(NOTE_NAME_TO_INT) + list(map(str.lower, NOTE_NAME_TO_INT))
+    valid_initial_chars = list(NOTE_NAME_TO_INT) + list(
+        map(str.lower, NOTE_NAME_TO_INT)
+    )
     if text.startswith(tuple(valid_initial_chars)):
         try:
             return True, music21.key.Key(text)
@@ -96,7 +98,7 @@ def _get_music21_object_from_text(text):
 
 def _get_params_from_music21_object(obj: music21.key.Key):
     return {
-        'step': NOTE_NAME_TO_INT[obj.tonic.step],
-        'accidental': int(obj.tonic.alter),
-        'type': obj.mode
+        "step": NOTE_NAME_TO_INT[obj.tonic.step],
+        "accidental": int(obj.tonic.alter),
+        "type": obj.mode,
     }

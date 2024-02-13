@@ -8,6 +8,7 @@ NEEDS_POST_PROCESSING = [
     Post.TIMELINE_DELETE_DONE,
 ]
 
+
 def _post_process_timeline_element_copy(results):
     if not any([bool(r) for r in results]):
         return

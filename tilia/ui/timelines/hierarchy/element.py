@@ -460,7 +460,9 @@ class HierarchyUI(TimelineUIElement):
 
         return triggers
 
-    def on_left_click(self, item: HierarchyBodyHandle | HierarchyFrameHandle.VLine) -> None:
+    def on_left_click(
+        self, item: HierarchyBodyHandle | HierarchyFrameHandle.VLine
+    ) -> None:
         start_drag(self, item)
 
     def double_left_click_triggers(self):
@@ -536,7 +538,9 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def length_formatted(self) -> str:
-        return tilia.ui.format.format_media_time(self.get_data("end") - self.get_data("start"))
+        return tilia.ui.format.format_media_time(
+            self.get_data("end") - self.get_data("start")
+        )
 
     @property
     def pre_start_formatted(self) -> str:

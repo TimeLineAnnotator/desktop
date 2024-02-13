@@ -53,8 +53,12 @@ class Get(Enum):
     WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE = auto()
 
 
-_requests_to_callbacks: weakref.WeakKeyDictionary[Get, Callable] = weakref.WeakKeyDictionary()
-_servers_to_requests: weakref.WeakKeyDictionary[Any, set[Get]] = weakref.WeakKeyDictionary()
+_requests_to_callbacks: weakref.WeakKeyDictionary[Get, Callable] = (
+    weakref.WeakKeyDictionary()
+)
+_servers_to_requests: weakref.WeakKeyDictionary[Any, set[Get]] = (
+    weakref.WeakKeyDictionary()
+)
 
 log_requests = settings.get("dev", "log_requests")
 

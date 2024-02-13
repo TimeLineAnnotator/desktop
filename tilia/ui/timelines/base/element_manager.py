@@ -14,17 +14,16 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.base.timeline import TimelineUI
+
     # noinspection PyUnresolvedReferences
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', bound=TimelineUIElement)
+T = TypeVar("T", bound=TimelineUIElement)
 
 
 class ElementManager(Generic[T]):
-    def __init__(
-        self, element_class: type[T] | list[type[T]]
-    ):
+    def __init__(self, element_class: type[T] | list[type[T]]):
         self._elements: Set[T] = set()
         self.id_to_element = {}
         self.element_classes: T | list[T] = (
@@ -84,14 +83,10 @@ class ElementManager(Generic[T]):
             self._elements, attr_name, value
         )
 
-    def get_elements_by_condition(
-        self, condition: Callable[[T], bool]
-    ) -> list[T]:
+    def get_elements_by_condition(self, condition: Callable[[T], bool]) -> list[T]:
         return [e for e in self._elements if condition(e)]
 
-    def get_element_by_condition(
-        self, condition: Callable[[T], bool]
-    ) -> T | None:
+    def get_element_by_condition(self, condition: Callable[[T], bool]) -> T | None:
         return next((e for e in self._elements if condition(e)), None)
 
     def get_existing_values_for_attribute(self, attr_name: str) -> set:

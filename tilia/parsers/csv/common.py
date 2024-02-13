@@ -19,7 +19,7 @@ def _validate_required_attrs(params: list[str], indices: [int | None]):
     for i, param in enumerate(params):
         if indices[i] is None:
             return False, f'"{param}" not found on CSV header.'
-    return True, ''
+    return True, ""
 
 
 def _parse_attr_data(
@@ -39,7 +39,11 @@ def _parse_attr_data(
         try:
             attr_to_value[attr] = parse_func(value)
         except ValueError as exc:
-            appended_text = str(exc).replace('APPEND:', '') if str(exc).startswith('APPEND:') else ''
+            appended_text = (
+                str(exc).replace("APPEND:", "")
+                if str(exc).startswith("APPEND:")
+                else ""
+            )
             if attr in required_attrs:
                 return False, [f"{value=} is not a valid {attr}. " + appended_text], {}
             else:

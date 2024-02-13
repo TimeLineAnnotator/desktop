@@ -37,7 +37,9 @@ class PlayerToolbar(QToolBar):
         self.time_label = QLabel(f"{self.current_time_string}/{self.duration_string}")
         self.addWidget(self.time_label)
 
-    def on_player_current_time_changed(self, audio_time: float, _: MediaTimeChangeReason) -> None:
+    def on_player_current_time_changed(
+        self, audio_time: float, _: MediaTimeChangeReason
+    ) -> None:
         self.current_time_string = format_media_time(audio_time)
         self.update_time_string()
 

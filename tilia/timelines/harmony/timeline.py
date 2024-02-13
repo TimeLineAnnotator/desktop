@@ -26,13 +26,13 @@ class HarmonyTimeline(Timeline):
     ]
 
     def __init__(
-            self,
-            component_manager: HarmonyTLComponentManager,
-            name: str = "",
-            level_count: int = 1,
-            level_height: int = DEFAULT_LEVEL_HEIGHT,
-            visible_level_count: int = 2,
-            **kwargs,
+        self,
+        component_manager: HarmonyTLComponentManager,
+        name: str = "",
+        level_count: int = 1,
+        level_height: int = DEFAULT_LEVEL_HEIGHT,
+        visible_level_count: int = 2,
+        **kwargs,
     ):
         self.level_count = level_count
         self.level_height = level_height
@@ -106,11 +106,11 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         super().__init__(self.COMPONENT_TYPES)
 
     def _validate_component_creation(
-            self,
-            kind: ComponentKind,
-            time: float,
-            *_,
-            **__,
+        self,
+        kind: ComponentKind,
+        time: float,
+        *_,
+        **__,
     ):
         media_duration = get(Get.MEDIA_DURATION)
         if time > media_duration:

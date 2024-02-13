@@ -17,7 +17,9 @@ from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.harmony.components.harmony import (
     get_params_from_text as get_harmony_params_from_text,
 )
-from tilia.timelines.harmony.components.mode import get_params_from_text as get_mode_params_from_text
+from tilia.timelines.harmony.components.mode import (
+    get_params_from_text as get_mode_params_from_text,
+)
 
 
 def _parse_display_mode(value: str):
@@ -25,7 +27,7 @@ def _parse_display_mode(value: str):
     if value in valid_modes:
         return value
     else:
-        raise ValueError(f'APPEND:Must be one of {valid_modes}')
+        raise ValueError(f"APPEND:Must be one of {valid_modes}")
 
 
 def _parse_custom_text_font_type(value: str):
@@ -33,11 +35,11 @@ def _parse_custom_text_font_type(value: str):
     if value in valid_types:
         return value
     else:
-        raise ValueError(f'APPEND:Must be one of {valid_types}')
+        raise ValueError(f"APPEND:Must be one of {valid_types}")
 
 
 def _parse_harmony_or_key(value: str):
-    if value in ['harmony', 'key']:
+    if value in ["harmony", "key"]:
         return value
     else:
         raise ValueError('APPEND:Must be "harmony" or "key".')
@@ -47,16 +49,18 @@ def _parse_measure_fraction(value: str):
     try:
         value = float(value)
     except ValueError:
-        raise ValueError('APPEND:Must be a number between 0 and 1.')
+        raise ValueError("APPEND:Must be a number between 0 and 1.")
 
     if not 0 <= value <= 1:
-        raise ValueError('APPEND:Must be a number between 0 and 1.')
+        raise ValueError("APPEND:Must be a number between 0 and 1.")
 
-    return  value
+    return value
 
 
-def _get_component_params_from_text(component_kind: Literal['harmony', 'key'], text: str, key: music21.key.Key):
-    if component_kind == 'harmony':
+def _get_component_params_from_text(
+    component_kind: Literal["harmony", "key"], text: str, key: music21.key.Key
+):
+    if component_kind == "harmony":
         success, params = get_harmony_params_from_text(text, key)
     else:
         success, params = get_mode_params_from_text(text)
@@ -68,25 +72,26 @@ HARMONY_INVALID_SYMBOL_ERROR = '"{} is not a valid symbol for a harmony. Must be
 MODE_INVALID_SYMBOL_ERROR = '"{} is not a valid symbol for a key."'
 
 
-def _get_invalid_symbol_error(component_kind: Literal['harmony', 'key'], symbol: str):
-    return HARMONY_INVALID_SYMBOL_ERROR.format(symbol) if component_kind == 'harmony' else MODE_INVALID_SYMBOL_ERROR.format(symbol)
+def _get_invalid_symbol_error(component_kind: Literal["harmony", "key"], symbol: str):
+    return (
+        HARMONY_INVALID_SYMBOL_ERROR.format(symbol)
+        if component_kind == "harmony"
+        else MODE_INVALID_SYMBOL_ERROR.format(symbol)
+    )
 
 
 def _create_component(component_kind, symbol, harmony_tl, time):
     errors = []
-    success, params = _get_component_params_from_text(component_kind, symbol,
-                                                      harmony_tl.get_key_by_time(time))
+    success, params = _get_component_params_from_text(
+        component_kind, symbol, harmony_tl.get_key_by_time(time)
+    )
 
     if not success:
         errors.append(_get_invalid_symbol_error(component_kind, symbol))
         return errors
 
     component, fail_reason = harmony_tl.create_timeline_component(
-        (
-            ComponentKind.HARMONY
-            if component_kind == "harmony"
-            else ComponentKind.MODE
-        ),
+        (ComponentKind.HARMONY if component_kind == "harmony" else ComponentKind.MODE),
         time,
         **params,
     )
@@ -115,7 +120,7 @@ def import_by_time(
             ("time", float),
             ("symbol", str),
             ("comments", str),
-            ('display_mode', _parse_display_mode),
+            ("display_mode", _parse_display_mode),
             ("custom_text", str),
             ("custom_text_font_type", _parse_custom_text_font_type),
         ]
@@ -143,7 +148,12 @@ def import_by_time(
             if not success:
                 continue
 
-            errors += _create_component(attr_to_value['harmony_or_key'], attr_to_value['symbol'], timeline, attr_to_value['time'])
+            errors += _create_component(
+                attr_to_value["harmony_or_key"],
+                attr_to_value["symbol"],
+                timeline,
+                attr_to_value["time"],
+            )
 
         return errors
 
@@ -169,7 +179,7 @@ def import_by_measure(
             ("fraction", _parse_measure_fraction),
             ("symbol", str),
             ("comments", str),
-            ('display_mode', _parse_display_mode),
+            ("display_mode", _parse_display_mode),
             ("custom_text", str),
             ("custom_text_font_type", _parse_custom_text_font_type),
         ]
@@ -197,14 +207,21 @@ def import_by_measure(
             if not success:
                 return errors
 
-            measure_n = attr_to_value['measure']
-            times = beat_tl.get_time_by_measure(measure_n, attr_to_value.get('fraction', 0))
+            measure_n = attr_to_value["measure"]
+            times = beat_tl.get_time_by_measure(
+                measure_n, attr_to_value.get("fraction", 0)
+            )
 
             if not times:
                 errors.append(f"No measure with number {measure_n}")
                 continue
 
             for time in times:
-                errors += _create_component(attr_to_value['harmony_or_key'], attr_to_value['symbol'], harmony_tl, time)
+                errors += _create_component(
+                    attr_to_value["harmony_or_key"],
+                    attr_to_value["symbol"],
+                    harmony_tl,
+                    time,
+                )
 
         return errors

@@ -13,7 +13,7 @@ class MenuItemKind:
     SUBMENU = "menu"
 
 
-TiliaMenuItem: TypeAlias = None | TiliaAction | type['TiliaMenu']
+TiliaMenuItem: TypeAlias = None | TiliaAction | type["TiliaMenu"]
 
 
 class TiliaMenu(QMenu):
