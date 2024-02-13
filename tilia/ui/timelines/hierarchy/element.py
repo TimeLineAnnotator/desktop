@@ -27,6 +27,8 @@ from ...windows.inspect import HIDE_FIELD, InspectRowKind
 if TYPE_CHECKING:
     from .timeline import HierarchyTimelineUI
 
+import tilia.ui.format
+
 from tilia.requests import (
     Post,
     post,
@@ -34,8 +36,7 @@ from tilia.requests import (
     get,
     Get,
 )
-from ..copy_paste import CopyAttributes
-from ...format import format_media_time
+from tilia.ui.timelines.copy_paste import CopyAttributes
 from tilia import settings
 
 from tilia.ui.timelines.base.element import TimelineUIElement
@@ -529,21 +530,21 @@ class HierarchyUI(TimelineUIElement):
     @property
     def start_and_end_formatted(self) -> str:
         return (
-            f"{format_media_time(self.get_data('start'))} /"
-            f" {format_media_time(self.get_data('end'))}"
+            f"{tilia.ui.format.format_media_time(self.get_data('start'))} /"
+            f" {tilia.ui.format.format_media_time(self.get_data('end'))}"
         )
 
     @property
     def length_formatted(self) -> str:
-        return format_media_time(self.get_data("end") - self.get_data("start"))
+        return tilia.ui.format.format_media_time(self.get_data("end") - self.get_data("start"))
 
     @property
     def pre_start_formatted(self) -> str:
-        return format_media_time(self.get_data("pre_start"))
+        return tilia.ui.format.format_media_time(self.get_data("pre_start"))
 
     @property
     def post_end_formatted(self) -> str:
-        return format_media_time(self.get_data("post_end"))
+        return tilia.ui.format.format_media_time(self.get_data("post_end"))
 
     @property
     def frame_times_for_inspector(self):
