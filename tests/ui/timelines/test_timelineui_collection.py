@@ -99,51 +99,6 @@ class TestTimelineUICollection:
 
         assert tluis._select_order[0] == tlui2
 
-    @pytest.mark.skip("Needs reimplementing")
-    def test_ask_choose_timeline(self, tluis, beat_tlui, hierarchy_tlui, marker_tlui):
-        with patch("tilia.ui.dialogs.choose.ChooseDialog", lambda _: 1):
-            assert tluis.ask_choose_timeline("", "") == beat_tlui.timeline
-
-        with patch("tilia.ui.timelines.collection.ChooseDialog.ask", lambda _: 2):
-            assert tluis.ask_choose_timeline("", "") == hierarchy_tlui.timeline
-
-        with patch("tilia.ui.timelines.collection.ChooseDialog.ask", lambda _: 3):
-            assert tluis.ask_choose_timeline("", "") == marker_tlui.timeline
-
-    @pytest.mark.skip("Needs reimplementing")
-    def test_ask_choose_timeline_restrict_kind(
-        self, tkui, tluis, beat_tlui, hierarchy_tlui, marker_tlui
-    ):
-        with (
-            patch("tilia.ui.timelines.collection.ChooseDialog") as choose_window_mock,
-        ):
-
-            class ChooseWindowDummy:
-                call_count = 0
-
-                def ask(self):
-                    """
-                    ChooseDialog.ask must return the ordinal of
-                    'hierarchy_tlui' and 'marker_tlui', respectively.
-                    That is, 2 and 3.
-                    """
-                    self.call_count += 1
-                    return self.call_count + 1
-
-            choose_window_mock.return_value = ChooseWindowDummy()
-
-            tluis.ask_choose_timeline("title", "prompt", TlKind.HIERARCHY_TIMELINE)
-
-            choose_window_mock.assert_called_with(
-                tkui.root, "title", "prompt", [(2, str(hierarchy_tlui))]
-            )
-
-            tluis.ask_choose_timeline("title", "prompt", TlKind.MARKER_TIMELINE)
-
-            choose_window_mock.assert_called_with(
-                tkui.root, "title", "prompt", [(3, str(marker_tlui))]
-            )
-
 
 class TestServe:
     def test_serve_are_timeline_elements_selected_empty_case(self, tluis):
