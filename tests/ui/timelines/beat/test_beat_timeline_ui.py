@@ -269,6 +269,8 @@ class TestActions:
 
         assert tilia_state.is_window_open(WindowKind.INSPECT)
 
+        actions.trigger(TiliaAction.INSPECT_WINDOW_CLOSE)
+
     def test_change_measure_number_single_measure(self, beat_tlui):
         beat_tlui.create_beat(0)
         beat_tlui.select_element(beat_tlui[0])

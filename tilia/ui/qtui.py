@@ -151,6 +151,10 @@ class QtUI:
                 lambda: self.on_window_open(WindowKind.ABOUT),
             ),
             (
+                Post.WINDOW_INSPECT_CLOSE,
+                lambda: self.on_window_close(WindowKind.INSPECT),
+            ),
+            (
                 Post.WINDOW_INSPECT_CLOSED,
                 lambda: self.on_window_close_done(WindowKind.INSPECT),
             ),
@@ -166,7 +170,7 @@ class QtUI:
                 Post.WINDOW_ABOUT_CLOSED,
                 lambda: self.on_window_close_done(WindowKind.ABOUT),
             ),
-            (Post.REQUEST_CLEAR_UI, self.on_request_clear_ui),
+            (Post.REQUEST_CLEAR_UI, self.on_clear_ui),
             (Post.TIMELINE_KIND_INSTANCED, self.on_timeline_kind_change),
             (Post.TIMELINE_KIND_NOT_INSTANCED, self.on_timeline_kind_change),
             (
@@ -325,6 +329,11 @@ class QtUI:
     def open_media_metadata_window():
         return MediaMetadataWindow()
 
+    def on_window_close(self, kind: WindowKind):
+        if window := self._windows[kind]:
+            window.close()
+            self.on_window_close_done(kind)  # should post appropriate event instead
+
     def on_window_close_done(self, kind: WindowKind):
         self._windows[kind] = None
 
@@ -355,17 +364,12 @@ class QtUI:
 
         post(Post.APP_MEDIA_LOAD, url)
 
-    def on_request_clear_ui(self):
+    def on_clear_ui(self):
         """Closes all UI windows."""
-        windows_to_close = [
-            WindowKind.INSPECT,
-            WindowKind.MANAGE_TIMELINES,
-            WindowKind.MEDIA_METADATA,
-        ]
-
-        for window_kind in windows_to_close:
-            if window := self._windows[window_kind] is not None:
+        for kind, window in self._windows.items():
+            if window is not None:
                 window.destroy()
+                self._windows[kind] = None
 
     def _get_by_time_or_by_measure_from_user(self):
         dialog = ByTimeOrByMeasure(self.main_window)

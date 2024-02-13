@@ -5,6 +5,7 @@ from typing import Callable, Any
 
 
 class Post(Enum):
+    WINDOW_INSPECT_CLOSE = auto()
     PLAYER_DURATION_AVAILABLE = auto()
     TIMELINE_ELEMENT_PASTE_COMPLETE = auto()
     HARMONY_IMPORT_FROM_CSV = auto()

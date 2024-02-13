@@ -32,6 +32,7 @@ class TiliaState:
         self.player.current_time = 0
         self.player.media_path = ''
         self._reset_undo_manager()
+        self.ui.on_clear_ui()
 
     def _reset_undo_manager(self):
         self.app.reset_undo_manager()
