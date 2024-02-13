@@ -7,8 +7,8 @@ a = Analysis(
     ["../tilia/main.py"],
     pathex=[],
     binaries=[],
-    datas=[("../tilia/ui/img", "tilia/ui/img/"), ("./ffmpeg", "ffmpeg/")],
-    hiddenimports=["appdirs"],
+    datas=[("../tilia/ui/img", "tilia/ui/img/")],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -48,5 +48,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="TiLia",
+    name="TiLiA",
 )
