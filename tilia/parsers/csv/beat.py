@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Optional, Any
 
-from tilia.exceptions import CreateComponentError
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
     get_params_indices,
@@ -54,13 +53,11 @@ def beats_from_csv(
                     index = params_to_indices[param]
                     constructor_kwargs[param] = parser(row[index])
 
-            try:
-                timeline.create_timeline_component(
-                    ComponentKind.BEAT, **constructor_kwargs
-                )
-            except CreateComponentError as exc:
-                time = params_to_indices["time"]
-                errors.append(f"{time=} | {str(exc)}")
+            component, fail_reason = timeline.create_timeline_component(
+                ComponentKind.BEAT, **constructor_kwargs
+            )
+            if not component:
+                errors.append(fail_reason)
 
             timeline.recalculate_measures()
         return errors

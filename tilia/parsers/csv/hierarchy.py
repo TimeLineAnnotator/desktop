@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Optional, Any
 
-from tilia.exceptions import CreateComponentError
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
     get_params_indices,
@@ -23,8 +22,7 @@ def hierarchies_by_time_from_csv(
     Assumes the first row of the file will contain headers.
     Header names should match hierarchy properties.
     At least, 'start', 'end' and 'level' should be present.
-    Returns an array with descriptions of any CreateComponentErrors
-    raised during creation.
+    Returns an array with descriptions of any errors during the process.
     """
 
     errors = []
@@ -69,16 +67,11 @@ def hierarchies_by_time_from_csv(
                     index = params_to_indices[param]
                     constructor_args[param] = parser(row[index])
 
-            try:
-                timeline.create_timeline_component(
-                    ComponentKind.HIERARCHY, **constructor_args
-                )
-            except CreateComponentError as exc:
-                start = params_to_indices["start"]
-                end = params_to_indices["end"]
-                level = params_to_indices["level"]
-
-                errors.append(f"{start=}, {end=}, {level=} | {str(exc)}")
+            component, fail_reason = timeline.create_timeline_component(
+                ComponentKind.HIERARCHY, **constructor_args
+            )
+            if not component:
+                errors.append(fail_reason)
 
             timeline.do_genealogy()
         return errors
@@ -202,18 +195,17 @@ def hierarchies_by_measure_from_csv(
 
             # create hierarchies
             for start, end in zip(times["start"], times["end"]):
-                try:
-                    hierarchy_tl.create_timeline_component(
-                        ComponentKind.HIERARCHY,
-                        start,
-                        end,
-                        required_values["level"],
-                        start_fraction=fractions["start"],
-                        end_fraction=fractions["end"],
-                        **kwargs,
-                    )
-                except CreateComponentError as exc:
-                    errors.append(f"{start=}, {end=} | {str(exc)}")
+                component, fail_reason = hierarchy_tl.create_timeline_component(
+                    ComponentKind.HIERARCHY,
+                    start,
+                    end,
+                    required_values["level"],
+                    start_fraction=fractions["start"],
+                    end_fraction=fractions["end"],
+                    **kwargs,
+                )
+                if not component:
+                    errors.append(fail_reason)
 
             hierarchy_tl.do_genealogy()
 

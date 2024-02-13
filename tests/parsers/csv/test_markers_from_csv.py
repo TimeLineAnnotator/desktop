@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch, mock_open
 
 from tests.mock import PatchPost
+from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.marker import (
     markers_by_time_from_csv,
     markers_by_measure_from_csv,
@@ -169,3 +170,19 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
     assert "nonsense" in errors[0]
 
     assert sorted(marker_tl)[0].time == 1
+
+
+def test_component_creation_fail_reason_gets_into_errors(
+    marker_tl, beat_tlui, tilia_state
+):
+
+    tilia_state.duration = 100
+    data = "time\n101"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        errors = markers_by_time_from_csv(
+            marker_tl,
+            Path(),
+        )
+
+    assert_in_errors("101", errors)

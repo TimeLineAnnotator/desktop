@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
+from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.hierarchy import (
     hierarchies_by_time_from_csv,
     hierarchies_by_measure_from_csv,
@@ -196,9 +197,12 @@ def test_hierarchies_by_measure_from_csv_bad_optional_attrs_values(
     assert "nonsense2" in errors[1]
 
 
-def test_component_creation_fail_reason_gets_into_errors(hierarchy_tl, beat_tlui):
+def test_component_creation_fail_reason_gets_into_errors(
+    hierarchy_tl, beat_tlui, tilia_state
+):
 
-    data = "start,end,level\n-1,1,1"
+    tilia_state.duration = 100
+    data = "start,end,level\n101,1,1"
 
     with patch("builtins.open", mock_open(read_data=data)):
         errors = hierarchies_by_time_from_csv(
@@ -206,4 +210,4 @@ def test_component_creation_fail_reason_gets_into_errors(hierarchy_tl, beat_tlui
             Path(),
         )
 
-    assert "-1" in errors
+    assert_in_errors("101", errors)

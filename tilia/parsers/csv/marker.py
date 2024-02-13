@@ -22,8 +22,7 @@ def markers_by_time_from_csv(
     Assumes the first row of the file will contain headers.
     Header names should match marker properties. All properties
     but 'time' are optional.
-    Returns an array with descriptions of any CreateComponentErrors
-    raised during marker creation.
+    Returns an array with descriptions of any issues during creation.
     """
 
     errors = []
@@ -80,11 +79,7 @@ def markers_by_measure_from_csv(
     Assumes the first row of the file will contain headers.
     Header names should match marker propertiesAll properties
     but 'measure' are optional.
-    Returns an array with descriptions of any CreateComponentErrors
-    raised during marker creation.
-
-    Note: The measure column should have measure indices, not measure numbers.
-    That means that repeated measure numbers should not be taken into account.
+    Returns an array with any errors during the process.
     """
 
     errors = []
