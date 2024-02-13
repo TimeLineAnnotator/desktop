@@ -257,8 +257,7 @@ class TestOther:
 
 
 class TestActions:
-    @pytest.mark.skip("Test needs reimplementing")
-    def test_on_right_click_menu_inspect(self, beat_tlui):
+    def test_inspect(self, beat_tlui, actions, tilia_state):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
@@ -266,15 +265,9 @@ class TestActions:
         for element in beat_tlui:
             beat_tlui.select_element(element)
 
-        beat0 = beat_tlui[0]
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_INSPECT)
 
-        beat_tlui.right_clicked_element = beat0
-        beat_tlui.right_click_menu_inspect()
-
-        assert beat_tlui.selected_elements == [beat0]
-        assert _windows[WindowKind.INSPECT]
-
-        _windows[WindowKind.INSPECT].destroy()
+        assert tilia_state.is_window_open(WindowKind.INSPECT)
 
     def test_change_measure_number_single_measure(self, beat_tlui):
         beat_tlui.create_beat(0)

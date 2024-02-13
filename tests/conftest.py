@@ -6,12 +6,11 @@ from tilia.media.player.base import MediaTimeChangeReason
 from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
 from tilia.boot import setup_logic
-from tilia.exceptions import NoCallbackAttached
-from tilia.requests import stop_listening_to_all, stop_serving_all, Post, stop_listening, post, Get, get
+from tilia.requests import stop_listening_to_all, Post, stop_listening, post, Get, get
 from tilia.ui.actions import TiliaAction
 from tilia.ui.qtui import QtUI
 from tilia.ui.cli.ui import CLI
-
+from tilia.ui.windows import WindowKind
 
 pytest_plugins = [
     "tests.timelines.hierarchy.fixtures",
@@ -22,10 +21,11 @@ pytest_plugins = [
 
 
 class TiliaState:
-    def __init__(self, tilia: App):
+    def __init__(self, tilia: App, ui: QtUI):
         self.app = tilia
         self.player = tilia.player
         self.undo_manager = tilia.undo_manager
+        self.ui = ui
 
     def reset(self):
         self.app.duration = 100
@@ -67,10 +67,13 @@ class TiliaState:
     def is_undo_manager_cleared(self):
         return self.undo_manager.is_cleared
 
+    def is_window_open(self, kind: WindowKind):
+        return self.ui.is_window_open(kind)
+
 
 @pytest.fixture
-def tilia_state(tilia):
-    state = TiliaState(tilia)
+def tilia_state(tilia, qtui):
+    state = TiliaState(tilia, qtui)
     yield state
     state.reset()
 

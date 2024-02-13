@@ -328,6 +328,9 @@ class QtUI:
     def on_window_close_done(self, kind: WindowKind):
         self._windows[kind] = None
 
+    def is_window_open(self, kind: WindowKind):
+        return self._windows[kind] is not None
+
     @staticmethod
     def on_media_load_local():
         success, path = get(Get.FROM_USER_MEDIA_PATH)
