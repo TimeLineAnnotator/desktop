@@ -105,7 +105,7 @@ class SelectHarmonyParams(QDialog):
 
         self.show()
 
-    def result(self):
+    def result(self) -> dict[str, int | str]:
         return {
             "step": self.step_combobox.currentData(),
             "accidental": self.accidental_combobox.currentData(),

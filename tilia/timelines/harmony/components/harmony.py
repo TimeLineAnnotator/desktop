@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 import music21
+import re
 
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.validators import validate_time, validate_string
@@ -130,9 +131,26 @@ def get_params_from_text(text, key):
     return True, params
 
 
+SPECIAL_ABBREVIATIONS_TO_QUALITY = {
+    "dimb9": "diminished-minor-ninth",
+    "9#5": "augmented-dominant-ninth",
+    "m7b5": "half-diminished-seventh",
+    "m#7": "minor-major-seventh",
+}  # these don't get correctly parsed by music21
+
+
+def _replace_special_abbreviations(text):
+    sub_args = [("dimb9", "ob9"), ("9#5", "+9"), ("m7b5", "ø7"), ("m#7", "minmaj7")]
+    for pattern, replacement in sub_args:
+        text = re.sub(pattern, replacement, text)
+
+    return text
+
+
 def _get_music21_object_from_text(text, key):
     text, prefixed_accidental = _extract_prefixed_accidental(text)
     text = _format_postfix_accidental(text)
+    text = _replace_special_abbreviations(text)
     if text.startswith(tuple(NOTE_NAME_TO_INT)) and not prefixed_accidental:
         try:
             return music21.harmony.ChordSymbol(text), "chord"
@@ -175,10 +193,9 @@ def _get_params_from_music21_object(obj, kind):
 
 
 def _format_postfix_accidental(text):
-    if len(text) > 1 and text[1] == "b":
-        text = text[0] + "-" + text[2:]
-        if len(text) > 2 and text[2] == "b":
-            text = text[:2] + "-" + text[3:]
+    text = re.sub("([A-G][b#]*)-", "\\1m", text)
+    text = re.sub("([A-G])bb", "\\1--", text)
+    text = re.sub("([A-G])b", "\\1-", text)
     return text
 
 
