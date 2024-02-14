@@ -54,10 +54,9 @@ class TiliaMainWindow(QMainWindow):
         self.setStatusTip("Main window")
         qInstallMessageHandler(self.handle_qt_log_message)
 
-    def handle_qt_log_message(self, type, context, msg):
-        print(type)
-        print(context)
-        print(msg)
+    @staticmethod
+    def handle_qt_log_message(type, _, msg):
+        print(f"{type.name}: {msg}")
 
     def keyPressEvent(self, event: Optional[QtGui.QKeyEvent]) -> None:
         if event is None:
