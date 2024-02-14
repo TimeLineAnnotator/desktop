@@ -39,7 +39,7 @@ def beats_from_csv(
             index = params_to_indices["time"]
             time_value = row[index]
             try:
-                time = int(time_value)
+                int(time_value)
             except ValueError:
                 errors.append(f"{time_value=} | {time_value} is not a valid time")
                 continue
