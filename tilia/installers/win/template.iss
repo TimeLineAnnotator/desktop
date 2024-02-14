@@ -1,6 +1,7 @@
 #define MyAppName "TiLiA"
-#define MyAppVersion "&VERSION$"
+#define MyAppVersion "$VERSION$"
 #define MyAppURL "https://tilia-ad98d.web.app"
+#define MyAppSourcePath "$SOURCE_PATH$"
 #define MyAppExeName "tilia.exe"
 #define MyAppAssocName MyAppName + " File"
 #define MyAppAssocExt ".tla"
@@ -37,10 +38,9 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "{#SourcePath}\dist\{#MyAppName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#SourcePath}\ffmpeg\*"; DestDir: "{app}\ffmpeg"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "$README_PATH$"; DestDir: "{app}"; Flags: ignoreversion isreadme
-Source: "$LICENSE_PATH$"; DestDir: "{app}"; Flags: ignoreversion
+Source: "$SOURCE_PATH$\dist\{#MyAppName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "$SOURCE_PATH$\README.md"; DestDir: "{app}"; Flags: ignoreversion isreadme
+Source: "$SOURCE_PATH$\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Dirs]

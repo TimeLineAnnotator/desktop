@@ -40,10 +40,7 @@ def create_install_script() -> None:
 
     install_script = template.replace("$VERSION$", tilia.constants.VERSION)
     install_script = install_script.replace(
-        "$README_PATH", Path("README.md").resolve().__str__()
-    )
-    install_script = install_script.replace(
-        "$LICENSE_PATH", Path("LICENSE").resolve().__str__()
+        "$SOURCE_PATH$", Path("").resolve().__str__()
     )
 
     with open(PATH_TO_INSTALL_SCRIPT, "w") as f:
