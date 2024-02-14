@@ -27,7 +27,6 @@ from tilia.undo_manager import PauseUndoManager
 
 if TYPE_CHECKING:
     from tilia.app import App
-    from tilia.timelines.base.component import TimelineComponent
 
 logger = logging.getLogger(__name__)
 

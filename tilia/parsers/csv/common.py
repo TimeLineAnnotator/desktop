@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from tilia.parsers.csv.base import display_column_not_found_error, AttributeData
+from tilia.parsers.csv.base import AttributeData
 
 
 def _get_attrs_indices(params: list[str], headers: list[str]) -> [int]:

@@ -16,7 +16,6 @@ from tilia.timelines.harmony.components.harmony import (
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,
-    CHORD_COMMON_NAME_TO_TYPE,
 )
 from tilia.ui.timelines.harmony.utils import (
     QUALITY_TO_ROMAN_NUMERAL_SUFFIX,

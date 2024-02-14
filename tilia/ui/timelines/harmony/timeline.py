@@ -1,12 +1,6 @@
 from __future__ import annotations
 
-import copy
-import bisect
-
-import music21
-
 from . import level_label
-from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import Get, get
 from tilia.enums import Side
 from tilia.timelines.timeline_kinds import TimelineKind
