@@ -8,7 +8,7 @@ import logging
 from typing import Optional, Callable
 
 from PyQt6 import QtGui
-from PyQt6.QtCore import QKeyCombination, Qt
+from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 
@@ -52,6 +52,12 @@ class TiliaMainWindow(QMainWindow):
         self.setWindowTitle(tilia.constants.APP_NAME)
         self.setWindowIcon(QIcon(str(tilia.constants.APP_ICON_PATH)))
         self.setStatusTip("Main window")
+        qInstallMessageHandler(self.handle_qt_log_message)
+
+    def handle_qt_log_message(self, type, context, msg):
+        print(type)
+        print(context)
+        print(msg)
 
     def keyPressEvent(self, event: Optional[QtGui.QKeyEvent]) -> None:
         if event is None:
