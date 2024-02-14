@@ -51,7 +51,7 @@ class PlayerTracker(QObject):
 
 class YouTubePlayer(Player):
     MEDIA_TYPE = "youtube"
-    PATH_TO_HTML = str(Path("media", "player", "youtube.html").resolve())
+    PATH_TO_HTML = Path(__file__).parent / "youtube.html"
 
     def __init__(self):
         super().__init__()
@@ -65,7 +65,7 @@ class YouTubePlayer(Player):
         )
         self.web_page_loaded = False
         self.view.loadFinished.connect(self._on_web_page_load_finished)
-        self.view.load(QUrl.fromLocalFile(self.PATH_TO_HTML))
+        self.view.load(QUrl.fromLocalFile(self.PATH_TO_HTML.resolve().__str__()))
 
         self.view.setWindowTitle("TiLiA Player")
         self.view.resize(800, 600)
