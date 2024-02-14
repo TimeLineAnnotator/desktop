@@ -18,7 +18,7 @@ class TestRightClick:
 
 
 class TestDoubleClick:
-    def test_triggers_seek(self, beat_tlui, qtbot):
+    def test_triggers_seek(self, beat_tlui):
         b, bui = beat_tlui.create_beat(10)
         click_beat_ui(bui, double=True)
         assert get(Get.MEDIA_CURRENT_TIME) == 10
