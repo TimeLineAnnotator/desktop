@@ -1,6 +1,5 @@
 import time
 
-import pygame
 import pytest
 from pathlib import Path
 
