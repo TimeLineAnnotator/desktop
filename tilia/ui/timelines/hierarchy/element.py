@@ -245,11 +245,6 @@ class HierarchyUI(TimelineUIElement):
         self.comments_icon.setVisible(bool(self.get_data("comments")))
 
     def update_label(self):
-        """
-        Recalculates label widths and updates displayed label according
-        to label attr of timeline component.
-        """
-
         self.update_label_substrings_widths()
         self.label.set_text(self.cropped_label)
         self.update_label_position()
@@ -278,6 +273,7 @@ class HierarchyUI(TimelineUIElement):
         self.update_body_position()
         self.update_comments_icon_position()
         self.update_label_position()
+        self.update_label()
         self.update_body_handles_position()
         self.update_frame_handles_position()
 
