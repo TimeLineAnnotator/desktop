@@ -47,26 +47,23 @@ class TestCopyPaste:
 
     def test_paste_single_into_element(self, harmony_tlui):
         attributes_to_copy = {
-            'step': 2,
-            'accidental': 1,
-            'quality': "minor",
-            'applied_to': 4,
-            'inversion': 1,
-            'comments': "some comments",
-            'display_mode': "chord",
-            'custom_text': "some custom text",
+            "step": 2,
+            "accidental": 1,
+            "quality": "minor",
+            "applied_to": 4,
+            "inversion": 1,
+            "comments": "some comments",
+            "display_mode": "chord",
+            "custom_text": "some custom text",
         }
-        _, copied_hui = harmony_tlui.create_harmony(
-            0,
-            **attributes_to_copy
-        )
+        _, copied_hui = harmony_tlui.create_harmony(0, **attributes_to_copy)
         _, target_hui = harmony_tlui.create_harmony(
             10,
             step=1,
             accidental=-1,
             quality="major",
             applied_to=4,
-            inversion= 0,
+            inversion=0,
             comments="other comments",
             display_mode="roman",
             custom_text="other custom text",
@@ -82,21 +79,18 @@ class TestCopyPaste:
 
     def test_paste_multiple_into_element(self, harmony_tlui):
         attributes_to_copy = {
-            'step': 2,
-            'accidental': 1,
-            'quality': "minor",
-            'applied_to': 4,
-            'inversion': 1,
-            'comments': "some comments",
-            'display_mode': "chord",
-            'custom_text': "some custom text",
+            "step": 2,
+            "accidental": 1,
+            "quality": "minor",
+            "applied_to": 4,
+            "inversion": 1,
+            "comments": "some comments",
+            "display_mode": "chord",
+            "custom_text": "some custom text",
         }
         copied_huis = []
         for i in range(3):
-            _, hui1 = harmony_tlui.create_harmony(
-                i * 10,
-                **attributes_to_copy
-            )
+            _, hui1 = harmony_tlui.create_harmony(i * 10, **attributes_to_copy)
             copied_huis.append(hui1)
 
         _, target_hui = harmony_tlui.create_harmony(
@@ -112,7 +106,7 @@ class TestCopyPaste:
         )
 
         for hui in copied_huis:
-            click_harmony_ui(hui, modifier='shift')
+            click_harmony_ui(hui, modifier="shift")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_timeline_ui(harmony_tlui, 90)
         click_harmony_ui(target_hui)
