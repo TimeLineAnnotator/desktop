@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import mock_open
 import pytest
-from tests.mock import PatchPost, PatchGet
+from tests.mock import PatchPost, PatchGet, PatchGetMultiple, Serve
 from tilia.file.media_metadata import MediaMetadata
 
 import tests.utils
@@ -30,6 +30,25 @@ def get_empty_save_params():
     }
 
 
+class TestUserActions:
+    def test_save(self, tls, marker_tl, tmp_path, actions):
+        marker_tl.create_marker(0)
+        tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file_path, "")):
+            actions.trigger(TiliaAction.FILE_SAVE_AS)
+        marker_tl.create_marker(1)
+        actions.trigger(TiliaAction.FILE_SAVE)
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            actions.trigger(TiliaAction.TIMELINES_CLEAR)
+        assert marker_tl.is_empty
+        with (
+            Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file_path)),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+        ):
+            actions.trigger(TiliaAction.FILE_OPEN)
+        assert len(tls[0]) == 2
+
+
 class TestFileManager:
     def test_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"
@@ -44,30 +63,32 @@ class TestFileManager:
                 "ordinal": 1,
                 "name": "test",
                 "kind": "HIERARCHY_TIMELINE",
-                "components": {}
+                "components": {},
             }
         }
         hierarchy_attrs = [(0, 1, 1), (1, 2, 1), (2, 3, 2)]
 
         for i, (start, end, level) in enumerate(hierarchy_attrs):
-            timelines_data['0']['components'][i] = {
-                        "start": start,
-                        "end": end,
-                        "level": level,
-                        "comments": "",
-                        "label": "Unit 1",
-                        "parent": None,
-                        "children": [],
-                        "kind": "HIERARCHY"
+            timelines_data["0"]["components"][i] = {
+                "start": start,
+                "end": end,
+                "level": level,
+                "comments": "",
+                "label": "Unit 1",
+                "parent": None,
+                "children": [],
+                "kind": "HIERARCHY",
             }
 
         file_data = tests.utils.get_blank_file_data()
-        file_data['timelines'] = timelines_data
-        file_data['media_metadata']['media length'] = 100
+        file_data["timelines"] = timelines_data
+        file_data["media_metadata"]["media length"] = 100
 
-        tmp_file = tmp_path / 'test_open_with_hierarchies.tla'
+        tmp_file = tmp_path / "test_open_with_hierarchies.tla"
         tmp_file.write_text(json.dumps(file_data))
-        with PatchGet('tilia.file.file_manager', Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
+        with PatchGet(
+            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
+        ):
             actions.trigger(TiliaAction.FILE_OPEN)
 
         assert len(tls) == 1
