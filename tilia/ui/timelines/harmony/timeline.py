@@ -112,12 +112,8 @@ class HarmonyTimelineUI(TimelineUI):
         return self.timeline.get_key_by_time(time)
 
     def _deselect_all_but_last(self):
-        ordered_selected_elements = sorted(
-            self.element_manager.get_selected_elements(),
-            key=lambda x: x.tl_component.time,
-        )
-        if len(ordered_selected_elements) > 1:
-            for element in ordered_selected_elements[:-1]:
+        if len(self.selected_elements) > 1:
+            for element in self.selected_elements[:-1]:
                 self.element_manager.deselect_element(element)
 
     def on_side_arrow_press(self, side: Side):
@@ -170,22 +166,22 @@ class HarmonyTimelineUI(TimelineUI):
             self.select_element(element)
 
     def paste_multiple_into_selected_elements(self, paste_data: list[dict] | dict):
-        selected_elements = self.element_manager.get_selected_elements()
-        self.validate_paste(paste_data, selected_elements)
+        self.validate_paste(paste_data, self.selected_elements)
 
         paste_data = sorted(
             paste_data, key=lambda md: md["support_by_component_value"]["time"]
         )
-        selected_elements = sorted(selected_elements)
 
-        self.deselect_element(selected_elements[0])
-        paste_into_element(selected_elements[0], paste_data[0])
-        self.select_element(selected_elements[0])
+        first_selected_element = self.selected_elements[0]
+
+        self.deselect_element(self.selected_elements[0])
+        paste_into_element(first_selected_element, paste_data[0])
+        self.select_element(first_selected_element)
 
         self.create_pasted_components(
             paste_data[1:],
             paste_data[0]["support_by_component_value"]["time"],
-            selected_elements[0].get_data("time"),
+            self.selected_elements[0].get_data("time"),
         )
 
     def paste_single_into_timeline(self, paste_data: list[dict] | dict):

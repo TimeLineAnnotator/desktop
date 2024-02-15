@@ -69,7 +69,7 @@ class Timeline(ABC, Generic[TC]):
         return iter(self.components)
 
     def __getitem__(self, item):
-        return self.selected_elements(self.components)[item]
+        return self.components[item]
 
     def __len__(self):
         return self.component_manager.component_count
