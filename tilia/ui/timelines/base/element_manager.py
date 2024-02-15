@@ -162,3 +162,7 @@ class ElementManager(Generic[T]):
     def update_time_on_elements(self) -> None:
         for element in self._elements:
             element.update_position()
+
+    def update_element_order(self, element: T):
+        self._elements.remove(element)
+        bisect.insort_left(self._elements, element)

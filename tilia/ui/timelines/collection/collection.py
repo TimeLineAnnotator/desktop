@@ -258,7 +258,11 @@ class TimelineUIs:
     def on_timeline_component_set_data_done(
         self, timeline_id: int, component_id: int, attr: str, _: Any
     ):
-        self.get_timeline_ui_element(timeline_id, component_id).update(attr)
+        timeline_ui = self.get_timeline_ui(timeline_id)
+        element = timeline_ui.get_element(component_id)
+        element.update(attr)
+        if attr in element.tl_component.ORDERING_ATTRS:
+            timeline_ui.update_element_order(element)
 
     def on_timeline_set_data_done(self, id: int, attr: str, _: Any):
         self.get_timeline_ui(id).update(attr)

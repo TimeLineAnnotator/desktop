@@ -193,6 +193,9 @@ class Timeline(ABC, Generic[TC]):
         self.set_data("height", state["height"])
         self.set_data("name", state["name"])
 
+    def update_component_order(self, component: TC):
+        self.component_manager.update_component_order(component)
+
 
 class TimelineComponentManager(Generic[T, TC]):
     def __init__(
@@ -321,6 +324,10 @@ class TimelineComponentManager(Generic[T, TC]):
                 f"Can't remove component '{component}' from {self}: not in"
                 " self.components."
             )
+
+    def update_component_order(self, component: TC):
+        self._components.remove(component)
+        bisect.insort_left(self._components, component)
 
     def delete_component(self, component: TC) -> None:
         stop_listening_to_all(component)

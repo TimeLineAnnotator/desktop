@@ -416,3 +416,6 @@ class TimelineUI(ABC):
             f"{self.get_data('name') if self.timeline else '<unavailable>'} |"
             f" {self.TIMELINE_KIND.value.capitalize().split('_')[0]} Timeline"
         )
+
+    def update_element_order(self, element: T):
+        self.element_manager.update_element_order(element)

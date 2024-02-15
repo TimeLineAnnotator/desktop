@@ -27,12 +27,12 @@ class TimelineComponent(ABC):
     def __str__(self):
         return get_tilia_class_string(self)
 
+    def __lt__(self, other):
+        return self.ordinal < other.ordinal
+
     @property
     def ordinal(self):
         return tuple(getattr(self, attr) for attr in self.ORDERING_ATTRS)
-
-    def __lt__(self, other):
-        return self.ordinal < other.ordinal
 
     def validate_set_data(self, attr, value):
         if not hasattr(self, attr):
@@ -50,6 +50,8 @@ class TimelineComponent(ABC):
         if not self.validate_set_data(attr, value):
             return None, False
         setattr(self, attr, value)
+        if attr in self.ORDERING_ATTRS:
+            self.timeline.update_component_order(self)
         return value, True
 
     def validate_get_data(self, attr):
