@@ -27,6 +27,7 @@ class Marker(TimelineComponent):
     SERIALIZABLE_BY_VALUE = ["time", "comments", "label", "color"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
+    ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.MARKER
 
@@ -55,9 +56,6 @@ class Marker(TimelineComponent):
         self.label = label
         self.color = color
         self.comments = comments
-
-    def __lt__(self, other):
-        return self.time < other.time
 
     def __str__(self):
         return f"Marker({self.time})"

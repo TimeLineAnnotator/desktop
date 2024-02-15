@@ -17,6 +17,7 @@ class Beat(TimelineComponent):
 
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
+    ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.BEAT
 
@@ -34,9 +35,6 @@ class Beat(TimelineComponent):
 
         self.time = time
         self.comments = comments
-
-    def __lt__(self, other):
-        return self.time < other.time
 
     def __str__(self):
         return f"Beat({self.time})"

@@ -132,9 +132,6 @@ class HierarchyUI(TimelineUIElement):
         self.dragged = False
         self.drag_extremity = None
 
-    def __lt__(self, other):
-        return self.tl_component < other.tl_component
-
     @property
     def start_x(self):
         return coords.get_x_by_time(self.get_data("start"))

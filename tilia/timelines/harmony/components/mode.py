@@ -19,6 +19,7 @@ class Mode(TimelineComponent):
     SERIALIZABLE_BY_VALUE = ["time", "step", "accidental", "type", "comments", "level"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
+    ORDERING_ATTRS = ("level", "time")
     KIND = ComponentKind.MODE
 
     validators = {
@@ -51,9 +52,6 @@ class Mode(TimelineComponent):
         self.type = type
         self.level = level
         self.comments = comments
-
-    def __lt__(self, other):
-        return self.time < other.time
 
     def __str__(self):
         return f"Mode({self.step, self.accidental, self.type}) at {self.time}"

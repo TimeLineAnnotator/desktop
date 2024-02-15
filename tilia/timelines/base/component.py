@@ -13,6 +13,7 @@ class TimelineComponent(ABC):
     SERIALIZABLE_BY_VALUE = []
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
+    ORDERING_ATTRS = tuple()
 
     validators = {
         "timeline": validate_read_only,
@@ -26,8 +27,12 @@ class TimelineComponent(ABC):
     def __str__(self):
         return get_tilia_class_string(self)
 
-    @abstractmethod
-    def __lt__(self): ...
+    @property
+    def ordinal(self):
+        return tuple(getattr(self, attr) for attr in self.ORDERING_ATTRS)
+
+    def __lt__(self, other):
+        return self.ordinal < other.ordinal
 
     def validate_set_data(self, attr, value):
         if not hasattr(self, attr):
