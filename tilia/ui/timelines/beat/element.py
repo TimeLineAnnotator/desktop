@@ -70,7 +70,6 @@ class BeatUI(TimelineUIElement):
     ):
         super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
 
-        self.is_first_in_measure = False
         self._setup_body()
         self._setup_label()
 
@@ -87,11 +86,11 @@ class BeatUI(TimelineUIElement):
         return BeatUI(id, timeline_ui, scene, **kwargs)
 
     def _setup_body(self):
-        self.body = BeatBody(self.x - self.WIDTH_THIN / 2, self.height)
+        self.body = BeatBody(self.x, self.height)
         self.scene.addItem(self.body)
 
     def _setup_label(self):
-        self.label = BeatLabel(self.x, self.label_y, "")
+        self.label = BeatLabel(self.x, self.label_y, self.text)
         self.scene.addItem(self.label)
 
     @property
@@ -105,6 +104,15 @@ class BeatUI(TimelineUIElement):
     @property
     def label_y(self):
         return self.height + self.LABEL_MARGIN
+
+    @property
+    def text(self):
+        if self.get_data(
+                "is_first_in_measure"
+        ) and self.timeline_ui.should_display_measure_number(self):
+            return str(self.get_data("measure_number"))
+        else:
+            return ''
 
     @property
     def height(self):
@@ -130,13 +138,10 @@ class BeatUI(TimelineUIElement):
 
     def update_is_first_in_measure(self) -> None:
         self.body.set_position(self.x, self.height)
-        text = ""
-        if self.get_data(
-            "is_first_in_measure"
-        ) and self.timeline_ui.should_display_measure_number(self):
-            text = str(self.get_data("measure_number"))
+        self._update_label()
 
-        self.label.set_text(text)
+    def _update_label(self):
+        self.label.set_text(self.text)
         self.label.set_position(self.x, self.label_y)
 
     def selection_triggers(self):
@@ -265,4 +270,8 @@ class BeatLabel(QGraphicsTextItem):
         self.setPos(self.get_point(x, y))
 
     def set_text(self, value: str):
-        self.setPlainText(value)
+        if not value:
+            self.setVisible(False)
+        else:
+            self.setVisible(True)
+            self.setPlainText(value)

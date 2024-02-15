@@ -13,6 +13,10 @@ def validate_string(value):
     return isinstance(value, str)
 
 
+def validate_bool(value):
+    return isinstance(value, bool)
+
+
 def validate_color(value):
     if value is None:
         return True

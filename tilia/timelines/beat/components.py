@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tilia.timelines.base.validators import validate_time
+from tilia.timelines.base.validators import validate_time, validate_bool
 from tilia.timelines.component_kinds import ComponentKind
 
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ class Beat(TimelineComponent):
 
     KIND = ComponentKind.BEAT
 
-    validators = {"time": validate_time}
+    validators = {"time": validate_time, "is_first_in_measure": validate_bool}
 
     def __init__(
         self,
@@ -35,17 +35,13 @@ class Beat(TimelineComponent):
 
         self.time = time
         self.comments = comments
+        self.is_first_in_measure = False
 
     def __str__(self):
         return f"Beat({self.time})"
 
     def __repr__(self):
         return f"Beat({self.time})"
-
-    @property
-    def is_first_in_measure(self):
-        self.timeline: BeatTimeline
-        return self.timeline.is_first_in_measure(self)
 
     @property
     def metric_position(self):

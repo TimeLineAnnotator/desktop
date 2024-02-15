@@ -1,14 +1,6 @@
-import itertools
-import math
 import pytest
-import logging
 
 from tilia.ui.actions import TiliaAction
-
-logger = logging.getLogger(__name__)
-
-
-ID_ITER = itertools.count()
 
 
 class TestBeatTimeline:
@@ -22,11 +14,29 @@ class TestBeatTimeline:
         actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 0
 
-    def test_create_beat_at_time_bigger_than_media_duration_fails(self, beat_tl, tilia_state, actions):
+    def test_create_beat_at_time_bigger_than_media_duration_fails(
+        self, beat_tl, tilia_state, actions
+    ):
         tilia_state.duration = 100
         tilia_state.current_time = 101
         actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 0
+
+    def test_create_beat_at_middle_updates_next_beats_is_first_in_measure(self, beat_tl, tilia_state, actions):
+        beat_tl.beat_pattern = [2]
+        tilia_state.current_time = 0
+        actions.trigger(TiliaAction.BEAT_ADD)
+        tilia_state.current_time = 10
+        actions.trigger(TiliaAction.BEAT_ADD)
+        tilia_state.current_time = 20
+        actions.trigger(TiliaAction.BEAT_ADD)
+
+        tilia_state.current_time = 5
+        actions.trigger(TiliaAction.BEAT_ADD)
+
+        assert beat_tl[1].get_data('is_first_in_measure') is False
+        assert beat_tl[2].get_data('is_first_in_measure') is True
+        assert beat_tl[3].get_data('is_first_in_measure') is False
 
     def test_get_extension_mult_of_bp_without_beats_in_measure(self, beat_tl):
         beat_tl.beat_pattern = [4, 3, 2]

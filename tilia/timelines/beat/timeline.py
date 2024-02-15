@@ -8,8 +8,7 @@ from tilia import settings
 from tilia.timelines.beat.validators import validate_beat_pattern
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
-
+from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
 
 if TYPE_CHECKING:
     from tilia.timelines.beat.components import Beat
@@ -122,7 +121,6 @@ class BeatTimeline(Timeline):
             self.reduce_measure_numbers()
 
         self.update_beats_that_start_measures()
-        self.component_manager.update_beat_uis()
 
     @staticmethod
     def get_extension_from_beat_pattern(
@@ -330,6 +328,22 @@ class BeatTLComponentManager(TimelineComponentManager):
     def beat_times(self):
         return {b.time for b in self._components}
 
+    def create_component(
+        self, kind: ComponentKind, timeline, id, *args, **kwargs
+    ) -> tuple[bool, TC | None, str]:
+        success, beat, reason = super().create_component(
+            kind, timeline, id, *args, **kwargs
+        )
+
+        if success:
+            self.timeline.recalculate_measures()
+            beat_idx = self.get_components().index(beat)
+            beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
+            for beat_ in self.timeline[beat_idx + 1:]:
+                self.timeline.set_component_data(beat_.id, 'is_first_in_measure', self.timeline.is_first_in_measure(beat_))
+
+        return success, beat, reason
+
     def _validate_component_creation(
         self,
         _: ComponentKind,
@@ -363,6 +377,14 @@ class BeatTLComponentManager(TimelineComponentManager):
                 "is_first_in_measure",
                 is_first_in_measure,
             )
+
+    def update_component_order(self, component: TC):
+        super().update_component_order(component)
+        for component in self:
+            self.update_component_is_first_in_measure(component)
+
+    def update_component_is_first_in_measure(self, component):
+        component.is_first_in_measure = self.timeline.is_first_in_measure(component)
 
     def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
         if self.timeline is None:
