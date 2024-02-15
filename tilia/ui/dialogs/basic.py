@@ -33,8 +33,8 @@ def ask_yes_no_or_cancel(title: str, prompt: str) -> tuple[bool, bool]:
     )
 
     return (
-        result != QMessageBox.StandardButton.Cancel,
-        result == QMessageBox.StandardButton.Yes,
+        result != QMessageBox.StandardButton.Cancel,  # success
+        result == QMessageBox.StandardButton.Yes,  # result
     )
 
 
