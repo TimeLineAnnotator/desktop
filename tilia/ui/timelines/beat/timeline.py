@@ -39,13 +39,13 @@ class BeatTimelineUI(TimelineUI):
         self.timeline.recalculate_measures()
 
     def _deselect_all_but_last(self):
-        if len(sorted(self.selected_elements)) > 1:
-            for element in sorted(self.selected_elements)[:-1]:
+        if len(self.selected_elements) > 1:
+            for element in self.selected_elements[:-1]:
                 self.element_manager.deselect_element(element)
 
     def _deselect_all_but_first(self):
-        if len(sorted(self.selected_elements)) > 1:
-            for element in sorted(self.selected_elements)[1:]:
+        if len(self.selected_elements) > 1:
+            for element in self.selected_elements[1:]:
                 self.element_manager.deselect_element(element)
 
     def get_next_beat(self, elm):
@@ -82,7 +82,7 @@ class BeatTimelineUI(TimelineUI):
 
     def should_display_measure_number(self, beat_ui):
         beat = self.timeline.get_component(beat_ui.id)
-        beat_index = sorted(self.timeline).index(beat)
+        beat_index = self.timeline.components.index(beat)
         measure_index, _ = self.timeline.get_measure_index(beat_index)
         return self.timeline.should_display_measure_number(measure_index)
 

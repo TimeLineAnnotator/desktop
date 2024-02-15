@@ -74,7 +74,7 @@ class TimelineUI(ABC):
         return iter(self.elements)
 
     def __getitem__(self, item):
-        return sorted(self.elements)[item]
+        return self.elements[item]
 
     def __len__(self):
         return len(self.elements)
@@ -96,7 +96,7 @@ class TimelineUI(ABC):
 
     @property
     def elements(self):
-        return list(self.element_manager.get_all_elements())
+        return self.element_manager.get_elements()
 
     @property
     def id_to_element(self):

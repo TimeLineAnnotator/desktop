@@ -60,9 +60,7 @@ class HierarchyTimeline(Timeline):
         if not amount:
             return
 
-        for component in sorted(
-            components, key=lambda x: (x.level, x.start), reverse=amount > 0
-        ):
+        for component in self:
             success, reason = validate_level(component, component.level + amount)
             if not success:
                 post(
@@ -155,7 +153,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         for lvl in sorted([hrc.level for hrc in self._components]):
             for child in [hrc for hrc in self._components if hrc.level == lvl]:
-                for hrc in sorted(list(self.timeline)):
+                for hrc in self:
                     if (
                         not child.parent
                         and child.start >= hrc.start

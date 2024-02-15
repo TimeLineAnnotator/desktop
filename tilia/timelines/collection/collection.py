@@ -319,7 +319,7 @@ class Timelines:
         if not self.get_timelines_by_attr("KIND", TimelineKind.BEAT_TIMELINE):
             return None, None
         tl = self.get_beat_timeline_for_measure_calculation()
-        beats = sorted(tl.components)
+        beats = tl.components
         if not beats:
             return None, None
         times = [beat.get_data("time") for beat in beats]

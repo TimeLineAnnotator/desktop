@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import bisect
 from abc import ABC
 from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
 
@@ -68,7 +69,7 @@ class Timeline(ABC, Generic[TC]):
         return iter(self.components)
 
     def __getitem__(self, item):
-        return sorted(self.components)[item]
+        return self.selected_elements(self.components)[item]
 
     def __len__(self):
         return self.component_manager.component_count
@@ -198,7 +199,7 @@ class TimelineComponentManager(Generic[T, TC]):
         self,
         component_kinds: list[ComponentKind],
     ):
-        self._components: Set[TC] = set()
+        self._components: list[TC] = []
         self.component_kinds = component_kinds
         self.id_to_component: dict[int, TC] = {}
 
@@ -212,7 +213,6 @@ class TimelineComponentManager(Generic[T, TC]):
         return len(self._components)
 
     def associate_to_timeline(self, timeline: Timeline):
-        logger.debug(f"Setting {self}.timeline to {timeline}")
         self.timeline = timeline
 
     def _validate_component_creation(self, *args, **kwargs):
@@ -279,9 +279,9 @@ class TimelineComponentManager(Generic[T, TC]):
         cmp_set = self._get_component_set_by_kind(kind)
         return set([getattr(cmp, attr_name) for cmp in cmp_set])
 
-    def _get_component_set_by_kind(self, kind: ComponentKind) -> set:
+    def _get_component_set_by_kind(self, kind: ComponentKind) -> Set[TC]:
         if kind == "all":
-            return self._components
+            return set(self._components)
         cmp_class = self._get_component_class_by_kind(kind)
 
         return {cmp for cmp in self._components if isinstance(cmp, cmp_class)}
@@ -309,7 +309,7 @@ class TimelineComponentManager(Generic[T, TC]):
         return [c for c in cmp_list if getattr(c, attr_name) == value]
 
     def _add_to_components(self, component: TC) -> None:
-        self._components.add(component)
+        bisect.insort_left(self._components, component)
         self.id_to_component[component.id] = component
 
     def _remove_from_components_set(self, component: TC) -> None:

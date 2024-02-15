@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
+import bisect
+from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic
 
 from PyQt6.QtWidgets import QGraphicsItem
 
@@ -24,7 +25,7 @@ T = TypeVar("T", bound=TimelineUIElement)
 
 class ElementManager(Generic[T]):
     def __init__(self, element_class: type[T] | list[type[T]]):
-        self._elements: Set[T] = set()
+        self._elements: list[T] = []
         self.id_to_element = {}
         self.element_classes: T | list[T] = (
             element_class if isinstance(element_class, list) else [element_class]
@@ -60,7 +61,7 @@ class ElementManager(Generic[T]):
         return element
 
     def _add_to_elements_set(self, element: T) -> None:
-        self._elements.add(element)
+        bisect.insort_left(self._elements, element)
         self.id_to_element[element.id] = element
 
     def _remove_from_elements_set(self, element: T) -> None:
@@ -94,13 +95,13 @@ class ElementManager(Generic[T]):
 
     @staticmethod
     def _get_element_from_set_by_attribute(
-        cmp_list: set, attr_name: str, value: Any
+        cmp_list: list[T], attr_name: str, value: Any
     ) -> T | None:
         return next((e for e in cmp_list if getattr(e, attr_name) == value), None)
 
     @staticmethod
     def _get_elements_from_set_by_attribute(
-        cmp_list: set, attr_name: str, value: Any
+        cmp_list: list[T], attr_name: str, value: Any
     ) -> list[T]:
         return [e for e in cmp_list if getattr(e, attr_name) == value]
 
@@ -123,7 +124,7 @@ class ElementManager(Generic[T]):
             self.deselect_element(element)
 
     def _add_to_selected_elements_set(self, element: T) -> None:
-        self._selected_elements.append(element)
+        bisect.insort_left(self._selected_elements, element)
 
     def _remove_from_selected_elements_set(self, element: T) -> None:
         try:
@@ -155,7 +156,7 @@ class ElementManager(Generic[T]):
     def __repr__(self) -> str:
         return get_tilia_class_string(self)
 
-    def get_all_elements(self) -> set:
+    def get_elements(self) -> list[T]:
         return self._elements
 
     def update_time_on_elements(self) -> None:

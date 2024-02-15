@@ -9,7 +9,7 @@ class HierarchyTimelineUIKeyPressManager:
 
     def _deselect_all_but_last(self):
         if len(self.selected_elements) > 1:
-            for element in sorted(self.selected_elements)[:-1]:
+            for element in self.selected_elements[:-1]:
                 self.deselect_element(element)
 
     def on_vertical_arrow_press(self, direction: str):

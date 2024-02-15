@@ -87,13 +87,13 @@ class BeatTimeline(Timeline):
 
         for index in measure_indices:
             beat_number = self.beats_that_start_measures[index]
-            measure_time = sorted(self)[beat_number].time
+            measure_time = self.components[beat_number].time
 
             if index == self.measure_count - 1:
                 next_measure_time = measure_time
             else:
                 beat_number = self.beats_that_start_measures[index + 1]
-                next_measure_time = sorted(self)[beat_number].time
+                next_measure_time = self.components[beat_number].time
 
             measure_times.append(
                 measure_time + (next_measure_time - measure_time) * fraction
@@ -110,7 +110,7 @@ class BeatTimeline(Timeline):
         self.recalculate_measures()
 
     def is_first_in_measure(self, beat):
-        return sorted(self).index(beat) in self.beats_that_start_measures
+        return self.components.index(beat) in self.beats_that_start_measures
 
     def recalculate_measures(self):
         beat_delta = (len(self)) - sum(self.beats_in_measure)
@@ -264,7 +264,7 @@ class BeatTimeline(Timeline):
                 raise ValueError(f'No beat with index "{beat_index}" at {self}.')
 
     def get_beat_index(self, beat: Beat) -> int:
-        return sorted(self).index(beat)
+        return self.components.index(beat)
 
     def propagate_measure_number_change(self, start_index: int):
         for j, measure in enumerate(self.measure_numbers[start_index + 1 :]):
@@ -351,7 +351,7 @@ class BeatTLComponentManager(TimelineComponentManager):
             return True, ""
 
     def update_beat_uis(self):
-        beats = sorted(self.timeline).copy()
+        beats = self.get_components().copy()
         for beat in beats:
             beat_index = beats.index(beat)
             is_first_in_measure = beat_index in self.timeline.beats_that_start_measures
@@ -368,7 +368,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         if self.timeline is None:
             raise ValueError("self.timeline is None.")
 
-        beats = sorted(self.timeline).copy()
+        beats = self.get_components().copy()
         measure_start = self.timeline.beats_that_start_measures[measure_index]
         measure_end = self.timeline.beats_that_start_measures[measure_index + 1]
         return beats[measure_start:measure_end]
@@ -386,7 +386,7 @@ class BeatTLComponentManager(TimelineComponentManager):
 
         measure_start_time = beats_in_measure[0].time
         next_measure_start_index = self.timeline.get_beat_index(beats_in_measure[-1])
-        measure_end_time = sorted(self.timeline)[next_measure_start_index + 1].time
+        measure_end_time = self.get_components()[next_measure_start_index + 1].time
         interval = (measure_end_time - measure_start_time) / len(beats_in_measure)
 
         for index, beat in enumerate(beats_in_measure):
