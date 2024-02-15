@@ -90,8 +90,16 @@ def serve(replier: Any, request: Get, callback: Callable) -> None:
     _requests_to_callbacks[request] = callback
     if replier not in _servers_to_requests.keys():
         _servers_to_requests[replier] = set()
-    else:
-        _servers_to_requests[replier].add(request)
+
+    _servers_to_requests[replier].add(request)
+
+
+def server(request: Get) -> tuple[Any | None, Callable | None]:
+    for replier, request_set in _servers_to_requests.items():
+        if request in request_set:
+            return replier, _requests_to_callbacks[request]
+
+    return None, None
 
 
 def stop_serving(replier: Any, request: Get) -> None:
