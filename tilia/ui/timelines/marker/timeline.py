@@ -42,24 +42,6 @@ class MarkerTimelineUI(TimelineUI):
                 self.element_manager.deselect_element(element)
 
     def on_side_arrow_press(self, side: Side):
-        def _get_next_marker(elm):
-            later_elements = self.element_manager.get_elements_by_condition(
-                lambda m: m.time > elm.time
-            )
-            if later_elements:
-                return sorted(later_elements, key=lambda m: m.time)[0]
-            else:
-                return None
-
-        def _get_previous_marker(elm):
-            earlier_elements = self.element_manager.get_elements_by_condition(
-                lambda m: m.time < elm.time
-            )
-            if earlier_elements:
-                return sorted(earlier_elements, key=lambda m: m.time)[-1]
-            else:
-                return None
-
         if not self.has_selected_elements:
             return
 
@@ -67,19 +49,15 @@ class MarkerTimelineUI(TimelineUI):
 
         selected_element = self.element_manager.get_selected_elements()[0]
         if side == Side.RIGHT:
-            element_to_select = _get_next_marker(selected_element)
+            element_to_select = self.get_next_element(selected_element)
         elif side == Side.LEFT:
-            element_to_select = _get_previous_marker(selected_element)
+            element_to_select = self.get_previous_element(selected_element)
         else:
             raise ValueError(f"Invalid side '{side}'.")
 
         if element_to_select:
             self.deselect_element(selected_element)
             self.select_element(element_to_select)
-        elif side == Side.RIGHT:
-            logger.debug("Selected element is last. Can't select next.")
-        else:
-            logger.debug("Selected element is first. Can't select previous.")
 
     def validate_copy(self, elements: list[TimelineUIElement]) -> None:
         pass

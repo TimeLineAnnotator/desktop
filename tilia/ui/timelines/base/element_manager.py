@@ -20,14 +20,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T", bound=TimelineUIElement)
+TE = TypeVar("TE", bound=TimelineUIElement)
 
 
-class ElementManager(Generic[T]):
-    def __init__(self, element_class: type[T] | list[type[T]]):
-        self._elements: list[T] = []
+class ElementManager(Generic[TE]):
+    def __init__(self, element_class: type[TE] | list[type[TE]]):
+        self._elements: list[TE] = []
         self.id_to_element = {}
-        self.element_classes: T | list[T] = (
+        self.element_classes: TE | list[TE] = (
             element_class if isinstance(element_class, list) else [element_class]
         )
 
@@ -60,11 +60,11 @@ class ElementManager(Generic[T]):
 
         return element
 
-    def _add_to_elements_set(self, element: T) -> None:
+    def _add_to_elements_set(self, element: TE) -> None:
         bisect.insort_left(self._elements, element)
         self.id_to_element[element.id] = element
 
-    def _remove_from_elements_set(self, element: T) -> None:
+    def _remove_from_elements_set(self, element: TE) -> None:
         try:
             self._elements.remove(element)
             del self.id_to_element[element.id]
@@ -73,21 +73,35 @@ class ElementManager(Generic[T]):
                 f"Can't remove element '{element}' from {self}: not in self._elements."
             )
 
-    def get_element(self, id: int) -> T:
+    def get_element(self, id: int) -> TE:
         return self.id_to_element[id]
 
-    def get_element_by_attribute(self, attr_name: str, value: Any) -> T:
+    def get_element_by_attribute(self, attr_name: str, value: Any) -> TE:
         return self._get_element_from_set_by_attribute(self._elements, attr_name, value)
 
-    def get_elements_by_attribute(self, attr_name: str, value: Any) -> list[T]:
+    def get_elements_by_attribute(self, attr_name: str, value: Any) -> list[TE]:
         return self._get_elements_from_set_by_attribute(
             self._elements, attr_name, value
         )
 
-    def get_elements_by_condition(self, condition: Callable[[T], bool]) -> list[T]:
+    def get_elements_by_condition(self, condition: Callable[[TE], bool]) -> list[TE]:
         return [e for e in self._elements if condition(e)]
 
-    def get_element_by_condition(self, condition: Callable[[T], bool]) -> T | None:
+    def get_next_element(self, element: TE) -> TE | None:
+        element_idx = self._elements.index(element)
+        if element_idx == len(self._elements) - 1:
+            return None
+        else:
+            return self._elements[element_idx + 1]
+
+    def get_previous_element(self, element: TE) -> TE | None:
+        element_idx = self._elements.index(element)
+        if element_idx == 0:
+            return None
+        else:
+            return self._elements[element_idx - 1]
+
+    def get_element_by_condition(self, condition: Callable[[TE], bool]) -> TE | None:
         return next((e for e in self._elements if condition(e)), None)
 
     def get_existing_values_for_attribute(self, attr_name: str) -> set:
@@ -95,27 +109,27 @@ class ElementManager(Generic[T]):
 
     @staticmethod
     def _get_element_from_set_by_attribute(
-        cmp_list: list[T], attr_name: str, value: Any
-    ) -> T | None:
+        cmp_list: list[TE], attr_name: str, value: Any
+    ) -> TE | None:
         return next((e for e in cmp_list if getattr(e, attr_name) == value), None)
 
     @staticmethod
     def _get_elements_from_set_by_attribute(
-        cmp_list: list[T], attr_name: str, value: Any
-    ) -> list[T]:
+        cmp_list: list[TE], attr_name: str, value: Any
+    ) -> list[TE]:
         return [e for e in cmp_list if getattr(e, attr_name) == value]
 
-    def select_element(self, element: T) -> None:
+    def select_element(self, element: TE) -> None:
         if element not in self._selected_elements:
             self._add_to_selected_elements_set(element)
             element.on_select()
 
-    def deselect_element(self, element: T) -> None:
+    def deselect_element(self, element: TE) -> None:
         if element in self._selected_elements:
             self._remove_from_selected_elements_set(element)
             element.on_deselect()
 
-    def _deselect_if_selected(self, element: T):
+    def _deselect_if_selected(self, element: TE):
         if element in self._selected_elements:
             self.deselect_element(element)
 
@@ -123,10 +137,10 @@ class ElementManager(Generic[T]):
         for element in self._selected_elements.copy():
             self.deselect_element(element)
 
-    def _add_to_selected_elements_set(self, element: T) -> None:
+    def _add_to_selected_elements_set(self, element: TE) -> None:
         bisect.insort_left(self._selected_elements, element)
 
-    def _remove_from_selected_elements_set(self, element: T) -> None:
+    def _remove_from_selected_elements_set(self, element: TE) -> None:
         try:
             self._selected_elements.remove(element)
         except ValueError:
@@ -135,16 +149,16 @@ class ElementManager(Generic[T]):
                 " in self._selected_elements."
             )
 
-    def get_selected_elements(self) -> list[T]:
+    def get_selected_elements(self) -> list[TE]:
         return self._selected_elements
 
-    def delete_element(self, element: T):
+    def delete_element(self, element: TE):
         element.delete()
         self._remove_from_elements_set(element)
 
     @staticmethod
     def get_child_items_from_elements(
-        elements: list[T],
+        elements: list[TE],
     ) -> list[int]:
         drawings_ids = []
         for element in elements:
@@ -156,13 +170,13 @@ class ElementManager(Generic[T]):
     def __repr__(self) -> str:
         return get_tilia_class_string(self)
 
-    def get_elements(self) -> list[T]:
+    def get_elements(self) -> list[TE]:
         return self._elements
 
     def update_time_on_elements(self) -> None:
         for element in self._elements:
             element.update_position()
 
-    def update_element_order(self, element: T):
+    def update_element_order(self, element: TE):
         self._elements.remove(element)
         bisect.insort_left(self._elements, element)

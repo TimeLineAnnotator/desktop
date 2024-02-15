@@ -149,6 +149,12 @@ class Timeline(ABC, Generic[TC]):
     def get_components_by_attr(self, attr: str, value: Any) -> list[TC]:
         return [c for c in self if c.get_data(attr) == value]
 
+    def get_next_component(self, component: TC) -> TC | None:
+        return self.component_manager.get_next_component(component)
+
+    def get_previous_component(self, component: TC) -> TC | None:
+        return self.component_manager.get_previous_component(component)
+
     def set_component_data(self, id: int, attr: str, value: Any):
         return self.component_manager.set_component_data(id, attr, value)
 
@@ -277,6 +283,20 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def get_component(self, id: int) -> TC:
         return self.id_to_component[id]
+
+    def get_next_component(self, id: int) -> TC | None:
+        component_idx = self._components.index(self.get_component(id))
+        if component_idx == len(self._components) - 1:
+            return None
+        else:
+            return self._components[component_idx + 1]
+
+    def get_previous_component(self, id: int) -> TC | None:
+        component_idx = self._components.index(self.get_component(id))
+        if component_idx == 0:
+            return None
+        else:
+            return self._components[component_idx - 1]
 
     def get_existing_values_for_attr(self, attr_name: str, kind: ComponentKind) -> set:
         cmp_set = self._get_component_set_by_kind(kind)

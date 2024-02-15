@@ -128,8 +128,8 @@ class TestGetBeat:
 
         beat0 = beat_tlui[0]
         beat1 = beat_tlui[1]
-        assert beat_tlui.get_next_beat(beat0) == beat1
-        assert beat_tlui.get_next_beat(beat1) is None
+        assert beat_tlui.get_next_element(beat0) == beat1
+        assert beat_tlui.get_next_element(beat1) is None
 
     def test_get_previous_beat(self, beat_tlui):
         beat_tlui.create_beat(0)
@@ -137,8 +137,8 @@ class TestGetBeat:
 
         beat0 = beat_tlui[0]
         beat1 = beat_tlui[1]
-        assert beat_tlui.get_previous_beat(beat1) == beat0
-        assert beat_tlui.get_previous_beat(beat0) is None
+        assert beat_tlui.get_previous_element(beat1) == beat0
+        assert beat_tlui.get_previous_element(beat0) is None
 
 
 class TestCopyPaste:

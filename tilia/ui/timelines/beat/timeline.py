@@ -48,24 +48,6 @@ class BeatTimelineUI(TimelineUI):
             for element in self.selected_elements[1:]:
                 self.element_manager.deselect_element(element)
 
-    def get_next_beat(self, elm):
-        later_elements = self.element_manager.get_elements_by_condition(
-            lambda m: m.time > elm.time
-        )
-        if later_elements:
-            return sorted(later_elements, key=lambda m: m.time)[0]
-        else:
-            return None
-
-    def get_previous_beat(self, elm):
-        earlier_elements = self.element_manager.get_elements_by_condition(
-            lambda m: m.time < elm.time
-        )
-        if earlier_elements:
-            return sorted(earlier_elements, key=lambda m: m.time)[-1]
-        else:
-            return None
-
     def on_beat_position_change(self, id: int, is_first_in_measure: bool, label: str):
         """
         For when the position in relation to other beats changes.
@@ -92,22 +74,18 @@ class BeatTimelineUI(TimelineUI):
 
         if side == Side.RIGHT:
             self._deselect_all_but_last()
-            selected_element = self.element_manager.get_selected_elements()[0]
-            element_to_select = self.get_next_beat(selected_element)
+            selected_element = self.selected_elements[0]
+            element_to_select = self.get_next_element(selected_element)
         elif side == Side.LEFT:
             self._deselect_all_but_first()
-            selected_element = self.element_manager.get_selected_elements()[0]
-            element_to_select = self.get_previous_beat(selected_element)
+            selected_element = self.selected_elements[0]
+            element_to_select = self.get_previous_element(selected_element)
         else:
             raise ValueError(f"Invalid side '{side}'.")
 
         if element_to_select:
             self.element_manager.deselect_element(selected_element)
             self.select_element(element_to_select)
-        elif side == Side.RIGHT:
-            logger.debug("Selected element is last. Can't select next.")
-        else:
-            logger.debug("Selected element is first. Can't select previous.")
 
     def get_copy_data_from_selected_elements(self):
         self.validate_copy(self.selected_elements)

@@ -316,6 +316,12 @@ class TimelineUI(ABC):
                 continue
             self.deselect_element(element)
 
+    def get_next_element(self, element):
+        return self.element_manager.get_next_element(element)
+
+    def get_previous_element(self, element):
+        return self.element_manager.get_previous_element(element)
+
     def display_timeline_context_menu(self, x: int, y: int):
         if not self.CONTEXT_MENU_CLASS:
             return

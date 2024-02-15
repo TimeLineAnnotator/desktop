@@ -173,13 +173,13 @@ class BeatUI(TimelineUIElement):
         )
 
     def get_drag_left_limit(self):
-        previous_beat = self.timeline_ui.get_previous_beat(self)
+        previous_beat = self.timeline_ui.get_preivous_element(self)
         if not previous_beat:
             return get(Get.LEFT_MARGIN_X)
         return get_x_by_time(previous_beat.time) + self.DRAG_PROXIMITY_LIMIT
 
     def get_drag_right_limit(self):
-        next_beat = self.timeline_ui.get_next_beat(self)
+        next_beat = self.timeline_ui.get_next_element(self)
         if not next_beat:
             return get(Get.RIGHT_MARGIN_X)
         return get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
