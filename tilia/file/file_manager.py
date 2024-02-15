@@ -67,14 +67,12 @@ class FileManager:
 
         try:
             self.save(app_state, app_state["file_path"])
-        except TiliaFileWriteError:
-            post(Post.DISPLAY_ERROR, "Error when saving file.")
+        except Exception as exc:
+            post(Post.DISPLAY_ERROR, f"Error when saving file.\n{exc}")
 
     def on_save_as_request(self):
         """Prompts user for a path, and saves tilia file to it."""
-        path, extension = get(
-            Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla"
-        )
+        path, _ = get(Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla")
         if not path:
             return
 
