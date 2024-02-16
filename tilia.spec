@@ -28,14 +28,26 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    name="tilia",
-    console=options.debug,
-    embed_manifest=True,
-    exclude_binaries=True,
-    icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
-)
+if options.debug:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        name="tilia",
+        console=True,
+        embed_manifest=True,
+        exclude_binaries=True,
+        icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
+    )
 
-coll = COLLECT(exe, a.datas, a.binaries, name="TiLiA")
+    coll = COLLECT(exe, a.datas, a.binaries, name="TiLiA")
+else:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.datas,
+        a.binaries,
+        name="tilia",
+        console=False,
+        embed_manifest=True,
+        icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
+    )
