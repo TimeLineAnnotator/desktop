@@ -17,6 +17,7 @@ pytest_plugins = [
     "tests.timelines.marker.fixtures",
     "tests.timelines.beat.fixtures",
     "tests.timelines.harmony.fixtures",
+    "tests.timelines.slider.fixtures",
 ]
 
 
@@ -31,7 +32,7 @@ class TiliaState:
         self.app.on_clear()
         self.duration = 100
         self.current_time = 0
-        self.media_path = ''
+        self.media_path = ""
         self._reset_undo_manager()
         self.ui.on_clear_ui()
 
@@ -98,30 +99,6 @@ def tilia(qtui):
     tilia_.player = qtui.player
     tilia_.set_media_duration(100)
     yield tilia_
-    # try:
-    #     tilia_.on_clear()
-    # except AttributeError:
-    #     # test failed and element was not created properly
-    #     pass
-    #
-    # stop_listening_to_all(tilia_)
-    # stop_listening_to_all(tilia_.timelines)
-    # stop_listening_to_all(tilia_.file_manager)
-    # stop_listening_to_all(tilia_.player)
-    # stop_listening_to_all(tilia_.undo_manager)
-    # stop_listening_to_all(tilia_.clipboard)
-    #
-    # stop_serving_all(tilia_)
-    # stop_serving_all(tilia_.timelines)
-    # try:
-    #     stop_serving_all(tilia_.file_manager)
-    # except NoCallbackAttached:
-    #     #  file manager does its own cleanup at test_file_manager.py
-    #     #  so it will already have called stop_serving_all
-    #     pass
-    # stop_serving_all(tilia_.player)
-    # stop_serving_all(tilia_.undo_manager)
-    # stop_serving_all(tilia_.clipboard)
 
 
 @pytest.fixture
@@ -152,7 +129,9 @@ class ActionManager:
         self.action_to_trigger_count = {}
         for action in tilia_actions_module.TiliaAction:
             qaction = tilia_actions_module.get_qaction(action)
-            qaction.triggered.connect(functools.partial(self._increment_trigger_count, action))
+            qaction.triggered.connect(
+                functools.partial(self._increment_trigger_count, action)
+            )
 
     def trigger(self, action: TiliaAction):
         tilia_actions_module.trigger(action)
