@@ -87,15 +87,17 @@ class ElementManager(Generic[TE]):
     def get_elements_by_condition(self, condition: Callable[[TE], bool]) -> list[TE]:
         return [e for e in self._elements if condition(e)]
 
-    def get_next_element(self, element: TE) -> TE | None:
-        element_idx = self._elements.index(element)
+    def get_next_element(self, element: TE, kind: ComponentKind = None) -> TE | None:
+        elements = self.get_elements_by_attribute('kind', kind) if kind else self.get_elements()
+        element_idx = elements.index(element)
         if element_idx == len(self._elements) - 1:
             return None
         else:
             return self._elements[element_idx + 1]
 
-    def get_previous_element(self, element: TE) -> TE | None:
-        element_idx = self._elements.index(element)
+    def get_previous_element(self, element: TE, kind: ComponentKind = None) -> TE | None:
+        elements = self.get_elements_by_attribute('kind', kind) if kind else self.get_elements()
+        element_idx = elements.index(element)
         if element_idx == 0:
             return None
         else:
