@@ -262,7 +262,8 @@ class Timelines:
     def _scale_or_crop_timelines(self, new_duration, prev_duration):
         scale_prompt = "Would you like to scale existing timelines to new media length?"
 
-        if get(Get.FROM_USER_YES_OR_NO, "Scale timelines", scale_prompt):
+        confirm = get(Get.FROM_USER_YES_OR_NO, "Scale timelines", scale_prompt)
+        if confirm:
             self.scale_timeline_components(
                 new_duration / prev_duration,
             )
@@ -273,22 +274,19 @@ class Timelines:
                 "so components may get deleted or cropped. "
                 "Are you sure you don't want to scale existing timelines?"
             )
-            if get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt):
+            confirm = get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
+            if confirm:
                 self.crop_timeline_components(new_duration)
             else:
                 self.scale_timeline_components(
                     new_duration / prev_duration,
                 )
 
-        self.cached_media_duration = new_duration
-
     def on_media_duration_changed(self, new_duration: float):
         prev_duration = self.cached_media_duration
 
-        if not prev_duration:
-            return
-
-        if not self.has_timeline_of_kind(TlKind.HIERARCHY_TIMELINE):
+        if not prev_duration or new_duration == prev_duration or self.is_empty:
+            self.cached_media_duration = new_duration
             return
 
         post(
