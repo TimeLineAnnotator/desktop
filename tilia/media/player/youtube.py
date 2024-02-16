@@ -63,7 +63,7 @@ class YouTubePlayer(Player):
         self.view.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
-        self.web_page_loaded = False
+        self.is_web_page_loaded = False
         self.view.loadFinished.connect(self._on_web_page_load_finished)
         self.view.load(QUrl.fromLocalFile(self.PATH_TO_HTML.resolve().__str__()))
 
@@ -103,7 +103,7 @@ class YouTubePlayer(Player):
 
         post(Post.PLAYER_CURRENT_TIME_CHANGED, 0.0, MediaTimeChangeReason.LOAD)
 
-        self.media_loaded = True
+        self.is_media_loaded = True
 
     def on_media_duration_available(self, duration):
         if duration == self.duration:
@@ -122,7 +122,7 @@ class YouTubePlayer(Player):
         return re.match(tilia.constants.YOUTUBE_URL_REGEX, url)[6]
 
     def _on_web_page_load_finished(self):
-        self.web_page_loaded = True
+        self.is_web_page_loaded = True
 
     def _engine_load_media(self, media_path: str) -> bool:
         video_id = self.get_id_from_url(media_path)
@@ -130,13 +130,13 @@ class YouTubePlayer(Player):
         def load_video():
             self.view.page().runJavaScript(f'loadVideo("{video_id}")')
 
-        if self.web_page_loaded:
+        if self.is_web_page_loaded:
             load_video()
         else:
             self.view.loadFinished.connect(load_video)
 
         post(Post.PLAYER_DISABLE_CONTROLS)  # first play command must be given via YT ui
-        self.playing = True
+        self.is_playing = True
         return True
 
     def _play_loop(self) -> None:
@@ -150,7 +150,7 @@ class YouTubePlayer(Player):
         self.view.page().runJavaScript("getCurrentTime()", post_time_change_event)
 
     def _engine_seek(self, time: float) -> None:
-        if not self.media_loaded:
+        if not self.is_media_loaded:
             return
 
         self.view.page().runJavaScript(f"seekTo({time})")

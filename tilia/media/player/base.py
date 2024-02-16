@@ -54,13 +54,13 @@ class Player(ABC):
         serve(self, Get.MEDIA_CURRENT_TIME, lambda: self.current_time)
         serve(self, Get.MEDIA_PATH, lambda: self.media_path)
 
-        self.media_loaded = False
+        self.is_media_loaded = False
         self.duration = 0.0
         self.playback_start = 0.0
         self.playback_end = 0.0
         self.current_time = 0.0
         self.media_path = ""
-        self.playing = False
+        self.is_playing = False
 
         self.qtimer = QTimer()
         self.qtimer.timeout.connect(self._play_loop)
@@ -75,7 +75,7 @@ class Player(ABC):
     def load_media(
         self, path: str | Path, start: float = 0.0, end: float = 0.0
     ) -> bool:
-        if self.playing:
+        if self.is_playing:
             self.stop()
 
         success = self._engine_load_media(path)
@@ -96,7 +96,7 @@ class Player(ABC):
 
         post(Post.PLAYER_CURRENT_TIME_CHANGED, 0.0, MediaTimeChangeReason.LOAD)
 
-        self.media_loaded = True
+        self.is_media_loaded = True
 
     def on_media_duration_available(self, duration):
         self.playback_end = self.duration = duration
@@ -110,11 +110,11 @@ class Player(ABC):
 
     def unload_media(self):
         self._engine_unload_media()
-        self.media_loaded = False
+        self.is_media_loaded = False
         self.duration = 0.0
         self.current_time = 0.0
         self.media_path = ""
-        self.playing = False
+        self.is_playing = False
         post(Post.PLAYER_MEDIA_UNLOADED)
 
     def toggle_play(self):
@@ -126,27 +126,27 @@ class Player(ABC):
             )
             return
 
-        if not self.playing:
+        if not self.is_playing:
             self._engine_play()
-            self.playing = True
+            self.is_playing = True
             self.start_play_loop()
             post(Post.PLAYER_UNPAUSED)
 
         else:
             self._engine_pause()
             self.stop_play_loop()
-            self.playing = False
+            self.is_playing = False
             post(Post.PLAYER_PAUSED)
 
     def stop(self):
         """Stops music playback and resets slider position"""
         post(Post.PLAYER_STOPPING)
-        if not self.playing and self.current_time == 0.0:
+        if not self.is_playing and self.current_time == 0.0:
             return
 
         self._engine_stop()
         self.stop_play_loop()
-        self.playing = False
+        self.is_playing = False
 
         self._engine_seek(self.playback_start)
         self.current_time = self.playback_start
@@ -159,10 +159,10 @@ class Player(ABC):
         )
 
     def on_seek(self, time: float, if_paused: bool = False) -> None:
-        if if_paused and self.playing:
+        if if_paused and self.is_playing:
             return
 
-        if self.media_loaded:
+        if self.is_media_loaded:
             self._engine_seek(time)
 
         self.current_time = time
