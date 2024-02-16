@@ -8,6 +8,8 @@ from tilia.ui.timelines.marker import MarkerTimelineUI, MarkerUI
 
 
 class TestMarkerTimelineUI(MarkerTimelineUI):
+    def create_component(self, _: ComponentKind, *args, **kwargs): ...
+
     def create_marker(self, *args, **kwargs) -> tuple[Marker, MarkerUI]: ...
 
 
@@ -16,6 +18,9 @@ def marker_tlui(tls, tluis) -> TestMarkerTimelineUI:
     tl: MarkerTimeline = tls.create_timeline(TlKind.MARKER_TIMELINE)
     ui = tluis.get_timeline_ui(tl.id)
 
+    def create_component(_: ComponentKind, *args, **kwargs):
+        return create_marker(*args, **kwargs)
+
     def create_marker(*args, **kwargs):
         component, _ = tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
         element = ui.get_element(component.id) if component else None
@@ -23,19 +28,15 @@ def marker_tlui(tls, tluis) -> TestMarkerTimelineUI:
 
     tl.create_marker = create_marker
     ui.create_marker = create_marker
+    tl.create_component = create_component
+    ui.create_component = create_component
 
     yield ui  # will be deleted by tls
 
 
 @pytest.fixture
 def marker_tl(marker_tlui):
-    tl = marker_tlui.timeline
-
-    def create_marker(*args, **kwargs):
-        return tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
-
-    tl.create_marker = create_marker
-    yield tl
+    yield marker_tlui.timeline
 
 
 @pytest.fixture

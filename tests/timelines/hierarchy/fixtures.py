@@ -8,6 +8,8 @@ from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 
 
 class TestHierarchyTimelineUI(HierarchyTimelineUI):
+    def create_component(self, _: ComponentKind, *args, ** kwargs): ...
+
     def create_hierarchy(
         self, start: float, end: float, level: int, **kwargs
     ) -> tuple[Hierarchy | None, HierarchyUI | None]: ...
@@ -17,9 +19,14 @@ class TestHierarchyTimelineUI(HierarchyTimelineUI):
 
 @pytest.fixture
 def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
+    def create_component(_: ComponentKind, *args, **kwargs):
+        return create_hierarchy(*args, **kwargs)
+
     def create_hierarchy(
-        start: float, end: float, level: int, **kwargs
+        start: float = 0, end: float = None, level: int = 1, **kwargs
     ) -> tuple[Hierarchy | None, HierarchyUI | None]:
+        if end is None:
+            end = start + 1
         component, _ = tl.create_timeline_component(
             ComponentKind.HIERARCHY, start, end, level, **kwargs
         )
@@ -41,6 +48,8 @@ def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
     ui.create_hierarchy = create_hierarchy
     tl.relate_hierarchies = relate_hierarchies
     ui.relate_hierarchies = relate_hierarchies
+    tl.create_component = create_component
+    ui.create_component = create_component
     return ui  # will be deleted by tls
 
 
