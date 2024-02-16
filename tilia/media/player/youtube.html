@@ -36,11 +36,11 @@
       function onPlayerStateChange(event) {
         const playerStatus = event.data
         backend.on_player_state_change(playerStatus)
-        if (playerStatus == 0 || playerStatus == 2) {
-            clearInterval(playerUpdateLoop)
-        }
-        else if (playerStatus == 1) {
+
+        if (playerStatus == YT.PlayerState.PLAYING) {
             playerUpdateLoop = setInterval(updateTime, 100)
+        } else {
+            clearInterval(playerUpdateLoop)
         }
       }
 

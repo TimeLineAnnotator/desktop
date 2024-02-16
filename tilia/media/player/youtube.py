@@ -18,11 +18,12 @@ from tilia.requests import Post, post
 
 
 class PlayerTracker(QObject):
-    def __init__(self, page, on_duration_available, set_current_time):
+    def __init__(self, page, on_duration_available, set_current_time, set_is_playing):
         super().__init__()
         self.on_duration_available = on_duration_available
         self.set_current_time = set_current_time
         self.page = page
+        self.set_is_playing = set_is_playing
 
     @pyqtSlot("float")
     def on_new_time(self, time):
@@ -39,6 +40,9 @@ class PlayerTracker(QObject):
             self.page.runJavaScript("getDuration()", self.on_duration_available)
         elif state == self.State.PLAYING.value:
             post(Post.PLAYER_ENABLE_CONTROLS)
+            self.set_is_playing(True)
+        else:
+            self.set_is_playing(False)
 
     class State(Enum):
         UNSTARTED = -1
@@ -82,6 +86,7 @@ class YouTubePlayer(Player):
             self.view.page(),
             self.on_media_duration_available,
             functools.partial(setattr, self, "current_time"),
+            self.set_is_playing,
         )
         self.channel.registerObject("backend", self.shared_object)
         self.view.page().setWebChannel(self.channel)
@@ -121,6 +126,9 @@ class YouTubePlayer(Player):
     def get_id_from_url(url):
         return re.match(tilia.constants.YOUTUBE_URL_REGEX, url)[6]
 
+    def set_is_playing(self, value):
+        self.is_playing = value
+
     def _on_web_page_load_finished(self):
         self.is_web_page_loaded = True
 
@@ -136,7 +144,6 @@ class YouTubePlayer(Player):
             self.view.loadFinished.connect(load_video)
 
         post(Post.PLAYER_DISABLE_CONTROLS)  # first play command must be given via YT ui
-        self.is_playing = True
         return True
 
     def _play_loop(self) -> None:
