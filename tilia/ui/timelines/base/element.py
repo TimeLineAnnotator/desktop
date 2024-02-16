@@ -45,6 +45,10 @@ class TimelineUIElement(ABC):
     def tl_component(self):
         return self.timeline_ui.get_timeline_component(self.id)
 
+    @property
+    def kind(self):
+        return self.tl_component.get_data('KIND')
+
     def get_data(self, attr: str):
         return self.timeline_ui.get_component_data(self.id, attr)
 
