@@ -105,6 +105,7 @@ def tilia(qtui):
 def tluis(qtui):
     _tluis = qtui.timeline_uis
     yield _tluis
+    post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
     _tluis._setup_auto_scroll()
     _tluis._setup_drag_tracking_vars()
     _tluis._setup_selection_box()
