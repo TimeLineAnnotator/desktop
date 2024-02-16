@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tilia.requests import Post, stop_listening_to_all
-from tilia.timelines.state_actions import Action
 from tilia.undo_manager import UndoManager
 
 

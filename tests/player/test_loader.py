@@ -1,5 +1,4 @@
 from tilia.media.loader import MediaLoader, get_media_type_from_path
-from tilia.media.player import PygamePlayer, VlcPlayer
 
 from pathlib import Path
 

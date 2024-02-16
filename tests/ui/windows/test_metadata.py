@@ -8,8 +8,6 @@ from tests.mock import PatchGetMultiple
 from tilia.requests import Get
 from tilia.ui.windows.metadata import (
     MediaMetadataWindow,
-    EditMetadataFieldsWindow,
-    FIELDS_WITH_NO_ROW,
 )
 
 

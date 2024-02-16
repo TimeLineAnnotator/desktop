@@ -6,9 +6,6 @@ from pathlib import Path
 import tilia.media.constants
 from tests.mock import PatchPost
 from tilia.requests import Post, post
-from tilia import globals_
-from tilia.media.player import PygamePlayer, VlcPlayer
-from tilia.media.player.base import NoMediaLoadedError
 
 AUDIO_FORMATS = tuple(tilia.media.constants.SUPPORTED_AUDIO_FORMATS)
 SEEKABLE_AUDIO_FORMATS = tuple([f for f in AUDIO_FORMATS if f != "wav"])
