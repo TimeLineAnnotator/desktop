@@ -36,7 +36,7 @@ class TestCopyPaste:
         click_mode_ui(mui2, modifier="shift")
         click_mode_ui(mui3, modifier="shift")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
-        click_timeline_ui(harmony_tlui, 10)
+        click_timeline_ui(harmony_tlui, 90)
         tilia_state.current_time = 50
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
         assert len(harmony_tlui) == 6
@@ -46,15 +46,12 @@ class TestCopyPaste:
 
     def test_paste_single_into_element(self, harmony_tlui):
         attributes_to_copy = {
-            'step': 2,
-            'accidental': 1,
-            'type': "minor",
-            'comments': "some comments",
+            "step": 2,
+            "accidental": 1,
+            "type": "minor",
+            "comments": "some comments",
         }
-        _, copied_mui = harmony_tlui.create_mode(
-            0,
-            **attributes_to_copy
-        )
+        _, copied_mui = harmony_tlui.create_mode(0, **attributes_to_copy)
         _, target_mui = harmony_tlui.create_mode(
             10,
             step=1,
@@ -73,17 +70,14 @@ class TestCopyPaste:
 
     def test_paste_multiple_into_element(self, harmony_tlui):
         attributes_to_copy = {
-            'step': 2,
-            'accidental': 1,
-            'type': "minor",
-            'comments': "some comments",
+            "step": 2,
+            "accidental": 1,
+            "type": "minor",
+            "comments": "some comments",
         }
         copied_muis = []
         for i in range(3):
-            _, mui1 = harmony_tlui.create_mode(
-                i * 10,
-                **attributes_to_copy
-            )
+            _, mui1 = harmony_tlui.create_mode(i * 10, **attributes_to_copy)
             copied_muis.append(mui1)
 
         _, target_mui = harmony_tlui.create_mode(
@@ -95,7 +89,7 @@ class TestCopyPaste:
         )
 
         for mui in copied_muis:
-            click_mode_ui(mui, modifier='shift')
+            click_mode_ui(mui, modifier="shift")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_timeline_ui(harmony_tlui, 90)
         click_mode_ui(target_mui)
