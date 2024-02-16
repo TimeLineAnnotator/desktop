@@ -27,6 +27,7 @@ class HarmonyTimelineUI(TimelineUI):
     ELEMENT_CLASS = [HarmonyUI, ModeUI]
     CONTEXT_MENU_CLASS = HarmonyTimelineUIContextMenu
     TIMELINE_KIND = TimelineKind.HARMONY_TIMELINE
+    ACCEPTS_HORIZONTAL_ARROWS = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -116,37 +117,29 @@ class HarmonyTimelineUI(TimelineUI):
             for element in self.selected_elements[:-1]:
                 self.element_manager.deselect_element(element)
 
-    def on_side_arrow_press(self, side: Side):
-        def _get_next_harmony(elm):
-            later_elements = self.element_manager.get_elements_by_condition(
-                lambda m: m.time > elm.time
-            )
-            if later_elements:
-                return sorted(later_elements, key=lambda m: m.time)[0]
-            else:
-                return None
+    def _deselect_all_but_first(self):
+        if len(self.selected_elements) > 1:
+            for element in self.selected_elements[1:]:
+                self.element_manager.deselect_element(element)
 
-        def _get_previous_harmony(elm):
-            earlier_elements = self.element_manager.get_elements_by_condition(
-                lambda m: m.time < elm.time
-            )
-            if earlier_elements:
-                return sorted(earlier_elements, key=lambda m: m.time)[-1]
-            else:
-                return None
-
+    def on_horizontal_arrow_press(self, arrow: str):
         if not self.has_selected_elements:
             return
 
-        self._deselect_all_but_last()
+        if arrow not in ['right', 'left']:
+            raise ValueError(f"Invalid arrow '{arrow}'.")
+
+        if arrow == 'right':
+            self._deselect_all_but_last()
+        else:
+            self._deselect_all_but_first()
 
         selected_element = self.element_manager.get_selected_elements()[0]
-        if side == Side.RIGHT:
-            element_to_select = _get_next_harmony(selected_element)
-        elif side == Side.LEFT:
-            element_to_select = _get_previous_harmony(selected_element)
+        kind = selected_element.get_data('KIND')
+        if arrow == 'right':
+            element_to_select = self.get_next_element(selected_element, kind)
         else:
-            raise ValueError(f"Invalid side '{side}'.")
+            element_to_select = self.get_previous_element(selected_element, kind)
 
         if element_to_select:
             self.deselect_element(selected_element)
