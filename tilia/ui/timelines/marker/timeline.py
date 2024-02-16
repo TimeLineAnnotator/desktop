@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 class MarkerTimelineUI(TimelineUI):
     TOOLBAR_CLASS = MarkerTimelineToolbar
     ELEMENT_CLASS = MarkerUI
+    ACCEPTS_HORIZONTAL_ARROWS = True
 
     TIMELINE_KIND = TimelineKind.MARKER_TIMELINE
 

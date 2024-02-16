@@ -112,39 +112,6 @@ class HarmonyTimelineUI(TimelineUI):
     def get_key_by_time(self, time: float):
         return self.timeline.get_key_by_time(time)
 
-    def _deselect_all_but_last(self):
-        if len(self.selected_elements) > 1:
-            for element in self.selected_elements[:-1]:
-                self.element_manager.deselect_element(element)
-
-    def _deselect_all_but_first(self):
-        if len(self.selected_elements) > 1:
-            for element in self.selected_elements[1:]:
-                self.element_manager.deselect_element(element)
-
-    def on_horizontal_arrow_press(self, arrow: str):
-        if not self.has_selected_elements:
-            return
-
-        if arrow not in ['right', 'left']:
-            raise ValueError(f"Invalid arrow '{arrow}'.")
-
-        if arrow == 'right':
-            self._deselect_all_but_last()
-        else:
-            self._deselect_all_but_first()
-
-        selected_element = self.element_manager.get_selected_elements()[0]
-        kind = selected_element.get_data('KIND')
-        if arrow == 'right':
-            element_to_select = self.get_next_element(selected_element, kind)
-        else:
-            element_to_select = self.get_previous_element(selected_element, kind)
-
-        if element_to_select:
-            self.deselect_element(selected_element)
-            self.select_element(element_to_select)
-
     def validate_copy(self, elements: list[TimelineUIElement]) -> None:
         pass
 

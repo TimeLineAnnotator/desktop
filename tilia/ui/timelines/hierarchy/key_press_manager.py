@@ -12,6 +12,11 @@ class HierarchyTimelineUIKeyPressManager:
             for element in self.selected_elements[:-1]:
                 self.deselect_element(element)
 
+    def _deselect_all_but_first(self):
+        if len(self.selected_elements) > 1:
+            for element in self.selected_elements[1:]:
+                self.element_manager.deselect_element(element)
+
     def on_vertical_arrow_press(self, direction: str):
         if not self.has_selected_elements:
             return
@@ -64,15 +69,19 @@ class HierarchyTimelineUIKeyPressManager:
         if not self.has_selected_elements:
             return
 
-        self._deselect_all_but_last()
+        if side not in ["right", "left"]:
+            raise ValueError(f"Invalid arrow '{side}'.")
+
+        if side == "right":
+            self._deselect_all_but_last()
+        else:
+            self._deselect_all_but_first()
 
         selected_element = self.selected_elements[0]
         if side == "right":
             element_to_select = _get_next_element_in_same_level(selected_element)
-        elif side == "left":
-            element_to_select = _get_previous_element_in_same_level(selected_element)
         else:
-            raise ValueError(f"Invalid side '{side}'.")
+            element_to_select = _get_previous_element_in_same_level(selected_element)
 
         if element_to_select:
             self.deselect_element(selected_element)

@@ -22,6 +22,7 @@ class BeatTimelineUI(TimelineUI):
     DEFAULT_HEIGHT = 35
     TOOLBAR_CLASS = BeatTimelineToolbar
     ELEMENT_CLASS = BeatUI
+    ACCEPTS_HORIZONTAL_ARROWS = True
     TIMELINE_KIND = TimelineKind.BEAT_TIMELINE
 
     def on_timeline_element_request(
