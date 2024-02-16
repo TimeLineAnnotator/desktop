@@ -219,10 +219,10 @@ class Player(ABC):
             self.stop()
 
     def clear(self):
-        logger.debug("Clearing player...")
         self.unload_media()
 
     def destroy(self):
+        self.stop()
         self.unload_media()
         stop_listening_to_all(self)
         stop_serving_all(self)

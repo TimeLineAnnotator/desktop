@@ -46,7 +46,7 @@ class QtPlayer(Player):
         self.player.stop()
 
     def _engine_unload_media(self):
-        self.player.setSource(QUrl())
+        pass
 
     def _engine_get_media_duration(self) -> float:
         return self.player.duration() / 1000
