@@ -114,6 +114,10 @@ class TimelineUI(ABC):
     def has_selected_elements(self):
         return self.element_manager.has_selected_elements
 
+    @property
+    def playback_line(self):
+        return self.scene.playback_line
+
     def get_data(self, attr: str):
         return self.timeline.get_data(attr)
 
