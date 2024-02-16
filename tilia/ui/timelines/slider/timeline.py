@@ -110,7 +110,6 @@ class SliderTimelineUI(TimelineUI):
 
     def after_each_drag(self, x: int):
         self.x = x
-        post(Post.PLAYER_SEEK, coords.get_time_by_x(self.x))
         self.set_trough_position()
 
     def on_drag_end(self):
