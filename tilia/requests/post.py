@@ -5,6 +5,7 @@ from typing import Callable, Any
 
 
 class Post(Enum):
+    SLIDER_DRAG = auto()
     WINDOW_INSPECT_CLOSE = auto()
     PLAYER_DURATION_AVAILABLE = auto()
     TIMELINE_ELEMENT_PASTE_COMPLETE = auto()

@@ -2,6 +2,7 @@ from unittest.mock import patch, Mock
 
 import pytest
 
+from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
 from tilia import errors as tilia_errors
 from tests.mock import PatchGet, PatchPost
 from tilia.media.player.base import MediaTimeChangeReason
@@ -150,9 +151,7 @@ class TestAutoScroll:
         mock = Mock()
         tluis.center_on_time = mock
         tluis.auto_scroll_is_enabled = True
-        post(
-            Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK
-        )
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
         mock.assert_called()
 
     def test_auto_scroll_is_not_triggered_when_seeking(self, tluis):
@@ -167,9 +166,7 @@ class TestAutoScroll:
         tluis.center_on_time = center_on_time_mock
         tluis.auto_scroll_is_enabled = True
         tluis.view.is_hscrollbar_pressed = Mock(return_value=True)
-        post(
-            Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK
-        )
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
         center_on_time_mock.assert_not_called()
 
     def test_set_timeline_height_updates_playback_line_height(self, tls, tluis):
@@ -184,3 +181,24 @@ class TestAutoScroll:
         assert tluis[0].scene.playback_line.line().x1() == pytest.approx(
             get_x_by_time(50)
         )
+
+
+class TestSeek:
+    def test_playback_line_follows_slider_drag_if_media_is_not_playing(
+        self, marker_tlui, slider_tlui
+    ):
+        y = slider_tlui.trough.pos().y()
+        click_timeline_ui(slider_tlui, 0, y=y)
+        target_x = get_x_by_time(50)
+        drag_mouse_in_timeline_view(target_x, y)
+        assert marker_tlui.playback_line.line().x1() == target_x
+
+    def test_playback_line_follows_slider_drag_if_media_is_playing(
+        self, marker_tlui, slider_tlui, tilia_state
+    ):
+        y = slider_tlui.trough.pos().y()
+        click_timeline_ui(slider_tlui, 0, y=y)
+        target_x = get_x_by_time(60)
+        drag_mouse_in_timeline_view(target_x, y)
+        tilia_state.current_time = 75
+        assert marker_tlui.playback_line.line().x1() == target_x

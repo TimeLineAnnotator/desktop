@@ -30,7 +30,7 @@ from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.coords import get_x_by_time
+from tilia.ui.coords import get_x_by_time, get_time_by_x
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.timelines.base.element_manager import ElementManager
@@ -68,6 +68,7 @@ class TimelineUIs:
         self,
         main_window: QMainWindow,
     ):
+
         self.main_window = main_window
         self.kind_to_toolbar = {kind: None for kind in timeline_kinds.NOT_SLIDER}
 
@@ -83,6 +84,7 @@ class TimelineUIs:
         self._setup_drag_tracking_vars()
         self._setup_auto_scroll()
         self.auto_scroll_enabled = settings.get("general", "auto-scroll")
+        self.selected_time = get(Get.MEDIA_CURRENT_TIME)
 
     def __str__(self) -> str:
         return self.__class__.__name__ + "-" + str(id(self))
@@ -102,7 +104,7 @@ class TimelineUIs:
         self.selection_boxes_below = True
 
     def _setup_drag_tracking_vars(self):
-        self.element_is_being_dragged = False
+        self.is_dragging = False
         self.hscrollbar_is_being_dragged = False
 
     def _setup_auto_scroll(self):
@@ -155,13 +157,14 @@ class TimelineUIs:
                 Post.TIMELINE_KEY_PRESS_LEFT,
                 functools.partial(self.on_arrow_press, "left"),
             ),
-            (Post.ELEMENT_DRAG_END, lambda: self.on_element_drag(False)),
-            (Post.ELEMENT_DRAG_START, lambda: self.on_element_drag(True)),
+            (Post.ELEMENT_DRAG_END, lambda: self.set_is_dragging(False)),
+            (Post.ELEMENT_DRAG_START, lambda: self.set_is_dragging(True)),
+            (Post.SLIDER_DRAG, self.on_slider_drag),
+            (Post.SLIDER_DRAG_END, lambda: self.set_is_dragging(False)),
+            (Post.SLIDER_DRAG_START, lambda: self.set_is_dragging(True)),
             (Post.PLAYER_CURRENT_TIME_CHANGED, self.on_media_time_change),
             (Post.VIEW_ZOOM_IN, self.on_zoom_in),
             (Post.VIEW_ZOOM_OUT, self.on_zoom_out),
-            (Post.SLIDER_DRAG_END, lambda: self.on_element_drag(False)),
-            (Post.SLIDER_DRAG_START, lambda: self.on_element_drag(True)),
             (Post.SELECTION_BOX_SELECT_ITEM, self.on_selection_box_select_item),
             (Post.SELECTION_BOX_DESELECT_ITEM, self.on_selection_box_deselect_item),
             (Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done),
@@ -477,7 +480,7 @@ class TimelineUIs:
         self._send_to_top_of_select_order(timeline_ui)
         timeline_ui.on_left_click(item, modifier=modifier, double=double)
 
-        if not self.element_is_being_dragged and not double:
+        if not self.is_dragging and not double:
             sb = SelectionBoxQt()
             timeline_ui.scene.addItem(sb)
             sb.setPos(x, y)
@@ -529,7 +532,7 @@ class TimelineUIs:
             )
             self.selection_boxes.append(new_sb)
 
-        if self.element_is_being_dragged or not self.selection_boxes:
+        if self.is_dragging or not self.selection_boxes:
             return
 
         reference_tlui = get(
@@ -798,7 +801,7 @@ class TimelineUIs:
     def _should_auto_scroll(self, media_time_change_reason) -> bool:
         return all(
             [
-                not self.element_is_being_dragged,
+                not self.is_dragging,
                 self.auto_scroll_is_enabled,
                 media_time_change_reason != MediaTimeChangeReason.SEEK,
                 not self.view.is_hscrollbar_pressed(),
@@ -809,11 +812,17 @@ class TimelineUIs:
         if self._should_auto_scroll(reason):
             self.center_on_time(time)
 
-        self.set_playback_lines_position(time)
+        if not self.is_dragging:
+            self.set_playback_lines_position(time)
 
-    def on_element_drag(self, is_dragging: bool) -> None:
+    def set_is_dragging(self, is_dragging: bool) -> None:
         # noinspection PyAttributeOutsideInit
-        self.element_is_being_dragged = is_dragging
+        self.is_dragging = is_dragging
+
+    def on_slider_drag(self, x: float):
+        time = get_time_by_x(x)
+        self.selected_time = time
+        self.set_playback_lines_position(time)
 
     def set_auto_scroll(self, value: bool):
         settings.edit("general", "auto-scroll", value)
