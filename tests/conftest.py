@@ -125,6 +125,16 @@ def cli():
     stop_listening_to_all(_cli)
 
 
+@pytest.fixture(params=["marker", "harmony", "beat", "hierarchy"])
+def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui):
+    return {
+        "marker": marker_tlui,
+        "harmony": harmony_tlui,
+        "beat": beat_tlui,
+        "hierarchy": hierarchy_tlui,
+    }[request.param]
+
+
 class ActionManager:
     def __init__(self):
         self.action_to_trigger_count = {}
