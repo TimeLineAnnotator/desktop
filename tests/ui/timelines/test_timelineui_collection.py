@@ -17,19 +17,21 @@ from tilia.ui.actions import TiliaAction
 from tilia.ui.coords import get_x_by_time
 
 
+ADD_TIMELINE_ACTIONS = [
+    TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
+    TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
+    TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
+    TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
+]
+
+
 class TestTimelineUICreation:
-    @pytest.mark.parametrize(
-        'action', [
-            TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
-            TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
-            TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
-            TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
-        ])
+    @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
     def test_create(self, action, tilia_state, tluis, actions):
         tilia_state.duration = 1
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
-            Serve(Get.FROM_USER_STRING, ('', True))
+            Serve(Get.FROM_USER_STRING, ("", True)),
         ):
             actions.trigger(action)
         assert len(tluis) == 1
@@ -39,34 +41,26 @@ class TestTimelineUICreation:
             TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
             TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
             TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
-            TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE
+            TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
         ]
         tilia_state.duration = 1
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
-            Serve(Get.FROM_USER_STRING, ('', True))
+            Serve(Get.FROM_USER_STRING, ("", True)),
         ):
             for action in create_actions:
                 actions.trigger(action)
         assert len(tluis) == len(create_actions)
 
-    @pytest.mark.parametrize(
-        'action', [
-            TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
-            TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
-            TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
-            TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
-        ])
+    @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
     def test_user_cancels_creation(self, action, tilia_state, tluis, actions):
         tilia_state.duration = 1
-        with (
-            Serve(Get.FROM_USER_STRING, ('', False))
-        ):
+        with Serve(Get.FROM_USER_STRING, ("", False)):
             actions.trigger(action)
         assert tluis.is_empty
 
     def test_delete(self, tls, actions):
-        with Serve(Get.FROM_USER_STRING, ('', True)):
+        with Serve(Get.FROM_USER_STRING, ("", True)):
             actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
         tls.delete_timeline(tls[0])  # this should be an user action
@@ -92,6 +86,23 @@ class TestTimelineUICreation:
 
         assert tluis._select_order[0] == tlui2
 
+    @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
+    def test_create_timeline_without_media_duration_fails(
+        self, action, actions, tilia_state, tluis
+    ):
+        tilia_state.duration = 0
+        actions.trigger(action)
+        assert tluis.is_empty
+
+    def test_create_timeline_without_media_duration_displays_error(self, tilia, qtui):
+        patch_target = "tilia.ui.timelines.collection.requests.args"
+        with PatchPost(patch_target, Post.DISPLAY_ERROR) as mock:
+            with PatchGet(patch_target, Get.MEDIA_DURATION, 0):
+                actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+
+        mock.assert_called_once_with(
+            Post.DISPLAY_ERROR, *tilia_errors.CREATE_TIMELINE_WITHOUT_MEDIA
+        )
 
 
 class TestServe:
@@ -127,16 +138,6 @@ class TestServe:
         tluis[2].select_all_elements()
 
         assert get(Get.ARE_TIMELINE_ELEMENTS_SELECTED)
-
-    def test_create_timeline_without_media_load_displays_error(self, tilia, qtui):
-        patch_target = "tilia.ui.timelines.collection.requests.args"
-        with PatchPost(patch_target, Post.DISPLAY_ERROR) as mock:
-            with PatchGet(patch_target, Get.MEDIA_DURATION, 0):
-                actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
-
-        mock.assert_called_once_with(
-            Post.DISPLAY_ERROR, *tilia_errors.CREATE_TIMELINE_WITHOUT_MEDIA
-        )
 
 
 class TestAutoScroll:
@@ -209,12 +210,12 @@ class TestSeek:
                 TiliaAction.MODE_ADD,
             ),
             (
-                    "harmony",
-                    (
-                            Get.FROM_USER_HARMONY_PARAMS,
-                            (True, {"step": 0, "accidental": 0, "quality": "major"}),
-                    ),
-                    TiliaAction.HARMONY_ADD,
+                "harmony",
+                (
+                    Get.FROM_USER_HARMONY_PARAMS,
+                    (True, {"step": 0, "accidental": 0, "quality": "major"}),
+                ),
+                TiliaAction.HARMONY_ADD,
             ),
             ("beat", None, TiliaAction.BEAT_ADD),
         ],

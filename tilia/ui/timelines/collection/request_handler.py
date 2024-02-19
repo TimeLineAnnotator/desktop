@@ -32,7 +32,7 @@ class TimelineUIsRequestHandler(RequestHandler):
             )
 
     def on_timeline_add_beat_timeline(
-        self, confirmed: bool, name: str, beat_pattern: list[int]
+        self, confirmed: bool, name: str, beat_pattern: list[int] | None = None
     ):
         if confirmed:
             self.timelines.create_timeline(
