@@ -29,7 +29,7 @@ from tilia.exceptions import TimelineUINotFound, UserCancelledDialog
 from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
 from tilia.timelines.base.timeline import Timeline
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
 from tilia.ui.coords import get_x_by_time, get_time_by_x
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.modifier_enum import ModifierEnum
@@ -215,6 +215,8 @@ class TimelineUIs:
             Get.ARE_TIMELINE_ELEMENTS_SELECTED,
             self.get_are_timeline_elements_selected,
         )
+        serve(self, Get.SELECTED_TIME, self.get_selected_time)
+        serve(self, Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, self.get_first_timeline_ui_in_select_order)
 
     def _setup_requests(self):
         self._setup_listen()
@@ -814,6 +816,7 @@ class TimelineUIs:
 
         if not self.is_dragging:
             self.set_playback_lines_position(time)
+            self.selected_time = time
 
     def set_is_dragging(self, is_dragging: bool) -> None:
         # noinspection PyAttributeOutsideInit
@@ -878,6 +881,9 @@ class TimelineUIs:
     def _show_toolbar(self, kind: TlKind):
         self.kind_to_toolbar[kind].show()
 
+    def get_selected_time(self):
+        return self.selected_time
+
     def get_timeline_uis(self):
         return sorted(list(self._timeline_uis))
 
@@ -895,6 +901,9 @@ class TimelineUIs:
 
     def get_timeline_uis_by_attr(self, attr: str, value: Any) -> list[TimelineUI]:
         return [tlui for tlui in self if getattr(tlui, attr) == value]
+
+    def get_first_timeline_ui_in_select_order(self, kind: TimelineKind):
+        return next((tlui for tlui in self._select_order if tlui.get_data('KIND') == kind), None)
 
     def _get_choose_timeline_dialog(
         self,

@@ -16,6 +16,7 @@ from tilia.ui.dialogs.basic import (
     ask_for_color,
     ask_yes_or_no,
 )
+from tilia.ui.dialogs.mode_params import ask_for_mode_params, ask_for_harmony_params
 from tilia.ui.timelines.beat.dialogs import ask_for_beat_pattern
 
 
@@ -50,3 +51,5 @@ class DialogManager:
         serve(self, Get.FROM_USER_COLOR, ask_for_color)
         serve(self, Get.FROM_USER_BEAT_PATTERN, ask_for_beat_pattern)
         serve(self, Get.FROM_USER_MEDIA_PATH, ask_for_media_file)
+        serve(self, Get.FROM_USER_MODE_PARAMS, ask_for_mode_params)
+        serve(self, Get.FROM_USER_HARMONY_PARAMS, ask_for_harmony_params)

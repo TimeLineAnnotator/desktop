@@ -41,7 +41,7 @@ class MarkerUIRequestHandler(ElementRequestHandler):
 
     def on_add(self, *_, **__):
         self.timeline.create_timeline_component(
-            ComponentKind.MARKER, get(Get.MEDIA_CURRENT_TIME)
+            ComponentKind.MARKER, get(Get.SELECTED_TIME)
         )
 
     def on_delete(self, elements, *_, **__):

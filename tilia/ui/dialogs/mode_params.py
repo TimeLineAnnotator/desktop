@@ -6,7 +6,10 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
 )
 
+from tilia.requests import get, Get
 from tilia.timelines.harmony.constants import MODE_TYPES
+from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,
@@ -57,3 +60,17 @@ class SelectModeParams(QDialog):
             "type": self.type_combobox.currentData(),
             "level": 2,
         }
+
+
+def ask_for_mode_params():
+    dialog = SelectModeParams()
+    accept = dialog.exec()
+    return (accept,), dialog.result()
+
+
+def ask_for_harmony_params():
+    timeline_ui = get(Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, TimelineKind.HARMONY_TIMELINE)
+    current_key = timeline_ui.get_key_by_time(get(Get.MEDIA_CURRENT_TIME))
+    dialog = SelectHarmonyParams(current_key)
+    accept = dialog.exec()
+    return (accept,), dialog.result()

@@ -4,9 +4,10 @@ import pytest
 
 from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
 from tilia import errors as tilia_errors
-from tests.mock import PatchGet, PatchPost
+from tests.mock import PatchGet, PatchPost, Serve
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post, get, Get
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     TimelineKind,
@@ -202,3 +203,41 @@ class TestSeek:
         drag_mouse_in_timeline_view(target_x, y)
         tilia_state.current_time = 75
         assert marker_tlui.playback_line.line().x1() == target_x
+
+    @pytest.mark.parametrize(
+        "tlui,request_to_serve, add_request",
+        [
+            ("marker", None, TiliaAction.MARKER_ADD),
+            (
+                "harmony",
+                (
+                    Get.FROM_USER_MODE_PARAMS,
+                    (True, {"step": 0, "accidental": 0, "type": "major"}),
+                ),
+                TiliaAction.MODE_ADD,
+            ),
+            (
+                    "harmony",
+                    (
+                            Get.FROM_USER_HARMONY_PARAMS,
+                            (True, {"step": 0, "accidental": 0, "quality": "major"}),
+                    ),
+                    TiliaAction.HARMONY_ADD,
+            ),
+            ("beat", None, TiliaAction.BEAT_ADD),
+        ],
+        indirect=["tlui"],
+    )
+    def test_add_component_while_media_is_playing_and_slider_is_being_dragged(
+        self, tlui, request_to_serve, add_request, slider_tlui, tilia_state, actions
+    ):
+        y = slider_tlui.trough.pos().y()
+        click_timeline_ui(slider_tlui, 0, y=y)
+        drag_mouse_in_timeline_view(get_x_by_time(50), y)
+        tilia_state.current_time = 75
+        if request_to_serve:
+            with Serve(*request_to_serve):
+                actions.trigger(add_request)
+        else:
+            actions.trigger(add_request)
+        assert tlui[0].get_data("time") == pytest.approx(50)

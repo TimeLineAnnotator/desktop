@@ -36,7 +36,7 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         if not confirmed:
             return
         self.timeline.create_timeline_component(
-            ComponentKind.MODE, get(Get.MEDIA_CURRENT_TIME), **kwargs
+            ComponentKind.MODE, get(Get.SELECTED_TIME), **kwargs
         )
         self.timeline_ui.on_mode_add_done()
 
@@ -48,7 +48,7 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         if not confirmed:
             return
         self.timeline.create_timeline_component(
-            ComponentKind.HARMONY, get(Get.MEDIA_CURRENT_TIME), **kwargs
+            ComponentKind.HARMONY, get(Get.SELECTED_TIME), **kwargs
         )
 
     def on_harmony_delete(self, elements, *_, **__):

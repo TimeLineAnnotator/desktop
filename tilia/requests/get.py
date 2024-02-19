@@ -10,6 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 class Get(Enum):
+    FIRST_TIMELINE_UI_IN_SELECT_ORDER = auto()
+    FROM_USER_HARMONY_PARAMS = auto()
+    FROM_USER_MODE_PARAMS = auto()
+    SELECTED_TIME = auto()
     ARE_TIMELINE_ELEMENTS_SELECTED = auto()
     APP_STATE = auto()
     CLIPBOARD_CONTENTS = auto()

@@ -4,9 +4,11 @@ from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QColor
 
 from tests.mock import PatchGet
+from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
 from tilia.requests import Post, Get, post
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
+from tilia.ui.coords import get_x_by_time
 
 from tilia.ui.timelines.marker import MarkerUI
 
@@ -38,14 +40,12 @@ class TestActions:
 
         assert mrk.color is None
 
-    def test_on_add_marker(self, marker_tlui, tluis):
-        with PatchGet(
-            "tilia.ui.timelines.marker.request_handlers", Get.MEDIA_CURRENT_TIME, 0.101
-        ):
-            post(Post.MARKER_ADD)
+    def test_on_add_marker(self, marker_tlui, tluis, tilia_state):
+        tilia_state.current_time = 11
+        post(Post.MARKER_ADD)
 
         assert len(marker_tlui) == 1
-        assert marker_tlui[0].get_data("time") == 0.101
+        assert marker_tlui[0].get_data("time") == 11
 
     def test_on_delete_marker(self, marker_tlui):
         _, mui = marker_tlui.create_marker(0)

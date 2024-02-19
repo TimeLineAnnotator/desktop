@@ -4,13 +4,6 @@ from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 
 
-@pytest.fixture(params=['marker', 'harmony', 'beat', 'hierarchy'])
-def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui):
-    return {"marker": marker_tlui, "harmony": harmony_tlui, "beat": beat_tlui, 'hierarchy': hierarchy_tlui}[
-        request.param
-    ]
-
-
 @pytest.mark.parametrize(
     "tlui,component_kind",
     [
@@ -18,7 +11,7 @@ def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui):
         ("harmony", ComponentKind.MODE),
         ("marker", ComponentKind.MARKER),
         ("beat", ComponentKind.BEAT),
-        ('hierarchy', ComponentKind.HIERARCHY)
+        ("hierarchy", ComponentKind.HIERARCHY),
     ],
     indirect=["tlui"],
 )
