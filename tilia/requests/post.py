@@ -28,7 +28,7 @@ class Post(Enum):
     APP_FILE_LOAD = auto()
     APP_MEDIA_LOAD = auto()
     APP_RECORD_STATE = auto()
-    APP_SETUP_BLANK_FILE = auto()
+    APP_SETUP_FILE = auto()
     PLAYER_ENABLE_CONTROLS = auto()
     PLAYER_DISABLE_CONTROLS = auto()
     UI_MEDIA_LOAD_YOUTUBE = auto()

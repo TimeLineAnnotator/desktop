@@ -32,7 +32,7 @@ def boot():
     if file := get_initial_file(args.file):
         app.file_manager.open(file)
     else:
-        app.setup_blank_file()
+        app.setup_file()
 
     ui.launch()
 

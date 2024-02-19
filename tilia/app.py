@@ -54,7 +54,7 @@ class App:
             (Post.APP_FILE_LOAD, self.on_file_load),
             (Post.APP_MEDIA_LOAD, self.load_media),
             (Post.APP_STATE_RESTORE, self.on_restore_state),
-            (Post.APP_SETUP_BLANK_FILE, self.setup_blank_file),
+            (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_RECORD_STATE, self.on_record_state),
             (Post.PLAYER_AVAILABLE, self.on_player_available),
             (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
@@ -148,10 +148,7 @@ class App:
             self._setup_file_media(media_path, media_duration)
 
         self.timelines.deserialize_timelines(file.timelines)
-        self.setup_blank_file()
-
-        # reset undo manager
-        self.reset_undo_manager()
+        self.setup_file()
 
     def on_clear(self) -> None:
         self.timelines.clear()
@@ -163,7 +160,7 @@ class App:
 
     def reset_undo_manager(self):
         self.undo_manager.clear()
-        self.undo_manager.record(self.get_app_state(), "load file")
+        self.undo_manager.record(self.get_app_state(), "file start")
 
     def restore_player_state(self, media_path: str) -> None:
         if self.player.media_path == media_path:
@@ -187,8 +184,10 @@ class App:
         logging.disable(logging.NOTSET)
         return params
 
-    def setup_blank_file(self):
+    def setup_file(self):
         # creates a slider timeline if none was loaded
         if get(Get.TIMELINE_COLLECTION).is_empty:
             self.timelines.create_timeline(TimelineKind.SLIDER_TIMELINE)
             self.file_manager.set_timelines(self.get_timelines_state())
+
+        self.reset_undo_manager()
