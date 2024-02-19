@@ -89,7 +89,13 @@ class App:
         sys.exit()
 
     def load_media(self, path: str) -> None:
+        if not path:
+            self.player.unload_media()
+            return
+
         self.player = MediaLoader(self.player).load(path)
+        if self.player:
+            post(Post.APP_RECORD_STATE, "media load")
 
     def on_restore_state(self, state: dict) -> None:
         logging.disable(logging.CRITICAL)

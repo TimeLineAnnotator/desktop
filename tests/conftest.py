@@ -98,6 +98,7 @@ def tilia(qtui):
     tilia_ = setup_logic(autosaver=False)
     tilia_.player = qtui.player
     tilia_.set_media_duration(100)
+    tilia_.reset_undo_manager()
     yield tilia_
 
 
