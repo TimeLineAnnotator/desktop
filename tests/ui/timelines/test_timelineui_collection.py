@@ -15,71 +15,62 @@ from tilia.timelines.timeline_kinds import (
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.ui.coords import get_x_by_time
-from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
-from tilia.ui.timelines.slider.timeline import SliderTimelineUI
 
 
-class TestTimelineUICollection:
-    def test_create_timeline_ui_hierarchy_timeline(self, tls, tluis):
-        tls.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test")
+class TestTimelineUICreation:
+    @pytest.mark.parametrize(
+        'action', [
+            TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
+            TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
+            TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
+            TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
+        ])
+    def test_create(self, action, tilia_state, tluis, actions):
+        tilia_state.duration = 1
+        with (
+            Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
+            Serve(Get.FROM_USER_STRING, ('', True))
+        ):
+            actions.trigger(action)
+        assert len(tluis) == 1
 
-        ui = list(tluis.get_timeline_uis())[0]
+    def test_create_multiple(self, tilia_state, tluis, actions):
+        create_actions = [
+            TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
+            TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
+            TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
+            TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE
+        ]
+        tilia_state.duration = 1
+        with (
+            Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
+            Serve(Get.FROM_USER_STRING, ('', True))
+        ):
+            for action in create_actions:
+                actions.trigger(action)
+        assert len(tluis) == len(create_actions)
 
-        assert ui.__class__ == HierarchyTimelineUI
-        assert ui in tluis._timeline_uis
-        assert tluis._select_order[0] == ui
+    @pytest.mark.parametrize(
+        'action', [
+            TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
+            TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
+            TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
+            TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
+        ])
+    def test_user_cancels_creation(self, action, tilia_state, tluis, actions):
+        tilia_state.duration = 1
+        with (
+            Serve(Get.FROM_USER_STRING, ('', False))
+        ):
+            actions.trigger(action)
+        assert tluis.is_empty
 
-        # cleanup
-        tls.delete_timeline(ui.timeline)
+    def test_delete(self, tls, actions):
+        with Serve(Get.FROM_USER_STRING, ('', True)):
+            actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
-    def test_create_timeline_ui_slider_timeline(self, tls, tluis):
-        tls.create_timeline(TlKind.SLIDER_TIMELINE, name="test")
-
-        ui = list(tluis.get_timeline_uis())[0]
-
-        assert ui.__class__ == SliderTimelineUI
-        assert ui in tluis._timeline_uis
-        assert tluis._select_order[0] == ui
-
-        # cleanup
-        tls.delete_timeline(ui.timeline)
-
-    def test_create_two_timeline_uis(self, tls, tluis):
-        tls.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test1")
-
-        tls.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test2")
-
-        ui1, ui2 = tluis._select_order
-
-        assert ui1.get_data("name") == "test2"
-        assert ui2.get_data("name") == "test1"
-
-        # cleanup
-        tls.delete_timeline(ui1.timeline)
-        tls.delete_timeline(ui2.timeline)
-
-    def test_create_timeline_uis_of_all_kinds(self, tls, tluis):
-
-        for kind in TimelineKind:
-            if kind == TimelineKind.BEAT_TIMELINE:
-                tls.create_timeline(kind, beat_pattern=[2])
-                continue
-            tls.create_timeline(kind)
-
-        assert len(tluis.get_timeline_uis()) == len(TimelineKind)
-
-        for timeline in tls._timelines.copy():
-            tls.delete_timeline(timeline)
-
-    def test_delete_timeline_ui(self, tls, tluis):
-        tls.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test")
-
-        tlui = list(tluis.get_timeline_uis())[0]
-
-        tls.delete_timeline(tlui.timeline)
-
-        assert not tluis._timeline_uis
-        assert not tluis._select_order
+        tls.delete_timeline(tls[0])  # this should be an user action
+        assert tls.is_empty
 
     def test_update_select_order(self, tls, tluis):
         tl1 = tls.create_timeline(TlKind.HIERARCHY_TIMELINE, name="test1")
@@ -100,6 +91,7 @@ class TestTimelineUICollection:
             post(Post.TIMELINE_VIEW_LEFT_CLICK, tlui2.view, 0, 0, 0, None, double=False)
 
         assert tluis._select_order[0] == tlui2
+
 
 
 class TestServe:

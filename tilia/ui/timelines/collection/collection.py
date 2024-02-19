@@ -98,6 +98,10 @@ class TimelineUIs:
     def __len__(self):
         return len(self._timeline_uis)
 
+    @property
+    def is_empty(self):
+        return len(self) == 0
+
     def _setup_selection_box(self):
         self.selection_boxes = []
         self.selection_boxes_above = False
