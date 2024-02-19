@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from PyQt6.QtCore import QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
@@ -44,12 +45,15 @@ class QtPlayer(Player):
 
     def _engine_stop(self):
         self.player.stop()
+        time.sleep(
+            0.1
+        )  # Avoids freeze if about to change to YT player. Reason unknown.
 
     def _engine_unload_media(self):
-        pass
+        self.player.setSource(QUrl(None))
 
     def _engine_get_media_duration(self) -> float:
         return self.player.duration() / 1000
 
     def _engine_exit(self):
-        self.player.deleteLater()
+        self.player = None
