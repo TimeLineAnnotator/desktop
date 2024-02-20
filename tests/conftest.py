@@ -4,6 +4,7 @@ import pytest
 
 from tests.mock import Serve
 from tilia.media.player.base import MediaTimeChangeReason
+from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
@@ -117,6 +118,20 @@ def tluis(qtui):
 @pytest.fixture
 def tls(tilia):
     _tls = tilia.timelines
+
+    def add_timeline_with_post(kind: TimelineKind, name: str = ""):
+        kind_to_request = {
+            TimelineKind.MARKER_TIMELINE: Post.TIMELINE_ADD_MARKER_TIMELINE,
+            TimelineKind.HIERARCHY_TIMELINE: Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
+            TimelineKind.HARMONY_TIMELINE: Post.TIMELINE_ADD_HARMONY_TIMELINE,
+            TimelineKind.BEAT_TIMELINE: Post.TIMELINE_ADD_BEAT_TIMELINE,
+        }
+        with Serve(Get.FROM_USER_STRING, (name, True)):
+            post(kind_to_request[kind])
+
+        return _tls[-1]
+
+    _tls.add_timeline_with_post = add_timeline_with_post
     yield _tls
     _tls.clear()  # deletes created timelines
 
