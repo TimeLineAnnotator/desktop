@@ -20,7 +20,8 @@ def _get_args_for_timeline_element_color_set(_):
 
 def _get_args_for_timeline_name_set(timeline_uis):
     timeline_ui = timeline_uis[0]
-    name, accept = dialogs.basic.ask_for_string(
+    name, accept = get(
+        Get.FROM_USER_STRING,
         "Change timeline name",
         "Choose new name",
         get(Get.TIMELINE, timeline_ui.id).name,

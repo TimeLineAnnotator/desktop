@@ -32,6 +32,9 @@ class SliderTimeline(Timeline):
 
         return result
 
+    def deserialize_components(self, components: dict[int, dict[str]]):
+        pass
+
     def clear(self, _=True):
         """Nothing to do."""
 

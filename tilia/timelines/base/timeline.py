@@ -199,12 +199,6 @@ class Timeline(ABC, Generic[TC]):
 
         return state
 
-    def restore_state(self, state: dict):
-        self.clear()
-        self.component_manager.deserialize_components(state["components"])
-        for attr in ["height", "name", "ordinal"]:
-            self.set_data(attr, state[attr])
-
     def update_component_order(self, component: TC):
         self.component_manager.update_component_order(component)
 

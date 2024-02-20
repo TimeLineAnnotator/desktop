@@ -239,7 +239,7 @@ class Timelines:
 
         # restore state of timelines that already exist
         for id in shared_tl_ids:
-            id_to_timelines[id].restore_state(timeline_states[id])
+            self._restore_timeline_state(id_to_timelines[id], timeline_states[id])
 
         # delete timelines not in restored state
         for id in list(set(id_to_timelines) - set(shared_tl_ids)):
@@ -252,6 +252,13 @@ class Timelines:
             self.create_timeline(kind, **params)
 
         post(Post.TIMELINE_COLLECTION_STATE_RESTORED)
+
+    def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
+        timeline.clear()
+        timeline.deserialize_components(state["components"])
+        for attr in ["height", "name", "ordinal"]:
+            if attr in state:
+                self.set_timeline_data(timeline.id, attr, state[attr])
 
     def get_timeline_ids(self):
         return [tl.id for tl in self]

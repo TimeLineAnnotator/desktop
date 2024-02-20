@@ -118,6 +118,10 @@ class TimelineUI(ABC):
     def playback_line(self):
         return self.scene.playback_line
 
+    @property
+    def displayed_name(self):
+        return self.scene.text.toPlainText()
+
     def get_data(self, attr: str):
         return self.timeline.get_data(attr)
 
@@ -149,7 +153,7 @@ class TimelineUI(ABC):
         self.element_manager.update_time_on_elements()
 
     def update_name(self):
-        self.scene.set_text(self.get_data('name'))
+        self.scene.set_text(self.get_data("name"))
 
     def update_ordinal(self):
         self.collection.update_timeline_ui_ordinal()
