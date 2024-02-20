@@ -2,7 +2,9 @@ import functools
 
 import pytest
 
+from tests.mock import Serve
 from tilia.media.player.base import MediaTimeChangeReason
+from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
 from tilia.boot import setup_logic
