@@ -46,11 +46,11 @@ class ManageTimelines(QDialog):
 
         right_layout = QVBoxLayout()
 
-        up_button = QPushButton("▲")
-        up_button.pressed.connect(list_widget.on_up_button)
+        self.up_button = QPushButton("▲")
+        self.up_button.pressed.connect(list_widget.on_up_button)
 
-        down_button = QPushButton("▼")
-        down_button.pressed.connect(list_widget.on_down_button)
+        self.down_button = QPushButton("▼")
+        self.down_button.pressed.connect(list_widget.on_down_button)
 
         checkbox = QCheckBox("Visible")
         self.checkbox = checkbox
@@ -61,8 +61,8 @@ class ManageTimelines(QDialog):
 
         self.clear_button = QPushButton("Clear")
         self.clear_button.pressed.connect(list_widget.on_clear_button)
-        right_layout.addWidget(up_button)
-        right_layout.addWidget(down_button)
+        right_layout.addWidget(self.up_button)
+        right_layout.addWidget(self.down_button)
         right_layout.addWidget(checkbox)
         right_layout.addWidget(self.clear_button)
         right_layout.addWidget(self.delete_button)
