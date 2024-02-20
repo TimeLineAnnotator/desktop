@@ -1,7 +1,10 @@
 import pytest
 
-from tilia.requests import Post, post
+from tests.mock import Serve
+from tilia.requests import Post, post, Get, get
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.actions import TiliaAction
 
 
 @pytest.mark.parametrize(
@@ -95,3 +98,46 @@ class TestArrowSelection:
 
         assert ui1.is_selected()
         assert not ui2.is_selected()
+
+
+class TestSetTimelineName:
+    def test_set(self, tls, actions):
+        tl = tls.add_timeline_with_post(TimelineKind.MARKER_TIMELINE, name="change me")
+        tlui = get(Get.TIMELINE_UI, tl.id)
+        with Serve(Get.FROM_USER_STRING, ("this", True)):
+            actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+
+        assert tl.get_data("name") == "this"
+        assert tlui.displayed_name == "this"
+
+    def test_set_undo(self, tls, actions):
+        tl = tls.add_timeline_with_post(TimelineKind.MARKER_TIMELINE, name="pure")
+        tlui = get(Get.TIMELINE_UI, tl.id)
+        with Serve(Get.FROM_USER_STRING, ("tainted", True)):
+            actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+
+        actions.trigger(TiliaAction.EDIT_UNDO)
+
+        assert tl.get_data("name") == "pure"
+        assert tlui.displayed_name == "pure"
+
+    def test_set_redo(self, tls, actions):
+        tl = tls.add_timeline_with_post(TimelineKind.MARKER_TIMELINE, name="pure")
+        tlui = get(Get.TIMELINE_UI, tl.id)
+        with Serve(Get.FROM_USER_STRING, ("tainted", True)):
+            actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        actions.trigger(TiliaAction.EDIT_REDO)
+
+        assert tl.get_data("name") == "tainted"
+        assert tlui.displayed_name == "tainted"
+
+    def test_set_empty_string(self, tls, actions):
+        tl = tls.add_timeline_with_post(TimelineKind.MARKER_TIMELINE, name="change me")
+        tlui = get(Get.TIMELINE_UI, tl.id)
+        with Serve(Get.FROM_USER_STRING, ("", True)):
+            actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+
+        assert tl.get_data("name") == ""
+        assert tlui.displayed_name == ""
