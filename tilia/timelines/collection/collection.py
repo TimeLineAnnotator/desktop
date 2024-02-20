@@ -88,7 +88,7 @@ class Timelines:
         serve(self, Get.METRIC_POSITION, self.get_metric_position)
 
     def __getitem__(self, key):
-        return self._timelines[key]
+        return sorted(self._timelines)[key]
 
     def __iter__(self):
         return iter(self._timelines)
