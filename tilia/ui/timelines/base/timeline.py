@@ -148,8 +148,8 @@ class TimelineUI(ABC):
         self.view.set_height(height)
         self.element_manager.update_time_on_elements()
 
-    def update_name(self, value):
-        self.scene.set_text(value)
+    def update_name(self):
+        self.scene.set_text(self.get_data('name'))
 
     def update_ordinal(self):
         self.collection.update_timeline_ui_ordinal()
