@@ -87,6 +87,12 @@ class Timeline(ABC, Generic[TC]):
     def __lt__(self, other):
         return self.ordinal < other.ordinal
 
+    def __eq__(self, other):
+        for attr in self.SERIALIZABLE_BY_VALUE + ["KIND"]:
+            if self.get_data(attr) != other.get_data(attr):
+                return False
+        return True
+
     @property
     def is_empty(self):
         return len(self) == 0
@@ -196,8 +202,8 @@ class Timeline(ABC, Generic[TC]):
     def restore_state(self, state: dict):
         self.clear()
         self.component_manager.deserialize_components(state["components"])
-        self.set_data("height", state["height"])
-        self.set_data("name", state["name"])
+        for attr in ["height", "name", "ordinal"]:
+            self.set_data(attr, state[attr])
 
     def update_component_order(self, component: TC):
         self.component_manager.update_component_order(component)
