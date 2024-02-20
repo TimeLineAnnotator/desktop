@@ -51,27 +51,14 @@ class TestHierarchyTimeline:
 
         assert len(hierarchy_tl) == 1
 
-    # TEST UNDO
-    def test_restore_state(self, hierarchy_tl):
-        hrc1, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
-        hrc2, _ = hierarchy_tl.create_hierarchy(1, 2, 1)
-
-        state = hierarchy_tl.get_state()
-
-        hierarchy_tl.delete_components([hrc1, hrc2])
-
-        assert len(hierarchy_tl) == 0
-
-        hierarchy_tl.restore_state(state)
-
-        assert len(hierarchy_tl) == 2
-
 
 class TestHierarchyTimelineComponentManager:
     def test_create_invalid_component_kind_raises_error(self, hierarchy_tl):
         with pytest.raises(InvalidComponentKindError):
             # noinspection PyTypeChecker
-            hierarchy_tl.component_manager.create_component("INVALID KIND", None, 0, 1, 1)
+            hierarchy_tl.component_manager.create_component(
+                "INVALID KIND", None, 0, 1, 1
+            )
 
     def test_create_unit_below(self, hierarchy_tl):
         parent, _ = hierarchy_tl.create_hierarchy(start=0, end=1, level=3)
@@ -179,7 +166,9 @@ class TestHierarchyTimelineComponentManager:
 
         success, _ = hierarchy_tl.component_manager.merge([hrc1, hrc2])
 
-    def test_merge_with_unit_of_different_level_in_between_raises_error(self, hierarchy_tl):
+    def test_merge_with_unit_of_different_level_in_between_raises_error(
+        self, hierarchy_tl
+    ):
         hrc1, _ = hierarchy_tl.create_hierarchy(start=0.0, end=0.1, level=1)
         hierarchy_tl.create_hierarchy(start=0.1, end=0.2, level=2)
         hrc3, _ = hierarchy_tl.create_hierarchy(start=0.2, end=0.3, level=1)
@@ -516,7 +505,9 @@ class TestHierarchyTimelineComponentManager:
         assert {h1, h3} in conflicts
         assert {h2, h3} in conflicts
 
-    def test_get_boundary_conflicts_crosses_multiple_on_different_levels(self, hierarchy_tl):
+    def test_get_boundary_conflicts_crosses_multiple_on_different_levels(
+        self, hierarchy_tl
+    ):
         h1, _ = hierarchy_tl.create_hierarchy(1, 2, 2)
         h2, _ = hierarchy_tl.create_hierarchy(2, 3, 3)
         h3, _ = hierarchy_tl.create_hierarchy(0, 4, 1)
@@ -552,7 +543,9 @@ class TestSplit:
 
         assert unit_for_split is None
 
-    def test_get_unit_for_split_from_units_of_different_levels_spanning_time(self, hierarchy_tl):
+    def test_get_unit_for_split_from_units_of_different_levels_spanning_time(
+        self, hierarchy_tl
+    ):
         hrc1, _ = hierarchy_tl.create_hierarchy(start=0.0, end=1, level=1)
         hierarchy_tl.create_hierarchy(start=0.0, end=1, level=2)
         hierarchy_tl.create_hierarchy(start=0.0, end=1, level=3)

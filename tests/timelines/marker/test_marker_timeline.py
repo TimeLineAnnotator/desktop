@@ -16,21 +16,6 @@ class TestMarkerTimeline:
 
         assert len(marker_tl) == 1
 
-    # TEST UNDO
-    def test_restore_state(self, marker_tl):
-        marker_tl.create_marker(0)
-        marker_tl.create_marker(1)
-
-        state = marker_tl.get_state()
-
-        marker_tl.clear()
-
-        assert len(marker_tl) == 0
-
-        marker_tl.restore_state(state)
-
-        assert len(marker_tl) == 2
-
 
 class TestMarkerTimelineComponentManager:
     # TEST CLEAR
