@@ -149,8 +149,9 @@ class TimelinesListWidget(QListWidget):
         self.setCurrentRow(0)
         self.timeline_uis_to_permute = None
         listen(self, Post.TIMELINE_SET_DATA_DONE, self.on_timeline_set_data_done)
-        listen(self, Post.TIMELINE_DELETE_DONE, self.on_timeline_set_changed)
-        listen(self, Post.TIMELINE_CREATE_DONE, self.on_timeline_set_changed)
+        listen(self, Post.TIMELINE_DELETE_DONE, self.update_current_selection)
+        listen(self, Post.TIMELINE_CREATE_DONE, self.update_current_selection)
+        listen(self, Post.TIMELINE_COLLECTION_STATE_RESTORED, self.update_items)
 
     def item(self, row: int) -> typing.Optional[TimelineListItem]:
         return super().item(row)
@@ -170,18 +171,20 @@ class TimelinesListWidget(QListWidget):
             return
 
         prev_selected = self.currentItem()
-        self.clear()
-        self._setup_items()
+        self.update_items()
         for i in range(self.model().rowCount()):
             if self.item(i).timeline_ui == prev_selected.timeline_ui:
                 self.setCurrentRow(i)
                 break
 
-    def on_timeline_set_changed(self, *_):
+    def update_current_selection(self, *_):
         prev_index = self.currentIndex()
+        self.update_items()
+        self.setCurrentRow(prev_index.row())
+
+    def update_items(self):
         self.clear()
         self._setup_items()
-        self.setCurrentRow(prev_index.row())
 
     def on_up_button(self):
         if not self.selectedIndexes():

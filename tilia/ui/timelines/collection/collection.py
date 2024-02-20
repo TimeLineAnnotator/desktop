@@ -59,8 +59,6 @@ class TimelineUIs:
     ZOOM_FACTOR = 0.1
     DO_NOT_RECORD = [
         Post.TIMELINE_ELEMENT_COPY,
-        Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES,
-        Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES,
     ]
     UPDATE_TRIGGERS = ["height", "level_count"]
 
@@ -138,7 +136,7 @@ class TimelineUIs:
             (Post.TIMELINE_VIEW_RIGHT_CLICK, self._on_timeline_ui_right_click),
             (
                 Post.TIMELINE_COLLECTION_STATE_RESTORED,
-                lambda: self.update_timeline_uis_position,
+                self.update_timeline_uis_position,
             ),
             (
                 Post.TIMELINES_AUTO_SCROLL_ENABLE,
@@ -220,7 +218,11 @@ class TimelineUIs:
             self.get_are_timeline_elements_selected,
         )
         serve(self, Get.SELECTED_TIME, self.get_selected_time)
-        serve(self, Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, self.get_first_timeline_ui_in_select_order)
+        serve(
+            self,
+            Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER,
+            self.get_first_timeline_ui_in_select_order,
+        )
 
     def _setup_requests(self):
         self._setup_listen()
@@ -907,7 +909,9 @@ class TimelineUIs:
         return [tlui for tlui in self if getattr(tlui, attr) == value]
 
     def get_first_timeline_ui_in_select_order(self, kind: TimelineKind):
-        return next((tlui for tlui in self._select_order if tlui.get_data('KIND') == kind), None)
+        return next(
+            (tlui for tlui in self._select_order if tlui.get_data("KIND") == kind), None
+        )
 
     def _get_choose_timeline_dialog(
         self,
