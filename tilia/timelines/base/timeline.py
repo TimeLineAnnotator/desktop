@@ -88,7 +88,9 @@ class Timeline(ABC, Generic[TC]):
         return self.ordinal < other.ordinal
 
     def __eq__(self, other):
-        for attr in self.SERIALIZABLE_BY_VALUE + ["KIND"]:
+        if self.KIND != other.KIND:
+            return False
+        for attr in self.SERIALIZABLE_BY_VALUE:
             if self.get_data(attr) != other.get_data(attr):
                 return False
         return True
