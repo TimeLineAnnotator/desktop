@@ -839,7 +839,7 @@ class TimelineUIs:
         self.auto_scroll_is_enabled = value
 
     def center_on_time(self, time: float):
-        self.view.centerOn(get_x_by_time(time), 0)
+        self.view.move_to_x(get_x_by_time(time))
 
     @staticmethod
     def change_playback_line_position(timeline_ui: TimelineUI, time: float):
