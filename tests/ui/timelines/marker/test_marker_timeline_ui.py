@@ -1,20 +1,34 @@
 from unittest.mock import patch
 
+import pytest
 from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QColor
 
 from tests.mock import PatchGet
+from tests.ui.timelines.marker.interact import click_marker_ui
 from tilia.requests import Post, Get, post
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 
 from tilia.ui.timelines.marker import MarkerUI
+from tilia.ui.windows import WindowKind
 
 
 def marker_ui_pos(marker_ui: MarkerUI):
     x = int(marker_ui.x)
     y = int(MarkerUI.HEIGHT / 2)
     return QPoint(x, y)
+
+
+@pytest.fixture
+def get_inspect(qtui, actions):
+    post(Post.WINDOW_INSPECT_OPEN)
+
+    def _get_inspect():
+        return qtui._windows[WindowKind.INSPECT]
+
+    yield _get_inspect
+    post(Post.WINDOW_INSPECT_CLOSE)
 
 
 class TestCreateDelete:
@@ -88,6 +102,16 @@ class TestCreateDelete:
 
         post(Post.EDIT_REDO)
         assert len(marker_tlui.elements) == 0
+
+
+class TestEditWithInspectDialog:
+    @pytest.mark.parametrize('field_name,attr,value', [('Comments', 'comments', 'abc'), ('Label', 'label', 'abc')])
+    def test_set_attr(self, field_name, attr, value, marker_tlui, get_inspect, actions):
+        actions.trigger(TiliaAction.MARKER_ADD)
+        click_marker_ui(marker_tlui[0])
+        inspect_win = get_inspect()
+        inspect_win.field_name_to_widgets[field_name][1].setText(value)
+        assert marker_tlui[0].get_data(attr) == value
 
 
 class TestActions:
