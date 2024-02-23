@@ -172,8 +172,12 @@ class Inspect(QDockWidget):
 
     @staticmethod
     def set_widget_value(widget, value):
-        if isinstance(widget, (QLineEdit, QLabel, QTextEdit)):
-            widget.setText(value)
+        if isinstance(widget, (QLineEdit, QLabel)):
+            if widget.text() != value:
+                widget.setText(value)
+        elif isinstance(widget, QTextEdit):
+            if widget.toPlainText() != value:
+                widget.setText(value)
         elif isinstance(widget, QComboBox):
             widget.setCurrentIndex(widget.findData(value))
         elif isinstance(widget, QSpinBox):
@@ -233,7 +237,7 @@ class Inspect(QDockWidget):
                 widget = QLabel(self.widget)
             case InspectRowKind.SINGLE_LINE_EDIT:
                 widget = QLineEdit(self.widget)
-                widget.textEdited.connect(
+                widget.textChanged.connect(
                     functools.partial(self.on_line_edit_changed, name)
                 )
             case InspectRowKind.MULTI_LINE_EDIT:
