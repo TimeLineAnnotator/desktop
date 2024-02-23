@@ -21,7 +21,7 @@ from tilia.timelines.harmony.validators import (
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
-    CHORD_COMMON_NAME_TO_TYPE,
+    CHORD_COMMON_NAME_TO_TYPE, ROMAN_TO_INT,
 )
 
 
@@ -69,8 +69,8 @@ class Harmony(TimelineComponent):
         step: int,
         accidental: int,
         quality: str,
-        inversion: int | None = None,
-        applied_to: int | None = None,
+        inversion: int = 0,
+        applied_to: int = 0,
         level: int = 1,
         display_mode: Literal["chord", "roman", "custom"] = "chord",
         custom_text: str = "",
@@ -169,17 +169,17 @@ def _get_music21_object_from_text(text, key):
 def _get_params_from_music21_object(obj, kind):
     step = NOTE_NAME_TO_INT[obj.root().step]
     accidental = int(obj.root().alter)
-    inversion = obj.inversion()
+    inversion = obj.inversion() if obj.inversion() else 0
     if kind == "roman":
         quality = obj.chord_type
         applied_to = (
-            obj.secondaryRomanNumeral.figure.upper()
+            ROMAN_TO_INT[obj.secondaryRomanNumeral.figure.upper()]
             if obj.secondaryRomanNumeral
-            else None
+            else 0
         )
     else:
         quality = obj.chordKind
-        applied_to = None
+        applied_to = 0
 
     return {
         "step": step,
