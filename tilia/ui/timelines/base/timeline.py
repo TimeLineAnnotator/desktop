@@ -29,6 +29,7 @@ from tilia.ui.timelines.copy_paste import (
 from .request_handlers import TimelineRequestHandler
 from ..collection.requests.enums import ElementSelector
 from ..view import TimelineView
+from ...coords import get_x_by_time
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
@@ -154,6 +155,12 @@ class TimelineUI(ABC):
 
     def update_name(self):
         self.scene.set_text(self.get_data("name"))
+
+    def set_width(self, width):
+        self.scene.set_width(int(width))
+        self.view.setFixedWidth(int(width))
+        self.element_manager.update_time_on_elements()
+        self.scene.set_playback_line_pos(get_x_by_time(get(Get.SELECTED_TIME)))
 
     def update_ordinal(self):
         self.collection.update_timeline_ui_ordinal()

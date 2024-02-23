@@ -88,6 +88,11 @@ class SliderTimelineUI(TimelineUI):
         y = self.view.height() / 2
         self.line.setLine(QLineF(get(Get.LEFT_MARGIN_X), y, get(Get.RIGHT_MARGIN_X), y))
 
+    def set_width(self, width):
+        self.scene.set_width(int(width))
+        self.view.setFixedWidth(int(width))
+        self.update_items_position()
+
     def on_left_click(self, item_id: int, modifier: ModifierEnum, double: bool) -> None:
         if not item_id or item_id == self.line:
             return
@@ -128,7 +133,7 @@ class SliderTimelineUI(TimelineUI):
     ):
         """No components in SliderTimeline. Must implement abstract method."""
 
-    def update_width(self):
+    def update_items_position(self):
         self.x = coords.get_x_by_time(get(Get.MEDIA_CURRENT_TIME))
         self.set_trough_position()
         self.set_line_position()
@@ -144,7 +149,7 @@ class SliderTimelineUI(TimelineUI):
         """Slider timeline does not have a playback line (as it has a slider trough)."""
 
     def crop(self):
-        self.update_width()
+        self.update_items_position()
 
     def __str__(self):
         return "Slider Timeline"

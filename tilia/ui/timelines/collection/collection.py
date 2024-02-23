@@ -362,13 +362,8 @@ class TimelineUIs:
 
     def on_timeline_width_set_done(self, width):
         self.scene.setSceneRect(0, 0, width, self.get_scene_height())
-
-        current_time = get(Get.MEDIA_CURRENT_TIME)
         for tlui in self:
-            tlui.scene.set_width(int(width))
-            tlui.view.setFixedWidth(int(width))
-            self.update_timeline_times(tlui)
-            self.change_playback_line_position(tlui, current_time)
+            tlui.set_width(width)
 
     def update_timeline_ui_ordinal(self):
         self.update_timeline_uis_position()
@@ -377,7 +372,7 @@ class TimelineUIs:
     def update_timeline_times(tlui: TimelineUI):
         if tlui.TIMELINE_KIND == TlKind.SLIDER_TIMELINE:
             tlui: SliderTimelineUI
-            tlui.update_width()
+            tlui.update_items_position()
         else:
             tlui.element_manager.update_time_on_elements()
 
