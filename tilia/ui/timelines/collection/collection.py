@@ -860,17 +860,6 @@ class TimelineUIs:
 
         self.sb_items_to_selected_items = {}
 
-    def get_scroll_fraction(self) -> float:
-        if not self._timeline_uis:
-            return 0
-
-        return self[0].scene.scenex(0) / get(Get.PLAYBACK_AREA_WIDTH)
-
-    def scroll_to_x(self, x: float):
-        x = max(x, 0)
-        for tl_ui in self:
-            tl_ui.scene.xview_moveto(x / get(Get.PLAYBACK_AREA_WIDTH))
-
     @staticmethod
     def kind_to_timeline():
         return {
