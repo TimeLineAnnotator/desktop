@@ -87,8 +87,6 @@ class TestCreateDelete:
         assert len(marker_tlui.elements) == 0
 
     def test_undo_redo_delete_marker(self, marker_tlui, tluis):
-        # 'tlui_clct' is needed as it subscriber to toolbar event
-        # and forwards it to marker timeline
 
         marker_tlui.create_marker(0)
 
