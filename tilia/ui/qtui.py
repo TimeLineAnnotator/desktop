@@ -136,7 +136,7 @@ class QtUI:
             (Post.UI_MEDIA_LOAD_YOUTUBE, self.on_media_load_youtube),
             (
                 Post.TIMELINE_ELEMENT_INSPECT,
-                lambda: self.on_window_open(WindowKind.INSPECT),
+                self.on_timeline_element_inspect
             ),
             (
                 Post.WINDOW_MANAGE_TIMELINES_OPEN,
@@ -153,6 +153,10 @@ class QtUI:
             (
                 Post.WINDOW_ABOUT_OPEN,
                 lambda: self.on_window_open(WindowKind.ABOUT),
+            ),
+            (
+                Post.WINDOW_INSPECT_OPEN,
+                lambda: self.on_window_open(WindowKind.INSPECT),
             ),
             (
                 Post.WINDOW_INSPECT_CLOSE,
@@ -314,13 +318,15 @@ class QtUI:
         }
 
         if not self._windows[kind]:
-            self._windows[kind] = kind_to_constructor[kind]()
+            window = kind_to_constructor[kind]()
+        else:
+            window = self._windows[kind]
 
-        self._windows[kind].activateWindow()
+        if window:
+            self._windows[kind] = window
+            window.activateWindow()
 
     def open_inspect_window(self):
-        if not get(Get.ARE_TIMELINE_ELEMENTS_SELECTED):
-            return None
         widget = Inspect()
         self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, widget)
         widget.setFloating(True)
@@ -343,6 +349,11 @@ class QtUI:
 
     def is_window_open(self, kind: WindowKind):
         return self._windows[kind] is not None
+
+    def on_timeline_element_inspect(self):
+        if not get(Get.ARE_TIMELINE_ELEMENTS_SELECTED):
+            return
+        self.on_window_open(WindowKind.INSPECT)
 
     @staticmethod
     def on_media_load_local():
