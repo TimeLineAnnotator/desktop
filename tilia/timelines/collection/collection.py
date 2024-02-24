@@ -110,6 +110,16 @@ class Timelines:
     def is_empty(self):
         return len(self) == 0
 
+    @property
+    def is_blank(self):
+        # a blank Timelines is empty or has a single slider timeline
+        # which is its state when creating a new (blank) file
+        return (
+            self.is_empty
+            or len(self) == 1
+            and self[0].KIND == TimelineKind.SLIDER_TIMELINE
+        )
+
     @staticmethod
     def _validate_timeline_kind(kind: TlKind | str):
         if isinstance(kind, str):
@@ -292,7 +302,7 @@ class Timelines:
     def on_media_duration_changed(self, new_duration: float):
         prev_duration = self.cached_media_duration
 
-        if not prev_duration or new_duration == prev_duration or self.is_empty:
+        if not prev_duration or new_duration == prev_duration or self.is_blank:
             self.cached_media_duration = new_duration
             return
 

@@ -15,30 +15,45 @@ class TestCreate:
 
 
 class TestTimelines:
-    def tests_scales_timelines_when_media_duration_changes(self, marker_tl, tilia_state):
+    def tests_scales_timelines_when_media_duration_changes(
+        self, marker_tl, tilia_state
+    ):
         marker_tl.create_marker(10)
         with Serve(Get.FROM_USER_YES_OR_NO, True):
             tilia_state.duration = 200
-        assert marker_tl[0].get_data('time') == 20
+        assert marker_tl[0].get_data("time") == 20
 
-    def tests_does_not_scale_timelines_when_media_duration_changes_if_user_refuses(self, marker_tl, tilia_state):
+    def tests_does_not_scale_timelines_when_media_duration_changes_if_user_refuses(
+        self, marker_tl, tilia_state
+    ):
         marker_tl.create_marker(10)
         with Serve(Get.FROM_USER_YES_OR_NO, False):
             tilia_state.duration = 200
-        assert marker_tl[0].get_data('time') == 10
+        assert marker_tl[0].get_data("time") == 10
 
-    def test_scale_timeline_when_media_duration_changes_if_user_refuses_crop(self, marker_tl, tilia_state):
+    def test_scale_timeline_when_media_duration_changes_if_user_refuses_crop(
+        self, marker_tl, tilia_state
+    ):
         marker_tl.create_marker(90)
         with ServeSequence(Get.FROM_USER_YES_OR_NO, [False, False]):
             tilia_state.duration = 50
-        assert marker_tl[0].get_data('time') == 45
+        assert marker_tl[0].get_data("time") == 45
 
-    def test_crops_timeline_when_media_duration_changes_if_user_confirms(self, marker_tl, tilia_state):
+    def test_scale_timeline_is_not_offered_when_there_is_only_a_slider_timeline(
+        self, slider_tl, tilia_state
+    ):
+        with Serve(Get.FROM_USER_YES_OR_NO, None) as serve:
+            tilia_state.duration = 50
+        assert not serve.called
+
+    def test_crops_timeline_when_media_duration_changes_if_user_confirms(
+        self, marker_tl, tilia_state
+    ):
         marker_tl.create_marker(100)
         marker_tl.create_marker(50)
         with ServeSequence(Get.FROM_USER_YES_OR_NO, [False, True]):
             tilia_state.duration = 50
-        assert marker_tl[0].get_data('time') == 50
+        assert marker_tl[0].get_data("time") == 50
         assert len(marker_tl) == 1
 
     def test_posts_timeline_kind_instanced_event(self, qtui, tls):
