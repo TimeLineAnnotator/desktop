@@ -22,7 +22,9 @@ class TestBeatTimeline:
         actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 0
 
-    def test_create_beat_at_middle_updates_next_beats_is_first_in_measure(self, beat_tl, tilia_state, actions):
+    def test_create_beat_at_middle_updates_next_beats_is_first_in_measure(
+        self, beat_tl, tilia_state, actions
+    ):
         beat_tl.beat_pattern = [2]
         tilia_state.current_time = 0
         actions.trigger(TiliaAction.BEAT_ADD)
@@ -34,9 +36,9 @@ class TestBeatTimeline:
         tilia_state.current_time = 5
         actions.trigger(TiliaAction.BEAT_ADD)
 
-        assert beat_tl[1].get_data('is_first_in_measure') is False
-        assert beat_tl[2].get_data('is_first_in_measure') is True
-        assert beat_tl[3].get_data('is_first_in_measure') is False
+        assert beat_tl[1].get_data("is_first_in_measure") is False
+        assert beat_tl[2].get_data("is_first_in_measure") is True
+        assert beat_tl[3].get_data("is_first_in_measure") is False
 
     def test_get_extension_mult_of_bp_without_beats_in_measure(self, beat_tl):
         beat_tl.beat_pattern = [4, 3, 2]
@@ -483,3 +485,18 @@ class TestBeatTimeline:
         beat_tl.recalculate_measures()
 
         assert beat_tl.get_time_by_measure(-1) == []
+
+    def test_delete_beat_updates_is_first_in_measure_of_subsequent_beats(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+        b0, _ = beat_tl.create_beat(0)
+        b1, _ = beat_tl.create_beat(1)
+        b2, _ = beat_tl.create_beat(2)
+        b3, _ = beat_tl.create_beat(3)
+        b4, _ = beat_tl.create_beat(4)
+
+        beat_tl.delete_components([b1])
+
+        assert b0.get_data("is_first_in_measure")
+        assert not b2.get_data("is_first_in_measure")
+        assert b3.get_data("is_first_in_measure")
+        assert not b4.get_data("is_first_in_measure")
