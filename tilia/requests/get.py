@@ -34,6 +34,7 @@ class Get(Enum):
     MEDIA_CURRENT_TIME = auto()
     MEDIA_DURATION = auto()
     MEDIA_METADATA = auto()
+    MEDIA_METADATA_REQUIRED_FIELDS = auto()
     MEDIA_PATH = auto()
     MEDIA_TITLE = auto()
     METRIC_POSITION = auto()

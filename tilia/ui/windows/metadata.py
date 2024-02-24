@@ -139,5 +139,5 @@ class MediaMetadataWindow(QDialog):
                 post(Post.METADATA_ADD_FIELD, field.lower(), i)
 
         for field in self.metadata:
-            if field not in new_fields:
+            if field not in new_fields + get(Get.MEDIA_METADATA_REQUIRED_FIELDS):
                 post(Post.METADATA_REMOVE_FIELD, field)

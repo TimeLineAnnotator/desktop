@@ -30,7 +30,9 @@ class EditMetadataFieldsDialog(QDialog):
         def append_next_name(text, name):
             return text + name + "\n"
 
-        field_names = get(Get.MEDIA_METADATA).keys()
+        field_names = list(get(Get.MEDIA_METADATA))
+        for field in get(Get.MEDIA_METADATA_REQUIRED_FIELDS):
+            field_names.remove(field)
         self.text_edit.setText(functools.reduce(append_next_name, field_names, ""))
 
     def get_fields_list(self):

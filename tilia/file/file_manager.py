@@ -11,8 +11,6 @@ from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.media_metadata import MediaMetadata
-from tilia.ui import actions
-from tilia.ui.actions import TiliaAction
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +24,11 @@ class FileManager:
 
     def __init__(self):
         serve(self, Get.MEDIA_METADATA, lambda: self.file.media_metadata)
+        serve(
+            self,
+            Get.MEDIA_METADATA_REQUIRED_FIELDS,
+            self.get_media_metadata_required_fields,
+        )
         serve(self, Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"])
         listen(self, Post.PLAYER_URL_CHANGED, self.on_player_url_changed)
         listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_player_duration_changed)
@@ -162,6 +165,10 @@ class FileManager:
             return
 
         self.set_media_metadata(MediaMetadata.from_dict(data))
+
+    @staticmethod
+    def get_media_metadata_required_fields():
+        return list(MediaMetadata.REQUIRED_FIELDS)  # REQUIRED_FIELDS is a dict
 
     def save(self, data: dict, path: Path | str):
         write_tilia_file_to_disk(TiliaFile(**data), str(path))

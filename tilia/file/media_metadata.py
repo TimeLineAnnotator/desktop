@@ -4,11 +4,11 @@ from tilia import settings
 
 
 class MediaMetadata(OrderedDict):
-    REQUIRED_FIELDS = [("title", "Untitled"), ("notes", "")]
+    REQUIRED_FIELDS = {"title": "Untitled", "notes": ""}
 
     def __init__(self, init_default_fields=True):
         super().__init__()
-        for field, value in self.REQUIRED_FIELDS:
+        for field, value in self.REQUIRED_FIELDS.items():
             self[field] = value
 
         # should not be initialized if setting media metadata directly
