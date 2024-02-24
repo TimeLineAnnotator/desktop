@@ -62,24 +62,27 @@ class FileManager:
         app_state = get(Get.APP_STATE)
         if not app_state["file_path"]:
             # in case file has not been saved before
-            self.on_save_as_request()
-            return
+            return self.on_save_as_request()
 
         try:
             self.save(app_state, app_state["file_path"])
         except Exception as exc:
             post(Post.DISPLAY_ERROR, f"Error when saving file.\n{exc}")
 
+        return True
+
     def on_save_as_request(self):
         """Prompts user for a path, and saves tilia file to it."""
         path, _ = get(Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla")
         if not path:
-            return
+            return False
 
         try:
             self.save(get(Get.APP_STATE), path)
         except TiliaFileWriteError:
             post(Post.DISPLAY_ERROR, "Error when saving file.")
+
+        return True
 
     def on_save_to_path_request(self, path: Path):
         """Saves tilia file to specified path."""
@@ -88,12 +91,20 @@ class FileManager:
         except TiliaFileWriteError:
             post(Post.DISPLAY_ERROR, "Error when saving file.")
 
-    def on_request_open_file(self):
+    def on_close_modified_file(self):
         success, should_save = self.ask_save_changes_if_modified()
         if not success:
-            return
+            return False
         if should_save:
-            actions.trigger(TiliaAction.FILE_SAVE)
+            was_saved = self.on_save_request()
+            if not was_saved:  # user might cancel save dialog
+                return False  # we shouldn't proceed in that case
+
+        return True
+
+    def on_request_open_file(self):
+        if not self.on_close_modified_file():
+            return
 
         success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
         if not success:
@@ -104,11 +115,8 @@ class FileManager:
         self.open(path)
 
     def on_request_new_file(self):
-        success, confirm = self.ask_save_changes_if_modified()
-        if not success:
+        if not self.on_close_modified_file():
             return
-        if confirm:
-            actions.trigger(TiliaAction.FILE_SAVE)
 
         post(Post.APP_CLEAR)
         post(Post.APP_SETUP_FILE)
