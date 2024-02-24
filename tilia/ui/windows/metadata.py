@@ -136,7 +136,7 @@ class MediaMetadataWindow(QDialog):
     def update_metadata_fields(self, new_fields: list[str]):
         for i, field in enumerate(new_fields):
             if field not in self.metadata:
-                post(Post.METADATA_ADD_FIELD, field, i)
+                post(Post.METADATA_ADD_FIELD, field.lower(), i)
 
         for field in self.metadata:
             if field not in new_fields:
