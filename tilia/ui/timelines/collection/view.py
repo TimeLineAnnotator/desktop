@@ -13,5 +13,14 @@ class TimelineUIsView(QGraphicsView):
         return self.horizontalScrollBar().isSliderDown()
 
     def move_to_x(self, x: float):
-        center = self.mapToScene(self.viewport().rect().center())
-        self.centerOn(x, center.y() + 1)  # why is the + 1 necessary?
+        center = self.get_center()
+        self.center_on(x, center[1])
+
+    def get_center(self):
+        qpoint = self.mapToScene(self.viewport().rect().center())
+        return qpoint.x(), qpoint.y()
+
+    def center_on(self, x, y):
+        self.centerOn(x, y + 1)
+
+
