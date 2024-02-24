@@ -794,7 +794,7 @@ class TimelineUIs:
         return self.view.get_center()[0] * factor, self.view.get_center()[1] * factor
 
     def on_zoom_in(self):
-        self.center_after_zoom = ic(self._get_center_after_zoom(1 + self.ZOOM_FACTOR))
+        self.center_after_zoom = self._get_center_after_zoom(1 + self.ZOOM_FACTOR)
         post(
             Post.PLAYBACK_AREA_SET_WIDTH,
             get(Get.PLAYBACK_AREA_WIDTH) * (1 + self.ZOOM_FACTOR),
