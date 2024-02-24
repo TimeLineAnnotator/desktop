@@ -35,16 +35,19 @@ class Serve:
         self.request = request
         self.return_value = return_value
         self.original_server, self.original_callback = server(self.request)
+        self.called = False
 
     def __enter__(self):
         stop_serving(self.original_server, self.request)
         serve(self, self.request, self._callback)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         stop_serving(self, self.request)
         serve(self.original_server, self.request, self.original_callback)
 
     def _callback(self, *_, **__):
+        self.called = True
         return self.return_value
 
 
