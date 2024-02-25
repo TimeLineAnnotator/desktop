@@ -4,16 +4,24 @@ import pytest
 
 from tests.mock import Serve
 from tilia.media.player.base import MediaTimeChangeReason
-from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
 from tilia.boot import setup_logic
-from tilia.requests import stop_listening_to_all, Post, stop_listening, post, Get, get
+from tilia.requests import (
+    stop_listening_to_all,
+    Post,
+    stop_listening,
+    post,
+    Get,
+    get,
+    listen,
+)
 from tilia.ui.actions import TiliaAction
 from tilia.ui.qtui import QtUI
 from tilia.ui.cli.ui import CLI
 from tilia.ui.windows import WindowKind
+from tilia.ui.dialogs.basic import display_error
 
 pytest_plugins = [
     "tests.timelines.hierarchy.fixtures",
@@ -22,6 +30,31 @@ pytest_plugins = [
     "tests.timelines.harmony.fixtures",
     "tests.timelines.slider.fixtures",
 ]
+
+
+class TiliaErrors:
+    def __init__(self, ui: QtUI):
+        self.ui = ui
+        stop_listening(self.ui, Post.DISPLAY_ERROR)
+        listen(self, Post.DISPLAY_ERROR, self._on_display_error)
+        self.errors = []
+
+    def _on_display_error(self, title, message):
+        self.errors.append({"title": title, "message": message})
+
+    def assert_error(self):
+        assert self.errors
+
+    def assert_in_error_message(self, string: str):
+        assert string in self.errors[0]["message"]
+
+    def assert_in_error_title(self, string: str):
+        assert string in self.errors[0]["title"]
+
+    def reset(self):
+        self.errors = []
+        stop_listening(self, Post.DISPLAY_ERROR)
+        listen(self.ui, Post.DISPLAY_ERROR, display_error)
 
 
 class TiliaState:
@@ -82,6 +115,13 @@ def tilia_state(tilia, qtui):
     state = TiliaState(tilia, qtui)
     yield state
     state.reset()
+
+
+@pytest.fixture
+def tilia_errors(qtui):
+    errors = TiliaErrors(qtui)
+    yield errors
+    errors.reset()
 
 
 @pytest.fixture(scope="session")
