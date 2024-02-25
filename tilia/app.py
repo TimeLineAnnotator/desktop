@@ -93,8 +93,9 @@ class App:
             self.player.unload_media()
             return
 
-        self.player = MediaLoader(self.player).load(path)
-        if self.player:
+        player = MediaLoader(self.player).load(path)
+        if player:
+            self.player = player
             post(Post.APP_RECORD_STATE, "media load")
 
     def on_restore_state(self, state: dict) -> None:

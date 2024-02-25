@@ -128,3 +128,25 @@ class TestMediaLoad:
         actions.trigger(TiliaAction.EDIT_UNDO)
         actions.trigger(TiliaAction.EDIT_REDO)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+
+    def test_load_invalid_extension(self, tilia, tilia_state, tilia_errors, actions):
+        self._load_media(actions, "invalid.xyz")
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("xyz")
+        assert not tilia_state.media_path
+
+    def test_load_invalid_extension_with_media_loaded(
+        self, tilia, tilia_state, tilia_errors, actions
+    ):
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        self._load_media(actions, "invalid.xyz")
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("xyz")
+        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+
+    def test_load_media_after_loading_media_with_invalid_extension(
+        self, tilia, tilia_state, tilia_errors, actions
+    ):
+        self._load_media(actions, "invalid.xyz")
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
