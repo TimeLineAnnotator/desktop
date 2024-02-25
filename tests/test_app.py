@@ -12,27 +12,48 @@ from tilia.ui.actions import TiliaAction
 
 
 class TestSaveFileOnClose:
-    def test_no_changes(self, app, actions):
-        app.file_manager.ask_save_changes_if_modified.return_value = (True, False)
+    @staticmethod
+    def _get_modified_file_state():
+        return {
+            "timelines": {},
+            "media_path": "modified.ogg",
+            "media_metadata": {},
+            "file_path": "",
+        }
 
-        with patch("sys.exit") as exit_mock:
+    def test_no_changes(self, tilia, actions):
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+            patch("sys.exit") as exit_mock,
+        ):
             actions.trigger(TiliaAction.UI_CLOSE)
 
         exit_mock.assert_called()
         actions.assert_not_triggered(TiliaAction.FILE_SAVE)
 
-    def test_user_accepts_save(self, app, actions):
-        app.file_manager.ask_save_changes_if_modified.return_value = (True, True)
-
-        with patch("sys.exit") as exit_mock:
+    def test_file_modified_and_user_chooses_to_save_changes(
+        self, tilia, actions, tmp_path
+    ):
+        tmp_file = tmp_path / "test_file_modified_and_user_chooses_to_save_changes.tla"
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file, True)),
+            patch("sys.exit") as exit_mock,
+        ):
             actions.trigger(TiliaAction.UI_CLOSE)
 
         exit_mock.assert_called()
         actions.assert_triggered(TiliaAction.FILE_SAVE)
 
-    def test_user_cancels_dialog(self, app, actions):
-        app.file_manager.ask_save_changes_if_modified.return_value = (False, True)
-        with patch("sys.exit") as exit_mock:
+    def test_file_is_modified_and_user_cancels_close_on_should_save_changes_dialog(
+        self, tilia, actions
+    ):
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)),
+            patch("sys.exit") as exit_mock,
+        ):
             actions.trigger(TiliaAction.UI_CLOSE)
 
         exit_mock.assert_not_called()
