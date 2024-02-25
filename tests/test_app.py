@@ -107,23 +107,24 @@ class TestFileLoad:
 
 
 class TestMediaLoad:
-    def test_load_local(self, tilia, tilia_state, actions):
-        path = "tilia/tests/resources/example.ogg"
-        with Serve(Get.FROM_USER_MEDIA_PATH, (True, path)):
+    EXAMPLE_PATH_OGG = "tilia/tests/resources/example.ogg"
+
+    @staticmethod
+    def _load_media(actions, path, get_media_path_success=True):
+        with Serve(Get.FROM_USER_MEDIA_PATH, (get_media_path_success, path)):
             actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
-        assert tilia_state.media_path == path
+
+    def test_load_local(self, tilia, tilia_state, actions):
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
     def test_undo(self, tilia, tilia_state, actions):
-        path = "tilia/tests/resources/example.ogg"
-        with Serve(Get.FROM_USER_MEDIA_PATH, (True, path)):
-            actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
         actions.trigger(TiliaAction.EDIT_UNDO)
         assert not tilia_state.media_path
 
     def test_redo(self, tilia, tilia_state, actions):
-        path = "tilia/tests/resources/example.ogg"
-        with Serve(Get.FROM_USER_MEDIA_PATH, (True, path)):
-            actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
         actions.trigger(TiliaAction.EDIT_UNDO)
         actions.trigger(TiliaAction.EDIT_REDO)
-        assert tilia_state.media_path == path
+        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
