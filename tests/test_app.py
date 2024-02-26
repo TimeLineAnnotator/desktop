@@ -81,6 +81,7 @@ class TestFileLoad:
     def test_media_path_does_not_exist_and_media_length_not_available(
         self, tilia, tilia_state, tmp_path
     ):
+        tilia_state.duration = 0
         file_data = tests.utils.get_blank_file_data()
         file_data["media_path"] = "invalid.tla"
         tmp_file = tmp_path / "test_file_load.tla"
