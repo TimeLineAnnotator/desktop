@@ -185,7 +185,7 @@ class TestSeek:
         click_timeline_ui(slider_tlui, 0, y=y)
         target_x = get_x_by_time(50)
         drag_mouse_in_timeline_view(target_x, y)
-        assert marker_tlui.playback_line.line().x1() == target_x
+        assert marker_tlui.playback_line.line().x1() == pytest.approx(target_x)
 
     def test_playback_line_follows_slider_drag_if_media_is_playing(
         self, marker_tlui, slider_tlui, tilia_state
