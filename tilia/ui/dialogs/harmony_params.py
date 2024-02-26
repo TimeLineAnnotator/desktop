@@ -144,15 +144,19 @@ class SelectHarmonyParams(QDialog):
                 self.inversion_combobox.addItem("3rd", 3)
 
     def _populate_widgets(self, params):
+        def get_index_by_param(combobox, param):
+            result = combobox.findData(params[param])
+            return result if result != -1 else 0
+
         self.step_combobox.setCurrentIndex(self.step_combobox.findData(params["step"]))
         self.accidental_combobox.setCurrentIndex(
-            self.accidental_combobox.findData(params["accidental"])
+            get_index_by_param(self.accidental_combobox, "accidental")
         )
         self.quality_combobox.setCurrentIndex(
-            self.quality_combobox.findData(params["quality"])
+            get_index_by_param(self.quality_combobox, "quality")
         )
         self.inversion_combobox.setCurrentIndex(
-            self.inversion_combobox.findData(params["inversion"])
+            get_index_by_param(self.inversion_combobox, "inversion")
         )
         if params["applied_to"]:
             self.applied_to_combobox.setCurrentIndex(

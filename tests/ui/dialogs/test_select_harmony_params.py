@@ -74,3 +74,8 @@ class TestChordSymbolParsing:
     def test_applied_chords(self, applied_to, suffix, qtui):
         params = parse_text("I" + suffix)
         assert params["applied_to"] == applied_to
+
+    def test_slash_chords_where_bass_is_not_in_chord_symbol(self):
+        params = parse_text("G/A")
+        assert params["step"] == 4
+        assert params["inversion"] == 0  # fourth inversion is not currently supported
