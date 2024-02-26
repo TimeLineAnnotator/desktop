@@ -4,6 +4,7 @@ import pytest
 from tilia.timelines.harmony.components.harmony import SPECIAL_ABBREVIATIONS_TO_QUALITY
 from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
 from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
+from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX
 
 
 def parse_text(text):
@@ -68,3 +69,8 @@ class TestChordSymbolParsing:
         assert params["step"] == 1
         assert params["quality"] == SPECIAL_ABBREVIATIONS_TO_QUALITY[abbrev]
         pass
+
+    @pytest.mark.parametrize("applied_to,suffix", INT_TO_APPLIED_TO_SUFFIX.items())
+    def test_applied_chords(self, applied_to, suffix, qtui):
+        params = parse_text("I" + suffix)
+        assert params["applied_to"] == applied_to

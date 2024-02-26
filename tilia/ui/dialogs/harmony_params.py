@@ -156,7 +156,9 @@ class SelectHarmonyParams(QDialog):
         )
         if params["applied_to"]:
             self.applied_to_combobox.setCurrentIndex(
-                self.applied_to_combobox.findText("/" + params["applied_to"])
+                self.applied_to_combobox.findText(
+                    INT_TO_APPLIED_TO_SUFFIX[params["applied_to"]]
+                )
             )
 
     def populate_from_text(self):
