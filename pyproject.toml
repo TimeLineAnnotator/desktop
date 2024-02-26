@@ -3,4 +3,4 @@ requires = ["setuptools>=42.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
-testpaths = ['tests/timelines', 'tests/ui/timelines', 'tests/parsers', 'tests/file']
+testpaths = ['tests/timelines', 'tests/ui/timelines', 'tests/parsers', 'tests/file', 'test_app.py']
