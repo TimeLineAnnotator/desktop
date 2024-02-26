@@ -47,6 +47,25 @@ class TestSaveFileOnClose:
         exit_mock.assert_called()
         assert tmp_file.exists()
 
+    def test_file_modified_and_user_chooses_to_save_changes_when_file_was_previously_saved(
+        self, tilia, actions, tmp_path
+    ):
+        tmp_file = tmp_path / "test_file_modified_and_user_chooses_to_save_changes.tla"
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file, True)),
+        ):
+            actions.trigger(TiliaAction.FILE_SAVE)
+
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
+            patch("sys.exit") as exit_mock,
+        ):
+            actions.trigger(TiliaAction.UI_CLOSE)
+
+        exit_mock.assert_called()
+        assert tmp_file.exists()
+
     def test_file_is_modified_and_user_cancels_close_on_should_save_changes_dialog(
         self, tilia, actions
     ):
