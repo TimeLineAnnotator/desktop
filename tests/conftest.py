@@ -62,6 +62,7 @@ class TiliaState:
         self.app = tilia
         self.player = tilia.player
         self.undo_manager = tilia.undo_manager
+        self.file_manager = tilia.file_manager
         self.ui = ui
 
     def reset(self):
@@ -71,6 +72,10 @@ class TiliaState:
         self.media_path = ""
         self._reset_undo_manager()
         self.ui.on_clear_ui()
+        self._reset_file_manager()
+
+    def _reset_file_manager(self):
+        self.file_manager.new()
 
     def _reset_undo_manager(self):
         self.app.reset_undo_manager()
@@ -110,7 +115,7 @@ class TiliaState:
         return self.ui.is_window_open(kind)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def tilia_state(tilia, qtui):
     state = TiliaState(tilia, qtui)
     yield state
