@@ -24,12 +24,13 @@ class TestSaveFileOnClose:
     def test_no_changes(self, tilia, actions):
         with (
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+            patch("tilia.file.file_manager.FileManager.save") as save_mock,
             patch("sys.exit") as exit_mock,
         ):
             actions.trigger(TiliaAction.UI_CLOSE)
 
         exit_mock.assert_called()
-        actions.assert_not_triggered(TiliaAction.FILE_SAVE)
+        save_mock.assert_not_called()
 
     def test_file_modified_and_user_chooses_to_save_changes(
         self, tilia, actions, tmp_path
@@ -44,7 +45,7 @@ class TestSaveFileOnClose:
             actions.trigger(TiliaAction.UI_CLOSE)
 
         exit_mock.assert_called()
-        actions.assert_triggered(TiliaAction.FILE_SAVE)
+        assert tmp_file.exists()
 
     def test_file_is_modified_and_user_cancels_close_on_should_save_changes_dialog(
         self, tilia, actions
@@ -52,12 +53,26 @@ class TestSaveFileOnClose:
         with (
             Serve(Get.APP_STATE, self._get_modified_file_state()),
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)),
+            patch("tilia.file.file_manager.FileManager.save") as save_mock,
             patch("sys.exit") as exit_mock,
         ):
             actions.trigger(TiliaAction.UI_CLOSE)
 
         exit_mock.assert_not_called()
-        actions.assert_not_triggered(TiliaAction.FILE_SAVE)
+        save_mock.assert_not_called()
+
+    def test_file_is_modified_and_user_cancels_file_save_dialog(self, tilia, actions):
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, ("", "")),
+            patch("tilia.file.file_manager.FileManager.save") as save_mock,
+            patch("sys.exit") as exit_mock,
+        ):
+            actions.trigger(TiliaAction.UI_CLOSE)
+
+        exit_mock.assert_not_called()
+        save_mock.assert_not_called()
 
 
 class TestFileLoad:
