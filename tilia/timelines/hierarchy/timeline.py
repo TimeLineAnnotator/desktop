@@ -60,7 +60,7 @@ class HierarchyTimeline(Timeline):
         if not amount:
             return
 
-        for component in self:
+        for component in components:
             success, reason = validate_level(component, component.level + amount)
             if not success:
                 post(

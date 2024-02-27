@@ -1,9 +1,8 @@
 from unittest.mock import patch
-import pytest
 from PyQt6.QtGui import QColor
 
 from tests.mock import PatchGet
-from tilia.requests import Post, Get, post, get
+from tilia.requests import Post, Get, post
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.ui.actions import TiliaAction
 from tilia.ui.timelines.hierarchy import HierarchyUI
@@ -33,18 +32,56 @@ def assert_is_copy_data_of(copy_data: dict, hierarchy_ui: HierarchyUI):
 
 class TestActions:
     def test_increase_level(self, hierarchy_tlui, actions):
-        hrc, ui = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hrc1, ui = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hrc2, _ = hierarchy_tlui.create_hierarchy(1, 2, 1)
+        hrc3, _ = hierarchy_tlui.create_hierarchy(3, 4, 1)
+
         hierarchy_tlui.select_element(ui)
         actions.trigger(TiliaAction.HIERARCHY_INCREASE_LEVEL)
 
-        assert hrc.level == 2
+        assert hrc1.level == 2
+        assert hrc2.level == 1
+        assert hrc3.level == 1
+
+    def test_increase_level_multiple_hierarchies(self, hierarchy_tlui, actions):
+        hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
+        hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 1)
+        hrc3, ui3 = hierarchy_tlui.create_hierarchy(3, 4, 1)
+
+        hierarchy_tlui.select_element(ui1)
+        hierarchy_tlui.select_element(ui2)
+        hierarchy_tlui.select_element(ui3)
+        actions.trigger(TiliaAction.HIERARCHY_INCREASE_LEVEL)
+
+        assert hrc1.level == 2
+        assert hrc2.level == 2
+        assert hrc3.level == 2
 
     def test_decrease_level(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
+        hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 2)
+        hrc3, ui3 = hierarchy_tlui.create_hierarchy(3, 4, 2)
+
         hierarchy_tlui.select_element(ui1)
         actions.trigger(TiliaAction.HIERARCHY_DECREASE_LEVEL)
 
         assert hrc1.level == 1
+        assert hrc2.level == 2
+        assert hrc3.level == 2
+
+    def test_decrease_level_multiple_hierarchies(self, hierarchy_tlui, actions):
+        hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 2)
+        hrc2, ui2 = hierarchy_tlui.create_hierarchy(1, 2, 2)
+        hrc3, ui3 = hierarchy_tlui.create_hierarchy(3, 4, 2)
+
+        hierarchy_tlui.select_element(ui1)
+        hierarchy_tlui.select_element(ui2)
+        hierarchy_tlui.select_element(ui3)
+        actions.trigger(TiliaAction.HIERARCHY_DECREASE_LEVEL)
+
+        assert hrc1.level == 1
+        assert hrc2.level == 1
+        assert hrc3.level == 1
 
     def test_set_color(self, hierarchy_tlui, actions):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
