@@ -302,9 +302,10 @@ class BeatTimeline(Timeline):
         self.measures_to_force_display.remove(measure_index)
         self.component_manager.update_beat_uis()
 
-    def set_beat_amount_in_measure(self, measure_index: int, beat_number: int) -> None:
-        self.beats_in_measure[measure_index] = beat_number
+    def set_beat_amount_in_measure(self, measure_index: int, beat_amount: int) -> None:
+        self.beats_in_measure[measure_index] = beat_amount
         self.recalculate_measures()
+        self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
 
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
@@ -328,7 +329,7 @@ class BeatTLComponentManager(TimelineComponentManager):
     def beat_times(self):
         return {b.time for b in self._components}
 
-    def _update_is_first_in_measure_of_subsequent_beats(self, index):
+    def update_is_first_in_measure_of_subsequent_beats(self, index):
         for beat_ in self.timeline[index + 1 :]:
             self.timeline.set_component_data(
                 beat_.id,
@@ -346,7 +347,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         if success:
             self.timeline.recalculate_measures()
             beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
-            self._update_is_first_in_measure_of_subsequent_beats(
+            self.update_is_first_in_measure_of_subsequent_beats(
                 self.get_components().index(beat)
             )
 
@@ -375,7 +376,7 @@ class BeatTLComponentManager(TimelineComponentManager):
     def delete_component(self, component: TC) -> None:
         component_idx = self.get_components().index(component)
         super().delete_component(component)
-        self._update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
+        self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
 
     def update_beat_uis(self):
         beats = self.get_components().copy()

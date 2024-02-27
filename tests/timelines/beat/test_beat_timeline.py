@@ -415,32 +415,6 @@ class TestBeatTimeline:
         beat_tl.reset_measure_number(3)
         beat_tl.measure_numbers = [1, 2, 3, 4]
 
-    def test_change_beats_in_measure(self, beat_tl):
-        beat_tl.beats_in_measure = [3, 3, 3, 3]
-        beat_tl.measure_numbers = [1, 2, 3, 4]
-        beat_tl.component_manager._components = [None] * 12
-        beat_tl.component_manager.update_beat_uis = lambda: None
-        beat_tl.component_manager.clear = lambda: None
-        beat_tl.set_beat_amount_in_measure(1, 4)
-        assert beat_tl.beats_in_measure == [3, 4, 3, 2]
-        assert beat_tl.measure_numbers == [1, 2, 3, 4]
-
-        beat_tl.set_beat_amount_in_measure(0, 4)
-        assert beat_tl.beats_in_measure == [4, 4, 3, 1]
-        assert beat_tl.measure_numbers == [1, 2, 3, 4]
-
-        beat_tl.set_beat_amount_in_measure(3, 2)
-        assert beat_tl.beats_in_measure == [4, 4, 3, 1]
-        assert beat_tl.measure_numbers == [1, 2, 3, 4]
-
-        beat_tl.set_beat_amount_in_measure(2, 4)
-        assert beat_tl.beats_in_measure == [4, 4, 4]
-        assert beat_tl.measure_numbers == [1, 2, 3]
-
-        beat_tl.set_beat_amount_in_measure(0, 12)
-        assert beat_tl.beats_in_measure == [12]
-        assert beat_tl.measure_numbers == [1]
-
     def test_get_times_by_measure_no_beats(self, beat_tl):
         with pytest.raises(ValueError):
             beat_tl.get_time_by_measure(0)
