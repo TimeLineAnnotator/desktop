@@ -12,8 +12,8 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 
 
 def _get_args_for_timeline_element_color_set(_):
-    color = dialogs.basic.ask_for_color("#000")
-    if not color.isValid():
+    success, color = get(Get.FROM_USER_COLOR)
+    if not success or not color.isValid():
         raise UserCancelledDialog
     return (color,), {}
 

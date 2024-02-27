@@ -1,7 +1,7 @@
 from unittest.mock import patch
 from PyQt6.QtGui import QColor
 
-from tests.mock import PatchGet
+from tests.mock import PatchGet, Serve
 from tilia.requests import Post, Get, post
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.ui.actions import TiliaAction
@@ -87,7 +87,7 @@ class TestActions:
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui1)
 
-        with patch("tilia.ui.dialogs.basic.ask_for_color", lambda _: QColor("#000")):
+        with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
             actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_SET)
 
         assert hrc1.color == "#000000"
@@ -96,7 +96,7 @@ class TestActions:
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui1)
 
-        with patch("tilia.ui.dialogs.basic.ask_for_color", lambda _: QColor("#000")):
+        with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
             actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_SET)
 
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)

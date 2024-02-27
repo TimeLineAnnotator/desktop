@@ -4,7 +4,7 @@ import pytest
 from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QColor
 
-from tests.mock import PatchGet
+from tests.mock import PatchGet, Serve
 from tests.ui.timelines.interact import click_timeline_ui
 from tests.ui.timelines.marker.interact import click_marker_ui
 from tilia.requests import Post, Get, post
@@ -116,26 +116,28 @@ class TestEditWithInspectDialog:
         assert marker_tlui[0].get_data(attr) == value
 
 
-class TestActions:
-    def test_change_color(self, marker_tlui):
-        mrk, ui = marker_tlui.create_marker(time=0)
-
-        marker_tlui.select_all_elements()
-        with patch("tilia.ui.dialogs.basic.ask_for_color", lambda _: QColor("#000")):
-            actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_SET)
-
-        assert mrk.color == "#000000"
-
+class TestResetColor:
     def test_reset_color(self, marker_tlui):
         mrk, ui = marker_tlui.create_marker(time=0)
 
         marker_tlui.select_all_elements()
-        with patch("tilia.ui.dialogs.basic.ask_for_color", lambda _: QColor("#000")):
+        with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
             actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_SET)
 
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)
 
         assert mrk.color is None
+
+
+class TestActions:
+    def test_change_color(self, marker_tlui):
+        mrk, ui = marker_tlui.create_marker(time=0)
+
+        marker_tlui.select_all_elements()
+        with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
+            actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_SET)
+
+        assert mrk.color == "#000000"
 
     def test_on_delete_marker_multiple_markers(self, marker_tlui, tluis):
         _, mui1 = marker_tlui.create_marker(0)
