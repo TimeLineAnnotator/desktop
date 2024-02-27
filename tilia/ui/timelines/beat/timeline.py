@@ -49,20 +49,6 @@ class BeatTimelineUI(TimelineUI):
             for element in self.selected_elements[1:]:
                 self.element_manager.deselect_element(element)
 
-    def on_beat_position_change(self, id: int, is_first_in_measure: bool, label: str):
-        """
-        For when the position in relation to other beats changes.
-        E.g. when a beat gets deleted or added.
-        NOT for when the beat changes its *time*.
-        For that, see on_beat_time_change.
-        """
-        beat_ui = self.id_to_element[id]
-        beat_ui.update_is_first_in_measure(is_first_in_measure)
-        beat_ui.label = label
-
-    def on_beat_time_change(self, id: int):
-        self.id_to_element[id].update_position()
-
     def should_display_measure_number(self, beat_ui):
         beat = self.timeline.get_component(beat_ui.id)
         beat_index = self.timeline.components.index(beat)
