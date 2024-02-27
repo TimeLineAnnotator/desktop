@@ -46,7 +46,7 @@ class Marker(TimelineComponent):
         id: int,
         time: float,
         label="",
-        color=settings.get("marker_timeline", "marker_default_color"),
+        color=None,
         comments="",
         **_,
     ):

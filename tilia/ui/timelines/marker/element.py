@@ -80,7 +80,7 @@ class MarkerUI(TimelineUIElement):
         return MarkerUI(id, timeline_ui, scene, **kwargs)
 
     def _setup_body(self):
-        self.body = MarkerBody(self.x, self.WIDTH, self.HEIGHT, self.get_data("color"))
+        self.body = MarkerBody(self.x, self.WIDTH, self.HEIGHT, self.ui_color)
         self.scene.addItem(self.body)
 
     def _setup_label(self):

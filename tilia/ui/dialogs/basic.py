@@ -4,8 +4,9 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QColorDialog, QInputDialog, QMessageBox, QFileDialog
 
 
-def ask_for_color(initial: str):
-    return QColorDialog().getColor(QColor(initial))
+def ask_for_color(initial: str = '#333333'):  # feel free to change this arbitrary default
+    color = QColorDialog().getColor(QColor(initial))
+    return color.isValid(), color  # returned color is invalid if user cancels
 
 
 def ask_for_int(title: str, prompt: str, initial: Optional[int] = 0) -> str:

@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 import pytest
 from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QColor
@@ -8,7 +6,6 @@ from tests.mock import PatchGet, Serve
 from tests.ui.timelines.interact import click_timeline_ui
 from tests.ui.timelines.marker.interact import click_marker_ui
 from tilia.requests import Post, Get, post
-from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 
 from tilia.ui.timelines.marker import MarkerUI
@@ -46,7 +43,7 @@ class TestCreateDelete:
 
         assert len(marker_tlui) == 2
 
-    def test_delete(self, marker_tlui):
+    def test_delete(self, marker_tlui, actions):
         _, mui = marker_tlui.create_marker(0)
         marker_tlui.select_element(mui)
 
@@ -56,7 +53,7 @@ class TestCreateDelete:
 
         assert len(marker_tlui) == 0
 
-    def test_undo_redo_add_marker(self, marker_tlui, tluis):
+    def test_undo_redo_add_marker(self, marker_tlui, tluis, actions):
         post(Post.APP_RECORD_STATE, "test state")
 
         with PatchGet(
@@ -70,7 +67,7 @@ class TestCreateDelete:
         post(Post.EDIT_REDO)
         assert len(marker_tlui) == 1
 
-    def test_undo_redo_delete_marker_multiple_markers(self, marker_tlui, tluis):
+    def test_undo_redo_delete_marker_multiple_markers(self, marker_tlui, tluis, actions):
         marker_tlui.create_marker(0)
         marker_tlui.create_marker(0.1)
         marker_tlui.create_marker(0.2)
@@ -87,7 +84,7 @@ class TestCreateDelete:
         post(Post.EDIT_REDO)
         assert len(marker_tlui.elements) == 0
 
-    def test_undo_redo_delete_marker(self, marker_tlui, tluis):
+    def test_undo_redo_delete_marker(self, marker_tlui, tluis, actions):
 
         marker_tlui.create_marker(0)
 
@@ -116,30 +113,63 @@ class TestEditWithInspectDialog:
         assert marker_tlui[0].get_data(attr) == value
 
 
-class TestResetColor:
-    def test_reset_color(self, marker_tlui):
-        mrk, ui = marker_tlui.create_marker(time=0)
-
+class TestChangeColor:
+    TEST_COLOR = "#000000"
+    
+    def _set_marker_color(self, marker_tlui, actions):
+        """Assumes there is a single marker on timeline"""
         marker_tlui.select_all_elements()
-        with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
+        with Serve(Get.FROM_USER_COLOR, (True, QColor(self.TEST_COLOR))):
             actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_SET)
+
+    def test_set_color(self, marker_tlui, actions):
+        marker_tlui.create_marker(0)
+        self._set_marker_color(marker_tlui, actions)
+        assert marker_tlui[0].get_data("color") == self.TEST_COLOR
+
+    def test_undo_set_color(self, marker_tlui, actions):
+        actions.trigger(TiliaAction.MARKER_ADD)
+        self._set_marker_color(marker_tlui, actions)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        assert marker_tlui[0].get_data('color') is None
+
+    def test_redo_set_color(self, marker_tlui, actions):
+        actions.trigger(TiliaAction.MARKER_ADD)
+        self._set_marker_color(marker_tlui, actions)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        actions.trigger(TiliaAction.EDIT_REDO)
+        assert marker_tlui[0].get_data('color') == self.TEST_COLOR
+
+    def test_reset_color(self, marker_tlui, actions):
+        mrk, ui = marker_tlui.create_marker(time=0)
+        self._set_marker_color(marker_tlui, actions)
 
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)
 
         assert mrk.color is None
 
+    def test_undo_reset_color(self, marker_tlui, actions):
+        marker_tlui.create_marker(time=0)
+        self._set_marker_color(marker_tlui, actions)
 
-class TestActions:
-    def test_change_color(self, marker_tlui):
-        mrk, ui = marker_tlui.create_marker(time=0)
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)
+        actions.trigger(TiliaAction.EDIT_UNDO)
 
-        marker_tlui.select_all_elements()
-        with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
-            actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_SET)
+        assert marker_tlui[0].get_data('color') == self.TEST_COLOR
 
-        assert mrk.color == "#000000"
+    def test_redo_reset_color(self, marker_tlui, actions):
+        marker_tlui.create_marker(time=0)
+        self._set_marker_color(marker_tlui, actions)
 
-    def test_on_delete_marker_multiple_markers(self, marker_tlui, tluis):
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        actions.trigger(TiliaAction.EDIT_REDO)
+
+        assert marker_tlui[0].get_data('color') is None
+
+
+class TestDelete:
+    def test_on_delete_marker_multiple_markers(self, marker_tlui, tluis, actions):
         _, mui1 = marker_tlui.create_marker(0)
         _, mui2 = marker_tlui.create_marker(1)
         _, mui3 = marker_tlui.create_marker(2)
