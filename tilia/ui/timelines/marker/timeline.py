@@ -103,18 +103,17 @@ class MarkerTimelineUI(TimelineUI):
         self.create_pasted_markers(
             paste_data,
             reference_time,
-            get(Get.MEDIA_CURRENT_TIME),
+            get(Get.SELECTED_TIME),
         )
 
     def create_pasted_markers(
         self, paste_data: list[dict], reference_time: float, target_time: float
     ) -> None:
-        for marker_data in copy.deepcopy(
-            paste_data
-        ):  # deepcopying so popping won't affect original data
+        for marker_data in copy.deepcopy(paste_data):
+            # deepcopying so popping won't affect original data
             marker_time = marker_data["support_by_component_value"].pop("time")
 
-            return self.timeline.create_timeline_component(
+            self.timeline.create_timeline_component(
                 ComponentKind.MARKER,
                 target_time + (marker_time - reference_time),
                 **marker_data["by_element_value"],

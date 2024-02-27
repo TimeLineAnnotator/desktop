@@ -5,6 +5,7 @@ from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QColor
 
 from tests.mock import PatchGet
+from tests.ui.timelines.interact import click_timeline_ui
 from tests.ui.timelines.marker.interact import click_marker_ui
 from tilia.requests import Post, Get, post
 from tilia.ui import actions
@@ -103,7 +104,10 @@ class TestCreateDelete:
 
 
 class TestEditWithInspectDialog:
-    @pytest.mark.parametrize('field_name,attr,value', [('Comments', 'comments', 'abc'), ('Label', 'label', 'abc')])
+    @pytest.mark.parametrize(
+        "field_name,attr,value",
+        [("Comments", "comments", "abc"), ("Label", "label", "abc")],
+    )
     def test_set_attr(self, field_name, attr, value, marker_tlui, get_inspect, actions):
         actions.trigger(TiliaAction.MARKER_ADD)
         click_marker_ui(marker_tlui[0])
@@ -145,3 +149,79 @@ class TestActions:
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
 
         assert len(marker_tlui) == 0
+
+
+class TestCopyPaste:
+    def test_paste_single_into_timeline(self, marker_tlui, tilia_state, actions):
+        marker_tlui.create_marker(0, label="copy me")
+        click_marker_ui(marker_tlui[0])
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+
+        tilia_state.current_time = 10
+        click_timeline_ui(marker_tlui, 50)
+
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+
+        assert len(marker_tlui) == 2
+        assert marker_tlui[1].get_data("time") == 10
+        assert marker_tlui[1].get_data("label") == "copy me"
+
+    def test_paste_single_into_selected_element(
+        self, marker_tlui, tilia_state, actions
+    ):
+        marker_tlui.create_marker(0, label="copy me")
+        marker_tlui.create_marker(10, label="paste here")
+        click_marker_ui(marker_tlui[0])
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+
+        click_marker_ui(marker_tlui[1])
+
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+
+        assert len(marker_tlui) == 2
+        assert marker_tlui[1].get_data("label") == "copy me"
+
+    def test_paste_multiple_into_timeline(self, marker_tlui, tilia_state, actions):
+        marker_tlui.create_marker(0, label="first")
+        marker_tlui.create_marker(10, label="second")
+        marker_tlui.create_marker(20, label="third")
+        click_marker_ui(marker_tlui[0])
+        click_marker_ui(marker_tlui[1], modifier="shift")
+        click_marker_ui(marker_tlui[2], modifier="shift")
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+
+        tilia_state.current_time = 50
+        click_timeline_ui(marker_tlui, 50)
+
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+
+        assert len(marker_tlui) == 6
+        for index, time, label in [
+            (3, 50, "first"),
+            [4, 60, "second"],
+            [5, 70, "third"],
+        ]:
+            assert marker_tlui[index].get_data("time") == time
+            assert marker_tlui[index].get_data("label") == label
+
+    def test_paste_multiple_into_selected_element(self, marker_tlui, actions):
+        marker_tlui.create_marker(0, label="first")
+        marker_tlui.create_marker(10, label="second")
+        marker_tlui.create_marker(20, label="third")
+        click_marker_ui(marker_tlui[0])
+        click_marker_ui(marker_tlui[1], modifier="shift")
+        click_marker_ui(marker_tlui[2], modifier="shift")
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+
+        click_marker_ui(marker_tlui[2])
+
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+
+        assert len(marker_tlui) == 5
+        for index, time, label in [
+            (2, 20, "first"),
+            [3, 30, "second"],
+            [4, 40, "third"],
+        ]:
+            assert marker_tlui[index].get_data("time") == time
+            assert marker_tlui[index].get_data("label") == label
