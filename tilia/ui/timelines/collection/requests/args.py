@@ -143,7 +143,8 @@ def _get_args_for_timelines_clear(_):
 
 
 def _get_args_for_beat_set_measure_number(_):
-    number, accept = dialogs.basic.ask_for_int(
+    accept, number = get(
+        Get.FROM_USER_INT,
         "Change measure number",
         "Insert measure number",
     )
