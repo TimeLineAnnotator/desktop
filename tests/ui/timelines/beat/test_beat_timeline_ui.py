@@ -289,6 +289,13 @@ class TestChangeMeasureNumber:
 
         assert beat_tlui.timeline.measure_numbers[0] == self.DUMMY_MEASURE_NUMBER
 
+    def test_undo_set_measure_number(self, beat_tlui, actions):
+        actions.trigger(TiliaAction.BEAT_ADD)
+        beat_tlui.select_element(beat_tlui[0])
+        self._set_measure_number(beat_tlui, actions)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        assert beat_tlui.timeline.measure_numbers[0] == 1
+
     def test_reset_measure_number(self, beat_tlui, actions):
         beat_tlui.create_beat(0)
 

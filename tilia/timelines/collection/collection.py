@@ -266,9 +266,8 @@ class Timelines:
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
         timeline.clear()
         timeline.deserialize_components(state["components"])
-        for attr in ["height", "name", "ordinal"]:
-            if attr in state:
-                self.set_timeline_data(timeline.id, attr, state[attr])
+        for attr in timeline.SERIALIZABLE_BY_VALUE:
+            self.set_timeline_data(timeline.id, attr, state[attr])
 
     def get_timeline_ids(self):
         return [tl.id for tl in self]

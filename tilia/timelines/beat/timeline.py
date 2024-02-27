@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional
 
 from tilia.requests import get, Get, post, Post
 from tilia import settings
-from tilia.timelines.beat.validators import validate_beat_pattern
+from tilia.timelines.beat.validators import validate_integer_list
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
@@ -53,7 +53,12 @@ class BeatTimeline(Timeline):
             **kwargs,
         )
 
-        self.validators = self.validators | {"beat_pattern": validate_beat_pattern}
+        self.validators = self.validators | {
+            "beat_pattern": validate_integer_list,
+            "beats_in_measure": validate_integer_list,
+            "measure_numbers": validate_integer_list,
+            "measures_to_force_display": validate_integer_list,
+        }
 
         self.beat_pattern = beat_pattern or [4]
         self.beats_in_measure = beats_in_measure or []
