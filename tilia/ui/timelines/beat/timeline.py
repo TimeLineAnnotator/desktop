@@ -29,6 +29,7 @@ class BeatTimelineUI(TimelineUI):
         "measure_numbers",
         "beats_that_start_measures",
         "measures_to_force_display",
+        "beats_in_measure"
     ]
 
     def on_timeline_element_request(
@@ -128,6 +129,10 @@ class BeatTimelineUI(TimelineUI):
     def update_measures_to_force_display(self):
         for beat_ui in self:
             beat_ui.update_label()
+
+    def update_beats_in_measure(self):
+        for beat_ui in self:
+            beat_ui.update_is_first_in_measure()
 
     def beats_that_start_measures(self):
         for beat_ui in self:

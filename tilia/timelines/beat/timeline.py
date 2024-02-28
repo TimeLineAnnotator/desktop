@@ -61,10 +61,20 @@ class BeatTimeline(Timeline):
         }
 
         self.beat_pattern = beat_pattern or [4]
-        self.beats_in_measure = beats_in_measure or []
+        self._beats_in_measure = beats_in_measure or []
         self.measure_numbers = measure_numbers or []
         self.update_beats_that_start_measures()
         self.measures_to_force_display = measures_to_force_display or []
+
+    @property
+    def beats_in_measure(self):
+        return self._beats_in_measure
+
+    @beats_in_measure.setter
+    def beats_in_measure(self, value):
+        self._beats_in_measure = value
+        self.recalculate_measures()
+        self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
 
     def should_display_measure_number(self, measure_index):
         return (
@@ -193,32 +203,32 @@ class BeatTimeline(Timeline):
     def extend_beats_in_measure(self, amount: int) -> None:
         extension = self._get_beats_in_measure_extension(amount)
 
-        if not self.beats_in_measure:
-            self.beats_in_measure += extension
+        if not self._beats_in_measure:
+            self._beats_in_measure += extension
             return
 
         bp_index = (self.measure_count % len(self.beat_pattern)) - 1
         is_last_measure_complete = (
-            self.beats_in_measure[-1] == self.beat_pattern[bp_index]
+            self._beats_in_measure[-1] == self.beat_pattern[bp_index]
         )
 
         if is_last_measure_complete:
-            self.beats_in_measure += extension
+            self._beats_in_measure += extension
         else:
-            self.beats_in_measure[-1] += extension[0]
-            self.beats_in_measure += extension[1:]
+            self._beats_in_measure[-1] += extension[0]
+            self._beats_in_measure += extension[1:]
 
     def reduce_beats_in_measure(self, amount: int) -> None:
         remaining_beats = amount
-        for beats_in_measure in reversed(self.beats_in_measure):
+        for beats_in_measure in reversed(self._beats_in_measure):
             if beats_in_measure < remaining_beats:
-                self.beats_in_measure.pop(-1)
+                self._beats_in_measure.pop(-1)
                 remaining_beats -= beats_in_measure
             elif beats_in_measure > remaining_beats:
-                self.beats_in_measure[-1] -= remaining_beats
+                self._beats_in_measure[-1] -= remaining_beats
                 break
             else:
-                self.beats_in_measure.pop(-1)
+                self._beats_in_measure.pop(-1)
                 break
 
     def extend_measure_numbers(self):
@@ -300,9 +310,9 @@ class BeatTimeline(Timeline):
         self.component_manager.update_beat_uis()
 
     def set_beat_amount_in_measure(self, measure_index: int, beat_amount: int) -> None:
-        self.beats_in_measure[measure_index] = beat_amount
-        self.recalculate_measures()
-        self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+        new_beats_in_measure = self.beats_in_measure.copy()
+        new_beats_in_measure[measure_index] = beat_amount
+        self.set_data('beats_in_measure', new_beats_in_measure)
 
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
