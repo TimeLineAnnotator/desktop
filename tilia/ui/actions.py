@@ -173,7 +173,7 @@ taction_to_params = {
         Post.BEAT_RESET_MEASURE_NUMBER, "Reset measure number", "beat_reset_number", ""
     ),
     TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE: ActionParams(
-        Post.BEAT_SET_AMOUNT_IN_MEASURE, "Set amount in measure", "", ""
+        Post.BEAT_SET_AMOUNT_IN_MEASURE, "Set beat amount in measure", "", ""
     ),
     TiliaAction.BEAT_IMPORT_FROM_CSV: ActionParams(
         Post.BEAT_IMPORT_FROM_CSV, "Import from CSV file", "", ""
