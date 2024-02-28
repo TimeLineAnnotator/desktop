@@ -416,15 +416,6 @@ class TimelineUI(ABC):
             repeat_identifier=f"{attr}_{element.id}",
         )
 
-    def delete_selected_elements(self):
-        if not self.selected_elements:
-            return
-
-        for component in self.selected_components:
-            self.timeline.delete_components([component])
-
-            post(Post.TIMELINE_COMPONENT_DELETE_DONE, component.id)
-
     def delete_element(self, element: T):
         if element in self.selected_elements:
             try:

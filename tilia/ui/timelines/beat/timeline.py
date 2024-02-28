@@ -36,15 +36,6 @@ class BeatTimelineUI(TimelineUI):
     ):
         return BeatUIRequestHandler(self).on_request(request, selector, *args, **kwargs)
 
-    def delete_selected_elements(self):
-        if not self.selected_elements:
-            return
-
-        for component in self.selected_components:
-            self.timeline.delete_components([component])
-
-        self.timeline.recalculate_measures()
-
     def _deselect_all_but_last(self):
         if len(self.selected_elements) > 1:
             for element in self.selected_elements[:-1]:
