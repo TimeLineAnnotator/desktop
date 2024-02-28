@@ -24,6 +24,12 @@ class BeatTimelineUI(TimelineUI):
     ELEMENT_CLASS = BeatUI
     ACCEPTS_HORIZONTAL_ARROWS = True
     TIMELINE_KIND = TimelineKind.BEAT_TIMELINE
+    UPDATE_TRIGGERS = TimelineUI.UPDATE_TRIGGERS + [
+        "beat_pattern",
+        "measure_numbers",
+        "beats_that_start_measures",
+        "measures_to_force_display",
+    ]
 
     def on_timeline_element_request(
         self, request, selector: ElementSelector, *args, **kwargs
@@ -120,3 +126,18 @@ class BeatTimelineUI(TimelineUI):
                 **beat_data["support_by_element_value"],
                 **beat_data["support_by_component_value"],
             )
+
+    def update_beat_pattern(self):
+        pass  # not implemented
+
+    def update_measure_numbers(self):
+        for beat_ui in self:
+            beat_ui.update_label()
+
+    def update_measures_to_force_display(self):
+        for beat_ui in self:
+            beat_ui.update_label()
+
+    def beats_that_start_measures(self):
+        for beat_ui in self:
+            beat_ui.update_is_first_in_measure()

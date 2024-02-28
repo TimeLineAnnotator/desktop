@@ -105,14 +105,6 @@ class BeatTimeline(Timeline):
 
         return measure_times
 
-    def restore_state(self, state: dict):
-        super().restore_state(state)
-        self.beat_pattern = state["beat_pattern"].copy()
-        self.beats_in_measure = state["beats_in_measure"].copy()
-        self.measure_numbers = state["measure_numbers"].copy()
-        self.measures_to_force_display = state["measures_to_force_display"].copy()
-        self.recalculate_measures()
-
     def is_first_in_measure(self, beat):
         return self.components.index(beat) in self.beats_that_start_measures
 

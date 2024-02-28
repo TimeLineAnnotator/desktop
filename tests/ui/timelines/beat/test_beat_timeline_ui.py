@@ -253,19 +253,28 @@ class TestOther:
             assert beat.get_data("measure_number") == expected_measure_numbers[i]
 
 
-class TestChangeMeasureNumber:
-    DUMMY_MEASURE_NUMBER = 11
+DUMMY_MEASURE_NUMBER = 11
 
-    def _set_measure_number(self, beat_tlui, actions):
+
+class TestChangeMeasureNumber:
+    @staticmethod
+    def _set_measure_number(beat_tlui, actions, number=DUMMY_MEASURE_NUMBER):
         """Assumes there a beat in the measure is selected"""
-        with Serve(Get.FROM_USER_INT, (True, self.DUMMY_MEASURE_NUMBER)):
+        with Serve(Get.FROM_USER_INT, (number, True)):
             actions.trigger(TiliaAction.BEAT_SET_MEASURE_NUMBER)
 
     def test_set_measure_number_single_measure(self, beat_tlui, actions):
         beat_tlui.create_beat(0)
         beat_tlui.select_element(beat_tlui[0])
         self._set_measure_number(beat_tlui, actions)
-        assert beat_tlui.timeline.measure_numbers[0] == self.DUMMY_MEASURE_NUMBER
+        assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
+
+    def test_set_measure_number_twice(self, beat_tlui, actions):
+        beat_tlui.create_beat(0)
+        beat_tlui.select_element(beat_tlui[0])
+        self._set_measure_number(beat_tlui, actions)
+        self._set_measure_number(beat_tlui, actions, 101)
+        assert beat_tlui.timeline.measure_numbers[0] == 101
 
     def test_set_measure_number_multiple_measures(self, beat_tlui, actions):
         beat_tlui.timeline.beat_pattern = [3]
@@ -276,7 +285,7 @@ class TestChangeMeasureNumber:
         beat_tlui.select_element(beat_tlui[3])
         self._set_measure_number(beat_tlui, actions)
 
-        assert beat_tlui.timeline.measure_numbers[1] == self.DUMMY_MEASURE_NUMBER
+        assert beat_tlui.timeline.measure_numbers[1] == DUMMY_MEASURE_NUMBER
 
     def test_set_measure_number_not_first_beat_in_measure(self, beat_tlui, actions):
         beat_tlui.timeline.beat_pattern = [3]
@@ -287,7 +296,7 @@ class TestChangeMeasureNumber:
         beat_tlui.select_element(beat_tlui[1])
         self._set_measure_number(beat_tlui, actions)
 
-        assert beat_tlui.timeline.measure_numbers[0] == self.DUMMY_MEASURE_NUMBER
+        assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
 
     def test_undo_set_measure_number(self, beat_tlui, actions):
         actions.trigger(TiliaAction.BEAT_ADD)
@@ -296,15 +305,36 @@ class TestChangeMeasureNumber:
         actions.trigger(TiliaAction.EDIT_UNDO)
         assert beat_tlui.timeline.measure_numbers[0] == 1
 
+    def test_redo_set_measure_number(self, beat_tlui, actions):
+        actions.trigger(TiliaAction.BEAT_ADD)
+        beat_tlui.select_element(beat_tlui[0])
+        self._set_measure_number(beat_tlui, actions)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        actions.trigger(TiliaAction.EDIT_REDO)
+        assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
+
     def test_reset_measure_number(self, beat_tlui, actions):
-        beat_tlui.create_beat(0)
-
-        beat_tlui.timeline.measure_numbers[0] = self.DUMMY_MEASURE_NUMBER
-
-        beat_tlui.select_all_elements()
-
+        actions.trigger(TiliaAction.BEAT_ADD)
+        beat_tlui.select_element(beat_tlui[0])
+        self._set_measure_number(beat_tlui, actions)
         actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
+        assert beat_tlui.timeline.measure_numbers[0] == 1
 
+    def test_undo_reset_measure_number(self, beat_tlui, actions):
+        actions.trigger(TiliaAction.BEAT_ADD)
+        beat_tlui.select_element(beat_tlui[0])
+        self._set_measure_number(beat_tlui, actions)
+        actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
+
+    def test_redo_reset_measure_number(self, beat_tlui, actions):
+        actions.trigger(TiliaAction.BEAT_ADD)
+        beat_tlui.select_element(beat_tlui[0])
+        self._set_measure_number(beat_tlui, actions)
+        actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        actions.trigger(TiliaAction.EDIT_REDO)
         assert beat_tlui.timeline.measure_numbers[0] == 1
 
 

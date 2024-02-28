@@ -108,11 +108,11 @@ class BeatUI(TimelineUIElement):
     @property
     def text(self):
         if self.get_data(
-                "is_first_in_measure"
+            "is_first_in_measure"
         ) and self.timeline_ui.should_display_measure_number(self):
             return str(self.get_data("measure_number"))
         else:
-            return ''
+            return ""
 
     @property
     def height(self):
@@ -138,9 +138,9 @@ class BeatUI(TimelineUIElement):
 
     def update_is_first_in_measure(self) -> None:
         self.body.set_position(self.x, self.height)
-        self._update_label()
+        self.update_label()
 
-    def _update_label(self):
+    def update_label(self):
         self.label.set_text(self.text)
         self.label.set_position(self.x, self.label_y)
 

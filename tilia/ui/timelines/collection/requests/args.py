@@ -143,7 +143,7 @@ def _get_args_for_timelines_clear(_):
 
 
 def _get_args_for_beat_set_measure_number(_):
-    accept, number = get(
+    number, accept = get(
         Get.FROM_USER_INT,
         "Change measure number",
         "Insert measure number",
