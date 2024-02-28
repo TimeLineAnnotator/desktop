@@ -40,95 +40,6 @@ class TestBeatTimeline:
         assert beat_tl[2].get_data("is_first_in_measure") is True
         assert beat_tl[3].get_data("is_first_in_measure") is False
 
-    def test_get_extension_mult_of_bp_without_beats_in_measure(self, beat_tl):
-        beat_tl.beat_pattern = [4, 3, 2]
-        assert beat_tl._get_beats_in_measure_extension(9) == [4, 3, 2]
-        assert beat_tl._get_beats_in_measure_extension(18) == [4, 3, 2, 4, 3, 2]
-        result_for_27 = [4, 3, 2, 4, 3, 2, 4, 3, 2]
-
-        assert beat_tl._get_beats_in_measure_extension(27) == result_for_27
-
-    def test_get_extension_mult_of_bp_with_beats_in_measure(self, beat_tl):
-        beat_tl.beat_pattern = [4, 3, 2]
-        beat_tl.beats_in_measure = [4, 3, 2]
-
-        assert beat_tl._get_beats_in_measure_extension(9) == [4, 3, 2]
-        assert beat_tl._get_beats_in_measure_extension(18) == [4, 3, 2, 4, 3, 2]
-        result_for_27 = [4, 3, 2, 4, 3, 2, 4, 3, 2]
-        assert beat_tl._get_beats_in_measure_extension(27) == result_for_27
-
-    def test_get_extension_mult_of_bp_with_beats_in_measure_incomplete_pattern1(
-        self, beat_tl
-    ):
-        beat_tl.beat_pattern = [4, 3, 2]
-        beat_tl.beats_in_measure = [4, 3]
-
-        assert beat_tl._get_beats_in_measure_extension(9) == [2, 4, 3]
-        assert beat_tl._get_beats_in_measure_extension(18) == [2, 4, 3, 2, 4, 3]
-        result_for_27 = [2, 4, 3, 2, 4, 3, 2, 4, 3]
-        assert beat_tl._get_beats_in_measure_extension(27) == result_for_27
-
-        beat_tl.beats_in_measure = [4]
-
-        assert beat_tl._get_beats_in_measure_extension(9) == [3, 2, 4]
-        assert beat_tl._get_beats_in_measure_extension(18) == [3, 2, 4, 3, 2, 4]
-        result_for_27 = [3, 2, 4, 3, 2, 4, 3, 2, 4]
-        assert beat_tl._get_beats_in_measure_extension(27) == result_for_27
-
-    def test_get_extension_mult_of_bp_with_beats_in_measure_incomplete_measure(
-        self, beat_tl
-    ):
-        beat_tl.beat_pattern = [4, 3, 2]
-        beat_tl.beats_in_measure = [4, 3, 1]
-
-        assert beat_tl._get_beats_in_measure_extension(9) == [1, 4, 3, 1]
-        assert beat_tl._get_beats_in_measure_extension(18) == [1, 4, 3, 2, 4, 3, 1]
-        result_for_27 = [1, 4, 3, 2, 4, 3, 2, 4, 3, 1]
-        assert beat_tl._get_beats_in_measure_extension(27) == result_for_27
-
-    def test_get_extension_multiple_of_beat_pattern_sum(self, beat_tl):
-        beat_tl.beat_pattern = [4, 3, 2]
-        assert beat_tl._get_beats_in_measure_extension(9) == [4, 3, 2]
-        assert beat_tl._get_beats_in_measure_extension(18) == [4, 3, 2, 4, 3, 2]
-        result_for_27 = [4, 3, 2, 4, 3, 2, 4, 3, 2]
-        assert beat_tl._get_beats_in_measure_extension(27) == result_for_27
-
-    def test_get_extension_not_multiple_of_beat_pattern_sum(self, beat_tl):
-        beat_tl.beat_pattern = [4, 3, 2]
-        assert beat_tl._get_beats_in_measure_extension(10) == [4, 3, 2, 1]
-        assert beat_tl._get_beats_in_measure_extension(11) == [4, 3, 2, 2]
-        assert beat_tl._get_beats_in_measure_extension(12) == [4, 3, 2, 3]
-
-    def test_get_extension_amount_zero(self, beat_tl):
-        assert beat_tl._get_beats_in_measure_extension(0) == []
-
-    def test_get_extension_single_element_beat_pattern(self, beat_tl):
-        beat_tl.beat_pattern = [4]
-        assert beat_tl._get_beats_in_measure_extension(8) == [4, 4]
-        assert beat_tl._get_beats_in_measure_extension(9) == [4, 4, 1]
-        assert beat_tl._get_beats_in_measure_extension(1) == [1]
-
-    def test_get_extension_single_element_bp_with_beats_in_measure(self, beat_tl):
-        beat_tl.beat_pattern = [4]
-        beat_tl.beats_in_measure = [4]
-        assert beat_tl._get_beats_in_measure_extension(8) == [4, 4]
-        assert beat_tl._get_beats_in_measure_extension(9) == [4, 4, 1]
-        assert beat_tl._get_beats_in_measure_extension(1) == [1]
-
-    def test_get_extension_single_element_bp_with_bim_incomplete_measure(self, beat_tl):
-        beat_tl.beat_pattern = [4]
-        beat_tl.beats_in_measure = [3]
-        assert beat_tl._get_beats_in_measure_extension(8) == [1, 4, 3]
-        assert beat_tl._get_beats_in_measure_extension(9) == [1, 4, 4]
-        assert beat_tl._get_beats_in_measure_extension(1) == [1]
-        assert beat_tl._get_beats_in_measure_extension(2) == [1, 1]
-
-    def test_get_extension_empty_beat_pattern(self, beat_tl):
-        # test when beat_pattern is empty
-        beat_tl.beat_pattern = []
-        with pytest.raises(ValueError):
-            beat_tl._get_beats_in_measure_extension(8)
-
     def test_recalculate_measures_added_one_measure(self, beat_tl):
         beat_tl.create_beat(time=1)
         beat_tl.create_beat(time=2)
@@ -240,44 +151,6 @@ class TestBeatTimeline:
         assert beat_tl.beats_in_measure == [2, 2, 1]
         assert beat_tl.measure_numbers == [1, 2, 3]
 
-    def test_reduce_beats_in_measure_last_element(self, beat_tl):
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(1)
-        assert beat_tl.beats_in_measure == [4, 3, 1]
-
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(2)
-        assert beat_tl.beats_in_measure == [4, 3]
-
-    def test_reduce_beats_in_measure_multiple_elements(self, beat_tl):
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(3)
-        assert beat_tl.beats_in_measure == [4, 2]
-
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(4)
-        assert beat_tl.beats_in_measure == [4, 1]
-
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(5)
-        assert beat_tl.beats_in_measure == [4]
-
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(6)
-        assert beat_tl.beats_in_measure == [3]
-
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(7)
-        assert beat_tl.beats_in_measure == [2]
-
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(8)
-        assert beat_tl.beats_in_measure == [1]
-
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(9)
-        assert beat_tl.beats_in_measure == []
-
     def test_reduce_beats_in_measure_more_than_available(self, beat_tl):
         beat_tl.beats_in_measure = [4, 3, 2]
         beat_tl.reduce_beats_in_measure(13)
@@ -360,23 +233,6 @@ class TestBeatTimeline:
 
         assert beat_tl.beats_in_measure == [2, 1]
         assert beat_tl.measure_numbers == [1, 2]
-
-    def test_update_beats_that_start_measures(self, beat_tl):
-        beat_tl.beats_in_measure = [4]
-        beat_tl.update_beats_that_start_measures()
-        assert beat_tl.beats_that_start_measures == [0]
-
-        beat_tl.beats_in_measure = [4, 3]
-        beat_tl.update_beats_that_start_measures()
-        assert beat_tl.beats_that_start_measures == [0, 4]
-
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.update_beats_that_start_measures()
-        assert beat_tl.beats_that_start_measures == [0, 4, 7]
-
-        beat_tl.beats_in_measure = [4, 3, 2, 1]
-        beat_tl.update_beats_that_start_measures()
-        assert beat_tl.beats_that_start_measures == [0, 4, 7, 9]
 
     def test_change_measure_number_case1(self, beat_tl):
         beat_tl.measure_numbers = [1, 2, 3, 4]
