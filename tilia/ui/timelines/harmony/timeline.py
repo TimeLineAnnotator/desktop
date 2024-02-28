@@ -34,7 +34,6 @@ class HarmonyTimelineUI(TimelineUI):
         self.UPDATE_TRIGGERS = self.UPDATE_TRIGGERS + [
             "level_count",
             "visible_level_count",
-            "level_height",
         ]
         self._setup_level_labels()
 
