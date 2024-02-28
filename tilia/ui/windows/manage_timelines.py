@@ -170,7 +170,7 @@ class TimelinesListWidget(QListWidget):
         if attr != "ordinal":
             return
 
-        prev_selected = self.currentItem()
+        prev_selected = self.currentItem() or self.item(0)
         self.update_items()
         for i in range(self.model().rowCount()):
             if self.item(i).timeline_ui == prev_selected.timeline_ui:
