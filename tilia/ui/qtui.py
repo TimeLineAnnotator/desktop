@@ -4,12 +4,13 @@ import re
 import sys
 from functools import partial
 import logging
+from pathlib import Path
 
 from typing import Optional, Callable
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QFontDatabase
 from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 
 import tilia.constants
@@ -103,6 +104,7 @@ class QtUI:
         self.app = None
         self.q_application = QApplication(sys.argv)
         self._setup_main_window()
+        self._setup_fonts()
         self._setup_player()
         self._setup_sizes()
         self._setup_subscriptions()
@@ -214,6 +216,14 @@ class QtUI:
 
         self.main_window = TiliaMainWindow()
         # self.main_window.setGeometry(*get_initial_geometry())
+
+    @staticmethod
+    def _setup_fonts():
+        fonts_dir = Path(__file__).parent / 'fonts'
+        fonts = ['MusAnalysis.otf']
+        for font in fonts:
+            font_path = str(Path(fonts_dir, font).resolve())
+            QFontDatabase.addApplicationFont(font_path)
 
     def _setup_player(self):
         self.player = QtAudioPlayer()
