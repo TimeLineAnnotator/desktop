@@ -9,7 +9,10 @@ from PyQt6.QtWidgets import (
 )
 
 from tilia import settings
-from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
+from tilia.timelines.harmony.constants import (
+    HARMONY_DISPLAY_MODES,
+    get_inversion_amount,
+)
 from tilia.timelines.harmony.components.harmony import (
     get_params_from_text as get_harmony_params_from_text,
 )
@@ -18,7 +21,6 @@ from tilia.ui.timelines.harmony.constants import (
     ACCIDENTAL_TO_INT,
 )
 from tilia.ui.timelines.harmony.utils import (
-    QUALITY_TO_ROMAN_NUMERAL_SUFFIX,
     INT_TO_APPLIED_TO_SUFFIX,
 )
 
@@ -42,7 +44,6 @@ class SelectHarmonyParams(QDialog):
         inversion_combobox.insertItem(0, "", 0)
         inversion_combobox.insertItem(1, "1st", 1)
         inversion_combobox.insertItem(2, "2nd", 2)
-        inversion_combobox.insertItem(3, "3rd", 3)
 
         quality_combobox = self.quality_combobox = QComboBox()
         quality_combobox.setStyleSheet("combobox-popup: 0;")
@@ -122,26 +123,26 @@ class SelectHarmonyParams(QDialog):
         else:
             self.line_edit.setStyleSheet("")
 
+    @staticmethod
+    def _get_quality_items(row_amount: int):
+        all_items = [
+            ("", 0),
+            ("1st", 1),
+            ("2nd", 2),
+            ("3rd", 3),
+        ]
+        return all_items[: row_amount + 1]
+
     def on_quality_combobox_changed(self, *_):
         quality = self.quality_combobox.currentData()
-        if quality in [
-            "power",
-            "pedal",
-            "French",
-            "German",
-            "Italian",
-            "Neapolitan",
-            "Tristan",
-        ]:
-            self.inversion_combobox.setCurrentIndex(0)
-            self.inversion_combobox.setEnabled(False)
-        elif QUALITY_TO_ROMAN_NUMERAL_SUFFIX[quality][3] is None:
-            self.inversion_combobox.setEnabled(True)
-            self.inversion_combobox.removeItem(self.inversion_combobox.findData(3))
-        else:
-            self.inversion_combobox.setEnabled(True)
-            if self.inversion_combobox.findData(3) == -1:
-                self.inversion_combobox.addItem("3rd", 3)
+
+        # Clearing the combo box to refill it with the correct number of rows
+        for _ in range(self.inversion_combobox.model().rowCount()):
+            self.inversion_combobox.removeItem(0)
+
+        inversion_amount = get_inversion_amount(quality)
+        for text, data in self._get_quality_items(inversion_amount):
+            self.inversion_combobox.addItem(text, data)
 
     def _populate_widgets(self, params):
         def get_index_by_param(combobox, param):
