@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tilia.errors
 from tilia.requests import Post, get, Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -35,9 +36,11 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
     def on_mode_add(self, _, confirmed, **kwargs):
         if not confirmed:
             return
-        self.timeline.create_timeline_component(
+        mode, reason = self.timeline.create_timeline_component(
             ComponentKind.MODE, get(Get.SELECTED_TIME), **kwargs
         )
+        if not mode:
+            tilia.errors.display(tilia.errors.ADD_MODE_FAILED, reason)
         self.timeline_ui.on_mode_add_done()
 
     def on_mode_delete(self, elements, *_, **__):
@@ -47,9 +50,11 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
     def on_harmony_add(self, _, confirmed, **kwargs):
         if not confirmed:
             return
-        self.timeline.create_timeline_component(
+        harmony, reason = self.timeline.create_timeline_component(
             ComponentKind.HARMONY, get(Get.SELECTED_TIME), **kwargs
         )
+        if not harmony:
+            tilia.errors.display(tilia.errors.ADD_HARMONY_FAILED, reason)
 
     def on_harmony_delete(self, elements, *_, **__):
         self.timeline.delete_components(self.elements_to_components(elements))
