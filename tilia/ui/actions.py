@@ -152,7 +152,7 @@ def set_text(action: QAction, text: str):
 
 
 def set_tooltip(action: QAction, text: str, shortcut: str):
-    action.setToolTip(f"{text} ({shortcut})")
+    action.setToolTip(f"{text} ({shortcut})" if shortcut else text)
 
 
 taction_to_params = {
