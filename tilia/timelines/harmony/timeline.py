@@ -73,7 +73,7 @@ class HarmonyTimeline(Timeline):
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
 
-    def get_key_by_time(self, time: float):
+    def get_key_by_time(self, time: float) -> music21.key.Key:
         modes = sorted(self.modes())
         idx = bisect([mode.get_data("time") for mode in modes], time)
         if not idx:

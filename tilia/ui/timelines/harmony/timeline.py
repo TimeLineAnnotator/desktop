@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import music21
+
 from . import level_label
 from tilia.requests import Get, get
-from tilia.enums import Side
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
@@ -108,7 +109,7 @@ class HarmonyTimelineUI(TimelineUI):
             self.get_data("visible_level_count") - level
         )
 
-    def get_key_by_time(self, time: float):
+    def get_key_by_time(self, time: float) -> music21.key.Key:
         return self.timeline.get_key_by_time(time)
 
     def validate_copy(self, elements: list[TimelineUIElement]) -> None:

@@ -19,7 +19,6 @@ from tilia.ui.timelines.harmony.constants import (
     QUALITY_TO_ABBREVIATION,
     INT_TO_ROMAN,
     INVERSION_TO_INTERVAL,
-    NOTE_NAME_TO_INT,
 )
 from tilia.ui.timelines.harmony.context_menu import HarmonyContextMenu
 from tilia.ui.timelines.harmony.utils import to_roman_numeral
@@ -134,11 +133,11 @@ class HarmonyUI(TimelineUIElement):
 
     @property
     def roman_numeral_label(self):
-        key_step = NOTE_NAME_TO_INT[self.key.tonic.step]
         return to_roman_numeral(
             self.get_data("step"),
+            self.get_data("accidental"),
             self.get_data("quality"),
-            key_step,
+            self.key,
             self.get_data("applied_to"),
             self.get_data("inversion"),
         )

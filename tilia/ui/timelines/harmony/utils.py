@@ -1,4 +1,12 @@
-from tilia.ui.timelines.harmony.constants import INT_TO_ROMAN
+import music21
+
+from tilia.ui.timelines.harmony.constants import (
+    INT_TO_ROMAN,
+    INT_TO_ACCIDENTAL,
+    NOTE_NAME_TO_INT,
+    INT_TO_NOTE_NAME,
+    INT_TO_MUSIC21_ACCIDENTAL,
+)
 
 
 def _handle_special_qualities(quality: str) -> str | None:
@@ -100,17 +108,52 @@ INT_TO_APPLIED_TO_SUFFIX = {
 }
 
 
+def _get_note_degree(key: music21.key.Key, note):
+    steps = [p.step for p in key.pitches]
+    return (
+        steps.index(note.step) + 1
+    )  # +1 is needed because music21's degrees are 1-based
+
+
+def _get_roman_numeral_accidental(
+    key: music21.key.Key, note_step: int, note_accidental: int
+):
+    tonic = INT_TO_NOTE_NAME[note_step]
+    accidental_symbol = INT_TO_MUSIC21_ACCIDENTAL[note_accidental]
+    note = music21.note.Note(tonic + accidental_symbol)
+    is_diatonic = (note.step, note.pitch.pitchClass) in (
+        (p.step, p.pitchClass) for p in key.pitches
+    )
+    if is_diatonic:
+        return 0
+
+    degree = _get_note_degree(key, note)
+    key_degree_accidental = key.pitchFromDegree(degree).alter
+    return note.pitch.alter - key_degree_accidental
+
+
 def to_roman_numeral(
-    step: int, quality: str, key_step: int, applied_to: int, inversion: int
+    step: int,
+    accidental: int,
+    quality: str,
+    key: music21.key.Key,
+    applied_to: int,
+    inversion: int,
 ) -> str:
     if result := _handle_special_qualities(quality):
         return result
 
+    key_step = NOTE_NAME_TO_INT[key.tonic.step]
     numeral = INT_TO_ROMAN[(step - key_step - applied_to) % 7]
     if quality.startswith(("minor", "diminished", "half-diminished")):
         numeral = numeral.lower()
 
+    result_accidental = _get_roman_numeral_accidental(key, step, accidental)
+    # Applied chords require a different calculation of their prefixes.
+    # For now, let's leave them without a prefix, as that will be,
+    # by far, the most common correct prefix.
+    result_prefix = INT_TO_ACCIDENTAL[result_accidental] if not applied_to else ""
     quality_suffix = QUALITY_TO_ROMAN_NUMERAL_SUFFIX[quality][inversion]
     applied_to_suffix = INT_TO_APPLIED_TO_SUFFIX[applied_to]
 
-    return numeral + quality_suffix + applied_to_suffix
+    return result_prefix + numeral + quality_suffix + applied_to_suffix

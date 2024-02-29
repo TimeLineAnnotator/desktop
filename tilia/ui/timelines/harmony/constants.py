@@ -13,8 +13,10 @@ ROMAN_TO_INT = {
 }
 INT_TO_ROMAN = {v: k for k, v in ROMAN_TO_INT.items()}
 
+
 ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
 INT_TO_ACCIDENTAL = {v: k for k, v in ACCIDENTAL_TO_INT.items()}
+INT_TO_MUSIC21_ACCIDENTAL = {0: "", 1: "#", -1: "-", 2: "##", -2: "--"}
 ACCIDENTAL_NUMBER_TO_MUSIC21_CHAR = {0: "", 1: "#", -1: "-", 2: "##", -2: "--"}
 
 NOTE_NAME_TO_INT = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
