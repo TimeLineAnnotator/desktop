@@ -25,6 +25,10 @@ MEDIA_NOT_FOUND = Error(
 MEDIA_LOAD_FAILED = Error(
     "Media load failed", "Could not load media at '{}'. Try loading another media."
 )
+INVALID_HARMONY_INVERSION = Error(
+    "Invalid harmony inversion",
+    "Can't set inversion '{}' on a chord of type '{}'. Please select a valid inversion for this chord type.",
+)
 
 
 def display(error: Error, *args):

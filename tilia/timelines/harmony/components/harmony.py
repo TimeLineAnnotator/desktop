@@ -5,9 +5,11 @@ from typing import Literal
 import music21
 import re
 
+import tilia.errors
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.validators import validate_time, validate_string
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.harmony.constants import get_inversion_amount
 from tilia.timelines.harmony.validators import (
     validate_step,
     validate_accidental,
@@ -21,7 +23,8 @@ from tilia.timelines.harmony.validators import (
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
-    CHORD_COMMON_NAME_TO_TYPE, ROMAN_TO_INT,
+    CHORD_COMMON_NAME_TO_TYPE,
+    ROMAN_TO_INT,
 )
 
 
@@ -84,7 +87,7 @@ class Harmony(TimelineComponent):
         self.step = step
         self.accidental = accidental
         self.quality = quality
-        self.inversion = inversion
+        self._inversion = inversion
         self.applied_to = applied_to
         self.level = level
         self.display_mode = display_mode
@@ -118,6 +121,19 @@ class Harmony(TimelineComponent):
 
         params = _get_params_from_music21_object(music21_object, object_type)
         return Harmony(*params)
+
+    @property
+    def inversion(self):
+        return self._inversion
+
+    @inversion.setter
+    def inversion(self, value):
+        if value > get_inversion_amount(self.get_data("quality")):
+            tilia.errors.display(
+                tilia.errors.INVALID_HARMONY_INVERSION, value, self.get_data("quality")
+            )
+            return
+        self._inversion = value
 
 
 def get_params_from_text(text, key):
