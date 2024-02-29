@@ -2,9 +2,9 @@
 
 ---
 
-TiLiA (TimeLine Annotator) is an open-source, GUI-based software for producing and displaying complex annotations over video and audio files. It is a full-featured but easy to use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on musical scores. It is written in Python, using the Tkinter library for its GUI.
+TiLiA (TimeLine Annotator) is an open-source GUI for producing and displaying complex annotations over video and audio files. It is a full-featured but easy to use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PyQt library for its GUI.
 
-The main way in which TiLiA allows user to annotate media files is through timelines. Each one provides different tools and enables different annotations and visualizations. Currently, there are three types of timelines (hierarchy, marker, beat) but the idea is to implement many more.
+TiLiA allows user to annotate media files is primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are four types of timelines (hierarchy, marker, beat and harmony) but many more are planned.
 
 Some examples of what TiLiA visualizations look like:
 
@@ -14,55 +14,47 @@ Some examples of what TiLiA visualizations look like:
   - [Third movement](https://www.timelineannotator.com/examples/mozart-k284-iii)
 
 ## Current features
- - 3 different kinds of timelines
+ - 4 different kinds of timelines
    - Hierarchy: nested and leveled units organized in arbitrally complex hierarchical structures
    - Marker: simple labeled markers to indicate discrete events
    - Beat: beat and measure markers with support to numbering
+   - Harmony: roman numeral and chord symbol labels using a specialized font, including properly display of inversion numerals, quality symbols and applied chords.
  - Controlling playback by clicking on timeline units
  - Multiple attributes linked to each timeline units
- - Video file support
+ - Local audio and video support
+ - YouTube stream support
  - Customizable metadata can be attached to files
- - Creation of unlimited number of timelines
+ - Creation of multiple timelines
  - Easy timeline edition during playback
- - Timelines can be temporarily hidden
- - Audio of hierarchy unit can be exported separatedly
+ - Toggling of timleine visibility
+ - Export of audio segments based on analysis
+ - Import timeline components from CSV files
 
 ## Planned features
 
-There are many more features that I would like to implement than can be listed here. Some of the more interesting ones that ought to come relatively soon are:
+There are many more features that I would like to implement than can be listed here. Some of the more interesting ones are listed below.
 - Improvements to timelines:
   - Hierarchy:
-    - Support for anacrusis and elisions
     - Length, start and end also displayed in terms of beats and measures
-    - Importing hierarchies from other file
   - Beat:
-    - More measure information when inspecting a beat
     - Change beats in measure for multiple measures
 - New kinds of timelines
   - Range: displays units with an extension, but not tied to hierarchical structures
-  - Harmony: specific timeline for inserting harmonic information (chord or analytic symbols)
   - Audio wave
+  - PDF: display and synchronize navigation of PDF files with playback
 - TiLiA explorer: allows filtered searches through timeline components in multiple TiLiA files
 - Font and GUI colors customization
-- Enable video export
+- Video segments exporting
 - Automatic cut detection for video
 - Automatic beat detection for audio
 
-## Releases
+## Website
 
-Releases can be found on: https://timelineannotator.com/downloads.html
-
-## Documentation
-
-Slowly building up at https://tilia-ad98d.web.app/help/
+Releases and (incomplete) documentation can be found at https://tilia-ad98d.web.app/
 
 ## How to contribute
 
 Read the CONTRIBUTING.md file at the root directory.
-
-## Website
-
-A minimal website is at www.timelineannotator.com. A new and much improved is at https://tilia-ad98d.web.app/, still in the proof of concept stage.
 
 ## License
 
