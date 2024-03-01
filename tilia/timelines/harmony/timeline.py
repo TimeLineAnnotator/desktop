@@ -118,12 +118,14 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         if time < 0:
             return False, f"Time can't be negative. Got '{time}'"
         if time in [h.get_data("time") for h in self.timeline]:
-            component_at_same_time = self.timeline.get_component_by_attr("time", time)
-            if type(component_at_same_time) is self._get_component_class_by_kind(kind):
-                return (
-                    False,
-                    f"Can't create harmony.\nThere is already a harmony at time='{time}'.",
-                )
+            components_at_same_time = self.timeline.get_components_by_attr("time", time)
+            for component in components_at_same_time:
+                if type(component) is self._get_component_class_by_kind(kind):
+                    kind_name = "harmony" if kind == ComponentKind.HARMONY else "key"
+                    return (
+                        False,
+                        f"Can't create {kind_name}.\nThere is already a {kind_name} at time='{time}'.",
+                    )
 
         return True, ""
 

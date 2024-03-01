@@ -29,6 +29,8 @@ INVALID_HARMONY_INVERSION = Error(
     "Invalid harmony inversion",
     "Can't set inversion '{}' on a chord of type '{}'. Please select a valid inversion for this chord type.",
 )
+ADD_MODE_FAILED = Error("Add key failed", "Adding key failed: {}.")
+ADD_HARMONY_FAILED = Error("Add harmony failed", "{}")
 
 
 def display(error: Error, *args):
