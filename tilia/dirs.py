@@ -35,7 +35,7 @@ def get_tests_path() -> Path:
 
 
 def setup_data_dir() -> Path:
-    if os.path.exists(_SITE_DATA_DIR):
+    if os.path.exists(_SITE_DATA_DIR) and os.access(_SITE_DATA_DIR, os.W_OK):
         path = _SITE_DATA_DIR
     elif os.path.exists(_USER_DATA_DIR):
         path = _USER_DATA_DIR

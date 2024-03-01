@@ -59,12 +59,21 @@ def setup_settings():
 
 
 def setup_logging(level: str):
-    logging.basicConfig(
-        filename=dirs.log_path,
-        filemode="w",
-        level=level,
-        format=" %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s",
-    )
+    file_mode = 'w'
+    format_ = " %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
+    try:
+        logging.basicConfig(
+            filename=dirs.log_path,
+            filemode=file_mode,
+            level=level,
+            format=format_,
+        )
+    except PermissionError:
+        logging.basicConfig(
+            filemode=file_mode,
+            level=level,
+            format=format_,
+        )
 
 
 def setup_logic(autosaver=True):
