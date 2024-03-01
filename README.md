@@ -52,6 +52,40 @@ There are many more features that I would like to implement than can be listed h
 
 Releases and (incomplete) documentation can be found at https://tilia-ad98d.web.app/
 
+## Build from source
+
+### Prerequisites
+
+Before you start, you'll need to have Python 3.11 or later installed on your system. If you don't have it, download the installer from the official Python website ([https://www.python.org/downloads/](https://www.python.org/downloads/)) and follow their instructions.
+
+### How to build
+#### Install PyInstaller
+In your terminal or command prompt, type the following command and press Enter:
+```
+pip install pyinstaller
+```
+
+#### Clone the TiLiA Repository
+Open a terminal or command prompt and navigate to the directory where you want to save the project.
+Execute the following command:
+```
+git clone https://github.com/FelipeDefensor/TiLiA.git
+```
+
+#### Build with PyInstaller
+Navigate into the newly downloaded TiLiA project directory:
+```
+cd TiLiA
+```
+Run PyInstaller using the provided spec file:
+```
+pyinstaller tilia.spec
+```
+
+#### After Building
+
+You'll find your executable application files within a newly created 'dist' folder inside the TiLiA directory.
+
 ## How to contribute
 
 Read the CONTRIBUTING.md file at the root directory.
