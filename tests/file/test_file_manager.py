@@ -2,13 +2,16 @@ import json
 from pathlib import Path
 from unittest.mock import mock_open
 import pytest
-from tests.mock import PatchPost
+from tests.mock import PatchPost, PatchGet, PatchGetMultiple, Serve
 from tilia.file.media_metadata import MediaMetadata
 
-from tilia.requests import Post, post, stop_listening_to_all, stop_serving_all
+import tests.utils
+from tilia.requests import Post, post, stop_listening_to_all, stop_serving_all, Get
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.file_manager import FileManager
 from unittest.mock import patch
+
+from tilia.ui.actions import TiliaAction
 
 
 @pytest.fixture
@@ -27,34 +30,92 @@ def get_empty_save_params():
     }
 
 
+class TestUserActions:
+    def test_save(self, tls, marker_tl, tmp_path, actions):
+        marker_tl.create_marker(0)
+        tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file_path, "")):
+            actions.trigger(TiliaAction.FILE_SAVE_AS)
+        marker_tl.create_marker(1)
+        actions.trigger(TiliaAction.FILE_SAVE)
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            actions.trigger(TiliaAction.TIMELINES_CLEAR)
+        assert marker_tl.is_empty
+        with (
+            Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file_path)),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+        ):
+            actions.trigger(TiliaAction.FILE_OPEN)
+        assert len(tls[0]) == 2
+
+
 class TestFileManager:
     def test_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"
-        tilia.clear_app()
+        tilia.on_clear()
         tilia.file_manager.open(path)
+
+    def test_open_with_timeline(self, tilia, tls, tmp_path, actions):
+        timelines_data = {
+            "0": {
+                "height": 220,
+                "is_visible": True,
+                "ordinal": 1,
+                "name": "test",
+                "kind": "HIERARCHY_TIMELINE",
+                "components": {},
+            }
+        }
+        hierarchy_attrs = [(0, 1, 1), (1, 2, 1), (2, 3, 2)]
+
+        for i, (start, end, level) in enumerate(hierarchy_attrs):
+            timelines_data["0"]["components"][i] = {
+                "start": start,
+                "end": end,
+                "level": level,
+                "comments": "",
+                "label": "Unit 1",
+                "parent": None,
+                "children": [],
+                "kind": "HIERARCHY",
+            }
+
+        file_data = tests.utils.get_blank_file_data()
+        file_data["timelines"] = timelines_data
+        file_data["media_metadata"]["media length"] = 100
+
+        tmp_file = tmp_path / "test_open_with_hierarchies.tla"
+        tmp_file.write_text(json.dumps(file_data))
+        with PatchGet(
+            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
+        ):
+            actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert len(tls) == 1
+        assert len(tls[0]) == 3
 
     def test_file_not_modified_after_open(self, tilia):
         path = Path(__file__).parent / "test_file.tla"
-        tilia.clear_app()
+        tilia.on_clear()
         tilia.file_manager.open(path)
         assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
 
     def test_add_metadata_field_at_start(self, file_manager):
         previous_fields = list(file_manager.file.media_metadata)
-        post(Post.REQUEST_ADD_MEDIA_METADATA_FIELD, "newfield", 0)
+        post(Post.METADATA_ADD_FIELD, "newfield", 0)
         assert list(file_manager.file.media_metadata)[0] == "newfield"
         assert list(file_manager.file.media_metadata)[1:] == previous_fields
 
     def test_add_metadata_field_at_middle(self, file_manager):
         previous_fields = list(file_manager.file.media_metadata)
-        post(Post.REQUEST_ADD_MEDIA_METADATA_FIELD, "newfield", 2)
+        post(Post.METADATA_ADD_FIELD, "newfield", 2)
         result = list(file_manager.file.media_metadata)
         assert list(file_manager.file.media_metadata)[2] == "newfield"
         result.pop(2)
         assert result == previous_fields
 
     def test_set_metadata_field(self, file_manager):
-        post(Post.REQUEST_SET_MEDIA_METADATA_FIELD, "title", "new title")
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "new title")
         assert file_manager.file.media_metadata["title"] == "new title"
 
     def test_open_file_with_custom_metadata_fields(self, file_manager):
@@ -131,17 +192,13 @@ class TestFileManager:
         data = "nonsense"
 
         with patch("builtins.open", mock_open(read_data=data)):
-            with PatchPost(
-                "tilia.file.file_manager", Post.REQUEST_DISPLAY_ERROR
-            ) as post_mock:
+            with PatchPost("tilia.file.file_manager", Post.DISPLAY_ERROR) as post_mock:
                 post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "")
 
                 post_mock.assert_called()
 
     def test_import_metadata_file_does_not_exist(self, file_manager):
-        with PatchPost(
-            "tilia.file.file_manager", Post.REQUEST_DISPLAY_ERROR
-        ) as post_mock:
+        with PatchPost("tilia.file.file_manager", Post.DISPLAY_ERROR) as post_mock:
             post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "nonexistent.json")
 
             post_mock.assert_called()

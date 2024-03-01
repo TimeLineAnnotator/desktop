@@ -1,23 +1,16 @@
-"""Functions for serializing timeline components"""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from tilia.requests import post, Post
-from tilia.exceptions import CreateComponentError
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
     from tilia.timelines.base.timeline import Timeline
-    from tilia.ui.timelines.common import TimelineUIElement
+    from tilia.ui.timelines.base.element import TimelineUIElement
 
 from typing import Protocol
 
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class Serializable(Protocol):
@@ -35,7 +28,6 @@ def serialize_components(
 ) -> dict[int, dict[str]]:
     serialized_components = {}
     for component in components:
-        logger.debug(f"Serializing component {component}...")
         serialized_components[component.id] = serialize_component(component)
 
     return serialized_components
@@ -79,19 +71,17 @@ def deserialize_components(
     errors = []
 
     for id_, serialized_component in serialized_components.items():
-        try:
-            id_to_component_dict[id_] = _deserialize_component(
-                timeline, serialized_component
-            )
-        except CreateComponentError as err:
-            logger.warning(f"Error when creating component with id={id=}")
-            logger.warning(err)
-            errors.append(f"{id_=} | {str(err)}")
+        component, error = _deserialize_component(timeline, serialized_component)
+        if not component:
+            errors.append(f"id={id_} | {error}")
+            continue
+
+        id_to_component_dict[id_] = component
 
     if errors:
         errors_str = "\n".join(errors)
         post(
-            Post.REQUEST_DISPLAY_ERROR,
+            Post.DISPLAY_ERROR,
             "Load components error",
             "Some components were not loaded. The following errors occured:\n"
             + errors_str,
@@ -102,7 +92,7 @@ def deserialize_components(
 
 def _deserialize_component(
     timeline: Timeline, serialized_component: dict[str]
-) -> TimelineComponent:
+) -> tuple[TimelineComponent, str]:
     """Creates the serialized TimelineComponent in the given timeline.
     Attributes that originally referenced other TimelineComponents are
     , in this stage, set as references to save ids."""
@@ -116,12 +106,15 @@ def _deserialize_component(
     )
 
     # create component
-    component = timeline.create_timeline_component(component_kind, **constructor_kwargs)
+    component, fail_reason = timeline.create_timeline_component(
+        component_kind, **constructor_kwargs
+    )
 
-    # attributes that are serializable by id or by id list get set separatedly
-    _set_serializable_by_id_or_id_list(component, serialized_component)
+    if component:
+        # attributes that are serializable by id or by id list get set separatedly
+        _set_serializable_by_id_or_id_list(component, serialized_component)
 
-    return component
+    return component, fail_reason
 
 
 def _get_component_constructor_kwargs(
@@ -143,7 +136,7 @@ def _set_serializable_by_id_or_id_list(component, serialized_component: dict) ->
 
 
 def _substitute_ids_for_reference_to_components(
-    id_to_component: dict[str, Serializable]
+    id_to_component: dict[id, TimelineComponent]
 ) -> None:
     for id_, component in id_to_component.items():
         component_class = type(component)

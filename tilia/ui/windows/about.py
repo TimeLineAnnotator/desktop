@@ -1,26 +1,32 @@
-import tkinter as tk
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QMainWindow, QDialog
 
-from tilia import globals_
-from tilia.requests import Post, post
+import tilia.constants
 
 
-class About:
-    def __init__(self, parent: tk.Tk):
-        self.toplevel = tk.Toplevel(parent)
-        self.toplevel.transient(parent)
-        self.toplevel.title(f"About {globals_.APP_NAME}")
-        self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
-        self.toplevel.focus()
+class About(QDialog):
+    def __init__(self, parent: QMainWindow):
+        super().__init__(parent)
+        self.setWindowTitle(f"About {tilia.constants.APP_NAME}")
+        layout = QVBoxLayout()
 
-        tk.Label(self.toplevel, text=globals_.APP_NAME).pack()
-        tk.Label(self.toplevel, text=globals_.VERSION).pack()
-        tk.Label(self.toplevel, text="www.timelineannotator.com").pack()
-        tk.Label(self.toplevel, text="github.com/FelipeDefensor/App").pack()
-        tk.Label(self.toplevel, text="License: CC BY-SA 4.0").pack()
+        self.setLayout(layout)
 
-    def focus(self):
-        self.toplevel.focus_set()
+        name_label = QLabel(tilia.constants.APP_NAME)
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version_label = QLabel('v' + tilia.constants.VERSION)
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        site_label = QLabel("Website: tilia-ad98d.web.app")
+        site_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        gh_label = QLabel("GitHub: github.com/FelipeDefensor/tilia")
+        gh_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        license_label = QLabel("License: CC BY-SA 4.0")
+        license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-    def destroy(self):
-        self.toplevel.destroy()
-        post(Post.ABOUT_WINDOW_CLOSED)
+        layout.addWidget(name_label)
+        layout.addWidget(version_label)
+        layout.addWidget(site_label)
+        layout.addWidget(gh_label)
+        layout.addWidget(license_label)
+
+        self.show()

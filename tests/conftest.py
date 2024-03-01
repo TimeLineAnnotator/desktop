@@ -1,224 +1,184 @@
-import os
-from functools import partial
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-import tkinter as tk
-import _tkinter
-import traceback
+import functools
 
 import pytest
 
-from tests.mock import PatchGet
-from tilia import dirs
-from tilia import settings
+from tests.mock import Serve
+from tilia.media.player.base import MediaTimeChangeReason
+from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui import actions as tilia_actions_module
+from tilia.app import App
 from tilia.boot import setup_logic
-from tilia.exceptions import NoCallbackAttached
-from tilia.requests import stop_listening_to_all, Get, stop_serving_all
-from tilia.timelines.beat.timeline import BeatTimeline
-from tilia.timelines.collection import Timelines
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.hierarchy.components import Hierarchy
-from tilia.timelines.hierarchy.timeline import HierarchyTimeline
-from tilia.timelines.marker.timeline import MarkerTimeline
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.tkinterui import TkinterUI
+from tilia.requests import (
+    stop_listening_to_all,
+    Post,
+    stop_listening,
+    post,
+    Get,
+    get,
+    listen,
+)
+from tilia.ui.actions import TiliaAction
+from tilia.ui.qtui import QtUI
 from tilia.ui.cli.ui import CLI
-from tilia.ui.timelines.beat import BeatTimelineUI
-from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
-from tilia.ui.timelines.marker import MarkerTimelineUI
+from tilia.ui.windows import WindowKind
+from tilia.ui.dialogs.basic import display_error
+
+pytest_plugins = [
+    "tests.timelines.hierarchy.fixtures",
+    "tests.timelines.marker.fixtures",
+    "tests.timelines.beat.fixtures",
+    "tests.timelines.harmony.fixtures",
+    "tests.timelines.slider.fixtures",
+]
 
 
-class EmptyObject:
-    pass
+class TiliaErrors:
+    def __init__(self, ui: QtUI):
+        self.ui = ui
+        stop_listening(self.ui, Post.DISPLAY_ERROR)
+        listen(self, Post.DISPLAY_ERROR, self._on_display_error)
+        self.errors = []
+
+    def _on_display_error(self, title, message):
+        self.errors.append({"title": title, "message": message})
+
+    def assert_error(self):
+        assert self.errors
+
+    def assert_in_error_message(self, string: str):
+        assert string in self.errors[0]["message"]
+
+    def assert_in_error_title(self, string: str):
+        assert string in self.errors[0]["title"]
+
+    def reset(self):
+        self.errors = []
+        stop_listening(self, Post.DISPLAY_ERROR)
+        listen(self.ui, Post.DISPLAY_ERROR, display_error)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def tilia_session():
-    def settings_get_patch(table, value, default_value=None):
-        match table, value:
-            case "dev", "dev_mode":
-                return False
-            case "auto-save", "interval":
-                return 0
-            case _:
-                return original_settings_get(table, value)
+class TiliaState:
+    def __init__(self, tilia: App, ui: QtUI):
+        self.app = tilia
+        self.player = tilia.player
+        self.undo_manager = tilia.undo_manager
+        self.file_manager = tilia.file_manager
+        self.ui = ui
 
-    original_settings_get = settings.get
-    settings.get = settings_get_patch
+    def reset(self):
+        self.app.on_clear()
+        self.duration = 100
+        self.current_time = 0
+        self.media_path = ""
+        self._reset_undo_manager()
+        self.ui.on_clear_ui()
+        self._reset_file_manager()
 
-    dirs.setup_dirs()
-    settings.load(dirs.settings_path)
-    return
+    def _reset_file_manager(self):
+        self.file_manager.new()
+
+    def _reset_undo_manager(self):
+        self.app.reset_undo_manager()
+        self.undo_manager.record(self.app.get_app_state(), "load file")
+
+    @property
+    def current_time(self):
+        return self.player.current_time
+
+    @current_time.setter
+    def current_time(self, value):
+        self.player.current_time = value
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, value, MediaTimeChangeReason.PLAYBACK)
+
+    @property
+    def duration(self):
+        return get(Get.MEDIA_DURATION)
+
+    @duration.setter
+    def duration(self, value):
+        self.app.set_media_duration(value)
+
+    @property
+    def media_path(self):
+        return get(Get.MEDIA_PATH)
+
+    @media_path.setter
+    def media_path(self, value):
+        self.player.media_path = value
+        post(Post.PLAYER_URL_CHANGED, value)
+
+    @property
+    def is_undo_manager_cleared(self):
+        return self.undo_manager.is_cleared
+
+    def is_window_open(self, kind: WindowKind):
+        return self.ui.is_window_open(kind)
+
+
+@pytest.fixture(autouse=True)
+def tilia_state(tilia, qtui):
+    state = TiliaState(tilia, qtui)
+    yield state
+    state.reset()
+
+
+@pytest.fixture
+def tilia_errors(qtui):
+    errors = TiliaErrors(qtui)
+    yield errors
+    errors.reset()
 
 
 @pytest.fixture(scope="session")
-def tk_session():
-    pytest.root = tk.Tk()
-    pump_events()
-    yield
-    if pytest.root:
-        pytest.root.destroy()
-        pump_events()
-
-
-def pump_events():
-    while pytest.root.dooneevent(_tkinter.ALL_EVENTS | _tkinter.DONT_WAIT):
-        pass
-
-
-def handle_exc(exc_type, exc_value, exc_traceback) -> None:
-    """
-    Tilia overrides the callback handler in tk.Tk, as reccomended, in such a way
-    that unhandled errors won't immediately cause a crash. The problem is that such
-    handling also prevents the error from reaching pytest, and so some tests that
-    should fail, don't. This happens only when using a few tkinter functions,
-    as tk.Menu.invoke
-    """
-    traceback.print_exc()
-    raise (exc_type, exc_value)
-
-
-@pytest.fixture(scope="module")
-def tkui(tk_session):
-    os.chdir(Path(Path(__file__).absolute().parents[1], "tilia"))
-    with patch("tilia.ui.player.PlayerUI", MagicMock()):
-        tkui_ = TkinterUI(pytest.root)
-    tkui_.root.report_callback_exception = (
-        handle_exc  # ensures exceptions will bubble up
-    )
-    yield tkui_
-    stop_listening_to_all(tkui_.timeline_ui_collection)
-    stop_serving_all(tkui_.timeline_ui_collection)
-    stop_listening_to_all(tkui_)
-    stop_serving_all(tkui_)
+def qtui():
+    qtui_ = QtUI()
+    stop_listening(qtui_, Post.DISPLAY_ERROR)
+    yield qtui_
+    # stop_listening_to_all(qtui_.timeline_uis)
+    # stop_serving_all(qtui_.timeline_uis)
+    # stop_listening_to_all(qtui_)
+    # stop_serving_all(qtui_)
 
 
 # noinspection PyProtectedMember
-@pytest.fixture
-def tilia(tkui):
-    tilia_ = setup_logic()
-    tilia_.clear_app()  # undo blank file setup
-    tilia_.player.media_length = 100.0
+@pytest.fixture(scope="session")
+def tilia(qtui):
+    tilia_ = setup_logic(autosaver=False)
+    tilia_.player = qtui.player
+    tilia_.set_media_duration(100)
+    tilia_.reset_undo_manager()
     yield tilia_
-    try:
-        tilia_.clear_app()
-    except AttributeError:
-        # test failed and element was not created properly
-        pass
-
-    stop_listening_to_all(tilia_)
-    stop_listening_to_all(tilia_.timeline_collection)
-    stop_listening_to_all(tilia_.file_manager)
-    stop_listening_to_all(tilia_.player)
-    stop_listening_to_all(tilia_.undo_manager)
-    stop_listening_to_all(tilia_.clipboard)
-
-    stop_serving_all(tilia_)
-    stop_serving_all(tilia_.timeline_collection)
-    try:
-        stop_serving_all(tilia_.file_manager)
-    except NoCallbackAttached:
-        #  file manager does its own cleanup at test_file_manager.py
-        #  so it will already have called stop_serving_all
-        pass
-    stop_serving_all(tilia_.player)
-    stop_serving_all(tilia_.undo_manager)
-    stop_serving_all(tilia_.clipboard)
 
 
-@pytest.fixture(scope="module")
-def tluis(tkui):
-    return tkui.timeline_ui_collection
+@pytest.fixture
+def tluis(qtui):
+    _tluis = qtui.timeline_uis
+    yield _tluis
+    post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+    _tluis._setup_auto_scroll()
+    _tluis._setup_drag_tracking_vars()
+    _tluis._setup_selection_box()
 
 
-@pytest.fixture()
+@pytest.fixture
 def tls(tilia):
-    _tls = tilia.timeline_collection
+    _tls = tilia.timelines
 
-    def create_timeline(*args, **kwargs):
-        return Timelines.create_timeline(_tls, *args, ask_user_for_name=False, **kwargs)
+    def add_timeline_with_post(kind: TimelineKind, name: str = ""):
+        kind_to_request = {
+            TimelineKind.MARKER_TIMELINE: Post.TIMELINE_ADD_MARKER_TIMELINE,
+            TimelineKind.HIERARCHY_TIMELINE: Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
+            TimelineKind.HARMONY_TIMELINE: Post.TIMELINE_ADD_HARMONY_TIMELINE,
+            TimelineKind.BEAT_TIMELINE: Post.TIMELINE_ADD_BEAT_TIMELINE,
+        }
+        with Serve(Get.FROM_USER_STRING, (name, True)):
+            post(kind_to_request[kind])
 
-    _tls._create_timeline = partial(Timelines.create_timeline, _tls)  # in case the original is needed
-    _tls.create_timeline = create_timeline
+        return _tls[-1]
+
+    _tls.add_timeline_with_post = add_timeline_with_post
     yield _tls
     _tls.clear()  # deletes created timelines
-
-
-@pytest.fixture
-def beat_tlui(tls, tluis) -> BeatTimelineUI:
-    with PatchGet("tilia.timelines.collection", Get.BEAT_PATTERN_FROM_USER, [4]):
-        tl: BeatTimeline = tls.create_timeline(TlKind.BEAT_TIMELINE)
-
-    ui = tluis.get_timeline_ui(tl.id)
-
-    yield ui  # will be deleted by tls
-
-
-class TestHierarchyTimelineUI(HierarchyTimelineUI):
-    def create_hierarchy(
-        self, start: float, end: float, level: int, **kwargs
-    ) -> Hierarchy:
-        ...
-
-    def relate_hierarchies(self, parent: Hierarchy, children: list[Hierarchy]):
-        ...
-
-
-@pytest.fixture
-def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
-    def create_hierarchy(
-        start: float, end: float, level: int, **kwargs
-    ) -> tuple[Hierarchy, HierarchyUI]:
-        component = tl.create_timeline_component(
-            ComponentKind.HIERARCHY, start, end, level, **kwargs
-        )
-        element = ui.get_element(component.id)
-        return component, element
-
-    def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
-        return tl.component_manager._update_genealogy(parent, children)
-
-    tl: HierarchyTimeline = tls.create_timeline(TlKind.HIERARCHY_TIMELINE)
-    ui = tluis.get_timeline_ui(tl.id)
-
-    # remove initial hierarchy
-    tl.clear()
-
-    ui.create_hierarchy = create_hierarchy
-    ui.relate_hierarchies = relate_hierarchies
-    return ui  # will be deleted by tls
-
-
-@pytest.fixture
-def hierarchy_tl(hierarchy_tlui):
-    return hierarchy_tlui.timeline
-
-
-@pytest.fixture
-def marker_tlui(tls, tluis) -> MarkerTimelineUI:
-    tl: MarkerTimeline = tls.create_timeline(TlKind.MARKER_TIMELINE)
-    ui = tluis.get_timeline_ui(tl.id)
-
-    def create_marker(*args, **kwargs):
-        component = tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
-        element = ui.get_element(component.id)
-        return component, element
-
-    tl.create_marker = create_marker
-    ui.create_marker = create_marker
-
-    yield ui  # will be deleted by tls
-
-
-@pytest.fixture
-def marker_tl(marker_tlui):
-    tl = marker_tlui.timeline
-
-    def create_marker(*args, **kwargs):
-        return tl.create_timeline_component(ComponentKind.MARKER, *args, **kwargs)
-
-    tl.create_marker = create_marker
-    yield tl
 
 
 @pytest.fixture
@@ -226,3 +186,45 @@ def cli():
     _cli = CLI()
     yield _cli
     stop_listening_to_all(_cli)
+
+
+@pytest.fixture(params=["marker", "harmony", "beat", "hierarchy"])
+def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui):
+    return {
+        "marker": marker_tlui,
+        "harmony": harmony_tlui,
+        "beat": beat_tlui,
+        "hierarchy": hierarchy_tlui,
+    }[request.param]
+
+
+class ActionManager:
+    def __init__(self):
+        self.action_to_trigger_count = {}
+        for action in tilia_actions_module.TiliaAction:
+            qaction = tilia_actions_module.get_qaction(action)
+            qaction.triggered.connect(
+                functools.partial(self._increment_trigger_count, action)
+            )
+
+    def trigger(self, action: TiliaAction):
+        tilia_actions_module.trigger(action)
+        self._increment_trigger_count(action)
+
+    def _increment_trigger_count(self, action):
+        if action not in self.action_to_trigger_count:
+            self.action_to_trigger_count[action] = 1
+        else:
+            self.action_to_trigger_count[action] += 1
+
+    def assert_triggered(self, action):
+        assert action in self.action_to_trigger_count
+
+    def assert_not_triggered(self, action):
+        assert action not in self.action_to_trigger_count
+
+
+@pytest.fixture
+def actions(qtui):
+    action_manager = ActionManager()
+    yield action_manager

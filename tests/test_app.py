@@ -1,129 +1,208 @@
+import json
 from pathlib import Path
-from unittest.mock import Mock, patch
-
-import pytest
-from tests.mock import PatchPost
-
-from tilia.app import App
-from tilia.exceptions import UserCancel
-from tilia.file.media_metadata import MediaMetadata
-from tilia.file.tilia_file import TiliaFile
-from tilia.requests import stop_serving_all, stop_listening_to_all
-from tilia.requests.post import Post
+from unittest.mock import patch
 
 
-class TestApp:
-    @pytest.fixture
-    def app(self):
-        _app = App(
-            player=Mock(),
-            file_manager=Mock(),
-            clipboard=Mock(),
-            undo_manager=Mock(),
-        )
-        yield _app
-        stop_listening_to_all(_app)
-        stop_serving_all(_app)
+import tests.utils
+from tests.mock import PatchGet, Serve
 
-        stop_listening_to_all(_app.timeline_collection)
-        stop_serving_all(_app.timeline_collection)
+from tilia.requests import Get
+from tilia.ui import actions
+from tilia.ui.actions import TiliaAction
 
-    def test_constructor(self):
-        app = App(
-            player=Mock(),
-            file_manager=Mock(),
-            clipboard=Mock(),
-            undo_manager=Mock(),
-        )
 
-        # cleanup
-        stop_listening_to_all(app)
-        stop_serving_all(app)
+class TestSaveFileOnClose:
+    @staticmethod
+    def _get_modified_file_state():
+        return {
+            "timelines": {},
+            "media_path": "modified.ogg",
+            "media_metadata": {},
+            "file_path": "",
+        }
 
-        stop_listening_to_all(app.timeline_collection)
-        stop_serving_all(app.timeline_collection)
-
-    def test_get_id(self, app):
-        assert app.get_id() == "0"
-
-    def test_on_request_to_close_no_changes(self, app):
-        app.file_manager.ask_save_changes_if_modified.return_value = False
-
-        with patch("tilia.dirs.delete_temp_dir") as delete_temp_dir_mock:
-            with pytest.raises(SystemExit):
-                app.on_request_to_close()
-
-            delete_temp_dir_mock.assert_called_once()
-            app.file_manager.on_save_request.assert_not_called()
-
-    def test_on_request_to_close_changes_user_accepts_save(self, app):
-        app.file_manager.ask_save_changes_if_modified.return_value = True
-
-        with patch("tilia.dirs.delete_temp_dir"):
-            with pytest.raises(SystemExit):
-                app.on_request_to_close()
-
-    def test_on_request_to_close_changes_user_cancels(self, app):
-        def raise_user_cancel():
-            raise UserCancel
-
-        app.file_manager.ask_save_changes_if_modified = raise_user_cancel
-
-        assert app.on_request_to_close() is None  # should not raise SystemExit
-
-    def test_on_request_to_load_media(self, app):
-        path = "media.ogg"
-        with patch("tilia.app.MediaLoader") as media_loader_mock:
-            app.on_request_to_load_media(path)
-
-            media_loader_mock().load.assert_called_with(Path(path))
-            app.file_manager.set_media_path.assert_called_with(path)
-
-    def test_load_file_sets_length_correctly_when_no_media_found_at_given_path(
-        self, app
-    ):
-        def load_mock(*_):
-            raise FileNotFoundError
-
-        metadata = MediaMetadata()
-        metadata["media length"] = 101
-        file = TiliaFile(
-            media_path="non-existent.ogg",
-            media_metadata=metadata,
-        )
-        with patch("tilia.app.MediaLoader.load") as load_mock, patch(
-            "tilia.app.App.setup_blank_file"
-        ), patch("tilia.app.App.reset_undo_manager"):
-            load_mock.side_effect = FileNotFoundError
-            app.load_file(file)
-
-        app.file_manager.set_media_path.assert_called_with("")
-        app.player.media_length == 101
-
-    def test_load_file_sets_length_correctly_when_no_media_path(self, app):
-        metadata = MediaMetadata()
-        metadata["media length"] = 101
-        file = TiliaFile(
-            media_metadata=metadata,
-        )
-        with patch("tilia.app.App.setup_blank_file"), patch(
-            "tilia.app.App.reset_undo_manager"
+    def test_no_changes(self, tilia, actions):
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+            patch("tilia.file.file_manager.FileManager.save") as save_mock,
+            patch("sys.exit") as exit_mock,
         ):
-            app.load_file(file)
+            actions.trigger(TiliaAction.UI_CLOSE)
 
-        app.player.media_length == 101
+        exit_mock.assert_called()
+        save_mock.assert_not_called()
 
-    def test_on_request_to_set_media_length(self, app):
-        app.player.media_loaded = False
-        app.on_request_to_set_media_length(10)
-        assert app.player.media_length == 10
-        assert app.file_manager.set_media_metadata.called_with({"metadata": 10})
+    def test_file_modified_and_user_chooses_to_save_changes(
+        self, tilia, actions, tmp_path
+    ):
+        tmp_file = tmp_path / "test_file_modified_and_user_chooses_to_save_changes.tla"
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file, True)),
+            patch("sys.exit") as exit_mock,
+        ):
+            actions.trigger(TiliaAction.UI_CLOSE)
 
-    def test_on_request_to_set_media_length_media_is_loaded(self, app):
-        app.player.media_loaded = True
-        with PatchPost("tilia.app", Post.REQUEST_DISPLAY_ERROR) as post_mock:
-            app.on_request_to_set_media_length(10)
-            assert post_mock.called
+        exit_mock.assert_called()
+        assert tmp_file.exists()
 
-        assert app.player.media_length != 10
-        app.file_manager.set_media_metadata.assert_not_called()
+    def test_file_modified_and_user_chooses_to_save_changes_when_file_was_previously_saved(
+        self, tilia, actions, tmp_path
+    ):
+        tmp_file = tmp_path / "test_file_modified_and_user_chooses_to_save_changes.tla"
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file, True)),
+        ):
+            actions.trigger(TiliaAction.FILE_SAVE)
+
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
+            patch("sys.exit") as exit_mock,
+        ):
+            actions.trigger(TiliaAction.UI_CLOSE)
+
+        exit_mock.assert_called()
+        assert tmp_file.exists()
+
+    def test_file_is_modified_and_user_cancels_close_on_should_save_changes_dialog(
+        self, tilia, actions
+    ):
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)),
+            patch("tilia.file.file_manager.FileManager.save") as save_mock,
+            patch("sys.exit") as exit_mock,
+        ):
+            actions.trigger(TiliaAction.UI_CLOSE)
+
+        exit_mock.assert_not_called()
+        save_mock.assert_not_called()
+
+    def test_file_is_modified_and_user_cancels_file_save_dialog(self, tilia, actions):
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, ("", "")),
+            patch("tilia.file.file_manager.FileManager.save") as save_mock,
+            patch("sys.exit") as exit_mock,
+        ):
+            actions.trigger(TiliaAction.UI_CLOSE)
+
+        exit_mock.assert_not_called()
+        save_mock.assert_not_called()
+
+
+class TestFileLoad:
+    def test_media_path_does_not_exist_and_media_length_available(
+        self, tilia, tilia_state, tmp_path
+    ):
+        file_data = tests.utils.get_blank_file_data()
+        file_data["media_metadata"]["media length"] = 101
+        file_data["media_path"] = "invalid.tla"
+        tmp_file = tmp_path / "test_file_load.tla"
+        tmp_file.write_text(json.dumps(file_data))
+        with PatchGet(
+            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
+        ):
+            actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert tilia_state.is_undo_manager_cleared
+        assert tilia_state.media_path == ""
+        assert tilia_state.duration == 101
+
+    def test_media_path_does_not_exist_and_media_length_not_available(
+        self, tilia, tilia_state, tmp_path
+    ):
+        tilia_state.duration = 0
+        file_data = tests.utils.get_blank_file_data()
+        file_data["media_path"] = "invalid.tla"
+        tmp_file = tmp_path / "test_file_load.tla"
+        tmp_file.write_text(json.dumps(file_data))
+        with PatchGet(
+            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
+        ):
+            actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert tilia_state.is_undo_manager_cleared
+        assert tilia_state.media_path == ""
+        assert tilia_state.duration == 0
+
+    def test_media_path_exists(self, tilia, tilia_state, tmp_path):
+        file_data = tests.utils.get_blank_file_data()
+        tmp_file = tmp_path / "test_file_load.tla"
+        media_path = str(Path("resources", "example.ogg").resolve())
+        file_data["media_path"] = media_path
+        file_data["media_metadata"]["media length"] = 101
+        tmp_file.write_text(json.dumps(file_data))
+        with PatchGet(
+            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
+        ):
+            actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert tilia_state.is_undo_manager_cleared
+        assert tilia_state.media_path == media_path
+        assert tilia_state.duration == 101
+
+    def test_media_path_is_youtube_url(self, tilia, tilia_state, tmp_path):
+        file_data = tests.utils.get_blank_file_data()
+        tmp_file = tmp_path / "test_file_load.tla"
+        media_path = "https://www.youtube.com/watch?v=wBfVsucRe1w"
+        file_data["media_path"] = media_path
+        file_data["media_metadata"]["media length"] = 101
+        tmp_file.write_text(json.dumps(file_data))
+        with PatchGet(
+            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
+        ):
+            actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert tilia_state.is_undo_manager_cleared
+        assert tilia_state.media_path == media_path
+        assert tilia_state.duration == 101
+
+
+class TestMediaLoad:
+    EXAMPLE_PATH_OGG = "tilia/tests/resources/example.ogg"
+
+    @staticmethod
+    def _load_media(actions, path, get_media_path_success=True):
+        with Serve(Get.FROM_USER_MEDIA_PATH, (get_media_path_success, path)):
+            actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
+
+    def test_load_local(self, tilia, tilia_state, actions):
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+
+    def test_undo(self, tilia, tilia_state, actions):
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        assert not tilia_state.media_path
+
+    def test_redo(self, tilia, tilia_state, actions):
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        actions.trigger(TiliaAction.EDIT_UNDO)
+        actions.trigger(TiliaAction.EDIT_REDO)
+        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+
+    def test_load_invalid_extension(self, tilia, tilia_state, tilia_errors, actions):
+        self._load_media(actions, "invalid.xyz")
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("xyz")
+        assert not tilia_state.media_path
+
+    def test_load_invalid_extension_with_media_loaded(
+        self, tilia, tilia_state, tilia_errors, actions
+    ):
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        self._load_media(actions, "invalid.xyz")
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("xyz")
+        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+
+    def test_load_media_after_loading_media_with_invalid_extension(
+        self, tilia, tilia_state, tilia_errors, actions
+    ):
+        self._load_media(actions, "invalid.xyz")
+        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG

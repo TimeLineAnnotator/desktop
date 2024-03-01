@@ -1,11 +1,10 @@
-from argparse import _SubParsersAction
 import argparse
 from functools import partial
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.component_kinds import ComponentKind
 
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.cli import io
+from tilia.ui.cli.io import output
 from tilia.ui.cli.timelines.getters import get_timeline_by_name, get_timeline_by_ordinal
 
 TL_KIND_TO_COMPONENT_KIND = {
@@ -21,7 +20,7 @@ COMPONENT_KIND_TO_PARAMS = {
 }
 
 
-def setup_parser(subparser: _SubParsersAction):
+def setup_parser(subparser):
     subp = subparser.add_parser("beat", exit_on_error=False)
     tl_group = subp.add_mutually_exclusive_group(required=True)
     tl_group.add_argument("--tl-ordinal", "-o", type=int, default=None)
@@ -49,11 +48,11 @@ def get_component_params(cmp_kind: ComponentKind, namespace: argparse.Namespace)
 
 
 def add(tl_kind: TlKind, namespace: argparse.Namespace):
-    ord = namespace.tl_ordinal
+    ordinal = namespace.tl_ordinal
     name = namespace.tl_name
 
-    if ord is not None:
-        tl = get_timeline_by_ordinal(ord)
+    if ordinal is not None:
+        tl = get_timeline_by_ordinal(ordinal)
     else:
         tl = get_timeline_by_name(name)
 
@@ -64,4 +63,4 @@ def add(tl_kind: TlKind, namespace: argparse.Namespace):
 
     tl.create_timeline_component(cmp_kind, **params)
 
-    print(f"Adding component to timeline {tl}")
+    output(f"Adding component to timeline {tl}")

@@ -1,200 +1,218 @@
-import tkinter as tk
+from typing import Optional
 
-from tilia.requests import Post, post, Get, get
-from tilia.enums import UpOrDown
+import typing
+from PyQt6 import QtGui
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QVBoxLayout,
+    QPushButton,
+    QListWidget,
+    QListWidgetItem,
+    QCheckBox,
+)
 
-import logging
+from tilia.requests import (
+    Post,
+    post,
+    Get,
+    get,
+    listen,
+    serve,
+    stop_listening_to_all,
+    stop_serving_all,
+)
+from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.timelines.base.timeline import TimelineUI
 
 
-logger = logging.getLogger(__name__)
-
-
-class ManageTimelines:
-    def __init__(self, app_ui, timeline_ids_and_display_strings: list[tuple[int, str]]):
-        """
-        Window that allow user to change the order, toggle visibility
-        and delete timelines.
-        """
-        logger.debug("Opening manage timelines window... ")
-
-        self._app_ui = app_ui
-
-        self.toplevel = tk.Toplevel()
-        self.toplevel.title("Manage timelines")
-        self.toplevel.protocol("WM_DELETE_WINDOW", self.destroy)
-        self.toplevel.transient(self._app_ui.root)
-
-        logger.debug(
-            "Existing timelines ids and display strings are"
-            f" {timeline_ids_and_display_strings}"
-        )
-        self.tl_ids_and_strings = timeline_ids_and_display_strings
-
+class ManageTimelines(QDialog):
+    def __init__(self):
+        super().__init__()
         self._setup_widgets()
-
-        self.list_box.bind("<<ListboxSelect>>", self.on_select)
-
-        self.initial_config()
+        self._setup_checkbox()
+        self._setup_requests()
+        self.show()
 
     def _setup_widgets(self):
-        self.outer_frame = tk.Frame(self.toplevel)
+        layout = QHBoxLayout()
+        self.setLayout(layout)
 
-        # create right parent
-        self.right_frame = tk.Frame(self.outer_frame)
-        self.up_button = tk.Button(
-            self.right_frame, text="▲", width=3, command=self.move_up
+        list_widget = TimelinesListWidget()
+        self.list_widget = list_widget
+        list_widget.currentItemChanged.connect(self.on_list_current_item_changed)
+        layout.addWidget(list_widget)
+
+        right_layout = QVBoxLayout()
+
+        self.up_button = QPushButton("▲")
+        self.up_button.pressed.connect(list_widget.on_up_button)
+
+        self.down_button = QPushButton("▼")
+        self.down_button.pressed.connect(list_widget.on_down_button)
+
+        checkbox = QCheckBox("Visible")
+        self.checkbox = checkbox
+        checkbox.stateChanged.connect(self.on_checkbox_state_changed)
+
+        self.delete_button = QPushButton("Delete")
+        self.delete_button.pressed.connect(list_widget.on_delete_button)
+
+        self.clear_button = QPushButton("Clear")
+        self.clear_button.pressed.connect(list_widget.on_clear_button)
+        right_layout.addWidget(self.up_button)
+        right_layout.addWidget(self.down_button)
+        right_layout.addWidget(checkbox)
+        right_layout.addWidget(self.clear_button)
+        right_layout.addWidget(self.delete_button)
+
+        layout.addLayout(right_layout)
+
+    def _setup_requests(self):
+        serve(
+            self,
+            Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE,
+            self.get_timeline_uis_to_permute,
         )
-        self.down_button = tk.Button(
-            self.right_frame, text="▼", width=3, command=self.move_down
-        )
-        self.delete_button = tk.Button(
-            self.right_frame, text="Delete", command=self.on_delete_button
-        )
-
-        self.clear_button = tk.Button(
-            self.right_frame, text="Clear", command=self.on_clear_button
+        serve(
+            self,
+            Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT,
+            self.get_current_timeline_ui,
         )
 
-        # create checkbox
-        self.visible_checkbox_var = tk.BooleanVar()
-        self.visible_checkbox = tk.Checkbutton(
-            self.right_frame,
-            text="Visible",
-            variable=self.visible_checkbox_var,
-            onvalue=True,
-            offvalue=False,
-            command=self.on_checkbox_value_change,
-        )
+    def _setup_checkbox(self):
+        self.on_list_current_item_changed(self.list_widget.currentItem())
 
-        # grid and pack elements
-        self.up_button.grid(column=1, row=0, sticky=tk.EW)
-        self.down_button.grid(column=1, row=1, sticky=tk.EW)
-        self.visible_checkbox.grid(column=1, row=2, sticky=tk.EW)
-        self.delete_button.grid(column=1, row=3, sticky=tk.EW)
-        self.clear_button.grid(column=1, row=4, sticky=tk.EW)
+    def on_list_current_item_changed(self, item):
+        def update_checkbox_state(timeline_ui):
+            self.checkbox.setCheckState(
+                Qt.CheckState.Checked
+                if timeline_ui.get_data("is_visible")
+                else Qt.CheckState.Unchecked
+            )
 
-        self.list_box = tk.Listbox(self.outer_frame, width=40, activestyle="none")
-        self.list_box.insert(
-            "end",
-            *[display_str for _, display_str in self.tl_ids_and_strings],
-        )
+        def update_delete_and_clear_buttons(timeline_ui):
+            if timeline_ui.TIMELINE_KIND == TimelineKind.SLIDER_TIMELINE:
+                self.delete_button.setEnabled(False)
+                self.clear_button.setEnabled(False)
+            else:
+                self.delete_button.setEnabled(True)
+                self.clear_button.setEnabled(True)
 
-        self.scrollbar = tk.Scrollbar(self.outer_frame, orient=tk.VERTICAL)
-        self.scrollbar.config(command=self.list_box.yview)
-        self.list_box.config(yscrollcommand=self.scrollbar.set)
-
-        self.right_frame.pack(expand=tk.YES, fill=tk.BOTH, side=tk.RIGHT)
-        self.list_box.pack(expand=True, side=tk.LEFT)
-        self.scrollbar.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
-
-        self.toplevel.grid_columnconfigure(0, weight=1)
-        self.outer_frame.pack(expand=True)
-
-    def initial_config(self) -> None:
-        """Set focus to window and select first element"""
-        self.list_box.focus_set()
-        self.list_box.select_set(0)
-        self.on_select()
-
-    def on_select(self, _=None):
-        """Updates checkbox to reflect visibility status of the selected timeline"""
-        item = self.list_box.get(self.list_box.curselection())
-        index = self.list_box.index(self.list_box.curselection())
-        logger.debug(f"Selected manage timelines item '{item}' at index '{index}'")
-
-        selected_timeline_id = self.tl_ids_and_strings[index][0]
-
-        timeline = get(Get.TIMELINE, selected_timeline_id)
-
-        if timeline.is_visible:
-            self.visible_checkbox.select()
-        else:
-            self.visible_checkbox.deselect()
-
-    def on_checkbox_value_change(self):
-        """Toggles visibility of selected timeline"""
-        index = self.list_box.index(self.list_box.curselection())
-        selected_timeline_id = self.tl_ids_and_strings[index][0]
-
-        is_checked = self.visible_checkbox_var.get()
-
-        if is_checked:
-            post(Post.TIMELINES_REQUEST_TO_SHOW_TIMELINE, selected_timeline_id)
-        else:
-            post(Post.TIMELINES_REQUEST_TO_HIDE_TIMELINE, selected_timeline_id)
-
-    def move_up(self):
-        """Move timeline up"""
-        item = self.list_box.get(self.list_box.curselection())
-        index = self.list_box.index(self.list_box.curselection())
-        if index == 0:
-            logger.debug("Item is already at top.")
+        if not item:  # when list is being cleared
             return
 
-        timeline_id = self.tl_ids_and_strings[index][0]
-        timeline = get(Get.TIMELINE, timeline_id)
-        post(Post.REQUEST_MOVE_TIMELINE_UP_IN_ORDER, timeline.id)
-        self.move_listbox_item(index, item, UpOrDown.UP)
+        update_checkbox_state(item.timeline_ui)
+        update_delete_and_clear_buttons(item.timeline_ui)
 
-    def move_down(self):
-        """Move timeline down"""
-        item = self.list_box.get(self.list_box.curselection())
-        index = self.list_box.index(self.list_box.curselection())
-        if index == self.list_box.index("end") - 1:
-            logger.debug("Item is already at bottom.")
-            return  # already at bottom
+    def on_checkbox_state_changed(self, state):
+        timeline_ui = self.list_widget.currentItem().timeline_ui
+        if timeline_ui.get_data("is_visible") != bool(state):
+            post(Post.TIMELINE_IS_VISIBLE_SET_FROM_MANAGE_TIMELINES)
 
-        timeline_id = self.tl_ids_and_strings[index][0]
-        timeline = get(Get.TIMELINE, timeline_id)
-        post(Post.REQUEST_MOVE_TIMELINE_DOWN_IN_ORDER, timeline.id)
-        self.move_listbox_item(index, item, UpOrDown.DOWN)
+    def get_timeline_uis_to_permute(self):
+        return self.list_widget.timeline_uis_to_permute
 
-    def move_listbox_item(self, index: int, item: str, direction: UpOrDown) -> None:
-        self.list_box.delete(index, index)
+    def get_current_timeline_ui(self):
+        return self.list_widget.currentItem().timeline_ui
 
-        index_difference = direction.value * -1
-        self.list_box.insert(index + index_difference, item)
-        self.list_box.activate(index + index_difference)
-        self.list_box.select_set(index + index_difference)
+    def closeEvent(self, a0: Optional[QtGui.QCloseEvent]) -> None:
+        super().closeEvent(a0)
+        stop_listening_to_all(self)
+        stop_listening_to_all(self.list_widget)
+        stop_serving_all(self)
+        post(Post.WINDOW_MANAGE_TIMELINES_CLOSE_DONE)
 
-        self.move_item_in_ids_and_display_string_order(index, direction)
 
-    def move_item_in_ids_and_display_string_order(self, index, direction):
-        (
-            self.tl_ids_and_strings[index],
-            self.tl_ids_and_strings[index - direction.value],
-        ) = (
-            self.tl_ids_and_strings[index - direction.value],
-            self.tl_ids_and_strings[index],
-        )
+class TimelineListItem(QListWidgetItem):
+    def __init__(self, timeline_ui: TimelineUI):
+        self.timeline_ui = timeline_ui
+        super().__init__(self.get_timeline_ui_str(timeline_ui))
 
-    def on_delete_button(self):
-        index = self.list_box.index(self.list_box.curselection())
-        timeline_id = self.tl_ids_and_strings[index][0]
+    @staticmethod
+    def get_timeline_ui_str(timeline_ui: TimelineUI):
+        if timeline_ui.TIMELINE_KIND == TimelineKind.SLIDER_TIMELINE:
+            return "Slider"
+        return timeline_ui.get_data("name")
 
-        post(Post.REQUEST_DELETE_TIMELINE, timeline_id)
 
-        self.update_tl_ids_and_strings()
+class TimelinesListWidgetItem(QListWidgetItem):
+    timeline_ui: TimelineUI
 
-    def on_clear_button(self):
-        index = self.list_box.index(self.list_box.curselection())
-        timeline_id = self.tl_ids_and_strings[index][0]
 
-        post(Post.REQUEST_CLEAR_TIMELINE, timeline_id)
+class TimelinesListWidget(QListWidget):
+    def __init__(self):
+        super().__init__()
+        self._setup_items()
 
-    def focus(self):
-        self.toplevel.focus_set()
+        self.setCurrentRow(0)
+        self.timeline_uis_to_permute = None
+        listen(self, Post.TIMELINE_SET_DATA_DONE, self.on_timeline_set_data_done)
+        listen(self, Post.TIMELINE_DELETE_DONE, self.update_current_selection)
+        listen(self, Post.TIMELINE_CREATE_DONE, self.update_current_selection)
+        listen(self, Post.TIMELINE_COLLECTION_STATE_RESTORED, self.update_items)
 
-    def destroy(self):
-        self.toplevel.destroy()
-        post(Post.MANAGE_TIMELINES_WINDOW_CLOSED)
+    def item(self, row: int) -> typing.Optional[TimelineListItem]:
+        return super().item(row)
 
-    def update_tl_ids_and_strings(self):
-        self.tl_ids_and_strings = (
-            self._app_ui.get_timeline_info_for_manage_timelines_window()
-        )
-        self.list_box.delete(0, "end")
-        self.list_box.insert(
-            "end",
-            *[display_str for _, display_str in self.tl_ids_and_strings],
-        )
+    def currentItem(self) -> typing.Optional[TimelineListItem]:
+        return super().currentItem()
+
+    def selectedItems(self) -> list[TimelineListItem]:
+        return super().selectedItems()
+
+    def _setup_items(self):
+        for tl in get(Get.TIMELINE_UIS):
+            self.addItem(TimelineListItem(tl))
+
+    def on_timeline_set_data_done(self, _, attr, __):
+        if attr != "ordinal":
+            return
+
+        prev_selected = self.currentItem() or self.item(0)
+        self.update_items()
+        for i in range(self.model().rowCount()):
+            if self.item(i).timeline_ui == prev_selected.timeline_ui:
+                self.setCurrentRow(i)
+                break
+
+    def update_current_selection(self, *_):
+        prev_index = self.currentIndex()
+        self.update_items()
+        self.setCurrentRow(prev_index.row())
+
+    def update_items(self):
+        self.clear()
+        self._setup_items()
+
+    def on_up_button(self):
+        if not self.selectedIndexes():
+            return
+
+        selected = self.selectedItems()[0]
+        index = self.selectedIndexes()[0].row()
+        previous = self.item(index - 1)
+        if previous:
+            self.timeline_uis_to_permute = (selected.timeline_ui, previous.timeline_ui)
+            post(Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES)
+            self.timeline_uis_to_permute = None
+
+    def on_down_button(self):
+        if not self.selectedIndexes():
+            return
+        selected = self.selectedItems()[0]
+        index = self.selectedIndexes()[0].row()
+        next_item = self.item(index + 1)
+        if next_item:
+            self.timeline_uis_to_permute = (selected.timeline_ui, next_item.timeline_ui)
+            post(Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES)
+            self.timeline_uis_to_permute = None
+
+    @staticmethod
+    def on_delete_button():
+        post(Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES)
+
+    @staticmethod
+    def on_clear_button():
+        post(Post.TIMELINE_CLEAR_FROM_MANAGE_TIMELINES)

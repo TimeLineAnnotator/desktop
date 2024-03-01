@@ -1,30 +1,66 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
-import tilia.repr
-from tilia.requests import get, Get
+from tilia.utils import get_tilia_class_string
+from tilia.exceptions import SetComponentDataError, GetComponentDataError
 from tilia.timelines.base.timeline import Timeline
+from tilia.timelines.base.validators import validate_read_only
 
 
 class TimelineComponent(ABC):
-    """Interface for objects that compose a timeline. E.g. the Hierarchy class
-    in HierarchyTimelines."""
+    SERIALIZABLE_BY_VALUE = []
+    SERIALIZABLE_BY_ID = []
+    SERIALIZABLE_BY_ID_LIST = []
+    ORDERING_ATTRS = tuple()
 
-    def __init__(self, timeline: Timeline):
+    validators = {
+        "timeline": validate_read_only,
+        "id": validate_read_only,
+    }
+
+    def __init__(self, timeline: Timeline, id: int, *args, **kwargs):
         self.timeline = timeline
-        self.id = get(Get.ID)
-
-    @classmethod
-    @abstractmethod
-    def create(cls, *args, **kwargs):
-        """Should call the constructor of the appropriate subclass."""
-
-    @abstractmethod
-    def receive_delete_request_from_ui(self) -> None:
-        """Calls own delete method and ui's delete method.
-        May validate delete request prior to performing
-        deletion."""
+        self.id = id
 
     def __str__(self):
-        return tilia.repr.default_str(self)
+        return get_tilia_class_string(self)
+
+    def __lt__(self, other):
+        return self.ordinal < other.ordinal
+
+    @property
+    def ordinal(self):
+        return tuple(getattr(self, attr) for attr in self.ORDERING_ATTRS)
+
+    def validate_set_data(self, attr, value):
+        if not hasattr(self, attr):
+            raise SetComponentDataError(
+                f"Component '{self}' has no attribute named '{attr}'. Can't set to '{value}'."
+            )
+        try:
+            return self.validators[attr](value)
+        except KeyError:
+            raise KeyError(
+                f"{self} has no validator for attribute {attr}. Can't set to '{value}'."
+            )
+
+    def set_data(self, attr: str, value: Any):
+        if not self.validate_set_data(attr, value):
+            return None, False
+        setattr(self, attr, value)
+        if attr in self.ORDERING_ATTRS:
+            self.timeline.update_component_order(self)
+        return value, True
+
+    def validate_get_data(self, attr):
+        if not hasattr(self, attr):
+            raise GetComponentDataError(
+                f"Component '{self}' has no attribute named '{attr}'"
+            )
+        return True
+
+    def get_data(self, attr: str):
+        if self.validate_get_data(attr):
+            return getattr(self, attr)

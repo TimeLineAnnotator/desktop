@@ -1,282 +1,144 @@
 from __future__ import annotations
 
-import tkinter as tk
-from dataclasses import dataclass
-from enum import Enum, auto
-from functools import partial
-from typing import Optional, Any, Iterable
+from typing import TypeAlias
 
-from tilia.requests import Post, post
-from tilia.timelines.timeline_kinds import USER_CREATABLE_TIMELINE_KINDS
+from PyQt6.QtWidgets import QMenu
 
-SEPARATOR = "separator"
+from tilia.ui.actions import TiliaAction, get_qaction
 
 
-@dataclass
-class CommandParams:
-    label: str
-    event: Post
-    command_kwargs: Optional[dict[str:Any]]
-    event_kwargs: Optional[dict[str:Any]]
+class MenuItemKind:
+    SEPARATOR = "separator"
+    ACTION = "action"
+    SUBMENU = "menu"
 
 
-def get_command_callback(event: Post, **kwargs):
-    return lambda: post(event, **kwargs)
+TiliaMenuItem: TypeAlias = None | TiliaAction | type["TiliaMenu"]
 
 
-def add_menu_commands(menu: tk.Menu, commands: list[CommandParams]) -> None:
-    """
-    Adds commands to menu using a list of CommandParams.
-    The callback to the menu option will post the event specified in
-    CommandParams.event.
-    """
-    for command in commands:
-        if command == SEPARATOR:
-            menu.add_separator()
-        else:
-            menu.add_command(
-                label=command.label,
-                command=get_command_callback(command.event, **command.event_kwargs),
-                **command.command_kwargs,
-            )
+class TiliaMenu(QMenu):
+    title = ""
+    items: list[tuple[MenuItemKind, TiliaMenuItem]] = []
 
-
-class DynamicMenu(Enum):
-    MARKER_TIMELINE = auto()
-    HIERARCHY_TIMELINE = auto()
-    BEAT_TIMELINE = auto()
-
-
-class TkinterUIMenus(tk.Menu):
     def __init__(self):
         super().__init__()
-        self.file_menu = self.setup_file_menu()
-        self.edit_menu = self.setup_edit_menu()
-        self.timelines_menu = self.setup_timelines_menu()
-        self.view_menu = self.setup_view_menu()
-        self.help_menu = self.setup_help_menu()
+        self.setTitle(self.title)
+        self.class_to_submenu = {}
+        for kind, item in self.items:
+            self.add_item(kind, item)
 
-        self.dynamic_menus: list[DynamicMenu] = []
+    def add_item(self, kind: MenuItemKind, item: TiliaMenuItem):
+        if kind == MenuItemKind.SEPARATOR:
+            self.add_separator()
+        elif kind == MenuItemKind.SUBMENU:
+            self.add_submenu(item)
+        else:
+            self.add_action(item)
 
-        self.dynamic_menu_to_parent = {
-            DynamicMenu.HIERARCHY_TIMELINE: self.timelines_menu,
-            DynamicMenu.MARKER_TIMELINE: self.timelines_menu,
-            DynamicMenu.BEAT_TIMELINE: self.timelines_menu,
-        }
+    def add_separator(self):
+        self.addSeparator()
 
-        self.dynamic_menu_to_index = {
-            DynamicMenu.HIERARCHY_TIMELINE: 3,
-            DynamicMenu.MARKER_TIMELINE: 4,
-            DynamicMenu.BEAT_TIMELINE: 5,
-        }
+    def add_submenu(self, cls: type[TiliaMenu]):
+        #  submenus can't be instanced as a class property,
+        #  since QApplication is not yet instanced at
+        #  declaration-time, so instancing is delayed until now
+        submenu = cls()
+        self.class_to_submenu[cls] = submenu
+        self.addMenu(submenu)
 
-    def update_dynamic_menus(self, menus_to_display: Iterable[DynamicMenu]) -> None:
-        for menu in DynamicMenu:
-            parent = self.dynamic_menu_to_parent[menu]
-            index = self.dynamic_menu_to_index[menu]
-            if menu in menus_to_display:
-                parent.entryconfig(index, state="normal")
-            else:
-                parent.entryconfig(index, state="disabled")
+    def add_action(self, t_action: TiliaAction):
+        self.addAction(get_qaction(t_action))
 
-    def setup_file_menu(self):
-        commands = [
-            CommandParams("New...", Post.REQUEST_FILE_NEW, {"underline": 0}, {}),
-            CommandParams("Open...", Post.REQUEST_FILE_OPEN, {"underline": 0}, {}),
-            CommandParams("Save", Post.REQUEST_SAVE, {"underline": 0}, {}),
-            CommandParams(
-                "Save as...",
-                Post.REQUEST_SAVE_AS,
-                {"underline": 5},
-                {},
-            ),
-            CommandParams(
-                "Load media file...",
-                Post.MENU_OPTION_FILE_LOAD_MEDIA,
-                {"underline": 0},
-                {},
-            ),
-            SEPARATOR,
-            CommandParams(
-                "Media metadata...",
-                Post.UI_REQUEST_WINDOW_METADATA,
-                {"underline": 0},
-                {},
-            ),
-            SEPARATOR,
-            CommandParams(
-                "Settings...", Post.REQUEST_OPEN_SETTINGS, {"underline": 0}, {}
-            ),
-        ]
+    def get_submenu(self, cls: type[TiliaMenu]):
+        return self.class_to_submenu[cls]
 
-        # FILE MENU
-        menu = tk.Menu(self, tearoff=0)
-        add_menu_commands(menu, commands)
 
-        self.add_cascade(label="File", menu=menu, underline=0)
+class LoadMediaMenu(TiliaMenu):
+    title = "Load media"
+    items = [
+        (MenuItemKind.ACTION, TiliaAction.MEDIA_LOAD_LOCAL),
+        (MenuItemKind.ACTION, TiliaAction.MEDIA_LOAD_YOUTUBE),
+    ]
 
-        return menu
 
-    def setup_edit_menu(self):
-        commands = [
-            CommandParams(
-                "Undo",
-                Post.REQUEST_TO_UNDO,
-                {"underline": 0, "accelerator": "Ctrl + Z"},
-                {},
-            ),
-            CommandParams(
-                "Redo",
-                Post.REQUEST_TO_REDO,
-                {"underline": 0, "accelerator": "Ctrl + Y"},
-                {},
-            ),
-        ]
+class FileMenu(TiliaMenu):
+    title = "File"
+    items = [
+        (MenuItemKind.ACTION, TiliaAction.FILE_NEW),
+        (MenuItemKind.ACTION, TiliaAction.FILE_OPEN),
+        (MenuItemKind.ACTION, TiliaAction.FILE_SAVE),
+        (MenuItemKind.ACTION, TiliaAction.FILE_SAVE_AS),
+        (MenuItemKind.SEPARATOR, None),
+        (MenuItemKind.SUBMENU, LoadMediaMenu),
+        (MenuItemKind.ACTION, TiliaAction.METADATA_WINDOW_OPEN),
+        (MenuItemKind.SEPARATOR, None),
+        (MenuItemKind.ACTION, TiliaAction.SETTINGS_WINDOW_OPEN),
+    ]
 
-        menu = tk.Menu(self, tearoff=0)
-        add_menu_commands(menu, commands)
 
-        self.add_cascade(label="Edit", menu=menu, underline=0)
+class EditMenu(TiliaMenu):
+    title = "Edit"
+    items = [
+        (MenuItemKind.ACTION, TiliaAction.EDIT_UNDO),
+        (MenuItemKind.ACTION, TiliaAction.EDIT_REDO),
+        (MenuItemKind.SEPARATOR, None),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_COPY),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_PASTE),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE),
+    ]
 
-        return menu
 
-    def setup_timelines_menu(self):
-        commands = [
-            CommandParams(
-                "Manage...",
-                Post.UI_REQUEST_WINDOW_MANAGE_TIMELINES,
-                {"underline": 0},
-                {},
-            ),
-            CommandParams(
-                "Clear all",
-                Post.REQUEST_CLEAR_ALL_TIMELINES,
-                {"underline": 0},
-                {},
-            ),
-        ]
+class AddTimelinesMenu(TiliaMenu):
+    title = "Add..."
+    items = [
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_BEAT_TIMELINE),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_MARKER_TIMELINE),
+    ]
 
-        menu = tk.Menu(self, tearoff=0)
 
-        # ADD TIMELINE MENU
-        menu.add_timelines = tk.Menu(menu, tearoff=0)
+class HierarchyMenu(TiliaMenu):
+    title = "Hierarchy"
+    items = [(MenuItemKind.ACTION, TiliaAction.HIERARCHY_IMPORT_FROM_CSV)]
 
-        def post_create_timeline(kind):
-            post(Post.REQUEST_TIMELINE_CREATE, kind)
 
-        def get_add_timeline_options():
-            options = []
-            for kind in USER_CREATABLE_TIMELINE_KINDS:
-                label = kind.value[: -len("_TIMELINE")].capitalize()
-                options.append((label, partial(post_create_timeline, kind)))
+class MarkerMenu(TiliaMenu):
+    title = "Marker"
+    items = [(MenuItemKind.ACTION, TiliaAction.MARKER_IMPORT_FROM_CSV)]
 
-            return options
 
-        for label, command in get_add_timeline_options():
-            menu.add_timelines.add_command(label=label, command=command, underline=0)
+class BeatMenu(TiliaMenu):
+    title = "Beat"
+    items = [(MenuItemKind.ACTION, TiliaAction.BEAT_IMPORT_FROM_CSV)]
 
-        menu.add_cascade(label="Add...", menu=menu.add_timelines, underline=0)
 
-        # ADD REMAINING COMMANDS
-        add_menu_commands(menu, commands)
+class HarmonyMenu(TiliaMenu):
+    title = "Harmony"
+    items = [(MenuItemKind.ACTION, TiliaAction.HARMONY_IMPORT_FROM_CSV)]
 
-        # ADD HIERARCHY MENU
-        menu.hierarchy = tk.Menu(menu, tearoff=0)
-        hierarchy_commands = [
-            CommandParams(
-                "Import from csv...",
-                Post.REQUEST_IMPORT_CSV_HIERARCHIES,
-                {"underline": 0},
-                {},
-            )
-        ]
 
-        add_menu_commands(menu.hierarchy, hierarchy_commands)
-        menu.add_cascade(label="Hierarchies", menu=menu.hierarchy, underline=0)
+class TimelinesMenu(TiliaMenu):
+    title = "Timelines"
+    items = [
+        (MenuItemKind.SUBMENU, AddTimelinesMenu),
+        (MenuItemKind.ACTION, TiliaAction.WINDOW_MANAGE_TIMELINES_OPEN),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_CLEAR),
+        (MenuItemKind.SUBMENU, HierarchyMenu),
+        (MenuItemKind.SUBMENU, MarkerMenu),
+        (MenuItemKind.SUBMENU, BeatMenu),
+        (MenuItemKind.SUBMENU, HarmonyMenu),
+    ]
 
-        # ADD MARKER MENU
-        menu.marker = tk.Menu(menu, tearoff=0)
-        marker_commands = [
-            CommandParams(
-                "Import from csv...",
-                Post.REQUEST_IMPORT_CSV_MARKERS,
-                {"underline": 0},
-                {},
-            )
-        ]
 
-        add_menu_commands(menu.marker, marker_commands)
-        menu.add_cascade(label="Marker", menu=menu.marker, underline=0)
+class ViewMenu(TiliaMenu):
+    title = "View"
+    items = [
+        (MenuItemKind.ACTION, TiliaAction.VIEW_ZOOM_IN),
+        (MenuItemKind.ACTION, TiliaAction.VIEW_ZOOM_OUT),
+    ]
 
-        # ADD BEAT MENU
-        menu.beat = tk.Menu(menu, tearoff=0)
-        beat_commands = [
-            CommandParams(
-                "Import from csv...",
-                Post.REQUEST_IMPORT_CSV_BEATS,
-                {"underline": 0},
-                {},
-            )
-        ]
 
-        add_menu_commands(menu.beat, beat_commands)
-        menu.add_cascade(label="Beat", menu=menu.beat, underline=0)
-
-        self.add_cascade(label="Timelines", menu=menu, underline=0)
-
-        return menu
-
-    def setup_view_menu(self):
-        commands = [
-            CommandParams(
-                "Zoom in",
-                Post.REQUEST_ZOOM_IN,
-                {"accelerator": "Ctrl + +"},
-                {},
-            ),
-            CommandParams(
-                "Zoom out",
-                Post.REQUEST_ZOOM_OUT,
-                {"accelerator": "Ctrl + -"},
-                {},
-            ),
-        ]
-
-        menu = tk.Menu(self, tearoff=0)
-
-        view_window_menu = tk.Menu(menu, tearoff=0)
-        menu.add_cascade(label="Window", menu=view_window_menu, underline=0)
-
-        view_window_menu.add_command(
-            label="Inspect",
-            command=lambda: post(Post.UI_REQUEST_WINDOW_INSPECTOR),
-            underline=0,
-        )
-
-        menu.add_separator()
-
-        add_menu_commands(menu, commands)
-
-        self.add_cascade(label="View", menu=menu, underline=0)
-
-        return menu
-
-    def setup_help_menu(self):
-        commands = [
-            CommandParams(
-                "About...",
-                Post.UI_REQUEST_WINDOW_ABOUT,
-                {"underline": 0},
-                {},
-            ),
-        ]
-
-        menu = tk.Menu(self, tearoff=0)
-
-        menu.add_command(label="Help...", state="disabled", underline=0)
-
-        add_menu_commands(menu, commands)
-
-        self.add_cascade(label="Help", menu=menu, underline=0)
-
-        return menu
+class HelpMenu(TiliaMenu):
+    title = "Help"
+    items = [(MenuItemKind.ACTION, TiliaAction.ABOUT_WINDOW_OPEN)]

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from tilia import globals_
+import tilia.constants
 from tilia.file.media_metadata import MediaMetadata
 
 
@@ -10,5 +10,5 @@ class TiliaFile:
     media_path: str = ""
     media_metadata: MediaMetadata = field(default_factory=MediaMetadata)
     timelines: dict = field(default_factory=lambda: {})
-    app_name: str = globals_.APP_NAME
-    version: str = globals_.VERSION
+    app_name: str = tilia.constants.APP_NAME
+    version: str = tilia.constants.VERSION

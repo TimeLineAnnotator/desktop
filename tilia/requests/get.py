@@ -1,4 +1,5 @@
 import logging
+import weakref
 from enum import Enum, auto
 from typing import Callable, Any
 
@@ -9,40 +10,60 @@ logger = logging.getLogger(__name__)
 
 
 class Get(Enum):
-    FILE_PATH_FROM_USER = auto()
-    TIMELINES_BY_ATTR = auto()
-    TIMELINE_BY_ATTR = auto()
-    ORDINAL_FOR_NEW_TIMELINE = auto()
     APP_STATE = auto()
-    COLOR_FROM_USER = auto()
-    BEAT_PATTERN_FROM_USER = auto()
-    DIR_FROM_USER = auto()
-    TILIA_FILE_PATH_FROM_USER = auto()
-    FLOAT_FROM_USER = auto()
-    INT_FROM_USER = auto()
-    SAVE_PATH_FROM_USER = auto()
-    STRING_FROM_USER = auto()
-    SHOULD_SAVE_CHANGES_FROM_USER = auto()
-    YES_OR_NO_FROM_USER = auto()
-    CURRENT_PLAYBACK_TIME = auto()
-    FILE_SAVE_PARAMETERS = auto()
-    CLIPBOARD = auto()
+    ARE_TIMELINE_ELEMENTS_SELECTED = auto()
+    CLIPBOARD_CONTENTS = auto()
+    FIRST_TIMELINE_UI_IN_SELECT_ORDER = auto()
+    FROM_USER_BEAT_PATTERN = auto()
+    FROM_USER_COLOR = auto()
+    FROM_USER_DIR = auto()
+    FROM_USER_FILE_PATH = auto()
+    FROM_USER_FLOAT = auto()
+    FROM_USER_HARMONY_PARAMS = auto()
+    FROM_USER_INT = auto()
+    FROM_USER_MEDIA_PATH = auto()
+    FROM_USER_MODE_PARAMS = auto()
+    FROM_USER_SAVE_PATH_OGG = auto()
+    FROM_USER_SAVE_PATH_TILIA = auto()
+    FROM_USER_SHOULD_SAVE_CHANGES = auto()
+    FROM_USER_STRING = auto()
+    FROM_USER_TILIA_FILE_PATH = auto()
+    FROM_USER_YES_OR_NO = auto()
     ID = auto()
     LEFT_MARGIN_X = auto()
+    MEDIA_CURRENT_TIME = auto()
     MEDIA_DURATION = auto()
     MEDIA_METADATA = auto()
+    MEDIA_METADATA_REQUIRED_FIELDS = auto()
     MEDIA_PATH = auto()
     MEDIA_TITLE = auto()
+    METRIC_POSITION = auto()
+    PLAYBACK_AREA_WIDTH = auto()
     RIGHT_MARGIN_X = auto()
+    SELECTED_TIME = auto()
     TIMELINE = auto()
     TIMELINES = auto()
+    TIMELINES_BY_ATTR = auto()
+    TIMELINE_BY_ATTR = auto()
+    TIMELINE_COLLECTION = auto()
     TIMELINE_ORDINAL = auto()
-    TIMELINE_FRAME_WIDTH = auto()
+    TIMELINE_ORDINAL_FOR_NEW = auto()
+    TIMELINE_UI = auto()
+    TIMELINE_UIS = auto()
+    TIMELINE_UIS_BY_ATTR = auto()
+    TIMELINE_UI_BY_ATTR = auto()
+    TIMELINE_UI_ELEMENT = auto()
     TIMELINE_WIDTH = auto()
+    WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT = auto()
+    WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE = auto()
 
 
-requests_to_callbacks: dict[Get, Callable] = {}
-servers_to_requests: dict[Any, set[Get]] = {}
+_requests_to_callbacks: weakref.WeakKeyDictionary[Get, Callable] = (
+    weakref.WeakKeyDictionary()
+)
+_servers_to_requests: weakref.WeakKeyDictionary[Any, set[Get]] = (
+    weakref.WeakKeyDictionary()
+)
 
 log_requests = settings.get("dev", "log_requests")
 
@@ -57,7 +78,7 @@ def get(request: Get, *args, **kwargs) -> Any:
     if log_requests:
         logger.log(logging_level, f"Posting {request} with {args=} and {kwargs=}.")
     try:
-        return requests_to_callbacks[request](*args, **kwargs)
+        return _requests_to_callbacks[request](*args, **kwargs)
     except KeyError:
         raise NoReplyToRequest(f"{request} has no repliers attached.")
     except Exception as exc:
@@ -71,11 +92,19 @@ def serve(replier: Any, request: Get, callback: Callable) -> None:
     Attaches a callback to a request.
     """
 
-    requests_to_callbacks[request] = callback
-    if replier not in servers_to_requests.keys():
-        servers_to_requests[replier] = set()
-    else:
-        servers_to_requests[replier].add(request)
+    _requests_to_callbacks[request] = callback
+    if replier not in _servers_to_requests.keys():
+        _servers_to_requests[replier] = set()
+
+    _servers_to_requests[replier].add(request)
+
+
+def server(request: Get) -> tuple[Any | None, Callable | None]:
+    for replier, request_set in _servers_to_requests.items():
+        if request in request_set:
+            return replier, _requests_to_callbacks[request]
+
+    return None, None
 
 
 def stop_serving(replier: Any, request: Get) -> None:
@@ -83,18 +112,18 @@ def stop_serving(replier: Any, request: Get) -> None:
     Detaches a calback from a request.
     """
     try:
-        requests_to_callbacks.pop(request)
+        _requests_to_callbacks.pop(request)
     except KeyError:
         raise NoCallbackAttached()
 
-    servers_to_requests[replier].remove(request)
-    if not servers_to_requests[replier]:
-        servers_to_requests.pop(replier)
+    _servers_to_requests[replier].remove(request)
+    if not _servers_to_requests[replier]:
+        _servers_to_requests.pop(replier)
 
 
 def stop_serving_all(replier: Any) -> None:
-    if replier not in servers_to_requests:
+    if replier not in _servers_to_requests:
         return
 
-    for request in servers_to_requests[replier].copy():
+    for request in _servers_to_requests[replier].copy():
         stop_serving(replier, request)

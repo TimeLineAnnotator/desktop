@@ -7,7 +7,6 @@ from pathlib import Path
 from io import StringIO
 from unittest.mock import patch
 
-from tests.conftest import EmptyObject
 from tests.mock import PatchPost
 from tilia.requests import Post
 from tilia.ui.cli.save import (

@@ -27,7 +27,7 @@ class CLI:
         self.exception = None
 
         listen(
-            self, Post.REQUEST_DISPLAY_ERROR, self.on_request_to_display_error
+            self, Post.DISPLAY_ERROR, self.on_request_to_display_error
         )  # ignores error title
 
     def setup_parsers(self):
@@ -60,7 +60,7 @@ class CLI:
                 namespace.func(namespace)
             return False
         except argparse.ArgumentError as err:
-            io.print(str(err))
+            io.output(str(err))
             self.exception = err
             return True
         except SystemExit as err:
@@ -73,6 +73,7 @@ class CLI:
             traceback.print_exc()
             return True
 
-    def on_request_to_display_error(self, _, message: str) -> None:
+    @staticmethod
+    def on_request_to_display_error(_, message: str) -> None:
         """Ignores title and prints error message to output"""
-        io.print(message)
+        io.output(message)

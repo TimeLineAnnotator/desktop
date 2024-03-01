@@ -1,26 +1,14 @@
-"""
-Defines the Beat class, the single TimelineComponent kind of a BeatTimeline.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-import logging
 
+from tilia.timelines.base.validators import validate_time, validate_bool
 from tilia.timelines.component_kinds import ComponentKind
 
 if TYPE_CHECKING:
     from tilia.timelines.beat.timeline import BeatTimeline
 
-from tilia.exceptions import TiliaException
-
 from tilia.timelines.base.component import TimelineComponent
-
-logger = logging.getLogger(__name__)
-
-
-class BeatLoadError(Exception):
-    pass
 
 
 class Beat(TimelineComponent):
@@ -29,23 +17,25 @@ class Beat(TimelineComponent):
 
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
+    ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.BEAT
+
+    validators = {"time": validate_time, "is_first_in_measure": validate_bool}
 
     def __init__(
         self,
         timeline: BeatTimeline,
+        id: int,
         time: float,
         comments="",
         **_,
     ):
-        super().__init__(timeline)
+        super().__init__(timeline, id)
 
-        self._time = time
+        self.time = time
         self.comments = comments
-
-    def __lt__(self, other):
-        return self.time < other.time
+        self.is_first_in_measure = False
 
     def __str__(self):
         return f"Beat({self.time})"
@@ -53,23 +43,18 @@ class Beat(TimelineComponent):
     def __repr__(self):
         return f"Beat({self.time})"
 
-    @classmethod
-    def create(cls, timeline: BeatTimeline, time: float):
-        return Beat(timeline, time)
+    @property
+    def metric_position(self):
+        self.timeline: BeatTimeline
+        beat_index = self.timeline.get_beat_index(self)
+        measure_index, index_in_measure = self.timeline.get_measure_index(beat_index)
 
-    def receive_delete_request_from_ui(self) -> None:
-        self.timeline.on_request_to_delete_components([self])
-        self.ui.delete()
+        return self.timeline.measure_numbers[measure_index], index_in_measure + 1
 
     @property
-    def time(self):
-        return self._time
+    def measure_number(self):
+        return self.metric_position[0]
 
-    @time.setter
-    def time(self, value):
-        logger.debug(f"Setting {self} time to {value}")
-        self._time = value
-
-
-class BeatOperationError(TiliaException):
-    pass
+    @property
+    def beat_number(self):
+        return self.metric_position[1]

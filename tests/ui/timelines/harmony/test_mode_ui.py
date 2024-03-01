@@ -1,0 +1,99 @@
+from unittest.mock import patch
+
+from tests.ui.timelines.harmony.interact import click_mode_ui
+from tests.ui.timelines.interact import click_timeline_ui
+from tilia.ui import actions
+from tilia.ui.actions import TiliaAction
+
+
+class TestRightClick:
+    def test_right_click(self, harmony_tlui):
+        _, mui = harmony_tlui.create_mode()
+        with patch(
+            "tilia.ui.timelines.harmony.context_menu.ModeContextMenu.exec"
+        ) as exec_mock:
+            mui.on_right_click(0, 0, None)
+
+        exec_mock.assert_called_once()
+
+
+class TestCopyPaste:
+    def test_paste_single_into_timeline(self, harmony_tlui, tilia_state):
+        _, mui = harmony_tlui.create_mode(0)
+        click_mode_ui(mui)
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        click_timeline_ui(harmony_tlui, 10)
+        tilia_state.current_time = 50
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        assert len(harmony_tlui) == 2
+        assert harmony_tlui[1].get_data("time") == 50
+
+    def test_paste_multiple_into_timeline(self, harmony_tlui, tilia_state):
+        _, mui1 = harmony_tlui.create_mode(0)
+        _, mui2 = harmony_tlui.create_mode(10)
+        _, mui3 = harmony_tlui.create_mode(20)
+        click_mode_ui(mui1)
+        click_mode_ui(mui2, modifier="shift")
+        click_mode_ui(mui3, modifier="shift")
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        click_timeline_ui(harmony_tlui, 90)
+        tilia_state.current_time = 50
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        assert len(harmony_tlui) == 6
+        assert harmony_tlui[3].get_data("time") == 50
+        assert harmony_tlui[4].get_data("time") == 60
+        assert harmony_tlui[5].get_data("time") == 70
+
+    def test_paste_single_into_element(self, harmony_tlui):
+        attributes_to_copy = {
+            "step": 2,
+            "accidental": 1,
+            "type": "minor",
+            "comments": "some comments",
+        }
+        _, copied_mui = harmony_tlui.create_mode(0, **attributes_to_copy)
+        _, target_mui = harmony_tlui.create_mode(
+            10,
+            step=1,
+            accidental=-1,
+            type="major",
+            comments="other comments",
+        )
+
+        click_mode_ui(copied_mui)
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        click_mode_ui(target_mui)
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        assert len(harmony_tlui) == 2
+        for attr, value in attributes_to_copy.items():
+            assert target_mui.get_data(attr) == attributes_to_copy[attr]
+
+    def test_paste_multiple_into_element(self, harmony_tlui):
+        attributes_to_copy = {
+            "step": 2,
+            "accidental": 1,
+            "type": "minor",
+            "comments": "some comments",
+        }
+        copied_muis = []
+        for i in range(3):
+            _, mui1 = harmony_tlui.create_mode(i * 10, **attributes_to_copy)
+            copied_muis.append(mui1)
+
+        _, target_mui = harmony_tlui.create_mode(
+            50,
+            step=1,
+            accidental=-1,
+            type="major",
+            comments="other comments",
+        )
+
+        for mui in copied_muis:
+            click_mode_ui(mui, modifier="shift")
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        click_timeline_ui(harmony_tlui, 90)
+        click_mode_ui(target_mui)
+        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        assert len(harmony_tlui) == 6
+        for attr, value in attributes_to_copy.items():
+            assert target_mui.get_data(attr) == attributes_to_copy[attr]

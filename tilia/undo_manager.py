@@ -1,29 +1,40 @@
 from __future__ import annotations
 import logging
 
+import tilia.requests.post
 from tilia.requests import Post, listen, post
-from tilia.repr import default_str
-from tilia.timelines.state_actions import Action
+from tilia.utils import get_tilia_class_string
 
 logger = logging.getLogger(__name__)
 
 
 class UndoManager:
     def __init__(self) -> None:
-        listen(self, Post.REQUEST_TO_UNDO, self.undo)
-        listen(self, Post.REQUEST_TO_REDO, self.redo)
+        listen(self, Post.EDIT_UNDO, self.undo)
+        listen(self, Post.EDIT_REDO, self.redo)
+        listen(self, Post.UNDO_MANAGER_SET_IS_RECORDING, self.set_is_recording)
 
         self.stack = []
         self.current_state_index = -1
         self.last_repeat_id = None
+        self.is_recording = True
 
     def __str__(self):
-        return default_str(self)
+        return get_tilia_class_string(self)
+
+    @property
+    def is_cleared(self):
+        return len(self.stack) == 1
+
+    def set_is_recording(self, value: bool):
+        if not isinstance(value, bool):
+            raise ValueError("UndoManager.is_recording must be a boolean")
+        self.is_recording = value
 
     def record(
         self,
         state,
-        action: Action | str,
+        action: str,
         no_repeat=False,
         repeat_identifier="",
     ):
@@ -32,60 +43,39 @@ class UndoManager:
         object. The App call should to be triggered by posting
         Post.REQUEST_RECORD_STATE *after* 'action' has been done.
         """
+        if not self.is_recording:
+            return
 
         # discard undone states, if any
         self.discard_undone()
 
-        logger.debug(f"Recording {action}.")
-
         if no_repeat and self.last_repeat_id == repeat_identifier:
-            logger.debug(
-                f"No repeat is on and action is same last ({action},"
-                f" {repeat_identifier}). Updating recorded state."
-            )
+            # No repeat is on and action is same as last. Replace recorded state."
             self.stack[-1]["state"] = state
             return
 
         self.stack.append({"state": state, "action": action})
-        logger.debug("State recorded.")
 
         if repeat_identifier:
             self.last_repeat_id = repeat_identifier
 
     def undo(self):
-        """Undoes last action"""
-
-        if abs(self.current_state_index) == len(self.stack):
-            logger.debug("No actions to undo.")
+        if abs(self.current_state_index) == len(self.stack) or not self.stack:
             return
 
         last_state = self.stack[self.current_state_index - 1]["state"]
-        current_action = self.stack[self.current_state_index]["action"]
 
-        logger.debug(f"Undoing {current_action}...")
-
-        post(Post.REQUEST_RESTORE_APP_STATE, last_state)
-
-        logger.debug(f"Undone {current_action}.")
+        post(Post.APP_STATE_RESTORE, last_state)
 
         self.current_state_index -= 1
 
     def redo(self):
-        """Redoes next action on stack"""
-        logger.debug("Redoing action...")
-
         if self.current_state_index == -1:
-            logger.debug("No action to redo.")
             return
 
         next_state = self.stack[self.current_state_index + 1]["state"]
-        next_action = self.stack[self.current_state_index + 1]["action"]
 
-        logger.debug(f"Redoing {next_action}...")
-
-        post(Post.REQUEST_RESTORE_APP_STATE, next_state)
-
-        logger.debug(f"Redone {next_action}.")
+        post(Post.APP_STATE_RESTORE, next_state)
 
         self.current_state_index += 1
 
@@ -101,3 +91,13 @@ class UndoManager:
     def clear(self):
         self.stack = []
         self.current_state_index = -1
+
+
+class PauseUndoManager:
+    def __enter__(self):
+        post(Post.UNDO_MANAGER_SET_IS_RECORDING, False)
+        tilia.requests.post.LOGGING_ACTIVE = False
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        post(Post.UNDO_MANAGER_SET_IS_RECORDING, True)
+        tilia.requests.post.LOGGING_ACTIVE = True

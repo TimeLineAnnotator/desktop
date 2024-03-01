@@ -22,7 +22,6 @@ class SliderTimeline(Timeline):
         """Nothing to do. Must impement abstract method."""
 
     def get_state(self) -> dict:
-        logger.debug(f"Serializing {self}...")
         result = {}
 
         for attr in self.SERIALIZABLE_BY_VALUE:
@@ -33,6 +32,9 @@ class SliderTimeline(Timeline):
 
         return result
 
+    def deserialize_components(self, components: dict[int, dict[str]]):
+        pass
+
     def clear(self, _=True):
         """Nothing to do."""
 
@@ -40,4 +42,7 @@ class SliderTimeline(Timeline):
         """Nothing to do."""
 
     def restore_state(self, state: dict):
+        """Nothing to do"""
+
+    def crop(self):
         """Nothing to do"""

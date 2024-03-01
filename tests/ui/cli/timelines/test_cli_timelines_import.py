@@ -23,6 +23,7 @@ class DummyMarkerTl:
     def clear(self):
         pass
 
+
 class DummyHierarchyTl:
     KIND = TimelineKind.HIERARCHY_TIMELINE
 
@@ -189,7 +190,7 @@ class TestGetTimelinesForImport:
     def run_test_case(case: ImportTestCase, tls):
         for kind, name in case.timelines:
             with PatchGet(
-                "tilia.timelines.collection", Get.BEAT_PATTERN_FROM_USER, [2]
+                "tilia.timelines.collection", Get.FROM_USER_BEAT_PATTERN, [2]
             ):
                 tls.create_timeline(kind=kind, name=name)
 

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import prettytable
-import builtins
 
 
-def print(message: str) -> None:
+def output(message: str) -> None:
     """
     Prints message to user.
     """
-    builtins.print(message)
+    print(message)
 
 
 def tabulate(headers: list[str], data: list[tuple[str, ...]]) -> None:
@@ -18,7 +17,7 @@ def tabulate(headers: list[str], data: list[tuple[str, ...]]) -> None:
     table = prettytable.PrettyTable()
     table.field_names = headers
     table.add_rows(data)
-    print(str(table))
+    output(str(table))
 
 
 def ask_for_string(prompt: str) -> str:
@@ -39,4 +38,4 @@ def ask_yes_or_no(prompt: str) -> bool:
     """
     Prompts the user for a yes or no answer
     """
-    return input(prompt + ' (y)es/(n)o: ').lower() in ['y', 'yes']
+    return input(prompt + " (y)es/(n)o: ").lower() in ["y", "yes"]

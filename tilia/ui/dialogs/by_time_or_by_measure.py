@@ -1,33 +1,37 @@
-import tkinter as tk
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QDialog,
+    QLabel,
+    QRadioButton,
+    QVBoxLayout,
+    QDialogButtonBox,
+)
 
-from tilia.ui.dialogs.tilia_dialog import TiliaDialog
 
-
-class ByTimeOrByMeasure(TiliaDialog):
+class ByTimeOrByMeasure(QDialog):
     def __init__(self, parent):
-        super().__init__(parent, title="Import makers from .csv")
-        self.var = tk.StringVar()
+        super().__init__(parent)
+        self.setFixedSize(300, 110)
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._toplevel.geometry("300x110")
-
-        self.prompt = tk.Label(self._toplevel, text="Import using:")
-        self.radio_frame = tk.Frame(self._toplevel)
-        self.radio_time = tk.Radiobutton(
-            self.radio_frame, text="Time", variable=self.var, value="time"
+        prompt = QLabel("Import using:")
+        time_radio = QRadioButton("Time")
+        measure_and_fraction_radio = QRadioButton("Measure")
+        time_radio.setChecked(True)
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
         )
-        self.radio_measure = tk.Radiobutton(
-            self.radio_frame,
-            text="Measure and fraction",
-            variable=self.var,
-            value="measure",
-        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
 
-        self.prompt.pack()
-        self.radio_frame.pack()
-        self.radio_time.pack()
-        self.radio_measure.pack()
+        layout.addWidget(prompt)
+        layout.addWidget(time_radio)
+        layout.addWidget(measure_and_fraction_radio)
+        layout.addWidget(button_box)
 
-        self.var.set("time")
+        def get_option():
+            return "time" if time_radio.isChecked() else "measure"
 
-    def get_return_value(self):
-        return self.var.get()
+        self.get_option = get_option

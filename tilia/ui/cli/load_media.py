@@ -1,9 +1,7 @@
-from argparse import _SubParsersAction
-
 from tilia.requests import Post, post
 
 
-def setup_parser(subparsers: _SubParsersAction):
+def setup_parser(subparsers):
     parser = subparsers.add_parser("load-media", exit_on_error=False)
 
     parser.add_argument(
@@ -19,4 +17,4 @@ def setup_parser(subparsers: _SubParsersAction):
 def load_media(namespace):
     path = " ".join(namespace.path).strip('"')  # for paths with spaces or double quotes
 
-    post(Post.REQUEST_LOAD_MEDIA, path)
+    post(Post.APP_MEDIA_LOAD, path)

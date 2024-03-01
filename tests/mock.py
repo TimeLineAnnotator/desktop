@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Any, Sequence
 from unittest.mock import patch, Mock
 
-from tilia.requests import Get, Post
+from tilia.requests import Get, Post, serve, server, stop_serving
 from tilia.requests import get as get_original
 from tilia.requests import post as post_original
 
@@ -28,6 +28,53 @@ class PatchGetMultiple:
             return self.requests_to_return_values[request]
         else:
             return get_original(request, *args, **kwargs)
+
+
+class Serve:
+    def __init__(self, request: Get, return_value: Any):
+        self.request = request
+        self.return_value = return_value
+        self.original_server, self.original_callback = server(self.request)
+        self.called = False
+
+    def __enter__(self):
+        stop_serving(self.original_server, self.request)
+        serve(self, self.request, self._callback)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        stop_serving(self, self.request)
+        serve(self.original_server, self.request, self.original_callback)
+
+    def _callback(self, *_, **__):
+        self.called = True
+        return self.return_value
+
+
+
+class ServeSequence:
+    def __init__(self, request: Get, return_values: Sequence[Any]):
+        self.request = request
+        self.return_values = return_values
+        self.return_count = 0
+        self.original_server, self.original_callback = server(self.request)
+
+    def __enter__(self):
+        stop_serving(self.original_server, self.request)
+        serve(self, self.request, self._callback)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        stop_serving(self, self.request)
+        serve(self.original_server, self.request, self.original_callback)
+
+    def _callback(self, *_, **__):
+        try:
+            return_value = self.return_values[self.return_count]
+        except IndexError as exc:
+            raise IndexError('Not enough return values to serve')
+
+        self.return_count += 1
+        return return_value
 
 
 class PatchGet:

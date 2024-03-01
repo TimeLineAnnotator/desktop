@@ -2,9 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
-from tilia import settings
+from tilia.timelines.base.validators import (
+    validate_time,
+    validate_string,
+    validate_color,
+    validate_read_only,
+    validate_pre_validated,
+)
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.exceptions import TiliaException
 from tilia.timelines.base.component import TimelineComponent
 
 if TYPE_CHECKING:
@@ -35,83 +40,59 @@ class Hierarchy(TimelineComponent):
     SERIALIZABLE_BY_ID = ["parent"]
     SERIALIZABLE_BY_ID_LIST = ["children"]
 
+    validators = {
+        "timeline": validate_read_only,
+        "id": validate_read_only,
+        "start": validate_time,
+        "end": validate_time,
+        "pre_start": validate_time,
+        "post_end": validate_time,
+        "label": validate_string,
+        "color": validate_color,
+        "comments": validate_string,
+        "level": validate_pre_validated,
+        "formal_type": validate_string,
+        "formal_function": validate_string,
+    }
+
     KIND = ComponentKind.HIERARCHY
+    ORDERING_ATTRS = ("level", "start")
 
     def __init__(
         self,
         timeline: HierarchyTimeline,
+        id: int,
         start: float,
         end: float,
         level: int,
-        label: str,
+        label: str = "",
         parent=None,
         children=None,
         comments="",
         pre_start=None,
         post_end=None,
-        color=None,
+        color="",
         formal_type="",
         formal_function="",
         **_,
     ):
-        super().__init__(timeline)
+        super().__init__(timeline, id)
 
         self._start = start
         self._end = end
         self.level = level
         self.label = label
         self.comments = comments
-        self.color = color or get_default_color(level)
+        self.color = color
 
         self.formal_type = formal_type
         self.formal_function = formal_function
 
         self.parent = parent
 
-        self.children = children if children else []
+        self.children = children or []
         self.pre_start = pre_start if pre_start is not None else self.start
         self.post_end = post_end if post_end is not None else self.end
-
-    def __lt__(self, other):
-        return (self.level, self.start) < (other.level, other.start)
-
-    @classmethod
-    def create(
-        cls,
-        timeline: HierarchyTimeline,
-        start: float,
-        end: float,
-        level: int,
-        parent=None,
-        children=None,
-        label="",
-        comments="",
-        pre_start=None,
-        post_end=None,
-        color=None,
-        formal_type="",
-        formal_function="",
-        **kwargs,
-    ):
-        return Hierarchy(
-            timeline,
-            start=start,
-            end=end,
-            level=level,
-            label=label,
-            parent=parent,
-            children=children,
-            comments=comments,
-            pre_start=pre_start,
-            post_end=post_end,
-            color=color,
-            formal_type=formal_type,
-            formal_function=formal_function,
-            **kwargs,
-        )
-
-    def receive_delete_request_from_ui(self) -> None:
-        self.timeline.on_request_to_delete_components([self])
 
     @property
     def start(self):
@@ -119,7 +100,6 @@ class Hierarchy(TimelineComponent):
 
     @start.setter
     def start(self, value):
-        logger.debug(f"Setting {self} start to {value}")
         prev_start = self._start
         self._start = value
         if self.pre_start > value or self.pre_start == prev_start:
@@ -131,7 +111,6 @@ class Hierarchy(TimelineComponent):
 
     @end.setter
     def end(self, value):
-        logger.debug(f"Setting {self} end to {value}")
         prev_end = self._end
         self._end = value
         if self.post_end < value or self.post_end == prev_end:
@@ -146,12 +125,3 @@ class Hierarchy(TimelineComponent):
             pass  # UI has not been created yet
         repr_ += ")"
         return repr_
-
-
-def get_default_color(level: int) -> str:
-    colors = settings.get("hierarchy_timeline", "hierarchy_default_colors")
-    return colors[level % len(colors)]
-
-
-class HierarchyOperationError(TiliaException):
-    pass

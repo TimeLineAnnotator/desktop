@@ -1,21 +1,24 @@
 import os
 from pathlib import Path
 
+from PyQt6.QtCore import QDir, QTemporaryDir
+
 import tilia
 import appdirs
-import shutil
 import tomlkit
 
-from tilia import globals_, settings
+import tilia.constants
+from tilia import settings
 
 settings_path = Path()
 autosaves_path = Path()
 log_path = Path()
+temp_dir: QDir | None = None
 temp_path = Path()
 img_path = Path("ui", "img")
 ffmpeg_path = Path("ffmpeg", "ffmpeg.exe")
-_SITE_DATA_DIR = Path(appdirs.site_data_dir(globals_.APP_NAME))
-_USER_DATA_DIR = Path(appdirs.user_data_dir(globals_.APP_NAME, roaming=True))
+_SITE_DATA_DIR = Path(appdirs.site_data_dir(tilia.constants.APP_NAME))
+_USER_DATA_DIR = Path(appdirs.user_data_dir(tilia.constants.APP_NAME, roaming=True))
 data_path = _SITE_DATA_DIR
 
 
@@ -33,13 +36,13 @@ def get_tests_path() -> Path:
 
 def setup_data_dir() -> Path:
     if os.path.exists(_SITE_DATA_DIR):
-        data_path = _SITE_DATA_DIR
+        path = _SITE_DATA_DIR
     elif os.path.exists(_USER_DATA_DIR):
-        data_path = _USER_DATA_DIR
+        path = _USER_DATA_DIR
     else:
-        data_path = create_data_dir()
+        path = create_data_dir()
 
-    return data_path
+    return path
 
 
 def setup_settings_file(data_dir):
@@ -52,9 +55,10 @@ def setup_autosaves_path(data_dir):
         create_autosaves_dir(data_dir)
 
 
-def setup_temp_path(data_dir):
-    if not os.path.exists(temp_path):
-        create_temp_dir(data_dir)
+def setup_temp_path():
+    global temp_dir
+    temp_dir = QTemporaryDir()
+    return temp_dir.path()
 
 
 def setup_dirs() -> None:
@@ -70,8 +74,7 @@ def setup_dirs() -> None:
     autosaves_path = Path(data_dir, "autosaves")
     setup_autosaves_path(data_dir)
 
-    temp_path = Path(data_dir, ".temp")
-    setup_temp_path(data_dir)
+    temp_path = setup_temp_path()
 
     log_path = Path(data_dir, "log.txt")
 
@@ -79,12 +82,12 @@ def setup_dirs() -> None:
 def create_data_dir() -> Path:
     try:
         os.makedirs(_SITE_DATA_DIR)
-        data_path = _SITE_DATA_DIR
+        _data_path = _SITE_DATA_DIR
     except PermissionError:
         os.makedirs(_USER_DATA_DIR)
-        data_path = _USER_DATA_DIR
+        _data_path = _USER_DATA_DIR
 
-    return data_path
+    return _data_path
 
 
 def create_settings_file(data_dir: Path):
@@ -98,7 +101,3 @@ def create_autosaves_dir(data_dir: Path):
 
 def create_temp_dir(data_dir: Path):
     os.mkdir(Path(data_dir, ".temp"))
-
-
-def delete_temp_dir():
-    shutil.rmtree(temp_path)

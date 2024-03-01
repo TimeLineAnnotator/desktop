@@ -1,0 +1,113 @@
+from typing import Optional
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import (
+    QPainter,
+    QMouseEvent,
+    QGuiApplication,
+    QColor,
+    QBrush,
+)
+from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QSizePolicy, QFrame
+
+from tilia import settings
+from tilia.requests import post, Post, Get, get
+
+
+class TimelineView(QGraphicsView):
+    def __init__(self, scene: QGraphicsScene):
+        super().__init__()
+        self.setScene(scene)
+        self.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(int(scene.height()))
+        self.setFixedWidth(int(get(Get.TIMELINE_WIDTH)))
+
+        self.setFrameStyle(QFrame.Shape.NoFrame)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setBackgroundBrush(QBrush(QColor(settings.get("general", "timeline_bg"))))
+
+        self.dragging = False
+        self.proxy = None  # will be set by TimelineUIs
+
+    def mousePressEvent(self, event: Optional[QMouseEvent]) -> None:
+        def handle_left_click():
+            self.dragging = True
+            post(
+                Post.TIMELINE_VIEW_LEFT_CLICK,
+                self,
+                event.pos().x(),
+                event.pos().y(),
+                self.itemAt(event.pos()),
+                QGuiApplication.keyboardModifiers(),
+                double=False,
+            )
+
+        def handle_right_click():
+            post(
+                Post.TIMELINE_VIEW_RIGHT_CLICK,
+                self,
+                self.mapToGlobal(event.pos()).x(),
+                self.mapToGlobal(event.pos()).y(),
+                self.itemAt(event.pos()),
+                QGuiApplication.keyboardModifiers(),
+                double=False,
+            )
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            handle_left_click()
+        elif event.button() == Qt.MouseButton.RightButton:
+            handle_right_click()
+
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            post(
+                Post.TIMELINE_VIEW_DOUBLE_LEFT_CLICK,
+                self,
+                event.pos().x(),
+                event.pos().y(),
+                self.itemAt(event.pos()),
+                QGuiApplication.keyboardModifiers(),
+                double=True,
+            )
+
+    def mouseReleaseEvent(self, event: Optional[QMouseEvent]) -> None:
+        if self.dragging:
+            self.dragging = False
+            post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        super().mouseReleaseEvent(event)
+
+    def mouseMoveEvent(self, event: Optional[QMouseEvent]) -> None:
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, event.pos().x(), event.pos().y())
+
+        super().mouseMoveEvent(event)
+
+    def wheelEvent(self, event) -> None:
+        if event.angleDelta().y() > 0:
+            post(Post.VIEW_ZOOM_IN)
+        elif event.angleDelta().y() < 0:
+            post(Post.VIEW_ZOOM_OUT)
+
+    def set_height(self, value):
+        self.setFixedHeight(value)
+
+    def set_is_visible(self, value):
+        self.show() if value else self.hide()
+
+    def keyPressEvent(self, event) -> None:
+        request = {
+            Qt.Key.Key_Right: Post.TIMELINE_KEY_PRESS_RIGHT,
+            Qt.Key.Key_Left: Post.TIMELINE_KEY_PRESS_LEFT,
+            Qt.Key.Key_Up: Post.TIMELINE_KEY_PRESS_UP,
+            Qt.Key.Key_Down: Post.TIMELINE_KEY_PRESS_DOWN,
+        }.get(event.key(), None)
+
+        if request:
+            post(request)
+
+        super().keyPressEvent(event)
