@@ -368,6 +368,17 @@ class TestActions:
         assert beat_tlui[2].get_data("time") == 4
         assert beat_tlui[3].get_data("time") == 6
 
+    def test_distribute_beats_on_last_measure(self, beat_tlui, actions):
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(1)
+
+        beat_tlui.select_element(beat_tlui[0])
+
+        actions.trigger(TiliaAction.BEAT_DISTRIBUTE)
+
+        assert beat_tlui[0].get_data('time') == 0
+        assert beat_tlui[1].get_data('time') == 1
+
     def test_change_beats_in_measure(self, beat_tlui, actions):
         beat_tlui.create_beat(0)
 

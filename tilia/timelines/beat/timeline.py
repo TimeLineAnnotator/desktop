@@ -423,7 +423,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         if measure_index == self.timeline.measure_count - 1:
             prompt = "Can't distribute measures on last measure."
             post(Post.DISPLAY_ERROR, "Distribute measure", prompt)
-            raise ValueError(prompt)
+            return
 
         beats_in_measure = self.get_beats_in_measure(measure_index)
 
