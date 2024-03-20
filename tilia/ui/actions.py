@@ -236,7 +236,7 @@ taction_to_params = {
         Post.HARMONY_ADD, "Add harmony", "harmony_add", "h"
     ),
     TiliaAction.MODE_DELETE: ActionParams(
-        Post.MODE_DELETE, "Delete mode", "mode_delete", ""
+        Post.MODE_DELETE, "Delete key", "mode_delete", ""
     ),
     TiliaAction.MODE_ADD: ActionParams(Post.MODE_ADD, "Add mode", "mode_add", ""),
     TiliaAction.HARMONY_DISPLAY_AS_ROMAN_NUMERAL: ActionParams(
