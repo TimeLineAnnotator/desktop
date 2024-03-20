@@ -186,7 +186,7 @@ class App:
 
     def setup_file(self):
         # creates a slider timeline if none was loaded
-        if get(Get.TIMELINE_COLLECTION).is_empty:
+        if not get(Get.TIMELINE_COLLECTION).has_timeline_of_kind(TimelineKind.SLIDER_TIMELINE):
             self.timelines.create_timeline(TimelineKind.SLIDER_TIMELINE)
             self.file_manager.set_timelines(self.get_timelines_state())
 

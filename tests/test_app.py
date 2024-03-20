@@ -206,3 +206,24 @@ class TestMediaLoad:
         self._load_media(actions, "invalid.xyz")
         self._load_media(actions, self.EXAMPLE_PATH_OGG)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+
+class TestFileSetup:
+    def test_slider_timeline_is_created_when_loaded_file_does_not_have_one(self, tls):
+        file_data = tests.utils.get_blank_file_data()
+        file_data['timelines'] = {
+            'name': '',
+            'height': 40,
+            'is_visible': True,
+            'ordinal': 1,
+            'components': {},
+            'kind': 'HIERARCHY_TIMELINES'
+        }  # empty hierarchy timeline
+        tmp_file = tmp_path / "test_file_setup.tla"
+        tmp_file.write_text(json.dumps(file_data))
+        with PatchGet(
+            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
+        ):
+            actions.trigger(TiliaAction.FILE_OPEN)
+            
+        assert len(tls) == 2
+        assert tls[0].KIND == TimelineKind.SLIDER_TIMELINE

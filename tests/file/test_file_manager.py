@@ -91,7 +91,7 @@ class TestFileManager:
         ):
             actions.trigger(TiliaAction.FILE_OPEN)
 
-        assert len(tls) == 1
+        assert len(tls) == 2  # Slider timeline is also created by default
         assert len(tls[0]) == 3
 
     def test_file_not_modified_after_open(self, tilia):
