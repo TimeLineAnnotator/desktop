@@ -136,6 +136,9 @@ class Timelines:
 
         return kind
 
+    def has_timeline_of_kind(kind: TlKind):
+        return kind in self.timeline_kinds
+    
     def create_timeline(
         self,
         kind: TlKind | str,
