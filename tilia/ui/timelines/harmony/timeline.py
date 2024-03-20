@@ -133,16 +133,22 @@ class HarmonyTimelineUI(TimelineUI):
         )
 
         first_selected_element = self.selected_elements[0]
+        if first_selected_element.kind == paste_data[0]["support_by_component_value"]['KIND']:
+            self.deselect_element(self.selected_elements[0])
+            paste_into_element(first_selected_element, paste_data[0])
+            self.select_element(first_selected_element)
 
-        self.deselect_element(self.selected_elements[0])
-        paste_into_element(first_selected_element, paste_data[0])
-        self.select_element(first_selected_element)
-
-        self.create_pasted_components(
-            paste_data[1:],
-            paste_data[0]["support_by_component_value"]["time"],
-            self.selected_elements[0].get_data("time"),
-        )
+            self.create_pasted_components(
+                paste_data[1:],
+                paste_data[0]["support_by_component_value"]["time"],
+                self.selected_elements[0].get_data("time"),
+            )
+        else:
+            self.create_pasted_components(
+                paste_data,
+                paste_data[0]["support_by_component_value"]["time"],
+                self.selected_elements[0].get_data("time"),
+            )
 
     def paste_single_into_timeline(self, paste_data: list[dict] | dict):
         return self.paste_multiple_into_timeline(paste_data)
