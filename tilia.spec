@@ -3,6 +3,8 @@ import argparse
 
 from pathlib import Path
 
+import tilia.constants
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", action="store_true")
 options = parser.parse_args()
@@ -33,7 +35,7 @@ if options.debug:
     exe = EXE(
         pyz,
         a.scripts,
-        name="tilia",
+        name="tilia-" + tilia.constants.VERSION,
         console=True,
         embed_manifest=True,
         exclude_binaries=True,
@@ -48,7 +50,28 @@ else:
         a.datas,
         a.binaries,
         name="tilia",
-        console=False,
+	    console=False,
         embed_manifest=True,
         icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
     )
+    app = BUNDLE(
+        exe,
+        name='TiLiA.app',
+        icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
+        version=tilia.constants.VERSION,
+        info_plist={
+            'NSPrincipalClass': 'NSApplication',
+            'NSAppleScriptEnabled': False,
+            'CFBundleDocumentTypes': [
+                {
+                    'CFBundleTypeName': 'My File Format',
+                    'CFBundleTypeIconFile': 'MyFileIcon.icns',
+                    'LSItemContentTypes': ['com.example.myformat'],
+                    'LSHandlerRank': 'Owner'
+                    }
+                ]
+            },
+    )
+
+
+
