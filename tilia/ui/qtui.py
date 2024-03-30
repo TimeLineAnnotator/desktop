@@ -89,7 +89,6 @@ class TiliaMainWindow(QMainWindow):
         event.ignore()
 
     def on_close(self):
-        print("Hello")
         settings.edit("general", "window_width", self.width())
         settings.edit("general", "window_height", self.height())
         settings.edit("general", "window_x", self.x())
@@ -146,10 +145,6 @@ class QtUI:
                 Post.WINDOW_METADATA_OPEN,
                 lambda: self.on_window_open(WindowKind.MEDIA_METADATA),
             ),
-            # (
-            #     Post.WINDOW_METADATA_CLOSED,
-            #     lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA),
-            # ),
             (
                 Post.WINDOW_ABOUT_OPEN,
                 lambda: self.on_window_open(WindowKind.ABOUT),
