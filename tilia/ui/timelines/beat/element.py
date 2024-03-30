@@ -3,7 +3,6 @@ Defines the ui corresponding to a Beat object.
 """
 
 from __future__ import annotations
-import logging
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QLineF, QPointF
@@ -23,8 +22,6 @@ from ...windows.inspect import InspectRowKind
 if TYPE_CHECKING:
     from .timeline import BeatTimelineUI
     from tilia.ui.timelines.scene import TimelineScene
-
-logger = logging.getLogger(__name__)
 
 
 class BeatUI(TimelineUIElement):

@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import sys
 from functools import partial
-import logging
 from pathlib import Path
 
 from typing import Optional, Callable
@@ -43,8 +42,6 @@ from tilia.utils import get_tilia_class_string
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.requests import Post, listen, post, serve, Get, get
 from tilia import parsers
-
-logger = logging.getLogger(__name__)
 
 
 class TiliaMainWindow(QMainWindow):

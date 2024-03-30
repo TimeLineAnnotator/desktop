@@ -1,12 +1,8 @@
-import logging
-
 from tilia.timelines.marker.timeline import (
     MarkerTimeline,
 )
 from tilia.timelines.serialize import serialize_component, _deserialize_component
 from tilia.timelines.timeline_kinds import TimelineKind
-
-logger = logging.getLogger(__name__)
 
 
 class TestMarkerTimeline:

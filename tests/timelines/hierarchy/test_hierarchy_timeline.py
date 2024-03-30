@@ -1,6 +1,5 @@
 import pytest
 import itertools
-import logging
 
 from tilia.exceptions import InvalidComponentKindError
 from tilia.timelines.hierarchy.timeline import (
@@ -11,8 +10,6 @@ from tilia.timelines.hierarchy.timeline import (
 from tilia.timelines.serialize import serialize_component, _deserialize_component
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
-
-logger = logging.getLogger(__name__)
 
 
 class HierarchyUIDummy:

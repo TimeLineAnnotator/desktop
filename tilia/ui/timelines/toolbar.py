@@ -1,10 +1,6 @@
-import logging
-
 from PyQt6.QtWidgets import QToolBar
 
 from tilia.ui import actions
-
-logger = logging.getLogger(__name__)
 
 
 class TimelineToolbar(QToolBar):

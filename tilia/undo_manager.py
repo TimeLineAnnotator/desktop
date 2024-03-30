@@ -1,11 +1,8 @@
 from __future__ import annotations
-import logging
 
 import tilia.requests.post
 from tilia.requests import Post, listen, post
 from tilia.utils import get_tilia_class_string
-
-logger = logging.getLogger(__name__)
 
 
 class UndoManager:

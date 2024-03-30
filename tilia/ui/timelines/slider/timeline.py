@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-import logging
 
 from PyQt6.QtCore import QRectF, QLineF
 from PyQt6.QtGui import QPen, QColor, QBrush
@@ -19,8 +18,6 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.view import TimelineView
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.scene import TimelineScene

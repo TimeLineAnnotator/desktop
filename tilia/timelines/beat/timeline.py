@@ -1,5 +1,4 @@
 from __future__ import annotations
-import logging
 import itertools
 from typing import TYPE_CHECKING, Optional
 
@@ -12,8 +11,6 @@ from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
 
 if TYPE_CHECKING:
     from tilia.timelines.beat.components import Beat
-
-logger = logging.getLogger(__name__)
 
 
 class BeatTimeline(Timeline):
@@ -298,7 +295,6 @@ class BeatTimeline(Timeline):
         try:
             self.unforce_display_measure_number(measure_index)
         except ValueError:
-            logger.debug("Measure number was already at default.")
             pass
 
     def force_display_measure_number(self, measure_index: int) -> None:
@@ -438,13 +434,11 @@ class BeatTLComponentManager(TimelineComponentManager):
             )
 
     def scale(self, factor: float) -> None:
-        logger.debug(f"Scaling beats in {self}...")
         for beat in self._components:
             beat.time *= factor
             self.post_component_event(Post.BEAT_TIME_CHANGED, beat.id)
 
     def crop(self, length: float) -> None:
-        logger.debug(f"Cropping beats in {self}...")
         for beat in self._components.copy():
             if beat.time > length:
                 self.delete_component(beat)

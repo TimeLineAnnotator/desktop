@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-import logging
 
 from tilia.timelines.base.validators import (
     validate_time,
@@ -14,8 +13,6 @@ from tilia.timelines.base.component import TimelineComponent
 
 if TYPE_CHECKING:
     from tilia.timelines.hierarchy.timeline import HierarchyTimeline
-
-logger = logging.getLogger(__name__)
 
 
 class HierarchyLoadError(Exception):

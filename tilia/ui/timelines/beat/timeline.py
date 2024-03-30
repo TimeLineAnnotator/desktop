@@ -1,5 +1,4 @@
 from __future__ import annotations
-import logging
 import copy
 
 from tilia.requests import get, Get
@@ -14,8 +13,6 @@ from tilia.ui.timelines.collection.requests.enums import ElementSelector
 from tilia.ui.timelines.copy_paste import (
     get_copy_data_from_element,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class BeatTimelineUI(TimelineUI):

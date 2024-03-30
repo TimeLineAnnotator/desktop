@@ -1,5 +1,4 @@
 from __future__ import annotations
-import logging
 
 from tilia import settings
 from tilia.timelines.hierarchy.common import (
@@ -21,8 +20,6 @@ from tilia.ui.timelines.hierarchy.key_press_manager import (
 )
 from tilia.ui.timelines.hierarchy.request_handlers import HierarchyUIRequestHandler
 from tilia.undo_manager import PauseUndoManager
-
-logger = logging.getLogger(__name__)
 
 
 class HierarchyTimelineUI(TimelineUI):
@@ -123,7 +120,6 @@ class HierarchyTimelineUI(TimelineUI):
         new_child_start = (
             relative_child_start * scale_factor
         ) + new_parent.tl_component.start
-        logger.debug(f"New child start is '{new_child_start}'")
 
         relative_child_end = (
             child_pastedata_["support_by_component_value"]["end"] - prev_parent_end
@@ -132,7 +128,6 @@ class HierarchyTimelineUI(TimelineUI):
         new_child_end = (
             relative_child_end * scale_factor
         ) + new_parent.tl_component.end
-        logger.debug(f"New child end is '{new_child_end}'")
 
         component, _ = self.timeline.create_timeline_component(
             kind=ComponentKind.HIERARCHY,

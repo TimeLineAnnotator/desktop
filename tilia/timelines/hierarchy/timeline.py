@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import itertools
 from typing import Any
 
@@ -11,8 +10,6 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy
-
-logger = logging.getLogger(__name__)
 
 
 class HierarchyTimeline(Timeline):
@@ -581,14 +578,12 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         self._update_genealogy_after_deletion(component)
 
     def scale(self, factor: float) -> None:
-        logger.debug(f"Scaling hierarchies in {self}...")
         for hrc in self._components:
             hrc.start *= factor
             hrc.end *= factor
             self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
 
     def crop(self, length: float) -> None:
-        logger.debug(f"Cropping hierarchies in {self}...")
         for hrc in self._components.copy():
             if hrc.end > length:
                 if hrc.start >= length:
@@ -598,12 +593,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
 
     def _update_genealogy_after_deletion(self, component: Hierarchy) -> None:
-        logger.debug("Updating component's parent/children relation after deletion...")
-
         if not component.parent:
-            logger.debug("Component had no parent.")
             for child in component.children:
-                logger.debug(f"Setting previous child={child}'s parent as None")
                 child.parent = None
             return
 
@@ -613,7 +604,5 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         if component.children:
             component_parent_new_children += component.children
-
-        logger.debug(f"Parent's new children are {component_parent_new_children}")
 
         self._update_genealogy(component.parent, component_parent_new_children)

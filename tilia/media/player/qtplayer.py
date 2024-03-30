@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import logging
 import time
 
 from PyQt6.QtCore import QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from .base import Player
-
-logger = logging.getLogger(__name__)
 
 
 class QtPlayer(Player):
