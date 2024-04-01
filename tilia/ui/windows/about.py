@@ -1,8 +1,10 @@
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QMainWindow, QDialog
 
 import tilia.constants
 
+from tilia.requests import Post, post
 
 class About(QDialog):
     def __init__(self, parent: QMainWindow):
@@ -34,3 +36,7 @@ class About(QDialog):
         layout.addWidget(license_label)
 
         self.show()
+
+    def closeEvent(self, event):        
+        post(Post.WINDOW_ABOUT_CLOSED)
+        return super().closeEvent(event)
