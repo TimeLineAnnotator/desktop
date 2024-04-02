@@ -75,6 +75,7 @@ class TiliaAction(Enum):
     TIMELINE_ORDINAL_INCREASE = auto()
     VIEW_ZOOM_IN = auto()
     VIEW_ZOOM_OUT = auto()
+    WEBSITE_HELP_OPEN = auto()
     WINDOW_MANAGE_TIMELINES_OPEN = auto()
     INSPECT_WINDOW_CLOSE = auto()
 
@@ -362,6 +363,9 @@ taction_to_params = {
     ),
     TiliaAction.INSPECT_WINDOW_CLOSE: ActionParams(
         Post.WINDOW_INSPECT_CLOSE, "Close", "", ""
+    ),
+    TiliaAction.WEBSITE_HELP_OPEN: ActionParams(
+        Post.WEBSITE_HELP_OPEN, "Help...", "", ""
     ),
 }
 

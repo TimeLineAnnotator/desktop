@@ -141,4 +141,7 @@ class ViewMenu(TiliaMenu):
 
 class HelpMenu(TiliaMenu):
     title = "Help"
-    items = [(MenuItemKind.ACTION, TiliaAction.ABOUT_WINDOW_OPEN)]
+    items = [
+        (MenuItemKind.ACTION, TiliaAction.ABOUT_WINDOW_OPEN),
+        (MenuItemKind.ACTION, TiliaAction.WEBSITE_HELP_OPEN)
+    ]
