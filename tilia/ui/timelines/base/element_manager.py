@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import bisect
 from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic
 
@@ -18,7 +17,6 @@ if TYPE_CHECKING:
 
     # noinspection PyUnresolvedReferences
 
-logger = logging.getLogger(__name__)
 
 TE = TypeVar("TE", bound=TimelineUIElement)
 

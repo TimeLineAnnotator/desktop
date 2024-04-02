@@ -1,5 +1,4 @@
 from __future__ import annotations
-import logging
 from abc import ABC, abstractmethod
 
 from typing import Optional, Any
@@ -12,8 +11,6 @@ from tilia.utils import get_tilia_class_string
 from PyQt6.QtWidgets import QGraphicsScene
 
 from tilia.requests import stop_listening_to_all
-
-logger = logging.getLogger(__name__)
 
 
 class TimelineUIElement(ABC):

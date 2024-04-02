@@ -1,15 +1,11 @@
 import re
 from pathlib import Path
-import logging
 
 import tilia.errors
 import tilia.constants
 import tilia.media.constants
 from tilia.media import player
 from tilia.media.player import Player
-
-
-logger = logging.getLogger(__name__)
 
 
 class MediaLoader:

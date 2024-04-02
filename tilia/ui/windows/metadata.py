@@ -1,5 +1,4 @@
 import functools
-import logging
 
 from PyQt6.QtWidgets import (
     QDialog,
@@ -19,8 +18,6 @@ from tilia.ui.windows import WindowKind
 from tilia.ui.format import format_media_time
 from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
 from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
-
-logger = logging.getLogger(__name__)
 
 
 class MediaMetadataWindow(QDialog):

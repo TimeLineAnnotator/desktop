@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import logging
 from typing import Any, Optional
 
 from PyQt6.QtCore import Qt, QPoint
@@ -51,8 +50,6 @@ from ..marker import MarkerTimelineToolbar
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...actions import TiliaAction
-
-logger = logging.getLogger(__name__)
 
 
 class TimelineUIs:

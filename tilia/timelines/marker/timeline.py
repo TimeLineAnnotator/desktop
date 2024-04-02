@@ -1,5 +1,4 @@
 from __future__ import annotations
-import logging
 
 from tilia import settings
 from tilia.requests import Get, get
@@ -7,8 +6,6 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
-
-logger = logging.getLogger(__name__)
 
 
 class MarkerTimeline(Timeline):

@@ -3,14 +3,13 @@ from __future__ import annotations
 import re
 import sys
 from functools import partial
-import logging
 from pathlib import Path
 
 from typing import Optional, Callable
 
 from PyQt6 import QtGui
-from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler
-from PyQt6.QtGui import QIcon, QFontDatabase
+from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl
+from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 
 import tilia.constants
@@ -38,13 +37,11 @@ from ..parsers.csv.hierarchy import (
     hierarchies_by_time_from_csv,
     hierarchies_by_measure_from_csv,
 )
-from tilia import settings
+from tilia import settings, constants
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.requests import Post, listen, post, serve, Get, get
 from tilia import parsers
-
-logger = logging.getLogger(__name__)
 
 
 class TiliaMainWindow(QMainWindow):
@@ -149,10 +146,6 @@ class QtUI:
                 lambda: self.on_window_open(WindowKind.MEDIA_METADATA),
             ),
             (
-                Post.WINDOW_METADATA_CLOSED,
-                lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA),
-            ),
-            (
                 Post.WINDOW_ABOUT_OPEN,
                 lambda: self.on_window_open(WindowKind.ABOUT),
             ),
@@ -200,6 +193,7 @@ class QtUI:
                 partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE),
             ),
             (Post.DISPLAY_ERROR, dialogs.basic.display_error),
+            (Post.WEBSITE_HELP_OPEN, self.on_website_help_open),
         ]
 
         for event, callback in self.SUBSCRIPTIONS:
@@ -401,6 +395,9 @@ class QtUI:
         if not dialog.exec():
             return
         return dialog.get_option()
+
+    def on_website_help_open(self):
+        QDesktopServices.openUrl(QUrl(f'{constants.WEBSITE_URL}/help/introduction'))
 
     def on_import_from_csv(self, tlkind: TlKind) -> None:
         if not self._validate_timeline_kind_on_import_from_csv(tlkind):

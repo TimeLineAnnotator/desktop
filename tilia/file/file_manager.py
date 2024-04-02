@@ -1,5 +1,4 @@
 from __future__ import annotations
-import logging
 from pathlib import Path
 import json
 
@@ -11,8 +10,6 @@ from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.media_metadata import MediaMetadata
-
-logger = logging.getLogger(__name__)
 
 
 class FileManager:

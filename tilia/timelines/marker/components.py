@@ -5,7 +5,6 @@ Defines the Marker class, the single TimelineComponent kind of a MarkerTimeline.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-import logging
 
 from tilia import settings
 from tilia.timelines.base.validators import (
@@ -19,8 +18,6 @@ if TYPE_CHECKING:
     from tilia.timelines.marker.timeline import MarkerTimeline
 
 from tilia.timelines.base.component import TimelineComponent
-
-logger = logging.getLogger(__name__)
 
 
 class Marker(TimelineComponent):

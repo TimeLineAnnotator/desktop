@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Any
 from bisect import bisect
-import logging
 
 from tilia.exceptions import TimelineValidationError
 from tilia.requests import Post, post, serve, Get, get
@@ -27,8 +26,6 @@ from tilia.undo_manager import PauseUndoManager
 
 if TYPE_CHECKING:
     from tilia.app import App
-
-logger = logging.getLogger(__name__)
 
 
 def _create_hierarchy_timeline(**kwargs) -> HierarchyTimeline:

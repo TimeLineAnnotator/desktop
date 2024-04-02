@@ -1,9 +1,6 @@
-import logging
 from typing import Callable
 
 from tilia.requests import listen, Post, stop_listening
-
-logger = logging.getLogger(__name__)
 
 
 def noop(*_, **__):

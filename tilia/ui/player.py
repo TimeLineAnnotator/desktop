@@ -1,5 +1,3 @@
-import logging
-
 from PyQt6.QtWidgets import (
     QToolBar,
     QLabel,
@@ -10,8 +8,6 @@ from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.ui.format import format_media_time
 from tilia.requests import Post, listen, stop_listening_to_all
-
-logger = logging.getLogger(__name__)
 
 
 class PlayerToolbar(QToolBar):

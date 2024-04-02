@@ -4,15 +4,12 @@ from datetime import datetime
 from pathlib import Path
 from threading import Thread
 from typing import Callable
-import logging
 
 import tilia.constants
 from tilia import settings, dirs
 from .common import are_tilia_data_equal, write_tilia_file_to_disk
 from .tilia_file import TiliaFile
 from tilia.requests import get, Get
-
-logger = logging.getLogger(__name__)
 
 
 class AutoSaver:

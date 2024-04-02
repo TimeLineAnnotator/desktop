@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import logging
 import bisect
 from abc import ABC
 from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
@@ -28,7 +27,6 @@ if TYPE_CHECKING:
     # noinspection PyUnresolvedReferences
     from .component import TimelineComponent
 
-logger = logging.getLogger(__name__)
 
 TC = TypeVar("TC", bound="TimelineComponent")
 T = TypeVar("T", bound="Timeline")
@@ -189,7 +187,6 @@ class Timeline(ABC, Generic[TC]):
 
     def get_state(self) -> dict:
         """Creates a dict with timeline components and attributes."""
-        logger.debug(f"Serializing {self}...")
         state = {}
         for attr in self.SERIALIZABLE_BY_VALUE:
             if isinstance(value := getattr(self, attr), list):

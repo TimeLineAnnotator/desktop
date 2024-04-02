@@ -175,6 +175,7 @@ class Post(Enum):
     UNDO_MANAGER_SET_IS_RECORDING = auto()
     VIEW_ZOOM_IN = auto()
     VIEW_ZOOM_OUT = auto()
+    WEBSITE_HELP_OPEN = auto()
     WINDOW_ABOUT_CLOSED = auto()
     WINDOW_ABOUT_OPEN = auto()
     WINDOW_INSPECT_CLOSE = auto()

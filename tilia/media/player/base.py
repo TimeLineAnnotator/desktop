@@ -3,7 +3,6 @@ from __future__ import annotations
 import functools
 import sys
 from abc import ABC, abstractmethod
-import logging
 from enum import Enum, auto
 from pathlib import Path
 
@@ -23,8 +22,6 @@ from tilia.requests import (
     stop_serving_all,
 )
 from tilia.ui.strings import NO_MEDIA_LOADED_ERROR_TITLE, NO_MEDIA_LOADED_ERROR_MESSAGE
-
-logger = logging.getLogger(__name__)
 
 
 class MediaTimeChangeReason(Enum):

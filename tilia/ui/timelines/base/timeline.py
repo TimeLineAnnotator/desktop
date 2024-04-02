@@ -1,6 +1,5 @@
 from __future__ import annotations
 import functools
-import logging
 from abc import ABC
 from typing import (
     Any,
@@ -33,8 +32,6 @@ from ...coords import get_x_by_time
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
-
-logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound="TimelineUIElement")
 
@@ -256,8 +253,6 @@ class TimelineUI(ABC):
                 if not double_clicked:  # consider as single click
                     self.on_element_left_click(elm, item)
 
-        logger.debug(f"Processed click on {self}.")
-
     def get_item_owner(self, item: QGraphicsItem) -> list[T]:
         """Returns the element that owns the item with the given id"""
         clicked_elements = self.element_manager.get_elements_by_condition(
@@ -273,7 +268,6 @@ class TimelineUI(ABC):
             self.select_element(element)
             return True
         else:
-            logger.debug("Element is not selectable.")
             return False
 
     def on_element_left_click(self, element: T, item: QGraphicsItem) -> None:

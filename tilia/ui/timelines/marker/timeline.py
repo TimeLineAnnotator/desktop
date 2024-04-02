@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import logging
 
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import Get, get
@@ -19,8 +18,6 @@ from tilia.ui.timelines.marker.toolbar import MarkerTimelineToolbar
 from tilia.ui.timelines.copy_paste import (
     paste_into_element,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class MarkerTimelineUI(TimelineUI):

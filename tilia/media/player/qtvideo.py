@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import logging
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import QSizePolicy
 
 from .qtplayer import QtPlayer
-
-logger = logging.getLogger(__name__)
-
 
 class QtVideoPlayer(QtPlayer):
     MEDIA_TYPE = "video"
