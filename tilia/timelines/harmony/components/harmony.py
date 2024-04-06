@@ -102,10 +102,6 @@ class Harmony(TimelineComponent):
         return str(dict(self.__dict__.items()))
 
     @classmethod
-    def create(cls, *args, **kwargs):
-        return Harmony(*args, **kwargs)
-
-    @classmethod
     def from_string(
         cls, time: float, string: str, key: music21.key.Key = music21.key.Key("C")
     ):

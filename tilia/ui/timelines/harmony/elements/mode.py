@@ -30,10 +30,6 @@ class ModeUI(TimelineUIElement):
     UPDATE_TRIGGERS = ["time", "step", "accidental", "type", "level"]
     CONTEXT_MENU_CLASS = ModeContextMenu
 
-    @classmethod
-    def create(cls, *args, **kwargs):
-        return ModeUI(*args, **kwargs)
-
     def __init__(
         self,
         id: int,

@@ -59,16 +59,6 @@ class HarmonyUI(TimelineUIElement):
 
         self.dragged = False
 
-    @classmethod
-    def create(
-        cls,
-        id: int,
-        timeline_ui: HarmonyTimelineUI,
-        scene: QGraphicsScene,
-        **kwargs,
-    ) -> HarmonyUI:
-        return HarmonyUI(id, timeline_ui, scene, **kwargs)
-
     def _setup_body(self):
         self.body = HarmonyBody(self.x, self.y, self.label, self.font_type)
         self.scene.addItem(self.body)

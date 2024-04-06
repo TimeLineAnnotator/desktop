@@ -72,16 +72,6 @@ class BeatUI(TimelineUIElement):
 
         self.dragged = False
 
-    @classmethod
-    def create(
-        cls,
-        id: int,
-        timeline_ui: BeatTimelineUI,
-        scene: TimelineScene,
-        **kwargs,
-    ) -> BeatUI:
-        return BeatUI(id, timeline_ui, scene, **kwargs)
-
     def _setup_body(self):
         self.body = BeatBody(self.x, self.height)
         self.scene.addItem(self.body)
