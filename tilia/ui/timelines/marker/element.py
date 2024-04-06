@@ -66,16 +66,6 @@ class MarkerUI(TimelineUIElement):
 
         self.dragged = False
 
-    @classmethod
-    def create(
-        cls,
-        id: int,
-        timeline_ui: MarkerTimelineUI,
-        scene: QGraphicsScene,
-        **kwargs,
-    ) -> MarkerUI:
-        return MarkerUI(id, timeline_ui, scene, **kwargs)
-
     def _setup_body(self):
         self.body = MarkerBody(self.x, self.WIDTH, self.HEIGHT, self.ui_color)
         self.scene.addItem(self.body)

@@ -59,7 +59,3 @@ class Marker(TimelineComponent):
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))
-
-    @classmethod
-    def create(cls, *args, **kwargs):
-        return Marker(*args, **kwargs)
