@@ -46,7 +46,7 @@ class App:
         return get_tilia_class_string(self)
 
     def _setup_requests(self):
-        self.SUBSCRIPTIONS = [
+        LISTENS = {
             (Post.APP_CLEAR, self.on_clear),
             (Post.UI_CLOSE, self.on_close),
             (Post.APP_FILE_LOAD, self.on_file_load),
@@ -58,14 +58,19 @@ class App:
             (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
             # listening on tilia.settings would cause circular import
             (Post.WINDOW_SETTINGS_OPEN, settings.open_settings_on_os),
-        ]
+        }
 
-        for event, callback in self.SUBSCRIPTIONS:
-            listen(self, event, callback)
+        SERVES = {
+            (Get.ID, self.get_id),
+            (Get.APP_STATE, self.get_app_state),
+            (Get.MEDIA_DURATION, lambda: self.duration)
+        }
 
-        serve(self, Get.ID, self.get_id)
-        serve(self, Get.APP_STATE, self.get_app_state)
-        serve(self, Get.MEDIA_DURATION, lambda: self.duration),
+        for post, callback in LISTENS:
+            listen(self, post, callback)
+
+        for request, callback in SERVES:
+            serve(self, request, callback)
 
     def _setup_timelines(self):
         self.timelines = Timelines(self)

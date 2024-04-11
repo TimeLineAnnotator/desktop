@@ -20,42 +20,35 @@ class FileManager:
     ]
 
     def __init__(self):
-        serve(self, Get.MEDIA_METADATA, lambda: self.file.media_metadata)
-        serve(
-            self,
-            Get.MEDIA_METADATA_REQUIRED_FIELDS,
-            self.get_media_metadata_required_fields,
-        )
-        serve(self, Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"])
-        listen(self, Post.PLAYER_URL_CHANGED, self.on_player_url_changed)
-        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_player_duration_changed)
-        listen(self, Post.FILE_SAVE, self.on_save_request)
-        listen(self, Post.FILE_SAVE_AS, self.on_save_as_request)
-        listen(self, Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request)
-        listen(self, Post.FILE_OPEN, self.on_request_open_file)
-        listen(self, Post.REQUEST_FILE_NEW, self.on_request_new_file)
-        listen(
-            self,
-            Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH,
-            self.on_import_media_metadata_request,
-        )
-        listen(
-            self,
-            Post.MEDIA_METADATA_FIELD_SET,
-            self.on_set_media_metadata_field,
-        )
-        listen(
-            self,
-            Post.METADATA_ADD_FIELD,
-            self.on_add_media_metadata_field,
-        )
-        listen(
-            self,
-            Post.METADATA_REMOVE_FIELD,
-            self.on_remove_media_metadata_field,
-        )
-
+        self._setup_requests()
         self.file = TiliaFile()
+
+    def _setup_requests(self):
+        LISTENS = {
+            (Post.PLAYER_URL_CHANGED, self.on_player_url_changed),
+            (Post.FILE_MEDIA_DURATION_CHANGED, self.on_player_duration_changed),
+            (Post.FILE_SAVE, self.on_save_request),
+            (Post.FILE_SAVE_AS, self.on_save_as_request),
+            (Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request),
+            (Post.FILE_OPEN, self.on_request_open_file),
+            (Post.REQUEST_FILE_NEW, self.on_request_new_file),
+            (Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, self.on_import_media_metadata_request),
+            (Post.MEDIA_METADATA_FIELD_SET, self.on_set_media_metadata_field),
+            (Post.METADATA_ADD_FIELD, self.on_add_media_metadata_field),
+            (Post.METADATA_REMOVE_FIELD, self.on_remove_media_metadata_field)
+        }
+
+        SERVES = {
+            (Get.MEDIA_METADATA, lambda: self.file.media_metadata),
+            (Get.MEDIA_METADATA_REQUIRED_FIELDS, self.get_media_metadata_required_fields),
+            (Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"])
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
+
+        for request, callback in SERVES:
+            serve(self, request, callback)
 
     def on_save_request(self):
         """Saves tilia file to current file path."""

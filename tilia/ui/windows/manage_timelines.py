@@ -69,17 +69,14 @@ class ManageTimelines(QDialog):
 
         layout.addLayout(right_layout)
 
-    def _setup_requests(self):
-        serve(
-            self,
-            Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE,
-            self.get_timeline_uis_to_permute,
-        )
-        serve(
-            self,
-            Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT,
-            self.get_current_timeline_ui,
-        )
+    def _setup_requests(self):        
+        SERVES = {
+            (Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE, self.get_timeline_uis_to_permute),
+            (Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT, self.get_current_timeline_ui)
+        }
+
+        for request, callback in SERVES:
+            serve(self, request, callback)
 
     def _setup_checkbox(self):
         self.on_list_current_item_changed(self.list_widget.currentItem())
@@ -148,10 +145,18 @@ class TimelinesListWidget(QListWidget):
 
         self.setCurrentRow(0)
         self.timeline_uis_to_permute = None
-        listen(self, Post.TIMELINE_SET_DATA_DONE, self.on_timeline_set_data_done)
-        listen(self, Post.TIMELINE_DELETE_DONE, self.update_current_selection)
-        listen(self, Post.TIMELINE_CREATE_DONE, self.update_current_selection)
-        listen(self, Post.TIMELINE_COLLECTION_STATE_RESTORED, self.update_items)
+        self._setup_requests()
+
+    def _setup_requests(self):
+        LISTENS = {
+            (Post.TIMELINE_SET_DATA_DONE, self.on_timeline_set_data_done),
+            (Post.TIMELINE_DELETE_DONE, self.update_current_selection),
+            (Post.TIMELINE_CREATE_DONE, self.update_current_selection),
+            (Post.TIMELINE_COLLECTION_STATE_RESTORED, self.update_items)
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
 
     def item(self, row: int) -> typing.Optional[TimelineListItem]:
         return super().item(row)

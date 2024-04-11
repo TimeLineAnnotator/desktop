@@ -37,20 +37,7 @@ class Player(ABC):
     def __init__(self):
         super().__init__()
 
-        listen(self, Post.PLAYER_TOGGLE_PLAY_PAUSE, self.toggle_play)
-        listen(self, Post.PLAYER_STOP, self.stop)
-        listen(self, Post.PLAYER_SEEK, self.on_seek)
-        listen(
-            self,
-            Post.PLAYER_SEEK_IF_NOT_PLAYING,
-            functools.partial(self.on_seek, if_paused=True),
-        )
-        listen(self, Post.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self.unload_media)
-        listen(self, Post.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media)
-        listen(self, Post.PLAYER_EXPORT_AUDIO, self.on_export_audio),
-        serve(self, Get.MEDIA_CURRENT_TIME, lambda: self.current_time)
-        serve(self, Get.MEDIA_PATH, lambda: self.media_path)
-
+        self._setup_requests()
         self.is_media_loaded = False
         self.duration = 0.0
         self.playback_start = 0.0
@@ -64,6 +51,28 @@ class Player(ABC):
 
     def __str__(self):
         return get_tilia_class_string(self)
+
+    def _setup_requests(self):        
+        LISTENS = {
+            (Post.PLAYER_TOGGLE_PLAY_PAUSE, self.toggle_play),
+            (Post.PLAYER_STOP, self.stop),
+            (Post.PLAYER_SEEK, self.on_seek),
+            (Post.PLAYER_SEEK_IF_NOT_PLAYING, functools.partial(self.on_seek, if_paused=True)),
+            (Post.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self.unload_media),
+            (Post.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media),
+            (Post.PLAYER_EXPORT_AUDIO, self.on_export_audio)
+        }
+
+        SERVES = {
+            (Get.MEDIA_CURRENT_TIME, lambda: self.current_time),
+            (Get.MEDIA_PATH, lambda: self.media_path)
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
+
+        for request, callback in SERVES:
+            serve(self, request, callback)
 
     @property
     def playback_length(self):

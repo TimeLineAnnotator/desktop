@@ -45,21 +45,7 @@ class Inspect(QDockWidget):
 
     def __init__(self) -> None:
         super().__init__()
-        listen(
-            self,
-            Post.INSPECTABLE_ELEMENT_SELECTED,
-            self.on_element_selected,
-        )
-        listen(
-            self,
-            Post.INSPECTABLE_ELEMENT_DESELECTED,
-            self.on_element_deselected,
-        )
-        listen(
-            self,
-            Post.TIMELINE_COMPONENT_SET_DATA_DONE,
-            self.on_component_set_data_done,
-        )
+        self._setup_requests()
         self.inspected_objects_stack = []
         self.element_id = ""
         self.widget = QWidget(self)
@@ -73,6 +59,16 @@ class Inspect(QDockWidget):
 
     def __str__(self):
         return get_tilia_class_string(self)
+    
+    def _setup_requests(self):
+        LISTENS = {
+            (Post.INSPECTABLE_ELEMENT_SELECTED, self.on_element_selected),
+            (Post.INSPECTABLE_ELEMENT_DESELECTED, self.on_element_deselected),
+            (Post.TIMELINE_COMPONENT_SET_DATA_DONE, self.on_component_set_data_done)
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
 
     def closeEvent(self, event, **kwargs):
         stop_listening_to_all(self)

@@ -70,19 +70,7 @@ class Timelines:
         self._timelines: list[Timeline] = []
         self.cached_media_duration = 0.0
 
-        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
-
-        serve(self, Get.TIMELINE_COLLECTION, lambda: self)
-        serve(self, Get.TIMELINES, self.get_timelines)
-        serve(self, Get.TIMELINE, self.get_timeline)
-        serve(
-            self,
-            Get.TIMELINE_ORDINAL_FOR_NEW,
-            self.serve_ordinal_for_new_timeline,
-        )
-        serve(self, Get.TIMELINE_BY_ATTR, self.get_timeline_by_attr)
-        serve(self, Get.TIMELINES_BY_ATTR, self.get_timelines_by_attr)
-        serve(self, Get.METRIC_POSITION, self.get_metric_position)
+        self._setup_requests()
 
     def __getitem__(self, key):
         return sorted(self._timelines)[key]
@@ -98,6 +86,27 @@ class Timelines:
 
     def __bool__(self):
         return True  # so it doesn't evaluate to False when there are no timelines
+    
+    def _setup_requests(self):        
+        LISTENS = {    
+            (Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
+        }
+
+        SERVES = {
+            (Get.TIMELINE_COLLECTION, lambda: self),
+            (Get.TIMELINES, self.get_timelines),
+            (Get.TIMELINE, self.get_timeline),
+            (Get.TIMELINE_ORDINAL_FOR_NEW, self.serve_ordinal_for_new_timeline),
+            (Get.TIMELINE_BY_ATTR, self.get_timeline_by_attr),
+            (Get.TIMELINES_BY_ATTR, self.get_timelines_by_attr),
+            (Get.METRIC_POSITION, self.get_metric_position)
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
+
+        for request, callback in SERVES:
+            serve(self, request, callback)
 
     @property
     def timeline_kinds(self):
@@ -133,7 +142,7 @@ class Timelines:
 
         return kind
 
-    def has_timeline_of_kind(kind: TlKind):
+    def has_timeline_of_kind(self, kind: TlKind):
         return kind in self.timeline_kinds
     
     def create_timeline(

@@ -7,10 +7,7 @@ from tilia.utils import get_tilia_class_string
 
 class UndoManager:
     def __init__(self) -> None:
-        listen(self, Post.EDIT_UNDO, self.undo)
-        listen(self, Post.EDIT_REDO, self.redo)
-        listen(self, Post.UNDO_MANAGER_SET_IS_RECORDING, self.set_is_recording)
-
+        self._setup_requests()
         self.stack = []
         self.current_state_index = -1
         self.last_repeat_id = None
@@ -18,6 +15,16 @@ class UndoManager:
 
     def __str__(self):
         return get_tilia_class_string(self)
+    
+    def _setup_requests(self):
+        LISTENS = {
+            (Post.EDIT_UNDO, self.undo),
+            (Post.EDIT_REDO, self.redo),
+            (Post.UNDO_MANAGER_SET_IS_RECORDING, self.set_is_recording)
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
 
     @property
     def is_cleared(self):

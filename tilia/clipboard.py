@@ -12,14 +12,26 @@ class ClipboardContents(TypedDict):
 
 class Clipboard:
     def __init__(self) -> None:
-        listen(
-            self, Post.TIMELINE_ELEMENT_COPY_DONE, self.on_timeline_element_copy_done
-        )
-        serve(self, Get.CLIPBOARD_CONTENTS, self.get_contents)
+        self._setup_requests()
         self._contents: ClipboardContents = {"components": {}, "timeline_kind": None}
 
     def __str__(self):
         return get_tilia_class_string(self)
+    
+    def _setup_requests(self):
+        LISTENS = {
+            (Post.TIMELINE_ELEMENT_COPY_DONE, self.on_timeline_element_copy_done)
+        }
+
+        SERVES = {
+            (Get.CLIPBOARD_CONTENTS, self.get_contents)
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
+
+        for request, callback in SERVES:
+            serve(self, request, callback)
 
     def get_contents(self) -> ClipboardContents:
         return self._contents
