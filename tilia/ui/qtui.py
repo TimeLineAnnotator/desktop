@@ -104,7 +104,6 @@ class QtUI:
         self._setup_fonts()
         self._setup_player()
         self._setup_sizes()
-        self._setup_subscriptions()
         self._setup_requests()
         self._setup_actions()
         self._setup_widgets()
@@ -125,79 +124,44 @@ class QtUI:
         self.playback_area_width = tilia.ui.timelines.constants.PLAYBACK_AREA_WIDTH
         self.playback_area_margin = tilia.ui.timelines.constants.PLAYBACK_AREA_MARGIN
 
-    def _setup_subscriptions(self):
-        self.SUBSCRIPTIONS = [
-            (
-                Post.PLAYBACK_AREA_SET_WIDTH,
-                self.on_timeline_set_width,
-            ),
+    def _setup_requests(self):
+        LISTENS = {
+            (Post.PLAYBACK_AREA_SET_WIDTH, self.on_timeline_set_width),
             (Post.UI_MEDIA_LOAD_LOCAL, self.on_media_load_local),
             (Post.UI_MEDIA_LOAD_YOUTUBE, self.on_media_load_youtube),
-            (
-                Post.TIMELINE_ELEMENT_INSPECT,
-                self.on_timeline_element_inspect
-            ),
-            (
-                Post.WINDOW_MANAGE_TIMELINES_OPEN,
-                lambda: self.on_window_open(WindowKind.MANAGE_TIMELINES),
-            ),
-            (
-                Post.WINDOW_METADATA_OPEN,
-                lambda: self.on_window_open(WindowKind.MEDIA_METADATA),
-            ),
-            (
-                Post.WINDOW_ABOUT_OPEN,
-                lambda: self.on_window_open(WindowKind.ABOUT),
-            ),
-            (
-                Post.WINDOW_INSPECT_OPEN,
-                lambda: self.on_window_open(WindowKind.INSPECT),
-            ),
-            (
-                Post.WINDOW_INSPECT_CLOSE,
-                lambda: self.on_window_close(WindowKind.INSPECT),
-            ),
-            (
-                Post.WINDOW_INSPECT_CLOSED,
-                lambda: self.on_window_close_done(WindowKind.INSPECT),
-            ),
-            (
-                Post.WINDOW_MANAGE_TIMELINES_CLOSE_DONE,
-                lambda: self.on_window_close_done(WindowKind.MANAGE_TIMELINES),
-            ),
-            (
-                Post.WINDOW_METADATA_CLOSED,
-                lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA),
-            ),
-            (
-                Post.WINDOW_ABOUT_CLOSED,
-                lambda: self.on_window_close_done(WindowKind.ABOUT),
-            ),
+            (Post.TIMELINE_ELEMENT_INSPECT, self.on_timeline_element_inspect),
+            (Post.WINDOW_MANAGE_TIMELINES_OPEN, lambda: self.on_window_open(WindowKind.MANAGE_TIMELINES)),
+            (Post.WINDOW_METADATA_OPEN, lambda: self.on_window_open(WindowKind.MEDIA_METADATA)),
+            (Post.WINDOW_METADATA_CLOSED, lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA)),
+            (Post.WINDOW_ABOUT_OPEN, lambda: self.on_window_open(WindowKind.ABOUT)),
+            (Post.WINDOW_INSPECT_OPEN, lambda: self.on_window_open(WindowKind.INSPECT)),
+            (Post.WINDOW_INSPECT_CLOSE, lambda: self.on_window_close(WindowKind.INSPECT)),
+            (Post.WINDOW_INSPECT_CLOSED, lambda: self.on_window_close_done(WindowKind.INSPECT)),
+            (Post.WINDOW_MANAGE_TIMELINES_CLOSE_DONE, lambda: self.on_window_close_done(WindowKind.MANAGE_TIMELINES)),
+            (Post.WINDOW_METADATA_CLOSED, lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA)),
+            (Post.WINDOW_ABOUT_CLOSED, lambda: self.on_window_close_done(WindowKind.ABOUT)),
             (Post.REQUEST_CLEAR_UI, self.on_clear_ui),
             (Post.TIMELINE_KIND_INSTANCED, self.on_timeline_kind_change),
             (Post.TIMELINE_KIND_NOT_INSTANCED, self.on_timeline_kind_change),
-            (
-                Post.MARKER_IMPORT_FROM_CSV,
-                partial(self.on_import_from_csv, TlKind.MARKER_TIMELINE),
-            ),
-            (
-                Post.HIERARCHY_IMPORT_FROM_CSV,
-                partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE),
-            ),
-            (
-                Post.BEAT_IMPORT_FROM_CSV,
-                partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE),
-            ),
-            (
-                Post.HARMONY_IMPORT_FROM_CSV,
-                partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE),
-            ),
-            (Post.DISPLAY_ERROR, dialogs.basic.display_error),
-            (Post.WEBSITE_HELP_OPEN, self.on_website_help_open),
-        ]
+            (Post.MARKER_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.MARKER_TIMELINE)),
+            (Post.HIERARCHY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE)),
+            (Post.BEAT_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE)),
+            (Post.HARMONY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE)),
+            (Post.DISPLAY_ERROR, dialogs.basic.display_error)
+        }
 
-        for event, callback in self.SUBSCRIPTIONS:
-            listen(self, event, callback)
+        SERVES = {
+            (Get.TIMELINE_WIDTH, lambda: self.timeline_width),
+            (Get.PLAYBACK_AREA_WIDTH, lambda: self.playback_area_width),
+            (Get.LEFT_MARGIN_X, lambda: self.playback_area_margin),
+            (Get.RIGHT_MARGIN_X, lambda: self.playback_area_width + self.playback_area_margin)
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
+
+        for request, callback in SERVES:
+            serve(self, request, callback)
 
     def _setup_main_window(self):
         def get_initial_geometry():
@@ -242,16 +206,6 @@ class QtUI:
             for kind, menu_class in menu_info
         }
         self.update_dynamic_menus()
-
-    def _setup_requests(self):
-        serve(self, Get.TIMELINE_WIDTH, lambda: self.timeline_width)
-        serve(self, Get.PLAYBACK_AREA_WIDTH, lambda: self.playback_area_width)
-        serve(self, Get.LEFT_MARGIN_X, lambda: self.playback_area_margin)
-        serve(
-            self,
-            Get.RIGHT_MARGIN_X,
-            lambda: self.playback_area_width + self.playback_area_margin,
-        )
 
     def _setup_windows(self):
         self._windows = {

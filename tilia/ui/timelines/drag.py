@@ -21,9 +21,16 @@ class DragManager:
         self.before_each = before_each
         self.after_each = after_each
         self.on_release = on_release
+        self._setup_requests()
 
-        listen(self, Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, self.on_mouse_drag)
-        listen(self, Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_mouse_release)
+    def _setup_requests(self):
+        self.LISTENS = {
+            (Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, self.on_mouse_drag),
+            (Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_mouse_release)
+        }
+
+        for post, callback in self.LISTENS:
+            listen(self, post, callback)
 
     def on_mouse_drag(self, x: int, _: int):  # ignores the y coordinate
         self.before_each()
@@ -31,8 +38,8 @@ class DragManager:
         self.after_each(dragged_to)
 
     def on_mouse_release(self):
-        stop_listening(self, Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG)
-        stop_listening(self, Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        for post, _ in self.LISTENS:
+            stop_listening(self, post)
         self.on_release()
 
 

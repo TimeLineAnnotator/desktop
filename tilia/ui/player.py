@@ -14,14 +14,7 @@ class PlayerToolbar(QToolBar):
     def __init__(self):
         super().__init__()
 
-        listen(
-            self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_player_current_time_changed
-        )
-        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
-        listen(self, Post.PLAYER_MEDIA_UNLOADED, self.on_media_unload)
-        listen(self, Post.PLAYER_STOPPED, self.on_stop)
-        listen(self, Post.PLAYER_DISABLE_CONTROLS, self.on_disable_controls)
-        listen(self, Post.PLAYER_ENABLE_CONTROLS, self.on_enable_controls)
+        self._setup_requests()
 
         self.current_time_string = "0:00:00"
         self.duration_string = "0:00:00"
@@ -32,6 +25,19 @@ class PlayerToolbar(QToolBar):
         self.addAction(self.stop_action)
         self.time_label = QLabel(f"{self.current_time_string}/{self.duration_string}")
         self.addWidget(self.time_label)
+
+    def _setup_requests(self):
+        LISTENS = {
+            (Post.PLAYER_CURRENT_TIME_CHANGED, self.on_player_current_time_changed), 
+            (Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed), 
+            (Post.PLAYER_MEDIA_UNLOADED, self.on_media_unload), 
+            (Post.PLAYER_STOPPED, self.on_stop), 
+            (Post.PLAYER_DISABLE_CONTROLS, self.on_disable_controls), 
+            (Post.PLAYER_ENABLE_CONTROLS, self.on_enable_controls)
+        }
+
+        for post, callback in LISTENS:
+            listen(self, post, callback)
 
     def on_player_current_time_changed(
         self, audio_time: float, _: MediaTimeChangeReason

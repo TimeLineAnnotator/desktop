@@ -115,47 +115,26 @@ class TimelineUIs:
         self.view.setScene(self.scene)
         main_window.setCentralWidget(self.view)
 
-    def _setup_listen(self):
-        requests_ = [
+    def _setup_requests(self):
+        LISTENS = {
             (Post.TIMELINE_CREATE_DONE, self.on_timeline_created),
             (Post.TIMELINE_DELETE_DONE, self.on_timeline_deleted),
             (Post.TIMELINE_COMPONENT_CREATED, self.on_timeline_component_created),
             (Post.TIMELINE_COMPONENT_DELETED, self.on_timeline_component_deleted),
-            (
-                Post.TIMELINE_COMPONENT_SET_DATA_DONE,
-                self.on_timeline_component_set_data_done,
-            ),
+            (Post.TIMELINE_COMPONENT_SET_DATA_DONE, self.on_timeline_component_set_data_done),
             (Post.TIMELINE_SET_DATA_DONE, self.on_timeline_set_data_done),
             (Post.TIMELINE_VIEW_LEFT_CLICK, self._on_timeline_ui_left_click),
             (Post.TIMELINE_VIEW_DOUBLE_LEFT_CLICK, self._on_timeline_ui_left_click),
             (Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, self._on_timeline_ui_left_drag),
             (Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_timeline_ui_left_released),
             (Post.TIMELINE_VIEW_RIGHT_CLICK, self._on_timeline_ui_right_click),
-            (
-                Post.TIMELINE_COLLECTION_STATE_RESTORED,
-                self.update_timeline_uis_position,
-            ),
-            (
-                Post.TIMELINES_AUTO_SCROLL_ENABLE,
-                functools.partial(self.set_auto_scroll, True),
-            ),
-            (
-                Post.TIMELINES_AUTO_SCROLL_DISABLE,
-                functools.partial(self.set_auto_scroll, False),
-            ),
-            (
-                Post.TIMELINE_KEY_PRESS_DOWN,
-                functools.partial(self.on_arrow_press, "down"),
-            ),
+            (Post.TIMELINE_COLLECTION_STATE_RESTORED, self.update_timeline_uis_position),
+            (Post.TIMELINES_AUTO_SCROLL_ENABLE, functools.partial(self.set_auto_scroll, True)),
+            (Post.TIMELINES_AUTO_SCROLL_DISABLE, functools.partial(self.set_auto_scroll, False)),
+            (Post.TIMELINE_KEY_PRESS_DOWN, functools.partial(self.on_arrow_press, "down")),
             (Post.TIMELINE_KEY_PRESS_UP, functools.partial(self.on_arrow_press, "up")),
-            (
-                Post.TIMELINE_KEY_PRESS_RIGHT,
-                functools.partial(self.on_arrow_press, "right"),
-            ),
-            (
-                Post.TIMELINE_KEY_PRESS_LEFT,
-                functools.partial(self.on_arrow_press, "left"),
-            ),
+            (Post.TIMELINE_KEY_PRESS_RIGHT, functools.partial(self.on_arrow_press, "right")),
+            (Post.TIMELINE_KEY_PRESS_LEFT, functools.partial(self.on_arrow_press, "left")),
             (Post.ELEMENT_DRAG_END, lambda: self.set_is_dragging(False)),
             (Post.ELEMENT_DRAG_START, lambda: self.set_is_dragging(True)),
             (Post.SLIDER_DRAG, self.on_slider_drag),
@@ -169,19 +148,31 @@ class TimelineUIs:
             (Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done),
             (Post.TIMELINES_CROP_DONE, self.on_timelines_crop_done),
             (Post.HIERARCHY_SELECTED, self.on_hierarchy_selected),
-            (Post.HIERARCHY_DESELECTED, self.on_hierarchy_deselected),
-        ]
+            (Post.HIERARCHY_DESELECTED, self.on_hierarchy_deselected)
+        }
 
-        for request, callback in requests_:
-            listen(self, request, callback)
+        SERVES = {
+            (Get.TIMELINE_UI, self.get_timeline_ui),
+            (Get.TIMELINE_UI_BY_ATTR, self.get_timeline_ui_by_attr),
+            (Get.TIMELINE_UIS_BY_ATTR, self.get_timeline_uis_by_attr),
+            (Get.TIMELINE_UIS, self.get_timeline_uis),
+            (Get.TIMELINE_UI_ELEMENT, self.get_timeline_ui_element),
+            (Get.ARE_TIMELINE_ELEMENTS_SELECTED, self.get_are_timeline_elements_selected),
+            (Get.SELECTED_TIME, self.get_selected_time),
+            (Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, self.get_first_timeline_ui_in_select_order)
+        }
 
-    def _setup_timeline_uis_requests(self):
+        for post, callback in LISTENS:
+            listen(self, post, callback)
+
+        for request, callback in SERVES:
+            serve(self, request, callback)
+
         for request in tilia.ui.timelines.collection.requests.timeline_uis.requests:
             listen(
                 self, request, functools.partial(self.on_timeline_ui_request, request)
             )
-
-    def _setup_timeline_element_requests(self):
+            
         for (
             request,
             selector,
@@ -191,8 +182,7 @@ class TimelineUIs:
                 request,
                 functools.partial(self.on_timeline_element_request, request, selector),
             )
-
-    def _setup_timeline_requests(self):
+            
         for (
             request,
             selector,
@@ -202,32 +192,7 @@ class TimelineUIs:
                 request,
                 functools.partial(self.on_timeline_request, request, selector),
             )
-
-    def _setup_serve(self):
-        serve(self, Get.TIMELINE_UI, self.get_timeline_ui)
-        serve(self, Get.TIMELINE_UI_BY_ATTR, self.get_timeline_ui_by_attr)
-        serve(self, Get.TIMELINE_UIS_BY_ATTR, self.get_timeline_uis_by_attr)
-        serve(self, Get.TIMELINE_UIS, self.get_timeline_uis)
-        serve(self, Get.TIMELINE_UI_ELEMENT, self.get_timeline_ui_element)
-        serve(
-            self,
-            Get.ARE_TIMELINE_ELEMENTS_SELECTED,
-            self.get_are_timeline_elements_selected,
-        )
-        serve(self, Get.SELECTED_TIME, self.get_selected_time)
-        serve(
-            self,
-            Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER,
-            self.get_first_timeline_ui_in_select_order,
-        )
-
-    def _setup_requests(self):
-        self._setup_listen()
-        self._setup_timeline_element_requests()
-        self._setup_timeline_requests()
-        self._setup_timeline_uis_requests()
-        self._setup_serve()
-
+        
     def create_timeline_ui(self, kind: TlKind, id: int) -> TimelineUI:
         timeline_class = self.get_timeline_ui_class(kind)
         w = get(Get.TIMELINE_WIDTH)
