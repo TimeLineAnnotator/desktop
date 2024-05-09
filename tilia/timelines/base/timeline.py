@@ -365,7 +365,7 @@ class TimelineComponentManager(Generic[T, TC]):
     def serialize_components(self):
         return serialize.serialize_components(self._components)
 
-    def deserialize_components(self, serialized_components: dict[int, dict[str, Any]]):
+    def deserialize_components(self, serialized_components: dict[int | str, dict[str, Any]]):
         serialize.deserialize_components(self.timeline, serialized_components)
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):

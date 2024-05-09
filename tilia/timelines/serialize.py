@@ -63,20 +63,23 @@ def serialize_component(component: Serializable) -> dict[str]:
 
 
 def deserialize_components(
-    timeline: Timeline, serialized_components: dict[int, dict[str]]
+    timeline: Timeline, serialized_components: dict[int | str, dict[str]]
 ):
     """Creates the given serialized components in 'timeline'."""
 
     id_to_component_dict = {}
     errors = []
 
-    for id_, serialized_component in serialized_components.items():
+    for id, serialized_component in serialized_components.items():
         component, error = _deserialize_component(timeline, serialized_component)
         if not component:
-            errors.append(f"id={id_} | {error}")
+            errors.append(f"id={id} | {error}")
             continue
 
-        id_to_component_dict[id_] = component
+        # Keys will be strings if loading a JSON file.
+        # Must convert to int, as id-based attributes
+        # are either of type int or list[int].
+        id_to_component_dict[int(id)] = component
 
     if errors:
         errors_str = "\n".join(errors)
@@ -138,6 +141,7 @@ def _set_serializable_by_id_or_id_list(component, serialized_component: dict) ->
 def _substitute_ids_for_reference_to_components(
     id_to_component: dict[id, TimelineComponent]
 ) -> None:
+
     for id_, component in id_to_component.items():
         component_class = type(component)
 
