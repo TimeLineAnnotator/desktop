@@ -20,6 +20,7 @@ from .actions import TiliaAction
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
 from .dialogs.by_time_or_by_measure import ByTimeOrByMeasure
+from .dialogs.crash import CrashDialog
 from .menubar import TiliaMenuBar
 from tilia.ui.timelines.collection.collection import TimelineUIs
 from .menus import TimelinesMenu, HierarchyMenu, MarkerMenu, BeatMenu, HarmonyMenu
@@ -147,7 +148,6 @@ class QtUI:
             (Post.HIERARCHY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE)),
             (Post.BEAT_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE)),
             (Post.HARMONY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE)),
-            (Post.DISPLAY_ERROR, dialogs.basic.display_error)
             (Post.DISPLAY_ERROR, dialogs.basic.display_error),
             (Post.UI_EXIT, self.exit),
         }
@@ -474,3 +474,8 @@ class QtUI:
             "Some components were not imported. The following errors occured:\n"
             + errors_str,
         )
+
+    @staticmethod
+    def show_crash_dialog(exception_info):
+        dialog = CrashDialog(exception_info)
+        dialog.exec()

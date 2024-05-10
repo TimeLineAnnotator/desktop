@@ -1,6 +1,8 @@
 import argparse
 import logging
 import os
+import sys
+import traceback
 
 import dotenv
 
@@ -16,15 +18,32 @@ from tilia.undo_manager import UndoManager
 logger = logging.getLogger(__name__)
 
 app = None
+ui = None
+
+
+def handle_expection(type, value, tb):
+    if app:
+        # The app state should be dumped to a file
+        # for debugging purposes.
+        print(app.get_app_state())
+    exc_message = ''.join(traceback.format_exception(type, value, tb))
+    if ui:
+        # Additonally. the exception info should
+        # also be dumped to a file.
+        ui.show_crash_dialog(exc_message)
+        ui.exit(1)
+    else:
+        print(exc_message)
 
 
 def boot():
+    sys.excepthook = handle_expection
     dotenv.load_dotenv()
     args = setup_parser()
     setup_dirs()
     setup_logging(args.logging)  # relies on logging path set by dirs setup
     setup_settings()
-    global app
+    global app, ui
     app = setup_logic()
     ui = setup_ui(args.user_interface)
 
