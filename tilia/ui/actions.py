@@ -10,7 +10,7 @@ from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
 
 class TiliaAction(Enum):
-    UI_CLOSE = auto()
+    AUTOSAVES_FOLDER_OPEN = auto()
     HARMONY_IMPORT_FROM_CSV = auto()
     MODE_ADD = auto()
     MODE_DELETE = auto()
@@ -275,6 +275,9 @@ taction_to_params = {
     ),
     TiliaAction.SETTINGS_WINDOW_OPEN: ActionParams(
         Post.WINDOW_SETTINGS_OPEN, "Settings...", "", ""
+    ),
+    TiliaAction.AUTOSAVES_FOLDER_OPEN: ActionParams(
+        Post.AUTOSAVES_FOLDER_OPEN, "Autosaves...", "", ""
     ),
     TiliaAction.EDIT_REDO: ActionParams(Post.EDIT_REDO, "Redo", "", "Ctrl+Shift+Z"),
     TiliaAction.EDIT_UNDO: ActionParams(Post.EDIT_UNDO, "Undo", "", "Ctrl+Z"),

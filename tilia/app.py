@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import tilia.errors
 import tilia.constants
+import tilia.dirs
 from tilia import settings
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import MediaLoader
@@ -58,6 +59,9 @@ class App:
             (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
             # listening on tilia.settings would cause circular import
             (Post.WINDOW_SETTINGS_OPEN, settings.open_settings_on_os),
+            # Listening on tilia.dirs would need to be top-level.
+            # That sounds like a bad idea, so we're listening here.
+            (Post.AUTOSAVES_FOLDER_OPEN, tilia.dirs.open_autosaves_dir)
         }
 
         SERVES = {

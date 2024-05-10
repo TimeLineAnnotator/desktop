@@ -9,6 +9,7 @@ import tomlkit
 
 import tilia.constants
 from tilia import settings
+from tilia.utils import open_with_os
 
 settings_path = Path()
 autosaves_path = Path()
@@ -101,3 +102,7 @@ def create_autosaves_dir(data_dir: Path):
 
 def create_temp_dir(data_dir: Path):
     os.mkdir(Path(data_dir, ".temp"))
+
+
+def open_autosaves_dir():
+    open_with_os(autosaves_path)

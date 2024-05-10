@@ -73,6 +73,8 @@ class FileMenu(TiliaMenu):
         (MenuItemKind.ACTION, TiliaAction.METADATA_WINDOW_OPEN),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.ACTION, TiliaAction.SETTINGS_WINDOW_OPEN),
+        (MenuItemKind.SEPARATOR, None),
+        (MenuItemKind.ACTION, TiliaAction.AUTOSAVES_FOLDER_OPEN),
     ]
 
 

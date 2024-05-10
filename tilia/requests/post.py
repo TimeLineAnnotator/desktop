@@ -5,6 +5,7 @@ from typing import Callable, Any
 
 
 class Post(Enum):
+    AUTOSAVES_FOLDER_OPEN = auto()
     WINDOW_INSPECT_OPEN = auto()
     APP_CLEAR = auto()
     APP_FILE_LOAD = auto()
