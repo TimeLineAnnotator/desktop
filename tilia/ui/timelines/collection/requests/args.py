@@ -80,6 +80,12 @@ def _get_args_for_timeline_add_harmony_timeline(_):
         return (False, ""), {}
     return _get_timeline_name()
 
+def _get_args_for_timeline_add_oscillogram_timeline(_):
+    if not _get_media_duration_valid_for_add_timeline():
+        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        return (False, ""), {}
+    return _get_timeline_name()
+
 
 def _get_args_for_timeline_height_set(timeline_uis):
     timeline_ui = timeline_uis[0]

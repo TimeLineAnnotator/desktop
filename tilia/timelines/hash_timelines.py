@@ -25,6 +25,8 @@ def hash_timeline_data_by_kind(kind: TimelineKind, tl_data: dict):
     match kind:
         case TimelineKind.SLIDER_TIMELINE.name:
             return hash_timeline_data(["is_visible", "height"], None, tl_data)
+        case TimelineKind.OSCILLOGRAM_TIMELINE.name:
+            return hash_timeline_data(["is_visible", "height", "name"], hash_oscillogram_data, tl_data)
         case TimelineKind.HIERARCHY_TIMELINE.name:
             return hash_timeline_data(
                 ["height", "is_visible", "name"], hash_hierarchies_data, tl_data
@@ -160,3 +162,7 @@ def hash_harmony_data(harmony_data: dict) -> str:
     ]
 
     return hash_timeline_components(hash_attributes, sort_func, harmony_data)
+
+def hash_oscillogram_data(oscillogram_data: dict) -> str:
+    hash_attributes = ["start", "length", "level"]
+    return hash_timeline_components(hash_attributes, lambda x: x["start"], oscillogram_data)

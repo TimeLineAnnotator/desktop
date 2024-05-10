@@ -37,6 +37,11 @@ DEFAULT_SETTINGS = {
         "line_color": "#000000",
         "line_weight": 3,
     },
+    "oscillogram_timeline": {
+        "default_height": 240,
+        "wave_color": "#3399FF",
+        "max_div": 7500
+    },
     "beat_timeline": {"display_measure_periodicity": 4, "default_height": 35},
     "hierarchy_timeline": {
         "default_height": 120,
