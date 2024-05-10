@@ -57,7 +57,8 @@ class App:
             (Post.APP_RECORD_STATE, self.on_record_state),
             (Post.PLAYER_AVAILABLE, self.on_player_available),
             (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
-            # listening on tilia.settings would cause circular import
+            # Listening on tilia.settings would cause circular import,
+            # so we're listening here.
             (Post.WINDOW_SETTINGS_OPEN, settings.open_settings_on_os),
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
