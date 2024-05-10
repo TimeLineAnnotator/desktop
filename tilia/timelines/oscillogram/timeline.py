@@ -11,10 +11,6 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get
 from tilia.timelines.base.timeline import TimelineComponentManager
 
-if TYPE_CHECKING:
-    from tilia.timelines.base.component import TimelineComponent
-
-
 class OscillogramTimeline(Timeline):
     KIND = TimelineKind.OSCILLOGRAM_TIMELINE
     DEFAULT_HEIGHT = settings.get("oscillogram_timeline", "default_height")
