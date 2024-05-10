@@ -10,8 +10,6 @@ from tilia.ui.timelines.oscillogram.element import OscillogramUI
 from tilia.ui.timelines.oscillogram.request_handlers import OscillogramUIRequestHandler
 from tilia.ui.timelines.oscillogram.toolbar import OscillogramTimelineToolbar
 
-import time
-
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
     from tilia.ui.timelines.base.element_manager import ElementManager
