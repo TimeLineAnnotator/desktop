@@ -97,6 +97,7 @@ class AddTimelinesMenu(TiliaMenu):
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_MARKER_TIMELINE),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_OSCILLOGRAM_TIMELINE)
     ]
 
 

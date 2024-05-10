@@ -6,6 +6,7 @@ def get_element_class_by_kind(kind: ComponentKind):
     from tilia.ui.timelines.marker.element import MarkerUI
     from tilia.ui.timelines.beat.element import BeatUI
     from tilia.ui.timelines.harmony.elements import HarmonyUI, ModeUI
+    from tilia.ui.timelines.oscillogram.element import OscillogramUI
 
     kind_to_class_dict = {
         ComponentKind.HIERARCHY: HierarchyUI,
@@ -13,6 +14,7 @@ def get_element_class_by_kind(kind: ComponentKind):
         ComponentKind.BEAT: BeatUI,
         ComponentKind.HARMONY: HarmonyUI,
         ComponentKind.MODE: ModeUI,
+        ComponentKind.OSCILLOGRAM: OscillogramUI
     }
 
     return kind_to_class_dict[kind]
