@@ -85,7 +85,7 @@ class TiliaMainWindow(QMainWindow):
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
-        actions.trigger(TiliaAction.UI_CLOSE)
+        actions.trigger(TiliaAction.APP_CLOSE)
         event.ignore()
 
     def on_close(self):
@@ -148,6 +148,8 @@ class QtUI:
             (Post.BEAT_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE)),
             (Post.HARMONY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE)),
             (Post.DISPLAY_ERROR, dialogs.basic.display_error)
+            (Post.DISPLAY_ERROR, dialogs.basic.display_error),
+            (Post.UI_EXIT, self.exit),
         }
 
         SERVES = {
@@ -246,7 +248,11 @@ class QtUI:
 
     def launch(self):
         self.main_window.show()
-        self.q_application.exec()
+        return self.q_application.exec()
+
+    def exit(self, code: int):
+        # Code = 0 means a succesful run, code = 1 means an unhandled exception.
+        self.q_application.exit(code)
 
     def get_window_size(self):
         return self.main_window.width()

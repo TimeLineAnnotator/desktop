@@ -2,7 +2,6 @@ from __future__ import annotations
 import itertools
 import logging
 import re
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -49,7 +48,7 @@ class App:
     def _setup_requests(self):
         LISTENS = {
             (Post.APP_CLEAR, self.on_clear),
-            (Post.UI_CLOSE, self.on_close),
+            (Post.APP_CLOSE, self.on_close),
             (Post.APP_FILE_LOAD, self.on_file_load),
             (Post.APP_MEDIA_LOAD, self.load_media),
             (Post.APP_STATE_RESTORE, self.on_restore_state),
@@ -95,7 +94,7 @@ class App:
             if not self.file_manager.on_save_request():
                 return
 
-        sys.exit()
+        post(Post.UI_EXIT, 0)
 
     def load_media(self, path: str) -> None:
         if not path:

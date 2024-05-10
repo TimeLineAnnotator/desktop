@@ -11,6 +11,7 @@ from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
 class TiliaAction(Enum):
     AUTOSAVES_FOLDER_OPEN = auto()
+    APP_CLOSE = auto()
     HARMONY_IMPORT_FROM_CSV = auto()
     MODE_ADD = auto()
     MODE_DELETE = auto()
@@ -157,7 +158,7 @@ def set_tooltip(action: QAction, text: str, shortcut: str):
 
 
 taction_to_params = {
-    TiliaAction.UI_CLOSE: ActionParams(Post.UI_CLOSE, "Close tilia", "Close", ""),
+    TiliaAction.APP_CLOSE: ActionParams(Post.APP_CLOSE, "Close tilia", "Close", ""),
     TiliaAction.BEAT_ADD: ActionParams(
         Post.BEAT_ADD, "Add beat at current position", "beat_add", "b"
     ),

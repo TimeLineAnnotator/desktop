@@ -6,6 +6,7 @@ from typing import Callable, Any
 
 class Post(Enum):
     AUTOSAVES_FOLDER_OPEN = auto()
+    UI_EXIT = auto()
     WINDOW_INSPECT_OPEN = auto()
     APP_CLEAR = auto()
     APP_FILE_LOAD = auto()
@@ -169,7 +170,7 @@ class Post(Enum):
     TIMELINE_VIEW_LEFT_CLICK = auto()
     TIMELINE_VIEW_RIGHT_CLICK = auto()
     TIMELINE_WIDTH_SET_DONE = auto()
-    UI_CLOSE = auto()
+    APP_CLOSE = auto()
     UI_MEDIA_LOAD = auto()
     UI_MEDIA_LOAD_LOCAL = auto()
     UI_MEDIA_LOAD_YOUTUBE = auto()

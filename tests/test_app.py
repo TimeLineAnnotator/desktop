@@ -27,7 +27,7 @@ class TestSaveFileOnClose:
             patch("tilia.file.file_manager.FileManager.save") as save_mock,
             patch("sys.exit") as exit_mock,
         ):
-            actions.trigger(TiliaAction.UI_CLOSE)
+            actions.trigger(TiliaAction.APP_CLOSE)
 
         exit_mock.assert_called()
         save_mock.assert_not_called()
@@ -42,7 +42,7 @@ class TestSaveFileOnClose:
             Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file, True)),
             patch("sys.exit") as exit_mock,
         ):
-            actions.trigger(TiliaAction.UI_CLOSE)
+            actions.trigger(TiliaAction.APP_CLOSE)
 
         exit_mock.assert_called()
         assert tmp_file.exists()
@@ -61,7 +61,7 @@ class TestSaveFileOnClose:
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
             patch("sys.exit") as exit_mock,
         ):
-            actions.trigger(TiliaAction.UI_CLOSE)
+            actions.trigger(TiliaAction.APP_CLOSE)
 
         exit_mock.assert_called()
         assert tmp_file.exists()
@@ -75,7 +75,7 @@ class TestSaveFileOnClose:
             patch("tilia.file.file_manager.FileManager.save") as save_mock,
             patch("sys.exit") as exit_mock,
         ):
-            actions.trigger(TiliaAction.UI_CLOSE)
+            actions.trigger(TiliaAction.APP_CLOSE)
 
         exit_mock.assert_not_called()
         save_mock.assert_not_called()
@@ -88,7 +88,7 @@ class TestSaveFileOnClose:
             patch("tilia.file.file_manager.FileManager.save") as save_mock,
             patch("sys.exit") as exit_mock,
         ):
-            actions.trigger(TiliaAction.UI_CLOSE)
+            actions.trigger(TiliaAction.APP_CLOSE)
 
         exit_mock.assert_not_called()
         save_mock.assert_not_called()
