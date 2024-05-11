@@ -38,7 +38,7 @@ DEFAULT_SETTINGS = {
         "line_weight": 3,
     },
     "oscillogram_timeline": {
-        "default_height": 240,
+        "default_height": 80,
         "wave_color": "#3399FF",
         "max_div": 7500
     },

@@ -48,6 +48,10 @@ class OscillogramUI(TimelineUIElement):
     @property
     def level(self):
         return self.get_data("level")
+    
+    @property
+    def height(self):
+        return self.timeline_ui.get_data("height")
         
     @property
     def seek_time(self):
@@ -61,7 +65,8 @@ class OscillogramUI(TimelineUIElement):
         self.body = OscillogramBody(
             self.start_x,
             self.length,
-            self.level
+            self.level,
+            self.height
         )
         self.scene.addItem(self.body)
 
@@ -72,7 +77,8 @@ class OscillogramUI(TimelineUIElement):
         self.body.set_position(
             self.start_x,
             self.length,
-            self.level
+            self.level, 
+            self.height
         )
 
     def child_items(self):
@@ -128,20 +134,19 @@ class OscillogramUI(TimelineUIElement):
         }
 
 class OscillogramBody(CursorMixIn, QGraphicsLineItem):
-    def __init__(self, start_x: float, length: float, level: float):
+    def __init__(self, start_x: float, length: float, level: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
-        self.setLine(self.get_line(start_x, level))
+        self.setLine(self.get_line(start_x, level, height))
         self.width = length / 100
         self.set_pen_style_default()
 
-    def set_position(self, start_x, length, level):
-        self.setLine(self.get_line(start_x, level))
+    def set_position(self, start_x, length, level, height):
+        self.setLine(self.get_line(start_x, level, height))
         self.width = length / 100
         self.set_pen_style_default()
 
     @staticmethod
-    def get_line(x, level):
-        height = settings.get("oscillogram_timeline", "default_height")
+    def get_line(x, level, height):
         actual_level = level * height
         offset = (height - actual_level) / 2
         return QLineF(QPointF(x, offset), QPointF(x, offset + actual_level))
