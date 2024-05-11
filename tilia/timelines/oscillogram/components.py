@@ -13,7 +13,7 @@ from tilia.timelines.base.component import TimelineComponent
 class Oscillogram(TimelineComponent):
     SERIALIZABLE_BY_VALUE = [
         "start",
-        "length",
+        "end",
         "amplitude"]
     ORDERING_ATTRS = ("start",)
 
@@ -23,15 +23,15 @@ class Oscillogram(TimelineComponent):
         "timeline": validate_read_only,
         "id": validate_read_only,
         "start": validate_time,
-        "length": validate_time,
+        "end": validate_time,
         "amplitude": validate_pre_validated
     }
 
-    def __init__(self, timeline: OscillogramTimeline, id: int, start: float, length: float, amplitude: float, **__):
+    def __init__(self, timeline: OscillogramTimeline, id: int, start: float, end: float, amplitude: float, **__):
         super().__init__(timeline, id)
 
         self.start = start
-        self.length = length
+        self.end = end
         self.amplitude = amplitude
     
     def __repr__(self):
