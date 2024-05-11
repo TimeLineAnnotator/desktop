@@ -18,16 +18,12 @@ class OscillogramTimeline(Timeline):
     component_manager: OscillogramTLComponentManager
 
     def _create_timeline(self):
-        if self.components and len(self.components) == settings.get("oscillogram_timeline", "max_div"):
-            return
         try:
             audio = pydub.AudioSegment.from_file(get(Get.MEDIA_PATH))
         except:
             return
         else:
             divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("oscillogram_timeline", "max_div"), audio.frame_count()])
-            if divisions == len(self.components):
-                return
             self.clear()
             dt = audio.duration_seconds / divisions
             chunks = pydub.utils.make_chunks(audio, dt * 1000)
