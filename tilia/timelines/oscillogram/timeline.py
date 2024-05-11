@@ -34,7 +34,7 @@ class OscillogramTimeline(Timeline):
                     kind = ComponentKind.OSCILLOGRAM,
                     start = i * dt,
                     length = dt,
-                    level = normalised[i]
+                    amplitude = normalised[i]
                 )
 
     def refresh(self):
