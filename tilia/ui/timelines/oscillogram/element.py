@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class OscillogramUI(TimelineUIElement):
     INSPECTOR_FIELDS = [
         ("Start / End", InspectRowKind.LABEL, None),
-        ("Level", InspectRowKind.LABEL, None)
+        ("Amplitude", InspectRowKind.LABEL, None)
     ]
 
     def __init__(
@@ -46,8 +46,8 @@ class OscillogramUI(TimelineUIElement):
         return get_x_by_time(self.get_data("length"))
     
     @property
-    def level(self):
-        return self.get_data("level")
+    def amplitude(self):
+        return self.get_data("amplitude")
     
     @property
     def height(self):
@@ -65,7 +65,7 @@ class OscillogramUI(TimelineUIElement):
         self.body = OscillogramBody(
             self.start_x,
             self.length,
-            self.level,
+            self.amplitude,
             self.height
         )
         self.scene.addItem(self.body)
@@ -77,7 +77,7 @@ class OscillogramUI(TimelineUIElement):
         self.body.set_position(
             self.start_x,
             self.length,
-            self.level, 
+            self.amplitude, 
             self.height
         )
 
@@ -130,26 +130,26 @@ class OscillogramUI(TimelineUIElement):
             "Start / End": 
                 f"{format_media_time(self.get_data("start"))} /" +
                 f"{format_media_time(self.get_data("length") + self.get_data("start"))}",
-            "Level": str(self.get_data("level"))
+            "Amplitude": str(self.get_data("amplitude"))
         }
 
 class OscillogramBody(CursorMixIn, QGraphicsLineItem):
-    def __init__(self, start_x: float, length: float, level: float, height: float):
+    def __init__(self, start_x: float, length: float, amplitude: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
-        self.setLine(self.get_line(start_x, level, height))
+        self.setLine(self.get_line(start_x, amplitude, height))
         self.width = length / 100
         self.set_pen_style_default()
 
-    def set_position(self, start_x, length, level, height):
-        self.setLine(self.get_line(start_x, level, height))
+    def set_position(self, start_x, length, amplitude, height):
+        self.setLine(self.get_line(start_x, amplitude, height))
         self.width = length / 100
         self.set_pen_style_default()
 
     @staticmethod
-    def get_line(x, level, height):
-        actual_level = level * height
-        offset = (height - actual_level) / 2
-        return QLineF(QPointF(x, offset), QPointF(x, offset + actual_level))
+    def get_line(x, amplitude, max_height):
+        height = amplitude * max_height
+        offset = (max_height - height) / 2
+        return QLineF(QPointF(x, offset), QPointF(x, offset + height))
 
     def set_pen_style_default(self):
         pen = QPen(QColor(settings.get("oscillogram_timeline", "wave_color")))
