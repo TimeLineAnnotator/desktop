@@ -42,8 +42,8 @@ class OscillogramUI(TimelineUIElement):
         return get_x_by_time(self.get_data("start"))
     
     @property
-    def length(self):
-        return get_x_by_time(self.get_data("length"))
+    def width(self):
+        return get_x_by_time(self.get_data("end") - self.get_data("start"))
     
     @property
     def amplitude(self):
@@ -64,7 +64,7 @@ class OscillogramUI(TimelineUIElement):
     def _setup_body(self):
         self.body = OscillogramBody(
             self.start_x,
-            self.length,
+            self.width,
             self.amplitude,
             self.height
         )
@@ -76,7 +76,7 @@ class OscillogramUI(TimelineUIElement):
     def update_time(self):
         self.body.set_position(
             self.start_x,
-            self.length,
+            self.width,
             self.amplitude, 
             self.height
         )
@@ -129,20 +129,20 @@ class OscillogramUI(TimelineUIElement):
         return {
             "Start / End": 
                 f"{format_media_time(self.get_data("start"))} /" +
-                f"{format_media_time(self.get_data("length") + self.get_data("start"))}",
+                f"{format_media_time(self.get_data("end"))}",
             "Amplitude": str(self.get_data("amplitude"))
         }
 
 class OscillogramBody(CursorMixIn, QGraphicsLineItem):
-    def __init__(self, start_x: float, length: float, amplitude: float, height: float):
+    def __init__(self, start_x: float, width: float, amplitude: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.setLine(self.get_line(start_x, amplitude, height))
-        self.width = length / 100
+        self.width = width / 100
         self.set_pen_style_default()
 
-    def set_position(self, start_x, length, amplitude, height):
+    def set_position(self, start_x, width, amplitude, height):
         self.setLine(self.get_line(start_x, amplitude, height))
-        self.width = length / 100
+        self.width = width / 100
         self.set_pen_style_default()
 
     @staticmethod

@@ -164,5 +164,5 @@ def hash_harmony_data(harmony_data: dict) -> str:
     return hash_timeline_components(hash_attributes, sort_func, harmony_data)
 
 def hash_oscillogram_data(oscillogram_data: dict) -> str:
-    hash_attributes = ["start", "length", "amplitude"]
+    hash_attributes = ["start", "end", "amplitude"]
     return hash_timeline_components(hash_attributes, lambda x: x["start"], oscillogram_data)

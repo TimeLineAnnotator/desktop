@@ -47,7 +47,7 @@ class OscillogramTimeline(Timeline):
             self.create_timeline_component(
                 kind = ComponentKind.OSCILLOGRAM,
                 start = i * duration,
-                length = duration,
+                end = (i + 1) * duration,
                 amplitude = amplitudes[i]
             )
 
