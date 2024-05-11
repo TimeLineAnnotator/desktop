@@ -105,7 +105,7 @@ class OscillogramUI(TimelineUIElement):
             self.dragged = True
 
     def after_each_drag(self, drag_x: int):
-        self.set_data("time", get_time_by_x(drag_x))
+        pass
 
     def on_drag_end(self):
         if self.dragged:
