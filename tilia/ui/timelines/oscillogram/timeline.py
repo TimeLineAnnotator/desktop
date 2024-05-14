@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 from tilia.enums import Side
+from tilia.requests import Post, listen
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
@@ -17,6 +17,13 @@ class OscillogramTimelineUI(TimelineUI):
     ACCEPTS_HORIZONTAL_ARROWS = True
 
     TIMELINE_KIND = TimelineKind.OSCILLOGRAM_TIMELINE
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._setup_requests()
+
+    def _setup_requests(self):
+        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, lambda _: self.timeline.refresh())
 
     def on_timeline_element_request(self, request, selector: ElementSelector, *args, **kwargs):
         return OscillogramTimelineUIRequestHandler(self).on_request(request, selector, *args, *kwargs)
