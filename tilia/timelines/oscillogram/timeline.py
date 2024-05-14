@@ -14,6 +14,7 @@ from tilia.requests import get, Get
 from tilia.timelines.base.timeline import TimelineComponentManager
 from tilia.constants import YOUTUBE_URL_REGEX
 
+
 class OscillogramTimeline(Timeline):
     KIND = TimelineKind.OSCILLOGRAM_TIMELINE
     DEFAULT_HEIGHT = settings.get("oscillogram_timeline", "default_height")
@@ -59,6 +60,7 @@ class OscillogramTimeline(Timeline):
 
     def scale(self, *_):
         self._create_timeline()
+
 
 class OscillogramTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.OSCILLOGRAM]
