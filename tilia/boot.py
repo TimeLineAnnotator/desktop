@@ -31,6 +31,7 @@ def handle_expection(type, value, tb):
         # Additonally. the exception info should
         # also be dumped to a file.
         ui.show_crash_dialog(exc_message)
+        print(exc_message)
         ui.exit(1)
     else:
         print(exc_message)
