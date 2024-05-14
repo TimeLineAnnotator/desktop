@@ -17,9 +17,9 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
 
 if TYPE_CHECKING:
-    from .timeline import OscillogramTimelineUI
+    from .timeline import AudioWaveTimelineUI
 
-class OscillogramUI(TimelineUIElement):
+class AudioWaveUI(TimelineUIElement):
     INSPECTOR_FIELDS = [
         ("Start / End", InspectRowKind.LABEL, None),
         ("Amplitude", InspectRowKind.LABEL, None)
@@ -28,7 +28,7 @@ class OscillogramUI(TimelineUIElement):
     def __init__(
             self,
             id: int,
-            timeline_ui: OscillogramTimelineUI,
+            timeline_ui: AudioWaveTimelineUI,
             scene: QGraphicsScene,
             **_,
     ):
@@ -62,7 +62,7 @@ class OscillogramUI(TimelineUIElement):
         return get_x_by_time(self.seek_time)
     
     def _setup_body(self):
-        self.body = OscillogramBody(
+        self.body = AmplitudeBar(
             self.start_x,
             self.width,
             self.amplitude,
@@ -115,7 +115,7 @@ class OscillogramUI(TimelineUIElement):
 
     def on_drag_end(self):
         if self.dragged:
-            post(Post.APP_RECORD_STATE, "Oscillogram drag")
+            post(Post.APP_RECORD_STATE, "AudioWave drag")
             post(Post.ELEMENT_DRAG_END)
         self.dragged = False
 
@@ -133,8 +133,7 @@ class OscillogramUI(TimelineUIElement):
             "Amplitude": str(self.get_data("amplitude"))
         }
 
-
-class OscillogramBody(CursorMixIn, QGraphicsLineItem):
+class AmplitudeBar(CursorMixIn, QGraphicsLineItem):
     def __init__(self, start_x: float, width: float, amplitude: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.setLine(self.get_line(start_x, amplitude, height))
@@ -153,13 +152,13 @@ class OscillogramBody(CursorMixIn, QGraphicsLineItem):
         return QLineF(QPointF(x, offset), QPointF(x, offset + height))
 
     def set_pen_style_default(self):
-        pen = QPen(QColor(settings.get("oscillogram_timeline", "wave_color")))
+        pen = QPen(QColor(settings.get("audiowave_timeline", "wave_color")))
         pen.setStyle(Qt.PenStyle.SolidLine)
         pen.setWidthF(self.width)
         self.setPen(pen)
         
     def set_pen_style_selected(self):
-        pen = QPen(QColor(get_tinted_color(settings.get("oscillogram_timeline", "wave_color"), TINT_FACTOR_ON_SELECTION)))
+        pen = QPen(QColor(get_tinted_color(settings.get("audiowave_timeline", "wave_color"), TINT_FACTOR_ON_SELECTION)))
         pen.setStyle(Qt.PenStyle.SolidLine)
         pen.setWidthF(self.width)
         self.setPen(pen)

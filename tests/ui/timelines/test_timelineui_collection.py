@@ -22,7 +22,7 @@ ADD_TIMELINE_ACTIONS = [
     TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
     TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
     TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
-    TiliaAction.TIMELINES_ADD_OSCILLOGRAM_TIMELINE
+    TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE
 ]
 
 
@@ -43,7 +43,7 @@ class TestTimelineUICreation:
             TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
             TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
             TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
-            TiliaAction.TIMELINES_ADD_OSCILLOGRAM_TIMELINE
+            TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE
         ]
         tilia_state.duration = 1
         with (

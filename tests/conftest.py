@@ -29,7 +29,7 @@ pytest_plugins = [
     "tests.timelines.beat.fixtures",
     "tests.timelines.harmony.fixtures",
     "tests.timelines.slider.fixtures",
-    "tests.timelines.oscillogram.fixtures"
+    "tests.timelines.audiowave.fixtures"
 ]
 
 
@@ -171,7 +171,7 @@ def tls(tilia):
             TimelineKind.HIERARCHY_TIMELINE: Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
             TimelineKind.HARMONY_TIMELINE: Post.TIMELINE_ADD_HARMONY_TIMELINE,
             TimelineKind.BEAT_TIMELINE: Post.TIMELINE_ADD_BEAT_TIMELINE,
-            TimelineKind.OSCILLOGRAM_TIMELINE: Post.TIMELINE_ADD_OSCILLOGRAM_TIMELINE
+            TimelineKind.AUDIOWAVE_TIMELINE: Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE
         }
         with Serve(Get.FROM_USER_STRING, (name, True)):
             post(kind_to_request[kind])
@@ -190,14 +190,14 @@ def cli():
     stop_listening_to_all(_cli)
 
 
-@pytest.fixture(params=["marker", "harmony", "beat", "hierarchy", "oscillogram"])
-def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui, oscillogram_tlui):
+@pytest.fixture(params=["marker", "harmony", "beat", "hierarchy", "audiowave"])
+def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui, audiowave_tlui):
     return {
         "marker": marker_tlui,
         "harmony": harmony_tlui,
         "beat": beat_tlui,
         "hierarchy": hierarchy_tlui,
-        "oscillogram": oscillogram_tlui
+        "audiowave": audiowave_tlui
     }[request.param]
 
 

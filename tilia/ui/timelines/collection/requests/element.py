@@ -126,7 +126,7 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     Post.MODE_DELETE: TlElmRequestSelector(
         [TlKind.HARMONY_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
     ),
-    Post.OSCILLOGRAM_REFRESH: TlElmRequestSelector(
-        [TlKind.OSCILLOGRAM_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
+    Post.AUDIOWAVE_REFRESH: TlElmRequestSelector(
+        [TlKind.AUDIOWAVE_TIMELINE], TimelineSelector.SELECTED, ElementSelector.NONE
     )
 }

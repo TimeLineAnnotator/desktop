@@ -15,11 +15,11 @@ from tilia.timelines.base.timeline import TimelineComponentManager
 from tilia.constants import YOUTUBE_URL_REGEX
 
 
-class OscillogramTimeline(Timeline):
-    KIND = TimelineKind.OSCILLOGRAM_TIMELINE
-    DEFAULT_HEIGHT = settings.get("oscillogram_timeline", "default_height")
+class AudioWaveTimeline(Timeline):
+    KIND = TimelineKind.AUDIOWAVE_TIMELINE
+    DEFAULT_HEIGHT = settings.get("audiowave_timeline", "default_height")
     
-    component_manager: OscillogramTLComponentManager
+    component_manager: AudioWaveTLComponentManager
 
     def _create_timeline(self):
         audio = self._get_audio()
@@ -37,7 +37,7 @@ class OscillogramTimeline(Timeline):
         return pydub.AudioSegment.from_file(path)
     
     def _get_normalised_amplitudes(self, audio):    
-        divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("oscillogram_timeline", "max_div"), audio.frame_count()])
+        divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("audiowave_timeline", "max_div"), audio.frame_count()])
         dt = audio.duration_seconds / divisions
         chunks = pydub.utils.make_chunks(audio, dt * 1000)
         amplitude = [chunk.rms for chunk in chunks]
@@ -46,7 +46,7 @@ class OscillogramTimeline(Timeline):
     def _create_components(self, duration: float, amplitudes: float):
         for i in range(len(amplitudes)):
             self.create_timeline_component(
-                kind = ComponentKind.OSCILLOGRAM,
+                kind = ComponentKind.AUDIOWAVE,
                 start = i * duration,
                 end = (i + 1) * duration,
                 amplitude = amplitudes[i]
@@ -60,8 +60,8 @@ class OscillogramTimeline(Timeline):
         self._create_timeline()
 
 
-class OscillogramTLComponentManager(TimelineComponentManager):
-    COMPONENT_TYPES = [ComponentKind.OSCILLOGRAM]
+class AudioWaveTLComponentManager(TimelineComponentManager):
+    COMPONENT_TYPES = [ComponentKind.AUDIOWAVE]
 
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)

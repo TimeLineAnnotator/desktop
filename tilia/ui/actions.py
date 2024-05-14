@@ -56,7 +56,7 @@ class TiliaAction(Enum):
     MEDIA_STOP = auto()
     MEDIA_TOGGLE_PLAY_PAUSE = auto()
     METADATA_WINDOW_OPEN = auto()
-    OSCILLOGRAM_REFRESH = auto()
+    AUDIOWAVE_REFRESH = auto()
     SETTINGS_WINDOW_OPEN = auto()
     TIMELINES_AUTO_SCROLL_ENABLE = auto()
     TIMELINES_AUTO_SCROLL_DISABLE = auto()
@@ -64,7 +64,7 @@ class TiliaAction(Enum):
     TIMELINES_ADD_BEAT_TIMELINE = auto()
     TIMELINES_ADD_HIERARCHY_TIMELINE = auto()
     TIMELINES_ADD_MARKER_TIMELINE = auto()
-    TIMELINES_ADD_OSCILLOGRAM_TIMELINE = auto()
+    TIMELINES_ADD_AUDIOWAVE_TIMELINE = auto()
     TIMELINE_ELEMENT_COLOR_SET = auto()
     TIMELINE_ELEMENT_COLOR_RESET = auto()
     TIMELINE_ELEMENT_COPY = auto()
@@ -276,8 +276,8 @@ taction_to_params = {
     TiliaAction.METADATA_WINDOW_OPEN: ActionParams(
         Post.WINDOW_METADATA_OPEN, "Edit metadata...", "", ""
     ),
-    TiliaAction.OSCILLOGRAM_REFRESH: ActionParams(
-        Post.OSCILLOGRAM_REFRESH, "Refresh Oscillogram", "", ""
+    TiliaAction.AUDIOWAVE_REFRESH: ActionParams(
+        Post.AUDIOWAVE_REFRESH, "Refresh AudioWave", "", ""
     ),
     TiliaAction.SETTINGS_WINDOW_OPEN: ActionParams(
         Post.WINDOW_SETTINGS_OPEN, "Settings...", "", ""
@@ -314,9 +314,9 @@ taction_to_params = {
         "",
         "",
     ),
-    TiliaAction.TIMELINES_ADD_OSCILLOGRAM_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD_OSCILLOGRAM_TIMELINE,
-        "Oscillogram",
+    TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE: ActionParams(
+        Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE,
+        "AudioWave",
         "",
         "",
     ),

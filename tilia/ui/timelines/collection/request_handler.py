@@ -13,7 +13,7 @@ class TimelineUIsRequestHandler(RequestHandler):
                 Post.TIMELINE_ADD_MARKER_TIMELINE: self.on_timeline_add_marker_timeline,
                 Post.TIMELINE_ADD_BEAT_TIMELINE: self.on_timeline_add_beat_timeline,
                 Post.TIMELINE_ADD_HARMONY_TIMELINE: self.on_timeline_add_harmony_timeline,
-                Post.TIMELINE_ADD_OSCILLOGRAM_TIMELINE: self.on_timeline_add_oscillogram_timeline,
+                Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE: self.on_timeline_add_audiowave_timeline,
                 Post.TIMELINES_CLEAR: self.on_timelines_clear,
             }
         )
@@ -49,10 +49,10 @@ class TimelineUIsRequestHandler(RequestHandler):
                 TimelineKind.HARMONY_TIMELINE, None, name=name
             )
 
-    def on_timeline_add_oscillogram_timeline(self, confirmed: bool, name: str):
+    def on_timeline_add_audiowave_timeline(self, confirmed: bool, name: str):
         if confirmed:
             self.timelines.create_timeline(
-                TimelineKind.OSCILLOGRAM_TIMELINE, None, name=name)
+                TimelineKind.AUDIOWAVE_TIMELINE, None, name=name)
 
     def on_timelines_clear(self, confirmed):
         if confirmed:
