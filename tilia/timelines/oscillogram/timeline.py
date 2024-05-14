@@ -53,6 +53,10 @@ class OscillogramTimeline(Timeline):
             )
 
     def refresh(self):
+        if not get(Get.MEDIA_DURATION):
+            # Happens when media is unloaded.
+            self.clear()
+            return
         self._create_timeline()
 
 
