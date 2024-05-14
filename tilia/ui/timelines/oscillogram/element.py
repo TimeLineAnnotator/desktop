@@ -133,6 +133,7 @@ class OscillogramUI(TimelineUIElement):
             "Amplitude": str(self.get_data("amplitude"))
         }
 
+
 class OscillogramBody(CursorMixIn, QGraphicsLineItem):
     def __init__(self, start_x: float, width: float, amplitude: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)

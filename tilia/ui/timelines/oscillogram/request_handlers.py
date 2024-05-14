@@ -8,7 +8,8 @@ from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
 if TYPE_CHECKING:
     from tilia.ui.timelines.oscillogram import OscillogramTimelineUI
 
-class OscillogramUIRequestHandler(ElementRequestHandler):
+
+class OscillogramTimelineUIRequestHandler(ElementRequestHandler):
     def __init__(self, timeline_ui: OscillogramTimelineUI):
         super().__init__(
             timeline_ui, 
