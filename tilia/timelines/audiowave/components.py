@@ -6,18 +6,18 @@ from tilia.timelines.base.validators import validate_time, validate_read_only, v
 from tilia.timelines.component_kinds import ComponentKind
 
 if TYPE_CHECKING:
-    from tilia.timelines.oscillogram.timeline import OscillogramTimeline
+    from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 
 from tilia.timelines.base.component import TimelineComponent
 
-class Oscillogram(TimelineComponent):
+class AudioWave(TimelineComponent):
     SERIALIZABLE_BY_VALUE = [
         "start",
         "end",
         "amplitude"]
     ORDERING_ATTRS = ("start",)
 
-    KIND = ComponentKind.OSCILLOGRAM
+    KIND = ComponentKind.AUDIOWAVE
 
     validators = {
         "timeline": validate_read_only,
@@ -27,7 +27,7 @@ class Oscillogram(TimelineComponent):
         "amplitude": validate_pre_validated
     }
 
-    def __init__(self, timeline: OscillogramTimeline, id: int, start: float, end: float, amplitude: float, **__):
+    def __init__(self, timeline: AudioWaveTimeline, id: int, start: float, end: float, amplitude: float, **__):
         super().__init__(timeline, id)
 
         self.start = start
@@ -35,4 +35,4 @@ class Oscillogram(TimelineComponent):
         self.amplitude = amplitude
     
     def __repr__(self):
-        return f"Oscillogram({self.start}, {self.amplitude})"
+        return f"AudioWave({self.start}, {self.amplitude})"

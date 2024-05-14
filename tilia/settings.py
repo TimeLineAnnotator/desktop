@@ -37,7 +37,7 @@ DEFAULT_SETTINGS = {
         "line_color": "#000000",
         "line_weight": 3,
     },
-    "oscillogram_timeline": {
+    "audiowave_timeline": {
         "default_height": 80,
         "wave_color": "#3399FF",
         "max_div": 7500

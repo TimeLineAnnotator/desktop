@@ -6,17 +6,16 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
 
-from tilia.ui.timelines.oscillogram.element import OscillogramUI
-from tilia.ui.timelines.oscillogram.request_handlers import OscillogramTimelineUIRequestHandler
-from tilia.ui.timelines.oscillogram.toolbar import OscillogramTimelineToolbar
+from tilia.ui.timelines.audiowave.element import AudioWaveUI
+from tilia.ui.timelines.audiowave.request_handlers import AudioWaveUIRequestHandler
+from tilia.ui.timelines.audiowave.toolbar import AudioWaveTimelineToolbar
 
-
-class OscillogramTimelineUI(TimelineUI):
-    TOOLBAR_CLASS = OscillogramTimelineToolbar
-    ELEMENT_CLASS = OscillogramUI
+class AudioWaveTimelineUI(TimelineUI):
+    TOOLBAR_CLASS = AudioWaveTimelineToolbar
+    ELEMENT_CLASS = AudioWaveUI
     ACCEPTS_HORIZONTAL_ARROWS = True
 
-    TIMELINE_KIND = TimelineKind.OSCILLOGRAM_TIMELINE
+    TIMELINE_KIND = TimelineKind.AUDIOWAVE_TIMELINE
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -26,7 +25,7 @@ class OscillogramTimelineUI(TimelineUI):
         listen(self, Post.FILE_MEDIA_DURATION_CHANGED, lambda _: self.timeline.refresh())
 
     def on_timeline_element_request(self, request, selector: ElementSelector, *args, **kwargs):
-        return OscillogramTimelineUIRequestHandler(self).on_request(request, selector, *args, *kwargs)
+        return AudioWaveUIRequestHandler(self).on_request(request, selector, *args, *kwargs)
     
     def on_side_arrow_press(self, side: Side):
         if not self.has_selected_elements:

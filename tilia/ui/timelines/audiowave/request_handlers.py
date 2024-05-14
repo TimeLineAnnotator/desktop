@@ -6,15 +6,14 @@ from tilia.requests import Post
 from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
 
 if TYPE_CHECKING:
-    from tilia.ui.timelines.oscillogram import OscillogramTimelineUI
+    from tilia.ui.timelines.audiowave import AudioWaveTimelineUI
 
-
-class OscillogramTimelineUIRequestHandler(ElementRequestHandler):
-    def __init__(self, timeline_ui: OscillogramTimelineUI):
+class AudioWaveUIRequestHandler(ElementRequestHandler):
+    def __init__(self, timeline_ui: AudioWaveTimelineUI):
         super().__init__(
             timeline_ui, 
             {
-                Post.OSCILLOGRAM_REFRESH: self.on_refresh,
+                Post.AUDIOWAVE_REFRESH: self.on_refresh,
                 Post.TIMELINE_ELEMENT_DELETE: self.on_delete,
                 Post.TIMELINE_ELEMENT_COPY: self.on_copy,
                 Post.TIMELINE_ELEMENT_PASTE: self.on_paste,

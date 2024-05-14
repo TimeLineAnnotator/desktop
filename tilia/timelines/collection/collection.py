@@ -22,7 +22,7 @@ from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
 )
 from tilia.timelines.slider.timeline import SliderTimeline
-from tilia.timelines.oscillogram.timeline import OscillogramTimeline, OscillogramTLComponentManager
+from tilia.timelines.audiowave.timeline import AudioWaveTimeline, AudioWaveTLComponentManager
 from tilia.undo_manager import PauseUndoManager
 
 if TYPE_CHECKING:
@@ -40,9 +40,9 @@ def _create_hierarchy_timeline(**kwargs) -> HierarchyTimeline:
 def _create_slider_timeline(*_, **__) -> SliderTimeline:
     return SliderTimeline()
 
-def _create_oscilogram_timeline(*args, **kwargs) -> OscillogramTimeline:
-    component_manager = OscillogramTLComponentManager()
-    timeline = OscillogramTimeline(component_manager, *args, **kwargs)
+def _create_oscilogram_timeline(*args, **kwargs) -> AudioWaveTimeline:
+    component_manager = AudioWaveTLComponentManager()
+    timeline = AudioWaveTimeline(component_manager, *args, **kwargs)
     component_manager.associate_to_timeline(timeline)
 
     return timeline
@@ -169,7 +169,7 @@ class Timelines:
         tl = {
             TlKind.HIERARCHY_TIMELINE: _create_hierarchy_timeline,
             TlKind.SLIDER_TIMELINE: _create_slider_timeline,
-            TlKind.OSCILLOGRAM_TIMELINE: _create_oscilogram_timeline,
+            TlKind.AUDIOWAVE_TIMELINE: _create_oscilogram_timeline,
             TlKind.MARKER_TIMELINE: _create_marker_timeline,
             TlKind.BEAT_TIMELINE: _create_beat_timeline,
             TlKind.HARMONY_TIMELINE: _create_harmony_timeline,
@@ -190,7 +190,7 @@ class Timelines:
             # so user has a starting hierarchy to split
             # can't be done until timeline UI has been created
 
-        if kind == TlKind.OSCILLOGRAM_TIMELINE and not components:
+        if kind == TlKind.AUDIOWAVE_TIMELINE and not components:
             tl.refresh()
 
         return tl
