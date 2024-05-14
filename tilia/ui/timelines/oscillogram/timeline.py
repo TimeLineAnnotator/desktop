@@ -7,8 +7,9 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
 
 from tilia.ui.timelines.oscillogram.element import OscillogramUI
-from tilia.ui.timelines.oscillogram.request_handlers import OscillogramUIRequestHandler
+from tilia.ui.timelines.oscillogram.request_handlers import OscillogramTimelineUIRequestHandler
 from tilia.ui.timelines.oscillogram.toolbar import OscillogramTimelineToolbar
+
 
 class OscillogramTimelineUI(TimelineUI):
     TOOLBAR_CLASS = OscillogramTimelineToolbar
@@ -18,7 +19,7 @@ class OscillogramTimelineUI(TimelineUI):
     TIMELINE_KIND = TimelineKind.OSCILLOGRAM_TIMELINE
 
     def on_timeline_element_request(self, request, selector: ElementSelector, *args, **kwargs):
-        return OscillogramUIRequestHandler(self).on_request(request, selector, *args, *kwargs)
+        return OscillogramTimelineUIRequestHandler(self).on_request(request, selector, *args, *kwargs)
     
     def on_side_arrow_press(self, side: Side):
         if not self.has_selected_elements:
