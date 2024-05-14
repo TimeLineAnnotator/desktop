@@ -128,8 +128,8 @@ class OscillogramUI(TimelineUIElement):
     def get_inspector_dict(self) -> dict:
         return {
             "Start / End": 
-                f"{format_media_time(self.get_data("start"))} /" +
-                f"{format_media_time(self.get_data("end"))}",
+                f"{format_media_time(self.get_data('start'))} /" +
+                f"{format_media_time(self.get_data('end'))}",
             "Amplitude": str(self.get_data("amplitude"))
         }
 
