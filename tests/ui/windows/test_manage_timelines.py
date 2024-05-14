@@ -40,6 +40,7 @@ def create_timeline(tls: Timelines, kind: TimelineKind, name: str = ""):
         TimelineKind.HIERARCHY_TIMELINE: Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
         TimelineKind.HARMONY_TIMELINE: Post.TIMELINE_ADD_HARMONY_TIMELINE,
         TimelineKind.BEAT_TIMELINE: Post.TIMELINE_ADD_BEAT_TIMELINE,
+        TimelineKind.OSCILLOGRAM_TIMELINE: Post.TIMELINE_ADD_OSCILLOGRAM_TIMELINE
     }
     with Serve(Get.FROM_USER_STRING, (name, True)):
         post(kind_to_request[kind])
