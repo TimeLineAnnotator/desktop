@@ -15,6 +15,7 @@ from tilia.ui.actions import TiliaAction
         ("marker", ComponentKind.MARKER),
         ("beat", ComponentKind.BEAT),
         ("hierarchy", ComponentKind.HIERARCHY),
+        ("oscillogram",ComponentKind.OSCILLOGRAM)
     ],
     indirect=["tlui"],
 )
