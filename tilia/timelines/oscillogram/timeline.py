@@ -55,12 +55,6 @@ class OscillogramTimeline(Timeline):
     def refresh(self):
         self._create_timeline()
 
-    def crop(self, *_):
-        self._create_timeline()
-
-    def scale(self, *_):
-        self._create_timeline()
-
 
 class OscillogramTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.OSCILLOGRAM]
