@@ -40,7 +40,7 @@ DEFAULT_SETTINGS = {
     "audiowave_timeline": {
         "default_height": 80,
         "wave_color": "#3399FF",
-        "max_div": 7500
+        "max_div": 2500
     },
     "beat_timeline": {"display_measure_periodicity": 4, "default_height": 35},
     "hierarchy_timeline": {
