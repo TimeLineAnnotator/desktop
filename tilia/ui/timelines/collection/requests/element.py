@@ -125,8 +125,5 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     ),
     Post.MODE_DELETE: TlElmRequestSelector(
         [TlKind.HARMONY_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
-    ),
-    Post.AUDIOWAVE_REFRESH: TlElmRequestSelector(
-        [TlKind.AUDIOWAVE_TIMELINE], TimelineSelector.SELECTED, ElementSelector.NONE
     )
 }

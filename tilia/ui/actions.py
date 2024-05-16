@@ -56,7 +56,6 @@ class TiliaAction(Enum):
     MEDIA_STOP = auto()
     MEDIA_TOGGLE_PLAY_PAUSE = auto()
     METADATA_WINDOW_OPEN = auto()
-    AUDIOWAVE_REFRESH = auto()
     SETTINGS_WINDOW_OPEN = auto()
     TIMELINES_AUTO_SCROLL_ENABLE = auto()
     TIMELINES_AUTO_SCROLL_DISABLE = auto()
@@ -275,9 +274,6 @@ taction_to_params = {
     ),
     TiliaAction.METADATA_WINDOW_OPEN: ActionParams(
         Post.WINDOW_METADATA_OPEN, "Edit metadata...", "", ""
-    ),
-    TiliaAction.AUDIOWAVE_REFRESH: ActionParams(
-        Post.AUDIOWAVE_REFRESH, "Refresh AudioWave", "", ""
     ),
     TiliaAction.SETTINGS_WINDOW_OPEN: ActionParams(
         Post.WINDOW_SETTINGS_OPEN, "Settings...", "", ""

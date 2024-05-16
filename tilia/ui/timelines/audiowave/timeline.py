@@ -8,21 +8,12 @@ from tilia.ui.timelines.collection.requests.enums import ElementSelector
 
 from tilia.ui.timelines.audiowave.element import AudioWaveUI
 from tilia.ui.timelines.audiowave.request_handlers import AudioWaveUIRequestHandler
-from tilia.ui.timelines.audiowave.toolbar import AudioWaveTimelineToolbar
 
 class AudioWaveTimelineUI(TimelineUI):
-    TOOLBAR_CLASS = AudioWaveTimelineToolbar
     ELEMENT_CLASS = AudioWaveUI
     ACCEPTS_HORIZONTAL_ARROWS = True
 
     TIMELINE_KIND = TimelineKind.AUDIOWAVE_TIMELINE
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._setup_requests()
-
-    def _setup_requests(self):
-        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, lambda _: self.timeline.refresh())
 
     def on_timeline_element_request(self, request, selector: ElementSelector, *args, **kwargs):
         return AudioWaveUIRequestHandler(self).on_request(request, selector, *args, *kwargs)

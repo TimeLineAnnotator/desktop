@@ -47,7 +47,6 @@ from ..beat import BeatTimelineToolbar
 from ..harmony import HarmonyTimelineToolbar
 from ..hierarchy import HierarchyTimelineToolbar
 from ..marker import MarkerTimelineToolbar
-from ..audiowave import AudioWaveTimelineToolbar
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...actions import TiliaAction
@@ -378,7 +377,7 @@ class TimelineUIs:
         if not tl_kind:
             return
 
-        if tl_kind == TlKind.SLIDER_TIMELINE:
+        if tl_kind in [TlKind.SLIDER_TIMELINE, TlKind.AUDIOWAVE_TIMELINE]:
             return
 
         if toolbar := self.kind_to_toolbar[tl_kind]:
@@ -394,8 +393,7 @@ class TimelineUIs:
             TlKind.BEAT_TIMELINE: BeatTimelineToolbar,
             TlKind.MARKER_TIMELINE: MarkerTimelineToolbar,
             TlKind.HIERARCHY_TIMELINE: HierarchyTimelineToolbar,
-            TlKind.HARMONY_TIMELINE: HarmonyTimelineToolbar,
-            TlKind.AUDIOWAVE_TIMELINE: AudioWaveTimelineToolbar
+            TlKind.HARMONY_TIMELINE: HarmonyTimelineToolbar
         }[kind]
 
     def _get_timeline_ui_by_scene(self, scene):
