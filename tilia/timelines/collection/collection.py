@@ -40,7 +40,7 @@ def _create_hierarchy_timeline(**kwargs) -> HierarchyTimeline:
 def _create_slider_timeline(*_, **__) -> SliderTimeline:
     return SliderTimeline()
 
-def _create_oscilogram_timeline(*args, **kwargs) -> AudioWaveTimeline:
+def _create_audiowave_timeline(*args, **kwargs) -> AudioWaveTimeline:
     component_manager = AudioWaveTLComponentManager()
     timeline = AudioWaveTimeline(component_manager, *args, **kwargs)
     component_manager.associate_to_timeline(timeline)
@@ -169,7 +169,7 @@ class Timelines:
         tl = {
             TlKind.HIERARCHY_TIMELINE: _create_hierarchy_timeline,
             TlKind.SLIDER_TIMELINE: _create_slider_timeline,
-            TlKind.AUDIOWAVE_TIMELINE: _create_oscilogram_timeline,
+            TlKind.AUDIOWAVE_TIMELINE: _create_audiowave_timeline,
             TlKind.MARKER_TIMELINE: _create_marker_timeline,
             TlKind.BEAT_TIMELINE: _create_beat_timeline,
             TlKind.HARMONY_TIMELINE: _create_harmony_timeline,
