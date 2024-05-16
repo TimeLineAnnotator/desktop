@@ -1,18 +1,15 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 import pydub
+import pydub.exceptions
 import pydub.utils
-
-from re import match
 
 from tilia import settings
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.requests import get, Get
+from tilia.requests import get, Get, post, Post
 from tilia.timelines.base.timeline import TimelineComponentManager
-from tilia.constants import YOUTUBE_URL_REGEX
 
 
 class AudioWaveTimeline(Timeline):
@@ -21,20 +18,17 @@ class AudioWaveTimeline(Timeline):
     
     component_manager: AudioWaveTLComponentManager
 
-    def _create_timeline(self):
-        audio = self._get_audio()
-        if not audio:
-            return
-        
-        self.clear()    
+    def _create_timeline(self, audio):
         dt, normalised_amplitudes = self._get_normalised_amplitudes(audio)
         self._create_components(dt, normalised_amplitudes)
 
     def _get_audio(self):
         path = get(Get.MEDIA_PATH)
-        if match(path, YOUTUBE_URL_REGEX):
+        try:
+            return pydub.AudioSegment.from_file(path)        
+        except:
+            post(Post.DISPLAY_ERROR, "AudioWave", "Cannot show AudioWave on selected file")
             return None
-        return pydub.AudioSegment.from_file(path)
     
     def _get_normalised_amplitudes(self, audio):    
         divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("audiowave_timeline", "max_div"), audio.frame_count()])
@@ -52,12 +46,14 @@ class AudioWaveTimeline(Timeline):
                 amplitude = amplitudes[i]
             )
 
-    def refresh(self):
-        if not get(Get.MEDIA_DURATION):
-            # Happens when media is unloaded.
-            self.clear()
+    def refresh(self):       
+        self.clear()
+        audio = self._get_audio()
+        if not audio:
+            post(Post.TIMELINE_DELETE_DONE, self.id)
             return
-        self._create_timeline()
+        
+        self._create_timeline(audio)
 
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
