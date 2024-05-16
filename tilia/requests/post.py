@@ -83,7 +83,6 @@ class Post(Enum):
     MODE_ADD = auto()
     MODE_DELETE = auto()
     MODE_DISPLAY_AS_ROMAN_NUMERAL = auto()
-    AUDIOWAVE_REFRESH = auto()
     PLAYBACK_AREA_SET_WIDTH = auto()
     PLAYER_AVAILABLE = auto()
     PLAYER_CHANGE_TO_AUDIO_PLAYER = auto()
