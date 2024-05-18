@@ -27,7 +27,7 @@ class AudioWaveTimeline(Timeline):
         try:
             return pydub.AudioSegment.from_file(path)        
         except:
-            post(Post.DISPLAY_ERROR, "AudioWave", "Cannot show AudioWave on selected file")
+            post(Post.DISPLAY_ERROR, "AudioWave", "Cannot show AudioWave on selected file. Hiding AudioWave Timeline...")
             return None
     
     def _get_normalised_amplitudes(self, audio):    
@@ -50,11 +50,15 @@ class AudioWaveTimeline(Timeline):
         self.clear()
         audio = self._get_audio()
         if not audio:
-            post(Post.TIMELINE_DELETE_DONE, self.id)
+            self._update_visibility(False)
             return
-        
+        self._update_visibility(True)
         self._create_timeline(audio)
 
+    def _update_visibility(self, is_visible: bool):
+        if self.get_data("is_visible") != is_visible:
+            self.set_data("is_visible", is_visible)
+            post(Post.TIMELINE_SET_DATA_DONE, self.id, "is_visible", is_visible)
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.AUDIOWAVE]
