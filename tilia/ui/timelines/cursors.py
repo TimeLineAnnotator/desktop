@@ -15,4 +15,4 @@ class CursorMixIn:
 
     def hoverLeaveEvent(self, event) -> None:
         QGuiApplication.restoreOverrideCursor()
-        super().hoverEnterEvent(event)
+        super().hoverLeaveEvent(event)

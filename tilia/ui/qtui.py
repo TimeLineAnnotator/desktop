@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 import tilia.constants
 import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
+import tilia.parsers.csv.pdf
 import tilia.parsers.csv.harmony
 import tilia.parsers.csv.hierarchy
 import tilia.parsers.csv.beat
@@ -27,7 +28,7 @@ from .dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 from .dialogs.crash import CrashDialog
 from .menubar import TiliaMenuBar
 from tilia.ui.timelines.collection.collection import TimelineUIs
-from .menus import TimelinesMenu, HierarchyMenu, MarkerMenu, BeatMenu, HarmonyMenu
+from .menus import TimelinesMenu, HierarchyMenu, MarkerMenu, BeatMenu, HarmonyMenu, PdfMenu
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
 from .windows.manage_timelines import ManageTimelines
@@ -146,6 +147,7 @@ class QtUI:
             (Post.HIERARCHY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE)),
             (Post.BEAT_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE)),
             (Post.HARMONY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE)),
+            (Post.PDF_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.PDF_TIMELINE)),
             (Post.DISPLAY_ERROR, dialogs.basic.display_error),
             (Post.UI_EXIT, self.exit),
         }
@@ -200,6 +202,7 @@ class QtUI:
             (TlKind.HIERARCHY_TIMELINE, HierarchyMenu),
             (TlKind.BEAT_TIMELINE, BeatMenu),
             (TlKind.HARMONY_TIMELINE, HarmonyMenu),
+            (TlKind.PDF_TIMELINE, PdfMenu),
         }
         self.kind_to_dynamic_menus = {
             kind: self.menu_bar.get_menu(TimelinesMenu).get_submenu(menu_class)
@@ -222,6 +225,7 @@ class QtUI:
             TlKind.BEAT_TIMELINE,
             TlKind.MARKER_TIMELINE,
             TlKind.HARMONY_TIMELINE,
+            TlKind.PDF_TIMELINE,
         ]:
             if kind in instanced_kinds:
                 self.show_dynamic_menus(kind)
@@ -411,6 +415,10 @@ class QtUI:
                 "time": tilia.parsers.csv.harmony.import_by_time,
                 "measure": tilia.parsers.csv.harmony.import_by_measure,
             },
+            TlKind.PDF_TIMELINE: {
+                'time': tilia.parsers.csv.pdf.import_by_time,
+                'measure': tilia.parsers.csv.pdf.import_by_measure
+            }
         }
 
         timeline.clear()

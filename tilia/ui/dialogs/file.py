@@ -6,13 +6,13 @@ from PyQt6.QtWidgets import QFileDialog
 
 from tilia.media import constants as media_constants
 from tilia.constants import APP_NAME, FILE_EXTENSION
-from tilia.ui.dialogs.basic import ask_yes_no_or_cancel
+import tilia.ui.dialogs.basic
 
 APP_FILE_FILTER = f"{APP_NAME} files (*.{FILE_EXTENSION})"
 
 
 def ask_should_save_changes():
-    return ask_yes_no_or_cancel("Save changes", "Save changes to current file?")
+    return tilia.ui.dialogs.basic.ask_yes_no_or_cancel("Save changes", "Save changes to current file?")
 
 
 def _get_return_from_file_dialog(dialog: QFileDialog):
@@ -47,6 +47,19 @@ def ask_for_path_to_save_ogg_file(title: str, initial_name: str) -> tuple[str, s
     return QFileDialog().getSaveFileName(
         caption=title, directory=initial_name, filter="OGG files (*.ogg)"
     )
+
+
+def ask_for_pdf_file():
+    dialog = QFileDialog()
+    dialog.setWindowTitle('Choose PDF')
+    dialog.setFilter(QtCore.QDir.Filter.Files)
+    dialog.setNameFilter('PDF files (*.pdf)')
+
+    return _get_return_from_file_dialog(dialog)
+
+
+def ask_retry_pdf_file():
+    return tilia.ui.dialogs.basic.ask_yes_no('Invalid PDF', 'Would you like to load another PDF file?')
 
 
 def ask_for_media_file():

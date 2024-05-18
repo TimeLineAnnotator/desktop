@@ -10,6 +10,9 @@ from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
 
 class TiliaAction(Enum):
+    PDF_IMPORT_FROM_CSV = auto()
+    PDF_MARKER_DELETE = auto()
+    PDF_MARKER_ADD = auto()
     AUTOSAVES_FOLDER_OPEN = auto()
     APP_CLOSE = auto()
     HARMONY_IMPORT_FROM_CSV = auto()
@@ -63,6 +66,7 @@ class TiliaAction(Enum):
     TIMELINES_ADD_BEAT_TIMELINE = auto()
     TIMELINES_ADD_HIERARCHY_TIMELINE = auto()
     TIMELINES_ADD_MARKER_TIMELINE = auto()
+    TIMELINES_ADD_PDF_TIMELINE = auto()
     TIMELINES_ADD_AUDIOWAVE_TIMELINE = auto()
     TIMELINE_ELEMENT_COLOR_SET = auto()
     TIMELINE_ELEMENT_COLOR_RESET = auto()
@@ -310,6 +314,12 @@ taction_to_params = {
         "",
         "",
     ),
+    TiliaAction.TIMELINES_ADD_PDF_TIMELINE: ActionParams(
+        Post.TIMELINE_ADD_PDF_TIMELINE,
+        "PDF",
+        "",
+        "",
+    ),
     TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE: ActionParams(
         Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE,
         "AudioWave",
@@ -378,6 +388,15 @@ taction_to_params = {
     TiliaAction.WEBSITE_HELP_OPEN: ActionParams(
         Post.WEBSITE_HELP_OPEN, "Help...", "", ""
     ),
+    TiliaAction.PDF_MARKER_ADD: ActionParams(
+        Post.PDF_MARKER_ADD, "Add PDF marker", 'pdf_add', 'p'
+    ),
+    TiliaAction.PDF_MARKER_DELETE: ActionParams(
+        Post.PDF_MARKER_DELETE, "Delete PDF marker", 'pdf_delete', ''
+    ),
+    TiliaAction.PDF_IMPORT_FROM_CSV: ActionParams(
+        Post.PDF_IMPORT_FROM_CSV, "Import from CSV file", '', ''
+    )
 }
 
 _taction_to_qaction: dict[TiliaAction, QAction] = {}  # will be populated on startup

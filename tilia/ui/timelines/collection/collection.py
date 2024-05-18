@@ -47,6 +47,7 @@ from ..beat import BeatTimelineToolbar
 from ..harmony import HarmonyTimelineToolbar
 from ..hierarchy import HierarchyTimelineToolbar
 from ..marker import MarkerTimelineToolbar
+from ..pdf import PdfTimelineToolbar
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...actions import TiliaAction
@@ -347,6 +348,7 @@ class TimelineUIs:
         from tilia.ui.timelines.marker.timeline import MarkerTimelineUI
         from tilia.ui.timelines.harmony.timeline import HarmonyTimelineUI
         from tilia.ui.timelines.beat import BeatTimelineUI
+        from tilia.ui.timelines.pdf import PdfTimelineUI
 
         kind_to_class = {
             TlKind.HIERARCHY_TIMELINE: HierarchyTimelineUI,
@@ -355,6 +357,7 @@ class TimelineUIs:
             TlKind.MARKER_TIMELINE: MarkerTimelineUI,
             TlKind.BEAT_TIMELINE: BeatTimelineUI,
             TlKind.HARMONY_TIMELINE: HarmonyTimelineUI,
+            TlKind.PDF_TIMELINE: PdfTimelineUI,
         }
 
         return kind_to_class[kind]
@@ -393,7 +396,8 @@ class TimelineUIs:
             TlKind.BEAT_TIMELINE: BeatTimelineToolbar,
             TlKind.MARKER_TIMELINE: MarkerTimelineToolbar,
             TlKind.HIERARCHY_TIMELINE: HierarchyTimelineToolbar,
-            TlKind.HARMONY_TIMELINE: HarmonyTimelineToolbar
+            TlKind.HARMONY_TIMELINE: HarmonyTimelineToolbar,
+            TlKind.PDF_TIMELINE: PdfTimelineToolbar
         }[kind]
 
     def _get_timeline_ui_by_scene(self, scene):

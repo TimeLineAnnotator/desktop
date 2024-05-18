@@ -18,7 +18,7 @@ class HierarchyTimeline(Timeline):
 
     component_manager: HierarchyTLComponentManager
 
-    def create_initial_hierarchy(self):
+    def setup_blank_timeline(self):
         """Create unit of level 1 encompassing whole timeline"""
         self.create_timeline_component(
             kind=ComponentKind.HIERARCHY,

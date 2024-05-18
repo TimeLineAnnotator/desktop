@@ -125,5 +125,11 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     ),
     Post.MODE_DELETE: TlElmRequestSelector(
         [TlKind.HARMONY_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
+    ),
+    Post.PDF_MARKER_ADD: TlElmRequestSelector(
+        [TlKind.PDF_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
+    ),
+    Post.PDF_MARKER_DELETE: TlElmRequestSelector(
+        [TlKind.PDF_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
     )
 }

@@ -11,6 +11,7 @@ from tilia.utils import get_tilia_class_string
 from tilia.requests.post import listen
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
+from tilia.timelines.pdf.timeline import PdfTimeline, PdfTLComponentManager
 from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     TimelineKind,
@@ -66,6 +67,14 @@ def _create_beat_timeline(*args, **kwargs) -> BeatTimeline:
 def _create_harmony_timeline(*args, **kwargs) -> HarmonyTimeline:
     component_manager = HarmonyTLComponentManager()
     timeline = HarmonyTimeline(component_manager, *args, **kwargs)
+    component_manager.associate_to_timeline(timeline)
+
+    return timeline
+
+
+def _create_pdf_timeline(*args, **kwargs) -> PdfTimeline:
+    component_manager = PdfTLComponentManager()
+    timeline = PdfTimeline(component_manager, *args, **kwargs)
     component_manager.associate_to_timeline(timeline)
 
     return timeline
@@ -175,6 +184,7 @@ class Timelines:
             TlKind.MARKER_TIMELINE: _create_marker_timeline,
             TlKind.BEAT_TIMELINE: _create_beat_timeline,
             TlKind.HARMONY_TIMELINE: _create_harmony_timeline,
+            TlKind.PDF_TIMELINE: _create_pdf_timeline,
         }[kind](*args, **kwargs)
         self._add_to_timelines(tl)
 
@@ -187,10 +197,11 @@ class Timelines:
             # can't be done until timeline UI has been created
             tl.deserialize_components(components)
 
-        if kind == TlKind.HIERARCHY_TIMELINE and not components:
-            tl.create_initial_hierarchy()
-            # so user has a starting hierarchy to split
-            # can't be done until timeline UI has been created
+        if hasattr(tl, 'setup_blank_timeline') and not components:
+            # For setup that needs to be done after
+            # the corresponding timeline ui has
+            # been created.
+            tl.setup_blank_timeline()
 
         if kind == TlKind.AUDIOWAVE_TIMELINE and not components:
             tl.refresh()

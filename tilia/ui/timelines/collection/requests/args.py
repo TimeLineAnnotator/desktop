@@ -61,6 +61,19 @@ def _get_args_for_timeline_add_marker_timeline(_):
     return _get_timeline_name()
 
 
+def _get_args_for_timeline_add_pdf_timeline(_):
+    if not _get_media_duration_valid_for_add_timeline():
+        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        return (False, "", []), {}
+    (confirmed, name), _ = _get_timeline_name()
+    if not confirmed:
+        return (False, "", []), {}
+
+    confirmed, pdf_path = get(Get.FROM_USER_PDF_PATH)
+
+    return (confirmed, name, pdf_path), {}
+
+
 def _get_args_for_timeline_add_beat_timeline(_):
     if not _get_media_duration_valid_for_add_timeline():
         post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)

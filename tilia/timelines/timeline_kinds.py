@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class TimelineKind(Enum):
+    PDF_TIMELINE = "PDF_TIMELINE"
     HARMONY_TIMELINE = "HARMONY_TIMELINE"
     HIERARCHY_TIMELINE = "HIERARCHY_TIMELINE"
     MARKER_TIMELINE = "MARKER_TIMELINE"
@@ -17,6 +18,7 @@ NOT_SLIDER = [
     TimelineKind.MARKER_TIMELINE,
     TimelineKind.BEAT_TIMELINE,
     TimelineKind.HARMONY_TIMELINE,
+    TimelineKind.PDF_TIMELINE,
     TimelineKind.AUDIOWAVE_TIMELINE
 ]
 ALL = list(TimelineKind)

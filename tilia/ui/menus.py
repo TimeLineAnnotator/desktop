@@ -97,6 +97,7 @@ class AddTimelinesMenu(TiliaMenu):
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_MARKER_TIMELINE),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_PDF_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE)
     ]
 
@@ -121,6 +122,11 @@ class HarmonyMenu(TiliaMenu):
     items = [(MenuItemKind.ACTION, TiliaAction.HARMONY_IMPORT_FROM_CSV)]
 
 
+class PdfMenu(TiliaMenu):
+    title = "PDF"
+    items = [(MenuItemKind.ACTION, TiliaAction.PDF_IMPORT_FROM_CSV)]
+
+
 class TimelinesMenu(TiliaMenu):
     title = "Timelines"
     items = [
@@ -131,6 +137,7 @@ class TimelinesMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, MarkerMenu),
         (MenuItemKind.SUBMENU, BeatMenu),
         (MenuItemKind.SUBMENU, HarmonyMenu),
+        (MenuItemKind.SUBMENU, PdfMenu),
     ]
 
 
