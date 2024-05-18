@@ -833,7 +833,7 @@ class TimelineUIs:
         }
 
     def _hide_toolbar_if_needed(self, kind: TlKind):
-        if kind == TlKind.SLIDER_TIMELINE:
+        if kind in [TlKind.SLIDER_TIMELINE, TlKind.AUDIOWAVE_TIMELINE]:
             return
         if self.kind_to_timeline()[kind] == 0:
             self.kind_to_toolbar[kind].hide()
