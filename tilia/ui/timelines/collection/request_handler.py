@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from tilia.requests import Post, get, Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.request_handler import RequestHandler
@@ -13,6 +15,7 @@ class TimelineUIsRequestHandler(RequestHandler):
                 Post.TIMELINE_ADD_MARKER_TIMELINE: self.on_timeline_add_marker_timeline,
                 Post.TIMELINE_ADD_BEAT_TIMELINE: self.on_timeline_add_beat_timeline,
                 Post.TIMELINE_ADD_HARMONY_TIMELINE: self.on_timeline_add_harmony_timeline,
+                Post.TIMELINE_ADD_PDF_TIMELINE: self.on_timeline_add_pdf_timeline,
                 Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE: self.on_timeline_add_audiowave_timeline,
                 Post.TIMELINES_CLEAR: self.on_timelines_clear,
             }
@@ -47,6 +50,15 @@ class TimelineUIsRequestHandler(RequestHandler):
         if confirmed:
             self.timelines.create_timeline(
                 TimelineKind.HARMONY_TIMELINE, None, name=name
+            )
+
+    def on_timeline_add_pdf_timeline(self, confirmed: bool, name: str, pdf_path: str | Path):
+        if confirmed:
+            self.timelines.create_timeline(
+                TimelineKind.PDF_TIMELINE,
+                None,
+                name=name,
+                path=pdf_path
             )
 
     def on_timeline_add_audiowave_timeline(self, confirmed: bool, name: str):

@@ -59,7 +59,7 @@ def import_by_time(
                 try:
                     constructor_args[attr] = parsers[i](value)
                 except ValueError:
-                    errors.append(f"{value=} | {value} is not a valid {attr}")
+                    errors.append(f"'{value}' is not a valid {attr.replace('_', ' ')}")
                     continue
 
             for param, parser in zip(params, parsers):
@@ -141,7 +141,7 @@ def import_by_measure(
                     value = row[index]
                     required_values[attr] = parser(value)
             except ValueError:
-                errors.append(f"{value=} | {value} is not a valid {attr}")
+                errors.append(f"'{value}' is not a valid {attr.replace('_', ' ')}")
                 continue
 
             # get and validate fraction

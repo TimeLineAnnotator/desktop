@@ -31,6 +31,8 @@ INVALID_HARMONY_INVERSION = Error(
 )
 ADD_MODE_FAILED = Error("Add key failed", "Adding key failed: {}.")
 ADD_HARMONY_FAILED = Error("Add harmony failed", "{}")
+ADD_PDF_MARKER_FAILED = Error("Add page marker failed", "Can't add page marker: {}")
+INVALID_PDF = Error("PDF timeline error", "Invalid PDF path: '{}'")
 
 
 def display(error: Error, *args):

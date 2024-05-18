@@ -5,6 +5,9 @@ from typing import Callable, Any
 
 
 class Post(Enum):
+    PDF_IMPORT_FROM_CSV = auto()
+    PDF_MARKER_DELETE = auto()
+    PDF_MARKER_ADD = auto()
     AUTOSAVES_FOLDER_OPEN = auto()
     UI_EXIT = auto()
     WINDOW_INSPECT_OPEN = auto()
@@ -126,6 +129,7 @@ class Post(Enum):
     TIMELINE_ADD_HIERARCHY_TIMELINE = auto()
     TIMELINE_ADD_MARKER_TIMELINE = auto()
     TIMELINE_ADD_AUDIOWAVE_TIMELINE = auto()
+    TIMELINE_ADD_PDF_TIMELINE = auto()
     TIMELINE_CLEAR_FROM_MANAGE_TIMELINES = auto()
     TIMELINE_COLLECTION_STATE_RESTORED = auto()
     TIMELINE_COMPONENT_CREATED = auto()

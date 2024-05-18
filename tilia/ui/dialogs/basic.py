@@ -21,6 +21,20 @@ def ask_for_float(title: str, prompt: str, initial: Optional[float] = 0.0):
     return QInputDialog().getDouble(None, title, prompt, initial)
 
 
+def ask_yes_no(title: str, prompt: str) -> tuple[bool, bool]:
+    result = QMessageBox().question(
+        None,
+        title,
+        prompt,
+        buttons=QMessageBox.StandardButton(
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No
+        ),
+    )
+
+    return True, result == QMessageBox.StandardButton.Yes
+
+
 def ask_yes_no_or_cancel(title: str, prompt: str) -> tuple[bool, bool]:
     result = QMessageBox().question(
         None,
