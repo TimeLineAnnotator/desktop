@@ -22,6 +22,8 @@ class QtPlayer(Player):
         super().on_media_duration_available(duration / 1000)
 
     def _engine_load_media(self, media_path: str) -> bool:
+        self.player.stop()
+        time.sleep(0.1)
         self.player.setSource(QUrl(media_path))
         return True
 
