@@ -30,6 +30,7 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 class ManageTimelines(QDialog):
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("Manage Timelines")
         self._setup_widgets()
         self._setup_checkbox()
         self._setup_requests()
