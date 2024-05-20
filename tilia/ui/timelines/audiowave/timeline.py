@@ -59,7 +59,7 @@ class AudioWaveTimelineUI(TimelineUI):
             amplitude = 0
             for element in self.selected_elements:
                 amplitude += element.get_data('amplitude')
-            amplitude = f"{amplitude / len(self.selected_elements)} (rms)"
+            amplitude = f"{amplitude / len(self.selected_elements): .3f} (rms)"
 
         inspector_dict = {
             "Start / End": 
