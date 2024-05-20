@@ -45,6 +45,7 @@ class Inspect(QDockWidget):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setWindowTitle("Inspector")
         self._setup_requests()
         self.inspected_objects_stack = []
         self.element_id = ""
