@@ -74,4 +74,4 @@ class AudioWaveTimelineUI(TimelineUI):
         self.selected_elements[0].INSPECTOR_FIELDS,
         inspector_dict,
         self.selected_elements[0].id,
-    )
+        )
