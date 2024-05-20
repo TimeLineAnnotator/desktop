@@ -125,14 +125,6 @@ class AudioWaveUI(TimelineUIElement):
     def on_deselect(self) -> None:
         self.body.on_deselect()
 
-    def get_inspector_dict(self) -> dict:
-        return {
-            "Start / End": 
-                f"{format_media_time(self.get_data('start'))} /" +
-                f"{format_media_time(self.get_data('end'))}",
-            "Amplitude": str(self.get_data("amplitude"))
-        }
-
 class AmplitudeBar(CursorMixIn, QGraphicsLineItem):
     def __init__(self, start_x: float, width: float, amplitude: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
