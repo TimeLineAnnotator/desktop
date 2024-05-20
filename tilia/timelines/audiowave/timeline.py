@@ -18,8 +18,8 @@ class AudioWaveTimeline(Timeline):
     
     component_manager: AudioWaveTLComponentManager
 
-    def _create_timeline(self, audio):
-        dt, normalised_amplitudes = self._get_normalised_amplitudes(audio)
+    def _create_timeline(self):
+        dt, normalised_amplitudes = self._get_normalised_amplitudes()
         self._create_components(dt, normalised_amplitudes)
 
     def _get_audio(self):
@@ -30,10 +30,10 @@ class AudioWaveTimeline(Timeline):
             post(Post.DISPLAY_ERROR, "AudioWave", "Cannot show AudioWave on selected file. Hiding AudioWave Timeline...")
             return None
     
-    def _get_normalised_amplitudes(self, audio):    
-        divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("audiowave_timeline", "max_div"), audio.frame_count()])
-        dt = audio.duration_seconds / divisions
-        chunks = pydub.utils.make_chunks(audio, dt * 1000)
+    def _get_normalised_amplitudes(self):    
+        divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("audiowave_timeline", "max_div"), self.audio.frame_count()])
+        dt = self.audio.duration_seconds / divisions
+        chunks = pydub.utils.make_chunks(self.audio, dt * 1000)
         amplitude = [chunk.rms for chunk in chunks]
         return dt, [amp / max(amplitude) for amp in amplitude]
     
@@ -48,17 +48,20 @@ class AudioWaveTimeline(Timeline):
 
     def refresh(self):       
         self.clear()
-        audio = self._get_audio()
-        if not audio:
+        self.audio = self._get_audio()
+        if not self.audio:
             self._update_visibility(False)
             return
         self._update_visibility(True)
-        self._create_timeline(audio)
+        self._create_timeline()
 
     def _update_visibility(self, is_visible: bool):
         if self.get_data("is_visible") != is_visible:
             self.set_data("is_visible", is_visible)
             post(Post.TIMELINE_SET_DATA_DONE, self.id, "is_visible", is_visible)
+
+    def get_dB(self, start_time, end_time):
+        return self.audio[start_time * 1000: end_time * 1000].dBFS
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.AUDIOWAVE]
