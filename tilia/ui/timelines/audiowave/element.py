@@ -9,7 +9,7 @@ from tilia.requests import Post, post, get, Get
 from ..cursors import CursorMixIn
 from ..drag import DragManager
 from ...format import format_media_time
-from ...coords import get_x_by_time, get_time_by_x
+from ...coords import get_x_by_time
 from ...color import get_tinted_color
 from ...consts import TINT_FACTOR_ON_SELECTION
 from tilia import settings
