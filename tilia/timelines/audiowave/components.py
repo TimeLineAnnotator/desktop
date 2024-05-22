@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 from tilia.timelines.base.component import TimelineComponent
 
-class AudioWave(TimelineComponent):
+class AmplitudeBar(TimelineComponent):
     SERIALIZABLE_BY_VALUE = [
         "start",
         "end",
