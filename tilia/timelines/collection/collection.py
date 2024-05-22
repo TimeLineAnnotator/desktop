@@ -128,9 +128,11 @@ class Timelines:
         # a blank Timelines is empty or has a single slider timeline
         # which is its state when creating a new (blank) file
         return (
-            self.is_empty
-            or len(self) == 1
-            and self[0].KIND == TimelineKind.SLIDER_TIMELINE
+            self.is_empty or 
+            len(
+                set([x.KIND for x in self])
+                .difference((TimelineKind.SLIDER_TIMELINE, TimelineKind.AUDIOWAVE_TIMELINE))
+            ) == 0
         )
 
     @staticmethod
