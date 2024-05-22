@@ -15,7 +15,7 @@ def get_component_class_by_kind(kind: ComponentKind):
     from tilia.timelines.marker.components import Marker
     from tilia.timelines.beat.components import Beat
     from tilia.timelines.harmony.components import Harmony, Mode
-    from tilia.timelines.audiowave.components import AudioWave
+    from tilia.timelines.audiowave.components import AmplitudeBar
 
     kind_to_class_dict = {
         ComponentKind.HIERARCHY: Hierarchy,
@@ -23,7 +23,7 @@ def get_component_class_by_kind(kind: ComponentKind):
         ComponentKind.BEAT: Beat,
         ComponentKind.HARMONY: Harmony,
         ComponentKind.MODE: Mode,
-        ComponentKind.AUDIOWAVE: AudioWave
+        ComponentKind.AUDIOWAVE: AmplitudeBar
     }
 
     return kind_to_class_dict[kind]

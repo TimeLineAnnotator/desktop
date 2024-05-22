@@ -18,7 +18,7 @@ from ...windows.inspect import InspectRowKind
 if TYPE_CHECKING:
     from .timeline import AudioWaveTimelineUI
 
-class AudioWaveUI(TimelineUIElement):
+class AmplitudeBarUI(TimelineUIElement):
     INSPECTOR_FIELDS = [
         ("Start / End", InspectRowKind.LABEL, None),
         ("Amplitude", InspectRowKind.LABEL, None)
@@ -61,7 +61,7 @@ class AudioWaveUI(TimelineUIElement):
         return get_x_by_time(self.seek_time)
     
     def _setup_body(self):
-        self.body = AmplitudeBar(
+        self.body = AmplitudeBarUIBody(
             self.start_x,
             self.width,
             self.amplitude,
@@ -124,7 +124,7 @@ class AudioWaveUI(TimelineUIElement):
     def on_deselect(self) -> None:
         self.body.on_deselect()
 
-class AmplitudeBar(CursorMixIn, QGraphicsLineItem):
+class AmplitudeBarUIBody(CursorMixIn, QGraphicsLineItem):
     def __init__(self, start_x: float, width: float, amplitude: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.setLine(self.get_line(start_x, amplitude, height))
