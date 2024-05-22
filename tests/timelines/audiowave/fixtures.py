@@ -37,8 +37,8 @@ def audiowave_tlui(tilia, tls, tluis) -> TestAudioWaveTimelineUI:
 
     tl.clear()
 
-    tl.create_hierarchy = create_audiowave
-    ui.create_hierarchy = create_audiowave
+    tl.create_audiowave = create_audiowave
+    ui.create_audiowave = create_audiowave
     tl.create_component = create_component
     ui.create_component = create_component
     return ui  # will be deleted by tls
