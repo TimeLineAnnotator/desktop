@@ -9,6 +9,7 @@ from tests.mock import PatchGet, Serve
 from tilia.requests import Get
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
+from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class TestSaveFileOnClose:
@@ -208,7 +209,7 @@ class TestMediaLoad:
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
 class TestFileSetup:
-    def test_slider_timeline_is_created_when_loaded_file_does_not_have_one(self, tls):
+    def test_slider_timeline_is_created_when_loaded_file_does_not_have_one(self, tls, tmp_path):
         file_data = tests.utils.get_blank_file_data()
         file_data['timelines'] = {
             'name': '',
