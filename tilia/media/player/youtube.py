@@ -1,9 +1,10 @@
+
 import functools
 import re
 from enum import Enum
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QUrl, pyqtSlot, QObject, QTimer
+from PyQt6.QtCore import Qt, QUrl, pyqtSlot, QObject, QTimer, QByteArray
 from PyQt6.QtWebChannel import QWebChannel
 
 import tilia.constants
@@ -11,7 +12,7 @@ import tilia.constants
 from tilia.media.player import Player
 
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor
 
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post
@@ -53,6 +54,13 @@ class PlayerTracker(QObject):
         VIDEO_CUED = 5
 
 
+class UrlRequestInterceptor(QWebEngineUrlRequestInterceptor):
+    def interceptRequest(self, info):
+        name = QByteArray('Referer'.encode())
+        value = QByteArray('https://tilia-ad99d.web.app/'.encode())
+        info.setHttpHeader(name, value)
+
+
 class YouTubePlayer(Player):
     MEDIA_TYPE = "youtube"
     PATH_TO_HTML = Path(__file__).parent / "youtube.html"
@@ -67,6 +75,7 @@ class YouTubePlayer(Player):
         self.view.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
+        self.request_interceptor = UrlRequestInterceptor()
         self.is_web_page_loaded = False
         self.view.loadFinished.connect(self._on_web_page_load_finished)
         self.view.load(QUrl.fromLocalFile(self.PATH_TO_HTML.resolve().__str__()))
@@ -90,6 +99,7 @@ class YouTubePlayer(Player):
         )
         self.channel.registerObject("backend", self.shared_object)
         self.view.page().setWebChannel(self.channel)
+        self.view.page().setUrlRequestInterceptor(self.request_interceptor)
 
     def load_media(self, path: str | Path, start: float = 0.0, end: float = 0.0):
         if not self.view.isVisible():

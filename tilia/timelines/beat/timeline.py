@@ -444,6 +444,17 @@ class BeatTLComponentManager(TimelineComponentManager):
                 self.delete_component(beat)
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):
+        # Storing these attributes so we can restore them below.
+        beats_in_measure = self.timeline.beats_in_measure.copy()
+        measure_numbers = self.timeline.measure_numbers.copy()
+        measures_to_force_display = self.timeline.measures_to_force_display.copy()
+
+        # This call will change the attributes above.
         super().deserialize_components(serialized_components)
 
-        self.timeline.recalculate_measures()
+        # But we restore them here.
+        self.timeline.set_data('measure_numbers', measure_numbers)
+        self.timeline.set_data('beats_in_measure', beats_in_measure)
+        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
+
+        self.timeline.recalculate_measures()  # Not sure if this is needed.
