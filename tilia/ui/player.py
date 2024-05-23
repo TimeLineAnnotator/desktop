@@ -16,8 +16,8 @@ class PlayerToolbar(QToolBar):
 
         self._setup_requests()
 
-        self.current_time_string = "0:00:00"
-        self.duration_string = "0:00:00"
+        self.current_time_string = format_media_time(0)
+        self.duration_string = format_media_time(0)
 
         self.play_action = actions.get_qaction(TiliaAction.MEDIA_TOGGLE_PLAY_PAUSE)
         self.stop_action = actions.get_qaction(TiliaAction.MEDIA_STOP)
