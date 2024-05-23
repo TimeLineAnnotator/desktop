@@ -2,9 +2,9 @@
 
 ---
 
-TiLiA (TimeLine Annotator) is an open-source GUI for producing and displaying complex annotations over video and audio files. It is a full-featured but easy to use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PyQt library for its GUI.
+TiLiA (TimeLine Annotator) is an open-source GUI for producing and displaying complex annotations over video and audio files. It is a full-featured but easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PyQt library for its GUI.
 
-TiLiA allows user to annotate media files is primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are four types of timelines (hierarchy, marker, beat and harmony) but many more are planned.
+TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are four types of timelines (hierarchy, marker, beat and harmony) but many more are planned.
 
 Some examples of what TiLiA visualizations look like:
 
@@ -14,19 +14,20 @@ Some examples of what TiLiA visualizations look like:
   - [Third movement](https://www.timelineannotator.com/examples/mozart-k284-iii)
 
 ## Current features
- - 4 different kinds of timelines
-   - Hierarchy: nested and leveled units organized in arbitrally complex hierarchical structures
-   - Marker: simple labeled markers to indicate discrete events
+ - 5 different kinds of timelines -
+   - Hierarchy: nested and levelled units organized in arbitrally complex hierarchical structures
+   - Marker: simple labelled markers to indicate discrete events
    - Beat: beat and measure markers with support to numbering
-   - Harmony: roman numeral and chord symbol labels using a specialized font, including properly display of inversion numerals, quality symbols and applied chords.
+   - Harmony: Roman numeral and chord symbol labels using a specialized font, including proper display of inversion numerals, quality symbols and applied chords
+   - AudioWave: visualise audio files through bars that represent changes in amplitude
  - Controlling playback by clicking on timeline units
- - Multiple attributes linked to each timeline units
+ - Multiple attributes linked to each timeline unit
  - Local audio and video support
  - YouTube stream support
  - Customizable metadata can be attached to files
  - Creation of multiple timelines
  - Easy timeline edition during playback
- - Toggling of timleine visibility
+ - Toggling of timeline visibility
  - Export of audio segments based on analysis
  - Import timeline components from CSV files
 
@@ -40,7 +41,6 @@ There are many more features that I would like to implement than can be listed h
     - Change beats in measure for multiple measures
 - New kinds of timelines
   - Range: displays units with an extension, but not tied to hierarchical structures
-  - Audio wave
   - PDF: display and synchronize navigation of PDF files with playback
 - TiLiA explorer: allows filtered searches through timeline components in multiple TiLiA files
 - Font and GUI colors customization
@@ -88,7 +88,7 @@ You'll find your executable application files within a newly created 'dist' fold
 
 ## How to contribute
 
-Read the CONTRIBUTING.md file at the root directory.
+Read the CONTRIBUTING.md file in the root directory.
 
 ## License
 
@@ -96,5 +96,5 @@ TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The com
 
 ## Acknowledgments
 
-The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for developing and freely distributing his software.  
+The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for the development and free distribution his software.  
 
