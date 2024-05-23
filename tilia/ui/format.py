@@ -1,4 +1,6 @@
 def format_media_time(audio_time: float | str) -> str:
-    minutes = str(int(float(audio_time) // 60)).zfill(2)
     seconds_and_fraction = f"{audio_time % 60:.1f}".zfill(4)
-    return f"{minutes}:{seconds_and_fraction}"
+    minutes = int(float(audio_time) // 60)
+    hours = str(minutes // 60) + ':' if minutes >= 60 else ''
+    minutes = str(minutes % 60).zfill(2)
+    return f"{hours}{minutes}:{seconds_and_fraction}"
