@@ -126,6 +126,7 @@ class Inspect(QDockWidget):
         self.setWidget(self.widget)
         self.layout = QFormLayout(self.widget)
         self.widget.setLayout(self.layout)
+        self.resize(380, 0)
 
     def on_element_deselected(self, element_id: int):
         try:
