@@ -9,8 +9,8 @@ from typing import Optional, Callable
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl
-from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices
-from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
+from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices, QPixmap
+from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar, QSplashScreen
 
 import tilia.constants
 import tilia.ui.dialogs.file
@@ -101,6 +101,7 @@ class QtUI:
     def __init__(self):
         self.app = None
         self.q_application = QApplication(sys.argv)
+        self._setup_splash_screen()
         self._setup_main_window()
         self._setup_fonts()
         self._setup_player()
@@ -165,6 +166,21 @@ class QtUI:
         for request, callback in SERVES:
             serve(self, request, callback)
 
+    def _setup_splash_screen(self):
+        self.splash_screen = QSplashScreen(
+            QPixmap(f"{actions.get_img_path("main_icon")}")
+            .scaledToHeight(settings.get("general", "window_height"),
+                            Qt.TransformationMode.SmoothTransformation)
+            )
+        self.splash_screen.show()
+
+    def _update_splash(self, message: str) -> None:        
+        self.splash_screen.showMessage(
+            message, 
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom, 
+            Qt.GlobalColor.white
+        )
+
     def _setup_main_window(self):
         def get_initial_geometry():
             x = settings.get("general", "window_x")
@@ -175,6 +191,7 @@ class QtUI:
             return x, y, w, h
 
         self.main_window = TiliaMainWindow()
+        self._update_splash("...Main Window setup")
         # self.main_window.setGeometry(*get_initial_geometry())
 
     @staticmethod
@@ -188,13 +205,16 @@ class QtUI:
     def _setup_player(self):
         self.player = QtAudioPlayer()
         post(Post.PLAYER_AVAILABLE, self.player)
+        self._update_splash("...Player setup")
 
     def _setup_dialog_manager(self):
         self.dialog_manager = DialogManager()
+        self._update_splash("...Dialog Manager setup")
 
     def _setup_menus(self):
         self.menu_bar = TiliaMenuBar(self.main_window)
         self._setup_dynamic_menus()
+        self._update_splash("...Menus setup")
 
     def _setup_dynamic_menus(self):
         menu_info = {
@@ -216,6 +236,7 @@ class QtUI:
             WindowKind.MANAGE_TIMELINES: None,
             WindowKind.ABOUT: None,
         }
+        self._update_splash("...Windows setup")
 
     def update_dynamic_menus(self):
         instanced_kinds = [tlui.TIMELINE_KIND for tlui in get(Get.TIMELINE_UIS)]
@@ -247,7 +268,9 @@ class QtUI:
         post(Post.TIMELINE_WIDTH_SET_DONE, self.timeline_width)
 
     def launch(self):
+        self._update_splash("Loaded! Launching...")
         self.main_window.show()
+        self.splash_screen.finish(self.main_window)
         return self.q_application.exec()
 
     def exit(self, code: int):
@@ -265,9 +288,12 @@ class QtUI:
 
         self.main_window.addToolBar(self.player_toolbar)
         self.main_window.addToolBar(self.options_toolbar)
+        
+        self._update_splash("...Widgets setup")
 
     def _setup_actions(self):
         actions.setup_actions(self.main_window)
+        self._update_splash("...Actions setup")
 
     # noinspection PyTypeChecker,PyUnresolvedReferences
     def on_window_open(self, kind: WindowKind):
