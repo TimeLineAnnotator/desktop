@@ -12,6 +12,9 @@ DEFAULT_SETTINGS = {
         "window_y": 10,
         "timeline_bg": "#EEE",
     },
+    "metadata": {
+        "window-width": 400
+    },
     "auto-save": {"max_saved_files": 100, "interval": 300},
     "media_metadata": {
         "default_fields": [
