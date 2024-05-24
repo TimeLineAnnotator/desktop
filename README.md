@@ -96,5 +96,5 @@ TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The com
 
 ## Acknowledgments
 
-The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for the development and free distribution his software.  
+The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for the development and free distribution of his software.  
 
