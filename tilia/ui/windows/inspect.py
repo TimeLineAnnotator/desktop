@@ -157,6 +157,7 @@ class Inspect(QDockWidget):
             self.clear_widgets()
             for _, (_, right_widget) in self.field_name_to_widgets.items():
                 right_widget.setEnabled(False)
+            self.clear_layout()
 
     def update_values(self, field_values: dict[str, str], element_id: int):
         self.element_id = element_id
