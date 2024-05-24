@@ -120,12 +120,14 @@ class Inspect(QDockWidget):
             self.clear_layout()
             self.add_rows(inspector_fields)
             self.currently_inspected_class = element_class
+            self.setWindowTitle(f"Inspector - {element_class.__name__}")
 
     def clear_layout(self):
         self.widget = QWidget(self)
         self.setWidget(self.widget)
         self.layout = QFormLayout(self.widget)
         self.widget.setLayout(self.layout)
+        self.setWindowTitle("Inspector")
         self.resize(380, 0)
 
     def on_element_deselected(self, element_id: int):
