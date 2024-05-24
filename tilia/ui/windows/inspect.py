@@ -127,7 +127,6 @@ class Inspect(QDockWidget):
         self.setWidget(self.widget)
         self.layout = QFormLayout(self.widget)
         self.widget.setLayout(self.layout)
-        self.setWindowTitle("Inspector")
         self.resize(380, 0)
 
     def on_element_deselected(self, element_id: int):
@@ -154,9 +153,10 @@ class Inspect(QDockWidget):
             self.update_values(inspector_values, element_id)
         else:
             self.clear_widgets()
-            for _, (_, right_widget) in self.field_name_to_widgets.items():
+            for _, (left_widget, right_widget) in self.field_name_to_widgets.items():
+                left_widget.hide()
                 right_widget.setEnabled(False)
-            self.clear_layout()
+                right_widget.hide()
 
     def update_values(self, field_values: dict[str, str], element_id: int):
         self.element_id = element_id
