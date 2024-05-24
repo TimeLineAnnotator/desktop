@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
 )
 
+from tilia import settings
 from tilia.requests import get, Get, post, Post
 from tilia.ui.strings import (
     INVALID_METADATA_FIELD_ERROR_TITLE,
@@ -32,6 +33,7 @@ class MediaMetadataWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Metadata")
+        self.setFixedWidth(settings.get("metadata", "window-width"))
         self.metadata = {}
         self.fields_to_formatters = {"media length": format_media_time}
         self._setup_widgets()
