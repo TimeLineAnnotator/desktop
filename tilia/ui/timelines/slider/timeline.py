@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QRectF, QLineF
-from PyQt6.QtGui import QPen, QColor, QBrush
+from PyQt6.QtCore import QRectF, QLineF, Qt
+from PyQt6.QtGui import QPen, QColor, QBrush, QGuiApplication
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem
 
+import tilia.ui.coords
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import get, Get, post
 from tilia.timelines.component_kinds import ComponentKind
@@ -18,6 +19,7 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.view import TimelineView
+from ..cursors import CursorMixIn
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.scene import TimelineScene
@@ -61,9 +63,14 @@ class SliderTimelineUI(TimelineUI):
         self.dragging = False
 
     def _setup_line(self):
-        self.line = QGraphicsLineItem()
+        self.line = Line()
         self.scene.addItem(self.line)
-        self.set_line_position()
+        self.line.set_position(*self._get_line_pos_args())
+        self.line.set_color(self.LINE_DEFAULT_COLOR)
+        self.line.set_width(self.LINE_WEIGHT)
+
+    def _get_line_pos_args(self):
+        return get(Get.LEFT_MARGIN_X), get(Get.RIGHT_MARGIN_X), self.view.height() / 2
 
     def _setup_trough(self):
         self.trough = Trough(self.TROUGH_RADIUS, self.TROUGH_DEFAULT_COLOR)
@@ -90,9 +97,13 @@ class SliderTimelineUI(TimelineUI):
         self.view.setFixedWidth(int(width))
         self.update_items_position()
 
-    def on_left_click(self, item_id: int, modifier: ModifierEnum, double: bool) -> None:
-        if not item_id or item_id == self.line:
-            return
+    def on_left_click(self, item_id: int, modifier: ModifierEnum, double: bool, x: int, y: int) -> None:
+        if item_id == self.line:
+            time = tilia.ui.coords.get_time_by_x(x)
+            if double:
+                post(Post.PLAYER_SEEK, time)
+            else:
+                post(Post.PLAYER_SEEK_IF_NOT_PLAYING, time)
         elif item_id == self.trough:
             self.setup_drag()
 
@@ -133,7 +144,7 @@ class SliderTimelineUI(TimelineUI):
     def update_items_position(self):
         self.x = coords.get_x_by_time(get(Get.MEDIA_CURRENT_TIME))
         self.set_trough_position()
-        self.set_line_position()
+        self.line.set_position(*self._get_line_pos_args())
 
     @property
     def has_selected_elements(self):
@@ -152,9 +163,34 @@ class SliderTimelineUI(TimelineUI):
         return "Slider Timeline"
 
 
-class Trough(QGraphicsEllipseItem):
+class Line(CursorMixIn, QGraphicsLineItem):
+    def __init__(self):
+        super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
+        self._setup_pen()
+
+    def _setup_pen(self):
+        pen = self.pen()
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        self.setPen(pen)
+
+    def set_position(self, x0: int, x1: int, y: int):
+        self.setLine(x0, y, x1, y)
+
+    def set_color(self, color: str):
+        pen = self.pen()
+        pen.setColor(QColor(color))
+        self.setPen(pen)
+
+    def set_width(self, width: int):
+        pen = self.pen()
+        pen.setWidth(width)
+        self.setPen(pen)
+
+
+class Trough(CursorMixIn, QGraphicsEllipseItem):
     def __init__(self, radius: float, color: str):
-        super().__init__(self.get_rect(radius))
+        super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
+        self.setRect(self.get_rect(radius))
         self.set_pen(color)
         self.set_brush(color)
 

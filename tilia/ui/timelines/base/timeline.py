@@ -238,7 +238,7 @@ class TimelineUI(ABC):
             elm.on_right_click(x, y, item)
 
     def on_left_click(
-        self, item: QGraphicsItem, modifier: ModifierEnum, double: bool
+        self, item: QGraphicsItem, modifier: ModifierEnum, double: bool, x: int, y: int
     ) -> None:
         clicked_elements = self.get_item_owner(item)
 
