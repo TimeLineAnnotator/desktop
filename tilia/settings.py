@@ -34,8 +34,8 @@ DEFAULT_SETTINGS = {
         "default_height": 40,
         "trough_radius": 5,
         "trough_color": "#FF0000",
-        "line_color": "#000000",
-        "line_weight": 3,
+        "line_color": "#cccccc",
+        "line_weight": 5,
     },
     "beat_timeline": {"display_measure_periodicity": 4, "default_height": 35},
     "hierarchy_timeline": {

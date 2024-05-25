@@ -205,7 +205,6 @@ class BeatBody(CursorMixIn, QGraphicsLineItem):
         super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
         self.setLine(self.get_line(x, height))
         self.set_pen_style_default()
-        self.setCursor(Qt.CursorShape.SizeHorCursor)
 
     def set_pen_style_default(self):
         pen = QPen(QColor("black"))

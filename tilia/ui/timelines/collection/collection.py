@@ -444,7 +444,7 @@ class TimelineUIs:
             self.deselect_all_elements_in_timeline_uis(excluding=timeline_ui)
 
         self._send_to_top_of_select_order(timeline_ui)
-        timeline_ui.on_left_click(item, modifier=modifier, double=double)
+        timeline_ui.on_left_click(item, modifier=modifier, double=double, x=x, y=y)
 
         if not self.is_dragging and not double:
             sb = SelectionBoxQt()
