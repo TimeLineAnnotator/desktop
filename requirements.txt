@@ -3,8 +3,11 @@ tomlkit>=0.11.6
 pydub>=0.25.1
 prettytable>=3.7.0
 music21>=9.1
-PyQt6>=6.6.0
-PyQt6-WebEngine>=6.6.0
+PyQt6==6.6.0
+PyQt6-Qt6==6.6.0
+PyQt6-sip==13.6.0
+PyQt6-WebEngine==6.6.0
+PyQt6-WebEngine-Qt6==6.6.0
 python-dotenv>=1.0.1
 
 pytest>=8.0.0
