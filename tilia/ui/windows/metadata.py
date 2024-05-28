@@ -90,7 +90,9 @@ class MediaMetadataWindow(QDialog):
             value = getter()
             if name in self.fields_to_formatters:
                 value = self.fields_to_formatters[name](value)
-            self.form_layout.addRow(QLabel(name.capitalize()), QLabel(value))
+            value_label = QLabel(value)
+            value_label.setWordWrap(True)
+            self.form_layout.addRow(QLabel(name.capitalize()), value_label)
 
     def on_edit_notes_button(self):
         dialog = EditNotesDialog()
