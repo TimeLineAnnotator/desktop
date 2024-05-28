@@ -83,9 +83,7 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
         self.timeline.delete_components(self.elements_to_components(elements))
 
     def on_color_set(self, elements, value, **_):
-        self.timeline_ui.set_elements_attr(
-            elements, "color", get_tinted_color(value, TINT_FACTOR_ON_SELECTION)
-        )
+        self.timeline_ui.set_elements_attr(elements, "color", value.name())
 
     def on_color_reset(self, elements, *_, **__):
         self.timeline_ui.set_elements_attr(
