@@ -46,6 +46,7 @@ DEFAULT_SETTINGS = {
     "hierarchy_timeline": {
         "default_height": 120,
         "hierarchy_default_colors": [
+            "#ff964f",
             "#68de7c",
             "#f2d675",
             "#ffabaf",

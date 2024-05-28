@@ -173,7 +173,7 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def level_color(self):
-        return self.COLORS[self.get_data("level") % len(self.COLORS)]
+        return self.COLORS[(self.get_data("level") - 1) % len(self.COLORS)]
 
     @property
     def seek_time(self):
