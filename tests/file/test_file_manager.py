@@ -100,21 +100,35 @@ class TestFileManager:
         tilia.file_manager.open(path)
         assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
 
-    def test_add_metadata_field_at_start(self, file_manager):
-        previous_fields = list(file_manager.file.media_metadata)
-        post(Post.METADATA_ADD_FIELD, "newfield", 0)
-        assert list(file_manager.file.media_metadata)[0] == "newfield"
-        assert list(file_manager.file.media_metadata)[1:] == previous_fields
-
-    def test_add_metadata_field_at_middle(self, file_manager):
-        previous_fields = list(file_manager.file.media_metadata)
-        post(Post.METADATA_ADD_FIELD, "newfield", 2)
-        result = list(file_manager.file.media_metadata)
+    def test_metadata_edit_fields(self, file_manager):
+        original = list(file_manager.file.media_metadata)
+        fields = list(file_manager.file.media_metadata)
+        fields.insert(2, "newfield")
+        post(Post.METADATA_UPDATE_FIELDS, fields)
         assert list(file_manager.file.media_metadata)[2] == "newfield"
-        result.pop(2)
-        assert result == previous_fields
 
-    def test_set_metadata_field(self, file_manager):
+        fields.pop(2)
+        post(Post.METADATA_UPDATE_FIELDS, fields)
+        assert list(file_manager.file.media_metadata)[2] != "newfield"
+        assert list(file_manager.file.media_metadata) == original
+
+    def test_metadata_not_duplicated_required_fields(self, file_manager):
+        original = list(file_manager.file.media_metadata)
+        duplicate = list(file_manager.file.media_metadata) + ["title"]
+        post(Post.METADATA_UPDATE_FIELDS, duplicate)
+        assert list(file_manager.file.media_metadata) == original
+    
+    def test_metadata_delete_fields(self, file_manager):
+        empty_list = []
+        post(Post.METADATA_UPDATE_FIELDS, empty_list)
+        assert list(file_manager.file.media_metadata) == list(file_manager.file.media_metadata.REQUIRED_FIELDS)
+
+    def test_metadata_title_stays_on_top(self, file_manager):
+        not_so_empty_list = ["newfield"]
+        post(Post.METADATA_UPDATE_FIELDS, not_so_empty_list)
+        assert list(file_manager.file.media_metadata)[0] == "title"
+
+    def test_metadata_set_field(self, file_manager):
         post(Post.MEDIA_METADATA_FIELD_SET, "title", "new title")
         assert file_manager.file.media_metadata["title"] == "new title"
 

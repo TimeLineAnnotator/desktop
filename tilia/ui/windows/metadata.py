@@ -64,14 +64,14 @@ class MediaMetadataWindow(QDialog):
 
     def populate_with_editable_fields(self):
         metadata = get(Get.MEDIA_METADATA)
+        self.metadata.clear()
         for name, value in metadata.items():
             if name in list(self.READ_ONLY_FIELDS) + self.SEPARATE_WINDOW_FIELDS:
                 continue
             line_edit = QLineEdit(str(value))
             line_edit.textEdited.connect(functools.partial(self.on_text_edited, name))
             self.form_layout.addRow(QLabel(name.capitalize()), line_edit)
-
-        self.metadata = metadata.copy()
+            self.metadata[name] = value
 
     def populate_with_read_only_fields(self):
         for name, getter in self.READ_ONLY_FIELDS.items():
@@ -132,10 +132,10 @@ class MediaMetadataWindow(QDialog):
         super().closeEvent(event)
 
     def update_metadata_fields(self, new_fields: list[str]):
-        for i, field in enumerate(new_fields):
-            if field not in self.metadata:
-                post(Post.METADATA_ADD_FIELD, field.lower(), i)
-
-        for field in self.metadata:
-            if field not in new_fields + get(Get.MEDIA_METADATA_REQUIRED_FIELDS):
-                post(Post.METADATA_REMOVE_FIELD, field)
+        fields_without_required = [
+            item for item in self.metadata.keys() 
+            if item not in get(Get.MEDIA_METADATA_REQUIRED_FIELDS)
+        ]
+        
+        if not fields_without_required == new_fields:
+            post(Post.METADATA_UPDATE_FIELDS, new_fields)
