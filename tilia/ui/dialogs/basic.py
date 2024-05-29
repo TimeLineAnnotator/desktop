@@ -9,8 +9,8 @@ def ask_for_color(initial: str = '#333333'):  # feel free to change this arbitra
     return color.isValid(), color  # returned color is invalid if user cancels
 
 
-def ask_for_int(title: str, prompt: str, initial: Optional[int] = 0) -> str:
-    return QInputDialog().getInt(None, title, prompt, initial)
+def ask_for_int(title: str, prompt: str, initial: Optional[int] = 0, **kwargs) -> str:
+    return QInputDialog().getInt(None, title, prompt, initial, **kwargs)
 
 
 def ask_for_string(title: str, prompt: str, initial: Optional[str] = "") -> str:
