@@ -34,8 +34,7 @@ class FileManager:
             (Post.REQUEST_FILE_NEW, self.on_request_new_file),
             (Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, self.on_import_media_metadata_request),
             (Post.MEDIA_METADATA_FIELD_SET, self.on_set_media_metadata_field),
-            (Post.METADATA_ADD_FIELD, self.on_add_media_metadata_field),
-            (Post.METADATA_REMOVE_FIELD, self.on_remove_media_metadata_field)
+            (Post.METADATA_UPDATE_FIELDS, self.on_update_media_metadata_fields)
         }
 
         SERVES = {
@@ -120,25 +119,14 @@ class FileManager:
             raise MediaMetadataFieldNotFound(f"Field {field_name} not found.")
 
         self.file.media_metadata[field_name] = value
-
-    def on_add_media_metadata_field(self, field: str, index: int) -> None:
-        """Add a field to media metadata at index"""
+        
+    def on_update_media_metadata_fields(self, fields: list) -> None:
         new_metadata = {}
-        for i, (key, value) in enumerate(self.file.media_metadata.items()):
-            # adds new field when iteration is at index
-            if i == index:
-                new_metadata[field] = value
-
-            new_metadata[key] = value
-
-        self.file.media_metadata = new_metadata
-
-    def on_remove_media_metadata_field(self, field: str) -> None:
-        """Remove a field from media metadata"""
-        try:
-            self.file.media_metadata.pop(field)
-        except KeyError:
-            raise MediaMetadataFieldNotFound(f"Field {field} not found.")
+        for field in fields:
+            value = self.file.media_metadata.get(field, self.file.media_metadata.get(field.lower(), ""))
+            new_metadata[field] = value
+        
+        self.set_media_metadata(MediaMetadata.from_dict(new_metadata))
 
     def on_import_media_metadata_request(self, path: Path | str) -> None:
         try:
