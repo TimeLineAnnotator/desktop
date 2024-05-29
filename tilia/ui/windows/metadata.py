@@ -5,8 +5,8 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
-    QVBoxLayout,
     QPushButton,
+    QFrame
 )
 
 from tilia import settings
@@ -33,45 +33,33 @@ class MediaMetadataWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Metadata")
-        self.setFixedWidth(settings.get("metadata", "window-width"))
         self.metadata = {}
         self.fields_to_formatters = {"media length": format_media_time}
+        self.setMinimumSize(settings.get("metadata", "window-width"), 0)
         self._setup_widgets()
         self.show()
 
         post(Post.WINDOW_METADATA_OPENED)
 
     def _setup_widgets(self):
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        self.form_layout = QFormLayout(self)
+        self.setLayout(self.form_layout)
+        self.setup_layout()
 
-        self.form_layout = QFormLayout()
-        layout.addLayout(self.form_layout)
-        self.setup_form_layout()
-
-        self.button_layout = QVBoxLayout()
-        layout.addLayout(self.button_layout)
-        self.setup_button_layout()
-
-    def setup_button_layout(self):
-        edit_notes_button = QPushButton("Edit notes...")
-        self.button_layout.addWidget(edit_notes_button)
-        edit_notes_button.clicked.connect(self.on_edit_notes_button)
-
-        edit_fields_button = QPushButton("Edit fields...")
-        self.button_layout.addWidget(edit_fields_button)
-        edit_fields_button.clicked.connect(self.on_edit_metadata_fields_button)
-
-    def setup_form_layout(self):
+    def setup_layout(self):
         self.populate_with_editable_fields()
-        self.add_separator_to_form()
+        self.add_separator()
         self.populate_with_read_only_fields()
+        self.setup_buttons()
+        self.adjustSize()
 
-    def add_separator_to_form(self):
-        self.form_layout.addWidget(QLabel("-" * 50))
+    def add_separator(self):
+        line = QFrame()
+        line.setFrameStyle(QFrame.Shape.HLine | QFrame.Shadow.Sunken)
+        self.form_layout.addRow(line)
 
-    def clear_form_layout(self):
-        for _ in range(self.form_layout.rowCount()):
+    def clear_layout(self):
+        while self.form_layout.rowCount():
             self.form_layout.removeRow(0)
 
     def populate_with_editable_fields(self):
@@ -93,6 +81,15 @@ class MediaMetadataWindow(QDialog):
             value_label = QLabel(value)
             value_label.setWordWrap(True)
             self.form_layout.addRow(QLabel(name.capitalize()), value_label)
+
+    def setup_buttons(self):
+        edit_notes_button = QPushButton("Edit notes...")
+        edit_notes_button.clicked.connect(self.on_edit_notes_button)
+        self.form_layout.addRow(edit_notes_button)
+
+        edit_fields_button = QPushButton("Edit fields...")
+        edit_fields_button.clicked.connect(self.on_edit_metadata_fields_button)
+        self.form_layout.addRow(edit_fields_button)
 
     def on_edit_notes_button(self):
         dialog = EditNotesDialog()
@@ -120,8 +117,8 @@ class MediaMetadataWindow(QDialog):
         )
 
     def refresh_fields(self) -> None:
-        self.clear_form_layout()
-        self.setup_form_layout()
+        self.clear_layout()
+        self.setup_layout()
 
     @staticmethod
     def on_text_edited(field, value):
