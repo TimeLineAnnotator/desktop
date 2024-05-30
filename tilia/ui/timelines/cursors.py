@@ -14,5 +14,5 @@ class CursorMixIn:
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event) -> None:
-        QGuiApplication.setOverrideCursor(Qt.CursorShape.ArrowCursor)
+        QGuiApplication.restoreOverrideCursor()
         super().hoverEnterEvent(event)
