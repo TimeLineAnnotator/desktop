@@ -18,6 +18,9 @@ ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
 INT_TO_ACCIDENTAL = {v: k for k, v in ACCIDENTAL_TO_INT.items()}
 INT_TO_MUSIC21_ACCIDENTAL = {0: "", 1: "#", -1: "-", 2: "##", -2: "--"}
 ACCIDENTAL_NUMBER_TO_MUSIC21_CHAR = {0: "", 1: "#", -1: "-", 2: "##", -2: "--"}
+ACCIDENTAL_NUMBER_TO_MUSANALYSIS_STR = {
+    -2: "`b`b", -1: 'b', 0: '', 1: '#', 2: "`#`#"
+}
 
 NOTE_NAME_TO_INT = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
 INT_TO_NOTE_NAME = {v: k for k, v in NOTE_NAME_TO_INT.items()}
@@ -43,3 +46,4 @@ CHORD_COMMON_NAME_TO_TYPE = {
     "major triad": "major",
     "minor triad": "minor",
 }
+

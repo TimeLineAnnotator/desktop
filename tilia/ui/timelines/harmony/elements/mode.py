@@ -14,7 +14,7 @@ from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
     ACCIDENTAL_NUMBER_TO_MUSIC21_CHAR,
-    INT_TO_ACCIDENTAL,
+    ACCIDENTAL_NUMBER_TO_MUSANALYSIS_STR,
 )
 from tilia.ui.timelines.harmony.context_menu import ModeContextMenu
 from tilia.ui.timelines.harmony.elements import mode_attrs
@@ -59,7 +59,7 @@ class ModeUI(TimelineUIElement):
     def label(self):
         center = (
             INT_TO_NOTE_NAME[self.get_data("step")]
-            + INT_TO_ACCIDENTAL[self.get_data("accidental")]
+            + ACCIDENTAL_NUMBER_TO_MUSANALYSIS_STR[self.get_data("accidental")]
         )
         result = center if self.get_data("type") == "major" else center.lower()
         if result[0] == "b":

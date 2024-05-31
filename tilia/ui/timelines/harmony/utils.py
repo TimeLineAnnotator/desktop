@@ -2,10 +2,9 @@ import music21
 
 from tilia.ui.timelines.harmony.constants import (
     INT_TO_ROMAN,
-    INT_TO_ACCIDENTAL,
     NOTE_NAME_TO_INT,
     INT_TO_NOTE_NAME,
-    INT_TO_MUSIC21_ACCIDENTAL,
+    INT_TO_MUSIC21_ACCIDENTAL, ACCIDENTAL_NUMBER_TO_MUSANALYSIS_STR,
 )
 
 
@@ -152,7 +151,7 @@ def to_roman_numeral(
     # Applied chords require a different calculation of their prefixes.
     # For now, let's leave them without a prefix, as that will be,
     # by far, the most common correct prefix.
-    result_prefix = INT_TO_ACCIDENTAL[result_accidental] if not applied_to else ""
+    result_prefix = ACCIDENTAL_NUMBER_TO_MUSANALYSIS_STR[result_accidental] if not applied_to else ""
     quality_suffix = QUALITY_TO_ROMAN_NUMERAL_SUFFIX[quality][inversion]
     applied_to_suffix = INT_TO_APPLIED_TO_SUFFIX[applied_to]
 

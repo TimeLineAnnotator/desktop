@@ -152,11 +152,11 @@ class HarmonyUI(TimelineUIElement):
                 return figure.replace("dom7dim5", "7((b5))")
         match self.get_data("accidental"):
             case -2:
-                figure = figure.replace("--", "𝄫")
+                figure = figure.replace("--", "`b`b")
             case -1:
-                figure = figure.replace("-", "♭")
+                figure = figure.replace("-", "b")
             case 2:
-                figure = figure.replace("##", "𝄪")
+                figure = figure.replace("##", "`#`#")
 
         if inversion := self.get_data("inversion"):
             # bass_step = harmony.calculate.bass_step(self.get_data('step'), inversion)
