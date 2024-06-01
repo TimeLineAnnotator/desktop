@@ -124,6 +124,9 @@ class AmplitudeBarUI(TimelineUIElement):
     def on_deselect(self) -> None:
         self.body.on_deselect()
 
+    def get_inspector_dict(self) -> dict:
+        return self.timeline_ui.get_inspector_dict()
+
 class AmplitudeBarUIBody(CursorMixIn, QGraphicsLineItem):
     def __init__(self, start_x: float, width: float, amplitude: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
