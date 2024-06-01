@@ -15,7 +15,10 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QComboBox,
+    QStackedWidget,
 )
+
+from PyQt6.QtCore import Qt
 
 from tilia.requests import Post, listen, stop_listening_to_all, post, Get, get
 from tilia.utils import get_tilia_class_string
@@ -46,16 +49,26 @@ class Inspect(QDockWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Inspector")
+        self.setMinimumSize(400, 0)
         self._setup_requests()
         self.inspected_objects_stack = []
         self.element_id = ""
-        self.widget = QWidget(self)
-        self.setWidget(self.widget)
-        self.layout = QFormLayout(self.widget)
-        self.widget.setLayout(self.layout)
-
         self.currently_inspected_class = None
         self.field_name_to_widgets = None
+
+        self.stack_widget = QStackedWidget(self)
+        self.setWidget(self.stack_widget)
+
+        self.inspect_widget = QWidget(self.stack_widget)
+        self.inspect_layout = QFormLayout(self.inspect_widget)
+        self.inspect_widget.setLayout(self.inspect_layout)
+
+        self.empty_label = QLabel("<h2 style='color:grey'>No element selected.</h2>")
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.stack_widget.addWidget(self.inspect_widget)
+        self.stack_widget.addWidget(self.empty_label)
+
         post(Post.WINDOW_INSPECT_OPENED)
 
     def __str__(self):
@@ -97,6 +110,7 @@ class Inspect(QDockWidget):
         inspector_values: dict[str, str],
         element_id: int,
     ):
+        self.setUpdatesEnabled(False)
         self.update_rows(element_class, inspector_fields)
         self.update_values(inspector_values, element_id)
         self.update_inspected_object_stack(
@@ -104,9 +118,14 @@ class Inspect(QDockWidget):
         )
 
         try:
-            self.widget.focusProxy().selectAll()
+            self.inspect_widget.focusProxy().selectAll()
         except AttributeError:
             pass  # focus proxy is not a QLineEdit
+
+        self.setWindowTitle(f"Inspector - {element_class.__name__}")
+        self.stack_widget.setCurrentWidget(self.inspect_widget)
+        self.adjustSize()
+        self.setUpdatesEnabled(True)
 
     def update_inspected_object_stack(self, cls, field, values, id):
         if (cls, field, values, id) not in self.inspected_objects_stack:
@@ -121,14 +140,13 @@ class Inspect(QDockWidget):
             self.clear_layout()
             self.add_rows(inspector_fields)
             self.currently_inspected_class = element_class
-            self.setWindowTitle(f"Inspector - {element_class.__name__}")
 
     def clear_layout(self):
-        self.widget = QWidget(self)
-        self.setWidget(self.widget)
-        self.layout = QFormLayout(self.widget)
-        self.widget.setLayout(self.layout)
-        self.resize(380, 0)
+        self.stack_widget.removeWidget(self.inspect_widget)
+        self.inspect_widget = QWidget(self.stack_widget)
+        self.inspect_layout = QFormLayout(self.inspect_widget)
+        self.inspect_widget.setLayout(self.inspect_layout)
+        self.stack_widget.addWidget(self.inspect_widget)
 
     def on_element_deselected(self, element_id: int):
         try:
@@ -140,6 +158,7 @@ class Inspect(QDockWidget):
         except IndexError:
             return
 
+        self.setUpdatesEnabled(False)
         self.inspected_objects_stack.pop(element_index)
 
         if self.inspected_objects_stack:
@@ -158,6 +177,12 @@ class Inspect(QDockWidget):
                 left_widget.hide()
                 right_widget.setEnabled(False)
                 right_widget.hide()
+            
+            self.setWindowTitle(f"Inspector")
+            self.stack_widget.setCurrentWidget(self.empty_label)
+            self.adjustSize()
+
+        self.setUpdatesEnabled(True)
 
     def update_values(self, field_values: dict[str, str], element_id: int):
         self.element_id = element_id
@@ -202,8 +227,8 @@ class Inspect(QDockWidget):
                 widget.setValue(widget.minimum())
 
     def delete_all_rows(self):
-        for _ in range(self.layout.rowCount()):
-            self.layout.removeRow(0)
+        for _ in range(self.inspect_layout.rowCount()):
+            self.inspect_layout.removeRow(0)
 
     def on_line_edit_changed(self, field_name, value):
         post(Post.INSPECTOR_FIELD_EDITED, field_name, value, self.element_id)
@@ -235,14 +260,14 @@ class Inspect(QDockWidget):
     def _get_widget_for_row(self, kind: InspectRowKind, name: str, kwargs):
         match kind:
             case InspectRowKind.LABEL:
-                widget = QLabel(self.widget)
+                widget = QLabel(self.inspect_widget)
             case InspectRowKind.SINGLE_LINE_EDIT:
-                widget = QLineEdit(self.widget)
+                widget = QLineEdit(self.inspect_widget)
                 widget.textChanged.connect(
                     functools.partial(self.on_line_edit_changed, name)
                 )
             case InspectRowKind.MULTI_LINE_EDIT:
-                widget = QTextEdit(self.widget)
+                widget = QTextEdit(self.inspect_widget)
                 widget.setAcceptRichText(False)
                 widget.textChanged.connect(
                     functools.partial(self.on_text_edit_changed, name, widget)
@@ -276,7 +301,7 @@ class Inspect(QDockWidget):
         self.field_name_to_widgets = {}
 
         for name, kind, get_kwargs in field_params:
-            left_widget = QLabel(name, self.widget)
+            left_widget = QLabel(name, self.inspect_widget)
             right_widget = self._get_widget_for_row(
                 kind, name, get_kwargs() if get_kwargs else None
             )
@@ -285,8 +310,8 @@ class Inspect(QDockWidget):
                 QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
             )
             right_widget.setMaximumHeight(50)
-            self.layout.addRow(left_widget, right_widget)
+            self.inspect_layout.addRow(left_widget, right_widget)
 
             self.field_name_to_widgets[name] = (left_widget, right_widget)
 
-        self.widget.setFocusProxy(self.layout.itemAt(1).widget())
+        self.inspect_widget.setFocusProxy(self.inspect_layout.itemAt(1).widget())
