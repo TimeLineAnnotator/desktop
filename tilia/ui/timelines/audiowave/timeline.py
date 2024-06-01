@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tilia.enums import Side
-from tilia.requests import Post, post, listen
+from tilia.requests import Post, Get, get, listen
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
@@ -45,14 +45,15 @@ class AudioWaveTimelineUI(TimelineUI):
             self.deselect_element(selected_element)
             self.select_element(element_to_select)
 
-    def on_inspector_window_opened(self):
-        if len(self.selected_elements) < 1:
-            return
-        self.post_inspectable_selected_event()
+    def get_inspector_dict(self):
+        start_time = get(Get.MEDIA_DURATION)
+        end_time = 0
+        for element in self.selected_elements:
+            if element.get_data('start') < start_time:
+                start_time = element.get_data('start')
+            if element.get_data('end') > end_time:
+                end_time = element.get_data('end')
 
-    def post_inspectable_selected_event(self, *_):
-        start_time = self.selected_elements[0].get_data('start')
-        end_time = self.selected_elements[-1].get_data('end')
         try: 
             amplitude = f"{self.timeline.get_dB(start_time, end_time): .3f} dB"
         except: # audio not available, but timeline elements exist
@@ -61,17 +62,9 @@ class AudioWaveTimelineUI(TimelineUI):
                 amplitude += element.get_data('amplitude')
             amplitude = f"{amplitude / len(self.selected_elements): .3f} (rms)"
 
-        inspector_dict = {
+        return {
             "Start / End": 
                 f"{format_media_time(start_time)} /" +
                 f"{format_media_time(end_time)}",
             "Amplitude": amplitude
         }
-        
-        post(
-        Post.INSPECTABLE_ELEMENT_SELECTED,
-        type(self.selected_elements[0]),
-        self.selected_elements[0].INSPECTOR_FIELDS,
-        inspector_dict,
-        self.selected_elements[0].id,
-        )
