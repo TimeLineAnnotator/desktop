@@ -11,7 +11,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.marker.timeline import MarkerTimeline
 
 
-def markers_by_time_from_csv(
+def import_by_time(
     timeline: MarkerTimeline,
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
@@ -67,7 +67,7 @@ def markers_by_time_from_csv(
         return errors
 
 
-def markers_by_measure_from_csv(
+def import_by_measure(
     marker_tl: MarkerTimeline,
     beat_tl: BeatTimeline,
     path: Path,

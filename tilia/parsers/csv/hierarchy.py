@@ -11,7 +11,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 
 
-def hierarchies_by_time_from_csv(
+def import_by_time(
     timeline: HierarchyTimeline,
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
@@ -77,7 +77,7 @@ def hierarchies_by_time_from_csv(
         return errors
 
 
-def hierarchies_by_measure_from_csv(
+def import_by_measure(
     hierarchy_tl: HierarchyTimeline,
     beat_tl: BeatTimeline,
     path: Path,

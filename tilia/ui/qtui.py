@@ -15,6 +15,10 @@ from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 import tilia.constants
 import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
+import tilia.parsers.csv.harmony
+import tilia.parsers.csv.hierarchy
+import tilia.parsers.csv.beat
+import tilia.parsers.csv.marker
 from . import dialogs, actions
 from .actions import TiliaAction
 from .dialog_manager import DialogManager
@@ -32,17 +36,11 @@ from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.kinds import WindowKind
 from ..media.player import QtAudioPlayer
-from ..parsers.csv.marker import markers_by_time_from_csv, markers_by_measure_from_csv
 from ..parsers.csv.beat import beats_from_csv
-from ..parsers.csv.hierarchy import (
-    hierarchies_by_time_from_csv,
-    hierarchies_by_measure_from_csv,
-)
 from tilia import settings, constants
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.requests import Post, listen, post, serve, Get, get
-from tilia import parsers
 
 
 class TiliaMainWindow(QMainWindow):
@@ -401,17 +399,17 @@ class QtUI:
 
         tlkind_to_funcs: dict[TlKind, dict[str, Callable]] = {
             TlKind.MARKER_TIMELINE: {
-                "time": markers_by_time_from_csv,
-                "measure": markers_by_measure_from_csv,
+                "time": tilia.parsers.csv.marker.import_by_time,
+                "measure": tilia.parsers.csv.marker.import_by_measure,
             },
             TlKind.HIERARCHY_TIMELINE: {
-                "time": hierarchies_by_time_from_csv,
-                "measure": hierarchies_by_measure_from_csv,
+                "time": tilia.parsers.csv.hierarchy.import_by_time,
+                "measure": tilia.parsers.csv.hierarchy.import_by_measure,
             },
             TlKind.BEAT_TIMELINE: {"time": beats_from_csv},
             TlKind.HARMONY_TIMELINE: {
-                "time": parsers.csv.harmony.import_by_time,
-                "measure": parsers.csv.harmony.import_by_measure,
+                "time": tilia.parsers.csv.harmony.import_by_time,
+                "measure": tilia.parsers.csv.harmony.import_by_measure,
             },
         }
 
