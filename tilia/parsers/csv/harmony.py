@@ -8,7 +8,7 @@ from tilia.parsers.csv.common import (
     _get_attrs_indices,
     _validate_required_attrs,
     _parse_attr_data,
-    _get_attr_data,
+    _get_attr_data, _parse_measure_fraction,
 )
 from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.timelines.beat.timeline import BeatTimeline
@@ -43,18 +43,6 @@ def _parse_harmony_or_key(value: str):
         return value
     else:
         raise ValueError('APPEND:Must be "harmony" or "key".')
-
-
-def _parse_measure_fraction(value: str):
-    try:
-        value = float(value)
-    except ValueError:
-        raise ValueError("APPEND:Must be a number between 0 and 1.")
-
-    if not 0 <= value <= 1:
-        raise ValueError("APPEND:Must be a number between 0 and 1.")
-
-    return value
 
 
 def _get_component_params_from_text(
