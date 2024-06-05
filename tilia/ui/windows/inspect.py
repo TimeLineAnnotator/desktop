@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QComboBox,
     QStackedWidget,
+    QFrame
 )
 
 from PyQt6.QtCore import Qt
@@ -273,9 +274,8 @@ class Inspect(QDockWidget):
                     functools.partial(self.on_text_edit_changed, name, widget)
                 )
             case InspectRowKind.SEPARATOR:
-                widget = QLabel(
-                    "-" * 50, self.layout
-                )  # TODO: implement a proper separator
+                widget = QFrame()
+                widget.setFrameStyle(QFrame.Shape.HLine | QFrame.Shadow.Sunken)
             case InspectRowKind.SPIN_BOX:
                 widget = QSpinBox()
                 widget.setMinimum(kwargs["min"])
