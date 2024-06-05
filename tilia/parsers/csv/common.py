@@ -59,3 +59,15 @@ def _get_attr_data(
         for i, (attr, parser) in enumerate(attrs_with_parsers)
         if indices[i] is not None
     ]
+
+
+def _parse_measure_fraction(value: str):
+    try:
+        value = float(value)
+    except ValueError:
+        raise ValueError("APPEND:Must be a number between 0 and 1.")
+
+    if not 0 <= value <= 1:
+        raise ValueError("APPEND:Must be a number between 0 and 1.")
+
+    return value
