@@ -193,7 +193,7 @@ def import_by_measure(
             )
             errors += row_errors
             if not success:
-                return errors
+                continue
 
             measure_n = attr_to_value["measure"]
             times = beat_tl.get_time_by_measure(
