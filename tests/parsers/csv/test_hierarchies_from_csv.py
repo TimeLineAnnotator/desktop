@@ -4,8 +4,8 @@ from unittest.mock import mock_open, patch
 
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.hierarchy import (
-    hierarchies_by_time_from_csv,
-    hierarchies_by_measure_from_csv,
+    import_by_time,
+    import_by_measure,
 )
 
 
@@ -15,7 +15,7 @@ def test_hierarchies_by_time_from_csv(hierarchy_tlui):
     data = "start,end,level,label\n0,1,1,first\n1,2,2,second\n2,3,3,third"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        hierarchies_by_time_from_csv(
+        import_by_time(
             hierarchy_tlui.timeline,
             Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
         )
@@ -54,7 +54,7 @@ def test_hierarchies_by_measure_from_csv(beat_tlui, hierarchy_tlui):
     data = "start,end,level,label\n1,2,1,a\n2,3,2,b\n3,4,3,c"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        hierarchies_by_measure_from_csv(
+        import_by_measure(
             hierarchy_tl,
             beat_tl,
             Path(),
@@ -83,7 +83,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_start_value(
 ):
     data = "start,end,level\nnonsense, 1, 1"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_measure_from_csv(
+        errors = import_by_measure(
             hierarchy_tlui.timeline, beat_tlui.timeline, Path()
         )
 
@@ -95,7 +95,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_end_value(
 ):
     data = "start,end,level\n1, nonsense, 1"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_measure_from_csv(
+        errors = import_by_measure(
             hierarchy_tlui.timeline, beat_tlui.timeline, Path()
         )
 
@@ -107,7 +107,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_level_value(
 ):
     data = "start,end,level\n1, 1, nonsense"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_measure_from_csv(
+        errors = import_by_measure(
             hierarchy_tlui.timeline, beat_tlui.timeline, Path()
         )
 
@@ -125,7 +125,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_start_fraction_val
 
     data = "start,start_fraction,end,level\n1,nonsense, 2, 1"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_measure_from_csv(
+        errors = import_by_measure(
             hierarchy_tlui.timeline, beat_tlui.timeline, Path()
         )
 
@@ -145,7 +145,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_end_fraction_value
 
     data = "start,end,end_fraction,level\n1, 2, nonsense, 1"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_measure_from_csv(
+        errors = import_by_measure(
             hierarchy_tlui.timeline, beat_tlui.timeline, Path()
         )
 
@@ -164,7 +164,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_no_measure_found(
 
     data = "start,end,level\n3, 4, 1"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_measure_from_csv(
+        errors = import_by_measure(
             hierarchy_tlui.timeline, beat_tlui.timeline, Path()
         )
 
@@ -172,7 +172,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_no_measure_found(
 
     data = "start,end,level\n1, 5, 1"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_measure_from_csv(
+        errors = import_by_measure(
             hierarchy_tlui.timeline, beat_tlui.timeline, Path()
         )
 
@@ -189,7 +189,7 @@ def test_hierarchies_by_measure_from_csv_bad_optional_attrs_values(
 
     data = "start,end,level,pre_start,post_end,\n1,2,1,nonsense1,nonsense2"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_measure_from_csv(
+        errors = import_by_measure(
             hierarchy_tlui.timeline, beat_tlui.timeline, Path()
         )
 
@@ -205,7 +205,7 @@ def test_component_creation_fail_reason_gets_into_errors(
     data = "start,end,level\n101,1,1"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = hierarchies_by_time_from_csv(
+        errors = import_by_time(
             hierarchy_tl,
             Path(),
         )
