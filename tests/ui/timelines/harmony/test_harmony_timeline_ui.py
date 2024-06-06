@@ -7,8 +7,8 @@ from tilia.requests import Get
 from tilia.ui.actions import TiliaAction
 from tilia.ui.timelines.harmony.constants import INT_TO_ACCIDENTAL
 
-FLAT_SIGN = INT_TO_ACCIDENTAL[-1]
-SHARP_SIGN = INT_TO_ACCIDENTAL[1]
+FLAT_SIGN = 'b'
+SHARP_SIGN = "#"
 
 
 def add_harmony(**kwargs):
@@ -41,7 +41,7 @@ def add_mode(**kwargs):
 class TestRomanNumeralDisplay:
    
     @pytest.mark.parametrize(
-        "accidental,accidental_label", [(1, "♯"), (0, ""), (-1, "♭")]
+        "accidental,accidental_label", [(1, "#"), (0, ""), (-1, "b")]
     )
     def test_roman_label_start_with_accidental(
         self, accidental, accidental_label, harmony_tlui
