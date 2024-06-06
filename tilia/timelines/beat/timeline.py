@@ -319,6 +319,15 @@ class BeatTimeline(Timeline):
     def crop(self, length: float) -> None:
         self.component_manager.crop(length)
 
+    def delete_components(self, components: list[TC]) -> None:
+        self._validate_delete_components(components)
+
+        for component in list(reversed(components)):
+            self.component_manager.delete_component(component, update_is_first_in_measure=False)
+
+        if not self.is_empty:
+            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
+
 
 class BeatTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.BEAT]
@@ -376,10 +385,11 @@ class BeatTLComponentManager(TimelineComponentManager):
         else:
             return True, ""
 
-    def delete_component(self, component: TC) -> None:
+    def delete_component(self, component: TC, update_is_first_in_measure=True) -> None:
         component_idx = self.get_components().index(component)
         super().delete_component(component)
-        self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
+        if update_is_first_in_measure:
+            self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
 
     def update_beat_uis(self):
         beats = self.get_components().copy()
@@ -442,6 +452,10 @@ class BeatTLComponentManager(TimelineComponentManager):
         for beat in self._components.copy():
             if beat.time > length:
                 self.delete_component(beat)
+
+    def clear(self):
+        for component in self._components.copy():
+            self.delete_component(component, update_is_first_in_measure=False)
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):
         # Storing these attributes so we can restore them below.
