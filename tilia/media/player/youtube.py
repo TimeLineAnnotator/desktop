@@ -45,6 +45,14 @@ class PlayerTracker(QObject):
         else:
             self.set_is_playing(False)
 
+    @pyqtSlot(str)
+    def display_error(self, message: str) -> None:
+        post(
+            Post.DISPLAY_ERROR,
+            title="YouTube Player",
+            message=message
+        )
+
     class State(Enum):
         UNSTARTED = -1
         ENDED = 0
