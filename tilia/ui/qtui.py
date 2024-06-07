@@ -337,7 +337,7 @@ class QtUI:
         return self._windows[kind] is not None
 
     def on_timeline_element_inspect(self):
-        if not get(Get.ARE_TIMELINE_ELEMENTS_SELECTED):
+        if not get(Get.TIMELINE_ELEMENTS_SELECTED):
             return
         self.on_window_open(WindowKind.INSPECT)
 

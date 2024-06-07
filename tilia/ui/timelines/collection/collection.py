@@ -157,7 +157,7 @@ class TimelineUIs:
             (Get.TIMELINE_UIS_BY_ATTR, self.get_timeline_uis_by_attr),
             (Get.TIMELINE_UIS, self.get_timeline_uis),
             (Get.TIMELINE_UI_ELEMENT, self.get_timeline_ui_element),
-            (Get.ARE_TIMELINE_ELEMENTS_SELECTED, self.get_are_timeline_elements_selected),
+            (Get.TIMELINE_ELEMENTS_SELECTED, self.get_timeline_elements_selected),
             (Get.SELECTED_TIME, self.get_selected_time),
             (Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, self.get_first_timeline_ui_in_select_order)
         }
@@ -901,8 +901,8 @@ class TimelineUIs:
 
         return dialog.get_option()
 
-    def get_are_timeline_elements_selected(self):
-        return any(tlui.has_selected_elements for tlui in self)
+    def get_timeline_elements_selected(self):
+        return [tlui for tlui in self if tlui.has_selected_elements]
 
     def on_component_event(
         self,

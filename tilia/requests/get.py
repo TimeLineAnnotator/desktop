@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class Get(Enum):
     APP_STATE = auto()
-    ARE_TIMELINE_ELEMENTS_SELECTED = auto()
+    TIMELINE_ELEMENTS_SELECTED = auto()
     CLIPBOARD_CONTENTS = auto()
     FIRST_TIMELINE_UI_IN_SELECT_ORDER = auto()
     FROM_USER_BEAT_PATTERN = auto()
@@ -39,6 +39,7 @@ class Get(Enum):
     MEDIA_METADATA_REQUIRED_FIELDS = auto()
     MEDIA_PATH = auto()
     MEDIA_TITLE = auto()
+    MEDIA_TYPE = auto()
     METRIC_POSITION = auto()
     PLAYBACK_AREA_WIDTH = auto()
     RIGHT_MARGIN_X = auto()

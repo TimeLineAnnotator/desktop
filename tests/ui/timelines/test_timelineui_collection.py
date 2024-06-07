@@ -108,30 +108,30 @@ class TestTimelineUICreation:
 
 
 class TestServe:
-    def test_serve_are_timeline_elements_selected_empty_case(self, tluis):
-        assert not get(Get.ARE_TIMELINE_ELEMENTS_SELECTED)
+    def test_serve_timeline_elements_selected_empty_case(self, tluis):
+        assert not get(Get.TIMELINE_ELEMENTS_SELECTED)
 
-    def test_serve_are_timeline_elements_selected_case_false(self, tls, tluis):
+    def test_serve_timeline_elements_selected_case_false(self, tls, tluis):
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
 
-        assert not get(Get.ARE_TIMELINE_ELEMENTS_SELECTED)
+        assert not get(Get.TIMELINE_ELEMENTS_SELECTED)
 
-    def test_serve_are_timeline_elements_selected_case_true(self, tls, tluis):
+    def test_serve_timeline_elements_selected_case_true(self, tls, tluis):
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
         tluis[0].select_all_elements()
 
-        assert get(Get.ARE_TIMELINE_ELEMENTS_SELECTED)
+        assert get(Get.TIMELINE_ELEMENTS_SELECTED)
 
-    def test_serve_are_timeline_elements_selected_case_false_multiple_timelines(
+    def test_serve_timeline_elements_selected_case_false_multiple_timelines(
         self, tls, tluis
     ):
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
 
-        assert not get(Get.ARE_TIMELINE_ELEMENTS_SELECTED)
+        assert not get(Get.TIMELINE_ELEMENTS_SELECTED)
 
-    def test_serve_are_timeline_elements_selected_case_true_multiple_tls(
+    def test_serve_timeline_elements_selected_case_true_multiple_tls(
         self, tls, tluis
     ):
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
@@ -139,7 +139,7 @@ class TestServe:
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
         tluis[2].select_all_elements()
 
-        assert get(Get.ARE_TIMELINE_ELEMENTS_SELECTED)
+        assert get(Get.TIMELINE_ELEMENTS_SELECTED)
 
 
 class TestAutoScroll:
