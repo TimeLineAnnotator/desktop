@@ -22,7 +22,7 @@ class AudioWaveTimelineUI(TimelineUI):
         self._setup_requests()
 
     def _setup_requests(self):
-        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, lambda _: self.timeline.refresh())
+        listen(self, Post.PLAYER_URL_CHANGED, lambda _: self.timeline.refresh())
 
     def on_timeline_element_request(self, request, selector: ElementSelector, *args, **kwargs):
         return AudioWaveUIRequestHandler(self).on_request(request, selector, *args, *kwargs)
