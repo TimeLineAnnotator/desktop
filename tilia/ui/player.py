@@ -1,3 +1,4 @@
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QToolBar,
     QLabel,
@@ -14,6 +15,7 @@ class PlayerToolbar(QToolBar):
     def __init__(self):
         super().__init__()
 
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         self._setup_requests()
 
         self.current_time_string = format_media_time(0)
