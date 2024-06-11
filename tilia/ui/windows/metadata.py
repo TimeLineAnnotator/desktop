@@ -11,14 +11,11 @@ from PyQt6.QtWidgets import (
 
 from tilia import settings
 from tilia.requests import get, Get, post, Post
-from tilia.ui.strings import (
-    INVALID_METADATA_FIELD_ERROR_TITLE,
-    INVALID_METADATA_FIELD_ERROR_PROMPT,
-)
 from tilia.ui.windows import WindowKind
 from tilia.ui.format import format_media_time
 from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
 from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
+import tilia.errors
 
 
 class MediaMetadataWindow(QDialog):
@@ -110,11 +107,7 @@ class MediaMetadataWindow(QDialog):
 
     @staticmethod
     def display_invalid_field_error(invalid_fields: list[str]):
-        post(
-            Post.DISPLAY_ERROR,
-            INVALID_METADATA_FIELD_ERROR_TITLE,
-            INVALID_METADATA_FIELD_ERROR_PROMPT + "\n".join(invalid_fields),
-        )
+        tilia.errors.display(tilia.errors.METADATA_FIELD_INVALID, "\n".join(invalid_fields))
 
     def refresh_fields(self) -> None:
         self.clear_layout()

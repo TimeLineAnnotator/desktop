@@ -8,6 +8,7 @@ from tilia.timelines.beat.validators import validate_integer_list
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
+import tilia.errors
 
 if TYPE_CHECKING:
     from tilia.timelines.beat.components import Beat
@@ -426,9 +427,8 @@ class BeatTLComponentManager(TimelineComponentManager):
         if self.timeline is None:
             raise ValueError("self.timeline is None.")
 
-        if measure_index == self.timeline.measure_count - 1:
-            prompt = "Can't distribute measures on last measure."
-            post(Post.DISPLAY_ERROR, "Distribute measure", prompt)
+        if measure_index == self.timeline.measure_count - 1:    
+            tilia.errors.display(tilia.errors.BEAT_DISTRIBUTION_ERROR)
             return
 
         beats_in_measure = self.get_beats_in_measure(measure_index)

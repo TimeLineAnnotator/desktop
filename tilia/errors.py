@@ -8,8 +8,12 @@ class Error(NamedTuple):
     message: str
 
 
+FILE_SAVE_FAILED = Error("Save file", "Error when saving file.\n{}")
+MEDIA_METADATA_IMPORT_JSON_FAILED = Error("Import media metadata", "Error when parsing file {}:\n{}")
+MEDIA_METADATA_IMPORT_FILE_FAILED = Error("Import media metadata", "File {} not found.")
+CSV_IMPORT_FAILED = Error("CSV import failed", "{}")
 CREATE_TIMELINE_WITHOUT_MEDIA = Error(
-    "Create timeline error", "Can't create timeline with no media loaded."
+    "Create timeline error", "Cannot create timeline with no media loaded."
 )
 UNSUPPORTED_MEDIA_FORMAT = Error(
     "Media format not supported",
@@ -25,6 +29,8 @@ MEDIA_NOT_FOUND = Error(
 MEDIA_LOAD_FAILED = Error(
     "Media load failed", "Could not load media at '{}'. Try loading another media."
 )
+YOUTUBE_URL_INVALID = Error("Invalid YouTube URL", "{} is not a valid URL.")
+EXPORT_AUDIO_FAILED = Error("Export Audio", "{}")
 INVALID_HARMONY_INVERSION = Error(
     "Invalid harmony inversion",
     "Can't set inversion '{}' on a chord of type '{}'. Please select a valid inversion for this chord type.",
@@ -33,6 +39,17 @@ ADD_MODE_FAILED = Error("Add key failed", "Adding key failed: {}.")
 ADD_HARMONY_FAILED = Error("Add harmony failed", "{}")
 ADD_PDF_MARKER_FAILED = Error("Add page marker failed", "Can't add page marker: {}")
 INVALID_PDF = Error("PDF timeline error", "Invalid PDF path: '{}'")
+AUDIOWAVE_INVALID_FILE = Error("Invalid file type", "Cannot show AudioWave on selected file. Hiding AudioWave Timeline...")
+BEAT_DISTRIBUTION_ERROR = Error("Distribute measure", "Cannot distribute beats on last measure.")
+BEAT_PATTERN_ERROR = Error("Insert beat pattern", "Beat pattern must be one or more numbers.")
+HIERARCHY_CREATE_CHILD_FAILED = Error("Create child hierarchy", "Create child failed: {}")
+HIERARCHY_CHANGE_LEVEL_FAILED = Error("Change hierarchy level", "Change level failed: {}")
+HIERARCHY_GROUP_FAILED = Error("Group hierarchies", "Grouping failed: {}")
+HIERARCHY_MERGE_FAILED = Error("Merge hierarchies", "Merge failed: {}")
+HIERARCHY_SPLIT_FAILED = Error("Split hierarchy", "Split failed: {}")
+COMPONENTS_COPY_ERROR = Error("Copy components error", "{}")
+COMPONENTS_LOAD_ERROR = Error("Load components error", "Some components were not loaded. The following errors occured:\n{}")
+COMPONENTS_PASTE_ERROR = Error("Paste components error", "{}")
 
 
 def display(error: Error, *args):

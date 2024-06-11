@@ -13,6 +13,7 @@ from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 
 import tilia.constants
+import tilia.errors
 import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
 import tilia.parsers.csv.pdf
@@ -336,11 +337,7 @@ class QtUI:
         if not success:
             return
         if not match:
-            post(
-                Post.DISPLAY_ERROR,
-                "Invalid YouTube URL",
-                url + " is not a valid YouTube URL.",
-            )
+            tilia.errors.display(tilia.errors.YOUTUBE_URL_INVALID, url)
             return
 
         post(Post.APP_MEDIA_LOAD, url)
@@ -437,9 +434,9 @@ class QtUI:
 
     def _validate_timeline_kind_on_import_from_csv(self, tlkind: TlKind):
         if not self.timeline_uis.get_timeline_uis_by_attr("TIMELINE_KIND", tlkind):
-            display_error(
-                "Import from CSV error",
-                f"No timelines of type '{tlkind}' found.",
+            tilia.errors.display(
+                tilia.errors.CSV_IMPORT_FAILED, 
+                f"No timelines of type '{tlkind}' found."
             )
             return False
         return True
@@ -456,12 +453,9 @@ class QtUI:
         if not self.timeline_uis.get_timeline_uis_by_attr(
             "TIMELINE_KIND", TlKind.BEAT_TIMELINE
         ):
-            display_error(
-                "Import from CSV error",
-                (
-                    "No beat timelines found. Must have a beat timeline if"
-                    " importing by measure."
-                ),
+            tilia.errors.display(
+                tilia.errors.CSV_IMPORT_FAILED,
+                "No beat timelines found. Must have a beat timeline if importing by measure."
             )
             return
 
@@ -474,11 +468,9 @@ class QtUI:
     @staticmethod
     def _display_import_from_csv_errors(errors):
         errors_str = "\n".join(errors)
-        post(
-            Post.DISPLAY_ERROR,
-            "Import components from csv",
-            "Some components were not imported. The following errors occured:\n"
-            + errors_str,
+        tilia.errors.display(
+            tilia.errors.CSV_IMPORT_FAILED, 
+            f"Some components were not imported. The following errors occured:\n{errors_str}"
         )
 
     @staticmethod

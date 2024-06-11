@@ -1,5 +1,6 @@
 from tilia.requests import post, Post
 from tilia.ui.windows.beat_pattern import AskBeatPattern
+import tilia.errors
 
 
 def ask_for_beat_pattern():
@@ -16,12 +17,8 @@ def ask_for_beat_pattern():
     if not accept:
         return False, []
 
-    elif not validate_result():
-        post(
-            Post.DISPLAY_ERROR,
-            "Insert beat pattern",
-            "Beat pattern must be one or more numbers.",
-        )
+    elif not validate_result():            
+        tilia.errors.display(tilia.errors.BEAT_PATTERN_ERROR)
         return ask_for_beat_pattern()
     else:
         return True, list(map(int, result))

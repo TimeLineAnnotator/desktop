@@ -4,6 +4,7 @@ import csv
 from typing import Any, Optional, Callable
 
 from tilia.requests.post import post, Post
+import tilia.errors
 
 
 class TiliaCSVReader:
@@ -25,11 +26,10 @@ class TiliaCSVReader:
         self.file.close()
 
 
-def display_column_not_found_error(column: str) -> None:
-    post(
-        Post.DISPLAY_ERROR,
-        title="Import error",
-        message=f"Column '{column}' not found on first row of csv file.",
+def display_column_not_found_error(column: str) -> None:    
+    tilia.errors.display(
+        tilia.errors.CSV_IMPORT_FAILED, 
+        f"Column '{column}' not found on first row of .csv file."
     )
 
 

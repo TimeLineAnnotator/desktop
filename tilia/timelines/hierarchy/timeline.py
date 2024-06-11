@@ -10,6 +10,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy
+import tilia.errors
 
 
 class HierarchyTimeline(Timeline):
@@ -34,11 +35,7 @@ class HierarchyTimeline(Timeline):
         for component in components:
             success, reason = self.component_manager.create_child(component)
             if not success:
-                post(
-                    Post.DISPLAY_ERROR,
-                    "Create child hierarchy",
-                    "Create child failed: " + reason,
-                )
+                tilia.errors.display(tilia.errors.HIERARCHY_CREATE_CHILD_FAILED, reason)
 
     def alter_levels(self, components: list[Hierarchy], amount: int) -> None:
         def validate_level(hierarchy, level):
@@ -60,11 +57,7 @@ class HierarchyTimeline(Timeline):
         for component in components:
             success, reason = validate_level(component, component.level + amount)
             if not success:
-                post(
-                    Post.DISPLAY_ERROR,
-                    "Change hierarchy level",
-                    "Change level failed: " + reason,
-                )
+                tilia.errors.display(tilia.errors.HIERARCHY_CHANGE_LEVEL_FAILED, reason)
                 return
 
             self.component_manager.set_component_data(
@@ -74,18 +67,18 @@ class HierarchyTimeline(Timeline):
     def group(self, components: list[Hierarchy]) -> None:
         success, reason = self.component_manager.group(components)
         if not success:
-            post(Post.DISPLAY_ERROR, "Group hierarchies", "Grouping failed: " + reason)
+            tilia.errors.display(tilia.errors.HIERARCHY_GROUP_FAILED, reason)
 
     def split(self, time: float) -> None:
         if unit_to_split := self.component_manager.get_unit_to_split(time):
             success, reason = self.component_manager.split(unit_to_split, time)
             if not success:
-                post(Post.DISPLAY_ERROR, "Split hierarchies", "Split failed: " + reason)
+                tilia.errors.display(tilia.errors.HIERARCHY_SPLIT_FAILED, reason)
 
     def merge(self, units: list[Hierarchy]) -> None:
         success, reason = self.component_manager.merge(units)
         if not success:
-            post(Post.DISPLAY_ERROR, "Merge hierarchies", "Merge failed: " + reason)
+            tilia.errors.display(tilia.errors.HIERARCHY_MERGE_FAILED, reason)
 
     def scale(self, factor: float) -> None:
         self.component_manager.scale(factor)

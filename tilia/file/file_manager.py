@@ -10,6 +10,7 @@ from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.media_metadata import MediaMetadata
+import tilia.errors
 
 
 class FileManager:
@@ -59,7 +60,7 @@ class FileManager:
         try:
             self.save(app_state, app_state["file_path"])
         except Exception as exc:
-            post(Post.DISPLAY_ERROR, f"Error when saving file.\n{exc}")
+            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
 
         return True
 
@@ -72,7 +73,7 @@ class FileManager:
         try:
             self.save(get(Get.APP_STATE), path)
         except TiliaFileWriteError:
-            post(Post.DISPLAY_ERROR, "Error when saving file.")
+            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, "Write Error.")
 
         return True
 
@@ -81,7 +82,7 @@ class FileManager:
         try:
             self.save(get(Get.APP_STATE), path)
         except TiliaFileWriteError:
-            post(Post.DISPLAY_ERROR, "Error when saving file.")
+            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, "Write Error")
 
     def on_close_modified_file(self):
         success, should_save = self.ask_save_changes_if_modified()
@@ -133,13 +134,10 @@ class FileManager:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except json.decoder.JSONDecodeError as err:
-            post(
-                Post.DISPLAY_ERROR,
-                f"Error when parsing file {path}:\n{err}",
-            )
+            post(Post.DISPLAY_ERROR, *tilia.errors.MEDIA_METADATA_IMPORT_JSON_FAILED, path, repr(err))
             return
         except FileNotFoundError:
-            post(Post.DISPLAY_ERROR, f"File {path} not found.")
+            post(Post.DISPLAY_ERROR, tilia.errors.MEDIA_METADATA_IMPORT_FILE_FAILED, path)
             return
 
         self.set_media_metadata(MediaMetadata.from_dict(data))

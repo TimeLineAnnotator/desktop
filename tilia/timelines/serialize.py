@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from tilia.requests import post, Post
+import tilia.errors
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
@@ -82,13 +83,8 @@ def deserialize_components(
         id_to_component_dict[int(id)] = component
 
     if errors:
-        errors_str = "\n".join(errors)
-        post(
-            Post.DISPLAY_ERROR,
-            "Load components error",
-            "Some components were not loaded. The following errors occured:\n"
-            + errors_str,
-        )
+        errors_str = "\n".join(errors)    
+        tilia.errors.display(tilia.errors.COMPONENTS_LOAD_ERROR, errors_str)
 
     _substitute_ids_for_reference_to_components(id_to_component_dict)
 
