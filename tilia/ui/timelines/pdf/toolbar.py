@@ -4,5 +4,5 @@ from tilia.ui.actions import TiliaAction
 from tilia.ui.timelines.toolbar import TimelineToolbar
 
 
-class MarkerTimelineToolbar(TimelineToolbar):
-    ACTIONS = [TiliaAction.MARKER_ADD]
+class PdfTimelineToolbar(TimelineToolbar):
+    ACTIONS = [TiliaAction.PDF_MARKER_ADD]
