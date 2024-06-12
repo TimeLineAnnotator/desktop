@@ -149,7 +149,7 @@ class QtUI:
             (Post.BEAT_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE)),
             (Post.HARMONY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE)),
             (Post.PDF_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.PDF_TIMELINE)),
-            (Post.DISPLAY_ERROR, dialogs.basic.display_error),
+            (Post.DISPLAY_ERROR, display_error),
             (Post.UI_EXIT, self.exit),
         }
 
