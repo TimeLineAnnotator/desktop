@@ -138,7 +138,8 @@ class MediaMetadataWindow(QDialog):
         ]
         
         if not fields_without_required == new_fields:
-            post(Post.METADATA_UPDATE_FIELDS, new_fields)
+            post(Post.METADATA_UPDATE_FIELDS, get(Get.MEDIA_METADATA_REQUIRED_FIELDS) + new_fields)
+
     def _save_edits(self):
         edited_fields = {
             name: self.metadata[name].text() 
