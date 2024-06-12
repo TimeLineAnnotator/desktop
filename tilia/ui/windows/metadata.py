@@ -34,6 +34,7 @@ class MediaMetadataWindow(QDialog):
         super().__init__()
         self.setWindowTitle("Metadata")
         self.metadata = {}
+        self.metadata_original = {}
         self.fields_to_formatters = {"media length": format_media_time}
         self.setMinimumSize(settings.get("media_metadata", "window-width"), 0)
         self._setup_widgets()
@@ -65,13 +66,14 @@ class MediaMetadataWindow(QDialog):
     def populate_with_editable_fields(self):
         metadata = get(Get.MEDIA_METADATA)
         self.metadata.clear()
+        self.metadata_original.clear()
         for name, value in metadata.items():
             if name in list(self.READ_ONLY_FIELDS) + self.SEPARATE_WINDOW_FIELDS:
                 continue
             line_edit = QLineEdit(str(value))
-            line_edit.textEdited.connect(functools.partial(self.on_text_edited, name))
             self.form_layout.addRow(QLabel(name.capitalize()), line_edit)
-            self.metadata[name] = value
+            self.metadata[name] = line_edit
+            self.metadata_original[name] = value
 
     def populate_with_read_only_fields(self):
         for name, getter in self.READ_ONLY_FIELDS.items():
@@ -95,9 +97,10 @@ class MediaMetadataWindow(QDialog):
         dialog = EditNotesDialog()
         accepted = dialog.exec()
         if accepted:
-            self.on_text_edited("notes", dialog.result())
+            post(Post.MEDIA_METADATA_FIELD_SET, "notes", dialog.result())
 
     def on_edit_metadata_fields_button(self):
+        self._save_edits()
         dialog = EditMetadataFieldsDialog()
         accepted = dialog.exec()
         if accepted:
@@ -120,14 +123,11 @@ class MediaMetadataWindow(QDialog):
         self.clear_layout()
         self.setup_layout()
 
-    @staticmethod
-    def on_text_edited(field, value):
-        post(Post.MEDIA_METADATA_FIELD_SET, field, value)
-
     def focus(self):
         pass  # TODO: set focus on self
 
     def closeEvent(self, event, **kwargs):
+        self._save_edits()
         post(Post.WINDOW_METADATA_CLOSED)
         super().closeEvent(event)
 
@@ -139,3 +139,16 @@ class MediaMetadataWindow(QDialog):
         
         if not fields_without_required == new_fields:
             post(Post.METADATA_UPDATE_FIELDS, new_fields)
+    def _save_edits(self):
+        edited_fields = {
+            name: self.metadata[name].text() 
+            for name in self.metadata 
+            if name in self.metadata_original 
+            and self.metadata[name].text() != self.metadata_original[name]
+        }
+        if edited_fields and get(Get.FROM_USER_YES_OR_NO, 
+                                 "Save metadata edits", 
+                                 "Save edits before continuing?<br>This <i>cannot</i> be undone later."
+                                 ):
+            for name, value in edited_fields.items():
+                post(Post.MEDIA_METADATA_FIELD_SET, name, value)
