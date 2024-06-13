@@ -29,7 +29,7 @@ DEFAULT_SETTINGS = {
             "lyrics",
             "notes",
         ],
-        "window-width": 400,
+        "window_width": 400,
     },
     "slider_timeline": {
         "default_height": 40,

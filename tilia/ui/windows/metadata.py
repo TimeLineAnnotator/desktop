@@ -33,7 +33,7 @@ class MediaMetadataWindow(QDialog):
         self.metadata = {}
         self.metadata_original = {}
         self.fields_to_formatters = {"media length": format_media_time}
-        self.setMinimumSize(settings.get("media_metadata", "window-width"), 0)
+        self.setMinimumSize(settings.get("media_metadata", "window_width"), 0)
         self._setup_widgets()
         self.show()
 
