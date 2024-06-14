@@ -21,7 +21,7 @@ from ..drag import DragManager
 from ...format import format_media_time
 from ...consts import TINT_FACTOR_ON_SELECTION
 from ...coords import get_x_by_time, get_time_by_x
-from tilia import settings
+from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
 

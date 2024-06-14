@@ -5,13 +5,10 @@ from PyQt6.QtCore import QDir, QTemporaryDir
 
 import tilia
 import platformdirs
-import tomlkit
 
 import tilia.constants
-from tilia import settings
 from tilia.utils import open_with_os
 
-settings_path = Path()
 autosaves_path = Path()
 log_path = Path()
 temp_dir: QDir | None = None
@@ -45,11 +42,6 @@ def setup_data_dir() -> Path:
     return path
 
 
-def setup_settings_file(data_dir):
-    if not os.path.exists(settings_path):
-        create_settings_file(data_dir)
-
-
 def setup_autosaves_path(data_dir):
     if not os.path.exists(autosaves_path):
         create_autosaves_dir(data_dir)
@@ -66,10 +58,7 @@ def setup_dirs() -> None:
 
     data_dir = setup_data_dir()
 
-    global settings_path, autosaves_path, log_path, temp_path
-
-    settings_path = Path(data_dir, "settings.toml")
-    setup_settings_file(data_dir)
+    global autosaves_path, log_path, temp_path
 
     autosaves_path = Path(data_dir, "autosaves")
     setup_autosaves_path(data_dir)
@@ -88,11 +77,6 @@ def create_data_dir() -> Path:
         _data_path = _USER_DATA_DIR
 
     return _data_path
-
-
-def create_settings_file(data_dir: Path):
-    with open(Path(data_dir, "settings.toml"), "w") as f:
-        f.write(tomlkit.dumps(settings.DEFAULT_SETTINGS))
 
 
 def create_autosaves_dir(data_dir: Path):

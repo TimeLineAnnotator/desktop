@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tilia import settings
+from tilia.settings import settings
 from tilia.timelines.base.validators import (
     validate_time,
     validate_color,

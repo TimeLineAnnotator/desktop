@@ -3,11 +3,10 @@ import shutil
 from pathlib import Path
 
 from unittest.mock import patch
-import tomlkit
 
 import pytest
 
-from tilia import dirs, settings
+from tilia import dirs
 
 
 @pytest.fixture
@@ -49,15 +48,6 @@ def test_create_data_dir_user(_):
     assert os.path.exists(Path("user_dir"))
 
     Path.rmdir(Path("user_dir"))
-
-
-def test_create_settings_file(test_dir):
-    dirs.create_settings_file(test_dir)
-
-    assert os.path.exists(test_dir)
-
-    with open(Path(test_dir, "settings.toml")) as f:
-        assert f.read() == tomlkit.dumps(settings.DEFAULT_SETTINGS)
 
 
 def test_create_autosaves_dir(test_dir):

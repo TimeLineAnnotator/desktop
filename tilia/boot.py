@@ -6,7 +6,7 @@ import traceback
 
 import dotenv
 
-from tilia import dirs, settings
+from tilia import dirs
 from tilia.app import App
 from tilia.clipboard import Clipboard
 from tilia.file.file_manager import FileManager
@@ -43,7 +43,6 @@ def boot():
     args = setup_parser()
     setup_dirs()
     setup_logging(args.logging)  # relies on logging path set by dirs setup
-    setup_settings()
     global app, ui
     app = setup_logic()
     ui = setup_ui(args.user_interface)
@@ -72,10 +71,6 @@ def setup_parser():
 
 def setup_dirs():
     dirs.setup_dirs()
-
-
-def setup_settings():
-    settings.load(dirs.settings_path)
 
 
 def setup_logging(level: str):

@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import pypdf
 
-from tilia import settings
+from tilia.settings import settings
 from tilia.requests import Get, get
 from tilia.timelines.base.validators import validate_string
 from tilia.timelines.component_kinds import ComponentKind
@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class PdfTimeline(Timeline):
     KIND = TimelineKind.PDF_TIMELINE
-    DEFAULT_HEIGHT = settings.get("PDF_timeline", "default_height")
     SERIALIZABLE_BY_VALUE = [
         'height',
         'is_visible',
@@ -41,6 +40,10 @@ class PdfTimeline(Timeline):
 
         self.validators = self.validators | {'path': validate_string}
         self.path = path
+
+    @property
+    def default_height(self):
+        return settings.get("PDF_timeline", "default_height")
 
     @property
     def path(self):

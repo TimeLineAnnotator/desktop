@@ -53,6 +53,7 @@ HIERARCHY_SPLIT_FAILED = Error("Split hierarchy", "Split failed: {}")
 COMPONENTS_COPY_ERROR = Error("Copy components error", "{}")
 COMPONENTS_LOAD_ERROR = Error("Load components error", "Some components were not loaded. The following errors occured:\n{}")
 COMPONENTS_PASTE_ERROR = Error("Paste components error", "{}")
+FILE_NOT_FOUND = Error("File not found", "No such file or directory. '{}' could not be opened.")
 
 
 def display(error: Error, *args):

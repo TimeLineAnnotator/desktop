@@ -1,7 +1,7 @@
 from __future__ import annotations
 import copy
 
-from tilia.requests import get, Get
+from tilia.requests import get, Get, Post, listen
 from tilia.enums import Side
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -30,6 +30,15 @@ class BeatTimelineUI(TimelineUI):
         "measures_to_force_display",
         "beats_in_measure"
     ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+
+    def on_settings_updated(self, updated_settings):        
+        if "beat_timeline" in updated_settings:
+            for beat_ui in self:
+                beat_ui.update_label()
 
     def on_timeline_element_request(
         self, request, selector: ElementSelector, *args, **kwargs

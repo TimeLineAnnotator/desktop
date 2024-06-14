@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from tilia import settings
+from tilia.settings import settings
 
 
 class MediaMetadata(OrderedDict):

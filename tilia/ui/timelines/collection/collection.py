@@ -18,7 +18,7 @@ import tilia.ui.timelines.collection.requests.args
 import tilia.ui.timelines.collection.requests.enums
 import tilia.ui.timelines.collection.requests.post_process
 from tilia.ui import actions
-from tilia import settings
+from tilia.settings import settings
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.timelines import timeline_kinds
 from tilia.timelines.component_kinds import ComponentKind
@@ -108,7 +108,7 @@ class TimelineUIs:
         self.hscrollbar_is_being_dragged = False
 
     def _setup_auto_scroll(self):
-        self.auto_scroll_is_enabled = tilia.settings.get("general", "auto-scroll")
+        self.auto_scroll_is_enabled = settings.get("general", "auto-scroll")
 
     def _setup_widgets(self, main_window: QMainWindow):
         self.scene = TimelineUIsScene()
@@ -803,7 +803,7 @@ class TimelineUIs:
         self.set_playback_lines_position(time)
 
     def set_auto_scroll(self, value: bool):
-        settings.edit("general", "auto-scroll", value)
+        settings.set("general", "auto-scroll", value)
         # noinspection PyAttributeOutsideInit
         self.auto_scroll_is_enabled = value
 

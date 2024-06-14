@@ -3,11 +3,11 @@ from __future__ import annotations
 import itertools
 from typing import Any
 
-from tilia import settings
+from tilia.settings import settings
 from .common import update_component_genealogy
 from ..base.timeline import Timeline, TimelineComponentManager
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.requests import Post, get, Get, post
+from tilia.requests import Post, get, Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy
 import tilia.errors
@@ -15,9 +15,11 @@ import tilia.errors
 
 class HierarchyTimeline(Timeline):
     KIND = TimelineKind.HIERARCHY_TIMELINE
-    DEFAULT_HEIGHT = settings.get("hierarchy_timeline", "default_height")
-
     component_manager: HierarchyTLComponentManager
+
+    @property
+    def default_height(self):
+        return settings.get("hierarchy_timeline", "default_height")
 
     def setup_blank_timeline(self):
         """Create unit of level 1 encompassing whole timeline"""

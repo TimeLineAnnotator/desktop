@@ -6,7 +6,8 @@ from threading import Thread
 from typing import Callable
 
 import tilia.constants
-from tilia import settings, dirs
+from tilia import dirs
+from tilia.settings import settings
 from .common import are_tilia_data_equal, write_tilia_file_to_disk
 from .tilia_file import TiliaFile
 from tilia.requests import get, Get
@@ -82,6 +83,6 @@ def delete_older_autosaves(amount: int):
 def make_room_for_new_autosave() -> None:
     if (
         remaining_autosaves := len(get_autosaves_paths())
-        - settings.get("auto-save", "max_saved_files")
+        - settings.get("auto-save", "max_number_saved_files")
     ) >= 0:
         delete_older_autosaves(remaining_autosaves + 1)

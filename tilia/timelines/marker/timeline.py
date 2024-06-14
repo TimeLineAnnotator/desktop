@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tilia import settings
+from tilia.settings import settings
 from tilia.requests import Get, get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -10,8 +10,11 @@ from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 
 class MarkerTimeline(Timeline):
     KIND = TimelineKind.MARKER_TIMELINE
-    DEFAULT_HEIGHT = settings.get("marker_timeline", "default_height")
 
+    @property
+    def default_height(self):
+        return settings.get("marker_timeline", "default_height")
+    
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
 

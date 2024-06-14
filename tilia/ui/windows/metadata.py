@@ -9,8 +9,8 @@ from PyQt6.QtWidgets import (
     QFrame
 )
 
-from tilia import settings
-from tilia.requests import get, Get, post, Post
+from tilia.settings import settings
+from tilia.requests import get, Get, post, Post, listen
 from tilia.ui.windows import WindowKind
 from tilia.ui.format import format_media_time
 from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
@@ -34,6 +34,7 @@ class MediaMetadataWindow(QDialog):
         self.metadata_original = {}
         self.fields_to_formatters = {"media length": format_media_time}
         self.setMinimumSize(settings.get("media_metadata", "window_width"), 0)
+        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
         self._setup_widgets()
         self.show()
 
@@ -146,3 +147,7 @@ class MediaMetadataWindow(QDialog):
                                  ):
             for name, value in edited_fields.items():
                 post(Post.MEDIA_METADATA_FIELD_SET, name, value)
+
+    def on_settings_updated(self, updated_settings):        
+        if "media_metadata" in updated_settings:
+            self.setMinimumSize(settings.get("media_metadata", "window_width"), 0)

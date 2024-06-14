@@ -23,6 +23,12 @@ class AudioWaveTimelineUI(TimelineUI):
 
     def _setup_requests(self):
         listen(self, Post.PLAYER_URL_CHANGED, lambda _: self.timeline.refresh())
+        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+
+    def on_settings_updated(self, updated_settings):        
+        if "audiowave_timeline" in updated_settings:
+            get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
+            self.timeline.refresh()
 
     def on_timeline_element_request(self, request, selector: ElementSelector, *args, **kwargs):
         return AudioWaveUIRequestHandler(self).on_request(request, selector, *args, *kwargs)
