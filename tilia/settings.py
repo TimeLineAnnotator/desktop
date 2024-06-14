@@ -73,7 +73,6 @@ DEFAULT_SETTINGS = {
         "default_height": 30,
     },
     "harmony_timeline": {"default_harmony_display_mode": "chord"},
-    "playback": {"ffmpeg_path": ""},
     "dev": {"log_events": False, "log_requests": False, "dev_mode": False},
 }
 

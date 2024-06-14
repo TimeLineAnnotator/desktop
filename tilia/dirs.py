@@ -17,7 +17,6 @@ log_path = Path()
 temp_dir: QDir | None = None
 temp_path = Path()
 img_path = Path("ui", "img")
-ffmpeg_path = Path("ffmpeg", "ffmpeg.exe")
 _SITE_DATA_DIR = Path(platformdirs.site_data_dir(tilia.constants.APP_NAME))
 _USER_DATA_DIR = Path(platformdirs.user_data_dir(tilia.constants.APP_NAME, roaming=True))
 data_path = _SITE_DATA_DIR
