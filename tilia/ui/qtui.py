@@ -130,6 +130,7 @@ class QtUI:
             (Post.UI_MEDIA_LOAD_LOCAL, self.on_media_load_local),
             (Post.UI_MEDIA_LOAD_YOUTUBE, self.on_media_load_youtube),
             (Post.TIMELINE_ELEMENT_INSPECT, self.on_timeline_element_inspect),
+            (Post.WEBSITE_HELP_OPEN, self.on_website_help_open),
             (Post.WINDOW_MANAGE_TIMELINES_OPEN, lambda: self.on_window_open(WindowKind.MANAGE_TIMELINES)),
             (Post.WINDOW_METADATA_OPEN, lambda: self.on_window_open(WindowKind.MEDIA_METADATA)),
             (Post.WINDOW_METADATA_CLOSED, lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA)),
