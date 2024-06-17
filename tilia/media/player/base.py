@@ -179,17 +179,12 @@ class Player(ABC):
         )
 
     def on_export_audio(self, segment_name: str, start_time: float, end_time: float):
-        if self.MEDIA_TYPE != "audio":
-            post(
-                Post.DISPLAY_ERROR,
-                title="Export audio",
-                message="Can only export from audio files.",
-            )
+        if self.MEDIA_TYPE != "audio":            
+            tilia.errors.display(tilia.errors.EXPORT_AUDIO_FAILED, "Can only export from audio files.")
             return
 
-        if sys.platform == "darwin":
-            error_message = "Exporting audio is not available on macOS."
-            post(Post.DISPLAY_ERROR, title="Export audio", message=error_message)
+        if sys.platform == "darwin":    
+            tilia.errors.display(tilia.errors.EXPORT_AUDIO_FAILED, "Exporting audio is not available on macOS.")
             return
 
         path, _ = get(

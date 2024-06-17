@@ -206,13 +206,13 @@ class TestFileManager:
         data = "nonsense"
 
         with patch("builtins.open", mock_open(read_data=data)):
-            with PatchPost("tilia.file.file_manager", Post.DISPLAY_ERROR) as post_mock:
+            with PatchPost("tilia.errors", Post.DISPLAY_ERROR) as post_mock:
                 post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "")
 
                 post_mock.assert_called()
 
     def test_import_metadata_file_does_not_exist(self, file_manager):
-        with PatchPost("tilia.file.file_manager", Post.DISPLAY_ERROR) as post_mock:
+        with PatchPost("tilia.errors", Post.DISPLAY_ERROR) as post_mock:
             post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "nonexistent.json")
 
             post_mock.assert_called()

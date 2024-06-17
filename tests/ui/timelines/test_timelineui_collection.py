@@ -97,9 +97,9 @@ class TestTimelineUICreation:
         assert tluis.is_empty
 
     def test_create_timeline_without_media_duration_displays_error(self, tilia, qtui):
-        patch_target = "tilia.ui.timelines.collection.requests.args"
-        with PatchPost(patch_target, Post.DISPLAY_ERROR) as mock:
-            with PatchGet(patch_target, Get.MEDIA_DURATION, 0):
+        patch_get_target = "tilia.ui.timelines.collection.requests.args"
+        with PatchPost("tilia.errors", Post.DISPLAY_ERROR) as mock:
+            with PatchGet(patch_get_target, Get.MEDIA_DURATION, 0):
                 actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         mock.assert_called_once_with(

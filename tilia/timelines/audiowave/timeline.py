@@ -10,6 +10,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get, post, Post
 from tilia.timelines.base.timeline import TimelineComponentManager
+import tilia.errors
 
 
 class AudioWaveTimeline(Timeline):
@@ -27,7 +28,7 @@ class AudioWaveTimeline(Timeline):
         try:
             return pydub.AudioSegment.from_file(path)        
         except:
-            post(Post.DISPLAY_ERROR, "AudioWave", "Cannot show AudioWave on selected file. Hiding AudioWave Timeline...")
+            tilia.errors.display(tilia.errors.AUDIOWAVE_INVALID_FILE)
             return None
     
     def _get_normalised_amplitudes(self):    

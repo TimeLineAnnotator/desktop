@@ -49,21 +49,21 @@ def _get_timeline_name():
 
 def _get_args_for_timeline_add_hierarchy_timeline(_):
     if not _get_media_duration_valid_for_add_timeline():
-        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
         return (False, ""), {}
     return _get_timeline_name()
 
 
 def _get_args_for_timeline_add_marker_timeline(_):
     if not _get_media_duration_valid_for_add_timeline():
-        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
         return (False, ""), {}
     return _get_timeline_name()
 
 
 def _get_args_for_timeline_add_pdf_timeline(_):
     if not _get_media_duration_valid_for_add_timeline():
-        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
         return (False, "", []), {}
     (confirmed, name), _ = _get_timeline_name()
     if not confirmed:
@@ -76,7 +76,7 @@ def _get_args_for_timeline_add_pdf_timeline(_):
 
 def _get_args_for_timeline_add_beat_timeline(_):
     if not _get_media_duration_valid_for_add_timeline():
-        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
         return (False, ""), {}
     (confirmed, name), _ = _get_timeline_name()
     if not confirmed:
@@ -89,13 +89,13 @@ def _get_args_for_timeline_add_beat_timeline(_):
 
 def _get_args_for_timeline_add_harmony_timeline(_):
     if not _get_media_duration_valid_for_add_timeline():
-        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
         return (False, ""), {}
     return _get_timeline_name()
 
 def _get_args_for_timeline_add_audiowave_timeline(_):
     if not _get_media_duration_valid_for_add_timeline():
-        post(Post.DISPLAY_ERROR, *tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
         return (False, ""), {}
     return _get_timeline_name()
 

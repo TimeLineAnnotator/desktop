@@ -1,8 +1,4 @@
 VALIDATE_BOUNDED_INTEGER = "{0} must be a value between {1} and {2}."
-INVALID_METADATA_FIELD_ERROR_TITLE = "Invalid metadata field"
-INVALID_METADATA_FIELD_ERROR_PROMPT = (
-    "Metadata fields must be alphanumeric. The following fields were discarded:\n"
-)
 NO_MEDIA_LOADED_ERROR_TITLE = "Media error"
 NO_MEDIA_LOADED_ERROR_MESSAGE = (
     "No media loaded.\nLoad file via 'File > Load Media File' before playing."

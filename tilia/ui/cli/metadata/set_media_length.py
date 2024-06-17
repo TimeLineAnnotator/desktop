@@ -1,6 +1,7 @@
 import argparse
 from tilia.requests import post, Post
 from tilia.ui.cli import io
+import tilia.errors
 
 
 def setup_parser(subparsers):
@@ -17,20 +18,11 @@ def validate_value(value: float) -> bool:
     try:
         float(value)
     except ValueError:
-        post(
-            Post.DISPLAY_ERROR,
-            "Set media metadata",
-            "Can't set media metadata to {value}. Media length must be a number.",
-        )
+        tilia.errors.display(tilia.errors.MEDIA_METADATA_SET_DATA_FAILED, value)
         return False
 
     if value < 0:
-        post(
-            Post.DISPLAY_ERROR,
-            "Set media metadata",
-            "Can't set media metadata to {value}. Media length must be a number.",
-        )
-        io.output("Can't set to {value}. Media length must be positive.")
+        tilia.errors.display(tilia.errors.MEDIA_METADATA_SET_DATA_FAILED, value)
         return False
 
     return True
