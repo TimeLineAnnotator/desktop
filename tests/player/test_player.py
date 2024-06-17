@@ -163,7 +163,7 @@ class TestVlcPlayer:
     def test_media_load_failed(self, vlc_player_notloaded):
         player = vlc_player_notloaded
 
-        with PatchPost("tilia.media.player.base", Post.DISPLAY_ERROR) as post_mock:
+        with PatchPost("tilia.errors", Post.DISPLAY_ERROR) as post_mock:
             player.load_media("invalid media")
 
             post_mock.assert_called_once()

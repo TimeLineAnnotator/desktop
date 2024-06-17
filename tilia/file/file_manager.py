@@ -134,10 +134,10 @@ class FileManager:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except json.decoder.JSONDecodeError as err:
-            post(Post.DISPLAY_ERROR, *tilia.errors.MEDIA_METADATA_IMPORT_JSON_FAILED, path, repr(err))
+            tilia.errors.display(tilia.errors.MEDIA_METADATA_IMPORT_JSON_FAILED, path, repr(err))
             return
         except FileNotFoundError:
-            post(Post.DISPLAY_ERROR, tilia.errors.MEDIA_METADATA_IMPORT_FILE_FAILED, path)
+            tilia.errors.display(tilia.errors.MEDIA_METADATA_IMPORT_FILE_FAILED, path)
             return
 
         self.set_media_metadata(MediaMetadata.from_dict(data))
