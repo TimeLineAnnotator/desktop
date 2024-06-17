@@ -11,6 +11,9 @@ class Error(NamedTuple):
 FILE_SAVE_FAILED = Error("Save file", "Error when saving file.\n{}")
 MEDIA_METADATA_IMPORT_JSON_FAILED = Error("Import media metadata", "Error when parsing file {}:\n{}")
 MEDIA_METADATA_IMPORT_FILE_FAILED = Error("Import media metadata", "File {} not found.")
+MEDIA_METADATA_SET_DATA_FAILED = Error(
+    "Set media metadata", "Cannot set media metadata to {}. Media length must be a positive number."
+)
 CSV_IMPORT_FAILED = Error("CSV import failed", "{}")
 CREATE_TIMELINE_WITHOUT_MEDIA = Error(
     "Create timeline error", "Cannot create timeline with no media loaded."
