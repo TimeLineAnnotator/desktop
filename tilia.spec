@@ -49,7 +49,7 @@ else:
         a.scripts,
         a.datas,
         a.binaries,
-        name="tilia",
+        name="tilia-" + tilia.constants.VERSION,
 	    console=False,
         embed_manifest=True,
         icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
