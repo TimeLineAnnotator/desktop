@@ -69,7 +69,7 @@ DEFAULT_SETTINGS = {
         "marker_height": 10,
         "marker_default_color": "#999999",
     },
-    "pdf_timeline": {
+    "PDF_timeline": {
         "default_height": 30,
     },
     "harmony_timeline": {"default_harmony_display_mode": "chord"},

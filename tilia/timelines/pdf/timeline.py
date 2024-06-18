@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class PdfTimeline(Timeline):
     KIND = TimelineKind.PDF_TIMELINE
-    DEFAULT_HEIGHT = settings.get("pdf_timeline", "default_height")
+    DEFAULT_HEIGHT = settings.get("PDF_timeline", "default_height")
     SERIALIZABLE_BY_VALUE = [
         'height',
         'is_visible',
