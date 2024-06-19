@@ -23,7 +23,6 @@ from tilia.undo_manager import PauseUndoManager
 
 
 class HierarchyTimelineUI(TimelineUI):
-    DEFAULT_HEIGHT = settings.get("hierarchy_timeline", "default_height")
     TOOLBAR_CLASS = HierarchyTimelineToolbar
     ELEMENT_CLASS = HierarchyUI
     TIMELINE_KIND = TimelineKind.HIERARCHY_TIMELINE

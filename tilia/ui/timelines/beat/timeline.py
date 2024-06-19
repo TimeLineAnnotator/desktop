@@ -18,7 +18,6 @@ from tilia.ui.timelines.copy_paste import (
 
 class BeatTimelineUI(TimelineUI):
     CONTEXT_MENU_CLASS = BeatTimelineUIContextMenu
-    DEFAULT_HEIGHT = 35
     TOOLBAR_CLASS = BeatTimelineToolbar
     ELEMENT_CLASS = BeatUI
     ACCEPTS_HORIZONTAL_ARROWS = True

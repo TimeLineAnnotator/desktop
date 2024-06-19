@@ -79,7 +79,6 @@ class TimelineUIs:
         self._setup_selection_box()
         self._setup_drag_tracking_vars()
         self._setup_auto_scroll()
-        self.auto_scroll_enabled = settings.get("general", "auto-scroll")
         self.selected_time = get(Get.MEDIA_CURRENT_TIME)
 
     def __str__(self) -> str:
