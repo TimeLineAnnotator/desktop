@@ -6,6 +6,7 @@ from tilia.enums import Side
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.timeline import TimelineUI
+from tilia.ui.timelines.beat.context_menu import BeatTimelineUIContextMenu
 from tilia.ui.timelines.beat.element import BeatUI
 from tilia.ui.timelines.beat.request_handlers import BeatUIRequestHandler
 from tilia.ui.timelines.beat.toolbar import BeatTimelineToolbar
@@ -16,6 +17,7 @@ from tilia.ui.timelines.copy_paste import (
 
 
 class BeatTimelineUI(TimelineUI):
+    CONTEXT_MENU_CLASS = BeatTimelineUIContextMenu
     DEFAULT_HEIGHT = 35
     TOOLBAR_CLASS = BeatTimelineToolbar
     ELEMENT_CLASS = BeatUI
