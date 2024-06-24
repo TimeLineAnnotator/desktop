@@ -216,10 +216,10 @@ def _get_posts_excluded_from_log() -> list[Post]:
 
 
 def _log_post(post, *args, **kwargs):
-    # print(
-    #     f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners[post])}"
-    # )
-    pass
+    if settings.get("dev", "log_requests"):
+        print(
+            f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners[post])}"
+        )
 
 
 def post(post: Post, *args, **kwargs) -> None:
