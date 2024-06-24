@@ -154,5 +154,8 @@ def to_roman_numeral(
     result_prefix = ACCIDENTAL_NUMBER_TO_MUSANALYSIS_STR[result_accidental] if not applied_to else ""
     quality_suffix = QUALITY_TO_ROMAN_NUMERAL_SUFFIX[quality][inversion]
     applied_to_suffix = INT_TO_APPLIED_TO_SUFFIX[applied_to]
+    
+    if "11th" in quality:
+        quality_suffix += "    "
 
     return result_prefix + numeral + quality_suffix + applied_to_suffix
