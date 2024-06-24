@@ -87,12 +87,6 @@ class TimelineView(QGraphicsView):
 
         super().mouseMoveEvent(event)
 
-    def wheelEvent(self, event) -> None:
-        if event.angleDelta().y() > 0:
-            post(Post.VIEW_ZOOM_IN)
-        elif event.angleDelta().y() < 0:
-            post(Post.VIEW_ZOOM_OUT)
-
     def set_height(self, value):
         self.setFixedHeight(value)
 
