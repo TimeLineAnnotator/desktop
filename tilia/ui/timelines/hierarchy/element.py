@@ -126,19 +126,19 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def base_height(self):
-        return settings.get("hierarchy_timeline", "hierarchy_base_height")
+        return settings.get("hierarchy_timeline", "base_height")
     
     @property
     def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "hierarchy_level_height_diff")
+        return settings.get("hierarchy_timeline", "level_height_diff")
     
     @property
     def handle_height(self):
-        return settings.get("hierarchy_timeline", "hierarchy_marker_height")
+        return settings.get("hierarchy_timeline", "divider_height")
     
     @property
     def colors(self):
-        return settings.get("hierarchy_timeline", "hierarchy_default_colors")
+        return settings.get("hierarchy_timeline", "default_colors")
 
     @property
     def start_x(self):
@@ -616,11 +616,11 @@ class HierarchyBody(CursorMixIn, QGraphicsRectItem):
 
     @property
     def base_height(self):
-        return settings.get("hierarchy_timeline", "hierarchy_base_height")
+        return settings.get("hierarchy_timeline", "base_height")
     
     @property
     def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "hierarchy_level_height_diff")
+        return settings.get("hierarchy_timeline", "level_height_diff")
     
     def set_fill(self, color: str):
         self.setBrush(QColor(color))
@@ -676,11 +676,11 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
 
     @property
     def base_height(self):
-        return settings.get("hierarchy_timeline", "hierarchy_base_height")
+        return settings.get("hierarchy_timeline", "base_height")
     
     @property
     def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "hierarchy_level_height_diff")
+        return settings.get("hierarchy_timeline", "level_height_diff")
 
     def setup_font(self):
         font = QFont("Arial", 10)
@@ -725,11 +725,11 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         
     @property
     def base_height(self):
-        return settings.get("hierarchy_timeline", "hierarchy_base_height")
+        return settings.get("hierarchy_timeline", "base_height")
     
     @property
     def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "hierarchy_level_height_diff")
+        return settings.get("hierarchy_timeline", "level_height_diff")
 
     def setup_font(self):
         font = QFont("Arial", 6)

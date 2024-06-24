@@ -147,8 +147,8 @@ class AmplitudeBarUIBody(CursorMixIn, QGraphicsLineItem):
         return QLineF(QPointF(x, offset), QPointF(x, offset + height))
 
     def update_pen_style(self):
-        color = get_tinted_color(settings.get("audiowave_timeline", "wave_color"), TINT_FACTOR_ON_SELECTION) if self.selected \
-            else settings.get("audiowave_timeline", "wave_color")
+        color = get_tinted_color(settings.get("audiowave_timeline", "default_color"), TINT_FACTOR_ON_SELECTION) if self.selected \
+            else settings.get("audiowave_timeline", "default_color")
         pen = QPen(QColor(color))
         pen.setStyle(Qt.PenStyle.SolidLine)
         pen.setWidthF(self.width)

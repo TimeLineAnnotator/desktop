@@ -24,13 +24,13 @@ class AutoSaver:
             daemon=True,
         )
 
-        if settings.get("auto-save", "interval"):
+        if settings.get("auto-save", "interval_(seconds)"):
             self._autosave_thread.start()
 
     def _auto_save_loop(self, *_) -> None:
         while True:
             try:
-                time.sleep(settings.get("auto-save", "interval"))
+                time.sleep(settings.get("auto-save", "interval_(seconds)"))
                 if self.needs_auto_save():
                     data = self.get_app_state()
                     autosave(data)
@@ -83,6 +83,6 @@ def delete_older_autosaves(amount: int):
 def make_room_for_new_autosave() -> None:
     if (
         remaining_autosaves := len(get_autosaves_paths())
-        - settings.get("auto-save", "max_number_saved_files")
+        - settings.get("auto-save", "max_stored_files")
     ) >= 0:
         delete_older_autosaves(remaining_autosaves + 1)

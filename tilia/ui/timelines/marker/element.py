@@ -93,7 +93,7 @@ class MarkerUI(TimelineUIElement):
 
     @property
     def default_color(self):
-        return settings.get("marker_timeline", "marker_default_color")
+        return settings.get("marker_timeline", "default_color")
 
     @property
     def ui_color(self):

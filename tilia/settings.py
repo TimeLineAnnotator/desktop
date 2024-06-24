@@ -13,7 +13,7 @@ class SettingsManager(QObject):
             "window_y": 10,
             "timeline_background_color": "#EEE",
         },
-        "auto-save": {"max_number_saved_files": 100, "interval": 300},
+        "auto-save": {"max_stored_files": 100, "interval_(seconds)": 300},
         "media_metadata": {
             "default_fields": [
                 "composer",
@@ -40,13 +40,13 @@ class SettingsManager(QObject):
         },
         "audiowave_timeline": {
             "default_height": 80,
-            "wave_color": "#3399FF",
+            "default_color": "#3399FF",
             "max_divisions": 2500
         },
         "beat_timeline": {"display_measure_periodicity": 4, "default_height": 35},
         "hierarchy_timeline": {
             "default_height": 120,
-            "hierarchy_default_colors": [
+            "default_colors": [
                 "#ff964f",
                 "#68de7c",
                 "#f2d675",
@@ -59,15 +59,15 @@ class SettingsManager(QObject):
                 "#a7aaad",
                 "#4f94d4",
             ],
-            "hierarchy_base_height": 25,
-            "hierarchy_level_height_diff": 25,
-            "hierarchy_marker_height": 10,
+            "base_height": 25,
+            "level_height_diff": 25,
+            "divider_height": 10,
         },
         "marker_timeline": {
             "default_height": 30,
             "marker_width": 8,
             "marker_height": 10,
-            "marker_default_color": "#999999",
+            "default_color": "#999999",
         },
         "PDF_timeline": {
             "default_height": 30,
