@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
 )
 
-from tilia import settings
+from tilia.settings import settings
 from tilia.timelines.harmony.constants import (
     HARMONY_DISPLAY_MODES,
     get_inversion_amount,

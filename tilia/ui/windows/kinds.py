@@ -6,3 +6,4 @@ class WindowKind(Enum):
     MEDIA_METADATA = "metadata"
     MANAGE_TIMELINES = "manage timelines"
     INSPECT = "inspect"
+    SETTINGS = "settings"

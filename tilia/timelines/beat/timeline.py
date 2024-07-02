@@ -3,7 +3,7 @@ import itertools
 from typing import TYPE_CHECKING, Optional
 
 from tilia.requests import get, Get, post, Post
-from tilia import settings
+from tilia.settings import settings
 from tilia.timelines.beat.validators import validate_integer_list
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -27,10 +27,6 @@ class BeatTimeline(Timeline):
     ]
 
     KIND = TimelineKind.BEAT_TIMELINE
-    DISPLAY_MEASURE_NUMBER_PERIOD = settings.get(
-        "beat_timeline", "display_measure_periodicity"
-    )
-    DEFAULT_HEIGHT = settings.get("beat_timeline", "default_height")
     component_manager: BeatTLComponentManager
 
     def __init__(
@@ -65,6 +61,14 @@ class BeatTimeline(Timeline):
         self.measures_to_force_display = measures_to_force_display or []
 
     @property
+    def default_height(self):
+        return settings.get("beat_timeline", "default_height")
+
+    @property
+    def display_measure_number_period(self):
+        return settings.get("beat_timeline", "display_measure_periodicity")
+
+    @property
     def beats_in_measure(self):
         return self._beats_in_measure
 
@@ -77,7 +81,7 @@ class BeatTimeline(Timeline):
     def should_display_measure_number(self, measure_index):
         return (
             measure_index in self.measures_to_force_display
-            or measure_index % self.DISPLAY_MEASURE_NUMBER_PERIOD == 0
+            or measure_index % self.display_measure_number_period == 0
         )
 
     @property

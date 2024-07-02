@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.requests import Get, get
+from tilia.requests import Get, get, listen, Post
 from tilia.enums import Side
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.element import TimelineUIElement
@@ -26,6 +26,18 @@ class MarkerTimelineUI(TimelineUI):
     ACCEPTS_HORIZONTAL_ARROWS = True
 
     TIMELINE_KIND = TimelineKind.MARKER_TIMELINE
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+
+    def on_settings_updated(self, updated_settings):        
+        if "marker_timeline" in updated_settings:  
+            get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
+            for marker_ui in self:
+                marker_ui.update_time()
+                marker_ui.update_color()
+
 
     def on_timeline_element_request(
         self, request, selector: ElementSelector, *args, **kwargs

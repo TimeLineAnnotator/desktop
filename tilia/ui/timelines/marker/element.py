@@ -19,7 +19,7 @@ from ...color import get_tinted_color
 from ...format import format_media_time
 from ...consts import TINT_FACTOR_ON_SELECTION
 from ...coords import get_x_by_time, get_time_by_x
-from tilia import settings
+from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
 
@@ -28,9 +28,6 @@ if TYPE_CHECKING:
 
 
 class MarkerUI(TimelineUIElement):
-    WIDTH = settings.get("marker_timeline", "marker_width")
-    HEIGHT = settings.get("marker_timeline", "marker_height")
-
     LABEL_MARGIN = 3
 
     INSPECTOR_FIELDS = [
@@ -67,7 +64,7 @@ class MarkerUI(TimelineUIElement):
         self.dragged = False
 
     def _setup_body(self):
-        self.body = MarkerBody(self.x, self.WIDTH, self.HEIGHT, self.ui_color)
+        self.body = MarkerBody(self.x, self.width, self.height, self.ui_color)
         self.scene.addItem(self.body)
 
     def _setup_label(self):
@@ -80,15 +77,23 @@ class MarkerUI(TimelineUIElement):
 
     @property
     def label_y(self):
-        return self.HEIGHT - self.LABEL_MARGIN
+        return self.height - self.LABEL_MARGIN
 
     @property
     def seek_time(self):
         return self.get_data("time")
+    
+    @property
+    def width(self):
+        return settings.get("marker_timeline", "marker_width")
+    
+    @property
+    def height(self):
+        return settings.get("marker_timeline", "marker_height")
 
     @property
     def default_color(self):
-        return settings.get("marker_timeline", "marker_default_color")
+        return settings.get("marker_timeline", "default_color")
 
     @property
     def ui_color(self):
@@ -110,7 +115,7 @@ class MarkerUI(TimelineUIElement):
         self.update_time()
 
     def update_time(self):
-        self.body.set_position(self.x, self.WIDTH, self.HEIGHT)
+        self.body.set_position(self.x, self.width, self.height)
         self.label.set_position(self.x, self.label_y)
 
     def child_items(self):

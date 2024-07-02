@@ -5,10 +5,9 @@ from typing import TYPE_CHECKING, Any
 from bisect import bisect
 
 from tilia.exceptions import TimelineValidationError
-from tilia.requests import Post, post, serve, Get, get
+from tilia.requests import Post, post, serve, Get, get, listen
 from tilia.timelines.harmony.timeline import HarmonyTimeline, HarmonyTLComponentManager
 from tilia.utils import get_tilia_class_string
-from tilia.requests.post import listen
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
 from tilia.timelines.pdf.timeline import PdfTimeline, PdfTLComponentManager

@@ -10,8 +10,8 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QSizePolicy, QFrame
 
-from tilia import settings
-from tilia.requests import post, Post, Get, get
+from tilia.settings import settings
+from tilia.requests import post, Post, Get, get, listen
 
 
 class TimelineView(QGraphicsView):
@@ -28,10 +28,15 @@ class TimelineView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setBackgroundBrush(QBrush(QColor(settings.get("general", "timeline_bg"))))
+        self.setBackgroundBrush(QBrush(QColor(settings.get("general", "timeline_background_color"))))
+        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
 
         self.dragging = False
         self.proxy = None  # will be set by TimelineUIs
+
+    def on_settings_updated(self, updated_settings):        
+        if "general" in updated_settings:
+            self.setBackgroundBrush(QBrush(QColor(settings.get("general", "timeline_background_color"))))
 
     def mousePressEvent(self, event: Optional[QMouseEvent]) -> None:
         def handle_left_click():
@@ -86,12 +91,6 @@ class TimelineView(QGraphicsView):
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, event.pos().x(), event.pos().y())
 
         super().mouseMoveEvent(event)
-
-    def wheelEvent(self, event) -> None:
-        if event.angleDelta().y() > 0:
-            post(Post.VIEW_ZOOM_IN)
-        elif event.angleDelta().y() < 0:
-            post(Post.VIEW_ZOOM_OUT)
 
     def set_height(self, value):
         self.setFixedHeight(value)

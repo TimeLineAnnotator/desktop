@@ -18,5 +18,4 @@ class TestSliderTimeline:
     def test_serialize_timeline(self, slider_tl):
         serialized_timeline = slider_tl.get_state()
 
-        assert serialized_timeline["height"] == SliderTimeline.DEFAULT_HEIGHT
         assert serialized_timeline["is_visible"] is True

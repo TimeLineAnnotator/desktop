@@ -1,5 +1,4 @@
 platformdirs>=4.0.0
-tomlkit>=0.11.6
 pydub>=0.25.1
 prettytable>=3.7.0
 music21>=9.1

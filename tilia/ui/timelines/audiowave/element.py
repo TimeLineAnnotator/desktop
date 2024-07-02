@@ -11,7 +11,7 @@ from ..drag import DragManager
 from ...coords import get_x_by_time
 from ...color import get_tinted_color
 from ...consts import TINT_FACTOR_ON_SELECTION
-from tilia import settings
+from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
 
@@ -132,12 +132,13 @@ class AmplitudeBarUIBody(CursorMixIn, QGraphicsLineItem):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.setLine(self.get_line(start_x, amplitude, height))
         self.width = width / 100
-        self.set_pen_style_default()
+        self.selected = False
+        self.update_pen_style()
 
     def set_position(self, start_x, width, amplitude, height):
         self.setLine(self.get_line(start_x, amplitude, height))
         self.width = width / 100
-        self.set_pen_style_default()
+        self.update_pen_style()
 
     @staticmethod
     def get_line(x, amplitude, max_height):
@@ -145,20 +146,18 @@ class AmplitudeBarUIBody(CursorMixIn, QGraphicsLineItem):
         offset = (max_height - height) / 2
         return QLineF(QPointF(x, offset), QPointF(x, offset + height))
 
-    def set_pen_style_default(self):
-        pen = QPen(QColor(settings.get("audiowave_timeline", "wave_color")))
-        pen.setStyle(Qt.PenStyle.SolidLine)
-        pen.setWidthF(self.width)
-        self.setPen(pen)
-        
-    def set_pen_style_selected(self):
-        pen = QPen(QColor(get_tinted_color(settings.get("audiowave_timeline", "wave_color"), TINT_FACTOR_ON_SELECTION)))
+    def update_pen_style(self):
+        color = get_tinted_color(settings.get("audiowave_timeline", "default_color"), TINT_FACTOR_ON_SELECTION) if self.selected \
+            else settings.get("audiowave_timeline", "default_color")
+        pen = QPen(QColor(color))
         pen.setStyle(Qt.PenStyle.SolidLine)
         pen.setWidthF(self.width)
         self.setPen(pen)
 
     def on_select(self):
-        self.set_pen_style_selected()
+        self.selected = True
+        self.update_pen_style()
 
     def on_deselect(self):
-        self.set_pen_style_default()
+        self.selected = False
+        self.update_pen_style()

@@ -3,8 +3,11 @@ from __future__ import annotations
 from typing import TypeAlias
 
 from PyQt6.QtWidgets import QMenu
+from PyQt6.QtGui import QAction
 
 from tilia.ui.actions import TiliaAction, get_qaction
+from tilia.settings import settings
+from tilia.requests.post import post, Post
 
 
 class MenuItemKind:
@@ -61,11 +64,34 @@ class LoadMediaMenu(TiliaMenu):
     ]
 
 
+class RecentFilesMenu(QMenu):
+    def __init__(self):
+        super().__init__()
+        self.setTitle("Open Recent File...")
+        self.add_items()
+        settings.link_file_update(self.update_items)
+
+    def add_items(self):
+        recent_files = settings.get_recent_files()
+        qactions = [self._get_action(file) for file in recent_files]
+        self.addActions(qactions)
+
+    def _get_action(self, file):
+        qaction = QAction(file, self)
+        qaction.triggered.connect(lambda _: post(Post.FILE_OPEN_PATH, file))
+        return qaction
+    
+    def update_items(self):
+        self.clear()
+        self.add_items()
+
+
 class FileMenu(TiliaMenu):
     title = "File"
     items = [
         (MenuItemKind.ACTION, TiliaAction.FILE_NEW),
         (MenuItemKind.ACTION, TiliaAction.FILE_OPEN),
+        (MenuItemKind.SUBMENU, RecentFilesMenu),
         (MenuItemKind.ACTION, TiliaAction.FILE_SAVE),
         (MenuItemKind.ACTION, TiliaAction.FILE_SAVE_AS),
         (MenuItemKind.SEPARATOR, None),

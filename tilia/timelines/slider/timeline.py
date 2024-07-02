@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from tilia import settings
+from tilia.requests import Get, get
+from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -13,11 +14,14 @@ class SliderTimeline(Timeline):
     SERIALIZABLE_BY_VALUE = ["is_visible", "ordinal", "height"]
 
     KIND = TimelineKind.SLIDER_TIMELINE
-    DEFAULT_HEIGHT = settings.get("slider_timeline", "default_height")
+
+    @property
+    def default_height(self):
+        return settings.get("slider_timeline", "default_height")
 
     def _validate_delete_components(self, component: TimelineComponent):
         """Nothing to do. Must impement abstract method."""
-
+            
     def get_state(self) -> dict:
         result = {}
 

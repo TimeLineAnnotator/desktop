@@ -9,6 +9,7 @@ class TimelineToolbar(QToolBar):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.setObjectName("timeline_toolbar")
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         self.visible = False
         self._visible_timelines_count = 0

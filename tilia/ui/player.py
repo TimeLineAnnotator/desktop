@@ -15,6 +15,7 @@ class PlayerToolbar(QToolBar):
     def __init__(self):
         super().__init__()
 
+        self.setObjectName("player_toolbar")
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         self._setup_requests()
 

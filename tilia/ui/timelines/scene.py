@@ -2,8 +2,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QGraphicsScene
 from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QFontMetrics
 
-from tilia import settings
-from tilia.requests import Get, get
+from tilia.settings import settings
+from tilia.requests import Get, get, listen, Post
 
 
 class TimelineScene(QGraphicsScene):
@@ -23,6 +23,7 @@ class TimelineScene(QGraphicsScene):
         self._setup_text_bg(left_margin)
         self._setup_text(text)
         self._setup_playback_line(left_margin)
+        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
 
     def _setup_text(self, text: str):
         self.font = QFont()
@@ -41,7 +42,7 @@ class TimelineScene(QGraphicsScene):
         pen = QPen()
         pen.setStyle(Qt.PenStyle.NoPen)
         self.text_bg = self.addRect(0, 0, width, self.height(), pen)
-        self.text_bg.setBrush(QBrush(QColor(settings.get("general", "timeline_bg"))))
+        self.text_bg.setBrush(QBrush(QColor(settings.get("general", "timeline_background_color"))))
 
     def _setup_playback_line(self, x):
         pen = QPen()
@@ -50,6 +51,10 @@ class TimelineScene(QGraphicsScene):
         pen.setDashPattern([4, 4])
         pen.setWidth(0)
         self.playback_line = self.addLine(x, 0, x, self.height(), pen)
+
+    def on_settings_updated(self, updated_settings):        
+        if "general" in updated_settings:
+            self.text_bg.setBrush(QBrush(QColor(settings.get("general", "timeline_background_color"))))
 
     def set_playback_line_pos(self, x):
         self.playback_line.setLine(x, 0, x, self.height())

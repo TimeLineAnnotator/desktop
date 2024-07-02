@@ -10,6 +10,7 @@ from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.media_metadata import MediaMetadata
+from tilia.settings import settings
 import tilia.errors
 
 
@@ -32,6 +33,7 @@ class FileManager:
             (Post.FILE_SAVE_AS, self.on_save_as_request),
             (Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request),
             (Post.FILE_OPEN, self.on_request_open_file),
+            (Post.FILE_OPEN_PATH, self.on_request_open_file_path),
             (Post.REQUEST_FILE_NEW, self.on_request_new_file),
             (Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, self.on_import_media_metadata_request),
             (Post.MEDIA_METADATA_FIELD_SET, self.on_set_media_metadata_field),
@@ -105,7 +107,20 @@ class FileManager:
 
         post(Post.APP_CLEAR)
 
-        self.open(path)
+        self.open(path)    
+        
+    def on_request_open_file_path(self, path: str | Path):
+        if not self.on_close_modified_file():
+            return
+
+        post(Post.APP_CLEAR)
+
+        try:
+            self.open(path)
+        except FileNotFoundError:
+            tilia.errors.display(tilia.errors.FILE_NOT_FOUND, path)
+            settings.remove_from_recent_files(path)
+            post(Post.APP_SETUP_FILE)
 
     def on_request_new_file(self):
         if not self.on_close_modified_file():
@@ -150,6 +165,7 @@ class FileManager:
         write_tilia_file_to_disk(TiliaFile(**data), str(path))
         data["file_path"] = path
         self.file = TiliaFile(**data)
+        settings.update_recent_files(path, get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE))
 
     def open(self, file_path: str | Path):
         with open(file_path, "r", encoding="utf-8") as f:

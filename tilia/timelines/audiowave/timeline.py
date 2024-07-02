@@ -4,7 +4,7 @@ import pydub
 import pydub.exceptions
 import pydub.utils
 
-from tilia import settings
+from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.component_kinds import ComponentKind
@@ -14,10 +14,12 @@ import tilia.errors
 
 
 class AudioWaveTimeline(Timeline):
-    KIND = TimelineKind.AUDIOWAVE_TIMELINE
-    DEFAULT_HEIGHT = settings.get("audiowave_timeline", "default_height")
-    
+    KIND = TimelineKind.AUDIOWAVE_TIMELINE    
     component_manager: AudioWaveTLComponentManager
+
+    @property
+    def default_height(self):
+        return settings.get("audiowave_timeline", "default_height")
 
     def _create_timeline(self):
         dt, normalised_amplitudes = self._get_normalised_amplitudes()
@@ -32,7 +34,7 @@ class AudioWaveTimeline(Timeline):
             return None
     
     def _get_normalised_amplitudes(self):    
-        divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("audiowave_timeline", "max_div"), self.audio.frame_count()])
+        divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("audiowave_timeline", "max_divisions"), self.audio.frame_count()])
         dt = self.audio.duration_seconds / divisions
         chunks = pydub.utils.make_chunks(self.audio, dt * 1000)
         amplitude = [chunk.rms for chunk in chunks]

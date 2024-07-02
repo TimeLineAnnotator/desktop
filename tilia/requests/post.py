@@ -2,6 +2,7 @@ import os
 import weakref
 from enum import Enum, auto
 from typing import Callable, Any
+from tilia.settings import settings
 
 
 class Post(Enum):
@@ -38,6 +39,7 @@ class Post(Enum):
     EXPLORER_SEARCH = auto()
     FILE_MEDIA_DURATION_CHANGED = auto()
     FILE_OPEN = auto()
+    FILE_OPEN_PATH = auto()
     FILE_SAVE = auto()
     FILE_SAVE_AS = auto()
     FOCUS_TIMELINES = auto()
@@ -116,6 +118,7 @@ class Post(Enum):
     REQUEST_SAVE_TO_PATH = auto()
     SELECTION_BOX_DESELECT_ITEM = auto()
     SELECTION_BOX_SELECT_ITEM = auto()
+    SETTINGS_UPDATED = auto()
     SLIDER_DRAG = auto()
     SLIDER_DRAG_END = auto()
     SLIDER_DRAG_START = auto()
@@ -192,7 +195,9 @@ class Post(Enum):
     WINDOW_METADATA_CLOSED = auto()
     WINDOW_METADATA_OPEN = auto()
     WINDOW_METADATA_OPENED = auto()
+    WINDOW_SETTINGS_CLOSED = auto()
     WINDOW_SETTINGS_OPEN = auto()
+    WINDOW_SETTINGS_OPENED = auto()
 
 
 _posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary(
@@ -211,10 +216,10 @@ def _get_posts_excluded_from_log() -> list[Post]:
 
 
 def _log_post(post, *args, **kwargs):
-    # print(
-    #     f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners[post])}"
-    # )
-    pass
+    if settings.get("dev", "log_requests"):
+        print(
+            f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners[post])}"
+        )
 
 
 def post(post: Post, *args, **kwargs) -> None:

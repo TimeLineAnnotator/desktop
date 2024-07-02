@@ -34,7 +34,6 @@ T = TypeVar("T", bound="Timeline")
 
 class Timeline(ABC, Generic[TC]):
     SERIALIZABLE_BY_VALUE = ["name", "height", "is_visible", "ordinal"]
-    DEFAULT_HEIGHT = 1
     KIND: TimelineKind | None = None
 
     validators = {
@@ -57,7 +56,7 @@ class Timeline(ABC, Generic[TC]):
 
         self.name = name
         self.is_visible = is_visible
-        self.height = height or self.DEFAULT_HEIGHT
+        self.height = height or self.default_height or 1
 
         self.ordinal = ordinal or get(Get.TIMELINE_ORDINAL_FOR_NEW)
 
@@ -100,6 +99,10 @@ class Timeline(ABC, Generic[TC]):
     @property
     def components(self):
         return self.component_manager.get_components()
+    
+    @property
+    def default_height(self):
+        return None
 
     def validate_set_data(self, attr, value):
         if not hasattr(self, attr):

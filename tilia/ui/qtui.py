@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 
 import tilia.constants
 import tilia.errors
+from tilia.file.tilia_file import TiliaFile
 import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
 import tilia.parsers.csv.pdf
@@ -36,10 +37,12 @@ from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
 from .windows.inspect import Inspect
+from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
 from ..media.player import QtAudioPlayer
 from ..parsers.csv.beat import beats_from_csv
-from tilia import settings, constants
+from tilia import constants
+from tilia.settings import settings
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.requests import Post, listen, post, serve, Get, get
@@ -90,10 +93,6 @@ class TiliaMainWindow(QMainWindow):
         event.ignore()
 
     def on_close(self):
-        settings.edit("general", "window_width", self.width())
-        settings.edit("general", "window_height", self.height())
-        settings.edit("general", "window_x", self.x())
-        settings.edit("general", "window_y", self.y())
         super().closeEvent(None)
 
 
@@ -127,21 +126,23 @@ class QtUI:
 
     def _setup_requests(self):
         LISTENS = {
+            (Post.APP_FILE_LOAD, self.on_file_load),
             (Post.PLAYBACK_AREA_SET_WIDTH, self.on_timeline_set_width),
             (Post.UI_MEDIA_LOAD_LOCAL, self.on_media_load_local),
             (Post.UI_MEDIA_LOAD_YOUTUBE, self.on_media_load_youtube),
             (Post.TIMELINE_ELEMENT_INSPECT, self.on_timeline_element_inspect),
             (Post.WEBSITE_HELP_OPEN, self.on_website_help_open),
-            (Post.WINDOW_MANAGE_TIMELINES_OPEN, lambda: self.on_window_open(WindowKind.MANAGE_TIMELINES)),
-            (Post.WINDOW_METADATA_OPEN, lambda: self.on_window_open(WindowKind.MEDIA_METADATA)),
-            (Post.WINDOW_METADATA_CLOSED, lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA)),
+            (Post.WINDOW_ABOUT_CLOSED, lambda: self.on_window_close_done(WindowKind.ABOUT)),
             (Post.WINDOW_ABOUT_OPEN, lambda: self.on_window_open(WindowKind.ABOUT)),
-            (Post.WINDOW_INSPECT_OPEN, lambda: self.on_window_open(WindowKind.INSPECT)),
             (Post.WINDOW_INSPECT_CLOSE, lambda: self.on_window_close(WindowKind.INSPECT)),
             (Post.WINDOW_INSPECT_CLOSED, lambda: self.on_window_close_done(WindowKind.INSPECT)),
+            (Post.WINDOW_INSPECT_OPEN, lambda: self.on_window_open(WindowKind.INSPECT)),
             (Post.WINDOW_MANAGE_TIMELINES_CLOSE_DONE, lambda: self.on_window_close_done(WindowKind.MANAGE_TIMELINES)),
+            (Post.WINDOW_MANAGE_TIMELINES_OPEN, lambda: self.on_window_open(WindowKind.MANAGE_TIMELINES)),
             (Post.WINDOW_METADATA_CLOSED, lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA)),
-            (Post.WINDOW_ABOUT_CLOSED, lambda: self.on_window_close_done(WindowKind.ABOUT)),
+            (Post.WINDOW_METADATA_OPEN, lambda: self.on_window_open(WindowKind.MEDIA_METADATA)),
+            (Post.WINDOW_SETTINGS_CLOSED, lambda: self.on_window_close_done(WindowKind.SETTINGS)),
+            (Post.WINDOW_SETTINGS_OPEN, lambda: self.on_window_open(WindowKind.SETTINGS)),
             (Post.REQUEST_CLEAR_UI, self.on_clear_ui),
             (Post.TIMELINE_KIND_INSTANCED, self.on_timeline_kind_change),
             (Post.TIMELINE_KIND_NOT_INSTANCED, self.on_timeline_kind_change),
@@ -158,7 +159,9 @@ class QtUI:
             (Get.TIMELINE_WIDTH, lambda: self.timeline_width),
             (Get.PLAYBACK_AREA_WIDTH, lambda: self.playback_area_width),
             (Get.LEFT_MARGIN_X, lambda: self.playback_area_margin),
-            (Get.RIGHT_MARGIN_X, lambda: self.playback_area_width + self.playback_area_margin)
+            (Get.RIGHT_MARGIN_X, lambda: self.playback_area_width + self.playback_area_margin),
+            (Get.WINDOW_GEOMETRY, self.get_window_geometry),
+            (Get.WINDOW_STATE, self.get_window_state),
         }
 
         for post, callback in LISTENS:
@@ -218,6 +221,7 @@ class QtUI:
             WindowKind.MEDIA_METADATA: None,
             WindowKind.MANAGE_TIMELINES: None,
             WindowKind.ABOUT: None,
+            WindowKind.SETTINGS: None,
         }
 
     def update_dynamic_menus(self):
@@ -258,8 +262,17 @@ class QtUI:
         # Code = 0 means a succesful run, code = 1 means an unhandled exception.
         self.q_application.exit(code)
 
-    def get_window_size(self):
-        return self.main_window.width()
+    def get_window_geometry(self):
+        return self.main_window.saveGeometry()
+    
+    def get_window_state(self):
+        return self.main_window.saveState()
+    
+    def on_file_load(self, file: TiliaFile) -> None:
+        geometry, state = settings.get_geometry_and_state_from_path(file.file_path)
+        if geometry and state:
+            self.main_window.restoreGeometry(geometry)
+            self.main_window.restoreState(state)
 
     def _setup_widgets(self):
         self.timeline_toolbars = QToolBar()
@@ -283,6 +296,7 @@ class QtUI:
             WindowKind.MANAGE_TIMELINES: ManageTimelines,
             WindowKind.MEDIA_METADATA: self.open_media_metadata_window,
             WindowKind.ABOUT: self.open_about_window,
+            WindowKind.SETTINGS: self.open_settings_window,
         }
 
         if not self._windows[kind]:
@@ -306,6 +320,10 @@ class QtUI:
     @staticmethod
     def open_media_metadata_window():
         return MediaMetadataWindow()
+    
+    @staticmethod
+    def open_settings_window():
+        return SettingsWindow()
 
     def on_window_close(self, kind: WindowKind):
         if window := self._windows[kind]:

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QRectF, QLineF, Qt
-from PyQt6.QtGui import QPen, QColor, QBrush, QGuiApplication
+from PyQt6.QtGui import QPen, QColor, QBrush
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem
 
 import tilia.ui.coords
@@ -12,7 +12,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import coords
 from tilia.ui.modifier_enum import ModifierEnum
-from tilia import settings
+from tilia.settings import settings
 from tilia.requests import Post, listen
 from tilia.timelines.base.component import TimelineComponent
 from tilia.ui.timelines.base.timeline import TimelineUI
@@ -28,11 +28,6 @@ if TYPE_CHECKING:
 
 class SliderTimelineUI(TimelineUI):
     TOOLBAR_CLASS = None
-
-    TROUGH_RADIUS = settings.get("slider_timeline", "trough_radius")
-    TROUGH_DEFAULT_COLOR = settings.get("slider_timeline", "trough_color")
-    LINE_DEFAULT_COLOR = settings.get("slider_timeline", "line_color")
-    LINE_WEIGHT = settings.get("slider_timeline", "line_weight")
 
     TIMELINE_KIND = TimelineKind.SLIDER_TIMELINE
     CONTEXT_MENU_CLASS = []
@@ -54,6 +49,7 @@ class SliderTimelineUI(TimelineUI):
         )
 
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_audio_time_change)
+        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
 
         self.x = get(Get.LEFT_MARGIN_X)
         self._setup_line()
@@ -62,18 +58,34 @@ class SliderTimelineUI(TimelineUI):
 
         self.dragging = False
 
+    @property
+    def trough_radius(self):
+        return settings.get("slider_timeline", "trough_radius")
+    
+    @property
+    def trough_default_color(self):
+        return settings.get("slider_timeline", "trough_color")
+    
+    @property
+    def line_default_color(self):
+        return settings.get("slider_timeline", "line_color")
+    
+    @property
+    def line_weight(self):
+        return settings.get("slider_timeline", "line_weight")
+
     def _setup_line(self):
         self.line = Line()
         self.scene.addItem(self.line)
         self.line.set_position(*self._get_line_pos_args())
-        self.line.set_color(self.LINE_DEFAULT_COLOR)
-        self.line.set_width(self.LINE_WEIGHT)
+        self.line.set_color(self.line_default_color)
+        self.line.set_width(self.line_weight)
 
     def _get_line_pos_args(self):
         return get(Get.LEFT_MARGIN_X), get(Get.RIGHT_MARGIN_X), self.view.height() / 2
 
     def _setup_trough(self):
-        self.trough = Trough(self.TROUGH_RADIUS, self.TROUGH_DEFAULT_COLOR)
+        self.trough = Trough(self.trough_radius, self.trough_default_color)
         self.scene.addItem(self.trough)
         self.set_trough_position()
 
@@ -81,10 +93,15 @@ class SliderTimelineUI(TimelineUI):
         self.scene: TimelineScene
         self.scene.playback_line.setVisible(False)
 
+    def on_settings_updated(self, updated_settings):        
+        if "slider_timeline" in updated_settings:  
+            get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
+            self.update_ui()    
+
     def set_trough_position(self) -> None:
         args = (
-            self.x - self.TROUGH_RADIUS,
-            self.view.height() / 2 - self.TROUGH_RADIUS,
+            self.x - self.trough_radius,
+            self.view.height() / 2 - self.trough_radius,
         )
         self.trough.setPos(*args)
 
@@ -161,6 +178,17 @@ class SliderTimelineUI(TimelineUI):
 
     def __str__(self):
         return "Slider Timeline"
+    
+    def update_ui(self):
+        self.trough.set_radius(self.trough_radius)
+        self.set_trough_position()
+        
+        self.trough.set_brush(self.trough_default_color)
+        self.trough.set_pen(self.trough_default_color)
+        
+        self.line.set_color(self.line_default_color)
+        
+        self.line.set_width(self.line_weight)
 
 
 class Line(CursorMixIn, QGraphicsLineItem):
@@ -202,6 +230,9 @@ class Trough(CursorMixIn, QGraphicsEllipseItem):
 
     def set_position(self, x):
         self.setRect(self.get_rect(x))
+
+    def set_radius(self, radius):
+        self.setRect(self.get_rect(radius))
 
     @staticmethod
     def get_rect(radius):
