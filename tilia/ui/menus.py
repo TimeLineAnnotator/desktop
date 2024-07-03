@@ -77,10 +77,10 @@ class RecentFilesMenu(QMenu):
         self.addActions(qactions)
 
     def _get_action(self, file):
-        qaction = QAction(file, self)
+        qaction = QAction(str(file), self)
         qaction.triggered.connect(lambda _: post(Post.FILE_OPEN_PATH, file))
         return qaction
-    
+
     def update_items(self):
         self.clear()
         self.add_items()
@@ -124,7 +124,7 @@ class AddTimelinesMenu(TiliaMenu):
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_MARKER_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_PDF_TIMELINE),
-        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE)
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE),
     ]
 
 
@@ -179,5 +179,5 @@ class HelpMenu(TiliaMenu):
     title = "Help"
     items = [
         (MenuItemKind.ACTION, TiliaAction.ABOUT_WINDOW_OPEN),
-        (MenuItemKind.ACTION, TiliaAction.WEBSITE_HELP_OPEN)
+        (MenuItemKind.ACTION, TiliaAction.WEBSITE_HELP_OPEN),
     ]
