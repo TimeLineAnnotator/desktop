@@ -119,12 +119,12 @@ class EditMenu(TiliaMenu):
 class AddTimelinesMenu(TiliaMenu):
     title = "Add..."
     items = [
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_BEAT_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_MARKER_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_PDF_TIMELINE),
-        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE),
     ]
 
 
