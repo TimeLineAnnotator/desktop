@@ -64,6 +64,7 @@ class Post(Enum):
     HIERARCHY_INCREASE_LEVEL = auto()
     HIERARCHY_LEVEL_CHANGED = auto()
     HIERARCHY_MERGE = auto()
+    HIERARCHY_MERGE_SPLIT_DONE = auto()
     HIERARCHY_PASTE = auto()
     HIERARCHY_POSITION_CHANGED = auto()
     HIERARCHY_SELECTED = auto()
@@ -78,6 +79,7 @@ class Post(Enum):
     KEY_PRESS_RIGHT = auto()
     KEY_PRESS_UP = auto()
     LEFT_BUTTON_CLICK = auto()
+    LOOP_IGNORE_COMPONENT = auto()
     MARKER_ADD = auto()
     MARKER_DELETE = auto()
     MARKER_IMPORT_FROM_CSV = auto()
@@ -89,15 +91,16 @@ class Post(Enum):
     MODE_DISPLAY_AS_ROMAN_NUMERAL = auto()
     PLAYBACK_AREA_SET_WIDTH = auto()
     PLAYER_AVAILABLE = auto()
+    PLAYER_CANCEL_LOOP = auto()
     PLAYER_CHANGE_TO_AUDIO_PLAYER = auto()
     PLAYER_CHANGE_TO_VIDEO_PLAYER = auto()
+    PLAYER_CURRENT_LOOP_CHANGED = auto()
     PLAYER_CURRENT_TIME_CHANGED = auto()
-    PLAYER_DISABLE_CONTROLS = auto()
     PLAYER_DURATION_AVAILABLE = auto()
-    PLAYER_ENABLE_CONTROLS = auto()
     PLAYER_EXPORT_AUDIO = auto()
     PLAYER_MEDIA_UNLOADED = auto()
     PLAYER_PAUSED = auto()
+    PLAYER_PLAYBACK_RATE_TRY = auto()
     PLAYER_REQUEST_TO_LOAD_MEDIA = auto()
     PLAYER_REQUEST_TO_UNLOAD_MEDIA = auto()
     PLAYER_SEEK = auto()
@@ -105,9 +108,14 @@ class Post(Enum):
     PLAYER_STOP = auto()
     PLAYER_STOPPED = auto()
     PLAYER_STOPPING = auto()
+    PLAYER_TOGGLE_LOOP = auto()
     PLAYER_TOGGLE_PLAY_PAUSE = auto()
+    PLAYER_UI_UPDATE = auto()
     PLAYER_UNPAUSED = auto()
+    PLAYER_UPDATE_CONTROLS = auto()
     PLAYER_URL_CHANGED = auto()
+    PLAYER_VOLUME_CHANGE = auto()
+    PLAYER_VOLUME_MUTE = auto()
     REQUEST_CHANGE_TIMELINE_WIDTH = auto()
     REQUEST_CLEAR_ALL_TIMELINES = auto()
     REQUEST_CLEAR_TIMELINE = auto()
@@ -137,7 +145,6 @@ class Post(Enum):
     TIMELINE_COLLECTION_STATE_RESTORED = auto()
     TIMELINE_COMPONENT_CREATED = auto()
     TIMELINE_COMPONENT_DELETED = auto()
-    TIMELINE_COMPONENT_DELETE_DONE = auto()
     TIMELINE_COMPONENT_DESELECTED = auto()
     TIMELINE_COMPONENT_SELECTED = auto()
     TIMELINE_COMPONENT_SET_DATA_DONE = auto()
@@ -203,9 +210,9 @@ class Post(Enum):
 _posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary(
     {post: {} for post in Post}
 )
-_listeners_to_posts: weakref.WeakKeyDictionary[Any, list[Post]] = (
-    weakref.WeakKeyDictionary()
-)
+_listeners_to_posts: weakref.WeakKeyDictionary[
+    Any, list[Post]
+] = weakref.WeakKeyDictionary()
 
 
 def _get_posts_excluded_from_log() -> list[Post]:

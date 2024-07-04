@@ -33,6 +33,7 @@ class Get(Enum):
     FROM_USER_YES_OR_NO = auto()
     ID = auto()
     LEFT_MARGIN_X = auto()
+    LOOP_TIME = auto()
     MEDIA_CURRENT_TIME = auto()
     MEDIA_DURATION = auto()
     MEDIA_METADATA = auto()
@@ -63,12 +64,12 @@ class Get(Enum):
     WINDOW_STATE = auto()
 
 
-_requests_to_callbacks: weakref.WeakKeyDictionary[Get, Callable] = (
-    weakref.WeakKeyDictionary()
-)
-_servers_to_requests: weakref.WeakKeyDictionary[Any, set[Get]] = (
-    weakref.WeakKeyDictionary()
-)
+_requests_to_callbacks: weakref.WeakKeyDictionary[
+    Get, Callable
+] = weakref.WeakKeyDictionary()
+_servers_to_requests: weakref.WeakKeyDictionary[
+    Any, set[Get]
+] = weakref.WeakKeyDictionary()
 
 
 def get(request: Get, *args, **kwargs) -> Any:
