@@ -7,7 +7,8 @@ from PyQt6.QtGui import QAction
 
 from tilia.ui.actions import TiliaAction, get_qaction
 from tilia.settings import settings
-from tilia.requests.post import post, Post
+from tilia.requests.post import post, Post, listen
+from tilia.ui.enums import WindowState
 
 
 class MenuItemKind:
@@ -167,12 +168,49 @@ class TimelinesMenu(TiliaMenu):
     ]
 
 
-class ViewMenu(TiliaMenu):
-    title = "View"
-    items = [
-        (MenuItemKind.ACTION, TiliaAction.VIEW_ZOOM_IN),
-        (MenuItemKind.ACTION, TiliaAction.VIEW_ZOOM_OUT),
-    ]
+class ViewMenu(QMenu):
+    def __init__(self):
+        super().__init__()
+        self.setTitle("View")
+        self.add_default_items()
+
+        self.windows = {}
+        listen(self, Post.WINDOW_UPDATE_STATE, self.update_items)
+
+    def add_default_items(self):
+        self.addAction(get_qaction(TiliaAction.VIEW_ZOOM_IN))
+        self.addAction(get_qaction(TiliaAction.VIEW_ZOOM_OUT))
+
+    def update_items(self, window_id: int, window_state: WindowState, window_title=""):
+        if not self.windows:
+            self.addSeparator()
+
+        if not window_id in self.windows:
+            self._get_action(window_id)
+
+        match window_state:
+            case WindowState.OPENED:
+                self.windows[window_id].blockSignals(True)
+                self.windows[window_id].setChecked(True)
+                self.windows[window_id].blockSignals(False)
+            case WindowState.CLOSED:
+                self.windows[window_id].blockSignals(True)
+                self.windows[window_id].setChecked(False)
+                self.windows[window_id].blockSignals(False)
+            case WindowState.DELETED:
+                self.removeAction(self.windows[window_id])
+
+        if window_title != "":
+            self.windows[window_id].setText(window_title)
+
+    def _get_action(self, window_id):
+        qaction = QAction(self)
+        qaction.setCheckable(True)
+        qaction.triggered.connect(
+            lambda checked: post(Post.WINDOW_UPDATE_REQUEST, window_id, checked)
+        )
+        self.addAction(qaction)
+        self.windows[window_id] = qaction
 
 
 class HelpMenu(TiliaMenu):

@@ -9,3 +9,10 @@ class PasteCardinality(Enum):
 class PasteDestination(Enum):
     ELEMENTS = auto()
     TIMELINE = auto()
+
+
+class WindowState(Enum):
+    OPENED = auto()
+    CLOSED = auto()
+    DELETED = auto()
+    UPDATE = auto()

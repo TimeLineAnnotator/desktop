@@ -206,6 +206,8 @@ class Post(Enum):
     WINDOW_SETTINGS_CLOSED = auto()
     WINDOW_SETTINGS_OPEN = auto()
     WINDOW_SETTINGS_OPENED = auto()
+    WINDOW_UPDATE_REQUEST = auto()
+    WINDOW_UPDATE_STATE = auto()
 
 
 _posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary(

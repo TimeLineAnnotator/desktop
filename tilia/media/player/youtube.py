@@ -3,7 +3,7 @@ import re
 from enum import Enum
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QUrl, pyqtSlot, QObject, QTimer, QByteArray
+from PyQt6.QtCore import QUrl, pyqtSlot, QObject, QTimer, QByteArray
 from PyQt6.QtWebChannel import QWebChannel
 
 import tilia.constants
@@ -16,8 +16,8 @@ from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterc
 
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post
-
 from tilia.ui.player import PlayerToolbarElement, PlayerStatus
+from tilia.ui.windows.view_window import ViewWindow
 
 
 class PlayerTracker(QObject):
@@ -90,23 +90,11 @@ class YouTubePlayer(Player):
         self._setup_web_channel()
 
     def _setup_web_engine(self):
-        self.view = QWebEngineView()
-        self.view.settings().setAttribute(
-            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
-        )
+        self.view = QWebEngineWindow()
         self.request_interceptor = UrlRequestInterceptor()
         self.is_web_page_loaded = False
         self.view.loadFinished.connect(self._on_web_page_load_finished)
         self.view.load(QUrl.fromLocalFile(self.PATH_TO_HTML.resolve().__str__()))
-
-        self.view.setWindowTitle("TiLiA Player")
-        self.view.resize(800, 600)
-        self.view.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowTitleHint
-            | Qt.WindowType.CustomizeWindowHint
-        )
-        self.view.show()
 
     def _setup_web_channel(self):
         self.channel = QWebChannel()
@@ -225,7 +213,7 @@ class YouTubePlayer(Player):
         )
 
     def _engine_exit(self):
-        del self.view
+        self.view.deleteLater()
         post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.NO_MEDIA)
 
     def _engine_get_current_time(self) -> float:
@@ -250,3 +238,12 @@ class YouTubePlayer(Player):
 
     def _engine_loop(self, is_looping: bool) -> None:
         self.view.page().runJavaScript(f"setLoop({1 if is_looping else 0})")
+
+
+class QWebEngineWindow(ViewWindow, QWebEngineView):
+    def __init__(self):
+        super().__init__("TiLiA Player", menu_title="YouTube Player")
+        self.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
+        )
+        self.resize(800, 600)
