@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 import tilia
+import tilia.errors
 import tilia.ui.timelines.collection.request_handler
 import tilia.ui.timelines.collection.requests.timeline_uis
 import tilia.ui.timelines.collection.requests.args
@@ -32,6 +33,7 @@ from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
 from tilia.ui.coords import get_x_by_time, get_time_by_x
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.modifier_enum import ModifierEnum
+from tilia.ui.player import PlayerToolbarElement
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.scene import TimelineScene
@@ -80,6 +82,9 @@ class TimelineUIs:
         self._setup_drag_tracking_vars()
         self._setup_auto_scroll()
         self.selected_time = get(Get.MEDIA_CURRENT_TIME)
+        self.loop_time = (self.selected_time, self.selected_time)
+        self.loop_elements = set()
+        self.loop_delete_ignore = set()
 
     def __str__(self) -> str:
         return self.__class__.__name__ + "-" + str(id(self))
@@ -121,20 +126,41 @@ class TimelineUIs:
             (Post.TIMELINE_DELETE_DONE, self.on_timeline_deleted),
             (Post.TIMELINE_COMPONENT_CREATED, self.on_timeline_component_created),
             (Post.TIMELINE_COMPONENT_DELETED, self.on_timeline_component_deleted),
-            (Post.TIMELINE_COMPONENT_SET_DATA_DONE, self.on_timeline_component_set_data_done),
+            (
+                Post.TIMELINE_COMPONENT_SET_DATA_DONE,
+                self.on_timeline_component_set_data_done,
+            ),
             (Post.TIMELINE_SET_DATA_DONE, self.on_timeline_set_data_done),
             (Post.TIMELINE_VIEW_LEFT_CLICK, self._on_timeline_ui_left_click),
             (Post.TIMELINE_VIEW_DOUBLE_LEFT_CLICK, self._on_timeline_ui_left_click),
             (Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, self._on_timeline_ui_left_drag),
             (Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_timeline_ui_left_released),
             (Post.TIMELINE_VIEW_RIGHT_CLICK, self._on_timeline_ui_right_click),
-            (Post.TIMELINE_COLLECTION_STATE_RESTORED, self.update_timeline_uis_position),
-            (Post.TIMELINES_AUTO_SCROLL_ENABLE, functools.partial(self.set_auto_scroll, True)),
-            (Post.TIMELINES_AUTO_SCROLL_DISABLE, functools.partial(self.set_auto_scroll, False)),
-            (Post.TIMELINE_KEY_PRESS_DOWN, functools.partial(self.on_arrow_press, "down")),
+            (
+                Post.TIMELINE_COLLECTION_STATE_RESTORED,
+                self.update_timeline_uis_position,
+            ),
+            (
+                Post.TIMELINES_AUTO_SCROLL_ENABLE,
+                functools.partial(self.set_auto_scroll, True),
+            ),
+            (
+                Post.TIMELINES_AUTO_SCROLL_DISABLE,
+                functools.partial(self.set_auto_scroll, False),
+            ),
+            (
+                Post.TIMELINE_KEY_PRESS_DOWN,
+                functools.partial(self.on_arrow_press, "down"),
+            ),
             (Post.TIMELINE_KEY_PRESS_UP, functools.partial(self.on_arrow_press, "up")),
-            (Post.TIMELINE_KEY_PRESS_RIGHT, functools.partial(self.on_arrow_press, "right")),
-            (Post.TIMELINE_KEY_PRESS_LEFT, functools.partial(self.on_arrow_press, "left")),
+            (
+                Post.TIMELINE_KEY_PRESS_RIGHT,
+                functools.partial(self.on_arrow_press, "right"),
+            ),
+            (
+                Post.TIMELINE_KEY_PRESS_LEFT,
+                functools.partial(self.on_arrow_press, "left"),
+            ),
             (Post.ELEMENT_DRAG_END, lambda: self.set_is_dragging(False)),
             (Post.ELEMENT_DRAG_START, lambda: self.set_is_dragging(True)),
             (Post.SLIDER_DRAG, self.on_slider_drag),
@@ -148,7 +174,13 @@ class TimelineUIs:
             (Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done),
             (Post.TIMELINES_CROP_DONE, self.on_timelines_crop_done),
             (Post.HIERARCHY_SELECTED, self.on_hierarchy_selected),
-            (Post.HIERARCHY_DESELECTED, self.on_hierarchy_deselected)
+            (Post.HIERARCHY_DESELECTED, self.on_hierarchy_deselected),
+            (Post.HIERARCHY_MERGE_SPLIT_DONE, self.on_hierarchy_merge_split),
+            (Post.LOOP_IGNORE_COMPONENT, self.on_loop_ignore_delete),
+            (Post.PLAYER_CANCEL_LOOP, self.on_loop_cancel),
+            (Post.PLAYER_TOGGLE_LOOP, self.on_loop_toggle),
+            (Post.EDIT_REDO, self.loop_cancel),
+            (Post.EDIT_UNDO, self.loop_cancel),
         }
 
         SERVES = {
@@ -159,7 +191,11 @@ class TimelineUIs:
             (Get.TIMELINE_UI_ELEMENT, self.get_timeline_ui_element),
             (Get.TIMELINE_ELEMENTS_SELECTED, self.get_timeline_elements_selected),
             (Get.SELECTED_TIME, self.get_selected_time),
-            (Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, self.get_first_timeline_ui_in_select_order)
+            (Get.LOOP_TIME, self.get_loop_time),
+            (
+                Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER,
+                self.get_first_timeline_ui_in_select_order,
+            ),
         }
 
         for post, callback in LISTENS:
@@ -172,7 +208,7 @@ class TimelineUIs:
             listen(
                 self, request, functools.partial(self.on_timeline_ui_request, request)
             )
-            
+
         for (
             request,
             selector,
@@ -182,7 +218,7 @@ class TimelineUIs:
                 request,
                 functools.partial(self.on_timeline_element_request, request, selector),
             )
-            
+
         for (
             request,
             selector,
@@ -192,7 +228,7 @@ class TimelineUIs:
                 request,
                 functools.partial(self.on_timeline_request, request, selector),
             )
-        
+
     def create_timeline_ui(self, kind: TlKind, id: int) -> TimelineUI:
         timeline_class = self.get_timeline_ui_class(kind)
         w = get(Get.TIMELINE_WIDTH)
@@ -226,6 +262,11 @@ class TimelineUIs:
         )
 
     def on_timeline_component_deleted(self, _: TlKind, tl_id: int, component_id: int):
+        if (tl_id, component_id) in self.loop_elements:
+            if (tl_id, component_id) not in self.loop_delete_ignore:
+                self.loop_elements.remove((tl_id, component_id))
+                self._update_loop_elements(clear=len(self.loop_elements) == 0)
+
         self.get_timeline_ui(tl_id).on_timeline_component_deleted(component_id)
 
     def on_timeline_component_set_data_done(
@@ -236,6 +277,10 @@ class TimelineUIs:
         element.update(attr)
         if attr in element.tl_component.ORDERING_ATTRS:
             timeline_ui.update_element_order(element)
+        if (timeline_id, component_id) in self.loop_elements and self.loop_time[
+            0
+        ] != self.loop_time[1]:
+            self._update_loop_elements()
 
     def on_timeline_set_data_done(self, id: int, attr: str, _: Any):
         self.get_timeline_ui(id).update(attr)
@@ -294,6 +339,7 @@ class TimelineUIs:
     def update_height(self):
         self.update_timeline_uis_position()
         self.set_playback_lines_position(get(Get.MEDIA_CURRENT_TIME))
+        self.change_loop_box_position()
 
     def update_level_count(self):
         self.update_height()
@@ -395,7 +441,7 @@ class TimelineUIs:
             TlKind.MARKER_TIMELINE: MarkerTimelineToolbar,
             TlKind.HIERARCHY_TIMELINE: HierarchyTimelineToolbar,
             TlKind.HARMONY_TIMELINE: HarmonyTimelineToolbar,
-            TlKind.PDF_TIMELINE: PdfTimelineToolbar
+            TlKind.PDF_TIMELINE: PdfTimelineToolbar,
         }[kind]
 
     def _get_timeline_ui_by_scene(self, scene):
@@ -615,6 +661,156 @@ class TimelineUIs:
                 False
             )
 
+    def on_hierarchy_merge_split(self, new_units: list, old_units: list):
+        if (
+            self.loop_delete_ignore.issuperset(set(old_units))
+            and self.loop_time[0] != self.loop_time[1]
+        ):
+            self.loop_elements.update(new_units)
+            self.loop_elements.difference_update(old_units)
+            self.loop_delete_ignore.difference_update(old_units)
+            self._update_loop_elements()
+
+    def on_loop_ignore_delete(self, tl_id: int, comp_id: int):
+        self.loop_delete_ignore.add((tl_id, comp_id))
+
+    def loop_cancel(self):
+        self.loop_elements.clear()
+        post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, False)
+        self.on_loop_change(0, 0)
+
+    def on_loop_cancel(self):
+        self.update_loop_elements_ui(False)
+        self.loop_time = (0, 0)
+        self.change_loop_box_position()
+        post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, False)
+
+    def on_loop_toggle(self, is_looping):
+        if is_looping:
+            for tlui in self:
+                if tlui.TIMELINE_KIND == TlKind.HIERARCHY_TIMELINE:
+                    self.loop_elements.update(
+                        [(tlui.id, element.id) for element in tlui.selected_elements]
+                    )
+
+            self._update_loop_elements()
+
+        else:
+            self.update_loop_elements_ui(False)
+            self.on_loop_change(0, 0)
+
+    def _update_loop_elements(self, clear=False) -> None:
+        if self.loop_elements:
+            connected, [start_time, end_time] = self._check_loop_continuity()
+            if not connected:
+                tilia.errors.display(tilia.errors.LOOP_DISJUNCT)
+                post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, False)
+                self.update_loop_elements_ui(False)
+                self.on_loop_change(0, 0)
+                return
+
+            post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, True)
+            self.update_loop_elements_ui(True)
+            self.on_loop_change(start_time, end_time)
+
+        elif clear:
+            post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, False)
+            self.on_loop_change(0, 0)
+
+        else:
+            post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, True)
+            self.on_loop_change(0, get(Get.MEDIA_DURATION))
+
+    def _check_loop_continuity(self) -> tuple[bool, list]:
+        def dfs(index, cur_min, cur_max):
+            if graph[index]["is_visited"]:
+                return cur_min, cur_max
+
+            graph[index]["is_visited"] = True
+            for node in graph[index]["node"]:
+                new_min, new_max = dfs(node, min(node, cur_min), max(node, cur_max))
+                cur_min = min(new_min, cur_min)
+                cur_max = max(new_max, cur_max)
+
+            return cur_min, cur_max
+
+        graph = {}
+        elements = [
+            self.get_timeline_ui(element_id[0]).get_element(element_id[1])
+            for element_id in self.loop_elements
+        ]
+        for element in elements:
+            if element.get_data("start") in graph:
+                graph[element.get_data("start")]["node"].add(element.get_data("end"))
+            else:
+                graph[element.get_data("start")] = {
+                    "is_visited": False,
+                    "node": {element.get_data("end")},
+                }
+
+            if element.get_data("end") in graph:
+                graph[element.get_data("end")]["node"].add(element.get_data("start"))
+            else:
+                graph[element.get_data("end")] = {
+                    "is_visited": False,
+                    "node": {element.get_data("start")},
+                }
+
+        connections = {}
+        for i in graph:
+            if not graph[i]["is_visited"]:
+                min_time, max_time = dfs(i, i, i)
+                connections[i] = [min_time, max_time]
+
+        connector = next(iter(connections.values()))
+
+        for i in connections:
+            if (
+                connector[0] < connections[i][0]
+                and connector[1] > connections[i][0]
+                and connector[1] < connections[i][1]
+            ):
+                connector[1] = connections[i][1]
+            elif (
+                connector[0] > connections[i][0]
+                and connector[0] < connections[i][1]
+                and connector[1] > connections[i][1]
+            ):
+                connector[0] = connections[i][0]
+            elif (
+                connector[0] <= connections[i][0] and connector[1] >= connections[i][1]
+            ):
+                pass
+            elif connector[0] > connections[i][0] and connector[1] < connections[i][1]:
+                connector[0] = connections[i][0]
+                connector[1] = connections[i][1]
+            else:
+                return False, [0, 0]
+
+        return True, connector
+
+    def on_loop_change(self, start_time: float, end_time: float) -> None:
+        self.loop_time = (start_time, end_time)
+        post(Post.PLAYER_CURRENT_LOOP_CHANGED, start_time, end_time)
+        self.change_loop_box_position()
+
+    def change_loop_box_position(self):
+        start_time, end_time = self.loop_time
+        for tl_ui in self:
+            tl_ui.scene.set_loop_box_position(
+                get_x_by_time(start_time), get_x_by_time(end_time)
+            )
+
+    def update_loop_elements_ui(self, is_looping: bool) -> None:
+        for element in [
+            self.get_timeline_ui(element_id[0]).get_element(element_id[1])
+            for element_id in self.loop_elements
+        ]:
+            element.on_loop_set(is_looping)
+
+        if not is_looping:
+            self.loop_elements.clear()
+
     def pre_process_timeline_request(
         self,
         request: Post,
@@ -624,10 +820,11 @@ class TimelineUIs:
         timeline_uis = self.get_timelines_uis_for_request(kinds, selector)
 
         try:
-            args, kwargs = (
-                tilia.ui.timelines.collection.requests.args.get_args_for_request(
-                    request, timeline_uis
-                )
+            (
+                args,
+                kwargs,
+            ) = tilia.ui.timelines.collection.requests.args.get_args_for_request(
+                request, timeline_uis
             )
         except UserCancelledDialog:
             return None, None, None, False
@@ -840,6 +1037,9 @@ class TimelineUIs:
 
     def get_selected_time(self):
         return self.selected_time
+
+    def get_loop_time(self):
+        return self.loop_time
 
     def get_timeline_uis(self):
         return sorted(list(self._timeline_uis))

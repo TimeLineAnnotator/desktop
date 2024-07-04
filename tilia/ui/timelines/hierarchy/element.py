@@ -6,10 +6,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from pathlib import Path
+
 from PyQt6.QtCore import Qt, QRectF, QPointF
-from PyQt6.QtGui import QColor, QPen, QFont, QFontMetrics
+from PyQt6.QtGui import QColor, QPen, QFont, QFontMetrics, QPixmap
 from PyQt6.QtWidgets import (
     QGraphicsScene,
+    QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsTextItem,
 )
@@ -118,6 +121,7 @@ class HierarchyUI(TimelineUIElement):
         self._setup_body()
         self._setup_label()
         self._setup_comments_icon()
+        self._setup_loop_icon()
         self._setup_body_handles()
         self._setup_frame_handles()
 
@@ -127,15 +131,15 @@ class HierarchyUI(TimelineUIElement):
     @property
     def base_height(self):
         return settings.get("hierarchy_timeline", "base_height")
-    
+
     @property
     def x_increment_per_lvl(self):
         return settings.get("hierarchy_timeline", "level_height_diff")
-    
+
     @property
     def handle_height(self):
         return settings.get("hierarchy_timeline", "divider_height")
-    
+
     @property
     def colors(self):
         return settings.get("hierarchy_timeline", "default_colors")
@@ -226,6 +230,7 @@ class HierarchyUI(TimelineUIElement):
             self.body,
             self.label,
             self.comments_icon,
+            self.loop_icon,
             self.start_handle,
             self.end_handle,
             self.pre_start_handle,
@@ -280,6 +285,7 @@ class HierarchyUI(TimelineUIElement):
     def update_position(self):
         self.update_body_position()
         self.update_comments_icon_position()
+        self.update_loop_icon_position()
         self.update_label_position()
         self.update_label()
         self.update_body_handles_position()
@@ -296,6 +302,11 @@ class HierarchyUI(TimelineUIElement):
     def update_comments_icon_position(self):
         self.comments_icon.set_position(
             self.end_x, self.timeline_ui.get_data("height"), self.get_data("level")
+        )
+
+    def update_loop_icon_position(self):
+        self.loop_icon.set_position(
+            self.start_x, self.timeline_ui.get_data("height"), self.get_data("level")
         )
 
     def update_label_position(self):
@@ -372,6 +383,13 @@ class HierarchyUI(TimelineUIElement):
         )
         self.scene.addItem(self.comments_icon)
         self.comments_icon.setVisible(bool(self.get_data("comments")))
+
+    def _setup_loop_icon(self):
+        self.loop_icon = HierarchyLoopIcon(
+            self.start_x, self.timeline_ui.get_data("height"), self.get_data("level")
+        )
+        self.scene.addItem(self.loop_icon)
+        self.loop_icon.setVisible(False)
 
     def _setup_body_handles(self):
         """If there are already markers at start or end position,
@@ -530,6 +548,9 @@ class HierarchyUI(TimelineUIElement):
             if not self.is_handle_shared(handle):
                 self.scene.removeItem(handle)
 
+    def on_loop_set(self, is_looping: bool) -> None:
+        self.loop_icon.setVisible(is_looping)
+
     @property
     def start_and_end_formatted(self) -> str:
         return (
@@ -617,11 +638,11 @@ class HierarchyBody(CursorMixIn, QGraphicsRectItem):
     @property
     def base_height(self):
         return settings.get("hierarchy_timeline", "base_height")
-    
+
     @property
     def x_increment_per_lvl(self):
         return settings.get("hierarchy_timeline", "level_height_diff")
-    
+
     def set_fill(self, color: str):
         self.setBrush(QColor(color))
 
@@ -656,10 +677,7 @@ class HierarchyBody(CursorMixIn, QGraphicsRectItem):
         y0 = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (
-                self.base_height
-                + ((level - 1) * self.x_increment_per_lvl)
-            )
+            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
         )
         x1 = end_x - HierarchyUI.X_OFFSET
 
@@ -677,7 +695,7 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
     @property
     def base_height(self):
         return settings.get("hierarchy_timeline", "base_height")
-    
+
     @property
     def x_increment_per_lvl(self):
         return settings.get("hierarchy_timeline", "level_height_diff")
@@ -692,10 +710,7 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (
-                self.base_height
-                + ((level - 1) * self.x_increment_per_lvl)
-            )
+            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
         )
         return QPointF(x, y)
 
@@ -722,11 +737,11 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         self.setup_font()
         self.setPlainText(self.ICON)
         self.set_position(end_x, tl_height, level)
-        
+
     @property
     def base_height(self):
         return settings.get("hierarchy_timeline", "base_height")
-    
+
     @property
     def x_increment_per_lvl(self):
         return settings.get("hierarchy_timeline", "level_height_diff")
@@ -741,14 +756,49 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (
-                self.base_height
-                + ((level - 1) * self.x_increment_per_lvl)
-            )
+            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
             - self.BOTTOM_MARGIN
         )
         return QPointF(x, y)
 
     def set_position(self, end_x, tl_height, level):
         self.setPos(self.get_point(end_x, tl_height, level))
+        self.setZValue(level + 1)
+
+
+class HierarchyLoopIcon(QGraphicsPixmapItem):
+    ICON = str(Path("ui", "img", "loop15.png"))
+    TOP_MARGIN = 1
+    LEFT_MARGIN = 3
+
+    def __init__(
+        self,
+        start_x: float,
+        tl_height: int,
+        level: int,
+    ):
+        super().__init__()
+        self.setPixmap(QPixmap(self.ICON))
+        self.set_position(start_x, tl_height, level)
+
+    @property
+    def base_height(self):
+        return settings.get("hierarchy_timeline", "base_height")
+
+    @property
+    def x_increment_per_lvl(self):
+        return settings.get("hierarchy_timeline", "level_height_diff")
+
+    def get_point(self, start_x: float, tl_height, level):
+        x = start_x + self.LEFT_MARGIN
+        y = (
+            tl_height
+            - HierarchyUI.Y_OFFSET
+            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            + self.TOP_MARGIN
+        )
+        return QPointF(x, y)
+
+    def set_position(self, start_x, tl_height, level):
+        self.setPos(self.get_point(start_x, tl_height, level))
         self.setZValue(level + 1)

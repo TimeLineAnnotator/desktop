@@ -28,6 +28,7 @@
         player = new YT.Player('yt-player-iframe', {
             events: {
               'onStateChange': onPlayerStateChange,
+              'onPlaybackRateChange': onPlaybackRateChange,
               'onError': onError,
             }
         });
@@ -47,7 +48,7 @@
 
       function onError(event) {
         switch(event.data) {
-          case 2: 
+          case 2:
             backend.display_error("The request contains an invalid parameter value. For example, this error occurs if you specify a video ID that does not have 11 characters, or if the video ID contains invalid characters, such as exclamation points or asterisks.")
             break;
 
@@ -74,7 +75,7 @@
       }
 
       function loadVideo(id) {
-        player.loadVideoById(id)
+        player.loadPlaylist([id])
         return true
       }
 
@@ -91,7 +92,7 @@
       }
 
       function play() {
-        return player.playVideo() 
+        return player.playVideo()
       }
 
       function pause() {
@@ -100,6 +101,30 @@
 
       function stop() {
         return player.stopVideo()
+      }
+
+      function setVolume(volume) {
+        player.setVolume(volume)
+      }
+
+      function mute() {
+        player.mute()
+      }
+
+      function unMute() {
+        player.unMute()
+      }
+
+      function tryPlaybackRate(playbackRate) {
+        player.setPlaybackRate(playbackRate)
+      }
+
+      function onPlaybackRateChange(event) {
+        backend.on_set_playback_rate(event.data)
+      }
+
+      function setLoop(isLooping) {
+        player.setLoop(isLooping)
       }
 
 </script>

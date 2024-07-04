@@ -3,9 +3,12 @@ from __future__ import annotations
 import time
 
 from PyQt6.QtCore import QUrl
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput, QAudio
 
 from .base import Player
+
+from tilia.requests import Post, post
+from tilia.ui.player import PlayerStatus
 
 
 class QtPlayer(Player):
@@ -17,6 +20,10 @@ class QtPlayer(Player):
         self.player.durationChanged.connect(self.on_media_duration_available)
         self.audio_output = QAudioOutput()
         self.player.setAudioOutput(self.audio_output)
+
+    def on_media_load_done(self, path, start, end):
+        super().on_media_load_done(path, start, end)
+        post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.PLAYER_ENABLED)
 
     def on_media_duration_available(self, duration):
         super().on_media_duration_available(duration / 1000)
@@ -56,3 +63,26 @@ class QtPlayer(Player):
 
     def _engine_exit(self):
         self.player = None
+        post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.NO_MEDIA)
+
+    def _engine_set_volume(self, volume: int) -> None:
+        log_volume = QAudio.convertVolume(
+            volume / 100.0,
+            QAudio.VolumeScale.LinearVolumeScale,
+            QAudio.VolumeScale.LogarithmicVolumeScale,
+        )
+        self.audio_output.setVolume(log_volume)
+
+    def _engine_set_mute(self, is_muted: bool) -> None:
+        self.audio_output.setMuted(is_muted)
+
+    def _engine_try_playback_rate(self, playback_rate: float) -> None:
+        self.player.setPlaybackRate(playback_rate)
+
+    def _engine_set_playback_rate(self, playback_rate: float) -> None:
+        pass
+
+    def _engine_loop(self, is_looping: bool) -> None:
+        self.player.setLoops(
+            QMediaPlayer.Loops.Infinite if is_looping else QMediaPlayer.Loops.Once
+        )

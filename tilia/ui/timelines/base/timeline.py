@@ -158,6 +158,10 @@ class TimelineUI(ABC):
         self.view.setFixedWidth(int(width))
         self.element_manager.update_time_on_elements()
         self.scene.set_playback_line_pos(get_x_by_time(get(Get.SELECTED_TIME)))
+        (loop_start, loop_end) = get(Get.LOOP_TIME)
+        self.scene.set_loop_box_position(
+            get_x_by_time(loop_start), get_x_by_time(loop_end)
+        )
 
     def update_ordinal(self):
         self.collection.update_timeline_ui_ordinal()

@@ -1,4 +1,3 @@
-
 import functools
 import re
 from enum import Enum
@@ -8,6 +7,7 @@ from PyQt6.QtCore import Qt, QUrl, pyqtSlot, QObject, QTimer, QByteArray
 from PyQt6.QtWebChannel import QWebChannel
 
 import tilia.constants
+import tilia.errors
 
 from tilia.media.player import Player
 
@@ -17,40 +17,51 @@ from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterc
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post
 
+from tilia.ui.player import PlayerToolbarElement, PlayerStatus
+
 
 class PlayerTracker(QObject):
-    def __init__(self, page, on_duration_available, set_current_time, set_is_playing):
+    def __init__(
+        self,
+        page,
+        on_duration_available,
+        set_current_time,
+        set_is_playing,
+        set_playback_rate,
+    ):
         super().__init__()
         self.on_duration_available = on_duration_available
         self.set_current_time = set_current_time
         self.page = page
         self.set_is_playing = set_is_playing
+        self.set_playback_rate = set_playback_rate
+        self.player_toolbar_enabled = False
 
     @pyqtSlot("float")
     def on_new_time(self, time):
         self.set_current_time(time)
-        post(
-            Post.PLAYER_CURRENT_TIME_CHANGED,
-            time,
-            MediaTimeChangeReason.PLAYBACK,
-        )
 
     @pyqtSlot("int")
     def on_player_state_change(self, state):
         if state == self.State.UNSTARTED.value:
+            post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.WAITING_FOR_YOUTUBE)
             self.page.runJavaScript("getDuration()", self.on_duration_available)
         elif state == self.State.PLAYING.value:
-            post(Post.PLAYER_ENABLE_CONTROLS)
+            if not self.player_toolbar_enabled:
+                post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.PLAYER_ENABLED)
+                self.player_toolbar_enabled = True
             self.set_is_playing(True)
         else:
             self.set_is_playing(False)
 
+    @pyqtSlot("float")
+    def on_set_playback_rate(self, playback_rate: float):
+        self.set_playback_rate(playback_rate)
+
     @pyqtSlot(str)
     def display_error(self, message: str) -> None:
-        post(
-            Post.DISPLAY_ERROR,
-            title="YouTube Player",
-            message=message
+        tilia.errors.display(
+            tilia.errors.YOUTUBE_PLAYER_ERROR, message + f"\nVideo ID: {self.video_id}"
         )
 
     class State(Enum):
@@ -64,8 +75,8 @@ class PlayerTracker(QObject):
 
 class UrlRequestInterceptor(QWebEngineUrlRequestInterceptor):
     def interceptRequest(self, info):
-        name = QByteArray('Referer'.encode())
-        value = QByteArray('https://tilia-ad99d.web.app/'.encode())
+        name = QByteArray("Referer".encode())
+        value = QByteArray("https://tilia-ad99d.web.app/".encode())
         info.setHttpHeader(name, value)
 
 
@@ -102,8 +113,9 @@ class YouTubePlayer(Player):
         self.shared_object = PlayerTracker(
             self.view.page(),
             self.on_media_duration_available,
-            functools.partial(setattr, self, "current_time"),
+            self.set_current_time,
             self.set_is_playing,
+            self._engine_set_playback_rate,
         )
         self.channel.registerObject("backend", self.shared_object)
         self.view.page().setWebChannel(self.channel)
@@ -136,6 +148,16 @@ class YouTubePlayer(Player):
 
         super().on_media_duration_available(duration)
 
+    def set_current_time(self, time):
+        self.check_seek_outside_loop(time)
+        if self.check_not_loop_back(time):
+            self.current_time = time
+            post(
+                Post.PLAYER_CURRENT_TIME_CHANGED,
+                time,
+                MediaTimeChangeReason.PLAYBACK,
+            )
+
     def retry_get_duration(self):
         timer = QTimer()
         timer.singleShot(500, self._engine_get_media_duration)
@@ -146,22 +168,22 @@ class YouTubePlayer(Player):
 
     def set_is_playing(self, value):
         self.is_playing = value
+        post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_PLAY_PAUSE, value)
 
     def _on_web_page_load_finished(self):
         self.is_web_page_loaded = True
 
     def _engine_load_media(self, media_path: str) -> bool:
-        video_id = self.get_id_from_url(media_path)
+        self.video_id = self.get_id_from_url(media_path)
 
         def load_video():
-            self.view.page().runJavaScript(f'loadVideo("{video_id}")')
+            self.view.page().runJavaScript(f'loadVideo("{self.video_id}")')
 
         if self.is_web_page_loaded:
             load_video()
         else:
             self.view.loadFinished.connect(load_video)
 
-        post(Post.PLAYER_DISABLE_CONTROLS)  # first play command must be given via YT ui
         return True
 
     def _play_loop(self) -> None:
@@ -195,6 +217,7 @@ class YouTubePlayer(Player):
 
     def _engine_unload_media(self):
         self.view.hide()
+        self.shared_object.player_toolbar_enabled = False
 
     def _engine_get_media_duration(self):
         self.view.page().runJavaScript(
@@ -203,7 +226,27 @@ class YouTubePlayer(Player):
 
     def _engine_exit(self):
         del self.view
-        post(Post.PLAYER_ENABLE_CONTROLS)
+        post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.NO_MEDIA)
 
     def _engine_get_current_time(self) -> float:
         return self.current_time
+
+    def _engine_set_volume(self, volume: int) -> None:
+        self.view.page().runJavaScript(f"setVolume({volume})")
+
+    def _engine_set_mute(self, is_muted: bool) -> None:
+        if is_muted:
+            self.view.page().runJavaScript("mute()")
+        else:
+            self.view.page().runJavaScript("unMute()")
+
+    def _engine_try_playback_rate(self, playback_rate: float) -> None:
+        self.view.page().runJavaScript(f"tryPlaybackRate({playback_rate})")
+
+    def _engine_set_playback_rate(self, playback_rate: float) -> None:
+        post(
+            Post.PLAYER_UI_UPDATE, PlayerToolbarElement.SPINBOX_PLAYBACK, playback_rate
+        )
+
+    def _engine_loop(self, is_looping: bool) -> None:
+        self.view.page().runJavaScript(f"setLoop({1 if is_looping else 0})")

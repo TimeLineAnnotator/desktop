@@ -57,7 +57,6 @@ class TiliaAction(Enum):
     MARKER_DELETE = auto()
     MEDIA_LOAD_LOCAL = auto()
     MEDIA_STOP = auto()
-    MEDIA_TOGGLE_PLAY_PAUSE = auto()
     METADATA_WINDOW_OPEN = auto()
     SETTINGS_WINDOW_OPEN = auto()
     TIMELINES_AUTO_SCROLL_ENABLE = auto()
@@ -379,9 +378,6 @@ taction_to_params = {
         Post.WINDOW_ABOUT_OPEN, "About...", "", ""
     ),
     TiliaAction.MEDIA_STOP: ActionParams(Post.PLAYER_STOP, "Stop", "stop15", ""),
-    TiliaAction.MEDIA_TOGGLE_PLAY_PAUSE: ActionParams(
-        Post.PLAYER_TOGGLE_PLAY_PAUSE, "Play/pause", "playpause", "Space"
-    ),
     TiliaAction.INSPECT_WINDOW_CLOSE: ActionParams(
         Post.WINDOW_INSPECT_CLOSE, "Close", "", ""
     ),
@@ -389,14 +385,14 @@ taction_to_params = {
         Post.WEBSITE_HELP_OPEN, "Help...", "", ""
     ),
     TiliaAction.PDF_MARKER_ADD: ActionParams(
-        Post.PDF_MARKER_ADD, "Add PDF marker", 'pdf_add', 'p'
+        Post.PDF_MARKER_ADD, "Add PDF marker", "pdf_add", "p"
     ),
     TiliaAction.PDF_MARKER_DELETE: ActionParams(
-        Post.PDF_MARKER_DELETE, "Delete PDF marker", 'pdf_delete', ''
+        Post.PDF_MARKER_DELETE, "Delete PDF marker", "pdf_delete", ""
     ),
     TiliaAction.PDF_IMPORT_FROM_CSV: ActionParams(
-        Post.PDF_IMPORT_FROM_CSV, "Import from CSV file", '', ''
-    )
+        Post.PDF_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+    ),
 }
 
 _taction_to_qaction: dict[TiliaAction, QAction] = {}  # will be populated on startup

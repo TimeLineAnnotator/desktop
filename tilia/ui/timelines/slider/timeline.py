@@ -3,7 +3,11 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QRectF, QLineF, Qt
 from PyQt6.QtGui import QPen, QColor, QBrush
-from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem
+from PyQt6.QtWidgets import (
+    QGraphicsEllipseItem,
+    QGraphicsLineItem,
+    QGraphicsDropShadowEffect,
+)
 
 import tilia.ui.coords
 from tilia.media.player.base import MediaTimeChangeReason
@@ -49,7 +53,11 @@ class SliderTimelineUI(TimelineUI):
         )
 
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_audio_time_change)
-        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+        listen(
+            self,
+            Post.SETTINGS_UPDATED,
+            lambda updated_settings: self.on_settings_updated(updated_settings),
+        )
 
         self.x = get(Get.LEFT_MARGIN_X)
         self._setup_line()
@@ -61,15 +69,15 @@ class SliderTimelineUI(TimelineUI):
     @property
     def trough_radius(self):
         return settings.get("slider_timeline", "trough_radius")
-    
+
     @property
     def trough_default_color(self):
         return settings.get("slider_timeline", "trough_color")
-    
+
     @property
     def line_default_color(self):
         return settings.get("slider_timeline", "line_color")
-    
+
     @property
     def line_weight(self):
         return settings.get("slider_timeline", "line_weight")
@@ -93,10 +101,12 @@ class SliderTimelineUI(TimelineUI):
         self.scene: TimelineScene
         self.scene.playback_line.setVisible(False)
 
-    def on_settings_updated(self, updated_settings):        
-        if "slider_timeline" in updated_settings:  
-            get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
-            self.update_ui()    
+    def on_settings_updated(self, updated_settings):
+        if "slider_timeline" in updated_settings:
+            get(Get.TIMELINE_COLLECTION).set_timeline_data(
+                self.id, "height", self.timeline.default_height
+            )
+            self.update_ui()
 
     def set_trough_position(self) -> None:
         args = (
@@ -114,7 +124,9 @@ class SliderTimelineUI(TimelineUI):
         self.view.setFixedWidth(int(width))
         self.update_items_position()
 
-    def on_left_click(self, item_id: int, modifier: ModifierEnum, double: bool, x: int, y: int) -> None:
+    def on_left_click(
+        self, item_id: int, modifier: ModifierEnum, double: bool, x: int, y: int
+    ) -> None:
         if item_id == self.line:
             time = tilia.ui.coords.get_time_by_x(x)
             if double:
@@ -178,16 +190,16 @@ class SliderTimelineUI(TimelineUI):
 
     def __str__(self):
         return "Slider Timeline"
-    
+
     def update_ui(self):
         self.trough.set_radius(self.trough_radius)
         self.set_trough_position()
-        
+
         self.trough.set_brush(self.trough_default_color)
         self.trough.set_pen(self.trough_default_color)
-        
+
         self.line.set_color(self.line_default_color)
-        
+
         self.line.set_width(self.line_weight)
 
 
@@ -205,9 +217,36 @@ class Line(CursorMixIn, QGraphicsLineItem):
         self.setLine(x0, y, x1, y)
 
     def set_color(self, color: str):
+        def get_opp_color(color: str):
+            opp = "#"
+            if len(color) == 7:
+                split = [
+                    int(f"0x{color[1:3]}", 16),
+                    int(f"0x{color[3:5]}", 16),
+                    int(f"0x{color[5:7]}", 16),
+                ]
+            else:
+                opp += color[1:3]
+                split = [
+                    int(f"0x{color[3:5]}", 16),
+                    int(f"0x{color[5:7]}", 16),
+                    int(f"0x{color[7:9]}", 16),
+                ]
+
+            for i in split:
+                opp += f"{(255 - i) % 256:02x}"
+
+            return opp
+
         pen = self.pen()
         pen.setColor(QColor(color))
         self.setPen(pen)
+
+        effect = QGraphicsDropShadowEffect()
+        effect.setColor(QColor(get_opp_color(color)))
+        effect.setBlurRadius(5)
+        effect.setOffset(0)
+        self.setGraphicsEffect(effect)
 
     def set_width(self, width: int):
         pen = self.pen()

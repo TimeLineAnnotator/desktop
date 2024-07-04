@@ -21,7 +21,6 @@ from tilia.requests import (
     get,
     stop_serving_all,
 )
-from tilia.ui.strings import NO_MEDIA_LOADED_ERROR_TITLE, NO_MEDIA_LOADED_ERROR_MESSAGE
 
 
 class MediaTimeChangeReason(Enum):
@@ -32,6 +31,7 @@ class MediaTimeChangeReason(Enum):
 
 class Player(ABC):
     UPDATE_INTERVAL = 100
+    E = UPDATE_INTERVAL / 500
     MEDIA_TYPE = None
 
     def __init__(self):
@@ -45,27 +45,37 @@ class Player(ABC):
         self.current_time = 0.0
         self.media_path = ""
         self.is_playing = False
-
+        self.is_looping = False
+        self.loop_start = 0
+        self.loop_end = 0
         self.qtimer = QTimer()
         self.qtimer.timeout.connect(self._play_loop)
 
     def __str__(self):
         return get_tilia_class_string(self)
 
-    def _setup_requests(self):        
+    def _setup_requests(self):
         LISTENS = {
             (Post.PLAYER_TOGGLE_PLAY_PAUSE, self.toggle_play),
             (Post.PLAYER_STOP, self.stop),
+            (Post.PLAYER_VOLUME_CHANGE, self.on_volume_change),
+            (Post.PLAYER_VOLUME_MUTE, self.on_volume_mute),
+            (Post.PLAYER_PLAYBACK_RATE_TRY, self.on_playback_rate_try),
             (Post.PLAYER_SEEK, self.on_seek),
-            (Post.PLAYER_SEEK_IF_NOT_PLAYING, functools.partial(self.on_seek, if_paused=True)),
+            (
+                Post.PLAYER_SEEK_IF_NOT_PLAYING,
+                functools.partial(self.on_seek, if_paused=True),
+            ),
             (Post.PLAYER_REQUEST_TO_UNLOAD_MEDIA, self.unload_media),
             (Post.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media),
-            (Post.PLAYER_EXPORT_AUDIO, self.on_export_audio)
+            (Post.PLAYER_EXPORT_AUDIO, self.on_export_audio),
+            (Post.PLAYER_CURRENT_LOOP_CHANGED, self.on_loop_changed),
         }
 
         SERVES = {
             (Get.MEDIA_CURRENT_TIME, lambda: self.current_time),
-            (Get.MEDIA_PATH, lambda: self.media_path)
+            (Get.MEDIA_PATH, lambda: self.media_path),
+            (Get.MEDIA_TYPE, lambda: self.MEDIA_TYPE),
         }
 
         for post, callback in LISTENS:
@@ -121,18 +131,14 @@ class Player(ABC):
         self.current_time = 0.0
         self.media_path = ""
         self.is_playing = False
+        self.is_looping = False
+        post(Post.PLAYER_CANCEL_LOOP)
         post(Post.PLAYER_MEDIA_UNLOADED)
 
-    def toggle_play(self):
-        if not self.media_path:
-            post(
-                Post.DISPLAY_ERROR,
-                title=NO_MEDIA_LOADED_ERROR_TITLE,
-                message=NO_MEDIA_LOADED_ERROR_MESSAGE,
-            )
-            return
-
-        if not self.is_playing:
+    def toggle_play(self, toggle_is_playing: bool):
+        if toggle_is_playing:
+            if self.is_looping:
+                self.on_seek(self.loop_start)
             self._engine_play()
             self.is_playing = True
             self.start_play_loop()
@@ -154,6 +160,10 @@ class Player(ABC):
         self.stop_play_loop()
         self.is_playing = False
 
+        if self.is_looping:
+            self.is_looping = False
+            post(Post.PLAYER_CANCEL_LOOP)
+
         self._engine_seek(self.playback_start)
         self.current_time = self.playback_start
 
@@ -164,14 +174,37 @@ class Player(ABC):
             MediaTimeChangeReason.PLAYBACK,
         )
 
+    def on_loop_changed(self, start_time, end_time):
+        self.is_looping = start_time != end_time
+        if end_time == get(Get.MEDIA_DURATION):
+            if start_time != 0:
+                end_time -= self.E
+            else:
+                self._engine_loop(True)
+
+        self.loop_start = start_time
+        self.loop_end = end_time
+
+    def on_volume_change(self, volume: int) -> None:
+        self._engine_set_volume(volume)
+
+    def on_volume_mute(self, is_muted: bool) -> None:
+        self._engine_set_mute(is_muted)
+
+    def on_playback_rate_try(self, playback_rate: float) -> None:
+        self._engine_try_playback_rate(playback_rate)
+
     def on_seek(self, time: float, if_paused: bool = False) -> None:
         if if_paused and self.is_playing:
             return
 
         if self.is_media_loaded:
+            self.check_seek_outside_loop(time)
+
             self._engine_seek(time)
 
         self.current_time = time
+
         post(
             Post.PLAYER_CURRENT_TIME_CHANGED,
             self.current_time,
@@ -179,12 +212,17 @@ class Player(ABC):
         )
 
     def on_export_audio(self, segment_name: str, start_time: float, end_time: float):
-        if self.MEDIA_TYPE != "audio":            
-            tilia.errors.display(tilia.errors.EXPORT_AUDIO_FAILED, "Can only export from audio files.")
+        if self.MEDIA_TYPE != "audio":
+            tilia.errors.display(
+                tilia.errors.EXPORT_AUDIO_FAILED, "Can only export from audio files."
+            )
             return
 
-        if sys.platform == "darwin":    
-            tilia.errors.display(tilia.errors.EXPORT_AUDIO_FAILED, "Exporting audio is not available on macOS.")
+        if sys.platform == "darwin":
+            tilia.errors.display(
+                tilia.errors.EXPORT_AUDIO_FAILED,
+                "Exporting audio is not available on macOS.",
+            )
             return
 
         path, _ = get(
@@ -211,13 +249,29 @@ class Player(ABC):
 
     def _play_loop(self) -> None:
         self.current_time = self._engine_get_current_time() - self.playback_start
-        post(
-            Post.PLAYER_CURRENT_TIME_CHANGED,
-            self.current_time,
-            MediaTimeChangeReason.PLAYBACK,
-        )
-        if self.current_time >= self.playback_length:
-            self.stop()
+        if self.check_not_loop_back(self.current_time):
+            post(
+                Post.PLAYER_CURRENT_TIME_CHANGED,
+                self.current_time,
+                MediaTimeChangeReason.PLAYBACK,
+            )
+
+            if self.current_time >= self.playback_length:
+                self.stop()
+
+    def check_seek_outside_loop(self, time):
+        if self.is_looping and any(
+            [time > self.loop_end + self.E, time < self.loop_start - self.E]
+        ):
+            self.is_looping = False
+            post(Post.PLAYER_CANCEL_LOOP)
+
+    def check_not_loop_back(self, time) -> bool:
+        if self.is_looping and time >= self.loop_end:
+            self.on_seek(self.loop_start)
+            return False
+
+        return True
 
     def clear(self):
         self.unload_media()
@@ -237,34 +291,64 @@ class Player(ABC):
             self.load_media(media_path)
 
     @abstractmethod
-    def _engine_pause(self) -> None: ...
+    def _engine_pause(self) -> None:
+        ...
 
     @abstractmethod
-    def _engine_unpause(self) -> None: ...
+    def _engine_unpause(self) -> None:
+        ...
 
     @abstractmethod
-    def _engine_get_current_time(self) -> float: ...
+    def _engine_get_current_time(self) -> float:
+        ...
 
     @abstractmethod
-    def _engine_stop(self): ...
+    def _engine_stop(self):
+        ...
 
     @abstractmethod
-    def _engine_seek(self, time: float) -> None: ...
+    def _engine_seek(self, time: float) -> None:
+        ...
 
     @abstractmethod
-    def _engine_unload_media(self) -> None: ...
+    def _engine_unload_media(self) -> None:
+        ...
 
     @abstractmethod
-    def _engine_load_media(self, media_path: str) -> None: ...
+    def _engine_load_media(self, media_path: str) -> None:
+        ...
 
     @abstractmethod
-    def _engine_play(self) -> None: ...
+    def _engine_play(self) -> None:
+        ...
 
     @abstractmethod
-    def _engine_get_media_duration(self) -> float: ...
+    def _engine_get_media_duration(self) -> float:
+        ...
 
     @abstractmethod
-    def _engine_exit(self) -> float: ...
+    def _engine_exit(self) -> float:
+        ...
+
+    @abstractmethod
+    def _engine_set_volume(self, volume: int) -> None:
+        ...
+
+    @abstractmethod
+    def _engine_set_mute(self, is_muted: bool) -> None:
+        ...
+
+    @abstractmethod
+    def _engine_try_playback_rate(self, playback_rate: float) -> None:
+        ...
+
+    @abstractmethod
+    def _engine_set_playback_rate(self, playback_rate: float) -> None:
+        ...
+
+    @abstractmethod
+    def _engine_loop(self, is_looping: bool) -> None:
+        ...
 
     def __repr__(self):
         return f"{type(self)}-{id(self)}"
