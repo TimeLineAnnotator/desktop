@@ -2,11 +2,12 @@ from PyQt6.QtCore import QSettings, QObject
 
 import tilia.constants
 
+
 class SettingsManager(QObject):
 
     DEFAULT_SETTINGS = {
         "general": {
-            "auto-scroll": 'false',
+            "auto-scroll": "false",
             "window_width": 800,
             "window_height": 400,
             "window_x": 20,
@@ -41,7 +42,7 @@ class SettingsManager(QObject):
         "audiowave_timeline": {
             "default_height": 80,
             "default_color": "#3399FF",
-            "max_divisions": 2500
+            "max_divisions": 2500,
         },
         "beat_timeline": {"display_measure_periodicity": 4, "default_height": 35},
         "hierarchy_timeline": {
@@ -73,12 +74,13 @@ class SettingsManager(QObject):
             "default_height": 30,
         },
         "harmony_timeline": {"default_harmony_display_mode": "chord"},
-        "dev": {"log_events": 'false', "log_requests": 'false', "dev_mode": 'false'},
+        "dev": {"log_events": "false", "log_requests": "false", "dev_mode": "false"},
     }
 
-
     def __init__(self):
-        self._settings = QSettings(tilia.constants.APP_NAME, f"Desktop-v.{tilia.constants.VERSION}")
+        self._settings = QSettings(
+            tilia.constants.APP_NAME, f"Desktop-v.{tilia.constants.VERSION}"
+        )
         self.check_all_default_settings_present()
         self._files_updated_callbacks = set()
 
@@ -95,7 +97,7 @@ class SettingsManager(QObject):
             for key, value in settings.items():
                 self._settings.setValue(key, value)
             self._settings.endGroup()
-        self._settings.endGroup()    
+        self._settings.endGroup()
 
     def _clear_recent_files(self):
         self._settings.beginGroup("private")
@@ -105,7 +107,7 @@ class SettingsManager(QObject):
     def link_file_update(self, updating_function) -> None:
         self._files_updated_callbacks.add(updating_function)
 
-    def get(self, group_name: str, setting: str, in_default = True):
+    def get(self, group_name: str, setting: str, in_default=True):
         key = self._get_key(group_name, setting, in_default)
         value = self._settings.value(key, None)
         if not value:
@@ -115,13 +117,13 @@ class SettingsManager(QObject):
                 return None
             self._settings.setValue(key, value)
 
-        if value == 'true':
+        if value == "true":
             return True
-        elif value == 'false':
+        elif value == "false":
             return False
         return value
 
-    def set(self, group_name: str, setting: str, value, in_default = True):
+    def set(self, group_name: str, setting: str, value, in_default=True):
         key = self._get_key(group_name, setting, in_default)
         self._settings.setValue(key, value)
 
@@ -146,10 +148,10 @@ class SettingsManager(QObject):
         self._settings.setValue("private/recent_files", recent_files)
         self._apply_recent_files_changes()
 
-    def _apply_recent_files_changes(self):        
-        for function in self._files_updated_callbacks():
+    def _apply_recent_files_changes(self):
+        for function in self._files_updated_callbacks:
             function()
-        
+
     def get_recent_files(self):
         return self._settings.value("private/recent_files", [])[:10]
 
