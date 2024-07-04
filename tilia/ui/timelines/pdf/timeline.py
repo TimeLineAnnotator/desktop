@@ -4,7 +4,7 @@ import copy
 import logging
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtCore import QPointF
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtPdfWidgets import QPdfView
 
@@ -27,6 +27,7 @@ from tilia.ui.timelines.pdf.context_menu import PdfTimelineUIContextMenu
 from tilia.ui.timelines.pdf.element import PdfMarkerUI
 from tilia.ui.timelines.pdf.request_handlers import PdfMarkerUIRequestHandler
 from tilia.ui.timelines.pdf.toolbar import PdfTimelineToolbar
+from tilia.ui.windows.view_window import ViewWindow
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
@@ -46,20 +47,14 @@ class PdfTimelineUI(TimelineUI):
     TIMELINE_KIND = TimelineKind.PDF_TIMELINE
 
     def __init__(
-            self,
-            id: int,
-            collection: TimelineUIs,
-            element_manager: ElementManager,
-            scene: TimelineScene,
-            view: TimelineView,
+        self,
+        id: int,
+        collection: TimelineUIs,
+        element_manager: ElementManager,
+        scene: TimelineScene,
+        view: TimelineView,
     ):
-        super().__init__(
-            id,
-            collection,
-            element_manager,
-            scene,
-            view
-        )
+        super().__init__(id, collection, element_manager, scene, view)
 
         self._setup_pdf_document()
         self._load_pdf_file()
@@ -67,49 +62,46 @@ class PdfTimelineUI(TimelineUI):
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_media_time_change)
 
     def _handle_invalid_pdf(self):
-        tilia.errors.display(tilia.errors.INVALID_PDF, self.get_data('path'))
+        tilia.errors.display(tilia.errors.INVALID_PDF, self.get_data("path"))
         _, value = get(Get.FROM_USER_RETRY_PDF_PATH)
         if value:
             success, path = get(Get.FROM_USER_PDF_PATH)
             if success:
-                self.timeline.set_data('path', path)
+                self.timeline.set_data("path", path)
                 self._load_pdf_file()
 
     def _load_pdf_file(self):
-        if not self.timeline.get_data('is_pdf_valid'):
+        if not self.timeline.get_data("is_pdf_valid"):
             self._handle_invalid_pdf()
-        self.pdf_document.load(self.get_data('path'))
-        self.pdf_view.resize(
+        self.pdf_document.load(self.get_data("path"))
+        self.pdf_view.update_window(
             int(self.pdf_document.pagePointSize(0).height()),
             int(self.pdf_document.pagePointSize(0).width()),
+            self.pdf_document.metaData(QPdfDocument.MetaDataField.Title),
         )
 
     def _setup_pdf_document(self):
         self.pdf_document = QPdfDocument(None)
-        self.pdf_view = QPdfView(None)
+        self.pdf_view = QPdfWindow()
         self.pdf_view.setDocument(self.pdf_document)
-        self.pdf_view.setWindowTitle('TiLiA: PDF timeline')
-        self.pdf_view.setWindowFlags(Qt.WindowType.WindowMaximizeButtonHint | Qt.WindowType.WindowMinimizeButtonHint)
-        self.pdf_view.setPageMode(QPdfView.PageMode.MultiPage)
-        self.pdf_view.show()
 
     @property
     def current_page(self):
-        return self.pdf_view.pageNavigator().currentPage() + 1 # 1-based
+        return self.pdf_view.pageNavigator().currentPage() + 1  # 1-based
 
     @property
     def page_total(self):
-        if not self.timeline.get_data('is_pdf_valid'):
+        if not self.timeline.get_data("is_pdf_valid"):
             # Lifts page number limit on Inspector. This
             # prevents it from capping the
             # number at a value that might be lower than
             # the page total in a PDF loaded in the future.
             # Can't use math.inf because PyQt requires an int.
             return 99999999
-        return self.timeline.get_data('page_total')
+        return self.timeline.get_data("page_total")
 
     def on_timeline_element_request(
-            self, request, selector: ElementSelector, *args, **kwargs
+        self, request, selector: ElementSelector, *args, **kwargs
     ):
         return PdfMarkerUIRequestHandler(self).on_request(
             request, selector, *args, **kwargs
@@ -193,7 +185,7 @@ class PdfTimelineUI(TimelineUI):
         )
 
     def create_pasted_markers(
-            self, paste_data: list[dict], reference_time: float, target_time: float
+        self, paste_data: list[dict], reference_time: float, target_time: float
     ) -> None:
         for pdf_marker_data in copy.deepcopy(paste_data):
             # deepcopying so popping won't affect original data
@@ -221,4 +213,18 @@ class PdfTimelineUI(TimelineUI):
 
     def delete(self):
         super().delete()
-        self.pdf_view.close()
+        self.pdf_view.deleteLater()
+
+
+class QPdfWindow(ViewWindow, QPdfView):
+    def __init__(self):
+        super().__init__("TiLiA PDF Viewer", None)
+        self.setPageMode(QPdfView.PageMode.MultiPage)
+
+    def update_window(self, width: int, height: int, document_title=""):
+        self.resize(width, height)
+        if document_title != "":
+            self.update_title(document_title)
+        else:
+            self.update_title("PDF Viewer")
+        self.show()

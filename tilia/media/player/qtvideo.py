@@ -1,28 +1,19 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import QSizePolicy
 
 from .qtplayer import QtPlayer
+from tilia.ui.windows.view_window import ViewWindow
+
 
 class QtVideoPlayer(QtPlayer):
     MEDIA_TYPE = "video"
 
     def __init__(self):
         super().__init__()
-        self.widget = QVideoWidget()
-        self.widget.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        self.widget = QVideoWindow()
         self.player.setVideoOutput(self.widget)
-        self.widget.setWindowTitle("TiLiA Player")
-        self.widget.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowTitleHint
-            | Qt.WindowType.CustomizeWindowHint
-        )
-        self.widget.resize(800, 600)
 
     def _engine_load_media(self, media_path: str) -> bool:
         result = super()._engine_load_media(media_path)
@@ -33,3 +24,10 @@ class QtVideoPlayer(QtPlayer):
     def _engine_exit(self):
         super()._engine_exit()
         self.widget.deleteLater()
+
+
+class QVideoWindow(ViewWindow, QVideoWidget):
+    def __init__(self):
+        super().__init__("TiLiA Player", menu_title="Video Player")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.resize(800, 600)
