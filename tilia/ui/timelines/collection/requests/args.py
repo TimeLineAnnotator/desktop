@@ -157,6 +157,7 @@ def _get_args_for_beat_set_amount_in_measure(_):
     number, accept = dialogs.basic.ask_for_int(
         "Change beats in measure",
         "Insert amount of beats in measure",
+        min=1,
     )
     if not accept:
         raise UserCancelledDialog
