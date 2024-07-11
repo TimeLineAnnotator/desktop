@@ -80,6 +80,9 @@ class HarmonyTimelineUI(TimelineUI):
     def on_element_drag_done(self):
         self.update_harmony_labels()
 
+    def on_timeline_components_deserialized(self):
+        self.update_harmony_labels()
+
     def update_harmony_labels(self):
         for harmony in self.harmonies():
             harmony.update_label()

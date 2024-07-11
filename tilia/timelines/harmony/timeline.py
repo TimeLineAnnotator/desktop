@@ -4,13 +4,13 @@ from bisect import bisect
 
 import music21
 
-from tilia.requests import Get, get
+from tilia.requests import Get, get, post, Post
 from tilia.timelines.base.validators import validate_positive_integer
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.validators import validate_level_count
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
-from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
+from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
 
 
 class HarmonyTimeline(Timeline):
@@ -91,12 +91,9 @@ class HarmonyTimeline(Timeline):
         self.component_manager: HarmonyTLComponentManager
         self.component_manager.crop(length)
 
-    def restore_state(self, state: dict):
-        self.clear()
-        self.set_data("name", state["name"])
-        self.set_data("level_count", state["level_count"])
-        self.set_data("level_height", state["level_height"])
-        self.component_manager.deserialize_components(state["components"])
+    def deserialize_components(self, components: dict[int, dict[str]]):
+        super().deserialize_components(components)
+        post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.id)
 
 
 class HarmonyTLComponentManager(TimelineComponentManager):
