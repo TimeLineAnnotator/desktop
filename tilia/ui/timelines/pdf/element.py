@@ -117,7 +117,7 @@ class PdfMarkerUI(TimelineUIElement):
         self.setup_drag()
 
     def double_left_click_triggers(self):
-        return [self.body]
+        return [self.body, self.label]
 
     def on_double_left_click(self, _):
         post(Post.PLAYER_SEEK, self.seek_time)
