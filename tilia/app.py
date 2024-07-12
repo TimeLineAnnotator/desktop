@@ -92,13 +92,13 @@ class App:
 
         post(Post.UI_EXIT, 0)
 
-    def load_media(self, path: str) -> None:
+    def load_media(self, path: str, record: bool = True) -> None:
         if not path:
             self.player.unload_media()
             return
 
         player = MediaLoader(self.player).load(path)
-        if player:
+        if player and record:
             self.player = player
             post(Post.APP_RECORD_STATE, "media load")
 
@@ -169,7 +169,7 @@ class App:
         if self.player.media_path == media_path:
             return
 
-        self.load_media(media_path)
+        self.load_media(media_path, record=False)
 
     def get_timelines_state(self):
         return self.timelines.serialize_timelines()
