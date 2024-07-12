@@ -4,13 +4,20 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 import logging
 
-from PyQt6.QtCore import QPointF, Qt, QRectF
-from PyQt6.QtGui import QPolygonF, QPen, QColor, QFont, QBrush, QImage, QPixmap, QFontMetrics
+from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtGui import (
+    QPen,
+    QColor,
+    QFont,
+    QPixmap,
+    QFontMetrics,
+)
 from PyQt6.QtWidgets import (
     QGraphicsScene,
     QGraphicsItem,
-    QGraphicsPolygonItem,
-    QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPixmapItem, QGraphicsRectItem,
+    QGraphicsTextItem,
+    QGraphicsPixmapItem,
+    QGraphicsRectItem,
 )
 
 from tilia.requests import Post, post, get, Get
@@ -19,9 +26,7 @@ from ..copy_paste import CopyAttributes
 from ..cursors import CursorMixIn
 from ..drag import DragManager
 from ...format import format_media_time
-from ...consts import TINT_FACTOR_ON_SELECTION
 from ...coords import get_x_by_time, get_time_by_x
-from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
 
