@@ -42,6 +42,7 @@ class ModeUI(TimelineUIElement):
         self._setup_body()
 
         self.dragged = False
+        self.drag_manager = None
 
     def _setup_body(self):
         self.body = ModeBody(self.x, self.y, self.label)
@@ -109,11 +110,20 @@ class ModeUI(TimelineUIElement):
     def left_click_triggers(self) -> list[QGraphicsItem]:
         return [self.body]
 
+    def double_left_click_triggers(self):
+        return [self.body]
+
+    def on_double_left_click(self, _):
+        if self.drag_manager:
+            self.drag_manager.on_release()
+            self.drag_manager = None
+        post(Post.PLAYER_SEEK, self.seek_time)
+
     def on_left_click(self, _) -> None:
         self.setup_drag()
 
     def setup_drag(self):
-        DragManager(
+        self.drag_manager = DragManager(
             get_min_x=lambda: get(Get.LEFT_MARGIN_X),
             get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
             before_each=self.before_each_drag,

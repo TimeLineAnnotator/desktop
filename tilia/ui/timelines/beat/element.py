@@ -71,6 +71,7 @@ class BeatUI(TimelineUIElement):
         self._setup_label()
 
         self.dragged = False
+        self.drag_manager = None
 
     def _setup_body(self):
         self.body = BeatBody(self.x, self.height)
@@ -144,14 +145,17 @@ class BeatUI(TimelineUIElement):
         return self.body, self.label
 
     def on_double_left_click(self, _) -> None:
-        post(Post.PLAYER_SEEK, self.time)
+        if self.drag_manager:
+            self.drag_manager.on_release()
+            self.drag_manager = None
+        post(Post.PLAYER_SEEK, self.seek_time)
 
     @property
     def right_click_triggers(self):
         return self.body, self.label
 
     def setup_drag(self):
-        DragManager(
+        self.drag_manager = DragManager(
             get_min_x=self.get_drag_left_limit,
             get_max_x=self.get_drag_right_limit,
             before_each=self.before_each_drag,

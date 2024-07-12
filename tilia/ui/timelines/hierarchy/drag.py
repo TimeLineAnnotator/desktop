@@ -23,7 +23,7 @@ def start_drag(
     hierarchy_ui.drag_extremity = extremity
 
     min_x, max_x = get_drag_limits(hierarchy_ui, extremity)
-    DragManager(
+    hierarchy_ui.drag_manager = DragManager(
         get_min_x=lambda: min_x,
         get_max_x=lambda: max_x,
         before_each=functools.partial(before_each_drag, hierarchy_ui),
