@@ -244,7 +244,7 @@ class Line(CursorMixIn, QGraphicsLineItem):
 
         effect = QGraphicsDropShadowEffect()
         effect.setColor(QColor(get_opp_color(color)))
-        effect.setBlurRadius(5)
+        effect.setBlurRadius(2)
         effect.setOffset(0)
         self.setGraphicsEffect(effect)
 
