@@ -55,16 +55,20 @@ class PdfMarkerUI(TimelineUIElement):
     CONTEXT_MENU_CLASS = PdfMarkerContextMenu
 
     def __init__(
-            self,
-            id: int,
-            timeline_ui: PdfTimelineUI,
-            scene: QGraphicsScene,
-            **_,
+        self,
+        id: int,
+        timeline_ui: PdfTimelineUI,
+        scene: QGraphicsScene,
+        **_,
     ):
         super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
 
         self.INSPECTOR_FIELDS = [
-            ("Page number", InspectRowKind.SPIN_BOX, self.get_page_number_inspector_field_args),
+            (
+                "Page number",
+                InspectRowKind.SPIN_BOX,
+                self.get_page_number_inspector_field_args,
+            ),
             ("Time", InspectRowKind.LABEL, None),
         ]
         self._setup_body()
@@ -90,7 +94,7 @@ class PdfMarkerUI(TimelineUIElement):
 
     @property
     def ui_color(self):
-        return '#000000'
+        return "#000000"
 
     def update_position(self):
         self.update_time()
@@ -100,7 +104,7 @@ class PdfMarkerUI(TimelineUIElement):
         self.label.set_position(self.x)
 
     def update_page_number(self):
-        self.label.set_text(str(self.get_data('page_number')))
+        self.label.set_text(str(self.get_data("page_number")))
         self.timeline_ui.update_displayed_page(get(Get.MEDIA_CURRENT_TIME))
 
     def child_items(self):
@@ -151,23 +155,25 @@ class PdfMarkerUI(TimelineUIElement):
     def get_inspector_dict(self) -> dict:
         return {
             "Time": format_media_time(self.get_data("time")),
-            "Page number": self.get_data('page_number'),
+            "Page number": self.get_data("page_number"),
         }
 
     def get_page_number_inspector_field_args(self):
-        return {'min': 1, 'max': self.timeline_ui.page_total}
+        return {"min": 1, "max": self.timeline_ui.page_total}
 
 
 class PdfMarkerBody(CursorMixIn, QGraphicsPixmapItem):
     # Icon by Freepik. Available at: https://www.flaticon.com/free-icon/page-blank_16120
-    ICON_PATH = Path('ui', 'img', 'pdf_page.png')
+    ICON_PATH = Path("ui", "img", "pdf_page.png")
     WIDTH = 20
     TOP_MARGIN = 5
     SELECTION_BOX_MARGIN = 2
 
     def __init__(self, x: float):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
-        self.setPixmap(QPixmap(self.ICON_PATH.resolve().__str__()).scaled(self.WIDTH, self.WIDTH))
+        self.setPixmap(
+            QPixmap(self.ICON_PATH.resolve().__str__()).scaled(self.WIDTH, self.WIDTH)
+        )
         self.set_position(x)
 
     def set_position(self, x):
@@ -176,7 +182,9 @@ class PdfMarkerBody(CursorMixIn, QGraphicsPixmapItem):
     def on_select(self):
         self.selection_box = QGraphicsRectItem(self)
         margin = self.SELECTION_BOX_MARGIN
-        self.selection_box.setRect(-margin, -margin, self.WIDTH + 2 * margin, self.WIDTH + 2 * margin)
+        self.selection_box.setRect(
+            -margin, -margin, self.WIDTH + 2 * margin, self.WIDTH + 2 * margin
+        )
         pen = QPen()
         pen.setWidth(2)
 
@@ -190,9 +198,9 @@ class PdfMarkerLabel(QGraphicsTextItem):
     MAX_TEXT_WIDTH = 12
 
     def __init__(
-            self,
-            x: float,
-            text: str,
+        self,
+        x: float,
+        text: str,
     ):
         super().__init__()
         self.set_font()
@@ -207,7 +215,10 @@ class PdfMarkerLabel(QGraphicsTextItem):
         self.setDefaultTextColor(QColor("black"))
 
     def get_point(self, x: float):
-        return QPointF(x - self.boundingRect().width() / 2, PdfMarkerBody.TOP_MARGIN + self.TOP_MARGIN)
+        return QPointF(
+            x - self.boundingRect().width() / 2,
+            PdfMarkerBody.TOP_MARGIN + self.TOP_MARGIN,
+        )
 
     def set_position(self, x):
         self.setPos(self.get_point(x))
