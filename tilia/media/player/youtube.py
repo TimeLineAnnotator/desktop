@@ -28,6 +28,7 @@ class PlayerTracker(QObject):
         set_current_time,
         set_is_playing,
         set_playback_rate,
+        display_error,
     ):
         super().__init__()
         self.on_duration_available = on_duration_available
@@ -36,6 +37,7 @@ class PlayerTracker(QObject):
         self.set_is_playing = set_is_playing
         self.set_playback_rate = set_playback_rate
         self.player_toolbar_enabled = False
+        self.display_error = display_error
 
     @pyqtSlot("float")
     def on_new_time(self, time):
@@ -59,10 +61,8 @@ class PlayerTracker(QObject):
         self.set_playback_rate(playback_rate)
 
     @pyqtSlot(str)
-    def display_error(self, message: str) -> None:
-        tilia.errors.display(
-            tilia.errors.YOUTUBE_PLAYER_ERROR, message + f"\nVideo ID: {self.video_id}"
-        )
+    def on_error(self, message: str) -> None:
+        self.display_error(message)
 
     class State(Enum):
         UNSTARTED = -1
@@ -116,6 +116,7 @@ class YouTubePlayer(Player):
             self.set_current_time,
             self.set_is_playing,
             self._engine_set_playback_rate,
+            self.display_error,
         )
         self.channel.registerObject("backend", self.shared_object)
         self.view.page().setWebChannel(self.channel)
@@ -161,6 +162,11 @@ class YouTubePlayer(Player):
     def retry_get_duration(self):
         timer = QTimer()
         timer.singleShot(500, self._engine_get_media_duration)
+
+    def display_error(self, message: str):
+        tilia.errors.display(
+            tilia.errors.YOUTUBE_PLAYER_ERROR, message + f"\nVideo ID: {self.video_id}"
+        )
 
     @staticmethod
     def get_id_from_url(url):
