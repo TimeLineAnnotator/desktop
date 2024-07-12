@@ -50,9 +50,9 @@ class PlayerToolbar(QToolBar):
             listen(self, post, callback)
 
     def _setup_controls(self):
+        self.tooltipped_widgets = {}
         self.add_play_toggle()
-        self.stop_action = actions.get_qaction(TiliaAction.MEDIA_STOP)
-        self.addAction(self.stop_action)
+        self.add_stop_button()
         self.add_loop_toggle()
         self.add_time_label()
 
@@ -90,31 +90,21 @@ class PlayerToolbar(QToolBar):
     def on_update_controls(self, state):
         match state:
             case PlayerStatus.NO_MEDIA:
-                for widget in self.children():
-                    if (
-                        widget.inherits("QToolButton")
-                        or widget.inherits("QAction")
-                        or widget.inherits("QSlider")
-                        or widget.inherits("QDoubleSpinBox")
-                    ):
-                        widget.setToolTip(
-                            "<i>Player disabled.<br>Load file via '</i>File > Load Media File<i>' to start.</i>"
-                        )
+                for widget in self.tooltipped_widgets:
+                    widget.setToolTip(
+                        "<i>Player disabled.<br>Load file via '</i>File > Load Media File<i>' to start.</i>"
+                    )
                 self.setEnabled(False)
             case PlayerStatus.PLAYER_ENABLED:
+                for widget, tooltip in self.tooltipped_widgets.items():
+                    widget.setToolTip(tooltip)
                 self.reset()
                 self.setEnabled(True)
             case PlayerStatus.WAITING_FOR_YOUTUBE:
-                for widget in self.children():
-                    if (
-                        widget.inherits("QToolButton")
-                        or widget.inherits("QAction")
-                        or widget.inherits("QSlider")
-                        or widget.inherits("QDoubleSpinBox")
-                    ):
-                        widget.setToolTip(
-                            "<i>Player disabled.<br>Click on YouTube video to enable player.</i>"
-                        )
+                for widget in self.tooltipped_widgets:
+                    widget.setToolTip(
+                        "<i>Player disabled.<br>Click on YouTube video to enable player.</i>"
+                    )
                 self.setEnabled(False)
 
     def on_ui_update_silent(self, element_to_set, value):
@@ -182,7 +172,13 @@ class PlayerToolbar(QToolBar):
         self.play_toggle_action.setCheckable(True)
         self.play_toggle_action.setIcon(play_toggle_icon)
         self.play_toggle_action.setShortcut("Space")
+        self.tooltipped_widgets[self.play_toggle_action] = "Play / Pause (Space)"
         self.addAction(self.play_toggle_action)
+
+    def add_stop_button(self):
+        self.stop_action = actions.get_qaction(TiliaAction.MEDIA_STOP)
+        self.tooltipped_widgets[self.stop_action] = "Stop"
+        self.addAction(self.stop_action)
 
     def add_loop_toggle(self):
         def on_loop_changed(checked: bool) -> None:
@@ -206,6 +202,7 @@ class PlayerToolbar(QToolBar):
         )
         self.loop_toggle_action.setIcon(loop_toggle_icon)
         self.loop_toggle_action.setCheckable(True)
+        self.tooltipped_widgets[self.loop_toggle_action] = "Toggle Loop"
         self.addAction(self.loop_toggle_action)
 
     def add_time_label(self):
@@ -236,6 +233,7 @@ class PlayerToolbar(QToolBar):
         )
         self.volume_toggle_action.setIcon(volume_toggle_icon)
         self.volume_toggle_action.setCheckable(True)
+        self.tooltipped_widgets[self.volume_toggle_action] = "Mute / Unmute"
         self.addAction(self.volume_toggle_action)
 
     def add_volume_slider(self):
@@ -253,6 +251,7 @@ class PlayerToolbar(QToolBar):
             "QSlider::groove:horizontal { height: 4px; background: black;}"
             "QSlider::handle::horizontal { background: black; border: 2px solid black; width: 8px; margin: -4px 0; border-radius: 6px;}"
         )
+        self.tooltipped_widgets[self.volume_slider] = "Volume"
         self.addWidget(self.volume_slider)
 
     def add_playback_rate_spinbox(self):
@@ -275,6 +274,7 @@ class PlayerToolbar(QToolBar):
         self.playback_rate_spinbox.setSuffix(" x")
         self.playback_rate_spinbox.setKeyboardTracking(False)
         self.playback_rate_spinbox.valueChanged.connect(on_playback_rate_changed)
+        self.tooltipped_widgets[self.playback_rate_spinbox] = "Playback Rate"
         self.addWidget(self.playback_rate_spinbox)
 
     def playback_rate_spinbox_update_silent(self) -> None:
@@ -291,12 +291,6 @@ class PlayerToolbar(QToolBar):
         self.loop_toggle_action.setChecked(False)
         self.last_playback_rate = 1
         self.playback_rate_spinbox.setValue(1)
-        self.play_toggle_action.setToolTip("Play / Pause (Space)")
-        self.stop_action.setToolTip("Stop")
-        self.loop_toggle_action.setToolTip("Toggle Loop")
-        self.volume_toggle_action.setToolTip("Mute / Unmute")
-        self.volume_slider.setToolTip("Volume")
-        self.playback_rate_spinbox.setToolTip("Playback Rate")
         self.blockSignals(False)
 
 
