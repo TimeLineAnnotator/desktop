@@ -62,6 +62,7 @@ class MarkerUI(TimelineUIElement):
         self._setup_label()
 
         self.dragged = False
+        self.drag_manager = None
 
     def _setup_body(self):
         self.body = MarkerBody(self.x, self.width, self.height, self.ui_color)
@@ -128,13 +129,16 @@ class MarkerUI(TimelineUIElement):
         self.setup_drag()
 
     def double_left_click_triggers(self):
-        return [self.body]
+        return [self.body, self.label]
 
     def on_double_left_click(self, _):
+        if self.drag_manager:
+            self.drag_manager.on_release()
+            self.drag_manager = None
         post(Post.PLAYER_SEEK, self.seek_time)
 
     def setup_drag(self):
-        DragManager(
+        self.drag_manager = DragManager(
             get_min_x=lambda: get(Get.LEFT_MARGIN_X),
             get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
             before_each=self.before_each_drag,

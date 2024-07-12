@@ -58,6 +58,7 @@ class HarmonyUI(TimelineUIElement):
         self._setup_body()
 
         self.dragged = False
+        self.drag_manager = None
 
     def _setup_body(self):
         self.body = HarmonyBody(self.x, self.y, self.label, self.font_type)
@@ -230,8 +231,17 @@ class HarmonyUI(TimelineUIElement):
     def on_left_click(self, _) -> None:
         self.setup_drag()
 
+    def double_left_click_triggers(self):
+        return [self.body]
+
+    def on_double_left_click(self, _):
+        if self.drag_manager:
+            self.drag_manager.on_release()
+            self.drag_manager = None
+        post(Post.PLAYER_SEEK, self.seek_time)
+
     def setup_drag(self):
-        DragManager(
+        self.drag_manager = DragManager(
             get_min_x=lambda: get(Get.LEFT_MARGIN_X),
             get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
             before_each=self.before_each_drag,
@@ -254,6 +264,7 @@ class HarmonyUI(TimelineUIElement):
             post(Post.ELEMENT_DRAG_END)
 
         self.dragged = False
+        self.drag_manager = None
 
     def on_select(self) -> None:
         self.body.on_select()

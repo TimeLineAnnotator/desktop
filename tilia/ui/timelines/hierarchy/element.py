@@ -127,6 +127,7 @@ class HierarchyUI(TimelineUIElement):
 
         self.dragged = False
         self.drag_extremity = None
+        self.drag_manager = None
 
     @property
     def base_height(self):
@@ -485,9 +486,12 @@ class HierarchyUI(TimelineUIElement):
         start_drag(self, item)
 
     def double_left_click_triggers(self):
-        return self.body, self.comments_icon, self.label
+        return [self.body, self.comments_icon, self.label] + self.left_click_triggers()
 
     def on_double_left_click(self, _) -> None:
+        if self.drag_manager:
+            self.drag_manager.on_release()
+            self.drag_manager = None
         post(Post.PLAYER_SEEK, self.seek_time)
 
     def right_click_triggers(self):
