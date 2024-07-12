@@ -57,13 +57,13 @@ class App:
             (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
-            (Post.AUTOSAVES_FOLDER_OPEN, tilia.dirs.open_autosaves_dir)
+            (Post.AUTOSAVES_FOLDER_OPEN, tilia.dirs.open_autosaves_dir),
         }
 
         SERVES = {
             (Get.ID, self.get_id),
             (Get.APP_STATE, self.get_app_state),
-            (Get.MEDIA_DURATION, lambda: self.duration)
+            (Get.MEDIA_DURATION, lambda: self.duration),
         }
 
         for post, callback in LISTENS:
@@ -130,9 +130,7 @@ class App:
 
     @staticmethod
     def _check_if_media_exists(path: str) -> bool:
-        return (
-            not re.match(path, tilia.constants.YOUTUBE_URL_REGEX) or Path(path).exists()
-        )
+        return re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists()
 
     def _setup_file_media(self, path: str, duration: float | None):
         if duration:
@@ -191,7 +189,9 @@ class App:
 
     def setup_file(self):
         # creates a slider timeline if none was loaded
-        if not get(Get.TIMELINE_COLLECTION).has_timeline_of_kind(TimelineKind.SLIDER_TIMELINE):
+        if not get(Get.TIMELINE_COLLECTION).has_timeline_of_kind(
+            TimelineKind.SLIDER_TIMELINE
+        ):
             self.timelines.create_timeline(TimelineKind.SLIDER_TIMELINE)
             self.file_manager.set_timelines(self.get_timelines_state())
 
