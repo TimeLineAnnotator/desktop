@@ -73,7 +73,7 @@ def import_by_time(
             if not component:
                 errors.append(fail_reason)
 
-            timeline.do_genealogy()
+        timeline.do_genealogy()
         return errors
 
 
