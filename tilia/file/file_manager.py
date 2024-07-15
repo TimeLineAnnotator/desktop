@@ -6,6 +6,7 @@ from tilia.exceptions import (
     TiliaFileWriteError,
     MediaMetadataFieldNotFound,
 )
+import tilia.exceptions
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile
@@ -175,9 +176,12 @@ class FileManager:
         write_tilia_file_to_disk(TiliaFile(**data), str(path))
         data["file_path"] = path
         self.file = TiliaFile(**data)
-        settings.update_recent_files(
-            path, get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
-        )
+        try:
+            settings.update_recent_files(
+                path, get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
+            )
+        except tilia.exceptions.NoReplyToRequest:
+            settings.update_recent_files(path, None, None)
 
     def open(self, file_path: str | Path):
         with open(file_path, "r", encoding="utf-8") as f:
