@@ -10,4 +10,4 @@ def setup_parser(subparsers):
 
 
 def import_metadata(namespace: argparse.Namespace):
-    post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "".join(namespace.path))
+    post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, " ".join(namespace.path))
