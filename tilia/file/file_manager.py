@@ -35,15 +35,21 @@ class FileManager:
             (Post.FILE_OPEN, self.on_request_open_file),
             (Post.FILE_OPEN_PATH, self.on_request_open_file_path),
             (Post.REQUEST_FILE_NEW, self.on_request_new_file),
-            (Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, self.on_import_media_metadata_request),
+            (
+                Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH,
+                self.on_import_media_metadata_request,
+            ),
             (Post.MEDIA_METADATA_FIELD_SET, self.on_set_media_metadata_field),
-            (Post.METADATA_UPDATE_FIELDS, self.on_update_media_metadata_fields)
+            (Post.METADATA_UPDATE_FIELDS, self.on_update_media_metadata_fields),
         }
 
         SERVES = {
             (Get.MEDIA_METADATA, lambda: self.file.media_metadata),
-            (Get.MEDIA_METADATA_REQUIRED_FIELDS, self.get_media_metadata_required_fields),
-            (Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"])
+            (
+                Get.MEDIA_METADATA_REQUIRED_FIELDS,
+                self.get_media_metadata_required_fields,
+            ),
+            (Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"]),
         }
 
         for post, callback in LISTENS:
@@ -107,8 +113,8 @@ class FileManager:
 
         post(Post.APP_CLEAR)
 
-        self.open(path)    
-        
+        self.open(path)
+
     def on_request_open_file_path(self, path: str | Path):
         if not self.on_close_modified_file():
             return
@@ -135,13 +141,15 @@ class FileManager:
             raise MediaMetadataFieldNotFound(f"Field {field_name} not found.")
 
         self.file.media_metadata[field_name] = value
-        
+
     def on_update_media_metadata_fields(self, fields: list) -> None:
         new_metadata = {}
         for field in fields:
-            value = self.file.media_metadata.get(field, self.file.media_metadata.get(field.lower(), ""))
+            value = self.file.media_metadata.get(
+                field, self.file.media_metadata.get(field.lower(), "")
+            )
             new_metadata[field] = value
-        
+
         self.set_media_metadata(MediaMetadata.from_dict(new_metadata))
 
     def on_import_media_metadata_request(self, path: Path | str) -> None:
@@ -149,7 +157,9 @@ class FileManager:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except json.decoder.JSONDecodeError as err:
-            tilia.errors.display(tilia.errors.MEDIA_METADATA_IMPORT_JSON_FAILED, path, repr(err))
+            tilia.errors.display(
+                tilia.errors.MEDIA_METADATA_IMPORT_JSON_FAILED, path, repr(err)
+            )
             return
         except FileNotFoundError:
             tilia.errors.display(tilia.errors.MEDIA_METADATA_IMPORT_FILE_FAILED, path)
@@ -165,7 +175,9 @@ class FileManager:
         write_tilia_file_to_disk(TiliaFile(**data), str(path))
         data["file_path"] = path
         self.file = TiliaFile(**data)
-        settings.update_recent_files(path, get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE))
+        settings.update_recent_files(
+            path, get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
+        )
 
     def open(self, file_path: str | Path):
         with open(file_path, "r", encoding="utf-8") as f:
