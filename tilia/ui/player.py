@@ -83,6 +83,7 @@ class PlayerToolbar(QToolBar):
         self.duration_string = format_media_time(0)
         self.current_time_string = format_media_time(0)
         self.update_time_string()
+        self.on_update_controls(PlayerStatus.NO_MEDIA)
 
     def update_time_string(self):
         self.time_label.setText(f"{self.current_time_string}/{self.duration_string}")
