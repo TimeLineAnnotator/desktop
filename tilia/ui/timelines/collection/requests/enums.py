@@ -5,6 +5,7 @@ class TimelineSelector(Enum):
     ANY = auto()
     FROM_MANAGE_TIMELINES_CURRENT = auto()
     FROM_MANAGE_TIMELINES_TO_PERMUTE = auto()
+    FROM_CONTEXT_MENU_TO_PERMUTE = auto()
     EXPLICIT = auto()
     SELECTED = auto()
     ALL = auto()
