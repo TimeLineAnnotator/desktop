@@ -93,6 +93,7 @@ def _get_args_for_timeline_add_harmony_timeline(_):
         return (False, ""), {}
     return _get_timeline_name()
 
+
 def _get_args_for_timeline_add_audiowave_timeline(_):
     if not _get_media_duration_valid_for_add_timeline():
         tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
@@ -106,7 +107,7 @@ def _get_args_for_timeline_height_set(timeline_uis):
         "Change timeline height",
         "Insert new timeline height",
         initial=timeline_ui.get_data("height"),
-        min=10
+        min=10,
     )
     if not accept:
         raise UserCancelledDialog

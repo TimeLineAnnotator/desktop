@@ -176,7 +176,10 @@ class TimelineUIs:
             (Post.HIERARCHY_SELECTED, self.on_hierarchy_selected),
             (Post.HIERARCHY_DESELECTED, self.on_hierarchy_deselected),
             (Post.HIERARCHY_MERGE_SPLIT_DONE, self.on_hierarchy_merge_split),
-            (Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.on_harmony_timeline_components_deserialized),
+            (
+                Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED,
+                self.on_harmony_timeline_components_deserialized,
+            ),
             (Post.LOOP_IGNORE_COMPONENT, self.on_loop_ignore_delete),
             (Post.PLAYER_CANCEL_LOOP, self.on_loop_cancel),
             (Post.PLAYER_TOGGLE_LOOP, self.on_loop_toggle),
@@ -673,7 +676,7 @@ class TimelineUIs:
             self._update_loop_elements()
 
     def on_harmony_timeline_components_deserialized(self, id):
-        self.get_timeline_ui(id).on_timeline_components_deserialized() # noqa
+        self.get_timeline_ui(id).on_timeline_components_deserialized()  # noqa
 
     def on_loop_ignore_delete(self, tl_id: int, comp_id: int):
         self.loop_delete_ignore.add((tl_id, comp_id))
