@@ -58,6 +58,7 @@ class App:
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
             (Post.AUTOSAVES_FOLDER_OPEN, tilia.dirs.open_autosaves_dir),
+            (Post.TIMELINE_ADD, self.on_timeline_add),
         }
 
         SERVES = {
@@ -196,3 +197,6 @@ class App:
             self.file_manager.set_timelines(self.get_timelines_state())
 
         self.reset_undo_manager()
+
+    def on_timeline_add(self, tl_kind: TimelineKind, **kwargs):
+        self.timelines.create_timeline(tl_kind, **kwargs)
