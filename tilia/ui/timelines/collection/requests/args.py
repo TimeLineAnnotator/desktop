@@ -114,6 +114,21 @@ def _get_args_for_timeline_height_set(timeline_uis):
     return (height,), {}
 
 
+def _get_args_for_timeline_ordinal_increase_from_context_menu(timelines):
+    return _get_args_for_timeline_ordinal_permute_from_context_menu(timelines, 1)
+
+
+def _get_args_for_timeline_ordinal_decrease_from_context_menu(timelines):
+    return _get_args_for_timeline_ordinal_permute_from_context_menu(timelines, -1)
+
+
+def _get_args_for_timeline_ordinal_permute_from_context_menu(*_):
+    tlui1, tlui2 = get(Get.CONTEXT_MENU_TIMELINE_UIS_TO_PERMUTE)
+    return (
+        {tlui1.id: tlui2.get_data("ordinal"), tlui2.id: tlui1.get_data("ordinal")},
+    ), {}
+
+
 def _get_args_for_timeline_is_visible_set_from_manage_timelines(_):
     is_visible = not (
         get(Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT).get_data("is_visible")

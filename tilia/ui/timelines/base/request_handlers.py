@@ -25,6 +25,8 @@ class TimelineRequestHandler(RequestHandler):
             ),
             Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES: self.on_timeline_ordinal_permute_from_manage_timelines,
             Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES: self.on_timeline_ordinal_permute_from_manage_timelines,
+            Post.TIMELINE_ORDINAL_DECREASE_FROM_CONTEXT_MENU: self.on_timeline_ordinal_permute_from_context_menu,
+            Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU: self.on_timeline_ordinal_permute_from_context_menu,
         }
         super().__init__(
             request_to_callback=request_to_callback | base_request_to_callback
@@ -39,6 +41,9 @@ class TimelineRequestHandler(RequestHandler):
         get(Get.TIMELINE_COLLECTION).set_timeline_data(self.timeline_ui.id, attr, value)
 
     def on_timeline_ordinal_permute_from_manage_timelines(self, id_to_ordinal):
+        self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
+
+    def on_timeline_ordinal_permute_from_context_menu(self, id_to_ordinal):
         self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
 
     def on_timeline_delete(self, confirmed):

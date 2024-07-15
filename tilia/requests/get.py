@@ -13,6 +13,7 @@ class Get(Enum):
     APP_STATE = auto()
     TIMELINE_ELEMENTS_SELECTED = auto()
     CLIPBOARD_CONTENTS = auto()
+    CONTEXT_MENU_TIMELINE_UIS_TO_PERMUTE = auto()
     FIRST_TIMELINE_UI_IN_SELECT_ORDER = auto()
     FROM_USER_BEAT_PATTERN = auto()
     FROM_USER_COLOR = auto()
