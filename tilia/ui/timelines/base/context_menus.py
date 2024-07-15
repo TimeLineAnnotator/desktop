@@ -53,7 +53,7 @@ class TimelineUIContextMenu(TiliaMenu):
             tlui.get_data("ordinal"): tlui for tlui in get(Get.TIMELINE_UIS)
         }
         if indices_to_timelines.get(current_index - 1, False):
-            move_up = QAction("Move timeline up", self)
+            move_up = QAction("Move up", self)
             move_up.triggered.connect(on_move_up)
             self.addAction(move_up)
 
@@ -70,7 +70,7 @@ class TimelineUIContextMenu(TiliaMenu):
             tlui.get_data("ordinal"): tlui for tlui in get(Get.TIMELINE_UIS)
         }
         if indices_to_timelines.get(current_index + 1, False):
-            move_down = QAction("Move timeline down", self)
+            move_down = QAction("Move down", self)
             move_down.triggered.connect(on_move_down)
             self.addAction(move_down)
 
@@ -79,7 +79,7 @@ class TimelineUIContextMenu(TiliaMenu):
             if confirm_delete_timeline(self.timeline_ui.get_data("name")):
                 get(Get.TIMELINE_COLLECTION).delete_timeline(self.timeline_ui.timeline)
 
-        delete_timeline = QAction("Delete timeline", self)
+        delete_timeline = QAction("Delete", self)
         delete_timeline.triggered.connect(on_delete)
         self.addAction(delete_timeline)
 
