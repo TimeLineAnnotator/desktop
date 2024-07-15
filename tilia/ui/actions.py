@@ -76,8 +76,6 @@ class TiliaAction(Enum):
     TIMELINE_ELEMENT_EXPORT_AUDIO = auto()
     TIMELINE_HEIGHT_SET = auto()
     TIMELINE_NAME_SET = auto()
-    TIMELINE_ORDINAL_DECREASE = auto()
-    TIMELINE_ORDINAL_INCREASE = auto()
     VIEW_ZOOM_IN = auto()
     VIEW_ZOOM_OUT = auto()
     WEBSITE_HELP_OPEN = auto()
@@ -360,15 +358,6 @@ taction_to_params = {
     ),
     TiliaAction.TIMELINE_HEIGHT_SET: ActionParams(
         Post.TIMELINE_HEIGHT_SET, "Change height", "", ""
-    ),
-    TiliaAction.TIMELINE_ORDINAL_INCREASE: ActionParams(
-        Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES, "Move timeline up", "", ""
-    ),
-    TiliaAction.TIMELINE_ORDINAL_DECREASE: ActionParams(
-        Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES,
-        "Move timeline down",
-        "",
-        "",
     ),
     TiliaAction.VIEW_ZOOM_IN: ActionParams(Post.VIEW_ZOOM_IN, "Zoom in", "", "Ctrl++"),
     TiliaAction.VIEW_ZOOM_OUT: ActionParams(
