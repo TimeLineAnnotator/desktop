@@ -156,18 +156,18 @@ def import_timeline(namespace):
     if tl_kind == "marker":
         tl: MarkerTimeline
         if measure_or_time == "by-measure":
-            errors = csv.markers_by_measure_from_csv(tl, ref_tl, file)
+            errors = csv.marker.import_by_measure(tl, ref_tl, file)
         else:
-            errors = csv.markers_by_time_from_csv(tl, file)
+            errors = csv.marker.import_by_time(tl, file)
     elif tl_kind == "hierarchy":
         tl: HierarchyTimeline
         if measure_or_time == "by-measure":
-            errors = csv.hierarchies_by_measure_from_csv(tl, ref_tl, file)
+            errors = csv.hierarchy.import_by_measure(tl, ref_tl, file)
         else:
-            errors = csv.hierarchies_by_time_from_csv(tl, file)
+            errors = csv.hierarchy.import_by_time(tl, file)
     elif tl_kind == "beat":
         tl: BeatTimeline
-        errors = csv.beats_from_csv(tl, file)
+        errors = csv.beat.beats_from_csv(tl, file)
 
     if errors:
         io.output(f"Errors: {errors}")
