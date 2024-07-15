@@ -990,6 +990,8 @@ class TimelineUIs:
     def set_is_dragging(self, is_dragging: bool) -> None:
         # noinspection PyAttributeOutsideInit
         self.is_dragging = is_dragging
+        if is_dragging:
+            self.clear_selection_boxes()
 
     def on_slider_drag(self, x: float):
         time = get_time_by_x(x)
