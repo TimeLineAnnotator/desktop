@@ -9,5 +9,6 @@ PyQt6-WebEngine==6.6.0
 PyQt6-WebEngine-Qt6==6.6.0
 python-dotenv>=1.0.1
 pypdf~=4.2.0
+pytube~=15.0.0
 
 pytest>=8.0.0
