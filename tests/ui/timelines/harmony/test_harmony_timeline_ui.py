@@ -5,7 +5,6 @@ from tests.mock import Serve
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tilia.requests import Get
 from tilia.ui.actions import TiliaAction
-from tilia.ui.timelines.harmony.constants import INT_TO_ACCIDENTAL
 
 FLAT_SIGN = "b"
 SHARP_SIGN = "#"
