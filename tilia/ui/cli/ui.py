@@ -51,14 +51,43 @@ class CLI:
         self.player = QtPlayer()
         post(Post.PLAYER_AVAILABLE, self.player)
 
+    @staticmethod
+    def parse_command(arg_string):
+        args = []
+        quoted_string = ''
+        in_quotes = False
+        for arg in arg_string.split(' '):
+            if not in_quotes and arg.startswith('"') and arg.endswith('"'):
+                args.append(arg[1:-1])
+            elif not in_quotes and arg.startswith('"'):
+                in_quotes = True
+                quoted_string = arg[1:]
+            elif in_quotes and not arg.endswith('"'):
+                quoted_string += ' ' + arg
+            elif in_quotes and arg.endswith('"'):
+                in_quotes = False
+                quoted_string += ' ' + arg[:-1]
+                args.append(quoted_string)
+            elif not in_quotes and arg.endswith('"'):
+                return None
+            else:
+                args.append(arg)
+
+        if in_quotes:
+            return None
+        return args
+
     def launch(self):
         """
         Launches the CLI.
         """
-        print("--- TiLiA CLI v0.0 ---")
+        print("--- TiLiA CLI v0.1 ---")
         while True:
             cmd = input(">>> ")
-            self.run(cmd.split(" "))
+            args = self.parse_command(cmd)
+            if args is None:
+                post(Post.DISPLAY_ERROR, "Parse error: Invalid quoted arguments")
+            self.run(args)
 
     def run(self, cmd):
         """
