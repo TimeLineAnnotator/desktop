@@ -7,7 +7,7 @@ from tilia.requests import Get
 from tilia.ui.actions import TiliaAction
 from tilia.ui.timelines.harmony.constants import INT_TO_ACCIDENTAL
 
-FLAT_SIGN = 'b'
+FLAT_SIGN = "b"
 SHARP_SIGN = "#"
 
 
@@ -39,7 +39,6 @@ def add_mode(**kwargs):
 
 
 class TestRomanNumeralDisplay:
-   
     @pytest.mark.parametrize(
         "accidental,accidental_label", [(1, "#"), (0, ""), (-1, "b")]
     )
@@ -128,14 +127,16 @@ class TestRomanNumeralDisplay:
 
 
 class TestCopyPaste:
-    def test_paste_multiple_to_harmony_with_mode_as_first_copied(self, tilia_state, harmony_tlui, actions):
+    def test_paste_multiple_to_harmony_with_mode_as_first_copied(
+        self, tilia_state, harmony_tlui, actions
+    ):
         add_harmony()
         add_mode()
         tilia_state.current_time = 10
         add_harmony()
 
         click_harmony_ui(harmony_tlui.modes()[0])
-        click_harmony_ui(harmony_tlui.harmonies()[1], modifier='shift')
+        click_harmony_ui(harmony_tlui.harmonies()[1], modifier="shift")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         click_harmony_ui(harmony_tlui.harmonies()[1])
