@@ -4,8 +4,8 @@ from pathlib import Path
 import tilia.errors
 import tilia.constants
 import tilia.media.constants
-from tilia.media import player
 from tilia.media.player import Player
+from tilia.requests import get, Get
 
 
 class MediaLoader:
@@ -29,12 +29,8 @@ class MediaLoader:
 
     def _change_player_type(self, media_type):
         self.player.destroy()
-
-        self.player = {
-            "video": player.QtVideoPlayer,
-            "audio": player.QtAudioPlayer,
-            "youtube": player.YouTubePlayer,
-        }[media_type]()
+        player_cls = get(Get.PLAYER_CLASS, media_type)
+        self.player = player_cls()
 
 
 def get_media_type_from_path(path: str):

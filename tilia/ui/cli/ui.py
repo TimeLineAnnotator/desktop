@@ -6,7 +6,9 @@ import traceback
 import argparse
 
 from tilia.exceptions import TiliaExit
-from tilia.requests.post import Post, listen
+from tilia.media.player.qtplayer import QtPlayer
+from tilia.requests import Get, serve
+from tilia.requests.post import Post, listen, post
 from tilia.ui.cli import (
     components,
     load_media,
@@ -17,6 +19,7 @@ from tilia.ui.cli import (
     io,
     metadata,
 )
+from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
 
 
 class CLI:
@@ -24,11 +27,16 @@ class CLI:
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         self.subparsers = self.parser.add_subparsers(dest="command")
         self.setup_parsers()
+        self.setup_player()
         self.exception = None
 
         listen(
             self, Post.DISPLAY_ERROR, self.on_request_to_display_error
         )  # ignores error title
+
+        serve(
+            self, Get.PLAYER_CLASS, self.get_player_class
+        )
 
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
@@ -38,6 +46,10 @@ class CLI:
         components.setup_parser(self.subparsers)
         metadata.setup_parser(self.subparsers)
         script.setup_parser(self.subparsers, self.run)
+
+    def setup_player(self):
+        self.player = QtPlayer()
+        post(Post.PLAYER_AVAILABLE, self.player)
 
     def launch(self):
         """
@@ -77,3 +89,11 @@ class CLI:
     def on_request_to_display_error(_, message: str) -> None:
         """Ignores title and prints error message to output"""
         io.output(message)
+
+    @staticmethod
+    def get_player_class(media_type: str):
+        return {
+            "video": CLIVideoPlayer,
+            "audio": QtPlayer,
+            "youtube": CLIYoutubePlayer,
+        }[media_type]
