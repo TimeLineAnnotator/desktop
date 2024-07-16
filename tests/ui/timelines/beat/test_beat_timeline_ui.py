@@ -385,7 +385,7 @@ class TestActions:
         beat_tlui.select_element(beat_tlui[0])
 
         beat_tlui.timeline.set_beat_amount_in_measure = MagicMock()
-        with patch("tilia.ui.dialogs.basic.ask_for_int", lambda *_: (11, True)):
+        with patch("tilia.ui.dialogs.basic.ask_for_int", lambda *_, **__: (11, True)):
             actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
 
         beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)
