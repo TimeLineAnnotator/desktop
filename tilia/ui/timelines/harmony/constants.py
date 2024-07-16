@@ -15,7 +15,6 @@ INT_TO_ROMAN = {v: k for k, v in ROMAN_TO_INT.items()}
 
 
 ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
-INT_TO_ACCIDENTAL = {v: k for k, v in ACCIDENTAL_TO_INT.items()}
 INT_TO_MUSIC21_ACCIDENTAL = {0: "", 1: "#", -1: "-", 2: "##", -2: "--"}
 ACCIDENTAL_NUMBER_TO_MUSIC21_CHAR = {0: "", 1: "#", -1: "-", 2: "##", -2: "--"}
 ACCIDENTAL_NUMBER_TO_MUSANALYSIS_STR = {
