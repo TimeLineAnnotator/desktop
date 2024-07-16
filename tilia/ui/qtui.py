@@ -39,7 +39,7 @@ from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
-from ..media.player import QtAudioPlayer
+from ..media.player import QtAudioPlayer, QtVideoPlayer, YouTubePlayer
 from ..parsers.csv.beat import beats_from_csv
 from tilia import constants
 from tilia.settings import settings
@@ -157,6 +157,7 @@ class QtUI:
 
         SERVES = {
             (Get.TIMELINE_WIDTH, lambda: self.timeline_width),
+            (Get.PLAYER_CLASS, self.get_player_class),
             (Get.PLAYBACK_AREA_WIDTH, lambda: self.playback_area_width),
             (Get.LEFT_MARGIN_X, lambda: self.playback_area_margin),
             (Get.RIGHT_MARGIN_X, lambda: self.playback_area_width + self.playback_area_margin),
@@ -496,3 +497,11 @@ class QtUI:
     def show_crash_dialog(exception_info):
         dialog = CrashDialog(exception_info)
         dialog.exec()
+
+    @staticmethod
+    def get_player_class(media_type: str):
+        return {
+            "video": QtVideoPlayer,
+            "audio": QtAudioPlayer,
+            "youtube": YouTubePlayer,
+        }[media_type]

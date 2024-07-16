@@ -44,6 +44,7 @@ class Get(Enum):
     MEDIA_TYPE = auto()
     METRIC_POSITION = auto()
     PLAYBACK_AREA_WIDTH = auto()
+    PLAYER_CLASS = auto()
     RIGHT_MARGIN_X = auto()
     SELECTED_TIME = auto()
     TIMELINE = auto()
