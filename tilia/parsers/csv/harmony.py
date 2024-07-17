@@ -8,7 +8,8 @@ from tilia.parsers.csv.common import (
     _get_attrs_indices,
     _validate_required_attrs,
     _parse_attr_data,
-    _get_attr_data, _parse_measure_fraction,
+    _get_attr_data,
+    _parse_measure_fraction,
 )
 from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.timelines.beat.timeline import BeatTimeline
