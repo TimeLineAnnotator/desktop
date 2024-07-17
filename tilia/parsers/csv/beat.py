@@ -19,8 +19,7 @@ def beats_from_csv(
     """
     Create beat in a timeline from times extracted from a csv file.
     Assumes the first row of the file will contain a header named 'time'.
-    Returns an array with descriptions of any CreateComponentErrors
-    raised during beat creation.
+    Returns an array with descriptions of any errors during the process.
     """
 
     errors = []

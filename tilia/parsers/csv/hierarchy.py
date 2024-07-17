@@ -89,8 +89,7 @@ def import_by_measure(
     Assumes the first row of the file will contain headers.
     Header names should match hierarchy propertiesAll properties
     but 'measure' are optional.
-    Returns an array with descriptions of any CreateComponentErrors
-    raised during hierarchy creation.
+    Returns an array with descriptions of any errors during the process.
 
     Note: The measure column should have measure indices, not measure numbers.
     That means that repeated measure numbers should not be taken into account.
