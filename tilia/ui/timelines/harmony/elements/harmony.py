@@ -15,10 +15,10 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
-    ACCIDENTAL_NUMBER_TO_MUSIC21_CHAR,
     QUALITY_TO_ABBREVIATION,
     INT_TO_ROMAN,
     INVERSION_TO_INTERVAL,
+    Accidental,
 )
 from tilia.ui.timelines.harmony.context_menu import HarmonyContextMenu
 from tilia.ui.timelines.harmony.utils import to_roman_numeral
@@ -87,7 +87,10 @@ class HarmonyUI(TimelineUIElement):
     def chord_symbol(self):
         symbol = music21.harmony.ChordSymbol(
             INT_TO_NOTE_NAME[self.get_data("step")]
-            + ACCIDENTAL_NUMBER_TO_MUSIC21_CHAR[self.get_data("accidental")]
+            + Accidental.get_from_int(
+                "music21",
+                self.get_data("accidental"),
+            )
             + QUALITY_TO_ABBREVIATION[self.get_data("quality")],
             inversion=self.get_data("inversion"),
         )

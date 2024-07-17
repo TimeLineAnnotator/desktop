@@ -15,7 +15,7 @@ from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     INT_TO_NOTE_NAME,
-    INT_TO_MUSIC21_ACCIDENTAL,
+    Accidental,
 )
 
 
@@ -67,7 +67,9 @@ class Mode(TimelineComponent):
     def key(self):
         tonic = INT_TO_NOTE_NAME[self.step]
         tonic_symbol = tonic.lower() if self.get_data("type") == "minor" else tonic
-        accidental_symbol = INT_TO_MUSIC21_ACCIDENTAL[self.get_data("accidental")]
+        accidental_symbol = Accidental.get_from_int(
+            "music21", self.get_data("accidental")
+        )
         return music21.key.Key(tonic_symbol + accidental_symbol)
 
 
