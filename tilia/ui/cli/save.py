@@ -24,7 +24,7 @@ def ask_overwrite_save_path(path: Path):
 
 
 def save(namespace):
-    path = Path(" ".join(namespace.path).strip('"'))
+    path = Path("".join(namespace.path).strip('"'))
     path = ensure_tla_extension(path)
 
     if path.exists():

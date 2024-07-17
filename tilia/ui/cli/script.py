@@ -9,7 +9,7 @@ def setup_parser(subparsers, run_command: Callable[[str, None], None]):
 
 
 def run(run_command, namespace):
-    path = " ".join(namespace.path)
+    path = "".join(namespace.path)
     print(path)
 
     with open(path, "r") as file:
