@@ -96,6 +96,13 @@ def import_by_time(
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
 ) -> list[str]:
+    """
+    Create harmonies in a timeline from a csv file with times.
+    Assumes the first row of the file will contain headers.
+    Header names should match harmony properties.
+    At least, 'harmony_or_key', 'time' and 'symbol' should be present.
+    Returns an array with descriptions of any errors during the process.
+    """
     errors = []
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
@@ -154,6 +161,13 @@ def import_by_measure(
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
 ) -> list[str]:
+    """
+    Create harmonies in a timeline from a csv file with csv file with 1-based measure indices.
+    Assumes the first row of the file will contain headers.
+    Header names should match harmony properties.
+    At least, 'harmony_or_key', 'time' and 'symbol' should be present.
+    Returns an array with descriptions of any errors during the process.
+    """
     errors = []
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
