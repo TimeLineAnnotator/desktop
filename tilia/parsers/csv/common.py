@@ -3,7 +3,7 @@ from typing import Any, Callable
 from tilia.parsers.csv.base import AttributeData
 
 
-def _get_attrs_indices(params: list[str], headers: list[str]) -> [int]:
+def _get_attrs_indices(params: list[str], headers: list[str]) -> list[int]:
     result = []
 
     for p in params:
@@ -15,7 +15,7 @@ def _get_attrs_indices(params: list[str], headers: list[str]) -> [int]:
     return result
 
 
-def _validate_required_attrs(params: list[str], indices: [int | None]):
+def _validate_required_attrs(params: list[str], indices: int | None):
     for i, param in enumerate(params):
         if indices[i] is None:
             return False, f'"{param}" not found on CSV header.'
