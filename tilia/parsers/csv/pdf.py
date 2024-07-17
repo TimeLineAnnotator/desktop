@@ -3,8 +3,13 @@ from pathlib import Path
 from typing import Any
 
 from tilia.parsers.csv.base import TiliaCSVReader
-from tilia.parsers.csv.common import _get_attrs_indices, _validate_required_attrs, _get_attr_data, _parse_attr_data, \
-    _parse_measure_fraction
+from tilia.parsers.csv.common import (
+    _get_attrs_indices,
+    _validate_required_attrs,
+    _get_attr_data,
+    _parse_attr_data,
+    _parse_measure_fraction,
+)
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.pdf.timeline import PdfTimeline
@@ -77,9 +82,7 @@ def import_by_time(
                 continue
 
             errors += _create_component(
-                timeline,
-                attr_to_value["time"],
-                attr_to_value["page_number"]
+                timeline, attr_to_value["time"], attr_to_value["page_number"]
             )
 
         return errors
@@ -103,7 +106,7 @@ def import_by_measure(
         attrs_with_parsers = [
             ("measure", int),
             ("fraction", _parse_measure_fraction),
-            ("page_number", functools.partial(_parse_page_number, pdf_tl))
+            ("page_number", functools.partial(_parse_page_number, pdf_tl)),
         ]
 
         required_attrs = ["measure", "page_number"]
@@ -139,10 +142,6 @@ def import_by_measure(
                 continue
 
             for time in times:
-                errors += _create_component(
-                    pdf_tl,
-                    time,
-                    attr_to_value['page_number']
-                )
+                errors += _create_component(pdf_tl, time, attr_to_value["page_number"])
 
         return errors

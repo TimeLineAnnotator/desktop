@@ -45,9 +45,18 @@ def _parse_attr_data(
                 else ""
             )
             if attr in required_attrs:
-                return False, [f"{value} is not a valid {attr.replace('_', ' ')}. " + appended_text], {}
+                return (
+                    False,
+                    [
+                        f"{value} is not a valid {attr.replace('_', ' ')}. "
+                        + appended_text
+                    ],
+                    {},
+                )
             else:
-                errors.append(f"{value} is not a valid {attr.replace('_', ' ')}. " + appended_text)
+                errors.append(
+                    f"{value} is not a valid {attr.replace('_', ' ')}. " + appended_text
+                )
     return True, errors, attr_to_value
 
 
