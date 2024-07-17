@@ -45,6 +45,12 @@ def import_by_time(
     file_kwargs: dict[str, Any] | None = None,
     reader_kwargs: dict[str, Any] | None = None,
 ) -> list[str]:
+    """
+    Create .pdf markers in a timeline from a csv file with times.
+    Assumes the first row of the file will contain headers.
+    Header names must contain 'time' and 'page_number'.
+    Returns an array with descriptions of any errors during the process.
+    """
     errors = []
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
@@ -95,6 +101,12 @@ def import_by_measure(
     file_kwargs: dict[str, Any] | None = None,
     reader_kwargs: dict[str, Any] | None = None,
 ) -> list[str]:
+    """
+    Create .pdf markers in a timeline from a csv file with 1-based measure indices.
+    Assumes the first row of the file will contain headers.
+    Header names must contain 'time' and 'page_number'.
+    Returns an array with any errors during the process.
+    """
     errors = []
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
