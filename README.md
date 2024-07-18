@@ -1,5 +1,8 @@
-[docs/img/logo.png]
----
+<p align="center">
+  <a href="https://tilia-app.com/">
+    <img src="docs/img/logo.png" alt="drawing" width="100" align="center" >
+  </a>
+</p>
 TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotations over video and audio files. It is a full-featured but easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PyQt library for its GUI.
 
 TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are four types of timelines (hierarchy, marker, beat and harmony) but many more are planned.
@@ -47,13 +50,13 @@ There are many more features that I would like to implement than can be listed h
 
 ## Online platform
 
-The TiLiA desktop app is supported by an (online platform)[https://tilia-app.com] that allows `.tla` files to be stored, visualized, shared and queried.
+The TiLiA desktop app is supported by an [online platform](https://tilia-app.com) that allows `.tla` files to be stored, visualized, shared and queried.
 
 ## Build from source
 
 ### Prerequisites
 
-Before you start, you'll need to have Python 3.11 or later installed on your system. If you don't have it, download the installer from the official Python website ([https://www.python.org/downloads/](https://www.python.org/downloads/)) and follow their instructions.
+Before you start, you'll need to have Python 3.11 or later installed on your system. If you don't have it, download the installer from the [official Python website](https://www.python.org/downloads/) and follow their instructions.
 
 ### How to build
 #### Install PyInstaller
