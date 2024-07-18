@@ -1,8 +1,6 @@
-# TiLiA
-
+[docs/img/logo.png]
 ---
-
-TiLiA (TimeLine Annotator) is an open-source GUI for producing and displaying complex annotations over video and audio files. It is a full-featured but easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PyQt library for its GUI.
+TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotations over video and audio files. It is a full-featured but easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PyQt library for its GUI.
 
 TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are four types of timelines (hierarchy, marker, beat and harmony) but many more are planned.
 
@@ -13,44 +11,43 @@ Some examples of what TiLiA visualizations look like:
   - [Second movement](https://www.timelineannotator.com/examples/mozart-k284-ii)
   - [Third movement](https://www.timelineannotator.com/examples/mozart-k284-iii)
 
+## How to use
+Instructions can be found [at the website](https://tilia-app.com/help/introduction/).
+
 ## Current features
- - 5 different kinds of timelines -
-   - Hierarchy: nested and levelled units organized in arbitrally complex hierarchical structures
-   - Marker: simple labelled markers to indicate discrete events
+ - 6 kinds of timelines
+   - AudioWave: visualise audio files through bars that represent changes in amplitude
    - Beat: beat and measure markers with support to numbering
    - Harmony: Roman numeral and chord symbol labels using a specialized font, including proper display of inversion numerals, quality symbols and applied chords
-   - AudioWave: visualise audio files through bars that represent changes in amplitude
+   - Hierarchy: nested and levelled units organized in arbitrally complex hierarchical structures
+   - Marker: simple labelled markers to indicate discrete events
+   - PDF: visualize PDF files synced to playback
  - Controlling playback by clicking on timeline units
  - Multiple attributes linked to each timeline unit
  - Local audio and video support
  - YouTube stream support
  - Customizable metadata can be attached to files
  - Creation of multiple timelines
- - Easy timeline edition during playback
+ - Timeline edition during playback
  - Toggling of timeline visibility
  - Export of audio segments based on analysis
- - Import timeline components from CSV files
+ - Import timeline data from CSV files
 
 ## Planned features
 
 There are many more features that I would like to implement than can be listed here. Some of the more interesting ones are listed below.
-- Improvements to timelines:
-  - Hierarchy:
-    - Length, start and end also displayed in terms of beats and measures
-  - Beat:
-    - Change beats in measure for multiple measures
 - New kinds of timelines
   - Range: displays units with an extension, but not tied to hierarchical structures
-  - PDF: display and synchronize navigation of PDF files with playback
+  - Musical score: displays audio-aligned musical scores
 - TiLiA explorer: allows filtered searches through timeline components in multiple TiLiA files
 - Font and GUI colors customization
 - Video segments exporting
 - Automatic cut detection for video
 - Automatic beat detection for audio
 
-## Website
+## Online platform
 
-Releases and (incomplete) documentation can be found at https://tilia-ad98d.web.app/
+The TiLiA desktop app is supported by an (online platform)[https://tilia-app.com] that allows `.tla` files to be stored, visualized, shared and queried.
 
 ## Build from source
 
@@ -69,7 +66,7 @@ pip install pyinstaller
 Open a terminal or command prompt and navigate to the directory where you want to save the project.
 Execute the following command:
 ```
-git clone https://github.com/FelipeDefensor/TiLiA.git
+git clone https://github.com/TimeLineAnnotator/desktop.git
 ```
 
 #### Build with PyInstaller
@@ -96,5 +93,5 @@ TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The com
 
 ## Acknowledgments
 
-The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for the development and free distribution of his software.  
+The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for the development and free distribution of his software.
 
