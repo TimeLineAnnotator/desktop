@@ -19,7 +19,7 @@ ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
 class Accidental:
     TYPE_TO_NUMBER_TO_SYMBOL = {
         "music21": {0: "", 1: "#", -1: "-", 2: "##", -2: "--"},
-        "musanalisys": {
+        "musanalysis": {
             -2: "`b`b",
             -1: "`b",
             0: "",
