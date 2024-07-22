@@ -6,7 +6,10 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QFrame
+    QFrame,
+    QVBoxLayout,
+    QWidget,
+    QDialogButtonBox,
 )
 
 from tilia.settings import settings
@@ -34,23 +37,47 @@ class MediaMetadataWindow(QDialog):
         self.metadata_original = {}
         self.fields_to_formatters = {"media length": format_media_time}
         self.setMinimumSize(settings.get("media_metadata", "window_width"), 0)
-        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
-        self._setup_widgets()
+        listen(
+            self,
+            Post.SETTINGS_UPDATED,
+            lambda updated_settings: self.on_settings_updated(updated_settings),
+        )
+        self.setLayout(QVBoxLayout())
+        self.setup_layout()
         self.show()
 
         post(Post.WINDOW_METADATA_OPENED)
 
-    def _setup_widgets(self):
-        self.form_layout = QFormLayout(self)
-        self.setLayout(self.form_layout)
-        self.setup_layout()
-
     def setup_layout(self):
+        self._setup_widgets()
+        self._setup_window_buttons()
+        self._setup_fields()
+
+    def _setup_fields(self):
         self.populate_with_editable_fields()
         self.add_separator()
         self.populate_with_read_only_fields()
         self.setup_buttons()
         self.adjustSize()
+
+    def _setup_widgets(self):
+        self.form_layout = QFormLayout()
+        content = QWidget()
+        content.setLayout(self.form_layout)
+        self.layout().addWidget(content)
+
+    def _setup_window_buttons(self):
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Apply
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.button_box.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(
+            self.apply_fields
+        )
+        self.button_box.button(QDialogButtonBox.StandardButton.Cancel).clicked.connect(
+            self.close
+        )
+        self.layout().addWidget(self.button_box)
 
     def add_separator(self):
         line = QFrame()
@@ -111,43 +138,51 @@ class MediaMetadataWindow(QDialog):
 
     @staticmethod
     def display_invalid_field_error(invalid_fields: list[str]):
-        tilia.errors.display(tilia.errors.METADATA_FIELD_INVALID, "\n".join(invalid_fields))
+        tilia.errors.display(
+            tilia.errors.METADATA_FIELD_INVALID, "\n".join(invalid_fields)
+        )
 
     def refresh_fields(self) -> None:
         self.clear_layout()
-        self.setup_layout()
+        self._setup_fields()
 
     def focus(self):
         pass  # TODO: set focus on self
 
-    def closeEvent(self, event, **kwargs):
-        self._save_edits()
+    def closeEvent(self, event):
         post(Post.WINDOW_METADATA_CLOSED)
         super().closeEvent(event)
 
     def update_metadata_fields(self, new_fields: list[str]):
         fields_without_required = [
-            item for item in self.metadata.keys() 
+            item
+            for item in self.metadata.keys()
             if item not in get(Get.MEDIA_METADATA_REQUIRED_FIELDS)
         ]
-        
-        if not fields_without_required == new_fields:
-            post(Post.METADATA_UPDATE_FIELDS, get(Get.MEDIA_METADATA_REQUIRED_FIELDS) + new_fields)
 
-    def _save_edits(self):
-        edited_fields = {
-            name: self.metadata[name].text() 
-            for name in self.metadata 
-            if name in self.metadata_original 
+        if not fields_without_required == new_fields:
+            post(
+                Post.METADATA_UPDATE_FIELDS,
+                get(Get.MEDIA_METADATA_REQUIRED_FIELDS) + new_fields,
+            )
+
+    def apply_fields(self):
+        self._save_edits(self._get_edits())
+        self.clear_layout()
+        self._setup_fields()
+
+    def _get_edits(self) -> dict:
+        return {
+            name: self.metadata[name].text()
+            for name in self.metadata
+            if name in self.metadata_original
             and self.metadata[name].text() != self.metadata_original[name]
         }
-        if edited_fields and get(Get.FROM_USER_YES_OR_NO, 
-                                 "Save metadata edits", 
-                                 "Save edits before continuing?<br>This <i>cannot</i> be undone later."
-                                 ):
-            for name, value in edited_fields.items():
-                post(Post.MEDIA_METADATA_FIELD_SET, name, value)
 
-    def on_settings_updated(self, updated_settings):        
+    def _save_edits(self, edited_fields: dict) -> None:
+        for name, value in edited_fields.items():
+            post(Post.MEDIA_METADATA_FIELD_SET, name, value)
+
+    def on_settings_updated(self, updated_settings):
         if "media_metadata" in updated_settings:
             self.setMinimumSize(settings.get("media_metadata", "window_width"), 0)
