@@ -46,7 +46,7 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
         self.timeline.group(self.elements_to_components(elements))
 
     def on_split(self, *_, **__):
-        self.timeline.split(get(Get.MEDIA_CURRENT_TIME))
+        self.timeline.split(get(Get.SELECTED_TIME))
 
     def on_merge(self, elements, *_, **__):
         self.timeline.merge(self.elements_to_components(elements))
