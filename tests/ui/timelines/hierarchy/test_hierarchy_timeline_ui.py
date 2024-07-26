@@ -1,4 +1,3 @@
-from unittest.mock import patch
 from PyQt6.QtGui import QColor
 
 from tests.mock import PatchGet, Serve
@@ -107,29 +106,27 @@ class TestActions:
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0.1, 1, 1)
         hierarchy_tlui.select_element(ui1)
 
-        with patch("tilia.ui.dialogs.basic.ask_for_float", lambda *_: (0.1, True)):
+        with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
             actions.trigger(TiliaAction.HIERARCHY_ADD_PRE_START)
 
         assert hrc1.pre_start != hrc1.start
         assert ui1.pre_start_handle
 
-    def test_add_post_end(self, hierarchy_tlui, actions):
+    def test_add_post_end(self, hierarchy_tlui, actions, tilia_state):
         hrc1, ui1 = hierarchy_tlui.create_hierarchy(0, 1, 1)
         hierarchy_tlui.select_element(ui1)
 
-        with patch("tilia.ui.dialogs.basic.ask_for_float", lambda *_: (0.1, True)):
+        with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
             actions.trigger(TiliaAction.HIERARCHY_ADD_POST_END)
 
         assert hrc1.post_end != hrc1.end
         assert ui1.post_end_handle
 
-    def test_split(self, hierarchy_tlui, actions):
+    def test_split(self, hierarchy_tlui, actions, tilia_state):
         hierarchy_tlui.create_hierarchy(0, 1, 1)
         assert len(hierarchy_tlui) == 1
-        with PatchGet(
-            "tilia.ui.timelines.hierarchy.request_handlers", Get.MEDIA_CURRENT_TIME, 0.5
-        ):
-            actions.trigger(TiliaAction.HIERARCHY_SPLIT)
+        tilia_state.current_time = 0.5
+        actions.trigger(TiliaAction.HIERARCHY_SPLIT)
 
         assert len(hierarchy_tlui) == 2
 
@@ -341,7 +338,7 @@ class TestUndoRedo:
         post(Post.APP_RECORD_STATE, "test state")
 
         with PatchGet(
-            "tilia.ui.timelines.hierarchy.request_handlers", Get.MEDIA_CURRENT_TIME, 0.5
+            "tilia.ui.timelines.hierarchy.request_handlers", Get.SELECTED_TIME, 0.5
         ):
             actions.trigger(TiliaAction.HIERARCHY_SPLIT)
 

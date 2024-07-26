@@ -201,14 +201,14 @@ def _get_args_for_beat_set_amount_in_measure(_):
 
 
 def _get_args_for_hierarchy_add_pre_start(_):
-    number, accept = dialogs.basic.ask_for_float("Add pre-start", "Pre-start length")
+    accept, number = get(Get.FROM_USER_FLOAT, "Add pre-start", "Pre-start length")
     if not accept:
         raise UserCancelledDialog
     return (number,), {}
 
 
 def _get_args_for_hierarchy_add_post_end(_):
-    number, accept = dialogs.basic.ask_for_float("Add post-end", "Post-end length")
+    accept, number = get(Get.FROM_USER_FLOAT, "Add post-end", "Post-end length")
     if not accept:
         raise UserCancelledDialog
     return (number,), {}
