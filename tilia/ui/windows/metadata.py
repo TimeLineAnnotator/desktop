@@ -150,6 +150,14 @@ class MediaMetadataWindow(QDialog):
         pass  # TODO: set focus on self
 
     def closeEvent(self, event):
+        edited_fields = self._get_edits()
+        if edited_fields and not get(
+            Get.FROM_USER_YES_OR_NO,
+            "Save metadata edits",
+            "Close window without saving changes?",
+        ):
+            event.ignore()
+            return
         post(Post.WINDOW_METADATA_CLOSED)
         super().closeEvent(event)
 
