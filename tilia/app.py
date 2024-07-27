@@ -80,8 +80,9 @@ class App:
         self.player = player
 
     def on_player_duration_available(self, duration: float):
-        self.duration = duration
-        post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+        actual_duration = get(Get.MEDIA_TIMES_ABSOLUTE).duration
+        if duration == actual_duration and duration != self.duration:
+            self.duration = duration
 
     def on_close(self) -> None:
         success, confirm_save = self.file_manager.ask_save_changes_if_modified()
@@ -125,17 +126,21 @@ class App:
         """
         return next(self._id_counter)
 
-    def set_media_duration(self, duration):
-        post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+    def set_media_duration(self, duration, start=0.0, end=0.0):
         self.duration = duration
+        if end == 0.0:
+            end = duration
+        post(Post.FILE_MEDIA_DURATION_CHANGED, self.duration, start, end)
 
     @staticmethod
     def _check_if_media_exists(path: str) -> bool:
         return re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists()
 
-    def _setup_file_media(self, path: str, duration: float | None):
+    def _setup_file_media(
+        self, path: str, duration: float | None, start: float, end: float
+    ):
         if duration:
-            self.set_media_duration(duration)
+            self.set_media_duration(duration, start, end)
 
         if not self._check_if_media_exists(path):
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
@@ -147,9 +152,13 @@ class App:
     def on_file_load(self, file: TiliaFile) -> None:
         media_path = file.media_path
         media_duration = file.media_metadata.get("media length", None)
+        playback_start = file.media_metadata.get("playback start", 0.0)
+        playback_end = file.media_metadata.get("playback end", 0.0)
 
         if file.media_path or media_duration:
-            self._setup_file_media(media_path, media_duration)
+            self._setup_file_media(
+                media_path, media_duration, playback_start, playback_end
+            )
 
         self.timelines.deserialize_timelines(file.timelines)
         self.setup_file()

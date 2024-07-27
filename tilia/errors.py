@@ -80,6 +80,10 @@ FILE_NOT_FOUND = Error(
 LOOP_DISJUNCT = Error("Loop Selection Error", "Selected Hierarchies are disjunct.")
 PLAYER_TOOLBAR_ERROR = Error("Updating Player Toolbar", "{}")
 YOUTUBE_PLAYER_ERROR = Error("Youtube Player Error", "{}")
+SEEK_OUTSIDE_CURRENT_PLAYBACK_TIME_FAILED = Error(
+    "Player seek failed",
+    "Selected time ({}) is outside of current time ({} - {}). Edit current start and end times in metadata to seek to this point.",
+)
 
 
 def display(error: Error, *args):
