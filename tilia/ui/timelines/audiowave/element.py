@@ -18,18 +18,19 @@ from ...windows.inspect import InspectRowKind
 if TYPE_CHECKING:
     from .timeline import AudioWaveTimelineUI
 
+
 class AmplitudeBarUI(TimelineUIElement):
     INSPECTOR_FIELDS = [
         ("Start / End", InspectRowKind.LABEL, None),
-        ("Amplitude", InspectRowKind.LABEL, None)
+        ("Amplitude", InspectRowKind.LABEL, None),
     ]
 
     def __init__(
-            self,
-            id: int,
-            timeline_ui: AudioWaveTimelineUI,
-            scene: QGraphicsScene,
-            **_,
+        self,
+        id: int,
+        timeline_ui: AudioWaveTimelineUI,
+        scene: QGraphicsScene,
+        **_,
     ):
         super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
         self.timeline_ui = timeline_ui
@@ -39,19 +40,21 @@ class AmplitudeBarUI(TimelineUIElement):
     @property
     def start_x(self):
         return get_x_by_time(self.get_data("start"))
-    
+
     @property
     def width(self):
-        return get_x_by_time(self.get_data("end") - self.get_data("start"))
-    
+        return get_x_by_time(self.get_data("end")) - get_x_by_time(
+            self.get_data("start")
+        )
+
     @property
     def amplitude(self):
         return self.get_data("amplitude")
-    
+
     @property
     def height(self):
         return self.timeline_ui.get_data("height")
-        
+
     @property
     def seek_time(self):
         return self.get_data("start")
@@ -59,13 +62,10 @@ class AmplitudeBarUI(TimelineUIElement):
     @property
     def x(self):
         return get_x_by_time(self.seek_time)
-    
+
     def _setup_body(self):
         self.body = AmplitudeBarUIBody(
-            self.start_x,
-            self.width,
-            self.amplitude,
-            self.height
+            self.start_x, self.width, self.amplitude, self.height
         )
         self.scene.addItem(self.body)
 
@@ -73,25 +73,20 @@ class AmplitudeBarUI(TimelineUIElement):
         self.update_time()
 
     def update_time(self):
-        self.body.set_position(
-            self.start_x,
-            self.width,
-            self.amplitude, 
-            self.height
-        )
+        self.body.set_position(self.start_x, self.width, self.amplitude, self.height)
 
     def child_items(self):
         return [self.body]
-        
+
     def left_click_triggers(self):
         return [self.body]
-    
+
     def on_left_click(self, _) -> None:
         self.setup_drag()
 
     def double_left_click_triggers(self):
         return [self.body]
-    
+
     def on_double_left_click(self, _):
         post(Post.PLAYER_SEEK, self.seek_time)
 
@@ -101,9 +96,9 @@ class AmplitudeBarUI(TimelineUIElement):
             get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
             before_each=self.before_each_drag,
             after_each=self.after_each_drag,
-            on_release=self.on_drag_end
+            on_release=self.on_drag_end,
         )
-        
+
     def before_each_drag(self):
         if not self.dragged:
             post(Post.ELEMENT_DRAG_START)
@@ -127,8 +122,15 @@ class AmplitudeBarUI(TimelineUIElement):
     def get_inspector_dict(self) -> dict:
         return self.timeline_ui.get_inspector_dict()
 
+
 class AmplitudeBarUIBody(CursorMixIn, QGraphicsLineItem):
-    def __init__(self, start_x: float, width: float, amplitude: float, height: float):
+    def __init__(
+        self,
+        start_x: float,
+        width: float,
+        amplitude: float,
+        height: float,
+    ):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.setLine(self.get_line(start_x, amplitude, height))
         self.width = width / 100
@@ -147,8 +149,14 @@ class AmplitudeBarUIBody(CursorMixIn, QGraphicsLineItem):
         return QLineF(QPointF(x, offset), QPointF(x, offset + height))
 
     def update_pen_style(self):
-        color = get_tinted_color(settings.get("audiowave_timeline", "default_color"), TINT_FACTOR_ON_SELECTION) if self.selected \
+        color = (
+            get_tinted_color(
+                settings.get("audiowave_timeline", "default_color"),
+                TINT_FACTOR_ON_SELECTION,
+            )
+            if self.selected
             else settings.get("audiowave_timeline", "default_color")
+        )
         pen = QPen(QColor(color))
         pen.setStyle(Qt.PenStyle.SolidLine)
         pen.setWidthF(self.width)
