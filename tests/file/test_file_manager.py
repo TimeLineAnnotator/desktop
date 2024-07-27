@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import mock_open
 import pytest
-from tests.mock import PatchPost, PatchGet, PatchGetMultiple, Serve
+from tests.mock import PatchPost, PatchGet, Serve
 from tilia.file.media_metadata import MediaMetadata
 
 import tests.utils
