@@ -9,6 +9,10 @@ class Error(NamedTuple):
 
 
 FILE_SAVE_FAILED = Error("Save file", "Error when saving file.\n{}")
+METADATA_FIELD_INVALID = Error(
+    "Invalid metadata field",
+    "Metadata fields must be alphanumeric. The following fields were discarded:\n{}",
+)
 MEDIA_METADATA_IMPORT_JSON_FAILED = Error(
     "Import media metadata", "Error when parsing file {}:\n{}"
 )
