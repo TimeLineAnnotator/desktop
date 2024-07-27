@@ -22,7 +22,10 @@ from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
 )
 from tilia.timelines.slider.timeline import SliderTimeline
-from tilia.timelines.audiowave.timeline import AudioWaveTimeline, AudioWaveTLComponentManager
+from tilia.timelines.audiowave.timeline import (
+    AudioWaveTimeline,
+    AudioWaveTLComponentManager,
+)
 from tilia.undo_manager import PauseUndoManager
 
 if TYPE_CHECKING:
@@ -40,12 +43,14 @@ def _create_hierarchy_timeline(**kwargs) -> HierarchyTimeline:
 def _create_slider_timeline(*_, **__) -> SliderTimeline:
     return SliderTimeline()
 
+
 def _create_audiowave_timeline(*args, **kwargs) -> AudioWaveTimeline:
     component_manager = AudioWaveTLComponentManager()
     timeline = AudioWaveTimeline(component_manager, *args, **kwargs)
     component_manager.associate_to_timeline(timeline)
 
     return timeline
+
 
 def _create_marker_timeline(*args, **kwargs) -> MarkerTimeline:
     component_manager = MarkerTLComponentManager()
@@ -101,11 +106,9 @@ class Timelines:
 
     def __bool__(self):
         return True  # so it doesn't evaluate to False when there are no timelines
-    
-    def _setup_requests(self):        
-        LISTENS = {    
-            (Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
-        }
+
+    def _setup_requests(self):
+        LISTENS = {(Post.PLAYER_DURATION_AVAILABLE, self.on_media_duration_changed)}
 
         SERVES = {
             (Get.TIMELINE_COLLECTION, lambda: self),
@@ -114,7 +117,7 @@ class Timelines:
             (Get.TIMELINE_ORDINAL_FOR_NEW, self.serve_ordinal_for_new_timeline),
             (Get.TIMELINE_BY_ATTR, self.get_timeline_by_attr),
             (Get.TIMELINES_BY_ATTR, self.get_timelines_by_attr),
-            (Get.METRIC_POSITION, self.get_metric_position)
+            (Get.METRIC_POSITION, self.get_metric_position),
         }
 
         for post, callback in LISTENS:
@@ -136,11 +139,13 @@ class Timelines:
         # a blank Timelines is empty or has a single slider timeline
         # which is its state when creating a new (blank) file
         return (
-            self.is_empty or 
-            len(
-                set([x.KIND for x in self])
-                .difference((TimelineKind.SLIDER_TIMELINE, TimelineKind.AUDIOWAVE_TIMELINE))
-            ) == 0
+            self.is_empty
+            or len(
+                set([x.KIND for x in self]).difference(
+                    {TimelineKind.SLIDER_TIMELINE, TimelineKind.AUDIOWAVE_TIMELINE}
+                )
+            )
+            == 0
         )
 
     @staticmethod
@@ -161,7 +166,7 @@ class Timelines:
 
     def has_timeline_of_kind(self, kind: TlKind):
         return kind in self.timeline_kinds
-    
+
     def create_timeline(
         self,
         kind: TlKind | str,
@@ -196,7 +201,7 @@ class Timelines:
             # can't be done until timeline UI has been created
             tl.deserialize_components(components)
 
-        if hasattr(tl, 'setup_blank_timeline') and not components:
+        if hasattr(tl, "setup_blank_timeline") and not components:
             # For setup that needs to be done after
             # the corresponding timeline ui has
             # been created.

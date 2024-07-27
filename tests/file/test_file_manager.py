@@ -117,11 +117,13 @@ class TestFileManager:
         duplicate = list(file_manager.file.media_metadata) + ["title"]
         post(Post.METADATA_UPDATE_FIELDS, duplicate)
         assert list(file_manager.file.media_metadata) == original
-    
+
     def test_metadata_delete_fields(self, file_manager):
         empty_list = []
         post(Post.METADATA_UPDATE_FIELDS, empty_list)
-        assert list(file_manager.file.media_metadata) == list(file_manager.file.media_metadata.REQUIRED_FIELDS)
+        assert list(file_manager.file.media_metadata) == list(
+            file_manager.file.media_metadata.REQUIRED_FIELDS
+        )
 
     def test_metadata_title_stays_on_top(self, file_manager):
         not_so_empty_list = ["newfield"]

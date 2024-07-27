@@ -10,15 +10,17 @@ class CLIVideoPlayer(QtPlayer):
 
 
 class CLIYoutubePlayer:
-    MEDIA_TYPE = 'youtube'
+    MEDIA_TYPE = "youtube"
 
     def load_media(self, media_path: str, start: float = 0.0, end: float = 0.0):
         try:
             youtube = YouTube(media_path)
             post(Post.FILE_MEDIA_DURATION_CHANGED, youtube.length)
         except:
-            post(Post.DISPLAY_ERROR, 'Failed to get YouTube video duration. Please set the duration with "metadata set-media-length"')
+            post(
+                Post.DISPLAY_ERROR,
+                'Failed to get YouTube video duration. Please set the duration with "metadata set-media-length"',
+            )
 
     def destroy(self):
         pass
-

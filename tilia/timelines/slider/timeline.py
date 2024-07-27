@@ -21,7 +21,7 @@ class SliderTimeline(Timeline):
 
     def _validate_delete_components(self, component: TimelineComponent):
         """Nothing to do. Must impement abstract method."""
-            
+
     def get_state(self) -> dict:
         result = {}
 

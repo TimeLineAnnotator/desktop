@@ -632,7 +632,12 @@ class HierarchyUI(TimelineUIElement):
 
 class HierarchyBody(CursorMixIn, QGraphicsRectItem):
     def __init__(
-        self, level: int, start_x: float, end_x: float, tl_height: float, color: str
+        self,
+        level: int,
+        start_x: float,
+        end_x: float,
+        tl_height: float,
+        color: str,
     ):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.set_position(level, start_x, end_x, tl_height)
@@ -731,12 +736,7 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
     BOTTOM_MARGIN = 3
     LEFT_MARGIN = -15
 
-    def __init__(
-        self,
-        end_x: float,
-        tl_height: int,
-        level: int,
-    ):
+    def __init__(self, end_x: float, tl_height: int, level: int):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.setup_font()
         self.setPlainText(self.ICON)
@@ -775,12 +775,7 @@ class HierarchyLoopIcon(QGraphicsPixmapItem):
     TOP_MARGIN = 1
     LEFT_MARGIN = 3
 
-    def __init__(
-        self,
-        start_x: float,
-        tl_height: int,
-        level: int,
-    ):
+    def __init__(self, start_x: float, tl_height: int, level: int):
         super().__init__()
         self.setPixmap(QPixmap(self.ICON))
         self.set_position(start_x, tl_height, level)
