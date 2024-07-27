@@ -194,11 +194,7 @@ class PdfMarkerLabel(QGraphicsTextItem):
     DEFAULT_FONT_SIZE = 8
     MAX_TEXT_WIDTH = 12
 
-    def __init__(
-        self,
-        x: float,
-        text: str,
-    ):
+    def __init__(self, x: float, text: str):
         super().__init__()
         self.set_font()
         self.set_text(text)

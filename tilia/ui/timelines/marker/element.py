@@ -83,11 +83,11 @@ class MarkerUI(TimelineUIElement):
     @property
     def seek_time(self):
         return self.get_data("time")
-    
+
     @property
     def width(self):
         return settings.get("marker_timeline", "marker_width")
-    
+
     @property
     def height(self):
         return settings.get("marker_timeline", "marker_height")
@@ -218,12 +218,7 @@ class MarkerBody(CursorMixIn, QGraphicsPolygonItem):
 
 
 class MarkerLabel(QGraphicsTextItem):
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        text: str,
-    ):
+    def __init__(self, x: float, y: float, text: str):
         super().__init__()
         self._setup_font()
         self.set_text(text)

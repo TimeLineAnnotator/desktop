@@ -93,7 +93,12 @@ class MediaMetadataWindow(QDialog):
         self.metadata.clear()
         self.metadata_original.clear()
         for name, value in metadata.items():
-            if name in list(self.READ_ONLY_FIELDS) + self.SEPARATE_WINDOW_FIELDS:
+            if (
+                name
+                in list(self.READ_ONLY_FIELDS)
+                + self.SEPARATE_WINDOW_FIELDS
+                + self.PLAYBACK_TIMES
+            ):
                 continue
             line_edit = QLineEdit(str(value))
             self.form_layout.addRow(QLabel(name.capitalize()), line_edit)

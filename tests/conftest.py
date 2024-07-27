@@ -200,7 +200,7 @@ def tls(tilia):
             TimelineKind.HIERARCHY_TIMELINE: Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
             TimelineKind.HARMONY_TIMELINE: Post.TIMELINE_ADD_HARMONY_TIMELINE,
             TimelineKind.BEAT_TIMELINE: Post.TIMELINE_ADD_BEAT_TIMELINE,
-            TimelineKind.AUDIOWAVE_TIMELINE: Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE
+            TimelineKind.AUDIOWAVE_TIMELINE: Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE,
         }
         with Serve(Get.FROM_USER_STRING, (name, True)):
             post(kind_to_request[kind])
@@ -219,7 +219,7 @@ def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui, audiowav
         "harmony": harmony_tlui,
         "beat": beat_tlui,
         "hierarchy": hierarchy_tlui,
-        "audiowave": audiowave_tlui
+        "audiowave": audiowave_tlui,
     }[request.param]
 
 
