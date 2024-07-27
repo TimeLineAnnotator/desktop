@@ -40,6 +40,3 @@ class SliderTimeline(Timeline):
 
     def delete(self):
         """Nothing to do."""
-
-    def crop(self):
-        """Nothing to do"""
