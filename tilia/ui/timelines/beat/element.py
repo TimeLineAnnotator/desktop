@@ -205,7 +205,7 @@ class BeatUI(TimelineUIElement):
 class BeatBody(CursorMixIn, QGraphicsLineItem):
     def __init__(self, x: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
-        self.setLine(self.get_line(x, height))
+        self.set_position(x, height)
         self.set_pen_style_default()
 
     def set_pen_style_default(self):
