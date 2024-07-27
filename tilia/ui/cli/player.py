@@ -12,10 +12,10 @@ class CLIVideoPlayer(QtPlayer):
 class CLIYoutubePlayer:
     MEDIA_TYPE = "youtube"
 
-    def load_media(self, media_path: str, start: float = 0.0, end: float = 0.0):
+    def load_media(self, media_path: str):
         try:
             youtube = YouTube(media_path)
-            post(Post.FILE_MEDIA_DURATION_CHANGED, youtube.length)
+            post(Post.FILE_MEDIA_DURATION_CHANGED, youtube.length, 0.0, youtube.length)
         except:
             post(
                 Post.DISPLAY_ERROR,

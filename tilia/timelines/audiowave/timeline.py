@@ -14,7 +14,7 @@ import tilia.errors
 
 
 class AudioWaveTimeline(Timeline):
-    KIND = TimelineKind.AUDIOWAVE_TIMELINE    
+    KIND = TimelineKind.AUDIOWAVE_TIMELINE
     component_manager: AudioWaveTLComponentManager
 
     @property
@@ -23,33 +23,47 @@ class AudioWaveTimeline(Timeline):
 
     def _create_timeline(self):
         dt, normalised_amplitudes = self._get_normalised_amplitudes()
-        self._create_components(dt, normalised_amplitudes)
+        self._create_components(
+            dt, normalised_amplitudes, get(Get.MEDIA_TIMES_PLAYBACK).start
+        )
 
     def _get_audio(self):
         path = get(Get.MEDIA_PATH)
         try:
-            return pydub.AudioSegment.from_file(path)        
+            playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
+            if playback_time.end != 0:
+                return pydub.AudioSegment.from_file(path)[
+                    playback_time.start * 1000 : playback_time.end * 1000
+                ]
+            else:
+                return pydub.AudioSegment.from_file(path)
         except:
             tilia.errors.display(tilia.errors.AUDIOWAVE_INVALID_FILE)
             return None
-    
-    def _get_normalised_amplitudes(self):    
-        divisions = min([get(Get.PLAYBACK_AREA_WIDTH), settings.get("audiowave_timeline", "max_divisions"), self.audio.frame_count()])
+
+    def _get_normalised_amplitudes(self):
+        divisions = min(
+            [
+                get(Get.PLAYBACK_AREA_WIDTH),
+                settings.get("audiowave_timeline", "max_divisions"),
+                self.audio.frame_count(),
+            ]
+        )
         dt = self.audio.duration_seconds / divisions
         chunks = pydub.utils.make_chunks(self.audio, dt * 1000)
         amplitude = [chunk.rms for chunk in chunks]
         return dt, [amp / max(amplitude) for amp in amplitude]
-    
-    def _create_components(self, duration: float, amplitudes: float):
+
+    def _create_components(self, duration: float, amplitudes: float, offset: float):
         for i in range(len(amplitudes)):
             self.create_timeline_component(
-                kind = ComponentKind.AUDIOWAVE,
-                start = i * duration,
-                end = (i + 1) * duration,
-                amplitude = amplitudes[i]
+                kind=ComponentKind.AUDIOWAVE,
+                start=i * duration + offset,
+                end=(i + 1) * duration + offset,
+                amplitude=amplitudes[i],
             )
 
-    def refresh(self):       
+    def refresh(self):
         self.clear()
         self.audio = self._get_audio()
         if not self.audio:
@@ -64,7 +78,8 @@ class AudioWaveTimeline(Timeline):
             post(Post.TIMELINE_SET_DATA_DONE, self.id, "is_visible", is_visible)
 
     def get_dB(self, start_time, end_time):
-        return self.audio[start_time * 1000: end_time * 1000].dBFS
+        return self.audio[start_time * 1000 : end_time * 1000].dBFS
+
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.AUDIOWAVE]

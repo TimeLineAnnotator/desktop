@@ -86,13 +86,13 @@ class HarmonyTimeline(Timeline):
 
         return modes[idx - 1].key
 
-    def scale(self, factor: float) -> None:
+    def scale(self, offset: float, factor: float) -> None:
         self.component_manager: HarmonyTLComponentManager
-        self.component_manager.scale(factor)
+        self.component_manager.scale(offset, factor)
 
-    def crop(self, length: float) -> None:
+    def crop(self, start: float, end: float) -> None:
         self.component_manager: HarmonyTLComponentManager
-        self.component_manager.crop(length)
+        self.component_manager.crop(start, end)
 
     def deserialize_components(self, components: dict[int, dict[str]]):
         super().deserialize_components(components)
@@ -113,12 +113,24 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         *_,
         **__,
     ):
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
         media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        if time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
-        if time in [h.get_data("time") for h in self.timeline]:
+        if playback_time.end != 0 and time > playback_time.end:
+            return (
+                False,
+                f"Time '{time}' is greater than current media time '{playback_time.end}'",
+            )
+        elif playback_time.end == 0 and time > media_duration:
+            return (
+                False,
+                f"Time '{time}' is greater than current media time '{media_duration}'",
+            )
+        elif time < playback_time.start:
+            return (
+                False,
+                f"Time '{time}' is less than current media start time '{playback_time.start}",
+            )
+        elif time in [h.get_data("time") for h in self.timeline]:
             components_at_same_time = self.timeline.get_components_by_attr("time", time)
             for component in components_at_same_time:
                 if type(component) is self._get_component_class_by_kind(kind):
@@ -212,13 +224,13 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             is_in_harmonic_region, ComponentKind.HARMONY
         )
 
-    def scale(self, factor: float) -> None:
+    def scale(self, offset: float, factor: float) -> None:
         for component in self:
-            component.set_data("time", component.get_data("time") * factor)
+            component.set_data("time", component.get_data("time") * factor + offset)
 
-    def crop(self, length: float) -> None:
+    def crop(self, start: float, end: float) -> None:
         for component in list(self).copy():
-            if component.get_data("time") > length:
+            if not start <= component.get_data("time") <= end:
                 self.delete_component(component)
 
     def deserialize_components(

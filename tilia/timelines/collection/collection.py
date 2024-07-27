@@ -88,7 +88,8 @@ class Timelines:
     def __init__(self, app: App):
         self._app = app
         self._timelines: list[Timeline] = []
-        self.cached_media_duration = 0.0
+        self.cached_media_start = 0.0
+        self.cached_media_end = 0.0
 
         self._setup_requests()
 
@@ -141,7 +142,7 @@ class Timelines:
         return (
             self.is_empty
             or len(
-                set([x.KIND for x in self]).difference(
+                {x.KIND for x in self}.difference(
                     {TimelineKind.SLIDER_TIMELINE, TimelineKind.AUDIOWAVE_TIMELINE}
                 )
             )
@@ -312,16 +313,22 @@ class Timelines:
     def has_timeline_of_kind(self, kind: TlKind):
         return any([tl.KIND == kind for tl in self])
 
-    def _scale_or_crop_timelines(self, new_duration, prev_duration):
+    def _scale_or_crop_timelines(self):
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
         scale_prompt = "Would you like to scale existing timelines to new media length?"
 
         confirm = get(Get.FROM_USER_YES_OR_NO, "Scale timelines", scale_prompt)
         if confirm:
             self.scale_timeline_components(
-                new_duration / prev_duration,
+                playback_time.start,
+                playback_time.duration
+                / (self.cached_media_end - self.cached_media_start),
             )
 
-        elif new_duration < prev_duration:
+        elif (
+            self.cached_media_start < playback_time.start
+            or self.cached_media_end > playback_time.end
+        ):
             crop_prompt = (
                 "New media is smaller, "
                 "so components may get deleted or cropped. "
@@ -329,38 +336,47 @@ class Timelines:
             )
             confirm = get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
             if confirm:
-                self.crop_timeline_components(new_duration)
+                self.crop_timeline_components(playback_time.start, playback_time.end)
             else:
                 self.scale_timeline_components(
-                    new_duration / prev_duration,
+                    playback_time.start,
+                    playback_time.duration
+                    / (self.cached_media_end - self.cached_media_start),
                 )
 
-    def on_media_duration_changed(self, new_duration: float):
-        prev_duration = self.cached_media_duration
+    def on_media_duration_changed(self, _: float):
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
 
-        if not prev_duration or new_duration == prev_duration or self.is_blank:
-            self.cached_media_duration = new_duration
-            return
+        if (
+            self.cached_media_end != 0.0
+            and not self.is_blank
+            and (
+                playback_time.start != self.cached_media_start
+                or playback_time.end != self.cached_media_end
+            )
+        ):
+            post(
+                Post.REQUEST_CHANGE_TIMELINE_WIDTH,
+                get(Get.TIMELINE_WIDTH)
+                * (playback_time.end - playback_time.start)
+                / (self.cached_media_end - self.cached_media_start),
+            )
 
-        post(
-            Post.REQUEST_CHANGE_TIMELINE_WIDTH,
-            get(Get.TIMELINE_WIDTH) * new_duration / prev_duration,
-        )
+            self._scale_or_crop_timelines()
 
-        self._scale_or_crop_timelines(new_duration, prev_duration)
-
-        self.cached_media_duration = new_duration
+        self.cached_media_start = playback_time.start
+        self.cached_media_end = playback_time.end
 
     def serve_ordinal_for_new_timeline(self):
         return len(self._timelines) + 1
 
-    def scale_timeline_components(self, factor: float) -> None:
+    def scale_timeline_components(self, offset: float, factor: float) -> None:
         for tl in [tl for tl in self if hasattr(tl, "scale")]:
-            tl.scale(factor)
+            tl.scale(offset, factor)
 
-    def crop_timeline_components(self, new_length: float) -> None:
+    def crop_timeline_components(self, start: float, end: float) -> None:
         for tl in [tl for tl in self if hasattr(tl, "crop")]:
-            tl.crop(new_length)
+            tl.crop(start, end)
         post(Post.TIMELINES_CROP_DONE)
 
     def get_beat_timeline_for_measure_calculation(self):

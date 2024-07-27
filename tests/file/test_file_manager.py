@@ -83,6 +83,7 @@ class TestFileManager:
         file_data = tests.utils.get_blank_file_data()
         file_data["timelines"] = timelines_data
         file_data["media_metadata"]["media length"] = 100
+        file_data["media_metadata"]["playback end"] = 100
 
         tmp_file = tmp_path / "test_open_with_hierarchies.tla"
         tmp_file.write_text(json.dumps(file_data))
