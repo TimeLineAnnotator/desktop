@@ -132,14 +132,12 @@ class AmplitudeBarUIBody(CursorMixIn, QGraphicsLineItem):
         height: float,
     ):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
-        self.setLine(self.get_line(start_x, amplitude, height))
-        self.width = width / 100
         self.selected = False
-        self.update_pen_style()
+        self.set_position(start_x, width, amplitude, height)
 
     def set_position(self, start_x, width, amplitude, height):
         self.setLine(self.get_line(start_x, amplitude, height))
-        self.width = width / 100
+        self.width = width
         self.update_pen_style()
 
     @staticmethod
