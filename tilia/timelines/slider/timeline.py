@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from tilia.requests import Get, get
 from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind

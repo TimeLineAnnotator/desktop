@@ -21,7 +21,6 @@ from ...windows.inspect import InspectRowKind
 
 if TYPE_CHECKING:
     from .timeline import BeatTimelineUI
-    from tilia.ui.timelines.scene import TimelineScene
 
 
 class BeatUI(TimelineUIElement):
