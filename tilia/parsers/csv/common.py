@@ -15,9 +15,9 @@ def _get_attrs_indices(params: list[str], headers: list[str]) -> list[int]:
     return result
 
 
-def _validate_required_attrs(params: list[str], indices: int | None):
-    for i, param in enumerate(params):
-        if indices[i] is None:
+def _validate_required_attrs(params: list[str], header: list[str]):
+    for param in params:
+        if param not in header:
             return False, f'"{param}" not found on CSV header.'
     return True, ""
 

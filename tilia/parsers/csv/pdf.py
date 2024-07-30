@@ -69,7 +69,7 @@ def import_by_time(
 
         indices = _get_attrs_indices(all_attrs, header)
 
-        success, error = _validate_required_attrs(required_attrs, indices)
+        success, error = _validate_required_attrs(required_attrs, header)
         if not success:
             errors.append(error)
             return errors
@@ -126,7 +126,7 @@ def import_by_measure(
 
         indices = _get_attrs_indices(all_attrs, header)
 
-        success, error = _validate_required_attrs(required_attrs, indices)
+        success, error = _validate_required_attrs(required_attrs, header)
         if not success:
             errors.append(error)
             return errors
