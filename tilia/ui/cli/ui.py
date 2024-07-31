@@ -84,7 +84,7 @@ class CLI:
             cmd = input(">>> ")
             args = self.parse_command(cmd)
             if args is None:
-                post(Post.DISPLAY_ERROR, "Parse error: Invalid quoted arguments")
+                post(Post.DISPLAY_ERROR, "", "Parse error: Invalid quoted arguments")
             self.run(args)
 
     def run(self, cmd):
