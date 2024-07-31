@@ -124,3 +124,7 @@ class CLI:
             "audio": QtPlayer,
             "youtube": CLIYoutubePlayer,
         }[media_type]
+
+    @staticmethod
+    def show_crash_dialog(exc_message) -> None:
+        io.output(exc_message)
