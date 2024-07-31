@@ -34,9 +34,7 @@ class CLI:
             self, Post.DISPLAY_ERROR, self.on_request_to_display_error
         )  # ignores error title
 
-        serve(
-            self, Get.PLAYER_CLASS, self.get_player_class
-        )
+        serve(self, Get.PLAYER_CLASS, self.get_player_class)
 
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
@@ -54,19 +52,19 @@ class CLI:
     @staticmethod
     def parse_command(arg_string):
         args = []
-        quoted_string = ''
+        quoted_string = ""
         in_quotes = False
-        for arg in arg_string.split(' '):
+        for arg in arg_string.split(" "):
             if not in_quotes and arg.startswith('"') and arg.endswith('"'):
                 args.append(arg[1:-1])
             elif not in_quotes and arg.startswith('"'):
                 in_quotes = True
                 quoted_string = arg[1:]
             elif in_quotes and not arg.endswith('"'):
-                quoted_string += ' ' + arg
+                quoted_string += " " + arg
             elif in_quotes and arg.endswith('"'):
                 in_quotes = False
-                quoted_string += ' ' + arg[:-1]
+                quoted_string += " " + arg[:-1]
                 args.append(quoted_string)
             elif not in_quotes and arg.endswith('"'):
                 return None
