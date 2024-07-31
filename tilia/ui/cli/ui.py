@@ -43,7 +43,7 @@ class CLI:
         load_media.setup_parser(self.subparsers)
         components.setup_parser(self.subparsers)
         metadata.setup_parser(self.subparsers)
-        script.setup_parser(self.subparsers, self.run)
+        script.setup_parser(self.subparsers, self.run_script)
 
     def setup_player(self):
         self.player = QtPlayer()
@@ -111,6 +111,12 @@ class CLI:
             self.exception = err
             traceback.print_exc()
             return True
+
+    def run_script(self, cmd):
+        args = self.parse_command(cmd)
+        if args is None:
+            post(Post.DISPLAY_ERROR, "", "Parse error: Invalid quoted arguments")
+        self.run(args)
 
     @staticmethod
     def on_request_to_display_error(_, message: str) -> None:

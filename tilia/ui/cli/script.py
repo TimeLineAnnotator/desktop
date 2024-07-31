@@ -19,4 +19,4 @@ def run(run_command, namespace):
 
     for command in commands:
         print(command)
-        run_command(command.split(" "))
+        run_command(command)
