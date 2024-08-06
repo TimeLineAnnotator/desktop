@@ -1,3 +1,5 @@
+import sys
+
 from PyQt6.QtCore import QSettings, QObject
 
 import tilia.constants
@@ -122,6 +124,11 @@ class SettingsManager(QObject):
             return True
         elif value == "false":
             return False
+        elif sys.platform == 'linux' and isinstance(value, str) and value.isnumeric():
+            # For some reason, QSettings parses numeric values as strings in Linux.
+            # Is this a Qt bug?
+            return int(value)
+
         return value
 
     def set(self, group_name: str, setting: str, value, in_default=True):
