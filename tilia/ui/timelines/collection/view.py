@@ -2,13 +2,19 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QGraphicsView, QAbstractSlider
-from tilia.requests import post, Post
+from tilia.requests import post, Post, listen
 
 
 class TimelineUIsView(QGraphicsView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        max_x = self.horizontalScrollBar().maximum()
+        max_y = self.verticalScrollBar().maximum()
+        self.cur_x = self.horizontalScrollBar().value() / max_x if max_x != 0 else 0.5
+        self.cur_y = self.verticalScrollBar().value() / max_y if max_y != 0 else 0.5
+        listen(self, Post.PLAYBACK_AREA_SET_WIDTH, lambda _: self.update_width)
 
     def is_hscrollbar_pressed(self):
         return self.horizontalScrollBar().isSliderDown()
@@ -33,24 +39,10 @@ class TimelineUIsView(QGraphicsView):
             dx = dy
             dy = temp
 
-        max_x = self.horizontalScrollBar().maximum()
-        cur_x = self.horizontalScrollBar().value() / max_x if max_x != 0 else 0.5
-        max_y = self.verticalScrollBar().maximum()
-        cur_y = self.verticalScrollBar().value() / max_y if max_y != 0 else 0.5
-
         if dy > 0:
             post(Post.VIEW_ZOOM_IN)
         else:
             post(Post.VIEW_ZOOM_OUT)
-
-        if self.horizontalScrollBar().maximum() != 0:
-            self.horizontalScrollBar().setValue(
-                round(cur_x * self.horizontalScrollBar().maximum())
-            )
-        if self.verticalScrollBar().maximum() != 0:
-            self.verticalScrollBar().setValue(
-                round(cur_y * self.verticalScrollBar().maximum())
-            )
 
     def wheelEvent_with_mod(self, event) -> None:
         if Qt.KeyboardModifier.ShiftModifier in event.modifiers():
@@ -66,24 +58,10 @@ class TimelineUIsView(QGraphicsView):
             dy = temp
 
         if Qt.KeyboardModifier.ControlModifier in event.modifiers():
-            max_x = self.horizontalScrollBar().maximum()
-            cur_x = self.horizontalScrollBar().value() / max_x if max_x != 0 else 0.5
-            max_y = self.verticalScrollBar().maximum()
-            cur_y = self.verticalScrollBar().value() / max_y if max_y != 0 else 0.5
-
             if dy > 0:
                 post(Post.VIEW_ZOOM_IN)
             else:
                 post(Post.VIEW_ZOOM_OUT)
-
-            if self.horizontalScrollBar().maximum() != 0:
-                self.horizontalScrollBar().setValue(
-                    round(cur_x * self.horizontalScrollBar().maximum())
-                )
-            if self.verticalScrollBar().maximum() != 0:
-                self.verticalScrollBar().setValue(
-                    round(cur_y * self.verticalScrollBar().maximum())
-                )
             return
 
         else:
@@ -103,3 +81,15 @@ class TimelineUIsView(QGraphicsView):
                 self.verticalScrollBar().triggerAction(
                     QAbstractSlider.SliderAction.SliderSingleStepSub
                 )
+
+    def update_width(self):
+        max_x = self.horizontalScrollBar().maximum()
+        max_y = self.verticalScrollBar().maximum()
+
+        if max_x != 0:
+            self.horizontalScrollBar().setValue(round(self.cur_x * max_x))
+        if max_y != 0:
+            self.verticalScrollBar().setValue(round(self.cur_y * max_y))
+
+        self.cur_x = self.horizontalScrollBar().value() / max_x if max_x != 0 else 0.5
+        self.cur_y = self.verticalScrollBar().value() / max_y if max_y != 0 else 0.5
