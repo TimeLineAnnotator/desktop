@@ -27,6 +27,7 @@ from tilia.timelines.audiowave.timeline import (
     AudioWaveTLComponentManager,
 )
 from tilia.undo_manager import PauseUndoManager
+from tilia.ui.dialogs.scale_or_crop import ScaleOrCrop
 
 if TYPE_CHECKING:
     from tilia.app import App
@@ -315,34 +316,26 @@ class Timelines:
 
     def _scale_or_crop_timelines(self):
         playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
-        scale_prompt = "Would you like to scale existing timelines to new media length?"
+        success, result = ScaleOrCrop.select(
+            self.cached_media_start,
+            self.cached_media_end,
+            playback_time.start,
+            playback_time.end,
+        )
+        if not success:
+            return
 
-        confirm = get(Get.FROM_USER_YES_OR_NO, "Scale timelines", scale_prompt)
-        if confirm:
-            self.scale_timeline_components(
-                playback_time.start,
-                playback_time.duration
-                / (self.cached_media_end - self.cached_media_start),
-            )
-
-        elif (
-            self.cached_media_start < playback_time.start
-            or self.cached_media_end > playback_time.end
-        ):
-            crop_prompt = (
-                "New media is smaller, "
-                "so components may get deleted or cropped. "
-                "Are you sure you don't want to scale existing timelines?"
-            )
-            confirm = get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
-            if confirm:
-                self.crop_timeline_components(playback_time.start, playback_time.end)
-            else:
+        match result:
+            case ScaleOrCrop.ActionToTake.SCALE:
                 self.scale_timeline_components(
                     playback_time.start,
                     playback_time.duration
                     / (self.cached_media_end - self.cached_media_start),
                 )
+            case ScaleOrCrop.ActionToTake.CROP:
+                self.crop_timeline_components(playback_time.start, playback_time.end)
+
+        return
 
     def on_media_duration_changed(self, _: float):
         playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
