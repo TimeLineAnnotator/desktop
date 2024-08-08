@@ -72,7 +72,7 @@ class ScaleOrCrop(QDialog):
             "Existing timelines need to be adjusted to the new playback duration."
             + f"\nCurrent time:\t\t{format_media_time(old_start, False)} - {format_media_time(old_end, False)}"
             + f"\nNew time:\t\t{format_media_time(new_start, False)} - {format_media_time(new_end, False)}"
-            + "\n\nPlease select one fo the following options."
+            + "\n\nPlease select one of the following options:"
         )
 
         _scale_button = QRadioButton()
