@@ -21,8 +21,8 @@ class QtPlayer(Player):
         self.audio_output = QAudioOutput()
         self.player.setAudioOutput(self.audio_output)
 
-    def on_media_load_done(self, path, start, end):
-        super().on_media_load_done(path, start, end)
+    def on_media_load_done(self, path):
+        super().on_media_load_done(path)
         post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.PLAYER_ENABLED)
 
     def on_media_duration_available(self, duration):

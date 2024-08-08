@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from tilia.requests import Get, get
 from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -21,7 +20,7 @@ class SliderTimeline(Timeline):
 
     def _validate_delete_components(self, component: TimelineComponent):
         """Nothing to do. Must impement abstract method."""
-            
+
     def get_state(self) -> dict:
         result = {}
 
@@ -41,6 +40,3 @@ class SliderTimeline(Timeline):
 
     def delete(self):
         """Nothing to do."""
-
-    def crop(self):
-        """Nothing to do"""

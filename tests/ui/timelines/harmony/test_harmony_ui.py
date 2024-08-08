@@ -4,7 +4,6 @@ from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tests.ui.timelines.interact import click_timeline_ui
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
-from tilia.ui.coords import get_x_by_time
 
 
 class TestRightClick:

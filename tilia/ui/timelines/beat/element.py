@@ -21,7 +21,6 @@ from ...windows.inspect import InspectRowKind
 
 if TYPE_CHECKING:
     from .timeline import BeatTimelineUI
-    from tilia.ui.timelines.scene import TimelineScene
 
 
 class BeatUI(TimelineUIElement):
@@ -45,9 +44,8 @@ class BeatUI(TimelineUIElement):
         ("Beat", InspectRowKind.LABEL, None),
     ]
 
-    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = (
-        {}
-    )  # only needed if attrs will be set by Inspect
+    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = {}
+    # only needed if attrs will be set by Inspect
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         by_element_value=[],
@@ -207,7 +205,7 @@ class BeatUI(TimelineUIElement):
 class BeatBody(CursorMixIn, QGraphicsLineItem):
     def __init__(self, x: float, height: float):
         super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
-        self.setLine(self.get_line(x, height))
+        self.set_position(x, height)
         self.set_pen_style_default()
 
     def set_pen_style_default(self):
