@@ -1,7 +1,7 @@
 import pytest
 
 from tests.mock import PatchPost
-from tilia.requests import Post, Get
+from tilia.requests import Post
 from tilia.timelines import hash_timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.dialogs.scale_or_crop import ScaleOrCrop
@@ -44,7 +44,7 @@ class TestTimelines:
         assert marker_tl[0].get_data("time") == 10
 
     def test_scale_timeline_is_not_offered_when_there_is_only_a_slider_timeline(
-        self, slider_tl, tilia_state
+        self, tilia_state
     ):
         with patch("tilia.ui.dialogs.scale_or_crop.ScaleOrCrop.select") as mock:
             tilia_state.duration = 50
@@ -63,7 +63,7 @@ class TestTimelines:
         assert marker_tl[0].get_data("time") == 50
         assert len(marker_tl) == 1
 
-    def test_posts_timeline_kind_instanced_event(self, qtui, tls):
+    def test_posts_timeline_kind_instanced_event(self, tls):
         with PatchPost(
             "tilia.timelines.collection.collection", Post.TIMELINE_KIND_INSTANCED
         ) as post_mock:
