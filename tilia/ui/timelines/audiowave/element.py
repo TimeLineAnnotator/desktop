@@ -18,28 +18,19 @@ from ...windows.inspect import InspectRowKind
 if TYPE_CHECKING:
     from .timeline import AudioWaveTimelineUI
 
+
 class AmplitudeBarUI(TimelineUIElement):
     INSPECTOR_FIELDS = [
         ("Start / End", InspectRowKind.LABEL, None),
         ("Amplitude", InspectRowKind.LABEL, None)
     ]
 
-    def __init__(
-            self,
-            id: int,
-            timeline_ui: AudioWaveTimelineUI,
-            scene: QGraphicsScene,
-            **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
-        self.timeline_ui = timeline_ui
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         self._setup_body()
         self.dragged = False
 
-    @property
-    def start_x(self):
-        return get_x_by_time(self.get_data("start"))
-    
     @property
     def width(self):
         return get_x_by_time(self.get_data("end") - self.get_data("start"))
@@ -56,10 +47,6 @@ class AmplitudeBarUI(TimelineUIElement):
     def seek_time(self):
         return self.get_data("start")
 
-    @property
-    def x(self):
-        return get_x_by_time(self.seek_time)
-    
     def _setup_body(self):
         self.body = AmplitudeBarUIBody(
             self.start_x,

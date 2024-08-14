@@ -11,7 +11,7 @@ from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.media_metadata import MediaMetadata
-from tilia.settings import settings
+from tilia.settings import settings_manager
 import tilia.errors
 
 
@@ -177,11 +177,11 @@ class FileManager:
         data["file_path"] = path
         self.file = TiliaFile(**data)
         try:
-            settings.update_recent_files(
+            settings_manager.update_recent_files(
                 path, get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
             )
         except tilia.exceptions.NoReplyToRequest:
-            settings.update_recent_files(path, None, None)
+            settings_manager.update_recent_files(path, None, None)
 
     def open(self, file_path: str | Path):
         with open(file_path, "r", encoding="utf-8") as f:

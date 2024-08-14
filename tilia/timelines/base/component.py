@@ -54,13 +54,10 @@ class TimelineComponent(ABC):
             self.timeline.update_component_order(self)
         return value, True
 
-    def validate_get_data(self, attr):
-        if not hasattr(self, attr):
+    def get_data(self, attr: str):
+        try:
+            return getattr(self, attr)
+        except AttributeError:
             raise GetComponentDataError(
                 f"Component '{self}' has no attribute named '{attr}'"
             )
-        return True
-
-    def get_data(self, attr: str):
-        if self.validate_get_data(attr):
-            return getattr(self, attr)

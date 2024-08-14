@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QMenu
 from PyQt6.QtGui import QAction
 
 from tilia.ui.actions import TiliaAction, get_qaction
-from tilia.settings import settings
+from tilia.settings import settings_manager
 from tilia.requests.post import post, Post, listen
 from tilia.ui.enums import WindowState
 
@@ -70,10 +70,10 @@ class RecentFilesMenu(QMenu):
         super().__init__()
         self.setTitle("Open Recent File...")
         self.add_items()
-        settings.link_file_update(self.update_items)
+        settings_manager.link_file_update(self.update_items)
 
     def add_items(self):
-        recent_files = settings.get_recent_files()
+        recent_files = settings_manager.get_recent_files()
         qactions = [self._get_action(file) for file in recent_files]
         self.addActions(qactions)
 

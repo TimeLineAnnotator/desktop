@@ -1,7 +1,9 @@
 from __future__ import annotations
+
+import functools
 from abc import ABC, abstractmethod
 
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 
 from PyQt6.QtCore import QPoint
 
@@ -10,7 +12,7 @@ from tilia.utils import get_tilia_class_string
 
 from PyQt6.QtWidgets import QGraphicsScene
 
-from tilia.requests import stop_listening_to_all
+from tilia.requests import stop_listening_to_all, get, Get
 
 
 class TimelineUIElement(ABC):
@@ -20,10 +22,11 @@ class TimelineUIElement(ABC):
 
     def __init__(
         self,
-        *args,
         id: int,
         timeline_ui,
         scene: QGraphicsScene,
+        get_data: Callable[[str], Any],
+        set_data: Callable[[str, Any], None],
         **kwargs,
     ):
         super().__init__()
@@ -31,6 +34,10 @@ class TimelineUIElement(ABC):
         self.timeline_ui = timeline_ui
         self.id = id
         self.scene = scene
+        self.get_x_by_time = self.timeline_ui.time_x_converter.get_x_by_time
+        self.get_time_by_x = self.timeline_ui.time_x_converter.get_time_by_x
+        self.get_data = get_data
+        self.set_data = set_data
 
     def __repr__(self):
         return get_tilia_class_string(self)
@@ -46,13 +53,7 @@ class TimelineUIElement(ABC):
     def kind(self):
         return self.tl_component.get_data('KIND')
 
-    def get_data(self, attr: str):
-        return self.timeline_ui.get_component_data(self.id, attr)
-
-    def set_data(self, attr: str, value: Any):
-        self.timeline_ui.set_component_data(self.id, attr, value)
-
-    def update(self, attr: str):
+    def update(self, attr: str, value: Any):
         if attr not in self.UPDATE_TRIGGERS:
             return
 
@@ -98,3 +99,15 @@ class TimelineUIElement(ABC):
             self.scene.removeItem(item)
 
         stop_listening_to_all(self)
+
+    @property
+    def start_x(self):
+        return self.get_x_by_time(self.get_data("start"))
+
+    @property
+    def end_x(self):
+        return self.get_x_by_time(self.get_data("end"))
+
+    @property
+    def x(self):
+        return self.get_x_by_time(self.get_data("time"))

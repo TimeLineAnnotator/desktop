@@ -46,14 +46,10 @@ class HarmonyUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = HarmonyContextMenu
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: HarmonyTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
 
         self._setup_body()
 
@@ -63,10 +59,6 @@ class HarmonyUI(TimelineUIElement):
     def _setup_body(self):
         self.body = HarmonyBody(self.x, self.y, self.label, self.font_type)
         self.scene.addItem(self.body)
-
-    @property
-    def x(self):
-        return get_x_by_time(self.get_data("time"))
 
     @property
     def y(self):

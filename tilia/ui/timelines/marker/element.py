@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QPolygonF, QPen, QColor, QFont
@@ -49,14 +49,9 @@ class MarkerUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = MarkerContextMenu
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: MarkerTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self._setup_body()
         self._setup_label()
@@ -71,10 +66,6 @@ class MarkerUI(TimelineUIElement):
     def _setup_label(self):
         self.label = MarkerLabel(self.x, self.label_y, self.get_data("label"))
         self.scene.addItem(self.label)
-
-    @property
-    def x(self):
-        return get_x_by_time(self.get_data("time"))
 
     @property
     def label_y(self):
@@ -116,8 +107,9 @@ class MarkerUI(TimelineUIElement):
         self.update_time()
 
     def update_time(self):
-        self.body.set_position(self.x, self.width, self.height)
-        self.label.set_position(self.x, self.label_y)
+        x = self.x
+        self.body.set_position(x, self.width, self.height)
+        self.label.set_position(x, self.label_y)
 
     def child_items(self):
         return [self.body, self.label]

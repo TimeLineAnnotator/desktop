@@ -132,23 +132,23 @@ def tilia_errors(qtui):
 
 
 @pytest.fixture(scope="session")
-def qtui():
+def qtui(tilia):
     qtui_ = QtUI()
     stop_listening(qtui_, Post.DISPLAY_ERROR)
+
+    # finish tilia setup
+    # all this depends on a player
+    tilia.player = qtui_.player
+    tilia.set_media_duration(100)
+    tilia.reset_undo_manager()
+
     yield qtui_
-    # stop_listening_to_all(qtui_.timeline_uis)
-    # stop_serving_all(qtui_.timeline_uis)
-    # stop_listening_to_all(qtui_)
-    # stop_serving_all(qtui_)
 
 
 # noinspection PyProtectedMember
 @pytest.fixture(scope="session")
-def tilia(qtui):
+def tilia():
     tilia_ = setup_logic(autosaver=False)
-    tilia_.player = qtui.player
-    tilia_.set_media_duration(100)
-    tilia_.reset_undo_manager()
     yield tilia_
 
 
