@@ -23,6 +23,7 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.view import TimelineView
+from tilia.ui.coords import TimeXConverter
 from ..cursors import CursorMixIn
 
 if TYPE_CHECKING:
@@ -43,6 +44,7 @@ class SliderTimelineUI(TimelineUI):
         element_manager: ElementManager,
         scene: TimelineScene,
         view: TimelineView,
+        time_x_converter: TimeXConverter | None = None,
     ):
         super().__init__(
             id=id,
@@ -50,6 +52,7 @@ class SliderTimelineUI(TimelineUI):
             element_manager=element_manager,
             scene=scene,
             view=view,
+            time_x_converter=time_x_converter,
         )
 
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_audio_time_change)

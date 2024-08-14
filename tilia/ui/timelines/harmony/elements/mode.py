@@ -29,14 +29,8 @@ class ModeUI(TimelineUIElement):
     UPDATE_TRIGGERS = ["time", "step", "accidental", "type", "level"]
     CONTEXT_MENU_CLASS = ModeContextMenu
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: HarmonyTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self._setup_body()
 
@@ -157,10 +151,10 @@ class ModeUI(TimelineUIElement):
 
 class ModeBody(QGraphicsTextItem):
     def __init__(
-        self,
-        x: float,
-        y: float,
-        text: str,
+            self,
+            x: float,
+            y: float,
+            text: str,
     ):
         super().__init__()
         self._setup_font()

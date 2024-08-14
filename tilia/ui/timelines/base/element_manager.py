@@ -48,11 +48,13 @@ class ElementManager(Generic[TE]):
         id: int,
         timeline_ui: TimelineUI,
         scene: TimelineScene,
+        get_data: Callable[[str], Any],
+        set_data: Callable[[str, Any], None],
     ):
         if self.is_single_element:
-            element = self.element_classes[0](id, timeline_ui, scene)
+            element = self.element_classes[0](id, timeline_ui, scene, get_data, set_data)
         else:
-            element = get_element_class_by_kind(kind)(id, timeline_ui, scene)
+            element = get_element_class_by_kind(kind)(id, timeline_ui, scene, get_data, set_data)
 
         self._add_to_elements_set(element)
 

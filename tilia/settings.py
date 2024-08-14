@@ -181,4 +181,26 @@ class SettingsManager(QObject):
         return editable_settings
 
 
-settings = SettingsManager()
+class SettingsCache():
+    def __init__(self):
+        self.values = {}
+
+        for group in settings_manager.DEFAULT_SETTINGS.keys():
+            for setting, value in settings_manager.DEFAULT_SETTINGS[group].items():
+                if group not in self.values:
+                   self.values[group] = {}
+                self.values[group][setting] = settings_manager.get(group, setting)
+
+    def get(self, group, setting):
+        return self.values[group][setting]
+
+    def set(self, group, setting, value):
+        try:
+            settings_manager.set(group, setting, value)
+            self.values[group][setting] = value
+        except AttributeError:
+            raise AttributeError(f"{group}.{setting} not found in cache.")
+
+
+settings_manager = SettingsManager()
+settings = SettingsCache()
