@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import (
@@ -12,7 +11,6 @@ from PyQt6.QtGui import (
     QFontMetrics,
 )
 from PyQt6.QtWidgets import (
-    QGraphicsScene,
     QGraphicsItem,
     QGraphicsTextItem,
     QGraphicsPixmapItem,
@@ -25,12 +23,9 @@ from ..copy_paste import CopyAttributes
 from ..cursors import CursorMixIn
 from ..drag import DragManager
 from ...format import format_media_time
-from ...coords import get_x_by_time, get_time_by_x
+from ...coords import get_time_by_x
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
-
-if TYPE_CHECKING:
-    from .timeline import PdfTimelineUI
 
 
 class PdfMarkerUI(TimelineUIElement):
@@ -51,14 +46,8 @@ class PdfMarkerUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = PdfMarkerContextMenu
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: PdfTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.INSPECTOR_FIELDS = [
             (
@@ -82,10 +71,6 @@ class PdfMarkerUI(TimelineUIElement):
         self.scene.addItem(self.label)
 
     @property
-    def x(self):
-        return get_x_by_time(self.get_data("time"))
-
-    @property
     def seek_time(self):
         return self.get_data("time")
 
@@ -97,8 +82,9 @@ class PdfMarkerUI(TimelineUIElement):
         self.update_time()
 
     def update_time(self):
-        self.body.set_position(self.x)
-        self.label.set_position(self.x)
+        x = self.x
+        self.body.set_position(x)
+        self.label.set_position(x)
 
     def update_page_number(self):
         self.label.set_text(str(self.get_data("page_number")))

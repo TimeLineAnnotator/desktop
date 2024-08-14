@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtWidgets import (
@@ -30,7 +30,7 @@ from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
-from tilia.ui.coords import get_x_by_time, get_time_by_x
+from tilia.ui.coords import get_x_by_time, get_time_by_x, TimeXConverter
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.player import PlayerToolbarElement
@@ -74,6 +74,7 @@ class TimelineUIs:
         self._setup_widgets(main_window)
         self._setup_requests()
 
+        self.time_x_converter = TimeXConverter()
         self._setup_selection_box()
         self._setup_drag_tracking_vars()
         self._setup_auto_scroll()
@@ -240,6 +241,7 @@ class TimelineUIs:
             element_manager=element_manager,
             scene=scene,
             view=view,
+            time_x_converter=self.time_x_converter
         )
 
         self._add_to_timeline_uis_set(tl_ui)
@@ -251,10 +253,12 @@ class TimelineUIs:
         return tl_ui
 
     def on_timeline_component_created(
-        self, _: TlKind, tl_id: int, component_kind: ComponentKind, component_id: int
+            self, _: TlKind, tl_id: int, component_kind: ComponentKind, component_id: int,
+            get_data: Callable[[str, Any], None],
+            set_data: Callable[[str], Any],
     ):
         self.get_timeline_ui(tl_id).on_timeline_component_created(
-            component_kind, component_id
+            component_kind, component_id, get_data, set_data
         )
 
     def on_timeline_component_deleted(self, _: TlKind, tl_id: int, component_id: int):
@@ -266,11 +270,11 @@ class TimelineUIs:
         self.get_timeline_ui(tl_id).on_timeline_component_deleted(component_id)
 
     def on_timeline_component_set_data_done(
-        self, timeline_id: int, component_id: int, attr: str, _: Any
+            self, timeline_id: int, component_id: int, attr: str, value: Any
     ):
         timeline_ui = self.get_timeline_ui(timeline_id)
         element = timeline_ui.get_element(component_id)
-        element.update(attr)
+        element.update(attr, value)
         if attr in element.tl_component.ORDERING_ATTRS:
             timeline_ui.update_element_order(element)
         if (timeline_id, component_id) in self.loop_elements and self.loop_time[
@@ -368,6 +372,7 @@ class TimelineUIs:
 
     def on_timeline_width_set_done(self, width):
         self.scene.setSceneRect(0, 0, width, self.get_scene_height())
+
         for tlui in self:
             tlui.set_width(width)
 

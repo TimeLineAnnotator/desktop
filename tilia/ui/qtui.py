@@ -51,7 +51,7 @@ from .windows.kinds import WindowKind
 from ..media.player import QtVideoPlayer, QtAudioPlayer, YouTubePlayer
 from ..parsers.csv.beat import beats_from_csv
 from tilia import constants
-from tilia.settings import settings
+from tilia.settings import settings_manager, settings
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.requests import Post, listen, post, serve, Get, get
@@ -328,7 +328,7 @@ class QtUI:
         return self.main_window.saveState()
 
     def on_file_load(self, file: TiliaFile) -> None:
-        geometry, state = settings.get_geometry_and_state_from_path(file.file_path)
+        geometry, state = settings_manager.get_geometry_and_state_from_path(file.file_path)
         if geometry and state:
             self.main_window.restoreGeometry(geometry)
             self.main_window.restoreState(state)
