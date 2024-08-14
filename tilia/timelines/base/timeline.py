@@ -28,7 +28,6 @@ if TYPE_CHECKING:
     # noinspection PyUnresolvedReferences
     from .component import TimelineComponent
 
-
 TC = TypeVar("TC", bound="TimelineComponent")
 T = TypeVar("T", bound="Timeline")
 
@@ -147,7 +146,8 @@ class Timeline(ABC, Generic[TC]):
 
         if success:
             post(
-                Post.TIMELINE_COMPONENT_CREATED, self.KIND, self.id, kind, component.id
+                Post.TIMELINE_COMPONENT_CREATED, self.KIND, self.id, kind, component.id, component.get_data,
+                functools.partial(self.set_component_data, component.id)
             )
             return component, None
         else:
@@ -274,7 +274,7 @@ class TimelineComponentManager(Generic[T, TC]):
         return True, ""
 
     def create_component(
-        self, kind: ComponentKind | None, timeline, id, *args, **kwargs
+        self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         self._validate_component_kind(kind)
         valid, reason = self._validate_component_creation(kind, *args, **kwargs)

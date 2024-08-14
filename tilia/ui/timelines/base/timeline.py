@@ -28,7 +28,7 @@ from tilia.ui.timelines.copy_paste import (
 from .request_handlers import TimelineRequestHandler
 from ..collection.requests.enums import ElementSelector
 from ..view import TimelineView
-from ...coords import get_x_by_time
+from ...coords import get_x_by_time, TimeXConverter
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
@@ -54,10 +54,12 @@ class TimelineUI(ABC):
         element_manager: ElementManager,
         scene: TimelineScene,
         view: TimelineView,
+        time_x_converter: TimeXConverter | None = None,
     ):
         super().__init__()
         self.id = id
         self.collection = collection
+        self.time_x_converter = time_x_converter
         self.scene = scene
         self.view = view
 
@@ -181,9 +183,10 @@ class TimelineUI(ABC):
 
         return selector_to_elements[selector]
 
-    def set_elements_attr(self, elements: list[T], attr: str, value: Any):
+    @staticmethod
+    def set_elements_attr(elements: list[T], attr: str, value: Any):
         for elm in elements:
-            self.set_component_data(elm.id, attr, value)
+            elm.set_data(attr, value)
 
     def get_timeline_component(self, id: int):
         return self.timeline.get_component(id)
@@ -191,20 +194,14 @@ class TimelineUI(ABC):
     def get_component_ui(self, component: TimelineComponent):
         return self.id_to_element[component.id]
 
-    def get_component_data(self, id: int, attr: str):
-        return self.timeline.get_component_data(id, attr)
-
-    def set_component_data(self, id: int, attr: str, value: Any):
-        self.timeline.set_component_data(id, attr, value)
-
     def _setup_collection_requests(self):
         self.request_to_callback = {}
 
     def on_timeline_request(self, request, *args, **kwargs):
         return TimelineRequestHandler(self, {}).on_request(request, *args, **kwargs)
 
-    def on_timeline_component_created(self, kind: ComponentKind, id: int):
-        return self.element_manager.create_element(kind, id, self, self.scene)
+    def on_timeline_component_created(self, kind: ComponentKind, id: int, get_data, set_data):
+        return self.element_manager.create_element(kind, id, self, self.scene, get_data, set_data)
 
     def on_timeline_component_deleted(self, id: int):
         self.delete_element(self.id_to_element[id])
@@ -402,10 +399,10 @@ class TimelineUI(ABC):
 
         attr = element.FIELD_NAMES_TO_ATTRIBUTES[field_name]
 
-        if value == self.get_component_data(element.id, attr):
+        if value == element.get_data(attr):
             return
 
-        self.set_component_data(element.id, attr, value)
+        element.set_data(attr, value)
 
         post(
             Post.APP_RECORD_STATE,

@@ -3,7 +3,7 @@ Defines the ui corresponding to a Beat object.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Any
 
 from PyQt6.QtCore import Qt, QLineF, QPointF
 from PyQt6.QtGui import QPen, QColor, QFont
@@ -63,9 +63,11 @@ class BeatUI(TimelineUIElement):
         id: int,
         timeline_ui: BeatTimelineUI,
         scene: QGraphicsScene,
+        get_data: Callable[[str], Any],
+        set_data: Callable[[str, Any], None],
         **_,
     ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene, get_data=get_data, set_data=set_data)
 
         self._setup_body()
         self._setup_label()
@@ -84,10 +86,6 @@ class BeatUI(TimelineUIElement):
     @property
     def time(self):
         return self.tl_component.time
-
-    @property
-    def x(self):
-        return get_x_by_time(self.time)
 
     @property
     def label_y(self):
