@@ -19,6 +19,7 @@ from .validators import (
     validate_timeline_ordinal,
     validate_boolean,
 )
+from ..hash_timelines import hash_function
 from ...requests import get, Get, post, Post, stop_listening_to_all
 
 if TYPE_CHECKING:
@@ -51,6 +52,7 @@ class Timeline(ABC, Generic[TC]):
         height: int = 0,
         is_visible: bool = True,
         ordinal: int = None,
+        **kwargs  # ignores components_hash
     ):
         self.id = get(Get.ID)
 
@@ -134,9 +136,9 @@ class Timeline(ABC, Generic[TC]):
             return getattr(self, attr)
 
     def create_timeline_component(
-        self, kind: ComponentKind, *args, **kwargs
+        self, kind: ComponentKind, *args, id=None, **kwargs
     ) -> tuple[TC | None, str | None]:
-        component_id = get(Get.ID)
+        component_id = id or get(Get.ID)
         success, component, reason = self.component_manager.create_component(
             kind, self, component_id, *args, **kwargs
         )
@@ -196,14 +198,19 @@ class Timeline(ABC, Generic[TC]):
 
     def get_state(self) -> dict:
         """Creates a dict with timeline components and attributes."""
-        state = {}
+        state = {"kind": self.KIND.name}
+
+        string_to_hash = self.KIND.name + "|"
+
         for attr in self.SERIALIZABLE_BY_VALUE:
             if isinstance(value := getattr(self, attr), list):
                 value = value.copy()
             state[attr] = value
+            string_to_hash += str(value) + '|'
 
         state["components"] = self.component_manager.serialize_components()
-        state["kind"] = self.KIND.name
+        state['components_hash'] = self.component_manager.hash_components()
+        state["hash"] = hash_function(f'{state["kind"]}|{string_to_hash}')
 
         return state
 
@@ -387,11 +394,44 @@ class TimelineComponentManager(Generic[T, TC]):
         for component in self._components.copy():
             self.delete_component(component)
 
+    def hash_components(self):
+        str_to_hash = ''
+        for component in self._components:
+            str_to_hash += component.hash + '|'
+
+        return hash_function(str_to_hash)
+
     def serialize_components(self):
         return serialize.serialize_components(self._components)
 
     def deserialize_components(self, serialized_components: dict[int | str, dict[str, Any]]):
         serialize.deserialize_components(self.timeline, serialized_components)
+
+    def restore_state(self, prev_state: dict):
+        cur_hash_to_id = {cmp.hash: cmp.id for cmp in self._components}
+        prev_hash_to_data = {data['hash']: data | {'id': id} for id, data in prev_state.items()}
+        cur_hashes = set(cur_hash_to_id.keys())
+        prev_hashes = set(prev_hash_to_data.keys())
+
+        hashes_to_delete = cur_hashes.difference(prev_hashes)
+        ids_to_delete = [cur_hash_to_id[id] for id in hashes_to_delete]
+        self.timeline.delete_components([self.timeline.get_component(id) for id in ids_to_delete])
+
+        hashes_to_create = prev_hashes.difference(cur_hashes)
+        components_to_create = [prev_hash_to_data[hash] for hash in hashes_to_create]
+        for cmp in components_to_create:
+            cmp = cmp.copy()
+            kind = ComponentKind[cmp.pop('kind')]
+            id = cmp.pop('id')
+
+            for attr in get_component_class_by_kind(kind).SERIALIZABLE_BY_ID:
+                if cmp[attr]:
+                    cmp[attr] = cmp[self.get_component(cmp[attr])]
+
+            for attr in get_component_class_by_kind(kind).SERIALIZABLE_BY_ID_LIST:
+                cmp[attr] = [self.get_component(id) for id in cmp[attr]]
+
+            self.timeline.create_timeline_component(kind, id=id, **cmp)
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(event, self.timeline.KIND, self.timeline.id, component_id, *args, **kwargs)

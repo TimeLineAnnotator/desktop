@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 
 from tilia.file.tilia_file import TiliaFile
-from tilia.timelines.hash_timelines import hash_timeline_collection_data
 
 JSON_CONFIG = {"indent": 2}
 
@@ -17,12 +16,13 @@ def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
 
     for attr in attrs_to_check:
         if attr == "timelines":
-            hash1 = hash_timeline_collection_data(data1["timelines"])
-            hash2 = hash_timeline_collection_data(data2["timelines"])
-            if hash1 != hash2:
-                return False
+            continue
         elif data1[attr] != data2[attr]:
             return False
+
+    if data1['timelines_hash'] != data2['timelines_hash']:
+        return False
+
     return True
 
 

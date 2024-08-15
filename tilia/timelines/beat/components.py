@@ -37,6 +37,8 @@ class Beat(TimelineComponent):
         self.comments = comments
         self.is_first_in_measure = False
 
+        self.update_hash()
+
     def __str__(self):
         return f"Beat({self.time})"
 

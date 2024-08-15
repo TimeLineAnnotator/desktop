@@ -54,6 +54,8 @@ class Marker(TimelineComponent):
         self.color = color
         self.comments = comments
 
+        self.update_hash()
+
     def __str__(self):
         return f"Marker({self.time})"
 

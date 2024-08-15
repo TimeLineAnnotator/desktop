@@ -103,6 +103,8 @@ class App:
             self.player = player
             post(Post.APP_RECORD_STATE, "media load")
 
+    from tilia.dev.profiling import profile
+    @profile
     def on_restore_state(self, state: dict) -> None:
         logging.disable(logging.CRITICAL)
         with PauseUndoManager():
@@ -154,6 +156,8 @@ class App:
         self.timelines.deserialize_timelines(file.timelines)
         self.setup_file()
 
+        post(Post.DEBUG)
+
     def on_clear(self) -> None:
         self.timelines.clear()
         self.file_manager.new()
@@ -177,9 +181,11 @@ class App:
 
     def get_app_state(self) -> dict:
         logging.disable(logging.CRITICAL)
+        timelines_state, timelines_hash = self.timelines.serialize_timelines()
         params = {
             "media_metadata": dict(self.file_manager.file.media_metadata),
-            "timelines": self.get_timelines_state(),
+            "timelines": timelines_state,
+            'timelines_hash': timelines_hash,
             "media_path": get(Get.MEDIA_PATH),
             "file_path": self.file_manager.get_file_path(),
             "version": tilia.constants.VERSION,

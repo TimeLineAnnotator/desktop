@@ -91,6 +91,8 @@ class Hierarchy(TimelineComponent):
         self.pre_start = pre_start if pre_start is not None else self.start
         self.post_end = post_end if post_end is not None else self.end
 
+        self.update_hash()
+
     @property
     def start(self):
         return self._start

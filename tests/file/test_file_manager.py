@@ -160,6 +160,7 @@ class TestFileManager:
                 "ordinal": 0,
                 "is_visible": True,
                 "height": 10,
+                "components": {},
             },
             "1": {
                 "kind": "HIERARCHY_TIMELINE",

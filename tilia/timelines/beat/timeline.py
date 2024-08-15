@@ -13,7 +13,6 @@ import tilia.errors
 if TYPE_CHECKING:
     from tilia.timelines.beat.components import Beat
 
-
 class BeatTimeline(Timeline):
     SERIALIZABLE_BY_VALUE = [
         "beat_pattern",
@@ -118,7 +117,7 @@ class BeatTimeline(Timeline):
         return measure_times
 
     def is_first_in_measure(self, beat):
-        return self.components.index(beat) in self.beats_that_start_measures
+        return self.components.index(beat) in set(self.beats_that_start_measures)
 
     def recalculate_measures(self):
         beat_delta = (len(self)) - sum(self.beats_in_measure)
@@ -333,7 +332,6 @@ class BeatTimeline(Timeline):
         if not self.is_empty:
             self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
 
-
 class BeatTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.BEAT]
 
@@ -341,18 +339,22 @@ class BeatTLComponentManager(TimelineComponentManager):
 
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
+        self.compute_is_first_in_measure = True
 
     @property
     def beat_times(self):
         return {b.time for b in self._components}
 
-    def update_is_first_in_measure_of_subsequent_beats(self, index):
-        for beat_ in self.timeline[index + 1 :]:
-            self.timeline.set_component_data(
-                beat_.id,
+    def update_is_first_in_measure_of_subsequent_beats(self, start_index):
+        beats_that_start_measure = set(self.timeline.beats_that_start_measures)
+        for i, beat in enumerate(self.timeline[start_index + 1 :]):
+            is_first_in_measure = start_index + i in beats_that_start_measure
+            if is_first_in_measure != beat.is_first_in_measure:
+                self.timeline.set_component_data(
+                    beat.id,
                 "is_first_in_measure",
-                self.timeline.is_first_in_measure(beat_),
-            )
+                    is_first_in_measure,
+                )
 
     def create_component(
         self, kind: ComponentKind, timeline, id, *args, **kwargs
@@ -363,10 +365,11 @@ class BeatTLComponentManager(TimelineComponentManager):
 
         if success:
             self.timeline.recalculate_measures()
-            beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
-            self.update_is_first_in_measure_of_subsequent_beats(
-                self.get_components().index(beat)
-            )
+            if self.compute_is_first_in_measure:
+                beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
+                self.update_is_first_in_measure_of_subsequent_beats(
+                    self.get_components().index(beat)
+                )
 
         return success, beat, reason
 
@@ -476,3 +479,9 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline.set_data('measures_to_force_display', measures_to_force_display)
 
         self.timeline.recalculate_measures()  # Not sure if this is needed.
+
+    def restore_state(self, prev_state: dict):
+        self.compute_is_first_in_measure = False
+        super().restore_state(prev_state)
+        self.compute_is_first_in_measure = True
+        self.update_is_first_in_measure_of_subsequent_beats(0)

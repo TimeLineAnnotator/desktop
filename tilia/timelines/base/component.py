@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
+from tilia.timelines.hash_timelines import hash_function
 from tilia.utils import get_tilia_class_string
 from tilia.exceptions import SetComponentDataError, GetComponentDataError
 from tilia.timelines.base.timeline import Timeline
@@ -23,6 +24,7 @@ class TimelineComponent(ABC):
     def __init__(self, timeline: Timeline, id: int, *args, **kwargs):
         self.timeline = timeline
         self.id = id
+        self.hash = ''
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -33,6 +35,15 @@ class TimelineComponent(ABC):
     @property
     def ordinal(self):
         return tuple(getattr(self, attr) for attr in self.ORDERING_ATTRS)
+
+    def to_hash(self):
+        string_to_hash = ""
+        for attr in self.SERIALIZABLE_BY_VALUE:
+            string_to_hash += "|" + str(getattr(self, attr))
+        return hash_function(string_to_hash)
+
+    def update_hash(self):
+        self.hash = self.to_hash()
 
     def validate_set_data(self, attr, value):
         if not hasattr(self, attr):
@@ -52,6 +63,7 @@ class TimelineComponent(ABC):
         setattr(self, attr, value)
         if attr in self.ORDERING_ATTRS:
             self.timeline.update_component_order(self)
+        self.update_hash()
         return value, True
 
     def validate_get_data(self, attr):

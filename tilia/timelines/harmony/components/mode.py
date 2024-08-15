@@ -57,6 +57,8 @@ class Mode(TimelineComponent):
         self.level = level
         self.comments = comments
 
+        self.update_hash()
+
     def __str__(self):
         return f"Mode({self.step, self.accidental, self.type}) at {self.time}"
 

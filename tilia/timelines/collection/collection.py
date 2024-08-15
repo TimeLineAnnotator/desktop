@@ -7,6 +7,7 @@ from bisect import bisect
 from tilia.exceptions import TimelineValidationError
 from tilia.requests import Post, post, serve, Get, get, listen
 from tilia.timelines.harmony.timeline import HarmonyTimeline, HarmonyTLComponentManager
+from tilia.timelines.hash_timelines import hash_function
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
 from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
@@ -264,7 +265,9 @@ class Timelines:
             )
 
     def serialize_timelines(self):
-        return {tl.id: tl.get_state() for tl in self}
+        state = {tl.id: tl.get_state() for tl in self}
+        hash = hash_function('|'.join([tl_data['hash'] for tl_data in state.values()]))
+        return state, hash
 
     def deserialize_timelines(self, data: dict) -> None:
         data_copy = copy.deepcopy(data)  # so pop does not modify original data
@@ -296,10 +299,14 @@ class Timelines:
         post(Post.TIMELINE_COLLECTION_STATE_RESTORED)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
-        timeline.clear()
-        timeline.deserialize_components(state["components"])
-        for attr in timeline.SERIALIZABLE_BY_VALUE:
-            self.set_timeline_data(timeline.id, attr, state[attr])
+        if timeline.components and timeline.component_manager.hash_components() != state["components_hash"]:
+            timeline.component_manager.restore_state(state["components"])
+            # timeline.clear()
+            # timeline.deserialize_components(state["components"])
+
+        if timeline.get_state()['hash'] != state["hash"]:
+            for attr in timeline.SERIALIZABLE_BY_VALUE:
+                self.set_timeline_data(timeline.id, attr, state[attr])
 
     def get_timeline_ids(self):
         return [tl.id for tl in self]
