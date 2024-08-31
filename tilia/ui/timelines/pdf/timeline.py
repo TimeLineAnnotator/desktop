@@ -77,13 +77,17 @@ class PdfTimelineUI(TimelineUI):
         self.pdf_view.update_window(
             int(self.pdf_document.pagePointSize(0).height()),
             int(self.pdf_document.pagePointSize(0).width()),
-            self.pdf_document.metaData(QPdfDocument.MetaDataField.Title),
         )
 
     def _setup_pdf_document(self):
         self.pdf_document = QPdfDocument(None)
-        self.pdf_view = QPdfWindow()
+        self.pdf_view = QPdfWindow(self.get_data("name"))
         self.pdf_view.setDocument(self.pdf_document)
+
+    def update_name(self):
+        name = self.get_data("name")
+        self.scene.set_text(name)
+        self.pdf_view.update_title(name)
 
     @property
     def current_page(self):
@@ -217,14 +221,10 @@ class PdfTimelineUI(TimelineUI):
 
 
 class QPdfWindow(ViewWindow, QPdfView):
-    def __init__(self):
-        super().__init__("TiLiA PDF Viewer", None)
+    def __init__(self, name: str):
+        super().__init__("TiLiA PDF Viewer", None, menu_title=name)
         self.setPageMode(QPdfView.PageMode.MultiPage)
 
-    def update_window(self, width: int, height: int, document_title=""):
+    def update_window(self, width: int, height: int):
         self.resize(width, height)
-        if document_title != "":
-            self.update_title(document_title)
-        else:
-            self.update_title("PDF Viewer")
         self.show()
