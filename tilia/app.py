@@ -81,6 +81,9 @@ class App:
 
     def on_player_duration_available(self, duration: float):
         actual_duration = get(Get.MEDIA_TIMES_ABSOLUTE).duration
+
+        # self.duration stores the absolute duration of the media file.
+        # check to ensure updated player duration is absolute and not relative.
         if duration == actual_duration and duration != self.duration:
             self.duration = duration
 
