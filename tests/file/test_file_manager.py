@@ -110,7 +110,7 @@ class TestFileManager:
                     item
                     not in MediaMetadataWindow.SEPARATE_WINDOW_FIELDS
                     + list(MediaMetadataWindow.READ_ONLY_FIELDS)
-                    + MediaMetadataWindow.RELATIVE_TIMES
+                    + MediaMetadataWindow.PLAYBACK_TIMES
                 ):
                     output.append(item)
             return output
