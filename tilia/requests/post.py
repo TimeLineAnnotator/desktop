@@ -25,7 +25,6 @@ class Post(Enum):
     BEAT_RESET_MEASURE_NUMBER = auto()
     BEAT_SET_AMOUNT_IN_MEASURE = auto()
     BEAT_SET_MEASURE_NUMBER = auto()
-    BEAT_TIME_CHANGED = auto()
     CANVAS_RIGHT_CLICK = auto()
     DEBUG = auto()
     DISPLAY_ERROR = auto()

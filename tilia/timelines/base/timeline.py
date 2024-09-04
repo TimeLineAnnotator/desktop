@@ -191,6 +191,12 @@ class Timeline(ABC, Generic[TC]):
     def delete(self):
         self.component_manager.clear()
 
+    def scale(self, factor: float) -> None:
+        self.component_manager.scale(factor)
+
+    def crop(self, length: float) -> None:
+        self.component_manager.crop(length)
+
     def deserialize_components(self, components: dict[int, dict[str]]):
         return self.component_manager.deserialize_components(components)
 
@@ -395,3 +401,9 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(event, self.timeline.KIND, self.timeline.id, component_id, *args, **kwargs)
+
+    def crop(self, length: float) -> None:
+        raise NotImplementedError
+
+    def scale(self, length: float) -> None:
+        raise NotImplementedError

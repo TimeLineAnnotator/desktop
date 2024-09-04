@@ -19,9 +19,6 @@ class SliderTimeline(Timeline):
     def default_height(self):
         return settings.get("slider_timeline", "default_height")
 
-    def _validate_delete_components(self, component: TimelineComponent):
-        """Nothing to do. Must impement abstract method."""
-            
     def get_state(self) -> dict:
         result = {}
 
@@ -33,8 +30,11 @@ class SliderTimeline(Timeline):
 
         return result
 
+    def _validate_delete_components(self, component: TimelineComponent):
+        """Nothing to do."""
+
     def deserialize_components(self, components: dict[int, dict[str]]):
-        pass
+        """Nothing to do."""
 
     def clear(self, _=True):
         """Nothing to do."""
@@ -42,5 +42,8 @@ class SliderTimeline(Timeline):
     def delete(self):
         """Nothing to do."""
 
-    def crop(self):
+    def crop(self, length: float):
+        """Nothing to do"""
+
+    def scale(self, length: float):
         """Nothing to do"""

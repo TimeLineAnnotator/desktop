@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import math
 from bisect import bisect
 from typing import Any
@@ -7,6 +8,7 @@ from typing import Any
 import music21
 
 from tilia.requests import Get, get, post, Post
+from tilia.timelines.base.common import crop_discrete, scale_discrete
 from tilia.timelines.base.validators import validate_positive_integer
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Mode, Harmony
@@ -86,14 +88,6 @@ class HarmonyTimeline(Timeline):
 
         return modes[idx - 1].key
 
-    def scale(self, factor: float) -> None:
-        self.component_manager: HarmonyTLComponentManager
-        self.component_manager.scale(factor)
-
-    def crop(self, length: float) -> None:
-        self.component_manager: HarmonyTLComponentManager
-        self.component_manager.crop(length)
-
     def deserialize_components(self, components: dict[int, dict[str]]):
         super().deserialize_components(components)
         post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.id)
@@ -105,6 +99,8 @@ class HarmonyTLComponentManager(TimelineComponentManager):
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
         self.is_deserializing = False
+        self.crop = functools.partial(crop_discrete, self)
+        self.scale = functools.partial(scale_discrete, self)
 
     def _validate_component_creation(
         self,
@@ -199,15 +195,6 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             return next_mode_time >= harmony.get_data('time') >= mode.get_data('time')
 
         return self.get_components_by_condition(is_in_harmonic_region, ComponentKind.HARMONY)
-
-    def scale(self, factor: float) -> None:
-        for component in self:
-            component.set_data("time", component.get_data("time") * factor)
-
-    def crop(self, length: float) -> None:
-        for component in list(self).copy():
-            if component.get_data("time") > length:
-                self.delete_component(component)
 
     def deserialize_components(self, serialized_components: dict[int | str, dict[str, Any]]):
         # self.create_component and self.delete_component
