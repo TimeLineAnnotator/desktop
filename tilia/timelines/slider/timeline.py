@@ -1,9 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from tilia.requests import Get, get
 from tilia.settings import settings
-from tilia.timelines.base.timeline import Timeline
+from tilia.timelines.base.timeline import Timeline, TimelineFlag
 from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
@@ -12,8 +11,8 @@ if TYPE_CHECKING:
 
 class SliderTimeline(Timeline):
     SERIALIZABLE_BY_VALUE = ["is_visible", "ordinal", "height"]
-
     KIND = TimelineKind.SLIDER_TIMELINE
+    FLAGS = [TimelineFlag.NOT_CLEARABLE, TimelineFlag.NOT_DELETABLE]
 
     @property
     def default_height(self):
