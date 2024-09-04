@@ -62,7 +62,7 @@ def _get_timeline_args(filename: str, folder_name: str):
             )
             if kind in {"beat", "bea"}:
                 return True, timeline_args(
-                    f'timelines add {kind} --name "{name}{('" ' + args) if args else '"'}',
+                    f'timelines add {kind} --name "{name}" {args or ""}',
                     f'timelines import csv {kind} --target-name "{name}" --file "{os.path.join(folder_name, filename)}"',
                     True,
                     False,
@@ -77,7 +77,7 @@ def _get_timeline_args(filename: str, folder_name: str):
                 time_or_measure = " by-time "
 
             return True, timeline_args(
-                f'timelines add {kind} --name "{name}{('" ' + args) if args else '"'}',
+                f'timelines add {kind} --name "{name}" {args or ""}',
                 f'timelines import csv {kind}{time_or_measure}--target-name "{name}" --file "{os.path.join(folder_name, filename)}"',
                 False,
                 requires_beat,
