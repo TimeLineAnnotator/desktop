@@ -1,9 +1,12 @@
 from __future__ import annotations
+
+import functools
 import itertools
 from typing import TYPE_CHECKING, Optional
 
 from tilia.requests import get, Get, post, Post
 from tilia.settings import settings
+from tilia.timelines.base.common import scale_discrete, crop_discrete
 from tilia.timelines.beat.validators import validate_integer_list
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -318,12 +321,6 @@ class BeatTimeline(Timeline):
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
 
-    def scale(self, factor: float) -> None:
-        self.component_manager.scale(factor)
-
-    def crop(self, length: float) -> None:
-        self.component_manager.crop(length)
-
     def delete_components(self, components: list[TC]) -> None:
         self._validate_delete_components(components)
 
@@ -341,6 +338,8 @@ class BeatTLComponentManager(TimelineComponentManager):
 
     def __init__(self):
         super().__init__(self.COMPONENT_TYPES)
+        self.scale = functools.partial(scale_discrete, self)
+        self.crop = functools.partial(crop_discrete, self)
 
     @property
     def beat_times(self):
@@ -446,16 +445,6 @@ class BeatTLComponentManager(TimelineComponentManager):
             self.set_component_data(
                 beat.id, "time", measure_start_time + index * interval
             )
-
-    def scale(self, factor: float) -> None:
-        for beat in self._components:
-            beat.time *= factor
-            self.post_component_event(Post.BEAT_TIME_CHANGED, beat.id)
-
-    def crop(self, length: float) -> None:
-        for beat in self._components.copy():
-            if beat.time > length:
-                self.delete_component(beat)
 
     def clear(self):
         for component in self._components.copy():
