@@ -82,12 +82,6 @@ class HierarchyTimeline(Timeline):
         if not success:
             tilia.errors.display(tilia.errors.HIERARCHY_MERGE_FAILED, reason)
 
-    def scale(self, factor: float) -> None:
-        self.component_manager.scale(factor)
-
-    def crop(self, length: float) -> None:
-        self.component_manager.crop(length)
-
     def do_genealogy(self):
         self.component_manager.do_genealogy()
 
