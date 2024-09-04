@@ -5,7 +5,7 @@ import pydub.exceptions
 import pydub.utils
 
 from tilia.settings import settings
-from tilia.timelines.base.timeline import Timeline
+from tilia.timelines.base.timeline import Timeline, TimelineFlag
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get, post, Post
@@ -16,6 +16,7 @@ import tilia.errors
 class AudioWaveTimeline(Timeline):
     KIND = TimelineKind.AUDIOWAVE_TIMELINE    
     component_manager: AudioWaveTLComponentManager
+    FLAGS = [TimelineFlag.NOT_CLEARABLE]
 
     @property
     def default_height(self):
