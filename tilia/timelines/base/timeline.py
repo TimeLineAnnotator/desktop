@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import bisect
 from abc import ABC
+from enum import StrEnum, auto
 from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
 
 from tilia.timelines import serialize
@@ -35,6 +36,7 @@ T = TypeVar("T", bound="Timeline")
 class Timeline(ABC, Generic[TC]):
     SERIALIZABLE_BY_VALUE = ["name", "height", "is_visible", "ordinal"]
     KIND: TimelineKind | None = None
+    FLAGS = []
 
     validators = {
         "name": validate_string,
@@ -407,3 +409,8 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def scale(self, length: float) -> None:
         raise NotImplementedError
+
+
+class TimelineFlag(StrEnum):
+    NOT_CLEARABLE = auto()
+    NOT_DELETABLE = auto()
