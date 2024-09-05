@@ -201,6 +201,7 @@ class HarmonyUI(TimelineUIElement):
 
     def update_display_mode(self):
         self.update_label()
+        self.update_custom_text_font_type()
 
     def update_custom_text(self):
         self.update_label()
