@@ -98,7 +98,10 @@ class ManageTimelines(QDialog):
         self.clear_button.setEnabled(TimelineFlag.NOT_CLEARABLE not in timeline.FLAGS)
 
     def on_checkbox_state_changed(self, state):
-        timeline_ui = self.list_widget.currentItem().timeline_ui
+        item = self.list_widget.currentItem()
+        if not item:
+            return
+        timeline_ui = item.timeline_ui
         if timeline_ui.get_data("is_visible") != bool(state):
             post(Post.TIMELINE_IS_VISIBLE_SET_FROM_MANAGE_TIMELINES)
 
