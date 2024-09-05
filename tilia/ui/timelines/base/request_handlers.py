@@ -25,6 +25,7 @@ class TimelineRequestHandler(RequestHandler):
             ),
             Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES: self.on_timeline_ordinal_permute_from_manage_timelines,
             Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES: self.on_timeline_ordinal_permute_from_manage_timelines,
+            Post.TIMELINE_DELETE_FROM_CONTEXT_MENU: self.on_timeline_delete,
             Post.TIMELINE_ORDINAL_DECREASE_FROM_CONTEXT_MENU: self.on_timeline_ordinal_permute_from_context_menu,
             Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU: self.on_timeline_ordinal_permute_from_context_menu,
         }

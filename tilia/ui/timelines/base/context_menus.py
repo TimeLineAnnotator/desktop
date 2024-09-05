@@ -1,7 +1,6 @@
 from PyQt6.QtGui import QAction
 from tilia.ui.actions import TiliaAction
 from tilia.ui.menus import MenuItemKind, TiliaMenu
-from tilia.ui.timelines.dialogs import confirm_delete_timeline
 from tilia.requests import get, Get, serve, post, Post
 
 
@@ -25,6 +24,10 @@ class TimelineUIContextMenu(TiliaMenu):
                 Get.CONTEXT_MENU_TIMELINE_UIS_TO_PERMUTE,
                 self.get_timeline_uis_to_permute,
             ),
+            (
+                Get.CONTEXT_MENU_TIMELINE_UI,
+                self.get_timeline_ui_for_selector
+            )
         }
 
         for request, callback in SERVES:
@@ -39,6 +42,9 @@ class TimelineUIContextMenu(TiliaMenu):
 
     def get_timeline_uis_to_permute(self):
         return self.timeline_uis_to_permute
+
+    def get_timeline_ui_for_selector(self):
+        return [self.timeline_ui]
 
     def check_move_up(self):
         def on_move_up():
@@ -75,12 +81,8 @@ class TimelineUIContextMenu(TiliaMenu):
             self.addAction(move_down)
 
     def add_delete_timeline(self):
-        def on_delete():
-            if confirm_delete_timeline(self.timeline_ui.get_data("name")):
-                get(Get.TIMELINE_COLLECTION).delete_timeline(self.timeline_ui.timeline)
-
         delete_timeline = QAction("Delete", self)
-        delete_timeline.triggered.connect(on_delete)
+        delete_timeline.triggered.connect(lambda: post(Post.TIMELINE_DELETE_FROM_CONTEXT_MENU))
         self.addAction(delete_timeline)
 
 
