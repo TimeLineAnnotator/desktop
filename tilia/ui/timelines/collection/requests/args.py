@@ -148,12 +148,21 @@ def _get_args_for_timeline_ordinal_permute_from_manage_timelines(*_):
     ), {}
 
 
-def _get_args_for_timeline_delete_from_manage_timelines(_):
-    confirmed = get(
+def _confirm_delete_timeline():
+    return get(
         Get.FROM_USER_YES_OR_NO,
         "Delete timeline",
         "Are you sure you want to delete the selected timeline? This can be undone later.",
     )
+
+
+def _get_args_for_timeline_delete_from_manage_timelines(_):
+    confirmed = _confirm_delete_timeline()
+    return (confirmed,), {}
+
+
+def _get_args_for_timeline_delete_from_context_menu(_):
+    confirmed = _confirm_delete_timeline()
     return (confirmed,), {}
 
 
