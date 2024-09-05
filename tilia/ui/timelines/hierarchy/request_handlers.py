@@ -1,7 +1,6 @@
 from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.color import get_tinted_color
-from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
+from tilia.ui.request_handler import fallible
 from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
 from tilia.ui.timelines.hierarchy.copy_paste import (
     _display_copy_error,
@@ -36,23 +35,29 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
             },
         )
 
+    @fallible
     def on_increase_level(self, elements, *_, **__):
-        self.timeline.alter_levels(self.elements_to_components(elements), 1)
+        return self.timeline.alter_levels(self.elements_to_components(elements), 1)
 
+    @fallible
     def on_decrease_level(self, elements, *_, **__):
-        self.timeline.alter_levels(self.elements_to_components(elements), -1)
+        return self.timeline.alter_levels(self.elements_to_components(elements), -1)
 
+    @fallible
     def on_group(self, elements, *_, **__):
-        self.timeline.group(self.elements_to_components(elements))
+        return self.timeline.group(self.elements_to_components(elements))
 
+    @fallible
     def on_split(self, *_, **__):
-        self.timeline.split(get(Get.SELECTED_TIME))
+        return self.timeline.split(get(Get.SELECTED_TIME))
 
+    @fallible
     def on_merge(self, elements, *_, **__):
-        self.timeline.merge(self.elements_to_components(elements))
+        return self.timeline.merge(self.elements_to_components(elements))
 
+    @fallible
     def on_create_child(self, elements, *_, **__):
-        self.timeline.create_children(self.elements_to_components(elements))
+        return self.timeline.create_children(self.elements_to_components(elements))
 
     def on_add_pre_start(self, elements, value, *_, **__):
         self.on_add_frame(elements, value, Extremity.PRE_START)
@@ -117,23 +122,24 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
             )
         return copy_data
 
-    def on_paste_complete(self, *_, **__):
+    @fallible
+    def on_paste_complete(self, *_, **__) -> bool:
         copied_components = get(Get.CLIPBOARD_CONTENTS)["components"]
-        if not copied_components:
-            return
-
-        if not self.timeline_ui.has_selected_elements:
-            return
+        if not copied_components or not self.timeline_ui.has_selected_elements:
+            return False
 
         success, reason = _validate_paste_complete_cardinality(copied_components)
         if not success:
             _display_paste_complete_error(reason)
+            return False
 
         data = copied_components[0]
         for element in self.timeline_ui.selected_elements:
             success, reason = _validate_paste_complete_level(element, data)
             if not success:
                 _display_paste_complete_error(reason)
-                return
+                return False
 
             self.timeline_ui.paste_with_children_into_element(data, element)
+
+        return True

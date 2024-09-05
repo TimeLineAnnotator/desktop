@@ -12,3 +12,15 @@ class RequestHandler:
 
     def on_request(self, request, *args, **kwargs):
         return self.request_to_callback[request](*args, **kwargs)
+
+
+class RequestFailure:
+    pass
+
+
+def fallible(func):
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        return RequestFailure() if result is False else result
+    return wrapper
+
