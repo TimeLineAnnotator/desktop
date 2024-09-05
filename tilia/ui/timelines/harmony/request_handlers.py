@@ -33,11 +33,21 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
     def filter_harmonies(elements: list[HarmonyUI | ModeUI]):
         return filter(lambda e: isinstance(e, HarmonyUI), elements)
 
-    def on_mode_add(self, _, confirmed, **kwargs):
+    def on_mode_add(self, *_, **__):
+        time = get(Get.SELECTED_TIME)
+        valid, reason = self.timeline.component_manager._validate_component_creation(
+            ComponentKind.MODE, time
+        )
+
+        if not valid:
+            tilia.errors.display(tilia.errors.ADD_MODE_FAILED, reason)
+            return
+
+        confirmed, kwargs = get(Get.FROM_USER_MODE_PARAMS)
         if not confirmed:
             return
         mode, reason = self.timeline.create_timeline_component(
-            ComponentKind.MODE, get(Get.SELECTED_TIME), **kwargs
+            ComponentKind.MODE, time, **kwargs
         )
         if not mode:
             tilia.errors.display(tilia.errors.ADD_MODE_FAILED, reason)
@@ -47,12 +57,24 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         self.timeline.delete_components(self.elements_to_components(elements))
         self.timeline_ui.on_mode_delete_done()
 
-    def on_harmony_add(self, _, confirmed, **kwargs):
+    def on_harmony_add(self, *_, **__):
+        time = get(Get.SELECTED_TIME)
+        valid, reason = self.timeline.component_manager._validate_component_creation(
+            ComponentKind.HARMONY, time
+        )
+
+        if not valid:
+            tilia.errors.display(tilia.errors.ADD_HARMONY_FAILED, reason)
+            return
+
+        confirmed, kwargs = get(Get.FROM_USER_HARMONY_PARAMS)
         if not confirmed:
             return
+
         harmony, reason = self.timeline.create_timeline_component(
-            ComponentKind.HARMONY, get(Get.SELECTED_TIME), **kwargs
+            ComponentKind.HARMONY, time, **kwargs
         )
+
         if not harmony:
             tilia.errors.display(tilia.errors.ADD_HARMONY_FAILED, reason)
 
