@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from unittest.mock import patch, mock_open
 
@@ -26,7 +25,6 @@ def test_beats_from_csv(beat_tlui):
 
 
 def test_component_creation_fail_reason_gets_into_errors(beat_tl, tilia_state):
-
     tilia_state.duration = 100
     data = "time\n101"
 
@@ -66,6 +64,16 @@ def test_beats_from_csv_with_is_first_in_measure(beat_tlui):
     assert beats[5].metric_position == (2, 1)
     assert beats[6].metric_position == (2, 2)
     assert beats[7].metric_position == (3, 1)
+
+
+def test_beats_from_csv_with_measure_numbers_in_rows_with_is_first_in_measure_false(beat_tl):
+    data = 'time,is_first_in_measure,measure_number\n0,True,1\n2,False,8'
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        beats_from_csv(beat_tl, Path())
+
+    assert beat_tl[0].metric_position == (1, 1)
+    assert beat_tl[1].metric_position == (1, 2)
 
 
 def test_beats_from_csv_with_measure_number_and_is_first_in_csv(beat_tlui):
