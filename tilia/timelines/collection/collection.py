@@ -220,6 +220,9 @@ class Timelines:
         return [tl for tl in self if getattr(tl, attr) == value]
 
     def set_timeline_data(self, id: int, attr: str, value: Any):
+        timeline = self.get_timeline(id)
+        if timeline.get_data(attr) == value:
+            return
         value, success = self.get_timeline(id).set_data(attr, value)
         if success:
             post(Post.TIMELINE_SET_DATA_DONE, id, attr, value)
@@ -292,8 +295,6 @@ class Timelines:
             params = timeline_states[id].copy()
             kind = TimelineKind(params.pop("kind"))
             self.create_timeline(kind, **params)
-
-        post(Post.TIMELINE_COLLECTION_STATE_RESTORED)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
         timeline.clear()
