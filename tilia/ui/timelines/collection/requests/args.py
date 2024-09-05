@@ -2,12 +2,9 @@ import sys
 
 import tilia.errors
 from tilia.exceptions import UserCancelledDialog
-from tilia.requests import get, Get, Post, post
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.requests import get, Get, Post
 from tilia.ui import dialogs
 import tilia.ui.dialogs.basic
-from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
-from tilia.ui.dialogs.mode_params import SelectModeParams
 from tilia.ui.timelines.base.timeline import TimelineUI
 
 
@@ -212,17 +209,6 @@ def _get_args_for_hierarchy_add_post_end(_):
     if not accept:
         raise UserCancelledDialog
     return (number,), {}
-
-
-def _get_args_for_harmony_add(timeline_uis):
-    current_key = timeline_uis[0].get_key_by_time(get(Get.MEDIA_CURRENT_TIME))
-    accept, result = get(Get.FROM_USER_HARMONY_PARAMS)
-    return (accept,), result
-
-
-def _get_args_for_mode_add(_):
-    accept, result = get(Get.FROM_USER_MODE_PARAMS)
-    return (accept,), result
 
 
 def get_args_for_request(request: Post, timeline_uis: list[TimelineUI], *_, **__):
