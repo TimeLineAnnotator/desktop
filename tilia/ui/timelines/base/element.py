@@ -95,6 +95,8 @@ class TimelineUIElement(ABC):
         for item in self.child_items():
             if item.parentItem():
                 continue  # item will be removed with parent
+            if hasattr(item, 'cleanup'):
+                item.cleanup()
             self.scene.removeItem(item)
 
         stop_listening_to_all(self)
