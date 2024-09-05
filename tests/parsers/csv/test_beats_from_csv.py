@@ -37,19 +37,31 @@ def test_component_creation_fail_reason_gets_into_errors(beat_tl, tilia_state):
     assert_in_errors("101", errors)
 
 
-def test_with_measure_number(beat_tlui):
+def test_with_measure_number(beat_tl):
     data = "time,measure_number\n5,1\n10,\n15,\n20,\n25,\n30,8"
 
-    tl = beat_tlui.timeline
     with patch("builtins.open", mock_open(read_data=data)):
         beats_from_csv(
-            tl,
+            beat_tl,
             Path(),
         )
 
-    beats = sorted(tl.components)
-    assert beats[3].metric_position == (1, 4)
-    assert beats[4].metric_position == (8, 1)
+    assert beat_tl[3].metric_position == (1, 4)
+    assert beat_tl[4].metric_position == (8, 1)
+
+
+def test_with_measure_number_non_monotonic(beat_tl):
+    data = "time,measure_number\n1,1\n2,10\n3,2\n4,11\n5,"
+    beat_tl.beat_pattern = [1]
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        beats_from_csv(beat_tl, Path())
+
+    assert beat_tl[0].metric_position == (1, 1)
+    assert beat_tl[1].metric_position == (10, 1)
+    assert beat_tl[2].metric_position == (2, 1)
+    assert beat_tl[3].metric_position == (11, 1)
+    assert beat_tl[4].metric_position == (12, 1)
 
 
 def test_with_is_first_in_measure(beat_tlui):
