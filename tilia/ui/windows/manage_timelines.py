@@ -146,7 +146,6 @@ class TimelinesListWidget(QListWidget):
             (Post.TIMELINE_SET_DATA_DONE, self.on_timeline_set_data_done),
             (Post.TIMELINE_DELETE_DONE, self.update_current_selection),
             (Post.TIMELINE_CREATE_DONE, self.update_current_selection),
-            (Post.TIMELINE_COLLECTION_STATE_RESTORED, self.update_items)
         }
 
         for post, callback in LISTENS:
