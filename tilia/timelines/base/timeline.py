@@ -17,8 +17,8 @@ from .validators import (
     validate_string,
     validate_read_only,
     validate_bounded_integer,
-    validate_timeline_ordinal,
     validate_boolean,
+    validate_positive_integer,
 )
 from ...requests import get, Get, post, Post, stop_listening_to_all
 
@@ -42,7 +42,7 @@ class Timeline(ABC, Generic[TC]):
         "name": validate_string,
         "id": validate_read_only,
         "height": functools.partial(validate_bounded_integer, lower=10),
-        "ordinal": validate_timeline_ordinal,
+        "ordinal": validate_positive_integer,
         "is_visible": validate_boolean,
     }
 

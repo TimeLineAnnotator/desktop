@@ -43,9 +43,5 @@ def validate_bounded_integer(value: int, lower=-math.inf, upper=math.inf):
     return isinstance(value, int) and lower <= value <= upper
 
 
-def validate_timeline_ordinal(value: int):
-    return validate_bounded_integer(value, lower=0, upper=len(get(Get.TIMELINES)))
-
-
 def validate_pre_validated(_):
     return True

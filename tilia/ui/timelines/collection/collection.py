@@ -138,10 +138,6 @@ class TimelineUIs:
             (Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_timeline_ui_left_released),
             (Post.TIMELINE_VIEW_RIGHT_CLICK, self._on_timeline_ui_right_click),
             (
-                Post.TIMELINE_COLLECTION_STATE_RESTORED,
-                self.update_timeline_uis_position,
-            ),
-            (
                 Post.TIMELINES_AUTO_SCROLL_ENABLE,
                 functools.partial(self.set_auto_scroll, True),
             ),
@@ -290,6 +286,8 @@ class TimelineUIs:
     def on_timeline_set_data_done(self, id: int, attr: str, _: Any):
         self.get_timeline_ui(id).update(attr)
         if attr in self.UPDATE_TRIGGERS:
+            # these are the collection updaters
+            # they're different from timeline ui updaters
             getattr(self, "update_" + attr)()
 
     def delete_timeline_ui(self, timeline_ui: TimelineUI):
