@@ -56,7 +56,7 @@ class ScriptRunner:
 
     def run(self, path: str):
         print(path)
-        with open(path, "r") as file:
+        with open(path, "r", encoding='utf-8') as file:
             commands = [line for line in file.read().splitlines() if line.strip()]
         for command in commands:
             print(command)
