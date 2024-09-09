@@ -58,6 +58,8 @@ class TiliaAction(Enum):
     MEDIA_LOAD_LOCAL = auto()
     MEDIA_STOP = auto()
     METADATA_WINDOW_OPEN = auto()
+    OPEN_MOST_RECENT_FILE = auto()
+    REPORT_SECTIONS = auto()
     SETTINGS_WINDOW_OPEN = auto()
     TIMELINES_AUTO_SCROLL_ENABLE = auto()
     TIMELINES_AUTO_SCROLL_DISABLE = auto()
@@ -382,6 +384,12 @@ taction_to_params = {
     TiliaAction.PDF_IMPORT_FROM_CSV: ActionParams(
         Post.PDF_IMPORT_FROM_CSV, "Import from CSV file", "", ""
     ),
+    TiliaAction.REPORT_SECTIONS: ActionParams(
+        Post.REPORT_SECTIONS, "Sections", "", "Ctrl+Shift+R"
+    ),
+    TiliaAction.OPEN_MOST_RECENT_FILE: ActionParams(
+        Post.OPEN_MOST_RECENT_FILE, "Open most recent file", "", "Ctrl+Shift+O"
+    )
 }
 
 _taction_to_qaction: dict[TiliaAction, QAction] = {}  # will be populated on startup
