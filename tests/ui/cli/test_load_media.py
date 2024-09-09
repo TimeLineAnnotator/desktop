@@ -1,5 +1,4 @@
 import shutil
-import time
 
 import pytest
 
@@ -8,7 +7,6 @@ from tilia.requests import get, Get
 
 
 def assert_load_was_successful(duration):
-    time.sleep(0.5)
     assert pytest.approx(get(Get.MEDIA_DURATION)) == duration
 
 
