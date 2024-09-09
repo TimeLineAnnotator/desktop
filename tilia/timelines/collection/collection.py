@@ -338,11 +338,6 @@ class Timelines:
             self.cached_media_duration = new_duration
             return
 
-        post(
-            Post.REQUEST_CHANGE_TIMELINE_WIDTH,
-            get(Get.TIMELINE_WIDTH) * new_duration / prev_duration,
-        )
-
         self._scale_or_crop_timelines(new_duration, prev_duration)
 
         self.cached_media_duration = new_duration
