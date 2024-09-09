@@ -174,7 +174,7 @@ class FileManager:
 
     def save(self, data: dict, path: Path | str):
         write_tilia_file_to_disk(TiliaFile(**data), str(path))
-        data["file_path"] = path
+        data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
         self.file = TiliaFile(**data)
         try:
             settings.update_recent_files(
