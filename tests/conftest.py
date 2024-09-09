@@ -1,4 +1,5 @@
 import functools
+from pathlib import Path
 
 import pytest
 
@@ -129,6 +130,11 @@ def tilia_errors(qtui):
     errors = TiliaErrors(qtui)
     yield errors
     errors.reset()
+
+
+@pytest.fixture()
+def resources() -> Path:
+    return Path(__file__).parent / "resources"
 
 
 @pytest.fixture(scope="session")
