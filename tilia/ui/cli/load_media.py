@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import tilia.errors
 from tilia.requests import Post, post
 
 
@@ -8,13 +11,15 @@ def setup_parser(subparsers):
         "path",
         type=str,
         help="Path to media.",
-        nargs="+",  # needed to parse paths with spaces
     )
 
     parser.set_defaults(func=load_media)
 
 
 def load_media(namespace):
-    path = "".join(namespace.path).strip('"')  # for paths with spaces or double quotes
+    path = Path(namespace.path)
+    if not path.exists():
+        tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
+        return
 
-    post(Post.APP_MEDIA_LOAD, path)
+    post(Post.APP_MEDIA_LOAD, str(path.resolve()).replace("\\", "/"))
