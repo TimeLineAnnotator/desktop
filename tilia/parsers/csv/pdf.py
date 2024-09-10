@@ -1,6 +1,5 @@
 import functools
 from pathlib import Path
-from typing import Any
 
 from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.parsers.csv.common import (
@@ -42,8 +41,6 @@ def _parse_page_number(timeline: PdfTimeline, value: str):
 def import_by_time(
     timeline: PdfTimeline,
     path: Path,
-    file_kwargs: dict[str, Any] | None = None,
-    reader_kwargs: dict[str, Any] | None = None,
 ) -> list[str]:
     """
     Create .pdf markers in a timeline from a csv file with times.
@@ -53,7 +50,7 @@ def import_by_time(
     """
     errors = []
 
-    with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
+    with TiliaCSVReader(path) as reader:
         try:
             header = next(reader)
         except StopIteration:
@@ -98,8 +95,6 @@ def import_by_measure(
     pdf_tl: PdfTimeline,
     beat_tl: BeatTimeline,
     path: Path,
-    file_kwargs: dict[str, Any] | None = None,
-    reader_kwargs: dict[str, Any] | None = None,
 ) -> list[str]:
     """
     Create .pdf markers in a timeline from a csv file with 1-based measure indices.
@@ -109,7 +104,7 @@ def import_by_measure(
     """
     errors = []
 
-    with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
+    with TiliaCSVReader(path) as reader:
         try:
             header = next(reader)
         except StopIteration:

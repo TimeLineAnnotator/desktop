@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional, Any
 
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
@@ -13,8 +12,6 @@ from tilia.timelines.component_kinds import ComponentKind
 def beats_from_csv(
     timeline: BeatTimeline,
     path: Path,
-    file_kwargs: Optional[dict[str, Any]] = None,
-    reader_kwargs: Optional[dict[str, Any]] = None,
 ) -> list[str]:
     """
     Create beat in a timeline from times extracted from a csv file.
@@ -33,7 +30,7 @@ def beats_from_csv(
     parsers = [str, int, float]
     params_to_indices = []
 
-    with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
+    with TiliaCSVReader(path) as reader:
         params_to_indices = get_params_indices(params, next(reader))
 
         if "time" not in params_to_indices:
@@ -119,7 +116,7 @@ def beats_from_csv(
             timeline.set_data("measure_numbers", measure_numbers)
             timeline.set_data("measures_to_force_display", measures_to_force_display)
 
-    with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
+    with TiliaCSVReader(path) as reader:
         next(reader)
         for row in reader:
             if not row:

@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional, Any
 
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
@@ -13,9 +12,7 @@ from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 
 def import_by_time(
     timeline: HierarchyTimeline,
-    path: Path,
-    file_kwargs: Optional[dict[str, Any]] = None,
-    reader_kwargs: Optional[dict[str, Any]] = None,
+    path: Path
 ) -> list[str]:
     """
     Create hierarchies in a timeline from a csv file with times.
@@ -27,7 +24,7 @@ def import_by_time(
 
     errors = []
 
-    with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
+    with TiliaCSVReader(path) as reader:
         params = [
             "start",
             "end",
@@ -80,9 +77,7 @@ def import_by_time(
 def import_by_measure(
     hierarchy_tl: HierarchyTimeline,
     beat_tl: BeatTimeline,
-    path: Path,
-    file_kwargs: Optional[dict[str, Any]] = None,
-    reader_kwargs: Optional[dict[str, Any]] = None,
+    path: Path
 ) -> list[str]:
     """
     Create hierarchies in a timeline from a csv file with 1-based measure indices.
@@ -97,7 +92,7 @@ def import_by_measure(
 
     errors = []
 
-    with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
+    with TiliaCSVReader(path) as reader:
         header = next(reader)
 
         required_params = [
