@@ -1,34 +1,8 @@
-from pathlib import Path
-from unittest.mock import patch, mock_open
-
 import pytest
 
-import tilia.parsers.csv.harmony
-from tests.parsers.csv.common import assert_in_errors
-from tilia.timelines.beat.timeline import BeatTimeline
+from tests.parsers.csv.common import assert_in_errors, call_patched_import_by_time_func, \
+    call_patched_import_by_measure_func
 from tilia.timelines.harmony.components import Harmony, Mode
-from tilia.timelines.harmony.timeline import HarmonyTimeline
-
-
-def call_patched_import_by_time_func(timeline: HarmonyTimeline, data: str):
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = tilia.parsers.csv.harmony.import_by_time(
-            timeline,
-            Path(),  # any path will do, as builtins.open is patched
-        )
-    return errors
-
-
-def call_patched_import_by_measure_func(
-    harmony_tl: HarmonyTimeline, beat_tl: BeatTimeline, data: str
-):
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = tilia.parsers.csv.harmony.import_by_measure(
-            harmony_tl,
-            beat_tl,
-            Path(),  # any path will do, as builtins.open is patched
-        )
-    return errors
 
 
 TEST_HARMONY_PARAMETERS = [

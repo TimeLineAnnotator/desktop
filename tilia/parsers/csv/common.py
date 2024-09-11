@@ -1,5 +1,6 @@
 from typing import Any, Callable
 
+import tilia.errors
 from tilia.parsers.csv.base import AttributeData
 
 
@@ -80,3 +81,11 @@ def _parse_measure_fraction(value: str):
         raise ValueError("APPEND:Must be a number between 0 and 1.")
 
     return value
+
+
+def display_import_errors(errors):
+    errors_str = "\n".join(errors)
+    tilia.errors.display(
+        tilia.errors.CSV_IMPORT_FAILED,
+        f"Some components were not imported. The following errors occured:\n{errors_str}"
+    )

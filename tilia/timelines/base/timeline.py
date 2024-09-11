@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import functools
 import bisect
-from abc import ABC
+from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
 
 from tilia.timelines import serialize
@@ -23,6 +24,7 @@ from ...requests import get, Get, post, Post, stop_listening_to_all
 
 if TYPE_CHECKING:
     from tilia.timelines.timeline_kinds import TimelineKind
+    from tilia.timelines.beat import BeatTimeline
 
     # noinspection PyUnresolvedReferences
     from .component import TimelineComponent
@@ -209,6 +211,12 @@ class Timeline(ABC, Generic[TC]):
 
     def update_component_order(self, component: TC):
         self.component_manager.update_component_order(component)
+
+    @abstractmethod
+    def import_by_time(self, path: Path): ...
+
+    @abstractmethod
+    def import_by_measure(self, beat_tl: BeatTimeline, path: Path): ...
 
 
 class TimelineComponentManager(Generic[T, TC]):

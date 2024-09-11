@@ -1,15 +1,28 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+from pathlib import Path
+
 from tilia.settings import settings
 from tilia.requests import Get, get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
+from .import_ import import_by_measure, import_by_time
+
+if TYPE_CHECKING:
+    from tilia.timelines.beat.timeline import BeatTimeline
 
 
 class MarkerTimeline(Timeline):
     KIND = TimelineKind.MARKER_TIMELINE
+
+    def import_by_measure(self, beat_tl: BeatTimeline, path: Path):
+        return import_by_measure(self, beat_tl, path)
+
+    def import_by_time(self, path: Path):
+        return import_by_time(self, path)
 
     @property
     def default_height(self):

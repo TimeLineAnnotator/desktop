@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import itertools
+from typing import TYPE_CHECKING
+from pathlib import Path
 from typing import Any
 
+import tilia.errors
 from tilia.settings import settings
 from .common import update_component_genealogy
 from ..base.timeline import Timeline, TimelineComponentManager
@@ -10,7 +13,10 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import post, Post, get, Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy
-import tilia.errors
+from .import_ import import_by_measure, import_by_time
+
+if TYPE_CHECKING:
+    from tilia.timelines.beat.timeline import BeatTimeline
 
 
 class HierarchyTimeline(Timeline):
@@ -93,6 +99,12 @@ class HierarchyTimeline(Timeline):
 
     def get_boundary_conflicts(self):
         return self.component_manager.get_boundary_conflicts()
+
+    def import_by_measure(self, beat_tl: BeatTimeline, path: Path):
+        return import_by_measure(self, beat_tl, path)
+
+    def import_by_time(self, path: Path):
+        return import_by_time(self, path)
 
 
 class HierarchyTLComponentManager(TimelineComponentManager):

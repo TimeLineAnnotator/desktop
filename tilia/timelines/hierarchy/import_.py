@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
@@ -7,7 +10,9 @@ from tilia.parsers.csv.base import (
 )
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.hierarchy.timeline import HierarchyTimeline
+
+if TYPE_CHECKING:
+    from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 
 
 def import_by_time(

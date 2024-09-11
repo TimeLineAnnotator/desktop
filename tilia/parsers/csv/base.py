@@ -1,9 +1,8 @@
 from pathlib import Path
 
 import csv
-from typing import Any, Optional, Callable
+from typing import Callable
 
-from tilia.requests.post import post, Post
 import tilia.errors
 
 
@@ -11,16 +10,12 @@ class TiliaCSVReader:
     def __init__(
         self,
         path: Path,
-        file_kwargs: Optional[dict[str, Any]] = None,
-        reader_kwargs: Optional[dict[str, Any]] = None,
     ):
         self.path = path
-        self.file_kwargs = file_kwargs or {}
-        self.reader_kwargs = reader_kwargs or {}
 
     def __enter__(self):
-        self.file = open(self.path, newline="", encoding='utf-8', **self.file_kwargs)
-        return csv.reader(self.file, **self.reader_kwargs)
+        self.file = open(self.path, newline="", encoding='utf-8')
+        return csv.reader(self.file)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.file.close()

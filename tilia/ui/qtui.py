@@ -17,12 +17,7 @@ import tilia.errors
 from tilia.file.tilia_file import TiliaFile
 import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
-import tilia.parsers.csv.pdf
-import tilia.parsers.csv.harmony
-import tilia.parsers.csv.hierarchy
-import tilia.parsers.csv.beat
-import tilia.parsers.csv.marker
-from . import dialogs, actions
+from . import actions
 from .actions import TiliaAction
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
@@ -40,12 +35,12 @@ from .windows.inspect import Inspect
 from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
 from ..media.player import QtAudioPlayer, QtVideoPlayer, YouTubePlayer
-from ..parsers.csv.beat import beats_from_csv
 from tilia import constants
 from tilia.settings import settings
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.requests import Post, listen, post, serve, Get, get
+from ..parsers.csv.common import display_import_errors
 
 
 class TiliaMainWindow(QMainWindow):
@@ -418,37 +413,18 @@ class QtUI:
         if not success:
             return
 
-        tlkind_to_funcs: dict[TlKind, dict[str, Callable]] = {
-            TlKind.MARKER_TIMELINE: {
-                "time": tilia.parsers.csv.marker.import_by_time,
-                "measure": tilia.parsers.csv.marker.import_by_measure,
-            },
-            TlKind.HIERARCHY_TIMELINE: {
-                "time": tilia.parsers.csv.hierarchy.import_by_time,
-                "measure": tilia.parsers.csv.hierarchy.import_by_measure,
-            },
-            TlKind.BEAT_TIMELINE: {"time": beats_from_csv},
-            TlKind.HARMONY_TIMELINE: {
-                "time": tilia.parsers.csv.harmony.import_by_time,
-                "measure": tilia.parsers.csv.harmony.import_by_measure,
-            },
-            TlKind.PDF_TIMELINE: {
-                'time': tilia.parsers.csv.pdf.import_by_time,
-                'measure': tilia.parsers.csv.pdf.import_by_measure
-            }
-        }
-
         timeline.clear()
 
-        if time_or_measure == "time":
-            errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
-        elif time_or_measure == "measure":
-            errors = tlkind_to_funcs[tlkind]["measure"](timeline, beat_tl, path)
+        if time_or_measure == "measure":
+            errors = timeline.import_by_measure(beat_tl, path)
         else:
-            raise ValueError("Invalid time_or_measure value '{time_or_measure}'")
+            errors = timeline.import_by_time(path)
+
+        timeline_ui.imported_path = path
+        timeline_ui.imported_method = time_or_measure
 
         if errors:
-            self._display_import_from_csv_errors(errors)
+            display_import_errors(errors)
 
         post(Post.APP_RECORD_STATE, "Import from csv file")
 
@@ -483,14 +459,6 @@ class QtUI:
             "Import components from CSV",
             "Choose timeline with measures to be used when importing",
             TlKind.BEAT_TIMELINE,
-        )
-
-    @staticmethod
-    def _display_import_from_csv_errors(errors):
-        errors_str = "\n".join(errors)
-        tilia.errors.display(
-            tilia.errors.CSV_IMPORT_FAILED, 
-            f"Some components were not imported. The following errors occured:\n{errors_str}"
         )
 
     @staticmethod

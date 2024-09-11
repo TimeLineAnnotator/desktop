@@ -1,12 +1,8 @@
 import os
 from pathlib import Path
-from unittest.mock import patch, mock_open
 
-from tests.parsers.csv.common import assert_in_errors
-from tilia.parsers.csv.marker import (
-    import_by_time,
-    import_by_measure,
-)
+from tests.parsers.csv.common import assert_in_errors, call_patched_import_by_measure_func, \
+    call_patched_import_by_time_func
 
 
 def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
@@ -24,13 +20,7 @@ def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
 
     data = "measure,fraction,label,comments\n1,0,first,a\n2,0.5,second,b\n3,1,third,c"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_measure(
-            marker_tl,
-            beat_tl,
-            Path("parsers", "test_markers_by_measure_from_csv.csv").resolve(),
-        )
-
+    call_patched_import_by_measure_func(marker_tl, beat_tl, data)
     markers = sorted(marker_tl)
 
     assert markers[0].time == 1
@@ -54,8 +44,7 @@ def test_markers_by_measure_from_csv_multiple_measures_with_number(
 
     data = "measure\n1"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_measure(marker_tl, beat_tl, Path())
+    call_patched_import_by_measure_func(marker_tl, beat_tl, data)
 
     markers = sorted(marker_tl)
 
@@ -69,13 +58,7 @@ def test_markers_by_measure_from_csv_fails_if_no_measure_column(beat_tlui, marke
 
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_measure(
-            beat_tlui.timeline,
-            marker_tlui.timeline,
-            Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
-        )
-
+    call_patched_import_by_measure_func(marker_tlui.timeline, beat_tlui.timeline, data)
     assert marker_tlui.is_empty
 
 
@@ -84,12 +67,7 @@ def test_markers_by_time_from_csv(marker_tlui):
 
     data = "time,label,comments\n1,first,a\n5,second,b\n10,third,c"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_time(
-            marker_tlui.timeline,
-            Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
-        )
-
+    call_patched_import_by_time_func(marker_tlui.timeline, data)
     markers = sorted(marker_tlui.timeline)
 
     assert markers[0].time == 1
@@ -110,19 +88,14 @@ def test_markers_by_time_from_csv_fails_if_no_time_column(marker_tlui):
 
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_time(
-            marker_tlui.timeline,
-            Path(),
-        )
+    call_patched_import_by_time_func(marker_tlui.timeline, data)
 
     assert marker_tlui.is_empty
 
 
 def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):
     data = "time\nnonsense"
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_time(marker_tlui.timeline, Path())
+    errors = call_patched_import_by_time_func(marker_tlui.timeline, data)
 
     assert "nonsense" in errors[0]
 
@@ -132,8 +105,7 @@ def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
 ):
     tilia_state.duration = 100
     data = "time\n999"
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_time(marker_tlui.timeline, Path())
+    errors = call_patched_import_by_time_func(marker_tlui.timeline, data)
 
     assert "999" in errors[0]
 
@@ -142,10 +114,7 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
     marker_tlui, beat_tlui
 ):
     data = "measure\nnonsense"
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_measure(
-            marker_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    errors = call_patched_import_by_measure_func(marker_tlui.timeline, beat_tlui.timeline, data)
 
     assert "nonsense" in errors[0]
 
@@ -160,10 +129,7 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
     beat_tlui.create_beat(time=2)
 
     data = "measure,fraction\n1,nonsense"
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_measure(
-            marker_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    errors = call_patched_import_by_measure_func(marker_tl, beat_tl, data)
 
     assert "nonsense" in errors[0]
 
@@ -177,10 +143,6 @@ def test_component_creation_fail_reason_gets_into_errors(
     tilia_state.duration = 100
     data = "time\n101"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_time(
-            marker_tl,
-            Path(),
-        )
+    errors = call_patched_import_by_time_func(marker_tl, data)
 
     assert_in_errors("101", errors)

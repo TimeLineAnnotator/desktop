@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 import music21
 
@@ -12,15 +14,17 @@ from tilia.parsers.csv.common import (
     _parse_measure_fraction,
 )
 from tilia.parsers.csv.base import TiliaCSVReader
-from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.harmony.components.harmony import (
     get_params_from_text as get_harmony_params_from_text,
 )
 from tilia.timelines.harmony.components.mode import (
     get_params_from_text as get_mode_params_from_text,
 )
+
+if TYPE_CHECKING:
+    from tilia.timelines.harmony.timeline import BeatTimeline
+    from tilia.timelines.harmony.timeline import HarmonyTimeline
 
 
 def _parse_display_mode(value: str):

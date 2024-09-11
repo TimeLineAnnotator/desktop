@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import functools
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.parsers.csv.common import (
@@ -11,7 +14,9 @@ from tilia.parsers.csv.common import (
 )
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.pdf.timeline import PdfTimeline
+
+if TYPE_CHECKING:
+    from tilia.timelines.pdf.timeline import PdfTimeline
 
 
 def _create_component(timeline, time, page_number):

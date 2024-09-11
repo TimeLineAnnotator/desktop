@@ -1,10 +1,6 @@
-from pathlib import Path
 from typing import Any
-from unittest.mock import patch, mock_open
 
-import tilia.parsers.csv.pdf
-from tilia.timelines.beat.timeline import BeatTimeline
-from tilia.timelines.pdf.timeline import PdfTimeline
+from tests.parsers.csv.common import call_patched_import_by_time_func, call_patched_import_by_measure_func
 
 
 def setup_beat_tl(beat_tl, beat_count: int):
@@ -16,27 +12,6 @@ def setup_beat_tl(beat_tl, beat_count: int):
 
 def _get_csv_data(*rows: list[Any]):
     return "\n".join([",".join(map(str, row)) for row in rows])
-
-
-def call_patched_import_by_time_func(timeline: PdfTimeline, data: str):
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = tilia.parsers.csv.pdf.import_by_time(
-            timeline,
-            Path(),  # any path will do, as builtins.open is patched
-        )
-    return errors
-
-
-def call_patched_import_by_measure_func(
-    timeline: PdfTimeline, beat_tl: BeatTimeline, data: str
-):
-    with patch("builtins.open", mock_open(read_data=data)):
-        errors = tilia.parsers.csv.pdf.import_by_measure(
-            timeline,
-            beat_tl,
-            Path(),  # any path will do, as builtins.open is patched
-        )
-    return errors
 
 
 class TestByTime:

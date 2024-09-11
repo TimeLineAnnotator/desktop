@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 import pydub
 import pydub.exceptions
 import pydub.utils
@@ -11,6 +14,9 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get, post, Post
 from tilia.timelines.base.timeline import TimelineComponentManager
 import tilia.errors
+
+if TYPE_CHECKING:
+    from tilia.timelines.beat.timeline import BeatTimeline
 
 
 class AudioWaveTimeline(Timeline):
@@ -65,6 +71,12 @@ class AudioWaveTimeline(Timeline):
 
     def get_dB(self, start_time, end_time):
         return self.audio[start_time * 1000: end_time * 1000].dBFS
+
+    def import_by_time(self, path: Path):
+        raise ValueError("Cannot import to slider timeline.")
+
+    def import_by_measure(self, beat_tl: BeatTimeline, path: Path):
+        raise ValueError("Cannot import to slider timeline.")
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.AUDIOWAVE]

@@ -1,13 +1,15 @@
 from __future__ import annotations
+
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from tilia.requests import Get, get
 from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
+    from tilia.timelines.beat.timeline import BeatTimeline
 
 
 class SliderTimeline(Timeline):
@@ -44,3 +46,9 @@ class SliderTimeline(Timeline):
 
     def crop(self):
         """Nothing to do"""
+
+    def import_by_time(self, path: Path):
+        raise ValueError("Cannot import to slider timeline.")
+
+    def import_by_measure(self, beat_tl: BeatTimeline, path: Path):
+        raise ValueError("Cannot import to slider timeline.")

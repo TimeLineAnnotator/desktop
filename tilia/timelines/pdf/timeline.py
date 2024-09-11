@@ -1,5 +1,8 @@
 from __future__ import annotations
-import logging
+
+from typing import TYPE_CHECKING
+from pathlib import Path
+
 import pypdf
 
 from tilia.settings import settings
@@ -9,8 +12,10 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
+from .import_ import import_by_time, import_by_measure
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from tilia.timelines.beat.timeline import BeatTimeline
 
 
 class PdfTimeline(Timeline):
@@ -80,6 +85,12 @@ class PdfTimeline(Timeline):
     def crop(self, length: float) -> None:
         self.component_manager: PdfTLComponentManager
         self.component_manager.crop(length)
+
+    def import_by_measure(self, beat_tl: BeatTimeline, path: Path):
+        return import_by_measure(self, beat_tl, path)
+
+    def import_by_time(self, path: Path):
+        return import_by_time(self, path)
 
 
 class PdfTLComponentManager(TimelineComponentManager):

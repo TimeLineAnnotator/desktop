@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import math
 from bisect import bisect
-from typing import Any
+from pathlib import Path
+from typing import Any, TYPE_CHECKING
 
 import music21
 
@@ -14,6 +15,10 @@ from tilia.timelines.harmony.validators import validate_level_count
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
+from .import_ import import_by_measure, import_by_time
+
+if TYPE_CHECKING:
+    from tilia.timelines.beat.timeline import BeatTimeline
 
 
 class HarmonyTimeline(Timeline):
@@ -97,6 +102,12 @@ class HarmonyTimeline(Timeline):
     def deserialize_components(self, components: dict[int, dict[str]]):
         super().deserialize_components(components)
         post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.id)
+
+    def import_by_measure(self, beat_tl: BeatTimeline, path: Path):
+        return import_by_measure(self, beat_tl, path)
+
+    def import_by_time(self, path: Path):
+        return import_by_time(self, path)
 
 
 class HarmonyTLComponentManager(TimelineComponentManager):

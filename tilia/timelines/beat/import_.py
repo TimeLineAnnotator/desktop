@@ -1,12 +1,17 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
     get_params_indices,
     display_column_not_found_error,
 )
-from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
+
+if TYPE_CHECKING:
+    from tilia.timelines.beat.timeline import BeatTimeline
 
 
 def beats_from_csv(
