@@ -117,6 +117,10 @@ class TiliaState:
     def is_window_open(self, kind: WindowKind):
         return self.ui.is_window_open(kind)
 
+    @property
+    def metadata(self):
+        return get(Get.MEDIA_METADATA)
+
 
 @pytest.fixture(autouse=True)
 def tilia_state(tilia, qtui):
