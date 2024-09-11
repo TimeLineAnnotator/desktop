@@ -76,6 +76,12 @@ FILE_NOT_FOUND = Error(
 LOOP_DISJUNCT = Error("Loop Selection Error", "Selected Hierarchies are disjunct.")
 PLAYER_TOOLBAR_ERROR = Error("Updating Player Toolbar", "{}")
 YOUTUBE_PLAYER_ERROR = Error("Youtube Player Error", "{}")
+METADATA_FIELD_NOT_FOUND = Error("Metadata field not found", "Field '{}' not found.")
+
+CLI_METADATA_CANT_SET_MEDIA_LENGTH = Error(
+    "Cannot set media length",
+    "Cannot set media length with 'metadata set'. Use 'metadata set-media-length' instead.",
+)
 
 
 def display(error: Error, *args):
