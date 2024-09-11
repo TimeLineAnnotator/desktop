@@ -47,4 +47,5 @@ request_to_scope: dict[Post, TlRequestSelector] = {
     Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU: TlRequestSelector(
         ALL, TimelineSelector.FROM_CONTEXT_MENU_TO_PERMUTE
     ),
+    Post.TIMELINE_RELOAD_FROM_CSV: TlRequestSelector(ALL, TimelineSelector.FROM_CONTEXT_MENU),
 }

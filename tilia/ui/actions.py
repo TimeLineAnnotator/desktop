@@ -10,6 +10,7 @@ from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
 
 class TiliaAction(Enum):
+    TIMELINE_RELOAD_FROM_FILE = auto()
     PDF_IMPORT_FROM_CSV = auto()
     PDF_MARKER_DELETE = auto()
     PDF_MARKER_ADD = auto()
@@ -358,6 +359,9 @@ taction_to_params = {
     ),
     TiliaAction.TIMELINE_HEIGHT_SET: ActionParams(
         Post.TIMELINE_HEIGHT_SET, "Change height", "", ""
+    ),
+    TiliaAction.TIMELINE_RELOAD_FROM_FILE: ActionParams(
+        Post.TIMELINE_RELOAD_FROM_CSV, "Reload from file", "", ""
     ),
     TiliaAction.VIEW_ZOOM_IN: ActionParams(Post.VIEW_ZOOM_IN, "Zoom in", "", "Ctrl++"),
     TiliaAction.VIEW_ZOOM_OUT: ActionParams(

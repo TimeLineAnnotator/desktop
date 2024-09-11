@@ -17,6 +17,8 @@ from tilia.requests import (
     get,
     listen,
 )
+
+import tilia.errors
 from tilia.ui.actions import TiliaAction
 from tilia.ui.qtui import QtUI
 from tilia.ui.cli.ui import CLI
@@ -52,6 +54,10 @@ class TiliaErrors:
 
     def assert_in_error_title(self, string: str):
         assert string in self.errors[0]["title"]
+
+    def assert_error_equals(self, error: tilia.errors.Error):
+        assert error.title == self.errors[0]["title"]
+        assert error.message == self.errors[0]["message"]
 
     def reset(self):
         self.errors = []

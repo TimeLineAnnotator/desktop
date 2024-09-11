@@ -29,6 +29,7 @@ class TimelineRequestHandler(RequestHandler):
             Post.TIMELINE_DELETE_FROM_CONTEXT_MENU: self.on_timeline_delete,
             Post.TIMELINE_ORDINAL_DECREASE_FROM_CONTEXT_MENU: self.on_timeline_ordinal_permute_from_context_menu,
             Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU: self.on_timeline_ordinal_permute_from_context_menu,
+            Post.TIMELINE_RELOAD_FROM_CSV: self.on_timeline_reload_from_csv,
         }
         super().__init__(
             request_to_callback=request_to_callback | base_request_to_callback
@@ -47,6 +48,9 @@ class TimelineRequestHandler(RequestHandler):
 
     def on_timeline_ordinal_permute_from_context_menu(self, id_to_ordinal):
         self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
+
+    def on_timeline_reload_from_csv(self):
+        self.timeline_ui.reload_from_csv()
 
     def on_timeline_delete(self, confirmed):
         if confirmed:

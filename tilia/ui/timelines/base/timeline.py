@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 from abc import ABC
+import sys
 from typing import (
     Any,
     TYPE_CHECKING,
@@ -12,6 +13,8 @@ from typing import (
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtWidgets import QGraphicsItem
 
+import tilia.errors
+from tilia.parsers.csv.common import display_import_errors
 from tilia.timelines.component_kinds import ComponentKind
 from .context_menus import TimelineUIContextMenu
 from tilia.requests import Post, stop_listening, stop_listening_to_all, listen, post
@@ -63,6 +66,9 @@ class TimelineUI(ABC):
         self.view = view
 
         self.element_manager = element_manager
+
+        self.imported_path = None
+        self.imported_method = None
 
         self._setup_visibility()
         self._setup_collection_requests()
@@ -463,3 +469,21 @@ class TimelineUI(ABC):
 
     def update_element_order(self, element: T):
         self.element_manager.update_element_order(element)
+
+    def reload_from_csv(self):
+        self.timeline.clear()
+        func = self.timeline.import_by_time if self.imported_method == 'time' else self.timeline.import_by_measure
+
+        errors = []
+        try:
+            errors = func(self.imported_path)
+        except FileNotFoundError:
+            tilia.errors.display(tilia.errors.CSV_FILE_NOT_FOUND)
+        except PermissionError:
+            tilia.errors.display(tilia.errors.CSV_PERMISSION_DENIED)
+        except Exception as e:
+            exc_type, _, _ = sys.exc_info()
+            tilia.errors.display(tilia.errors.CSV_IMPORT_FAILED, f"{exc_type}: {e}")
+
+        if errors:
+            display_import_errors(errors)

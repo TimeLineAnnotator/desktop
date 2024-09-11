@@ -18,6 +18,8 @@ MEDIA_METADATA_SET_DATA_FAILED = Error(
     "Cannot set media metadata to {}. Media length must be a positive number.",
 )
 CSV_IMPORT_FAILED = Error("CSV import failed", "{}")
+CSV_FILE_NOT_FOUND = Error("CSV import failed", "File not found.")
+CSV_PERMISSION_DENIED = Error("CSV import failed", "Permission denied.")
 CREATE_TIMELINE_WITHOUT_MEDIA = Error(
     "Create timeline error", "Cannot create timeline with no media loaded."
 )

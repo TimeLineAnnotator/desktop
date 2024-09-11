@@ -6,6 +6,7 @@ from tilia.settings import settings
 
 
 class Post(Enum):
+    TIMELINE_RELOAD_FROM_CSV = auto()
     PDF_IMPORT_FROM_CSV = auto()
     PDF_MARKER_DELETE = auto()
     PDF_MARKER_ADD = auto()

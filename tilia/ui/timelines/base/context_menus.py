@@ -38,6 +38,7 @@ class TimelineUIContextMenu(TiliaMenu):
 
         self.check_move_up()
         self.check_move_down()
+        self.check_reload()
         self.add_delete_timeline()
 
     def get_timeline_uis_to_permute(self):
@@ -45,6 +46,10 @@ class TimelineUIContextMenu(TiliaMenu):
 
     def get_timeline_ui_for_selector(self):
         return [self.timeline_ui]
+
+    def check_reload(self):
+        if self.timeline_ui.imported_path:
+            self.add_action(TiliaAction.TIMELINE_RELOAD_FROM_FILE)
 
     def check_move_up(self):
         def on_move_up():
