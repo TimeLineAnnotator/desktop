@@ -57,7 +57,6 @@ class TiliaErrors:
     def reset(self):
         self.errors = []
         stop_listening(self, Post.DISPLAY_ERROR)
-        listen(self.ui, Post.DISPLAY_ERROR, display_error)
 
 
 class TiliaState:
