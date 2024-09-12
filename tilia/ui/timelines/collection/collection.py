@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtWidgets import (
@@ -53,6 +53,9 @@ from ..pdf import PdfTimelineToolbar
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...actions import TiliaAction
+
+if TYPE_CHECKING:
+    from tilia.ui.timelines.beat.timeline import BeatTimelineUI
 
 
 class TimelineUIs:
@@ -1149,5 +1152,14 @@ class TimelineUIs:
     def on_timeline_created(self, kind: TlKind, id: int):
         self.create_timeline_ui(kind, id)
 
+    def _remove_references_in_import_data(self, beat_tl_id: int):
+        for tlui in self:
+            if tlui.imported_beat_timeline_id and tlui.imported_beat_timeline_id == beat_tl_id:
+                tlui.imported_beat_timeline_id = None
+
     def on_timeline_deleted(self, id: int):
-        self.delete_timeline_ui(self.get_timeline_ui(id))
+        timeline_ui = self.get_timeline_ui(id)
+        self.delete_timeline_ui(timeline_ui)
+        if timeline_ui.TIMELINE_KIND == TlKind.BEAT_TIMELINE:
+            self._remove_references_in_import_data(timeline_ui.id)
+

@@ -69,6 +69,7 @@ class TimelineUI(ABC):
 
         self.imported_path = None
         self.imported_method = None
+        self.imported_beat_timeline_id = None
 
         self._setup_visibility()
         self._setup_collection_requests()
@@ -471,12 +472,17 @@ class TimelineUI(ABC):
         self.element_manager.update_element_order(element)
 
     def reload_from_csv(self):
+        if self.imported_method == 'measure' and not self.imported_beat_timeline_id:
+            tilia.errors.display(tilia.errors.RELOAD_FROM_FILE_FAILED_BEAT_TL_DELETED)
+            return
         self.timeline.clear()
-        func = self.timeline.import_by_time if self.imported_method == 'time' else self.timeline.import_by_measure
 
         errors = []
         try:
-            errors = func(self.imported_path)
+            if self.imported_method == 'time':
+                errors = self.timeline.import_by_time(self.imported_path)
+            else:
+                errors = self.timeline.import_by_measure(get(Get.TIMELINE, self.imported_beat_timeline_id), self.imported_path)
         except FileNotFoundError:
             tilia.errors.display(tilia.errors.CSV_FILE_NOT_FOUND)
         except PermissionError:

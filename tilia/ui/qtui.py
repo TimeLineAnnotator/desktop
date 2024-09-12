@@ -422,6 +422,8 @@ class QtUI:
 
         timeline_ui.imported_path = path
         timeline_ui.imported_method = time_or_measure
+        if time_or_measure == "measure":
+            timeline_ui.imported_beat_timeline_id = beat_tl.id
 
         if errors:
             display_import_errors(errors)

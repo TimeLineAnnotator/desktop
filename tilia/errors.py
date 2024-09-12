@@ -78,6 +78,9 @@ FILE_NOT_FOUND = Error(
 LOOP_DISJUNCT = Error("Loop Selection Error", "Selected Hierarchies are disjunct.")
 PLAYER_TOOLBAR_ERROR = Error("Updating Player Toolbar", "{}")
 YOUTUBE_PLAYER_ERROR = Error("Youtube Player Error", "{}")
+RELOAD_FROM_FILE_FAILED_BEAT_TL_DELETED = Error(
+    "Reload from file error", "Could not reload from file. Original beat timeline was deleted."
+)
 METADATA_FIELD_NOT_FOUND = Error("Metadata field not found", "Field '{}' not found.")
 
 CLI_METADATA_CANT_SET_MEDIA_LENGTH = Error(
