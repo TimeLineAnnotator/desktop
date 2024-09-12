@@ -127,47 +127,29 @@ def import_timeline(namespace):
 
     tl_kind = namespace.tl_kind
 
-    if tl_kind == "beat":
-        measure_or_time = None
-    else:
-        measure_or_time = namespace.measure_or_time
+    try:
+        method = namespace.measure_or_time
+    except AttributeError:
+        method = 'by-time'
 
     tl, ref_tl = get_timelines_for_import(
         namespace.target_ordinal,
         namespace.target_name,
         namespace.reference_tl_ordinal,
         namespace.reference_tl_name,
-        measure_or_time,
+        method,
     )
 
     file = Path(namespace.file)
 
-    validate_timelines_for_import(tl, ref_tl, tl_kind, measure_or_time)
-    ref_tl: BeatTimeline | None
-
-    if measure_or_time and measure_or_time not in ["by-measure", "by-time"]:
-        raise ValueError(
-            f"Unknown value: {measure_or_time}. Should be 'by-measure' or 'by-time'"
-        )
+    validate_timelines_for_import(tl, ref_tl, tl_kind, method)
 
     tl.clear()
 
-    errors = None
-    if tl_kind == "marker":
-        tl: MarkerTimeline
-        if measure_or_time == "by-measure":
-            errors = csv.marker.import_by_measure(tl, ref_tl, file)
-        else:
-            errors = csv.marker.import_by_time(tl, file)
-    elif tl_kind == "hierarchy":
-        tl: HierarchyTimeline
-        if measure_or_time == "by-measure":
-            errors = csv.hierarchy.import_by_measure(tl, ref_tl, file)
-        else:
-            errors = csv.hierarchy.import_by_time(tl, file)
-    elif tl_kind == "beat":
-        tl: BeatTimeline
-        errors = csv.beat.beats_from_csv(tl, file)
+    if method == 'by-time':
+        errors = tl.import_by_time(file)
+    else:
+        errors = tl.import_by_measure(ref_tl, file)
 
     if errors:
         io.output(f"Errors: {errors}")
