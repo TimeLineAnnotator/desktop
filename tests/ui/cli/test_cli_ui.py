@@ -1,5 +1,6 @@
 import pytest
 
+from tests.ui.cli.common import cli_run
 from tilia.requests.post import stop_listening_to_all
 from tilia.ui.cli.ui import CLI
 
@@ -11,10 +12,9 @@ class TestCLI:
         cli = CLI()
         stop_listening_to_all(cli)
 
-    def test_wrong_argument(self, cli):
-        args = ["nonsense"]
+    def test_wrong_argument(self):
         with patch("builtins.print") as mock_print:
-            cli.run(args)
+            cli_run('nonsense')
             mock_print.assert_called_once()
             assert "nonsense" in mock_print.call_args[0][0]
             assert "invalid choice" in mock_print.call_args[0][0]
