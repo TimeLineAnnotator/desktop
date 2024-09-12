@@ -85,7 +85,7 @@ def setup_import_file_and_target_args(subparser):
     named_args = subparser.add_argument_group("required named arguments")
 
     named_args.add_argument(
-        "--file", "-f", required=True, help="File to import data from", nargs="+"
+        "--file", "-f", required=True, help="File to import data from"
     )
 
     target_group = named_args.add_mutually_exclusive_group(required=True)
@@ -140,7 +140,7 @@ def import_timeline(namespace):
         measure_or_time,
     )
 
-    file = Path("".join(namespace.file).strip('"'))
+    file = Path(namespace.file)
 
     validate_timelines_for_import(tl, ref_tl, tl_kind, measure_or_time)
     ref_tl: BeatTimeline | None
