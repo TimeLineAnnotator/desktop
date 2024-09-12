@@ -1,6 +1,5 @@
 import argparse
 from tilia.requests import post, Post
-from tilia.ui.cli import io
 import tilia.errors
 
 
@@ -21,7 +20,7 @@ def validate_value(value: float) -> bool:
         tilia.errors.display(tilia.errors.MEDIA_METADATA_SET_DATA_FAILED, value)
         return False
 
-    if value < 0:
+    if value <= 0:
         tilia.errors.display(tilia.errors.MEDIA_METADATA_SET_DATA_FAILED, value)
         return False
 
