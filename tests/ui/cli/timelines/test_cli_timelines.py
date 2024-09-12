@@ -69,7 +69,7 @@ class TestTimelineRemove:
 
         assert len(tls) == 2
 
-        cli_run(["timeline", "remove", "name", "test2"])
+        cli_run('timeline remove name test2')
 
         assert len(tls) == 1
 
@@ -103,21 +103,22 @@ class TestTimelineRemove:
         assert len(tls) == 0
 
     def test_remove_by_ordinal_multiple_timelines(self, actions, tls):
-        with Serve(Get.FROM_USER_STRING, ("", True)):
-            actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+        for i in range(3):
+            with Serve(Get.FROM_USER_STRING, ("", True)):
+                actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         cli_run('timeline remove ordinal 1')
 
         assert len(tls) == 2
 
-        cli_run(["timeline", "remove", "ordinal", "2"])
+        cli_run('timeline remove ordinal 2')
 
         assert len(tls) == 1
 
     def test_remove_by_ordinal_not_found(self, tls):
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
 
-        with patch("bultins.print") as mock_print:
+        with patch("builtins.print") as mock_print:
             cli_run('timeline remove ordinal 3')
 
             printed = mock_print.call_args[0][0]

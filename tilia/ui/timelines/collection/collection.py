@@ -944,6 +944,9 @@ class TimelineUIs:
         def filter_if_from_manage_timelines_current(_):
             return [get(Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT)]
 
+        def filter_if_from_cli(_):
+            return [get(Get.TIMELINES_FROM_CLI)]
+
         def filter_if_from_context_menu(_):
             return get(Get.CONTEXT_MENU_TIMELINE_UI)
 
@@ -957,6 +960,7 @@ class TimelineUIs:
             TimelineSelector.PASTE: filter_for_pasting,
             TimelineSelector.FROM_MANAGE_TIMELINES_TO_PERMUTE: filter_if_from_manage_timelines_to_permute,
             TimelineSelector.FROM_MANAGE_TIMELINES_CURRENT: filter_if_from_manage_timelines_current,
+            TimelineSelector.FROM_CLI: filter_if_from_cli,
             TimelineSelector.ANY: filter_if_first_on_select_order,
             TimelineSelector.FROM_CONTEXT_MENU: filter_if_from_context_menu,
             TimelineSelector.FROM_CONTEXT_MENU_TO_PERMUTE: filter_if_from_context_menu_to_permute,

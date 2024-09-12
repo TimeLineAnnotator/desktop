@@ -1,4 +1,5 @@
 from tilia.requests import get, Get, Post, post
+from tilia.ui.cli.server import ServeTimelineUIFromCLI
 
 
 def setup_parser(subparser):
@@ -26,7 +27,8 @@ def remove_by_name(namespace):
 
     print(f"Removing timeline {tl=}")
 
-    post(Post.TIMELINE_DELETE, tl.id)
+    with ServeTimelineUIFromCLI(get(Get.TIMELINE_UI, tl.id)):
+        post(Post.TIMELINE_DELETE_FROM_CLI)
 
 
 def remove_by_ordinal(namespace):
@@ -37,4 +39,5 @@ def remove_by_ordinal(namespace):
 
     print(f"Removing timeline {tl=}")
 
-    post(Post.TIMELINE_DELETE, tl.id)
+    with ServeTimelineUIFromCLI(get(Get.TIMELINE_UI, tl.id)):
+        post(Post.TIMELINE_DELETE_FROM_CLI)
