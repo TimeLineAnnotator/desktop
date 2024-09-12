@@ -3,7 +3,7 @@ from unittest.mock import patch
 import argparse
 import pytest
 
-from tests.mock import PatchGet
+from tests.mock import Serve
 from tilia.exceptions import WrongTimelineForImport
 from tilia.requests import Get
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -189,9 +189,7 @@ class TestGetTimelinesForImport:
     @staticmethod
     def run_test_case(case: ImportTestCase, tls):
         for kind, name in case.timelines:
-            with PatchGet(
-                "tilia.timelines.collection", Get.FROM_USER_BEAT_PATTERN, [2]
-            ):
+            with Serve(Get.FROM_USER_BEAT_PATTERN, [2]):
                 tls.create_timeline(kind=kind, name=name)
 
         tl, ref_tl = get_timelines_for_import(*case.get_timelines_params)
