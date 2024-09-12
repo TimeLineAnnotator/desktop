@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+import tilia.errors
 from tilia.file.tilia_file import TiliaFile
 from tilia.timelines.hash_timelines import hash_timeline_collection_data
 
@@ -32,9 +33,16 @@ def write_tilia_file_to_disk(file: TiliaFile, path: str | Path):
 
 
 def validate_save_path(path: Path):
+    error = False
+    error_message = ''
     if not path.parent.exists():
-        raise ValueError(f"Parent directory {path.parent} does not exist.")
+        error = True
+        error_message = f"Parent directory {path.parent} does not exist."
     if path.parent.is_file():
-        raise ValueError(f"Parent directory {path.parent} is a file.")
+        error = True
+        error_message = f"Parent directory {path.parent} is a file."
     if not os.access(path.parent, os.W_OK):
-        raise ValueError(f"Parent directory {path.parent} is not writable.")
+        error = True
+        error_message = f"Parent directory {path.parent} is not writable."
+
+    return not error, error_message

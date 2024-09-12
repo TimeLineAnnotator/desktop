@@ -1,3 +1,4 @@
+import tilia.errors
 from tilia.file.common import validate_save_path
 from tilia.requests import post, Post
 from tilia.ui.cli import io
@@ -8,7 +9,7 @@ from pathlib import Path
 def setup_parser(subparsers):
     parser = subparsers.add_parser("save", exit_on_error=False)
 
-    parser.add_argument("path", help="Path to save file to.", nargs="+")
+    parser.add_argument("path", help="Path to save file to.")
 
     parser.set_defaults(func=save)
 
@@ -24,12 +25,16 @@ def ask_overwrite_save_path(path: Path):
 
 
 def save(namespace):
-    path = Path("".join(namespace.path).strip('"'))
+    path = Path(namespace.path)
     path = ensure_tla_extension(path)
 
     if path.exists():
         if not ask_overwrite_save_path(path):
             return
 
-    validate_save_path(path)
-    post(Post.REQUEST_SAVE_TO_PATH, path)
+    valid, message = validate_save_path(path)
+    if not valid:
+        tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, message)
+        return
+
+    post(Post.REQUEST_SAVE_TO_PATH, str(path.resolve()))
