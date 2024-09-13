@@ -1,5 +1,4 @@
 import argparse
-from unittest.mock import mock_open, patch
 from tests.mock import PatchPost
 from tilia.requests.post import Post
 

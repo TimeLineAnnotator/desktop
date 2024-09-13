@@ -86,9 +86,11 @@ class CLI:
             self.parse_and_run(cmd)
 
     def parse_and_run(self, cmd):
+        """Returns True if command was unsuccessful, False otherwise"""
         args = self.parse_command(cmd)
         if args is None:
             post(Post.DISPLAY_ERROR, "Parse error: Invalid quoted arguments")
+            return True
         return self.run(args)
 
     def run(self, cmd: str) -> bool:
