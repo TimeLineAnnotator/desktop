@@ -1,16 +1,12 @@
-from pathlib import Path
-from unittest.mock import patch
-import argparse
 import pytest
 
 from tests.mock import Serve
-from tests.ui.cli.common import cli_run
+
 from tilia.exceptions import WrongTimelineForImport
 from tilia.requests import Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.actions import TiliaAction
 from tilia.ui.cli.timelines.imp import (
-    import_timeline,
     get_timelines_for_import,
     validate_timelines_for_import,
 )
@@ -26,7 +22,7 @@ def tmp_csv(tmp_path, data):
 
 
 class TestImportTimeline:
-    def test_markers_by_measure(self, marker_tl, beat_tl, tmp_path, tilia_state, actions):
+    def test_markers_by_measure(self, cli, marker_tl, beat_tl, tmp_path, tilia_state, actions):
         beat_tl.beat_pattern = [1]
         for i in range(5):
             tilia_state.current_time = i
@@ -35,20 +31,20 @@ class TestImportTimeline:
         data = "measure\n1\n2\n3\n4\n5"
         csv_path = tmp_csv(tmp_path, data)
 
-        cli_run(f'timelines import csv marker by-measure --target-ordinal 1 --reference-tl-ordinal 2 --file {str(csv_path.resolve())}')
+        cli.parse_and_run(f'timelines import csv marker by-measure --target-ordinal 1 --reference-tl-ordinal 2 --file {str(csv_path.resolve())}')
         for i in range(5):
             assert marker_tl[i].get_data('time') == i
 
-    def test_markers_by_time(self, tmp_path, marker_tl):
+    def test_markers_by_time(self, cli, tmp_path, marker_tl):
         data = "time\n1\n2\n3\n4\n5"
         csv_path = tmp_csv(tmp_path, data)
 
-        cli_run(f'timeline import csv marker by-time --file {str(csv_path.resolve())} --target-ordinal 1')
+        cli.parse_and_run(f'timeline import csv marker by-time --file {str(csv_path.resolve())} --target-ordinal 1')
         assert len(marker_tl) == 5
         for i in range(5):
             assert marker_tl[i].get_data('time') == i + 1
 
-    def test_hierarchies_by_measure(self, hierarchy_tl, beat_tl, tmp_path, tilia_state, actions):
+    def test_hierarchies_by_measure(self, cli, hierarchy_tl, beat_tl, tmp_path, tilia_state, actions):
         beat_tl.beat_pattern = [1]
         for i in range(6):
             tilia_state.current_time = i
@@ -57,27 +53,27 @@ class TestImportTimeline:
         data = "start,end,level\n1,2,1\n2,3,1\n3,4,1\n4,5,1\n5,6,1"
         csv_path = tmp_csv(tmp_path, data)
 
-        cli_run(
+        cli.parse_and_run(
             f'timelines import csv hierarchy by-measure --target-ordinal 1 --reference-tl-ordinal 2 --file {str(csv_path.resolve())}')
 
         for i in range(5):
             assert hierarchy_tl[i].get_data('start') == i
             assert hierarchy_tl[i].get_data('end') == i + 1
 
-    def test_hierarchies_by_time(self, hierarchy_tl, tmp_path, tilia_state, actions):
+    def test_hierarchies_by_time(self, cli, hierarchy_tl, tmp_path, tilia_state, actions):
         data = "start,end,level\n1,2,1\n2,3,1\n3,4,1\n4,5,1\n5,6,1"
         csv_path = tmp_csv(tmp_path, data)
 
-        cli_run(f'timeline import csv hierarchy by-time --file {str(csv_path.resolve())} --target-ordinal 1')
+        cli.parse_and_run(f'timeline import csv hierarchy by-time --file {str(csv_path.resolve())} --target-ordinal 1')
         for i in range(5):
             assert hierarchy_tl[i].get_data('start') == i + 1
             assert hierarchy_tl[i].get_data('end') == i + 2
 
-    def test_beats(self, beat_tl, tmp_path, tilia_state, actions):
+    def test_beats(self, cli, beat_tl, tmp_path, tilia_state, actions):
         data = "time\n1\n2\n3\n4\n5"
         csv_path = tmp_csv(tmp_path, data)
 
-        cli_run(f'timeline import csv beat --file {str(csv_path.resolve())} --target-ordinal 1')
+        cli.parse_and_run(f'timeline import csv beat --file {str(csv_path.resolve())} --target-ordinal 1')
         assert len(beat_tl) == 5
         for i in range(5):
             assert beat_tl[i].get_data('time') == i + 1

@@ -1,21 +1,21 @@
 import argparse
 
 import pytest
-from tests.mock import PatchGet, Serve
+from tests.mock import Serve
 from tilia.requests.get import Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli.components.add import add
 
 
 class TestAddBeat:
-    def test_wrong_timeline_kind_raises_error(cli, tls):
+    def test_wrong_timeline_kind_raises_error(self, cli, tls):
         tls.create_timeline(kind=TimelineKind.HIERARCHY_TIMELINE)
 
         namespace = argparse.Namespace(tl_ordinal=1, tl_name="")
         with pytest.raises(ValueError):
             add(TimelineKind.BEAT_TIMELINE, namespace)
 
-    def test_bad_ordinal_raises_error(cli, tls):
+    def test_bad_ordinal_raises_error(self, cli, tls):
         with Serve(Get.FROM_USER_BEAT_PATTERN, [4]):
             tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
 
@@ -23,7 +23,7 @@ class TestAddBeat:
         with pytest.raises(ValueError):
             add(TimelineKind.BEAT_TIMELINE, namespace)
 
-    def test_bad_name_raises_error(cli, tls):
+    def test_bad_name_raises_error(self, cli, tls):
         with Serve(Get.FROM_USER_BEAT_PATTERN, [4]):
             tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE, name="this")
 
@@ -31,7 +31,7 @@ class TestAddBeat:
         with pytest.raises(ValueError):
             add(TimelineKind.BEAT_TIMELINE, namespace)
 
-    def test_add_single(cli, tls):
+    def test_add_single(self, cli, tls):
         with Serve(Get.FROM_USER_BEAT_PATTERN, [4]):
             tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
 
@@ -40,7 +40,7 @@ class TestAddBeat:
 
         assert tls[0].components[0].time == 1
 
-    def test_add_multiple(cli, tls):
+    def test_add_multiple(self, cli, tls):
         with Serve(Get.FROM_USER_BEAT_PATTERN, [4]):
             tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
 

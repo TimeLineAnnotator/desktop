@@ -121,6 +121,13 @@ class TiliaState:
         return get(Get.MEDIA_METADATA)
 
 
+@pytest.fixture
+def cli():
+    _cli = CLI()
+    yield _cli
+    stop_listening_to_all(_cli)
+
+
 @pytest.fixture(autouse=True)
 def tilia_state(tilia, qtui):
     state = TiliaState(tilia, qtui)
