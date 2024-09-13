@@ -82,6 +82,7 @@ CLI_METADATA_CANT_SET_MEDIA_LENGTH = Error(
     "Cannot set media length",
     "Cannot set media length with 'metadata set'. Use 'metadata set-media-length' instead.",
 )
+EMPTY_CLI_SCRIPT = Error("Script error", "Cannot run script: file '{}' is empty.")
 
 
 def display(error: Error, *args):

@@ -1,7 +1,36 @@
+import argparse
 import os
+from functools import partial
 from pathlib import Path
+from typing import Callable
+
 from tilia.media.constants import ALL_SUPPORTED_MEDIA_FORMATS
 from collections import namedtuple
+
+from tilia.ui.cli import io
+from tilia.requests import post, Post
+
+
+def setup_parser(subparser, parse_and_run: Callable[[str], bool]):
+    generate_subp = subparser.add_parser("generate_scripts", exit_on_error=False)
+    generate_subp.add_argument("path", type=str, nargs="+")
+    generate_subp.set_defaults(func=partial(generate, parse_and_run))
+
+
+def generate(namespace: argparse.Namespace, parse_and_run: Callable[[str], bool]):
+    if not check_starting_directory(namespace.path):
+        return
+    script_paths = get_scripts(namespace.path)
+    if not script_paths:
+        return
+
+    io.output('\n'.join(["Saved scripts:", *script_paths]))
+    confirm = io.ask_yes_or_no("Would you like to run the generated scripts?")
+    if confirm:
+        for path in script_paths:
+            io.output(f"Running script:")
+            parse_and_run(f'script "{path}"')
+            post(Post.APP_CLEAR)
 
 
 def check_starting_directory(directory: str | Path) -> bool:

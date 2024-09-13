@@ -17,7 +17,7 @@ from tilia.ui.cli import (
     quit,
     save,
     io,
-    metadata,
+    metadata, generate_scripts,
 )
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
 
@@ -43,7 +43,8 @@ class CLI:
         load_media.setup_parser(self.subparsers)
         components.setup_parser(self.subparsers)
         metadata.setup_parser(self.subparsers)
-        script.setup_parser(self.subparsers, self.run_script)
+        generate_scripts.setup_parser(self.subparsers, self.parse_and_run)
+        script.setup_parser(self.subparsers, self.parse_and_run)
 
     def setup_player(self):
         self.player = QtPlayer()
@@ -82,12 +83,15 @@ class CLI:
         print("--- TiLiA CLI v0.1 ---")
         while True:
             cmd = input(">>> ")
-            args = self.parse_command(cmd)
-            if args is None:
-                post(Post.DISPLAY_ERROR, "", "Parse error: Invalid quoted arguments")
-            self.run(args)
+            self.parse_and_run(cmd)
 
-    def run(self, cmd):
+    def parse_and_run(self, cmd):
+        args = self.parse_command(cmd)
+        if args is None:
+            post(Post.DISPLAY_ERROR, "Parse error: Invalid quoted arguments")
+        return self.run(args)
+
+    def run(self, cmd: str) -> bool:
         """
         Parses the commands entered by the user.
         Return True if an uncaught exception ocurred.
