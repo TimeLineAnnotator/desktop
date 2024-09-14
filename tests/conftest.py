@@ -1,7 +1,9 @@
 import functools
+import sys
 from pathlib import Path
 
 import pytest
+from PyQt6.QtWidgets import QApplication
 
 from tests.mock import Serve
 from tilia.media.player.base import MediaTimeChangeReason
@@ -10,7 +12,6 @@ from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
 from tilia.boot import setup_logic
 from tilia.requests import (
-    stop_listening_to_all,
     Post,
     stop_listening,
     post,
@@ -22,7 +23,8 @@ from tilia.ui.actions import TiliaAction
 from tilia.ui.qtui import QtUI
 from tilia.ui.cli.ui import CLI
 from tilia.ui.windows import WindowKind
-from tilia.ui.dialogs.basic import display_error
+from tilia.requests.get import reset as reset_get
+from tilia.requests.post import reset as reset_post
 
 pytest_plugins = [
     "tests.timelines.hierarchy.fixtures",
@@ -121,11 +123,16 @@ class TiliaState:
         return get(Get.MEDIA_METADATA)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def qapplication():
+    q_application = QApplication(sys.argv)
+    yield q_application
+
+
 @pytest.fixture
 def cli():
     _cli = CLI()
     yield _cli
-    stop_listening_to_all(_cli)
 
 
 @pytest.fixture(autouse=True)
@@ -147,19 +154,15 @@ def resources() -> Path:
     return Path(__file__).parent / "resources"
 
 
-@pytest.fixture(scope="session")
-def qtui():
-    qtui_ = QtUI()
+@pytest.fixture(scope="module")
+def qtui(cleanup_requests, qapplication):
+    qtui_ = QtUI(qapplication)
     stop_listening(qtui_, Post.DISPLAY_ERROR)
     yield qtui_
-    # stop_listening_to_all(qtui_.timeline_uis)
-    # stop_serving_all(qtui_.timeline_uis)
-    # stop_listening_to_all(qtui_)
-    # stop_serving_all(qtui_)
 
 
 # noinspection PyProtectedMember
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def tilia(qtui):
     tilia_ = setup_logic(autosaver=False)
     tilia_.player = qtui.player
@@ -169,13 +172,21 @@ def tilia(qtui):
 
 
 @pytest.fixture
-def tluis(qtui):
+def tluis(qtui, tilia, tls):
     _tluis = qtui.timeline_uis
     yield _tluis
     post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
     _tluis._setup_auto_scroll()
     _tluis._setup_drag_tracking_vars()
     _tluis._setup_selection_box()
+
+
+@pytest.fixture(scope="module")
+def cleanup_requests():
+    yield
+
+    reset_get()
+    reset_post()
 
 
 @pytest.fixture
