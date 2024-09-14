@@ -39,7 +39,6 @@ from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
-from ..media.player import QtAudioPlayer, QtVideoPlayer, YouTubePlayer
 from ..parsers.csv.beat import beats_from_csv
 from tilia import constants
 from tilia.settings import settings
@@ -100,12 +99,11 @@ class TiliaMainWindow(QMainWindow):
 
 
 class QtUI:
-    def __init__(self, q_application: QApplication | None = None):
+    def __init__(self, q_application: QApplication, mw: TiliaMainWindow):
         self.app = None
-        self.q_application = q_application or QApplication(sys.argv)
-        self._setup_main_window()
+        self.q_application = q_application
+        self._setup_main_window(mw)
         self._setup_fonts()
-        self._setup_player()
         self._setup_sizes()
         self._setup_requests()
         self._setup_actions()
@@ -160,7 +158,6 @@ class QtUI:
 
         SERVES = {
             (Get.TIMELINE_WIDTH, lambda: self.timeline_width),
-            (Get.PLAYER_CLASS, self.get_player_class),
             (Get.PLAYBACK_AREA_WIDTH, lambda: self.playback_area_width),
             (Get.LEFT_MARGIN_X, lambda: self.playback_area_margin),
             (Get.RIGHT_MARGIN_X, lambda: self.playback_area_width + self.playback_area_margin),
@@ -174,7 +171,7 @@ class QtUI:
         for request, callback in SERVES:
             serve(self, request, callback)
 
-    def _setup_main_window(self):
+    def _setup_main_window(self, mw: TiliaMainWindow):
         def get_initial_geometry():
             x = settings.get("general", "window_x")
             y = settings.get("general", "window_y")
@@ -183,7 +180,7 @@ class QtUI:
 
             return x, y, w, h
 
-        self.main_window = TiliaMainWindow()
+        self.main_window = mw
         # self.main_window.setGeometry(*get_initial_geometry())
 
     @staticmethod
@@ -193,10 +190,6 @@ class QtUI:
         for font in fonts:
             font_path = str(Path(fonts_dir, font).resolve())
             QFontDatabase.addApplicationFont(font_path)
-
-    def _setup_player(self):
-        self.player = QtAudioPlayer()
-        post(Post.PLAYER_AVAILABLE, self.player)
 
     def _setup_dialog_manager(self):
         self.dialog_manager = DialogManager()
