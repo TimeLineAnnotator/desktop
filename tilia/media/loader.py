@@ -29,8 +29,17 @@ class MediaLoader:
 
     def _change_player_type(self, media_type):
         self.player.destroy()
-        player_cls = get(Get.PLAYER_CLASS, media_type)
-        self.player = player_cls()
+        self.player = self.get_player_class(media_type)()
+
+    @staticmethod
+    def get_player_class(media_type: str):
+        from tilia.media.player import QtAudioPlayer, QtVideoPlayer, YouTubePlayer
+
+        return {
+            "video": QtVideoPlayer,
+            "audio": QtAudioPlayer,
+            "youtube": YouTubePlayer,
+        }[media_type]
 
 
 def get_media_type_from_path(path: str):

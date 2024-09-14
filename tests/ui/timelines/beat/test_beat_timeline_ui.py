@@ -339,7 +339,7 @@ class TestChangeMeasureNumber:
 
 
 class TestActions:
-    def test_inspect(self, beat_tlui, actions, tilia_state):
+    def test_inspect(self, qtui, beat_tlui, actions, tilia_state):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
@@ -349,7 +349,7 @@ class TestActions:
 
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_INSPECT)
 
-        assert tilia_state.is_window_open(WindowKind.INSPECT)
+        assert tilia_state.is_window_open(qtui, WindowKind.INSPECT)
 
         actions.trigger(TiliaAction.INSPECT_WINDOW_CLOSE)
 

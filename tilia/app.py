@@ -31,12 +31,14 @@ class App:
         file_manager: FileManager,
         clipboard: Clipboard,
         undo_manager: UndoManager,
+        player: Player,
     ):
         self._id_counter = itertools.count()
         self.player: Player | None = None
         self.file_manager = file_manager
         self.clipboard = clipboard
         self.undo_manager = undo_manager
+        self.player = player
         self.duration = 0.0
         self._setup_timelines()
         self._setup_requests()
@@ -53,7 +55,6 @@ class App:
             (Post.APP_STATE_RESTORE, self.on_restore_state),
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_RECORD_STATE, self.on_record_state),
-            (Post.PLAYER_AVAILABLE, self.on_player_available),
             (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
@@ -75,9 +76,6 @@ class App:
 
     def _setup_timelines(self):
         self.timelines = Timelines(self)
-
-    def on_player_available(self, player: Player):
-        self.player = player
 
     def on_player_duration_available(self, duration: float):
         self.duration = duration

@@ -5,14 +5,17 @@ import sys
 import traceback
 
 import dotenv
+from PyQt6.QtWidgets import QApplication
 
 from tilia import dirs
 from tilia.app import App
 from tilia.clipboard import Clipboard
 from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
+from tilia.media.player import QtAudioPlayer
+from tilia.ui.actions import setup_actions
 from tilia.ui.cli.ui import CLI
-from tilia.ui.qtui import QtUI
+from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.undo_manager import UndoManager
 
 logger = logging.getLogger(__name__)
@@ -43,9 +46,10 @@ def boot():
     args = setup_parser()
     setup_dirs()
     setup_logging(args.logging)  # relies on logging path set by dirs setup
+    q_application = QApplication(sys.argv)
     global app, ui
     app = setup_logic()
-    ui = setup_ui(args.user_interface)
+    ui = setup_ui(q_application, args.user_interface)
 
     # has to be done after ui has been created, so timelines will get displayed
     if file := get_initial_file(args.file):
@@ -95,11 +99,13 @@ def setup_logic(autosaver=True):
     file_manager = FileManager()
     clipboard = Clipboard()
     undo_manager = UndoManager()
+    player = QtAudioPlayer()
 
     _app = App(
         file_manager=file_manager,
         clipboard=clipboard,
         undo_manager=undo_manager,
+        player=player,
     )
 
     if autosaver:
@@ -108,9 +114,11 @@ def setup_logic(autosaver=True):
     return _app
 
 
-def setup_ui(interface: str):
+def setup_ui(q_application: QApplication, interface: str):
     if interface == "qt":
-        return QtUI()
+        mw = TiliaMainWindow()
+        setup_actions(mw)
+        return QtUI(q_application, mw)
     elif interface == "cli":
         return CLI()
 

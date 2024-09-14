@@ -18,7 +18,7 @@ class TestHierarchyTimelineUI(HierarchyTimelineUI):
 
 
 @pytest.fixture
-def hierarchy_tlui(tilia, tls, tluis) -> TestHierarchyTimelineUI:
+def hierarchy_tlui(tls, tluis) -> TestHierarchyTimelineUI:
     def create_component(_: ComponentKind, *args, **kwargs):
         return create_hierarchy(*args, **kwargs)
 

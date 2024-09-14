@@ -19,8 +19,8 @@ from tilia.requests import (
     get,
     listen,
 )
-from tilia.ui.actions import TiliaAction
-from tilia.ui.qtui import QtUI
+from tilia.ui.actions import TiliaAction, setup_actions
+from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.ui.cli.ui import CLI
 from tilia.ui.windows import WindowKind
 from tilia.requests.get import reset as reset_get
@@ -38,9 +38,7 @@ pytest_plugins = [
 
 
 class TiliaErrors:
-    def __init__(self, ui: QtUI):
-        self.ui = ui
-        stop_listening(self.ui, Post.DISPLAY_ERROR)
+    def __init__(self):
         listen(self, Post.DISPLAY_ERROR, self._on_display_error)
         self.errors = []
 
@@ -62,12 +60,11 @@ class TiliaErrors:
 
 
 class TiliaState:
-    def __init__(self, tilia: App, ui: QtUI):
+    def __init__(self, tilia: App, player):
         self.app = tilia
-        self.player = tilia.player
+        self.player = player
         self.undo_manager = tilia.undo_manager
         self.file_manager = tilia.file_manager
-        self.ui = ui
 
     def reset(self):
         self.app.on_clear()
@@ -75,7 +72,6 @@ class TiliaState:
         self.current_time = 0
         self.media_path = ""
         self._reset_undo_manager()
-        self.ui.on_clear_ui()
         self._reset_file_manager()
 
     def _reset_file_manager(self):
@@ -115,8 +111,9 @@ class TiliaState:
     def is_undo_manager_cleared(self):
         return self.undo_manager.is_cleared
 
-    def is_window_open(self, kind: WindowKind):
-        return self.ui.is_window_open(kind)
+    @staticmethod
+    def is_window_open(ui, kind: WindowKind):
+        return ui.is_window_open(kind)
 
     @property
     def metadata(self):
@@ -136,15 +133,15 @@ def cli():
 
 
 @pytest.fixture(autouse=True)
-def tilia_state(tilia, qtui):
-    state = TiliaState(tilia, qtui)
+def tilia_state(tilia):
+    state = TiliaState(tilia, tilia.player)
     yield state
     state.reset()
 
 
 @pytest.fixture
-def tilia_errors(qtui):
-    errors = TiliaErrors(qtui)
+def tilia_errors():
+    errors = TiliaErrors()
     yield errors
     errors.reset()
 
@@ -156,29 +153,28 @@ def resources() -> Path:
 
 @pytest.fixture(scope="module")
 def qtui(cleanup_requests, qapplication):
-    qtui_ = QtUI(qapplication)
+    mw = TiliaMainWindow()
+    qtui_ = QtUI(qapplication, mw)
     stop_listening(qtui_, Post.DISPLAY_ERROR)
     yield qtui_
 
 
 # noinspection PyProtectedMember
 @pytest.fixture(scope="module")
-def tilia(qtui):
+def tilia(cleanup_requests):
+    mw = TiliaMainWindow()
+    setup_actions(mw)
     tilia_ = setup_logic(autosaver=False)
-    tilia_.player = qtui.player
     tilia_.set_media_duration(100)
     tilia_.reset_undo_manager()
     yield tilia_
 
 
 @pytest.fixture
-def tluis(qtui, tilia, tls):
+def tluis(qtui, tls):
     _tluis = qtui.timeline_uis
     yield _tluis
     post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
-    _tluis._setup_auto_scroll()
-    _tluis._setup_drag_tracking_vars()
-    _tluis._setup_selection_box()
 
 
 @pytest.fixture(scope="module")
@@ -249,6 +245,6 @@ class ActionManager:
 
 
 @pytest.fixture
-def actions(qtui):
+def actions():
     action_manager = ActionManager()
     yield action_manager

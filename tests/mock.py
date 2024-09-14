@@ -38,13 +38,15 @@ class Serve:
         self.called = False
 
     def __enter__(self):
-        stop_serving(self.original_server, self.request)
+        if self.original_server:
+            stop_serving(self.original_server, self.request)
         serve(self, self.request, self._callback)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         stop_serving(self, self.request)
-        serve(self.original_server, self.request, self.original_callback)
+        if self.original_server:
+            serve(self.original_server, self.request, self.original_callback)
 
     def _callback(self, *_, **__):
         self.called = True

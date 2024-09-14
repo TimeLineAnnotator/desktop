@@ -6,8 +6,7 @@ from unittest.mock import patch
 import tests.utils
 from tests.mock import Serve, PatchPost
 
-from tilia.requests import Get, Post
-from tilia.ui import actions
+from tilia.requests import Get, Post, post
 from tilia.ui.actions import TiliaAction
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -22,7 +21,7 @@ class TestSaveFileOnClose:
             "file_path": "",
         }
 
-    def test_no_changes(self, tilia, actions):
+    def test_no_changes(self, tilia, tls, actions):
         with (
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
             patch("tilia.file.file_manager.FileManager.save") as save_mock,
@@ -97,7 +96,7 @@ class TestSaveFileOnClose:
 
 class TestFileLoad:
     def test_media_path_does_not_exist_and_media_length_available(
-        self, tilia, tilia_state, tmp_path, tls
+        self, tilia, tilia_state, tmp_path, tls, actions
     ):
         file_data = tests.utils.get_blank_file_data()
         file_data["media_metadata"]["media length"] = 101
@@ -112,7 +111,7 @@ class TestFileLoad:
         assert tilia_state.duration == 101
 
     def test_media_path_does_not_exist_and_media_length_not_available(
-        self, tilia, tilia_state, tmp_path, tls
+        self, tilia, tilia_state, tmp_path, tls, actions
     ):
         tilia_state.duration = 0
         file_data = tests.utils.get_blank_file_data()
@@ -126,7 +125,7 @@ class TestFileLoad:
         assert tilia_state.media_path == ""
         assert tilia_state.duration == 0
 
-    def test_media_path_exists(self, tilia, tilia_state, tmp_path, tls):
+    def test_media_path_exists(self, tilia, tilia_state, tmp_path, tls, actions):
         file_data = tests.utils.get_blank_file_data()
         tmp_file = tmp_path / "test_file_load.tla"
         media_path = str((Path(__file__).parent / "resources" / "example.ogg").resolve())
@@ -140,7 +139,7 @@ class TestFileLoad:
         assert tilia_state.media_path == media_path
         assert tilia_state.duration == 101
 
-    def test_media_path_is_youtube_url(self, tilia, tilia_state, tmp_path, tls):
+    def test_media_path_is_youtube_url(self, tilia_state, tmp_path, actions):
         file_data = tests.utils.get_blank_file_data()
         tmp_file = tmp_path / "test_file_load.tla"
         media_path = "https://www.youtube.com/watch?v=wBfVsucRe1w"
@@ -159,50 +158,49 @@ class TestMediaLoad:
     EXAMPLE_PATH_OGG = "tilia/tests/resources/example.ogg"
 
     @staticmethod
-    def _load_media(actions, path, get_media_path_success=True):
-        with Serve(Get.FROM_USER_MEDIA_PATH, (get_media_path_success, path)):
-            actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
+    def _load_media(path):
+        post(Post.APP_MEDIA_LOAD, path)
 
-    def test_load_local(self, tilia, tilia_state, actions):
-        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+    def test_load_local(self, tilia, tilia_state):
+        self._load_media(self.EXAMPLE_PATH_OGG)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
     def test_undo(self, tilia, tilia_state, actions):
-        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        self._load_media(self.EXAMPLE_PATH_OGG)
         actions.trigger(TiliaAction.EDIT_UNDO)
         assert not tilia_state.media_path
 
     def test_redo(self, tilia, tilia_state, actions):
-        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        self._load_media(self.EXAMPLE_PATH_OGG)
         actions.trigger(TiliaAction.EDIT_UNDO)
         actions.trigger(TiliaAction.EDIT_REDO)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
-    def test_load_invalid_extension(self, tilia, tilia_state, tilia_errors, actions):
-        self._load_media(actions, "invalid.xyz")
+    def test_load_invalid_extension(self, tilia, tilia_state, tilia_errors):
+        self._load_media("invalid.xyz")
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("xyz")
         assert not tilia_state.media_path
 
     def test_load_invalid_extension_with_media_loaded(
-        self, tilia, tilia_state, tilia_errors, actions
+        self, tilia, tilia_state, tilia_errors
     ):
-        self._load_media(actions, self.EXAMPLE_PATH_OGG)
-        self._load_media(actions, "invalid.xyz")
+        self._load_media(self.EXAMPLE_PATH_OGG)
+        self._load_media("invalid.xyz")
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("xyz")
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
     def test_load_media_after_loading_media_with_invalid_extension(
-        self, tilia, tilia_state, tilia_errors, actions
+        self, tilia, tilia_state, tilia_errors
     ):
-        self._load_media(actions, "invalid.xyz")
-        self._load_media(actions, self.EXAMPLE_PATH_OGG)
+        self._load_media("invalid.xyz")
+        self._load_media(self.EXAMPLE_PATH_OGG)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
 
 class TestFileSetup:
-    def test_slider_timeline_is_created_when_loaded_file_does_not_have_one(self, tls, tmp_path):
+    def test_slider_timeline_is_created_when_loaded_file_does_not_have_one(self, tls, tmp_path, actions):
         file_data = tests.utils.get_blank_file_data()
         file_data['timelines'] = {'1': {
             'name': '',
