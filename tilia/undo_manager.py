@@ -100,8 +100,6 @@ class UndoManager:
 class PauseUndoManager:
     def __enter__(self):
         post(Post.UNDO_MANAGER_SET_IS_RECORDING, False)
-        tilia.requests.post.LOGGING_ACTIVE = False
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         post(Post.UNDO_MANAGER_SET_IS_RECORDING, True)
-        tilia.requests.post.LOGGING_ACTIVE = True

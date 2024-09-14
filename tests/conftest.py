@@ -1,6 +1,7 @@
 import functools
 import sys
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from PyQt6.QtWidgets import QApplication
@@ -96,7 +97,11 @@ class TiliaState:
 
     @duration.setter
     def duration(self, value):
-        self.app.set_media_duration(value)
+        self.app.set_file_media_duration(value)
+
+    def set_duration(self, value, scale_timelines: Literal['yes', 'no', 'prompt'] = 'prompt'):
+        """Use this if you want to pass scale_timelines."""
+        self.app.set_file_media_duration(value, scale_timelines)
 
     @property
     def media_path(self):
@@ -165,7 +170,7 @@ def tilia(cleanup_requests):
     mw = TiliaMainWindow()
     setup_actions(mw)
     tilia_ = setup_logic(autosaver=False)
-    tilia_.set_media_duration(100)
+    tilia_.set_file_media_duration(100)
     tilia_.reset_undo_manager()
     yield tilia_
 

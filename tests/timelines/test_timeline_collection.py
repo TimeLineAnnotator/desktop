@@ -23,7 +23,7 @@ class TestTimelines:
         self, marker_tl, tilia_state
     ):
         marker_tl.create_marker(10)
-        with Serve(Get.FROM_USER_YES_OR_NO, True):
+        with Serve(Get.FROM_USER_YES_OR_NO, (True, True)):
             tilia_state.duration = 200
         assert marker_tl[0].get_data("time") == 20
 

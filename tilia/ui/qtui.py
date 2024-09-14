@@ -39,6 +39,7 @@ from .windows.about import About
 from .windows.inspect import Inspect
 from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
+from ..media.player import QtVideoPlayer, QtAudioPlayer, YouTubePlayer
 from ..parsers.csv.beat import beats_from_csv
 from tilia import constants
 from tilia.settings import settings
@@ -163,6 +164,7 @@ class QtUI:
             (Get.RIGHT_MARGIN_X, lambda: self.playback_area_width + self.playback_area_margin),
             (Get.WINDOW_GEOMETRY, self.get_window_geometry),
             (Get.WINDOW_STATE, self.get_window_state),
+            (Get.PLAYER_CLASS, self.get_player_class),
         }
 
         for post, callback in LISTENS:

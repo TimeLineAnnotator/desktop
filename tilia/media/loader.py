@@ -8,38 +8,29 @@ from tilia.media.player import Player
 from tilia.requests import get, Get
 
 
-class MediaLoader:
-    def __init__(self, _player: Player):
-        self.player = _player
+def load_media(player: Player, path: str):
+    extension, media_type = get_media_type_from_path(path)
 
-    def load(self, path: str):
-        extension, media_type = get_media_type_from_path(path)
+    if media_type == "unsupported":
+        tilia.errors.display(tilia.errors.UNSUPPORTED_MEDIA_FORMAT, extension)
+        return None
 
-        if media_type == "unsupported":
-            tilia.errors.display(tilia.errors.UNSUPPORTED_MEDIA_FORMAT, extension)
-            return None
+    # change player to audio or video if needed
+    if player.MEDIA_TYPE != media_type:
+        player = _change_player_type(player, media_type)
 
-        # change player to audio or video if needed
-        if self.player.MEDIA_TYPE != media_type:
-            self._change_player_type(media_type)
+    player.load_media(path)
 
-        self.player.load_media(path)
+    return player
 
-        return self.player
 
-    def _change_player_type(self, media_type):
-        self.player.destroy()
-        self.player = self.get_player_class(media_type)()
+def _change_player_type(player, media_type):
+    player.destroy()
+    return get_player_class(media_type)()
 
-    @staticmethod
-    def get_player_class(media_type: str):
-        from tilia.media.player import QtAudioPlayer, QtVideoPlayer, YouTubePlayer
 
-        return {
-            "video": QtVideoPlayer,
-            "audio": QtAudioPlayer,
-            "youtube": YouTubePlayer,
-        }[media_type]
+def get_player_class(media_type: str):
+    return get(Get.PLAYER_CLASS, media_type)
 
 
 def get_media_type_from_path(path: str):
