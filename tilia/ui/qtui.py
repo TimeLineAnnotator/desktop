@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional, Callable
 
 from PyQt6 import QtGui
-from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl
+from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl, QtMsgType
 from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices
 from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
 
@@ -58,7 +58,10 @@ class TiliaMainWindow(QMainWindow):
 
     @staticmethod
     def handle_qt_log_message(type, _, msg):
-        print(f"{type.name}: {msg}")
+        if type == QtMsgType.QtCriticalMsg or type == QtMsgType.QtFatalMsg:
+            raise Exception(f'{type.name}: {msg}')
+        else:
+            print(f"{type.name}: {msg}")
 
     def keyPressEvent(self, event: Optional[QtGui.QKeyEvent]) -> None:
         if event is None:
@@ -97,9 +100,9 @@ class TiliaMainWindow(QMainWindow):
 
 
 class QtUI:
-    def __init__(self):
+    def __init__(self, q_application: QApplication | None = None):
         self.app = None
-        self.q_application = QApplication(sys.argv)
+        self.q_application = q_application or QApplication(sys.argv)
         self._setup_main_window()
         self._setup_fonts()
         self._setup_player()
