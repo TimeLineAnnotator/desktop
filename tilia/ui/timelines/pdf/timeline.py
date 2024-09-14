@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import logging
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QPointF
@@ -34,8 +33,6 @@ if TYPE_CHECKING:
     from tilia.ui.timelines.base.element_manager import ElementManager
     from tilia.ui.timelines.scene import TimelineScene
     from tilia.ui.timelines.view import TimelineView
-
-logger = logging.getLogger(__name__)
 
 
 class PdfTimelineUI(TimelineUI):

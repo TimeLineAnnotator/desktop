@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-import logging
 
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import (
@@ -32,8 +31,6 @@ from ...windows.inspect import InspectRowKind
 
 if TYPE_CHECKING:
     from .timeline import PdfTimelineUI
-
-logger = logging.getLogger(__name__)
 
 
 class PdfMarkerUI(TimelineUIElement):

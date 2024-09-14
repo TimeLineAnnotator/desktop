@@ -102,11 +102,7 @@ class Timelines:
     def __bool__(self):
         return True  # so it doesn't evaluate to False when there are no timelines
     
-    def _setup_requests(self):        
-        LISTENS = {    
-            (Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
-        }
-
+    def _setup_requests(self):
         SERVES = {
             (Get.TIMELINE_COLLECTION, lambda: self),
             (Get.TIMELINES, self.get_timelines),
@@ -116,9 +112,6 @@ class Timelines:
             (Get.TIMELINES_BY_ATTR, self.get_timelines_by_attr),
             (Get.METRIC_POSITION, self.get_metric_position)
         }
-
-        for post, callback in LISTENS:
-            listen(self, post, callback)
 
         for request, callback in SERVES:
             serve(self, request, callback)

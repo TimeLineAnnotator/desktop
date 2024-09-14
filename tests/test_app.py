@@ -1,10 +1,17 @@
+import itertools
 import json
+import math
+import operator
+from functools import reduce
 from pathlib import Path
+from typing import Literal
 from unittest.mock import patch
 
+import pytest
 
 import tests.utils
 from tests.mock import Serve, PatchPost
+from tilia.media.player import YouTubePlayer, QtAudioPlayer
 
 from tilia.requests import Get, Post, post
 from tilia.ui.actions import TiliaAction
@@ -146,7 +153,10 @@ class TestFileLoad:
         file_data["media_path"] = media_path
         file_data["media_metadata"]["media length"] = 101
         tmp_file.write_text(json.dumps(file_data))
-        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
+        with (
+            Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)),
+            Serve(Get.PLAYER_CLASS, YouTubePlayer)
+        ):
             actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
@@ -155,35 +165,37 @@ class TestFileLoad:
 
 
 class TestMediaLoad:
-    EXAMPLE_PATH_OGG = "tilia/tests/resources/example.ogg"
+    EXAMPLE_PATH_OGG = str((Path(__file__).parent / 'resources' / 'example.ogg').resolve()).replace('\\', '/')
+    EXAMPLE_OGG_DURATION = 9.952
 
     @staticmethod
-    def _load_media(path):
-        post(Post.APP_MEDIA_LOAD, path)
+    def _load_media(path, scale_timelines: Literal['yes', 'no', 'prompt'] = 'prompt'):
+        with Serve(Get.PLAYER_CLASS, QtAudioPlayer):
+            post(Post.APP_MEDIA_LOAD, path, scale_timelines=scale_timelines)
 
-    def test_load_local(self, tilia, tilia_state):
+    def test_load_local(self, tilia_state):
         self._load_media(self.EXAMPLE_PATH_OGG)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
-    def test_undo(self, tilia, tilia_state, actions):
+    def test_undo(self, tilia_state, actions):
         self._load_media(self.EXAMPLE_PATH_OGG)
         actions.trigger(TiliaAction.EDIT_UNDO)
         assert not tilia_state.media_path
 
-    def test_redo(self, tilia, tilia_state, actions):
+    def test_redo(self, tilia_state, actions):
         self._load_media(self.EXAMPLE_PATH_OGG)
         actions.trigger(TiliaAction.EDIT_UNDO)
         actions.trigger(TiliaAction.EDIT_REDO)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
-    def test_load_invalid_extension(self, tilia, tilia_state, tilia_errors):
+    def test_load_invalid_extension(self, tilia_state, tilia_errors):
         self._load_media("invalid.xyz")
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("xyz")
         assert not tilia_state.media_path
 
     def test_load_invalid_extension_with_media_loaded(
-        self, tilia, tilia_state, tilia_errors
+        self, tilia_state, tilia_errors
     ):
         self._load_media(self.EXAMPLE_PATH_OGG)
         self._load_media("invalid.xyz")
@@ -192,11 +204,71 @@ class TestMediaLoad:
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
     def test_load_media_after_loading_media_with_invalid_extension(
-        self, tilia, tilia_state, tilia_errors
+        self, tilia_state, tilia_errors
     ):
         self._load_media("invalid.xyz")
         self._load_media(self.EXAMPLE_PATH_OGG)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+
+    def test_scale_timelines_is_no(self, tilia_state, marker_tl, actions):
+        tilia_state.current_time = 5
+        actions.trigger(TiliaAction.MARKER_ADD)
+        tilia_state.current_time = 10
+        actions.trigger(TiliaAction.MARKER_ADD)
+        self._load_media(self.EXAMPLE_PATH_OGG, 'no')
+        assert len(marker_tl) == 1
+        assert marker_tl[0].get_data('time') == 5
+
+    def test_scale_timelines_is_yes(self, tilia_state, marker_tl, actions):
+        tilia_state.current_time = 50
+        prev_duration = tilia_state.duration
+        actions.trigger(TiliaAction.MARKER_ADD)
+        self._load_media(self.EXAMPLE_PATH_OGG, 'yes')
+        assert marker_tl[0].get_data('time') == 50 * self.EXAMPLE_OGG_DURATION / prev_duration
+
+
+class TestScaleCropTimeline:
+    @pytest.mark.parametrize('scale_timelines,scale_factor', [(('yes', 'yes'), (2, 2)), (('yes', 'no'), (2, 2)), (('no', 'yes'), (2, 2)), (('no', 'no'), (2, 2))])
+    def test_set_duration_twice_without_cropping(self, scale_timelines, scale_factor, tilia_state, marker_tl, actions):
+        marker_time = 50
+        tilia_state.current_time = marker_time
+        actions.trigger(TiliaAction.MARKER_ADD)
+        displacement_factor = 1
+        for factor, should_scale in zip(scale_factor, scale_timelines, strict=True):
+            tilia_state.set_duration(tilia_state.duration * factor, scale_timelines=should_scale)
+            if should_scale == 'yes':
+                displacement_factor *= factor
+        assert marker_tl[0].get_data('time') == marker_time * displacement_factor
+
+    def test_scale_then_crop(self, marker_tl, tilia_state, actions):
+        tilia_state.current_time = 10
+        actions.trigger(TiliaAction.MARKER_ADD)
+        tilia_state.current_time = 50
+        actions.trigger(TiliaAction.MARKER_ADD)
+        tilia_state.set_duration(200, scale_timelines='yes')
+        tilia_state.set_duration(50, scale_timelines='no')
+        assert len(marker_tl) == 1
+        assert marker_tl[0].get_data('time') == 20
+
+    def test_crop_then_scale(self, marker_tl, tilia_state, actions):
+        tilia_state.current_time = 10
+        actions.trigger(TiliaAction.MARKER_ADD)
+        tilia_state.current_time = 50
+        actions.trigger(TiliaAction.MARKER_ADD)
+        tilia_state.set_duration(40, scale_timelines='no')
+        tilia_state.set_duration(80, scale_timelines='yes')
+        assert len(marker_tl) == 1
+        assert marker_tl[0].get_data('time') == 20
+
+    def test_crop_twice(self, marker_tl, tilia_state, actions):
+        tilia_state.current_time = 10
+        actions.trigger(TiliaAction.MARKER_ADD)
+        tilia_state.current_time = 50
+        actions.trigger(TiliaAction.MARKER_ADD)
+        tilia_state.set_duration(80, scale_timelines='no')
+        tilia_state.set_duration(40, scale_timelines='no')
+        assert len(marker_tl) == 1
+        assert marker_tl[0].get_data('time') == 10
 
 
 class TestFileSetup:

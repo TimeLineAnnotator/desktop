@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 import sys
 import traceback
@@ -17,8 +16,6 @@ from tilia.ui.actions import setup_actions
 from tilia.ui.cli.ui import CLI
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.undo_manager import UndoManager
-
-logger = logging.getLogger(__name__)
 
 app = None
 ui = None
@@ -45,7 +42,6 @@ def boot():
     dotenv.load_dotenv()
     args = setup_parser()
     setup_dirs()
-    setup_logging(args.logging)  # relies on logging path set by dirs setup
     q_application = QApplication(sys.argv)
     global app, ui
     app = setup_logic()
@@ -62,12 +58,6 @@ def boot():
 
 def setup_parser():
     parser = argparse.ArgumentParser(exit_on_error=False)
-    parser.add_argument(
-        "--logging",
-        "-l",
-        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "TRACE"],
-        default="INFO",
-    )
     parser.add_argument("file", nargs="?", default="")
     parser.add_argument("--user-interface", "-i", choices=["qt", "cli"], default="qt")
     return parser.parse_args()
@@ -75,24 +65,6 @@ def setup_parser():
 
 def setup_dirs():
     dirs.setup_dirs()
-
-
-def setup_logging(level: str):
-    file_mode = 'w'
-    format_ = " %(name)-50s %(lineno)-5s %(levelname)-8s %(message)s"
-    try:
-        logging.basicConfig(
-            filename=dirs.log_path,
-            filemode=file_mode,
-            level=level,
-            format=format_,
-        )
-    except PermissionError:
-        logging.basicConfig(
-            filemode=file_mode,
-            level=level,
-            format=format_,
-        )
 
 
 def setup_logic(autosaver=True):
@@ -129,7 +101,6 @@ def get_initial_file(file: str):
     If it was, returns its path. Else, returns the empty string.
     """
     if file and os.path.isfile(file) and file.endswith(".tla"):
-        logger.info(f"Opening file provided at startup: {file}")
         return file
     else:
         return ""
