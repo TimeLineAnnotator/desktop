@@ -4,9 +4,9 @@ from unittest.mock import patch
 
 
 import tests.utils
-from tests.mock import PatchGet, Serve
+from tests.mock import Serve, PatchPost
 
-from tilia.requests import Get
+from tilia.requests import Get, Post
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -26,7 +26,7 @@ class TestSaveFileOnClose:
         with (
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
             patch("tilia.file.file_manager.FileManager.save") as save_mock,
-            patch("sys.exit") as exit_mock,
+            PatchPost('tilia.app', Post.UI_EXIT) as exit_mock,
         ):
             actions.trigger(TiliaAction.APP_CLOSE)
 
@@ -41,7 +41,7 @@ class TestSaveFileOnClose:
             Serve(Get.APP_STATE, self._get_modified_file_state()),
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
             Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file, True)),
-            patch("sys.exit") as exit_mock,
+            PatchPost('tilia.app', Post.UI_EXIT) as exit_mock,
         ):
             actions.trigger(TiliaAction.APP_CLOSE)
 
@@ -60,7 +60,7 @@ class TestSaveFileOnClose:
 
         with (
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
-            patch("sys.exit") as exit_mock,
+            PatchPost('tilia.app', Post.UI_EXIT) as exit_mock,
         ):
             actions.trigger(TiliaAction.APP_CLOSE)
 
@@ -74,7 +74,7 @@ class TestSaveFileOnClose:
             Serve(Get.APP_STATE, self._get_modified_file_state()),
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)),
             patch("tilia.file.file_manager.FileManager.save") as save_mock,
-            patch("sys.exit") as exit_mock,
+            PatchPost('tilia.app', Post.UI_EXIT) as exit_mock,
         ):
             actions.trigger(TiliaAction.APP_CLOSE)
 
@@ -87,7 +87,7 @@ class TestSaveFileOnClose:
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
             Serve(Get.FROM_USER_SAVE_PATH_TILIA, ("", "")),
             patch("tilia.file.file_manager.FileManager.save") as save_mock,
-            patch("sys.exit") as exit_mock,
+            PatchPost('tilia.app', Post.UI_EXIT) as exit_mock,
         ):
             actions.trigger(TiliaAction.APP_CLOSE)
 
@@ -97,16 +97,14 @@ class TestSaveFileOnClose:
 
 class TestFileLoad:
     def test_media_path_does_not_exist_and_media_length_available(
-        self, tilia, tilia_state, tmp_path
+        self, tilia, tilia_state, tmp_path, tls
     ):
         file_data = tests.utils.get_blank_file_data()
         file_data["media_metadata"]["media length"] = 101
         file_data["media_path"] = "invalid.tla"
         tmp_file = tmp_path / "test_file_load.tla"
         tmp_file.write_text(json.dumps(file_data))
-        with PatchGet(
-            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
-        ):
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
@@ -114,48 +112,42 @@ class TestFileLoad:
         assert tilia_state.duration == 101
 
     def test_media_path_does_not_exist_and_media_length_not_available(
-        self, tilia, tilia_state, tmp_path
+        self, tilia, tilia_state, tmp_path, tls
     ):
         tilia_state.duration = 0
         file_data = tests.utils.get_blank_file_data()
         file_data["media_path"] = "invalid.tla"
         tmp_file = tmp_path / "test_file_load.tla"
         tmp_file.write_text(json.dumps(file_data))
-        with PatchGet(
-            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
-        ):
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
         assert tilia_state.media_path == ""
         assert tilia_state.duration == 0
 
-    def test_media_path_exists(self, tilia, tilia_state, tmp_path):
+    def test_media_path_exists(self, tilia, tilia_state, tmp_path, tls):
         file_data = tests.utils.get_blank_file_data()
         tmp_file = tmp_path / "test_file_load.tla"
-        media_path = str(Path("resources", "example.ogg").resolve())
+        media_path = str((Path(__file__).parent / "resources" / "example.ogg").resolve())
         file_data["media_path"] = media_path
         file_data["media_metadata"]["media length"] = 101
         tmp_file.write_text(json.dumps(file_data))
-        with PatchGet(
-            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
-        ):
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
         assert tilia_state.media_path == media_path
         assert tilia_state.duration == 101
 
-    def test_media_path_is_youtube_url(self, tilia, tilia_state, tmp_path):
+    def test_media_path_is_youtube_url(self, tilia, tilia_state, tmp_path, tls):
         file_data = tests.utils.get_blank_file_data()
         tmp_file = tmp_path / "test_file_load.tla"
         media_path = "https://www.youtube.com/watch?v=wBfVsucRe1w"
         file_data["media_path"] = media_path
         file_data["media_metadata"]["media length"] = 101
         tmp_file.write_text(json.dumps(file_data))
-        with PatchGet(
-            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
-        ):
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
@@ -208,23 +200,22 @@ class TestMediaLoad:
         self._load_media(actions, self.EXAMPLE_PATH_OGG)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
+
 class TestFileSetup:
     def test_slider_timeline_is_created_when_loaded_file_does_not_have_one(self, tls, tmp_path):
         file_data = tests.utils.get_blank_file_data()
-        file_data['timelines'] = {
+        file_data['timelines'] = {'1': {
             'name': '',
             'height': 40,
             'is_visible': True,
             'ordinal': 1,
             'components': {},
-            'kind': 'HIERARCHY_TIMELINES'
-        }  # empty hierarchy timeline
+            'kind': 'HIERARCHY_TIMELINE'
+        }}  # empty hierarchy timeline
         tmp_file = tmp_path / "test_file_setup.tla"
         tmp_file.write_text(json.dumps(file_data))
-        with PatchGet(
-            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
-        ):
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             actions.trigger(TiliaAction.FILE_OPEN)
             
         assert len(tls) == 2
-        assert tls[0].KIND == TimelineKind.SLIDER_TIMELINE
+        assert TimelineKind.SLIDER_TIMELINE in tls.timeline_kinds

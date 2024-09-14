@@ -1,3 +1,4 @@
+import itertools
 import random
 
 
@@ -11,11 +12,5 @@ class TestComponentOrder:
         for i in range(10):
             marker_tl[i].set_data("time", random.randrange(0, 99))
 
-        comps = marker_tl.components
-
-        assert all(
-            [
-                comps[i] < comps[i + 1] or comps[i].time == comps[i + 1].time
-                for i in range(len(comps) - 1)
-            ]
-        )
+        for c1, c2 in itertools.pairwise(marker_tl):
+            assert c1 < c2 or c1.time == c2.time

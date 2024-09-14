@@ -29,7 +29,6 @@ ADD_TIMELINE_ACTIONS = [
 class TestTimelineUICreation:
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
     def test_create(self, action, tilia_state, tluis, actions):
-        tilia_state.duration = 1
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
             Serve(Get.FROM_USER_STRING, ("", True)),
@@ -45,7 +44,6 @@ class TestTimelineUICreation:
             TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
             TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE,
         ]
-        tilia_state.duration = 1
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
             Serve(Get.FROM_USER_STRING, ("", True)),
@@ -56,7 +54,6 @@ class TestTimelineUICreation:
 
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
     def test_user_cancels_creation(self, action, tilia_state, tluis, actions):
-        tilia_state.duration = 1
         with Serve(Get.FROM_USER_STRING, ("", False)):
             actions.trigger(action)
         assert tluis.is_empty
