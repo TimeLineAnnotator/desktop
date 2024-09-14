@@ -135,3 +135,10 @@ def stop_serving_all(replier: Any) -> None:
 
     for request in _servers_to_requests[replier].copy():
         stop_serving(replier, request)
+
+
+def reset() -> None:
+    global _requests_to_callbacks, _servers_to_requests
+
+    _requests_to_callbacks.clear()
+    _servers_to_requests.clear()
