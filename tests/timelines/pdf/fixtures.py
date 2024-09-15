@@ -1,3 +1,5 @@
+import functools
+
 import pytest
 
 from tests.mock import Serve
@@ -12,7 +14,6 @@ from tilia.ui.timelines.pdf import PdfTimelineUI, PdfMarkerUI
 class TestPdfTimelineUI(PdfTimelineUI):
     def create_component(
             self,
-            kind,
             time=0,
             **kwargs
     ) -> tuple[PdfMarker, PdfMarkerUI]: ...
@@ -29,26 +30,9 @@ def pdf_tlui(tls, tluis) -> TestPdfTimelineUI:
     tl.clear()  # delete initial pdf marker
     ui = tluis.get_timeline_ui(tl.id)
 
-    def create_component(
-            *args,
-            **kwargs
-    ) -> tuple[PdfMarker, PdfMarkerUI]:
-        return create_pdf_marker(*args, **kwargs)
-
-    def create_pdf_marker(*args, **kwargs):
-        component, _ = tl.create_timeline_component(
-            ComponentKind.PDF_MARKER, *args, **kwargs
-        )
-        element = ui.get_element(component.id) if component else None
-        return component, element
-
-    def noop(*args, **kwargs):
-        pass
-
-    tl.create_pdf_marker = create_pdf_marker
-    ui.create_pdf_marker = create_pdf_marker
-    tl.create_component = create_component
-    ui.create_component = create_component
+    tl.create_pdf_marker = functools.partial(tl.create_component, ComponentKind.PDF_MARKER)
+    ui.create_pdf_marker = tl.create_pdf_marker
+    ui.create_component = tl.create_component
 
     yield ui  # will be deleted by tls
 

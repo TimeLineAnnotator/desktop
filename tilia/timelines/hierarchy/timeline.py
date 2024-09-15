@@ -23,7 +23,7 @@ class HierarchyTimeline(Timeline):
 
     def setup_blank_timeline(self):
         """Create unit of level 1 encompassing whole timeline"""
-        self.create_timeline_component(
+        self.create_component(
             kind=ComponentKind.HIERARCHY,
             start=0,
             end=get(Get.MEDIA_DURATION),
@@ -221,7 +221,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             return success, reason
 
         # create new child
-        created_unit, fail_reason = self.timeline.create_timeline_component(
+        created_unit, fail_reason = self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
             start=hierarchy.start,
             end=hierarchy.end,
@@ -346,7 +346,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if not success:
             return success, reason
 
-        grouping_unit, fail_reason = self.timeline.create_timeline_component(
+        grouping_unit, fail_reason = self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
             start=start_time,
             end=end_time,
@@ -442,7 +442,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         post(Post.LOOP_IGNORE_COMPONENT, self.timeline.id, unit_to_split.id)
         self.delete_component(unit_to_split)
 
-        left_unit, fail_reason = self.timeline.create_timeline_component(
+        left_unit, fail_reason = self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
             start=unit_to_split.start,
             end=split_time,
@@ -452,7 +452,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if not left_unit:
             return False, fail_reason
 
-        right_unit, fail_reason = self.timeline.create_timeline_component(
+        right_unit, fail_reason = self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
             start=split_time,
             end=unit_to_split.end,
@@ -564,7 +564,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             post(Post.LOOP_IGNORE_COMPONENT, self.timeline.id, unit.id)
             self.delete_component(unit)
 
-        merger_unit, fail_reason = self.timeline.create_timeline_component(
+        merger_unit, fail_reason = self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
             start=hierarchies[0].start,
             end=hierarchies[-1].end,

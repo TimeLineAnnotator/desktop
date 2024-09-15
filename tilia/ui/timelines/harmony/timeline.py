@@ -173,7 +173,7 @@ class HarmonyTimelineUI(TimelineUI):
         for harmony_data in paste_data:
             harmony_time = harmony_data["support_by_component_value"]["time"]
 
-            self.timeline.create_timeline_component(
+            self.timeline.create_component(
                 harmony_data["support_by_component_value"]["KIND"],
                 target_time + (harmony_time - reference_time),
                 **harmony_data["by_component_value"],

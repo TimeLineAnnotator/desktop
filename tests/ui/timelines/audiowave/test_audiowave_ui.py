@@ -6,8 +6,8 @@ from tilia.requests import Post
 
 class TestAudioWaveUI:
     def test_create(self, audiowave_tlui):
-        _, aui = audiowave_tlui.create_amplitudebar(0, 1, 1)
-        assert aui
+        audiowave_tlui.create_amplitudebar(0, 1, 1)
+        assert len(audiowave_tlui) == 1
 
 class TestDoubleClick:
     def test_amplitudebar_seek(self, audiowave_tlui):

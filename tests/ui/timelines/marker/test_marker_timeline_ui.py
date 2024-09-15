@@ -44,8 +44,8 @@ class TestCreateDelete:
         assert len(marker_tlui) == 2
 
     def test_delete(self, marker_tlui, actions):
-        _, mui = marker_tlui.create_marker(0)
-        marker_tlui.select_element(mui)
+        marker_tlui.create_marker(0)
+        marker_tlui.select_element(marker_tlui[0])
 
         assert len(marker_tlui) == 1
 
@@ -141,12 +141,12 @@ class TestChangeColor:
         assert marker_tlui[0].get_data('color') == self.TEST_COLOR
 
     def test_reset_color(self, marker_tlui, actions):
-        mrk, ui = marker_tlui.create_marker(time=0)
+        marker_tlui.create_marker(time=0)
         self._set_marker_color(marker_tlui, actions)
 
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)
 
-        assert mrk.color is None
+        assert marker_tlui[0].get_data('color') is None
 
     def test_undo_reset_color(self, marker_tlui, actions):
         marker_tlui.create_marker(time=0)
@@ -170,13 +170,13 @@ class TestChangeColor:
 
 class TestDelete:
     def test_on_delete_marker_multiple_markers(self, marker_tlui, tluis, actions):
-        _, mui1 = marker_tlui.create_marker(0)
-        _, mui2 = marker_tlui.create_marker(1)
-        _, mui3 = marker_tlui.create_marker(2)
+        marker_tlui.create_marker(0)
+        marker_tlui.create_marker(1)
+        marker_tlui.create_marker(2)
 
-        marker_tlui.select_element(mui1)
-        marker_tlui.select_element(mui2)
-        marker_tlui.select_element(mui3)
+        marker_tlui.select_element(marker_tlui[0])
+        marker_tlui.select_element(marker_tlui[1])
+        marker_tlui.select_element(marker_tlui[2])
 
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
 

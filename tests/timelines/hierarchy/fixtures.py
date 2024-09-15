@@ -1,3 +1,5 @@
+import functools
+
 import pytest
 
 from tilia.timelines.component_kinds import ComponentKind
@@ -8,8 +10,6 @@ from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 
 
 class TestHierarchyTimelineUI(HierarchyTimelineUI):
-    def create_component(self, _: ComponentKind, *args, ** kwargs): ...
-
     def create_hierarchy(
         self, start: float, end: float, level: int, **kwargs
     ) -> tuple[Hierarchy | None, HierarchyUI | None]: ...
@@ -19,20 +19,6 @@ class TestHierarchyTimelineUI(HierarchyTimelineUI):
 
 @pytest.fixture
 def hierarchy_tlui(tls, tluis) -> TestHierarchyTimelineUI:
-    def create_component(_: ComponentKind, *args, **kwargs):
-        return create_hierarchy(*args, **kwargs)
-
-    def create_hierarchy(
-        start: float = 0, end: float = None, level: int = 1, **kwargs
-    ) -> tuple[Hierarchy | None, HierarchyUI | None]:
-        if end is None:
-            end = start + 1
-        component, _ = tl.create_timeline_component(
-            ComponentKind.HIERARCHY, start, end, level, **kwargs
-        )
-        element = ui.get_element(component.id) if component else None
-        return component, element
-
     def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
         # noinspection PyProtectedMember
         return tl.component_manager._update_genealogy(parent, children)
@@ -44,12 +30,11 @@ def hierarchy_tlui(tls, tluis) -> TestHierarchyTimelineUI:
     # remove initial hierarchy
     tl.clear()
 
-    tl.create_hierarchy = create_hierarchy
-    ui.create_hierarchy = create_hierarchy
+    tl.create_hierarchy = functools.partial(tl.create_component, ComponentKind.HIERARCHY)
+    ui.create_hierarchy = tl.create_hierarchy
     tl.relate_hierarchies = relate_hierarchies
     ui.relate_hierarchies = relate_hierarchies
-    tl.create_component = create_component
-    ui.create_component = create_component
+    ui.create_component = tl.create_component
     return ui  # will be deleted by tls
 
 

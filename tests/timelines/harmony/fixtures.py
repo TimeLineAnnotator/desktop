@@ -8,17 +8,6 @@ from tilia.ui.timelines.harmony import HarmonyTimelineUI, HarmonyUI, ModeUI
 
 
 class TestHarmonyTimelineUI(HarmonyTimelineUI):
-    def create_component(
-        self,
-        kind,
-        time=0,
-        step=0,
-        accidental=0,
-        quality="major",
-        type="major",
-        **kwargs
-    ) -> tuple[Harmony, HarmonyUI] | tuple[Mode | ModeUI]: ...
-
     def create_harmony(
         self, time=0, step=0, accidental=0, quality="major", **kwargs
     ) -> tuple[Harmony, HarmonyUI]: ...
@@ -32,43 +21,25 @@ class TestHarmonyTimelineUI(HarmonyTimelineUI):
 def harmony_tlui(tls, tluis) -> TestHarmonyTimelineUI:
     tl: HarmonyTimeline = tls.create_timeline(TlKind.HARMONY_TIMELINE)
     ui = tluis.get_timeline_ui(tl.id)
-
-    def create_component(
-        kind,
-        time=0,
-        step=0,
-        accidental=0,
-        quality="major",
-        type="major",
-        **kwargs
-    ) -> tuple[Harmony, HarmonyUI] | tuple[Mode | ModeUI]:
-        if kind == ComponentKind.HARMONY:
-            return create_harmony(time, step, accidental, quality, **kwargs)
-        elif kind == ComponentKind.MODE:
-            return create_mode(time, step, accidental, type, **kwargs)
-        else:
-            raise ValueError(f'Invalid component kind"{kind}"')
+    original_create_component = tl.create_component
 
     def create_harmony(time=0, step=0, accidental=0, quality="major", **kwargs):
-        component, _ = tl.create_timeline_component(
+        component, _ = original_create_component(
             ComponentKind.HARMONY, time, step, accidental, quality, **kwargs
         )
-        element = ui.get_element(component.id) if component else None
-        return component, element
+        return component, None
 
     def create_mode(time=0, step=0, accidental=0, type="major", **kwargs):
-        component, _ = tl.create_timeline_component(
+        component, _ = original_create_component(
             ComponentKind.MODE, time, step, accidental, type, **kwargs
         )
-        element = ui.get_element(component.id) if component else None
-        return component, element
+        return component, None
 
     tl.create_harmony = create_harmony
     ui.create_harmony = create_harmony
     tl.create_mode = create_mode
     ui.create_mode = create_mode
-    tl.create_component = create_component
-    ui.create_component = create_component
+    ui.create_component = tl.create_component
 
     yield ui  # will be deleted by tls
 

@@ -35,11 +35,11 @@ class TestMarker:
         assert mrkui.body.brush().color() == QColor("#010101")
 
     def test_right_click(self, marker_tlui):
-        _, hui = marker_tlui.create_marker(0)
+        marker_tlui.create_marker(0)
         with patch(
             "tilia.ui.timelines.marker.context_menu.MarkerContextMenu.exec"
         ) as exec_mock:
-            hui.on_right_click(0, 0, None)
+            marker_tlui[0].on_right_click(0, 0, None)
 
         exec_mock.assert_called_once()
 

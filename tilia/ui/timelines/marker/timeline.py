@@ -122,7 +122,7 @@ class MarkerTimelineUI(TimelineUI):
             # deepcopying so popping won't affect original data
             marker_time = marker_data["support_by_component_value"].pop("time")
 
-            self.timeline.create_timeline_component(
+            self.timeline.create_component(
                 ComponentKind.MARKER,
                 target_time + (marker_time - reference_time),
                 **marker_data["by_element_value"],

@@ -79,7 +79,7 @@ def _create_component(component_kind, symbol, harmony_tl, time):
         errors.append(_get_invalid_symbol_error(component_kind, symbol))
         return errors
 
-    component, fail_reason = harmony_tl.create_timeline_component(
+    component, fail_reason = harmony_tl.create_component(
         (ComponentKind.HARMONY if component_kind == "harmony" else ComponentKind.MODE),
         time,
         **params,

@@ -67,7 +67,7 @@ def import_by_time(
                     index = params_to_indices[param]
                     constructor_args[param] = parser(row[index])
 
-            component, fail_reason = timeline.create_timeline_component(
+            component, fail_reason = timeline.create_component(
                 ComponentKind.HIERARCHY, **constructor_args
             )
             if not component:
@@ -194,7 +194,7 @@ def import_by_measure(
 
             # create hierarchies
             for start, end in zip(times["start"], times["end"]):
-                component, fail_reason = hierarchy_tl.create_timeline_component(
+                component, fail_reason = hierarchy_tl.create_component(
                     ComponentKind.HIERARCHY,
                     start,
                     end,

@@ -61,6 +61,6 @@ def add(tl_kind: TlKind, namespace: argparse.Namespace):
     cmp_kind = TL_KIND_TO_COMPONENT_KIND[tl_kind]
     params = get_component_params(cmp_kind, namespace)
 
-    tl.create_timeline_component(cmp_kind, **params)
+    tl.create_component(cmp_kind, **params)
 
     output(f"Adding component to timeline {tl}")

@@ -17,7 +17,7 @@ from tilia.timelines.pdf.timeline import PdfTimeline
 
 def _create_component(timeline, time, page_number):
     errors = []
-    component, fail_reason = timeline.create_timeline_component(
+    component, fail_reason = timeline.create_component(
         ComponentKind.PDF_MARKER, time, page_number
     )
     if not component:

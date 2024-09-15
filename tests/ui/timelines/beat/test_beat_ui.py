@@ -8,23 +8,23 @@ from tilia.ui.coords import get_x_by_time
 
 class TestRightClick:
     def test_right_click(self, beat_tlui):
-        _, hui = beat_tlui.create_beat(0)
+        beat_tlui.create_beat(0)
         with patch(
             "tilia.ui.timelines.beat.context_menu.BeatContextMenu.exec"
         ) as exec_mock:
-            hui.on_right_click(0, 0, None)
+            beat_tlui[0].on_right_click(0, 0, None)
 
         exec_mock.assert_called_once()
 
 
 class TestDoubleClick:
     def test_triggers_seek(self, beat_tlui):
-        b, bui = beat_tlui.create_beat(10)
-        click_beat_ui(bui, double=True)
+        beat_tlui.create_beat(10)
+        click_beat_ui(beat_tlui[0], double=True)
         assert get(Get.MEDIA_CURRENT_TIME) == 10
 
     def test_does_not_trigger_drag(self, beat_tlui):
-        _, bui = beat_tlui.create_beat(0)
-        click_beat_ui(bui, double=True)
-        drag_mouse_in_timeline_view(get_x_by_time(50), bui.height / 2)
-        assert bui.get_data("time") == 0
+        beat_tlui.create_beat(0)
+        click_beat_ui(beat_tlui[0], double=True)
+        drag_mouse_in_timeline_view(get_x_by_time(50), beat_tlui[0].height / 2)
+        assert beat_tlui[0].get_data("time") == 0

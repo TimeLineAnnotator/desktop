@@ -135,7 +135,7 @@ def beats_from_csv(
             index = params_to_indices["time"]
             constructor_kwargs["time"] = float(row[index])
 
-            component, fail_reason = timeline.create_timeline_component(
+            component, fail_reason = timeline.create_component(
                 ComponentKind.BEAT, **constructor_kwargs
             )
             if not component:

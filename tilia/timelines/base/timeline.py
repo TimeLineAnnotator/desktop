@@ -135,7 +135,7 @@ class Timeline(ABC, Generic[TC]):
         if self.validate_get_data(attr):
             return getattr(self, attr)
 
-    def create_timeline_component(
+    def create_component(
         self, kind: ComponentKind, *args, **kwargs
     ) -> tuple[TC | None, str | None]:
         component_id = get(Get.ID)
@@ -244,7 +244,7 @@ class TimelineComponentManager(Generic[T, TC]):
         return True, ""
 
     def create_component(
-        self, kind: ComponentKind, timeline, id, *args, **kwargs
+        self, kind: ComponentKind | None, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         self._validate_component_kind(kind)
         valid, reason = self._validate_component_creation(kind, *args, **kwargs)

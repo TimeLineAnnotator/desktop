@@ -33,7 +33,7 @@ class BeatUIRequestHandler(ElementRequestHandler):
 
     def on_add(self, *_, **__):
         self.timeline_ui: BeatTimelineUI
-        self.timeline.create_timeline_component(
+        self.timeline.create_component(
             ComponentKind.BEAT, get(Get.SELECTED_TIME)
         )
         self.timeline.recalculate_measures()
