@@ -105,7 +105,7 @@ def _deserialize_component(
     )
 
     # create component
-    component, fail_reason = timeline.create_timeline_component(
+    component, fail_reason = timeline.create_component(
         component_kind, **constructor_kwargs
     )
 

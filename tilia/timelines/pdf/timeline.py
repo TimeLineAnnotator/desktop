@@ -57,7 +57,7 @@ class PdfTimeline(Timeline):
             self.is_pdf_valid = False
 
     def setup_blank_timeline(self):
-        self.create_timeline_component(
+        self.create_component(
             ComponentKind.PDF_MARKER,
             time=0,
             page_number=1

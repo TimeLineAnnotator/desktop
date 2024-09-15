@@ -164,7 +164,7 @@ class TestBeatTimeline:
 
         beat_tl.recalculate_measures()
 
-        beat_tl.delete_components([b1, b2])
+        beat_tl.delete_components([beat_tl[2], beat_tl[3]])
 
         beat_tl.recalculate_measures()
 
@@ -177,7 +177,7 @@ class TestBeatTimeline:
 
         beat_tl.recalculate_measures()
 
-        beat_tl.delete_components([b1])
+        beat_tl.delete_components([beat_tl[1]])
 
         beat_tl.recalculate_measures()
 
@@ -192,7 +192,7 @@ class TestBeatTimeline:
 
         beat_tl.recalculate_measures()
 
-        beat_tl.delete_components([b1, b2, b3])
+        beat_tl.delete_components([beat_tl[1], beat_tl[2], beat_tl[3]])
 
         beat_tl.recalculate_measures()
 
@@ -211,7 +211,7 @@ class TestBeatTimeline:
 
         beat_tl.recalculate_measures()
 
-        beat_tl.delete_components([b0, b1, b2, b3])
+        beat_tl.delete_components([beat_tl[2],beat_tl[3],beat_tl[4],beat_tl[5]])
 
         beat_tl.recalculate_measures()
 
@@ -222,12 +222,12 @@ class TestBeatTimeline:
         beat_tl.set_data("beat_pattern", [2])
         beat_tl.create_beat(time=1)
         beat_tl.create_beat(time=2)
-        b, _ = beat_tl.create_beat(time=3)
+        beat_tl.create_beat(time=3)
         beat_tl.create_beat(time=4)
 
         beat_tl.recalculate_measures()
 
-        beat_tl.delete_components([b])
+        beat_tl.delete_components([beat_tl[2]])
 
         beat_tl.recalculate_measures()
 
@@ -318,15 +318,15 @@ class TestBeatTimeline:
 
     def test_delete_beat_updates_is_first_in_measure_of_subsequent_beats(self, beat_tl):
         beat_tl.beat_pattern = [2]
-        b0, _ = beat_tl.create_beat(0)
-        b1, _ = beat_tl.create_beat(1)
-        b2, _ = beat_tl.create_beat(2)
-        b3, _ = beat_tl.create_beat(3)
-        b4, _ = beat_tl.create_beat(4)
+        beat_tl.create_beat(0)
+        beat_tl.create_beat(1)
+        beat_tl.create_beat(2)
+        beat_tl.create_beat(3)
+        beat_tl.create_beat(4)
 
-        beat_tl.delete_components([b1])
+        beat_tl.delete_components([beat_tl[1]])
 
-        assert b0.get_data("is_first_in_measure")
-        assert not b2.get_data("is_first_in_measure")
-        assert b3.get_data("is_first_in_measure")
-        assert not b4.get_data("is_first_in_measure")
+        assert beat_tl[0].get_data("is_first_in_measure")
+        assert not beat_tl[1].get_data("is_first_in_measure")
+        assert beat_tl[2].get_data("is_first_in_measure")
+        assert not beat_tl[3].get_data("is_first_in_measure")

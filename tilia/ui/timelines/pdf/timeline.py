@@ -192,7 +192,7 @@ class PdfTimelineUI(TimelineUI):
             # deepcopying so popping won't affect original data
             marker_time = pdf_marker_data["support_by_component_value"].pop("time")
 
-            self.timeline.create_timeline_component(
+            self.timeline.create_component(
                 ComponentKind.PDF_MARKER,
                 target_time + (marker_time - reference_time),
                 **pdf_marker_data["by_element_value"],

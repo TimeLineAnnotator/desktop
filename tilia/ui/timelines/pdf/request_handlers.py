@@ -34,7 +34,7 @@ class PdfMarkerUIRequestHandler(ElementRequestHandler):
 
         page_number = min(self.timeline.get_previous_page_number(time) + 1, self.timeline.page_total)
 
-        pdf_marker, reason = self.timeline.create_timeline_component(
+        pdf_marker, reason = self.timeline.create_component(
             ComponentKind.PDF_MARKER, get(Get.SELECTED_TIME), page_number
         )
         if not pdf_marker:

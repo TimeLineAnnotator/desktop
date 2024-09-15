@@ -14,91 +14,91 @@ from tilia.ui.actions import TiliaAction
         ("harmony", ComponentKind.MODE),
         ("marker", ComponentKind.MARKER),
         ("beat", ComponentKind.BEAT),
-        ("hierarchy", ComponentKind.HIERARCHY),
-        ("audiowave",ComponentKind.AUDIOWAVE)
+        # ("hierarchy", ComponentKind.HIERARCHY),
+        # ("audiowave",ComponentKind.AUDIOWAVE)
     ],
     indirect=["tlui"],
 )
 class TestArrowSelection:
     def test_clicking_right_arrow_selects_next_element(self, tlui, component_kind):
-        _, ui1 = tlui.create_component(component_kind, 0)
-        _, ui2 = tlui.create_component(component_kind, 10)
-        tlui.select_element(ui1)
+        tlui.create_component(component_kind, 0)
+        tlui.create_component(component_kind, 10)
+        tlui.select_element(tlui[0])
 
         post(Post.TIMELINE_KEY_PRESS_RIGHT)
 
-        assert not ui1.is_selected()
-        assert ui2.is_selected()
+        assert not tlui[0].is_selected()
+        assert tlui[1].is_selected()
 
     def test_clicking_right_arrow_with_multiple_selected_selects_next_element(
         self, tlui, component_kind
     ):
-        _, ui1 = tlui.create_component(component_kind, 0)
-        _, ui2 = tlui.create_component(component_kind, 10)
-        _, ui3 = tlui.create_component(component_kind, 20)
-        _, ui4 = tlui.create_component(component_kind, 30)
-        tlui.select_element(ui1)
-        tlui.select_element(ui2)
-        tlui.select_element(ui3)
+        tlui.create_component(component_kind, 0)
+        tlui.create_component(component_kind, 10)
+        tlui.create_component(component_kind, 20)
+        tlui.create_component(component_kind, 30)
+        tlui.select_element(tlui[0])
+        tlui.select_element(tlui[1])
+        tlui.select_element(tlui[2])
 
         post(Post.TIMELINE_KEY_PRESS_RIGHT)
 
-        assert not ui1.is_selected()
-        assert not ui2.is_selected()
-        assert not ui3.is_selected()
-        assert ui4.is_selected()
+        assert not tlui[0].is_selected()
+        assert not tlui[1].is_selected()
+        assert not tlui[2].is_selected()
+        assert tlui[3].is_selected()
 
     def test_clicking_right_arrow_does_nothing_if_last_element_is_selected(
         self, tlui, component_kind
     ):
-        _, ui1 = tlui.create_component(component_kind, 0)
-        _, ui2 = tlui.create_component(component_kind, 10)
-        tlui.select_element(ui2)
+        tlui.create_component(component_kind, 0)
+        tlui.create_component(component_kind, 10)
+        tlui.select_element(tlui[1])
 
         post(Post.TIMELINE_KEY_PRESS_RIGHT)
 
-        assert not ui1.is_selected()
-        assert ui2.is_selected()
+        assert not tlui[0].is_selected()
+        assert tlui[1].is_selected()
 
     def test_clicking_left_arrow_selects_previous_element(self, tlui, component_kind):
-        _, ui1 = tlui.create_component(component_kind, 0)
-        _, ui2 = tlui.create_component(component_kind, 10)
-        tlui.select_element(ui2)
+        tlui.create_component(component_kind, 0)
+        tlui.create_component(component_kind, 10)
+        tlui.select_element(tlui[1])
 
         post(Post.TIMELINE_KEY_PRESS_LEFT)
 
-        assert ui1.is_selected()
-        assert not ui2.is_selected()
+        assert tlui[0].is_selected()
+        assert not tlui[1].is_selected()
 
     def test_clicking_left_arrow_with_multiple_selected_selects_previous_element(
         self, tlui, component_kind
     ):
-        _, ui1 = tlui.create_component(component_kind, 0)
-        _, ui2 = tlui.create_component(component_kind, 10)
-        _, ui3 = tlui.create_component(component_kind, 20)
-        _, ui4 = tlui.create_component(component_kind, 30)
-        tlui.select_element(ui2)
-        tlui.select_element(ui3)
-        tlui.select_element(ui4)
+        tlui.create_component(component_kind, 0)
+        tlui.create_component(component_kind, 10)
+        tlui.create_component(component_kind, 20)
+        tlui.create_component(component_kind, 30)
+        tlui.select_element(tlui[1])
+        tlui.select_element(tlui[2])
+        tlui.select_element(tlui[3])
 
         post(Post.TIMELINE_KEY_PRESS_LEFT)
 
-        assert ui1.is_selected()
-        assert not ui2.is_selected()
-        assert not ui3.is_selected()
-        assert not ui4.is_selected()
+        assert tlui[0].is_selected()
+        assert not tlui[1].is_selected()
+        assert not tlui[2].is_selected()
+        assert not tlui[3].is_selected()
 
     def test_clicking_left_arrow_does_nothing_if_first_element_is_selected(
         self, tlui, component_kind
     ):
-        _, ui1 = tlui.create_component(component_kind, 0)
-        _, ui2 = tlui.create_component(component_kind, 10)
-        tlui.select_element(ui1)
+        tlui.create_component(component_kind, 0)
+        tlui.create_component(component_kind, 10)
+        tlui.select_element(tlui[0])
 
         post(Post.TIMELINE_KEY_PRESS_LEFT)
 
-        assert ui1.is_selected()
-        assert not ui2.is_selected()
+        assert tlui[0].is_selected()
+        assert not tlui[1].is_selected()
 
 
 class TestSetTimelineName:

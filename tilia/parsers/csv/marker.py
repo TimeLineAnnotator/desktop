@@ -57,7 +57,7 @@ def import_by_time(
                     index = params_to_indices[param]
                     constructor_kwargs[param] = parser(row[index])
 
-            component, reason = timeline.create_timeline_component(
+            component, reason = timeline.create_component(
                 ComponentKind.MARKER, **constructor_kwargs
             )
 
@@ -134,7 +134,7 @@ def import_by_measure(
                     constructor_kwargs[param] = parser(row[index])
 
             for time in times:
-                marker, fail_reason = marker_tl.create_timeline_component(
+                marker, fail_reason = marker_tl.create_component(
                     ComponentKind.MARKER, time=time, **constructor_kwargs
                 )
                 if not marker:

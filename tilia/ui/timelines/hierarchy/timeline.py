@@ -139,7 +139,7 @@ class HierarchyTimelineUI(TimelineUI):
             relative_child_end * scale_factor
         ) + new_parent.tl_component.end
 
-        component, _ = self.timeline.create_timeline_component(
+        component, _ = self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
             start=new_child_start,
             end=new_child_end,

@@ -43,7 +43,7 @@ class AudioWaveTimeline(Timeline):
     
     def _create_components(self, duration: float, amplitudes: float):
         for i in range(len(amplitudes)):
-            self.create_timeline_component(
+            self.create_component(
                 kind = ComponentKind.AUDIOWAVE,
                 start = i * duration,
                 end = (i + 1) * duration,

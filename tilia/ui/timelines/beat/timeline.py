@@ -117,7 +117,7 @@ class BeatTimelineUI(TimelineUI):
         ):  # deepcopying so popping won't affect original data
             beat_time = beat_data["support_by_component_value"].pop("time")
 
-            self.timeline.create_timeline_component(
+            self.timeline.create_component(
                 ComponentKind.BEAT,
                 target_time + (beat_time - reference_time),
                 **beat_data["by_element_value"],
