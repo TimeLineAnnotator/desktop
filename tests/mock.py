@@ -62,11 +62,13 @@ class ServeSequence:
         self.original_server, self.original_callback = server(self.request)
 
     def __enter__(self):
-        stop_serving(self.original_server, self.request)
+        if self.original_server:
+            stop_serving(self.original_server, self.request)
         serve(self, self.request, self._callback)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        stop_serving(self, self.request)
+        if self.original_server:
+            stop_serving(self, self.request)
         serve(self.original_server, self.request, self.original_callback)
 
     def _callback(self, *_, **__):
