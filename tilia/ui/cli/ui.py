@@ -20,6 +20,7 @@ from tilia.ui.cli import (
     metadata,
     generate_scripts
 )
+from tilia.ui.cli.io import ask_yes_or_no
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
 
 
@@ -35,6 +36,8 @@ class CLI:
         )  # ignores error title
 
         serve(self, Get.PLAYER_CLASS, self.get_player_class)
+
+        serve(self, Get.FROM_USER_YES_OR_NO, on_ask_yes_or_no)
 
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
@@ -130,3 +133,7 @@ class CLI:
     @staticmethod
     def show_crash_dialog(exc_message) -> None:
         io.output(exc_message)
+
+
+def on_ask_yes_or_no(title: str, prompt: str) -> bool:
+    return ask_yes_or_no(f'{title}: {prompt}')
