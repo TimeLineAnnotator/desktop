@@ -1,7 +1,8 @@
 import argparse
 
+import tilia.errors
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.requests import post, Post
+from tilia.requests import post, Post, get, Get
 from tilia.ui.cli.io import output
 
 
@@ -40,6 +41,9 @@ def get_kwargs_by_timeline_kind(namespace: argparse.Namespace, kind: TlKind):
 
 
 def add(namespace: argparse.Namespace):
+    if not get(Get.MEDIA_DURATION):
+        tilia.errors.display(tilia.errors.CLI_CREATE_TIMELINE_WITHOUT_DURATION)
+        return
     kind = namespace.kind
     name = namespace.name
 
