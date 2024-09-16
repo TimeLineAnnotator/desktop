@@ -83,7 +83,9 @@ CLI_METADATA_CANT_SET_MEDIA_LENGTH = Error(
     "Cannot set media length with 'metadata set'. Use 'metadata set-media-length' instead.",
 )
 EMPTY_CLI_SCRIPT = Error("Script error", "Cannot run script: file '{}' is empty.")
+CLI_CREATE_TIMELINE_WITHOUT_DURATION = Error("Cannot create timeline", "No media loaded and no duration set. Load a media file with 'load-media' or set a duration with 'metadata set-media-length'.")
 
 
 def display(error: Error, *args):
     post(Post.DISPLAY_ERROR, error.title, error.message.format(*args))
+
