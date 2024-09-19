@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import QMainWindow
 
-from tilia.ui.menus import FileMenu, EditMenu, TimelinesMenu, ViewMenu, HelpMenu, DoutoradoMenu
+from tilia.ui.menus import FileMenu, EditMenu, TimelinesMenu, ViewMenu, HelpMenu
 
 
 class TiliaMenuBar:
-    menu_classes = [FileMenu, EditMenu, TimelinesMenu, ViewMenu, HelpMenu, DoutoradoMenu]
+    menu_classes = [FileMenu, EditMenu, TimelinesMenu, ViewMenu, HelpMenu]
 
     def __init__(self, main_window: QMainWindow):
         self.menu_bar = main_window.menuBar()

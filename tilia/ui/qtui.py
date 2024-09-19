@@ -30,7 +30,7 @@ from .dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 from .dialogs.crash import CrashDialog
 from .menubar import TiliaMenuBar
 from tilia.ui.timelines.collection.collection import TimelineUIs
-from .menus import TimelinesMenu, HierarchyMenu, MarkerMenu, BeatMenu, HarmonyMenu, PdfMenu, FileMenu, RecentFilesMenu
+from .menus import TimelinesMenu, HierarchyMenu, MarkerMenu, BeatMenu, HarmonyMenu, PdfMenu
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
 from .windows.manage_timelines import ManageTimelines
@@ -153,7 +153,6 @@ class QtUI:
             (Post.PDF_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.PDF_TIMELINE)),
             (Post.DISPLAY_ERROR, display_error),
             (Post.UI_EXIT, self.exit),
-            (Post.OPEN_MOST_RECENT_FILE, self.on_open_most_recent_file),
         }
 
         SERVES = {
@@ -378,9 +377,6 @@ class QtUI:
 
     def on_website_help_open(self):
         QDesktopServices.openUrl(QUrl(f'{constants.WEBSITE_URL}/help/introduction'))
-
-    def on_open_most_recent_file(self):
-        self.menu_bar.get_menu(FileMenu).get_submenu(RecentFilesMenu).actions()[0].trigger()
 
     def on_import_from_csv(self, tlkind: TlKind) -> None:
         if not self._validate_timeline_kind_on_import_from_csv(tlkind):
