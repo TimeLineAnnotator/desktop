@@ -42,6 +42,13 @@ def test_save_parent_doesnt_exist_fails(cli, tmp_path, tilia_errors):
     assert not save_path.exists()
 
 
+def test_save_overwrite_flag(cli, tmp_path):
+    path = tmp_path / "file.tla"
+    path.write_text("content")
+    cli.parse_and_run(f'save "{str(path.resolve())}" --overwrite')
+    assert path.read_text() != "content"
+
+
 def test_save_overwrite_yes(cli, monkeypatch, tmp_path):
     path = tmp_path / "file.tla"
     path.write_text("content")

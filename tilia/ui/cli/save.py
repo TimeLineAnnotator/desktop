@@ -10,6 +10,7 @@ def setup_parser(subparsers):
     parser = subparsers.add_parser("save", exit_on_error=False)
 
     parser.add_argument("path", help="Path to save file to.")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing file.")
 
     parser.set_defaults(func=save)
 
@@ -28,7 +29,7 @@ def save(namespace):
     path = Path(namespace.path)
     path = ensure_tla_extension(path)
 
-    if path.exists():
+    if path.exists() and not namespace.overwrite:
         if not ask_overwrite_save_path(path):
             return
 
