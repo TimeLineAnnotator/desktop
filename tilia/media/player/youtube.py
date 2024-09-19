@@ -48,6 +48,7 @@ class PlayerTracker(QObject):
         if state == self.State.UNSTARTED.value:
             post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.WAITING_FOR_YOUTUBE)
             self.page.runJavaScript("getDuration()", self.on_duration_available)
+            self.player_toolbar_enabled = False
         elif state == self.State.PLAYING.value:
             if not self.player_toolbar_enabled:
                 post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.PLAYER_ENABLED)
