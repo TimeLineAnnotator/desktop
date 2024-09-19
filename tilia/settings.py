@@ -1,6 +1,5 @@
 import sys
 
-import sys
 from PyQt6.QtCore import QSettings, QObject
 
 import tilia.constants
