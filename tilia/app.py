@@ -101,6 +101,7 @@ class App:
         player = MediaLoader(self.player).load(path)
         if player and record:
             self.player = player
+            post(Post.PLAYER_CANCEL_LOOP)
             post(Post.APP_RECORD_STATE, "media load")
 
     def on_restore_state(self, state: dict) -> None:
