@@ -29,6 +29,6 @@ def load_media(namespace):
     time.sleep(0.1)  # conservative estimate for QMediaPlayer to laod the file
     duration = get(Get.MEDIA_DURATION)
     if duration:
-        io.output(f"Media loaded, uration is {duration}.")
+        io.output(f"Media loaded, duration is {duration}.")
     else:
         io.output("No media duration available, loading may have failed. You can set a duration manually with 'metadata set-media-length'")
