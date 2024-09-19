@@ -67,6 +67,12 @@ class AudioWaveTimeline(Timeline):
     def get_dB(self, start_time, end_time):
         return self.audio[start_time * 1000: end_time * 1000].dBFS
 
+    def clear(self):
+        # AudioWave timelines shouldn't be cleared
+        # as user can't reacreate its components
+        pass
+
+
 class AudioWaveTLComponentManager(TimelineComponentManager):
     COMPONENT_TYPES = [ComponentKind.AUDIOWAVE]
 
