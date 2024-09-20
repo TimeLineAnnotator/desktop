@@ -16,7 +16,6 @@ class ScaleOrCrop(QDialog):
     class ActionToTake(Enum):
         SCALE = 0
         CROP = 1
-        NO_ACTION = 2
 
     def __init__(
         self, old_start: float, old_end: float, new_start: float, new_end: float
@@ -27,41 +26,33 @@ class ScaleOrCrop(QDialog):
                 _crop_button.setText(
                     "Delete timeline elements ouside of new time and fill the remaining difference."
                 )
-                _options.addButton(_scale_button, 0)
-                _options.addButton(_crop_button, 1)
 
             elif old_start <= new_start and old_end >= new_end:
                 _scale_button.setText("Compress timelines to new time.")
                 _crop_button.setText("Delete timeline elements outside of new time.")
-                _options.addButton(_scale_button, 0)
-                _options.addButton(_crop_button, 1)
 
             elif old_start >= new_start and old_end <= new_end:
                 _scale_button.setText("Stretch timelines to new time.")
-                _no_action_button.setText("Fill timelines with empty space.")
-                _options.addButton(_scale_button, 0)
-                _options.addButton(_no_action_button, 2)
+                _crop_button.setText("Fill timelines with empty space.")
 
             elif old_end - old_start > new_end - new_start:
                 _scale_button.setText("Compress timelines to new time.")
                 _crop_button.setText(
                     "Delete timeline elements ouside of new time and fill the remaining difference."
                 )
-                _options.addButton(_scale_button, 0)
-                _options.addButton(_crop_button, 1)
 
             else:
                 _scale_button.setText("Stretch timelines to new time.")
                 _crop_button.setText(
                     "Delete timeline elements ouside of new time and fill the remaining difference."
                 )
-                _options.addButton(_scale_button, 0)
-                _options.addButton(_crop_button, 1)
 
+            _options.addButton(_scale_button, 0)
+            _options.addButton(_crop_button, 1)
             _scale_button.setChecked(True)
 
         def get_result() -> int:
-            return ScaleOrCrop.ActionToTake(_options.checkedId() % 3)
+            return ScaleOrCrop.ActionToTake(_options.checkedId() % 2)
 
         super().__init__(
             None, Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint
@@ -79,7 +70,6 @@ class ScaleOrCrop(QDialog):
 
         _scale_button = QRadioButton()
         _crop_button = QRadioButton()
-        _no_action_button = QRadioButton()
         _options = QButtonGroup(self)
         set_button_text()
 
