@@ -28,7 +28,7 @@ from tilia.ui.timelines.copy_paste import (
 from .request_handlers import TimelineRequestHandler
 from ..collection.requests.enums import ElementSelector
 from ..view import TimelineView
-from ...coords import get_x_by_time, TimeXConverter
+from ...coords import time_x_converter
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
@@ -54,12 +54,10 @@ class TimelineUI(ABC):
         element_manager: ElementManager,
         scene: TimelineScene,
         view: TimelineView,
-        time_x_converter: TimeXConverter | None = None,
     ):
         super().__init__()
         self.id = id
         self.collection = collection
-        self.time_x_converter = time_x_converter
         self.scene = scene
         self.view = view
 
@@ -159,10 +157,13 @@ class TimelineUI(ABC):
         self.scene.set_width(int(width))
         self.view.setFixedWidth(int(width))
         self.element_manager.update_time_on_elements()
-        self.scene.set_playback_line_pos(get_x_by_time(get(Get.SELECTED_TIME)))
+        self.scene.set_playback_line_pos(
+            time_x_converter.get_x_by_time(get(Get.SELECTED_TIME))
+        )
         (loop_start, loop_end) = get(Get.LOOP_TIME)
         self.scene.set_loop_box_position(
-            get_x_by_time(loop_start), get_x_by_time(loop_end)
+            time_x_converter.get_x_by_time(loop_start),
+            time_x_converter.get_x_by_time(loop_end),
         )
 
     def update_ordinal(self):

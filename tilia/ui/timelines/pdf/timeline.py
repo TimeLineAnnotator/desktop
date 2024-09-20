@@ -13,7 +13,6 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import Get, get, listen, Post
 from tilia.enums import Side
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.coords import TimeXConverter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
@@ -51,9 +50,8 @@ class PdfTimelineUI(TimelineUI):
         element_manager: ElementManager,
         scene: TimelineScene,
         view: TimelineView,
-        time_x_converter: TimeXConverter | None = None,
     ):
-        super().__init__(id, collection, element_manager, scene, view, time_x_converter)
+        super().__init__(id, collection, element_manager, scene, view)
 
         self._setup_pdf_document()
         self._load_pdf_file()
@@ -115,7 +113,9 @@ class PdfTimelineUI(TimelineUI):
             request, selector, *args, **kwargs
         )
 
-    def on_timeline_component_created(self, kind: ComponentKind, id: int, get_data, set_data):
+    def on_timeline_component_created(
+        self, kind: ComponentKind, id: int, get_data, set_data
+    ):
         super().on_timeline_component_created(kind, id, get_data, set_data)
         self.update_displayed_page(get(Get.MEDIA_CURRENT_TIME))
 
