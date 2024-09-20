@@ -36,7 +36,7 @@ def test_load_with_spaces(cli, tilia_errors, resources, tmp_path):
     path = resources / 'example.ogg'
     shutil.copy(str(path), str(tmp_path / 'with spaces.ogg'))
 
-    cli.parse_and_run(f'load-media {(tmp_path / "with spaces.ogg").resolve().__str__()}')
+    cli.parse_and_run(f'load-media "{(tmp_path / "with spaces.ogg").resolve().__str__()}"')
 
     assert_load_was_successful(EXAMPLE_MEDIA_DURATION)
 
