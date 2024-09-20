@@ -45,9 +45,9 @@ class BeatUI(TimelineUIElement):
         ("Beat", InspectRowKind.LABEL, None),
     ]
 
-    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = (
-        {}
-    )  # only needed if attrs will be set by Inspect
+    FIELD_NAMES_TO_ATTRIBUTES: dict[
+        str, str
+    ] = {}  # only needed if attrs will be set by Inspect
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         by_element_value=[],
@@ -67,7 +67,13 @@ class BeatUI(TimelineUIElement):
         set_data: Callable[[str, Any], None],
         **_,
     ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene, get_data=get_data, set_data=set_data)
+        super().__init__(
+            id=id,
+            timeline_ui=timeline_ui,
+            scene=scene,
+            get_data=get_data,
+            set_data=set_data,
+        )
 
         self._setup_body()
         self._setup_label()

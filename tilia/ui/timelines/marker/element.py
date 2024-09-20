@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any, Callable
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QPolygonF, QPen, QColor, QFont
 from PyQt6.QtWidgets import (
-    QGraphicsScene,
     QGraphicsItem,
     QGraphicsPolygonItem,
     QGraphicsTextItem,
@@ -49,7 +48,6 @@ class MarkerUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = MarkerContextMenu
 
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -74,11 +72,11 @@ class MarkerUI(TimelineUIElement):
     @property
     def seek_time(self):
         return self.get_data("time")
-    
+
     @property
     def width(self):
         return settings.get("marker_timeline", "marker_width")
-    
+
     @property
     def height(self):
         return settings.get("marker_timeline", "marker_height")

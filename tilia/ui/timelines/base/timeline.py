@@ -200,8 +200,12 @@ class TimelineUI(ABC):
     def on_timeline_request(self, request, *args, **kwargs):
         return TimelineRequestHandler(self, {}).on_request(request, *args, **kwargs)
 
-    def on_timeline_component_created(self, kind: ComponentKind, id: int, get_data, set_data):
-        return self.element_manager.create_element(kind, id, self, self.scene, get_data, set_data)
+    def on_timeline_component_created(
+        self, kind: ComponentKind, id: int, get_data, set_data
+    ):
+        return self.element_manager.create_element(
+            kind, id, self, self.scene, get_data, set_data
+        )
 
     def on_timeline_component_deleted(self, id: int):
         self.delete_element(self.id_to_element[id])

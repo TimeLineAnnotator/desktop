@@ -2,7 +2,7 @@ from tests.ui.timelines.interact import click_timeline_ui_view
 from tilia.ui.coords import get_x_by_time
 
 
-def click_marker_ui(element, button='left', modifier=None, double=False):
+def click_marker_ui(element, button="left", modifier=None, double=False):
     click_timeline_ui_view(
         element.timeline_ui.view,
         button,
