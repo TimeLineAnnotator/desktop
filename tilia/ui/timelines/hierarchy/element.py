@@ -11,7 +11,6 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QColor, QPen, QFont, QFontMetrics, QPixmap
 from PyQt6.QtWidgets import (
-    QGraphicsScene,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsTextItem,
@@ -148,16 +147,18 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def pre_start_x(self):
-        return self.timeline_ui.time_x_converter.get_x_by_time(self.get_data("pre_start"))
+        return self.timeline_ui.time_x_converter.get_x_by_time(
+            self.get_data("pre_start")
+        )
 
     @property
     def post_end_x(self):
-        return self.timeline_ui.time_x_converter.get_x_by_time(self.get_data("post_end"))
+        return self.timeline_ui.time_x_converter.get_x_by_time(
+            self.get_data("post_end")
+        )
 
     def frame_handle_y(self, level, tl_height):
-        return tl_height - (
-            self.base_height + (level - 1.5) * self.x_increment_per_lvl
-        )
+        return tl_height - (self.base_height + (level - 1.5) * self.x_increment_per_lvl)
 
     @property
     def ui_color(self):
@@ -231,8 +232,7 @@ class HierarchyUI(TimelineUIElement):
         """
         font_metrics = QFontMetrics(QFont("Arial", 10))
         self.label_substrings_widths = [
-            font_metrics.horizontalAdvance(value[: i + 1])
-            for i in range(len(value))
+            font_metrics.horizontalAdvance(value[: i + 1]) for i in range(len(value))
         ]
 
     def update(self, attr: str, value):
@@ -260,9 +260,9 @@ class HierarchyUI(TimelineUIElement):
         start_x = start_x or self.start_x
         end_x = end_x or self.end_x
         level = level or self.get_data("level")
-        height = height or self.timeline_ui.get_data('height')
+        height = height or self.timeline_ui.get_data("height")
 
-        new_label = self.get_data('label')
+        new_label = self.get_data("label")
         if new_label != self.label.toPlainText():
             self.update_label_substrings_widths(new_label)
 
@@ -280,12 +280,22 @@ class HierarchyUI(TimelineUIElement):
         self.update_position()
 
     def update_pre_start(self):
-        self.update_frame_handle_position(Extremity.PRE_START, self.get_data('level'), self.timeline_ui.get_data('height'), self.start_x)
+        self.update_frame_handle_position(
+            Extremity.PRE_START,
+            self.get_data("level"),
+            self.timeline_ui.get_data("height"),
+            self.start_x,
+        )
         if self.is_selected():
             self.update_frame_handle_visibility(Extremity.PRE_START)
 
     def update_post_end(self):
-        self.update_frame_handle_position(Extremity.POST_END, self.get_data('level'), self.timeline_ui.get_data('height'), self.end_x)
+        self.update_frame_handle_position(
+            Extremity.POST_END,
+            self.get_data("level"),
+            self.timeline_ui.get_data("height"),
+            self.end_x,
+        )
         if self.is_selected():
             self.update_frame_handle_visibility(Extremity.POST_END)
 
@@ -293,7 +303,7 @@ class HierarchyUI(TimelineUIElement):
         start_x = self.start_x
         end_x = self.end_x
         level = self.get_data("level")
-        height = self.timeline_ui.get_data('height')
+        height = self.timeline_ui.get_data("height")
 
         self.update_body_position(level, height, start_x, end_x)
         self.update_comments_icon_position(level, height, end_x)
@@ -312,14 +322,10 @@ class HierarchyUI(TimelineUIElement):
         )
 
     def update_comments_icon_position(self, level, height, end_x):
-        self.comments_icon.set_position(
-            end_x, level, height
-        )
+        self.comments_icon.set_position(end_x, level, height)
 
     def update_loop_icon_position(self, level, height, start_x):
-        self.loop_icon.set_position(
-           start_x, height, level
-        )
+        self.loop_icon.set_position(start_x, height, level)
 
     def update_label_position(self, level, height, start_x, end_x):
         self.label.set_position(
@@ -418,7 +424,9 @@ class HierarchyUI(TimelineUIElement):
             self.scene.addItem(self.end_handle)
 
     def _setup_frame_handles(self):
-        y = self.frame_handle_y(self.get_data("level"), self.timeline_ui.get_data("height"))
+        y = self.frame_handle_y(
+            self.get_data("level"), self.timeline_ui.get_data("height")
+        )
         self.pre_start_handle = HierarchyFrameHandle(self.start_x, self.pre_start_x, y)
         self.scene.addItem(self.pre_start_handle)
 

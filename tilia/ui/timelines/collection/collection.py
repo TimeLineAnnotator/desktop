@@ -63,8 +63,8 @@ class TimelineUIs:
     UPDATE_TRIGGERS = ["height", "level_count"]
 
     def __init__(
-            self,
-            main_window: QMainWindow,
+        self,
+        main_window: QMainWindow,
     ):
 
         self.main_window = main_window
@@ -215,8 +215,8 @@ class TimelineUIs:
             )
 
         for (
-                request,
-                selector,
+            request,
+            selector,
         ) in tilia.ui.timelines.collection.requests.element.request_to_scope.items():
             listen(
                 self,
@@ -225,8 +225,8 @@ class TimelineUIs:
             )
 
         for (
-                request,
-                selector,
+            request,
+            selector,
         ) in tilia.ui.timelines.collection.requests.timeline.request_to_scope.items():
             listen(
                 self,
@@ -249,7 +249,7 @@ class TimelineUIs:
             element_manager=element_manager,
             scene=scene,
             view=view,
-            time_x_converter=self.time_x_converter
+            time_x_converter=self.time_x_converter,
         )
 
         self._add_to_timeline_uis_set(tl_ui)
@@ -261,9 +261,13 @@ class TimelineUIs:
         return tl_ui
 
     def on_timeline_component_created(
-            self, _: TlKind, tl_id: int, component_kind: ComponentKind, component_id: int,
-            get_data: Callable[[str, Any], None],
-            set_data: Callable[[str], Any],
+        self,
+        _: TlKind,
+        tl_id: int,
+        component_kind: ComponentKind,
+        component_id: int,
+        get_data: Callable[[str, Any], None],
+        set_data: Callable[[str], Any],
     ):
         self.get_timeline_ui(tl_id).on_timeline_component_created(
             component_kind, component_id, get_data, set_data
@@ -278,7 +282,7 @@ class TimelineUIs:
         self.get_timeline_ui(tl_id).on_timeline_component_deleted(component_id)
 
     def on_timeline_component_set_data_done(
-            self, timeline_id: int, component_id: int, attr: str, value: Any
+        self, timeline_id: int, component_id: int, attr: str, value: Any
     ):
         timeline_ui = self.get_timeline_ui(timeline_id)
         element = timeline_ui.get_element(component_id)
@@ -368,12 +372,12 @@ class TimelineUIs:
 
     def get_scene_height(self):
         return (
-                sum(
-                    tlui.get_data("height")
-                    for tlui in sorted(self)
-                    if tlui.get_data("is_visible")
-                )
-                + 20
+            sum(
+                tlui.get_data("height")
+                for tlui in sorted(self)
+                if tlui.get_data("is_visible")
+            )
+            + 20
         )
 
     def on_timeline_width_set_done(self, width):
@@ -460,13 +464,13 @@ class TimelineUIs:
         return next((tlui for tlui in self if tlui.view == view), None)
 
     def _on_timeline_ui_right_click(
-            self,
-            view: QGraphicsView,
-            x: int,
-            y: int,
-            item: Optional[QGraphicsItem],
-            modifier: ModifierEnum,
-            **_,  # ignores the double argument
+        self,
+        view: QGraphicsView,
+        x: int,
+        y: int,
+        item: Optional[QGraphicsItem],
+        modifier: ModifierEnum,
+        **_,  # ignores the double argument
     ) -> None:
         timeline_ui = self._get_timeline_ui_by_view(view)
 
@@ -477,8 +481,8 @@ class TimelineUIs:
             )
 
         if (
-                modifier == Qt.KeyboardModifier.NoModifier
-                and not timeline_ui.belongs_to_selection(item)
+            modifier == Qt.KeyboardModifier.NoModifier
+            and not timeline_ui.belongs_to_selection(item)
         ):
             self.deselect_all_elements_in_timeline_uis(excluding=timeline_ui)
 
@@ -486,13 +490,13 @@ class TimelineUIs:
         timeline_ui.on_right_click(x, y, item, modifier=modifier)
 
     def _on_timeline_ui_left_click(
-            self,
-            view: QGraphicsView,
-            x: int,
-            y: int,
-            item: Optional[QGraphicsItem],
-            modifier: Qt.KeyboardModifier,
-            double: bool,
+        self,
+        view: QGraphicsView,
+        x: int,
+        y: int,
+        item: Optional[QGraphicsItem],
+        modifier: Qt.KeyboardModifier,
+        double: bool,
     ) -> None:
         timeline_ui = self._get_timeline_ui_by_view(view)
 
@@ -591,7 +595,7 @@ class TimelineUIs:
                 self.next_sbx_boundary_below = self.selection_boxes[0].scene().height()
 
             self.next_sbx_boundary_above = (
-                    sum([sbx.scene().height() for sbx in self.selection_boxes]) * -1
+                sum([sbx.scene().height() for sbx in self.selection_boxes]) * -1
             )
             self.selection_boxes_above = True
 
@@ -606,7 +610,7 @@ class TimelineUIs:
             self.selection_boxes.remove(sb)
 
     def on_selection_box_select_item(
-            self, scene: QGraphicsScene, item: QGraphicsItem
+        self, scene: QGraphicsScene, item: QGraphicsItem
     ) -> None:
         timeline_ui = self._get_timeline_ui_by_scene(scene)
 
@@ -672,8 +676,8 @@ class TimelineUIs:
 
     def on_hierarchy_merge_split(self, new_units: list, old_units: list):
         if (
-                self.loop_delete_ignore.issuperset(set(old_units))
-                and self.loop_time[0] != self.loop_time[1]
+            self.loop_delete_ignore.issuperset(set(old_units))
+            and self.loop_time[0] != self.loop_time[1]
         ):
             self.loop_elements.update(new_units)
             self.loop_elements.difference_update(old_units)
@@ -778,19 +782,19 @@ class TimelineUIs:
 
         for i in connections:
             if (
-                    connector[0] < connections[i][0]
-                    and connector[1] > connections[i][0]
-                    and connector[1] < connections[i][1]
+                connector[0] < connections[i][0]
+                and connector[1] > connections[i][0]
+                and connector[1] < connections[i][1]
             ):
                 connector[1] = connections[i][1]
             elif (
-                    connector[0] > connections[i][0]
-                    and connector[0] < connections[i][1]
-                    and connector[1] > connections[i][1]
+                connector[0] > connections[i][0]
+                and connector[0] < connections[i][1]
+                and connector[1] > connections[i][1]
             ):
                 connector[0] = connections[i][0]
             elif (
-                    connector[0] <= connections[i][0] and connector[1] >= connections[i][1]
+                connector[0] <= connections[i][0] and connector[1] >= connections[i][1]
             ):
                 pass
             elif connector[0] > connections[i][0] and connector[1] < connections[i][1]:
@@ -824,10 +828,10 @@ class TimelineUIs:
             self.loop_elements.clear()
 
     def pre_process_timeline_request(
-            self,
-            request: Post,
-            kinds: list[TlKind],
-            selector: tilia.ui.timelines.collection.requests.timeline.TimelineSelector,
+        self,
+        request: Post,
+        kinds: list[TlKind],
+        selector: tilia.ui.timelines.collection.requests.timeline.TimelineSelector,
     ):
         timeline_uis = self.get_timelines_uis_for_request(kinds, selector)
 
@@ -855,9 +859,9 @@ class TimelineUIs:
         return args, kwargs, True
 
     def on_timeline_element_request(
-            self,
-            request: Post,
-            selector: TlElmRequestSelector,
+        self,
+        request: Post,
+        selector: TlElmRequestSelector,
     ) -> None:
         timeline_uis, args, kwargs, success = self.pre_process_timeline_request(
             request, selector.tl_kind, selector.timeline
@@ -916,18 +920,18 @@ class TimelineUIs:
             post(Post.APP_RECORD_STATE, f"timeline request: {request.name}")
 
     def get_timelines_uis_for_request(
-            self, kinds: list[TlKind], selector: TimelineSelector
+        self, kinds: list[TlKind], selector: TimelineSelector
     ) -> list[TimelineUI]:
         def get_by_kinds(_kinds: list[TlKind]) -> list[TimelineUI]:
             return [tlui for tlui in self if tlui.TIMELINE_KIND in _kinds]
 
         def filter_if_has_selected_elements(
-                timeline_uis: list[TimelineUI],
+            timeline_uis: list[TimelineUI],
         ) -> list[TimelineUI]:
             return [tlui for tlui in timeline_uis if tlui.has_selected_elements]
 
         def filter_if_first_on_select_order(
-                timeline_uis: list[TimelineUI],
+            timeline_uis: list[TimelineUI],
         ) -> list[TimelineUI]:
             for tl_ui in self._select_order:
                 if tl_ui in timeline_uis:
@@ -1023,7 +1027,7 @@ class TimelineUIs:
         if timeline_ui.timeline.KIND == TlKind.SLIDER_TIMELINE:
             return
 
-        timeline_ui.scene.set_playback_line_pos(get_x_by_time(time))
+        timeline_ui.scene.set_playback_line_pos(time_x_converter.get_x_by_time(time))
 
     def on_timelines_crop_done(self):
         for tlui in self:
@@ -1083,10 +1087,10 @@ class TimelineUIs:
         )
 
     def _get_choose_timeline_dialog(
-            self,
-            title: str,
-            prompt: str,
-            kind: TlKind | list[TlKind] | None = None,
+        self,
+        title: str,
+        prompt: str,
+        kind: TlKind | list[TlKind] | None = None,
     ) -> ChooseDialog:
         if kind and not isinstance(kind, list):
             kind = [kind]
@@ -1100,10 +1104,10 @@ class TimelineUIs:
         return ChooseDialog(self.main_window, title, prompt, options)
 
     def ask_choose_timeline(
-            self,
-            title: str,
-            prompt: str,
-            kind: TlKind | list[TlKind] | None = None,
+        self,
+        title: str,
+        prompt: str,
+        kind: TlKind | list[TlKind] | None = None,
     ) -> Optional[Timeline] | None:
         """
         Opens a dialog where the user may choose an existing timeline.
@@ -1123,13 +1127,13 @@ class TimelineUIs:
         return [tlui for tlui in self if tlui.has_selected_elements]
 
     def on_component_event(
-            self,
-            event: Post,
-            _: TlKind,
-            tl_id: int,
-            component_id: int,
-            *args,
-            **kwargs,
+        self,
+        event: Post,
+        _: TlKind,
+        tl_id: int,
+        component_id: int,
+        *args,
+        **kwargs,
     ):
         event_to_callback = {}
 

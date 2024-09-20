@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 from abc import ABC, abstractmethod
 
 from typing import Optional, Any, Callable
@@ -12,7 +11,7 @@ from tilia.utils import get_tilia_class_string
 
 from PyQt6.QtWidgets import QGraphicsScene
 
-from tilia.requests import stop_listening_to_all, get, Get
+from tilia.requests import stop_listening_to_all
 
 
 class TimelineUIElement(ABC):
@@ -51,7 +50,7 @@ class TimelineUIElement(ABC):
 
     @property
     def kind(self):
-        return self.tl_component.get_data('KIND')
+        return self.tl_component.get_data("KIND")
 
     def update(self, attr: str, value: Any):
         if attr not in self.UPDATE_TRIGGERS:
@@ -67,7 +66,8 @@ class TimelineUIElement(ABC):
         return self in self.timeline_ui.selected_elements
 
     @abstractmethod
-    def child_items(self): ...
+    def child_items(self):
+        ...
 
     def selection_triggers(self):
         return self.child_items()
@@ -88,9 +88,11 @@ class TimelineUIElement(ABC):
         menu = self.CONTEXT_MENU_CLASS(self)
         menu.exec(QPoint(x, y))
 
-    def on_select(self): ...
+    def on_select(self):
+        ...
 
-    def on_deselect(self): ...
+    def on_deselect(self):
+        ...
 
     def delete(self):
         for item in self.child_items():

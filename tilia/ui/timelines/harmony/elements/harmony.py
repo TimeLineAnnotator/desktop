@@ -5,7 +5,7 @@ import typing
 import music21
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsTextItem
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 from music21.roman import RomanNumeral
 
 from . import harmony_attrs
@@ -46,10 +46,8 @@ class HarmonyUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = HarmonyContextMenu
 
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
 
         self._setup_body()
 
@@ -208,7 +206,6 @@ class HarmonyUI(TimelineUIElement):
 
     def update_label(self):
         self.body.set_text(self.label)
-        # self.body.set_alternate_text(self.alternate_lable)
         self.body.set_position(self.x, self.y)
 
     def update_position(self):

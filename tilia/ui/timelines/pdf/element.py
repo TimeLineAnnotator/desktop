@@ -13,7 +13,6 @@ from PyQt6.QtGui import (
     QFontMetrics,
 )
 from PyQt6.QtWidgets import (
-    QGraphicsScene,
     QGraphicsItem,
     QGraphicsTextItem,
     QGraphicsPixmapItem,

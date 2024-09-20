@@ -7,7 +7,6 @@ from tilia import errors as tilia_errors
 from tests.mock import PatchGet, PatchPost, Serve
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post, get, Get
-from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     TimelineKind,

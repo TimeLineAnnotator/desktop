@@ -5,7 +5,7 @@ import typing
 import music21
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsTextItem
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import get, Get, post, Post
 from tilia.ui.coords import get_x_by_time, get_time_by_x
@@ -40,10 +40,6 @@ class ModeUI(TimelineUIElement):
     def _setup_body(self):
         self.body = ModeBody(self.x, self.y, self.label)
         self.scene.addItem(self.body)
-
-    @property
-    def x(self):
-        return get_x_by_time(self.get_data("time"))
 
     @property
     def y(self):
@@ -151,10 +147,10 @@ class ModeUI(TimelineUIElement):
 
 class ModeBody(QGraphicsTextItem):
     def __init__(
-            self,
-            x: float,
-            y: float,
-            text: str,
+        self,
+        x: float,
+        y: float,
+        text: str,
     ):
         super().__init__()
         self._setup_font()
