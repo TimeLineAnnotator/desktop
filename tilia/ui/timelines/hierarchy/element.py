@@ -21,9 +21,9 @@ from .drag import start_drag
 from .extremity import Extremity
 from .handles import HierarchyBodyHandle, HierarchyFrameHandle
 from ..cursors import CursorMixIn
-from ... import coords
 from ...color import get_tinted_color, get_untinted_color
 from ...consts import TINT_FACTOR_ON_SELECTION
+from ...coords import time_x_converter
 from ...windows.inspect import HIDE_FIELD, InspectRowKind
 
 if TYPE_CHECKING:
@@ -147,15 +147,11 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def pre_start_x(self):
-        return self.timeline_ui.time_x_converter.get_x_by_time(
-            self.get_data("pre_start")
-        )
+        return time_x_converter.get_x_by_time(self.get_data("pre_start"))
 
     @property
     def post_end_x(self):
-        return self.timeline_ui.time_x_converter.get_x_by_time(
-            self.get_data("post_end")
-        )
+        return time_x_converter.get_x_by_time(self.get_data("post_end"))
 
     def frame_handle_y(self, level, tl_height):
         return tl_height - (self.base_height + (level - 1.5) * self.x_increment_per_lvl)

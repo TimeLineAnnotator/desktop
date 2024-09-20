@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QGraphicsLineItem
 from tilia.requests import Post, post, get, Get
 from ..cursors import CursorMixIn
 from ..drag import DragManager
-from ...coords import get_x_by_time
+from ...coords import time_x_converter
 from ...color import get_tinted_color
 from ...consts import TINT_FACTOR_ON_SELECTION
 from tilia.settings import settings
@@ -33,7 +33,9 @@ class AmplitudeBarUI(TimelineUIElement):
 
     @property
     def width(self):
-        return get_x_by_time(self.get_data("end") - self.get_data("start"))
+        return time_x_converter.get_x_by_time(
+            self.get_data("end") - self.get_data("start")
+        )
 
     @property
     def amplitude(self):
