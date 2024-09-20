@@ -241,7 +241,7 @@ class TimelineUIs:
             element_manager=element_manager,
             scene=scene,
             view=view,
-            time_x_converter=self.time_x_converter
+            time_x_converter=self.time_x_converter,
         )
 
         self._add_to_timeline_uis_set(tl_ui)
@@ -253,9 +253,13 @@ class TimelineUIs:
         return tl_ui
 
     def on_timeline_component_created(
-            self, _: TlKind, tl_id: int, component_kind: ComponentKind, component_id: int,
-            get_data: Callable[[str, Any], None],
-            set_data: Callable[[str], Any],
+        self,
+        _: TlKind,
+        tl_id: int,
+        component_kind: ComponentKind,
+        component_id: int,
+        get_data: Callable[[str, Any], None],
+        set_data: Callable[[str], Any],
     ):
         self.get_timeline_ui(tl_id).on_timeline_component_created(
             component_kind, component_id, get_data, set_data
@@ -270,7 +274,7 @@ class TimelineUIs:
         self.get_timeline_ui(tl_id).on_timeline_component_deleted(component_id)
 
     def on_timeline_component_set_data_done(
-            self, timeline_id: int, component_id: int, attr: str, value: Any
+        self, timeline_id: int, component_id: int, attr: str, value: Any
     ):
         timeline_ui = self.get_timeline_ui(timeline_id)
         element = timeline_ui.get_element(component_id)
@@ -1024,7 +1028,7 @@ class TimelineUIs:
         if timeline_ui.timeline.KIND == TlKind.SLIDER_TIMELINE:
             return
 
-        timeline_ui.scene.set_playback_line_pos(get_x_by_time(time))
+        timeline_ui.scene.set_playback_line_pos(time_x_converter.get_x_by_time(time))
 
     def on_timelines_crop_done(self):
         for tlui in self:
