@@ -17,7 +17,7 @@ from ..drag import DragManager
 from ...color import get_tinted_color
 from ...format import format_media_time
 from ...consts import TINT_FACTOR_ON_SELECTION
-from ...coords import get_x_by_time, get_time_by_x
+from ...coords import time_x_converter
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
@@ -142,7 +142,7 @@ class MarkerUI(TimelineUIElement):
             self.dragged = True
 
     def after_each_drag(self, drag_x: int):
-        self.set_data("time", get_time_by_x(drag_x))
+        self.set_data("time", time_x_converter.get_time_by_x(drag_x))
 
     def on_drag_end(self):
         if self.dragged:

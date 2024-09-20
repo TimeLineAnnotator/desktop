@@ -30,7 +30,7 @@ from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
-from tilia.ui.coords import get_x_by_time, get_time_by_x, TimeXConverter
+from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.player import PlayerToolbarElement
@@ -74,7 +74,6 @@ class TimelineUIs:
         self._setup_widgets(main_window)
         self._setup_requests()
 
-        self.time_x_converter = TimeXConverter()
         self._setup_selection_box()
         self._setup_drag_tracking_vars()
         self._setup_auto_scroll()
@@ -241,7 +240,6 @@ class TimelineUIs:
             element_manager=element_manager,
             scene=scene,
             view=view,
-            time_x_converter=self.time_x_converter,
         )
 
         self._add_to_timeline_uis_set(tl_ui)
@@ -796,7 +794,8 @@ class TimelineUIs:
         start_time, end_time = self.loop_time
         for tl_ui in self:
             tl_ui.scene.set_loop_box_position(
-                get_x_by_time(start_time), get_x_by_time(end_time)
+                time_x_converter.get_x_by_time(start_time),
+                time_x_converter.get_x_by_time(end_time),
             )
 
     def update_loop_elements_ui(self, is_looping: bool) -> None:
@@ -1009,7 +1008,7 @@ class TimelineUIs:
             self.clear_selection_boxes()
 
     def on_slider_drag(self, x: float):
-        time = get_time_by_x(x)
+        time = time_x_converter.get_time_by_x(x)
         self.selected_time = time
         self.set_playback_lines_position(time)
 
@@ -1019,7 +1018,7 @@ class TimelineUIs:
         self.auto_scroll_is_enabled = value
 
     def center_on_time(self, time: float):
-        self.view.move_to_x(get_x_by_time(time))
+        self.view.move_to_x(time_x_converter.get_x_by_time(time))
 
     @staticmethod
     def change_playback_line_position(timeline_ui: TimelineUI, time: float):
