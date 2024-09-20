@@ -20,4 +20,3 @@ def click_harmony_ui(harmony_ui, button="left", modifier=None, double=False):
 
 def click_mode_ui(mode_ui, button="left", modifier=None, double=False):
     _click_element_ui(mode_ui, button, modifier, double)
-
