@@ -614,7 +614,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 if hrc.post_end > end:
                     hrc.post_end = end
                 self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
-            elif hrc.end < end and hrc.start <= start:
+            elif hrc.end <= end and hrc.start < start:
                 hrc.start = start
                 if hrc.pre_start < start:
                     hrc.pre_start = start
