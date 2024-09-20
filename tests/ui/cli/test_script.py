@@ -30,4 +30,4 @@ def test_load_media(cli, tmp_path, tilia_state):
     path = write_script(tmp_path, f"load-media {str(media_path.resolve())}")
     run_script(cli, path)
 
-    assert tilia_state.media_path == str(media_path.resolve())
+    assert Path(tilia_state.media_path) == media_path

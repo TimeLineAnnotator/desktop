@@ -46,7 +46,7 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         confirmed, kwargs = get(Get.FROM_USER_MODE_PARAMS)
         if not confirmed:
             return
-        mode, reason = self.timeline.create_timeline_component(
+        mode, reason = self.timeline.create_component(
             ComponentKind.MODE, time, **kwargs
         )
         if not mode:
@@ -71,7 +71,7 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         if not confirmed:
             return
 
-        harmony, reason = self.timeline.create_timeline_component(
+        harmony, reason = self.timeline.create_component(
             ComponentKind.HARMONY, time, **kwargs
         )
 

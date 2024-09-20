@@ -126,14 +126,6 @@ class App:
 
     def on_media_duration_changed(self, duration: float):
         if not self.timelines.is_blank and duration != self.duration:
-            try:
-                post(
-                    Post.REQUEST_CHANGE_TIMELINE_WIDTH,
-                    get(Get.TIMELINE_WIDTH) * duration / self.duration,
-                )
-            except NoReplyToRequest:
-                pass
-
             crop_or_scale = ''
             if self.should_scale_timelines == 'prompt':
                 if self.prompt_scale_timelines():
