@@ -3,7 +3,7 @@ from unittest.mock import patch
 from tests.ui.timelines.beat.interact import click_beat_ui
 from tests.ui.timelines.interact import drag_mouse_in_timeline_view
 from tilia.requests import get, Get
-from tilia.ui.coords import get_x_by_time
+from tilia.ui.coords import time_x_converter
 
 
 class TestRightClick:
@@ -26,5 +26,5 @@ class TestDoubleClick:
     def test_does_not_trigger_drag(self, beat_tlui):
         _, bui = beat_tlui.create_beat(0)
         click_beat_ui(bui, double=True)
-        drag_mouse_in_timeline_view(get_x_by_time(50), bui.height / 2)
+        drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(50), bui.height / 2)
         assert bui.get_data("time") == 0

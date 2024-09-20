@@ -5,7 +5,7 @@ from PyQt6.QtGui import QColor
 
 from tests.mock import PatchPost
 from tilia.requests import Post
-from tilia.ui.coords import get_time_by_x, get_x_by_time
+from tilia.ui.coords import time_x_converter
 
 MODULE = "tilia.ui.timelines.marker.element"
 
@@ -28,7 +28,7 @@ class TestMarker:
 
     def test_update_time(self, mrkui):
         mrkui.set_data("time", 100)
-        assert mrkui.x == get_x_by_time(100)
+        assert mrkui.x == time_x_converter.get_x_by_time(100)
 
     def test_update_color(self, mrkui):
         mrkui.set_data("color", "#010101")
@@ -58,7 +58,7 @@ class TestMarkerDrag:
 
     def test_after_each_drag(self, mrkui):
         mrkui.after_each_drag(202)
-        assert mrkui.get_data("time") == get_time_by_x(202)
+        assert mrkui.get_data("time") == time_x_converter.get_time_by_x(202)
 
     def test_on_drag_end_when_dragged(self, mrkui):
         mrkui.dragged = True

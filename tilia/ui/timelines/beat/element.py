@@ -15,7 +15,7 @@ from ..copy_paste import CopyAttributes
 from ..cursors import CursorMixIn
 from ..drag import DragManager
 from ...format import format_media_time
-from ...coords import get_x_by_time, get_time_by_x
+from ...coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
 
@@ -171,13 +171,18 @@ class BeatUI(TimelineUIElement):
         previous_beat = self.timeline_ui.get_previous_element(self)
         if not previous_beat:
             return get(Get.LEFT_MARGIN_X)
-        return get_x_by_time(previous_beat.time) + self.DRAG_PROXIMITY_LIMIT
+        return (
+            time_x_converter.get_x_by_time(previous_beat.time)
+            + self.DRAG_PROXIMITY_LIMIT
+        )
 
     def get_drag_right_limit(self):
         next_beat = self.timeline_ui.get_next_element(self)
         if not next_beat:
             return get(Get.RIGHT_MARGIN_X)
-        return get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
+        return (
+            time_x_converter.get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
+        )
 
     def before_each_drag(self):
         if not self.dragged:
@@ -185,7 +190,7 @@ class BeatUI(TimelineUIElement):
             self.dragged = True
 
     def after_each_drag(self, drag_x: int):
-        self.tl_component.time = get_time_by_x(drag_x)
+        self.tl_component.time = time_x_converter.get_time_by_x(drag_x)
         self.update_position()
 
     def on_drag_end(self):

@@ -7,6 +7,7 @@ from typing import Optional, Any, Callable
 from PyQt6.QtCore import QPoint
 
 from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
+from tilia.ui.coords import time_x_converter
 from tilia.utils import get_tilia_class_string
 
 from PyQt6.QtWidgets import QGraphicsScene
@@ -33,8 +34,6 @@ class TimelineUIElement(ABC):
         self.timeline_ui = timeline_ui
         self.id = id
         self.scene = scene
-        self.get_x_by_time = self.timeline_ui.time_x_converter.get_x_by_time
-        self.get_time_by_x = self.timeline_ui.time_x_converter.get_time_by_x
         self.get_data = get_data
         self.set_data = set_data
 
@@ -104,12 +103,12 @@ class TimelineUIElement(ABC):
 
     @property
     def start_x(self):
-        return self.get_x_by_time(self.get_data("start"))
+        return time_x_converter.get_x_by_time(self.get_data("start"))
 
     @property
     def end_x(self):
-        return self.get_x_by_time(self.get_data("end"))
+        return time_x_converter.get_x_by_time(self.get_data("end"))
 
     @property
     def x(self):
-        return self.get_x_by_time(self.get_data("time"))
+        return time_x_converter.get_x_by_time(self.get_data("time"))

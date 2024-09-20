@@ -8,7 +8,7 @@ from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import get, Get, post, Post
-from tilia.ui.coords import get_x_by_time, get_time_by_x
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import (
@@ -125,7 +125,7 @@ class ModeUI(TimelineUIElement):
             self.dragged = True
 
     def after_each_drag(self, drag_x: int):
-        self.set_data("time", get_time_by_x(drag_x))
+        self.set_data("time", time_x_converter.get_time_by_x(drag_x))
 
     def on_drag_end(self):
         if self.dragged:
