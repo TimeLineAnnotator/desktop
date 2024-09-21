@@ -28,15 +28,23 @@ class TimelineView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setBackgroundBrush(QBrush(QColor(settings.get("general", "timeline_background_color"))))
-        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+        self.setBackgroundBrush(
+            QBrush(QColor(settings.get("general", "timeline_background_color")))
+        )
+        listen(
+            self,
+            Post.SETTINGS_UPDATED,
+            lambda updated_settings: self.on_settings_updated(updated_settings),
+        )
 
         self.dragging = False
         self.proxy = None  # will be set by TimelineUIs
 
-    def on_settings_updated(self, updated_settings):        
+    def on_settings_updated(self, updated_settings):
         if "general" in updated_settings:
-            self.setBackgroundBrush(QBrush(QColor(settings.get("general", "timeline_background_color"))))
+            self.setBackgroundBrush(
+                QBrush(QColor(settings.get("general", "timeline_background_color")))
+            )
 
     def mousePressEvent(self, event: Optional[QMouseEvent]) -> None:
         def handle_left_click():

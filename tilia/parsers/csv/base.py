@@ -19,17 +19,17 @@ class TiliaCSVReader:
         self.reader_kwargs = reader_kwargs or {}
 
     def __enter__(self):
-        self.file = open(self.path, newline="", encoding='utf-8', **self.file_kwargs)
+        self.file = open(self.path, newline="", encoding="utf-8", **self.file_kwargs)
         return csv.reader(self.file, **self.reader_kwargs)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.file.close()
 
 
-def display_column_not_found_error(column: str) -> None:    
+def display_column_not_found_error(column: str) -> None:
     tilia.errors.display(
-        tilia.errors.CSV_IMPORT_FAILED, 
-        f"Column '{column}' not found on first row of .csv file."
+        tilia.errors.CSV_IMPORT_FAILED,
+        f"Column '{column}' not found on first row of .csv file.",
     )
 
 

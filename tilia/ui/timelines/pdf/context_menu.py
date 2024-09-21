@@ -1,6 +1,9 @@
 from tilia.ui.actions import TiliaAction
 from tilia.ui.menus import MenuItemKind
-from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu, TimelineUIContextMenu
+from tilia.ui.timelines.base.context_menus import (
+    TimelineUIElementContextMenu,
+    TimelineUIContextMenu,
+)
 
 
 class PdfMarkerContextMenu(TimelineUIElementContextMenu):
@@ -16,6 +19,5 @@ class PdfMarkerContextMenu(TimelineUIElementContextMenu):
 
 
 class PdfTimelineUIContextMenu(TimelineUIContextMenu):
-    name = 'PDF timeline'
+    name = "PDF timeline"
     items = [(MenuItemKind, TiliaAction.TIMELINE_NAME_SET)]
-

@@ -5,6 +5,7 @@ import tilia.constants
 
 from tilia.requests import Post, post
 
+
 class About(QDialog):
     def __init__(self, parent: QMainWindow):
         super().__init__(parent)
@@ -15,7 +16,7 @@ class About(QDialog):
 
         name_label = QLabel(tilia.constants.APP_NAME)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        version_label = QLabel('v' + tilia.constants.VERSION)
+        version_label = QLabel("v" + tilia.constants.VERSION)
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         site_label = QLabel(f'<a href="{tilia.constants.WEBSITE_URL}">Website</a>')
         site_label.setOpenExternalLinks(True)
@@ -36,6 +37,6 @@ class About(QDialog):
 
         self.show()
 
-    def closeEvent(self, event):        
+    def closeEvent(self, event):
         post(Post.WINDOW_ABOUT_CLOSED)
         return super().closeEvent(event)

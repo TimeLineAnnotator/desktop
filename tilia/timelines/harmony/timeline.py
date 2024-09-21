@@ -132,11 +132,17 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             return
 
         prev_mode = self._get_previous_mode(mode)
-        prev_mode_step = prev_mode.get_data('step') if prev_mode else 0
+        prev_mode_step = prev_mode.get_data("step") if prev_mode else 0
         for harmony in harmonies_in_harmonic_region:
-            relative_step = harmony.get_data('applied_to') + prev_mode_step - harmony.get_data('step')
-            new_applied_to = harmony.get_data('step') + relative_step - mode.get_data('step')
-            harmony.set_data('applied_to', new_applied_to)
+            relative_step = (
+                harmony.get_data("applied_to")
+                + prev_mode_step
+                - harmony.get_data("step")
+            )
+            new_applied_to = (
+                harmony.get_data("step") + relative_step - mode.get_data("step")
+            )
+            harmony.set_data("applied_to", new_applied_to)
 
     def create_component(
         self, kind: ComponentKind, timeline, id, *args, **kwargs
@@ -156,11 +162,15 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             return
 
         prev_mode = self._get_previous_mode(mode)
-        prev_mode_step = prev_mode.get_data('step') if prev_mode else 0
+        prev_mode_step = prev_mode.get_data("step") if prev_mode else 0
         for harmony in harmonies_in_harmonic_region:
-            relative_step = harmony.get_data('applied_to') + mode.get_data('step') - harmony.get_data('step')
-            new_applied_to = harmony.get_data('step') + relative_step - prev_mode_step
-            harmony.set_data('applied_to', new_applied_to)
+            relative_step = (
+                harmony.get_data("applied_to")
+                + mode.get_data("step")
+                - harmony.get_data("step")
+            )
+            new_applied_to = harmony.get_data("step") + relative_step - prev_mode_step
+            harmony.set_data("applied_to", new_applied_to)
 
     def delete_component(self, component: TC) -> None:
         super().delete_component(component)
@@ -169,34 +179,38 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             self._update_harmony_applied_to_on_mode_deletion(component)
 
     def _get_next_mode_time(self, mode: Mode):
-        next_modes = self.get_components_by_condition(lambda c: c.get_data('time') > mode.get_data('time'),
-                                                      ComponentKind.MODE)
+        next_modes = self.get_components_by_condition(
+            lambda c: c.get_data("time") > mode.get_data("time"), ComponentKind.MODE
+        )
         if not next_modes:
             return math.inf
         else:
-            next_mode = sorted(next_modes, key=lambda c: c.get_data('time'))[0]
-            return next_mode.get_data('time')
+            next_mode = sorted(next_modes, key=lambda c: c.get_data("time"))[0]
+            return next_mode.get_data("time")
 
     def _get_previous_mode(self, mode: Mode):
-        prev_modes = self.get_components_by_condition(lambda c: c.get_data('time') < mode.get_data('time'),
-                                                      ComponentKind.MODE)
+        prev_modes = self.get_components_by_condition(
+            lambda c: c.get_data("time") < mode.get_data("time"), ComponentKind.MODE
+        )
         if not prev_modes:
             return None
         else:
-            return sorted(prev_modes, key=lambda c: c.get_data('time'))[-1]
+            return sorted(prev_modes, key=lambda c: c.get_data("time"))[-1]
 
-    def get_harmonies_in_harmonic_region(
-        self, mode: Mode
-    ):
+    def get_harmonies_in_harmonic_region(self, mode: Mode):
 
         next_mode_time = self._get_next_mode_time(mode)
 
         def is_in_harmonic_region(harmony: Harmony):
-            return next_mode_time >= harmony.get_data('time') >= mode.get_data('time')
+            return next_mode_time >= harmony.get_data("time") >= mode.get_data("time")
 
-        return self.get_components_by_condition(is_in_harmonic_region, ComponentKind.HARMONY)
+        return self.get_components_by_condition(
+            is_in_harmonic_region, ComponentKind.HARMONY
+        )
 
-    def deserialize_components(self, serialized_components: dict[int | str, dict[str, Any]]):
+    def deserialize_components(
+        self, serialized_components: dict[int | str, dict[str, Any]]
+    ):
         # self.create_component and self.delete_component
         # have to know if we are deserialing to determine
         # if recalculating harmony.applied_to is necessary

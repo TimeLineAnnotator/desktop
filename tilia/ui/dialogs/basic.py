@@ -4,7 +4,9 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QColorDialog, QInputDialog, QMessageBox, QFileDialog
 
 
-def ask_for_color(initial: str = '#333333'):  # feel free to change this arbitrary default
+def ask_for_color(
+    initial: str = "#333333",
+):  # feel free to change this arbitrary default
     color = QColorDialog().getColor(QColor(initial))
     return color.isValid(), color  # returned color is invalid if user cancels
 
@@ -27,8 +29,7 @@ def ask_yes_no(title: str, prompt: str) -> tuple[bool, bool]:
         title,
         prompt,
         buttons=QMessageBox.StandardButton(
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         ),
     )
 

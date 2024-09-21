@@ -282,6 +282,7 @@ class HarmonyUI(TimelineUIElement):
 
 class HarmonyBody(QGraphicsTextItem):
     REGULAR_FONT_Y_OFFSET = 5
+
     def __init__(
         self,
         x: float,
@@ -307,7 +308,8 @@ class HarmonyBody(QGraphicsTextItem):
     def get_point(self, x: float, y: float):
         return QPointF(
             x - self.boundingRect().width() / 2,
-            y + (self.REGULAR_FONT_Y_OFFSET if self.font().family() == 'Georgia' else 0)
+            y
+            + (self.REGULAR_FONT_Y_OFFSET if self.font().family() == "Georgia" else 0),
         )
 
     def set_position(self, x, y):
@@ -322,7 +324,9 @@ class HarmonyBody(QGraphicsTextItem):
             return
 
         self.setFont(font)
-        self.setY(self.y() + self.REGULAR_FONT_Y_OFFSET * (1 if font_type == "normal" else -1))
+        self.setY(
+            self.y() + self.REGULAR_FONT_Y_OFFSET * (1 if font_type == "normal" else -1)
+        )
 
     # def set_alternate_text(self, value: str):
     #     self.setToolTip(value)
