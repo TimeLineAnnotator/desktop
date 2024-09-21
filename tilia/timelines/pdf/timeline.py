@@ -82,7 +82,7 @@ class PdfTLComponentManager(TimelineComponentManager):
         elif time < 0:
             return False, f"Time can't be negative. Got '{time}'"
         elif time in [x.time for x in self.get_components()]:
-            return (False, f"There is already a page marker at this position.")
+            return False, "There is already a page marker at this position."
         else:
             return True, ""
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from tilia.requests import post, Post
 import tilia.errors
 
 if TYPE_CHECKING:

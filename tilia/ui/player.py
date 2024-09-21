@@ -1,3 +1,6 @@
+from enum import Enum, auto
+from pathlib import Path
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDoubleSpinBox,
@@ -5,10 +8,7 @@ from PyQt6.QtWidgets import (
     QSlider,
     QToolBar,
 )
-
 from PyQt6.QtGui import QIcon, QAction, QPixmap
-
-from PyQt6.QtCore import Qt
 
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
@@ -16,10 +16,6 @@ from tilia.ui.format import format_media_time
 from tilia.requests import Post, post, listen, stop_listening_to_all, get, Get
 
 import tilia.errors
-
-from pathlib import Path
-
-from enum import Enum, auto
 
 
 class PlayerToolbar(QToolBar):
@@ -46,8 +42,8 @@ class PlayerToolbar(QToolBar):
             (Post.PLAYER_UI_UPDATE, self.on_ui_update_silent),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
     def _setup_controls(self):
         self.tooltipped_widgets = {}

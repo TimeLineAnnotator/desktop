@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Literal
 import tilia.errors
 import tilia.constants
 import tilia.dirs
-from tilia.exceptions import NoReplyToRequest
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import load_media
 from tilia.utils import get_tilia_class_string
@@ -67,8 +66,8 @@ class App:
             (Get.MEDIA_DURATION, lambda: self.duration),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
         for request, callback in SERVES:
             serve(self, request, callback)

@@ -4,7 +4,6 @@ import json
 import os
 from pathlib import Path
 
-import tilia.errors
 from tilia.file.tilia_file import TiliaFile
 from tilia.timelines.hash_timelines import hash_timeline_collection_data
 

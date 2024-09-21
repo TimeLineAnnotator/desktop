@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import sys
 from functools import partial
 from pathlib import Path
 
@@ -22,7 +21,7 @@ import tilia.parsers.csv.harmony
 import tilia.parsers.csv.hierarchy
 import tilia.parsers.csv.beat
 import tilia.parsers.csv.marker
-from . import dialogs, actions
+from . import actions
 from .actions import TiliaAction
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
@@ -219,8 +218,8 @@ class QtUI:
             (Get.PLAYER_CLASS, self.get_player_class),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
         for request, callback in SERVES:
             serve(self, request, callback)

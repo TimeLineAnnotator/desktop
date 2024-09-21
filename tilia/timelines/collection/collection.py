@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from bisect import bisect
 
 from tilia.exceptions import TimelineValidationError
-from tilia.requests import Post, post, serve, Get, get, listen
+from tilia.requests import Post, post, serve, Get, get
 from tilia.timelines.harmony.timeline import HarmonyTimeline, HarmonyTLComponentManager
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
@@ -304,9 +304,6 @@ class Timelines:
 
     def get_timeline_ids(self):
         return [tl.id for tl in self]
-
-    def has_timeline_of_kind(self, kind: TlKind):
-        return any([tl.KIND == kind for tl in self])
 
     def _scale_or_crop_timelines(self, new_duration, prev_duration):
         scale_prompt = "Would you like to scale existing timelines to new media length?"
