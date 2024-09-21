@@ -3,7 +3,6 @@ from pathlib import Path
 import csv
 from typing import Any, Optional, Callable
 
-from tilia.requests.post import post, Post
 import tilia.errors
 
 

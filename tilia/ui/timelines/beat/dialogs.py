@@ -1,4 +1,3 @@
-from tilia.requests import post, Post
 from tilia.ui.windows.beat_pattern import AskBeatPattern
 import tilia.errors
 

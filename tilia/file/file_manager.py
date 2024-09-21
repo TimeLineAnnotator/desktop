@@ -53,8 +53,8 @@ class FileManager:
             (Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"]),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
         for request, callback in SERVES:
             serve(self, request, callback)
