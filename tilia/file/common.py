@@ -34,7 +34,7 @@ def write_tilia_file_to_disk(file: TiliaFile, path: str | Path):
 
 def validate_save_path(path: Path):
     error = False
-    error_message = ''
+    error_message = ""
     if not path.parent.exists():
         error = True
         error_message = f"Parent directory {path.parent} does not exist."

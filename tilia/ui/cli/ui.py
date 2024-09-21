@@ -18,7 +18,7 @@ from tilia.ui.cli import (
     save,
     io,
     metadata,
-    generate_scripts
+    generate_scripts,
 )
 from tilia.ui.cli.io import ask_yes_or_no
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
@@ -136,4 +136,4 @@ class CLI:
 
 
 def on_ask_yes_or_no(title: str, prompt: str) -> bool:
-    return ask_yes_or_no(f'{title}: {prompt}')
+    return ask_yes_or_no(f"{title}: {prompt}")

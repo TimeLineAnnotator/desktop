@@ -131,5 +131,5 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     ),
     Post.PDF_MARKER_DELETE: TlElmRequestSelector(
         [TlKind.PDF_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
-    )
+    ),
 }

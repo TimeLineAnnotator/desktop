@@ -872,7 +872,9 @@ class TimelineUIs:
         tilia.ui.timelines.collection.requests.post_process.post_process_request(
             request, result
         )
-        if request not in self.DO_NOT_RECORD and not all([isinstance(r, RequestFailure) for r in result]):
+        if request not in self.DO_NOT_RECORD and not all(
+            [isinstance(r, RequestFailure) for r in result]
+        ):
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
     def on_timeline_ui_request(self, request: Post, *args, **kwargs):

@@ -15,12 +15,12 @@ class UndoManager:
 
     def __str__(self):
         return get_tilia_class_string(self)
-    
+
     def _setup_requests(self):
         LISTENS = {
             (Post.EDIT_UNDO, self.undo),
             (Post.EDIT_REDO, self.redo),
-            (Post.UNDO_MANAGER_SET_IS_RECORDING, self.set_is_recording)
+            (Post.UNDO_MANAGER_SET_IS_RECORDING, self.set_is_recording),
         }
 
         for post, callback in LISTENS:

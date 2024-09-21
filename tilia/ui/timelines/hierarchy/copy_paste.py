@@ -26,4 +26,6 @@ def _validate_paste_complete_level(target, data):
 
 
 def _display_paste_complete_error(reason: str):
-    tilia.errors.display(tilia.errors.COMPONENTS_PASTE_ERROR, f"Paste complete failed:\n{reason}")
+    tilia.errors.display(
+        tilia.errors.COMPONENTS_PASTE_ERROR, f"Paste complete failed:\n{reason}"
+    )

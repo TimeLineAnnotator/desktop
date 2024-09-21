@@ -69,7 +69,9 @@ def ask_for_mode_params():
 
 
 def ask_for_harmony_params():
-    timeline_ui = get(Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, TimelineKind.HARMONY_TIMELINE)
+    timeline_ui = get(
+        Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, TimelineKind.HARMONY_TIMELINE
+    )
     current_key = timeline_ui.get_key_by_time(get(Get.MEDIA_CURRENT_TIME))
     dialog = SelectHarmonyParams(current_key)
     accept = dialog.exec()

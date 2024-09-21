@@ -14,7 +14,7 @@ def get_element_class_by_kind(kind: ComponentKind):
         ComponentKind.BEAT: BeatUI,
         ComponentKind.HARMONY: HarmonyUI,
         ComponentKind.MODE: ModeUI,
-        ComponentKind.AUDIOWAVE: AmplitudeBarUI
+        ComponentKind.AUDIOWAVE: AmplitudeBarUI,
     }
 
     return kind_to_class_dict[kind]
