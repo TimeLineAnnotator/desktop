@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QComboBox,
     QStackedWidget,
-    QFrame
+    QFrame,
 )
 
 from PyQt6.QtCore import Qt
@@ -74,16 +74,16 @@ class Inspect(QDockWidget):
 
     def __str__(self):
         return get_tilia_class_string(self)
-    
+
     def _setup_requests(self):
         LISTENS = {
             (Post.INSPECTABLE_ELEMENT_SELECTED, self.on_element_selected),
             (Post.INSPECTABLE_ELEMENT_DESELECTED, self.on_element_deselected),
-            (Post.TIMELINE_COMPONENT_SET_DATA_DONE, self.on_component_set_data_done)
+            (Post.TIMELINE_COMPONENT_SET_DATA_DONE, self.on_component_set_data_done),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
     def closeEvent(self, event, **kwargs):
         stop_listening_to_all(self)
@@ -178,8 +178,8 @@ class Inspect(QDockWidget):
                 left_widget.hide()
                 right_widget.setEnabled(False)
                 right_widget.hide()
-            
-            self.setWindowTitle(f"Inspector")
+
+            self.setWindowTitle("Inspector")
             self.stack_widget.setCurrentWidget(self.empty_label)
             self.adjustSize()
 

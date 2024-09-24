@@ -28,11 +28,12 @@ class PdfMarkerUIRequestHandler(ElementRequestHandler):
             },
         )
 
-
     def on_add(self, *_, **__):
         time = get(Get.SELECTED_TIME)
 
-        page_number = min(self.timeline.get_previous_page_number(time) + 1, self.timeline.page_total)
+        page_number = min(
+            self.timeline.get_previous_page_number(time) + 1, self.timeline.page_total
+        )
 
         pdf_marker, reason = self.timeline.create_component(
             ComponentKind.PDF_MARKER, get(Get.SELECTED_TIME), page_number
@@ -57,4 +58,3 @@ class PdfMarkerUIRequestHandler(ElementRequestHandler):
             )
 
         return copy_data
-

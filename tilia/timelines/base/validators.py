@@ -2,8 +2,6 @@ import math
 
 from PyQt6.QtGui import QColor
 
-from tilia.requests import Get, get
-
 
 def validate_time(value):
     return isinstance(value, (float, int)) and value >= 0

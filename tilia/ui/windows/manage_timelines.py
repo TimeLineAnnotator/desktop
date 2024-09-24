@@ -71,10 +71,16 @@ class ManageTimelines(QDialog):
 
         layout.addLayout(right_layout)
 
-    def _setup_requests(self):        
+    def _setup_requests(self):
         SERVES = {
-            (Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE, self.get_timeline_uis_to_permute),
-            (Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT, self.get_current_timeline_ui)
+            (
+                Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE,
+                self.get_timeline_uis_to_permute,
+            ),
+            (
+                Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT,
+                self.get_current_timeline_ui,
+            ),
         }
 
         for request, callback in SERVES:
@@ -151,8 +157,8 @@ class TimelinesListWidget(QListWidget):
             (Post.TIMELINE_CREATE_DONE, self.update_current_selection),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
     def item(self, row: int) -> typing.Optional[TimelineListItem]:
         return super().item(row)

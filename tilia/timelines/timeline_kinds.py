@@ -19,7 +19,7 @@ NOT_SLIDER = [
     TimelineKind.BEAT_TIMELINE,
     TimelineKind.HARMONY_TIMELINE,
     TimelineKind.PDF_TIMELINE,
-    TimelineKind.AUDIOWAVE_TIMELINE
+    TimelineKind.AUDIOWAVE_TIMELINE,
 ]
 ALL = list(TimelineKind)
 

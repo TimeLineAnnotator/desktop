@@ -26,7 +26,9 @@ def hash_timeline_data_by_kind(kind: TimelineKind, tl_data: dict):
         case TimelineKind.SLIDER_TIMELINE.name:
             return hash_timeline_data(["is_visible", "height"], None, tl_data)
         case TimelineKind.AUDIOWAVE_TIMELINE.name:
-            return hash_timeline_data(["is_visible", "height", "name"], hash_audiowave_data, tl_data)
+            return hash_timeline_data(
+                ["is_visible", "height", "name"], hash_audiowave_data, tl_data
+            )
         case TimelineKind.HIERARCHY_TIMELINE.name:
             return hash_timeline_data(
                 ["height", "is_visible", "name"], hash_hierarchies_data, tl_data
@@ -56,7 +58,9 @@ def hash_timeline_data_by_kind(kind: TimelineKind, tl_data: dict):
                 tl_data,
             )
         case TimelineKind.PDF_TIMELINE.name:
-            return hash_timeline_data(['height', 'is_visible', 'name', 'path'], hash_pdf_marker_data, tl_data)
+            return hash_timeline_data(
+                ["height", "is_visible", "name", "path"], hash_pdf_marker_data, tl_data
+            )
         case _:
             raise NotImplementedError
 
@@ -167,10 +171,14 @@ def hash_harmony_data(harmony_data: dict) -> str:
 
 
 def hash_pdf_marker_data(pdf_marker_data: dict) -> str:
-    hash_attributes = ["time", 'page_number']
-    return hash_timeline_components(hash_attributes, lambda x: x['time'], pdf_marker_data)
+    hash_attributes = ["time", "page_number"]
+    return hash_timeline_components(
+        hash_attributes, lambda x: x["time"], pdf_marker_data
+    )
 
 
 def hash_audiowave_data(audiowave_data: dict) -> str:
     hash_attributes = ["start", "end", "amplitude"]
-    return hash_timeline_components(hash_attributes, lambda x: x["start"], audiowave_data)
+    return hash_timeline_components(
+        hash_attributes, lambda x: x["start"], audiowave_data
+    )

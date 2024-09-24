@@ -140,7 +140,9 @@ class SettingsWindow(QDialog):
                     != default_settings[group_name][name]
                 ):
                     edited_settings.setdefault(group_name, {})
-                    edited_settings[group_name][name] = default_settings[group_name][name]
+                    edited_settings[group_name][name] = default_settings[group_name][
+                        name
+                    ]
         self._save_edits(edited_settings)
         settings.reset_to_default()
         self.clear_layout()

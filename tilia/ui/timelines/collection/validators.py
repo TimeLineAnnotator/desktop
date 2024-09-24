@@ -1,4 +1,4 @@
-from tilia.requests import Post, post, Get, get
+from tilia.requests import Post, Get, get
 import tilia.errors
 
 
@@ -11,7 +11,10 @@ def validate_timeline_element_copy(timeline_uis, *_, **__):
         # Can't copy: there are no selected elements.
         return False
     elif len(get(Get.TIMELINE_UIS_BY_ATTR, "has_selected_elements", True)) > 1:
-        tilia.errors.display(tilia.errors.COMPONENTS_COPY_ERROR, "Cannot copy components from more than one timeline.")
+        tilia.errors.display(
+            tilia.errors.COMPONENTS_COPY_ERROR,
+            "Cannot copy components from more than one timeline.",
+        )
         return False
     return True
 

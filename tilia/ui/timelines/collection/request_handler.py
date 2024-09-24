@@ -52,19 +52,19 @@ class TimelineUIsRequestHandler(RequestHandler):
                 TimelineKind.HARMONY_TIMELINE, None, name=name
             )
 
-    def on_timeline_add_pdf_timeline(self, confirmed: bool, name: str, pdf_path: str | Path):
+    def on_timeline_add_pdf_timeline(
+        self, confirmed: bool, name: str, pdf_path: str | Path
+    ):
         if confirmed:
             self.timelines.create_timeline(
-                TimelineKind.PDF_TIMELINE,
-                None,
-                name=name,
-                path=pdf_path
+                TimelineKind.PDF_TIMELINE, None, name=name, path=pdf_path
             )
 
     def on_timeline_add_audiowave_timeline(self, confirmed: bool, name: str):
         if confirmed:
             self.timelines.create_timeline(
-                TimelineKind.AUDIOWAVE_TIMELINE, None, name=name)
+                TimelineKind.AUDIOWAVE_TIMELINE, None, name=name
+            )
 
     def on_timelines_clear(self, confirmed):
         if confirmed:

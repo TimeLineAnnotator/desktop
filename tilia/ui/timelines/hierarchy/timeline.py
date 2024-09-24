@@ -31,14 +31,20 @@ class HierarchyTimelineUI(TimelineUI):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+        listen(
+            self,
+            Post.SETTINGS_UPDATED,
+            lambda updated_settings: self.on_settings_updated(updated_settings),
+        )
 
-    def on_settings_updated(self, updated_settings):        
+    def on_settings_updated(self, updated_settings):
         if "hierarchy_timeline" in updated_settings:
-            get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
+            get(Get.TIMELINE_COLLECTION).set_timeline_data(
+                self.id, "height", self.timeline.default_height
+            )
             for hierarchy_ui in self:
                 hierarchy_ui.update_position()
-                hierarchy_ui.update_color()            
+                hierarchy_ui.update_color()
 
     def on_timeline_element_request(
         self, request, selector: ElementSelector, *args, **kwargs

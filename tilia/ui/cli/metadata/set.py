@@ -16,10 +16,8 @@ def setup_parser(subparsers):
 
 
 def set_metadata(namespace: argparse.Namespace):
-    if namespace.field.lower() == 'media length':
-        tilia.errors.display(
-            tilia.errors.CLI_METADATA_CANT_SET_MEDIA_LENGTH
-        )
+    if namespace.field.lower() == "media length":
+        tilia.errors.display(tilia.errors.CLI_METADATA_CANT_SET_MEDIA_LENGTH)
         return
     try:
         post(Post.MEDIA_METADATA_FIELD_SET, namespace.field, namespace.value)

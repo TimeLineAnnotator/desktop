@@ -15,9 +15,7 @@ request_to_scope: dict[Post, TlRequestSelector] = {
     Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES: TlRequestSelector(
         ALL, TimelineSelector.FROM_MANAGE_TIMELINES_CURRENT
     ),
-    Post.TIMELINE_DELETE_FROM_CLI: TlRequestSelector(
-        ALL, TimelineSelector.FROM_CLI
-    ),
+    Post.TIMELINE_DELETE_FROM_CLI: TlRequestSelector(ALL, TimelineSelector.FROM_CLI),
     Post.TIMELINE_CLEAR_FROM_MANAGE_TIMELINES: TlRequestSelector(
         ALL, TimelineSelector.FROM_MANAGE_TIMELINES_CURRENT
     ),

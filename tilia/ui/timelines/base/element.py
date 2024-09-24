@@ -44,7 +44,7 @@ class TimelineUIElement(ABC):
 
     @property
     def kind(self):
-        return self.tl_component.get_data('KIND')
+        return self.tl_component.get_data("KIND")
 
     def get_data(self, attr: str):
         return self.timeline_ui.get_component_data(self.id, attr)
@@ -95,7 +95,7 @@ class TimelineUIElement(ABC):
         for item in self.child_items():
             if item.parentItem():
                 continue  # item will be removed with parent
-            if hasattr(item, 'cleanup'):
+            if hasattr(item, "cleanup"):
                 item.cleanup()
             self.scene.removeItem(item)
 

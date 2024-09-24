@@ -2,7 +2,6 @@ import weakref
 from enum import Enum, auto
 from typing import Callable, Any
 
-from tilia.settings import settings
 from tilia.exceptions import NoReplyToRequest, NoCallbackAttached
 
 
@@ -65,12 +64,12 @@ class Get(Enum):
     WINDOW_STATE = auto()
 
 
-_requests_to_callbacks: weakref.WeakKeyDictionary[
-    Get, Callable
-] = weakref.WeakKeyDictionary()
-_servers_to_requests: weakref.WeakKeyDictionary[
-    Any, set[Get]
-] = weakref.WeakKeyDictionary()
+_requests_to_callbacks: weakref.WeakKeyDictionary[Get, Callable] = (
+    weakref.WeakKeyDictionary()
+)
+_servers_to_requests: weakref.WeakKeyDictionary[Any, set[Get]] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 def get(request: Get, *args, **kwargs) -> Any:

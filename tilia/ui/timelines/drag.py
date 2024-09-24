@@ -26,7 +26,7 @@ class DragManager:
     def _setup_requests(self):
         self.LISTENS = {
             (Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, self.on_mouse_drag),
-            (Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_mouse_release)
+            (Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_mouse_release),
         }
 
         for post, callback in self.LISTENS:

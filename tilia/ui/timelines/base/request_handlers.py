@@ -14,7 +14,9 @@ class TimelineRequestHandler(RequestHandler):
         base_request_to_callback = {
             Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES: self.on_timeline_delete,
             Post.TIMELINE_CLEAR_FROM_MANAGE_TIMELINES: self.on_timeline_clear,
-            Post.TIMELINE_DELETE_FROM_CLI: functools.partial(self.on_timeline_delete, True),
+            Post.TIMELINE_DELETE_FROM_CLI: functools.partial(
+                self.on_timeline_delete, True
+            ),
             Post.TIMELINE_NAME_SET: functools.partial(
                 self.on_timeline_data_set, "name"
             ),

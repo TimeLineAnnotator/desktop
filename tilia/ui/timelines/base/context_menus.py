@@ -24,10 +24,7 @@ class TimelineUIContextMenu(TiliaMenu):
                 Get.CONTEXT_MENU_TIMELINE_UIS_TO_PERMUTE,
                 self.get_timeline_uis_to_permute,
             ),
-            (
-                Get.CONTEXT_MENU_TIMELINE_UI,
-                self.get_timeline_ui_for_selector
-            )
+            (Get.CONTEXT_MENU_TIMELINE_UI, self.get_timeline_ui_for_selector),
         }
 
         for request, callback in SERVES:
@@ -82,7 +79,9 @@ class TimelineUIContextMenu(TiliaMenu):
 
     def add_delete_timeline(self):
         delete_timeline = QAction("Delete", self)
-        delete_timeline.triggered.connect(lambda: post(Post.TIMELINE_DELETE_FROM_CONTEXT_MENU))
+        delete_timeline.triggered.connect(
+            lambda: post(Post.TIMELINE_DELETE_FROM_CONTEXT_MENU)
+        )
         self.addAction(delete_timeline)
 
 

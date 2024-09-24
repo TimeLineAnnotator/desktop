@@ -83,11 +83,11 @@ class MarkerUI(TimelineUIElement):
     @property
     def seek_time(self):
         return self.get_data("time")
-    
+
     @property
     def width(self):
         return settings.get("marker_timeline", "marker_width")
-    
+
     @property
     def height(self):
         return settings.get("marker_timeline", "marker_height")
