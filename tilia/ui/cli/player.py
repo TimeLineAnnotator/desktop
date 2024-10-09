@@ -14,7 +14,7 @@ class CLIVideoPlayer(QtPlayer):
 class CLIYoutubePlayer(Player):
     MEDIA_TYPE = "youtube"
 
-    def load_media(self, media_path: str, start: float = 0.0, end: float = 0.0):
+    def load_media(self, media_path: str):
         try:
             youtube = YouTube(media_path)
             self.on_media_duration_available(youtube.length)

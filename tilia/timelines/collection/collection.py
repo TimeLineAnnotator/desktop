@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from bisect import bisect
 
 from tilia.exceptions import TimelineValidationError
-from tilia.requests import Post, post, serve, Get, get, listen
+from tilia.requests import Post, post, serve, Get
 from tilia.timelines.harmony.timeline import HarmonyTimeline, HarmonyTLComponentManager
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
@@ -88,7 +88,6 @@ class Timelines:
     def __init__(self, app: App):
         self._app = app
         self._timelines: list[Timeline] = []
-        self.cached_media_duration = 0.0
 
         self._setup_requests()
 
@@ -311,13 +310,15 @@ class Timelines:
     def serve_ordinal_for_new_timeline(self):
         return len(self._timelines) + 1
 
-    def scale_timeline_components(self, factor: float) -> None:
+    def scale_timeline_components(
+        self, factor: float, offset_old: float, offset_new: float
+    ) -> None:
         for tl in [tl for tl in self if hasattr(tl, "scale")]:
-            tl.scale(factor)
+            tl.scale(factor, offset_old, offset_new)
 
-    def crop_timeline_components(self, new_length: float) -> None:
+    def crop_timeline_components(self, start: float, end: float) -> None:
         for tl in [tl for tl in self if hasattr(tl, "crop")]:
-            tl.crop(new_length)
+            tl.crop(start, end)
         post(Post.TIMELINES_CROP_DONE)
 
     def get_beat_timeline_for_measure_calculation(self):

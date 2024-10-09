@@ -39,7 +39,7 @@ class PlayerToolbar(QToolBar):
     def _setup_requests(self):
         LISTENS = {
             (Post.PLAYER_CURRENT_TIME_CHANGED, self.on_player_current_time_changed),
-            (Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed),
+            (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
             (Post.PLAYER_MEDIA_UNLOADED, self.on_media_unload),
             (Post.PLAYER_STOPPED, self.on_stop),
             (Post.PLAYER_UPDATE_CONTROLS, self.on_update_controls),
@@ -75,8 +75,8 @@ class PlayerToolbar(QToolBar):
         self.update_time_string()
         self.on_ui_update_silent(PlayerToolbarElement.TOGGLE_PLAY_PAUSE, False)
 
-    def on_media_duration_changed(self, duration: float):
-        self.duration_string = format_media_time(duration)
+    def on_player_duration_available(self, duration: float):
+        self.duration_string = format_media_time(duration, False)
         self.update_time_string()
 
     def on_media_unload(self) -> None:

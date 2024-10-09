@@ -41,8 +41,8 @@ class SliderTimeline(Timeline):
     def delete(self):
         """Nothing to do."""
 
-    def crop(self, length: float):
+    def crop(self, start: float, end: float):
         """Nothing to do"""
 
-    def scale(self, length: float):
+    def scale(self, factor: float, offset_old: float, offset_new: float):
         """Nothing to do"""

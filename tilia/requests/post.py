@@ -85,6 +85,7 @@ class Post(Enum):
     MARKER_DELETE = auto()
     MARKER_IMPORT_FROM_CSV = auto()
     MEDIA_METADATA_FIELD_SET = auto()
+    MEDIA_TIMES_PLAYBACK_UPDATED = auto()
     MERGE_RANGE_BUTTON = auto()
     METADATA_UPDATE_FIELDS = auto()
     MODE_ADD = auto()

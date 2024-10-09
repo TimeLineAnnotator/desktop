@@ -245,7 +245,7 @@ class TestHierarchyTimelineComponentManager:
 
         hrc4, _ = hierarchy_tl.create_hierarchy(start=0.0, end=0.1, level=1)
 
-        hierarchy_tl.component_manager.crop(0.15)
+        hierarchy_tl.component_manager.crop(0, 0.15)
 
         assert len(hierarchy_tl) == 3
         assert hrc1.start == 0.0
@@ -260,7 +260,7 @@ class TestHierarchyTimelineComponentManager:
         hrc2, _ = hierarchy_tl.create_hierarchy(start=1, end=3, level=2)
         hrc3, _ = hierarchy_tl.create_hierarchy(start=3, end=6, level=3)
 
-        hierarchy_tl.component_manager.scale(0.5)
+        hierarchy_tl.component_manager.scale(0.5, 0, 0)
 
         assert len(hierarchy_tl) == 3
         assert hrc1.start == 0

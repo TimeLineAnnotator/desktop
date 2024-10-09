@@ -39,6 +39,8 @@ class Get(Enum):
     MEDIA_METADATA_REQUIRED_FIELDS = auto()
     MEDIA_PATH = auto()
     MEDIA_TITLE = auto()
+    MEDIA_TIMES_ABSOLUTE = auto()
+    MEDIA_TIMES_PLAYBACK = auto()
     MEDIA_TYPE = auto()
     METRIC_POSITION = auto()
     PLAYBACK_AREA_WIDTH = auto()

@@ -24,7 +24,9 @@ class AudioWaveTimeline(Timeline):
 
     def _create_timeline(self):
         dt, normalised_amplitudes = self._get_normalised_amplitudes()
-        self._create_components(dt, normalised_amplitudes)
+        self._create_components(
+            dt, normalised_amplitudes, get(Get.MEDIA_TIMES_PLAYBACK).start
+        )
 
     def _get_audio(self):
         path = get(Get.MEDIA_PATH)
@@ -47,12 +49,12 @@ class AudioWaveTimeline(Timeline):
         amplitude = [chunk.rms for chunk in chunks]
         return dt, [amp / max(amplitude) for amp in amplitude]
 
-    def _create_components(self, duration: float, amplitudes: float):
+    def _create_components(self, duration: float, amplitudes: float, offset: float):
         for i in range(len(amplitudes)):
             self.create_component(
                 kind=ComponentKind.AUDIOWAVE,
-                start=i * duration,
-                end=(i + 1) * duration,
+                start=i * duration + offset,
+                end=(i + 1) * duration + offset,
                 amplitude=amplitudes[i],
             )
 
@@ -77,6 +79,12 @@ class AudioWaveTimeline(Timeline):
         # AudioWave timelines shouldn't be cleared
         # as user can't reacreate its components
         pass
+
+    def crop(self, start: float, end: float):
+        """Nothing to do"""
+
+    def scale(self, factor: float, offset_old: float, offset_new: float):
+        """Nothing to do"""
 
 
 class AudioWaveTLComponentManager(TimelineComponentManager):

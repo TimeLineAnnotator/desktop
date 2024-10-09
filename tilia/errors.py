@@ -87,7 +87,14 @@ CLI_METADATA_CANT_SET_MEDIA_LENGTH = Error(
     "Cannot set media length with 'metadata set'. Use 'metadata set-media-length' instead.",
 )
 EMPTY_CLI_SCRIPT = Error("Script error", "Cannot run script: file '{}' is empty.")
-CLI_CREATE_TIMELINE_WITHOUT_DURATION = Error("Cannot create timeline", "No media loaded and no duration set. Load a media file with 'load-media' or set a duration with 'metadata set-media-length'.")
+CLI_CREATE_TIMELINE_WITHOUT_DURATION = Error(
+    "Cannot create timeline",
+    "No media loaded and no duration set. Load a media file with 'load-media' or set a duration with 'metadata set-media-length'.",
+)
+SEEK_OUTSIDE_CURRENT_PLAYBACK_TIME_FAILED = Error(
+    "Player seek failed",
+    "Selected time ({}) is outside of current time ({} - {}). Edit current start and end times in metadata to seek to this point.",
+)
 
 
 def display(error: Error, *args):

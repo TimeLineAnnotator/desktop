@@ -23,10 +23,11 @@ class HierarchyTimeline(Timeline):
 
     def setup_blank_timeline(self):
         """Create unit of level 1 encompassing whole timeline"""
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
         self.create_component(
             kind=ComponentKind.HIERARCHY,
-            start=0,
-            end=get(Get.MEDIA_DURATION),
+            start=playback_time.start,
+            end=playback_time.end,
             level=1,
         )
 
@@ -115,16 +116,22 @@ class HierarchyTLComponentManager(TimelineComponentManager):
     def _validate_component_creation(
         self, _, start: float, end: float, *args, **kwargs
     ):
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
         media_duration = get(Get.MEDIA_DURATION)
-        if start > media_duration:
+        if playback_time.end != 0 and (
+            end > playback_time.end
+            or start > playback_time.end
+            or end < playback_time.start
+            or start < playback_time.start
+        ):
             return (
                 False,
-                f"Start time '{start}' is bigger than media time '{media_duration}'",
+                f"Time '{start} - {end}' is out of current media time bounds '{playback_time.start} - {playback_time.end}'",
             )
-        elif end > media_duration:
+        elif playback_time.end == 0 and (end > media_duration or start < 0):
             return (
                 False,
-                f"End time '{end}' is bigger than media time '{media_duration}'",
+                f"Time '{start} - {end}' is out of current media time bounds '{0} - {media_duration}'",
             )
         elif end <= start:
             return False, f"End time '{end}' should be bigger than start time '{start}'"
@@ -601,20 +608,28 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         self._update_genealogy_after_deletion(component)
 
-    def scale(self, factor: float) -> None:
+    def scale(self, factor: float, offset_old: float, offset_new: float) -> None:
         for hrc in self._components:
-            hrc.start *= factor
-            hrc.end *= factor
+            hrc.start = (hrc.start - offset_old) * factor + offset_new
+            hrc.end = (hrc.end - offset_old) * factor + offset_new
             self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
 
-    def crop(self, length: float) -> None:
+    def crop(self, start: float, end: float) -> None:
         for hrc in self._components.copy():
-            if hrc.end > length:
-                if hrc.start >= length:
-                    self.delete_component(hrc)
-                else:
-                    hrc.end = length
-                    self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
+            if (hrc.end > end and hrc.start > end) or (
+                hrc.start < start and hrc.end < start
+            ):
+                self.delete_component(hrc)
+            elif hrc.end > end and hrc.start >= start:
+                hrc.end = end
+                if hrc.post_end > end:
+                    hrc.post_end = end
+                self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
+            elif hrc.end <= end and hrc.start < start:
+                hrc.start = start
+                if hrc.pre_start < start:
+                    hrc.pre_start = start
+                self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
 
     def _update_genealogy_after_deletion(self, component: Hierarchy) -> None:
         if not component.parent:
