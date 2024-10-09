@@ -565,7 +565,7 @@ class HierarchyUI(TimelineUIElement):
     @property
     def length_formatted(self) -> str:
         return tilia.ui.format.format_media_time(
-            self.get_data("end") - self.get_data("start")
+            self.get_data("end") - self.get_data("start"), False
         )
 
     @property

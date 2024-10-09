@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QDialogButtonBox,
+    QDoubleSpinBox,
 )
 
 from tilia.settings import settings
@@ -29,6 +30,7 @@ class MediaMetadataWindow(QDialog):
         "media length": functools.partial(get, Get.MEDIA_DURATION),
         "media path": functools.partial(get, Get.MEDIA_PATH),
     }
+    PLAYBACK_TIMES = ["playback start", "playback end"]
 
     def __init__(self):
         super().__init__()
@@ -56,6 +58,7 @@ class MediaMetadataWindow(QDialog):
     def _setup_fields(self):
         self.populate_with_editable_fields()
         self.add_separator()
+        self.populate_with_media_times()
         self.populate_with_read_only_fields()
         self.setup_buttons()
         self.adjustSize()
@@ -109,10 +112,59 @@ class MediaMetadataWindow(QDialog):
         for name, getter in self.READ_ONLY_FIELDS.items():
             value = getter()
             if name in self.fields_to_formatters:
-                value = self.fields_to_formatters[name](value)
+                value = self.fields_to_formatters[name](value, False)
             value_label = QLabel(value)
             value_label.setWordWrap(True)
             self.form_layout.addRow(QLabel(name.capitalize()), value_label)
+
+    def populate_with_media_times(self):
+        absolute_time = get(Get.MEDIA_TIMES_ABSOLUTE)
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
+
+        if absolute_time.start == 0.0 and absolute_time.end == 0.0:
+            self.has_times = False
+        else:
+            self.start_time = QDoubleSpinBox()
+            self.start_time.setMaximum(playback_time.end)
+            self.start_time.setMinimum(absolute_time.start)
+            self.start_time.setValue(playback_time.start)
+            self.start_time.setSuffix(" s")
+            self.start_time.setKeyboardTracking(False)
+            self.start_time.setSingleStep(1.0)
+            self.start_time.valueChanged.connect(
+                lambda value: on_start_time_changed(value)
+            )
+
+            self.end_time = QDoubleSpinBox()
+            self.end_time.setMaximum(absolute_time.end)
+            self.end_time.setMinimum(playback_time.start)
+            self.end_time.setValue(playback_time.end)
+            self.end_time.setSuffix(" s")
+            self.end_time.setKeyboardTracking(False)
+            self.end_time.setSingleStep(1.0)
+            self.end_time.valueChanged.connect(lambda value: on_end_time_changed(value))
+
+            self.actual_duration = QLabel(
+                format_media_time(playback_time.duration, False)
+            )
+
+            self.has_times = True
+            self.form_layout.addRow(QLabel("Media start"), self.start_time)
+            self.form_layout.addRow(QLabel("Media end"), self.end_time)
+            self.form_layout.addRow(QLabel("Current length"), self.actual_duration)
+            self.add_separator()
+
+            def on_start_time_changed(value: float):
+                self.end_time.setMinimum(value)
+                self.actual_duration.setText(
+                    format_media_time(self.end_time.value() - value, False)
+                )
+
+            def on_end_time_changed(value: float):
+                self.start_time.setMaximum(value)
+                self.actual_duration.setText(
+                    format_media_time(value - self.start_time.value(), False)
+                )
 
     def setup_buttons(self):
         edit_notes_button = QPushButton("Edit notes...")
@@ -195,6 +247,17 @@ class MediaMetadataWindow(QDialog):
     def _save_edits(self, edited_fields: dict) -> None:
         for name, value in edited_fields.items():
             post(Post.MEDIA_METADATA_FIELD_SET, name, value)
+
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
+        if self.has_times and (
+            self.start_time.value() != playback_time.start
+            or self.end_time.value() != playback_time.end
+        ):
+            post(
+                Post.MEDIA_TIMES_PLAYBACK_UPDATED,
+                float(self.start_time.value()),
+                float(self.end_time.value()),
+            )
 
     def on_settings_updated(self, updated_settings):
         if "media_metadata" in updated_settings:

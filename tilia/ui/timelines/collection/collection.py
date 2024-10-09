@@ -683,11 +683,11 @@ class TimelineUIs:
     def loop_cancel(self):
         self.loop_elements.clear()
         post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, False)
-        self.on_loop_change(0, 0)
+        self.on_loop_change(self.selected_time, self.selected_time)
 
     def on_loop_cancel(self):
         self.update_loop_elements_ui(False)
-        self.loop_time = (0, 0)
+        self.loop_time = (self.selected_time, self.selected_time)
         self.change_loop_box_position()
         post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, False)
 
@@ -703,7 +703,7 @@ class TimelineUIs:
 
         else:
             self.update_loop_elements_ui(False)
-            self.on_loop_change(0, 0)
+            self.on_loop_change(self.selected_time, self.selected_time)
 
     def _update_loop_elements(self, clear=False) -> None:
         if self.loop_elements:
@@ -712,7 +712,7 @@ class TimelineUIs:
                 tilia.errors.display(tilia.errors.LOOP_DISJUNCT)
                 post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, False)
                 self.update_loop_elements_ui(False)
-                self.on_loop_change(0, 0)
+                self.on_loop_change(self.selected_time, self.selected_time)
                 return
 
             post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, True)
@@ -721,11 +721,12 @@ class TimelineUIs:
 
         elif clear:
             post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, False)
-            self.on_loop_change(0, 0)
+            self.on_loop_change(self.selected_time, self.selected_time)
 
         else:
             post(Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_LOOP, True)
-            self.on_loop_change(0, get(Get.MEDIA_DURATION))
+            playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
+            self.on_loop_change(playback_time.start, playback_time.end)
 
     def _check_loop_continuity(self) -> tuple[bool, list]:
         def dfs(index, cur_min, cur_max):
@@ -872,7 +873,9 @@ class TimelineUIs:
         tilia.ui.timelines.collection.requests.post_process.post_process_request(
             request, result
         )
-        if request not in self.DO_NOT_RECORD and not all([isinstance(r, RequestFailure) for r in result]):
+        if request not in self.DO_NOT_RECORD and not all(
+            [isinstance(r, RequestFailure) for r in result]
+        ):
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
     def on_timeline_ui_request(self, request: Post, *args, **kwargs):

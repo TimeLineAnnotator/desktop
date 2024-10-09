@@ -110,22 +110,26 @@ class YouTubePlayer(Player):
         self.view.page().setWebChannel(self.channel)
         self.view.page().setUrlRequestInterceptor(self.request_interceptor)
 
-    def load_media(self, path: str | Path, start: float = 0.0, end: float = 0.0):
+    def load_media(self, path: str | Path):
         if not self.view.isVisible():
             self.view.show()
 
-        super().load_media(path, start, end)
+        super().load_media(path)
 
-    def on_media_load_done(self, path, start, end):
+    def on_media_load_done(self, path):
         self.media_path = str(path)
-        self.playback_start = start
 
         post(
             Post.PLAYER_URL_CHANGED,
             self.media_path,
         )
 
-        post(Post.PLAYER_CURRENT_TIME_CHANGED, 0.0, MediaTimeChangeReason.LOAD)
+        self.current_time = self.playback_time.start
+        post(
+            Post.PLAYER_CURRENT_TIME_CHANGED,
+            self.playback_time.start,
+            MediaTimeChangeReason.LOAD,
+        )
 
         self.is_media_loaded = True
 
@@ -207,7 +211,7 @@ class YouTubePlayer(Player):
 
     def _engine_stop(self):
         self.view.page().runJavaScript("pause()")
-        self._engine_seek(0)
+        self._engine_seek(self.playback_time.start)
 
     def _engine_unload_media(self):
         self.view.hide()

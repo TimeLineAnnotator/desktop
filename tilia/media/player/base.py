@@ -5,6 +5,7 @@ import sys
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from pathlib import Path
+from dataclasses import dataclass
 
 from PyQt6.QtCore import QTimer
 
@@ -21,6 +22,7 @@ from tilia.requests import (
     get,
     stop_serving_all,
 )
+from tilia.ui.format import format_media_time
 
 
 class MediaTimeChangeReason(Enum):
@@ -39,10 +41,9 @@ class Player(ABC):
 
         self._setup_requests()
         self.is_media_loaded = False
-        self.duration = 0.0
-        self.playback_start = 0.0
-        self.playback_end = 0.0
         self.current_time = 0.0
+        self.absolute_time = TimeRange()
+        self.playback_time = TimeRange()
         self.media_path = ""
         self.is_playing = False
         self.is_looping = False
@@ -70,12 +71,17 @@ class Player(ABC):
             (Post.PLAYER_REQUEST_TO_LOAD_MEDIA, self.load_media),
             (Post.PLAYER_EXPORT_AUDIO, self.on_export_audio),
             (Post.PLAYER_CURRENT_LOOP_CHANGED, self.on_loop_changed),
+            (Post.MEDIA_TIMES_PLAYBACK_UPDATED, self.setup_playback_start_and_end),
+            (Post.FILE_MEDIA_DURATION_CHANGED, self.on_file_media_duration_changed),
         }
 
         SERVES = {
             (Get.MEDIA_CURRENT_TIME, lambda: self.current_time),
             (Get.MEDIA_PATH, lambda: self.media_path),
             (Get.MEDIA_TYPE, lambda: self.MEDIA_TYPE),
+            (Get.MEDIA_TIMES_ABSOLUTE, lambda: self.absolute_time),
+            (Get.MEDIA_TIMES_PLAYBACK, lambda: self.playback_time),
+            (Get.MEDIA_DURATION, lambda: self.absolute_time.duration),
         }
 
         for post, callback in LISTENS:
@@ -84,13 +90,7 @@ class Player(ABC):
         for request, callback in SERVES:
             serve(self, request, callback)
 
-    @property
-    def playback_length(self):
-        return self.playback_end - self.playback_start
-
-    def load_media(
-        self, path: str | Path, start: float = 0.0, end: float = 0.0
-    ) -> bool:
+    def load_media(self, path: str | Path) -> bool:
         if self.is_playing:
             self.stop()
 
@@ -98,36 +98,50 @@ class Player(ABC):
         if not success:
             tilia.errors.display(tilia.errors.MEDIA_LOAD_FAILED, path)
             return False
-        self.on_media_load_done(path, start, end)
+        self.on_media_load_done(path)
         return True
 
-    def on_media_load_done(self, path, start, end):
+    def on_media_load_done(self, path):
         self.media_path = str(path)
-        self.playback_start = start
-
-        post(
-            Post.PLAYER_URL_CHANGED,
-            self.media_path,
-        )
-
-        post(Post.PLAYER_CURRENT_TIME_CHANGED, 0.0, MediaTimeChangeReason.LOAD)
+        post(Post.PLAYER_URL_CHANGED, self.media_path)
 
         self.is_media_loaded = True
+        self._engine_seek(self.playback_time.start)
+        self.current_time = self.playback_time.start
+        post(
+            Post.PLAYER_CURRENT_TIME_CHANGED,
+            self.current_time,
+            MediaTimeChangeReason.LOAD,
+        )
 
-    def on_media_duration_available(self, duration):
-        self.playback_end = self.duration = duration
-        post(Post.PLAYER_DURATION_AVAILABLE, duration)
+    def on_file_media_duration_changed(self, duration: float, start: float, end: float):
+        self.absolute_time.end = duration
+        if start > 0.0 or end < duration:
+            self.setup_playback_start_and_end(start, end)
+        else:
+            self.playback_time.end = duration
+            post(Post.PLAYER_DURATION_AVAILABLE, self.playback_time.duration)
+
+    def reset_media_duration(self, absolute_time: TimeRange, playback_time: TimeRange):
+        self.absolute_time = absolute_time
+        self.playback_time = playback_time
+
+    def on_media_duration_available(self, duration: float):
+        self.absolute_time.start = self.playback_time.start = 0.0
+        self.absolute_time.end = self.playback_time.end = duration
+        post(Post.PLAYER_DURATION_AVAILABLE, self.playback_time.duration)
 
     def setup_playback_start_and_end(self, start, end):
-        self.playback_start = start
-        self.playback_end = end or self.duration
-
-        start or self._engine_seek(start)
+        self.playback_time.start = start
+        self.playback_time.end = end
+        post(Post.PLAYER_DURATION_AVAILABLE, self.playback_time.duration)
+        self.on_seek(start)
+        self.is_looping = False
+        post(Post.PLAYER_CANCEL_LOOP)
 
     def unload_media(self):
         self._engine_unload_media()
         self.is_media_loaded = False
-        self.duration = 0.0
         self.current_time = 0.0
         self.media_path = ""
         self.is_playing = False
@@ -153,7 +167,7 @@ class Player(ABC):
     def stop(self):
         """Stops music playback and resets slider position"""
         post(Post.PLAYER_STOPPING)
-        if not self.is_playing and self.current_time == 0.0:
+        if not self.is_playing and self.current_time == self.playback_time.start:
             return
 
         self._engine_stop()
@@ -164,8 +178,8 @@ class Player(ABC):
             self.is_looping = False
             post(Post.PLAYER_CANCEL_LOOP)
 
-        self._engine_seek(self.playback_start)
-        self.current_time = self.playback_start
+        self._engine_seek(self.playback_time.start)
+        self.current_time = self.playback_time.start
 
         post(Post.PLAYER_STOPPED)
         post(
@@ -176,8 +190,8 @@ class Player(ABC):
 
     def on_loop_changed(self, start_time, end_time):
         self.is_looping = start_time != end_time
-        if end_time == get(Get.MEDIA_DURATION):
-            if start_time != 0:
+        if end_time == self.playback_time.end:
+            if start_time != self.playback_time.start:
                 end_time -= self.E
             else:
                 self._engine_loop(True)
@@ -199,6 +213,15 @@ class Player(ABC):
             return
 
         if self.is_media_loaded:
+            if not (self.playback_time.start <= time <= self.playback_time.end):
+                tilia.errors.display(
+                    tilia.errors.SEEK_OUTSIDE_CURRENT_PLAYBACK_TIME_FAILED,
+                    format_media_time(time),
+                    format_media_time(self.playback_time.start),
+                    format_media_time(self.playback_time.end),
+                )
+                return
+
             self.check_seek_outside_loop(time)
 
             self._engine_seek(time)
@@ -248,7 +271,7 @@ class Player(ABC):
         self.qtimer.stop()
 
     def _play_loop(self) -> None:
-        self.current_time = self._engine_get_current_time() - self.playback_start
+        self.current_time = self._engine_get_current_time()
         if self.check_not_loop_back(self.current_time):
             post(
                 Post.PLAYER_CURRENT_TIME_CHANGED,
@@ -256,7 +279,7 @@ class Player(ABC):
                 MediaTimeChangeReason.PLAYBACK,
             )
 
-            if self.current_time >= self.playback_length:
+            if self.current_time >= self.playback_time.end:
                 self.stop()
 
     def check_seek_outside_loop(self, time):
@@ -352,3 +375,33 @@ class Player(ABC):
 
     def __repr__(self):
         return f"{type(self)}-{id(self)}"
+
+
+@dataclass
+class TimeRange:
+    _start: float = 0.0
+    _end: float = 0.0
+
+    @property
+    def start(self):
+        return self._start
+
+    @start.setter
+    def start(self, value: float):
+        if value < 0:
+            raise ValueError("Start time must be greater than 0.")
+        self._start = value
+
+    @property
+    def end(self):
+        return self._end
+
+    @end.setter
+    def end(self, value: float):
+        if value < self._start:
+            raise ValueError("End time must be greater than start time.")
+        self._end = value
+
+    @property
+    def duration(self):
+        return self._end - self._start

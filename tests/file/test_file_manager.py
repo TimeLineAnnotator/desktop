@@ -10,6 +10,7 @@ from tilia.requests import Post, post, stop_listening_to_all, stop_serving_all, 
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.file_manager import FileManager
 from unittest.mock import patch
+from tilia.ui.windows.metadata import MediaMetadataWindow
 
 from tilia.ui.actions import TiliaAction
 
@@ -75,6 +76,7 @@ class TestFileManager:
         file_data = tests.utils.get_blank_file_data()
         file_data["timelines"] = timelines_data
         file_data["media_metadata"]["media length"] = 100
+        file_data["media_metadata"]["playback end"] = 100
 
         tmp_file = tmp_path / "test_open_with_hierarchies.tla"
         tmp_file.write_text(json.dumps(file_data))
@@ -93,27 +95,45 @@ class TestFileManager:
         assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
 
     def test_metadata_edit_fields(self, tilia):
-        original = list(tilia.file_manager.file.media_metadata)
-        fields = list(tilia.file_manager.file.media_metadata)
+        def get_displayed_list(input: list[str]) -> list[str]:
+            output = []
+            for item in input:
+                if (
+                    item
+                    not in MediaMetadataWindow.SEPARATE_WINDOW_FIELDS
+                    + list(MediaMetadataWindow.READ_ONLY_FIELDS)
+                    + MediaMetadataWindow.PLAYBACK_TIMES
+                ):
+                    output.append(item)
+            return output
+
+        original = get_displayed_list(tilia.file_manager.file.media_metadata)
+        fields = get_displayed_list(tilia.file_manager.file.media_metadata)
         fields.insert(2, "newfield")
         post(Post.METADATA_UPDATE_FIELDS, fields)
-        assert list(tilia.file_manager.file.media_metadata)[2] == "newfield"
+        assert (
+            get_displayed_list(tilia.file_manager.file.media_metadata)[2] == "newfield"
+        )
 
         fields.pop(2)
         post(Post.METADATA_UPDATE_FIELDS, fields)
-        assert list(tilia.file_manager.file.media_metadata)[2] != "newfield"
-        assert list(tilia.file_manager.file.media_metadata) == original
+        assert (
+            get_displayed_list(tilia.file_manager.file.media_metadata)[2] != "newfield"
+        )
+        assert get_displayed_list(tilia.file_manager.file.media_metadata) == original
 
     def test_metadata_not_duplicated_required_fields(self, tilia):
         original = list(tilia.file_manager.file.media_metadata)
         duplicate = list(tilia.file_manager.file.media_metadata) + ["title"]
         post(Post.METADATA_UPDATE_FIELDS, duplicate)
         assert list(tilia.file_manager.file.media_metadata) == original
-    
+
     def test_metadata_delete_fields(self, tilia):
         empty_list = []
         post(Post.METADATA_UPDATE_FIELDS, empty_list)
-        assert list(tilia.file_manager.file.media_metadata) == list(tilia.file_manager.file.media_metadata.REQUIRED_FIELDS)
+        assert list(tilia.file_manager.file.media_metadata) == list(
+            tilia.file_manager.file.media_metadata.REQUIRED_FIELDS
+        )
 
     def test_metadata_title_stays_on_top(self, tilia):
         not_so_empty_list = ["newfield"]

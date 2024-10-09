@@ -64,8 +64,9 @@ class AudioWaveTimelineUI(TimelineUI):
             self.select_element(element_to_select)
 
     def get_inspector_dict(self):
-        start_time = get(Get.MEDIA_DURATION)
-        end_time = 0
+        playback_times = get(Get.MEDIA_TIMES_PLAYBACK)
+        start_time = playback_times.end
+        end_time = playback_times.start
         for element in self.selected_elements:
             if element.get_data("start") < start_time:
                 start_time = element.get_data("start")
