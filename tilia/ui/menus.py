@@ -79,7 +79,7 @@ class RecentFilesMenu(QMenu):
 
     def _get_action(self, file):
         qaction = QAction(str(file), self)
-        qaction.triggered.connect(lambda _: post(Post.FILE_OPEN_PATH, file))
+        qaction.triggered.connect(lambda _: post(Post.FILE_OPEN, file))
         return qaction
 
     def update_items(self):
