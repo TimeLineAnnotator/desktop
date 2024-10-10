@@ -15,6 +15,7 @@ from tilia.requests import get, post, serve, listen, Get, Post
 from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.undo_manager import PauseUndoManager
+from tilia.file.file_manager import open_tla
 
 if TYPE_CHECKING:
     from tilia.media.player import Player
@@ -83,7 +84,10 @@ class App:
         self.on_media_duration_changed(duration)
         post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
 
-    def on_open(self, path=Path | str):
+    def on_open(self, path: Path | str | None = None) -> None:
+        if isinstance(path, str):
+            path = Path(path)
+
         if self.file_manager.is_file_modified(self.get_app_state()):
             success, should_save = get(Get.FROM_USER_SHOULD_SAVE_CHANGES)
             if not success:
@@ -92,13 +96,24 @@ class App:
             if should_save:
                 post(Post.FILE_SAVE)
 
-        success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
-        if not success:
-            return
-
+        if not path:
+            success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
+            if not success:
+                return
+        prev_state = self.get_app_state()
         self.on_clear()
 
-        self.file_manager.open(path)
+        success, file = open_tla(path)
+        if not success:
+            self.on_restore_state(prev_state)
+            return
+
+        success = self.on_file_load(file)
+        if not success:
+            self.on_restore_state(prev_state)
+            return
+
+        self.file_manager.file = file
 
     def on_close(self) -> None:
         success, confirm_save = self.file_manager.ask_save_changes_if_modified()
@@ -193,15 +208,21 @@ class App:
 
         self.load_media(path)
 
-    def on_file_load(self, file: TiliaFile) -> None:
+    def on_file_load(self, file: TiliaFile) -> bool:
         media_path = file.media_path
         media_duration = file.media_metadata.get("media length", None)
 
-        if file.media_path or media_duration:
-            self._setup_file_media(media_path, media_duration)
+        try:
+            if file.media_path or media_duration:
+                self._setup_file_media(media_path, media_duration)
 
-        self.timelines.deserialize_timelines(file.timelines)
-        self.setup_file()
+            self.timelines.deserialize_timelines(file.timelines)
+            self.setup_file()
+        except Exception as exc:
+            tilia.errors.display(tilia.errors.LOAD_FILE_ERROR, file.file_path, exc)
+            return False
+
+        return True
 
     def on_clear(self) -> None:
         self.timelines.clear()
