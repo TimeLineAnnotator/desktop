@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import functools
+from pathlib import Path
 from typing import Any, Optional
 
 from PyQt6.QtCore import Qt, QPoint
@@ -182,6 +184,7 @@ class TimelineUIs:
             (Post.PLAYER_TOGGLE_LOOP, self.on_loop_toggle),
             (Post.EDIT_REDO, self.loop_cancel),
             (Post.EDIT_UNDO, self.loop_cancel),
+            (Post.REPORT_SECTIONS, self.on_report_sections),
         }
 
         SERVES = {
@@ -1150,3 +1153,53 @@ class TimelineUIs:
 
     def on_timeline_deleted(self, id: int):
         self.delete_timeline_ui(self.get_timeline_ui(id))
+
+    def on_report_sections(self):
+        tl_ui = next((tlui for tlui in self if tlui.get_data('name') == 'Harmonic segments'), None)
+        if not tl_ui:
+            print('No timeline with name "Harmonic segments"')
+            return
+
+        segments = []
+        for el in tl_ui:
+            start_metric_position = el.start_metric_position
+            end_metric_position = el.end_metric_position
+            segments.append((el.get_data('label'), f'{end_metric_position[0] - start_metric_position[0]}.{end_metric_position[1] - start_metric_position[1]}'))
+
+        segments_deduplicated = []
+        for segment in segments:
+            if segment not in segments_deduplicated:
+                segments_deduplicated.append(segment)
+
+        title = get(Get.MEDIA_TITLE)
+        print(f'## {title}')
+        for segment in segments_deduplicated:
+            if [x[0] for x in segments_deduplicated].count(segment[0]) > 1:
+                print(f'{segment[0]}: {segment[1]}  <--- DUPLICATED')
+            else:
+                print(f'{segment[0]}: {segment[1]}')
+
+        output_dir = Path('reports')
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with open(output_dir / 'segments' / f'{title}.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['label', 'duration'])
+            for segment in segments_deduplicated:
+                writer.writerow(segment)
+
+        with open(output_dir / 'forma-harmonia-performance' / f'{title}.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['corpus', 'musica', 'segment', 'order'])
+            try:
+                corpus, musica = title.split('-')
+            except ValueError:
+                print("Title must be in format '<corpus>-<musica>'")
+                return
+
+            for i, segment in enumerate(segments):
+                writer.writerow([corpus, musica, segment[0], i])
+
+        print(" | ".join([(segment[0]) for segment in segments]))
+        print()
+
+
