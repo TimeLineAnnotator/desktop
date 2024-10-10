@@ -54,6 +54,7 @@ class App:
             (Post.APP_STATE_RESTORE, self.on_restore_state),
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_RECORD_STATE, self.on_record_state),
+            (Post.FILE_OPEN, self.on_open),
             (Post.PLAYER_DURATION_AVAILABLE, self.set_file_media_duration),
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
@@ -81,6 +82,23 @@ class App:
             self.should_scale_timelines = scale_timelines
         self.on_media_duration_changed(duration)
         post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+
+    def on_open(self, path=Path | str):
+        if self.file_manager.is_file_modified(self.get_app_state()):
+            success, should_save = get(Get.FROM_USER_SHOULD_SAVE_CHANGES)
+            if not success:
+                return
+
+            if should_save:
+                post(Post.FILE_SAVE)
+
+        success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
+        if not success:
+            return
+
+        self.on_clear()
+
+        self.file_manager.open(path)
 
     def on_close(self) -> None:
         success, confirm_save = self.file_manager.ask_save_changes_if_modified()
