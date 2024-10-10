@@ -83,11 +83,11 @@ class MarkerUI(TimelineUIElement):
     @property
     def seek_time(self):
         return self.get_data("time")
-    
+
     @property
     def width(self):
         return settings.get("marker_timeline", "marker_width")
-    
+
     @property
     def height(self):
         return settings.get("marker_timeline", "marker_height")
@@ -178,7 +178,7 @@ class MarkerUI(TimelineUIElement):
 class MarkerBody(CursorMixIn, QGraphicsPolygonItem):
     def __init__(self, x: float, width: float, height: float, color: str):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
-        self.setPolygon(self.get_polygon(x, width, height))
+        self.set_position(x, width, height)
         self.set_pen_style_no_pen()
         self.set_fill(color)
 
@@ -218,12 +218,7 @@ class MarkerBody(CursorMixIn, QGraphicsPolygonItem):
 
 
 class MarkerLabel(QGraphicsTextItem):
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        text: str,
-    ):
+    def __init__(self, x: float, y: float, text: str):
         super().__init__()
         self._setup_font()
         self.set_text(text)

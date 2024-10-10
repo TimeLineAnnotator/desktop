@@ -29,7 +29,7 @@ class FileManager:
     def _setup_requests(self):
         LISTENS = {
             (Post.PLAYER_URL_CHANGED, self.on_player_url_changed),
-            (Post.FILE_MEDIA_DURATION_CHANGED, self.on_player_duration_changed),
+            (Post.PLAYER_DURATION_AVAILABLE, self.on_player_duration_available),
             (Post.FILE_SAVE, self.on_save_request),
             (Post.FILE_SAVE_AS, self.on_save_as_request),
             (Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request),
@@ -153,6 +153,14 @@ class FileManager:
 
         self.set_media_metadata(MediaMetadata.from_dict(new_metadata))
 
+    def on_player_duration_available(self, _) -> None:
+        playback_times = get(Get.MEDIA_TIMES_PLAYBACK)
+        self.file.media_metadata["playback start"] = playback_times.start
+        self.file.media_metadata["playback end"] = playback_times.end
+        self.file.media_metadata["media length"] = get(
+            Get.MEDIA_TIMES_ABSOLUTE
+        ).duration
+
     def on_import_media_metadata_request(self, path: Path | str) -> None:
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -201,9 +209,6 @@ class FileManager:
 
     def on_player_url_changed(self, path: str | Path) -> None:
         self.file.media_path = str(path)
-
-    def on_player_duration_changed(self, duration: float):
-        self.file.media_metadata["media length"] = duration
 
     def set_media_metadata(self, value: MediaMetadata):
         self.file.media_metadata = value

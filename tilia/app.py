@@ -15,6 +15,7 @@ from tilia.requests import get, post, serve, listen, Get, Post
 from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.undo_manager import PauseUndoManager
+from tilia.ui.dialogs.scale_or_crop import ScaleOrCrop
 
 if TYPE_CHECKING:
     from tilia.media.player import Player
@@ -37,8 +38,9 @@ class App:
         self.clipboard = clipboard
         self.undo_manager = undo_manager
         self.player = player
-        self.duration = 0.0
-        self.should_scale_timelines = 'prompt'
+        self.cached_media_start = 0.0
+        self.cached_media_end = 0.0
+        self.should_scale_timelines = ScaleOrCrop.ActionToTake.PROMPT
         self._setup_timelines()
         self._setup_requests()
 
@@ -54,7 +56,7 @@ class App:
             (Post.APP_STATE_RESTORE, self.on_restore_state),
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_RECORD_STATE, self.on_record_state),
-            (Post.PLAYER_DURATION_AVAILABLE, self.set_file_media_duration),
+            (Post.PLAYER_DURATION_AVAILABLE, self.on_media_duration_changed),
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
             (Post.AUTOSAVES_FOLDER_OPEN, tilia.dirs.open_autosaves_dir),
@@ -64,7 +66,6 @@ class App:
         SERVES = {
             (Get.ID, self.get_id),
             (Get.APP_STATE, self.get_app_state),
-            (Get.MEDIA_DURATION, lambda: self.duration),
         }
 
         for post, callback in LISTENS:
@@ -76,11 +77,25 @@ class App:
     def _setup_timelines(self):
         self.timelines = Timelines(self)
 
-    def set_file_media_duration(self, duration: float, scale_timelines: Literal['yes', 'no', 'prompt'] | None = None) -> None:
+    def update_should_scale_timeline(
+        self, scale_timelines: Literal["yes", "no", "prompt"]
+    ) -> None:
+        match scale_timelines:
+            case "yes":
+                self.should_scale_timelines = ScaleOrCrop.ActionToTake.SCALE
+            case "no":
+                self.should_scale_timelines = ScaleOrCrop.ActionToTake.CROP
+            case "prompt":
+                self.should_scale_timelines = ScaleOrCrop.ActionToTake.PROMPT
+
+    def set_file_media_duration(
+        self,
+        duration: float,
+        scale_timelines: Literal["yes", "no", "prompt"] | None = None,
+    ) -> None:
         if scale_timelines:
-            self.should_scale_timelines = scale_timelines
-        self.on_media_duration_changed(duration)
-        post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+            self.update_should_scale_timeline(scale_timelines)
+        post(Post.FILE_MEDIA_DURATION_CHANGED, duration, 0, duration)
 
     def on_close(self) -> None:
         success, confirm_save = self.file_manager.ask_save_changes_if_modified()
@@ -92,8 +107,13 @@ class App:
 
         post(Post.UI_EXIT, 0)
 
-    def load_media(self, path: str, record: bool = True, scale_timelines: Literal['yes', 'no', 'prompt'] = 'prompt') -> None:
-        self.should_scale_timelines = scale_timelines
+    def load_media(
+        self,
+        path: str,
+        record: bool = True,
+        scale_timelines: Literal["yes", "no", "prompt"] = "prompt",
+    ) -> None:
+        self.update_should_scale_timeline(scale_timelines)
         if not path:
             self.player.unload_media()
             return
@@ -124,29 +144,46 @@ class App:
         """
         return next(self._id_counter)
 
-    def on_media_duration_changed(self, duration: float):
-        if not self.timelines.is_blank and duration != self.duration:
-            crop_or_scale = ''
-            if self.should_scale_timelines == 'prompt':
-                if self.prompt_scale_timelines():
-                    crop_or_scale = 'scale'
-                else:
-                    if duration < self.duration:
-                        if self.prompt_crop_timelines():
-                            crop_or_scale = 'crop'
-                        else:
-                            crop_or_scale = 'scale'
-            elif self.should_scale_timelines == 'yes':
-                crop_or_scale = 'scale'
-            elif duration < self.duration:  # self.should_scale_timelines == 'no'
-                crop_or_scale = 'crop'
+    def on_media_duration_changed(self, _: float):
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
+        if (
+            not self.timelines.is_blank
+            and self.cached_media_end != 0.0
+            and (
+                playback_time.start != self.cached_media_start
+                or playback_time.end != self.cached_media_end
+            )
+        ):
+            self._scale_or_crop_timelines(playback_time)
 
-            if crop_or_scale == 'scale':
-                self.timelines.scale_timeline_components(duration / self.duration)
-            elif crop_or_scale == 'crop':
-                self.timelines.crop_timeline_components(duration)
+        self.cached_media_start = playback_time.start
+        self.cached_media_end = playback_time.end
 
-        self.duration = duration
+    def _scale_or_crop_timelines(self, playback_time):
+        if self.should_scale_timelines == ScaleOrCrop.ActionToTake.PROMPT:
+            success, scale_or_crop = ScaleOrCrop.select(
+                self.cached_media_start,
+                self.cached_media_end,
+                playback_time.start,
+                playback_time.end,
+            )
+            if not success:
+                return
+        else:
+            scale_or_crop = self.should_scale_timelines
+
+        match scale_or_crop:
+            case ScaleOrCrop.ActionToTake.SCALE:
+                self.timelines.scale_timeline_components(
+                    playback_time.duration
+                    / (self.cached_media_end - self.cached_media_start),
+                    self.cached_media_start,
+                    playback_time.start,
+                )
+            case ScaleOrCrop.ActionToTake.CROP:
+                self.timelines.crop_timeline_components(
+                    playback_time.start, playback_time.end
+                )
 
     def prompt_scale_timelines(self):
         scale_prompt = "Would you like to scale existing timelines to new media length?"
@@ -164,9 +201,11 @@ class App:
     def _check_if_media_exists(path: str) -> bool:
         return re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists()
 
-    def _setup_file_media(self, path: str, duration: float | None):
+    def _setup_file_media(
+        self, path: str, duration: float | None, start: float, end: float
+    ):
         if duration:
-            self.set_file_media_duration(duration)
+            post(Post.FILE_MEDIA_DURATION_CHANGED, duration, start, end)
 
         if not self._check_if_media_exists(path):
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
@@ -178,10 +217,12 @@ class App:
     def on_file_load(self, file: TiliaFile) -> None:
         media_path = file.media_path
         media_duration = file.media_metadata.get("media length", None)
-
+        playback_start = file.media_metadata.get("playback start", 0.0)
+        playback_end = file.media_metadata.get("playback end", media_duration)
         if file.media_path or media_duration:
-            self._setup_file_media(media_path, media_duration)
-
+            self._setup_file_media(
+                media_path, media_duration, playback_start, playback_end
+            )
         self.timelines.deserialize_timelines(file.timelines)
         self.setup_file()
 

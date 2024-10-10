@@ -316,7 +316,7 @@ class BeatTimeline(Timeline):
     def set_beat_amount_in_measure(self, measure_index: int, beat_amount: int) -> None:
         new_beats_in_measure = self.beats_in_measure.copy()
         new_beats_in_measure[measure_index] = beat_amount
-        self.set_data('beats_in_measure', new_beats_in_measure)
+        self.set_data("beats_in_measure", new_beats_in_measure)
 
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
@@ -325,10 +325,14 @@ class BeatTimeline(Timeline):
         self._validate_delete_components(components)
 
         for component in list(reversed(components)):
-            self.component_manager.delete_component(component, update_is_first_in_measure=False)
+            self.component_manager.delete_component(
+                component, update_is_first_in_measure=False
+            )
 
         if not self.is_empty:
-            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
+            self.component_manager.update_is_first_in_measure_of_subsequent_beats(
+                0
+            )  # Higher index is possible.
 
 
 class BeatTLComponentManager(TimelineComponentManager):
@@ -376,11 +380,23 @@ class BeatTLComponentManager(TimelineComponentManager):
         *args,
         **kwargs,
     ):
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
         media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        elif time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
+        if playback_time.end != 0 and time > playback_time.end:
+            return (
+                False,
+                f"Time '{time}' is greater than current media time '{playback_time.end}'",
+            )
+        elif playback_time.end == 0 and time > media_duration:
+            return (
+                False,
+                f"Time '{time}' is greater than current media time '{media_duration}'",
+            )
+        elif time < playback_time.start:
+            return (
+                False,
+                f"Time '{time}' is less than current media start time '{playback_time.start}",
+            )
         elif time in self.beat_times:
             return (
                 False,
@@ -430,7 +446,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         if self.timeline is None:
             raise ValueError("self.timeline is None.")
 
-        if measure_index == self.timeline.measure_count - 1:    
+        if measure_index == self.timeline.measure_count - 1:
             tilia.errors.display(tilia.errors.BEAT_DISTRIBUTION_ERROR)
             return
 
@@ -460,8 +476,8 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().deserialize_components(serialized_components)
 
         # But we restore them here.
-        self.timeline.set_data('measure_numbers', measure_numbers)
-        self.timeline.set_data('beats_in_measure', beats_in_measure)
-        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
+        self.timeline.set_data("measure_numbers", measure_numbers)
+        self.timeline.set_data("beats_in_measure", beats_in_measure)
+        self.timeline.set_data("measures_to_force_display", measures_to_force_display)
 
         self.timeline.recalculate_measures()  # Not sure if this is needed.
