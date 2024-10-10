@@ -205,3 +205,36 @@ class TestFileManager:
             post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "nonexistent.json")
 
             post_mock.assert_called()
+
+    def test_metadata_edit_fields(self, tilia):
+        original = list(tilia.file_manager.file.media_metadata)
+        fields = list(tilia.file_manager.file.media_metadata)
+        fields.insert(2, "newfield")
+        post(Post.METADATA_UPDATE_FIELDS, fields)
+        assert list(tilia.file_manager.file.media_metadata)[2] == "newfield"
+
+        fields.pop(2)
+        post(Post.METADATA_UPDATE_FIELDS, fields)
+        assert list(tilia.file_manager.file.media_metadata)[2] != "newfield"
+        assert list(tilia.file_manager.file.media_metadata) == original
+
+    def test_metadata_not_duplicated_required_fields(self, tilia):
+        original = list(tilia.file_manager.file.media_metadata)
+        duplicate = list(tilia.file_manager.file.media_metadata) + ["title"]
+        post(Post.METADATA_UPDATE_FIELDS, duplicate)
+        assert list(tilia.file_manager.file.media_metadata) == original
+
+    def test_metadata_delete_fields(self, tilia):
+        empty_list = []
+        post(Post.METADATA_UPDATE_FIELDS, empty_list)
+        assert list(tilia.file_manager.file.media_metadata) == list(
+            tilia.file_manager.file.media_metadata.REQUIRED_FIELDS)
+
+    def test_metadata_title_stays_on_top(self, tilia):
+        not_so_empty_list = ["newfield"]
+        post(Post.METADATA_UPDATE_FIELDS, not_so_empty_list)
+        assert list(tilia.file_manager.file.media_metadata)[0] == "title"
+
+    def test_metadata_set_field(self, tilia):
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "new title")
+        assert tilia.file_manager.file.media_metadata["title"] == "new title"

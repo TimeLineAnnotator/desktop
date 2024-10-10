@@ -318,6 +318,49 @@ class TestOpen:
         assert len(tls) == 2  # Slider timeline is also created by default
         assert len(tls[0]) == 3
 
+    def test_open_with_path(self, tilia, tls, tmp_path):
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+        post(Post.FILE_OPEN, tmp_file)
+
+        assert len(tls) == 2  # Slider timeline is also created by default
+
+    def test_open_file_does_not_exist(self, tilia, tmp_path, tilia_errors):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        post(Post.FILE_OPEN, tmp_file)
+
+        tilia_errors.assert_error()
+        assert tilia.file_manager.file == prev_file
+
+    def test_open_file_is_not_valid_json(self, tilia, tmp_path, tilia_errors):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        tmp_file.write_text("{")
+        post(Post.FILE_OPEN, tmp_file)
+
+        tilia_errors.assert_error()
+        assert tilia.file_manager.file == prev_file
+
+    def test_open_file_is_not_valid_tla(self, tilia, tmp_path, tilia_errors):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        tmp_file.write_text('{"a": 1, "b": 2}')
+        post(Post.FILE_OPEN, tmp_file)
+
+        tilia_errors.assert_error()
+        assert tilia.file_manager.file == prev_file
+
+    def test_open_file_with_bad_timeline_data(self, tilia, tmp_path, tilia_errors):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        file_data = tests.utils.get_blank_file_data()
+        file_data['timelines'] = {'nonsense': 404}
+        tmp_file.write_text(json.dumps(file_data))
+        post(Post.FILE_OPEN, tmp_file)
+
+        tilia_errors.assert_error()
+        assert tilia.file_manager.file == prev_file
+
     def test_file_not_modified_after_open(self, tilia, tmp_path):
         file_data = tests.utils.get_blank_file_data()
         tl_data = tests.utils.get_dummy_timeline_data()
@@ -326,41 +369,8 @@ class TestOpen:
         file_path.write_text(json.dumps(file_data))
 
         tilia.on_clear()
-        tilia.file_manager.open(file_path)
+        post(Post.FILE_OPEN, file_path)
         assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
-
-    def test_metadata_edit_fields(self, tilia):
-        original = list(tilia.file_manager.file.media_metadata)
-        fields = list(tilia.file_manager.file.media_metadata)
-        fields.insert(2, "newfield")
-        post(Post.METADATA_UPDATE_FIELDS, fields)
-        assert list(tilia.file_manager.file.media_metadata)[2] == "newfield"
-
-        fields.pop(2)
-        post(Post.METADATA_UPDATE_FIELDS, fields)
-        assert list(tilia.file_manager.file.media_metadata)[2] != "newfield"
-        assert list(tilia.file_manager.file.media_metadata) == original
-
-    def test_metadata_not_duplicated_required_fields(self, tilia):
-        original = list(tilia.file_manager.file.media_metadata)
-        duplicate = list(tilia.file_manager.file.media_metadata) + ["title"]
-        post(Post.METADATA_UPDATE_FIELDS, duplicate)
-        assert list(tilia.file_manager.file.media_metadata) == original
-
-    def test_metadata_delete_fields(self, tilia):
-        empty_list = []
-        post(Post.METADATA_UPDATE_FIELDS, empty_list)
-        assert list(tilia.file_manager.file.media_metadata) == list(
-            tilia.file_manager.file.media_metadata.REQUIRED_FIELDS)
-
-    def test_metadata_title_stays_on_top(self, tilia):
-        not_so_empty_list = ["newfield"]
-        post(Post.METADATA_UPDATE_FIELDS, not_so_empty_list)
-        assert list(tilia.file_manager.file.media_metadata)[0] == "title"
-
-    def test_metadata_set_field(self, tilia):
-        post(Post.MEDIA_METADATA_FIELD_SET, "title", "new title")
-        assert tilia.file_manager.file.media_metadata["title"] == "new title"
 
     def test_open_file_with_custom_metadata_fields(self, tilia, tmp_path):
         file_data = """{
@@ -387,7 +397,7 @@ class TestOpen:
 
         tmp_file = tmp_path / "test.tla"
         tmp_file.write_text(file_data, encoding="utf-8")
-        tilia.file_manager.open(tmp_file)
+        post(Post.FILE_OPEN, tmp_file)
 
         assert list(tilia.file_manager.file.media_metadata.items()) == [
             ("test_field1", "a"),
