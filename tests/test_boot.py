@@ -17,9 +17,10 @@ class TestGetInitialFilePath:
     def test_get_initial_file_path_path_with_non_tla_extension(self):
         assert get_initial_file(str(Path(__file__))) == ""
 
-    def test_get_initial_file_path_good_path(self):
-        path = str(Path(__file__).parent / "file" / "test_file.tla")
-        assert Path(get_initial_file(path)) == Path(path)
+    def test_get_initial_file_path_good_path(self, tmp_path):
+        file_path = tmp_path / "test.tla"
+        file_path.touch()
+        assert Path(get_initial_file(str(file_path.resolve()))) == Path(file_path)
 
 
 class TestGetSetupParser:
