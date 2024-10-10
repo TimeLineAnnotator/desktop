@@ -287,3 +287,110 @@ class TestFileSetup:
             
         assert len(tls) == 2
         assert TimelineKind.SLIDER_TIMELINE in tls.timeline_kinds
+
+
+class TestOpen:
+    def test_open_with_timeline(self, tilia, tls, tmp_path, actions):
+        tl_data = tests.utils.get_dummy_timeline_data()
+        tl_id = list(tl_data.keys())[0]
+
+        for i, (start, end, level) in enumerate([(0, 1, 1), (1, 2, 1), (2, 3, 2)]):
+            tl_data[tl_id]["components"][i] = {
+                "start": start,
+                "end": end,
+                "level": level,
+                "comments": "",
+                "label": "Unit 1",
+                "parent": None,
+                "children": [],
+                "kind": "HIERARCHY",
+            }
+
+        file_data = tests.utils.get_blank_file_data()
+        file_data["timelines"] = tl_data
+        file_data["media_metadata"]["media length"] = 100
+
+        tmp_file = tmp_path / "test.tla"
+        tmp_file.write_text(json.dumps(file_data, indent=2))
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
+            actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert len(tls) == 2  # Slider timeline is also created by default
+        assert len(tls[0]) == 3
+
+    def test_file_not_modified_after_open(self, tilia, tmp_path):
+        file_data = tests.utils.get_blank_file_data()
+        tl_data = tests.utils.get_dummy_timeline_data()
+        file_data["timelines"] = tl_data
+        file_path = tmp_path / "test.tla"
+        file_path.write_text(json.dumps(file_data))
+
+        tilia.on_clear()
+        tilia.file_manager.open(file_path)
+        assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
+
+    def test_metadata_edit_fields(self, tilia):
+        original = list(tilia.file_manager.file.media_metadata)
+        fields = list(tilia.file_manager.file.media_metadata)
+        fields.insert(2, "newfield")
+        post(Post.METADATA_UPDATE_FIELDS, fields)
+        assert list(tilia.file_manager.file.media_metadata)[2] == "newfield"
+
+        fields.pop(2)
+        post(Post.METADATA_UPDATE_FIELDS, fields)
+        assert list(tilia.file_manager.file.media_metadata)[2] != "newfield"
+        assert list(tilia.file_manager.file.media_metadata) == original
+
+    def test_metadata_not_duplicated_required_fields(self, tilia):
+        original = list(tilia.file_manager.file.media_metadata)
+        duplicate = list(tilia.file_manager.file.media_metadata) + ["title"]
+        post(Post.METADATA_UPDATE_FIELDS, duplicate)
+        assert list(tilia.file_manager.file.media_metadata) == original
+
+    def test_metadata_delete_fields(self, tilia):
+        empty_list = []
+        post(Post.METADATA_UPDATE_FIELDS, empty_list)
+        assert list(tilia.file_manager.file.media_metadata) == list(
+            tilia.file_manager.file.media_metadata.REQUIRED_FIELDS)
+
+    def test_metadata_title_stays_on_top(self, tilia):
+        not_so_empty_list = ["newfield"]
+        post(Post.METADATA_UPDATE_FIELDS, not_so_empty_list)
+        assert list(tilia.file_manager.file.media_metadata)[0] == "title"
+
+    def test_metadata_set_field(self, tilia):
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "new title")
+        assert tilia.file_manager.file.media_metadata["title"] == "new title"
+
+    def test_open_file_with_custom_metadata_fields(self, tilia, tmp_path):
+        file_data = """{
+  "file_path": "C:/Programa\u00e7\u00e3o/TiLiA/tests/test_metadata_custom_fields.tla",
+  "media_path": "",
+  "media_metadata": {
+    "test_field1": "a",
+    "test_field2": "b",
+    "test_field3": "c"
+
+  },
+  "timelines": {
+    "0": {
+      "is_visible": true,
+      "ordinal": 0,
+      "height": 25,
+      "kind": "SLIDER_TIMELINE",
+      "components": {}
+    }
+  },
+  "app_name": "TiLiA",
+  "version": "0.0.1"
+}"""
+
+        tmp_file = tmp_path / "test.tla"
+        tmp_file.write_text(file_data, encoding="utf-8")
+        tilia.file_manager.open(tmp_file)
+
+        assert list(tilia.file_manager.file.media_metadata.items()) == [
+            ("test_field1", "a"),
+            ("test_field2", "b"),
+            ("test_field3", "c"),
+        ]

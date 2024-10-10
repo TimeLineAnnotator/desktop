@@ -33,7 +33,6 @@ class FileManager:
             (Post.FILE_SAVE, self.on_save_request),
             (Post.FILE_SAVE_AS, self.on_save_as_request),
             (Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request),
-            (Post.FILE_OPEN, self.on_request_open_file),
             (Post.FILE_OPEN_PATH, self.on_request_open_file_path),
             (Post.REQUEST_FILE_NEW, self.on_request_new_file),
             (
@@ -103,18 +102,6 @@ class FileManager:
                 return False  # we shouldn't proceed in that case
 
         return True
-
-    def on_request_open_file(self):
-        if not self.on_close_modified_file():
-            return
-
-        success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
-        if not success:
-            return
-
-        post(Post.APP_CLEAR)
-
-        self.open(path)
 
     def on_request_open_file_path(self, path: str | Path):
         if not self.on_close_modified_file():

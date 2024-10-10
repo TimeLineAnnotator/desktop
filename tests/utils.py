@@ -30,3 +30,16 @@ def get_blank_file_data():
         "app_name": "TiLiA",
         "version": "0.1.1"
     }
+
+
+def get_dummy_timeline_data(id: int = 1) -> dict[str, dict]:
+    return {
+        str(id): {
+            "height": 220,
+            "is_visible": True,
+            "ordinal": 1,
+            "name": "test",
+            "kind": "HIERARCHY_TIMELINE",
+            "components": {},
+        }
+    }

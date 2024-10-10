@@ -1,12 +1,9 @@
 import json
-from pathlib import Path
 from unittest.mock import mock_open
-import pytest
-from tests.mock import PatchPost, PatchGet, PatchGetMultiple, Serve
+from tests.mock import PatchPost, Serve
 from tilia.file.media_metadata import MediaMetadata
 
-import tests.utils
-from tilia.requests import Post, post, stop_listening_to_all, stop_serving_all, Get
+from tilia.requests import Post, post, Get
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.file_manager import FileManager
 from unittest.mock import patch
