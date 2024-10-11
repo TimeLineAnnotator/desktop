@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class SliderTimeline(Timeline):
     SERIALIZABLE_BY_VALUE = ["is_visible", "ordinal", "height"]
     KIND = TimelineKind.SLIDER_TIMELINE
-    FLAGS = [TimelineFlag.NOT_CLEARABLE, TimelineFlag.NOT_DELETABLE]
+    FLAGS = [TimelineFlag.NOT_CLEARABLE, TimelineFlag.NOT_DELETABLE, TimelineFlag.NOT_EXPORTABLE]
 
     @property
     def default_height(self):

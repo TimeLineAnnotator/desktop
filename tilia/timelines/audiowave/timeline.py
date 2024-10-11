@@ -16,7 +16,7 @@ import tilia.errors
 class AudioWaveTimeline(Timeline):
     KIND = TimelineKind.AUDIOWAVE_TIMELINE    
     component_manager: AudioWaveTLComponentManager
-    FLAGS = [TimelineFlag.NOT_CLEARABLE]
+    FLAGS = [TimelineFlag.NOT_CLEARABLE, TimelineFlag.NOT_EXPORTABLE]
 
     @property
     def default_height(self):

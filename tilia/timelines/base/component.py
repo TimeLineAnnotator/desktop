@@ -5,6 +5,7 @@ from typing import Any
 
 from tilia.requests import get, Get
 from tilia.timelines.base.metric_position import MetricPosition, MetricInterval
+from tilia.timelines.base.export import get_export_attributes_point_like, get_export_attributes_extended
 
 from tilia.utils import get_tilia_class_string
 from tilia.exceptions import SetComponentDataError, GetComponentDataError
@@ -82,6 +83,10 @@ class PointLikeTimelineComponent(TimelineComponent):
     def beat(self) -> int | None:
         return self.metric_position.beat if self.metric_position else None
 
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        return get_export_attributes_point_like(cls)
+
 
 class SegmentLikeTimelineComponent(TimelineComponent):
     start: float
@@ -97,7 +102,7 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         end_metric_position = self.end_metric_position
         if not start_metric_position:
             return None
-        return end_metric_position - start_metric_position
+        return MetricInterval(end_metric_position - start_metric_position)
 
     @property
     def length_in_measures(self) -> tuple[int, int] | None:
@@ -132,3 +137,7 @@ class SegmentLikeTimelineComponent(TimelineComponent):
     @property
     def end_beat(self) -> int | None:
         return self.end_metric_position.beat if self.end_metric_position else None
+
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        return get_export_attributes_extended(cls)
