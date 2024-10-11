@@ -18,9 +18,10 @@ from tilia.ui.cli import (
     save,
     io,
     metadata,
-    generate_scripts
+    generate_scripts,
+    open,
 )
-from tilia.ui.cli.io import ask_yes_or_no
+from tilia.ui.cli.io import ask_yes_or_no, ask_for_directory
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
 
 
@@ -36,8 +37,8 @@ class CLI:
         )  # ignores error title
 
         serve(self, Get.PLAYER_CLASS, self.get_player_class)
-
         serve(self, Get.FROM_USER_YES_OR_NO, on_ask_yes_or_no)
+        serve(self, Get.FROM_USER_SHOULD_SAVE_CHANGES, on_ask_should_save_changes)
 
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
@@ -48,6 +49,7 @@ class CLI:
         metadata.setup_parser(self.subparsers)
         generate_scripts.setup_parser(self.subparsers, self.parse_and_run)
         script.setup_parser(self.subparsers, self.parse_and_run)
+        open.setup_parser(self.subparsers)
 
     @staticmethod
     def parse_command(arg_string):
@@ -137,3 +139,7 @@ class CLI:
 
 def on_ask_yes_or_no(title: str, prompt: str) -> bool:
     return ask_yes_or_no(f'{title}: {prompt}')
+
+
+def on_ask_should_save_changes() -> tuple[bool, bool]:
+    return True, ask_yes_or_no(f'Save changes to current file?')
