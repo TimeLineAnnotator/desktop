@@ -171,12 +171,6 @@ class FileManager:
         write_tilia_file_to_disk(TiliaFile(**data), str(path))
         data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
         self.file = TiliaFile(**data)
-        try:
-            settings.update_recent_files(
-                path, get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
-            )
-        except tilia.exceptions.NoReplyToRequest:
-            settings.update_recent_files(path, None, None)
 
     def new(self):
         self.file = TiliaFile()
