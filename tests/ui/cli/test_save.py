@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from io import StringIO
 
-from tilia.ui.cli.save import ensure_tla_extension
+from tilia.ui.path import ensure_tla_extension
 
 
 @pytest.mark.parametrize(

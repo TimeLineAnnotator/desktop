@@ -33,7 +33,7 @@ def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
         tilia.errors.display(tilia.errors.OPEN_FILE_INVALID_TLA, file_path, reason)
         return False, None
 
-    data["file_path"] = file_path
+    data["file_path"] = file_path if isinstance(file_path, str) else str(file_path.resolve())
     return True, TiliaFile(**data)
 
 
