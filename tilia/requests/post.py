@@ -37,6 +37,7 @@ class Post(Enum):
     EXPLORER_LOAD_MEDIA = auto()
     EXPLORER_PLAY = auto()
     EXPLORER_SEARCH = auto()
+    FILE_EXPORT = auto()
     FILE_MEDIA_DURATION_CHANGED = auto()
     FILE_OPEN = auto()
     FILE_SAVE = auto()
