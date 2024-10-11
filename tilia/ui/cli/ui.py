@@ -19,7 +19,7 @@ from tilia.ui.cli import (
     io,
     metadata,
     generate_scripts,
-    open,
+    open, export,
 )
 from tilia.ui.cli.io import ask_yes_or_no, ask_for_directory
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
@@ -50,6 +50,7 @@ class CLI:
         generate_scripts.setup_parser(self.subparsers, self.parse_and_run)
         script.setup_parser(self.subparsers, self.parse_and_run)
         open.setup_parser(self.subparsers)
+        export.setup_parser(self.subparsers)
 
     @staticmethod
     def parse_command(arg_string):

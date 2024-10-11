@@ -17,7 +17,7 @@ from tilia.timelines.timeline_kinds import (
     TimelineKind,
     get_timeline_kind_from_string,
 )
-from tilia.timelines.base.timeline import Timeline
+from tilia.timelines.base.timeline import Timeline, TimelineFlag
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTimeline,
     HierarchyTLComponentManager,
@@ -261,7 +261,7 @@ class Timelines:
             )
 
     def get_export_data(self):
-        return [tl.get_export_data() for tl in self if tl.KIND != TlKind.SLIDER_TIMELINE]
+        return [tl.get_export_data() for tl in self if TimelineFlag.NOT_EXPORTABLE not in tl.FLAGS]
 
     def serialize_timelines(self):
         return {tl.id: tl.get_state() for tl in self}

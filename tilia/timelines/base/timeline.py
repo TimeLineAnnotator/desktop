@@ -229,7 +229,7 @@ class Timeline(ABC, Generic[TC]):
         result['component_attributes'] = self.component_manager.get_component_attributes()
         for kind in self.component_manager.component_kinds:
             components = self.component_manager.get_components_by_condition(lambda _: True, kind)
-            result['components'][kind.name] = [[getattr(comp, attr) for attr in comp.SERIALIZABLE_BY_VALUE] for comp in components]
+            result['components'][kind.name] = [[getattr(comp, attr) for attr in comp.get_export_attributes()] for comp in components]
 
         return result
 
@@ -430,10 +430,11 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def get_component_attributes(self) -> dict[str, list[str]]:
         return {
-            kind.name: self._get_component_class_by_kind(kind).SERIALIZABLE_BY_VALUE for kind in self.component_kinds
+            kind.name: self._get_component_class_by_kind(kind).get_export_attributes() for kind in self.component_kinds
         }
 
 
 class TimelineFlag(StrEnum):
     NOT_CLEARABLE = auto()
     NOT_DELETABLE = auto()
+    NOT_EXPORTABLE = auto()

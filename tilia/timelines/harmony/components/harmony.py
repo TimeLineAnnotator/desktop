@@ -6,7 +6,7 @@ import music21
 import re
 
 import tilia.errors
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_time, validate_string
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.constants import get_inversion_amount
@@ -28,7 +28,7 @@ from tilia.ui.timelines.harmony.constants import (
 )
 
 
-class Harmony(TimelineComponent):
+class Harmony(PointLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = [
         "time",
         "comments",

@@ -11,10 +11,10 @@ from tilia.timelines.component_kinds import ComponentKind
 if TYPE_CHECKING:
     from tilia.timelines.pdf.timeline import PdfTimeline
 
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import PointLikeTimelineComponent
 
 
-class PdfMarker(TimelineComponent):
+class PdfMarker(PointLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = ["time", "page_number"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []

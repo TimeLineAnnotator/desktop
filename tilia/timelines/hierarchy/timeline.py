@@ -107,10 +107,8 @@ class HierarchyTimeline(Timeline):
 
 
 class HierarchyTLComponentManager(TimelineComponentManager):
-    COMPONENT_TYPES = [ComponentKind.HIERARCHY]
-
     def __init__(self):
-        super().__init__(self.COMPONENT_TYPES)
+        super().__init__([ComponentKind.HIERARCHY])
 
     def _validate_component_creation(
         self, _, start: float, end: float, *args, **kwargs
