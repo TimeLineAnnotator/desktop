@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import music21
 
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_time, validate_string
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.validators import (
@@ -19,7 +19,7 @@ from tilia.ui.timelines.harmony.constants import (
 )
 
 
-class Mode(TimelineComponent):
+class Mode(PointLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = ["time", "step", "accidental", "type", "comments", "level"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []

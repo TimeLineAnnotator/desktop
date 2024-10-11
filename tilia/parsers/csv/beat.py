@@ -20,7 +20,7 @@ def beats_from_csv(
     Create beat in a timeline from times extracted from a csv file.
     Assumes the first row of the file will contain headers.
     At least 'time' should be present.
-    'measure_number' and 'is_first_in_measure' are optional.
+    'measure' and 'is_first_in_measure' are optional.
     Returns an array with descriptions of any CreateComponentErrors
     raised during beat creation.
 
@@ -28,8 +28,8 @@ def beats_from_csv(
     """
 
     errors = []
-    params = ["is_first_in_measure", "measure_number", "time"]
-    optional_params = ["is_first_in_measure", "measure_number"]
+    params = ["is_first_in_measure", "measure", "time"]
+    optional_params = ["is_first_in_measure", "measure"]
     parsers = [str, int, float]
     params_to_indices = []
 
@@ -107,8 +107,8 @@ def beats_from_csv(
                     current_beat += 1
 
                 if (
-                    params_to_indices.get("measure_number")
-                    and row[params_to_indices["measure_number"]] != ""
+                    params_to_indices.get("measure")
+                    and row[params_to_indices["measure"]] != ""
                     and (
                         # measure numbers are considered if is_first_in_measure is true
                         # or if is_first_in_measure is not present
@@ -116,7 +116,7 @@ def beats_from_csv(
                         or row[params_to_indices['is_first_in_measure']].lower() == 'true'
                     )
                 ):
-                    current_measure = int(row[params_to_indices["measure_number"]])
+                    current_measure = int(row[params_to_indices["measure"]])
                     measures_to_force_display.append(len(measure_numbers))
 
             beats_in_measure.append(current_beat)

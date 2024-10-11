@@ -98,7 +98,7 @@ class BeatUI(TimelineUIElement):
         if self.get_data(
             "is_first_in_measure"
         ) and self.timeline_ui.should_display_measure_number(self):
-            return str(self.get_data("measure_number"))
+            return str(self.get_data("measure"))
         else:
             return ""
 
@@ -200,7 +200,7 @@ class BeatUI(TimelineUIElement):
     def get_inspector_dict(self) -> dict:
         return {
             "Time": format_media_time(self.time),
-            "Measure": str(self.get_data("measure_number")),
+            "Measure": str(self.get_data("measure")),
         }
 
 

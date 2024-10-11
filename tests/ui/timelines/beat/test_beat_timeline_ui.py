@@ -250,7 +250,7 @@ class TestOther:
         }
 
         for i, beat in enumerate(sorted(beat_tlui)):
-            assert beat.get_data("measure_number") == expected_measure_numbers[i]
+            assert beat.get_data("measure") == expected_measure_numbers[i]
 
 
 DUMMY_MEASURE_NUMBER = 11
