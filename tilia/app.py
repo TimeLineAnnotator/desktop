@@ -1,5 +1,6 @@
 from __future__ import annotations
 import itertools
+import json
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -57,6 +58,7 @@ class App:
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_RECORD_STATE, self.on_record_state),
             (Post.FILE_OPEN, self.on_open),
+            (Post.FILE_EXPORT, self.on_export),
             (Post.PLAYER_DURATION_AVAILABLE, self.set_file_media_duration),
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
@@ -124,6 +126,18 @@ class App:
             geometry, window_state = None, None
 
         settings.update_recent_files(self.file_manager.get_file_path(), geometry, window_state)
+
+    def on_export(self, path: Path | str | None = None) -> None:
+        if isinstance(path, str):
+            path = Path(path)
+
+        if not path:
+            success, path = get(Get.FROM_USER_EXPORT_PATH, get(Get.MEDIA_TITLE))
+            if not success:
+                return
+
+        with open(path, "w") as f:
+            json.dump(self.get_export_data(), f, indent=2)
 
     def on_close(self) -> None:
         success, confirm_save = self.file_manager.ask_save_changes_if_modified()
@@ -265,6 +279,13 @@ class App:
             "app_name": tilia.constants.APP_NAME,
         }
         return params
+
+    def get_export_data(self):
+        return {
+            'timelines': self.timelines.get_export_data(),
+            "media_metadata": dict(self.file_manager.file.media_metadata),
+            "media_path": get(Get.MEDIA_PATH),
+        }
 
     def setup_file(self):
         # creates a slider timeline if none was loaded
