@@ -259,6 +259,9 @@ class Timelines:
                 " self._timelines."
             )
 
+    def get_export_data(self):
+        return [tl.get_export_data() for tl in self if tl.KIND != TlKind.SLIDER_TIMELINE]
+
     def serialize_timelines(self):
         return {tl.id: tl.get_state() for tl in self}
 

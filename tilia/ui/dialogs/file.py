@@ -49,6 +49,12 @@ def ask_for_path_to_save_ogg_file(title: str, initial_name: str) -> tuple[str, s
     )
 
 
+def ask_for_path_to_export(initial_name: str) -> tuple[str, str]:
+    return QFileDialog().getSaveFileName(
+        caption='Export to', directory=initial_name, filter="JSON files (*.json)"
+    )
+
+
 def ask_for_pdf_file():
     dialog = QFileDialog()
     dialog.setWindowTitle('Choose PDF')

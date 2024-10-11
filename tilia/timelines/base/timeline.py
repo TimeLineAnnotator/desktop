@@ -202,18 +202,36 @@ class Timeline(ABC, Generic[TC]):
     def deserialize_components(self, components: dict[int, dict[str]]):
         return self.component_manager.deserialize_components(components)
 
-    def get_state(self) -> dict:
-        """Creates a dict with timeline components and attributes."""
+    def _get_base_state(self) -> dict:
+        """Returns a dict with serializable timeline attributes, excluding components."""
         state = {}
         for attr in self.SERIALIZABLE_BY_VALUE:
             if isinstance(value := getattr(self, attr), list):
                 value = value.copy()
             state[attr] = value
 
-        state["components"] = self.component_manager.serialize_components()
         state["kind"] = self.KIND.name
 
         return state
+
+    def get_state(self) -> dict:
+        """Creates a dict with timeline components and attributes."""
+        state = self._get_base_state()
+        state["components"] = self.component_manager.serialize_components()
+
+        return state
+
+    def get_export_data(self) -> dict[str, Any]:
+        result = self._get_base_state()
+
+        result["component_kinds"] = [kind.name for kind in self.component_manager.component_kinds]
+        result["components"] = {name: [] for name in result['component_kinds']}
+        result['component_attributes'] = self.component_manager.get_component_attributes()
+        for kind in self.component_manager.component_kinds:
+            components = self.component_manager.get_components_by_condition(lambda _: True, kind)
+            result['components'][kind.name] = [[getattr(comp, attr) for attr in comp.SERIALIZABLE_BY_VALUE] for comp in components]
+
+        return result
 
     def update_component_order(self, component: TC):
         self.component_manager.update_component_order(component)
@@ -409,6 +427,11 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def scale(self, length: float) -> None:
         raise NotImplementedError
+
+    def get_component_attributes(self) -> dict[str, list[str]]:
+        return {
+            kind.name: self._get_component_class_by_kind(kind).SERIALIZABLE_BY_VALUE for kind in self.component_kinds
+        }
 
 
 class TimelineFlag(StrEnum):
