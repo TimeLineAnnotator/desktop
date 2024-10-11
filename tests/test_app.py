@@ -409,3 +409,66 @@ class TestOpen:
             ("test_field2", "b"),
             ("test_field3", "c"),
         ]
+
+    def test_open_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
+        previous_path = tmp_path / "previous.tla"
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+            post(Post.FILE_SAVE)
+
+        # make change
+        marker_tlui.create_marker(10)
+        prev_tl_id = marker_tlui.id
+        prev_marker_id = marker_tlui[0].id
+
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)):
+            post(Post.FILE_OPEN, tmp_file)
+
+        with open(previous_path, "r", encoding="utf-8") as f:
+            contents = json.load(f)  # read contents
+
+        assert len(tls) == 2  # assert load was successful
+        assert contents['timelines'][str(prev_tl_id)]['components'][str(prev_marker_id)]['time'] == 10
+
+    def test_open_without_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
+        previous_path = tmp_path / "previous.tla"
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+            post(Post.FILE_SAVE)
+
+        # make change
+        marker_tlui.create_marker(10)
+        prev_tl_id = marker_tlui.id
+
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            post(Post.FILE_OPEN, tmp_file)
+
+        with open(previous_path, "r", encoding="utf-8") as f:
+            contents = json.load(f)  # read contents
+
+        assert len(tls) == 2  # assert load was successful
+        assert len(list(contents['timelines'][str(prev_tl_id)]['components'])) == 0
+
+    def test_open_canceling_should_save_changes_dialog(self, tilia, tls, marker_tlui, tmp_path):
+        previous_path = tmp_path / "previous.tla"
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+            post(Post.FILE_SAVE)
+
+        # make change
+        marker_tlui.create_marker(10)
+
+        prev_state = tilia.get_app_state()
+
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)):
+            post(Post.FILE_OPEN, tmp_file)
+
+        with open(previous_path, "r", encoding="utf-8") as f:
+            contents = json.load(f)  # read contents
+
+        assert len(tls) == 1  # assert file wasn't opened
+        assert tilia.get_app_state() == prev_state
+
