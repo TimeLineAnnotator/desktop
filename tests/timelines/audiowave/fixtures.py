@@ -34,3 +34,8 @@ def audiowave_tlui(tilia, tls, tluis) -> TestAudioWaveTimelineUI:
 @pytest.fixture
 def audiowave_tl(audiowave_tlui):
     return audiowave_tlui.timeline
+
+
+@pytest.fixture
+def amplitudebar(audiowave_tl):
+    return audiowave_tl.create_amplitudebar(0, 1, 0.5)[0]

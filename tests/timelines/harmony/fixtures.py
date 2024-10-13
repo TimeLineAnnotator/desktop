@@ -58,9 +58,13 @@ def harui(harmony_tlui):
 
 
 @pytest.fixture
-def har(harmony_tlui):
-    _mrk, _ = harmony_tlui.create_harmony(0)
-    return _mrk
+def harmony(harmony_tl):
+    return harmony_tl.create_harmony()[0]
+
+
+@pytest.fixture
+def mode(harmony_tl):
+    return harmony_tl.create_mode()[0]
 
 
 @pytest.fixture
