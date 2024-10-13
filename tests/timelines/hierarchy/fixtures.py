@@ -42,3 +42,8 @@ def hierarchy_tl(tls):
     tl.create_hierarchy = functools.partial(tl.create_component, ComponentKind.HIERARCHY)
     tl.relate_hierarchies = relate_hierarchies
     return tl
+
+
+@pytest.fixture
+def hierarchy(hierarchy_tl):
+    return hierarchy_tl.create_hierarchy(0, 1, 1)[0]

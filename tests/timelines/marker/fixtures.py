@@ -32,7 +32,7 @@ def mrkui(marker_tlui):
 
 
 @pytest.fixture
-def mrk(marker_tlui):
+def marker(marker_tlui):
     marker_tlui.create_marker(0)
     return marker_tlui.timeline[0]
 

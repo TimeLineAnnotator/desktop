@@ -25,8 +25,13 @@ def beat_tl(tls):
         if error:
             raise ValueError(f'Unable to create beat: {error}')
         tl.recalculate_measures()
-        return None, None
+        return beat, None
 
     tl.create_beat = create_beat
 
     yield tl
+
+
+@pytest.fixture
+def beat(beat_tl):
+    return beat_tl.create_beat(0)[0]

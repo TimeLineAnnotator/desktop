@@ -267,3 +267,25 @@ def user_actions():
     """
     action_manager = UserActionManager()
     yield action_manager
+
+
+def parametrize_tl(func):
+    """Adds a parameter 'tl' to a test that receives the name of a fixture that returns a component.
+     To get the timeline from inside the test, add the `request` fixture to its arguments and
+     run `request.getfixturevalue('tl')`"""
+    @pytest.mark.parametrize('tl', ['audiowave_tl', 'beat_tl', 'harmony_tl', 'hierarchy_tl', 'marker_tl', 'pdf_tl', 'slider_tl'])
+    @functools.wraps(func)  # Preserve original function metadata
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def parametrize_component(func):
+    """Adds a parameter 'comp' to a test that receives the name of a fixture that returns a component.
+     To get the component from the test, add the `request` fixture to its arguments and
+     run `request.getfixturevalue('comp')`"""
+    @pytest.mark.parametrize('comp', ['amplitudebar', 'beat', 'harmony', 'hierarchy', 'marker', 'pdf_marker'])
+    @functools.wraps(func)  # Preserve original function metadata
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
