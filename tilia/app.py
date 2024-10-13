@@ -1,5 +1,6 @@
 from __future__ import annotations
 import itertools
+import json
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -15,6 +16,8 @@ from tilia.requests import get, post, serve, listen, Get, Post
 from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.undo_manager import PauseUndoManager
+from tilia.file.file_manager import open_tla
+from tilia.settings import settings
 
 if TYPE_CHECKING:
     from tilia.media.player import Player
@@ -54,6 +57,8 @@ class App:
             (Post.APP_STATE_RESTORE, self.on_restore_state),
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_RECORD_STATE, self.on_record_state),
+            (Post.FILE_OPEN, self.on_open),
+            (Post.FILE_EXPORT, self.on_export),
             (Post.PLAYER_DURATION_AVAILABLE, self.set_file_media_duration),
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
@@ -81,6 +86,58 @@ class App:
             self.should_scale_timelines = scale_timelines
         self.on_media_duration_changed(duration)
         post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+
+    def on_open(self, path: Path | str | None = None) -> None:
+        if isinstance(path, str):
+            path = Path(path)
+
+        if self.file_manager.is_file_modified(self.get_app_state()):
+            success, should_save = get(Get.FROM_USER_SHOULD_SAVE_CHANGES)
+            if not success:
+                return
+
+            if should_save:
+                post(Post.FILE_SAVE)
+
+        if not path:
+            success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
+            if not success:
+                return
+        prev_state = self.get_app_state()
+        self.on_clear()
+
+        success, file = open_tla(path)
+        if not success:
+            self.on_restore_state(prev_state)
+            return
+
+        success = self.on_file_load(file)
+        if not success:
+            self.on_restore_state(prev_state)
+            return
+
+        self.file_manager.file = file
+        self.update_recent_files()
+
+    def update_recent_files(self):
+        try:
+            geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
+        except tilia.exceptions.NoReplyToRequest:
+            geometry, window_state = None, None
+
+        settings.update_recent_files(self.file_manager.get_file_path(), geometry, window_state)
+
+    def on_export(self, path: Path | str | None = None) -> None:
+        if isinstance(path, str):
+            path = Path(path)
+
+        if not path:
+            success, path = get(Get.FROM_USER_EXPORT_PATH, get(Get.MEDIA_TITLE))
+            if not success:
+                return
+
+        with open(path, "w") as f:
+            json.dump(self.get_export_data(), f, indent=2)
 
     def on_close(self) -> None:
         success, confirm_save = self.file_manager.ask_save_changes_if_modified()
@@ -175,15 +232,21 @@ class App:
 
         self.load_media(path)
 
-    def on_file_load(self, file: TiliaFile) -> None:
+    def on_file_load(self, file: TiliaFile) -> bool:
         media_path = file.media_path
         media_duration = file.media_metadata.get("media length", None)
 
-        if file.media_path or media_duration:
-            self._setup_file_media(media_path, media_duration)
+        try:
+            if file.media_path or media_duration:
+                self._setup_file_media(media_path, media_duration)
 
-        self.timelines.deserialize_timelines(file.timelines)
-        self.setup_file()
+            self.timelines.deserialize_timelines(file.timelines)
+            self.setup_file()
+        except Exception as exc:
+            tilia.errors.display(tilia.errors.LOAD_FILE_ERROR, file.file_path, exc)
+            return False
+
+        return True
 
     def on_clear(self) -> None:
         self.timelines.clear()
@@ -216,6 +279,13 @@ class App:
             "app_name": tilia.constants.APP_NAME,
         }
         return params
+
+    def get_export_data(self):
+        return {
+            'timelines': self.timelines.get_export_data(),
+            "media_metadata": dict(self.file_manager.file.media_metadata),
+            "media_path": get(Get.MEDIA_PATH),
+        }
 
     def setup_file(self):
         # creates a slider timeline if none was loaded

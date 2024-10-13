@@ -12,6 +12,7 @@ import pytest
 import tests.utils
 from tests.mock import Serve, PatchPost
 from tilia.media.player import YouTubePlayer, QtAudioPlayer
+from tilia.settings import settings
 
 from tilia.requests import Get, Post, post
 from tilia.ui.actions import TiliaAction
@@ -289,3 +290,187 @@ class TestFileSetup:
             
         assert len(tls) == 2
         assert TimelineKind.SLIDER_TIMELINE in tls.timeline_kinds
+
+
+def assert_open_failed(tilia, tilia_errors, opened_file_path, prev_file):
+    tilia_errors.assert_error()
+    assert settings.get_recent_files()[0] != opened_file_path
+    assert tilia.file_manager.file == prev_file
+
+
+class TestOpen:
+    def test_open_with_timeline(self, tilia, tls, tmp_path, actions):
+        tl_data = tests.utils.get_dummy_timeline_data()
+        tl_id = list(tl_data.keys())[0]
+
+        for i, (start, end, level) in enumerate([(0, 1, 1), (1, 2, 1), (2, 3, 2)]):
+            tl_data[tl_id]["components"][i] = {
+                "start": start,
+                "end": end,
+                "level": level,
+                "comments": "",
+                "label": "Unit 1",
+                "parent": None,
+                "children": [],
+                "kind": "HIERARCHY",
+            }
+
+        file_data = tests.utils.get_blank_file_data()
+        file_data["timelines"] = tl_data
+        file_data["media_metadata"]["media length"] = 100
+
+        tmp_file = tmp_path / "test.tla"
+        tmp_file.write_text(json.dumps(file_data, indent=2))
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
+            actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert settings.get_recent_files()[0] == tmp_file
+        assert len(tls) == 2  # Slider timeline is also created by default
+        assert len(tls[0]) == 3
+
+    def test_open_with_path(self, tilia, tls, tmp_path):
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+        post(Post.FILE_OPEN, tmp_file)
+
+        assert settings.get_recent_files()[0] == tmp_file
+        assert len(tls) == 2  # Slider timeline is also created by default
+
+    def test_open_file_does_not_exist(self, tilia, tmp_path, tilia_errors):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        post(Post.FILE_OPEN, tmp_file)
+
+        assert_open_failed(tilia, tilia_errors, tmp_file, prev_file)
+
+    def test_open_file_is_not_valid_json(self, tilia, tmp_path, tilia_errors):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        tmp_file.write_text("{")
+        post(Post.FILE_OPEN, tmp_file)
+
+        assert_open_failed(tilia, tilia_errors, tmp_file, prev_file)
+
+    def test_open_file_is_not_valid_tla(self, tilia, tmp_path, tilia_errors):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        tmp_file.write_text('{"a": 1, "b": 2}')
+        post(Post.FILE_OPEN, tmp_file)
+
+        assert_open_failed(tilia, tilia_errors, tmp_file, prev_file)
+
+    def test_open_file_with_bad_timeline_data(self, tilia, tmp_path, tilia_errors):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        file_data = tests.utils.get_blank_file_data()
+        file_data['timelines'] = {'nonsense': 404}
+        tmp_file.write_text(json.dumps(file_data))
+        post(Post.FILE_OPEN, tmp_file)
+
+        assert_open_failed(tilia, tilia_errors, tmp_file, prev_file)
+
+    def test_file_not_modified_after_open(self, tilia, tmp_path):
+        file_data = tests.utils.get_blank_file_data()
+        tl_data = tests.utils.get_dummy_timeline_data()
+        file_data["timelines"] = tl_data
+        file_path = tmp_path / "test.tla"
+        file_path.write_text(json.dumps(file_data))
+
+        tilia.on_clear()
+        post(Post.FILE_OPEN, file_path)
+        assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
+
+    def test_open_file_with_custom_metadata_fields(self, tilia, tmp_path):
+        file_data = """{
+  "file_path": "C:/Programa\u00e7\u00e3o/TiLiA/tests/test_metadata_custom_fields.tla",
+  "media_path": "",
+  "media_metadata": {
+    "test_field1": "a",
+    "test_field2": "b",
+    "test_field3": "c"
+
+  },
+  "timelines": {
+    "0": {
+      "is_visible": true,
+      "ordinal": 0,
+      "height": 25,
+      "kind": "SLIDER_TIMELINE",
+      "components": {}
+    }
+  },
+  "app_name": "TiLiA",
+  "version": "0.0.1"
+}"""
+
+        tmp_file = tmp_path / "test.tla"
+        tmp_file.write_text(file_data, encoding="utf-8")
+        post(Post.FILE_OPEN, tmp_file)
+
+        assert list(tilia.file_manager.file.media_metadata.items()) == [
+            ("test_field1", "a"),
+            ("test_field2", "b"),
+            ("test_field3", "c"),
+        ]
+
+    def test_open_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
+        previous_path = tmp_path / "previous.tla"
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+            post(Post.FILE_SAVE)
+
+        # make change
+        marker_tlui.create_marker(10)
+        prev_tl_id = marker_tlui.id
+        prev_marker_id = marker_tlui[0].id
+
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)):
+            post(Post.FILE_OPEN, tmp_file)
+
+        with open(previous_path, "r", encoding="utf-8") as f:
+            contents = json.load(f)  # read contents
+
+        assert len(tls) == 2  # assert load was successful
+        assert contents['timelines'][str(prev_tl_id)]['components'][str(prev_marker_id)]['time'] == 10
+
+    def test_open_without_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
+        previous_path = tmp_path / "previous.tla"
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+            post(Post.FILE_SAVE)
+
+        # make change
+        marker_tlui.create_marker(10)
+        prev_tl_id = marker_tlui.id
+
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            post(Post.FILE_OPEN, tmp_file)
+
+        with open(previous_path, "r", encoding="utf-8") as f:
+            contents = json.load(f)  # read contents
+
+        assert len(tls) == 2  # assert load was successful
+        assert len(list(contents['timelines'][str(prev_tl_id)]['components'])) == 0
+
+    def test_open_canceling_should_save_changes_dialog(self, tilia, tls, marker_tlui, tmp_path):
+        previous_path = tmp_path / "previous.tla"
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+            post(Post.FILE_SAVE)
+
+        # make change
+        marker_tlui.create_marker(10)
+
+        prev_state = tilia.get_app_state()
+
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)):
+            post(Post.FILE_OPEN, tmp_file)
+
+        with open(previous_path, "r", encoding="utf-8") as f:
+            contents = json.load(f)  # read contents
+
+        assert len(tls) == 1  # assert file wasn't opened
+        assert tilia.get_app_state() == prev_state
+

@@ -9,10 +9,32 @@ from tilia.exceptions import (
 import tilia.exceptions
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
-from tilia.file.tilia_file import TiliaFile
+from tilia.file.tilia_file import TiliaFile, validate_tla_data
 from tilia.file.media_metadata import MediaMetadata
 from tilia.settings import settings
 import tilia.errors
+
+
+def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        tilia.errors.display(tilia.errors.OPEN_FILE_NOT_FOUND, file_path)
+        return False, None
+    except json.decoder.JSONDecodeError as err:
+        tilia.errors.display(
+            tilia.errors.OPEN_FILE_INVALID_TLA, file_path, 'File is not valid JSON.',
+        )
+        return False, None
+
+    valid, reason = validate_tla_data(data)
+    if not valid:
+        tilia.errors.display(tilia.errors.OPEN_FILE_INVALID_TLA, file_path, reason)
+        return False, None
+
+    data["file_path"] = file_path
+    return True, TiliaFile(**data)
 
 
 class FileManager:
@@ -33,8 +55,6 @@ class FileManager:
             (Post.FILE_SAVE, self.on_save_request),
             (Post.FILE_SAVE_AS, self.on_save_as_request),
             (Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request),
-            (Post.FILE_OPEN, self.on_request_open_file),
-            (Post.FILE_OPEN_PATH, self.on_request_open_file_path),
             (Post.REQUEST_FILE_NEW, self.on_request_new_file),
             (
                 Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH,
@@ -104,31 +124,6 @@ class FileManager:
 
         return True
 
-    def on_request_open_file(self):
-        if not self.on_close_modified_file():
-            return
-
-        success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
-        if not success:
-            return
-
-        post(Post.APP_CLEAR)
-
-        self.open(path)
-
-    def on_request_open_file_path(self, path: str | Path):
-        if not self.on_close_modified_file():
-            return
-
-        post(Post.APP_CLEAR)
-
-        try:
-            self.open(path)
-        except FileNotFoundError:
-            tilia.errors.display(tilia.errors.FILE_NOT_FOUND, path)
-            settings.remove_from_recent_files(path)
-            post(Post.APP_SETUP_FILE)
-
     def on_request_new_file(self):
         if not self.on_close_modified_file():
             return
@@ -176,20 +171,6 @@ class FileManager:
         write_tilia_file_to_disk(TiliaFile(**data), str(path))
         data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
         self.file = TiliaFile(**data)
-        try:
-            settings.update_recent_files(
-                path, get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
-            )
-        except tilia.exceptions.NoReplyToRequest:
-            settings.update_recent_files(path, None, None)
-
-    def open(self, file_path: str | Path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        data["file_path"] = file_path
-        self.file = TiliaFile(**data)
-        post(Post.APP_FILE_LOAD, self.file)
 
     def new(self):
         self.file = TiliaFile()
