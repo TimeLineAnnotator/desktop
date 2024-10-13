@@ -64,3 +64,8 @@ class TimelineComponent(ABC):
     def get_data(self, attr: str):
         if self.validate_get_data(attr):
             return getattr(self, attr)
+
+    @classmethod
+    @abstractmethod
+    def get_export_attributes(cls) -> list[str]:
+        ...

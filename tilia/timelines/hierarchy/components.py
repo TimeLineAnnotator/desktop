@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from tilia.timelines.base.export import get_export_attributes_extended
 from tilia.timelines.base.validators import (
     validate_time,
     validate_string,
@@ -112,6 +113,10 @@ class Hierarchy(TimelineComponent):
         self._end = value
         if self.post_end < value or self.post_end == prev_end:
             self.post_end = value
+
+    @classmethod
+    def get_export_attributes(self) -> list[str]:
+        return get_export_attributes_extended(self)
 
     def __repr__(self):
         repr_ = f"Hierarchy({self.start}, {self.end}, {self.level}"

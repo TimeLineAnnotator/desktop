@@ -5,6 +5,7 @@ from tests.mock import Serve
 from tilia.requests import post, Post, Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Harmony, Mode
+from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.marker.components import Marker
 from tilia.ui.actions import TiliaAction
 
@@ -77,3 +78,38 @@ def test_export_without_path(tilia, tmp_path):
         post(Post.FILE_EXPORT)
 
     assert tmp_file.exists()
+
+
+def test_export_attributes_are_present(tilia, hierarchy_tl, tmp_path):
+    hierarchy_tl.create_hierarchy(start=0, end=1, level=1)
+
+    tmp_file = tmp_path / "test.json"
+
+    post(Post.FILE_EXPORT, tmp_file)
+
+    with open(tmp_file, encoding='utf-8') as f:
+        data = json.load(f)
+
+    exported_attributes = data['timelines'][0]['component_attributes'][Hierarchy.KIND.name]
+    expected = [
+        'start',
+        'pre_start',
+        'end',
+        'post_end',
+        'level',
+        'label',
+        'comments',
+        'start_metric_pos',
+        'end_metric_pos',
+        'length',
+        'length_in_measures'
+    ]
+    not_expected = [
+        'color'
+    ]
+
+    for attr in expected:
+        assert attr in exported_attributes
+
+    for attr in not_expected:
+        assert attr not in exported_attributes

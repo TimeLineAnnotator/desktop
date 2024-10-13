@@ -430,7 +430,7 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def get_component_attributes(self) -> dict[str, list[str]]:
         return {
-            kind.name: self._get_component_class_by_kind(kind).SERIALIZABLE_BY_VALUE for kind in self.component_kinds
+            kind.name: self._get_component_class_by_kind(kind).get_export_attributes() for kind in self.component_kinds
         }
 
 
