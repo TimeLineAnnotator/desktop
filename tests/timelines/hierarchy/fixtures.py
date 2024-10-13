@@ -41,3 +41,8 @@ def hierarchy_tlui(tls, tluis) -> TestHierarchyTimelineUI:
 @pytest.fixture
 def hierarchy_tl(hierarchy_tlui):
     return hierarchy_tlui.timeline
+
+
+@pytest.fixture
+def hierarchy(hierarchy_tl):
+    return hierarchy_tl.create_hierarchy(0, 1, 1)[0]
