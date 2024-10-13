@@ -3,6 +3,7 @@ from __future__ import annotations
 import music21
 
 from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.validators import validate_time, validate_string
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.validators import (
@@ -71,6 +72,10 @@ class Mode(TimelineComponent):
             "music21", self.get_data("accidental")
         )
         return music21.key.Key(tonic_symbol + accidental_symbol)
+
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        return get_export_attributes_point_like(cls)
 
 
 def _format_postfix_accidental(text):

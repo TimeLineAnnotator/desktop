@@ -7,6 +7,7 @@ import re
 
 import tilia.errors
 from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.validators import validate_time, validate_string
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.constants import get_inversion_amount
@@ -130,6 +131,10 @@ class Harmony(TimelineComponent):
             )
             return
         self._inversion = value
+
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        return get_export_attributes_point_like(cls)
 
 
 def get_params_from_text(text, key):

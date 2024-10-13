@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from tilia.timelines.base.export import get_export_attributes_extended
 from tilia.timelines.base.validators import validate_time, validate_read_only, validate_pre_validated
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -37,3 +38,7 @@ class AmplitudeBar(TimelineComponent):
     
     def __repr__(self):
         return f"AudioWave({self.start}, {self.amplitude})"
+
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        return get_export_attributes_extended(cls)

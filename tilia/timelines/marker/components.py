@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from tilia.settings import settings
+from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.validators import (
     validate_time,
     validate_color,
@@ -59,3 +60,7 @@ class Marker(TimelineComponent):
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))
+
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        return get_export_attributes_point_like(cls)

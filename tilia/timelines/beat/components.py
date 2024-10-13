@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.validators import validate_time, validate_bool
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -58,3 +59,7 @@ class Beat(TimelineComponent):
     @property
     def beat_number(self):
         return self.metric_position[1]
+
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        return get_export_attributes_point_like(cls)
