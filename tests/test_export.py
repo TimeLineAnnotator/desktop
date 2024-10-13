@@ -1,4 +1,7 @@
+import functools
 import json
+
+import pytest
 
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve
@@ -113,3 +116,29 @@ def test_export_attributes_are_present(tilia, hierarchy_tl, tmp_path):
 
     for attr in not_expected:
         assert attr not in exported_attributes
+
+
+def parametrize_tl(func):
+    @pytest.mark.parametrize('tl', ['audiowave_tl', 'beat_tl', 'harmony_tl', 'hierarchy_tl', 'marker_tl', 'pdf_tl', 'slider_tl'])
+    @functools.wraps(func)  # Preserve original function metadata
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+
+@parametrize_tl
+def test_exported_attributes(tl, tilia, request, tmp_path):
+    tl = request.getfixturevalue(tl)
+    print(tl.get_export_data())
+    tmp_file = tmp_path / "test.json"
+
+    post(Post.FILE_EXPORT, tmp_file)
+
+    with open(tmp_file, encoding='utf-8') as f:
+        data = json.load(f)
+
+    for kind in tl.component_manager.component_kinds:
+        exported_attributes = data['timelines'][0]['component_attributes'][kind.name]
+        comp_cls = tl.component_manager._get_component_class_by_kind(kind)
+        expected_attrs = comp_cls.get_export_attributes()
+        assert set(exported_attributes) == set(expected_attrs)
