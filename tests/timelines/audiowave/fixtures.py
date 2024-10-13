@@ -26,3 +26,7 @@ def audiowave_tl(tls):
     tl.create_amplitudebar = functools.partial(tl.create_component, ComponentKind.AUDIOWAVE)
     return tl
 
+
+@pytest.fixture
+def amplitudebar(audiowave_tl):
+    return audiowave_tl.create_amplitudebar(0, 1, 0.5)[0]

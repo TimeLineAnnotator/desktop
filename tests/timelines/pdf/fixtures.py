@@ -51,9 +51,8 @@ def pdfui(pdf_tlui):
 
 
 @pytest.fixture
-def pdf(pdf_tlui):
-    _mrk, _ = pdf_tlui.create_pdf_marker(0)
-    return _mrk
+def pdf_marker(pdf_tl):
+    return pdf_tl.create_pdf_marker(0, 1)[0]
 
 
 @pytest.fixture
