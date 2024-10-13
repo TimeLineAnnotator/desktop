@@ -437,3 +437,4 @@ class TimelineComponentManager(Generic[T, TC]):
 class TimelineFlag(StrEnum):
     NOT_CLEARABLE = auto()
     NOT_DELETABLE = auto()
+    NOT_EXPORTABLE = auto()

@@ -6,6 +6,7 @@ import pytest
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve
 from tilia.requests import post, Post, Get
+from tilia.timelines.base.timeline import TimelineFlag
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.hierarchy.components import Hierarchy
@@ -127,9 +128,8 @@ def parametrize_tl(func):
 
 
 @parametrize_tl
-def test_exported_attributes(tl, tilia, request, tmp_path):
+def test_appropriate_attributes_are_exported(tl, tilia, request, tmp_path):
     tl = request.getfixturevalue(tl)
-    print(tl.get_export_data())
     tmp_file = tmp_path / "test.json"
 
     post(Post.FILE_EXPORT, tmp_file)
@@ -137,8 +137,11 @@ def test_exported_attributes(tl, tilia, request, tmp_path):
     with open(tmp_file, encoding='utf-8') as f:
         data = json.load(f)
 
-    for kind in tl.component_manager.component_kinds:
-        exported_attributes = data['timelines'][0]['component_attributes'][kind.name]
-        comp_cls = tl.component_manager._get_component_class_by_kind(kind)
-        expected_attrs = comp_cls.get_export_attributes()
-        assert set(exported_attributes) == set(expected_attrs)
+    if TimelineFlag.NOT_EXPORTABLE in tl.FLAGS:
+        assert not data['timelines']
+    else:
+        for kind in tl.component_manager.component_kinds:
+            exported_attributes = data['timelines'][0]['component_attributes'][kind.name]
+            comp_cls = tl.component_manager._get_component_class_by_kind(kind)
+            expected_attrs = comp_cls.get_export_attributes()
+            assert set(exported_attributes) == set(expected_attrs)
