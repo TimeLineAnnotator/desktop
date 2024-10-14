@@ -564,9 +564,7 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def length_formatted(self) -> str:
-        return tilia.ui.format.format_media_time(
-            self.get_data("end") - self.get_data("start")
-        )
+        return tilia.ui.format.format_media_time(self.get_data('length'))
 
     @property
     def pre_start_formatted(self) -> str:
@@ -588,17 +586,9 @@ class HierarchyUI(TimelineUIElement):
             return f"- / {self.post_end_formatted}"
 
     @property
-    def start_metric_position(self):
-        return get(Get.METRIC_POSITION, self.get_data("start"))
-
-    @property
-    def end_metric_position(self):
-        return get(Get.METRIC_POSITION, self.get_data("end"))
-
-    @property
     def metric_position_formatted(self):
-        start_measure, start_beat = self.start_metric_position
-        end_measure, end_beat = self.end_metric_position
+        start_measure, start_beat = self.get_data("start_metric_position")
+        end_measure, end_beat = self.get_data("end_metric_position")
         if start_measure is None:
             return "-"
         return f"{start_measure}.{start_beat} / {end_measure}.{end_beat}"
@@ -614,7 +604,7 @@ class HierarchyUI(TimelineUIElement):
             "Comments": self.get_data("comments"),
         }
 
-        if self.start_metric_position:
+        if self.get_data("start_metric_position"):
             data["Start / end (metric)"] = self.metric_position_formatted
 
         return data

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.validators import (
     validate_time,
     validate_positive_integer,
@@ -12,10 +11,10 @@ from tilia.timelines.component_kinds import ComponentKind
 if TYPE_CHECKING:
     from tilia.timelines.pdf.timeline import PdfTimeline
 
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import PointLikeTimelineComponent
 
 
-class PdfMarker(TimelineComponent):
+class PdfMarker(PointLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = ["time", "page_number"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
@@ -48,7 +47,3 @@ class PdfMarker(TimelineComponent):
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))
-
-    @classmethod
-    def get_export_attributes(cls) -> list[str]:
-        return get_export_attributes_point_like(cls)

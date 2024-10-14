@@ -2,17 +2,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.validators import validate_time, validate_bool
 from tilia.timelines.component_kinds import ComponentKind
 
 if TYPE_CHECKING:
     from tilia.timelines.beat.timeline import BeatTimeline
 
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import PointLikeTimelineComponent
 
 
-class Beat(TimelineComponent):
+class Beat(PointLikeTimelineComponent):
     # serializer attributes
     SERIALIZABLE_BY_VALUE = ["time"]
 
@@ -51,15 +50,3 @@ class Beat(TimelineComponent):
         measure_index, index_in_measure = self.timeline.get_measure_index(beat_index)
 
         return self.timeline.measure_numbers[measure_index], index_in_measure + 1
-
-    @property
-    def measure_number(self):
-        return self.metric_position[0]
-
-    @property
-    def beat_number(self):
-        return self.metric_position[1]
-
-    @classmethod
-    def get_export_attributes(cls) -> list[str]:
-        return get_export_attributes_point_like(cls)

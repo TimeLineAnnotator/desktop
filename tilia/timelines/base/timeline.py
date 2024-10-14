@@ -229,7 +229,7 @@ class Timeline(ABC, Generic[TC]):
         result['component_attributes'] = self.component_manager.get_component_attributes()
         for kind in self.component_manager.component_kinds:
             components = self.component_manager.get_components_by_condition(lambda _: True, kind)
-            result['components'][kind.name] = [[getattr(comp, attr) for attr in comp.SERIALIZABLE_BY_VALUE] for comp in components]
+            result['components'][kind.name] = [[getattr(comp, attr) for attr in comp.get_export_attributes()] for comp in components]
 
         return result
 

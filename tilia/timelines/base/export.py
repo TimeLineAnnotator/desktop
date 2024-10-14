@@ -15,10 +15,10 @@ def get_base_export_attributes(cls: type[TimelineComponent]) -> list[str]:
 def get_export_attributes_point_like(cls: type[TimelineComponent]) -> list[str]:
     base = get_base_export_attributes(cls)
 
-    return base + ['metric_pos']
+    return base + ['measure', 'beat']
 
 
 def get_export_attributes_extended(cls: type[TimelineComponent]) -> list[str]:
     base = get_base_export_attributes(cls)
 
-    return base + ['start_metric_pos', 'end_metric_pos', 'length', 'length_in_measures']
+    return base + ['start_measure', 'start_beat', 'end_measure', 'end_beat', 'length', 'length_in_measures']

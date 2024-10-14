@@ -1,8 +1,6 @@
-import functools
 import json
 
-import pytest
-
+from tests.conftest import parametrize_tl, parametrize_component
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve
 from tilia.requests import post, Post, Get
@@ -119,28 +117,6 @@ def test_export_attributes_are_present(tilia, hierarchy_tl, tmp_path):
         assert attr not in exported_attributes
 
 
-def parametrize_tl(func):
-    """Adds a parameter 'tl' to a test that receives the name of a fixture that returns a component.
-     To get the timeline from inside the test, add the `request` fixture to its arguments and
-     run `request.getfixturevalue('tl')`"""
-    @pytest.mark.parametrize('tl', ['audiowave_tl', 'beat_tl', 'harmony_tl', 'hierarchy_tl', 'marker_tl', 'pdf_tl', 'slider_tl'])
-    @functools.wraps(func)  # Preserve original function metadata
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-    return wrapper
-
-
-def parametrize_component(func):
-    """Adds a parameter 'comp' to a test that receives the name of a fixture that returns a component.
-     To get the component from the test, add the `request` fixture to its arguments and
-     run `request.getfixturevalue('comp')`"""
-    @pytest.mark.parametrize('comp', ['amplitudebar', 'beat', 'harmony', 'hierarchy', 'marker', 'pdf'])
-    @functools.wraps(func)  # Preserve original function metadata
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-    return wrapper
-
-
 @parametrize_tl
 def test_appropriate_attributes_are_exported(tl, tilia, request, tmp_path):
     tl = request.getfixturevalue(tl)
@@ -159,3 +135,24 @@ def test_appropriate_attributes_are_exported(tl, tilia, request, tmp_path):
             comp_cls = tl.component_manager._get_component_class_by_kind(kind)
             expected_attrs = comp_cls.get_export_attributes()
             assert set(exported_attributes) == set(expected_attrs)
+
+
+@parametrize_component
+def test_exported_component_attributes_values_are_correct(tilia, comp, tmp_path, request):
+    comp = request.getfixturevalue(comp)
+    if TimelineFlag.NOT_EXPORTABLE in comp.timeline.FLAGS:
+        return
+
+    tmp_file = tmp_path / "test.json"
+
+    post(Post.FILE_EXPORT, tmp_file)
+
+    with open(tmp_file, encoding='utf-8') as f:
+        data = json.load(f)
+
+    exported_values = data['timelines'][0]['components'][comp.KIND.name][0]
+    for i, attr in enumerate(comp.get_export_attributes()):
+        comp_value = getattr(comp, attr)
+        if isinstance(comp_value, tuple):
+            comp_value = list(comp_value)  # JSON converts tuples to lists
+        assert comp_value == exported_values[i]

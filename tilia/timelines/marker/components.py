@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tilia.settings import settings
-from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.validators import (
     validate_time,
     validate_color,
@@ -18,10 +16,10 @@ from tilia.timelines.component_kinds import ComponentKind
 if TYPE_CHECKING:
     from tilia.timelines.marker.timeline import MarkerTimeline
 
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import PointLikeTimelineComponent
 
 
-class Marker(TimelineComponent):
+class Marker(PointLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = ["time", "comments", "label", "color"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
@@ -61,6 +59,3 @@ class Marker(TimelineComponent):
     def __repr__(self):
         return str(dict(self.__dict__.items()))
 
-    @classmethod
-    def get_export_attributes(cls) -> list[str]:
-        return get_export_attributes_point_like(cls)
