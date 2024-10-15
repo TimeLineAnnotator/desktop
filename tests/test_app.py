@@ -324,7 +324,7 @@ class TestOpen:
         with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             actions.trigger(TiliaAction.FILE_OPEN)
 
-        assert settings.get_recent_files()[0] == tmp_file
+        assert Path(settings.get_recent_files()[0]) == tmp_file
         assert len(tls) == 2  # Slider timeline is also created by default
         assert len(tls[0]) == 3
 
@@ -332,7 +332,7 @@ class TestOpen:
         tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
         post(Post.FILE_OPEN, tmp_file)
 
-        assert settings.get_recent_files()[0] == tmp_file
+        assert Path(settings.get_recent_files()[0]) == tmp_file
         assert len(tls) == 2  # Slider timeline is also created by default
 
     def test_open_file_does_not_exist(self, tilia, tmp_path, tilia_errors):
