@@ -6,6 +6,7 @@ from bisect import bisect
 
 from tilia.exceptions import TimelineValidationError
 from tilia.requests import Post, post, serve, Get, get, listen
+from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.harmony.timeline import HarmonyTimeline, HarmonyTLComponentManager
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
@@ -353,13 +354,13 @@ class Timelines:
     def get_beat_timeline_for_measure_calculation(self):
         return sorted(self.get_timelines_by_attr("KIND", TimelineKind.BEAT_TIMELINE))[0]
 
-    def get_metric_position(self, time: float):
+    def get_metric_position(self, time: float) -> MetricPosition | None:
         if not self.get_timelines_by_attr("KIND", TimelineKind.BEAT_TIMELINE):
-            return None, None
+            return None
         tl = self.get_beat_timeline_for_measure_calculation()
         beats = tl.components
         if not beats:
-            return None, None
+            return None
         times = [beat.get_data("time") for beat in beats]
 
         time_idx = bisect(times, time)  # returns the index where the time would go

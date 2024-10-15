@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from tilia.requests import get, Get
 from tilia.timelines.base.validators import (
     validate_time,
     validate_string,
@@ -9,7 +10,7 @@ from tilia.timelines.base.validators import (
     validate_pre_validated,
 )
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import SegmentLikeTimelineComponent
 
 if TYPE_CHECKING:
     from tilia.timelines.hierarchy.timeline import HierarchyTimeline
@@ -19,7 +20,7 @@ class HierarchyLoadError(Exception):
     pass
 
 
-class Hierarchy(TimelineComponent):
+class Hierarchy(SegmentLikeTimelineComponent):
     # serializer attributes
     SERIALIZABLE_BY_VALUE = [
         "start",
@@ -112,6 +113,30 @@ class Hierarchy(TimelineComponent):
         self._end = value
         if self.post_end < value or self.post_end == prev_end:
             self.post_end = value
+
+    @property
+    def pre_start_metric_position(self):
+        return get(Get.METRIC_POSITION, self.pre_start)
+
+    @property
+    def post_end_metric_position(self):
+        return get(Get.METRIC_POSITION, self.post_end)
+
+    @property
+    def pre_start_measure(self):
+        return self.pre_start_metric_position.measure
+
+    @property
+    def pre_start_beat(self):
+        return self.pre_start_metric_position.beat
+
+    @property
+    def post_end_measure(self):
+        return self.post_end_metric_position.measure
+
+    @property
+    def post_end_beat(self):
+        return self.post_end_metric_position.beat
 
     def __repr__(self):
         repr_ = f"Hierarchy({self.start}, {self.end}, {self.level}"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.validators import validate_time, validate_bool
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -44,17 +45,17 @@ class Beat(TimelineComponent):
         return f"Beat({self.time})"
 
     @property
-    def metric_position(self):
+    def metric_position(self) -> MetricPosition:
         self.timeline: BeatTimeline
         beat_index = self.timeline.get_beat_index(self)
         measure_index, index_in_measure = self.timeline.get_measure_index(beat_index)
 
-        return self.timeline.measure_numbers[measure_index], index_in_measure + 1
+        return MetricPosition(self.timeline.measure_numbers[measure_index], index_in_measure + 1, self.timeline.beats_in_measure[measure_index])
 
     @property
     def measure_number(self):
-        return self.metric_position[0]
+        return self.metric_position.measure
 
     @property
     def beat_number(self):
-        return self.metric_position[1]
+        return self.metric_position.beat

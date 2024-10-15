@@ -8,10 +8,10 @@ from tilia.timelines.component_kinds import ComponentKind
 if TYPE_CHECKING:
     from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import SegmentLikeTimelineComponent
 
 
-class AmplitudeBar(TimelineComponent):
+class AmplitudeBar(SegmentLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = [
         "start",
         "end",
