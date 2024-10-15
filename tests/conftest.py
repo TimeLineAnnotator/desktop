@@ -49,6 +49,9 @@ class TiliaErrors:
     def assert_error(self):
         assert self.errors
 
+    def assert_no_error(self):
+        assert not self.errors
+
     def assert_in_error_message(self, string: str):
         assert string in self.errors[0]["message"]
 
