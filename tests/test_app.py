@@ -474,3 +474,9 @@ class TestOpen:
         assert len(tls) == 1  # assert file wasn't opened
         assert tilia.get_app_state() == prev_state
 
+    def test_open_then_save(self, tilia, tmp_path, tilia_errors):
+        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+        post(Post.FILE_OPEN, tmp_file)
+        post(Post.FILE_SAVE)
+        tilia_errors.assert_no_error()
+
