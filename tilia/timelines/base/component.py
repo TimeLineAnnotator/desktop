@@ -3,6 +3,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
+from tilia.requests import get, Get
+from tilia.timelines.base.metric_position import MetricPosition, MetricInterval
+
 from tilia.utils import get_tilia_class_string
 from tilia.exceptions import SetComponentDataError, GetComponentDataError
 from tilia.timelines.base.timeline import Timeline
@@ -64,3 +67,68 @@ class TimelineComponent(ABC):
     def get_data(self, attr: str):
         if self.validate_get_data(attr):
             return getattr(self, attr)
+
+
+class PointLikeTimelineComponent(TimelineComponent):
+    @property
+    def metric_position(self) -> MetricPosition | None:
+        return get(Get.METRIC_POSITION, self.get_data("time"))
+
+    @property
+    def measure(self) -> int | None:
+        return self.metric_position.measure if self.metric_position else None
+
+    @property
+    def beat(self) -> int | None:
+        return self.metric_position.beat if self.metric_position else None
+
+
+class SegmentLikeTimelineComponent(TimelineComponent):
+    start: float
+    end: float
+
+    @property
+    def length(self):
+        return self.get_data('end') - self.get_data('start')
+
+    @property
+    def length_metric(self) -> MetricInterval | None:
+        start_metric_position = self.start_metric_position
+        end_metric_position = self.end_metric_position
+        if not start_metric_position:
+            return None
+        return end_metric_position - start_metric_position
+
+    @property
+    def length_in_measures(self) -> tuple[int, int] | None:
+        # A workaround to facilitate exporting.
+        # This is only needed because the property name
+        # is currently coupled to the name of the
+        # attribute in the exported file.
+        if not self.length_metric:
+            return None
+        return self.length_metric.measures, self.length_metric.beats
+
+    @property
+    def start_metric_position(self) -> MetricPosition | None:
+        return get(Get.METRIC_POSITION, self.get_data("start"))
+
+    @property
+    def end_metric_position(self) -> MetricPosition | None:
+        return get(Get.METRIC_POSITION, self.get_data("end"))
+
+    @property
+    def start_measure(self) -> int | None:
+        return self.start_metric_position.measure if self.start_metric_position else None
+
+    @property
+    def start_beat(self) -> int | None:
+        return self.start_metric_position.beat if self.start_metric_position else None
+
+    @property
+    def end_measure(self) -> int | None:
+        return self.end_metric_position.measure if self.end_metric_position else None
+
+    @property
+    def end_beat(self) -> int | None:
+        return self.end_metric_position.beat if self.end_metric_position else None

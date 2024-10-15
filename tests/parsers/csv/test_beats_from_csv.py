@@ -3,6 +3,7 @@ from unittest.mock import patch, mock_open
 
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.beat import beats_from_csv
+from tilia.timelines.base.metric_position import MetricPosition
 
 
 def _import_with_patch(tl, data):
@@ -36,8 +37,8 @@ def test_with_measure_number(beat_tl):
     data = "time,measure_number\n5,1\n10,\n15,\n20,\n25,\n30,8"
     _import_with_patch(beat_tl, data)
 
-    assert beat_tl[3].metric_position == (1, 4)
-    assert beat_tl[4].metric_position == (8, 1)
+    assert beat_tl[3].metric_position == MetricPosition(1, 4, 1)
+    assert beat_tl[4].metric_position == MetricPosition(8, 1, 1)
 
 
 def test_with_measure_number_non_monotonic(beat_tl):
@@ -46,11 +47,11 @@ def test_with_measure_number_non_monotonic(beat_tl):
 
     _import_with_patch(beat_tl, data)
 
-    assert beat_tl[0].metric_position == (1, 1)
-    assert beat_tl[1].metric_position == (10, 1)
-    assert beat_tl[2].metric_position == (2, 1)
-    assert beat_tl[3].metric_position == (11, 1)
-    assert beat_tl[4].metric_position == (12, 1)
+    assert beat_tl[0].metric_position == MetricPosition(1, 1, 1)
+    assert beat_tl[1].metric_position == MetricPosition(10, 1, 1)
+    assert beat_tl[2].metric_position == MetricPosition(2, 1, 1)
+    assert beat_tl[3].metric_position == MetricPosition(11, 1, 1)
+    assert beat_tl[4].metric_position == MetricPosition(12, 1, 1)
 
 
 def test_with_is_first_in_measure(beat_tl):
@@ -58,10 +59,10 @@ def test_with_is_first_in_measure(beat_tl):
 
     _import_with_patch(beat_tl, data)
 
-    assert beat_tl[4].metric_position == (1, 5)
-    assert beat_tl[5].metric_position == (2, 1)
-    assert beat_tl[6].metric_position == (2, 2)
-    assert beat_tl[7].metric_position == (3, 1)
+    assert beat_tl[4].metric_position == MetricPosition(1, 5, 1)
+    assert beat_tl[5].metric_position == MetricPosition(2, 1, 1)
+    assert beat_tl[6].metric_position == MetricPosition(2, 2, 1)
+    assert beat_tl[7].metric_position == MetricPosition(3, 1, 1)
 
 
 def test_with_measure_numbers_in_rows_with_is_first_in_measure_false(beat_tl):
@@ -69,8 +70,8 @@ def test_with_measure_numbers_in_rows_with_is_first_in_measure_false(beat_tl):
 
     _import_with_patch(beat_tl, data)
 
-    assert beat_tl[0].metric_position == (1, 1)
-    assert beat_tl[1].metric_position == (1, 2)
+    assert beat_tl[0].metric_position == MetricPosition(1, 1, 1)
+    assert beat_tl[1].metric_position == MetricPosition(1, 2, 1)
 
 
 def test_with_measure_number_and_is_first_in_csv(beat_tl):
@@ -78,11 +79,11 @@ def test_with_measure_number_and_is_first_in_csv(beat_tl):
 
     _import_with_patch(beat_tl, data)
 
-    assert beat_tl[3].metric_position == (1, 4)
-    assert beat_tl[4].metric_position == (2, 1)
-    assert beat_tl[5].metric_position == (10, 1)
-    assert beat_tl[6].metric_position == (10, 2)
-    assert beat_tl[7].metric_position == (11, 1)
+    assert beat_tl[3].metric_position == MetricPosition(1, 4, 1)
+    assert beat_tl[4].metric_position == MetricPosition(2, 1, 1)
+    assert beat_tl[5].metric_position == MetricPosition(10, 1, 1)
+    assert beat_tl[6].metric_position == MetricPosition(10, 2, 1)
+    assert beat_tl[7].metric_position == MetricPosition(11, 1, 1)
 
 
 def test_with_optional_params_not_sorted(beat_tl):
