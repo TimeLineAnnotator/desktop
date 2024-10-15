@@ -43,17 +43,16 @@ def test_load_with_spaces(cli, tilia_errors, resources, tmp_path):
     assert_load_was_successful(EXAMPLE_MEDIA_DURATION)
 
 
-def test_with_timelines_scale_yes(cli, tilia_state, marker_tl, user_actions):
+def test_with_timelines_scale_yes(cli, tilia_state, marker_tl):
     tilia_state.current_time = tilia_state.duration / 2
     marker_tl.create_marker(tilia_state.current_time)
 
     cli.parse_and_run(f"load-media {EXAMPLE_MEDIA_PATH} --scale-timelines yes")
-
     assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
     assert marker_tl[0].get_data("time") == EXAMPLE_MEDIA_DURATION / 2
 
 
-def test_with_timelines_scale_no(cli, tilia_state, marker_tl, user_actions):
+def test_with_timelines_scale_no(cli, tilia_state, marker_tl):
     marker_tl.create_marker(5)
 
     cli.parse_and_run(f"load-media {EXAMPLE_MEDIA_PATH} --scale-timelines no")
@@ -62,41 +61,34 @@ def test_with_timelines_scale_no(cli, tilia_state, marker_tl, user_actions):
     assert marker_tl[0].get_data("time") == 5
 
 
-def test_with_timelines_scale_not_provided_answer_yes(
-    cli, tilia_state, marker_tl, actions
-):
-    tilia_state.current_time = 50
-    actions.trigger(TiliaAction.MARKER_ADD)
+def test_with_timelines_scale_not_provided_answer_scale(cli, tilia_state, marker_tl):
+    marker_tl.create_marker(tilia_state.duration / 2)
 
-    from unittest.mock import patch
-
-    with patch("builtins.input", return_value="y"):
+    with patch("builtins.input", return_value="1"):
         cli.parse_and_run(f"load-media {EXAMPLE_MEDIA_PATH}")
 
     assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
-    assert marker_tl[0].get_data("time") == 50 * EXAMPLE_MEDIA_SCALE_FACTOR
+    assert marker_tl[0].get_data("time") == EXAMPLE_MEDIA_DURATION / 2
 
 
-def test_with_timelines_scale_not_provided_answer_yes_but_dont_confirm_crop(
-    cli, tilia_state, marker_tl, actions
-):
-    tilia_state.current_time = 50
-    actions.trigger(TiliaAction.MARKER_ADD)
+def test_with_timelines_scale_not_provided_answer_crop(cli, tilia_state, marker_tl):
+    marker_tl.create_marker(5)
 
-    with patch("builtins.input", side_effect=["y", "n"]):
+    with patch("builtins.input", return_value="2"):
         cli.parse_and_run(f"load-media {EXAMPLE_MEDIA_PATH}")
 
     assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
-    assert marker_tl[0].get_data("time") == 50 * EXAMPLE_MEDIA_SCALE_FACTOR
+    assert marker_tl[0].get_data("time") == 5
 
 
-def test_with_timelines_scale_not_provied_answer_crop(
-    cli, tilia_state, marker_tl, actions
+def test_with_timelines_scale_not_provided_answer_invalid_then_crop(
+    cli, tilia_state, marker_tl
 ):
     for time in [5, 50]:
-        marker_tl.create_marker(time)
+        tilia_state.current_time = time
+        marker_tl.create_marker(tilia_state.current_time)
 
-    with patch("builtins.input", side_effect=["n", "y"]):
+    with patch("builtins.input", side_effect=["3", "2"]):
         cli.parse_and_run(f"load-media {EXAMPLE_MEDIA_PATH}")
 
     assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
