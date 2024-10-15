@@ -10,7 +10,7 @@ from tilia.timelines.base.validators import (
     validate_pre_validated,
 )
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.base.component import ExtendedTimelineComponent
+from tilia.timelines.base.component import SegmentLikeTimelineComponent
 
 if TYPE_CHECKING:
     from tilia.timelines.hierarchy.timeline import HierarchyTimeline
@@ -20,7 +20,7 @@ class HierarchyLoadError(Exception):
     pass
 
 
-class Hierarchy(ExtendedTimelineComponent):
+class Hierarchy(SegmentLikeTimelineComponent):
     # serializer attributes
     SERIALIZABLE_BY_VALUE = [
         "start",

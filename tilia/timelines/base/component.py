@@ -88,7 +88,7 @@ class PointLikeTimelineComponent(TimelineComponent):
         return self.metric_position.beat if self.metric_position else None
 
 
-class ExtendedTimelineComponent(TimelineComponent):
+class SegmentLikeTimelineComponent(TimelineComponent):
     start: float
     end: float
 
