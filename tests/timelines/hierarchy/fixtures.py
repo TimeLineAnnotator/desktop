@@ -18,26 +18,27 @@ class TestHierarchyTimelineUI(HierarchyTimelineUI):
 
 
 @pytest.fixture
-def hierarchy_tlui(tls, tluis) -> TestHierarchyTimelineUI:
+def hierarchy_tlui(hierarchy_tl, tluis) -> TestHierarchyTimelineUI:
+    ui = tluis.get_timeline_ui(hierarchy_tl.id)
+
+    ui.create_hierarchy = hierarchy_tl.create_hierarchy
+    ui.relate_hierarchies = hierarchy_tl.relate_hierarchies
+    ui.create_component = hierarchy_tl.create_component
+    return ui  # will be deleted by tls
+
+
+@pytest.fixture
+def hierarchy_tl(tls):
     def relate_hierarchies(parent: Hierarchy, children: list[Hierarchy]):
         # noinspection PyProtectedMember
         return tl.component_manager._update_genealogy(parent, children)
 
     tl: HierarchyTimeline = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
     tl.create_initial_hierarchy = lambda self: None
-    ui = tluis.get_timeline_ui(tl.id)
 
     # remove initial hierarchy
     tl.clear()
 
     tl.create_hierarchy = functools.partial(tl.create_component, ComponentKind.HIERARCHY)
-    ui.create_hierarchy = tl.create_hierarchy
     tl.relate_hierarchies = relate_hierarchies
-    ui.relate_hierarchies = relate_hierarchies
-    ui.create_component = tl.create_component
-    return ui  # will be deleted by tls
-
-
-@pytest.fixture
-def hierarchy_tl(hierarchy_tlui):
-    return hierarchy_tlui.timeline
+    return tl

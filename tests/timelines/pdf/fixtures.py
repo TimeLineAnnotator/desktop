@@ -24,22 +24,22 @@ class TestPdfTimelineUI(PdfTimelineUI):
 
 
 @pytest.fixture
-def pdf_tlui(tls, tluis) -> TestPdfTimelineUI:
-    with Serve(Get.FROM_USER_RETRY_PDF_PATH, (False, False)):
-        tl: PdfTimeline = tls.create_timeline(TlKind.PDF_TIMELINE, path='')
-    tl.clear()  # delete initial pdf marker
-    ui = tluis.get_timeline_ui(tl.id)
+def pdf_tlui(pdf_tl, tluis) -> TestPdfTimelineUI:
 
-    tl.create_pdf_marker = functools.partial(tl.create_component, ComponentKind.PDF_MARKER)
-    ui.create_pdf_marker = tl.create_pdf_marker
-    ui.create_component = tl.create_component
+    ui = tluis.get_timeline_ui(pdf_tl.id)
+
+    ui.create_pdf_marker = pdf_tl.create_pdf_marker
+    ui.create_component = pdf_tl.create_component
 
     yield ui  # will be deleted by tls
 
 
 @pytest.fixture
-def pdf_tl(pdf_tlui):
-    tl = pdf_tlui.timeline
+def pdf_tl(tls):
+    with Serve(Get.FROM_USER_RETRY_PDF_PATH, (False, False)):
+        tl: PdfTimeline = tls.create_timeline(TlKind.PDF_TIMELINE, path='')
+    tl.clear()  # delete initial pdf marker
+    tl.create_pdf_marker = functools.partial(tl.create_component, ComponentKind.PDF_MARKER)
 
     yield tl
 

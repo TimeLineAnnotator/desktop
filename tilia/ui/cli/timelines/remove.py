@@ -27,8 +27,7 @@ def remove_by_name(namespace):
 
     print(f"Removing timeline {tl=}")
 
-    with ServeTimelineUIFromCLI(get(Get.TIMELINE_UI, tl.id)):
-        post(Post.TIMELINE_DELETE_FROM_CLI)
+    get(Get.TIMELINE_COLLECTION).delete_timeline(tl)
 
 
 def remove_by_ordinal(namespace):
@@ -39,5 +38,4 @@ def remove_by_ordinal(namespace):
 
     print(f"Removing timeline {tl=}")
 
-    with ServeTimelineUIFromCLI(get(Get.TIMELINE_UI, tl.id)):
-        post(Post.TIMELINE_DELETE_FROM_CLI)
+    get(Get.TIMELINE_COLLECTION).delete_timeline(tl)

@@ -4,28 +4,28 @@ from tilia.ui.actions import TiliaAction
 
 
 class TestBeatTimeline:
-    def test_create_beat_at_same_time_fails(self, beat_tl, user_actions):
+    def test_create_beat_at_same_time_fails(self, beat_tlui, user_actions):
         user_actions.trigger(TiliaAction.BEAT_ADD)
         user_actions.trigger(TiliaAction.BEAT_ADD)
-        assert len(beat_tl) == 1
+        assert len(beat_tlui) == 1
 
-    def test_create_beat_at_negative_time_fails(self, beat_tl, tilia_state, user_actions):
+    def test_create_beat_at_negative_time_fails(self, beat_tlui, tilia_state, user_actions):
         tilia_state.current_time = -10
         user_actions.trigger(TiliaAction.BEAT_ADD)
-        assert len(beat_tl) == 0
+        assert len(beat_tlui) == 0
 
     def test_create_beat_at_time_bigger_than_media_duration_fails(
-        self, beat_tl, tilia_state, user_actions
+        self, beat_tlui, tilia_state, user_actions
     ):
         tilia_state.duration = 100
         tilia_state.current_time = 101
         user_actions.trigger(TiliaAction.BEAT_ADD)
-        assert len(beat_tl) == 0
+        assert len(beat_tlui) == 0
 
     def test_create_beat_at_middle_updates_next_beats_is_first_in_measure(
-        self, beat_tl, tilia_state, user_actions
+        self, beat_tlui, tilia_state, user_actions
     ):
-        beat_tl.beat_pattern = [2]
+        beat_tlui.timeline.beat_pattern = [2]
         tilia_state.current_time = 0
         user_actions.trigger(TiliaAction.BEAT_ADD)
         tilia_state.current_time = 10
@@ -36,9 +36,9 @@ class TestBeatTimeline:
         tilia_state.current_time = 5
         user_actions.trigger(TiliaAction.BEAT_ADD)
 
-        assert beat_tl[1].get_data("is_first_in_measure") is False
-        assert beat_tl[2].get_data("is_first_in_measure") is True
-        assert beat_tl[3].get_data("is_first_in_measure") is False
+        assert beat_tlui[1].get_data("is_first_in_measure") is False
+        assert beat_tlui[2].get_data("is_first_in_measure") is True
+        assert beat_tlui[3].get_data("is_first_in_measure") is False
 
     def test_recalculate_measures_added_one_measure(self, beat_tl):
         beat_tl.create_beat(time=1)

@@ -25,8 +25,7 @@ class TestImportTimeline:
     def test_markers_by_measure(self, cli, marker_tl, beat_tl, tmp_path, tilia_state, user_actions):
         beat_tl.beat_pattern = [1]
         for i in range(5):
-            tilia_state.current_time = i
-            user_actions.trigger(TiliaAction.BEAT_ADD)
+            beat_tl.create_beat(i)
 
         data = "measure\n1\n2\n3\n4\n5"
         csv_path = tmp_csv(tmp_path, data)
@@ -47,8 +46,7 @@ class TestImportTimeline:
     def test_hierarchies_by_measure(self, cli, hierarchy_tl, beat_tl, tmp_path, tilia_state, user_actions):
         beat_tl.beat_pattern = [1]
         for i in range(6):
-            tilia_state.current_time = i
-            user_actions.trigger(TiliaAction.BEAT_ADD)
+            beat_tl.create_beat(i)
 
         data = "start,end,level\n1,2,1\n2,3,1\n3,4,1\n4,5,1\n5,6,1"
         csv_path = tmp_csv(tmp_path, data)

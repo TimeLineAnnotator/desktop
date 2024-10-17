@@ -36,12 +36,12 @@ class TestTimelines:
         assert marker_tl[0].get_data("time") == 10
 
     def test_scale_timeline_when_media_duration_changes_if_user_refuses_crop(
-        self, marker_tl, tilia_state
+        self, marker_tlui, tilia_state
     ):
-        marker_tl.create_marker(90)
+        marker_tlui.create_marker(90)
         with ServeSequence(Get.FROM_USER_YES_OR_NO, [False, False]):
             tilia_state.duration = 50
-        assert marker_tl[0].get_data("time") == 45
+        assert marker_tlui[0].get_data("time") == 45
 
     def test_scale_timeline_is_not_offered_when_there_is_only_a_slider_timeline(
         self, slider_tl, tilia_state

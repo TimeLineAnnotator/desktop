@@ -258,15 +258,15 @@ class TestScaleCropTimeline:
         assert len(marker_tl) == 1
         assert marker_tl[0].get_data('time') == 20
 
-    def test_crop_twice(self, marker_tl, tilia_state, user_actions):
+    def test_crop_twice(self, marker_tlui, tilia_state, user_actions):
         tilia_state.current_time = 10
         user_actions.trigger(TiliaAction.MARKER_ADD)
         tilia_state.current_time = 50
         user_actions.trigger(TiliaAction.MARKER_ADD)
         tilia_state.set_duration(80, scale_timelines='no')
         tilia_state.set_duration(40, scale_timelines='no')
-        assert len(marker_tl) == 1
-        assert marker_tl[0].get_data('time') == 10
+        assert len(marker_tlui) == 1
+        assert marker_tlui[0].get_data('time') == 10
 
 
 class TestFileSetup:

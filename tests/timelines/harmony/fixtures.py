@@ -18,9 +18,19 @@ class TestHarmonyTimelineUI(HarmonyTimelineUI):
 
 
 @pytest.fixture
-def harmony_tlui(tls, tluis) -> TestHarmonyTimelineUI:
+def harmony_tlui(harmony_tl, tluis) -> TestHarmonyTimelineUI:
+
+    ui = tluis.get_timeline_ui(harmony_tl.id)
+    ui.create_harmony = harmony_tl.create_harmony
+    ui.create_mode = harmony_tl.create_mode
+    ui.create_component = harmony_tl.create_component
+
+    yield ui  # will be deleted by tls
+
+
+@pytest.fixture
+def harmony_tl(tls):
     tl: HarmonyTimeline = tls.create_timeline(TlKind.HARMONY_TIMELINE)
-    ui = tluis.get_timeline_ui(tl.id)
     original_create_component = tl.create_component
 
     def create_harmony(time=0, step=0, accidental=0, quality="major", **kwargs):
@@ -36,17 +46,7 @@ def harmony_tlui(tls, tluis) -> TestHarmonyTimelineUI:
         return component, None
 
     tl.create_harmony = create_harmony
-    ui.create_harmony = create_harmony
     tl.create_mode = create_mode
-    ui.create_mode = create_mode
-    ui.create_component = tl.create_component
-
-    yield ui  # will be deleted by tls
-
-
-@pytest.fixture
-def harmony_tl(harmony_tlui):
-    tl = harmony_tlui.timeline
 
     yield tl
 

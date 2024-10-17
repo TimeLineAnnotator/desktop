@@ -2,10 +2,10 @@ from tilia.ui.actions import TiliaAction
 
 
 class TestValidateComponentCreation:
-    def test_marker_at_same_time_fails(self, user_actions, pdf_tl):
+    def test_marker_at_same_time_fails(self, user_actions, pdf_tlui):
         user_actions.trigger(TiliaAction.PDF_MARKER_ADD)
         user_actions.trigger(TiliaAction.PDF_MARKER_ADD)
-        assert len(pdf_tl) == 1
+        assert len(pdf_tlui) == 1
 
 
 class TestPageTotal:
