@@ -124,19 +124,19 @@ class Hierarchy(SegmentLikeTimelineComponent):
 
     @property
     def pre_start_measure(self):
-        return self.pre_start_metric_position[0]
+        return self.pre_start_metric_position.measure
 
     @property
     def pre_start_beat(self):
-        return self.pre_start_metric_position[1]
+        return self.pre_start_metric_position.beat
 
     @property
     def post_end_measure(self):
-        return self.post_end_metric_position[0]
+        return self.post_end_metric_position.measure
 
     @property
     def post_end_beat(self):
-        return self.post_end_metric_position[1]
+        return self.post_end_metric_position.beat
 
     @classmethod
     def get_export_attributes(cls) -> list[str]:
