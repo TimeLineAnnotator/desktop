@@ -20,11 +20,11 @@ class TestCreateDeleteBeat:
         beat_tlui.create_beat(0.2)
         assert len(beat_tlui) == 3
 
-    def test_delete(self, beat_tlui, actions):
+    def test_delete(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
         beat_tlui.select_all_elements()
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
 
         assert len(beat_tlui) == 0
         assert not beat_tlui.selected_elements
@@ -178,33 +178,33 @@ class TestCopyPaste:
         assert beat2_data in copy_data
         assert beat3_data in copy_data
 
-    def test_paste_single_into_selected_elements(self, beat_tlui, tluis, actions):
+    def test_paste_single_into_selected_elements(self, beat_tlui, tluis, user_actions):
         beat_tlui.create_beat(0)
         beat_tlui.select_element(beat_tlui.elements[0])
 
         tl_state0 = beat_tlui.timeline.get_state()
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
 
         tl_state1 = beat_tlui.timeline.get_state()
 
         assert tl_state0 == tl_state1
 
-    def test_paste_single_into_timeline(self, beat_tlui, tluis, actions):
+    def test_paste_single_into_timeline(self, beat_tlui, tluis, user_actions):
         beat_tlui.create_beat(10)
         beat_tlui.select_element(beat_tlui[0])
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         beat_tlui.deselect_element(beat_tlui[0])
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
 
         assert len(beat_tlui) == 2
         assert beat_tlui[0].time == 0
 
-    def test_paste_multiple_into_timeline(self, beat_tlui, tluis, actions):
+    def test_paste_multiple_into_timeline(self, beat_tlui, tluis, user_actions):
         beat_tlui.create_beat(10)
         beat_tlui.create_beat(11)
         beat_tlui.create_beat(12)
@@ -212,11 +212,11 @@ class TestCopyPaste:
 
         beat_tlui.select_all_elements()
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         beat_tlui.deselect_all_elements()
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
 
         assert len(beat_tlui) == 8
         assert beat_tlui[0].time == 0
@@ -263,83 +263,83 @@ class TestChangeMeasureNumber:
         with Serve(Get.FROM_USER_INT, (number, True)):
             actions.trigger(TiliaAction.BEAT_SET_MEASURE_NUMBER)
 
-    def test_set_measure_number_single_measure(self, beat_tlui, actions):
+    def test_set_measure_number_single_measure(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
         beat_tlui.select_element(beat_tlui[0])
-        self._set_measure_number(beat_tlui, actions)
+        self._set_measure_number(beat_tlui, user_actions)
         assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
 
-    def test_set_measure_number_twice(self, beat_tlui, actions):
+    def test_set_measure_number_twice(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
         beat_tlui.select_element(beat_tlui[0])
-        self._set_measure_number(beat_tlui, actions)
-        self._set_measure_number(beat_tlui, actions, 101)
+        self._set_measure_number(beat_tlui, user_actions)
+        self._set_measure_number(beat_tlui, user_actions, 101)
         assert beat_tlui.timeline.measure_numbers[0] == 101
 
-    def test_set_measure_number_multiple_measures(self, beat_tlui, actions):
+    def test_set_measure_number_multiple_measures(self, beat_tlui, user_actions):
         beat_tlui.timeline.beat_pattern = [3]
 
         for i in range(12):
             beat_tlui.create_beat(i / 10)
 
         beat_tlui.select_element(beat_tlui[3])
-        self._set_measure_number(beat_tlui, actions)
+        self._set_measure_number(beat_tlui, user_actions)
 
         assert beat_tlui.timeline.measure_numbers[1] == DUMMY_MEASURE_NUMBER
 
-    def test_set_measure_number_not_first_beat_in_measure(self, beat_tlui, actions):
+    def test_set_measure_number_not_first_beat_in_measure(self, beat_tlui, user_actions):
         beat_tlui.timeline.beat_pattern = [3]
 
         for i in range(12):
             beat_tlui.create_beat(i / 10)
 
         beat_tlui.select_element(beat_tlui[1])
-        self._set_measure_number(beat_tlui, actions)
+        self._set_measure_number(beat_tlui, user_actions)
 
         assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
 
-    def test_undo_set_measure_number(self, beat_tlui, actions):
-        actions.trigger(TiliaAction.BEAT_ADD)
+    def test_undo_set_measure_number(self, beat_tlui, user_actions):
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         beat_tlui.select_element(beat_tlui[0])
-        self._set_measure_number(beat_tlui, actions)
-        actions.trigger(TiliaAction.EDIT_UNDO)
+        self._set_measure_number(beat_tlui, user_actions)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
         assert beat_tlui.timeline.measure_numbers[0] == 1
 
-    def test_redo_set_measure_number(self, beat_tlui, actions):
-        actions.trigger(TiliaAction.BEAT_ADD)
+    def test_redo_set_measure_number(self, beat_tlui, user_actions):
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         beat_tlui.select_element(beat_tlui[0])
-        self._set_measure_number(beat_tlui, actions)
-        actions.trigger(TiliaAction.EDIT_UNDO)
-        actions.trigger(TiliaAction.EDIT_REDO)
+        self._set_measure_number(beat_tlui, user_actions)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger(TiliaAction.EDIT_REDO)
         assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
 
-    def test_reset_measure_number(self, beat_tlui, actions):
-        actions.trigger(TiliaAction.BEAT_ADD)
+    def test_reset_measure_number(self, beat_tlui, user_actions):
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         beat_tlui.select_element(beat_tlui[0])
-        self._set_measure_number(beat_tlui, actions)
-        actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
+        self._set_measure_number(beat_tlui, user_actions)
+        user_actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
         assert beat_tlui.timeline.measure_numbers[0] == 1
 
-    def test_undo_reset_measure_number(self, beat_tlui, actions):
-        actions.trigger(TiliaAction.BEAT_ADD)
+    def test_undo_reset_measure_number(self, beat_tlui, user_actions):
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         beat_tlui.select_element(beat_tlui[0])
-        self._set_measure_number(beat_tlui, actions)
-        actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
-        actions.trigger(TiliaAction.EDIT_UNDO)
+        self._set_measure_number(beat_tlui, user_actions)
+        user_actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
         assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
 
-    def test_redo_reset_measure_number(self, beat_tlui, actions):
-        actions.trigger(TiliaAction.BEAT_ADD)
+    def test_redo_reset_measure_number(self, beat_tlui, user_actions):
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         beat_tlui.select_element(beat_tlui[0])
-        self._set_measure_number(beat_tlui, actions)
-        actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
-        actions.trigger(TiliaAction.EDIT_UNDO)
-        actions.trigger(TiliaAction.EDIT_REDO)
+        self._set_measure_number(beat_tlui, user_actions)
+        user_actions.trigger(TiliaAction.BEAT_RESET_MEASURE_NUMBER)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger(TiliaAction.EDIT_REDO)
         assert beat_tlui.timeline.measure_numbers[0] == 1
 
 
 class TestActions:
-    def test_inspect(self, qtui, beat_tlui, actions, tilia_state):
+    def test_inspect(self, qtui, beat_tlui, user_actions, tilia_state):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
@@ -347,13 +347,13 @@ class TestActions:
         for element in beat_tlui:
             beat_tlui.select_element(element)
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_INSPECT)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_INSPECT)
 
         assert tilia_state.is_window_open(qtui, WindowKind.INSPECT)
 
-        actions.trigger(TiliaAction.INSPECT_WINDOW_CLOSE)
+        user_actions.trigger(TiliaAction.INSPECT_WINDOW_CLOSE)
 
-    def test_distribute_beats(self, beat_tlui, actions):
+    def test_distribute_beats(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(1)
         beat_tlui.create_beat(2)
@@ -362,43 +362,43 @@ class TestActions:
 
         beat_tlui.select_element(beat_tlui[0])
 
-        actions.trigger(TiliaAction.BEAT_DISTRIBUTE)
+        user_actions.trigger(TiliaAction.BEAT_DISTRIBUTE)
 
         assert beat_tlui[1].get_data("time") == 2
         assert beat_tlui[2].get_data("time") == 4
         assert beat_tlui[3].get_data("time") == 6
 
-    def test_distribute_beats_on_last_measure(self, beat_tlui, actions):
+    def test_distribute_beats_on_last_measure(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(1)
 
         beat_tlui.select_element(beat_tlui[0])
 
-        actions.trigger(TiliaAction.BEAT_DISTRIBUTE)
+        user_actions.trigger(TiliaAction.BEAT_DISTRIBUTE)
 
         assert beat_tlui[0].get_data('time') == 0
         assert beat_tlui[1].get_data('time') == 1
 
-    def test_change_beats_in_measure(self, beat_tlui, actions):
+    def test_change_beats_in_measure(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
 
         beat_tlui.select_element(beat_tlui[0])
 
         beat_tlui.timeline.set_beat_amount_in_measure = MagicMock()
         with patch("tilia.ui.dialogs.basic.ask_for_int", lambda *_, **__: (11, True)):
-            actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
+            user_actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
 
         beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)
 
 
 class TestUndoRedo:
-    def test_undo_redo_add_beat(self, beat_tlui, tluis, actions):
+    def test_undo_redo_add_beat(self, beat_tlui, tluis, user_actions):
         post(Post.APP_RECORD_STATE, "test state")
 
         with PatchGet(
             "tilia.ui.timelines.beat.timeline", Get.MEDIA_CURRENT_TIME, 0.101
         ):
-            actions.trigger(TiliaAction.BEAT_ADD)
+            user_actions.trigger(TiliaAction.BEAT_ADD)
 
         post(Post.EDIT_UNDO)
         assert len(beat_tlui) == 0
@@ -424,7 +424,7 @@ class TestUndoRedo:
 
         assert len(beat_tlui) == 0
 
-    def test_undo_redo_delete_beat_multiple_beats(self, beat_tlui, tluis, actions):
+    def test_undo_redo_delete_beat_multiple_beats(self, beat_tlui, tluis, user_actions):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)
         beat_tlui.create_beat(0.2)
@@ -434,7 +434,7 @@ class TestUndoRedo:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
 
         post(Post.EDIT_UNDO)
         assert len(beat_tlui) == 3
@@ -442,7 +442,7 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(beat_tlui) == 0
 
-    def test_undo_redo_delete_beat(self, beat_tlui, tluis, actions):
+    def test_undo_redo_delete_beat(self, beat_tlui, tluis, user_actions):
         # 'tlui_clct' is needed as it subscriber to toolbar event
         # and forwards it to beat timeline
 
@@ -451,7 +451,7 @@ class TestUndoRedo:
         post(Post.APP_RECORD_STATE, "test state")
 
         beat_tlui.select_element(beat_tlui[0])
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
 
         post(Post.EDIT_UNDO)
         assert len(beat_tlui) == 1

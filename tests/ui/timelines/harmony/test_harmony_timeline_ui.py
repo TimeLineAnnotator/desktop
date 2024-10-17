@@ -127,7 +127,7 @@ class TestRomanNumeralDisplay:
 
 class TestCopyPaste:
     def test_paste_multiple_to_harmony_with_mode_as_first_copied(
-        self, tilia_state, harmony_tlui, actions
+        self, tilia_state, harmony_tlui, user_actions
     ):
         add_harmony()
         add_mode()
@@ -136,9 +136,9 @@ class TestCopyPaste:
 
         click_harmony_ui(harmony_tlui.modes()[0])
         click_harmony_ui(harmony_tlui.harmonies()[1], modifier="shift")
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         click_harmony_ui(harmony_tlui.harmonies()[1])
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
 
         assert len(harmony_tlui) == 5

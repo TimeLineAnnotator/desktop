@@ -19,7 +19,7 @@ class TestTimelineList:
             assert "kind" in printed
             assert "1" not in printed
 
-    def test_list_timelines_single_timeline(self, cli, hierarchy_tl, actions):
+    def test_list_timelines_single_timeline(self, cli, hierarchy_tl, user_actions):
         hierarchy_tl.set_data('name', 'test1')
 
         with patch("builtins.print") as mock_print:
@@ -31,10 +31,10 @@ class TestTimelineList:
             assert "Hierarchy" in printed
             assert str(hierarchy_tl.ordinal) in printed
 
-    def test_list_timelines_multiple_timelines(self, cli, tls, actions):
+    def test_list_timelines_multiple_timelines(self, cli, tls, user_actions):
         for name in ["test1", "test2", "test3"]:
             with Serve(Get.FROM_USER_STRING, (name, True)):
-                actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+                user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         with patch("builtins.print") as mock_print:
             cli.parse_and_run('timelines list')
@@ -52,18 +52,18 @@ class TestTimelineRemove:
 
         assert not tls.is_empty
 
-    def test_by_name_one_timeline(self, cli, tls, actions):
+    def test_by_name_one_timeline(self, cli, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, ("test", True)):
-            actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         cli.parse_and_run('timeline remove name test')
 
         assert tls.is_empty
 
-    def test_remove_by_name_multiple_timelines(self, cli, actions, tls):
+    def test_remove_by_name_multiple_timelines(self, cli, user_actions, tls):
         for name in ["test1", "test2", "test3"]:
             with Serve(Get.FROM_USER_STRING, (name, True)):
-                actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+                user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         cli.parse_and_run('timeline remove name test1')
 
@@ -73,9 +73,9 @@ class TestTimelineRemove:
 
         assert len(tls) == 1
 
-    def test_remove_by_name_not_found(self, cli, tls, actions):
+    def test_remove_by_name_not_found(self, cli, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, ("test", True)):
-            actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         with patch("builtins.print") as mock_print:
             cli.parse_and_run('timeline remove name othername')
@@ -102,10 +102,10 @@ class TestTimelineRemove:
 
         assert len(tls) == 0
 
-    def test_remove_by_ordinal_multiple_timelines(self, cli, actions, tls):
+    def test_remove_by_ordinal_multiple_timelines(self, cli, user_actions, tls):
         for i in range(3):
             with Serve(Get.FROM_USER_STRING, ("", True)):
-                actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+                user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         cli.parse_and_run('timeline remove ordinal 1')
 

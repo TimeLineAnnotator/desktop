@@ -22,11 +22,11 @@ def tmp_csv(tmp_path, data):
 
 
 class TestImportTimeline:
-    def test_markers_by_measure(self, cli, marker_tl, beat_tl, tmp_path, tilia_state, actions):
+    def test_markers_by_measure(self, cli, marker_tl, beat_tl, tmp_path, tilia_state, user_actions):
         beat_tl.beat_pattern = [1]
         for i in range(5):
             tilia_state.current_time = i
-            actions.trigger(TiliaAction.BEAT_ADD)
+            user_actions.trigger(TiliaAction.BEAT_ADD)
 
         data = "measure\n1\n2\n3\n4\n5"
         csv_path = tmp_csv(tmp_path, data)
@@ -44,11 +44,11 @@ class TestImportTimeline:
         for i in range(5):
             assert marker_tl[i].get_data('time') == i + 1
 
-    def test_hierarchies_by_measure(self, cli, hierarchy_tl, beat_tl, tmp_path, tilia_state, actions):
+    def test_hierarchies_by_measure(self, cli, hierarchy_tl, beat_tl, tmp_path, tilia_state, user_actions):
         beat_tl.beat_pattern = [1]
         for i in range(6):
             tilia_state.current_time = i
-            actions.trigger(TiliaAction.BEAT_ADD)
+            user_actions.trigger(TiliaAction.BEAT_ADD)
 
         data = "start,end,level\n1,2,1\n2,3,1\n3,4,1\n4,5,1\n5,6,1"
         csv_path = tmp_csv(tmp_path, data)
@@ -60,7 +60,7 @@ class TestImportTimeline:
             assert hierarchy_tl[i].get_data('start') == i
             assert hierarchy_tl[i].get_data('end') == i + 1
 
-    def test_hierarchies_by_time(self, cli, hierarchy_tl, tmp_path, tilia_state, actions):
+    def test_hierarchies_by_time(self, cli, hierarchy_tl, tmp_path, tilia_state, user_actions):
         data = "start,end,level\n1,2,1\n2,3,1\n3,4,1\n4,5,1\n5,6,1"
         csv_path = tmp_csv(tmp_path, data)
 
@@ -69,7 +69,7 @@ class TestImportTimeline:
             assert hierarchy_tl[i].get_data('start') == i + 1
             assert hierarchy_tl[i].get_data('end') == i + 2
 
-    def test_beats(self, cli, beat_tl, tmp_path, tilia_state, actions):
+    def test_beats(self, cli, beat_tl, tmp_path, tilia_state, user_actions):
         data = "time\n1\n2\n3\n4\n5"
         csv_path = tmp_csv(tmp_path, data)
 

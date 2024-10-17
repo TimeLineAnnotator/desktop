@@ -23,21 +23,21 @@ def get_empty_save_params():
 
 
 class TestUserActions:
-    def test_save(self, tls, marker_tl, tmp_path, actions):
+    def test_save(self, tls, marker_tl, tmp_path, user_actions):
         marker_tl.create_marker(0)
         tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
         with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file_path, "")):
-            actions.trigger(TiliaAction.FILE_SAVE_AS)
+            user_actions.trigger(TiliaAction.FILE_SAVE_AS)
         marker_tl.create_marker(1)
-        actions.trigger(TiliaAction.FILE_SAVE)
+        user_actions.trigger(TiliaAction.FILE_SAVE)
         with Serve(Get.FROM_USER_YES_OR_NO, True):
-            actions.trigger(TiliaAction.TIMELINES_CLEAR)
+            user_actions.trigger(TiliaAction.TIMELINES_CLEAR)
         assert marker_tl.is_empty
         with (
             Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file_path)),
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
         ):
-            actions.trigger(TiliaAction.FILE_OPEN)
+            user_actions.trigger(TiliaAction.FILE_OPEN)
         assert len(tls[0]) == 2
 
 
@@ -47,7 +47,7 @@ class TestFileManager:
         tilia.on_clear()
         tilia.file_manager.open(path)
 
-    def test_open_with_timeline(self, tilia, tls, tmp_path, actions):
+    def test_open_with_timeline(self, tilia, tls, tmp_path, user_actions):
         timelines_data = {
             "0": {
                 "height": 220,
@@ -81,7 +81,7 @@ class TestFileManager:
         with PatchGet(
             "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
         ):
-            actions.trigger(TiliaAction.FILE_OPEN)
+            user_actions.trigger(TiliaAction.FILE_OPEN)
 
         assert len(tls) == 2  # Slider timeline is also created by default
         assert len(tls[0]) == 3

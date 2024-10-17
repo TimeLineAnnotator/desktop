@@ -4,37 +4,37 @@ from tilia.ui.actions import TiliaAction
 
 
 class TestBeatTimeline:
-    def test_create_beat_at_same_time_fails(self, beat_tl, actions):
-        actions.trigger(TiliaAction.BEAT_ADD)
-        actions.trigger(TiliaAction.BEAT_ADD)
+    def test_create_beat_at_same_time_fails(self, beat_tl, user_actions):
+        user_actions.trigger(TiliaAction.BEAT_ADD)
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 1
 
-    def test_create_beat_at_negative_time_fails(self, beat_tl, tilia_state, actions):
+    def test_create_beat_at_negative_time_fails(self, beat_tl, tilia_state, user_actions):
         tilia_state.current_time = -10
-        actions.trigger(TiliaAction.BEAT_ADD)
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 0
 
     def test_create_beat_at_time_bigger_than_media_duration_fails(
-        self, beat_tl, tilia_state, actions
+        self, beat_tl, tilia_state, user_actions
     ):
         tilia_state.duration = 100
         tilia_state.current_time = 101
-        actions.trigger(TiliaAction.BEAT_ADD)
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tl) == 0
 
     def test_create_beat_at_middle_updates_next_beats_is_first_in_measure(
-        self, beat_tl, tilia_state, actions
+        self, beat_tl, tilia_state, user_actions
     ):
         beat_tl.beat_pattern = [2]
         tilia_state.current_time = 0
-        actions.trigger(TiliaAction.BEAT_ADD)
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         tilia_state.current_time = 10
-        actions.trigger(TiliaAction.BEAT_ADD)
+        user_actions.trigger(TiliaAction.BEAT_ADD)
         tilia_state.current_time = 20
-        actions.trigger(TiliaAction.BEAT_ADD)
+        user_actions.trigger(TiliaAction.BEAT_ADD)
 
         tilia_state.current_time = 5
-        actions.trigger(TiliaAction.BEAT_ADD)
+        user_actions.trigger(TiliaAction.BEAT_ADD)
 
         assert beat_tl[1].get_data("is_first_in_measure") is False
         assert beat_tl[2].get_data("is_first_in_measure") is True

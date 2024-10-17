@@ -28,15 +28,15 @@ ADD_TIMELINE_ACTIONS = [
 
 class TestTimelineUICreation:
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
-    def test_create(self, action, tilia_state, tluis, actions):
+    def test_create(self, action, tilia_state, tluis, user_actions):
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
             Serve(Get.FROM_USER_STRING, ("", True)),
         ):
-            actions.trigger(action)
+            user_actions.trigger(action)
         assert len(tluis) == 1
 
-    def test_create_multiple(self, tilia_state, tluis, actions):
+    def test_create_multiple(self, tilia_state, tluis, user_actions):
         create_actions = [
             TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
             TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
@@ -49,18 +49,18 @@ class TestTimelineUICreation:
             Serve(Get.FROM_USER_STRING, ("", True)),
         ):
             for action in create_actions:
-                actions.trigger(action)
+                user_actions.trigger(action)
         assert len(tluis) == len(create_actions)
 
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
-    def test_user_cancels_creation(self, action, tilia_state, tluis, actions):
+    def test_user_cancels_creation(self, action, tilia_state, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, ("", False)):
-            actions.trigger(action)
+            user_actions.trigger(action)
         assert tluis.is_empty
 
-    def test_delete(self, tls, actions):
+    def test_delete(self, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, ("", True)):
-            actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
         tls.delete_timeline(tls[0])  # this should be an user action
         assert tls.is_empty
@@ -87,10 +87,10 @@ class TestTimelineUICreation:
 
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
     def test_create_timeline_without_media_duration_fails(
-        self, action, actions, tilia_state, tluis
+        self, action, user_actions, tilia_state, tluis
     ):
         tilia_state.duration = 0
-        actions.trigger(action)
+        user_actions.trigger(action)
         assert tluis.is_empty
 
     def test_create_timeline_without_media_duration_displays_error(self, tilia, qtui):
@@ -219,7 +219,7 @@ class TestSeek:
         indirect=["tlui"],
     )
     def test_add_component_while_media_is_playing_and_slider_is_being_dragged(
-        self, tlui, request_to_serve, add_request, slider_tlui, tilia_state, actions
+        self, tlui, request_to_serve, add_request, slider_tlui, tilia_state, user_actions
     ):
         y = slider_tlui.trough.pos().y()
         click_timeline_ui(slider_tlui, 0, y=y)
@@ -227,9 +227,9 @@ class TestSeek:
         tilia_state.current_time = 75
         if request_to_serve:
             with Serve(*request_to_serve):
-                actions.trigger(add_request)
+                user_actions.trigger(add_request)
         else:
-            actions.trigger(add_request)
+            user_actions.trigger(add_request)
         assert tlui[0].get_data("time") == pytest.approx(50)
 
 

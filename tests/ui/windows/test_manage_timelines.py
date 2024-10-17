@@ -59,7 +59,7 @@ class TestChangeTimelineOrder:
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
-    def test_increase_ordinal_undo(self, tls, actions, manage_timelines):
+    def test_increase_ordinal_undo(self, tls, user_actions, manage_timelines):
         tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="first")
         tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="second")
         tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="third")
@@ -67,11 +67,11 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
-        actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
-    def test_increase_ordinal_redo(self, tls, actions, manage_timelines):
+    def test_increase_ordinal_redo(self, tls, user_actions, manage_timelines):
         tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="first")
         tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="second")
         tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="third")
@@ -79,8 +79,8 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
-        actions.trigger(TiliaAction.EDIT_UNDO)
-        actions.trigger(TiliaAction.EDIT_REDO)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger(TiliaAction.EDIT_REDO)
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
@@ -106,7 +106,7 @@ class TestChangeTimelineOrder:
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
-    def test_decrease_ordinal_undo(self, tls, actions, manage_timelines):
+    def test_decrease_ordinal_undo(self, tls, user_actions, manage_timelines):
         tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="first")
         tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="second")
         tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="third")
@@ -114,11 +114,11 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
-        actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
-    def test_decrease_ordinal_redo(self, tls, actions, manage_timelines):
+    def test_decrease_ordinal_redo(self, tls, user_actions, manage_timelines):
         tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="first")
         tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="second")
         tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="third")
@@ -126,8 +126,8 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
-        actions.trigger(TiliaAction.EDIT_UNDO)
-        actions.trigger(TiliaAction.EDIT_REDO)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger(TiliaAction.EDIT_REDO)
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 

@@ -102,43 +102,43 @@ class TestArrowSelection:
 
 
 class TestSetTimelineName:
-    def test_set(self, tls, actions):
+    def test_set(self, tls, user_actions):
         tl = tls.add_timeline_with_post(TimelineKind.MARKER_TIMELINE, name="change me")
         tlui = get(Get.TIMELINE_UI, tl.id)
         with Serve(Get.FROM_USER_STRING, ("this", True)):
-            actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+            user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
         assert tl.get_data("name") == "this"
         assert tlui.displayed_name == "this"
 
-    def test_set_undo(self, tls, actions):
+    def test_set_undo(self, tls, user_actions):
         tl = tls.add_timeline_with_post(TimelineKind.MARKER_TIMELINE, name="pure")
         tlui = get(Get.TIMELINE_UI, tl.id)
         with Serve(Get.FROM_USER_STRING, ("tainted", True)):
-            actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+            user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
-        actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
 
         assert tl.get_data("name") == "pure"
         assert tlui.displayed_name == "pure"
 
-    def test_set_redo(self, tls, actions):
+    def test_set_redo(self, tls, user_actions):
         tl = tls.add_timeline_with_post(TimelineKind.MARKER_TIMELINE, name="pure")
         tlui = get(Get.TIMELINE_UI, tl.id)
         with Serve(Get.FROM_USER_STRING, ("tainted", True)):
-            actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+            user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
-        actions.trigger(TiliaAction.EDIT_UNDO)
-        actions.trigger(TiliaAction.EDIT_REDO)
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger(TiliaAction.EDIT_REDO)
 
         assert tl.get_data("name") == "tainted"
         assert tlui.displayed_name == "tainted"
 
-    def test_set_empty_string(self, tls, actions):
+    def test_set_empty_string(self, tls, user_actions):
         tl = tls.add_timeline_with_post(TimelineKind.MARKER_TIMELINE, name="change me")
         tlui = get(Get.TIMELINE_UI, tl.id)
         with Serve(Get.FROM_USER_STRING, ("", True)):
-            actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+            user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
         assert tl.get_data("name") == ""
         assert tlui.displayed_name == ""

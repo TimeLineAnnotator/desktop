@@ -223,7 +223,10 @@ def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui, audiowav
     }[request.param]
 
 
-class ActionManager:
+class UserActionManager:
+    """
+    Class to simulate and mock user interaction with the GUI.
+    """
     def __init__(self):
         self.action_to_trigger_count = {}
         for action in tilia_actions_module.TiliaAction:
@@ -250,6 +253,14 @@ class ActionManager:
 
 
 @pytest.fixture
-def actions():
-    action_manager = ActionManager()
+def user_actions():
+    """
+    Fixture to simulate and mock user interaction with the GUI.
+    This should be used with the <kind>_tlui fixtures
+    and NOT with <kind>_tl fixtures, as the latter do not
+    create corresponding TimelineUIS. Tests with <kind>_tl
+    may still pass if they use this fixture, provided they do
+    not require a TimelineUI.
+    """
+    action_manager = UserActionManager()
     yield action_manager
