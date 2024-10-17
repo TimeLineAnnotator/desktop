@@ -17,7 +17,10 @@ def load_media(player: Player, path: str):
 
     # change player to audio or video if needed
     if player.MEDIA_TYPE != media_type:
+        playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
+        absolute_time = get(Get.MEDIA_TIMES_ABSOLUTE)
         player = _change_player_type(player, media_type)
+        player.reset_media_duration(absolute_time, playback_time)
 
     player.load_media(path)
 

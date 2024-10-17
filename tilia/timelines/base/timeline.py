@@ -101,7 +101,7 @@ class Timeline(ABC, Generic[TC]):
     @property
     def components(self):
         return self.component_manager.get_components()
-    
+
     @property
     def default_height(self):
         return None
@@ -193,11 +193,11 @@ class Timeline(ABC, Generic[TC]):
     def delete(self):
         self.component_manager.clear()
 
-    def scale(self, factor: float) -> None:
-        self.component_manager.scale(factor)
+    def scale(self, factor: float, offset_old: float, offset_new: float) -> None:
+        self.component_manager.scale(factor, offset_old, offset_new)
 
-    def crop(self, length: float) -> None:
-        self.component_manager.crop(length)
+    def crop(self, start: float, end: float) -> None:
+        self.component_manager.crop(start, end)
 
     def deserialize_components(self, components: dict[int, dict[str]]):
         return self.component_manager.deserialize_components(components)
@@ -315,7 +315,7 @@ class TimelineComponentManager(Generic[T, TC]):
             return self._components[component_idx - 1]
 
     def get_previous_component_by_time(self, time: float) -> TC | None:
-        times = [cmp.get_data('time') for cmp in self]
+        times = [cmp.get_data("time") for cmp in self]
         component_idx = bisect.bisect_right(times, time)
         if component_idx == 0:
             return None
@@ -323,7 +323,7 @@ class TimelineComponentManager(Generic[T, TC]):
             return self._components[component_idx - 1]
 
     def get_next_component_by_time(self, time: float) -> TC | None:
-        times = [cmp.get_data('time') for cmp in self]
+        times = [cmp.get_data("time") for cmp in self]
         component_idx = bisect.bisect_right(times, time)
         if component_idx == len(self._components):
             return None
@@ -398,16 +398,18 @@ class TimelineComponentManager(Generic[T, TC]):
     def serialize_components(self):
         return serialize.serialize_components(self._components)
 
-    def deserialize_components(self, serialized_components: dict[int | str, dict[str, Any]]):
+    def deserialize_components(
+        self, serialized_components: dict[int | str, dict[str, Any]]
+    ):
         serialize.deserialize_components(self.timeline, serialized_components)
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(event, self.timeline.KIND, self.timeline.id, component_id, *args, **kwargs)
 
-    def crop(self, length: float) -> None:
+    def crop(self, start: float, end: float) -> None:
         raise NotImplementedError
 
-    def scale(self, length: float) -> None:
+    def scale(self, factor: float, offset_old: float, offset_new: float) -> None:
         raise NotImplementedError
 
 
