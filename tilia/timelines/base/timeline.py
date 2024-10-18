@@ -194,6 +194,13 @@ class Timeline(ABC, Generic[TC]):
         self.component_manager.clear()
 
     def scale(self, factor: float, offset_old: float, offset_new: float) -> None:
+        """Scale component times and offsets it within the new playback time
+
+        Keyword arguments:
+        factor -- factor to scale by
+        offset_old -- old playback start time
+        offset_new -- new playback start time
+        """
         self.component_manager.scale(factor, offset_old, offset_new)
 
     def crop(self, start: float, end: float) -> None:
