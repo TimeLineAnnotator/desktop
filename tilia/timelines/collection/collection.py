@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from bisect import bisect
 
 from tilia.exceptions import TimelineValidationError
-from tilia.requests import Post, post, serve, Get, get, listen
+from tilia.requests import Post, post, serve, Get
 from tilia.timelines.harmony.timeline import HarmonyTimeline, HarmonyTLComponentManager
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
@@ -22,7 +22,10 @@ from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
 )
 from tilia.timelines.slider.timeline import SliderTimeline
-from tilia.timelines.audiowave.timeline import AudioWaveTimeline, AudioWaveTLComponentManager
+from tilia.timelines.audiowave.timeline import (
+    AudioWaveTimeline,
+    AudioWaveTLComponentManager,
+)
 from tilia.undo_manager import PauseUndoManager
 
 if TYPE_CHECKING:
@@ -40,12 +43,14 @@ def _create_hierarchy_timeline(**kwargs) -> HierarchyTimeline:
 def _create_slider_timeline(*_, **__) -> SliderTimeline:
     return SliderTimeline()
 
+
 def _create_audiowave_timeline(*args, **kwargs) -> AudioWaveTimeline:
     component_manager = AudioWaveTLComponentManager()
     timeline = AudioWaveTimeline(component_manager, *args, **kwargs)
     component_manager.associate_to_timeline(timeline)
 
     return timeline
+
 
 def _create_marker_timeline(*args, **kwargs) -> MarkerTimeline:
     component_manager = MarkerTLComponentManager()
@@ -83,7 +88,6 @@ class Timelines:
     def __init__(self, app: App):
         self._app = app
         self._timelines: list[Timeline] = []
-        self.cached_media_duration = 0.0
 
         self._setup_requests()
 
@@ -101,7 +105,7 @@ class Timelines:
 
     def __bool__(self):
         return True  # so it doesn't evaluate to False when there are no timelines
-    
+
     def _setup_requests(self):
         SERVES = {
             (Get.TIMELINE_COLLECTION, lambda: self),
@@ -110,7 +114,7 @@ class Timelines:
             (Get.TIMELINE_ORDINAL_FOR_NEW, self.serve_ordinal_for_new_timeline),
             (Get.TIMELINE_BY_ATTR, self.get_timeline_by_attr),
             (Get.TIMELINES_BY_ATTR, self.get_timelines_by_attr),
-            (Get.METRIC_POSITION, self.get_metric_position)
+            (Get.METRIC_POSITION, self.get_metric_position),
         }
 
         for request, callback in SERVES:
@@ -129,11 +133,13 @@ class Timelines:
         # a blank Timelines is empty or has a single slider timeline
         # which is its state when creating a new (blank) file
         return (
-            self.is_empty or 
-            len(
-                set([x.KIND for x in self])
-                .difference((TimelineKind.SLIDER_TIMELINE, TimelineKind.AUDIOWAVE_TIMELINE))
-            ) == 0
+            self.is_empty
+            or len(
+                {x.KIND for x in self}.difference(
+                    {TimelineKind.SLIDER_TIMELINE, TimelineKind.AUDIOWAVE_TIMELINE}
+                )
+            )
+            == 0
         )
 
     @staticmethod
@@ -154,7 +160,7 @@ class Timelines:
 
     def has_timeline_of_kind(self, kind: TlKind):
         return kind in self.timeline_kinds
-    
+
     def create_timeline(
         self,
         kind: TlKind | str,
@@ -189,7 +195,7 @@ class Timelines:
             # can't be done until timeline UI has been created
             tl.deserialize_components(components)
 
-        if hasattr(tl, 'setup_blank_timeline') and not components:
+        if hasattr(tl, "setup_blank_timeline") and not components:
             # For setup that needs to be done after
             # the corresponding timeline ui has
             # been created.
@@ -301,50 +307,18 @@ class Timelines:
     def has_timeline_of_kind(self, kind: TlKind):
         return any([tl.KIND == kind for tl in self])
 
-    def _scale_or_crop_timelines(self, new_duration, prev_duration):
-        scale_prompt = "Would you like to scale existing timelines to new media length?"
-
-        confirm = get(Get.FROM_USER_YES_OR_NO, "Scale timelines", scale_prompt)
-        if confirm:
-            self.scale_timeline_components(
-                new_duration / prev_duration,
-            )
-
-        elif new_duration < prev_duration:
-            crop_prompt = (
-                "New media is smaller, "
-                "so components may get deleted or cropped. "
-                "Are you sure you don't want to scale existing timelines?"
-            )
-            confirm = get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
-            if confirm:
-                self.crop_timeline_components(new_duration)
-            else:
-                self.scale_timeline_components(
-                    new_duration / prev_duration,
-                )
-
-    def on_media_duration_changed(self, new_duration: float):
-        prev_duration = self.cached_media_duration
-
-        if not prev_duration or new_duration == prev_duration or self.is_blank:
-            self.cached_media_duration = new_duration
-            return
-
-        self._scale_or_crop_timelines(new_duration, prev_duration)
-
-        self.cached_media_duration = new_duration
-
     def serve_ordinal_for_new_timeline(self):
         return len(self._timelines) + 1
 
-    def scale_timeline_components(self, factor: float) -> None:
+    def scale_timeline_components(
+        self, factor: float, offset_old: float, offset_new: float
+    ) -> None:
         for tl in [tl for tl in self if hasattr(tl, "scale")]:
-            tl.scale(factor)
+            tl.scale(factor, offset_old, offset_new)
 
-    def crop_timeline_components(self, new_length: float) -> None:
+    def crop_timeline_components(self, start: float, end: float) -> None:
         for tl in [tl for tl in self if hasattr(tl, "crop")]:
-            tl.crop(new_length)
+            tl.crop(start, end)
         post(Post.TIMELINES_CROP_DONE)
 
     def get_beat_timeline_for_measure_calculation(self):

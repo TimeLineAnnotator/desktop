@@ -4,7 +4,12 @@ from tilia.settings import settings
 
 
 class MediaMetadata(OrderedDict):
-    REQUIRED_FIELDS = {"title": "Untitled", "notes": ""}
+    REQUIRED_FIELDS = {
+        "title": "Untitled",
+        "notes": "",
+        "playback start": 0.0,
+        "playback end": 0.0,
+    }
 
     def __init__(self, init_default_fields=True):
         super().__init__()
