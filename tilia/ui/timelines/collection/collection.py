@@ -82,7 +82,7 @@ class TimelineUIs:
         self._setup_selection_box()
         self._setup_drag_tracking_vars()
         self._setup_auto_scroll()
-        self.selected_time = get(Get.MEDIA_CURRENT_TIME)
+        self.selected_time = 0.0
         self.loop_time = (self.selected_time, self.selected_time)
         self.loop_elements = set()
         self.loop_delete_ignore = set()
