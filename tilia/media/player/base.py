@@ -190,11 +190,12 @@ class Player(ABC):
 
     def on_loop_changed(self, start_time, end_time):
         self.is_looping = start_time != end_time
-        if end_time == self.playback_time.end:
-            if start_time != self.playback_time.start:
-                end_time -= self.E
-            else:
-                self._engine_loop(True)
+
+        # allow native engine looping if looping entire file
+        if end_time == self.absolute_time.end and start_time == 0:
+            self._engine_loop(True)
+        else:
+            end_time -= self.E
 
         self.loop_start = start_time
         self.loop_end = end_time
