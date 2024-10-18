@@ -123,48 +123,46 @@ class MediaMetadataWindow(QDialog):
 
         if absolute_time.start == 0.0 and absolute_time.end == 0.0:
             self.has_times = False
-        else:
-            self.start_time = QDoubleSpinBox()
-            self.start_time.setMaximum(playback_time.end)
-            self.start_time.setMinimum(absolute_time.start)
-            self.start_time.setValue(playback_time.start)
-            self.start_time.setSuffix(" s")
-            self.start_time.setKeyboardTracking(False)
-            self.start_time.setSingleStep(1.0)
-            self.start_time.valueChanged.connect(
-                lambda value: on_start_time_changed(value)
+            return
+
+        self.has_times = True
+
+        self.start_time = QDoubleSpinBox()
+        self.start_time.setMaximum(playback_time.end)
+        self.start_time.setMinimum(absolute_time.start)
+        self.start_time.setValue(playback_time.start)
+        self.start_time.setSuffix(" s")
+        self.start_time.setKeyboardTracking(False)
+        self.start_time.setSingleStep(1.0)
+        self.start_time.valueChanged.connect(lambda value: on_start_time_changed(value))
+
+        self.end_time = QDoubleSpinBox()
+        self.end_time.setMaximum(absolute_time.end)
+        self.end_time.setMinimum(playback_time.start)
+        self.end_time.setValue(playback_time.end)
+        self.end_time.setSuffix(" s")
+        self.end_time.setKeyboardTracking(False)
+        self.end_time.setSingleStep(1.0)
+        self.end_time.valueChanged.connect(lambda value: on_end_time_changed(value))
+
+        self.actual_duration = QLabel(format_media_time(playback_time.duration, False))
+
+        self.form_layout.addRow(QLabel("Media start"), self.start_time)
+        self.form_layout.addRow(QLabel("Media end"), self.end_time)
+        self.form_layout.addRow(QLabel("Current length"), self.actual_duration)
+        self.add_separator()
+
+        def on_start_time_changed(value: float):
+            self.end_time.setMinimum(value)
+            self.actual_duration.setText(
+                format_media_time(self.end_time.value() - value, False)
             )
 
-            self.end_time = QDoubleSpinBox()
-            self.end_time.setMaximum(absolute_time.end)
-            self.end_time.setMinimum(playback_time.start)
-            self.end_time.setValue(playback_time.end)
-            self.end_time.setSuffix(" s")
-            self.end_time.setKeyboardTracking(False)
-            self.end_time.setSingleStep(1.0)
-            self.end_time.valueChanged.connect(lambda value: on_end_time_changed(value))
-
-            self.actual_duration = QLabel(
-                format_media_time(playback_time.duration, False)
+        def on_end_time_changed(value: float):
+            self.start_time.setMaximum(value)
+            self.actual_duration.setText(
+                format_media_time(value - self.start_time.value(), False)
             )
-
-            self.has_times = True
-            self.form_layout.addRow(QLabel("Media start"), self.start_time)
-            self.form_layout.addRow(QLabel("Media end"), self.end_time)
-            self.form_layout.addRow(QLabel("Current length"), self.actual_duration)
-            self.add_separator()
-
-            def on_start_time_changed(value: float):
-                self.end_time.setMinimum(value)
-                self.actual_duration.setText(
-                    format_media_time(self.end_time.value() - value, False)
-                )
-
-            def on_end_time_changed(value: float):
-                self.start_time.setMaximum(value)
-                self.actual_duration.setText(
-                    format_media_time(value - self.start_time.value(), False)
-                )
 
     def setup_buttons(self):
         edit_notes_button = QPushButton("Edit notes...")
