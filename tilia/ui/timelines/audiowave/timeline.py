@@ -63,13 +63,8 @@ class AudioWaveTimelineUI(TimelineUI):
             self.select_element(element_to_select)
 
     def get_inspector_dict(self):
-        start_time = get(Get.MEDIA_DURATION)
-        end_time = 0
-        for element in self.selected_elements:
-            if element.get_data("start") < start_time:
-                start_time = element.get_data("start")
-            if element.get_data("end") > end_time:
-                end_time = element.get_data("end")
+        start_time = self.selected_elements[0].get_data("start")
+        end_time = self.selected_elements[-1].get_data("end")
 
         try:
             amplitude = f"{self.timeline.get_dB(start_time, end_time): .3f} dB"
