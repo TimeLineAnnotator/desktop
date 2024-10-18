@@ -119,10 +119,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         playback_time = get(Get.MEDIA_TIMES_PLAYBACK)
         media_duration = get(Get.MEDIA_DURATION)
         if playback_time.end != 0 and (
-            end > playback_time.end
-            or start > playback_time.end
-            or end < playback_time.start
-            or start < playback_time.start
+            end > playback_time.end or start < playback_time.start
         ):
             return (
                 False,
