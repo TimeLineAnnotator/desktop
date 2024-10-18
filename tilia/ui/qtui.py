@@ -217,6 +217,7 @@ class QtUI:
             (Get.WINDOW_GEOMETRY, self.get_window_geometry),
             (Get.WINDOW_STATE, self.get_window_state),
             (Get.PLAYER_CLASS, self.get_player_class),
+            (Get.UI_TYPE, lambda: self.__class__.__name__),
         }
 
         for post, callback in LISTENS:

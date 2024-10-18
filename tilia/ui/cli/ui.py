@@ -39,6 +39,8 @@ class CLI:
 
         serve(self, Get.FROM_USER_YES_OR_NO, on_ask_yes_or_no)
 
+        serve(self, Get.UI_TYPE, lambda: self.__class__.__name__)
+
     def setup_parsers(self):
         timelines.setup_parser(self.subparsers)
         quit.setup_parser(self.subparsers)
