@@ -4,6 +4,7 @@ from pathlib import Path
 import tilia.errors
 from tilia.requests import Post, post, get, Get
 from tilia.ui.cli import io
+from tilia.ui.dialogs.scale_or_crop import ScaleOrCrop
 
 
 def setup_parser(subparsers):
@@ -32,10 +33,17 @@ def load_media(namespace):
         tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
         return
 
+    match namespace.scale_timelines:
+        case "yes":
+            scale_timelines = ScaleOrCrop.ActionToTake.SCALE
+        case "no":
+            scale_timelines = ScaleOrCrop.ActionToTake.CROP
+        case "prompt":
+            scale_timelines = ScaleOrCrop.ActionToTake.PROMPT
     post(
         Post.APP_MEDIA_LOAD,
         str(path.resolve()).replace("\\", "/"),
-        scale_timelines=namespace.scale_timelines,
+        scale_timelines=scale_timelines,
     )
 
     time.sleep(0.1)  # conservative estimate for QMediaPlayer to load the file

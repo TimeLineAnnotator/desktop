@@ -1,7 +1,6 @@
 import functools
 import sys
 from pathlib import Path
-from typing import Literal
 
 import pytest
 from PyQt6.QtWidgets import QApplication
@@ -24,6 +23,7 @@ from tilia.ui.actions import TiliaAction, setup_actions
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.ui.cli.ui import CLI
 from tilia.ui.windows import WindowKind
+from tilia.ui.dialogs.scale_or_crop import ScaleOrCrop
 from tilia.requests.get import reset as reset_get
 from tilia.requests.post import reset as reset_post
 
@@ -99,7 +99,11 @@ class TiliaState:
     def duration(self, value):
         self.app.set_file_media_duration(value)
 
-    def set_duration(self, value, scale_timelines: Literal['yes', 'no', 'prompt'] = 'prompt'):
+    def set_duration(
+        self,
+        value,
+        scale_timelines: ScaleOrCrop.ActionToTake = ScaleOrCrop.ActionToTake.PROMPT,
+    ):
         """Use this if you want to pass scale_timelines."""
         self.app.set_file_media_duration(value, scale_timelines)
 
@@ -227,6 +231,7 @@ class UserActionManager:
     """
     Class to simulate and mock user interaction with the GUI.
     """
+
     def __init__(self):
         self.action_to_trigger_count = {}
         for action in tilia_actions_module.TiliaAction:

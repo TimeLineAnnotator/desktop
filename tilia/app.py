@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Literal
 import tilia.errors
 import tilia.constants
 import tilia.dirs
-from tilia.exceptions import NoReplyToRequest
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import load_media
 from tilia.utils import get_tilia_class_string
@@ -77,24 +76,13 @@ class App:
     def _setup_timelines(self):
         self.timelines = Timelines(self)
 
-    def update_should_scale_timeline(
-        self, scale_timelines: Literal["yes", "no", "prompt"]
-    ) -> None:
-        match scale_timelines:
-            case "yes":
-                self.should_scale_timelines = ScaleOrCrop.ActionToTake.SCALE
-            case "no":
-                self.should_scale_timelines = ScaleOrCrop.ActionToTake.CROP
-            case "prompt":
-                self.should_scale_timelines = ScaleOrCrop.ActionToTake.PROMPT
-
     def set_file_media_duration(
         self,
         duration: float,
-        scale_timelines: Literal["yes", "no", "prompt"] | None = None,
+        scale_timelines: ScaleOrCrop.ActionToTake | None = None,
     ) -> None:
         if scale_timelines:
-            self.update_should_scale_timeline(scale_timelines)
+            self.should_scale_timelines = scale_timelines
         post(Post.FILE_MEDIA_DURATION_CHANGED, duration, 0, duration)
 
     def on_close(self) -> None:
@@ -111,9 +99,9 @@ class App:
         self,
         path: str,
         record: bool = True,
-        scale_timelines: Literal["yes", "no", "prompt"] = "prompt",
+        scale_timelines: ScaleOrCrop.ActionToTake = ScaleOrCrop.ActionToTake.PROMPT,
     ) -> None:
-        self.update_should_scale_timeline(scale_timelines)
+        self.should_scale_timelines = scale_timelines
         if not path:
             self.player.unload_media()
             return

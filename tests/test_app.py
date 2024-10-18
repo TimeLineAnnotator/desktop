@@ -4,7 +4,6 @@ import math
 import operator
 from functools import reduce
 from pathlib import Path
-from typing import Literal
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +14,7 @@ from tilia.media.player import YouTubePlayer, QtAudioPlayer
 
 from tilia.requests import Get, Post, post
 from tilia.ui.actions import TiliaAction
+from tilia.ui.dialogs.scale_or_crop import ScaleOrCrop
 from tilia.timelines.timeline_kinds import TimelineKind
 
 
@@ -175,7 +175,10 @@ class TestMediaLoad:
     EXAMPLE_OGG_DURATION = 9.952
 
     @staticmethod
-    def _load_media(path, scale_timelines: Literal["yes", "no", "prompt"] = "prompt"):
+    def _load_media(
+        path,
+        scale_timelines: ScaleOrCrop.ActionToTake = ScaleOrCrop.ActionToTake.PROMPT,
+    ):
         with Serve(Get.PLAYER_CLASS, QtAudioPlayer):
             post(Post.APP_MEDIA_LOAD, path, scale_timelines=scale_timelines)
 
@@ -212,17 +215,17 @@ class TestMediaLoad:
         self._load_media(self.EXAMPLE_PATH_OGG)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
 
-    def test_scale_timelines_is_no(self, tilia_state, marker_tl, user_actions):
+    def test_scale_timelines_crop(self, marker_tl):
         marker_tl.create_marker(5)
         marker_tl.create_marker(10)
-        self._load_media(self.EXAMPLE_PATH_OGG, "no")
+        self._load_media(self.EXAMPLE_PATH_OGG, ScaleOrCrop.ActionToTake.CROP)
         assert len(marker_tl) == 1
         assert marker_tl[0].get_data("time") == 5
 
-    def test_scale_timelines_is_yes(self, tilia_state, marker_tl, user_actions):
+    def test_scale_timelines_scale(self, tilia_state, marker_tl):
         prev_duration = tilia_state.duration
         marker_tl.create_marker(50)
-        self._load_media(self.EXAMPLE_PATH_OGG, "yes")
+        self._load_media(self.EXAMPLE_PATH_OGG, ScaleOrCrop.ActionToTake.SCALE)
         assert (
             marker_tl[0].get_data("time")
             == 50 * self.EXAMPLE_OGG_DURATION / prev_duration
@@ -233,10 +236,10 @@ class TestScaleCropTimeline:
     @pytest.mark.parametrize(
         "scale_timelines,scale_factor",
         [
-            (("yes", "yes"), (2, 2)),
-            (("yes", "no"), (2, 2)),
-            (("no", "yes"), (2, 2)),
-            (("no", "no"), (2, 2)),
+            ((ScaleOrCrop.ActionToTake.SCALE, ScaleOrCrop.ActionToTake.SCALE), (2, 2)),
+            ((ScaleOrCrop.ActionToTake.SCALE, ScaleOrCrop.ActionToTake.CROP), (2, 2)),
+            ((ScaleOrCrop.ActionToTake.CROP, ScaleOrCrop.ActionToTake.SCALE), (2, 2)),
+            ((ScaleOrCrop.ActionToTake.CROP, ScaleOrCrop.ActionToTake.CROP), (2, 2)),
         ],
     )
     def test_set_duration_twice_without_cropping(
@@ -250,7 +253,7 @@ class TestScaleCropTimeline:
             tilia_state.set_duration(
                 tilia_state.duration * factor, scale_timelines=should_scale
             )
-            if should_scale == "yes":
+            if should_scale == ScaleOrCrop.ActionToTake.SCALE:
                 displacement_factor *= factor
         assert marker_tlui[0].get_data("time") == marker_time * displacement_factor
 
@@ -259,8 +262,8 @@ class TestScaleCropTimeline:
         user_actions.trigger(TiliaAction.MARKER_ADD)
         tilia_state.current_time = 50
         user_actions.trigger(TiliaAction.MARKER_ADD)
-        tilia_state.set_duration(200, scale_timelines="yes")
-        tilia_state.set_duration(50, scale_timelines="no")
+        tilia_state.set_duration(200, scale_timelines=ScaleOrCrop.ActionToTake.SCALE)
+        tilia_state.set_duration(50, scale_timelines=ScaleOrCrop.ActionToTake.CROP)
         assert len(marker_tl) == 1
         assert marker_tl[0].get_data("time") == 20
 
@@ -269,8 +272,8 @@ class TestScaleCropTimeline:
         user_actions.trigger(TiliaAction.MARKER_ADD)
         tilia_state.current_time = 50
         user_actions.trigger(TiliaAction.MARKER_ADD)
-        tilia_state.set_duration(40, scale_timelines="no")
-        tilia_state.set_duration(80, scale_timelines="yes")
+        tilia_state.set_duration(40, scale_timelines=ScaleOrCrop.ActionToTake.CROP)
+        tilia_state.set_duration(80, scale_timelines=ScaleOrCrop.ActionToTake.SCALE)
         assert len(marker_tl) == 1
         assert marker_tl[0].get_data("time") == 20
 
@@ -279,8 +282,8 @@ class TestScaleCropTimeline:
         user_actions.trigger(TiliaAction.MARKER_ADD)
         tilia_state.current_time = 50
         user_actions.trigger(TiliaAction.MARKER_ADD)
-        tilia_state.set_duration(80, scale_timelines="no")
-        tilia_state.set_duration(40, scale_timelines="no")
+        tilia_state.set_duration(80, scale_timelines=ScaleOrCrop.ActionToTake.CROP)
+        tilia_state.set_duration(40, scale_timelines=ScaleOrCrop.ActionToTake.CROP)
         assert len(marker_tlui) == 1
         assert marker_tlui[0].get_data("time") == 10
 
