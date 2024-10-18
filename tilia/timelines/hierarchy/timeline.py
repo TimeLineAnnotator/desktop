@@ -129,6 +129,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 f"Time '{start} - {end}' is out of current media time bounds '{playback_time.start} - {playback_time.end}'",
             )
         elif playback_time.end == 0 and (end > media_duration or start < 0):
+            # in case playback time has not been set, check that time is still within bounds.
             return (
                 False,
                 f"Time '{start} - {end}' is out of current media time bounds '{0} - {media_duration}'",

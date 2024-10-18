@@ -39,6 +39,7 @@ class MarkerTLComponentManager(TimelineComponentManager):
                 f"Time '{time}' is greater than current media time '{playback_time.end}'",
             )
         elif playback_time.end == 0 and time > media_duration:
+            # in case playback time has not been set, check that time is still within bounds.
             return (
                 False,
                 f"Time '{time}' is greater than current media time '{media_duration}'",
