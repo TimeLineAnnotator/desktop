@@ -610,9 +610,18 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
     def scale(self, factor: float, offset_old: float, offset_new: float) -> None:
         for hrc in self._components:
-            hrc.start = (hrc.start - offset_old) * factor + offset_new
-            hrc.end = (hrc.end - offset_old) * factor + offset_new
-            self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
+            self.set_component_data(
+                hrc.id, "start", (hrc.start - offset_old) * factor + offset_new
+            )
+            self.set_component_data(
+                hrc.id, "end", (hrc.end - offset_old) * factor + offset_new
+            )
+            self.set_component_data(
+                hrc.id, "pre_start", (hrc.pre_start - offset_old) * factor + offset_new
+            )
+            self.set_component_data(
+                hrc.id, "post_end", (hrc.post_end - offset_old) * factor + offset_new
+            )
 
     def crop(self, start: float, end: float) -> None:
         for hrc in self._components.copy():
@@ -621,15 +630,13 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             ):
                 self.delete_component(hrc)
             elif hrc.end > end and hrc.start >= start:
-                hrc.end = end
+                self.set_component_data(hrc.id, "end", end)
                 if hrc.post_end > end:
-                    hrc.post_end = end
-                self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
+                    self.set_component_data(hrc.id, "post_end", end)
             elif hrc.end <= end and hrc.start < start:
-                hrc.start = start
+                self.set_component_data(hrc.id, "start", start)
                 if hrc.pre_start < start:
-                    hrc.pre_start = start
-                self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
+                    self.set_component_data(hrc.id, "pre_start", start)
 
     def _update_genealogy_after_deletion(self, component: Hierarchy) -> None:
         if not component.parent:
