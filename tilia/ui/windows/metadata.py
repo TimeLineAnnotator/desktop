@@ -125,7 +125,13 @@ class MediaMetadataWindow(QDialog):
             post(Post.MEDIA_METADATA_FIELD_SET, "notes", dialog.result())
 
     def on_edit_metadata_fields_button(self):
-        self._save_edits()
+        edited_fields = self._get_edits()
+        if edited_fields and not get(
+            Get.FROM_USER_YES_OR_NO,
+            "Save metadata edits",
+            "Leave window without saving changes?",
+        ):
+            return
         dialog = EditMetadataFieldsDialog()
         accepted = dialog.exec()
         if accepted:
