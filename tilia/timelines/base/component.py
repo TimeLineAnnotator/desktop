@@ -102,7 +102,7 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         end_metric_position = self.end_metric_position
         if not start_metric_position:
             return None
-        return MetricInterval(end_metric_position - start_metric_position)
+        return end_metric_position - start_metric_position
 
     @property
     def length_in_measures(self) -> tuple[int, int] | None:
