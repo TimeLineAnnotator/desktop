@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 import music21
 import re
@@ -20,12 +20,14 @@ from tilia.timelines.harmony.validators import (
     validate_display_mode,
     validate_custom_text_font_type,
 )
-from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     CHORD_COMMON_NAME_TO_TYPE,
     ROMAN_TO_INT,
 )
+
+if TYPE_CHECKING:
+    from tilia.timelines.harmony.timeline import HarmonyTimeline
 
 
 class Harmony(PointLikeTimelineComponent):
@@ -66,7 +68,7 @@ class Harmony(PointLikeTimelineComponent):
 
     def __init__(
         self,
-        timeline: MarkerTimeline,
+        timeline: HarmonyTimeline,
         id: int,
         time: float,
         step: int = 0,
