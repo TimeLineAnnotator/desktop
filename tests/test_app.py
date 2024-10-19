@@ -297,7 +297,7 @@ def assert_open_failed(tilia, tilia_errors, opened_file_path, prev_file):
 
 
 class TestOpen:
-    def test_open_with_timeline(self, tilia, tls, tmp_path, actions):
+    def test_open_with_timeline(self, tilia, tls, tmp_path, user_actions):
         tl_data = tests.utils.get_dummy_timeline_data()
         tl_id = list(tl_data.keys())[0]
 
@@ -320,7 +320,7 @@ class TestOpen:
         tmp_file = tmp_path / "test.tla"
         tmp_file.write_text(json.dumps(file_data, indent=2))
         with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
-            actions.trigger(TiliaAction.FILE_OPEN)
+            user_actions.trigger(TiliaAction.FILE_OPEN)
 
         assert Path(settings.get_recent_files()[0]) == tmp_file
         assert len(tls) == 2  # Slider timeline is also created by default
