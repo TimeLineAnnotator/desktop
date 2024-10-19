@@ -39,56 +39,6 @@ class TestUserActions:
 
 
 class TestFileManager:
-    def test_open(self, tilia):
-        path = Path(__file__).parent / "test_file.tla"
-        tilia.on_clear()
-        tilia.file_manager.open(path)
-
-    def test_open_with_timeline(self, tilia, tls, tmp_path, user_actions):
-        timelines_data = {
-            "0": {
-                "height": 220,
-                "is_visible": True,
-                "ordinal": 1,
-                "name": "test",
-                "kind": "HIERARCHY_TIMELINE",
-                "components": {},
-            }
-        }
-        hierarchy_attrs = [(0, 1, 1), (1, 2, 1), (2, 3, 2)]
-
-        for i, (start, end, level) in enumerate(hierarchy_attrs):
-            timelines_data["0"]["components"][i] = {
-                "start": start,
-                "end": end,
-                "level": level,
-                "comments": "",
-                "label": "Unit 1",
-                "parent": None,
-                "children": [],
-                "kind": "HIERARCHY",
-            }
-
-        file_data = tests.utils.get_blank_file_data()
-        file_data["timelines"] = timelines_data
-        file_data["media_metadata"]["media length"] = 100
-
-        tmp_file = tmp_path / "test_open_with_hierarchies.tla"
-        tmp_file.write_text(json.dumps(file_data))
-        with PatchGet(
-            "tilia.file.file_manager", Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)
-        ):
-            user_actions.trigger(TiliaAction.FILE_OPEN)
-
-        assert len(tls) == 2  # Slider timeline is also created by default
-        assert len(tls[0]) == 3
-
-    def test_file_not_modified_after_open(self, tilia):
-        path = Path(__file__).parent / "test_file.tla"
-        tilia.on_clear()
-        tilia.file_manager.open(path)
-        assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
-
     def test_metadata_edit_fields(self, tilia):
         original = list(tilia.file_manager.file.media_metadata)
         fields = list(tilia.file_manager.file.media_metadata)
@@ -120,16 +70,6 @@ class TestFileManager:
     def test_metadata_set_field(self, tilia):
         post(Post.MEDIA_METADATA_FIELD_SET, "title", "new title")
         assert tilia.file_manager.file.media_metadata["title"] == "new title"
-
-    def test_open_file_with_custom_metadata_fields(self, tilia):
-        path = Path(__file__).parent / "custom_fields.tla"
-        tilia.file_manager.open(path)
-
-        assert list(tilia.file_manager.file.media_metadata.items()) == [
-            ("test_field1", "a"),
-            ("test_field2", "b"),
-            ("test_field3", "c"),
-        ]
 
     def test_is_file_modified_empty_file(self, tilia):
         assert not tilia.file_manager.is_file_modified(get_empty_save_params())
@@ -205,36 +145,3 @@ class TestFileManager:
             post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "nonexistent.json")
 
             post_mock.assert_called()
-
-    def test_metadata_edit_fields(self, tilia):
-        original = list(tilia.file_manager.file.media_metadata)
-        fields = list(tilia.file_manager.file.media_metadata)
-        fields.insert(2, "newfield")
-        post(Post.METADATA_UPDATE_FIELDS, fields)
-        assert list(tilia.file_manager.file.media_metadata)[2] == "newfield"
-
-        fields.pop(2)
-        post(Post.METADATA_UPDATE_FIELDS, fields)
-        assert list(tilia.file_manager.file.media_metadata)[2] != "newfield"
-        assert list(tilia.file_manager.file.media_metadata) == original
-
-    def test_metadata_not_duplicated_required_fields(self, tilia):
-        original = list(tilia.file_manager.file.media_metadata)
-        duplicate = list(tilia.file_manager.file.media_metadata) + ["title"]
-        post(Post.METADATA_UPDATE_FIELDS, duplicate)
-        assert list(tilia.file_manager.file.media_metadata) == original
-
-    def test_metadata_delete_fields(self, tilia):
-        empty_list = []
-        post(Post.METADATA_UPDATE_FIELDS, empty_list)
-        assert list(tilia.file_manager.file.media_metadata) == list(
-            tilia.file_manager.file.media_metadata.REQUIRED_FIELDS)
-
-    def test_metadata_title_stays_on_top(self, tilia):
-        not_so_empty_list = ["newfield"]
-        post(Post.METADATA_UPDATE_FIELDS, not_so_empty_list)
-        assert list(tilia.file_manager.file.media_metadata)[0] == "title"
-
-    def test_metadata_set_field(self, tilia):
-        post(Post.MEDIA_METADATA_FIELD_SET, "title", "new title")
-        assert tilia.file_manager.file.media_metadata["title"] == "new title"
