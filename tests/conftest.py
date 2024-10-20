@@ -35,6 +35,7 @@ pytest_plugins = [
     "tests.timelines.slider.fixtures",
     "tests.timelines.audiowave.fixtures",
     "tests.timelines.pdf.fixtures",
+    "tests.timelines.score.fixtures"
 ]
 
 

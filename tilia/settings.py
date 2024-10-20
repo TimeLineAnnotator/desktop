@@ -73,6 +73,10 @@ class SettingsManager(QObject):
             "marker_height": 10,
             "default_color": "#999999",
         },
+        "score_timeline": {
+            "default_height": 80,
+            "line_height": 8,
+        },
         "PDF_timeline": {
             "default_height": 30,
         },

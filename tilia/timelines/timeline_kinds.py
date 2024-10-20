@@ -4,6 +4,7 @@ from tilia.timelines.base.timeline import Timeline
 
 
 class TimelineKind(Enum):
+    SCORE_TIMELINE = "SCORE_TIMELINE"
     PDF_TIMELINE = "PDF_TIMELINE"
     HARMONY_TIMELINE = "HARMONY_TIMELINE"
     HIERARCHY_TIMELINE = "HIERARCHY_TIMELINE"
@@ -13,7 +14,7 @@ class TimelineKind(Enum):
     AUDIOWAVE_TIMELINE = "AUDIOWAVE_TIMELINE"
 
 
-COLORED_COMPONENTS = [TimelineKind.MARKER_TIMELINE, TimelineKind.HIERARCHY_TIMELINE]
+COLORED_COMPONENTS = [TimelineKind.MARKER_TIMELINE, TimelineKind.HIERARCHY_TIMELINE, TimelineKind.SCORE_TIMELINE]
 
 NOT_SLIDER = [
     TimelineKind.HIERARCHY_TIMELINE,
@@ -22,6 +23,7 @@ NOT_SLIDER = [
     TimelineKind.HARMONY_TIMELINE,
     TimelineKind.PDF_TIMELINE,
     TimelineKind.AUDIOWAVE_TIMELINE,
+    TimelineKind.SCORE_TIMELINE,
 ]
 ALL = list(TimelineKind)
 
@@ -42,6 +44,7 @@ def get_timeline_class_from_kind(kind: TimelineKind) -> type[Timeline]:
     from tilia.timelines.slider.timeline import SliderTimeline
     from tilia.timelines.audiowave.timeline import AudioWaveTimeline
     from tilia.timelines.harmony.timeline import HarmonyTimeline
+    from tilia.timelines.score.timeline import ScoreTimeline
 
     return {
         TimelineKind.MARKER_TIMELINE: MarkerTimeline,
@@ -51,4 +54,5 @@ def get_timeline_class_from_kind(kind: TimelineKind) -> type[Timeline]:
         TimelineKind.SLIDER_TIMELINE: SliderTimeline,
         TimelineKind.AUDIOWAVE_TIMELINE: AudioWaveTimeline,
         TimelineKind.HARMONY_TIMELINE: HarmonyTimeline,
+        TimelineKind.SCORE_TIMELINE: ScoreTimeline,
     }[kind]
