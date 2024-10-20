@@ -7,8 +7,10 @@ from typing import Any
 
 import music21
 
-from tilia.requests import Get, get, post, Post
+from tilia.requests import post, Post
 from tilia.timelines.base.common import crop_discrete, scale_discrete
+from tilia.timelines.base.component.pointlike import validate_pointlike_component_creation, \
+    validate_unique_position_pointlike_component
 from tilia.timelines.base.validators import validate_positive_integer
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Mode, Harmony
@@ -32,22 +34,10 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         *_,
         **__,
     ):
-        media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        if time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
-        if time in [h.get_data("time") for h in self.timeline]:
-            components_at_same_time = self.timeline.get_components_by_attr("time", time)
-            for component in components_at_same_time:
-                if type(component) is self._get_component_class_by_kind(kind):
-                    kind_name = "harmony" if kind == ComponentKind.HARMONY else "key"
-                    return (
-                        False,
-                        f"Can't create {kind_name}.\nThere is already a {kind_name} at time='{time}'.",
-                    )
-
-        return True, ""
+        return self._compose_validators([
+            functools.partial(validate_pointlike_component_creation, time),
+            functools.partial(validate_unique_position_pointlike_component, time, [c for c in self if c.KIND == kind]),
+        ])
 
     def _update_harmony_applied_to_on_mode_creation(self, mode: Mode):
         harmonies_in_harmonic_region = self.get_harmonies_in_harmonic_region(mode)

@@ -47,3 +47,7 @@ class PdfMarker(PointLikeTimelineComponent):
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))
+
+    @property
+    def user_friendly_name(self):
+        return "page marker"

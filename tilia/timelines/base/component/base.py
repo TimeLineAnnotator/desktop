@@ -31,6 +31,10 @@ class TimelineComponent(ABC):
         return self.ordinal < other.ordinal
 
     @property
+    def user_friendly_name(self):
+        return self.__class__.__name__.lower()
+
+    @property
     def ordinal(self):
         return tuple(getattr(self, attr) for attr in self.ORDERING_ATTRS)
 

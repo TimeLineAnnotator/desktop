@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import functools
 import itertools
 from typing import Any
 
 from tilia.settings import settings
 from .common import update_component_genealogy
+from ..base.component.segmentlike import validate_segmentlike_component_creation, \
+    validate_unique_position_segmentlike_component
 from ..base.timeline import Timeline, TimelineComponentManager
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import post, Post, get, Get
@@ -18,23 +21,18 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         super().__init__(timeline, [ComponentKind.HIERARCHY])
 
     def _validate_component_creation(
-        self, _, start: float, end: float, *args, **kwargs
+            self, _, start: float, end: float, level: int, **kwargs
     ):
-        media_duration = get(Get.MEDIA_DURATION)
-        if start > media_duration:
-            return (
-                False,
-                f"Start time '{start}' is bigger than media time '{media_duration}'",
-            )
-        elif end > media_duration:
-            return (
-                False,
-                f"End time '{end}' is bigger than media time '{media_duration}'",
-            )
-        elif end <= start:
-            return False, f"End time '{end}' should be bigger than start time '{start}'"
-        else:
-            return True, ""
+        self._compose_validators(
+            [
+                functools.partial(validate_segmentlike_component_creation, start, end),
+                functools.partial(
+                    validate_unique_position_segmentlike_component, start, end,
+                    [c for c in self if c.level == level]
+                ),
+
+            ])
+        return validate_segmentlike_component_creation(start, end)
 
     def deserialize_components(self, components: dict[int, dict[str, Any]]):
         self.clear()  # remove starting hierarchy

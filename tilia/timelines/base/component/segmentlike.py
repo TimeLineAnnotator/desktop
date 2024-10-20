@@ -59,3 +59,28 @@ class SegmentLikeTimelineComponent(TimelineComponent):
     @classmethod
     def get_export_attributes(cls) -> list[str]:
         return get_export_attributes_extended(cls)
+
+
+def validate_segmentlike_component_creation(start: float, end: float) -> tuple[bool, str]:
+    media_duration = get(Get.MEDIA_DURATION)
+    if start > media_duration:
+        return (
+            False,
+            f"Start time '{start}' is bigger than media time '{media_duration}'",
+        )
+    elif end > media_duration:
+        return (
+            False,
+            f"End time '{end}' is bigger than media time '{media_duration}'",
+        )
+    elif end <= start:
+        return False, f"End time '{end}' should be bigger than start time '{start}'"
+    else:
+        return True, ""
+
+
+def validate_unique_position_segmentlike_component(start: float, end: float, components: list[SegmentLikeTimelineComponent]) -> tuple[bool, str]:
+    if (start, end) in ((c.start, c.end) for c in components):
+        return False, f"There is already a {components[0].user_friendly_name} at the same position."
+    return True, ""
+
