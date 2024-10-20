@@ -279,6 +279,15 @@ class TimelineComponentManager(Generic[T, TC]):
     def associate_to_timeline(self, timeline: Timeline):
         self.timeline = timeline
 
+    @staticmethod
+    def _compose_validators(validators: list[Callable[[], tuple[bool, str]]]) -> tuple[bool, str]:
+        """Calls validators in order and returns (False, reason) if any fails."""
+        for validator in validators:
+            success, reason = validator()
+            if not success:
+                return False, reason
+        return True, ''
+
     def _validate_component_creation(self, *args, **kwargs):
         return True, ""
 
