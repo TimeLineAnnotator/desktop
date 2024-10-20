@@ -18,7 +18,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         super().__init__(timeline, [ComponentKind.HIERARCHY])
 
     def _validate_component_creation(
-            self, _, start: float, end: float, *args, **kwargs
+        self, _, start: float, end: float, *args, **kwargs
     ):
         media_duration = get(Get.MEDIA_DURATION)
         if start > media_duration:
@@ -63,10 +63,10 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             for child in [hrc for hrc in self._components if hrc.level == lvl]:
                 for hrc in self:
                     if (
-                            not child.parent
-                            and child.start >= hrc.start
-                            and child.end <= hrc.end
-                            and child.level < hrc.level
+                        not child.parent
+                        and child.start >= hrc.start
+                        and child.end <= hrc.end
+                        and child.level < hrc.level
                     ):
                         child.parent = hrc
                         hrc.children += [child]
@@ -98,9 +98,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     conflicts.append((hrc2, hrc1))
 
             if (
-                    hrc1.start == hrc2.start
-                    and hrc1.end == hrc2.end
-                    and hrc1.level == hrc2.level
+                hrc1.start == hrc2.start
+                and hrc1.end == hrc2.end
+                and hrc1.level == hrc2.level
             ):
                 # if hierachies have same times and level, there's a conflict
                 conflicts.append((hrc1, hrc2))
@@ -159,23 +159,23 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 start_inside_group = start <= unit_to_check.start < end
                 ends_inside_group = start < unit_to_check.end <= end
                 comprehends_group = (
-                        unit_to_check.start <= start and end <= unit_to_check.end
+                    unit_to_check.start <= start and end <= unit_to_check.end
                 )
 
                 if (
-                        # if unit_to_check either (1) starts inside and does not
-                        # end inside or (2) starts outside and ends inside it is
-                        # crossing group boundaries, unless (3) it comprehends
-                        # the whole group
-                        start_inside_group != ends_inside_group
-                        and not comprehends_group
+                    # if unit_to_check either (1) starts inside and does not
+                    # end inside or (2) starts outside and ends inside it is
+                    # crossing group boundaries, unless (3) it comprehends
+                    # the whole group
+                    start_inside_group != ends_inside_group
+                    and not comprehends_group
                 ) or (
-                        # if (1) unit_to_check is at same or higher level and (2) starts
-                        # or ends inside the group and (3) does not comprehend group it
-                        # is also crossing group boundaries
-                        unit_to_check.level >= group_level
-                        and (start_inside_group or ends_inside_group)
-                        and not comprehends_group
+                    # if (1) unit_to_check is at same or higher level and (2) starts
+                    # or ends inside the group and (3) does not comprehend group it
+                    # is also crossing group boundaries
+                    unit_to_check.level >= group_level
+                    and (start_inside_group or ends_inside_group)
+                    and not comprehends_group
                 ):
                     return (
                         False,
@@ -184,21 +184,21 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             return True, ""
 
         def _validate_no_overlap_in_grouping_level(
-                start: float, end: float, grouping_level: int
+            start: float, end: float, grouping_level: int
         ):
             """Raises False if there is a unit in grouping level that spans
             or exceeds the interval between 'start_time' and 'end_time'."""
             if any(
-                    [
-                        u.start <= start < u.end or u.start < end <= u.end
-                        for u in [u for u in self.timeline if u.level == grouping_level]
-                    ]
+                [
+                    u.start <= start < u.end or u.start < end <= u.end
+                    for u in [u for u in self.timeline if u.level == grouping_level]
+                ]
             ):
                 return False, "Grouping unit would overlap with unit in grouping level."
             return True, ""
 
         def _get_previous_common_parent(
-                units_to_group: list[Hierarchy],
+            units_to_group: list[Hierarchy],
         ) -> Hierarchy | None:
             units_with_parents_outside = [
                 unit for unit in units_to_group if unit.parent not in units_to_group
@@ -220,7 +220,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 return u.level <= max_group_level
 
             return (
-                    has_same_parent() and is_inside_grouping() and has_same_level_or_lower()
+                has_same_parent() and is_inside_grouping() and has_same_level_or_lower()
             )
 
         success, reason = _validate_at_least_two_selected(hierarchies)
@@ -275,8 +275,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         if previous_common_parent:
             previous_parent_new_children = [
-                                               c for c in previous_common_parent.children if c not in hierarchies
-                                           ] + [grouping_unit]
+                c for c in previous_common_parent.children if c not in hierarchies
+            ] + [grouping_unit]
 
             self._update_genealogy(previous_common_parent, previous_parent_new_children)
 
@@ -308,7 +308,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             return True, ""
 
         def _get_new_children_for_unit_to_split_parent(
-                hierarchy_to_split_, left_unit_, right_unit_
+            hierarchy_to_split_, left_unit_, right_unit_
         ):
             new_children = hierarchy_to_split_.parent.children.copy() + [
                 left_unit_,
@@ -422,7 +422,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             return True, ""
 
         def _get_units_to_merge_from_unit_list(
-                hs: list[Hierarchy],
+            hs: list[Hierarchy],
         ) -> list[Hierarchy]:
             """
             Returns units that:
@@ -439,9 +439,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             def is_between_selected_units_and_has_same_parent(h: Hierarchy):
                 units_sorted_by_time = sorted(hs, key=sort_by_time)
                 return (
-                        h.start >= units_sorted_by_time[0].end
-                        and h.end <= units_sorted_by_time[-1].start
-                        and h.parent == hs[0].parent
+                    h.start >= units_sorted_by_time[0].end
+                    and h.end <= units_sorted_by_time[-1].start
+                    and h.parent == hs[0].parent
                 )
 
             units_between = self.get_components_by_condition(
@@ -628,4 +628,3 @@ class HierarchyTimeline(Timeline):
 
     def get_boundary_conflicts(self):
         return self.component_manager.get_boundary_conflicts()
-

@@ -21,7 +21,7 @@ NOT_SLIDER = [
     TimelineKind.BEAT_TIMELINE,
     TimelineKind.HARMONY_TIMELINE,
     TimelineKind.PDF_TIMELINE,
-    TimelineKind.AUDIOWAVE_TIMELINE
+    TimelineKind.AUDIOWAVE_TIMELINE,
 ]
 ALL = list(TimelineKind)
 
@@ -50,5 +50,5 @@ def get_timeline_class_from_kind(kind: TimelineKind) -> type[Timeline]:
         TimelineKind.PDF_TIMELINE: PdfTimeline,
         TimelineKind.SLIDER_TIMELINE: SliderTimeline,
         TimelineKind.AUDIOWAVE_TIMELINE: AudioWaveTimeline,
-        TimelineKind.HARMONY_TIMELINE: HarmonyTimeline
+        TimelineKind.HARMONY_TIMELINE: HarmonyTimeline,
     }[kind]

@@ -36,7 +36,7 @@ class BeatTLComponentManager(TimelineComponentManager):
             )
 
     def create_component(
-            self, kind: ComponentKind, timeline, id, *args, **kwargs
+        self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, beat, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -52,11 +52,11 @@ class BeatTLComponentManager(TimelineComponentManager):
         return success, beat, reason
 
     def _validate_component_creation(
-            self,
-            _: ComponentKind,
-            time: float,
-            *args,
-            **kwargs,
+        self,
+        _: ComponentKind,
+        time: float,
+        *args,
+        **kwargs,
     ):
         media_duration = get(Get.MEDIA_DURATION)
         if time > media_duration:
@@ -142,9 +142,9 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().deserialize_components(serialized_components)
 
         # But we restore them here.
-        self.timeline.set_data('measure_numbers', measure_numbers)
-        self.timeline.set_data('beats_in_measure', beats_in_measure)
-        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
+        self.timeline.set_data("measure_numbers", measure_numbers)
+        self.timeline.set_data("beats_in_measure", beats_in_measure)
+        self.timeline.set_data("measures_to_force_display", measures_to_force_display)
 
         self.timeline.recalculate_measures()  # Not sure if this is needed.
 
@@ -446,7 +446,7 @@ class BeatTimeline(Timeline):
     def set_beat_amount_in_measure(self, measure_index: int, beat_amount: int) -> None:
         new_beats_in_measure = self.beats_in_measure.copy()
         new_beats_in_measure[measure_index] = beat_amount
-        self.set_data('beats_in_measure', new_beats_in_measure)
+        self.set_data("beats_in_measure", new_beats_in_measure)
 
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
@@ -455,8 +455,11 @@ class BeatTimeline(Timeline):
         self._validate_delete_components(components)
 
         for component in list(reversed(components)):
-            self.component_manager.delete_component(component, update_is_first_in_measure=False)
+            self.component_manager.delete_component(
+                component, update_is_first_in_measure=False
+            )
 
         if not self.is_empty:
-            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
-
+            self.component_manager.update_is_first_in_measure_of_subsequent_beats(
+                0
+            )  # Higher index is possible.

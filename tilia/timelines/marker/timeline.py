@@ -34,7 +34,6 @@ class MarkerTimeline(Timeline):
     @property
     def default_height(self):
         return settings.get("marker_timeline", "default_height")
-    
+
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
-
