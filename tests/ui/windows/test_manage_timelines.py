@@ -28,7 +28,7 @@ def assert_order_is_correct(
 
 
 @pytest.fixture
-def manage_timelines():
+def manage_timelines(qtui):
     mt = ManageTimelines()
     yield mt
     mt.close()

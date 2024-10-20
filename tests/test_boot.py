@@ -29,15 +29,12 @@ class TestGetSetupParser:
 
         args = setup_parser()
 
-        assert args.logging == "INFO"
         assert args.file == ""
-        assert args.user_interface == "tk"
+        assert args.user_interface == "qt"
 
     def test_setup_parser_custom_values(self):
         sys.argv = [
             "script.py",
-            "--logging",
-            "DEBUG",
             "input.txt",
             "--user-interface",
             "cli",
@@ -45,22 +42,8 @@ class TestGetSetupParser:
 
         args = setup_parser()
 
-        assert args.logging == "DEBUG"
         assert args.file == "input.txt"
         assert args.user_interface == "cli"
-
-    def test_setup_parser_invalid_logging_choice(self):
-        sys.argv = ["main.py", "--logging", "INVALID"]
-
-        with pytest.raises(argparse.ArgumentError):
-            setup_parser()
-
-    def test_setup_parser_logging_choice(self):
-        sys.argv = ["main.py", "--logging", "WARNING"]
-
-        args = setup_parser()
-
-        assert args.logging == "WARNING"
 
     def test_setup_parser_user_interface_cli(self):
         sys.argv = ["main.py", "--user-interface", "cli"]
