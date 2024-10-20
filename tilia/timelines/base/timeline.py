@@ -37,6 +37,7 @@ class Timeline(ABC, Generic[TC]):
     SERIALIZABLE_BY_VALUE = ["name", "height", "is_visible", "ordinal"]
     KIND: TimelineKind | None = None
     FLAGS = []
+    COMPONENT_MANAGER_CLASS = None
 
     validators = {
         "name": validate_string,
@@ -48,7 +49,6 @@ class Timeline(ABC, Generic[TC]):
 
     def __init__(
         self,
-        component_manager: TimelineComponentManager | None = None,
         name: str = "",
         height: int = 0,
         is_visible: bool = True,
@@ -61,8 +61,10 @@ class Timeline(ABC, Generic[TC]):
         self.height = height or self.default_height or 1
 
         self.ordinal = ordinal or get(Get.TIMELINE_ORDINAL_FOR_NEW)
-
-        self.component_manager = component_manager
+        if self.COMPONENT_MANAGER_CLASS:
+            self.component_manager = self.COMPONENT_MANAGER_CLASS(self)
+        else:
+            self.component_manaer = None
 
     def __iter__(self):
         return iter(self.components)
@@ -240,13 +242,14 @@ class Timeline(ABC, Generic[TC]):
 class TimelineComponentManager(Generic[T, TC]):
     def __init__(
         self,
+        timeline: T,
         component_kinds: list[ComponentKind],
     ):
-        self._components: list[TC] = []
+        self.timeline = timeline
         self.component_kinds = component_kinds
-        self.id_to_component: dict[int, TC] = {}
 
-        self.timeline: T | None = None
+        self._components: list[TC] = []
+        self.id_to_component: dict[int, TC] = {}
 
     def __iter__(self):
         return iter(self._components)

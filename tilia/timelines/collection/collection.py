@@ -5,79 +5,20 @@ from typing import TYPE_CHECKING, Any
 from bisect import bisect
 
 from tilia.exceptions import TimelineValidationError
-from tilia.requests import Post, post, serve, Get, get, listen
+from tilia.requests import Post, post, serve, Get, get
 from tilia.timelines.base.metric_position import MetricPosition
-from tilia.timelines.harmony.timeline import HarmonyTimeline, HarmonyTLComponentManager
 from tilia.utils import get_tilia_class_string
-from tilia.timelines.beat.timeline import BeatTimeline, BeatTLComponentManager
-from tilia.timelines.marker.timeline import MarkerTimeline, MarkerTLComponentManager
-from tilia.timelines.pdf.timeline import PdfTimeline, PdfTLComponentManager
 from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     TimelineKind,
     get_timeline_kind_from_string,
+    get_timeline_class_from_kind,
 )
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
-from tilia.timelines.hierarchy.timeline import (
-    HierarchyTimeline,
-    HierarchyTLComponentManager,
-)
-from tilia.timelines.slider.timeline import SliderTimeline
-from tilia.timelines.audiowave.timeline import AudioWaveTimeline, AudioWaveTLComponentManager
 from tilia.undo_manager import PauseUndoManager
 
 if TYPE_CHECKING:
     from tilia.app import App
-
-
-def _create_hierarchy_timeline(**kwargs) -> HierarchyTimeline:
-    component_manager = HierarchyTLComponentManager()
-    timeline = HierarchyTimeline(component_manager, **kwargs)
-    component_manager.associate_to_timeline(timeline)
-
-    return timeline
-
-
-def _create_slider_timeline(*_, **__) -> SliderTimeline:
-    return SliderTimeline()
-
-def _create_audiowave_timeline(*args, **kwargs) -> AudioWaveTimeline:
-    component_manager = AudioWaveTLComponentManager()
-    timeline = AudioWaveTimeline(component_manager, *args, **kwargs)
-    component_manager.associate_to_timeline(timeline)
-
-    return timeline
-
-def _create_marker_timeline(*args, **kwargs) -> MarkerTimeline:
-    component_manager = MarkerTLComponentManager()
-    timeline = MarkerTimeline(component_manager, *args, **kwargs)
-    component_manager.associate_to_timeline(timeline)
-
-    return timeline
-
-
-def _create_beat_timeline(*args, **kwargs) -> BeatTimeline:
-    component_manager = BeatTLComponentManager()
-    timeline = BeatTimeline(component_manager, *args, **kwargs)
-    component_manager.associate_to_timeline(timeline)
-
-    return timeline
-
-
-def _create_harmony_timeline(*args, **kwargs) -> HarmonyTimeline:
-    component_manager = HarmonyTLComponentManager()
-    timeline = HarmonyTimeline(component_manager, *args, **kwargs)
-    component_manager.associate_to_timeline(timeline)
-
-    return timeline
-
-
-def _create_pdf_timeline(*args, **kwargs) -> PdfTimeline:
-    component_manager = PdfTLComponentManager()
-    timeline = PdfTimeline(component_manager, *args, **kwargs)
-    component_manager.associate_to_timeline(timeline)
-
-    return timeline
 
 
 class Timelines:
@@ -170,15 +111,8 @@ class Timelines:
         # has to be stored before timeline is created
         is_first_of_kind = kind not in self.timeline_kinds
 
-        tl = {
-            TlKind.HIERARCHY_TIMELINE: _create_hierarchy_timeline,
-            TlKind.SLIDER_TIMELINE: _create_slider_timeline,
-            TlKind.AUDIOWAVE_TIMELINE: _create_audiowave_timeline,
-            TlKind.MARKER_TIMELINE: _create_marker_timeline,
-            TlKind.BEAT_TIMELINE: _create_beat_timeline,
-            TlKind.HARMONY_TIMELINE: _create_harmony_timeline,
-            TlKind.PDF_TIMELINE: _create_pdf_timeline,
-        }[kind](*args, **kwargs)
+        timeline_class = get_timeline_class_from_kind(kind)
+        tl = timeline_class(*args, **kwargs)
         self._add_to_timelines(tl)
 
         post(Post.TIMELINE_CREATE_DONE, kind, tl.id)

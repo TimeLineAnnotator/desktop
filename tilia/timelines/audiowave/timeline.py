@@ -13,9 +13,14 @@ from tilia.timelines.base.timeline import TimelineComponentManager
 import tilia.errors
 
 
+class AudioWaveTLComponentManager(TimelineComponentManager):
+    def __init__(self, timeline: AudioWaveTimeline):
+        super().__init__(timeline, [ComponentKind.AUDIOWAVE])
+
+
 class AudioWaveTimeline(Timeline):
-    KIND = TimelineKind.AUDIOWAVE_TIMELINE    
-    component_manager: AudioWaveTLComponentManager
+    KIND = TimelineKind.AUDIOWAVE_TIMELINE
+    COMPONENT_MANAGER_CLASS = AudioWaveTLComponentManager
     FLAGS = [TimelineFlag.NOT_CLEARABLE, TimelineFlag.NOT_EXPORTABLE]
 
     @property
@@ -71,10 +76,3 @@ class AudioWaveTimeline(Timeline):
         # AudioWave timelines shouldn't be cleared
         # as user can't reacreate its components
         pass
-
-
-class AudioWaveTLComponentManager(TimelineComponentManager):
-    COMPONENT_TYPES = [ComponentKind.AUDIOWAVE]
-
-    def __init__(self):
-        super().__init__(self.COMPONENT_TYPES)

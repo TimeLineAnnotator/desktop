@@ -10,6 +10,34 @@ from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 
 
+class PdfTLComponentManager(TimelineComponentManager):
+    def __init__(self, timeline: PdfTimeline):
+        super().__init__(timeline, [ComponentKind.PDF_MARKER])
+
+    def _validate_component_creation(self, _, time, *args, **kwargs):
+        media_duration = get(Get.MEDIA_DURATION)
+        if time > media_duration:
+            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
+        elif time < 0:
+            return False, f"Time can't be negative. Got '{time}'"
+        elif time in [x.time for x in self.get_components()]:
+            return (
+                False,
+                f"There is already a page marker at this position."
+            )
+        else:
+            return True, ""
+
+    def scale(self, factor: float) -> None:
+        for marker in self:
+            marker.set_data("time", marker.get_data("time") * factor)
+
+    def crop(self, length: float) -> None:
+        for marker in list(self).copy():
+            if marker.get_data("time") > length:
+                self.delete_component(marker)
+
+
 class PdfTimeline(Timeline):
     KIND = TimelineKind.PDF_TIMELINE
     SERIALIZABLE_BY_VALUE = [
@@ -19,10 +47,10 @@ class PdfTimeline(Timeline):
         'ordinal',
         'path'
     ]
+    COMPONENT_MANAGER_CLASS = PdfTLComponentManager
 
     def __init__(
         self,
-        component_manager: PdfTLComponentManager,
         path: str,
         name: str = "",
         height: int | None = None,
@@ -31,7 +59,6 @@ class PdfTimeline(Timeline):
         super().__init__(
             name=name,
             height=height,
-            component_manager=component_manager,
             **kwargs,
         )
 
@@ -78,32 +105,3 @@ class PdfTimeline(Timeline):
         self.component_manager: PdfTLComponentManager
         self.component_manager.crop(length)
 
-
-class PdfTLComponentManager(TimelineComponentManager):
-    COMPONENT_TYPES = [ComponentKind.PDF_MARKER]
-
-    def __init__(self):
-        super().__init__(self.COMPONENT_TYPES)
-
-    def _validate_component_creation(self, _, time, *args, **kwargs):
-        media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        elif time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
-        elif time in [x.time for x in self.get_components()]:
-            return (
-                False,
-                f"There is already a page marker at this position."
-            )
-        else:
-            return True, ""
-
-    def scale(self, factor: float) -> None:
-        for marker in self:
-            marker.set_data("time", marker.get_data("time") * factor)
-
-    def crop(self, length: float) -> None:
-        for marker in list(self).copy():
-            if marker.get_data("time") > length:
-                self.delete_component(marker)

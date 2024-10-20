@@ -11,22 +11,9 @@ from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 
 
-class MarkerTimeline(Timeline):
-    KIND = TimelineKind.MARKER_TIMELINE
-
-    @property
-    def default_height(self):
-        return settings.get("marker_timeline", "default_height")
-    
-    def _validate_delete_components(self, component: TimelineComponent) -> None:
-        pass
-
-
 class MarkerTLComponentManager(TimelineComponentManager):
-    COMPONENT_TYPES = [ComponentKind.MARKER]
-
-    def __init__(self):
-        super().__init__(self.COMPONENT_TYPES)
+    def __init__(self, timeline: MarkerTimeline):
+        super().__init__(timeline, [ComponentKind.MARKER])
         self.scale = functools.partial(scale_discrete, self)
         self.crop = functools.partial(crop_discrete, self)
 
@@ -38,3 +25,16 @@ class MarkerTLComponentManager(TimelineComponentManager):
             return False, f"Time can't be negative. Got '{time}'"
         else:
             return True, ""
+
+
+class MarkerTimeline(Timeline):
+    KIND = TimelineKind.MARKER_TIMELINE
+    COMPONENT_MANAGER_CLASS = MarkerTLComponentManager
+
+    @property
+    def default_height(self):
+        return settings.get("marker_timeline", "default_height")
+    
+    def _validate_delete_components(self, component: TimelineComponent) -> None:
+        pass
+

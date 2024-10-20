@@ -18,96 +18,19 @@ from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
 
 
-class HarmonyTimeline(Timeline):
-    KIND = TimelineKind.HARMONY_TIMELINE
-    DEFAULT_LEVEL_HEIGHT = 35
-    SERIALIZABLE_BY_VALUE = [
-        "level_count",
-        "level_height",
-        "is_visible",
-        "name",
-        "ordinal",
-        "visible_level_count",
-    ]
-
-    def __init__(
-        self,
-        component_manager: HarmonyTLComponentManager,
-        name: str = "",
-        level_count: int = 1,
-        level_height: int = DEFAULT_LEVEL_HEIGHT,
-        visible_level_count: int = 2,
-        **kwargs,
-    ):
-        self.level_count = level_count
-        self.level_height = level_height
-        self.visible_level_count = visible_level_count
-        self.validators = self.validators | {
-            "level_count": validate_level_count,
-            "level_height": validate_positive_integer,
-            "visible_level_count": validate_level_count,
-        }
-
-        super().__init__(
-            name=name,
-            height=visible_level_count * level_height,
-            component_manager=component_manager,
-            **kwargs,
-        )
-
-    @property
-    def height(self):
-        return self.get_data("visible_level_count") * self.get_data("level_height")
-
-    @height.setter
-    def height(self, value):
-        self.set_data(
-            "level_height", value / self.visible_level_count
-        )  # should we set level_height to value instead?
-
-    def modes(self):
-        return self.component_manager.get_components_by_condition(
-            lambda _: True, ComponentKind.MODE
-        )
-
-    def harmonies(self):
-        return self.component_manager.get_components_by_condition(
-            lambda _: True, ComponentKind.HARMONY
-        )
-
-    def _validate_delete_components(self, component: TimelineComponent) -> None:
-        pass
-
-    def get_key_by_time(self, time: float) -> music21.key.Key:
-        modes = sorted(self.modes())
-        idx = bisect([mode.get_data("time") for mode in modes], time)
-        if not idx:
-            return music21.key.Key("CM")
-        elif idx == len(modes):
-            idx = 0
-
-        return modes[idx - 1].key
-
-    def deserialize_components(self, components: dict[int, dict[str]]):
-        super().deserialize_components(components)
-        post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.id)
-
-
 class HarmonyTLComponentManager(TimelineComponentManager):
-    COMPONENT_TYPES = [ComponentKind.HARMONY, ComponentKind.MODE]
-
-    def __init__(self):
-        super().__init__(self.COMPONENT_TYPES)
+    def __init__(self, timeline: HarmonyTimeline):
+        super().__init__(timeline, [ComponentKind.HARMONY, ComponentKind.MODE])
         self.is_deserializing = False
         self.crop = functools.partial(crop_discrete, self)
         self.scale = functools.partial(scale_discrete, self)
 
     def _validate_component_creation(
-        self,
-        kind: ComponentKind,
-        time: float,
-        *_,
-        **__,
+            self,
+            kind: ComponentKind,
+            time: float,
+            *_,
+            **__,
     ):
         media_duration = get(Get.MEDIA_DURATION)
         if time > media_duration:
@@ -139,7 +62,7 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             harmony.set_data('applied_to', new_applied_to)
 
     def create_component(
-        self, kind: ComponentKind, timeline, id, *args, **kwargs
+            self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, component, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -186,7 +109,7 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             return sorted(prev_modes, key=lambda c: c.get_data('time'))[-1]
 
     def get_harmonies_in_harmonic_region(
-        self, mode: Mode
+            self, mode: Mode
     ):
 
         next_mode_time = self._get_next_mode_time(mode)
@@ -203,3 +126,78 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         self.is_deserializing = True
         super().deserialize_components(serialized_components)
         self.is_deserializing = False
+
+
+class HarmonyTimeline(Timeline):
+    KIND = TimelineKind.HARMONY_TIMELINE
+    DEFAULT_LEVEL_HEIGHT = 35
+    SERIALIZABLE_BY_VALUE = [
+        "level_count",
+        "level_height",
+        "is_visible",
+        "name",
+        "ordinal",
+        "visible_level_count",
+    ]
+    COMPONENT_MANAGER_CLASS = HarmonyTLComponentManager
+
+    def __init__(
+        self,
+        name: str = "",
+        level_count: int = 1,
+        level_height: int = DEFAULT_LEVEL_HEIGHT,
+        visible_level_count: int = 2,
+        **kwargs,
+    ):
+        self.level_count = level_count
+        self.level_height = level_height
+        self.visible_level_count = visible_level_count
+        self.validators = self.validators | {
+            "level_count": validate_level_count,
+            "level_height": validate_positive_integer,
+            "visible_level_count": validate_level_count,
+        }
+
+        super().__init__(
+            name=name,
+            height=visible_level_count * level_height,
+            **kwargs,
+        )
+
+    @property
+    def height(self):
+        return self.get_data("visible_level_count") * self.get_data("level_height")
+
+    @height.setter
+    def height(self, value):
+        self.set_data(
+            "level_height", value / self.visible_level_count
+        )  # should we set level_height to value instead?
+
+    def modes(self):
+        return self.component_manager.get_components_by_condition(
+            lambda _: True, ComponentKind.MODE
+        )
+
+    def harmonies(self):
+        return self.component_manager.get_components_by_condition(
+            lambda _: True, ComponentKind.HARMONY
+        )
+
+    def _validate_delete_components(self, component: TimelineComponent) -> None:
+        pass
+
+    def get_key_by_time(self, time: float) -> music21.key.Key:
+        modes = sorted(self.modes())
+        idx = bisect([mode.get_data("time") for mode in modes], time)
+        if not idx:
+            return music21.key.Key("CM")
+        elif idx == len(modes):
+            idx = 0
+
+        return modes[idx - 1].key
+
+    def deserialize_components(self, components: dict[int, dict[str]]):
+        super().deserialize_components(components)
+        post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.id)
+

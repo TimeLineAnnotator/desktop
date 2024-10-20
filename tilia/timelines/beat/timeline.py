@@ -17,6 +17,138 @@ if TYPE_CHECKING:
     from tilia.timelines.beat.components import Beat
 
 
+class BeatTLComponentManager(TimelineComponentManager):
+    def __init__(self, timeline: BeatTimeline):
+        super().__init__(timeline, [ComponentKind.BEAT])
+        self.scale = functools.partial(scale_discrete, self)
+        self.crop = functools.partial(crop_discrete, self)
+
+    @property
+    def beat_times(self):
+        return {b.time for b in self._components}
+
+    def update_is_first_in_measure_of_subsequent_beats(self, index):
+        for beat_ in self.timeline[index + 1 :]:
+            self.timeline.set_component_data(
+                beat_.id,
+                "is_first_in_measure",
+                self.timeline.is_first_in_measure(beat_),
+            )
+
+    def create_component(
+            self, kind: ComponentKind, timeline, id, *args, **kwargs
+    ) -> tuple[bool, TC | None, str]:
+        success, beat, reason = super().create_component(
+            kind, timeline, id, *args, **kwargs
+        )
+
+        if success:
+            self.timeline.recalculate_measures()
+            beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
+            self.update_is_first_in_measure_of_subsequent_beats(
+                self.get_components().index(beat)
+            )
+
+        return success, beat, reason
+
+    def _validate_component_creation(
+            self,
+            _: ComponentKind,
+            time: float,
+            *args,
+            **kwargs,
+    ):
+        media_duration = get(Get.MEDIA_DURATION)
+        if time > media_duration:
+            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
+        elif time < 0:
+            return False, f"Time can't be negative. Got '{time}'"
+        elif time in self.beat_times:
+            return (
+                False,
+                f"Can't create beat.\nThere is already a beat at time='{time}'.",
+            )
+        else:
+            return True, ""
+
+    def delete_component(self, component: TC, update_is_first_in_measure=True) -> None:
+        component_idx = self.get_components().index(component)
+        super().delete_component(component)
+        if update_is_first_in_measure:
+            self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
+
+    def update_beat_uis(self):
+        beats = self.get_components().copy()
+        for beat in beats:
+            beat_index = beats.index(beat)
+            is_first_in_measure = beat_index in self.timeline.beats_that_start_measures
+
+            post(
+                Post.TIMELINE_COMPONENT_SET_DATA_DONE,
+                self.timeline.id,
+                beat.id,
+                "is_first_in_measure",
+                is_first_in_measure,
+            )
+
+    def update_component_order(self, component: TC):
+        super().update_component_order(component)
+        for component in self:
+            self.update_component_is_first_in_measure(component)
+
+    def update_component_is_first_in_measure(self, component):
+        component.is_first_in_measure = self.timeline.is_first_in_measure(component)
+
+    def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
+        if self.timeline is None:
+            raise ValueError("self.timeline is None.")
+
+        beats = self.get_components().copy()
+        measure_start = self.timeline.beats_that_start_measures[measure_index]
+        measure_end = self.timeline.beats_that_start_measures[measure_index + 1]
+        return beats[measure_start:measure_end]
+
+    def distribute_beats(self, measure_index: int) -> None:
+        if self.timeline is None:
+            raise ValueError("self.timeline is None.")
+
+        if measure_index == self.timeline.measure_count - 1:
+            tilia.errors.display(tilia.errors.BEAT_DISTRIBUTION_ERROR)
+            return
+
+        beats_in_measure = self.get_beats_in_measure(measure_index)
+
+        measure_start_time = beats_in_measure[0].time
+        next_measure_start_index = self.timeline.get_beat_index(beats_in_measure[-1])
+        measure_end_time = self.get_components()[next_measure_start_index + 1].time
+        interval = (measure_end_time - measure_start_time) / len(beats_in_measure)
+
+        for index, beat in enumerate(beats_in_measure):
+            self.set_component_data(
+                beat.id, "time", measure_start_time + index * interval
+            )
+
+    def clear(self):
+        for component in self._components.copy():
+            self.delete_component(component, update_is_first_in_measure=False)
+
+    def deserialize_components(self, serialized_components: dict[int, dict[str]]):
+        # Storing these attributes so we can restore them below.
+        beats_in_measure = self.timeline.beats_in_measure.copy()
+        measure_numbers = self.timeline.measure_numbers.copy()
+        measures_to_force_display = self.timeline.measures_to_force_display.copy()
+
+        # This call will change the attributes above.
+        super().deserialize_components(serialized_components)
+
+        # But we restore them here.
+        self.timeline.set_data('measure_numbers', measure_numbers)
+        self.timeline.set_data('beats_in_measure', beats_in_measure)
+        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
+
+        self.timeline.recalculate_measures()  # Not sure if this is needed.
+
+
 class BeatTimeline(Timeline):
     SERIALIZABLE_BY_VALUE = [
         "beat_pattern",
@@ -30,11 +162,10 @@ class BeatTimeline(Timeline):
     ]
 
     KIND = TimelineKind.BEAT_TIMELINE
-    component_manager: BeatTLComponentManager
+    COMPONENT_MANAGER_CLASS = BeatTLComponentManager
 
     def __init__(
         self,
-        component_manager: BeatTLComponentManager,
         beat_pattern: list[int] = None,
         name: str = "",
         height: Optional[int] = None,
@@ -46,7 +177,6 @@ class BeatTimeline(Timeline):
         super().__init__(
             name=name,
             height=height,
-            component_manager=component_manager,
             **kwargs,
         )
 
@@ -330,138 +460,3 @@ class BeatTimeline(Timeline):
         if not self.is_empty:
             self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
 
-
-class BeatTLComponentManager(TimelineComponentManager):
-    COMPONENT_TYPES = [ComponentKind.BEAT]
-
-    timeline: Optional[BeatTimeline]
-
-    def __init__(self):
-        super().__init__(self.COMPONENT_TYPES)
-        self.scale = functools.partial(scale_discrete, self)
-        self.crop = functools.partial(crop_discrete, self)
-
-    @property
-    def beat_times(self):
-        return {b.time for b in self._components}
-
-    def update_is_first_in_measure_of_subsequent_beats(self, index):
-        for beat_ in self.timeline[index + 1 :]:
-            self.timeline.set_component_data(
-                beat_.id,
-                "is_first_in_measure",
-                self.timeline.is_first_in_measure(beat_),
-            )
-
-    def create_component(
-        self, kind: ComponentKind, timeline, id, *args, **kwargs
-    ) -> tuple[bool, TC | None, str]:
-        success, beat, reason = super().create_component(
-            kind, timeline, id, *args, **kwargs
-        )
-
-        if success:
-            self.timeline.recalculate_measures()
-            beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
-            self.update_is_first_in_measure_of_subsequent_beats(
-                self.get_components().index(beat)
-            )
-
-        return success, beat, reason
-
-    def _validate_component_creation(
-        self,
-        _: ComponentKind,
-        time: float,
-        *args,
-        **kwargs,
-    ):
-        media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        elif time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
-        elif time in self.beat_times:
-            return (
-                False,
-                f"Can't create beat.\nThere is already a beat at time='{time}'.",
-            )
-        else:
-            return True, ""
-
-    def delete_component(self, component: TC, update_is_first_in_measure=True) -> None:
-        component_idx = self.get_components().index(component)
-        super().delete_component(component)
-        if update_is_first_in_measure:
-            self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
-
-    def update_beat_uis(self):
-        beats = self.get_components().copy()
-        for beat in beats:
-            beat_index = beats.index(beat)
-            is_first_in_measure = beat_index in self.timeline.beats_that_start_measures
-
-            post(
-                Post.TIMELINE_COMPONENT_SET_DATA_DONE,
-                self.timeline.id,
-                beat.id,
-                "is_first_in_measure",
-                is_first_in_measure,
-            )
-
-    def update_component_order(self, component: TC):
-        super().update_component_order(component)
-        for component in self:
-            self.update_component_is_first_in_measure(component)
-
-    def update_component_is_first_in_measure(self, component):
-        component.is_first_in_measure = self.timeline.is_first_in_measure(component)
-
-    def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
-        if self.timeline is None:
-            raise ValueError("self.timeline is None.")
-
-        beats = self.get_components().copy()
-        measure_start = self.timeline.beats_that_start_measures[measure_index]
-        measure_end = self.timeline.beats_that_start_measures[measure_index + 1]
-        return beats[measure_start:measure_end]
-
-    def distribute_beats(self, measure_index: int) -> None:
-        if self.timeline is None:
-            raise ValueError("self.timeline is None.")
-
-        if measure_index == self.timeline.measure_count - 1:    
-            tilia.errors.display(tilia.errors.BEAT_DISTRIBUTION_ERROR)
-            return
-
-        beats_in_measure = self.get_beats_in_measure(measure_index)
-
-        measure_start_time = beats_in_measure[0].time
-        next_measure_start_index = self.timeline.get_beat_index(beats_in_measure[-1])
-        measure_end_time = self.get_components()[next_measure_start_index + 1].time
-        interval = (measure_end_time - measure_start_time) / len(beats_in_measure)
-
-        for index, beat in enumerate(beats_in_measure):
-            self.set_component_data(
-                beat.id, "time", measure_start_time + index * interval
-            )
-
-    def clear(self):
-        for component in self._components.copy():
-            self.delete_component(component, update_is_first_in_measure=False)
-
-    def deserialize_components(self, serialized_components: dict[int, dict[str]]):
-        # Storing these attributes so we can restore them below.
-        beats_in_measure = self.timeline.beats_in_measure.copy()
-        measure_numbers = self.timeline.measure_numbers.copy()
-        measures_to_force_display = self.timeline.measures_to_force_display.copy()
-
-        # This call will change the attributes above.
-        super().deserialize_components(serialized_components)
-
-        # But we restore them here.
-        self.timeline.set_data('measure_numbers', measure_numbers)
-        self.timeline.set_data('beats_in_measure', beats_in_measure)
-        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
-
-        self.timeline.recalculate_measures()  # Not sure if this is needed.
