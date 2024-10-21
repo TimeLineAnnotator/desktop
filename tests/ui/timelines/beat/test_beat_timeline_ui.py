@@ -287,7 +287,9 @@ class TestChangeMeasureNumber:
 
         assert beat_tlui.timeline.measure_numbers[1] == DUMMY_MEASURE_NUMBER
 
-    def test_set_measure_number_not_first_beat_in_measure(self, beat_tlui, user_actions):
+    def test_set_measure_number_not_first_beat_in_measure(
+        self, beat_tlui, user_actions
+    ):
         beat_tlui.timeline.beat_pattern = [3]
 
         for i in range(12):
@@ -376,8 +378,8 @@ class TestActions:
 
         user_actions.trigger(TiliaAction.BEAT_DISTRIBUTE)
 
-        assert beat_tlui[0].get_data('time') == 0
-        assert beat_tlui[1].get_data('time') == 1
+        assert beat_tlui[0].get_data("time") == 0
+        assert beat_tlui[1].get_data("time") == 1
 
     def test_change_beats_in_measure(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
