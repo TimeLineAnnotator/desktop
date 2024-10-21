@@ -266,6 +266,17 @@ def parametrize_tl(func):
     return wrapper
 
 
+def parametrize_tlui(func):
+    """Adds a parameter 'tlui' to a test that receives the name of a fixture that returns a component.
+     To get the timeline from inside the test, add the `request` fixture to its arguments and
+     run `request.getfixturevalue('tlui')`"""
+    @pytest.mark.parametrize('tlui', ['audiowave_tlui', 'beat_tlui', 'harmony_tlui', 'hierarchy_tlui', 'marker_tlui', 'pdf_tlui', 'slider_tlui'])
+    @functools.wraps(func)  # Preserve original function metadata
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+
 def parametrize_component(func):
     """Adds a parameter 'comp' to a test that receives the name of a fixture that returns a component.
      To get the component from the test, add the `request` fixture to its arguments and
