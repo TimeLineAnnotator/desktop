@@ -1,9 +1,12 @@
 from unittest.mock import patch
 
-from tests.mock import PatchGet, PatchGetMultiple
+from tests.conftest import parametrize_tlui
+from tests.mock import PatchGetMultiple, Serve
 from tilia.requests import Get
+from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
+from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 
 
@@ -12,11 +15,9 @@ class TestCreateTimeline:
         assert not tls.is_empty
 
     def test_create_without_media_loaded(self, tilia, tls):
-        with PatchGetMultiple(
-            "tilia.ui.timelines.collection.requests.args",
-            {Get.MEDIA_DURATION: 0, Get.FROM_USER_STRING: ("", True)},
-        ):
-            actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+        with Serve(Get.FROM_USER_STRING, ("", True)):
+            with Serve(Get.MEDIA_DURATION, 0):
+                actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         assert tls.is_empty
 
@@ -35,3 +36,63 @@ class TestCreateTimeline:
             qtui.on_window_open(WindowKind.INSPECT)
 
         mock.assert_not_called()
+
+
+def get_toolbars_of_class(qtui, toolbar_class):
+    return [x for x in qtui.main_window.children() if type(x) == toolbar_class]
+
+
+def is_toolbar_visible(qtui, toolbar_class):
+    toolbar = get_toolbars_of_class(qtui, toolbar_class)
+
+    return not toolbar[0].isHidden() if toolbar else False
+
+
+class TestTimelineToolbars:
+    @parametrize_tlui
+    def test_is_visible_when_timeline_is_instantiated(self, qtui, tlui, request):
+        tlui = request.getfixturevalue(tlui)
+        toolbar_class = tlui.TOOLBAR_CLASS
+        if toolbar_class:
+            assert is_toolbar_visible(qtui, tlui.TOOLBAR_CLASS)
+
+    @parametrize_tlui
+    def test_is_not_visible_when_timeline_is_deleted(self, qtui, tlui, tls, request):
+        tlui = request.getfixturevalue(tlui)
+        if not tlui.TOOLBAR_CLASS:
+            return
+        tls.delete_timeline(tls[0])
+
+        assert not is_toolbar_visible(qtui, tlui.TOOLBAR_CLASS)
+
+    def test_is_not_duplicated_when_multiple_timelines_are_present(self, qtui, tls):
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+
+        assert len(get_toolbars_of_class(qtui, MarkerTimelineUI.TOOLBAR_CLASS)) == 1
+
+    def test_is_not_hidden_when_second_instance_of_timeline_is_deleted(self, qtui, marker_tlui, tls):
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.delete_timeline(tls[1])
+
+        assert is_toolbar_visible(qtui, marker_tlui.TOOLBAR_CLASS)
+
+    def test_is_hidden_when_timeline_is_hidden(self, qtui, tls, marker_tl):
+        tls.set_timeline_data(marker_tl.id, 'is_visible', False)
+
+        assert not is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
+
+    def test_is_not_hidden_when_second_instance_of_timeline_is_hidden(self, qtui, tls):
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.set_timeline_data(tls[1].id, 'is_visible', False)
+
+        assert is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
+
+    def test_is_visible_if_timeline_is_made_visible_again(self, qtui, tls, marker_tl):
+        tls.set_timeline_data(marker_tl.id, 'is_visible', False)
+        tls.set_timeline_data(marker_tl.id, 'is_visible', True)
+
+        assert is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
