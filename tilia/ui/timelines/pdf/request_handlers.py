@@ -21,7 +21,6 @@ class PdfMarkerUIRequestHandler(ElementRequestHandler):
             timeline_ui,
             {
                 Post.PDF_MARKER_ADD: self.on_add,
-                Post.PDF_MARKER_DELETE: self.on_delete,
                 Post.TIMELINE_ELEMENT_DELETE: self.on_delete,
                 Post.TIMELINE_ELEMENT_COPY: self.on_copy,
                 Post.TIMELINE_ELEMENT_PASTE: self.on_paste,

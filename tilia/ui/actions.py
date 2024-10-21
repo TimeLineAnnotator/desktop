@@ -13,20 +13,17 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 class TiliaAction(Enum):
     PDF_IMPORT_FROM_CSV = auto()
-    PDF_MARKER_DELETE = auto()
     PDF_MARKER_ADD = auto()
     AUTOSAVES_FOLDER_OPEN = auto()
     APP_CLOSE = auto()
     HARMONY_IMPORT_FROM_CSV = auto()
     MODE_ADD = auto()
-    MODE_DELETE = auto()
     HARMONY_TIMELINE_HIDE_KEYS = auto()
     HARMONY_TIMELINE_SHOW_KEYS = auto()
     HARMONY_DISPLAY_AS_ROMAN_NUMERAL = auto()
     HARMONY_DISPLAY_AS_CHORD_SYMBOL = auto()
     TIMELINE_ELEMENT_EDIT = auto()
     TIMELINES_ADD_HARMONY_TIMELINE = auto()
-    HARMONY_DELETE = auto()
     HARMONY_ADD = auto()
     MEDIA_LOAD_YOUTUBE = auto()
     HIERARCHY_IMPORT_FROM_CSV = auto()
@@ -36,7 +33,6 @@ class TiliaAction(Enum):
     HIERARCHY_ADD_PRE_START = auto()
     ABOUT_WINDOW_OPEN = auto()
     BEAT_ADD = auto()
-    BEAT_DELETE = auto()
     BEAT_DISTRIBUTE = auto()
     BEAT_RESET_MEASURE_NUMBER = auto()
     BEAT_SET_AMOUNT_IN_MEASURE = auto()
@@ -49,14 +45,12 @@ class TiliaAction(Enum):
     FILE_SAVE_AS = auto()
     HIERARCHY_CREATE_CHILD = auto()
     HIERARCHY_DECREASE_LEVEL = auto()
-    HIERARCHY_DELETE = auto()
     HIERARCHY_GROUP = auto()
     HIERARCHY_INCREASE_LEVEL = auto()
     HIERARCHY_MERGE = auto()
     TIMELINE_ELEMENT_PASTE_COMPLETE = auto()
     HIERARCHY_SPLIT = auto()
     MARKER_ADD = auto()
-    MARKER_DELETE = auto()
     MEDIA_LOAD_LOCAL = auto()
     MEDIA_STOP = auto()
     METADATA_WINDOW_OPEN = auto()
@@ -166,9 +160,6 @@ taction_to_params = {
     TiliaAction.BEAT_ADD: ActionParams(
         Post.BEAT_ADD, "Add beat at current position", "beat_add", "b"
     ),
-    TiliaAction.BEAT_DELETE: ActionParams(
-        Post.BEAT_DELETE, "Delete", "beat_delete", ""
-    ),
     TiliaAction.BEAT_DISTRIBUTE: ActionParams(
         Post.BEAT_DISTRIBUTE, "Distribute", "beat_distribute", ""
     ),
@@ -186,9 +177,6 @@ taction_to_params = {
     ),
     TiliaAction.MARKER_ADD: ActionParams(
         Post.MARKER_ADD, "Add marker at current position", "add_marker30", "m"
-    ),
-    TiliaAction.MARKER_DELETE: ActionParams(
-        Post.MARKER_DELETE, "Delete", "delete_marker30", ""
     ),
     TiliaAction.MARKER_IMPORT_FROM_CSV: ActionParams(
         Post.MARKER_IMPORT_FROM_CSV, "Import from CSV file", "", ""
@@ -229,20 +217,11 @@ taction_to_params = {
         "paste_with_data30",
         "Ctrl+Shift+V",
     ),
-    TiliaAction.HIERARCHY_DELETE: ActionParams(
-        Post.HIERARCHY_DELETE, "Delete hierarchy", "delete30", ""
-    ),
     TiliaAction.HIERARCHY_IMPORT_FROM_CSV: ActionParams(
         Post.HIERARCHY_IMPORT_FROM_CSV, "Import from CSV file", "", ""
     ),
-    TiliaAction.HARMONY_DELETE: ActionParams(
-        Post.HARMONY_DELETE, "Delete harmony", "harmony_delete", ""
-    ),
     TiliaAction.HARMONY_ADD: ActionParams(
         Post.HARMONY_ADD, "Add harmony", "harmony_add", "h"
-    ),
-    TiliaAction.MODE_DELETE: ActionParams(
-        Post.MODE_DELETE, "Delete key", "mode_delete", ""
     ),
     TiliaAction.MODE_ADD: ActionParams(Post.MODE_ADD, "Add mode", "mode_add", ""),
     TiliaAction.HARMONY_DISPLAY_AS_ROMAN_NUMERAL: ActionParams(
@@ -359,9 +338,6 @@ taction_to_params = {
     ),
     TiliaAction.PDF_MARKER_ADD: ActionParams(
         Post.PDF_MARKER_ADD, "Add PDF marker", "pdf_add", "p"
-    ),
-    TiliaAction.PDF_MARKER_DELETE: ActionParams(
-        Post.PDF_MARKER_DELETE, "Delete PDF marker", "pdf_delete", ""
     ),
     TiliaAction.PDF_IMPORT_FROM_CSV: ActionParams(
         Post.PDF_IMPORT_FROM_CSV, "Import from CSV file", "", ""
