@@ -40,17 +40,17 @@ class TimelineUIsRequestHandler(RequestHandler):
             tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
             return
         success, name = _get_timeline_name()
+        kwargs = dict()
         if not success:
             return
         cls = self.timeline_uis.get_timeline_ui_class(kind)
-        if hasattr(cls, 'get_additional_args_for_creation'):
-            success, args = cls.get_additional_args_for_creation()
+        if hasattr(cls, "get_additional_args_for_creation"):
+            success, additional_args = cls.get_additional_args_for_creation()
             if not success:
                 return
-        else:
-            args = tuple()
+            kwargs |= additional_args
 
-        self.timelines.create_timeline(kind, None, *args, name=name)
+        self.timelines.create_timeline(kind=kind, components=None, name=name, **kwargs)
 
     def on_timelines_clear(self, confirmed):
         if confirmed:

@@ -60,7 +60,8 @@ class PdfTimelineUI(TimelineUI):
 
     @classmethod
     def get_additional_args_for_creation(cls):
-        return get(Get.FROM_USER_PDF_PATH)
+        success, path = get(Get.FROM_USER_PDF_PATH)
+        return success, {"path": path}
 
     def _handle_invalid_pdf(self):
         tilia.errors.display(tilia.errors.INVALID_PDF, self.get_data("path"))

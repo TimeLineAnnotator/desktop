@@ -36,7 +36,8 @@ class BeatTimelineUI(TimelineUI):
 
     @classmethod
     def get_additional_args_for_creation(cls):
-        return get(Get.FROM_USER_BEAT_PATTERN)
+        success, beat_pattern = get(Get.FROM_USER_BEAT_PATTERN)
+        return success, {"beat_pattern": beat_pattern}
 
     def on_settings_updated(self, updated_settings):        
         if "beat_timeline" in updated_settings:
