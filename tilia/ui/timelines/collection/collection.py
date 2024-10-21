@@ -45,11 +45,6 @@ from tilia.ui.timelines.collection.requests.timeline import (
 )
 from tilia.ui.timelines.collection.requests.element import TlElmRequestSelector
 from .view import TimelineUIsView
-from ..beat import BeatTimelineToolbar
-from ..harmony import HarmonyTimelineToolbar
-from ..hierarchy import HierarchyTimelineToolbar
-from ..marker import MarkerTimelineToolbar
-from ..pdf import PdfTimelineToolbar
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...actions import TiliaAction
@@ -295,7 +290,7 @@ class TimelineUIs:
         self.scene.removeItem(timeline_ui.view.proxy)
         self._remove_from_timeline_uis_set(timeline_ui)
         self._remove_from_timeline_ui_select_order(timeline_ui)
-        self._hide_toolbar_if_needed(timeline_ui.TIMELINE_KIND)
+        self._hide_toolbar_if_needed(timeline_ui)
         self.update_timeline_uis_position()
 
     def _add_to_timeline_uis_set(self, timeline_ui: TimelineUI) -> None:
@@ -423,29 +418,17 @@ class TimelineUIs:
     def create_timeline_view(scene: TimelineScene):
         return TimelineView(scene)
 
-    def setup_toolbar(self, tl_kind: TlKind):
-        if not tl_kind:
-            return
-
-        if tl_kind in [TlKind.SLIDER_TIMELINE, TlKind.AUDIOWAVE_TIMELINE]:
+    def setup_toolbar(self, tl_kind: TimelineKind):
+        tl_class = self.get_timeline_ui_class(tl_kind)
+        if not tl_class.TOOLBAR_CLASS:
             return
 
         if toolbar := self.kind_to_toolbar[tl_kind]:
             toolbar.show()
         else:
-            toolbar = self.get_toolbar_class(tl_kind)()
+            toolbar = tl_class.TOOLBAR_CLASS()
             self.main_window.addToolBar(toolbar)
             self.kind_to_toolbar[tl_kind] = toolbar
-
-    @staticmethod
-    def get_toolbar_class(kind: TlKind) -> type[TimelineToolbar]:
-        return {
-            TlKind.BEAT_TIMELINE: BeatTimelineToolbar,
-            TlKind.MARKER_TIMELINE: MarkerTimelineToolbar,
-            TlKind.HIERARCHY_TIMELINE: HierarchyTimelineToolbar,
-            TlKind.HARMONY_TIMELINE: HarmonyTimelineToolbar,
-            TlKind.PDF_TIMELINE: PdfTimelineToolbar,
-        }[kind]
 
     def _get_timeline_ui_by_scene(self, scene):
         return next((tlui for tlui in self if tlui.scene == scene), None)
@@ -1055,11 +1038,11 @@ class TimelineUIs:
             for kind in TlKind
         }
 
-    def _hide_toolbar_if_needed(self, kind: TlKind):
-        if kind in [TlKind.SLIDER_TIMELINE, TlKind.AUDIOWAVE_TIMELINE]:
+    def _hide_toolbar_if_needed(self, timeline_ui: TimelineUI):
+        if not timeline_ui.TOOLBAR_CLASS:
             return
-        if self.kind_to_timeline()[kind] == 0:
-            self.kind_to_toolbar[kind].hide()
+        if self.kind_to_timeline()[timeline_ui.TIMELINE_KIND] == 0:
+            self.kind_to_toolbar[timeline_ui.TIMELINE_KIND].hide()
 
     def _show_toolbar(self, kind: TlKind):
         self.kind_to_toolbar[kind].show()
