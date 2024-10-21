@@ -4,9 +4,11 @@ import functools
 import itertools
 from typing import TYPE_CHECKING, Optional
 
-from tilia.requests import get, Get, post, Post
+from tilia.requests import post, Post
 from tilia.settings import settings
 from tilia.timelines.base.common import scale_discrete, crop_discrete
+from tilia.timelines.base.component.pointlike import validate_pointlike_component_creation, \
+    validate_unique_position_pointlike_component
 from tilia.timelines.beat.validators import validate_integer_list
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -28,7 +30,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         return {b.time for b in self._components}
 
     def update_is_first_in_measure_of_subsequent_beats(self, index):
-        for beat_ in self.timeline[index + 1 :]:
+        for beat_ in self.timeline[index + 1:]:
             self.timeline.set_component_data(
                 beat_.id,
                 "is_first_in_measure",
@@ -36,7 +38,7 @@ class BeatTLComponentManager(TimelineComponentManager):
             )
 
     def create_component(
-        self, kind: ComponentKind, timeline, id, *args, **kwargs
+            self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, beat, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -52,24 +54,16 @@ class BeatTLComponentManager(TimelineComponentManager):
         return success, beat, reason
 
     def _validate_component_creation(
-        self,
-        _: ComponentKind,
-        time: float,
-        *args,
-        **kwargs,
+            self,
+            _: ComponentKind,
+            time: float,
+            *args,
+            **kwargs,
     ):
-        media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        elif time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
-        elif time in self.beat_times:
-            return (
-                False,
-                f"Can't create beat.\nThere is already a beat at time='{time}'.",
-            )
-        else:
-            return True, ""
+        return self._compose_validators([
+            functools.partial(validate_pointlike_component_creation, time),
+            functools.partial(validate_unique_position_pointlike_component, time, self.get_components()),
+        ])
 
     def delete_component(self, component: TC, update_is_first_in_measure=True) -> None:
         component_idx = self.get_components().index(component)

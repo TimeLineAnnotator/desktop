@@ -3,8 +3,8 @@ from __future__ import annotations
 import functools
 
 from tilia.settings import settings
-from tilia.requests import Get, get
 from tilia.timelines.base.common import scale_discrete, crop_discrete
+from tilia.timelines.base.component.pointlike import validate_pointlike_component_creation
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
@@ -18,13 +18,7 @@ class MarkerTLComponentManager(TimelineComponentManager):
         self.crop = functools.partial(crop_discrete, self)
 
     def _validate_component_creation(self, _, time, *args, **kwargs):
-        media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        elif time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
-        else:
-            return True, ""
+        return validate_pointlike_component_creation(time)
 
 
 class MarkerTimeline(Timeline):
