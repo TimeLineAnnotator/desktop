@@ -52,4 +52,4 @@ def add(namespace: argparse.Namespace):
     tl_kind = KIND_STR_TO_TLKIND[kind]
     kwargs = get_kwargs_by_timeline_kind(namespace, tl_kind)
 
-    post(Post.TIMELINE_ADD, tl_kind, **kwargs)
+    get(Get.TIMELINE_COLLECTION).create_timeline(tl_kind, **kwargs)

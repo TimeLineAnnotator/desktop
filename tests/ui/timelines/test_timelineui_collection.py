@@ -3,11 +3,9 @@ from unittest.mock import patch, Mock
 import pytest
 
 from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
-from tilia import errors as tilia_errors
-from tests.mock import PatchGet, PatchPost, Serve
+from tests.mock import  Serve
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post, get, Get
-from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     TimelineKind,
@@ -28,7 +26,7 @@ ADD_TIMELINE_ACTIONS = [
 
 class TestTimelineUICreation:
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
-    def test_create(self, action, tilia_state, tluis, user_actions):
+    def test_create(self, action, tluis, user_actions):
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
             Serve(Get.FROM_USER_STRING, ("", True)),
@@ -93,15 +91,11 @@ class TestTimelineUICreation:
         user_actions.trigger(action)
         assert tluis.is_empty
 
-    def test_create_timeline_without_media_duration_displays_error(self, tilia, qtui):
-        patch_get_target = "tilia.ui.timelines.collection.requests.args"
-        with PatchPost("tilia.errors", Post.DISPLAY_ERROR) as mock:
-            with PatchGet(patch_get_target, Get.MEDIA_DURATION, 0):
-                actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+    def test_create_timeline_without_media_duration_displays_error(self, tluis, tilia_errors, user_actions):
+        with Serve(Get.MEDIA_DURATION, 0):
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
-        mock.assert_called_once_with(
-            Post.DISPLAY_ERROR, *tilia_errors.CREATE_TIMELINE_WITHOUT_MEDIA
-        )
+        tilia_errors.assert_error()
 
 
 class TestServe:

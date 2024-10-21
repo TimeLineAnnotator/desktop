@@ -34,36 +34,25 @@ def manage_timelines(qtui):
     mt.close()
 
 
-def create_timeline(tls: Timelines, kind: TimelineKind, name: str = ""):
-    kind_to_request = {
-        TimelineKind.MARKER_TIMELINE: Post.TIMELINE_ADD_MARKER_TIMELINE,
-        TimelineKind.HIERARCHY_TIMELINE: Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
-        TimelineKind.HARMONY_TIMELINE: Post.TIMELINE_ADD_HARMONY_TIMELINE,
-        TimelineKind.BEAT_TIMELINE: Post.TIMELINE_ADD_BEAT_TIMELINE,
-        TimelineKind.AUDIOWAVE_TIMELINE: Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE
-    }
-    with Serve(Get.FROM_USER_STRING, (name, True)):
-        post(kind_to_request[kind])
-
-    return tls[-1]
-
-
 class TestChangeTimelineOrder:
-    def test_increase_ordinal(self, tls, manage_timelines):
-        tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-        tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-        tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
+    @pytest.fixture(autouse=True)
+    def setup_timelines(self, tls, user_actions):
+        with Serve(Get.FROM_USER_STRING, ("", True)):
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+        return list(tls)
+
+    def test_increase_ordinal(self, tls, manage_timelines, setup_timelines):
+        tl0, tl1, tl2 = setup_timelines
 
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
-    def test_increase_ordinal_undo(self, tls, user_actions, manage_timelines):
-        tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="first")
-        tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="second")
-        tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="third")
-
+    def test_increase_ordinal_undo(self, tls, user_actions, manage_timelines, setup_timelines):
+        tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
@@ -71,11 +60,8 @@ class TestChangeTimelineOrder:
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
-    def test_increase_ordinal_redo(self, tls, user_actions, manage_timelines):
-        tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="first")
-        tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="second")
-        tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="third")
-
+    def test_increase_ordinal_redo(self, tls, user_actions, manage_timelines, setup_timelines):
+        tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
@@ -85,32 +71,23 @@ class TestChangeTimelineOrder:
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
     def test_increase_ordinal_with_first_selected_does_nothing(
-        self, tls, manage_timelines
-    ):
-        tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-        tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-        tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-
+        self, tls, user_actions, manage_timelines
+    , setup_timelines):
+        tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.up_button.click()
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
-    def test_decrease_ordinal(self, tls, manage_timelines):
-        tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-        tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-        tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-
+    def test_decrease_ordinal(self, tls, manage_timelines, user_actions, setup_timelines):
+        tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
-    def test_decrease_ordinal_undo(self, tls, user_actions, manage_timelines):
-        tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="first")
-        tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="second")
-        tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="third")
-
+    def test_decrease_ordinal_undo(self, tls, user_actions, manage_timelines, setup_timelines):
+        tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
@@ -118,11 +95,8 @@ class TestChangeTimelineOrder:
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
-    def test_decrease_ordinal_redo(self, tls, user_actions, manage_timelines):
-        tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="first")
-        tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="second")
-        tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE, name="third")
-
+    def test_decrease_ordinal_redo(self, tls, user_actions, manage_timelines, setup_timelines):
+        tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
@@ -132,12 +106,9 @@ class TestChangeTimelineOrder:
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
     def test_decrease_ordinal_with_last_selected_does_nothing(
-        self, tls, manage_timelines
-    ):
-        tl0 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-        tl1 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-        tl2 = create_timeline(tls, TimelineKind.MARKER_TIMELINE)
-
+        self, tls, manage_timelines, user_actions
+    , setup_timelines):
+        tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(2)
         manage_timelines.down_button.click()
 
