@@ -18,7 +18,7 @@ DEFAULT_ITEMS = [
     (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE),
     (MenuItemKind.SEPARATOR, None),
     (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_EXPORT_AUDIO),
-    (MenuItemKind.ACTION, TiliaAction.HIERARCHY_DELETE),
+    (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_DELETE),
 ]
 
 

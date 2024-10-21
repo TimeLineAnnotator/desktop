@@ -18,11 +18,9 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
             timeline_ui,
             {
                 Post.HARMONY_ADD: self.on_harmony_add,
-                Post.HARMONY_DELETE: self.on_harmony_delete,
                 Post.HARMONY_DISPLAY_AS_ROMAN_NUMERAL: self.on_display_as_roman_numeral,
                 Post.HARMONY_DISPLAY_AS_CHORD_SYMBOL: self.on_display_as_chord_symbol,
                 Post.MODE_ADD: self.on_mode_add,
-                Post.MODE_DELETE: self.on_mode_delete,
                 Post.TIMELINE_ELEMENT_DELETE: self.on_element_delete,
                 Post.TIMELINE_ELEMENT_COPY: self.on_copy,
                 Post.TIMELINE_ELEMENT_PASTE: self.on_paste,
@@ -53,10 +51,6 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
             tilia.errors.display(tilia.errors.ADD_MODE_FAILED, reason)
         self.timeline_ui.on_mode_add_done()
 
-    def on_mode_delete(self, elements, *_, **__):
-        self.timeline.delete_components(self.elements_to_components(elements))
-        self.timeline_ui.on_mode_delete_done()
-
     def on_harmony_add(self, *_, **__):
         time = get(Get.SELECTED_TIME)
         valid, reason = self.timeline.component_manager._validate_component_creation(
@@ -77,9 +71,6 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
 
         if not harmony:
             tilia.errors.display(tilia.errors.ADD_HARMONY_FAILED, reason)
-
-    def on_harmony_delete(self, elements, *_, **__):
-        self.timeline.delete_components(self.elements_to_components(elements))
 
     def on_element_delete(self, elements, *_, **__):
 

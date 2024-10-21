@@ -408,24 +408,6 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(beat_tlui) == 1
 
-    def test_on_delete_beat_button(self, beat_tlui):
-        beat_tlui.create_beat(0)
-        beat_tlui.select_element(beat_tlui[0])
-        post(Post.BEAT_DELETE)
-
-        assert len(beat_tlui) == 0
-
-    def test_on_delete_beat_button_multiple_beats(self, beat_tlui, tluis):
-        beat_tlui.create_beat(0)
-        beat_tlui.create_beat(0.1)
-        beat_tlui.create_beat(0.2)
-
-        beat_tlui.select_all_elements()
-
-        post(Post.BEAT_DELETE)
-
-        assert len(beat_tlui) == 0
-
     def test_undo_redo_delete_beat_multiple_beats(self, beat_tlui, tluis, user_actions):
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(0.1)

@@ -10,5 +10,4 @@ class HierarchyTimelineToolbar(TimelineToolbar):
         TiliaAction.HIERARCHY_INCREASE_LEVEL,
         TiliaAction.HIERARCHY_DECREASE_LEVEL,
         TiliaAction.HIERARCHY_CREATE_CHILD,
-        TiliaAction.HIERARCHY_DELETE,
     ]

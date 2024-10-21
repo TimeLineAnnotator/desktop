@@ -22,7 +22,6 @@ class MarkerUIRequestHandler(ElementRequestHandler):
             timeline_ui,
             {
                 Post.MARKER_ADD: self.on_add,
-                Post.MARKER_DELETE: self.on_delete,
                 Post.TIMELINE_ELEMENT_DELETE: self.on_delete,
                 Post.TIMELINE_ELEMENT_COLOR_SET: self.on_color_set,
                 Post.TIMELINE_ELEMENT_COLOR_RESET: self.on_color_reset,

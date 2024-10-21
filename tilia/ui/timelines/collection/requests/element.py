@@ -51,17 +51,11 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     Post.MARKER_ADD: TlElmRequestSelector(
         [TlKind.MARKER_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
     ),
-    Post.MARKER_DELETE: TlElmRequestSelector(
-        [TlKind.MARKER_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
-    ),
     Post.TIMELINE_NAME_SET: TlElmRequestSelector(
         NOT_SLIDER, TimelineSelector.FIRST, ElementSelector.NONE
     ),
     Post.BEAT_ADD: TlElmRequestSelector(
         [TlKind.BEAT_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
-    ),
-    Post.BEAT_DELETE: TlElmRequestSelector(
-        [TlKind.BEAT_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
     ),
     Post.BEAT_SET_MEASURE_NUMBER: TlElmRequestSelector(
         [TlKind.BEAT_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
@@ -111,9 +105,6 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     Post.HARMONY_ADD: TlElmRequestSelector(
         [TlKind.HARMONY_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
     ),
-    Post.HARMONY_DELETE: TlElmRequestSelector(
-        [TlKind.HARMONY_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
-    ),
     Post.HARMONY_DISPLAY_AS_ROMAN_NUMERAL: TlElmRequestSelector(
         [TlKind.HARMONY_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
     ),
@@ -123,13 +114,7 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     Post.MODE_ADD: TlElmRequestSelector(
         [TlKind.HARMONY_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
     ),
-    Post.MODE_DELETE: TlElmRequestSelector(
-        [TlKind.HARMONY_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
-    ),
     Post.PDF_MARKER_ADD: TlElmRequestSelector(
         [TlKind.PDF_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
     ),
-    Post.PDF_MARKER_DELETE: TlElmRequestSelector(
-        [TlKind.PDF_TIMELINE], TimelineSelector.SELECTED, ElementSelector.SELECTED
-    )
 }

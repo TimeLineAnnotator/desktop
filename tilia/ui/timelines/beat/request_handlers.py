@@ -20,7 +20,6 @@ class BeatUIRequestHandler(ElementRequestHandler):
             timeline_ui,
             {
                 Post.BEAT_ADD: self.on_add,
-                Post.BEAT_DELETE: self.on_delete,
                 Post.BEAT_SET_MEASURE_NUMBER: self.on_set_measure_number,
                 Post.BEAT_RESET_MEASURE_NUMBER: self.on_reset_measure_number,
                 Post.BEAT_DISTRIBUTE: self.on_distribute,
