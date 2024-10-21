@@ -6,17 +6,17 @@ from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
-from tilia.ui.timelines.score.element import NoteUI
+from tilia.ui.timelines.score.element import NoteUI, StaffUI
 from tilia.ui.timelines.score.request_handlers import ScoreTimelineUIElementRequestHandler
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
 
 
 class ScoreTimelineUI(TimelineUI):
     TOOLBAR_CLASS = ScoreTimelineToolbar
-    ELEMENT_CLASS = NoteUI
     ACCEPTS_HORIZONTAL_ARROWS = True
 
     TIMELINE_KIND = TimelineKind.SCORE_TIMELINE
+    ELEMENT_CLASS = [NoteUI, StaffUI]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -25,9 +25,8 @@ class ScoreTimelineUI(TimelineUI):
     def on_settings_updated(self, updated_settings):        
         if "score_timeline" in updated_settings:  
             get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
-            for score_ui in self:
-                score_ui.update_time()
-                score_ui.update_color()
+            for element in self:
+                element.update_position()
 
     def on_timeline_element_request(
         self, request, selector: ElementSelector, *args, **kwargs

@@ -4,7 +4,6 @@ import functools
 
 from tilia.settings import settings
 from tilia.timelines.base.common import scale_discrete, crop_discrete
-from tilia.timelines.base.component.pointlike import validate_pointlike_component_creation
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
@@ -12,10 +11,10 @@ from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
-    COMPONENT_TYPES = [ComponentKind.NOTE]
+    COMPONENT_TYPES = [ComponentKind.NOTE, ComponentKind.STAFF]
 
     def __init__(self, timeline: ScoreTimeline):
-        super().__init__(timeline, [ComponentKind.NOTE])
+        super().__init__(timeline, [ComponentKind.NOTE, ComponentKind.STAFF])
         self.scale = functools.partial(scale_discrete, self)
         self.crop = functools.partial(crop_discrete, self)
 

@@ -11,9 +11,8 @@ def test_create(tluis, user_actions):
 
 
 def test_create_note(tluis, note):
-    import os
-    import time
-    os.environ['QT_QTA_PLATFORM'] = 'windows'
-
-    time.sleep(3)
     assert note
+
+
+def test_create_staff(tluis, staff):
+    assert staff
