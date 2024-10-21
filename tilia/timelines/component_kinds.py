@@ -8,14 +8,15 @@ if TYPE_CHECKING:
 
 
 class ComponentKind(Enum):
-    NOTE = auto()
     PDF_MARKER = auto()
     MODE = auto()
     HARMONY = auto()
     BEAT = auto()
     MARKER = auto()
+    NOTE = auto()
     HIERARCHY = auto()
     AUDIOWAVE = auto()
+    STAFF = auto()
 
 
 def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
@@ -25,7 +26,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
     from tilia.timelines.harmony.components import Harmony, Mode
     from tilia.timelines.pdf.components import PdfMarker
     from tilia.timelines.audiowave.components import AmplitudeBar
-    from tilia.timelines.score.components import Note
+    from tilia.timelines.score.components import Note, Staff
 
     kind_to_class_dict = {
         ComponentKind.HIERARCHY: Hierarchy,
@@ -36,6 +37,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
         ComponentKind.MODE: Mode,
         ComponentKind.PDF_MARKER: PdfMarker,
         ComponentKind.AUDIOWAVE: AmplitudeBar,
+        ComponentKind.STAFF: Staff
     }
 
     return kind_to_class_dict[kind]

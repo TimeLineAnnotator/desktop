@@ -7,7 +7,7 @@ def get_element_class_by_kind(kind: ComponentKind):
     from tilia.ui.timelines.beat.element import BeatUI
     from tilia.ui.timelines.harmony.elements import HarmonyUI, ModeUI
     from tilia.ui.timelines.audiowave.element import AmplitudeBarUI
-    from tilia.ui.timelines.score.element import NoteUI
+    from tilia.ui.timelines.score.element import NoteUI, StaffUI
 
     kind_to_class_dict = {
         ComponentKind.HIERARCHY: HierarchyUI,
@@ -17,6 +17,7 @@ def get_element_class_by_kind(kind: ComponentKind):
         ComponentKind.MODE: ModeUI,
         ComponentKind.AUDIOWAVE: AmplitudeBarUI,
         ComponentKind.NOTE: NoteUI,
+        ComponentKind.STAFF: StaffUI,
     }
 
     return kind_to_class_dict[kind]

@@ -10,17 +10,17 @@ from PyQt6.QtWidgets import (
 )
 
 from tilia.requests import Post, post
-from . import attrs
-from ..cursors import CursorMixIn
-from ...color import get_tinted_color, get_untinted_color
-from ...format import format_media_time
-from ...consts import TINT_FACTOR_ON_SELECTION
-from ...coords import get_x_by_time
+from tilia.ui.timelines.score import attrs
+from tilia.ui.timelines.cursors import CursorMixIn
+from tilia.ui.color import get_tinted_color, get_untinted_color
+from tilia.ui.format import format_media_time
+from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
+from tilia.ui.coords import get_x_by_time
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 
 if TYPE_CHECKING:
-    from .timeline import NoteTimelineUI
+    from tilia.ui.timelines.score.timeline import NoteTimelineUI
 
 
 class NoteUI(TimelineUIElement):
@@ -61,9 +61,9 @@ class NoteUI(TimelineUIElement):
     def top_y(self):
         note_height = self.note_height()
         middle_y = self.timeline_ui.get_data('height') / 2
-        note_offset = (self.get_data('step') - 6) * note_height
-        octave_offset = (self.get_data('octave') - 3) * note_height * 7
-        return middle_y - note_offset - octave_offset
+        note_offset = (self.get_data('step') - 6) * note_height / 2
+        octave_offset = (self.get_data('octave') - 3) * note_height / 2 * 7
+        return middle_y - note_offset - octave_offset - note_height / 2
     
     @property
     def seek_time(self):
@@ -72,7 +72,6 @@ class NoteUI(TimelineUIElement):
     @classmethod
     def note_height(cls):
         return settings.get("score_timeline", "note_height")
-
 
     @property
     def default_color(self):
@@ -127,7 +126,7 @@ class NoteUI(TimelineUIElement):
 
 
 class NoteBody(CursorMixIn, QGraphicsRectItem):
-    X_OFFSET = 1
+    X_OFFSET = 0
     Y_OFFSET = 1
 
     def __init__(
