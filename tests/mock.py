@@ -53,7 +53,6 @@ class Serve:
         return self.return_value
 
 
-
 class ServeSequence:
     def __init__(self, request: Get, return_values: Sequence[Any]):
         self.request = request
