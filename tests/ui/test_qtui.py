@@ -1,8 +1,7 @@
 from unittest.mock import patch
 
-from tests.mock import PatchGet, PatchGetMultiple
+from tests.mock import Serve
 from tilia.requests import Get
-from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.ui.windows import WindowKind
 
@@ -11,12 +10,10 @@ class TestCreateTimeline:
     def test_create(self, tls, hierarchy_tlui):
         assert not tls.is_empty
 
-    def test_create_without_media_loaded(self, tilia, tls):
-        with PatchGetMultiple(
-            "tilia.ui.timelines.collection.requests.args",
-            {Get.MEDIA_DURATION: 0, Get.FROM_USER_STRING: ("", True)},
-        ):
-            actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+    def test_create_without_media_loaded(self, tilia, tls, user_actions):
+        with Serve(Get.MEDIA_DURATION, 0):
+            with Serve(Get.FROM_USER_STRING, ("", True)):
+                user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         assert tls.is_empty
 

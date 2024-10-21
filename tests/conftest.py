@@ -197,20 +197,6 @@ def cleanup_requests():
 def tls(tilia):
     _tls = tilia.timelines
 
-    def add_timeline_with_post(kind: TimelineKind, name: str = ""):
-        kind_to_request = {
-            TimelineKind.MARKER_TIMELINE: Post.TIMELINE_ADD_MARKER_TIMELINE,
-            TimelineKind.HIERARCHY_TIMELINE: Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
-            TimelineKind.HARMONY_TIMELINE: Post.TIMELINE_ADD_HARMONY_TIMELINE,
-            TimelineKind.BEAT_TIMELINE: Post.TIMELINE_ADD_BEAT_TIMELINE,
-            TimelineKind.AUDIOWAVE_TIMELINE: Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE
-        }
-        with Serve(Get.FROM_USER_STRING, (name, True)):
-            post(kind_to_request[kind])
-
-        return _tls[-1]
-
-    _tls.add_timeline_with_post = add_timeline_with_post
     yield _tls
     _tls.clear()  # deletes created timelines
 

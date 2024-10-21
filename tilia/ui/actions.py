@@ -8,6 +8,8 @@ from tilia.requests.post import post, Post
 from PyQt6.QtWidgets import QMainWindow
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
+from tilia.timelines.timeline_kinds import TimelineKind
+
 
 class TiliaAction(Enum):
     PDF_IMPORT_FROM_CSV = auto()
@@ -288,40 +290,46 @@ taction_to_params = {
         Post.WINDOW_MANAGE_TIMELINES_OPEN, "Manage...", "", ""
     ),
     TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD_HIERARCHY_TIMELINE,
+        Post.TIMELINE_ADD,
         "Hierarchy",
         "",
         "",
+            (TimelineKind.HIERARCHY_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_MARKER_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD_MARKER_TIMELINE,
+        Post.TIMELINE_ADD,
         "Marker",
         "",
         "",
+        (TimelineKind.MARKER_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_BEAT_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD_BEAT_TIMELINE,
+        Post.TIMELINE_ADD,
         "Beat",
         "",
         "",
+        (TimelineKind.BEAT_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD_HARMONY_TIMELINE,
+        Post.TIMELINE_ADD,
         "Harmony",
         "",
         "",
+        (TimelineKind.HARMONY_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_PDF_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD_PDF_TIMELINE,
+        Post.TIMELINE_ADD,
         "PDF",
         "",
         "",
+        (TimelineKind.PDF_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE,
+        Post.TIMELINE_ADD,
         "AudioWave",
         "",
         "",
+        (TimelineKind.AUDIOWAVE_TIMELINE,)
     ),
     TiliaAction.HARMONY_IMPORT_FROM_CSV: ActionParams(
         Post.HARMONY_IMPORT_FROM_CSV, "Import from CSV file", "", ""

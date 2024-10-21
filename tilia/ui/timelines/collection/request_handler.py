@@ -2,69 +2,55 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import tilia.errors
 from tilia.requests import Post, get, Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.request_handler import RequestHandler
+
+
+def _get_media_is_loaded():
+    if get(Get.MEDIA_DURATION) == 0:
+        return False
+    return True
+
+
+def _get_timeline_name():
+    name, confirmed = get(
+        Get.FROM_USER_STRING,
+        title="New timeline",
+        prompt="Choose name for new timeline",
+    )
+
+    return confirmed, name
 
 
 class TimelineUIsRequestHandler(RequestHandler):
     def __init__(self, timeline_uis):
         super().__init__(
             request_to_callback={
-                Post.TIMELINE_ADD_HIERARCHY_TIMELINE: self.on_timeline_add_hierarchy_timeline,
-                Post.TIMELINE_ADD_MARKER_TIMELINE: self.on_timeline_add_marker_timeline,
-                Post.TIMELINE_ADD_BEAT_TIMELINE: self.on_timeline_add_beat_timeline,
-                Post.TIMELINE_ADD_HARMONY_TIMELINE: self.on_timeline_add_harmony_timeline,
-                Post.TIMELINE_ADD_PDF_TIMELINE: self.on_timeline_add_pdf_timeline,
-                Post.TIMELINE_ADD_AUDIOWAVE_TIMELINE: self.on_timeline_add_audiowave_timeline,
+                Post.TIMELINE_ADD: self.on_timeline_add,
                 Post.TIMELINES_CLEAR: self.on_timelines_clear,
             }
         )
         self.timeline_uis = timeline_uis
         self.timelines = get(Get.TIMELINE_COLLECTION)
 
-    def on_timeline_add_hierarchy_timeline(self, confirmed: bool, name: str):
-        if confirmed:
-            self.timelines.create_timeline(
-                TimelineKind.HIERARCHY_TIMELINE, None, name=name
-            )
+    def on_timeline_add(self, kind: TimelineKind):
+        if not _get_media_is_loaded():
+            tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+            return
+        success, name = _get_timeline_name()
+        if not success:
+            return
+        cls = self.timeline_uis.get_timeline_ui_class(kind)
+        if hasattr(cls, 'get_additional_args_for_creation'):
+            success, args = cls.get_additional_args_for_creation()
+            if not success:
+                return
+        else:
+            args = tuple()
 
-    def on_timeline_add_marker_timeline(self, confirmed: bool, name: str):
-        if confirmed:
-            self.timelines.create_timeline(
-                TimelineKind.MARKER_TIMELINE, None, name=name
-            )
-
-    def on_timeline_add_beat_timeline(
-        self, confirmed: bool, name: str, beat_pattern: list[int] | None = None
-    ):
-        if confirmed:
-            self.timelines.create_timeline(
-                TimelineKind.BEAT_TIMELINE,
-                None,
-                name=name,
-                beat_pattern=beat_pattern,
-            )
-
-    def on_timeline_add_harmony_timeline(self, confirmed: bool, name: str):
-        if confirmed:
-            self.timelines.create_timeline(
-                TimelineKind.HARMONY_TIMELINE, None, name=name
-            )
-
-    def on_timeline_add_pdf_timeline(self, confirmed: bool, name: str, pdf_path: str | Path):
-        if confirmed:
-            self.timelines.create_timeline(
-                TimelineKind.PDF_TIMELINE,
-                None,
-                name=name,
-                path=pdf_path
-            )
-
-    def on_timeline_add_audiowave_timeline(self, confirmed: bool, name: str):
-        if confirmed:
-            self.timelines.create_timeline(
-                TimelineKind.AUDIOWAVE_TIMELINE, None, name=name)
+        self.timelines.create_timeline(kind, None, *args, name=name)
 
     def on_timelines_clear(self, confirmed):
         if confirmed:

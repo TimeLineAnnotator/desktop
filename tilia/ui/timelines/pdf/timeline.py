@@ -58,6 +58,10 @@ class PdfTimelineUI(TimelineUI):
 
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_media_time_change)
 
+    @classmethod
+    def get_additional_args_for_creation(cls):
+        return get(Get.FROM_USER_PDF_PATH)
+
     def _handle_invalid_pdf(self):
         tilia.errors.display(tilia.errors.INVALID_PDF, self.get_data("path"))
         _, value = get(Get.FROM_USER_RETRY_PDF_PATH)

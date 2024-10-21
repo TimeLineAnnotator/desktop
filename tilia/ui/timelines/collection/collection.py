@@ -852,10 +852,14 @@ class TimelineUIs:
         self,
         request: Post,
         selector: TlElmRequestSelector,
+        *args: tuple[Any],
+        **kwargs: dict[str, Any],
     ) -> None:
-        timeline_uis, args, kwargs, success = self.pre_process_timeline_request(
+        timeline_uis, more_args, more_kwargs, success = self.pre_process_timeline_request(
             request, selector.tl_kind, selector.timeline
         )
+        args += more_args
+        kwargs |= more_kwargs
 
         if not success:
             return
@@ -875,10 +879,13 @@ class TimelineUIs:
         if request not in self.DO_NOT_RECORD and not all([isinstance(r, RequestFailure) for r in result]):
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
-    def on_timeline_ui_request(self, request: Post, *args, **kwargs):
-        args, kwargs, success = self.pre_process_timeline_uis_request(
+    def on_timeline_ui_request(self, request: Post, *args: tuple[Any], **kwargs: dict[str, Any]):
+        more_args, more_kwargs, success = self.pre_process_timeline_uis_request(
             request, *args, **kwargs
         )
+        args += more_args
+        kwargs |= more_kwargs
+
         if not success:
             return
 
@@ -889,12 +896,14 @@ class TimelineUIs:
         if request not in self.DO_NOT_RECORD:
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
-    def on_timeline_request(self, request: Post, selector: TlRequestSelector):
-        timeline_uis, args, kwargs, success = self.pre_process_timeline_request(
+    def on_timeline_request(self, request: Post, selector: TlRequestSelector, *args: tuple[Any], **kwargs: dict[str, Any]):
+        timeline_uis, more_args, more_kwargs, success = self.pre_process_timeline_request(
             request,
             selector.tl_kind,
             selector.timeline,
         )
+        args += more_args
+        kwargs |= more_kwargs
 
         if not success:
             return
