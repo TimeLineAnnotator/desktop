@@ -76,7 +76,8 @@ class SettingsManager(QObject):
         },
         "score_timeline": {
             "default_height": 80,
-            "line_height": 8,
+            "note_height": 8,
+            "default_note_color": "#000000"
         },
         "PDF_timeline": {
             "default_height": 30,

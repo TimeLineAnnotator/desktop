@@ -5,13 +5,13 @@ from tilia.timelines.score.components.validators import validate_step, validate_
 from tilia.timelines.score.timeline import ScoreTimeline
 
 STEP_TO_PC = {
-    'C': 0,
-    'D': 2,
-    'E': 4,
-    'F': 5,
-    'G': 7,
-    'A': 9,
-    'B': 11
+    0: 0,
+    1: 2,
+    2: 4,
+    3: 5,
+    4: 7,
+    5: 9,
+    6: 11
 }
 
 OCTAVE_TO_PC = {
@@ -82,6 +82,6 @@ class Note(SegmentLikeTimelineComponent):
 
     @property
     def pitch(self):
-        return OCTAVE_TO_PC[self.octave] + self.pitch_class()
+        return OCTAVE_TO_PC[self.octave] + self.pitch_class
 
 

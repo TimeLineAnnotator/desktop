@@ -64,6 +64,7 @@ class TiliaAction(Enum):
     TIMELINES_ADD_MARKER_TIMELINE = auto()
     TIMELINES_ADD_PDF_TIMELINE = auto()
     TIMELINES_ADD_AUDIOWAVE_TIMELINE = auto()
+    TIMELINES_ADD_SCORE_TIMELINE = auto()
     TIMELINE_ELEMENT_COLOR_SET = auto()
     TIMELINE_ELEMENT_COLOR_RESET = auto()
     TIMELINE_ELEMENT_COPY = auto()
@@ -285,6 +286,13 @@ taction_to_params = {
     ),
     TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE: ActionParams(
         Post.TIMELINE_ADD, "AudioWave", "", "", (TimelineKind.AUDIOWAVE_TIMELINE,)
+    ),
+    TiliaAction.TIMELINES_ADD_SCORE_TIMELINE: ActionParams(
+        Post.TIMELINE_ADD,
+        "Score",
+        "",
+        "",
+        (TimelineKind.SCORE_TIMELINE,)
     ),
     TiliaAction.HARMONY_IMPORT_FROM_CSV: ActionParams(
         Post.HARMONY_IMPORT_FROM_CSV, "Import from CSV file", "", ""

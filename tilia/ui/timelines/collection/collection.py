@@ -398,6 +398,7 @@ class TimelineUIs:
         from tilia.ui.timelines.harmony.timeline import HarmonyTimelineUI
         from tilia.ui.timelines.beat import BeatTimelineUI
         from tilia.ui.timelines.pdf import PdfTimelineUI
+        from tilia.ui.timelines.score.timeline import ScoreTimelineUI
 
         kind_to_class = {
             TlKind.HIERARCHY_TIMELINE: HierarchyTimelineUI,
@@ -407,6 +408,7 @@ class TimelineUIs:
             TlKind.BEAT_TIMELINE: BeatTimelineUI,
             TlKind.HARMONY_TIMELINE: HarmonyTimelineUI,
             TlKind.PDF_TIMELINE: PdfTimelineUI,
+            TlKind.SCORE_TIMELINE: ScoreTimelineUI,
         }
 
         return kind_to_class[kind]
