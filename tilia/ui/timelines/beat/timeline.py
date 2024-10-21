@@ -34,6 +34,10 @@ class BeatTimelineUI(TimelineUI):
         super().__init__(*args, **kwargs)
         listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
 
+    @classmethod
+    def get_additional_args_for_creation(cls):
+        return get(Get.FROM_USER_BEAT_PATTERN)
+
     def on_settings_updated(self, updated_settings):        
         if "beat_timeline" in updated_settings:
             for beat_ui in self:
