@@ -22,25 +22,15 @@ class TestCreate:
 
 class TestTimelines:
     def tests_scales_timelines_when_media_duration_changes(
-        self, marker_tl, tilia_state, monkeypatch
+        self, marker_tl, tilia_state
     ):
-        monkeypatch.setattr(
-            "tilia.ui.dialogs.scale_or_crop.ScaleOrCrop.select",
-            lambda *args: (True, ScaleOrCrop.ActionToTake.SCALE),
-        )
         marker_tl.create_marker(10)
-        tilia_state.duration = 200
+        tilia_state.set_duration(200, scale_timelines=ScaleOrCrop.ActionToTake.SCALE)
         assert marker_tl[0].get_data("time") == 20
 
-    def tests_crops_timelines_when_media_duration_changes(
-        self, marker_tl, tilia_state, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "tilia.ui.dialogs.scale_or_crop.ScaleOrCrop.select",
-            lambda *args: (True, ScaleOrCrop.ActionToTake.CROP),
-        )
+    def tests_crops_timelines_when_media_duration_changes(self, marker_tl, tilia_state):
         marker_tl.create_marker(10)
-        tilia_state.duration = 200
+        tilia_state.set_duration(200, scale_timelines=ScaleOrCrop.ActionToTake.CROP)
         assert marker_tl[0].get_data("time") == 10
 
     def test_scale_timeline_is_not_offered_when_there_is_only_a_slider_timeline(
@@ -51,15 +41,11 @@ class TestTimelines:
         assert not mock.called
 
     def test_crops_timeline_when_media_duration_changes_if_user_confirms(
-        self, marker_tl, tilia_state, monkeypatch
+        self, marker_tl, tilia_state
     ):
-        monkeypatch.setattr(
-            "tilia.ui.dialogs.scale_or_crop.ScaleOrCrop.select",
-            lambda *args: (True, ScaleOrCrop.ActionToTake.CROP),
-        )
         marker_tl.create_marker(100)
         marker_tl.create_marker(50)
-        tilia_state.duration = 50
+        tilia_state.set_duration(50, scale_timelines=ScaleOrCrop.ActionToTake.CROP)
         assert marker_tl[0].get_data("time") == 50
         assert len(marker_tl) == 1
 
