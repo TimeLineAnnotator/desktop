@@ -1,7 +1,7 @@
 import pytest
 
 from tests.mock import PatchPost
-from tilia.requests import Post
+from tilia.requests import Post, post
 from tilia.timelines import hash_timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.dialogs.scale_or_crop import ScaleOrCrop
@@ -48,6 +48,34 @@ class TestTimelines:
         tilia_state.set_duration(50, scale_timelines=ScaleOrCrop.ActionToTake.CROP)
         assert marker_tl[0].get_data("time") == 50
         assert len(marker_tl) == 1
+
+    def test_create_element_outside_playback_time_fails(
+        self, marker_tl, hierarchy_tl, tilia_state
+    ):
+        media_duration = 75
+        playback_start = 10
+        playback_end = 50
+
+        post(
+            Post.FILE_MEDIA_DURATION_CHANGED,
+            media_duration,
+            playback_start,
+            playback_end,
+        )
+        assert tilia_state.duration == media_duration
+
+        marker_tl.create_marker(0)
+        marker_tl.create_marker(playback_start)
+        marker_tl.create_marker(playback_end + 1)
+        assert len(marker_tl) == 1
+        assert marker_tl[0].get_data("time") == playback_start
+
+        hierarchy_tl.create_hierarchy(start=0, end=1, level=1)
+        hierarchy_tl.create_hierarchy(start=playback_start, end=playback_end, level=1)
+        hierarchy_tl.create_hierarchy(start=0, end=media_duration, level=2)
+        assert len(hierarchy_tl) == 1
+        assert hierarchy_tl[0].get_data("start") == playback_start
+        assert hierarchy_tl[0].get_data("end") == playback_end
 
     def test_posts_timeline_kind_instanced_event(self, tls):
         with PatchPost(
