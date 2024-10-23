@@ -114,9 +114,9 @@ class App:
 
     def on_restore_state(self, state: dict) -> None:
         with PauseUndoManager():
+            self.restore_player_state(state["media_path"])
             self.timelines.restore_state(state["timelines"])
             self.file_manager.set_media_metadata(state["media_metadata"])
-            self.restore_player_state(state["media_path"])
 
     def on_record_state(self, action, no_repeat=False, repeat_identifier=""):
         self.undo_manager.record(
