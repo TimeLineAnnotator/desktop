@@ -287,6 +287,24 @@ class TestScaleCropTimeline:
         assert len(marker_tlui) == 1
         assert marker_tlui[0].get_data("time") == 10
 
+    def test_scale_segmentlike(self, hierarchy_tlui, tilia_state, user_actions):
+        # weirdly enough, this only fails if component_count >= 4
+        hierarchy_tlui.create_hierarchy(0, tilia_state.duration, 1)
+        component_count = 4
+        for i in range(component_count):
+            tilia_state.current_time = tilia_state.duration * i / component_count
+            user_actions.trigger(TiliaAction.HIERARCHY_SPLIT)
+
+        tilia_state.set_duration(200, scale_timelines=ScaleOrCrop.ActionToTake.SCALE)
+
+        for i in range(component_count):
+            t1 = tilia_state.duration * i / component_count
+            t2 = tilia_state.duration * (i + 1) / component_count
+            assert hierarchy_tlui[i].get_data("start") == t1
+            assert hierarchy_tlui[i].get_data("pre_start") == t1
+            assert hierarchy_tlui[i].get_data("end") == t2
+            assert hierarchy_tlui[i].get_data("post_end") == t2
+
 
 class TestFileSetup:
     def test_slider_timeline_is_created_when_loaded_file_does_not_have_one(
