@@ -1,23 +1,21 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QPointF, Qt, QRectF
-from PyQt6.QtGui import QPen, QColor
 from PyQt6.QtWidgets import (
     QGraphicsScene,
     QGraphicsItem,
-    QGraphicsRectItem,
 )
 
 from tilia.requests import Post, post
 from tilia.ui.timelines.score import attrs
-from tilia.ui.timelines.cursors import CursorMixIn
-from tilia.ui.color import get_tinted_color, get_untinted_color
+from tilia.ui.color import get_tinted_color
 from tilia.ui.format import format_media_time
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import get_x_by_time
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
+from tilia.ui.timelines.score.element.note.body import NoteBody
+from tilia.ui.timelines.score.element.note.supplementary_line import NoteSupplementaryLine
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.score.timeline import NoteTimelineUI
@@ -46,8 +44,10 @@ class NoteUI(TimelineUIElement):
         self._setup_body()
 
     def _setup_body(self):
-        self.body = NoteBody(self.start_x, self.end_x, self.top_y, self.ui_color)
+        self.body = NoteBody(self.start_x, self.end_x, self.top_y, self.note_height(), self.ui_color)
+        self.supplementary_line = NoteSupplementaryLine(*self.get_supplementary_line_args())
         self.scene.addItem(self.body)
+        self.scene.addItem(self.supplementary_line)
         
     @property
     def start_x(self):
@@ -73,6 +73,10 @@ class NoteUI(TimelineUIElement):
     def note_height(cls):
         return settings.get("score_timeline", "note_height")
 
+    @classmethod
+    def supplementary_line_offset(cls):
+        return 5
+
     @property
     def default_color(self):
         return settings.get("score_timeline", "default_note_color")
@@ -86,6 +90,9 @@ class NoteUI(TimelineUIElement):
             else get_tinted_color(base_color, TINT_FACTOR_ON_SELECTION)
         )
 
+    def get_supplementary_line_args(self):
+        return self.start_x - self.supplementary_line_offset(), self.end_x + self.supplementary_line_offset(), self.top_y + self.note_height() / 2
+
     def update_color(self):
         self.body.set_fill(self.ui_color)
 
@@ -93,7 +100,8 @@ class NoteUI(TimelineUIElement):
         self.update_time()
 
     def update_time(self):
-        self.body.set_position(self.start_x, self.end_x, self.top_y)
+        self.body.set_position(self.start_x, self.end_x, self.top_y, self.note_height())
+        self.supplementary_line.set_position(*self.get_supplementary_line_args())
 
     def child_items(self):
         return [self.body]
@@ -123,51 +131,3 @@ class NoteUI(TimelineUIElement):
             "Pitch class": self.get_data('pitch_class'),
             "Comments": self.get_data("comments"),
         }
-
-
-class NoteBody(CursorMixIn, QGraphicsRectItem):
-    X_OFFSET = 0
-    Y_OFFSET = 1
-
-    def __init__(
-        self, start_x: float, end_x: float, top_y: float, color: str
-    ):
-        super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
-        self.set_position(start_x, end_x, top_y)
-        self.set_pen_style_no_pen()
-        self.set_fill(color)
-
-    def set_fill(self, color: str):
-        self.setBrush(QColor(color))
-
-    def set_pen_style_solid(self):
-        pen = QPen(QColor("black"))
-        pen.setStyle(Qt.PenStyle.SolidLine)
-        self.setPen(pen)
-
-    def set_pen_style_no_pen(self):
-        pen = QPen(QColor("black"))
-        pen.setStyle(Qt.PenStyle.NoPen)
-        self.setPen(pen)
-
-    def set_position(self, start_x: float, end_x: float, top_y: float):
-        self.setRect(self.get_rect(start_x, end_x, top_y))
-
-    def on_select(self):
-        self.set_pen_style_solid()
-        self.setBrush(
-            QColor(get_tinted_color(self.brush().color(), TINT_FACTOR_ON_SELECTION))
-        )
-
-    def on_deselect(self):
-        self.set_pen_style_no_pen()
-        self.setBrush(
-            QColor(get_untinted_color(self.brush().color(), TINT_FACTOR_ON_SELECTION))
-        )
-
-    def get_rect(self, start_x: float, end_x: float, top_y: float) -> QRectF:
-        x0 = start_x + self.X_OFFSET
-        y0 = top_y + self.Y_OFFSET / 2
-        x1 = end_x - self.X_OFFSET
-        y1 = top_y + NoteUI.note_height() - self.Y_OFFSET / 2
-        return QRectF(QPointF(x0, y0), QPointF(x1, y1))
