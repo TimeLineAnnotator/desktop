@@ -608,17 +608,19 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
     def scale(self, factor: float, offset_old: float, offset_new: float) -> None:
         for hrc in self._components:
+            prev_pre_start = hrc.get_data('pre_start')
             self.set_component_data(
                 hrc.id, "start", (hrc.start - offset_old) * factor + offset_new
             )
+            prev_post_end = hrc.get_data('post_end')
             self.set_component_data(
                 hrc.id, "end", (hrc.end - offset_old) * factor + offset_new
             )
             self.set_component_data(
-                hrc.id, "pre_start", (hrc.pre_start - offset_old) * factor + offset_new
+                hrc.id, "pre_start", (prev_pre_start - offset_old) * factor + offset_new
             )
             self.set_component_data(
-                hrc.id, "post_end", (hrc.post_end - offset_old) * factor + offset_new
+                hrc.id, "post_end", (prev_post_end - offset_old) * factor + offset_new
             )
 
     def crop(self, start: float, end: float) -> None:
