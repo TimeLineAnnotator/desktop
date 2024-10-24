@@ -2,7 +2,6 @@ import weakref
 from enum import Enum, auto
 from typing import Callable, Any
 
-from tilia.settings import settings
 from tilia.exceptions import NoReplyToRequest, NoCallbackAttached
 
 

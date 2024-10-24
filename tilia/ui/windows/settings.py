@@ -221,6 +221,12 @@ def select_color_button(value, text=None):
 
 def get_widget_for_value(value, text=None) -> QWidget:
     match value:
+        case bool():
+            checkbox = QCheckBox()
+            checkbox.setChecked(value)
+            checkbox.setObjectName("checkbox")
+            return checkbox
+
         case int():
             int_input = QSpinBox()
             int_input.setMaximum(2147483647)
@@ -246,12 +252,6 @@ def get_widget_for_value(value, text=None) -> QWidget:
             return widget
 
         case str():
-            if value in ["true", "false"]:
-                checkbox = QCheckBox()
-                checkbox.setChecked(True if value == "true" else False)
-                checkbox.setObjectName("checkbox")
-                return checkbox
-
             if len(value) and value[0] == "#":
                 return select_color_button(value, text)
 
@@ -288,7 +288,7 @@ def get_value_for_widget(widget: QWidget):
             return output_list
 
         case "checkbox":
-            return "true" if widget.isChecked() else "false"
+            return widget.isChecked()
 
         case "color":
             return widget.styleSheet().lstrip("background-color: ").split(";")[0]

@@ -8,10 +8,8 @@ class TestElementOrder:
         for i in range(0, 100, 10):
             marker_tlui.create_marker(i)
 
-        for i in range(10):
-            marker_tlui.timeline.set_component_data(
-                marker_tlui[i].id, "time", random.randrange(0, 99)
-            )
+        for marker_ui in marker_tlui:
+            marker_ui.set_data("time", random.randrange(0, 99))
 
         elms = marker_tlui.elements
 

@@ -12,19 +12,6 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
 
 
-class HierarchyUIDummy:
-    def __init__(self, component, **kwargs):
-        self.tl_component = component
-        for attr, value in kwargs.items():
-            setattr(self, attr, value)
-
-    def update_position(self):
-        return
-
-    def process_color_before_level_change(self, *args, **kwargs):
-        return
-
-
 class DummyTimelines:
     ID_ITER = itertools.count()
 

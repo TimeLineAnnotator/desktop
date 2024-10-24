@@ -12,7 +12,7 @@ from tilia.timelines.timeline_kinds import (
 )
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
-from tilia.ui.coords import get_x_by_time
+from tilia.ui.coords import time_x_converter
 
 
 ADD_TIMELINE_ACTIONS = [
@@ -164,7 +164,7 @@ class TestAutoScroll:
         post(Post.PLAYER_SEEK, 50)
         post(Post.VIEW_ZOOM_IN)
         assert tluis[0].scene.playback_line.line().x1() == pytest.approx(
-            get_x_by_time(50)
+            time_x_converter.get_x_by_time(50)
         )
 
 
@@ -174,7 +174,7 @@ class TestSeek:
     ):
         y = slider_tlui.trough.pos().y()
         click_timeline_ui(slider_tlui, 0, y=y)
-        target_x = get_x_by_time(50)
+        target_x = time_x_converter.get_x_by_time(50)
         drag_mouse_in_timeline_view(target_x, y)
         assert marker_tlui.playback_line.line().x1() == pytest.approx(target_x)
 
@@ -183,7 +183,7 @@ class TestSeek:
     ):
         y = slider_tlui.trough.pos().y()
         click_timeline_ui(slider_tlui, 0, y=y)
-        target_x = get_x_by_time(60)
+        target_x = time_x_converter.get_x_by_time(60)
         drag_mouse_in_timeline_view(target_x, y)
         tilia_state.current_time = 75
         assert marker_tlui.playback_line.line().x1() == target_x
@@ -217,7 +217,7 @@ class TestSeek:
     ):
         y = slider_tlui.trough.pos().y()
         click_timeline_ui(slider_tlui, 0, y=y)
-        drag_mouse_in_timeline_view(get_x_by_time(50), y)
+        drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(50), y)
         tilia_state.current_time = 75
         if request_to_serve:
             with Serve(*request_to_serve):

@@ -3,7 +3,7 @@ Defines the ui corresponding to a Beat object.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Any
 
 from PyQt6.QtCore import Qt, QLineF, QPointF
 from PyQt6.QtGui import QPen, QColor, QFont
@@ -15,7 +15,7 @@ from ..copy_paste import CopyAttributes
 from ..cursors import CursorMixIn
 from ..drag import DragManager
 from ...format import format_media_time
-from ...coords import get_x_by_time, get_time_by_x
+from ...coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
 
@@ -45,9 +45,9 @@ class BeatUI(TimelineUIElement):
         ("Beat", InspectRowKind.LABEL, None),
     ]
 
-    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = (
-        {}
-    )  # only needed if attrs will be set by Inspect
+    FIELD_NAMES_TO_ATTRIBUTES: dict[
+        str, str
+    ] = {}  # only needed if attrs will be set by Inspect
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         by_element_value=[],
@@ -63,9 +63,17 @@ class BeatUI(TimelineUIElement):
         id: int,
         timeline_ui: BeatTimelineUI,
         scene: QGraphicsScene,
+        get_data: Callable[[str], Any],
+        set_data: Callable[[str, Any], None],
         **_,
     ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+        super().__init__(
+            id=id,
+            timeline_ui=timeline_ui,
+            scene=scene,
+            get_data=get_data,
+            set_data=set_data,
+        )
 
         self._setup_body()
         self._setup_label()
@@ -84,10 +92,6 @@ class BeatUI(TimelineUIElement):
     @property
     def time(self):
         return self.tl_component.time
-
-    @property
-    def x(self):
-        return get_x_by_time(self.time)
 
     @property
     def label_y(self):
@@ -167,13 +171,18 @@ class BeatUI(TimelineUIElement):
         previous_beat = self.timeline_ui.get_previous_element(self)
         if not previous_beat:
             return get(Get.LEFT_MARGIN_X)
-        return get_x_by_time(previous_beat.time) + self.DRAG_PROXIMITY_LIMIT
+        return (
+            time_x_converter.get_x_by_time(previous_beat.time)
+            + self.DRAG_PROXIMITY_LIMIT
+        )
 
     def get_drag_right_limit(self):
         next_beat = self.timeline_ui.get_next_element(self)
         if not next_beat:
             return get(Get.RIGHT_MARGIN_X)
-        return get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
+        return (
+            time_x_converter.get_x_by_time(next_beat.time) - self.DRAG_PROXIMITY_LIMIT
+        )
 
     def before_each_drag(self):
         if not self.dragged:
@@ -181,7 +190,7 @@ class BeatUI(TimelineUIElement):
             self.dragged = True
 
     def after_each_drag(self, drag_x: int):
-        self.tl_component.time = get_time_by_x(drag_x)
+        self.tl_component.time = time_x_converter.get_time_by_x(drag_x)
         self.update_position()
 
     def on_drag_end(self):

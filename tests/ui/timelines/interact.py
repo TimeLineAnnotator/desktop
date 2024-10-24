@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt
 
 from tilia.requests import Post, post
-from tilia.ui.coords import get_time_by_x, get_x_by_time
+from tilia.ui.coords import time_x_converter
 
 
 def click_timeline_ui_view(view, button, x, y, item, modifier, double):
@@ -29,7 +29,7 @@ def click_timeline_ui_view(view, button, x, y, item, modifier, double):
 def click_timeline_ui(
     timeline_ui, time, y=None, button="left", modifier=None, double=False
 ):
-    x = int(get_x_by_time(time))
+    x = int(time_x_converter.get_x_by_time(time))
     y = int(y or timeline_ui.get_data("height") / 2)
     item = timeline_ui.view.itemAt(x, y)
     click_timeline_ui_view(timeline_ui.view, button, x, y, item, modifier, double)
