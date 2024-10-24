@@ -328,7 +328,9 @@ class QtUI:
         return self.main_window.saveState()
 
     def on_file_load(self, file: TiliaFile) -> None:
-        geometry, state = settings_manager.get_geometry_and_state_from_path(file.file_path)
+        geometry, state = settings_manager.get_geometry_and_state_from_path(
+            file.file_path
+        )
         if geometry and state:
             self.main_window.restoreGeometry(geometry)
             self.main_window.restoreState(state)

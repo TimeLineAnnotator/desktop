@@ -24,7 +24,9 @@ def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
         return False, None
     except json.decoder.JSONDecodeError as err:
         tilia.errors.display(
-            tilia.errors.OPEN_FILE_INVALID_TLA, file_path, 'File is not valid JSON.',
+            tilia.errors.OPEN_FILE_INVALID_TLA,
+            file_path,
+            "File is not valid JSON.",
         )
         return False, None
 
@@ -33,7 +35,9 @@ def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
         tilia.errors.display(tilia.errors.OPEN_FILE_INVALID_TLA, file_path, reason)
         return False, None
 
-    data["file_path"] = file_path if isinstance(file_path, str) else str(file_path.resolve())
+    data["file_path"] = (
+        file_path if isinstance(file_path, str) else str(file_path.resolve())
+    )
     return True, TiliaFile(**data)
 
 

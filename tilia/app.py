@@ -41,7 +41,7 @@ class App:
         self.undo_manager = undo_manager
         self.player = player
         self.duration = 0.0
-        self.should_scale_timelines = 'prompt'
+        self.should_scale_timelines = "prompt"
         self._setup_timelines()
         self._setup_requests()
 
@@ -80,7 +80,11 @@ class App:
     def _setup_timelines(self):
         self.timelines = Timelines(self)
 
-    def set_file_media_duration(self, duration: float, scale_timelines: Literal['yes', 'no', 'prompt'] | None = None) -> None:
+    def set_file_media_duration(
+        self,
+        duration: float,
+        scale_timelines: Literal["yes", "no", "prompt"] | None = None,
+    ) -> None:
         if scale_timelines:
             self.should_scale_timelines = scale_timelines
         self.on_media_duration_changed(duration)
@@ -124,7 +128,9 @@ class App:
         except tilia.exceptions.NoReplyToRequest:
             geometry, window_state = None, None
 
-        settings_manager.update_recent_files(self.file_manager.get_file_path(), geometry, window_state)
+        settings_manager.update_recent_files(
+            self.file_manager.get_file_path(), geometry, window_state
+        )
 
     def on_export(self, path: Path | str | None = None) -> None:
         if isinstance(path, str):
@@ -148,7 +154,12 @@ class App:
 
         post(Post.UI_EXIT, 0)
 
-    def load_media(self, path: str, record: bool = True, scale_timelines: Literal['yes', 'no', 'prompt'] = 'prompt') -> None:
+    def load_media(
+        self,
+        path: str,
+        record: bool = True,
+        scale_timelines: Literal["yes", "no", "prompt"] = "prompt",
+    ) -> None:
         self.should_scale_timelines = scale_timelines
         if not path:
             self.player.unload_media()
@@ -182,24 +193,24 @@ class App:
 
     def on_media_duration_changed(self, duration: float):
         if not self.timelines.is_blank and duration != self.duration:
-            crop_or_scale = ''
-            if self.should_scale_timelines == 'prompt':
+            crop_or_scale = ""
+            if self.should_scale_timelines == "prompt":
                 if self.prompt_scale_timelines():
-                    crop_or_scale = 'scale'
+                    crop_or_scale = "scale"
                 else:
                     if duration < self.duration:
                         if self.prompt_crop_timelines():
-                            crop_or_scale = 'crop'
+                            crop_or_scale = "crop"
                         else:
-                            crop_or_scale = 'scale'
-            elif self.should_scale_timelines == 'yes':
-                crop_or_scale = 'scale'
+                            crop_or_scale = "scale"
+            elif self.should_scale_timelines == "yes":
+                crop_or_scale = "scale"
             elif duration < self.duration:  # self.should_scale_timelines == 'no'
-                crop_or_scale = 'crop'
+                crop_or_scale = "crop"
 
-            if crop_or_scale == 'scale':
+            if crop_or_scale == "scale":
                 self.timelines.scale_timeline_components(duration / self.duration)
-            elif crop_or_scale == 'crop':
+            elif crop_or_scale == "crop":
                 self.timelines.crop_timeline_components(duration)
 
         self.duration = duration
@@ -283,7 +294,7 @@ class App:
 
     def get_export_data(self):
         return {
-            'timelines': self.timelines.get_export_data(),
+            "timelines": self.timelines.get_export_data(),
             "media_metadata": dict(self.file_manager.file.media_metadata),
             "media_path": get(Get.MEDIA_PATH),
         }
