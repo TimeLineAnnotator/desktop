@@ -34,3 +34,7 @@ class ScoreTimelineUI(TimelineUI):
         return ScoreTimelineUIElementRequestHandler(self).on_request(
             request, selector, *args, **kwargs
         )
+
+    def get_height_for_symbols_above_staff(self) -> int:
+        return 50
+
