@@ -74,10 +74,12 @@ class TimelineComponent(ABC):
         return True, ""
 
     @staticmethod
-    def compose_validators(validators: list[Callable[[], tuple[bool, str]]]) -> tuple[bool, str]:
+    def compose_validators(
+        validators: list[Callable[[], tuple[bool, str]]]
+    ) -> tuple[bool, str]:
         """Calls validators in order and returns (False, reason) if any fails. Returns (True, '') if all succeed."""
         for validator in validators:
             success, reason = validator()
             if not success:
                 return False, reason
-        return True, ''
+        return True, ""
