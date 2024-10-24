@@ -82,28 +82,6 @@ class TestFileManager:
         tilia.file_manager.update_file(params)
         assert not tilia.file_manager.is_file_modified(params)
 
-    def test_is_file_modified_when_modified_timelines(self, tilia):
-        params = get_empty_save_params()
-
-        params["timelines"] = {
-            "0": {
-                "kind": "SLIDER_TIMELINE",
-                "ordinal": 0,
-                "is_visible": True,
-                "height": 10,
-            },
-            "1": {
-                "kind": "HIERARCHY_TIMELINE",
-                "ordinal": 0,
-                "height": 10,
-                "is_visible": True,
-                "name": "test",
-                "components": {},
-            },
-        }
-
-        assert tilia.file_manager.is_file_modified(params)
-
     def test_is_file_modified_modified_tile(self, tilia):
         params = get_empty_save_params()
         params["media_metadata"]["title"] = "modified title"

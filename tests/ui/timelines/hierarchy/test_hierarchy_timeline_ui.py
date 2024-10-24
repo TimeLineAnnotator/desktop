@@ -496,6 +496,26 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(tlui) == 0
 
+    def test_delete_parent_and_child(self, tlui, user_actions):
+        tlui.create_hierarchy(0, 1, 1)
+        tlui.create_hierarchy(0, 1, 2)
+
+        tlui.timeline.do_genealogy()
+
+        tlui.select_element(tlui[0])
+        tlui.select_element(tlui[1])
+
+        post(Post.APP_RECORD_STATE, "test state")
+
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+
+        post(Post.EDIT_UNDO)
+        assert len(tlui) == 2
+
+        post(Post.EDIT_REDO)
+        assert len(tlui) == 0
+
+
     def test_paste(self, tlui, tluis, user_actions):
         tlui.create_hierarchy(0, 1, 1, label="paste test")
         tlui.create_hierarchy(0, 1, 2)

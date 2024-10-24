@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import functools
 from typing import TYPE_CHECKING
 
 from tilia.requests import get, Get
@@ -7,7 +9,7 @@ from tilia.timelines.base.validators import (
     validate_string,
     validate_color,
     validate_read_only,
-    validate_pre_validated,
+    validate_pre_validated, validate_is_instance,
 )
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.base.component import SegmentLikeTimelineComponent
@@ -74,6 +76,10 @@ class Hierarchy(SegmentLikeTimelineComponent):
         formal_function="",
         **_,
     ):
+        self.validators |= {
+            "parent": functools.partial(validate_is_instance, Hierarchy),
+            "children": functools.partial(validate_is_instance, Hierarchy),
+        }
         super().__init__(timeline, id)
 
         self._start = start
@@ -91,6 +97,8 @@ class Hierarchy(SegmentLikeTimelineComponent):
         self.children = children or []
         self.pre_start = pre_start if pre_start is not None else self.start
         self.post_end = post_end if post_end is not None else self.end
+
+        self.update_hash()
 
     @property
     def start(self):
