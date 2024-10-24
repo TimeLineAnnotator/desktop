@@ -20,21 +20,25 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().__init__(timeline, [ComponentKind.BEAT])
         self.scale = functools.partial(scale_discrete, self)
         self.crop = functools.partial(crop_discrete, self)
+        self.compute_is_first_in_measure = True
 
     @property
     def beat_times(self):
         return {b.time for b in self._components}
 
-    def update_is_first_in_measure_of_subsequent_beats(self, index):
-        for beat_ in self.timeline[index + 1 :]:
-            self.timeline.set_component_data(
-                beat_.id,
-                "is_first_in_measure",
-                self.timeline.is_first_in_measure(beat_),
-            )
+    def update_is_first_in_measure_of_subsequent_beats(self, start_index):
+        beats_that_start_measure = set(self.timeline.beats_that_start_measures)
+        for i, beat in enumerate(self.timeline[start_index :]):
+            is_first_in_measure = start_index + i in beats_that_start_measure
+            if is_first_in_measure != beat.is_first_in_measure:
+                self.timeline.set_component_data(
+                    beat.id,
+                    "is_first_in_measure",
+                    is_first_in_measure,
+                )
 
     def create_component(
-        self, kind: ComponentKind, timeline, id, *args, **kwargs
+            self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, beat, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -42,19 +46,20 @@ class BeatTLComponentManager(TimelineComponentManager):
 
         if success:
             self.timeline.recalculate_measures()
-            beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
-            self.update_is_first_in_measure_of_subsequent_beats(
-                self.get_components().index(beat)
-            )
+            if self.compute_is_first_in_measure:
+                beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
+                self.update_is_first_in_measure_of_subsequent_beats(
+                    self.get_components().index(beat) + 1
+                )
 
         return success, beat, reason
 
     def _validate_component_creation(
-        self,
-        _: ComponentKind,
-        time: float,
-        *args,
-        **kwargs,
+            self,
+            _: ComponentKind,
+            time: float,
+            *args,
+            **kwargs,
     ):
         return Beat.validate_creation(time, self.beat_times)
 
@@ -115,6 +120,15 @@ class BeatTLComponentManager(TimelineComponentManager):
                 beat.id, "time", measure_start_time + index * interval
             )
 
+    def scale(self, factor: float) -> None:
+        for beat in self._components:
+            self.timeline.set_component_data(beat.id, "time", beat.time * factor)
+
+    def crop(self, length: float) -> None:
+        for beat in self._components.copy():
+            if beat.time > length:
+                self.delete_component(beat)
+
     def clear(self):
         for component in self._components.copy():
             self.delete_component(component, update_is_first_in_measure=False)
@@ -129,11 +143,17 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().deserialize_components(serialized_components)
 
         # But we restore them here.
-        self.timeline.set_data("measure_numbers", measure_numbers)
-        self.timeline.set_data("beats_in_measure", beats_in_measure)
-        self.timeline.set_data("measures_to_force_display", measures_to_force_display)
+        self.timeline.set_data('measure_numbers', measure_numbers)
+        self.timeline.set_data('beats_in_measure', beats_in_measure)
+        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
 
         self.timeline.recalculate_measures()  # Not sure if this is needed.
+
+    def restore_state(self, prev_state: dict):
+        self.compute_is_first_in_measure = False
+        super().restore_state(prev_state)
+        self.compute_is_first_in_measure = True
+        self.update_is_first_in_measure_of_subsequent_beats(0)
 
 
 class BeatTimeline(Timeline):
@@ -238,7 +258,7 @@ class BeatTimeline(Timeline):
         return measure_times
 
     def is_first_in_measure(self, beat):
-        return self.components.index(beat) in self.beats_that_start_measures
+        return self.components.index(beat) in set(self.beats_that_start_measures)
 
     def recalculate_measures(self):
         beat_delta = (len(self)) - sum(self.beats_in_measure)
@@ -447,6 +467,6 @@ class BeatTimeline(Timeline):
             )
 
         if not self.is_empty:
-            self.component_manager.update_is_first_in_measure_of_subsequent_beats(
-                0
-            )  # Higher index is possible.
+            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
+
+
