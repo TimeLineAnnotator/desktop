@@ -26,7 +26,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         return {b.time for b in self._components}
 
     def update_is_first_in_measure_of_subsequent_beats(self, index):
-        for beat_ in self.timeline[index + 1:]:
+        for beat_ in self.timeline[index + 1 :]:
             self.timeline.set_component_data(
                 beat_.id,
                 "is_first_in_measure",
@@ -34,7 +34,7 @@ class BeatTLComponentManager(TimelineComponentManager):
             )
 
     def create_component(
-            self, kind: ComponentKind, timeline, id, *args, **kwargs
+        self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, beat, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -50,11 +50,11 @@ class BeatTLComponentManager(TimelineComponentManager):
         return success, beat, reason
 
     def _validate_component_creation(
-            self,
-            _: ComponentKind,
-            time: float,
-            *args,
-            **kwargs,
+        self,
+        _: ComponentKind,
+        time: float,
+        *args,
+        **kwargs,
     ):
         return Beat.validate_creation(time, self.beat_times)
 

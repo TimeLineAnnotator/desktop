@@ -67,7 +67,9 @@ class TestCreateDelete:
         post(Post.EDIT_REDO)
         assert len(marker_tlui) == 1
 
-    def test_undo_redo_delete_marker_multiple_markers(self, marker_tlui, tluis, user_actions):
+    def test_undo_redo_delete_marker_multiple_markers(
+        self, marker_tlui, tluis, user_actions
+    ):
         marker_tlui.create_marker(0)
         marker_tlui.create_marker(0.1)
         marker_tlui.create_marker(0.2)
@@ -105,7 +107,9 @@ class TestEditWithInspectDialog:
         "field_name,attr,value",
         [("Comments", "comments", "abc"), ("Label", "label", "abc")],
     )
-    def test_set_attr(self, field_name, attr, value, marker_tlui, get_inspect, user_actions):
+    def test_set_attr(
+        self, field_name, attr, value, marker_tlui, get_inspect, user_actions
+    ):
         user_actions.trigger(TiliaAction.MARKER_ADD)
         click_marker_ui(marker_tlui[0])
         inspect_win = get_inspect()
@@ -115,7 +119,7 @@ class TestEditWithInspectDialog:
 
 class TestChangeColor:
     TEST_COLOR = "#000000"
-    
+
     def _set_marker_color(self, marker_tlui, actions):
         """Assumes there is a single marker on timeline"""
         marker_tlui.select_all_elements()
@@ -131,14 +135,14 @@ class TestChangeColor:
         user_actions.trigger(TiliaAction.MARKER_ADD)
         self._set_marker_color(marker_tlui, user_actions)
         user_actions.trigger(TiliaAction.EDIT_UNDO)
-        assert marker_tlui[0].get_data('color') is None
+        assert marker_tlui[0].get_data("color") is None
 
     def test_redo_set_color(self, marker_tlui, user_actions):
         user_actions.trigger(TiliaAction.MARKER_ADD)
         self._set_marker_color(marker_tlui, user_actions)
         user_actions.trigger(TiliaAction.EDIT_UNDO)
         user_actions.trigger(TiliaAction.EDIT_REDO)
-        assert marker_tlui[0].get_data('color') == self.TEST_COLOR
+        assert marker_tlui[0].get_data("color") == self.TEST_COLOR
 
     def test_reset_color(self, marker_tlui, user_actions):
         marker_tlui.create_marker(time=0)
@@ -146,7 +150,7 @@ class TestChangeColor:
 
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)
 
-        assert marker_tlui[0].get_data('color') is None
+        assert marker_tlui[0].get_data("color") is None
 
     def test_undo_reset_color(self, marker_tlui, user_actions):
         marker_tlui.create_marker(time=0)
@@ -155,7 +159,7 @@ class TestChangeColor:
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)
         user_actions.trigger(TiliaAction.EDIT_UNDO)
 
-        assert marker_tlui[0].get_data('color') == self.TEST_COLOR
+        assert marker_tlui[0].get_data("color") == self.TEST_COLOR
 
     def test_redo_reset_color(self, marker_tlui, user_actions):
         marker_tlui.create_marker(time=0)
@@ -165,7 +169,7 @@ class TestChangeColor:
         user_actions.trigger(TiliaAction.EDIT_UNDO)
         user_actions.trigger(TiliaAction.EDIT_REDO)
 
-        assert marker_tlui[0].get_data('color') is None
+        assert marker_tlui[0].get_data("color") is None
 
 
 class TestDelete:

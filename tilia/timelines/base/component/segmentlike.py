@@ -17,7 +17,7 @@ class SegmentLikeTimelineComponent(TimelineComponent):
 
     @property
     def length(self):
-        return self.get_data('end') - self.get_data('start')
+        return self.get_data("end") - self.get_data("start")
 
     @property
     def length_metric(self) -> MetricInterval | None:
@@ -47,7 +47,9 @@ class SegmentLikeTimelineComponent(TimelineComponent):
 
     @property
     def start_measure(self) -> int | None:
-        return self.start_metric_position.measure if self.start_metric_position else None
+        return (
+            self.start_metric_position.measure if self.start_metric_position else None
+        )
 
     @property
     def start_beat(self) -> int | None:
@@ -66,11 +68,15 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         return get_export_attributes_extended(cls)
 
     @classmethod
-    def validate_creation(cls, start: float, end: float, position: T, existing_positions: Iterable[T]) -> tuple[bool, str]:
+    def validate_creation(
+        cls, start: float, end: float, position: T, existing_positions: Iterable[T]
+    ) -> tuple[bool, str]:
         return cls.compose_validators(
             [
                 functools.partial(cls.validate_times, start, end),
-                functools.partial(cls.validate_unique_position, position, existing_positions),
+                functools.partial(
+                    cls.validate_unique_position, position, existing_positions
+                ),
             ]
         )
 
@@ -93,13 +99,17 @@ class SegmentLikeTimelineComponent(TimelineComponent):
             return True, ""
 
     @classmethod
-    def validate_unique_position(cls, position: T, existing_positions: Iterable[T]) -> tuple[bool, str]:
+    def validate_unique_position(
+        cls, position: T, existing_positions: Iterable[T]
+    ) -> tuple[bool, str]:
         """
         Position should be whatever uniquely identifies a component.
         Typically, it will be tuple with start, end and some other attributes.
         For hierarchies, for example, it is (start, end, level).
         """
         if position in existing_positions:
-            return False, f"There is already a {cls.frontend_name} at the same position."
+            return (
+                False,
+                f"There is already a {cls.frontend_name} at the same position.",
+            )
         return True, ""
-

@@ -18,9 +18,11 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         super().__init__(timeline, [ComponentKind.HIERARCHY])
 
     def _validate_component_creation(
-            self, _, start: float, end: float, level: int, **kwargs
+        self, _, start: float, end: float, level: int, **kwargs
     ):
-        return Hierarchy.validate_creation(start, end, (start, end, level), {(c.start, c.end, c.level) for c in self})
+        return Hierarchy.validate_creation(
+            start, end, (start, end, level), {(c.start, c.end, c.level) for c in self}
+        )
 
     def deserialize_components(self, components: dict[int, dict[str, Any]]):
         self.clear()  # remove starting hierarchy

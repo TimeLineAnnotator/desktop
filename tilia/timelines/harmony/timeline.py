@@ -33,7 +33,9 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         **__,
     ):
         component_class = self._get_component_class_by_kind(kind)
-        return component_class.validate_creation(time, {c.get_data("time") for c in self if c.KIND == kind})
+        return component_class.validate_creation(
+            time, {c.get_data("time") for c in self if c.KIND == kind}
+        )
 
     def _update_harmony_applied_to_on_mode_creation(self, mode: Mode):
         harmonies_in_harmonic_region = self.get_harmonies_in_harmonic_region(mode)

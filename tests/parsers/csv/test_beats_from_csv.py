@@ -9,7 +9,10 @@ from tilia.ui.format import format_media_time
 
 def _import_with_patch(tl, data):
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = beats_from_csv(tl, Path(), )
+        errors = beats_from_csv(
+            tl,
+            Path(),
+        )
     return errors
 
 
@@ -67,7 +70,7 @@ def test_with_is_first_in_measure(beat_tl):
 
 
 def test_with_measure_numbers_in_rows_with_is_first_in_measure_false(beat_tl):
-    data = 'time,is_first_in_measure,measure\n0,True,1\n2,False,8'
+    data = "time,is_first_in_measure,measure\n0,True,1\n2,False,8"
 
     _import_with_patch(beat_tl, data)
 
