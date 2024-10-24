@@ -360,7 +360,7 @@ class QtUI:
             window.activateWindow()
 
     def open_inspect_window(self):
-        widget = Inspect()
+        widget = Inspect(self.main_window)
         self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, widget)
         widget.setFloating(True)
         return widget
