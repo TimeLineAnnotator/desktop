@@ -587,11 +587,11 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def metric_position_formatted(self):
-        start_measure, start_beat = self.get_data("start_metric_position")
-        end_measure, end_beat = self.get_data("end_metric_position")
-        if start_measure is None:
+        start_metric_position = self.get_data("start_metric_position")
+        end_metric_position = self.get_data("end_metric_position")
+        if not start_metric_position:
             return "-"
-        return f"{start_measure}.{start_beat} / {end_measure}.{end_beat}"
+        return f"{start_metric_position.measure}.{start_metric_position.beat} / {end_metric_position.measure}.{end_metric_position.beat}"
 
     def get_inspector_dict(self) -> dict:
         data = {
