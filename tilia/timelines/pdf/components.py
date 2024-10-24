@@ -37,10 +37,12 @@ class PdfMarker(PointLikeTimelineComponent):
         page_number: int,
         **_,
     ):
+        super().__init__(timeline, id)
+
         self.time = time
         self.page_number = page_number
 
-        super().__init__(timeline, id)
+        self.update_hash()
 
     def __str__(self):
         return f"PdfMarker({self.time})"

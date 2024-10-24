@@ -46,15 +46,18 @@ class Marker(PointLikeTimelineComponent):
         comments="",
         **_,
     ):
+        super().__init__(timeline, id)
+
         self.time = time
         self.label = label
         self.color = color
         self.comments = comments
 
-        super().__init__(timeline, id)
+        self.update_hash()
 
     def __str__(self):
         return f"Marker({self.time})"
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))
+

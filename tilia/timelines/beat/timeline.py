@@ -120,6 +120,15 @@ class BeatTLComponentManager(TimelineComponentManager):
                 beat.id, "time", measure_start_time + index * interval
             )
 
+    def scale(self, factor: float) -> None:
+        for beat in self._components:
+            self.timeline.set_component_data(beat.id, "time", beat.time * factor)
+
+    def crop(self, length: float) -> None:
+        for beat in self._components.copy():
+            if beat.time > length:
+                self.delete_component(beat)
+
     def clear(self):
         for component in self._components.copy():
             self.delete_component(component, update_is_first_in_measure=False)
@@ -249,7 +258,7 @@ class BeatTimeline(Timeline):
         return measure_times
 
     def is_first_in_measure(self, beat):
-        return self.components.index(beat) in self.beats_that_start_measures_set
+        return self.components.index(beat) in set(self.beats_that_start_measures)
 
     def recalculate_measures(self):
         beat_delta = (len(self)) - sum(self.beats_in_measure)

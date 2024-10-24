@@ -73,7 +73,7 @@ class Harmony(PointLikeTimelineComponent):
         time: float,
         step: int = 0,
         accidental: int = 0,
-        quality: str = "major",
+        quality: str = 'major',
         inversion: int = 0,
         applied_to: int = 0,
         level: int = 1,
@@ -83,6 +83,8 @@ class Harmony(PointLikeTimelineComponent):
         comments="",
         **_,
     ):
+        super().__init__(timeline, id)
+
         self.time = time
         self.step = step
         self.accidental = accidental
@@ -95,7 +97,7 @@ class Harmony(PointLikeTimelineComponent):
         self.custom_text_font_type = custom_text_font_type
         self.comments = comments
 
-        super().__init__(timeline, id)
+        self.update_hash()
 
     def __str__(self):
         return f"Harmony({self.step, self.accidental, self.quality, self.inversion}) at {self.time}"

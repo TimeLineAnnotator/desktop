@@ -37,7 +37,7 @@ class Beat(PointLikeTimelineComponent):
         self.comments = comments
         self.is_first_in_measure = False
 
-        super().__init__(timeline, id)
+        self.update_hash()
 
     def __str__(self):
         return f"Beat({self.time})"
