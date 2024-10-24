@@ -30,7 +30,14 @@ from .dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 from .dialogs.crash import CrashDialog
 from .menubar import TiliaMenuBar
 from tilia.ui.timelines.collection.collection import TimelineUIs
-from .menus import TimelinesMenu, HierarchyMenu, MarkerMenu, BeatMenu, HarmonyMenu, PdfMenu
+from .menus import (
+    TimelinesMenu,
+    HierarchyMenu,
+    MarkerMenu,
+    BeatMenu,
+    HarmonyMenu,
+    PdfMenu,
+)
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
 from .windows.manage_timelines import ManageTimelines
@@ -59,7 +66,7 @@ class TiliaMainWindow(QMainWindow):
     @staticmethod
     def handle_qt_log_message(type, _, msg):
         if type == QtMsgType.QtCriticalMsg or type == QtMsgType.QtFatalMsg:
-            raise Exception(f'{type.name}: {msg}')
+            raise Exception(f"{type.name}: {msg}")
         else:
             print(f"{type.name}: {msg}")
 
@@ -134,25 +141,67 @@ class QtUI:
             (Post.UI_MEDIA_LOAD_YOUTUBE, self.on_media_load_youtube),
             (Post.TIMELINE_ELEMENT_INSPECT, self.on_timeline_element_inspect),
             (Post.WEBSITE_HELP_OPEN, self.on_website_help_open),
-            (Post.WINDOW_ABOUT_CLOSED, lambda: self.on_window_close_done(WindowKind.ABOUT)),
+            (
+                Post.WINDOW_ABOUT_CLOSED,
+                lambda: self.on_window_close_done(WindowKind.ABOUT),
+            ),
             (Post.WINDOW_ABOUT_OPEN, lambda: self.on_window_open(WindowKind.ABOUT)),
-            (Post.WINDOW_INSPECT_CLOSE, lambda: self.on_window_close(WindowKind.INSPECT)),
-            (Post.WINDOW_INSPECT_CLOSED, lambda: self.on_window_close_done(WindowKind.INSPECT)),
+            (
+                Post.WINDOW_INSPECT_CLOSE,
+                lambda: self.on_window_close(WindowKind.INSPECT),
+            ),
+            (
+                Post.WINDOW_INSPECT_CLOSED,
+                lambda: self.on_window_close_done(WindowKind.INSPECT),
+            ),
             (Post.WINDOW_INSPECT_OPEN, lambda: self.on_window_open(WindowKind.INSPECT)),
-            (Post.WINDOW_MANAGE_TIMELINES_CLOSE_DONE, lambda: self.on_window_close_done(WindowKind.MANAGE_TIMELINES)),
-            (Post.WINDOW_MANAGE_TIMELINES_OPEN, lambda: self.on_window_open(WindowKind.MANAGE_TIMELINES)),
-            (Post.WINDOW_METADATA_CLOSED, lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA)),
-            (Post.WINDOW_METADATA_OPEN, lambda: self.on_window_open(WindowKind.MEDIA_METADATA)),
-            (Post.WINDOW_SETTINGS_CLOSED, lambda: self.on_window_close_done(WindowKind.SETTINGS)),
-            (Post.WINDOW_SETTINGS_OPEN, lambda: self.on_window_open(WindowKind.SETTINGS)),
+            (
+                Post.WINDOW_MANAGE_TIMELINES_CLOSE_DONE,
+                lambda: self.on_window_close_done(WindowKind.MANAGE_TIMELINES),
+            ),
+            (
+                Post.WINDOW_MANAGE_TIMELINES_OPEN,
+                lambda: self.on_window_open(WindowKind.MANAGE_TIMELINES),
+            ),
+            (
+                Post.WINDOW_METADATA_CLOSED,
+                lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA),
+            ),
+            (
+                Post.WINDOW_METADATA_OPEN,
+                lambda: self.on_window_open(WindowKind.MEDIA_METADATA),
+            ),
+            (
+                Post.WINDOW_SETTINGS_CLOSED,
+                lambda: self.on_window_close_done(WindowKind.SETTINGS),
+            ),
+            (
+                Post.WINDOW_SETTINGS_OPEN,
+                lambda: self.on_window_open(WindowKind.SETTINGS),
+            ),
             (Post.REQUEST_CLEAR_UI, self.on_clear_ui),
             (Post.TIMELINE_KIND_INSTANCED, self.on_timeline_kind_change),
             (Post.TIMELINE_KIND_NOT_INSTANCED, self.on_timeline_kind_change),
-            (Post.MARKER_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.MARKER_TIMELINE)),
-            (Post.HIERARCHY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE)),
-            (Post.BEAT_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE)),
-            (Post.HARMONY_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE)),
-            (Post.PDF_IMPORT_FROM_CSV, partial(self.on_import_from_csv, TlKind.PDF_TIMELINE)),
+            (
+                Post.MARKER_IMPORT_FROM_CSV,
+                partial(self.on_import_from_csv, TlKind.MARKER_TIMELINE),
+            ),
+            (
+                Post.HIERARCHY_IMPORT_FROM_CSV,
+                partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE),
+            ),
+            (
+                Post.BEAT_IMPORT_FROM_CSV,
+                partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE),
+            ),
+            (
+                Post.HARMONY_IMPORT_FROM_CSV,
+                partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE),
+            ),
+            (
+                Post.PDF_IMPORT_FROM_CSV,
+                partial(self.on_import_from_csv, TlKind.PDF_TIMELINE),
+            ),
             (Post.DISPLAY_ERROR, display_error),
             (Post.UI_EXIT, self.exit),
         }
@@ -161,7 +210,10 @@ class QtUI:
             (Get.TIMELINE_WIDTH, lambda: self.timeline_width),
             (Get.PLAYBACK_AREA_WIDTH, lambda: self.playback_area_width),
             (Get.LEFT_MARGIN_X, lambda: self.playback_area_margin),
-            (Get.RIGHT_MARGIN_X, lambda: self.playback_area_width + self.playback_area_margin),
+            (
+                Get.RIGHT_MARGIN_X,
+                lambda: self.playback_area_width + self.playback_area_margin,
+            ),
             (Get.WINDOW_GEOMETRY, self.get_window_geometry),
             (Get.WINDOW_STATE, self.get_window_state),
             (Get.PLAYER_CLASS, self.get_player_class),
@@ -187,8 +239,8 @@ class QtUI:
 
     @staticmethod
     def _setup_fonts():
-        fonts_dir = Path(__file__).parent / 'fonts'
-        fonts = ['MusAnalysis.otf']
+        fonts_dir = Path(__file__).parent / "fonts"
+        fonts = ["MusAnalysis.otf"]
         for font in fonts:
             font_path = str(Path(fonts_dir, font).resolve())
             QFontDatabase.addApplicationFont(font_path)
@@ -263,10 +315,10 @@ class QtUI:
 
     def get_window_geometry(self):
         return self.main_window.saveGeometry()
-    
+
     def get_window_state(self):
         return self.main_window.saveState()
-    
+
     def on_file_load(self, file: TiliaFile) -> None:
         geometry, state = settings.get_geometry_and_state_from_path(file.file_path)
         if geometry and state:
@@ -319,7 +371,7 @@ class QtUI:
     @staticmethod
     def open_media_metadata_window():
         return MediaMetadataWindow()
-    
+
     @staticmethod
     def open_settings_window():
         return SettingsWindow()
@@ -374,7 +426,7 @@ class QtUI:
         return dialog.get_option()
 
     def on_website_help_open(self):
-        QDesktopServices.openUrl(QUrl(f'{constants.WEBSITE_URL}/help/introduction'))
+        QDesktopServices.openUrl(QUrl(f"{constants.WEBSITE_URL}/help/introduction"))
 
     def on_import_from_csv(self, tlkind: TlKind) -> None:
         if not self._validate_timeline_kind_on_import_from_csv(tlkind):
@@ -431,9 +483,9 @@ class QtUI:
                 "measure": tilia.parsers.csv.harmony.import_by_measure,
             },
             TlKind.PDF_TIMELINE: {
-                'time': tilia.parsers.csv.pdf.import_by_time,
-                'measure': tilia.parsers.csv.pdf.import_by_measure
-            }
+                "time": tilia.parsers.csv.pdf.import_by_time,
+                "measure": tilia.parsers.csv.pdf.import_by_measure,
+            },
         }
 
         timeline.clear()
@@ -453,8 +505,8 @@ class QtUI:
     def _validate_timeline_kind_on_import_from_csv(self, tlkind: TlKind):
         if not self.timeline_uis.get_timeline_uis_by_attr("TIMELINE_KIND", tlkind):
             tilia.errors.display(
-                tilia.errors.CSV_IMPORT_FAILED, 
-                f"No timelines of type '{tlkind}' found."
+                tilia.errors.CSV_IMPORT_FAILED,
+                f"No timelines of type '{tlkind}' found.",
             )
             return False
         return True
@@ -473,7 +525,7 @@ class QtUI:
         ):
             tilia.errors.display(
                 tilia.errors.CSV_IMPORT_FAILED,
-                "No beat timelines found. Must have a beat timeline if importing by measure."
+                "No beat timelines found. Must have a beat timeline if importing by measure.",
             )
             return
 
@@ -487,8 +539,8 @@ class QtUI:
     def _display_import_from_csv_errors(errors):
         errors_str = "\n".join(errors)
         tilia.errors.display(
-            tilia.errors.CSV_IMPORT_FAILED, 
-            f"Some components were not imported. The following errors occured:\n{errors_str}"
+            tilia.errors.CSV_IMPORT_FAILED,
+            f"Some components were not imported. The following errors occured:\n{errors_str}",
         )
 
     @staticmethod
