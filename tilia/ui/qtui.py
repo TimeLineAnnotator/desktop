@@ -358,6 +358,7 @@ class QtUI:
         if window:
             self._windows[kind] = window
             window.activateWindow()
+            window.raise_()
 
     def open_inspect_window(self):
         widget = Inspect(self.main_window)
