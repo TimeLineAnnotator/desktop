@@ -2,19 +2,17 @@ from __future__ import annotations
 
 import functools
 import itertools
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-from tilia.requests import get, Get, post, Post
+import tilia.errors
+from tilia.requests import post, Post
 from tilia.settings import settings
 from tilia.timelines.base.common import scale_discrete, crop_discrete
 from tilia.timelines.beat.validators import validate_integer_list
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
-import tilia.errors
-
-if TYPE_CHECKING:
-    from tilia.timelines.beat.components import Beat
+from tilia.timelines.beat.components import Beat
 
 
 class BeatTLComponentManager(TimelineComponentManager):
@@ -28,7 +26,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         return {b.time for b in self._components}
 
     def update_is_first_in_measure_of_subsequent_beats(self, index):
-        for beat_ in self.timeline[index + 1 :]:
+        for beat_ in self.timeline[index + 1:]:
             self.timeline.set_component_data(
                 beat_.id,
                 "is_first_in_measure",
@@ -36,7 +34,7 @@ class BeatTLComponentManager(TimelineComponentManager):
             )
 
     def create_component(
-        self, kind: ComponentKind, timeline, id, *args, **kwargs
+            self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, beat, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -52,24 +50,13 @@ class BeatTLComponentManager(TimelineComponentManager):
         return success, beat, reason
 
     def _validate_component_creation(
-        self,
-        _: ComponentKind,
-        time: float,
-        *args,
-        **kwargs,
+            self,
+            _: ComponentKind,
+            time: float,
+            *args,
+            **kwargs,
     ):
-        media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        elif time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
-        elif time in self.beat_times:
-            return (
-                False,
-                f"Can't create beat.\nThere is already a beat at time='{time}'.",
-            )
-        else:
-            return True, ""
+        return Beat.validate_creation(time, self.beat_times)
 
     def delete_component(self, component: TC, update_is_first_in_measure=True) -> None:
         component_idx = self.get_components().index(component)

@@ -37,11 +37,11 @@ class TestCreateDelete:
         assert len(marker_tlui) == 1
         assert marker_tlui[0].get_data("time") == 11
 
-    def test_create_at_same_time_succeeds(self, marker_tlui, user_actions):
+    def test_create_at_same_time_fails(self, marker_tlui, user_actions):
         user_actions.trigger(TiliaAction.MARKER_ADD)
         user_actions.trigger(TiliaAction.MARKER_ADD)
 
-        assert len(marker_tlui) == 2
+        assert len(marker_tlui) == 1
 
     def test_delete(self, marker_tlui, user_actions):
         marker_tlui.create_marker(0)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Any
+from typing import Any, Callable
 
 from tilia.exceptions import SetComponentDataError, GetComponentDataError
 from tilia.timelines.base.timeline import Timeline
@@ -29,6 +29,10 @@ class TimelineComponent(ABC):
 
     def __lt__(self, other):
         return self.ordinal < other.ordinal
+
+    @property
+    def frontend_name(self):
+        return self.__class__.__name__.lower()
 
     @property
     def ordinal(self):
@@ -64,3 +68,16 @@ class TimelineComponent(ABC):
     def get_data(self, attr: str):
         if self.validate_get_data(attr):
             return getattr(self, attr)
+
+    @classmethod
+    def validate_creation(cls, *args, **kwargs) -> tuple[bool, str]:
+        return True, ""
+
+    @staticmethod
+    def compose_validators(validators: list[Callable[[], tuple[bool, str]]]) -> tuple[bool, str]:
+        """Calls validators in order and returns (False, reason) if any fails. Returns (True, '') if all succeed."""
+        for validator in validators:
+            success, reason = validator()
+            if not success:
+                return False, reason
+        return True, ''

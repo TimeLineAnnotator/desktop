@@ -48,6 +48,12 @@ class TestHierarchyTimeline:
 
         assert len(hierarchy_tl) == 1
 
+    def test_create_duplicate_fails(self, hierarchy_tl):
+        hierarchy_tl.create_hierarchy(start=0, end=1, level=1)
+        hierarchy_tl.create_hierarchy(start=0, end=1, level=1)
+
+        assert len(hierarchy_tl) == 1
+
 
 class TestHierarchyTimelineComponentManager:
     def test_create_invalid_component_kind_raises_error(self, hierarchy_tl):
@@ -422,12 +428,6 @@ class TestHierarchyTimelineComponentManager:
         hierarchy_tl.create_hierarchy(0, 1, 1)
         assert not hierarchy_tl.get_boundary_conflicts()
 
-    def test_get_boundary_conflicts_duplicate_hierarchy(self, hierarchy_tl):
-        h1, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
-        h2, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
-
-        assert set(hierarchy_tl.get_boundary_conflicts()[0]) == {h1, h2}
-
     def test_get_boundary_conflicts_separate_hierarchies(self, hierarchy_tl):
         hierarchy_tl.create_hierarchy(0, 1, 1)
         hierarchy_tl.create_hierarchy(2, 3, 1)
@@ -510,16 +510,6 @@ class TestHierarchyTimelineComponentManager:
         h3, _ = hierarchy_tl.create_hierarchy(0, 4, 1)
         conflicts = [set(c) for c in hierarchy_tl.get_boundary_conflicts()]
         assert len(conflicts) == 2
-        assert {h1, h3} in conflicts
-        assert {h2, h3} in conflicts
-
-    def test_get_boundary_conflicts_three_mutual_conflicts(self, hierarchy_tl):
-        h1, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
-        h2, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
-        h3, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
-        conflicts = [set(c) for c in hierarchy_tl.get_boundary_conflicts()]
-        assert len(conflicts) == 3
-        assert {h1, h2} in conflicts
         assert {h1, h3} in conflicts
         assert {h2, h3} in conflicts
 

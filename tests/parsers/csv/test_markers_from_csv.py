@@ -7,6 +7,7 @@ from tilia.parsers.csv.marker import (
     import_by_time,
     import_by_measure,
 )
+from tilia.ui.format import format_media_time
 
 
 def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
@@ -135,7 +136,7 @@ def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
     with patch("builtins.open", mock_open(read_data=data)):
         errors = import_by_time(marker_tlui.timeline, Path())
 
-    assert "999" in errors[0]
+    assert format_media_time(999) in errors[0]
 
 
 def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
@@ -183,4 +184,4 @@ def test_component_creation_fail_reason_gets_into_errors(
             Path(),
         )
 
-    assert_in_errors("101", errors)
+    assert_in_errors(format_media_time(101), errors)

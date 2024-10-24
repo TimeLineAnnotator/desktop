@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import pypdf
 
 from tilia.settings import settings
-from tilia.requests import Get, get
 from tilia.timelines.base.validators import validate_string
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.pdf.components import PdfMarker
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
@@ -15,15 +16,7 @@ class PdfTLComponentManager(TimelineComponentManager):
         super().__init__(timeline, [ComponentKind.PDF_MARKER])
 
     def _validate_component_creation(self, _, time, *args, **kwargs):
-        media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
-            return False, f"Time '{time}' is bigger than media time '{media_duration}'"
-        elif time < 0:
-            return False, f"Time can't be negative. Got '{time}'"
-        elif time in [x.time for x in self.get_components()]:
-            return (False, f"There is already a page marker at this position.")
-        else:
-            return True, ""
+        return PdfMarker.validate_creation(time, {c.get_data("time") for c in self})
 
     def scale(self, factor: float) -> None:
         for marker in self:
