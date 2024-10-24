@@ -40,7 +40,7 @@ class BeatTLComponentManager(TimelineComponentManager):
                 )
 
     def create_component(
-        self, kind: ComponentKind, timeline, id, *args, **kwargs
+            self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, beat, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -57,11 +57,11 @@ class BeatTLComponentManager(TimelineComponentManager):
         return success, beat, reason
 
     def _validate_component_creation(
-        self,
-        _: ComponentKind,
-        time: float,
-        *args,
-        **kwargs,
+            self,
+            _: ComponentKind,
+            time: float,
+            *args,
+            **kwargs,
     ):
         return Beat.validate_creation(time, self.beat_times)
 
@@ -122,6 +122,15 @@ class BeatTLComponentManager(TimelineComponentManager):
                 beat.id, "time", measure_start_time + index * interval
             )
 
+    def scale(self, factor: float) -> None:
+        for beat in self._components:
+            self.timeline.set_component_data(beat.id, "time", beat.time * factor)
+
+    def crop(self, length: float) -> None:
+        for beat in self._components.copy():
+            if beat.time > length:
+                self.delete_component(beat)
+
     def clear(self):
         for component in self._components.copy():
             self.delete_component(component, update_is_first_in_measure=False)
@@ -136,9 +145,9 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().deserialize_components(serialized_components)
 
         # But we restore them here.
-        self.timeline.set_data("measure_numbers", measure_numbers)
-        self.timeline.set_data("beats_in_measure", beats_in_measure)
-        self.timeline.set_data("measures_to_force_display", measures_to_force_display)
+        self.timeline.set_data('measure_numbers', measure_numbers)
+        self.timeline.set_data('beats_in_measure', beats_in_measure)
+        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
 
         self.timeline.recalculate_measures()  # Not sure if this is needed.
 
