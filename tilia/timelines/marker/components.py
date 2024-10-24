@@ -46,6 +46,8 @@ class Marker(PointLikeTimelineComponent):
         comments="",
         **_,
     ):
+        super().__init__(timeline, id)
+
         self.time = time
         self.label = label
         self.color = color
@@ -58,3 +60,4 @@ class Marker(PointLikeTimelineComponent):
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))
+
