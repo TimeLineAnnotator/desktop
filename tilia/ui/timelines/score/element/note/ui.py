@@ -46,6 +46,7 @@ class NoteUI(TimelineUIElement):
     def _setup_body(self):
         self.body = NoteBody(self.start_x, self.end_x, self.top_y, self.note_height(), self.ui_color)
         self.supplementary_line = NoteSupplementaryLine(*self.get_supplementary_line_args())
+        self.supplementary_line.hide()
         self.scene.addItem(self.body)
         self.scene.addItem(self.supplementary_line)
         
