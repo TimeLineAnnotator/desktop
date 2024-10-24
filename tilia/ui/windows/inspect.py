@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QFrame,
 )
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QKeyCombination
 
 from tilia.requests import Post, listen, stop_listening_to_all, post, Get, get
 from tilia.utils import get_tilia_class_string
@@ -47,8 +47,8 @@ RowInfo = tuple[str, InspectRowKind, Callable[[], Any | None]]
 class Inspect(QDockWidget):
     KIND = WindowKind.INSPECT
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, main_window) -> None:
+        super().__init__(main_window)
         self.setWindowTitle("Inspector")
         self.setMinimumSize(400, 0)
         self._setup_requests()
@@ -84,6 +84,14 @@ class Inspect(QDockWidget):
 
         for post, callback in LISTENS:
             listen(self, post, callback)
+
+    def keyPressEvent(self, a0):
+        if a0.keyCombination() not in {
+            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return),
+            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Escape),
+        }:
+            return super().keyPressEvent(a0)
+        self.close()
 
     def closeEvent(self, event, **kwargs):
         stop_listening_to_all(self)
@@ -127,6 +135,7 @@ class Inspect(QDockWidget):
         self.stack_widget.setCurrentWidget(self.inspect_widget)
         self.adjustSize()
         self.setUpdatesEnabled(True)
+        self.raise_()
 
     def update_inspected_object_stack(self, cls, field, values, id):
         if (cls, field, values, id) not in self.inspected_objects_stack:
