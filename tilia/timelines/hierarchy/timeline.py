@@ -18,23 +18,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         super().__init__(timeline, [ComponentKind.HIERARCHY])
 
     def _validate_component_creation(
-        self, _, start: float, end: float, *args, **kwargs
+            self, _, start: float, end: float, level: int, **kwargs
     ):
-        media_duration = get(Get.MEDIA_DURATION)
-        if start > media_duration:
-            return (
-                False,
-                f"Start time '{start}' is bigger than media time '{media_duration}'",
-            )
-        elif end > media_duration:
-            return (
-                False,
-                f"End time '{end}' is bigger than media time '{media_duration}'",
-            )
-        elif end <= start:
-            return False, f"End time '{end}' should be bigger than start time '{start}'"
-        else:
-            return True, ""
+        return Hierarchy.validate_creation(start, end, (start, end, level), {(c.start, c.end, c.level) for c in self})
 
     def deserialize_components(self, components: dict[int, dict[str, Any]]):
         self.clear()  # remove starting hierarchy

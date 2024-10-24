@@ -4,6 +4,7 @@ from unittest.mock import patch, mock_open
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.beat import beats_from_csv
 from tilia.timelines.base.metric_position import MetricPosition
+from tilia.ui.format import format_media_time
 
 
 def _import_with_patch(tl, data):
@@ -30,7 +31,7 @@ def test_component_creation_fail_reason_gets_into_errors(beat_tl, tilia_state):
 
     errors = _import_with_patch(beat_tl, data)
 
-    assert_in_errors("101", errors)
+    assert_in_errors(format_media_time(101), errors)
 
 
 def test_with_measure_number(beat_tl):
