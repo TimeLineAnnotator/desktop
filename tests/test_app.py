@@ -424,13 +424,14 @@ class TestOpen:
             ("test_field3", "c"),
         ]
 
-    def test_open_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
+    def test_open_saving_changes(self, tilia, tls, marker_tlui, user_actions, tmp_path):
         previous_path = tmp_path / "previous.tla"
         with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, previous_path)):
             post(Post.FILE_SAVE)
 
         # make change
-        marker_tlui.create_marker(10)
+
+        user_actions.trigger(TiliaAction.MARKER_ADD)
         prev_tl_id = marker_tlui.id
         prev_marker_id = marker_tlui[0].id
 
@@ -447,7 +448,7 @@ class TestOpen:
             contents["timelines"][str(prev_tl_id)]["components"][str(prev_marker_id)][
                 "time"
             ]
-            == 10
+            == 0
         )
 
     def test_open_without_saving_changes(self, tilia, tls, marker_tlui, tmp_path):

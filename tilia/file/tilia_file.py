@@ -10,6 +10,7 @@ class TiliaFile:
     media_path: str = ""
     media_metadata: MediaMetadata = field(default_factory=MediaMetadata)
     timelines: dict = field(default_factory=lambda: {})
+    timelines_hash: str = ""
     app_name: str = tilia.constants.APP_NAME
     version: str = tilia.constants.VERSION
 

@@ -280,9 +280,11 @@ class App:
         return self.timelines.serialize_timelines()
 
     def get_app_state(self) -> dict:
+        timelines_state, timelines_hash = self.timelines.serialize_timelines()
         params = {
             "media_metadata": dict(self.file_manager.file.media_metadata),
-            "timelines": self.get_timelines_state(),
+            "timelines": timelines_state,
+            'timelines_hash': timelines_hash,
             "media_path": get(Get.MEDIA_PATH),
             "file_path": self.file_manager.get_file_path(),
             "version": tilia.constants.VERSION,
