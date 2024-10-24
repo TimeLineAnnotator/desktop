@@ -8,7 +8,7 @@ import pytest
 import tests.utils
 from tests.mock import Serve, PatchPost
 from tilia.media.player import YouTubePlayer, QtAudioPlayer
-from tilia.settings import settings_manager
+from tilia.settings import settings
 
 from tilia.requests import Get, Post, post
 from tilia.ui.actions import TiliaAction
@@ -306,7 +306,7 @@ class TestFileSetup:
 
 def assert_open_failed(tilia, tilia_errors, opened_file_path, prev_file):
     tilia_errors.assert_error()
-    assert settings_manager.get_recent_files()[0] != opened_file_path
+    assert settings.get_recent_files()[0] != opened_file_path
     assert tilia.file_manager.file == prev_file
 
 
@@ -336,7 +336,7 @@ class TestOpen:
         with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             user_actions.trigger(TiliaAction.FILE_OPEN)
 
-        assert Path(settings_manager.get_recent_files()[0]) == tmp_file
+        assert Path(settings.get_recent_files()[0]) == tmp_file
         assert len(tls) == 2  # Slider timeline is also created by default
         assert len(tls[0]) == 3
 
@@ -344,7 +344,7 @@ class TestOpen:
         tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
         post(Post.FILE_OPEN, tmp_file)
 
-        assert Path(settings_manager.get_recent_files()[0]) == tmp_file
+        assert Path(settings.get_recent_files()[0]) == tmp_file
         assert len(tls) == 2  # Slider timeline is also created by default
 
     def test_open_file_does_not_exist(self, tilia, tmp_path, tilia_errors):

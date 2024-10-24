@@ -17,7 +17,7 @@ from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.undo_manager import PauseUndoManager
 from tilia.file.file_manager import open_tla
-from tilia.settings import settings_manager
+from tilia.settings import settings
 
 if TYPE_CHECKING:
     from tilia.media.player import Player
@@ -128,7 +128,7 @@ class App:
         except tilia.exceptions.NoReplyToRequest:
             geometry, window_state = None, None
 
-        settings_manager.update_recent_files(
+        settings.update_recent_files(
             self.file_manager.get_file_path(), geometry, window_state
         )
 
