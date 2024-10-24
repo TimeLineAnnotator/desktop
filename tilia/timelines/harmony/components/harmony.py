@@ -97,6 +97,8 @@ class Harmony(PointLikeTimelineComponent):
         self.custom_text_font_type = custom_text_font_type
         self.comments = comments
 
+        self.update_hash()
+
     def __str__(self):
         return f"Harmony({self.step, self.accidental, self.quality, self.inversion}) at {self.time}"
 

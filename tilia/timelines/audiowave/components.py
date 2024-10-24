@@ -34,6 +34,8 @@ class AmplitudeBar(SegmentLikeTimelineComponent):
         self.start = start
         self.end = end
         self.amplitude = amplitude
+
+        self.update_hash()
     
     def __repr__(self):
         return f"AudioWave({self.start}, {self.amplitude})"

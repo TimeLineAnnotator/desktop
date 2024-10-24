@@ -1,4 +1,10 @@
+from __future__ import annotations
+
 from enum import auto, Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tilia.timelines.base.component import TimelineComponent
 
 
 class ComponentKind(Enum):
@@ -11,7 +17,7 @@ class ComponentKind(Enum):
     AUDIOWAVE = auto()
 
 
-def get_component_class_by_kind(kind: ComponentKind):
+def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
     from tilia.timelines.hierarchy.components import Hierarchy
     from tilia.timelines.marker.components import Marker
     from tilia.timelines.beat.components import Beat

@@ -36,6 +36,7 @@ class TestBeatTimeline:
         tilia_state.current_time = 5
         user_actions.trigger(TiliaAction.BEAT_ADD)
 
+        assert beat_tlui[0].get_data("is_first_in_measure") is True
         assert beat_tlui[1].get_data("is_first_in_measure") is False
         assert beat_tlui[2].get_data("is_first_in_measure") is True
         assert beat_tlui[3].get_data("is_first_in_measure") is False
