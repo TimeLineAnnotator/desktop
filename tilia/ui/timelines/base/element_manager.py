@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import bisect
-from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic
+from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Iterable
 
 from PyQt6.QtWidgets import QGraphicsItem
 
@@ -14,8 +14,6 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.base.timeline import TimelineUI
-
-    # noinspection PyUnresolvedReferences
 
 
 TE = TypeVar("TE", bound=TimelineUIElement)
@@ -85,21 +83,39 @@ class ElementManager(Generic[TE]):
     def get_elements_by_condition(self, condition: Callable[[TE], bool]) -> list[TE]:
         return [e for e in self._elements if condition(e)]
 
-    def get_next_element(self, element: TE, kind: ComponentKind = None) -> TE | None:
-        elements = self.get_elements_by_attribute('kind', kind) if kind else self.get_elements()
-        element_idx = elements.index(element)
+    def get_next_element(self, element: TE) -> TE | None:
+        element_idx = self._elements.index(element)
         if element_idx == len(self._elements) - 1:
             return None
         else:
             return self._elements[element_idx + 1]
 
-    def get_previous_element(self, element: TE, kind: ComponentKind = None) -> TE | None:
-        elements = self.get_elements_by_attribute('kind', kind) if kind else self.get_elements()
-        element_idx = elements.index(element)
+    def get_previous_element(self, element: TE) -> TE | None:
+        element_idx = self._elements.index(element)
         if element_idx == 0:
             return None
         else:
             return self._elements[element_idx - 1]
+
+    def get_next_element_by_time(self, time: float, elements: Iterable[TE] | None = None) -> TE | None:
+        # Expects elements to be sorted by time
+        elements = elements if elements is not None else self.get_elements()
+        times = [e.get_data("time") for e in elements]
+        idx = bisect.bisect_left(times, time)
+        if idx == len(times) - 1:
+            return None
+        else:
+            return elements[idx + 1]
+
+    def get_previous_element_by_time(self, time: float, elements: Iterable[TE] | None = None) -> TE | None:
+        # Expects elements to be sorted by time
+        elements = elements if elements is not None else self.get_elements()
+        times = [e.get_data("time") for e in elements]
+        idx = bisect.bisect_left(times, time)
+        if idx == 0:
+            return None
+        else:
+            return elements[idx - 1]
 
     def get_element_by_condition(self, condition: Callable[[TE], bool]) -> TE | None:
         return next((e for e in self._elements if condition(e)), None)
