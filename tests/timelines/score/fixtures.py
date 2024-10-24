@@ -1,8 +1,7 @@
-import functools
-
 import pytest
 
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -31,3 +30,8 @@ def note(score_tl):
 @pytest.fixture
 def staff(score_tl):
     return score_tl.create_component(ComponentKind.STAFF, 1, 5)
+
+
+@pytest.fixture
+def clef(score_tl):
+    return score_tl.create_component(ComponentKind.CLEF, 0, shorthand=Clef.Shorthand.TREBLE)[0]

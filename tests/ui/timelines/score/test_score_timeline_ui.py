@@ -16,3 +16,7 @@ def test_create_note(tluis, note):
 
 def test_create_staff(tluis, staff):
     assert staff
+
+
+def test_create_clef(tluis, clef):
+    assert clef

@@ -14,7 +14,7 @@ class Staff(TimelineComponent):
         'timeline': lambda _: False,  # read-only
         'id': lambda _: False,  # read-only
         "line_count": validate_positive_integer,
-        "ordinal": validate_positive_integer,
+        "position": validate_positive_integer,
 
     }
 
