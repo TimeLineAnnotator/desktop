@@ -30,3 +30,8 @@ def audiowave_tl(tls):
 @pytest.fixture
 def amplitudebar(audiowave_tl):
     return audiowave_tl.create_amplitudebar(0, 1, 0.5)[0]
+
+
+@pytest.fixture
+def amplitudebar_ui(audiowave_tlui, amplitudebar):
+    return audiowave_tlui.get_element(amplitudebar.id)

@@ -63,10 +63,15 @@ def harmony(harmony_tl):
 
 
 @pytest.fixture
+def harmony_ui(harmony_tlui, harmony):
+    return harmony_tlui.get_element(harmony.id)
+
+
+@pytest.fixture
 def mode(harmony_tl):
     return harmony_tl.create_mode()[0]
 
 
 @pytest.fixture
-def har_and_ui(harmony_tlui):
-    return harmony_tlui.create_harmony(0)
+def mode_ui(mode_tlui, mode):
+    return mode_tlui.get_element(mode.id)
