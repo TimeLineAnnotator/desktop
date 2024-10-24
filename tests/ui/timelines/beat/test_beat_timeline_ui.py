@@ -430,13 +430,11 @@ class TestFillWithBeats:
 
 
 class TestUndoRedo:
-    def test_undo_redo_add_beat(self, beat_tlui, tluis, user_actions):
+    def test_undo_redo_add_beat(self, beat_tlui, tluis, tilia_state, user_actions):
         post(Post.APP_RECORD_STATE, "test state")
 
-        with PatchGet(
-            "tilia.ui.timelines.beat.timeline", Get.MEDIA_CURRENT_TIME, 0.101
-        ):
-            user_actions.trigger(TiliaAction.BEAT_ADD)
+        tilia_state.current_time = 10
+        user_actions.trigger(TiliaAction.BEAT_ADD)
 
         post(Post.EDIT_UNDO)
         assert len(beat_tlui) == 0

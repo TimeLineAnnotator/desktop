@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from tilia.requests import post, Post
 import tilia.errors
 
 if TYPE_CHECKING:
@@ -18,6 +17,7 @@ class Serializable(Protocol):
     id: int
     ui: TimelineUIElement
     KIND: ComponentKind
+    hash: str
 
     SERIALIZABLE_BY_VALUE: list[str]
     SERIALIZABLE_BY_ID: list[str]
@@ -59,6 +59,7 @@ def serialize_component(component: Serializable) -> dict[str]:
 
     # add component kind to serialized component
     serialized_component["kind"] = component.KIND.name
+    serialized_component['hash'] = component.hash
 
     return serialized_component
 

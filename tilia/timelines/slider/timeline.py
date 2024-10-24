@@ -30,11 +30,13 @@ class SliderTimeline(Timeline):
 
         result["kind"] = self.KIND.name
         result["components"] = {}
+        result['components_hash'] = ''
+        result['hash'] = ''
 
         return result
 
     def _validate_delete_components(self, component: TimelineComponent):
-        """Nothing to do."""
+        """Nothing to do. Must implement abstract method."""
 
     def deserialize_components(self, components: dict[int, dict[str]]):
         """Nothing to do."""
