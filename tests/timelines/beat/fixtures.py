@@ -35,3 +35,8 @@ def beat_tl(tls):
 @pytest.fixture
 def beat(beat_tl):
     return beat_tl.create_beat(0)[0]
+
+
+@pytest.fixture()
+def beat_ui(beat_tlui, beat):
+    return beat_tlui.get_element(beat.id)

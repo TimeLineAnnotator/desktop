@@ -38,5 +38,6 @@ def marker(marker_tlui):
 
 
 @pytest.fixture
-def mrk_and_ui(marker_tlui):
-    return marker_tlui.create_marker(0)
+def marker_ui(marker_tlui, marker):
+    return marker_tlui.get_element(marker.id)
+

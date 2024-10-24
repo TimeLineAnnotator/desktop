@@ -47,3 +47,8 @@ def hierarchy_tl(tls):
 @pytest.fixture
 def hierarchy(hierarchy_tl):
     return hierarchy_tl.create_hierarchy(0, 1, 1)[0]
+
+
+@pytest.fixture
+def hierarchy_ui(hierarchy_tlui, hierarchy):
+    return hierarchy_tlui.get_element(hierarchy.id)

@@ -56,5 +56,6 @@ def pdf_marker(pdf_tl):
 
 
 @pytest.fixture
-def pdf_and_ui(pdf_tlui):
-    return pdf_tlui.create_pdf_marker(0)
+def pdf_marker_ui(pdf_tlui, pdf_marker):
+    return pdf_tlui.get_element(pdf_marker.id)
+
