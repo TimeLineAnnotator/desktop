@@ -10,17 +10,17 @@ def test_create(tluis, user_actions):
     assert len(tluis) == 1
 
 
-def test_create_note(tluis, note):
-    assert note
+def test_create_note(score_tlui, note):
+    assert score_tlui[0]
 
 
-def test_create_staff(tluis, staff):
-    assert staff
+def test_create_staff(score_tlui, staff):
+    assert score_tlui[0]
 
 
-def test_create_clef(tluis, clef):
-    assert clef
+def test_create_clef(score_tlui, clef):
+    assert score_tlui[0]
 
 
-def test_create_barline(tluis, bar_line):
-    assert bar_line
+def test_create_barline(score_tlui, bar_line):
+    assert score_tlui[0]
