@@ -46,7 +46,7 @@ class MediaMetadataWindow(QDialog):
         self.setup_layout()
         self.show()
 
-        post(Post.WINDOW_METADATA_OPENED)
+        post(Post.WINDOW_OPEN_DONE, WindowKind.MEDIA_METADATA)
 
     def setup_layout(self):
         self._setup_widgets()
@@ -165,7 +165,7 @@ class MediaMetadataWindow(QDialog):
         ):
             event.ignore()
             return
-        post(Post.WINDOW_METADATA_CLOSED)
+        post(Post.WINDOW_CLOSE_DONE, WindowKind.MEDIA_METADATA)
         super().closeEvent(event)
 
     def update_metadata_fields(self, new_fields: list[str]):

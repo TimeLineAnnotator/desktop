@@ -20,13 +20,13 @@ def marker_ui_pos(marker_ui: MarkerUI):
 
 @pytest.fixture
 def get_inspect(qtui, user_actions):
-    post(Post.WINDOW_INSPECT_OPEN)
+    post(Post.WINDOW_OPEN, WindowKind.INSPECT)
 
     def _get_inspect():
         return qtui._windows[WindowKind.INSPECT]
 
     yield _get_inspect
-    post(Post.WINDOW_INSPECT_CLOSE)
+    post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
 
 
 class TestCreateDelete:

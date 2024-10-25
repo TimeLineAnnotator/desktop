@@ -160,7 +160,7 @@ def resources() -> Path:
 
 
 @pytest.fixture(scope="module")
-def qtui(cleanup_requests, qapplication):
+def qtui(tilia, cleanup_requests, qapplication):
     mw = TiliaMainWindow()
     qtui_ = QtUI(qapplication, mw)
     stop_listening(qtui_, Post.DISPLAY_ERROR)
