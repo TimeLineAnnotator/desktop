@@ -35,3 +35,8 @@ def staff(score_tl):
 @pytest.fixture
 def clef(score_tl):
     return score_tl.create_component(ComponentKind.CLEF, 0, shorthand=Clef.Shorthand.TREBLE)[0]
+
+
+@pytest.fixture
+def bar_line(score_tl):
+    return score_tl.create_component(ComponentKind.BAR_LINE, 0)

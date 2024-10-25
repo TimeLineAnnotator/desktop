@@ -20,3 +20,7 @@ def test_create_staff(tluis, staff):
 
 def test_create_clef(tluis, clef):
     assert clef
+
+
+def test_create_barline(tluis, bar_line):
+    assert bar_line

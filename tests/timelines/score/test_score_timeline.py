@@ -25,3 +25,6 @@ class TestCreateClef:
         score_tl.create_component(ComponentKind.CLEF, 0, shorthand=shorthand)
         assert len(score_tl) == 1
 
+
+def test_create_bar_line(bar_line):
+    assert bar_line
