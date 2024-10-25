@@ -12,7 +12,7 @@ from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 
 class ScoreTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: ScoreTimeline):
-        super().__init__(timeline, [ComponentKind.NOTE, ComponentKind.STAFF, ComponentKind.CLEF])
+        super().__init__(timeline, [ComponentKind.NOTE, ComponentKind.STAFF, ComponentKind.CLEF, ComponentKind.BAR_LINE])
         self.scale = functools.partial(scale_discrete, self)
         self.crop = functools.partial(crop_discrete, self)
 

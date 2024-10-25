@@ -35,6 +35,12 @@ class ScoreTimelineUI(TimelineUI):
             request, selector, *args, **kwargs
         )
 
+
+    def get_barline_top_y(self, time: float) -> float:
+        return 45
+
+    def get_barline_height(self, time: float) -> float:
+        return 65
+
     def get_height_for_symbols_above_staff(self) -> int:
         return 50
-
