@@ -4,6 +4,8 @@ from PyQt6.QtWidgets import QLabel, QVBoxLayout, QMainWindow, QDialog
 import tilia.constants
 
 from tilia.requests import Post, post
+from tilia.ui.windows import WindowKind
+
 
 class About(QDialog):
     def __init__(self, parent: QMainWindow):
@@ -36,6 +38,8 @@ class About(QDialog):
 
         self.show()
 
-    def closeEvent(self, event):        
-        post(Post.WINDOW_ABOUT_CLOSED)
+        post(Post.WINDOW_OPEN_DONE, WindowKind.ABOUT)
+
+    def closeEvent(self, event):
+        post(Post.WINDOW_CLOSE_DONE, WindowKind.ABOUT)
         return super().closeEvent(event)

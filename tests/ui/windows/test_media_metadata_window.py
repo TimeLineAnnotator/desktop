@@ -7,7 +7,7 @@ from tilia.ui.windows import WindowKind
 
 @pytest.fixture
 def media_metadata_window(qtui):
-    post(Post.WINDOW_METADATA_OPEN)
+    post(Post.WINDOW_OPEN, WindowKind.MEDIA_METADATA)
     window = qtui._windows[WindowKind.MEDIA_METADATA]
     yield window
     with Serve(Get.FROM_USER_YES_OR_NO, True):
