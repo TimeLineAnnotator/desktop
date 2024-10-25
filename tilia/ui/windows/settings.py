@@ -38,7 +38,7 @@ class SettingsWindow(QDialog):
         self.setup_layout()
         self.show()
 
-        post(Post.WINDOW_SETTINGS_OPENED)
+        post(Post.WINDOW_OPEN_DONE, WindowKind.SETTINGS)
 
     def setup_layout(self):
         self._setup_widgets()
@@ -152,7 +152,7 @@ class SettingsWindow(QDialog):
         self.setup_layout()
 
     def closeEvent(self, event):
-        post(Post.WINDOW_SETTINGS_CLOSED)
+        post(Post.WINDOW_CLOSE_DONE, WindowKind.SETTINGS)
         super().closeEvent(event)
 
     def _get_edits(self) -> dict:

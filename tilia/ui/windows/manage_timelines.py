@@ -26,6 +26,7 @@ from tilia.requests import (
 from tilia.timelines.base.timeline import TimelineFlag
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.timeline import TimelineUI
+from tilia.ui.windows import WindowKind
 
 
 class ManageTimelines(QDialog):
@@ -36,6 +37,8 @@ class ManageTimelines(QDialog):
         self._setup_checkbox()
         self._setup_requests()
         self.show()
+
+        post(Post.WINDOW_OPEN_DONE, WindowKind.MANAGE_TIMELINES)
 
     def _setup_widgets(self):
         layout = QHBoxLayout()
@@ -116,7 +119,7 @@ class ManageTimelines(QDialog):
         stop_listening_to_all(self)
         stop_listening_to_all(self.list_widget)
         stop_serving_all(self)
-        post(Post.WINDOW_MANAGE_TIMELINES_CLOSE_DONE)
+        post(Post.WINDOW_CLOSE_DONE, WindowKind.MANAGE_TIMELINES)
 
 
 class TimelineListItem(QListWidgetItem):

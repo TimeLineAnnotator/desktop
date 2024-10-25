@@ -29,6 +29,7 @@ from .request_handlers import TimelineRequestHandler
 from ..collection.requests.enums import ElementSelector
 from ..view import TimelineView
 from ...coords import time_x_converter
+from ...windows import WindowKind
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
@@ -66,7 +67,7 @@ class TimelineUI(ABC):
         self._setup_visibility()
         self._setup_collection_requests()
 
-        listen(self, Post.WINDOW_INSPECT_OPENED, self.on_inspector_window_opened)
+        listen(self, Post.WINDOW_OPEN_DONE, self.on_window_open_done)
 
     def __iter__(self):
         return iter(self.elements)
@@ -375,7 +376,9 @@ class TimelineUI(ABC):
             return
         self.CONTEXT_MENU_CLASS(self).exec(QPoint(x, y))
 
-    def on_inspector_window_opened(self):
+    def on_window_open_done(self, kind: WindowKind):
+        if kind != WindowKind.INSPECT:
+            return
         for element in self.selected_elements:
             self.post_inspectable_selected_event(element)
 

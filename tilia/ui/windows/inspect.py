@@ -70,7 +70,7 @@ class Inspect(QDockWidget):
         self.stack_widget.addWidget(self.inspect_widget)
         self.stack_widget.addWidget(self.empty_label)
 
-        post(Post.WINDOW_INSPECT_OPENED)
+        post(Post.WINDOW_OPEN_DONE, WindowKind.INSPECT)
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -95,7 +95,7 @@ class Inspect(QDockWidget):
 
     def closeEvent(self, event, **kwargs):
         stop_listening_to_all(self)
-        post(Post.WINDOW_INSPECT_CLOSED)
+        post(Post.WINDOW_CLOSE_DONE, WindowKind.INSPECT)
         super().closeEvent(event)
 
     def display_not_selected_frame(self):
