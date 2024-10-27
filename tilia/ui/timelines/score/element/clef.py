@@ -7,16 +7,14 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
-from tilia.ui.coords import get_x_by_time
-from tilia.ui.timelines.base.element import TimelineUIElement
-
+from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QGraphicsScene
     from tilia.ui.timelines.score import ScoreTimelineUI
 
 
-class ClefUI(TimelineUIElement):
+class ClefUI(TimelineUIElementWithCollision):
     def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, **kwargs):
         super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
         self._setup_body()
@@ -25,12 +23,9 @@ class ClefUI(TimelineUIElement):
     def icon_path(self):
         return Path('ui', 'img', self.get_data('icon'))
 
-    @property
-    def x(self):
-        return get_x_by_time(self.get_data('time'))
-
     def _setup_body(self):
         self.body = ClefBody(self.x, self.icon_path)
+        self.body.moveBy(self.x_offset, 0)
         self.scene.addItem(self.body)
 
     def height(self) -> float:
@@ -40,7 +35,7 @@ class ClefUI(TimelineUIElement):
         return [self.body]
 
     def update_position(self):
-        self.body.set_position(self.x)
+        self.body.set_position(self.x + self.x_offset)
 
 
 class ClefBody(QGraphicsPixmapItem):
@@ -57,4 +52,4 @@ class ClefBody(QGraphicsPixmapItem):
         self.setPixmap(self.pixmap().scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
 
     def set_position(self, x: float):
-        self.setPos(x - self.pixmap.width() / 2, 0)
+        self.setPos(x, 0)
