@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsPixmapItem
+
+from tilia.ui.coords import get_x_by_time
+from tilia.ui.timelines.base.element import TimelineUIElement
+
+if TYPE_CHECKING:
+    from tilia.ui.timelines.score import ScoreTimelineUI
+
+
+class TimeSignatureUI(TimelineUIElement):
+    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, **kwargs):
+        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+        self._setup_body()
+
+    def get_icon_path(self, number: int) -> Path:
+        return Path('ui', 'img', f'time-signature-{number}.svg')
+
+    @property
+    def x(self):
+        return get_x_by_time(self.get_data('time'))
+
+    def _setup_body(self):
+        self.body = TimeSignatureBody(self.x, self.get_icon_path(self.get_data('numerator')), self.get_icon_path(self.get_data('denominator')))
+        self.scene.addItem(self.body)
+
+    def child_items(self):
+        return [self.body]
+
+    def update_position(self):
+        self.body.set_position(self.x)
+
+
+class TimeSignatureBody(QGraphicsItem):
+    PIXMAP_HEIGHT = 15
+    TOP_MARGIN = 10
+
+    def __init__(self, x: float, numerator_path: Path, denominator_path: Path):
+        super().__init__()
+        self.set_numerator_item(str(numerator_path.resolve()))
+        self.set_denominator_item(str(denominator_path.resolve()))
+        self.set_position(x)
+
+    def set_numerator_item(self, path: str):
+        self.numerator_item = QGraphicsPixmapItem(QPixmap(path).scaledToHeight(self.PIXMAP_HEIGHT, mode=Qt.TransformationMode.SmoothTransformation), self)
+
+    def set_denominator_item(self, path: str):
+        self.denominator_item = QGraphicsPixmapItem(QPixmap(path).scaledToHeight(self.PIXMAP_HEIGHT, mode=Qt.TransformationMode.SmoothTransformation), self)
+        self.denominator_item.setPos(0, self.numerator_item.pixmap().height())
+
+    def set_position(self, x: float):
+        self.setPos(x - self.numerator_item.pixmap().width() / 2, self.TOP_MARGIN)
+
+    def boundingRect(self):
+        return self.numerator_item.boundingRect().united(self.denominator_item.boundingRect())
+
+    def paint(self, painter, option, widget):
+        self.numerator_item.paint(painter, option, widget)
+        self.denominator_item.paint(painter, option, widget)
