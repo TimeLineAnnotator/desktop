@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from tilia.exceptions import GetComponentDataError
 from tilia.requests import Get, get, listen, Post
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
 from tilia.ui.timelines.score.element import NoteUI, StaffUI
+from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
 from tilia.ui.timelines.score.request_handlers import ScoreTimelineUIElementRequestHandler
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
 
@@ -35,7 +39,6 @@ class ScoreTimelineUI(TimelineUI):
             request, selector, *args, **kwargs
         )
 
-
     def get_barline_top_y(self, time: float) -> float:
         return 45
 
@@ -44,3 +47,38 @@ class ScoreTimelineUI(TimelineUI):
 
     def get_height_for_symbols_above_staff(self) -> int:
         return 50
+
+    def on_timeline_component_created(self, kind: ComponentKind, id: int):
+        element = super().on_timeline_component_created(kind, id)
+        try:
+            time = element.get_data('time')
+        except GetComponentDataError:
+            return
+        if overlapping_components := self._get_overlap(time, kind):
+            component_to_offset = self._get_offsets_for_overlapping_elements(overlapping_components)
+            for component in overlapping_components:
+                component.x_offset = component_to_offset[component]
+
+    def _get_overlap(self, time: float, kind: ComponentKind) -> list[TimelineUIElementWithCollision]:
+        # Elements will be displayed in the order below
+        overlapping_kinds = [ComponentKind.CLEF, ComponentKind.TIME_SIGNATURE]
+
+        if kind not in overlapping_kinds:
+            return []
+
+        overlapping = [c for c in self if c.kind in overlapping_kinds and c.get_data('time') == time]
+        overlapping = sorted(overlapping, key=lambda c: overlapping_kinds.index(c.kind))
+        return overlapping if len(overlapping) > 1 else []
+
+    def _get_offsets_for_overlapping_elements(self, overlapping_elements: list[TimelineUIElementWithCollision]):
+        mid_x = sum([c.width for c in overlapping_elements]) / 2
+        element_to_offset = {}
+        total_width = 0
+
+        for element in overlapping_elements:
+            element_to_offset[element] = total_width - mid_x
+
+            total_width += element.width
+
+
+        return element_to_offset

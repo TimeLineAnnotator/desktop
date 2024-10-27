@@ -1,5 +1,6 @@
 from tests.mock import Serve
 from tilia.requests import Get
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui.actions import TiliaAction
 
 
