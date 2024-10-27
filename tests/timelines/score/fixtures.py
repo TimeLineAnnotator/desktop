@@ -28,8 +28,18 @@ def note(score_tl):
 
 
 @pytest.fixture
+def note_ui(score_tlui, note):
+    return score_tlui.get_component_ui(note)
+
+
+@pytest.fixture
 def staff(score_tl):
     return score_tl.create_component(ComponentKind.STAFF, 1, 5)
+
+
+@pytest.fixture
+def staff_ui(score_tlui, staff):
+    return score_tlui.get_element(staff)
 
 
 @pytest.fixture
@@ -38,5 +48,25 @@ def clef(score_tl):
 
 
 @pytest.fixture
+def clef_ui(score_tlui, clef):
+    return score_tlui.get_component_ui(clef)
+
+
+@pytest.fixture
 def bar_line(score_tl):
     return score_tl.create_component(ComponentKind.BAR_LINE, 0)
+
+
+@pytest.fixture
+def bar_line_ui(score_tlui, bar_line):
+    return score_tlui.get_element(bar_line)
+
+
+@pytest.fixture
+def time_signature(score_tl):
+    return score_tl.create_component(ComponentKind.TIME_SIGNATURE, 0, 4, 4)[0]
+
+
+@pytest.fixture
+def time_signature_ui(score_tlui, time_signature):
+    return score_tlui.get_component_ui(time_signature)
