@@ -24,3 +24,7 @@ def test_create_clef(score_tlui, clef):
 
 def test_create_barline(score_tlui, bar_line):
     assert score_tlui[0]
+
+
+def test_create_time_signature(score_tlui, time_signature):
+    assert score_tlui[0]

@@ -28,3 +28,7 @@ class TestCreateClef:
 
 def test_create_bar_line(bar_line):
     assert bar_line
+
+
+def test_create_time_signature(time_signature):
+    assert time_signature
