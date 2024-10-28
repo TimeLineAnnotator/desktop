@@ -24,7 +24,7 @@ class TimelineComponent(ABC):
     def __init__(self, timeline: Timeline, id: int, *args, **kwargs):
         self.timeline = timeline
         self.id = id
-        self.hash = ''
+        self.hash = ""
 
     def __str__(self):
         return get_tilia_class_string(self)
