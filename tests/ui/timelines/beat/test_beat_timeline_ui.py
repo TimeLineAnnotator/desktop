@@ -353,7 +353,7 @@ class TestActions:
 
         assert tilia_state.is_window_open(qtui, WindowKind.INSPECT)
 
-        user_actions.trigger(TiliaAction.INSPECT_WINDOW_CLOSE)
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
 
     def test_distribute_beats(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
