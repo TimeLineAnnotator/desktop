@@ -25,6 +25,7 @@ class TimelineComponent(ABC):
         self.timeline = timeline
         self.id = id
         self.hash = ""
+        self.update_hash()
 
     def __str__(self):
         return get_tilia_class_string(self)
