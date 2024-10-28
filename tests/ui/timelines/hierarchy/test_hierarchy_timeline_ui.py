@@ -77,6 +77,17 @@ class TestActions:
         assert tlui[0].get_data('level') == 2
         assert tlui[1].get_data('level') == 3
 
+    def test_increase_level_gets_hierarchy_out_of_bounds(self, tlui, user_actions):
+        tlui.create_hierarchy(0, 1, 1)
+        prev_height = tlui.get_data('height')
+
+        tlui.select_element(tlui[0])
+
+        for i in range(100):
+            user_actions.trigger(TiliaAction.HIERARCHY_INCREASE_LEVEL)
+
+        assert tlui.get_data('height') > prev_height
+
     def test_decrease_level(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 2)
         tlui.create_hierarchy(1, 2, 2)

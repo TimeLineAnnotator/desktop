@@ -37,7 +37,14 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
 
     @fallible
     def on_increase_level(self, elements, *_, **__):
-        return self.timeline.alter_levels(self.elements_to_components(reversed(elements)), 1)
+        min_margin = 10
+        success = self.timeline.alter_levels(self.elements_to_components(reversed(elements)), 1)
+        if success:
+            max_height = self.timeline_ui.get_max_hierarchy_height()
+            if max_height > self.timeline_ui.get_data('height') + min_margin:
+                get(Get.TIMELINE_COLLECTION).set_timeline_data(self.timeline_ui.id, 'height', max_height + min_margin)
+
+        return success
 
     @fallible
     def on_decrease_level(self, elements, *_, **__):
