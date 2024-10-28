@@ -1,3 +1,5 @@
+import pytest
+
 from tests.mock import Serve
 from tilia.requests import Get
 from tilia.timelines.component_kinds import ComponentKind
@@ -28,4 +30,10 @@ def test_create_barline(score_tlui, bar_line):
 
 
 def test_create_time_signature(score_tlui, time_signature):
+    assert score_tlui[0]
+
+
+@pytest.mark.parametrize('fifths', range(-7, 8))
+def test_create_key_signature(score_tlui, fifths):
+    score_tlui.create_component(ComponentKind.KEY_SIGNATURE, 0, fifths)
     assert score_tlui[0]
