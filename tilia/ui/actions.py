@@ -77,7 +77,6 @@ class TiliaAction(Enum):
     VIEW_ZOOM_OUT = auto()
     WEBSITE_HELP_OPEN = auto()
     WINDOW_MANAGE_TIMELINES_OPEN = auto()
-    INSPECT_WINDOW_CLOSE = auto()
 
 
 @dataclass
@@ -331,9 +330,6 @@ taction_to_params = {
         Post.WINDOW_OPEN, "About...", "", "", (WindowKind.ABOUT,)
     ),
     TiliaAction.MEDIA_STOP: ActionParams(Post.PLAYER_STOP, "Stop", "stop15", ""),
-    TiliaAction.INSPECT_WINDOW_CLOSE: ActionParams(
-        Post.WINDOW_CLOSE, "Close", "", "", (WindowKind.INSPECT,)
-    ),
     TiliaAction.WEBSITE_HELP_OPEN: ActionParams(
         Post.WEBSITE_HELP_OPEN, "Help...", "", ""
     ),
