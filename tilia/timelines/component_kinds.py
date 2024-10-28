@@ -20,6 +20,7 @@ class ComponentKind(Enum):
     CLEF = auto()
     BAR_LINE = auto()
     TIME_SIGNATURE = auto()
+    KEY_SIGNATURE = auto()
 
 
 def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
@@ -29,7 +30,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
     from tilia.timelines.harmony.components import Harmony, Mode
     from tilia.timelines.pdf.components import PdfMarker
     from tilia.timelines.audiowave.components import AmplitudeBar
-    from tilia.timelines.score.components import Note, Staff, Clef, BarLine, TimeSignature
+    from tilia.timelines.score.components import Note, Staff, Clef, BarLine, TimeSignature, KeySignature
 
     kind_to_class_dict = {
         ComponentKind.HIERARCHY: Hierarchy,
@@ -44,6 +45,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
         ComponentKind.CLEF: Clef,
         ComponentKind.BAR_LINE: BarLine,
         ComponentKind.TIME_SIGNATURE: TimeSignature,
+        ComponentKind.KEY_SIGNATURE: KeySignature,
     }
 
     return kind_to_class_dict[kind]

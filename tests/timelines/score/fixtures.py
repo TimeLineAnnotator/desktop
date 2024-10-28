@@ -70,3 +70,8 @@ def time_signature(score_tl):
 @pytest.fixture
 def time_signature_ui(score_tlui, time_signature):
     return score_tlui.get_component_ui(time_signature)
+
+
+@pytest.fixture
+def key_signature(score_tl):
+    return score_tl.create_component(ComponentKind.KEY_SIGNATURE, 0, 0)[0]

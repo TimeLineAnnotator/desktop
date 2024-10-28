@@ -61,7 +61,7 @@ class ScoreTimelineUI(TimelineUI):
 
     def _get_overlap(self, time: float, kind: ComponentKind) -> list[TimelineUIElementWithCollision]:
         # Elements will be displayed in the order below
-        overlapping_kinds = [ComponentKind.CLEF, ComponentKind.TIME_SIGNATURE]
+        overlapping_kinds = [ComponentKind.CLEF, ComponentKind.KEY_SIGNATURE, ComponentKind.TIME_SIGNATURE]
 
         if kind not in overlapping_kinds:
             return []
