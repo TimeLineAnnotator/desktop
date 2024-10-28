@@ -64,6 +64,19 @@ class TestActions:
         assert tlui[1].get_data('level') == 2
         assert tlui[2].get_data('level') == 2
 
+    def test_increase_level_parent_at_higher_level(self, tlui, user_actions):
+        tlui.create_hierarchy(0, 1, 1)
+        tlui.create_hierarchy(0, 1, 2)
+
+        tlui.timeline.do_genealogy()
+
+        tlui.select_element(tlui[0])
+        tlui.select_element(tlui[1])
+        user_actions.trigger(TiliaAction.HIERARCHY_INCREASE_LEVEL)
+
+        assert tlui[0].get_data('level') == 2
+        assert tlui[1].get_data('level') == 3
+
     def test_decrease_level(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 2)
         tlui.create_hierarchy(1, 2, 2)
@@ -89,6 +102,19 @@ class TestActions:
         assert tlui[0].get_data('level') == 1
         assert tlui[1].get_data('level') == 1
         assert tlui[2].get_data('level') == 1
+
+    def test_decrease_level_with_child_at_lower_level(self, tlui, user_actions):
+        tlui.create_hierarchy(0, 1, 2)
+        tlui.create_hierarchy(0, 1, 3)
+
+        tlui.timeline.do_genealogy()
+
+        tlui.select_element(tlui[0])
+        tlui.select_element(tlui[1])
+        user_actions.trigger(TiliaAction.HIERARCHY_DECREASE_LEVEL)
+
+        assert tlui[0].get_data('level') == 1
+        assert tlui[1].get_data('level') == 2
 
     def test_set_color(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 1)

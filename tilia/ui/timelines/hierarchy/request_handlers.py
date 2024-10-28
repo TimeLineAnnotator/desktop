@@ -37,7 +37,7 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
 
     @fallible
     def on_increase_level(self, elements, *_, **__):
-        return self.timeline.alter_levels(self.elements_to_components(elements), 1)
+        return self.timeline.alter_levels(self.elements_to_components(reversed(elements)), 1)
 
     @fallible
     def on_decrease_level(self, elements, *_, **__):
