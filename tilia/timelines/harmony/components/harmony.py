@@ -73,7 +73,7 @@ class Harmony(PointLikeTimelineComponent):
         time: float,
         step: int = 0,
         accidental: int = 0,
-        quality: str = 'major',
+        quality: str = "major",
         inversion: int = 0,
         applied_to: int = 0,
         level: int = 1,
