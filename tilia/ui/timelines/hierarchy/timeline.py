@@ -217,3 +217,8 @@ class HierarchyTimelineUI(TimelineUI):
 
     def on_vertical_arrow_press(self, arrow: str):
         HierarchyTimelineUIKeyPressManager(self).on_vertical_arrow_press(arrow)
+
+    def get_max_hierarchy_height(self):
+        max_level = max(self.timeline.component_manager.get_existing_values_for_attr("level", ComponentKind.HIERARCHY))
+        return HierarchyUI.base_height() + (HierarchyUI.x_increment_per_lvl() * max_level)
+
