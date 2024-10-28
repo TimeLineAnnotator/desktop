@@ -4,7 +4,7 @@ Defines the ui corresponding to a Hierarchy object.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from pathlib import Path
 
@@ -26,17 +26,12 @@ from ...consts import TINT_FACTOR_ON_SELECTION
 from ...coords import time_x_converter
 from ...windows.inspect import HIDE_FIELD, InspectRowKind
 
-if TYPE_CHECKING:
-    from .timeline import HierarchyTimelineUI
-
 import tilia.ui.format
 
 from tilia.requests import (
     Post,
     post,
     stop_listening_to_all,
-    get,
-    Get,
 )
 from tilia.ui.timelines.copy_paste import CopyAttributes
 from tilia.settings import settings
@@ -122,14 +117,6 @@ class HierarchyUI(TimelineUIElement):
         self.drag_manager = None
 
     @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
-    @property
     def handle_height(self):
         return settings.get("hierarchy_timeline", "divider_height")
 
@@ -154,7 +141,7 @@ class HierarchyUI(TimelineUIElement):
         return time_x_converter.get_x_by_time(self.get_data("post_end"))
 
     def frame_handle_y(self, level, tl_height):
-        return tl_height - (self.base_height + (level - 1.5) * self.x_increment_per_lvl)
+        return tl_height - (self.base_height() + (level - 1.5) * self.x_increment_per_lvl())
 
     @property
     def ui_color(self):
@@ -172,6 +159,14 @@ class HierarchyUI(TimelineUIElement):
     @property
     def seek_time(self):
         return self.get_data("pre_start")
+
+    @staticmethod
+    def base_height() -> int:
+        return settings.get("hierarchy_timeline", "base_height")
+
+    @staticmethod
+    def x_increment_per_lvl() -> int:
+        return settings.get("hierarchy_timeline", "level_height_diff")
 
     def get_cropped_label(self, start_x, end_x, label):
         """
@@ -462,7 +457,8 @@ class HierarchyUI(TimelineUIElement):
         except KeyError:
             raise ValueError(f"{handle} if not a handle of {self}")
 
-    def extremity_to_x(self, extremity: Extremity, start_x, end_x):
+    @staticmethod
+    def extremity_to_x(extremity: Extremity, start_x, end_x):
         if extremity == Extremity.START:
             return start_x
         elif extremity == Extremity.END:
@@ -641,14 +637,6 @@ class HierarchyBody(CursorMixIn, QGraphicsRectItem):
         self.set_pen_style_no_pen()
         self.set_fill(color)
 
-    @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
     def set_fill(self, color: str):
         self.setBrush(QColor(color))
 
@@ -678,12 +666,13 @@ class HierarchyBody(CursorMixIn, QGraphicsRectItem):
             QColor(get_untinted_color(self.brush().color(), TINT_FACTOR_ON_SELECTION))
         )
 
-    def get_rect(self, level: int, start_x: float, end_x: float, tl_height: float):
+    @staticmethod
+    def get_rect(level: int, start_x: float, end_x: float, tl_height: float):
         x0 = start_x + HierarchyUI.X_OFFSET
         y0 = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
         )
         x1 = end_x - HierarchyUI.X_OFFSET
 
@@ -698,14 +687,6 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
         self.set_text(text)
         self.set_position(x, tl_height, level)
 
-    @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
     def setup_font(self):
         font = QFont("Arial", 10)
         self.setFont(font)
@@ -716,7 +697,7 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
         )
         return QPointF(x, y)
 
@@ -745,14 +726,6 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         self.setPlainText(self.ICON)
         self.set_position(end_x, tl_height, level)
 
-    @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
     def setup_font(self):
         font = QFont("Arial", 6)
         self.setFont(font)
@@ -763,7 +736,7 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
             - self.BOTTOM_MARGIN
         )
         return QPointF(x, y)
@@ -788,20 +761,12 @@ class HierarchyLoopIcon(QGraphicsPixmapItem):
         self.setPixmap(QPixmap(self.ICON))
         self.set_position(start_x, tl_height, level)
 
-    @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
     def get_point(self, start_x: float, tl_height, level):
         x = start_x + self.LEFT_MARGIN
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
             + self.TOP_MARGIN
         )
         return QPointF(x, y)
