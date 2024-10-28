@@ -60,4 +60,3 @@ class Marker(PointLikeTimelineComponent):
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))
-
