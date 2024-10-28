@@ -9,7 +9,8 @@ from tilia.timelines.base.validators import (
     validate_string,
     validate_color,
     validate_read_only,
-    validate_pre_validated, validate_is_instance,
+    validate_pre_validated,
+    validate_is_instance,
 )
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.base.component import SegmentLikeTimelineComponent
