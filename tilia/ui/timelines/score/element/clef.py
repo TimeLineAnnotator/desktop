@@ -24,7 +24,7 @@ class ClefUI(TimelineUIElementWithCollision):
         return Path('ui', 'img', self.get_data('icon'))
 
     def _setup_body(self):
-        self.body = ClefBody(self.x, self.icon_path)
+        self.body = ClefBody(self.x, self.height(), self.icon_path)
         self.body.moveBy(self.x_offset, 0)
         self.scene.addItem(self.body)
 
