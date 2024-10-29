@@ -23,7 +23,7 @@ from tilia.ui.timelines.score.element.note.supplementary_line import (
 )
 
 if TYPE_CHECKING:
-    from tilia.ui.timelines.score.timeline import NoteTimelineUI
+    from tilia.ui.timelines.score.timeline import ScoreTimelineUI
 
 
 class NoteUI(TimelineUIElement):
@@ -40,7 +40,7 @@ class NoteUI(TimelineUIElement):
     def __init__(
         self,
         id: int,
-        timeline_ui: NoteTimelineUI,
+        timeline_ui: ScoreTimelineUI,
         scene: QGraphicsScene,
         **_,
     ):
