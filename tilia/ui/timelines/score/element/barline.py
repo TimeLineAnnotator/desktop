@@ -27,12 +27,11 @@ class BarLineUI(TimelineUIElement):
         time = self.get_data('time')
         return (
             get_x_by_time(time),
-            self.timeline_ui.get_barline_top_y(time),
-            self.timeline_ui.get_barline_height(time),
+            self.timeline_ui.get_barline_top_y(),
+            self.timeline_ui.get_barline_bottom_y(),
         )
 
     def _setup_body(self):
-        time = self.get_data('time')
         self.body = BarLineBody(*self.get_body_args())
         self.scene.addItem(self.body)
 
@@ -41,13 +40,13 @@ class BarLineUI(TimelineUIElement):
 
 
 class BarLineBody(QGraphicsLineItem):
-    def __init__(self, x, y, height):
+    def __init__(self, x, y0, y1):
         super().__init__()
-        self.set_position(x, y, height)
+        self.set_position(x, y0, y1)
         self.set_pen()
 
-    def set_position(self, x, y, height):
-        self.setLine(x, y, x, y + height)
+    def set_position(self, x, y0, y1):
+        self.setLine(x, y0, x, y1)
 
     def set_pen(self):
         pen = QPen(QColor("black"))

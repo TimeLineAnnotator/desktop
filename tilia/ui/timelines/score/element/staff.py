@@ -26,6 +26,12 @@ class StaffUI(TimelineUIElement):
     def middle_y(self):
         return self.timeline_ui.get_data('height') / 2
 
+    def top_y(self):
+        return self.staff_lines.lines[0].line().y1()
+
+    def bottom_y(self):
+        return self.staff_lines.lines[-1].line().y1()
+
     def line_args(self):
         return self.get_data('line_count'), get(Get.LEFT_MARGIN_X), get(Get.RIGHT_MARGIN_X), self.middle_y, NoteUI.note_height()
 
