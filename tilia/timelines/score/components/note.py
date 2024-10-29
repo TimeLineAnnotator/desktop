@@ -80,10 +80,16 @@ class Note(SegmentLikeTimelineComponent):
 
     @property
     def pitch_class(self):
-        return (STEP_TO_PC[self.step] + self.accidental) % 12
+        return pitch_class(self.step, self.accidental)
 
     @property
     def pitch(self):
-        return OCTAVE_TO_PC[self.octave] + self.pitch_class
+        return pitch(self.step, self.accidental, self.octave)
 
 
+def pitch(step, accidental, octave):
+    return OCTAVE_TO_PC[octave] + STEP_TO_PC[step] + accidental
+
+
+def pitch_class(step, accidental):
+    return (STEP_TO_PC[step] + accidental) % 12
