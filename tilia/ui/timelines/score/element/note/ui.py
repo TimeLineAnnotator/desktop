@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import (
@@ -14,8 +16,11 @@ from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import get_x_by_time
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
+from tilia.ui.timelines.score.element.note.accidental import NoteAccidental
 from tilia.ui.timelines.score.element.note.body import NoteBody
-from tilia.ui.timelines.score.element.note.supplementary_line import NoteSupplementaryLine
+from tilia.ui.timelines.score.element.note.supplementary_line import (
+    NoteSupplementaryLine,
+)
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.score.timeline import NoteTimelineUI
@@ -42,14 +47,34 @@ class NoteUI(TimelineUIElement):
         super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
 
         self._setup_body()
+        self._setup_supplementary_line()
+        self._setup_accidental()
 
     def _setup_body(self):
-        self.body = NoteBody(self.start_x, self.end_x, self.top_y, self.note_height(), self.ui_color)
-        self.supplementary_line = NoteSupplementaryLine(*self.get_supplementary_line_args())
-        self.supplementary_line.hide()
+        self.body = NoteBody(
+            self.start_x, self.end_x, self.top_y, self.note_height(), self.ui_color
+        )
         self.scene.addItem(self.body)
+
+    def _setup_supplementary_line(self):
+        self.supplementary_line = NoteSupplementaryLine(
+            *self.get_supplementary_line_args()
+        )
+        self.supplementary_line.hide()
         self.scene.addItem(self.supplementary_line)
-        
+
+    def _setup_accidental(self):
+        if self.get_data("display_accidental"):
+            accidental_number = self.get_data("accidental")
+            self.accidental = NoteAccidental(
+                *self.get_accidental_position(accidental_number),
+                self.get_accidental_height(accidental_number),
+                self.get_accidental_icon_path(accidental_number),
+            )
+            self.scene.addItem(self.accidental)
+        else:
+            self.accidental = None
+
     @property
     def start_x(self):
         return get_x_by_time(self.get_data("start"))
@@ -92,7 +117,44 @@ class NoteUI(TimelineUIElement):
         )
 
     def get_supplementary_line_args(self):
-        return self.start_x - self.supplementary_line_offset(), self.end_x + self.supplementary_line_offset(), self.top_y + self.note_height() / 2
+        return (
+            self.start_x - self.supplementary_line_offset(),
+            self.end_x + self.supplementary_line_offset(),
+            self.top_y + self.note_height() / 2,
+        )
+
+    @staticmethod
+    def get_accidental_icon_path(accidental: int) -> Path:
+        file_name = {
+            -2: "double-flat",
+            -1: "flat",
+            0: "natural",
+            1: "sharp",
+            2: "double-sharp",
+        }[accidental]
+        return Path("ui", "img", f"accidental-{file_name}.svg")
+
+    def get_accidental_position(self, accidental: int) -> tuple[float, float]:
+        x = self.start_x - 3
+        y = self.top_y - self.note_height() / 2
+        y_offset = {
+            -2: -1,
+            -1: -1,
+            0: 0,
+            1: 3,
+            2: 7,
+        }[accidental]
+        return x, y + y_offset
+
+    @staticmethod
+    def get_accidental_height(accidental: int) -> float:
+        return {
+           -2: 18,
+           -1: 18,
+            0: 12,
+            1: 20,
+            2: 12,
+        }[accidental]
 
     def update_color(self):
         self.body.set_fill(self.ui_color)
@@ -103,6 +165,8 @@ class NoteUI(TimelineUIElement):
     def update_time(self):
         self.body.set_position(self.start_x, self.end_x, self.top_y, self.note_height())
         self.supplementary_line.set_position(*self.get_supplementary_line_args())
+        if self.accidental:
+            self.accidental.set_position(*self.get_accidental_position(self.get_data('accidental')))
 
     def child_items(self):
         return [self.body]
@@ -128,7 +192,7 @@ class NoteUI(TimelineUIElement):
     def get_inspector_dict(self) -> dict:
         return {
             "Start": format_media_time(self.get_data("start")),
-            "End": format_media_time(self.get_data('end')),
-            "Pitch class": self.get_data('pitch_class'),
+            "End": format_media_time(self.get_data("end")),
+            "Pitch class": self.get_data("pitch_class"),
             "Comments": self.get_data("comments"),
         }

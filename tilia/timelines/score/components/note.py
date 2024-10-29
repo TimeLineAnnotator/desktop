@@ -26,7 +26,7 @@ OCTAVE_TO_PC = {
 
 
 class Note(SegmentLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["start", "end", "step", "accidental", "octave", "color", "comments"]
+    SERIALIZABLE_BY_VALUE = ["start", "end", "step", "accidental", "octave", "color", "comments", "display_accidental"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
     ORDERING_ATTRS = ("start", "end", "pitch")
@@ -54,6 +54,7 @@ class Note(SegmentLikeTimelineComponent):
         step: int,
         accidental: int,
         octave: int,
+        display_accidental: bool = False,
         label="",
         color=None,
         comments="",
@@ -65,6 +66,7 @@ class Note(SegmentLikeTimelineComponent):
         self.end = end
         self.step = step
         self.accidental = accidental
+        self.display_accidental = display_accidental
         self.octave = octave
         self.label = label
         self.color = color
