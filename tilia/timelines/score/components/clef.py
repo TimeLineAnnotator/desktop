@@ -55,17 +55,17 @@ class Clef(TimelineComponent):
     def from_shorthand(self, shorthand: Shorthand):
         if shorthand == self.Shorthand.BASS:
             self.line_number = 1
-            self.step = 4
+            self.step = 3
             self.octave = 2
             self.icon = "clef-bass.svg"
         elif shorthand == self.Shorthand.TREBLE:
             self.line_number = -1
-            self.step = 5
+            self.step = 4
             self.octave = 3
             self.icon = "clef-treble.svg"
         elif shorthand == self.Shorthand.TREBLE_8VB:
             self.line_number = -1
-            self.step = 5
+            self.step = 4
             self.octave = 2
             self.icon = "clef-treble-8vb.svg"
         elif shorthand == self.Shorthand.ALTO:
