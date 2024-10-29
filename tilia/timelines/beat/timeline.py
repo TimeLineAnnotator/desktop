@@ -249,7 +249,7 @@ class BeatTimeline(Timeline):
         return measure_times
 
     def is_first_in_measure(self, beat):
-        return self.components.index(beat) in set(self.beats_that_start_measures)
+        return self.components.index(beat) in self.beats_that_start_measures_set
 
     def recalculate_measures(self):
         beat_delta = (len(self)) - sum(self.beats_in_measure)
@@ -384,6 +384,7 @@ class BeatTimeline(Timeline):
         self.beats_that_start_measures = [0] + list(
             itertools.accumulate(self.beats_in_measure[:-1])
         )
+        self.beats_that_start_measures_set = set(self.beats_that_start_measures)
 
     def get_measure_index(self, beat_index: int) -> tuple[int, int]:
         prev_n = 0
