@@ -3,6 +3,7 @@ import pytest
 from tests.mock import Serve
 from tilia.requests import Get
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.score.components import Clef
 from tilia.ui.actions import TiliaAction
 
 
@@ -21,7 +22,9 @@ def test_create_staff(score_tlui, staff):
     assert score_tlui[0]
 
 
-def test_create_clef(score_tlui, clef):
+@pytest.mark.parametrize('shorthand', Clef.Shorthand)
+def test_create_clef(score_tlui, shorthand):
+    score_tlui.create_component(ComponentKind.CLEF, 0, shorthand=shorthand)
     assert score_tlui[0]
 
 
