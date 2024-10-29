@@ -27,8 +27,8 @@ class BarLineUI(TimelineUIElement):
         time = self.get_data('time')
         return (
             get_x_by_time(time),
-            self.timeline_ui.get_barline_top_y(),
-            self.timeline_ui.get_barline_bottom_y(),
+            self.timeline_ui.get_staff_top_y(),
+            self.timeline_ui.get_staff_bottom_y(),
         )
 
     def _setup_body(self):

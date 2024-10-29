@@ -39,11 +39,11 @@ class ScoreTimelineUI(TimelineUI):
             request, selector, *args, **kwargs
         )
 
-    def get_barline_top_y(self) -> float:
+    def get_staff_top_y(self) -> float:
         staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
         return staff.top_y()
 
-    def get_barline_bottom_y(self) -> float:
+    def get_staff_bottom_y(self) -> float:
         staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
         return staff.bottom_y()
 
