@@ -185,7 +185,7 @@ class NoteUI(TimelineUIElement):
         y_offset = {
             -2: -1,
             -1: -1,
-            0: 0,
+            0: 3,
             1: 3,
             2: 7,
         }[accidental]
@@ -196,7 +196,7 @@ class NoteUI(TimelineUIElement):
         return {
            -2: 18,
            -1: 18,
-            0: 12,
+            0: 20,
             1: 20,
             2: 12,
         }[accidental]
