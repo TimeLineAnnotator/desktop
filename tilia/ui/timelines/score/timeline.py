@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import math
+
 from tilia.exceptions import GetComponentDataError
 from tilia.requests import Get, get, listen, Post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
@@ -41,11 +42,11 @@ class ScoreTimelineUI(TimelineUI):
 
     def get_staff_top_y(self) -> float:
         staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
-        return staff.top_y()
+        return staff.top_y() if staff else 0
 
     def get_staff_bottom_y(self) -> float:
         staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
-        return staff.bottom_y()
+        return staff.bottom_y() if staff else 0
 
     def get_height_for_symbols_above_staff(self) -> int:
         return 50
@@ -82,5 +83,38 @@ class ScoreTimelineUI(TimelineUI):
 
             total_width += element.width
 
-
         return element_to_offset
+
+    def get_staff_bounding_steps(self, time: float) -> tuple[tuple[int, int], tuple[int, int]] | None:
+        """
+        Returns a tuple of the form ((step_lower, octave_lower), (step_upper, octave_upper)) where:
+        - step_lower is the step of the lowest staff line
+        - octave_lower is the octave of the lowest staff line
+        - step_upper is the step of the highest staff line
+        - octave_upper is the octave of the highest staff line
+        The earliest staff before time + 0.01 will be used. Returns None if there is no such staff.
+        """
+        staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
+        clefs = self.element_manager.get_elements_by_attribute('kind', ComponentKind.CLEF)
+        clef = self.element_manager.get_previous_element_by_time(time + 0.01, sorted(clefs))
+        if not staff:
+            return None
+        line_count = staff.get_data('line_count')
+        clef_step = clef.get_data('step')
+        clef_octave = clef.get_data('octave')
+        clef_line_number = clef.get_data('line_number')
+
+        upper_line_number = math.floor(line_count / 2)
+        upper_step_diff = (upper_line_number - clef_line_number) * 2
+        upper_step = clef_step + upper_step_diff
+        upper_step_octave_diff = upper_step // 7
+
+        lower_line_number = math.floor(line_count / 2) * -1
+        lower_step_diff = (lower_line_number - clef_line_number) * 2
+        lower_step = clef_step + lower_step_diff
+        lower_step_octave_diff = lower_step // 7
+        while lower_step < 0:
+            lower_step += 7
+
+        return (lower_step, clef_octave + lower_step_octave_diff), (upper_step % 7, clef_octave + upper_step_octave_diff)
+

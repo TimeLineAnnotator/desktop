@@ -48,6 +48,7 @@ class StaffUI(TimelineUIElement):
 
 
 class StaffLines:
+    COLOR = 'gray'
     def __init__(self, line_count: int, x1: float, x2: float, middle_y: float, line_spacing: float):
         self._setup_lines(line_count, x1, x2, middle_y, line_spacing)
 
@@ -60,8 +61,8 @@ class StaffLines:
 
     def _setup_lines(self, line_count: int, x1: float, x2: float, middle_y: float, line_spacing: float):
         self.lines = [QGraphicsLineItem() for _ in range(line_count)]
-        pen = QPen(QColor("black"))
-        pen.setWidth(1)
+        pen = QPen(QColor("gray"))
+        pen.setWidth(2)
         for line in self.lines:
             line.setPen(pen)
         self.set_position(line_count, x1, x2, middle_y, line_spacing)

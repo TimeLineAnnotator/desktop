@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -9,6 +10,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tilia.requests import Post, post
+from tilia.timelines.score.components.note import pitch
 from tilia.ui.timelines.score import attrs
 from tilia.ui.color import get_tinted_color
 from tilia.ui.format import format_media_time
@@ -19,7 +21,7 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.score.element.note.accidental import NoteAccidental
 from tilia.ui.timelines.score.element.note.body import NoteBody
 from tilia.ui.timelines.score.element.note.supplementary_line import (
-    NoteSupplementaryLine,
+    NoteSupplementaryLines,
 )
 
 if TYPE_CHECKING:
@@ -57,11 +59,47 @@ class NoteUI(TimelineUIElement):
         self.scene.addItem(self.body)
 
     def _setup_supplementary_line(self):
-        self.supplementary_line = NoteSupplementaryLine(
-            *self.get_supplementary_line_args()
-        )
-        self.supplementary_line.hide()
-        self.scene.addItem(self.supplementary_line)
+        bounding_steps = self.timeline_ui.get_staff_bounding_steps(self.get_data('start'))
+        if not bounding_steps:
+            # No staff has been created
+            self.supplementary_line = None
+            return
+        (lower_step, upper_step), (lower_octave, upper_octave) = bounding_steps
+
+        my_step = self.get_data('step')
+        my_octave = self.get_data('octave')
+        my_step_pitch = pitch(my_step, 0, my_octave)
+
+        interval_step = 0
+        interval_octave = 0
+        if my_step_pitch < pitch(lower_step, 0, lower_octave):
+            direction = NoteSupplementaryLines.Direction.DOWN
+            interval_step = lower_step - my_step
+            interval_octave = my_octave - lower_octave
+        elif my_step_pitch > pitch(upper_step, 0, upper_octave):
+            direction = NoteSupplementaryLines.Direction.UP
+            interval_step = my_step - upper_step
+            interval_octave = my_octave - upper_octave
+
+        while interval_octave < 0:
+            interval_step = (interval_step - 7) % 7
+            interval_octave += 1
+        while interval_step < 0:
+            interval_step += 7
+            interval_octave -= 1
+
+        # Is the case where interval_step, interval_octave == 0, 0 handled correctly?
+
+        supplementary_line_count = math.floor(interval_step / 2)
+
+        if supplementary_line_count:
+            self.supplementary_line = NoteSupplementaryLines(
+                *self.get_supplementary_line_args(direction, supplementary_line_count),
+            )
+            for line in self.supplementary_line.lines:
+                self.scene.addItem(line)
+        else:
+            self.supplementary_line = None
 
     def _setup_accidental(self):
         if self.get_data("display_accidental"):
@@ -116,12 +154,19 @@ class NoteUI(TimelineUIElement):
             else get_tinted_color(base_color, TINT_FACTOR_ON_SELECTION)
         )
 
-    def get_supplementary_line_args(self):
+    def get_supplementary_line_args(self, direction: NoteSupplementaryLines.Direction, line_count: int):
         return (
-            self.start_x - self.supplementary_line_offset(),
-            self.end_x + self.supplementary_line_offset(),
-            self.top_y + self.note_height() / 2,
+            direction,
+            line_count,
+            *self.get_supplementary_line_position_args(direction),
         )
+
+    def get_supplementary_line_position_args(self, direction: NoteSupplementaryLines.Direction):
+        if direction == NoteSupplementaryLines.Direction.UP:
+            y1 = self.timeline_ui.get_staff_top_y()
+        else:
+            y1 = self.timeline_ui.get_staff_bottom_y()
+        return self.start_x - self.supplementary_line_offset(), self.end_x + self.supplementary_line_offset(), y1, self.note_height()
 
     @staticmethod
     def get_accidental_icon_path(accidental: int) -> Path:
@@ -164,7 +209,8 @@ class NoteUI(TimelineUIElement):
 
     def update_time(self):
         self.body.set_position(self.start_x, self.end_x, self.top_y, self.note_height())
-        self.supplementary_line.set_position(*self.get_supplementary_line_args())
+        if self.supplementary_line:
+            self.supplementary_line.set_position(*self.get_supplementary_line_position_args(self.supplementary_line.direction))
         if self.accidental:
             self.accidental.set_position(*self.get_accidental_position(self.get_data('accidental')))
 
