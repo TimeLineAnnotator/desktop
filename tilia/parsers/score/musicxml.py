@@ -63,14 +63,12 @@ def notes_from_musicXML(
     parts = {}
     ms = MetricDivision()
 
-    sign_to_step = {"C": 0, "F": 3, "G": 4}
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
     sign_to_line = {"C": 0, "F": 1, "G": -1}
 
     def _create_component(component_kind: ComponentKind, kwargs: dict) -> int | None:
-        # print(component_kind, kwargs)
         component, fail_reason = score_tl.create_component(component_kind, **kwargs)
-        print(component_kind, kwargs, component is not None)
+        # print(component_kind, kwargs, component is not None)
         if not component:
             errors.append(fail_reason)
             return None
@@ -122,7 +120,7 @@ def notes_from_musicXML(
                     constructor_kwargs = {
                         "line_number": sign_to_line[sign] - line,
                         "icon": Clef.ICON.get(sign),
-                        "step": sign_to_step[sign],
+                        "step": NOTE_NAME_TO_INT[sign],
                         "octave": sign_to_octave[sign] + octave_change,
                         # "part_index": part_index,
                     }
