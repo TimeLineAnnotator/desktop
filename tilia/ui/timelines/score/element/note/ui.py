@@ -123,10 +123,12 @@ class NoteUI(TimelineUIElement):
     
     @property
     def top_y(self):
+        central_step, central_octave = self.timeline_ui.get_clef_by_time(self.get_data('start')).central_step()
+
         note_height = self.note_height()
         middle_y = self.timeline_ui.get_data('height') / 2
-        note_offset = (self.get_data('step') - 6) * note_height / 2
-        octave_offset = (self.get_data('octave') - 3) * note_height / 2 * 7
+        note_offset = (self.get_data('step') - central_step) * note_height / 2
+        octave_offset = (self.get_data('octave') - central_octave) * note_height / 2 * 7
         return middle_y - note_offset - octave_offset - note_height / 2
     
     @property

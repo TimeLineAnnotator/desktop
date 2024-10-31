@@ -37,6 +37,9 @@ class ClefUI(TimelineUIElementWithCollision):
     def update_position(self):
         self.body.set_position(self.x + self.x_offset)
 
+    def central_step(self) -> tuple[int, int]:
+        return self.get_data('central_step')()
+
 
 class ClefBody(QGraphicsPixmapItem):
     def __init__(self, x: float, height: float, path: Path):
