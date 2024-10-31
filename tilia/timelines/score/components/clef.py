@@ -17,6 +17,12 @@ class Clef(TimelineComponent):
     ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.CLEF
+    ICON = {
+        "C": "clef-alto.svg",
+        "F": "clef-bass.svg",
+        "G": "clef-treble.svg",
+        "G-8": "clef-treble-8vb.svg",
+    }
 
     validators = {
         "timeline": lambda _: False,  # read-only
@@ -78,7 +84,9 @@ class Clef(TimelineComponent):
             raise ValueError(f"Invalid shorthand: {shorthand}")
 
     def central_step(self):
-        return self.get_data('step') + self.get_data('line_number') * -2, self.get_data('octave')
+        return self.get_data("step") + self.get_data("line_number") * -2, self.get_data(
+            "octave"
+        )
 
     def __str__(self):
         return f"Clef({self.time}, {self.line_number}, {self.step}, {self.octave}, {self.icon})"

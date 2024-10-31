@@ -22,6 +22,7 @@ import tilia.parsers.csv.harmony
 import tilia.parsers.csv.hierarchy
 import tilia.parsers.csv.beat
 import tilia.parsers.csv.marker
+import tilia.parsers.score.musicxml
 from . import dialogs, actions
 from .actions import TiliaAction
 from .dialog_manager import DialogManager
@@ -486,6 +487,9 @@ class QtUI:
             TlKind.PDF_TIMELINE: {
                 "time": tilia.parsers.csv.pdf.import_by_time,
                 "measure": tilia.parsers.csv.pdf.import_by_measure,
+            },
+            TlKind.SCORE_TIMELINE: {
+                "measure": tilia.parsers.score.musicxml.notes_from_musicXML,
             },
         }
 

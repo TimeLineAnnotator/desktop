@@ -1,13 +1,14 @@
 from pathlib import Path
 from typing import Optional, Tuple, Literal
 
-from tilia.parsers import csv
+from tilia.parsers import csv, score
 from tilia.exceptions import WrongTimelineForImport
 from tilia.requests import get, Get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli import io
 
@@ -168,6 +169,10 @@ def import_timeline(namespace):
     elif tl_kind == "beat":
         tl: BeatTimeline
         errors = csv.beat.beats_from_csv(tl, file)
+
+    elif tl_kind == "score":
+        tl: ScoreTimeline
+        errors = score.musicxml.notes_from_musicXML(tl, file)
 
     if errors:
         io.output(f"Errors: {errors}")
