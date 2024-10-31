@@ -9,7 +9,8 @@ from tilia.ui.cli.io import output
 def setup_parser(subparser):
     add_subp = subparser.add_parser("add", exit_on_error=False)
     add_subp.add_argument(
-        "kind", choices=["hierarchy", "hrc", "marker", "mrk", "beat", "bea"]
+        "kind",
+        choices=["hierarchy", "hrc", "marker", "mrk", "beat", "bea", "score", "sco"],
     )
     add_subp.add_argument("--name", "-n", type=str, default="")
     add_subp.add_argument("--height", "-e", type=int, default=None)
@@ -24,12 +25,15 @@ KIND_STR_TO_TLKIND = {
     "mrk": TlKind.MARKER_TIMELINE,
     "beat": TlKind.BEAT_TIMELINE,
     "bea": TlKind.BEAT_TIMELINE,
+    "score": TlKind.SCORE_TIMELINE,
+    "sco": TlKind.SCORE_TIMELINE,
 }
 
 TLKIND_TO_KWARGS_NAMES = {
     TlKind.BEAT_TIMELINE: ["name", "height", "beat_pattern"],
     TlKind.HIERARCHY_TIMELINE: ["name", "height"],
     TlKind.MARKER_TIMELINE: ["name", "height"],
+    TlKind.SCORE_TIMELINE: ["name", "height"],
 }
 
 
