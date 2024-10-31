@@ -1,6 +1,5 @@
 # NOT COMPLETE
 # TODO:
-#     - Figure out what clef kwargs mean
 #     - Put elements into correct stave
 #     - Add <tie>
 
@@ -79,6 +78,10 @@ def notes_from_musicXML(
     parts = {}
     ms = MetricDivision()
 
+    sign_to_step = {"C": 0, "F": 3, "G": 4}
+    sign_to_octave = {"C": 4, "F": 3, "G": 4}
+    sign_to_line = {"C": 0, "F": 1, "G": -1}
+
     def _create_component(component_kind: ComponentKind, kwargs: dict) -> int | None:
         # print(component_kind, kwargs)
         component, fail_reason = score_tl.create_component(component_kind, **kwargs)
@@ -93,6 +96,8 @@ def notes_from_musicXML(
     def _parse_attributes(attributes: ET.Element | Any, part_index: int):
         times = _metric_to_time(ms.get_fraction(ms.measure_num[1], ms.div_position[1]))
         for attribute in attributes:
+            constructor_kwargs = dict()
+            component_kind = None
             match attribute.tag:
                 case "divisions":
                     ms.update_divisions(int(attribute.text))
@@ -102,11 +107,7 @@ def notes_from_musicXML(
                         "fifths": attribute.find("fifths").text,
                         "part_index": part_index,
                     }
-                    for time in times:
-                        _create_component(
-                            ComponentKind.KEY_SIGNATURE,
-                            constructor_kwargs | {"time": time},
-                        )
+                    component_kind = ComponentKind.KEY_SIGNATURE
                 case "time":
                     ts_numerator = int(attribute.find("beats").text)
                     ts_denominator = int(attribute.find("beat-type").text)
@@ -116,23 +117,36 @@ def notes_from_musicXML(
                         "denominator": ts_denominator,
                         "part_index": part_index,
                     }
-                    for time in times:
-                        _create_component(
-                            ComponentKind.TIME_SIGNATURE,
-                            constructor_kwargs | {"time": time},
-                        )
+                    component_kind = ComponentKind.TIME_SIGNATURE
                 case "clef":
+                    sign = attribute.find("sign").text
+                    line = int(l.text) - 3 if (l := attribute.find("line")) else 0
+                    octave_change = (
+                        int(o.text)
+                        if (o := attribute.find("clef-octave-change"))
+                        else 0
+                    )
+
+                    if sign not in {"C", "F", "G"}:
+                        errors.append(f"{attribute.tag} - {sign} not implemented")
+                        continue
+
                     constructor_kwargs = {
-                        "icon": Clef.ICON[attribute.find("sign").text],
-                        "line_number": int(attribute.find("line").text) - 3,
+                        "line_number": sign_to_line[sign] - line,
+                        "icon": Clef.ICON.get(sign),
+                        "step": sign_to_step[sign],
+                        "octave": sign_to_octave[sign] + octave_change,
                         "part_index": part_index,
                     }
-                    for time in times:
-                        _create_component(
-                            ComponentKind.CLEF, constructor_kwargs | {"time": time}
-                        )
                 case _:
                     errors.append(f"{attribute.tag} not implemented.")
+                    continue
+
+            for time in times:
+                _create_component(
+                    component_kind,
+                    constructor_kwargs | {"time": time},
+                )
 
     def _parse_note(element: ET.Element | Any, part_index: int):
         if element.find("grace") is not None:
