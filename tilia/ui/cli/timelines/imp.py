@@ -172,7 +172,7 @@ def import_timeline(namespace):
 
     elif tl_kind == "score":
         tl: ScoreTimeline
-        errors = score.musicxml.notes_from_musicXML(tl, file)
+        errors = score.musicxml.notes_from_musicXML(tl, ref_tl, file)
 
     if errors:
         io.output(f"Errors: {errors}")

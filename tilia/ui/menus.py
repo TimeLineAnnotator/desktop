@@ -155,6 +155,11 @@ class PdfMenu(TiliaMenu):
     items = [(MenuItemKind.ACTION, TiliaAction.PDF_IMPORT_FROM_CSV)]
 
 
+class ScoreMenu(TiliaMenu):
+    title = "Score"
+    items = [(MenuItemKind.ACTION, TiliaAction.SCORE_IMPORT_FROM_MUSICXML)]
+
+
 class TimelinesMenu(TiliaMenu):
     title = "Timelines"
     items = [
@@ -166,6 +171,7 @@ class TimelinesMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, BeatMenu),
         (MenuItemKind.SUBMENU, HarmonyMenu),
         (MenuItemKind.SUBMENU, PdfMenu),
+        (MenuItemKind.SUBMENU, ScoreMenu),
     ]
 
 
