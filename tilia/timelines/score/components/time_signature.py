@@ -11,11 +11,12 @@ class TimeSignature(PointLikeTimelineComponent):
 
     def __init__(self, timeline, id, time, numerator, denominator, **_):
         self.validators |= {'numerator': validate_positive_integer, 'denominator': validate_positive_integer}
-        super().__init__(timeline, id)
 
         self.time = time
         self.numerator = numerator
         self.denominator = denominator
+
+        super().__init__(timeline, id)
 
     def __str__(self):
         return f"TimeSignature({self.time}, {self.numerator}/{self.denominator})"

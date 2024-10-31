@@ -11,9 +11,10 @@ class BarLine(PointLikeTimelineComponent):
 
     def __init__(self, timeline, id, time, **_):
         self.validators |= {'time': validate_time}
-        super().__init__(timeline, id)
 
         self.time = time
+
+        super().__init__(timeline, id)
 
     def __str__(self):
         return f"BarLine({self.time})"

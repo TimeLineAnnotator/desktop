@@ -13,13 +13,15 @@ if TYPE_CHECKING:
 
 class KeySignature(TimelineComponent):
     KIND = ComponentKind.KEY_SIGNATURE
+    SERIALIZABLE_BY_VALUE = ['time', 'fifths']
 
     def __init__(self, timeline: ScoreTimeline, id: int, time: float, fifths: int):
         self.validators |= {'time': validate_time, 'fifths': functools.partial(validate_integer, min=-7, max=7)}
-        super().__init__(timeline, id)
 
         self.time = time
         self.fifths = fifths
+
+        super().__init__(timeline, id)
 
     def __str__(self):
         return f"KeySignature({self.time}, {self.fifths})"
