@@ -2,6 +2,7 @@
 # TODO:
 #     - Put elements into correct stave
 #     - Add <tie>
+#     - correct accidentals based on key signature
 
 from pathlib import Path
 from zipfile import ZipFile
