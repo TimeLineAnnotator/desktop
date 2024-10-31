@@ -19,10 +19,11 @@ class Staff(TimelineComponent):
     }
 
     def __init__(self, timeline: ScoreTimeline, id: int, position: int, line_count: int):
-        super().__init__(timeline, id)
 
         self.position = position
         self.line_count = line_count
+
+        super().__init__(timeline, id)
 
     def __str__(self):
         return f"Staff({self.line_count, self.position})"

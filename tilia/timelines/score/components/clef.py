@@ -38,7 +38,6 @@ class Clef(TimelineComponent):
         icon: str | None = None,
         shorthand: Shorthand | None = None,
     ):
-        super().__init__(timeline, id)
 
         self.time = time
         if shorthand:
@@ -51,6 +50,8 @@ class Clef(TimelineComponent):
             self.step = step
             self.octave = octave
             self.icon = icon
+
+        super().__init__(timeline, id)
 
     def from_shorthand(self, shorthand: Shorthand):
         if shorthand == self.Shorthand.BASS:

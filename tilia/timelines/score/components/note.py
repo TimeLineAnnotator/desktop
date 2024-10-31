@@ -60,7 +60,6 @@ class Note(SegmentLikeTimelineComponent):
         comments="",
         **_,
     ):
-        super().__init__(timeline, id)
 
         self.start = start
         self.end = end
@@ -71,6 +70,8 @@ class Note(SegmentLikeTimelineComponent):
         self.label = label
         self.color = color
         self.comments = comments
+
+        super().__init__(timeline, id)
 
     def __str__(self):
         return f"Note({self.start, self.end, })"
