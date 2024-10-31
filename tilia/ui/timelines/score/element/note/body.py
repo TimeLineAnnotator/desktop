@@ -14,7 +14,7 @@ class NoteBody(CursorMixIn, QGraphicsPolygonItem):
     Y_OFFSET = 1
 
     def __init__(
-        self, start_x: float, end_x: float, top_y: float, note_height: float, color: str
+            self, start_x: float, end_x: float, top_y: float, note_height: float, color: str
     ):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.set_position(start_x, end_x, top_y, note_height)
@@ -54,26 +54,34 @@ class NoteBody(CursorMixIn, QGraphicsPolygonItem):
         self.setZValue(1)
 
     def get_polygon(self, start_x: float, end_x: float, top_y: float, note_height: float) -> QPolygonF:
-        indent = 5
-        mid_y = top_y + note_height / 2
-        bottom_y = top_y + note_height
-        x_left_outer = start_x
-        x_left_inner = start_x + indent
-        x_right_inner = end_x - indent
-        x_right_outer = end_x
-        return QPolygonF([
-            QPointF(x_left_outer, mid_y),
-            QPointF(x_left_inner, top_y),
-            QPointF(x_right_inner, top_y),
-            QPointF(x_right_outer, mid_y),
-            QPointF(x_right_inner, bottom_y),
-            QPointF(x_left_inner, bottom_y),
-            QPointF(x_left_outer, mid_y),
-            ]
-        )
+        # Code for rectangles with triangle tips
+        # indent = 5
+        # mid_y = top_y + note_height / 2
+        # bottom_y = top_y + note_height
+        # x_left_outer = start_x
+        # x_left_inner = start_x + indent
+        # x_right_inner = end_x - indent
+        # x_right_outer = end_x
+        # return QPolygonF([
+        #     QPointF(x_left_outer, mid_y),
+        #     QPointF(x_left_inner, top_y),
+        #     QPointF(x_right_inner, top_y),
+        #     QPointF(x_right_outer, mid_y),
+        #     QPointF(x_right_inner, bottom_y),
+        #     QPointF(x_left_inner, bottom_y),
+        #     QPointF(x_left_outer, mid_y),
+        #     ]
+        # )
 
-        # code for rectangle
-        # x0 = top_y + self.Y_OFFSET / 2
-        # x1 = end_x - self.X_OFFSET
-        # y1 = top_y + note_height - self.Y_OFFSET / 2
-        # return QPolygonF(QPointF(x0, y0), QPointF(x1, y1))
+        # code for plain rectangle
+        x0 = start_x + self.Y_OFFSET / 2
+        x1 = end_x - self.X_OFFSET
+        y0 = top_y + self.Y_OFFSET / 2
+        y1 = top_y + note_height - self.Y_OFFSET / 2
+        return QPolygonF(
+            [
+                QPointF(x0, y0),
+                QPointF(x0, y1),
+                QPointF(x1, y1),
+                QPointF(x1, y0)
+            ])
