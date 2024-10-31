@@ -18,6 +18,7 @@ from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import get_x_by_time
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
+from tilia.ui.timelines.score.context_menu import NoteContextMenu
 from tilia.ui.timelines.score.element.note.accidental import NoteAccidental
 from tilia.ui.timelines.score.element.note.body import NoteBody
 from tilia.ui.timelines.score.element.note.supplementary_line import (
@@ -37,7 +38,7 @@ class NoteUI(TimelineUIElement):
 
     UPDATE_TRIGGERS = ["color"]
 
-    CONTEXT_MENU_CLASS = None
+    CONTEXT_MENU_CLASS = NoteContextMenu
 
     def __init__(
         self,

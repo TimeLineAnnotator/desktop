@@ -10,6 +10,7 @@ from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
+from tilia.ui.timelines.score.context_menu import ScoreTimelineUIContextMenu
 from tilia.ui.timelines.score.element import NoteUI, StaffUI, ClefUI
 from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
 from tilia.ui.timelines.score.request_handlers import ScoreTimelineUIElementRequestHandler
@@ -22,6 +23,8 @@ class ScoreTimelineUI(TimelineUI):
 
     TIMELINE_KIND = TimelineKind.SCORE_TIMELINE
     ELEMENT_CLASS = [NoteUI, StaffUI]
+
+    CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
