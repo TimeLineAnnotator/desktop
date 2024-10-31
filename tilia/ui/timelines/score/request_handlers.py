@@ -21,10 +21,7 @@ class ScoreTimelineUIElementRequestHandler(ElementRequestHandler):
         )
 
     def on_color_set(self, elements, value, **_):
-        raise NotImplementedError
         self.timeline_ui.set_elements_attr(elements, "color", value.name())
 
-
     def on_color_reset(self, elements, *_, **__):
-        raise NotImplementedError
         self.timeline_ui.set_elements_attr(elements, "color", None)
