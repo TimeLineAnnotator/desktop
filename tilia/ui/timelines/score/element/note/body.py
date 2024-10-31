@@ -30,6 +30,12 @@ class NoteBody(CursorMixIn, QGraphicsPolygonItem):
         pen.setStyle(Qt.PenStyle.SolidLine)
         self.setPen(pen)
 
+    def set_pen_outlined(self):
+        pen = self.pen()
+        pen.setColor(QColor("white"))
+        pen.setWidth(2)
+        self.setPen(pen)
+
     def set_position(self, start_x: float, end_x: float, top_y: float, note_height: float):
         self.setPolygon(self.get_polygon(start_x, end_x, top_y, note_height))
 
@@ -37,11 +43,15 @@ class NoteBody(CursorMixIn, QGraphicsPolygonItem):
         self.setBrush(
             QColor(get_tinted_color(self.brush().color(), TINT_FACTOR_ON_SELECTION))
         )
+        self.set_pen_outlined()
+        self.setZValue(2)
 
     def on_deselect(self):
         self.setBrush(
             QColor(get_untinted_color(self.brush().color(), TINT_FACTOR_ON_SELECTION))
         )
+        self.set_pen()
+        self.setZValue(1)
 
     def get_polygon(self, start_x: float, end_x: float, top_y: float, note_height: float) -> QPolygonF:
         indent = 5
