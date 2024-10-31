@@ -424,7 +424,7 @@ class TestOpen:
             ("test_field3", "c"),
         ]
 
-    def test_open_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
+    def test_open_saving_changes(self, tilia, tls, marker_tlui, user_actions, tmp_path):
         previous_path = tmp_path / "previous.tla"
         with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, previous_path)):
             post(Post.FILE_SAVE)
