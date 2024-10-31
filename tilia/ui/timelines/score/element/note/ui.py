@@ -64,7 +64,7 @@ class NoteUI(TimelineUIElement):
             # No staff has been created
             self.supplementary_line = None
             return
-        (lower_step, upper_step), (lower_octave, upper_octave) = bounding_steps
+        (lower_step, lower_octave), (upper_step, upper_octave) = bounding_steps
 
         my_step = self.get_data('step')
         my_octave = self.get_data('octave')
