@@ -17,6 +17,12 @@ class Clef(PointLikeTimelineComponent):
     ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.CLEF
+    ICON = {
+        "C": "clef-alto.svg",
+        "F": "clef-bass.svg",
+        "G": "clef-treble.svg",
+        "G-8": "clef-treble-8vb.svg",
+    }
 
     validators = {
         "timeline": lambda _: False,  # read-only
@@ -63,7 +69,7 @@ class Clef(PointLikeTimelineComponent):
         TREBLE = auto()
         TREBLE_8VB = auto()
         ALTO = auto()
-        
+
     def from_shorthand(self, shorthand: Clef.Shorthand):
         if shorthand == Clef.Shorthand.BASS:
             self.line_number = 1
@@ -88,18 +94,8 @@ class Clef(PointLikeTimelineComponent):
         else:
             raise ValueError(f"Invalid shorthand: {shorthand}")
 
-    def shorthand(self) -> Clef.Shorthand | None:
-        match self.line_number, self.step, self.octave:
-            case 1, 3, 2:
-                return Clef.Shorthand.BASS
-            case -1, 4, 3:
-                return Clef.Shorthand.TREBLE
-            case -1, 4, 2:
-                return Clef.Shorthand.TREBLE_8VB
-            case 0, 0, 3:
-                return Clef.Shorthand.ALTO
-            case _:
-                return None
+    def central_step(self):
+        return self.get_data('step') + self.get_data('line_number') * -2, self.get_data('octave')
 
     def __str__(self):
         return f"Clef({self.time}, {self.line_number}, {self.step}, {self.octave}, {self.icon})"
