@@ -7,29 +7,13 @@ from pathlib import Path
 from zipfile import ZipFile
 from typing import Optional, Any
 import xml.etree.ElementTree as ET
-from enum import auto, Enum
 from dataclasses import dataclass
 
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components.clef import Clef
-
-
-class ComponentKind(Enum):
-    PDF_MARKER = auto()
-    MODE = auto()
-    HARMONY = auto()
-    BEAT = auto()
-    MARKER = auto()
-    NOTE = auto()
-    HIERARCHY = auto()
-    AUDIOWAVE = auto()
-    STAFF = auto()
-    CLEF = auto()
-    BAR_LINE = auto()
-    TIME_SIGNATURE = auto()
-    KEY_SIGNATURE = auto()
+from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
 
 
 class TiliaMXLReader:
@@ -85,27 +69,30 @@ def notes_from_musicXML(
     def _create_component(component_kind: ComponentKind, kwargs: dict) -> int | None:
         # print(component_kind, kwargs)
         component, fail_reason = score_tl.create_component(component_kind, **kwargs)
+        print(component_kind, kwargs, component is not None)
         if not component:
             errors.append(fail_reason)
             return None
         return component.id
 
     def _metric_to_time(measure_number: int, division: int) -> list[float]:
-        return beat_tl.get_time_by_measure(ms.get_fraction(measure_number, division))
+        a = beat_tl.get_time_by_measure(**ms.get_fraction(measure_number, division))
+        return a
 
     def _parse_attributes(attributes: ET.Element | Any, part_index: int):
-        times = _metric_to_time(ms.get_fraction(ms.measure_num[1], ms.div_position[1]))
+        times = _metric_to_time(ms.measure_num[1], ms.div_position[1])
         for attribute in attributes:
             constructor_kwargs = dict()
             component_kind = None
             match attribute.tag:
                 case "divisions":
                     ms.update_divisions(int(attribute.text))
+                    continue
 
                 case "key":
                     constructor_kwargs = {
-                        "fifths": attribute.find("fifths").text,
-                        "part_index": part_index,
+                        "fifths": int(attribute.find("fifths").text),
+                        # "part_index": part_index,
                     }
                     component_kind = ComponentKind.KEY_SIGNATURE
                 case "time":
@@ -115,7 +102,7 @@ def notes_from_musicXML(
                     constructor_kwargs = {
                         "numerator": ts_numerator,
                         "denominator": ts_denominator,
-                        "part_index": part_index,
+                        # "part_index": part_index,
                     }
                     component_kind = ComponentKind.TIME_SIGNATURE
                 case "clef":
@@ -128,7 +115,7 @@ def notes_from_musicXML(
                     )
 
                     if sign not in {"C", "F", "G"}:
-                        errors.append(f"{attribute.tag} - {sign} not implemented")
+                        errors.append(f"<{attribute.tag}> - {sign} not implemented")
                         continue
 
                     constructor_kwargs = {
@@ -136,10 +123,10 @@ def notes_from_musicXML(
                         "icon": Clef.ICON.get(sign),
                         "step": sign_to_step[sign],
                         "octave": sign_to_octave[sign] + octave_change,
-                        "part_index": part_index,
+                        # "part_index": part_index,
                     }
+                    component_kind = ComponentKind.CLEF
                 case _:
-                    errors.append(f"{attribute.tag} not implemented.")
                     continue
 
             for time in times:
@@ -150,7 +137,7 @@ def notes_from_musicXML(
 
     def _parse_note(element: ET.Element | Any, part_index: int):
         if element.find("grace") is not None:
-            errors.append(f"grace not implemented.")
+            errors.append(f"<grace> not implemented.")
             return
 
         duration = int(element.find("duration").text)
@@ -161,36 +148,40 @@ def notes_from_musicXML(
             return
 
         if element.find("pitch") is not None:
-            constructor_kwargs["step"] = element.find("pitch/step").text
+            constructor_kwargs["step"] = NOTE_NAME_TO_INT[
+                element.find("pitch/step").text
+            ]
             constructor_kwargs["accidental"] = (
-                0 if (a := element.find("pitch/alter")) is None else a.text
+                0 if (a := element.find("pitch/alter")) is None else int(a.text)
             )
-            constructor_kwargs["octave"] = element.find("pitch/octave").text
+            constructor_kwargs["octave"] = int(element.find("pitch/octave").text)
 
         if element.find("unpitched") is not None:
-            constructor_kwargs["step"] = element.find("unpitched/display-step").text
+            constructor_kwargs["step"] = NOTE_NAME_TO_INT[
+                element.find("unpitched/display-step").text
+            ]
             constructor_kwargs["accidental"] = 0
-            constructor_kwargs["octave"] = element.find("unpitched/display-octave").text
+            constructor_kwargs["octave"] = int(
+                element.find("unpitched/display-octave").text
+            )
 
         if not constructor_kwargs.keys():
             return
 
         is_chord = element.find("chord") is not None
         start_times = _metric_to_time(
-            ms.get_fraction(ms.measure_num[1], ms.div_position[0 if is_chord else 1])
+            ms.measure_num[1], ms.div_position[0 if is_chord else 1]
         )
         end_times = _metric_to_time(
-            ms.get_fraction(
-                ms.measure_num[1], ms.div_position[0 if is_chord else 1] + duration
-            )
+            ms.measure_num[1], ms.div_position[0 if is_chord else 1] + duration
         )
-        constructor_kwargs["part_index"] = part_index
+        # constructor_kwargs["part_index"] = part_index
         if not is_chord:
             ms.update_measure_position(duration)
 
         for start, end in zip(start_times, end_times):
             _create_component(
-                ComponentKind.KEY_SIGNATURE,
+                ComponentKind.NOTE,
                 constructor_kwargs | {"start": start, "end": end},
             )
 
@@ -207,7 +198,7 @@ def notes_from_musicXML(
                 duration = int(element.find("duration").text)
                 ms.update_measure_position(duration)
             case _:
-                errors.append(f"{element.tag} not implemented.")
+                pass
 
     def _parse_partwise(part: ET.Element | Any, part_index: int):
         for measure in part.findall("measure"):
@@ -215,12 +206,14 @@ def notes_from_musicXML(
             for element in measure:
                 _parse_element(element, part_index)
 
-            times = _metric_to_time(
-                ms.get_fraction(ms.measure_num[1], ms.div_position[1])
-            )
+            times = _metric_to_time(ms.measure_num[1], ms.div_position[1])
             for time in times:
                 _create_component(
-                    ComponentKind.BAR_LINE, {"time": time, "part_index": part_index}
+                    ComponentKind.BAR_LINE,
+                    {
+                        "time": time,
+                        #   "part_index": part_index
+                    },
                 )
 
     def _parse_timewise(measure: ET.Element | Any):
@@ -231,12 +224,14 @@ def notes_from_musicXML(
             for element in part:
                 _parse_element(element, part_index)
 
-            times = _metric_to_time(
-                ms.get_fraction(ms.measure_num[1], ms.div_position[1])
-            )
+            times = _metric_to_time(ms.measure_num[1], ms.div_position[1])
             for time in times:
                 _create_component(
-                    ComponentKind.BAR_LINE, {"time": time, "part_index": part_index}
+                    ComponentKind.BAR_LINE,
+                    {
+                        "time": time,
+                        #   "part_index": part_index
+                    },
                 )
 
             ms.div_position = div_position_start
@@ -297,4 +292,7 @@ class MetricDivision:
         )
 
     def get_fraction(self, measure_number, div_position):
-        return measure_number, div_position / self.max_div_per_measure
+        return {
+            "number": measure_number,
+            "fraction": div_position / self.max_div_per_measure,
+        }
