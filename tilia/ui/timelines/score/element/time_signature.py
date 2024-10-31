@@ -40,6 +40,9 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
     def update_position(self):
         self.body.set_position(self.x + self.x_offset + (self.margin_x if self.x_offset is not None else 0))
 
+    def selection_triggers(self):
+        return []
+
 
 class TimeSignatureBody(QGraphicsItem):
     PIXMAP_HEIGHT = 12

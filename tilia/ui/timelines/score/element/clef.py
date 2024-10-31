@@ -40,6 +40,9 @@ class ClefUI(TimelineUIElementWithCollision):
     def central_step(self) -> tuple[int, int]:
         return self.get_data('central_step')()
 
+    def selection_triggers(self):
+        return []
+
 
 class ClefBody(QGraphicsPixmapItem):
     def __init__(self, x: float, height: float, path: Path):

@@ -38,6 +38,9 @@ class BarLineUI(TimelineUIElement):
     def update_position(self):
         self.body.set_position(*self.get_body_args())
 
+    def selection_triggers(self):
+        return []
+
 
 class BarLineBody(QGraphicsLineItem):
     def __init__(self, x, y0, y1):
