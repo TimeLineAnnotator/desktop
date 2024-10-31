@@ -2,6 +2,7 @@ from __future__ import annotations
 import itertools
 import json
 import re
+import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -172,11 +173,33 @@ class App:
             post(Post.PLAYER_CANCEL_LOOP)
             post(Post.APP_RECORD_STATE, "media load")
 
-    def on_restore_state(self, state: dict) -> None:
+    def _restore_app_state(self, state: dict) -> None:
         with PauseUndoManager():
             self.timelines.restore_state(state["timelines"])
             self.file_manager.set_media_metadata(state["media_metadata"])
             self.restore_player_state(state["media_path"])
+
+    def on_restore_state(self, state: dict) -> None:
+        backup = self.get_app_state()
+        try:
+            self._restore_app_state(state)
+        except Exception:
+            self.recover_to_state(backup)
+            tilia.errors.display(tilia.errors.UNDO_FAILED, traceback.format_exc())
+
+    def recover_to_state(self, state: dict) -> None:
+        self.on_clear()
+        self._restore_app_state(state)
+
+    def get_app_state(self) -> dict:
+        return {
+            "timelines": self.timelines.serialize_timelines(),
+            "media_metadata": dict(self.file_manager.file.media_metadata),
+            "media_path": get(Get.MEDIA_PATH),
+            "file_path": self.file_manager.get_file_path(),
+            "version": tilia.constants.VERSION,
+            "app_name": tilia.constants.APP_NAME,
+        }
 
     def on_record_state(self, action, no_repeat=False, repeat_identifier=""):
         self.undo_manager.record(

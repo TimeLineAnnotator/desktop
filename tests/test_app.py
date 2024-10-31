@@ -498,3 +498,53 @@ class TestOpen:
         post(Post.FILE_OPEN, tmp_file)
         post(Post.FILE_SAVE)
         tilia_errors.assert_no_error()
+
+
+class TestUndoRedo:
+    def test_undo_fails(self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors):
+        with Serve(Get.FROM_USER_STRING, (True, 'test')):
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+
+        # this will record an invalid state that will raise an exception when
+        # we try to restore it
+        with patch.object(tilia, 'get_app_state', return_value={}):
+            user_actions.trigger(TiliaAction.MARKER_ADD)
+
+        # doing another action so the following redo
+        # will try to restore the previous, faulty state
+        # Note: this could be improved by providing a state that is actually
+        # similar to a healthy state
+        tilia_state.current_time = 10
+        user_actions.trigger(TiliaAction.MARKER_ADD)
+
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
+
+        # as the undo failed, the current state (with both markers)
+        # should be recovered
+        assert len(tluis[0]) == 2
+        tilia_errors.assert_error()
+
+    def test_redo_fails(self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors):
+        with Serve(Get.FROM_USER_STRING, (True, 'test')):
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+
+        # this will record an invalid state that will raise an exception when
+        # we try to restore it
+        # Note: this could be improved by providing a state that is actually
+        # similar to a healthy state
+        with patch.object(tilia, 'get_app_state', return_value={}):
+            user_actions.trigger(TiliaAction.MARKER_ADD)
+
+        # going back to previous state
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
+
+        # restoring state (this will fail)
+        user_actions.trigger(TiliaAction.EDIT_REDO)
+
+        # as the redo failed, the current state (with no markers)
+        # should be recovered
+        assert tluis[0].is_empty
+        tilia_errors.assert_error()
+
+
+
