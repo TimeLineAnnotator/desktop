@@ -10,7 +10,7 @@ from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
-from tilia.ui.timelines.score.element import NoteUI, StaffUI
+from tilia.ui.timelines.score.element import NoteUI, StaffUI, ClefUI
 from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
 from tilia.ui.timelines.score.request_handlers import ScoreTimelineUIElementRequestHandler
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
@@ -26,6 +26,7 @@ class ScoreTimelineUI(TimelineUI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+        self.clef_time_cache: dict[tuple[int, int], ClefUI] = {}
 
     def on_settings_updated(self, updated_settings):        
         if "score_timeline" in updated_settings:  
@@ -61,6 +62,30 @@ class ScoreTimelineUI(TimelineUI):
             component_to_offset = self._get_offsets_for_overlapping_elements(overlapping_components)
             for component in overlapping_components:
                 component.x_offset = component_to_offset[component]
+
+        if kind == ComponentKind.CLEF:
+            # Clefs need to be frequently found by time,
+            # so we cache them here
+            self.clef_time_cache = self.get_clef_time_cache()
+
+    def get_clef_time_cache(self) -> dict[tuple[int, int], ClefUI]:
+        cache = {}
+        start_time = 0
+        clefs = self.element_manager.get_elements_by_attribute('kind', ComponentKind.CLEF)
+        prev_clef = clefs[0]
+        for clef in clefs[1:]:
+            time = clef.get_data('time')
+            cache[(start_time, time)] = prev_clef
+            start_time = time
+            prev_clef = clef
+
+        cache[(start_time, get(Get.MEDIA_DURATION))] = clefs[-1]
+        return cache
+
+    def get_clef_by_time(self, time: float) -> ClefUI:
+        for (start, end) in self.clef_time_cache.keys():
+            if start <= time < end:
+                return self.clef_time_cache[(start, end)]
 
     def _get_overlap(self, time: float, kind: ComponentKind) -> list[TimelineUIElementWithCollision]:
         # Elements will be displayed in the order below
@@ -117,4 +142,3 @@ class ScoreTimelineUI(TimelineUI):
             lower_step += 7
 
         return (lower_step, clef_octave + lower_step_octave_diff), (upper_step % 7, clef_octave + upper_step_octave_diff)
-
