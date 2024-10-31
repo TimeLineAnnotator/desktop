@@ -17,6 +17,12 @@ class Clef(TimelineComponent):
     ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.CLEF
+    ICON = {
+        "C": "clef-alto.svg",
+        "F": "clef-bass.svg",
+        "G": "clef-treble.svg",
+        "G-8": "clef-treble-8vb.svg",
+    }
 
     validators = {
         "timeline": lambda _: False,  # read-only
