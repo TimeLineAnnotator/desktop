@@ -44,7 +44,7 @@ class TiliaMXLReader:
         self.reader_kwargs = reader_kwargs or {}
 
     def __enter__(self):
-        if ".mxl" in self.path.suffix:
+        if ".mxl" in self.path:
             with ZipFile(self.path) as zipfile, zipfile.open(
                 "META-INF/container.xml", **self.file_kwargs
             ) as meta:

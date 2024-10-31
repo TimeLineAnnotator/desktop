@@ -38,6 +38,7 @@ from .menus import (
     BeatMenu,
     HarmonyMenu,
     PdfMenu,
+    ScoreMenu,
 )
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
@@ -168,6 +169,10 @@ class QtUI:
                 Post.PDF_IMPORT_FROM_CSV,
                 partial(self.on_import_from_csv, TlKind.PDF_TIMELINE),
             ),
+            (
+                Post.SCORE_IMPORT_FROM_MUSICXML,
+                partial(self.on_import_from_csv, TlKind.SCORE_TIMELINE),
+            ),
             (Post.DISPLAY_ERROR, display_error),
             (Post.UI_EXIT, self.exit),
         }
@@ -216,6 +221,7 @@ class QtUI:
             (TlKind.BEAT_TIMELINE, BeatMenu),
             (TlKind.HARMONY_TIMELINE, HarmonyMenu),
             (TlKind.PDF_TIMELINE, PdfMenu),
+            (TlKind.SCORE_TIMELINE, ScoreMenu),
         }
         self.kind_to_dynamic_menus = {
             kind: self.menu_bar.get_menu(TimelinesMenu).get_submenu(menu_class)
@@ -240,6 +246,7 @@ class QtUI:
             TlKind.MARKER_TIMELINE,
             TlKind.HARMONY_TIMELINE,
             TlKind.PDF_TIMELINE,
+            TlKind.SCORE_TIMELINE,
         ]:
             if kind in instanced_kinds:
                 self.show_dynamic_menus(kind)
@@ -406,23 +413,37 @@ class QtUI:
         ):
             return
 
-        if tlkind == TlKind.BEAT_TIMELINE:
-            time_or_measure = "time"
-        else:
-            time_or_measure = self._get_by_time_or_by_measure_from_user()
-
-        if time_or_measure == "measure":
+        if tlkind == TlKind.SCORE_TIMELINE:
+            time_or_measure = "measure"
             beat_tlui = self._get_beat_timeline_ui_for_import_from_csv()
             if not beat_tlui:
                 return
 
             beat_tl = get(Get.TIMELINE, beat_tlui.id)
-        else:
-            beat_tl = None
+            success, path = get(
+                Get.FROM_USER_FILE_PATH,
+                "Import components",
+                ["musicXML files (*.musicxml; *.mxl)"],
+            )
 
-        success, path = get(
-            Get.FROM_USER_FILE_PATH, "Import components", ["CSV files (*.csv)"]
-        )
+        else:
+            if tlkind == TlKind.BEAT_TIMELINE:
+                time_or_measure = "time"
+            else:
+                time_or_measure = self._get_by_time_or_by_measure_from_user()
+
+            if time_or_measure == "measure":
+                beat_tlui = self._get_beat_timeline_ui_for_import_from_csv()
+                if not beat_tlui:
+                    return
+
+                beat_tl = get(Get.TIMELINE, beat_tlui.id)
+            else:
+                beat_tl = None
+
+            success, path = get(
+                Get.FROM_USER_FILE_PATH, "Import components", ["CSV files (*.csv)"]
+            )
 
         if not success:
             return

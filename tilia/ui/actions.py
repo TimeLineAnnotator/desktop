@@ -13,6 +13,7 @@ from tilia.ui.windows import WindowKind
 
 
 class TiliaAction(Enum):
+    SCORE_IMPORT_FROM_MUSICXML = auto()
     PDF_IMPORT_FROM_CSV = auto()
     PDF_MARKER_ADD = auto()
     AUTOSAVES_FOLDER_OPEN = auto()
@@ -288,11 +289,7 @@ taction_to_params = {
         Post.TIMELINE_ADD, "AudioWave", "", "", (TimelineKind.AUDIOWAVE_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_SCORE_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD,
-        "Score",
-        "",
-        "",
-        (TimelineKind.SCORE_TIMELINE,)
+        Post.TIMELINE_ADD, "Score", "", "", (TimelineKind.SCORE_TIMELINE,)
     ),
     TiliaAction.HARMONY_IMPORT_FROM_CSV: ActionParams(
         Post.HARMONY_IMPORT_FROM_CSV, "Import from CSV file", "", ""
@@ -346,6 +343,9 @@ taction_to_params = {
     ),
     TiliaAction.PDF_IMPORT_FROM_CSV: ActionParams(
         Post.PDF_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+    ),
+    TiliaAction.SCORE_IMPORT_FROM_MUSICXML: ActionParams(
+        Post.SCORE_IMPORT_FROM_MUSICXML, "Import from musicxml file", "", ""
     ),
 }
 
