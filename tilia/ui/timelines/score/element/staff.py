@@ -46,6 +46,9 @@ class StaffUI(TimelineUIElement):
     def child_items(self):
         return self.staff_lines.lines
 
+    def selection_triggers(self):
+        return []
+
 
 class StaffLines:
     COLOR = 'gray'

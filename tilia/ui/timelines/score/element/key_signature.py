@@ -43,6 +43,9 @@ class KeySignatureUI(TimelineUIElementWithCollision):
     def update_position(self):
         self.body.set_position(self.x + self.x_offset)
 
+    def selection_triggers(self):
+        return []
+
 
 class KeySignatureBody(QGraphicsPixmapItem):
     def __init__(self, x: float, height: int, path: Path):

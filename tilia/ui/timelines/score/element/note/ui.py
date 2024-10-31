@@ -241,6 +241,8 @@ class NoteUI(TimelineUIElement):
         return {
             "Start": format_media_time(self.get_data("start")),
             "End": format_media_time(self.get_data("end")),
-            "Pitch class": self.get_data("pitch_class"),
+            "Step": str(self.get_data("step")),
+            "Accidental": str(self.get_data("accidental")),
+            "Octave": str(self.get_data("octave")),
             "Comments": self.get_data("comments"),
         }
