@@ -10,4 +10,3 @@ PROMPT_CREATE_LEVEL_BELOW_MESSAGE = (
     "Node is at already lowest level."
     "\nDo you want to create a new lowest level for the child?"
 )
-
