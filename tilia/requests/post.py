@@ -15,6 +15,7 @@ class Post(Enum):
     APP_MEDIA_LOAD = auto()
     APP_RECORD_STATE = auto()
     APP_SETUP_FILE = auto()
+    APP_STATE_RECOVER = auto()
     APP_STATE_RESTORE = auto()
     BEAT_ADD = auto()
     BEAT_DISTRIBUTE = auto()

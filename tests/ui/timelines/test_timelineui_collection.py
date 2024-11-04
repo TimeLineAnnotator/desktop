@@ -5,6 +5,8 @@ import pytest
 from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_MEDIA_DURATION
 from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
 from tests.mock import Serve
+from tests.utils import get_method_patch_target
+from tilia.file.common import are_tilia_data_equal
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post, get, Get
 from tilia.timelines.timeline_kinds import (
@@ -13,6 +15,10 @@ from tilia.timelines.timeline_kinds import (
 )
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
+from tilia.ui.timelines.base.request_handlers import TimelineRequestHandler
+from tilia.ui.timelines.base.timeline import TimelineUI
+from tilia.ui.timelines.collection.request_handler import TimelineUIsRequestHandler
+from tilia.ui.timelines.marker.request_handlers import MarkerUIRequestHandler
 from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 
@@ -384,3 +390,48 @@ class TestLoop:
 
         post(Post.EDIT_UNDO)
         assert get(Get.LOOP_TIME) == (0, 0)
+
+
+class TestRequests:
+    def test_timeline_element_request_fails(self, tilia, qtui, user_actions, marker_tlui, tilia_errors):
+        healthy_state = tilia.get_app_state()
+
+        def on_add_patch(*args, **kwargs):
+            # It's important that we let the operation happen
+            # so a marker is actually created before the exception is raised.
+            # In this way, there is actually a change in a app state
+            # that will need to be reverted.
+            MarkerUIRequestHandler.on_add(*args, **kwargs)
+            raise Exception
+
+        with patch(get_method_patch_target(MarkerUIRequestHandler.on_add), side_effect=on_add_patch):
+            user_actions.trigger(TiliaAction.MARKER_ADD)
+
+        assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)
+
+    def test_timeline_uis_request_fails(self, tilia, qtui, user_actions, tilia_errors):
+        healthy_state = tilia.get_app_state()
+
+        def on_timeline_add_patch(*args, **kwargs):
+            # see comment in previous test
+            TimelineUIsRequestHandler.on_timeline_add(*args, **kwargs)
+            raise Exception
+
+        with patch(get_method_patch_target(TimelineUIsRequestHandler.on_timeline_add), side_effect=on_timeline_add_patch):
+            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+
+        assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)
+
+    def test_timeline_ui_request_fails(self, tilia, qtui, user_actions, tilia_errors, marker_tlui):
+        healthy_state = tilia.get_app_state()
+
+        def on_timeline_data_set_patch(*args, **kwargs):
+            # see comment in previous test
+            TimelineRequestHandler.on_timeline_data_set(*args, **kwargs)
+            raise Exception
+
+        with patch(TimelineUI.__module__ + ".TimelineRequestHandler.on_timeline_data_set", side_effect=on_timeline_data_set_patch):
+            with Serve(Get.FROM_USER_STRING, ("new name", True)):
+                user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+
+        assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)
