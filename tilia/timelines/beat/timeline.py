@@ -38,7 +38,7 @@ class BeatTLComponentManager(TimelineComponentManager):
                 )
 
     def create_component(
-            self, kind: ComponentKind, timeline, id, *args, **kwargs
+        self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, beat, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -55,11 +55,11 @@ class BeatTLComponentManager(TimelineComponentManager):
         return success, beat, reason
 
     def _validate_component_creation(
-            self,
-            _: ComponentKind,
-            time: float,
-            *args,
-            **kwargs,
+        self,
+        _: ComponentKind,
+        time: float,
+        *args,
+        **kwargs,
     ):
         return Beat.validate_creation(time, self.beat_times)
 
@@ -134,9 +134,9 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().deserialize_components(serialized_components)
 
         # But we restore them here.
-        self.timeline.set_data('measure_numbers', measure_numbers)
-        self.timeline.set_data('beats_in_measure', beats_in_measure)
-        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
+        self.timeline.set_data("measure_numbers", measure_numbers)
+        self.timeline.set_data("beats_in_measure", beats_in_measure)
+        self.timeline.set_data("measures_to_force_display", measures_to_force_display)
 
         self.timeline.recalculate_measures()  # Not sure if this is needed.
 
@@ -458,6 +458,6 @@ class BeatTimeline(Timeline):
             )
 
         if not self.is_empty:
-            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
-
-
+            self.component_manager.update_is_first_in_measure_of_subsequent_beats(
+                0
+            )  # Higher index is possible.
