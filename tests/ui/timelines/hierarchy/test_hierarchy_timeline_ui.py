@@ -3,6 +3,7 @@ from PyQt6.QtGui import QColor
 
 from tests.mock import PatchGet, Serve
 from tilia.requests import Post, Get, post
+from tilia.settings import settings
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.ui.actions import TiliaAction
 from tilia.ui.timelines.hierarchy import HierarchyUI
@@ -497,21 +498,6 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(tlui) == 0
 
-    def test_create_unit_below(self, tlui, tluis, user_actions):
-        tlui.create_hierarchy(0, 1, 2)
-
-        tlui.select_element(tlui[0])
-
-        post(Post.APP_RECORD_STATE, "test state")
-
-        user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
-
-        post(Post.EDIT_UNDO)
-        assert len(tlui) == 1
-
-        post(Post.EDIT_REDO)
-        assert len(tlui) == 2
-
     def test_paste(self, tlui, tluis, user_actions):
         tlui.create_hierarchy(0, 1, 1, label="paste test")
         tlui.create_hierarchy(0, 1, 2)
@@ -553,3 +539,92 @@ class TestUndoRedo:
 
         post(Post.EDIT_REDO)
         assert len(tlui) == 6
+
+
+class TestCreateChild:
+    def test_create_child(self, tlui, tluis, user_actions):
+        tlui.create_hierarchy(0, 1, 2)
+
+        tlui.select_element(tlui[0])
+
+        post(Post.APP_RECORD_STATE, "test state")
+
+        user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
+
+        post(Post.EDIT_UNDO)
+        assert len(tlui) == 1
+
+        post(Post.EDIT_REDO)
+        assert len(tlui) == 2
+
+    def test_at_lowest_level_user_declines_new_level(self, tlui, user_actions):
+        tlui.create_hierarchy(0, 1, 1)
+
+        tlui.select_element(tlui[0])
+
+        settings.set('hierarchy_timeline', 'prompt_create_level_below', True)
+        with Serve(Get.FROM_USER_YES_OR_NO, False):
+            user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
+
+        assert len(tlui) == 1
+        assert tlui[0].get_data('level') == 1
+
+    class TestUserAcceptsNewLevel:
+        def test_single_hierarchy(self, tlui, user_actions):
+            tlui.create_hierarchy(0, 1, 1)
+
+            tlui.select_element(tlui[0])
+
+            settings.set('hierarchy_timeline', 'prompt_create_level_below', True)
+            with Serve(Get.FROM_USER_YES_OR_NO, True):
+                user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
+
+            assert len(tlui) == 2
+            assert tlui[0].get_data('level') == 1
+            assert tlui[1].get_data('level') == 2
+
+        def test_with_parent(self, tlui, user_actions):
+            tlui.create_hierarchy(0, 1, 1)
+            tlui.create_hierarchy(0, 1, 2)
+
+            tlui.relate_hierarchies(tlui.timeline[1], [tlui.timeline[0]])
+
+            tlui.select_element(tlui[0])
+
+            settings.set('hierarchy_timeline', 'prompt_create_level_below', True)
+            with Serve(Get.FROM_USER_YES_OR_NO, True):
+                user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
+
+            assert len(tlui) == 3
+            assert tlui[0].get_data('level') == 1
+            assert tlui[1].get_data('level') == 2
+            assert tlui[2].get_data('level') == 3
+
+        def test_with_siblings(self, tlui, user_actions):
+            tlui.create_hierarchy(0, 1, 1)
+            tlui.create_hierarchy(1, 2, 1)
+            tlui.create_hierarchy(2, 3, 1)
+
+            tlui.select_element(tlui[0])
+
+            settings.set('hierarchy_timeline', 'prompt_create_level_below', True)
+            with Serve(Get.FROM_USER_YES_OR_NO, True):
+                user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
+
+            assert len(tlui) == 4
+            assert tlui[0].get_data('level') == 1
+            assert tlui[1].get_data('level') == 2
+            assert tlui[2].get_data('level') == 2
+            assert tlui[3].get_data('level') == 2
+
+        def test_prompt_create_level_below_is_false(self, tlui, user_actions):
+            tlui.create_hierarchy(0, 1, 1)
+
+            tlui.select_element(tlui[0])
+
+            settings.set('hierarchy_timeline', 'prompt_create_level_below', False)
+            user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
+
+            assert len(tlui) == 2
+
+

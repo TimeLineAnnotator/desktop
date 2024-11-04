@@ -1,4 +1,6 @@
+import tilia.ui.strings
 from tilia.requests import Post, get, Get, post
+from tilia.settings import settings
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.request_handler import fallible
 from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
@@ -64,6 +66,22 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
 
     @fallible
     def on_create_child(self, elements, *_, **__):
+        def _should_prompt_create_level_below() -> bool:
+            return settings.get('hierarchy_timeline', 'prompt_create_level_below')
+
+        def _prompt_create_level_below() -> bool:
+            return get(
+                Get.FROM_USER_YES_OR_NO,
+                tilia.ui.strings.PROMPT_CREATE_LEVEL_BELOW_TITLE,
+                tilia.ui.strings.PROMPT_CREATE_LEVEL_BELOW_MESSAGE
+            )
+
+        if any([e.get_data('level') == 1 for e in elements]):
+            if not _should_prompt_create_level_below() or _prompt_create_level_below():
+                self.on_increase_level(self.timeline_ui.elements, *_, **__)
+            else:
+                return False
+
         return self.timeline.create_children(self.elements_to_components(elements))
 
     def on_add_pre_start(self, elements, value, *_, **__):
