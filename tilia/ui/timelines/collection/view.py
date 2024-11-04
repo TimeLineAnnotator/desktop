@@ -31,20 +31,6 @@ class TimelineUIsView(QGraphicsView):
         self.centerOn(x, y + 1)
 
     def wheelEvent(self, event) -> None:
-        dx = event.angleDelta().x()
-        dy = event.angleDelta().y()
-
-        if event.inverted():
-            temp = dx
-            dx = dy
-            dy = temp
-
-        if dy > 0:
-            post(Post.VIEW_ZOOM_IN)
-        else:
-            post(Post.VIEW_ZOOM_OUT)
-
-    def wheelEvent_with_mod(self, event) -> None:
         if Qt.KeyboardModifier.ShiftModifier in event.modifiers():
             dx = event.angleDelta().y()
             dy = event.angleDelta().x()
