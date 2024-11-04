@@ -190,19 +190,19 @@ taction_to_params = {
         Post.TIMELINE_ELEMENT_COLOR_RESET, "Reset color", "", ""
     ),
     TiliaAction.HIERARCHY_SPLIT: ActionParams(
-        Post.HIERARCHY_SPLIT, "Split unit at current position", "split30", "s"
+        Post.HIERARCHY_SPLIT, "Split at current position", "split30", "s"
     ),
     TiliaAction.HIERARCHY_MERGE: ActionParams(
-        Post.HIERARCHY_MERGE, "Merge hierarchies", "merge30", "e"
+        Post.HIERARCHY_MERGE, "Merge", "merge30", "e"
     ),
     TiliaAction.HIERARCHY_GROUP: ActionParams(
-        Post.HIERARCHY_GROUP, "Group hierarchies", "group30", "g"
+        Post.HIERARCHY_GROUP, "Group", "group30", "g"
     ),
     TiliaAction.HIERARCHY_INCREASE_LEVEL: ActionParams(
-        Post.HIERARCHY_INCREASE_LEVEL, "Increase level", "lvlup30", "Ctrl+Up"
+        Post.HIERARCHY_INCREASE_LEVEL, "Move up a level", "lvlup30", "Ctrl+Up"
     ),
     TiliaAction.HIERARCHY_DECREASE_LEVEL: ActionParams(
-        Post.HIERARCHY_DECREASE_LEVEL, "Decrease level", "lvldwn30", "Ctrl+Down"
+        Post.HIERARCHY_DECREASE_LEVEL, "Move down a level", "lvldwn30", "Ctrl+Down"
     ),
     TiliaAction.HIERARCHY_CREATE_CHILD: ActionParams(
         Post.HIERARCHY_CREATE_CHILD, "Create child", "below30", ""
