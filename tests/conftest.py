@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
+from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication
 
-from tests.mock import Serve
+import tilia.settings as settings_module
+import tilia.constants as constants_module
 from tilia.media.player.base import MediaTimeChangeReason
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
 from tilia.boot import setup_logic
@@ -161,7 +162,14 @@ def resources() -> Path:
 
 
 @pytest.fixture(scope="module")
-def qtui(tilia, cleanup_requests, qapplication):
+def use_test_settings(qapplication) -> None:
+    settings_module.settings._settings = QSettings(constants_module.APP_NAME, f"DesktopTests")
+    settings_module.settings._check_all_default_settings_present()
+    yield
+
+
+@pytest.fixture(scope="module")
+def qtui(tilia, cleanup_requests, qapplication, use_test_settings):
     mw = TiliaMainWindow()
     qtui_ = QtUI(qapplication, mw)
     stop_listening(qtui_, Post.DISPLAY_ERROR)
