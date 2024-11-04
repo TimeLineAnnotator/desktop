@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Callable
 
 
 def get_blank_file_data():
@@ -56,3 +57,13 @@ def get_tmp_file_with_dummy_timeline(tmp_path: Path) -> Path:
     tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
 
     return tmp_file
+
+
+def get_method_patch_target(method: Callable) -> str:
+    """
+    To be used to get a patch target that is resilient
+    to moving the class to a different module.
+    This only works when patching the module where the class
+    is defined.
+    """
+    return method.__module__ + '.' + method.__qualname__
