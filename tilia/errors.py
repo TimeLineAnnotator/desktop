@@ -88,6 +88,7 @@ OPEN_FILE_NOT_FOUND = Error("File not found", "File '{}' not found.")
 OPEN_FILE_INVALID_TLA = Error("Invalid file type", "File '{}' is not a valid .tla file. {}")
 LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. {}")
 UNDO_FAILED = Error("Undo failed", "Undo failed. TiLiA encountered an error while undoing the last action.\n{}")
+COMMAND_FAILED = Error("Command failed", "Something went wrong when executing the last command. \n{}")
 
 
 def display(error: Error, *args):

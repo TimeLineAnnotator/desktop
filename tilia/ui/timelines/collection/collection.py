@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Optional, Callable
+import traceback
+from typing import Any, Optional, Callable, Iterable
 
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtWidgets import (
@@ -855,14 +856,18 @@ class TimelineUIs:
         if not success:
             return
 
+        state_backup = get(Get.APP_STATE)
         result = []
-
-        for tlui in timeline_uis:
-            result.append(
-                tlui.on_timeline_element_request(
-                    request, selector.element, *args, **kwargs
-                )
-            )
+        try:
+            for tlui in timeline_uis:
+                result.append(
+                    tlui.on_timeline_element_request(
+                        request, selector.element, *args, **kwargs
+                    ))
+        except Exception:
+            post(Post.APP_STATE_RECOVER, state_backup)
+            tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
+            return
 
         tilia.ui.timelines.collection.requests.post_process.post_process_request(
             request, result
@@ -880,11 +885,17 @@ class TimelineUIs:
         if not success:
             return
 
-        tilia.ui.timelines.collection.request_handler.TimelineUIsRequestHandler(
-            self
-        ).on_request(request, *args, **kwargs)
+        state_backup = get(Get.APP_STATE)
+        try:
+            success = tilia.ui.timelines.collection.request_handler.TimelineUIsRequestHandler(
+                self
+            ).on_request(request, *args, **kwargs)
+        except Exception:
+            post(Post.APP_STATE_RECOVER, state_backup)
+            tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
+            return
 
-        if request not in self.DO_NOT_RECORD:
+        if success and request not in self.DO_NOT_RECORD:
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
     def on_timeline_request(self, request: Post, selector: TlRequestSelector, *args: tuple[Any], **kwargs: dict[str, Any]):
@@ -899,9 +910,15 @@ class TimelineUIs:
         if not success:
             return
 
+        state_backup = get(Get.APP_STATE)
         result = []
-        for tlui in timeline_uis:
-            result.append(tlui.on_timeline_request(request, *args, **kwargs))
+        try:
+            for tlui in timeline_uis:
+                result.append(tlui.on_timeline_request(request, *args, **kwargs))
+        except Exception:
+            post(Post.APP_STATE_RECOVER, state_backup)
+            tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
+            return
 
         tilia.ui.timelines.collection.requests.post_process.post_process_request(
             request, result
