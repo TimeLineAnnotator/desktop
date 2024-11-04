@@ -444,7 +444,12 @@ class TestOpen:
             contents = json.load(f)  # read contents
 
         assert len(tls) == 2  # assert load was successful
-        assert contents['timelines'][str(prev_tl_id)]['components'][str(prev_marker_id)]['time'] == 0
+        assert (
+            contents["timelines"][str(prev_tl_id)]["components"][str(prev_marker_id)][
+                "time"
+            ]
+            == 0
+        )
 
     def test_open_without_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
         previous_path = tmp_path / "previous.tla"
@@ -497,13 +502,15 @@ class TestOpen:
 
 
 class TestUndoRedo:
-    def test_undo_fails(self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors):
-        with Serve(Get.FROM_USER_STRING, ('test', True)):
+    def test_undo_fails(
+        self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors
+    ):
+        with Serve(Get.FROM_USER_STRING, ("test", True)):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
         # this will record an invalid state that will raise an exception when
         # we try to restore it
-        with patch.object(tilia, 'get_app_state', return_value={}):
+        with patch.object(tilia, "get_app_state", return_value={}):
             user_actions.trigger(TiliaAction.MARKER_ADD)
 
         # doing another action so the following redo
@@ -520,15 +527,17 @@ class TestUndoRedo:
         assert len(tluis[0]) == 2
         tilia_errors.assert_error()
 
-    def test_redo_fails(self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors):
-        with Serve(Get.FROM_USER_STRING, ('test', True)):
+    def test_redo_fails(
+        self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors
+    ):
+        with Serve(Get.FROM_USER_STRING, ("test", True)):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
         # this will record an invalid state that will raise an exception when
         # we try to restore it
         # Note: this could be improved by providing a state that is actually
         # similar to a healthy state
-        with patch.object(tilia, 'get_app_state', return_value={}):
+        with patch.object(tilia, "get_app_state", return_value={}):
             user_actions.trigger(TiliaAction.MARKER_ADD)
 
         # going back to previous state
@@ -541,6 +550,3 @@ class TestUndoRedo:
         # should be recovered
         assert tluis[0].is_empty
         tilia_errors.assert_error()
-
-
-
