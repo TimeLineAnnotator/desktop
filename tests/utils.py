@@ -21,7 +21,7 @@ def get_blank_file_data():
             "form": "",
             "instrumentation": "",
             "genre": "",
-            "lyrics": ""
+            "lyrics": "",
         },
         "timelines": {
             "0": {
@@ -29,11 +29,11 @@ def get_blank_file_data():
                 "ordinal": 1,
                 "height": 40,
                 "kind": "SLIDER_TIMELINE",
-                "components": {}
+                "components": {},
             }
         },
         "app_name": "TiLiA",
-        "version": "0.1.1"
+        "version": "0.1.1",
     }
 
 
@@ -67,4 +67,4 @@ def get_method_patch_target(method: Callable) -> str:
     This only works when patching the module where the class
     is defined.
     """
-    return method.__module__ + '.' + method.__qualname__
+    return method.__module__ + "." + method.__qualname__

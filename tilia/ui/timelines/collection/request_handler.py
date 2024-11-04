@@ -76,7 +76,9 @@ class TimelineUIsRequestHandler(RequestHandler):
                 return
             kwargs |= additional_args
 
-        timeline = self.timelines.create_timeline(kind=kind, components=None, name=name, **kwargs)
+        timeline = self.timelines.create_timeline(
+            kind=kind, components=None, name=name, **kwargs
+        )
 
         return bool(timeline)
 

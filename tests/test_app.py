@@ -507,7 +507,7 @@ class TestUndoRedo:
 
         # this will record an invalid state that will raise an exception when
         # we try to restore it
-        with patch.object(tilia, 'get_app_state', return_value={}):
+        with patch.object(tilia, "get_app_state", return_value={}):
             user_actions.trigger(TiliaAction.MARKER_ADD)
 
         # doing another action so the following redo
@@ -532,7 +532,7 @@ class TestUndoRedo:
         # we try to restore it
         # Note: this could be improved by providing a state that is actually
         # similar to a healthy state
-        with patch.object(tilia, 'get_app_state', return_value={}):
+        with patch.object(tilia, "get_app_state", return_value={}):
             user_actions.trigger(TiliaAction.MARKER_ADD)
 
         # going back to previous state
@@ -545,6 +545,3 @@ class TestUndoRedo:
         # should be recovered
         assert tluis[0].is_empty
         tilia_errors.assert_error()
-
-
-

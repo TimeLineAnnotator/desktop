@@ -83,14 +83,23 @@ CLI_METADATA_CANT_SET_MEDIA_LENGTH = Error(
     "Cannot set media length with 'metadata set'. Use 'metadata set-media-length' instead.",
 )
 EMPTY_CLI_SCRIPT = Error("Script error", "Cannot run script: file '{}' is empty.")
-CLI_CREATE_TIMELINE_WITHOUT_DURATION = Error("Cannot create timeline", "No media loaded and no duration set. Load a media file with 'load-media' or set a duration with 'metadata set-media-length'.")
+CLI_CREATE_TIMELINE_WITHOUT_DURATION = Error(
+    "Cannot create timeline",
+    "No media loaded and no duration set. Load a media file with 'load-media' or set a duration with 'metadata set-media-length'.",
+)
 OPEN_FILE_NOT_FOUND = Error("File not found", "File '{}' not found.")
-OPEN_FILE_INVALID_TLA = Error("Invalid file type", "File '{}' is not a valid .tla file. {}")
+OPEN_FILE_INVALID_TLA = Error(
+    "Invalid file type", "File '{}' is not a valid .tla file. {}"
+)
 LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. {}")
-UNDO_FAILED = Error("Undo failed", "Undo failed. TiLiA encountered an error while undoing the last action.\n{}")
-COMMAND_FAILED = Error("Command failed", "Something went wrong when executing the last command. \n{}")
+UNDO_FAILED = Error(
+    "Undo failed",
+    "Undo failed. TiLiA encountered an error while undoing the last action.\n{}",
+)
+COMMAND_FAILED = Error(
+    "Command failed", "Something went wrong when executing the last command. \n{}"
+)
 
 
 def display(error: Error, *args):
     post(Post.DISPLAY_ERROR, error.title, error.message.format(*args))
-
