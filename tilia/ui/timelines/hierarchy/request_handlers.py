@@ -40,11 +40,15 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
     @fallible
     def on_increase_level(self, elements, *_, **__):
         min_margin = 10
-        success = self.timeline.alter_levels(self.elements_to_components(reversed(elements)), 1)
+        success = self.timeline.alter_levels(
+            self.elements_to_components(reversed(elements)), 1
+        )
         if success:
             max_height = self.timeline_ui.get_max_hierarchy_height()
-            if max_height > self.timeline_ui.get_data('height') + min_margin:
-                get(Get.TIMELINE_COLLECTION).set_timeline_data(self.timeline_ui.id, 'height', max_height + min_margin)
+            if max_height > self.timeline_ui.get_data("height") + min_margin:
+                get(Get.TIMELINE_COLLECTION).set_timeline_data(
+                    self.timeline_ui.id, "height", max_height + min_margin
+                )
 
         return success
 
@@ -67,16 +71,16 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
     @fallible
     def on_create_child(self, elements, *_, **__):
         def _should_prompt_create_level_below() -> bool:
-            return settings.get('hierarchy_timeline', 'prompt_create_level_below')
+            return settings.get("hierarchy_timeline", "prompt_create_level_below")
 
         def _prompt_create_level_below() -> bool:
             return get(
                 Get.FROM_USER_YES_OR_NO,
                 tilia.ui.strings.PROMPT_CREATE_LEVEL_BELOW_TITLE,
-                tilia.ui.strings.PROMPT_CREATE_LEVEL_BELOW_MESSAGE
+                tilia.ui.strings.PROMPT_CREATE_LEVEL_BELOW_MESSAGE,
             )
 
-        if any([e.get_data('level') == 1 for e in elements]):
+        if any([e.get_data("level") == 1 for e in elements]):
             if not _should_prompt_create_level_below() or _prompt_create_level_below():
                 self.on_increase_level(self.timeline_ui.elements, *_, **__)
             else:
@@ -165,7 +169,7 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
                 _display_paste_complete_error(reason)
                 return False
 
-            self.timeline.delete_components(element.get_data('children'))
+            self.timeline.delete_components(element.get_data("children"))
             self.timeline_ui.paste_with_children_into_element(data, element)
 
         return True
