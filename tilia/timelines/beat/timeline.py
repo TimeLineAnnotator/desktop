@@ -27,8 +27,8 @@ class BeatTLComponentManager(TimelineComponentManager):
         return {b.time for b in self._components}
 
     def update_is_first_in_measure_of_subsequent_beats(self, start_index):
-        beats_that_start_measure = set(self.timeline.beats_that_start_measures)
-        for i, beat in enumerate(self.timeline[start_index :]):
+        beats_that_start_measure = self.timeline.beats_that_start_measures
+        for i, beat in enumerate(self.timeline[start_index:]):
             is_first_in_measure = start_index + i in beats_that_start_measure
             if is_first_in_measure != beat.is_first_in_measure:
                 self.timeline.set_component_data(
@@ -249,7 +249,7 @@ class BeatTimeline(Timeline):
         return measure_times
 
     def is_first_in_measure(self, beat):
-        return self.components.index(beat) in self.beats_that_start_measures_set
+        return self.components.index(beat) in self.beats_that_start_measures
 
     def recalculate_measures(self):
         beat_delta = (len(self)) - sum(self.beats_in_measure)
@@ -381,10 +381,9 @@ class BeatTimeline(Timeline):
 
     def update_beats_that_start_measures(self):
         # noinspection PyAttributeOutsideInit
-        self.beats_that_start_measures = [0] + list(
-            itertools.accumulate(self.beats_in_measure[:-1])
+        self.beats_that_start_measures = list(
+            dict.fromkeys([0] + list(itertools.accumulate(self.beats_in_measure[:-1])))
         )
-        self.beats_that_start_measures_set = set(self.beats_that_start_measures)
 
     def get_measure_index(self, beat_index: int) -> tuple[int, int]:
         prev_n = 0
