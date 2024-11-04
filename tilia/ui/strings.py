@@ -5,3 +5,9 @@ BEAT_PATTERN_DIALOG_TOOLTIP = """Empty spaces separate measures, line breaks are
 Examples:
   - '5' = 5 beats per measure;
   - '4 3 3' = a cycle of 4, then 3, then 3 beats per measure."""
+PROMPT_CREATE_LEVEL_BELOW_TITLE = "Create level below"
+PROMPT_CREATE_LEVEL_BELOW_MESSAGE = (
+    "Node is at already lowest level."
+    "\nDo you want to create a new lowest level for the child?"
+)
+
