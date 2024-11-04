@@ -103,7 +103,9 @@ class TiliaState:
     def duration(self, value):
         self.app.set_file_media_duration(value)
 
-    def set_duration(self, value, scale_timelines: Literal['yes', 'no', 'prompt'] = 'prompt'):
+    def set_duration(
+        self, value, scale_timelines: Literal["yes", "no", "prompt"] = "prompt"
+    ):
         """Use this if you want to pass scale_timelines."""
         self.app.set_file_media_duration(value, scale_timelines)
 
@@ -162,7 +164,9 @@ def resources() -> Path:
 
 @pytest.fixture(scope="module")
 def use_test_settings(qapplication) -> None:
-    settings_module.settings._settings = QSettings(constants_module.APP_NAME, f"DesktopTests")
+    settings_module.settings._settings = QSettings(
+        constants_module.APP_NAME, f"DesktopTests"
+    )
     settings_module.settings._check_all_default_settings_present()
     yield
 
@@ -216,7 +220,7 @@ def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui, audiowav
         "harmony": harmony_tlui,
         "beat": beat_tlui,
         "hierarchy": hierarchy_tlui,
-        "audiowave": audiowave_tlui
+        "audiowave": audiowave_tlui,
     }[request.param]
 
 
@@ -224,6 +228,7 @@ class UserActionManager:
     """
     Class to simulate and mock user interaction with the GUI.
     """
+
     def __init__(self):
         self.action_to_trigger_count = {}
         for action in tilia_actions_module.TiliaAction:
@@ -265,44 +270,87 @@ def user_actions():
 
 def parametrize_tl(func):
     """Adds a parameter 'tl' to a test that receives the name of a fixture that returns a component.
-     To get the timeline from within the test, add the `request` fixture to its arguments and
-     run `request.getfixturevalue('tl')`"""
-    @pytest.mark.parametrize('tl', ['audiowave_tl', 'beat_tl', 'harmony_tl', 'hierarchy_tl', 'marker_tl', 'pdf_tl', 'slider_tl'])
+    To get the timeline from within the test, add the `request` fixture to its arguments and
+    run `request.getfixturevalue('tl')`"""
+
+    @pytest.mark.parametrize(
+        "tl",
+        [
+            "audiowave_tl",
+            "beat_tl",
+            "harmony_tl",
+            "hierarchy_tl",
+            "marker_tl",
+            "pdf_tl",
+            "slider_tl",
+        ],
+    )
     @functools.wraps(func)  # Preserve original function metadata
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
+
     return wrapper
 
 
 def parametrize_tlui(func):
     """Adds a parameter 'tlui' to a test that receives the name of a fixture that returns a component.
-     To get the timeline ui from within the test, add the `request` fixture to its arguments and
-     run `request.getfixturevalue('tlui')`"""
-    @pytest.mark.parametrize('tlui', ['audiowave_tlui', 'beat_tlui', 'harmony_tlui', 'hierarchy_tlui', 'marker_tlui', 'pdf_tlui', 'slider_tlui'])
+    To get the timeline ui from within the test, add the `request` fixture to its arguments and
+    run `request.getfixturevalue('tlui')`"""
+
+    @pytest.mark.parametrize(
+        "tlui",
+        [
+            "audiowave_tlui",
+            "beat_tlui",
+            "harmony_tlui",
+            "hierarchy_tlui",
+            "marker_tlui",
+            "pdf_tlui",
+            "slider_tlui",
+        ],
+    )
     @functools.wraps(func)  # Preserve original function metadata
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
+
     return wrapper
 
 
 def parametrize_component(func):
     """Adds a parameter 'comp' to a test that receives the name of a fixture that returns a component.
-     To get the component from within the test, add the `request` fixture to its arguments and
-     run `request.getfixturevalue('comp')`"""
-    @pytest.mark.parametrize('comp', ['amplitudebar', 'beat', 'harmony', 'hierarchy', 'marker', 'pdf_marker'])
+    To get the component from within the test, add the `request` fixture to its arguments and
+    run `request.getfixturevalue('comp')`"""
+
+    @pytest.mark.parametrize(
+        "comp", ["amplitudebar", "beat", "harmony", "hierarchy", "marker", "pdf_marker"]
+    )
     @functools.wraps(func)  # Preserve original function metadata
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
+
     return wrapper
 
 
 def parametrize_ui_element(func):
     """Adds a parameter 'comp' to a test that receives the name of a fixture that returns a ui element.
-     To get the element from within the test, add the `request` fixture to its arguments and
-     run `request.getfixturevalue('element')`.
-     Tests that use this must also request the `tluis` fixture, or another fixture that requires it."""
-    @pytest.mark.parametrize('element', ['amplitudebar_ui', 'beat_ui', 'harmony_ui', 'hierarchy_ui', 'marker_ui', 'pdf_marker_ui'])
+    To get the element from within the test, add the `request` fixture to its arguments and
+    run `request.getfixturevalue('element')`.
+    Tests that use this must also request the `tluis` fixture, or another fixture that requires it.
+    """
+
+    @pytest.mark.parametrize(
+        "element",
+        [
+            "amplitudebar_ui",
+            "beat_ui",
+            "harmony_ui",
+            "hierarchy_ui",
+            "marker_ui",
+            "pdf_marker_ui",
+        ],
+    )
     @functools.wraps(func)  # Preserve original function metadata
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
+
     return wrapper
