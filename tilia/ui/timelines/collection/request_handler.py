@@ -76,11 +76,15 @@ class TimelineUIsRequestHandler(RequestHandler):
                 return
             kwargs |= additional_args
 
-        self.timelines.create_timeline(kind=kind, components=None, name=name, **kwargs)
+        timeline = self.timelines.create_timeline(kind=kind, components=None, name=name, **kwargs)
+
+        return bool(timeline)
 
     def on_timelines_clear(self, confirmed):
         if confirmed:
             self.timelines.clear_timelines()
+            return True
+        return False
 
     @staticmethod
     def on_beat_timeline_fill():
