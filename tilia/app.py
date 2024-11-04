@@ -316,7 +316,7 @@ class App:
         params = {
             "media_metadata": dict(self.file_manager.file.media_metadata),
             "timelines": timelines_state,
-            'timelines_hash': timelines_hash,
+            "timelines_hash": timelines_hash,
             "media_path": get(Get.MEDIA_PATH),
             "file_path": self.file_manager.get_file_path(),
             "version": tilia.constants.VERSION,
