@@ -56,6 +56,7 @@ class App:
             (Post.APP_FILE_LOAD, self.on_file_load),
             (Post.APP_MEDIA_LOAD, self.load_media),
             (Post.APP_STATE_RESTORE, self.on_restore_state),
+            (Post.APP_STATE_RECOVER, self.recover_to_state),
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_RECORD_STATE, self.on_record_state),
             (Post.FILE_OPEN, self.on_open),
@@ -187,6 +188,14 @@ class App:
             tilia.errors.display(tilia.errors.UNDO_FAILED, traceback.format_exc())
 
     def recover_to_state(self, state: dict) -> None:
+        """
+        Clears the app and attemps to restore the given state.
+        Unlike `on_restore_state` this will crash if an error occurs during
+        the restoration.
+        This is meant to be used after an exception occurred, so if the
+        restoration fails, we are likely in an invalid state and
+        therefore crashing is the best option.
+        """
         self.on_clear()
         self._restore_app_state(state)
 
