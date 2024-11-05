@@ -37,7 +37,7 @@ def manage_timelines(qtui):
 class TestChangeTimelineOrder:
     @pytest.fixture(autouse=True)
     def setup_timelines(self, tls, user_actions):
-        with Serve(Get.FROM_USER_STRING, ("", True)):
+        with Serve(Get.FROM_USER_STRING, (True, "")):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)

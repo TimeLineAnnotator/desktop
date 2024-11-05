@@ -23,7 +23,7 @@ class TestUserActions:
     def test_save(self, tls, marker_tlui, tmp_path, user_actions):
         marker_tlui.create_marker(0)
         tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file_path, "")):
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, tmp_file_path)):
             user_actions.trigger(TiliaAction.FILE_SAVE_AS)
         marker_tlui.create_marker(1)
         user_actions.trigger(TiliaAction.FILE_SAVE)

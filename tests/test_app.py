@@ -43,7 +43,7 @@ class TestSaveFileOnClose:
         with (
             Serve(Get.APP_STATE, self._get_modified_file_state()),
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
-            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file, True)),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, tmp_file)),
             PatchPost("tilia.app", Post.UI_EXIT) as exit_mock,
         ):
             user_actions.trigger(TiliaAction.APP_CLOSE)
@@ -57,7 +57,7 @@ class TestSaveFileOnClose:
         tmp_file = tmp_path / "test_file_modified_and_user_chooses_to_save_changes.tla"
         with (
             Serve(Get.APP_STATE, self._get_modified_file_state()),
-            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (tmp_file, True)),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, tmp_file)),
         ):
             user_actions.trigger(TiliaAction.FILE_SAVE)
 
@@ -88,7 +88,7 @@ class TestSaveFileOnClose:
         with (
             Serve(Get.APP_STATE, self._get_modified_file_state()),
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
-            Serve(Get.FROM_USER_SAVE_PATH_TILIA, ("", "")),
+            Serve(Get.FROM_USER_SAVE_PATH_TILIA, (False, "")),
             patch("tilia.file.file_manager.FileManager.save") as save_mock,
             PatchPost("tilia.app", Post.UI_EXIT) as exit_mock,
         ):
@@ -426,7 +426,7 @@ class TestOpen:
 
     def test_open_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
         previous_path = tmp_path / "previous.tla"
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, previous_path)):
             post(Post.FILE_SAVE)
 
         # make change
@@ -452,7 +452,7 @@ class TestOpen:
 
     def test_open_without_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
         previous_path = tmp_path / "previous.tla"
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, previous_path)):
             post(Post.FILE_SAVE)
 
         # make change
@@ -474,7 +474,7 @@ class TestOpen:
         self, tilia, tls, marker_tlui, tmp_path
     ):
         previous_path = tmp_path / "previous.tla"
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (previous_path, True)):
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, previous_path)):
             post(Post.FILE_SAVE)
 
         # make change

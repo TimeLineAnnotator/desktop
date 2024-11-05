@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import tilia.errors
-from tilia.requests import Post, get, Get
+from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.request_handler import RequestHandler
 
@@ -15,13 +13,13 @@ def _get_media_is_loaded():
 
 
 def _get_timeline_name():
-    name, confirmed = get(
+    accepted, name = get(
         Get.FROM_USER_STRING,
         title="New timeline",
         prompt="Choose name for new timeline",
     )
 
-    return confirmed, name
+    return accepted, name
 
 
 class TimelineUIsRequestHandler(RequestHandler):

@@ -1,10 +1,7 @@
 import sys
 
-import tilia.errors
 from tilia.exceptions import UserCancelledDialog
 from tilia.requests import get, Get, Post
-from tilia.ui import dialogs
-import tilia.ui.dialogs.basic
 from tilia.ui.timelines.base.timeline import TimelineUI
 
 
@@ -17,26 +14,27 @@ def _get_args_for_timeline_element_color_set(_):
 
 def _get_args_for_timeline_name_set(timeline_uis):
     timeline_ui = timeline_uis[0]
-    name, accept = get(
+    accepted, name = get(
         Get.FROM_USER_STRING,
         "Change timeline name",
         "Choose new name",
         get(Get.TIMELINE, timeline_ui.id).name,
     )
-    if not accept:
+    if not accepted:
         raise UserCancelledDialog
     return (name,), {}
 
 
 def _get_args_for_timeline_height_set(timeline_uis):
     timeline_ui = timeline_uis[0]
-    height, accept = dialogs.basic.ask_for_int(
+    accepted, height = get(
+        Get.FROM_USER_INT,
         "Change timeline height",
         "Insert new timeline height",
         initial=timeline_ui.get_data("height"),
         min=10,
     )
-    if not accept:
+    if not accepted:
         raise UserCancelledDialog
     return (height,), {}
 
@@ -115,23 +113,24 @@ def _get_args_for_timelines_clear(_):
 
 
 def _get_args_for_beat_set_measure_number(_):
-    number, accept = get(
+    accepted, number = get(
         Get.FROM_USER_INT,
         "Change measure number",
         "Insert measure number",
     )
-    if not accept:
+    if not accepted:
         raise UserCancelledDialog
     return (number,), {}
 
 
 def _get_args_for_beat_set_amount_in_measure(_):
-    number, accept = dialogs.basic.ask_for_int(
+    accepted, number = get(
+        Get.FROM_USER_INT,
         "Change beats in measure",
         "Insert amount of beats in measure",
         min=1,
     )
-    if not accept:
+    if not accepted:
         raise UserCancelledDialog
     return (number,), {}
 

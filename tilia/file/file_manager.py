@@ -99,8 +99,8 @@ class FileManager:
 
     def on_save_as_request(self):
         """Prompts user for a path, and saves tilia file to it."""
-        path, _ = get(Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla")
-        if not path:
+        accepted, path = get(Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla")
+        if not accepted:
             return False
 
         try:

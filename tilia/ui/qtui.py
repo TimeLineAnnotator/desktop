@@ -366,11 +366,11 @@ class QtUI:
 
     @staticmethod
     def on_media_load_youtube():
-        url, success = get(
+        accepted, url = get(
             Get.FROM_USER_STRING, "Load from Youtube", "Enter YouTube URL"
         )
         match = re.match(tilia.constants.YOUTUBE_URL_REGEX, url)
-        if not success:
+        if not accepted:
             return
         if not match:
             tilia.errors.display(tilia.errors.YOUTUBE_URL_INVALID, url)
