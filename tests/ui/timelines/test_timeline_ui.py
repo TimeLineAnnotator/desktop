@@ -104,16 +104,16 @@ class TestArrowSelection:
 class TestSetTimelineName:
     def test_set(self, tls, tluis, user_actions):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE, name='change me')
-        with Serve(Get.FROM_USER_STRING, ("this", True)):
+        with Serve(Get.FROM_USER_STRING, (True, "this")):
             user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
         assert tls[0].get_data("name") == "this"
         assert tluis[0].displayed_name == "this"
 
     def test_set_undo(self, tls, tluis, user_actions):
-        with Serve(Get.FROM_USER_STRING, ("pure", True)):
+        with Serve(Get.FROM_USER_STRING, (True, "pure")):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
-        with Serve(Get.FROM_USER_STRING, ("tainted", True)):
+        with Serve(Get.FROM_USER_STRING, (True, "tainted")):
             user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
         user_actions.trigger(TiliaAction.EDIT_UNDO)
@@ -122,9 +122,9 @@ class TestSetTimelineName:
         assert tluis[0].displayed_name == "pure"
 
     def test_set_redo(self, tls, tluis, user_actions):
-        with Serve(Get.FROM_USER_STRING, ("pure", True)):
+        with Serve(Get.FROM_USER_STRING, (True, "pure")):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
-        with Serve(Get.FROM_USER_STRING, ("tainted", True)):
+        with Serve(Get.FROM_USER_STRING, (True, "tainted")):
             user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
         user_actions.trigger(TiliaAction.EDIT_UNDO)
@@ -135,7 +135,7 @@ class TestSetTimelineName:
 
     def test_set_empty_string(self, tls, tluis, user_actions):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE, name='change me')
-        with Serve(Get.FROM_USER_STRING, ("", True)):
+        with Serve(Get.FROM_USER_STRING, (True, "")):
             user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
         assert tls[0].get_data("name") == ""

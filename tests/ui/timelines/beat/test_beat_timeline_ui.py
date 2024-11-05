@@ -260,7 +260,7 @@ class TestChangeMeasureNumber:
     @staticmethod
     def _set_measure_number(beat_tlui, actions, number=DUMMY_MEASURE_NUMBER):
         """Assumes there a beat in the measure is selected"""
-        with Serve(Get.FROM_USER_INT, (number, True)):
+        with Serve(Get.FROM_USER_INT, (True, number)):
             actions.trigger(TiliaAction.BEAT_SET_MEASURE_NUMBER)
 
     def test_set_measure_number_single_measure(self, beat_tlui, user_actions):
@@ -387,7 +387,7 @@ class TestActions:
         beat_tlui.select_element(beat_tlui[0])
 
         beat_tlui.timeline.set_beat_amount_in_measure = MagicMock()
-        with patch("tilia.ui.dialogs.basic.ask_for_int", lambda *_, **__: (11, True)):
+        with Serve(Get.FROM_USER_INT, (True, 11)):
             user_actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
 
         beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)

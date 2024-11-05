@@ -29,7 +29,7 @@ class TestTimelineUICreation:
     def test_create(self, action, tluis, user_actions):
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
-            Serve(Get.FROM_USER_STRING, ("", True)),
+            Serve(Get.FROM_USER_STRING, (True, "")),
         ):
             user_actions.trigger(action)
         assert len(tluis) == 1
@@ -44,7 +44,7 @@ class TestTimelineUICreation:
         ]
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
-            Serve(Get.FROM_USER_STRING, ("", True)),
+            Serve(Get.FROM_USER_STRING, (True, "")),
         ):
             for action in create_actions:
                 user_actions.trigger(action)
@@ -52,12 +52,12 @@ class TestTimelineUICreation:
 
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
     def test_user_cancels_creation(self, action, tilia_state, tluis, user_actions):
-        with Serve(Get.FROM_USER_STRING, ("", False)):
+        with Serve(Get.FROM_USER_STRING, (False, "")):
             user_actions.trigger(action)
         assert tluis.is_empty
 
     def test_delete(self, tls, user_actions):
-        with Serve(Get.FROM_USER_STRING, ("", True)):
+        with Serve(Get.FROM_USER_STRING, (True, "")):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
         tls.delete_timeline(tls[0])  # this should be an user action

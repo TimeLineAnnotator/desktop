@@ -15,7 +15,7 @@ class TestCreateTimeline:
 
     def test_create_without_media_loaded(self, tilia, tls, user_actions):
         with Serve(Get.MEDIA_DURATION, 0):
-            with Serve(Get.FROM_USER_STRING, ("", True)):
+            with Serve(Get.FROM_USER_STRING, (True, "")):
                 user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         assert tls.is_empty
