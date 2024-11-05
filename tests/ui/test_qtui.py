@@ -61,7 +61,9 @@ class TestTimelineToolbars:
 
         assert len(get_toolbars_of_class(qtui, MarkerTimelineUI.TOOLBAR_CLASS)) == 1
 
-    def test_is_not_hidden_when_second_instance_of_timeline_is_deleted(self, qtui, marker_tlui, tls):
+    def test_is_not_hidden_when_second_instance_of_timeline_is_deleted(
+        self, qtui, marker_tlui, tls
+    ):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE)
         tls.create_timeline(TimelineKind.MARKER_TIMELINE)
         tls.delete_timeline(tls[1])
@@ -69,19 +71,19 @@ class TestTimelineToolbars:
         assert is_toolbar_visible(qtui, marker_tlui.TOOLBAR_CLASS)
 
     def test_is_hidden_when_timeline_is_hidden(self, qtui, tls, marker_tl):
-        tls.set_timeline_data(marker_tl.id, 'is_visible', False)
+        tls.set_timeline_data(marker_tl.id, "is_visible", False)
 
         assert not is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
 
     def test_is_not_hidden_when_second_instance_of_timeline_is_hidden(self, qtui, tls):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE)
         tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        tls.set_timeline_data(tls[1].id, 'is_visible', False)
+        tls.set_timeline_data(tls[1].id, "is_visible", False)
 
         assert is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
 
     def test_is_visible_if_timeline_is_made_visible_again(self, qtui, tls, marker_tl):
-        tls.set_timeline_data(marker_tl.id, 'is_visible', False)
-        tls.set_timeline_data(marker_tl.id, 'is_visible', True)
+        tls.set_timeline_data(marker_tl.id, "is_visible", False)
+        tls.set_timeline_data(marker_tl.id, "is_visible", True)
 
         assert is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)

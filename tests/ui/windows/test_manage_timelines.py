@@ -51,7 +51,9 @@ class TestChangeTimelineOrder:
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
-    def test_increase_ordinal_undo(self, tls, user_actions, manage_timelines, setup_timelines):
+    def test_increase_ordinal_undo(
+        self, tls, user_actions, manage_timelines, setup_timelines
+    ):
         tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
@@ -60,7 +62,9 @@ class TestChangeTimelineOrder:
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
-    def test_increase_ordinal_redo(self, tls, user_actions, manage_timelines, setup_timelines):
+    def test_increase_ordinal_redo(
+        self, tls, user_actions, manage_timelines, setup_timelines
+    ):
         tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
@@ -71,22 +75,26 @@ class TestChangeTimelineOrder:
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
     def test_increase_ordinal_with_first_selected_does_nothing(
-        self, tls, user_actions, manage_timelines
-    , setup_timelines):
+        self, tls, user_actions, manage_timelines, setup_timelines
+    ):
         tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.up_button.click()
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
-    def test_decrease_ordinal(self, tls, manage_timelines, user_actions, setup_timelines):
+    def test_decrease_ordinal(
+        self, tls, manage_timelines, user_actions, setup_timelines
+    ):
         tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
-    def test_decrease_ordinal_undo(self, tls, user_actions, manage_timelines, setup_timelines):
+    def test_decrease_ordinal_undo(
+        self, tls, user_actions, manage_timelines, setup_timelines
+    ):
         tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
@@ -95,7 +103,9 @@ class TestChangeTimelineOrder:
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
-    def test_decrease_ordinal_redo(self, tls, user_actions, manage_timelines, setup_timelines):
+    def test_decrease_ordinal_redo(
+        self, tls, user_actions, manage_timelines, setup_timelines
+    ):
         tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
@@ -106,8 +116,8 @@ class TestChangeTimelineOrder:
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
     def test_decrease_ordinal_with_last_selected_does_nothing(
-        self, tls, manage_timelines, user_actions
-    , setup_timelines):
+        self, tls, manage_timelines, user_actions, setup_timelines
+    ):
         tl0, tl1, tl2 = setup_timelines
         manage_timelines.list_widget.setCurrentRow(2)
         manage_timelines.down_button.click()

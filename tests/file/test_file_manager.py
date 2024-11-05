@@ -56,11 +56,13 @@ class TestFileManager:
         duplicate = list(tilia.file_manager.file.media_metadata) + ["title"]
         post(Post.METADATA_UPDATE_FIELDS, duplicate)
         assert list(tilia.file_manager.file.media_metadata) == original
-    
+
     def test_metadata_delete_fields(self, tilia):
         empty_list = []
         post(Post.METADATA_UPDATE_FIELDS, empty_list)
-        assert list(tilia.file_manager.file.media_metadata) == list(tilia.file_manager.file.media_metadata.REQUIRED_FIELDS)
+        assert list(tilia.file_manager.file.media_metadata) == list(
+            tilia.file_manager.file.media_metadata.REQUIRED_FIELDS
+        )
 
     def test_metadata_title_stays_on_top(self, tilia):
         not_so_empty_list = ["newfield"]
