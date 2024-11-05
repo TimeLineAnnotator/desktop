@@ -41,7 +41,9 @@ class TimelineUIsRequestHandler(RequestHandler):
             return False
 
         if action_to_take == AddTimelineWithoutMedia.Result.SET_DURATION:
-            success, duration = get(Get.FROM_USER_FLOAT, "Set duration", "Insert duration")
+            success, duration = get(
+                Get.FROM_USER_FLOAT, "Set duration", "Insert duration"
+            )
             if not success:
                 return False
             post(Post.PLAYER_DURATION_AVAILABLE, duration)

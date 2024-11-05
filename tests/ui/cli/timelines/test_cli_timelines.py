@@ -10,7 +10,7 @@ from tilia.ui.actions import TiliaAction
 class TestTimelineList:
     def test_list_timelines_no_timelines(self, cli):
         with patch("builtins.print") as mock_print:
-            cli.parse_and_run('timeline list')
+            cli.parse_and_run("timeline list")
 
             printed = mock_print.call_args[0][0]
 
@@ -20,10 +20,10 @@ class TestTimelineList:
             assert "1" not in printed
 
     def test_list_timelines_single_timeline(self, cli, hierarchy_tl):
-        hierarchy_tl.set_data('name', 'test1')
+        hierarchy_tl.set_data("name", "test1")
 
         with patch("builtins.print") as mock_print:
-            cli.parse_and_run('timeline list')
+            cli.parse_and_run("timeline list")
 
             printed = mock_print.call_args[0][0]
 
@@ -33,10 +33,10 @@ class TestTimelineList:
 
     def test_list_timelines_multiple_timelines(self, cli, tls):
         for name in ["test1", "test2", "test3"]:
-            cli.parse_and_run('timeline add hrc --name ' + name)
+            cli.parse_and_run("timeline add hrc --name " + name)
 
         with patch("builtins.print") as mock_print:
-            cli.parse_and_run('timelines list')
+            cli.parse_and_run("timelines list")
 
             printed = mock_print.call_args[0][0]
 
@@ -47,7 +47,7 @@ class TestTimelineList:
 
 class TestTimelineRemove:
     def test_type_not_provided(self, cli, hierarchy_tl, tls):
-        cli.parse_and_run('timeline remove')
+        cli.parse_and_run("timeline remove")
 
         assert not tls.is_empty
 
@@ -55,19 +55,19 @@ class TestTimelineRemove:
         with Serve(Get.FROM_USER_STRING, (True, "test")):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
-        cli.parse_and_run('timeline remove name test')
+        cli.parse_and_run("timeline remove name test")
 
         assert tls.is_empty
 
     def test_remove_by_name_multiple_timelines(self, cli, tls):
         for name in ["test1", "test2", "test3"]:
-            cli.parse_and_run('timeline add mrk --name ' + name)
+            cli.parse_and_run("timeline add mrk --name " + name)
 
-        cli.parse_and_run('timeline remove name test1')
+        cli.parse_and_run("timeline remove name test1")
 
         assert len(tls) == 2
 
-        cli.parse_and_run('timeline remove name test2')
+        cli.parse_and_run("timeline remove name test2")
 
         assert len(tls) == 1
 
@@ -76,7 +76,7 @@ class TestTimelineRemove:
             user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
 
         with patch("builtins.print") as mock_print:
-            cli.parse_and_run('timeline remove name othername')
+            cli.parse_and_run("timeline remove name othername")
 
             printed = mock_print.call_args[0][0]
             assert "No timeline found" in printed
@@ -84,19 +84,19 @@ class TestTimelineRemove:
 
     def test_remove_by_name_when_no_timelines(self, cli):
         with patch("builtins.print") as mock_print:
-            cli.parse_and_run('timeline remove name test')
+            cli.parse_and_run("timeline remove name test")
 
             printed = mock_print.call_args[0][0]
             assert "No timeline found" in printed
             assert "test" in printed
 
     def test_remove_by_name_name_not_provide(self, cli, tls, hierarchy_tl):
-        cli.parse_and_run('timeline remove name')
+        cli.parse_and_run("timeline remove name")
 
         assert not tls.is_empty
 
     def test_remove_by_ordinal_one_timeline(self, cli, tls, hierarchy_tl):
-        cli.parse_and_run('timeline remove ordinal 1')
+        cli.parse_and_run("timeline remove ordinal 1")
 
         assert len(tls) == 0
 
@@ -104,11 +104,11 @@ class TestTimelineRemove:
         for i in range(3):
             cli.parse_and_run('timeline add hrc --name ""')
 
-        cli.parse_and_run('timeline remove ordinal 1')
+        cli.parse_and_run("timeline remove ordinal 1")
 
         assert len(tls) == 2
 
-        cli.parse_and_run('timeline remove ordinal 2')
+        cli.parse_and_run("timeline remove ordinal 2")
 
         assert len(tls) == 1
 
@@ -116,7 +116,7 @@ class TestTimelineRemove:
         tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
 
         with patch("builtins.print") as mock_print:
-            cli.parse_and_run('timeline remove ordinal 3')
+            cli.parse_and_run("timeline remove ordinal 3")
 
             printed = mock_print.call_args[0][0]
             assert "No timeline found" in printed
@@ -124,13 +124,13 @@ class TestTimelineRemove:
 
     def test_remove_by_ordinal_when_no_timelines(self, cli, tls):
         with patch("builtins.print") as mock_print:
-            cli.parse_and_run('timeline remove ordinal 1')
+            cli.parse_and_run("timeline remove ordinal 1")
 
             printed = mock_print.call_args[0][0]
             assert "No timeline found" in printed
             assert "1" in printed
 
     def test_remove_by_ordinal_ordinal_not_provided(self, cli, tls, hierarchy_tl):
-        cli.parse_and_run('timeline remove ordinal')
+        cli.parse_and_run("timeline remove ordinal")
 
         assert not tls.is_empty

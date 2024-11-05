@@ -103,7 +103,7 @@ class TestArrowSelection:
 
 class TestSetTimelineName:
     def test_set(self, tls, tluis, user_actions):
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE, name='change me')
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE, name="change me")
         with Serve(Get.FROM_USER_STRING, (True, "this")):
             user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 
@@ -134,7 +134,7 @@ class TestSetTimelineName:
         assert tluis[0].displayed_name == "tainted"
 
     def test_set_empty_string(self, tls, tluis, user_actions):
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE, name='change me')
+        tls.create_timeline(TimelineKind.MARKER_TIMELINE, name="change me")
         with Serve(Get.FROM_USER_STRING, (True, "")):
             user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
 

@@ -4,7 +4,7 @@ import pytest
 
 from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_MEDIA_DURATION
 from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
-from tests.mock import  Serve
+from tests.mock import Serve
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post, get, Get
 from tilia.timelines.timeline_kinds import (
@@ -51,35 +51,55 @@ class TestTimelineUICreation:
                 user_actions.trigger(action)
         assert len(tluis) == len(create_actions)
 
-    def test_with_no_media_loaded_set_media_duration(self, tluis, tilia_state, user_actions):
+    def test_with_no_media_loaded_set_media_duration(
+        self, tluis, tilia_state, user_actions
+    ):
         tilia_state.duration = 0
-        with Serve(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, (True, AddTimelineWithoutMedia.Result.SET_DURATION)):
+        with Serve(
+            Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA,
+            (True, AddTimelineWithoutMedia.Result.SET_DURATION),
+        ):
             with Serve(Get.FROM_USER_FLOAT, (True, 10)):
                 with Serve(Get.FROM_USER_STRING, (True, "")):
                     user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
         assert tilia_state.duration == 10
         assert len(tluis) == 1
 
-    def test_with_no_media_loaded_load_media(self, tluis, tilia_state, user_actions, resources):
+    def test_with_no_media_loaded_load_media(
+        self, tluis, tilia_state, user_actions, resources
+    ):
         tilia_state.duration = 0
-        with Serve(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA)):
+        with Serve(
+            Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA,
+            (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA),
+        ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
                 with Serve(Get.FROM_USER_STRING, (True, "")):
                     user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
         assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
         assert len(tluis) == 1
 
-    def test_with_no_media_loaded_cancel_set_media_duration(self, tluis, tilia_state, user_actions):
+    def test_with_no_media_loaded_cancel_set_media_duration(
+        self, tluis, tilia_state, user_actions
+    ):
         tilia_state.duration = 0
-        with Serve(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, (True, AddTimelineWithoutMedia.Result.SET_DURATION)):
+        with Serve(
+            Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA,
+            (True, AddTimelineWithoutMedia.Result.SET_DURATION),
+        ):
             with Serve(Get.FROM_USER_FLOAT, (False, 10)):
-                    user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+                user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
         assert tilia_state.duration == 0
         assert len(tluis) == 0
 
-    def test_with_no_media_loaded_cancelload_media(self, tluis, tilia_state, user_actions, resources):
+    def test_with_no_media_loaded_cancelload_media(
+        self, tluis, tilia_state, user_actions, resources
+    ):
         tilia_state.duration = 0
-        with Serve(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA)):
+        with Serve(
+            Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA,
+            (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA),
+        ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (False, EXAMPLE_MEDIA_PATH)):
                 user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
         assert tilia_state.duration == 0
@@ -234,7 +254,13 @@ class TestSeek:
         indirect=["tlui"],
     )
     def test_add_component_while_media_is_playing_and_slider_is_being_dragged(
-        self, tlui, request_to_serve, add_request, slider_tlui, tilia_state, user_actions
+        self,
+        tlui,
+        request_to_serve,
+        add_request,
+        slider_tlui,
+        tilia_state,
+        user_actions,
     ):
         y = slider_tlui.trough.pos().y()
         click_timeline_ui(slider_tlui, 0, y=y)

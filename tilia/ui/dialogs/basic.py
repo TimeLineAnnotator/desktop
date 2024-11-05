@@ -4,22 +4,30 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QColorDialog, QInputDialog, QMessageBox, QFileDialog
 
 
-def ask_for_color(initial: str = '#333333'):  # feel free to change this arbitrary default
+def ask_for_color(
+    initial: str = "#333333",
+):  # feel free to change this arbitrary default
     color = QColorDialog().getColor(QColor(initial))
     return color.isValid(), color  # returned color is invalid if user cancels
 
 
-def ask_for_int(title: str, prompt: str, initial: Optional[int] = 0, **kwargs) -> tuple[bool, int]:
+def ask_for_int(
+    title: str, prompt: str, initial: Optional[int] = 0, **kwargs
+) -> tuple[bool, int]:
     number, accepted = QInputDialog().getInt(None, title, prompt, initial, **kwargs)
     return accepted, number
 
 
-def ask_for_string(title: str, prompt: str, initial: Optional[str] = "") -> tuple[bool, str]:
+def ask_for_string(
+    title: str, prompt: str, initial: Optional[str] = ""
+) -> tuple[bool, str]:
     string, accepted = QInputDialog().getText(None, title, prompt, text=initial)
     return accepted, string
 
 
-def ask_for_float(title: str, prompt: str, initial: Optional[float] = 0.0) -> tuple[bool, float]:
+def ask_for_float(
+    title: str, prompt: str, initial: Optional[float] = 0.0
+) -> tuple[bool, float]:
     number, accepted = QInputDialog().getDouble(None, title, prompt, initial)
     return accepted, number
 
