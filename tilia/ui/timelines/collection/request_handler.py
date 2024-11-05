@@ -3,6 +3,7 @@ from __future__ import annotations
 import tilia.errors
 from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 from tilia.ui.request_handler import RequestHandler
 
 
@@ -33,9 +34,31 @@ class TimelineUIsRequestHandler(RequestHandler):
         self.timeline_uis = timeline_uis
         self.timelines = get(Get.TIMELINE_COLLECTION)
 
+    @staticmethod
+    def _handle_media_not_loaded() -> bool:
+        accept, action_to_take = get(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA)
+        if not accept:
+            return False
+
+        if action_to_take == AddTimelineWithoutMedia.Result.SET_DURATION:
+            success, duration = get(Get.FROM_USER_FLOAT, "Set duration", "Insert duration")
+            if not success:
+                return False
+            post(Post.PLAYER_DURATION_AVAILABLE, duration)
+        elif action_to_take == AddTimelineWithoutMedia.Result.LOAD_MEDIA:
+            success, path = get(Get.FROM_USER_MEDIA_PATH)
+            if not success:
+                return False
+            post(Post.APP_MEDIA_LOAD, path)
+        else:
+            raise ValueError(
+                f"Unknown action to take '{action_to_take}' for timeline without media."
+            )
+
+        return True
+
     def on_timeline_add(self, kind: TimelineKind):
-        if not _get_media_is_loaded():
-            tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+        if not _get_media_is_loaded() and not self._handle_media_not_loaded():
             return
         success, name = _get_timeline_name()
         kwargs = dict()
