@@ -10,3 +10,8 @@ PROMPT_CREATE_LEVEL_BELOW_MESSAGE = (
     "Node is at already lowest level."
     "\nDo you want to create a new lowest level for the child?"
 )
+ASK_ADD_TIMELINE_WITHOUT_MEDIA_DIALOG_TITLE = "No media loaded"
+ASK_ADD_TIMELINE_WITHOUT_MEDIA_DIALOG_PROMPT = "Cannot create timeline with no media loaded. What would you like to do?"
+ASK_ADD_TIMELINE_WITHOUT_MEDIA_DIALOG_LOAD_MEDIA = "Load a media file before adding the timeline."
+ASK_ADD_TIMELINE_WITHOUT_MEDIA_DIALOG_SET_MEDIA_DURATION = "Set the media duration manually."
+

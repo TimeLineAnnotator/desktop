@@ -7,6 +7,7 @@ from tilia.ui.dialogs.file import (
     ask_for_tilia_file_to_open,
     ask_for_media_file,
     ask_for_path_to_save_ogg_file, ask_for_pdf_file, ask_retry_pdf_file, ask_for_path_to_export,
+    ask_add_timeline_without_media,
 )
 from tilia.ui.dialogs.basic import (
     ask_for_directory,
@@ -40,7 +41,8 @@ class DialogManager:
             (Get.FROM_USER_MODE_PARAMS, ask_for_mode_params),
             (Get.FROM_USER_HARMONY_PARAMS, ask_for_harmony_params),
             (Get.FROM_USER_PDF_PATH, ask_for_pdf_file),
-            (Get.FROM_USER_RETRY_PDF_PATH, ask_retry_pdf_file)
+            (Get.FROM_USER_RETRY_PDF_PATH, ask_retry_pdf_file),
+            (Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, ask_add_timeline_without_media),
         }
 
         for request, callback in SERVES:

@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QFileDialog
 from tilia.media import constants as media_constants
 from tilia.constants import APP_NAME, FILE_EXTENSION
 import tilia.ui.dialogs.basic
+from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 
 APP_FILE_FILTER = f"{APP_NAME} files (*.{FILE_EXTENSION})"
 
@@ -102,3 +103,7 @@ def ask_for_media_file():
     )
 
     return _get_return_from_file_dialog(dialog)
+
+
+def ask_add_timeline_without_media() -> tuple[bool, AddTimelineWithoutMedia.Result]:
+    return AddTimelineWithoutMedia.select()

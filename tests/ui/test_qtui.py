@@ -1,10 +1,7 @@
 from unittest.mock import patch
 
 from tests.conftest import parametrize_tlui
-from tests.mock import Serve
-from tilia.requests import Get
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.actions import TiliaAction
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 
@@ -12,13 +9,6 @@ from tilia.ui.windows import WindowKind
 class TestCreateTimeline:
     def test_create(self, tls, hierarchy_tlui):
         assert not tls.is_empty
-
-    def test_create_without_media_loaded(self, tilia, tls, user_actions):
-        with Serve(Get.MEDIA_DURATION, 0):
-            with Serve(Get.FROM_USER_STRING, (True, "")):
-                user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
-
-        assert tls.is_empty
 
     def test_open_inspector_window(self, qtui, tls, tluis):
         tls.create_timeline("hierarchy")

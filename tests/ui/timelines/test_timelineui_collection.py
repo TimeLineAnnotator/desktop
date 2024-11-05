@@ -2,6 +2,7 @@ from unittest.mock import patch, Mock
 
 import pytest
 
+from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_MEDIA_DURATION
 from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
 from tests.mock import  Serve
 from tilia.media.player.base import MediaTimeChangeReason
@@ -13,7 +14,7 @@ from tilia.timelines.timeline_kinds import (
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.ui.coords import time_x_converter
-
+from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 
 ADD_TIMELINE_ACTIONS = [
     TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
@@ -50,6 +51,40 @@ class TestTimelineUICreation:
                 user_actions.trigger(action)
         assert len(tluis) == len(create_actions)
 
+    def test_with_no_media_loaded_set_media_duration(self, tluis, tilia_state, user_actions):
+        tilia_state.duration = 0
+        with Serve(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, (True, AddTimelineWithoutMedia.Result.SET_DURATION)):
+            with Serve(Get.FROM_USER_FLOAT, (True, 10)):
+                with Serve(Get.FROM_USER_STRING, (True, "")):
+                    user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+        assert tilia_state.duration == 10
+        assert len(tluis) == 1
+
+    def test_with_no_media_loaded_load_media(self, tluis, tilia_state, user_actions, resources):
+        tilia_state.duration = 0
+        with Serve(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA)):
+            with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
+                with Serve(Get.FROM_USER_STRING, (True, "")):
+                    user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
+        assert len(tluis) == 1
+
+    def test_with_no_media_loaded_cancel_set_media_duration(self, tluis, tilia_state, user_actions):
+        tilia_state.duration = 0
+        with Serve(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, (True, AddTimelineWithoutMedia.Result.SET_DURATION)):
+            with Serve(Get.FROM_USER_FLOAT, (False, 10)):
+                    user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+        assert tilia_state.duration == 0
+        assert len(tluis) == 0
+
+    def test_with_no_media_loaded_cancelload_media(self, tluis, tilia_state, user_actions, resources):
+        tilia_state.duration = 0
+        with Serve(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA)):
+            with Serve(Get.FROM_USER_MEDIA_PATH, (False, EXAMPLE_MEDIA_PATH)):
+                user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+        assert tilia_state.duration == 0
+        assert len(tluis) == 0
+
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
     def test_user_cancels_creation(self, action, tilia_state, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (False, "")):
@@ -82,20 +117,6 @@ class TestTimelineUICreation:
             post(Post.TIMELINE_VIEW_LEFT_CLICK, tlui2.view, 0, 0, 0, None, double=False)
 
         assert tluis._select_order[0] == tlui2
-
-    @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
-    def test_create_timeline_without_media_duration_fails(
-        self, action, user_actions, tilia_state, tluis
-    ):
-        tilia_state.duration = 0
-        user_actions.trigger(action)
-        assert tluis.is_empty
-
-    def test_create_timeline_without_media_duration_displays_error(self, tluis, tilia_errors, user_actions):
-        with Serve(Get.MEDIA_DURATION, 0):
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
-
-        tilia_errors.assert_error()
 
 
 class TestServe:
