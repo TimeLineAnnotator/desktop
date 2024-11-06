@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 
-from tilia.settings import settings
 from tilia.timelines.base.common import scale_discrete, crop_discrete
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -22,8 +21,8 @@ class ScoreTimeline(Timeline):
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
 
     @property
-    def default_height(self):
-        return settings.get("score_timeline", "default_height")
+    def staff_count(self):
+        return len(self.component_manager.get_existing_values_for_attr('index', ComponentKind.STAFF))
     
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass

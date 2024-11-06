@@ -24,7 +24,7 @@ class ClefUI(TimelineUIElementWithCollision):
         return Path('ui', 'img', self.get_data('icon'))
 
     def _setup_body(self):
-        self.body = ClefBody(self.x, self.height(), self.icon_path)
+        self.body = ClefBody(self.x, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')), self.height(), self.icon_path)
         self.body.moveBy(self.x_offset, 0)
         self.scene.addItem(self.body)
 
@@ -35,7 +35,7 @@ class ClefUI(TimelineUIElementWithCollision):
         return [self.body]
 
     def update_position(self):
-        self.body.set_position(self.x + self.x_offset)
+        self.body.set_position(self.x + self.x_offset, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')))
 
     def central_step(self) -> tuple[int, int]:
         return self.get_data('central_step')()
@@ -45,11 +45,11 @@ class ClefUI(TimelineUIElementWithCollision):
 
 
 class ClefBody(QGraphicsPixmapItem):
-    def __init__(self, x: float, height: float, path: Path):
+    def __init__(self, x: float, y: float, height: float, path: Path):
         super().__init__()
         self.set_icon(str(path.resolve()))
         self.set_height(height)
-        self.set_position(x)
+        self.set_position(x, y)
 
     def set_icon(self, path: str):
         self.setPixmap(QPixmap(path))
@@ -57,5 +57,5 @@ class ClefBody(QGraphicsPixmapItem):
     def set_height(self, height: float):
         self.setPixmap(self.pixmap().scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
 
-    def set_position(self, x: float):
-        self.setPos(x, 0)
+    def set_position(self, x: float, y: float):
+        self.setPos(x, y)

@@ -30,7 +30,7 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
         return get_x_by_time(self.get_data('time'))
 
     def _setup_body(self):
-        self.body = TimeSignatureBody(self.x, self.get_icon_path(self.get_data('numerator')), self.get_icon_path(self.get_data('denominator')))
+        self.body = TimeSignatureBody(self.x, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')), self.get_icon_path(self.get_data('numerator')), self.get_icon_path(self.get_data('denominator')))
         self.body.moveBy(self.x_offset, 0)
         self.scene.addItem(self.body)
 
@@ -38,7 +38,7 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
         return [self.body]
 
     def update_position(self):
-        self.body.set_position(self.x + self.x_offset + (self.margin_x if self.x_offset is not None else 0))
+        self.body.set_position(self.x + self.x_offset + (self.margin_x if self.x_offset is not None else 0), self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')))
 
     def selection_triggers(self):
         return []
@@ -48,11 +48,11 @@ class TimeSignatureBody(QGraphicsItem):
     PIXMAP_HEIGHT = 12
     TOP_MARGIN = 10
 
-    def __init__(self, x: float, numerator_path: Path, denominator_path: Path):
+    def __init__(self, x: float, y: float, numerator_path: Path, denominator_path: Path):
         super().__init__()
         self.set_numerator_item(str(numerator_path.resolve()))
         self.set_denominator_item(str(denominator_path.resolve()))
-        self.set_position(x)
+        self.set_position(x, y)
 
     def set_numerator_item(self, path: str):
         self.numerator_item = QGraphicsPixmapItem(QPixmap(path).scaledToHeight(self.PIXMAP_HEIGHT, mode=Qt.TransformationMode.SmoothTransformation), self)
@@ -61,8 +61,8 @@ class TimeSignatureBody(QGraphicsItem):
         self.denominator_item = QGraphicsPixmapItem(QPixmap(path).scaledToHeight(self.PIXMAP_HEIGHT, mode=Qt.TransformationMode.SmoothTransformation), self)
         self.denominator_item.setPos(0, self.numerator_item.pixmap().height())
 
-    def set_position(self, x: float):
-        self.setPos(x, self.TOP_MARGIN)
+    def set_position(self, x: float, y: float):
+        self.setPos(x, y + self.TOP_MARGIN)
 
     def boundingRect(self):
         return self.numerator_item.boundingRect().united(self.denominator_item.boundingRect())

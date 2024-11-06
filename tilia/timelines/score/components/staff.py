@@ -5,8 +5,8 @@ from tilia.timelines.score.timeline import ScoreTimeline
 
 
 class Staff(TimelineComponent):
-    SERIALIZABLE_BY_VALUE = ['line_count', 'position']
-    ORDERING_ATTRS = ('position',)
+    SERIALIZABLE_BY_VALUE = ['line_count', 'index']
+    ORDERING_ATTRS = ('index',)
 
     KIND = ComponentKind.STAFF
 
@@ -14,16 +14,16 @@ class Staff(TimelineComponent):
         'timeline': lambda _: False,  # read-only
         'id': lambda _: False,  # read-only
         "line_count": validate_positive_integer,
-        "position": validate_positive_integer,
+        "index": validate_positive_integer,
 
     }
 
-    def __init__(self, timeline: ScoreTimeline, id: int, position: int, line_count: int):
+    def __init__(self, timeline: ScoreTimeline, id: int, index: int, line_count: int):
 
-        self.position = position
+        self.index = index
         self.line_count = line_count
 
         super().__init__(timeline, id)
 
     def __str__(self):
-        return f"Staff({self.line_count, self.position})"
+        return f"Staff({self.line_count, self.index})"

@@ -24,7 +24,7 @@ def test_create_staff(score_tlui, staff):
 
 @pytest.mark.parametrize('shorthand', Clef.Shorthand)
 def test_create_clef(score_tlui, shorthand):
-    score_tlui.create_component(ComponentKind.CLEF, 0, shorthand=shorthand)
+    score_tlui.create_component(ComponentKind.CLEF, 0, 0, shorthand=shorthand)
     assert score_tlui[0]
 
 
@@ -38,5 +38,5 @@ def test_create_time_signature(score_tlui, time_signature):
 
 @pytest.mark.parametrize('fifths', range(-7, 8))
 def test_create_key_signature(score_tlui, fifths):
-    score_tlui.create_component(ComponentKind.KEY_SIGNATURE, 0, fifths)
+    score_tlui.create_component(ComponentKind.KEY_SIGNATURE, 0, 0, fifths)
     assert score_tlui[0]
