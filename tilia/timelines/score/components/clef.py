@@ -31,6 +31,7 @@ class Clef(TimelineComponent):
         self,
         timeline: ScoreTimeline,
         id: int,
+        staff_index: int,
         time: float | None = None,
         line_number: int | None = None,
         step: int | None = None,
@@ -39,6 +40,7 @@ class Clef(TimelineComponent):
         shorthand: Shorthand | None = None,
     ):
 
+        self.staff_index = staff_index
         self.time = time
         if shorthand:
             self.from_shorthand(shorthand)

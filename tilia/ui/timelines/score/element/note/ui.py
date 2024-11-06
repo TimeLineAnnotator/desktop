@@ -60,7 +60,8 @@ class NoteUI(TimelineUIElement):
         self.scene.addItem(self.body)
 
     def _setup_supplementary_line(self):
-        bounding_steps = self.timeline_ui.get_staff_bounding_steps(self.get_data('start'))
+        staff_index = self.get_data('staff_index')
+        bounding_steps = self.timeline_ui.get_staff_bounding_steps(self.get_data('start'), staff_index)
         if not bounding_steps:
             # No staff has been created
             self.supplementary_line = None
@@ -95,7 +96,7 @@ class NoteUI(TimelineUIElement):
 
         if supplementary_line_count:
             self.supplementary_line = NoteSupplementaryLines(
-                *self.get_supplementary_line_args(direction, supplementary_line_count),
+                *self.get_supplementary_line_args(direction, supplementary_line_count, staff_index),
             )
             for line in self.supplementary_line.lines:
                 self.scene.addItem(line)
@@ -124,10 +125,10 @@ class NoteUI(TimelineUIElement):
     
     @property
     def top_y(self):
-        central_step, central_octave = self.timeline_ui.get_clef_by_time(self.get_data('start')).central_step()
+        central_step, central_octave = self.timeline_ui.get_clef_by_time(self.get_data('start'), self.get_data('staff_index')).central_step()
 
         note_height = self.note_height()
-        middle_y = self.timeline_ui.get_data('height') / 2
+        middle_y = self.timeline_ui.get_staff_middle_y(self.get_data('staff_index'))
         note_offset = (self.get_data('step') - central_step) * note_height / 2
         octave_offset = (self.get_data('octave') - central_octave) * note_height / 2 * 7
         return middle_y - note_offset - octave_offset - note_height / 2
@@ -157,18 +158,18 @@ class NoteUI(TimelineUIElement):
             else get_tinted_color(base_color, TINT_FACTOR_ON_SELECTION)
         )
 
-    def get_supplementary_line_args(self, direction: NoteSupplementaryLines.Direction, line_count: int):
+    def get_supplementary_line_args(self, direction: NoteSupplementaryLines.Direction, line_count: int, staff_index: int):
         return (
             direction,
             line_count,
-            *self.get_supplementary_line_position_args(direction),
+            *self.get_supplementary_line_position_args(direction, staff_index),
         )
 
-    def get_supplementary_line_position_args(self, direction: NoteSupplementaryLines.Direction):
+    def get_supplementary_line_position_args(self, direction: NoteSupplementaryLines.Direction, staff_index: int):
         if direction == NoteSupplementaryLines.Direction.UP:
-            y1 = self.timeline_ui.get_staff_top_y()
+            y1 = self.timeline_ui.get_staff_top_y(staff_index)
         else:
-            y1 = self.timeline_ui.get_staff_bottom_y()
+            y1 = self.timeline_ui.get_staff_bottom_y(staff_index)
         return self.start_x - self.supplementary_line_offset(), self.end_x + self.supplementary_line_offset(), y1, self.note_height()
 
     @staticmethod
@@ -213,7 +214,7 @@ class NoteUI(TimelineUIElement):
     def update_time(self):
         self.body.set_position(self.start_x, self.end_x, self.top_y, self.note_height())
         if self.supplementary_line:
-            self.supplementary_line.set_position(*self.get_supplementary_line_position_args(self.supplementary_line.direction))
+            self.supplementary_line.set_position(*self.get_supplementary_line_position_args(self.supplementary_line.direction, self.get_data('staff_index')))
         if self.accidental:
             self.accidental.set_position(*self.get_accidental_position(self.get_data('accidental')))
 

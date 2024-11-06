@@ -22,7 +22,7 @@ class TestCreateClef:
 
     @pytest.mark.parametrize('shorthand', Clef.Shorthand)
     def test_create_with_shorthand(self, shorthand, score_tl):
-        score_tl.create_component(ComponentKind.CLEF, 0, shorthand=shorthand)
+        score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=shorthand)
         assert len(score_tl) == 1
 
 

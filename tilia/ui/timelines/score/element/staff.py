@@ -24,7 +24,7 @@ class StaffUI(TimelineUIElement):
 
     @property
     def middle_y(self):
-        return self.timeline_ui.get_data('height') / 2
+        return self.timeline_ui.get_staff_middle_y(self.get_data('index'))
 
     def top_y(self):
         return self.staff_lines.lines[0].line().y1()

@@ -26,10 +26,10 @@ OCTAVE_TO_PC = {
 
 
 class Note(SegmentLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["start", "end", "step", "accidental", "octave", "color", "comments", "display_accidental"]
+    SERIALIZABLE_BY_VALUE = ["start", "end", "step", "accidental", "octave", "staff_index", "color", "comments", "display_accidental"]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
-    ORDERING_ATTRS = ("start", "end", "pitch")
+    ORDERING_ATTRS = ("start", "end", "pitch", "staff_index")
 
     KIND = ComponentKind.NOTE
 
@@ -41,6 +41,7 @@ class Note(SegmentLikeTimelineComponent):
         "step": validate_step,
         "accidental": validate_accidental,
         "octave": validate_integer,
+        "staff_index": validate_integer,
         "color": validate_color,
         "comments": validate_string,
     }
@@ -54,6 +55,7 @@ class Note(SegmentLikeTimelineComponent):
         step: int,
         accidental: int,
         octave: int,
+        staff_index: int,
         display_accidental: bool = False,
         label="",
         color=None,
@@ -67,6 +69,7 @@ class Note(SegmentLikeTimelineComponent):
         self.accidental = accidental
         self.display_accidental = display_accidental
         self.octave = octave
+        self.staff_index = staff_index
         self.label = label
         self.color = color
         self.comments = comments
@@ -74,7 +77,7 @@ class Note(SegmentLikeTimelineComponent):
         super().__init__(timeline, id)
 
     def __str__(self):
-        return f"Note({self.start, self.end, })"
+        return f"Note({self.start, self.end, self.pitch, self.staff_index})"
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))

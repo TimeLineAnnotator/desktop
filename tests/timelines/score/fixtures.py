@@ -24,8 +24,9 @@ def score_tl(tls):
 
 @pytest.fixture
 def note(score_tl):
-    score_tl.create_component(ComponentKind.CLEF, 0, shorthand=Clef.Shorthand.TREBLE)
-    return score_tl.create_component(ComponentKind.NOTE, 0, 0, 0, 0, 3)[0]
+    score_tl.create_component(ComponentKind.STAFF, 0, 5)
+    score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)
+    return score_tl.create_component(ComponentKind.NOTE, 0, 0, 0, 0, 3, 0)[0]
 
 
 @pytest.fixture
@@ -45,7 +46,7 @@ def staff_ui(score_tlui, staff):
 
 @pytest.fixture
 def clef(score_tl):
-    return score_tl.create_component(ComponentKind.CLEF, 0, shorthand=Clef.Shorthand.TREBLE)[0]
+    return score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)[0]
 
 
 @pytest.fixture
@@ -65,7 +66,7 @@ def bar_line_ui(score_tlui, bar_line):
 
 @pytest.fixture
 def time_signature(score_tl):
-    return score_tl.create_component(ComponentKind.TIME_SIGNATURE, 0, 4, 4)[0]
+    return score_tl.create_component(ComponentKind.TIME_SIGNATURE, 0, 0, 4, 4)[0]
 
 
 @pytest.fixture
@@ -75,4 +76,4 @@ def time_signature_ui(score_tlui, time_signature):
 
 @pytest.fixture
 def key_signature(score_tl):
-    return score_tl.create_component(ComponentKind.KEY_SIGNATURE, 0, 0)[0]
+    return score_tl.create_component(ComponentKind.KEY_SIGNATURE, 0, 0, 0)[0]

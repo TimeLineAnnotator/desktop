@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from PyQt6.QtCore import QLineF
 from PyQt6.QtGui import QPen, QColor
 from PyQt6.QtWidgets import QGraphicsLineItem, QGraphicsScene
 
@@ -21,19 +22,19 @@ class BarLineUI(TimelineUIElement):
         self._setup_body()
 
     def child_items(self):
-        return [self.body]
+        return self.body.lines
 
     def get_body_args(self):
         time = self.get_data('time')
         return (
             get_x_by_time(time),
-            self.timeline_ui.get_staff_top_y(),
-            self.timeline_ui.get_staff_bottom_y(),
+            self.timeline_ui.get_staves_y_coordinates(),
         )
 
     def _setup_body(self):
         self.body = BarLineBody(*self.get_body_args())
-        self.scene.addItem(self.body)
+        for line in self.body.lines:
+            self.scene.addItem(line)
 
     def update_position(self):
         self.body.set_position(*self.get_body_args())
@@ -42,18 +43,20 @@ class BarLineUI(TimelineUIElement):
         return []
 
 
-class BarLineBody(QGraphicsLineItem):
-    def __init__(self, x, y0, y1):
+class BarLineBody:
+    def __init__(self, x, ys: list[tuple[float, float]]):
         super().__init__()
-        self.set_position(x, y0, y1)
-        self.set_pen()
+        self._setup_lines(x, ys)
 
-    def set_position(self, x, y0, y1):
-        self.setLine(x, y0, x, y1)
-
-    def set_pen(self):
+    def _setup_lines(self, x: float, ys: list[tuple[float, float]]):
+        self.lines = [QGraphicsLineItem() for _ in range(len(ys))]
         pen = QPen(QColor("black"))
         pen.setWidth(1)
-        self.setPen(pen)
+        for line in self.lines:
+            line.setPen(pen)
+        self.set_position(x, ys)
 
-
+    def set_position(self, x: float, ys: list[tuple[float, float]]):
+        for line in self.lines:
+            y0, y1 = ys.pop(0)
+            line.setLine(QLineF(x, y0, x, y1))

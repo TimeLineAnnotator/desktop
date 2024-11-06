@@ -26,16 +26,16 @@ class ScoreTimelineUI(TimelineUI):
 
     CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
 
+    STAFF_VERTICAL_AREA = 150
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
-        self.clef_time_cache: dict[tuple[int, int], ClefUI] = {}
+        self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
 
-    def on_settings_updated(self, updated_settings):        
-        if "score_timeline" in updated_settings:  
-            get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
-            for element in self:
-                element.update_position()
+    def on_settings_updated(self, updated_settings):
+        if "score_timeline" in updated_settings:
+            pass
 
     def on_timeline_element_request(
         self, request, selector: ElementSelector, *args, **kwargs
@@ -44,24 +44,41 @@ class ScoreTimelineUI(TimelineUI):
             request, selector, *args, **kwargs
         )
 
-    def get_staff_top_y(self) -> float:
-        staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
+    def get_staves_y_coordinates(self):
+        staves = self.element_manager.get_elements_by_attribute('kind', ComponentKind.STAFF)
+        return [(s.top_y(), s.bottom_y()) for s in staves]
+
+    def get_staff_top_y(self, index: int) -> float:
+        staves = self.element_manager.get_elements_by_attribute('kind', ComponentKind.STAFF)
+        staff = next((s for s in staves if s.get_data('index') == index))
         return staff.top_y() if staff else 0
 
-    def get_staff_bottom_y(self) -> float:
-        staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
+    def get_staff_bottom_y(self, index: int) -> float:
+        staves = self.element_manager.get_elements_by_attribute('kind', ComponentKind.STAFF)
+        staff = next((s for s in staves if s.get_data('index') == index))
         return staff.bottom_y() if staff else 0
+
+    def get_staff_middle_y(self, index: int) -> float:
+        return index * self.STAFF_VERTICAL_AREA + self.STAFF_VERTICAL_AREA / 2
 
     def get_height_for_symbols_above_staff(self) -> int:
         return 50
 
+    def get_y_for_symbols_above_staff(self, staff_index: int) -> int:
+        return self.STAFF_VERTICAL_AREA * staff_index
+
     def on_timeline_component_created(self, kind: ComponentKind, id: int):
         element = super().on_timeline_component_created(kind, id)
+        if kind == ComponentKind.STAFF:
+            self.update_height()
+            return
+
         try:
             time = element.get_data('time')
+            staff_index = element.get_data('staff_index')
         except GetComponentDataError:
             return
-        if overlapping_components := self._get_overlap(time, kind):
+        if overlapping_components := self._get_overlap(staff_index, time, kind):
             component_to_offset = self._get_offsets_for_overlapping_elements(overlapping_components)
             for component in overlapping_components:
                 component.x_offset = component_to_offset[component]
@@ -71,33 +88,36 @@ class ScoreTimelineUI(TimelineUI):
             # so we cache them here
             self.clef_time_cache = self.get_clef_time_cache()
 
-    def get_clef_time_cache(self) -> dict[tuple[int, int], ClefUI]:
+    def get_clef_time_cache(self) -> dict[int, dict[tuple[int, int], ClefUI]]:
         cache = {}
         start_time = 0
-        clefs = self.element_manager.get_elements_by_attribute('kind', ComponentKind.CLEF)
-        prev_clef = clefs[0]
-        for clef in clefs[1:]:
-            time = clef.get_data('time')
-            cache[(start_time, time)] = prev_clef
-            start_time = time
-            prev_clef = clef
+        all_clefs = self.element_manager.get_elements_by_attribute('kind', ComponentKind.CLEF)
+        for idx in set([clef.get_data('staff_index') for clef in all_clefs]):
+            clefs_in_staff = [clef for clef in all_clefs if clef.get_data('staff_index') == idx]
+            cache[idx] = {}
+            prev_clef = clefs_in_staff[0]
+            for clef in clefs_in_staff[1:]:
+                time = clef.get_data('time')
+                cache[idx][(start_time, time)] = prev_clef
+                start_time = time
+                prev_clef = clef
 
-        cache[(start_time, get(Get.MEDIA_DURATION))] = clefs[-1]
+            cache[idx][(start_time, get(Get.MEDIA_DURATION))] = clefs_in_staff[-1]
         return cache
 
-    def get_clef_by_time(self, time: float) -> ClefUI:
-        for (start, end) in self.clef_time_cache.keys():
+    def get_clef_by_time(self, time: float, staff_index: int) -> ClefUI:
+        for (start, end) in self.clef_time_cache[staff_index].keys():
             if start <= time < end:
-                return self.clef_time_cache[(start, end)]
+                return self.clef_time_cache[staff_index][(start, end)]
 
-    def _get_overlap(self, time: float, kind: ComponentKind) -> list[TimelineUIElementWithCollision]:
+    def _get_overlap(self, staff_index: float, time: float, kind: ComponentKind) -> list[TimelineUIElementWithCollision]:
         # Elements will be displayed in the order below
         overlapping_kinds = [ComponentKind.CLEF, ComponentKind.KEY_SIGNATURE, ComponentKind.TIME_SIGNATURE]
 
         if kind not in overlapping_kinds:
             return []
 
-        overlapping = [c for c in self if c.kind in overlapping_kinds and c.get_data('time') == time]
+        overlapping = [c for c in self if c.kind in overlapping_kinds and c.get_data('time') == time and c.get_data('staff_index') == staff_index]
         overlapping = sorted(overlapping, key=lambda c: overlapping_kinds.index(c.kind))
         return overlapping if len(overlapping) > 1 else []
 
@@ -113,7 +133,7 @@ class ScoreTimelineUI(TimelineUI):
 
         return element_to_offset
 
-    def get_staff_bounding_steps(self, time: float) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    def get_staff_bounding_steps(self, time: float, staff_index: int) -> tuple[tuple[int, int], tuple[int, int]] | None:
         """
         Returns a tuple of the form ((step_lower, octave_lower), (step_upper, octave_upper)) where:
         - step_lower is the step of the lowest staff line
@@ -124,7 +144,8 @@ class ScoreTimelineUI(TimelineUI):
         """
         staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
         clefs = self.element_manager.get_elements_by_attribute('kind', ComponentKind.CLEF)
-        clef = self.element_manager.get_previous_element_by_time(time + 0.01, sorted(clefs))
+        clefs_in_staff = [clef for clef in clefs if clef.get_data('staff_index') == staff_index]
+        clef = self.element_manager.get_previous_element_by_time(time + 0.01, sorted(clefs_in_staff))
         if not staff:
             return None
         line_count = staff.get_data('line_count')
@@ -145,3 +166,7 @@ class ScoreTimelineUI(TimelineUI):
             lower_step += 7
 
         return (lower_step, clef_octave + lower_step_octave_diff), (upper_step % 7, clef_octave + upper_step_octave_diff)
+
+    def update_height(self):
+        self.scene.set_height(self.STAFF_VERTICAL_AREA * self.get_data('staff_count'))
+        self.view.set_height(self.STAFF_VERTICAL_AREA * self.get_data('staff_count'))
