@@ -34,6 +34,10 @@ def validate_integer(value):
     return isinstance(value, int)
 
 
+def validate_non_negative_integer(value):
+    return isinstance(value, int) and value >= 0
+
+
 def validate_positive_integer(value):
     return isinstance(value, int) and value > 0
 
