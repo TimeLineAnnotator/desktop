@@ -1,12 +1,11 @@
 # NOT COMPLETE
 # TODO:
-#     - Put elements into correct stave
 #     - Add <tie>
 #     - correct accidentals based on key signature
-
+import itertools
 from pathlib import Path
 from zipfile import ZipFile
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
@@ -78,7 +77,7 @@ def notes_from_musicXML(
         a = beat_tl.get_time_by_measure(**ms.get_fraction(measure_number, division))
         return a
 
-    def _parse_attributes(attributes: ET.Element | Any, part_index: int):
+    def _parse_attributes(attributes: ET.Element | Any, part_id: str):
         times = _metric_to_time(ms.measure_num[1], ms.div_position[1])
         for attribute in attributes:
             constructor_kwargs = dict()
@@ -91,8 +90,8 @@ def notes_from_musicXML(
                 case "key":
                     constructor_kwargs = {
                         "fifths": int(attribute.find("fifths").text),
-                        # "part_index": part_index,
                     }
+                    staff_numbers = list(part_id_to_staves[part_id].keys())
                     component_kind = ComponentKind.KEY_SIGNATURE
                 case "time":
                     ts_numerator = int(attribute.find("beats").text)
@@ -101,8 +100,9 @@ def notes_from_musicXML(
                     constructor_kwargs = {
                         "numerator": ts_numerator,
                         "denominator": ts_denominator,
-                        # "part_index": part_index,
+                        "staff_index": part_id_to_staves[part_id],
                     }
+                    staff_numbers = list(part_id_to_staves[part_id].keys())
                     component_kind = ComponentKind.TIME_SIGNATURE
                 case "clef":
                     sign = attribute.find("sign").text
@@ -122,19 +122,20 @@ def notes_from_musicXML(
                         "icon": Clef.ICON.get(sign),
                         "step": NOTE_NAME_TO_INT[sign],
                         "octave": sign_to_octave[sign] + octave_change,
-                        # "part_index": part_index,
                     }
+                    staff_numbers = [attribute.get("number")]
                     component_kind = ComponentKind.CLEF
                 case _:
                     continue
 
             for time in times:
-                _create_component(
-                    component_kind,
-                    constructor_kwargs | {"time": time},
-                )
+                for staff_number in staff_numbers:
+                    _create_component(
+                        component_kind,
+                        constructor_kwargs | {"time": time, 'staff_index': part_id_to_staves[part_id][staff_number]},
+                    )
 
-    def _parse_note(element: ET.Element | Any, part_index: int):
+    def _parse_note(element: ET.Element | Any, part_id: str):
         if element.find("grace") is not None:
             errors.append(f"<grace> not implemented.")
             return
@@ -174,7 +175,7 @@ def notes_from_musicXML(
         end_times = _metric_to_time(
             ms.measure_num[1], ms.div_position[0 if is_chord else 1] + duration
         )
-        # constructor_kwargs["part_index"] = part_index
+        constructor_kwargs["staff_index"] = part_id_to_staves[part_id][element.find('staff').text]
         if not is_chord:
             ms.update_measure_position(duration)
 
@@ -184,12 +185,12 @@ def notes_from_musicXML(
                 constructor_kwargs | {"start": start, "end": end},
             )
 
-    def _parse_element(element: ET.Element | Any, part_index: int):
+    def _parse_element(element: ET.Element | Any, part_id: str):
         match element.tag:
             case "attributes":
-                _parse_attributes(element, part_index)
+                _parse_attributes(element, part_id)
             case "note":
-                _parse_note(element, part_index)
+                _parse_note(element, part_id)
             case "backup":
                 duration = int(element.find("duration").text)
                 ms.update_measure_position(-duration)
@@ -199,11 +200,11 @@ def notes_from_musicXML(
             case _:
                 pass
 
-    def _parse_partwise(part: ET.Element | Any, part_index: int):
+    def _parse_partwise(part: ET.Element | Any, part_id: str):
         for measure in part.findall("measure"):
             ms.update_measure_number(int(measure.attrib["number"]))
             for element in measure:
-                _parse_element(element, part_index)
+                _parse_element(element, part_id)
 
             times = _metric_to_time(ms.measure_num[1], ms.div_position[1])
             for time in times:
@@ -211,7 +212,6 @@ def notes_from_musicXML(
                     ComponentKind.BAR_LINE,
                     {
                         "time": time,
-                        #   "part_index": part_index
                     },
                 )
 
@@ -219,7 +219,7 @@ def notes_from_musicXML(
         ms.update_measure_number(int(measure.attrib["number"]))
         div_position_start = ms.div_position
         for part in measure.findall("part"):
-            part_index = parts[part.get("id")]
+            part_index = part_id_to_staves[part.get("id")]
             for element in part:
                 _parse_element(element, part_index)
 
@@ -229,27 +229,46 @@ def notes_from_musicXML(
                     ComponentKind.BAR_LINE,
                     {
                         "time": time,
-                        #   "part_index": part_index
+                          "staff_index": part_index
                     },
                 )
 
             ms.div_position = div_position_start
 
-    with TiliaMXLReader(path, file_kwargs, reader_kwargs) as reader:
-        for score_part in reader.findall("part-list/score-part"):
-            parts[score_part.get("id")] = _create_component(
-                ComponentKind.STAFF,
-                {
-                    "position": len(parts),
-                    "line_count": 5,
-                },
-            )
+    def _parse_staves(xml_type: Literal['partwise', 'timewise'], tree: ET):
+        staff_counter = itertools.count()
+        first_level = 'part' if xml_type == 'partwise' else 'measure'
+        second_level = 'measure' if xml_type == 'partwise' else 'part'
 
-        match reader.tag:
-            case "score-partwise":
+        part_id_to_staves = {}
+        for element in tree.findall(first_level):
+            part_id_to_staves[element.get("id")] = {}
+            staff_numbers = set(staff.text for staff in element.findall(second_level + "/note/staff"))
+            for number in staff_numbers:
+                staff_index = next(staff_counter)
+                _create_component(
+                    ComponentKind.STAFF,
+                    {
+                        "index": staff_index,
+                        "line_count": 5,
+                    },
+                )
+                part_id_to_staves[element.get("id")][number] = staff_index
+
+        return part_id_to_staves
+
+    with TiliaMXLReader(path, file_kwargs, reader_kwargs) as reader:
+
+        xml_type = 'partwise' if reader.tag == 'score-partwise' else 'timewise'
+
+        part_id_to_staves = _parse_staves(xml_type, reader)
+
+        match xml_type:
+            case "partwise":
                 for part in reader.findall("part"):
-                    _parse_partwise(part, parts[part.get("id")])
-            case "score-timewise":
+                    _parse_partwise(part, part.get("id"))
+
+            case "timewise":
                 for measure in reader.findall("measure"):
                     ms.update_measure_number(int(measure.attrib["number"]))
                     pass
