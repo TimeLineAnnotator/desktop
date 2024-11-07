@@ -12,19 +12,15 @@ from tilia.ui.timelines.pdf import PdfTimelineUI, PdfMarkerUI
 
 
 class TestPdfTimelineUI(PdfTimelineUI):
-    def create_component(
-            self,
-            time=0,
-            **kwargs
-    ) -> tuple[PdfMarker, PdfMarkerUI]: ...
+    def create_component(self, time=0, **kwargs) -> tuple[PdfMarker, PdfMarkerUI]:
+        ...
 
-    def create_pdf_marker(
-            self, time=0, **kwargs
-    ) -> tuple[PdfMarker, PdfMarkerUI]: ...
+    def create_pdf_marker(self, time=0, **kwargs) -> tuple[PdfMarker, PdfMarkerUI]:
+        ...
 
 
 @pytest.fixture
-def pdf_tlui(pdf_tl, tluis) -> TestPdfTimelineUI:
+def pdf_tlui(pdf_tl, tluis):
 
     ui = tluis.get_timeline_ui(pdf_tl.id)
 
@@ -37,9 +33,11 @@ def pdf_tlui(pdf_tl, tluis) -> TestPdfTimelineUI:
 @pytest.fixture
 def pdf_tl(tls):
     with Serve(Get.FROM_USER_RETRY_PDF_PATH, (False, False)):
-        tl: PdfTimeline = tls.create_timeline(TlKind.PDF_TIMELINE, path='')
+        tl: PdfTimeline = tls.create_timeline(TlKind.PDF_TIMELINE, path="")
     tl.clear()  # delete initial pdf marker
-    tl.create_pdf_marker = functools.partial(tl.create_component, ComponentKind.PDF_MARKER)
+    tl.create_pdf_marker = functools.partial(
+        tl.create_component, ComponentKind.PDF_MARKER
+    )
 
     yield tl
 
@@ -58,4 +56,3 @@ def pdf_marker(pdf_tl):
 @pytest.fixture
 def pdf_marker_ui(pdf_tlui, pdf_marker):
     return pdf_tlui.get_element(pdf_marker.id)
-
