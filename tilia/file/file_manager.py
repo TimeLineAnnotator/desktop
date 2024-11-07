@@ -12,6 +12,7 @@ from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile, validate_tla_data
 from tilia.file.media_metadata import MediaMetadata
 import tilia.errors
+from tilia.settings import settings
 
 
 def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
@@ -175,6 +176,12 @@ class FileManager:
         write_tilia_file_to_disk(TiliaFile(**data), str(path))
         data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
         self.file = TiliaFile(**data)
+
+        try:
+            geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
+        except tilia.exceptions.NoReplyToRequest:
+            geometry, window_state = None, None
+        settings.update_recent_files(path, geometry, window_state)
 
     def new(self):
         self.file = TiliaFile()
