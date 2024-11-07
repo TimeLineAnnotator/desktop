@@ -13,7 +13,6 @@ from tilia.ui.dialogs.file import (
     ask_add_timeline_without_media,
 )
 from tilia.ui.dialogs.basic import (
-    ask_for_directory,
     ask_for_string,
     ask_for_float,
     ask_for_int,
@@ -28,7 +27,6 @@ class DialogManager:
     def __init__(self):
         SERVES = {
             (Get.FROM_USER_SHOULD_SAVE_CHANGES, ask_should_save_changes),
-            (Get.FROM_USER_DIR, ask_for_directory),
             (Get.FROM_USER_SAVE_PATH_TILIA, ask_for_path_to_save_tilia_file),
             (Get.FROM_USER_SAVE_PATH_OGG, ask_for_path_to_save_ogg_file),
             (Get.FROM_USER_EXPORT_PATH, ask_for_path_to_export),
