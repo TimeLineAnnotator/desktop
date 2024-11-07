@@ -164,7 +164,7 @@ def resources() -> Path:
 
 
 @pytest.fixture(scope="module")
-def use_test_settings(qapplication) -> None:
+def use_test_settings(qapplication):
     settings_module.settings._settings = QSettings(
         constants_module.APP_NAME, f"DesktopTests"
     )
