@@ -97,7 +97,7 @@ class TestGetTimelinesForImport:
     @staticmethod
     def run_test_case(case: ImportTestCase, tls):
         for kind, name in case.timelines:
-            with Serve(Get.FROM_USER_BEAT_PATTERN, [2]):
+            with Serve(Get.FROM_USER_BEAT_PATTERN, (True, [2])):
                 tls.create_timeline(kind=kind, name=name)
 
         tl, ref_tl = get_timelines_for_import(*case.get_timelines_params)
