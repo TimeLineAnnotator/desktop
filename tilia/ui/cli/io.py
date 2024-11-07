@@ -27,13 +27,6 @@ def ask_for_string(prompt: str) -> str:
     return input(prompt)
 
 
-def ask_for_directory(prompt: str) -> str:
-    """
-    Prompts the user for a directory
-    """
-    return input(prompt)
-
-
 def ask_yes_or_no(prompt: str) -> bool:
     """
     Prompts the user for a yes or no answer

@@ -22,7 +22,7 @@ from tilia.ui.cli import (
     open,
     export,
 )
-from tilia.ui.cli.io import ask_yes_or_no, ask_for_directory
+from tilia.ui.cli.io import ask_yes_or_no
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
 
 

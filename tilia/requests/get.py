@@ -15,7 +15,6 @@ class Get(Enum):
     FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA = auto()
     FROM_USER_BEAT_PATTERN = auto()
     FROM_USER_COLOR = auto()
-    FROM_USER_DIR = auto()
     FROM_USER_EXPORT_PATH = auto()
     FROM_USER_FILE_PATH = auto()
     FROM_USER_FLOAT = auto()

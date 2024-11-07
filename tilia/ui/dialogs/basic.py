@@ -54,11 +54,6 @@ def ask_yes_or_no(title: str, prompt: str) -> bool:
     return QMessageBox().question(None, title, prompt) == QMessageBox.StandardButton.Yes
 
 
-def ask_for_directory(title: str) -> tuple[bool, str]:
-    dir = QFileDialog().getExistingDirectory(None, title)
-    return bool(dir), dir
-
-
 def _truncate_error_message(message: str):
     if len(lines := message.split("\n")) > 35:
         message = "\n".join(lines[:35]) + "\n..."
