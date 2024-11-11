@@ -134,6 +134,25 @@ class SvgWidget(QSvgWidget):
 
         return super().mousePressEvent(a0)
 
+    def mouseMoveEvent(self, a0):
+        if self.selection_box is not None:
+            if self.selection_mode is self.SELECTION_MODE.MOVE:
+                self.move_annotation(
+                    self.selection_box.bottomLeft(), a0.position(), False
+                )
+                self.selection_box.moveBottomLeft(a0.position())
+            else:
+                self.selection_box.close_box(a0.position())
+                sb = QPolygon(self.selection_box.toAlignedRect(), True)
+                self.new_selection = {
+                    k
+                    for (k, v) in self.selectable.items()
+                    if v["bounds"].intersects(sb)
+                }
+                self.update_selection()
+
+        return super().mouseMoveEvent(a0)
+
     def mouseReleaseEvent(self, a0):
         if self.selection_box is not None:
             if self.selection_mode is self.SELECTION_MODE.MOVE:
@@ -179,25 +198,22 @@ class SvgWidget(QSvgWidget):
     def update_selection(self):
         match self.selection_mode:
             case self.SELECTION_MODE.NEW:
-                self.add_to_selection(self.new_selection)
-                self.remove_from_selection(self.previous_selection)
+                in_selection = self.new_selection
 
             case self.SELECTION_MODE.SYMMETRIC_DIFFERENCE:
-                self.add_to_selection(
-                    self.new_selection.difference(self.previous_selection)
-                )
-                self.remove_from_selection(
-                    self.new_selection.intersection(self.previous_selection)
+                in_selection = self.new_selection.symmetric_difference(
+                    self.previous_selection
                 )
 
             case self.SELECTION_MODE.UNION:
-                self.add_to_selection(
-                    self.new_selection.difference(self.previous_selection)
-                )
+                in_selection = self.new_selection.union(self.previous_selection)
+
+        self.add_to_selection(in_selection.difference(self.selected_elements))
+        self.remove_from_selection(self.selected_elements.difference(in_selection))
 
         self.__refresh_svg()
 
-    def move_annotation(self, start: QPointF, end: QPointF):
+    def move_annotation(self, start: QPointF, end: QPointF, is_final: bool = True):
         x = end.x() - start.x()
         y = end.y() - start.y()
         for element in self.to_move:
@@ -208,7 +224,8 @@ class SvgWidget(QSvgWidget):
                 float(self.selectable[element]["node"][0].attrib["y"]) + y
             )
             self._get_bounds(self.selectable, element)
-        self.save_to_file()
+        if is_final:
+            self.save_to_file()
         self.__refresh_svg()
 
     def enterEvent(self, event):
