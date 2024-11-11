@@ -60,7 +60,7 @@ def get_body_handle_drag_limits(
     hierarchy_ui,
     extremity: Extremity,
 ) -> tuple[int, int]:
-    handle_x = hierarchy_ui.extremity_to_x(extremity)
+    handle_x = hierarchy_ui.extremity_to_x(extremity, hierarchy_ui.start_x, hierarchy_ui.end_x)
     prev_handle_x = hierarchy_ui.timeline_ui.get_previous_handle_x_by_x(handle_x)
     next_handle_x = hierarchy_ui.timeline_ui.get_next_handle_x_by_x(handle_x)
 
