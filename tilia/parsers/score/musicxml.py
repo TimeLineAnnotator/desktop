@@ -1,7 +1,6 @@
 # NOT COMPLETE
 # TODO:
 #     - Add <tie>
-#     - correct accidentals based on key signature
 import itertools
 from pathlib import Path
 from zipfile import ZipFile
@@ -151,10 +150,10 @@ def notes_from_musicXML(
             constructor_kwargs["step"] = NOTE_NAME_TO_INT[
                 element.find("pitch/step").text
             ]
-            constructor_kwargs["accidental"] = (
-                0 if (a := element.find("pitch/alter")) is None else int(a.text)
-            )
             constructor_kwargs["octave"] = int(element.find("pitch/octave").text)
+            constructor_kwargs["display_accidental"] = True if element.find('accidental') is not None else False
+            alter = element.find("pitch/alter")
+            constructor_kwargs["accidental"] = int(alter.text) if alter is not None else 0
 
         if element.find("unpitched") is not None:
             constructor_kwargs["step"] = NOTE_NAME_TO_INT[
