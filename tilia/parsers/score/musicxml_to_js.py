@@ -37,7 +37,7 @@ class SvgWidget(QSvgWidget):
 
     def reset(self):
         self.selectable = {}
-        self.deletable = []
+        self.deletable = set()
         self.measures = {}
         self.next_tla_id = 0
         self.selection_box = None
@@ -73,7 +73,7 @@ class SvgWidget(QSvgWidget):
                     self.selectable[node.attrib["id"]] = {"node": node}
                 case "tla-annotation":
                     self.selectable[(element := node.attrib["id"])] = {"node": node}
-                    self.deletable.append(element)
+                    self.deletable.add(element)
                     element = int(element.split("tla_")[1])
                     if self.next_tla_id <= element:
                         self.next_tla_id = element + 1
@@ -266,6 +266,12 @@ class SvgWidget(QSvgWidget):
                 Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Minus
             ): self.zoom_out,
             QKeyCombination(
+                Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Up
+            ): self.annotation_zoom_in,
+            QKeyCombination(
+                Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Down
+            ): self.annotation_zoom_out,
+            QKeyCombination(
                 Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Delete
             ): self.delete_tla_annotation,
             QKeyCombination(
@@ -274,7 +280,8 @@ class SvgWidget(QSvgWidget):
         }
         if action := key_comb_to_action.get(a0.keyCombination()):
             action()
-        return super().keyPressEvent(a0)
+        else:
+            return super().keyPressEvent(a0)
 
     def delete_tla_annotation(self):
         if deletable := self.selected_elements.intersection(self.deletable):
@@ -310,7 +317,7 @@ class SvgWidget(QSvgWidget):
         glyph.append(glyph_text)
         self.root.append(glyph)
         self.selectable[tla_id] = {"node": glyph}
-        self.deletable.append(tla_id)
+        self.deletable.add(tla_id)
         self.__refresh_svg()
         self._get_bounds(self.selectable, tla_id)
         self.next_tla_id += 1
@@ -324,6 +331,40 @@ class SvgWidget(QSvgWidget):
             self.save_to_file()
         else:
             self.remove_from_selection(self.selected_elements)
+        self.__refresh_svg()
+
+    def annotation_zoom_in(self):
+        self.remove_from_selection(self.selected_elements.difference(self.deletable))
+        for element in self.selected_elements:
+            self.selectable[element]["node"][0].attrib["font-size"] = (
+                str(
+                    int(
+                        self.selectable[element]["node"][0]
+                        .attrib["font-size"]
+                        .strip("px")
+                    )
+                    * 2
+                )
+                + "px"
+            )
+
+        self.__refresh_svg()
+
+    def annotation_zoom_out(self):
+        self.remove_from_selection(self.selected_elements.difference(self.deletable))
+        for element in self.selected_elements:
+            self.selectable[element]["node"][0].attrib["font-size"] = (
+                str(
+                    int(
+                        self.selectable[element]["node"][0]
+                        .attrib["font-size"]
+                        .strip("px")
+                    )
+                    // 2
+                )
+                + "px"
+            )
+
         self.__refresh_svg()
 
     def zoom_in(self):
