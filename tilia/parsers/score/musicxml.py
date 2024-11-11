@@ -122,7 +122,7 @@ def notes_from_musicXML(
                         "step": NOTE_NAME_TO_INT[sign],
                         "octave": sign_to_octave[sign] + octave_change,
                     }
-                    staff_numbers = [attribute.get("number")]
+                    staff_numbers = [attribute.get("number")] if attribute.get("number") is not None else ['1']
                     component_kind = ComponentKind.CLEF
                 case _:
                     continue
@@ -174,7 +174,11 @@ def notes_from_musicXML(
         end_times = _metric_to_time(
             ms.measure_num[1], ms.div_position[0 if is_chord else 1] + duration
         )
-        constructor_kwargs["staff_index"] = part_id_to_staves[part_id][element.find('staff').text]
+        if element.find("staff") is not None:
+            constructor_kwargs["staff_index"] = part_id_to_staves[part_id][element.find("staff").text]
+        else:
+            constructor_kwargs['staff_index'] = part_id_to_staves[part_id]['1']
+
         if not is_chord:
             ms.update_measure_position(duration)
 
@@ -234,15 +238,15 @@ def notes_from_musicXML(
 
             ms.div_position = div_position_start
 
-    def _parse_staves(xml_type: Literal['partwise', 'timewise'], tree: ET):
+    def _parse_staves(tree: ET):
         staff_counter = itertools.count()
-        first_level = 'part' if xml_type == 'partwise' else 'measure'
-        second_level = 'measure' if xml_type == 'partwise' else 'part'
+        part_ids = [p.get("id") for p in tree.findall('part-list/score-part')]
+        part_id_to_staves = {p.get("id"): {} for p in tree.findall('part-list/score-part')}
 
-        part_id_to_staves = {}
-        for element in tree.findall(first_level):
-            part_id_to_staves[element.get("id")] = {}
-            staff_numbers = set(staff.text for staff in element.findall(second_level + "/note/staff"))
+        for id in part_ids:
+            staff_numbers = sorted(list(set([s.text for s in tree.findall(f".//part[@id='{id}']//note/staff")])))
+            if not staff_numbers:
+                staff_numbers = ['1']
             for number in staff_numbers:
                 staff_index = next(staff_counter)
                 _create_component(
@@ -252,22 +256,20 @@ def notes_from_musicXML(
                         "line_count": 5,
                     },
                 )
-                part_id_to_staves[element.get("id")][number] = staff_index
+                part_id_to_staves[id][number] = staff_index
 
         return part_id_to_staves
 
     with TiliaMXLReader(path, file_kwargs, reader_kwargs) as reader:
 
-        xml_type = 'partwise' if reader.tag == 'score-partwise' else 'timewise'
+        part_id_to_staves = _parse_staves(reader)
 
-        part_id_to_staves = _parse_staves(xml_type, reader)
-
-        match xml_type:
-            case "partwise":
+        match reader.tag:
+            case "score-partwise":
                 for part in reader.findall("part"):
                     _parse_partwise(part, part.get("id"))
 
-            case "timewise":
+            case "score-timewise":
                 for measure in reader.findall("measure"):
                     ms.update_measure_number(int(measure.attrib["number"]))
                     pass
