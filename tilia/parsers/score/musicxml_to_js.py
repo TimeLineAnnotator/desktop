@@ -67,21 +67,23 @@ class SvgWidget(QSvgWidget):
         self.blockSignals(False)
 
     def get_editable_elements(self, node: ET.Element):
-        if v_class := node.attrib.get("class", None):
-            match v_class:
-                case "vf-stavenote":
-                    self.selectable[node.attrib["id"]] = {"node": node}
-                case "tla-annotation":
-                    self.selectable[(element := node.attrib["id"])] = {"node": node}
-                    self.deletable.add(element)
-                    element = int(element.split("tla_")[1])
-                    if self.next_tla_id <= element:
-                        self.next_tla_id = element + 1
-                case "vf-measure":
-                    self.measures[node.attrib["id"]] = {"node": node}
-
         for glyph in node.findall("g"):
             self.get_editable_elements(glyph)
+
+        if not (v_class := node.attrib.get("class", None)):
+            return
+
+        match v_class:
+            case "vf-stavenote":
+                self.selectable[node.attrib["id"]] = {"node": node}
+            case "tla-annotation":
+                self.selectable[(element := node.attrib["id"])] = {"node": node}
+                self.deletable.add(element)
+                element = int(element.split("tla_")[1])
+                if self.next_tla_id <= element:
+                    self.next_tla_id = element + 1
+            case "vf-measure":
+                self.measures[node.attrib["id"]] = {"node": node}
 
     def resizeEvent(self, a0):
         super().resizeEvent(a0)
@@ -135,39 +137,34 @@ class SvgWidget(QSvgWidget):
         return super().mousePressEvent(a0)
 
     def mouseMoveEvent(self, a0):
-        if self.selection_box is not None:
-            if self.selection_mode is self.SELECTION_MODE.MOVE:
-                self.move_annotation(
-                    self.selection_box.bottomLeft(), a0.position(), False
-                )
-                self.selection_box.moveBottomLeft(a0.position())
-            else:
-                self.selection_box.close_box(a0.position())
-                sb = QPolygon(self.selection_box.toAlignedRect(), True)
-                self.new_selection = {
-                    k
-                    for (k, v) in self.selectable.items()
-                    if v["bounds"].intersects(sb)
-                }
-                self.update_selection()
+        if self.selection_box is None:
+            return super().mouseMoveEvent(a0)
 
-        return super().mouseMoveEvent(a0)
+        if self.selection_mode is self.SELECTION_MODE.MOVE:
+            self.move_annotation(self.selection_box.bottomLeft(), a0.position(), False)
+            self.selection_box.moveBottomLeft(a0.position())
+        else:
+            self.selection_box.close_box(a0.position())
+            sb = QPolygon(self.selection_box.toAlignedRect(), True)
+            self.new_selection = {
+                k for (k, v) in self.selectable.items() if v["bounds"].intersects(sb)
+            }
+            self.update_selection()
 
     def mouseReleaseEvent(self, a0):
-        if self.selection_box is not None:
-            if self.selection_mode is self.SELECTION_MODE.MOVE:
-                self.move_annotation(self.selection_box.bottomLeft(), a0.position())
-            else:
-                self.selection_box.close_box(a0.position())
-                sb = QPolygon(self.selection_box.toAlignedRect(), True)
-                self.new_selection = {
-                    k
-                    for (k, v) in self.selectable.items()
-                    if v["bounds"].intersects(sb)
-                }
-                self.update_selection()
-            self.selection_box = None
-        return super().mouseReleaseEvent(a0)
+        if self.selection_box is None:
+            return super().mouseReleaseEvent(a0)
+
+        if self.selection_mode is self.SELECTION_MODE.MOVE:
+            self.move_annotation(self.selection_box.bottomLeft(), a0.position())
+        else:
+            self.selection_box.close_box(a0.position())
+            sb = QPolygon(self.selection_box.toAlignedRect(), True)
+            self.new_selection = {
+                k for (k, v) in self.selectable.items() if v["bounds"].intersects(sb)
+            }
+            self.update_selection()
+        self.selection_box = None
 
     def add_to_selection(self, elements):
         def make_coloured(cur_node: ET.Element):
