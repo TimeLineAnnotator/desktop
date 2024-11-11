@@ -27,6 +27,7 @@ class SvgWidget(QSvgWidget):
         NEW = auto()
         UNION = auto()
         SYMMETRIC_DIFFERENCE = auto()
+        MOVE = auto()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -40,9 +41,9 @@ class SvgWidget(QSvgWidget):
         self.measures = {}
         self.next_tla_id = 0
         self.selection_box = None
-        self.selected_elements = []
-        self.new_selection = []
-        self.previous_selection = []
+        self.selected_elements = set()
+        self.new_selection = set()
+        self.previous_selection = set()
         self.selection_mode = self.SELECTION_MODE.NEW
 
     def __refresh_svg(self):
@@ -71,11 +72,11 @@ class SvgWidget(QSvgWidget):
                 case "vf-stavenote":
                     self.selectable[node.attrib["id"]] = {"node": node}
                 case "tla-annotation":
-                    self.selectable[(id := node.attrib["id"])] = {"node": node}
-                    self.deletable.append(id)
-                    id = int(id.split("tla_")[1])
-                    if self.next_tla_id <= id:
-                        self.next_tla_id = id + 1
+                    self.selectable[(element := node.attrib["id"])] = {"node": node}
+                    self.deletable.append(element)
+                    element = int(element.split("tla_")[1])
+                    if self.next_tla_id <= element:
+                        self.next_tla_id = element + 1
                 case "vf-measure":
                     self.measures[node.attrib["id"]] = {"node": node}
 
@@ -86,22 +87,24 @@ class SvgWidget(QSvgWidget):
         super().resizeEvent(a0)
         self.update_bounds()
 
-    def _get_bounds(self, d: dict, id: str):
-        d[id].update(
+    def _get_bounds(self, d: dict, element: str):
+        d[element].update(
             {
                 "bounds": (
                     self.renderer()
-                    .transformForElement(id)
+                    .transformForElement(element)
                     .scale(self.transform_x, self.transform_y)
-                    .mapToPolygon(self.renderer().boundsOnElement(id).toAlignedRect())
+                    .mapToPolygon(
+                        self.renderer().boundsOnElement(element).toAlignedRect()
+                    )
                 )
             }
         )
 
     def update_bounds(self):
         def update(to_update: dict):
-            for id in to_update.keys():
-                self._get_bounds(to_update, id)
+            for element in to_update.keys():
+                self._get_bounds(to_update, element)
 
         self.transform_x = self.width() / self.renderer().viewBox().size().width()
         self.transform_y = self.height() / self.renderer().viewBox().size().height()
@@ -109,7 +112,17 @@ class SvgWidget(QSvgWidget):
         update(self.measures)
 
     def mousePressEvent(self, a0):
-        if Qt.KeyboardModifier.ControlModifier in a0.modifiers():
+        if (to_move := self.selected_elements.intersection(self.deletable)) and [
+            k
+            for k in to_move
+            if self.selectable[k]["bounds"].containsPoint(
+                a0.position().toPoint(), Qt.FillRule.OddEvenFill
+            )
+        ]:
+            self.to_move = to_move
+            self.remove_from_selection(self.selected_elements.difference(to_move))
+            self.selection_mode = self.SELECTION_MODE.MOVE
+        elif Qt.KeyboardModifier.ControlModifier in a0.modifiers():
             self.selection_mode = self.SELECTION_MODE.SYMMETRIC_DIFFERENCE
         elif Qt.KeyboardModifier.ShiftModifier in a0.modifiers():
             self.selection_mode = self.SELECTION_MODE.UNION
@@ -117,22 +130,27 @@ class SvgWidget(QSvgWidget):
             self.selection_mode = self.SELECTION_MODE.NEW
 
         self.selection_box = SvgSelectionBox(a0.position().x(), a0.position().y(), 0, 0)
-        self.previous_selection = self.selected_elements
+        self.previous_selection = self.selected_elements.copy()
 
         return super().mousePressEvent(a0)
 
     def mouseReleaseEvent(self, a0):
         if self.selection_box is not None:
-            self.selection_box.close_box(a0.position())
-            sb = QPolygon(self.selection_box.toAlignedRect(), True)
-            self.new_selection = [
-                k for (k, v) in self.selectable.items() if v["bounds"].intersects(sb)
-            ]
+            if self.selection_mode is self.SELECTION_MODE.MOVE:
+                self.move_annotation(self.selection_box.bottomLeft(), a0.position())
+            else:
+                self.selection_box.close_box(a0.position())
+                sb = QPolygon(self.selection_box.toAlignedRect(), True)
+                self.new_selection = {
+                    k
+                    for (k, v) in self.selectable.items()
+                    if v["bounds"].intersects(sb)
+                }
+                self.update_selection()
             self.selection_box = None
-            self.update_selection()
         return super().mouseReleaseEvent(a0)
 
-    def add_to_selection(self, ids: set[str]):
+    def add_to_selection(self, elements):
         def make_coloured(cur_node: ET.Element):
             if (fill := cur_node.attrib.get("fill", "none")) and fill != "none":
                 cur_node.attrib["fill"] = "#ff0000"  # use settings
@@ -141,11 +159,11 @@ class SvgWidget(QSvgWidget):
             for child in cur_node:
                 make_coloured(child)
 
-        for id in ids:
-            make_coloured(self.selectable[id]["node"])
-            self.selected_elements.append(id)
+        for element in elements:
+            make_coloured(self.selectable[element]["node"])
+            self.selected_elements.add(element)
 
-    def remove_from_selection(self, ids: set[str]):
+    def remove_from_selection(self, elements):
         def make_black(cur_node: ET.Element):
             if (fill := cur_node.attrib.get("fill", "none")) and fill != "none":
                 cur_node.attrib["fill"] = "#000000"  # use settings
@@ -154,25 +172,43 @@ class SvgWidget(QSvgWidget):
             for child in cur_node:
                 make_black(child)
 
-        for id in ids:
-            make_black(self.selectable[id]["node"])
-            self.selected_elements.remove(id)
+        for element in elements:
+            make_black(self.selectable[element]["node"])
+        self.selected_elements.difference_update(elements)
 
     def update_selection(self):
-        selected = set(self.new_selection)
-        previous = set(self.previous_selection)
         match self.selection_mode:
             case self.SELECTION_MODE.NEW:
-                self.add_to_selection(selected)
-                self.remove_from_selection(previous)
+                self.add_to_selection(self.new_selection)
+                self.remove_from_selection(self.previous_selection)
 
             case self.SELECTION_MODE.SYMMETRIC_DIFFERENCE:
-                self.add_to_selection(list(selected.difference(previous)))
-                self.remove_from_selection(list(selected.intersection(previous)))
+                self.add_to_selection(
+                    self.new_selection.difference(self.previous_selection)
+                )
+                self.remove_from_selection(
+                    self.new_selection.intersection(self.previous_selection)
+                )
 
             case self.SELECTION_MODE.UNION:
-                self.add_to_selection(list(selected.difference(previous)))
+                self.add_to_selection(
+                    self.new_selection.difference(self.previous_selection)
+                )
 
+        self.__refresh_svg()
+
+    def move_annotation(self, start: QPointF, end: QPointF):
+        x = end.x() - start.x()
+        y = end.y() - start.y()
+        for element in self.to_move:
+            self.selectable[element]["node"][0].attrib["x"] = str(
+                float(self.selectable[element]["node"][0].attrib["x"]) + x
+            )
+            self.selectable[element]["node"][0].attrib["y"] = str(
+                float(self.selectable[element]["node"][0].attrib["y"]) + y
+            )
+            self._get_bounds(self.selectable, element)
+        self.save_to_file()
         self.__refresh_svg()
 
     def enterEvent(self, event):
@@ -224,20 +260,20 @@ class SvgWidget(QSvgWidget):
         return super().keyPressEvent(a0)
 
     def delete_tla_annotation(self):
-        if deletable := list(set(self.selected_elements).intersection(self.deletable)):
-            for element_id in deletable:
-                self.root.remove(self.selectable[element_id]["node"])
-                self.selectable.pop(element_id)
-                self.deletable.remove(element_id)
-                self.selected_elements.remove(element_id)
+        if deletable := self.selected_elements.intersection(self.deletable):
+            for element in deletable:
+                self.root.remove(self.selectable[element]["node"])
+                self.selectable.pop(element)
+                self.deletable.remove(element)
+                self.selected_elements.remove(element)
             self.save_to_file()
         else:
             self.remove_from_selection(self.selected_elements)
         self.__refresh_svg()
 
     def _add_text(self, point: QPoint, text: str):
-        id = "tla_" + str(self.next_tla_id)
-        glyph = ET.Element("g", {"class": "tla-annotation", "id": id})
+        tla_id = "tla_" + str(self.next_tla_id)
+        glyph = ET.Element("g", {"class": "tla-annotation", "id": tla_id})
         glyph_text = ET.Element(
             "text",
             {
@@ -246,9 +282,9 @@ class SvgWidget(QSvgWidget):
                 "stroke": "none",
                 "stroke-dasharray": "none",
                 "font-family": "Times New Roman",
-                "font-size": "200px",
+                "font-size": "20px",
                 "font-weight": "normal",
-                "font-style": "normal",
+                "font-style": "oblique",
                 "x": str(point.x() / self.transform_x),
                 "y": str(point.y() / self.transform_y),
             },
@@ -256,17 +292,17 @@ class SvgWidget(QSvgWidget):
         glyph_text.text = text
         glyph.append(glyph_text)
         self.root.append(glyph)
-        self.selectable[id] = {"node": glyph}
-        self.deletable.append(id)
+        self.selectable[tla_id] = {"node": glyph}
+        self.deletable.append(tla_id)
         self.__refresh_svg()
-        self._get_bounds(self.selectable, id)
+        self._get_bounds(self.selectable, tla_id)
         self.next_tla_id += 1
 
     def add_tla_annotation(self):
-        if annotatable := list(set(self.selected_elements).difference(self.deletable)):
-            for element_id in annotatable:
+        if annotatable := self.selected_elements.difference(self.deletable):
+            for element in annotatable:
                 self._add_text(
-                    self.selectable[element_id]["bounds"].first(), str(self.next_tla_id)
+                    self.selectable[element]["bounds"].first(), str(self.next_tla_id)
                 )
             self.save_to_file()
         else:
