@@ -55,7 +55,7 @@ class NoteUI(TimelineUIElement):
 
     def _setup_body(self):
         self.body = NoteBody(
-            self.start_x, self.end_x, self.top_y, self.note_height(), self.ui_color
+            self.start_x, self.end_x, self.top_y, self.note_height(), self.ui_color, self.get_data('tie_type')
         )
         self.scene.addItem(self.body)
 

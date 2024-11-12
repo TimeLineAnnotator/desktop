@@ -1,7 +1,9 @@
+from enum import Enum, auto
+
 from tilia.timelines.base.component import SegmentLikeTimelineComponent
 from tilia.timelines.base.validators import validate_time, validate_color, validate_string, validate_integer
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.score.components.validators import validate_step, validate_accidental
+from tilia.timelines.score.components.validators import validate_step, validate_accidental, validate_tie_type
 from tilia.timelines.score.timeline import ScoreTimeline
 
 STEP_TO_PC = {
@@ -39,12 +41,18 @@ class Note(SegmentLikeTimelineComponent):
         "start": validate_time,
         "end": validate_time,
         "step": validate_step,
+        "tie": validate_tie_type,
         "accidental": validate_accidental,
         "octave": validate_integer,
         "staff_index": validate_integer,
         "color": validate_color,
         "comments": validate_string,
     }
+
+    class TieType(Enum):
+        START = auto()
+        STOP = auto()
+        NONE = auto()
 
     def __init__(
         self,
@@ -56,6 +64,7 @@ class Note(SegmentLikeTimelineComponent):
         accidental: int,
         octave: int,
         staff_index: int,
+        tie_type: TieType = TieType.NONE,
         display_accidental: bool = False,
         label="",
         color=None,
@@ -70,6 +79,7 @@ class Note(SegmentLikeTimelineComponent):
         self.display_accidental = display_accidental
         self.octave = octave
         self.staff_index = staff_index
+        self.tie_type = tie_type
         self.label = label
         self.color = color
         self.comments = comments
