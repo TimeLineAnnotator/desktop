@@ -59,7 +59,7 @@ def notes_from_musicXML(
     """
     errors = []
     parts = {}
-    ms = MetricDivision()
+    metric_division = MetricDivision()
 
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
     sign_to_line = {"C": 0, "F": 1, "G": -1}
@@ -73,17 +73,17 @@ def notes_from_musicXML(
         return component.id
 
     def _metric_to_time(measure_number: int, division: int) -> list[float]:
-        a = beat_tl.get_time_by_measure(**ms.get_fraction(measure_number, division))
+        a = beat_tl.get_time_by_measure(**metric_division.get_fraction(measure_number, division))
         return a
 
     def _parse_attributes(attributes: ET.Element | Any, part_id: str):
-        times = _metric_to_time(ms.measure_num[1], ms.div_position[1])
+        times = _metric_to_time(metric_division.measure_num[1], metric_division.div_position[1])
         for attribute in attributes:
             constructor_kwargs = dict()
             component_kind = None
             match attribute.tag:
                 case "divisions":
-                    ms.update_divisions(int(attribute.text))
+                    metric_division.update_divisions(int(attribute.text))
                     continue
 
                 case "key":
@@ -95,7 +95,7 @@ def notes_from_musicXML(
                 case "time":
                     ts_numerator = int(attribute.find("beats").text)
                     ts_denominator = int(attribute.find("beat-type").text)
-                    ms.update_ts(ts_numerator, ts_denominator)
+                    metric_division.update_ts(ts_numerator, ts_denominator)
                     constructor_kwargs = {
                         "numerator": ts_numerator,
                         "denominator": ts_denominator,
@@ -143,7 +143,7 @@ def notes_from_musicXML(
         constructor_kwargs = dict()
 
         if element.find("rest") is not None:
-            ms.update_measure_position(duration)
+            metric_division.update_measure_position(duration)
             return
 
         if element.find("pitch") is not None:
@@ -169,10 +169,10 @@ def notes_from_musicXML(
 
         is_chord = element.find("chord") is not None
         start_times = _metric_to_time(
-            ms.measure_num[1], ms.div_position[0 if is_chord else 1]
+            metric_division.measure_num[1], metric_division.div_position[0 if is_chord else 1]
         )
         end_times = _metric_to_time(
-            ms.measure_num[1], ms.div_position[0 if is_chord else 1] + duration
+            metric_division.measure_num[1], metric_division.div_position[0 if is_chord else 1] + duration
         )
         if element.find("staff") is not None:
             constructor_kwargs["staff_index"] = part_id_to_staves[part_id][element.find("staff").text]
@@ -180,7 +180,7 @@ def notes_from_musicXML(
             constructor_kwargs['staff_index'] = part_id_to_staves[part_id]['1']
 
         if not is_chord:
-            ms.update_measure_position(duration)
+            metric_division.update_measure_position(duration)
 
         for start, end in zip(start_times, end_times):
             _create_component(
@@ -196,20 +196,20 @@ def notes_from_musicXML(
                 _parse_note(element, part_id)
             case "backup":
                 duration = int(element.find("duration").text)
-                ms.update_measure_position(-duration)
+                metric_division.update_measure_position(-duration)
             case "forward":
                 duration = int(element.find("duration").text)
-                ms.update_measure_position(duration)
+                metric_division.update_measure_position(duration)
             case _:
                 pass
 
     def _parse_partwise(part: ET.Element | Any, part_id: str):
         for measure in part.findall("measure"):
-            ms.update_measure_number(int(measure.attrib["number"]))
+            metric_division.update_measure_number(int(measure.attrib["number"]))
             for element in measure:
                 _parse_element(element, part_id)
 
-            times = _metric_to_time(ms.measure_num[1], ms.div_position[1])
+            times = _metric_to_time(metric_division.measure_num[1], metric_division.div_position[1])
             for time in times:
                 _create_component(
                     ComponentKind.BAR_LINE,
@@ -219,14 +219,14 @@ def notes_from_musicXML(
                 )
 
     def _parse_timewise(measure: ET.Element | Any):
-        ms.update_measure_number(int(measure.attrib["number"]))
-        div_position_start = ms.div_position
+        metric_division.update_measure_number(int(measure.attrib["number"]))
+        div_position_start = metric_division.div_position
         for part in measure.findall("part"):
             part_index = part_id_to_staves[part.get("id")]
             for element in part:
                 _parse_element(element, part_index)
 
-            times = _metric_to_time(ms.measure_num[1], ms.div_position[1])
+            times = _metric_to_time(metric_division.measure_num[1], metric_division.div_position[1])
             for time in times:
                 _create_component(
                     ComponentKind.BAR_LINE,
@@ -236,7 +236,7 @@ def notes_from_musicXML(
                     },
                 )
 
-            ms.div_position = div_position_start
+            metric_division.div_position = div_position_start
 
     def _parse_staves(tree: ET):
         staff_counter = itertools.count()
@@ -271,7 +271,7 @@ def notes_from_musicXML(
 
             case "score-timewise":
                 for measure in reader.findall("measure"):
-                    ms.update_measure_number(int(measure.attrib["number"]))
+                    metric_division.update_measure_number(int(measure.attrib["number"]))
                     pass
                     _parse_timewise(measure)
             case _:
