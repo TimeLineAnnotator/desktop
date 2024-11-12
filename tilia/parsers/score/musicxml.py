@@ -4,11 +4,12 @@
 import itertools
 from pathlib import Path
 from zipfile import ZipFile
-from typing import Optional, Any, Literal
+from typing import Optional, Any
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.score.components import Note
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components.clef import Clef
@@ -134,6 +135,15 @@ def notes_from_musicXML(
                         constructor_kwargs | {"time": time, 'staff_index': part_id_to_staves[part_id][staff_number]},
                     )
 
+    def _parse_note_tie(element: ET.Element) -> Note.TieType:
+        tie = element.find('tie')
+        if tie is None:
+            return Note.TieType.NONE
+        elif tie.text == 'start':
+            return Note.TieType.START
+        else:
+            return Note.TieType.STOP
+
     def _parse_note(element: ET.Element | Any, part_id: str):
         if element.find("grace") is not None:
             errors.append(f"<grace> not implemented.")
@@ -163,6 +173,8 @@ def notes_from_musicXML(
             constructor_kwargs["octave"] = int(
                 element.find("unpitched/display-octave").text
             )
+
+        constructor_kwargs['tie_type'] = _parse_note_tie(element)
 
         if not constructor_kwargs.keys():
             return
