@@ -56,26 +56,6 @@ class NoteBody(CursorMixIn, QGraphicsPolygonItem):
         self.setZValue(1)
 
     def get_polygon(self, start_x: float, end_x: float, top_y: float, note_height: float) -> QPolygonF:
-        # Code for rectangles with triangle tips
-        # indent = 5
-        # mid_y = top_y + note_height / 2
-        # bottom_y = top_y + note_height
-        # x_left_outer = start_x
-        # x_left_inner = start_x + indent
-        # x_right_inner = end_x - indent
-        # x_right_outer = end_x
-        # return QPolygonF([
-        #     QPointF(x_left_outer, mid_y),
-        #     QPointF(x_left_inner, top_y),
-        #     QPointF(x_right_inner, top_y),
-        #     QPointF(x_right_outer, mid_y),
-        #     QPointF(x_right_inner, bottom_y),
-        #     QPointF(x_left_inner, bottom_y),
-        #     QPointF(x_left_outer, mid_y),
-        #     ]
-        # )
-
-        # code for plain rectangle
         x0 = start_x + (-1 if self.tie_type == Note.TieType.STOP else self.X_OFFSET)
         x1 = end_x - (-1 if self.tie_type == Note.TieType.START else self.X_OFFSET)
         y0 = top_y + self.Y_OFFSET / 2
