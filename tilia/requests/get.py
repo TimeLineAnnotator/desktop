@@ -14,6 +14,7 @@ class Get(Enum):
     CONTEXT_MENU_TIMELINE_UI = auto()
     FIRST_TIMELINE_UI_IN_SELECT_ORDER = auto()
     FROM_USER_BEAT_PATTERN = auto()
+    FROM_USER_BEAT_TIMELINE_FILL_METHOD = auto()
     FROM_USER_COLOR = auto()
     FROM_USER_DIR = auto()
     FROM_USER_EXPORT_PATH = auto()

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import functools
 import itertools
+import math
+from enum import Enum, auto
 from typing import Optional
 
 import tilia.errors
-from tilia.requests import post, Post
+from tilia.requests import post, Post, get, Get
 from tilia.settings import settings
 from tilia.timelines.base.common import scale_discrete, crop_discrete
 from tilia.timelines.beat.validators import validate_integer_list
@@ -460,5 +462,23 @@ class BeatTimeline(Timeline):
 
         if not self.is_empty:
             self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
+
+    class FillMethod(Enum):
+        BY_AMOUNT = auto()
+        BY_INTERVAL = auto()
+
+    def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
+        duration = get(Get.MEDIA_DURATION)
+        self.component_manager.compute_is_first_in_measure = False  # only compute at end
+
+        if method == BeatTimeline.FillMethod.BY_AMOUNT:
+            for i in range(value):
+                self.create_component(ComponentKind.BEAT, i * duration / value)
+        elif method == BeatTimeline.FillMethod.BY_INTERVAL:
+            for i in range(math.floor(duration / value)):
+                self.create_component(ComponentKind.BEAT, i * value)
+
+        self.component_manager.compute_is_first_in_measure = True
+        self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
 
 

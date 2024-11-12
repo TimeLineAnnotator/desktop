@@ -38,6 +38,7 @@ class TiliaAction(Enum):
     BEAT_RESET_MEASURE_NUMBER = auto()
     BEAT_SET_AMOUNT_IN_MEASURE = auto()
     BEAT_SET_MEASURE_NUMBER = auto()
+    BEAT_TIMELINE_FILL = auto()
     EDIT_REDO = auto()
     EDIT_UNDO = auto()
     FILE_NEW = auto()
@@ -176,6 +177,9 @@ taction_to_params = {
     ),
     TiliaAction.BEAT_IMPORT_FROM_CSV: ActionParams(
         Post.BEAT_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+    ),
+    TiliaAction.BEAT_TIMELINE_FILL: ActionParams(
+        Post.BEAT_TIMELINE_FILL, "Fill timeline with beats", "", ""
     ),
     TiliaAction.MARKER_ADD: ActionParams(
         Post.MARKER_ADD, "Add marker at current position", "add_marker30", "m"
