@@ -6,6 +6,7 @@ from tilia.exceptions import GetComponentDataError
 from tilia.requests import Get, get, listen, Post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.coords import get_x_by_time
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
@@ -32,6 +33,10 @@ class ScoreTimelineUI(TimelineUI):
         super().__init__(*args, **kwargs)
         listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
+        self._measure_count = self._get_measure_count()
+
+    def _get_measure_count(self):
+        return len(self.element_manager.get_elements_by_attribute('kind', ComponentKind.BAR_LINE)) / max(1, len(self.element_manager.get_elements_by_attribute('kind', ComponentKind.STAFF)))
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
@@ -72,6 +77,8 @@ class ScoreTimelineUI(TimelineUI):
         if kind == ComponentKind.STAFF:
             self.update_height()
             return
+        elif kind == ComponentKind.BAR_LINE:
+            self._measure_count = self._get_measure_count()
 
         try:
             time = element.get_data('time')
@@ -170,3 +177,11 @@ class ScoreTimelineUI(TimelineUI):
     def update_height(self):
         self.scene.set_height(self.STAFF_VERTICAL_AREA * self.get_data('staff_count'))
         self.view.set_height(self.STAFF_VERTICAL_AREA * self.get_data('staff_count'))
+
+    def average_measure_width(self) -> float:
+        if self._measure_count == 0:
+            return 0
+        bar_lines = sorted(self.element_manager.get_elements_by_attribute('kind', ComponentKind.BAR_LINE))
+        x0 = get_x_by_time(bar_lines[0].get_data('time'))
+        x1 = get_x_by_time(bar_lines[-1].get_data('time'))
+        return (x1 - x0) / self._measure_count
