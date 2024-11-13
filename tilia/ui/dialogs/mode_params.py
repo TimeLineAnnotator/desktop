@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tilia.requests import get, Get
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.harmony.constants import MODE_TYPES
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
@@ -14,6 +15,7 @@ from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,
 )
+from tilia.ui.windows.fill_beat_timeline import FillBeatTimeline
 
 
 class SelectModeParams(QDialog):
@@ -74,3 +76,7 @@ def ask_for_harmony_params():
     dialog = SelectHarmonyParams(current_key)
     accept = dialog.exec()
     return (accept,), dialog.result()
+
+
+def ask_beat_timeline_fill_method() -> tuple[bool, None | tuple[BeatTimeline, BeatTimeline.FillMethod, float]]:
+    return FillBeatTimeline.select()

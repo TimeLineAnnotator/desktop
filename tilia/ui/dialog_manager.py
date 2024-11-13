@@ -19,7 +19,7 @@ from tilia.ui.dialogs.basic import (
     ask_for_color,
     ask_yes_or_no,
 )
-from tilia.ui.dialogs.mode_params import ask_for_mode_params, ask_for_harmony_params
+from tilia.ui.dialogs.mode_params import ask_for_mode_params, ask_for_harmony_params, ask_beat_timeline_fill_method
 from tilia.ui.timelines.beat.dialogs import ask_for_beat_pattern
 
 
@@ -44,6 +44,7 @@ class DialogManager:
             (Get.FROM_USER_PDF_PATH, ask_for_pdf_file),
             (Get.FROM_USER_RETRY_PDF_PATH, ask_retry_pdf_file),
             (Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, ask_add_timeline_without_media),
+            (Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, ask_beat_timeline_fill_method),
         }
 
         for request, callback in SERVES:

@@ -4,6 +4,7 @@ from tests.mock import PatchGet, Serve
 from tilia.requests import Post, post
 from tilia.enums import Side
 from tilia.requests import Get
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui.actions import TiliaAction
 from tilia.ui.windows import WindowKind
 
@@ -391,6 +392,23 @@ class TestActions:
             user_actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
 
         beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)
+
+
+class TestFillWithBeats:
+    def test_by_amount(self, beat_tlui, user_actions):
+        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100))):
+            user_actions.trigger(TiliaAction.BEAT_TIMELINE_FILL)
+
+        assert len(beat_tlui) == 100
+
+    def test_by_interval(self, beat_tlui, user_actions, tilia_state):
+        interval = 0.5
+        amount = int(tilia_state.duration / interval)
+        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_INTERVAL, interval))):
+            user_actions.trigger(TiliaAction.BEAT_TIMELINE_FILL)
+
+        assert len(beat_tlui) == amount
+        assert beat_tlui[1].get_data("time") - beat_tlui[0].get_data("time") == interval
 
 
 class TestUndoRedo:
