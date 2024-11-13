@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tilia.errors
 from tilia.requests import Post, get, Get, post
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 from tilia.ui.request_handler import RequestHandler
@@ -29,6 +30,7 @@ class TimelineUIsRequestHandler(RequestHandler):
             request_to_callback={
                 Post.TIMELINE_ADD: self.on_timeline_add,
                 Post.TIMELINES_CLEAR: self.on_timelines_clear,
+                Post.BEAT_TIMELINE_FILL: self.on_beat_timeline_fill,
             }
         )
         self.timeline_uis = timeline_uis
@@ -78,3 +80,16 @@ class TimelineUIsRequestHandler(RequestHandler):
     def on_timelines_clear(self, confirmed):
         if confirmed:
             self.timelines.clear_timelines()
+
+    @staticmethod
+    def on_beat_timeline_fill():
+        accepted, result = get(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD)
+        if not accepted:
+            return False
+        timeline, method, value = result
+        if method == BeatTimeline.FillMethod.BY_AMOUNT:
+            timeline.fill_with_beats(BeatTimeline.FillMethod.BY_AMOUNT, value)
+        elif method == BeatTimeline.FillMethod.BY_INTERVAL:
+            timeline.fill_with_beats(BeatTimeline.FillMethod.BY_INTERVAL, value)
+
+        return True
