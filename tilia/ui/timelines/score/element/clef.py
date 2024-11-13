@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
+from tilia.timelines.score.components import Clef
 from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
 
 if TYPE_CHECKING:
@@ -44,6 +45,9 @@ class ClefUI(TimelineUIElementWithCollision):
 
     def selection_triggers(self):
         return []
+
+    def shorthand(self) -> Clef.Shorthand | None:
+        return self.tl_component.shorthand()
 
 
 class ClefBody(QGraphicsPixmapItem):
