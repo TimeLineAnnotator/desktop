@@ -67,6 +67,4 @@ class TimeSignatureBody(QGraphicsItem):
     def boundingRect(self):
         return self.numerator_item.boundingRect().united(self.denominator_item.boundingRect())
 
-    def paint(self, painter, option, widget):
-        self.numerator_item.paint(painter, option, widget)
-        self.denominator_item.paint(painter, option, widget)
+    def paint(self, painter, option, widget): ...
