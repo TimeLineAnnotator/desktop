@@ -13,10 +13,15 @@ class NoteAccidental(QGraphicsPixmapItem):
         self.set_position(x, y)
 
     def set_icon(self, path: str):
-        self.setPixmap(QPixmap(path))
+        self._pixmap = QPixmap(path)
+        self.setPixmap(self._pixmap)
 
     def set_height(self, height: float):
-        self.setPixmap(self.pixmap().scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
+        if height == 0:
+            self.setVisible(False)
+        else:
+            self.setPixmap(self._pixmap.scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
+            self.setVisible(True)
 
     def set_position(self, x: float, y: float):
         self.setPos(x - self.boundingRect().width(), y)

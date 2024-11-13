@@ -195,15 +195,32 @@ class NoteUI(TimelineUIElement):
         }[accidental]
         return x, y + y_offset
 
-    @staticmethod
-    def get_accidental_height(accidental: int) -> float:
-        return {
+    def get_accidental_height(self, accidental: int) -> int:
+        return int({
            -2: 18,
            -1: 18,
             0: 20,
             1: 20,
             2: 12,
-        }[accidental]
+        }[accidental] * self.get_accidental_scale_factor())
+
+    def get_accidental_scale_factor(self):
+        """
+        Scales accidental according to amw = average measure width.
+        If amw < visibility_treshold, returns 0, indicating accidentals should be hidden.
+        If visibility_treshold < amw < max_size_treshold, scales proportionally with min_scale as a minimum.
+        If amw > max_size_treshold, returns 1, indicating accidentals should be fully visible.
+        """
+        visibility_treshold = 30
+        max_size_treshold = 180
+        min_scale = 0.5
+        average_measure_width = self.timeline_ui.average_measure_width()
+        print(average_measure_width)
+        if not average_measure_width:
+            return 1
+        if average_measure_width < visibility_treshold:
+            return 0
+        return min(1, min_scale + (average_measure_width / max_size_treshold * min_scale))
 
     def update_color(self):
         self.body.set_fill(self.ui_color)
@@ -216,7 +233,9 @@ class NoteUI(TimelineUIElement):
         if self.supplementary_line:
             self.supplementary_line.set_position(*self.get_supplementary_line_position_args(self.supplementary_line.direction, self.get_data('staff_index')))
         if self.accidental:
-            self.accidental.set_position(*self.get_accidental_position(self.get_data('accidental')))
+            accidental = self.get_data('accidental')
+            self.accidental.set_position(*self.get_accidental_position(accidental))
+            self.accidental.set_height(self.get_accidental_height(accidental))
 
     def child_items(self):
         return [self.body]
