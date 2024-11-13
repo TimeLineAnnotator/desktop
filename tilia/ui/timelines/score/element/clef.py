@@ -21,6 +21,8 @@ class ClefUI(TimelineUIElementWithCollision):
 
     @property
     def icon_path(self):
+        if not self.get_data('icon'):
+            return Path('ui', 'img', 'clef-unknown.svg')
         return Path('ui', 'img', self.get_data('icon'))
 
     def _setup_body(self):
