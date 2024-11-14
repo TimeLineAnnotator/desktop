@@ -1,16 +1,13 @@
-from __future__ import annotations
-
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import (
-    QGraphicsScene,
     QGraphicsItem,
 )
 
 from tilia.requests import Post, post
 from tilia.timelines.score.components.note import pitch
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.score import attrs
 from tilia.ui.color import get_tinted_color
 from tilia.ui.format import format_media_time
@@ -24,9 +21,6 @@ from tilia.ui.timelines.score.element.note.body import NoteBody
 from tilia.ui.timelines.score.element.note.ledger_line import (
     NoteLedgerLines,
 )
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score.timeline import ScoreTimelineUI
 
 
 class NoteUI(TimelineUIElement):
