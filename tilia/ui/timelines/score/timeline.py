@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import math
+from typing import Callable
 
 from tilia.exceptions import GetComponentDataError
 from tilia.requests import Get, get, listen, Post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.coords import get_x_by_time
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
@@ -72,8 +73,8 @@ class ScoreTimelineUI(TimelineUI):
     def get_y_for_symbols_above_staff(self, staff_index: int) -> int:
         return self.STAFF_VERTICAL_AREA * staff_index
 
-    def on_timeline_component_created(self, kind: ComponentKind, id: int):
-        element = super().on_timeline_component_created(kind, id)
+    def on_timeline_component_created(self, kind: ComponentKind, id: int, get_data: Callable, set_data: Callable):
+        element = super().on_timeline_component_created(kind, id, get_data, set_data)
         if kind == ComponentKind.STAFF:
             self.update_height()
             return
@@ -182,6 +183,6 @@ class ScoreTimelineUI(TimelineUI):
         if self._measure_count == 0:
             return 0
         bar_lines = sorted(self.element_manager.get_elements_by_attribute('kind', ComponentKind.BAR_LINE))
-        x0 = get_x_by_time(bar_lines[0].get_data('time'))
-        x1 = get_x_by_time(bar_lines[-1].get_data('time'))
+        x0 = time_x_converter.get_x_by_time(bar_lines[0].get_data('time'))
+        x1 = time_x_converter.get_x_by_time(bar_lines[-1].get_data('time'))
         return (x1 - x0) / self._measure_count

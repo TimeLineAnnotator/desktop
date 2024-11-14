@@ -1,23 +1,16 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem
+from PyQt6.QtWidgets import QGraphicsPixmapItem
 
 from tilia.timelines.score.components import Clef
 from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
 
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score import ScoreTimelineUI
-
 
 class KeySignatureUI(TimelineUIElementWithCollision):
-    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._setup_body()
 
     @staticmethod

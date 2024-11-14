@@ -1,25 +1,18 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 from PyQt6.QtCore import QLineF
 from PyQt6.QtGui import QColor, QPen
-from PyQt6.QtWidgets import QGraphicsLineItem, QGraphicsScene
+from PyQt6.QtWidgets import QGraphicsLineItem
 
 from tilia.requests import get, Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.score.element import NoteUI
 
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score import ScoreTimelineUI
-
 
 class StaffUI(TimelineUIElement):
     COMPONENT_KIND = ComponentKind.STAFF
 
-    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, **kwargs):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._setup_lines()
 
     @property
