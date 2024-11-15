@@ -41,7 +41,7 @@ class TiliaMXLReader:
         else:
             self.file = open(self.path, **self.file_kwargs)
 
-        return ET.parse(self.file, **self.reader_kwargs).getroot()
+        return self.file
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.file.close()
@@ -304,26 +304,29 @@ def notes_from_musicXML(
 
         return part_id_to_staves
 
-    with TiliaMXLReader(path, file_kwargs, reader_kwargs) as reader:
+    reader_kwargs = reader_kwargs or {}
 
-        part_id_to_staves = _parse_staves(reader)
+    with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
+        tree = ET.parse(file, **reader_kwargs).getroot()
 
-        match reader.tag:
-            case "score-partwise":
-                for part in reader.findall("part"):
-                    _parse_partwise(part, part.get("id"))
-                score_tl.set_data("path", path)
+    part_id_to_staves = _parse_staves(tree)
 
-            case "score-timewise":
-                for measure in reader.findall("measure"):
-                    metric_division.update_measure_number(int(measure.attrib["number"]))
-                    pass
-                    _parse_timewise(measure)
-                score_tl.set_data("path", path)
-            case _:
-                errors.append("File not read")
+    match tree.tag:
+        case "score-partwise":
+            for part in tree.findall("part"):
+                _parse_partwise(part, part.get("id"))
+            score_tl.set_data("path", path)
 
-        return errors
+        case "score-timewise":
+            for measure in tree.findall("measure"):
+                metric_division.update_measure_number(int(measure.attrib["number"]))
+                pass
+                _parse_timewise(measure)
+            score_tl.set_data("path", path)
+        case _:
+            errors.append("File not read")
+
+    return errors
 
 
 @dataclass
