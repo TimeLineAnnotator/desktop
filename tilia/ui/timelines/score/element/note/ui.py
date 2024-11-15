@@ -49,6 +49,14 @@ class NoteUI(TimelineUIElement):
     ):
         super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
 
+        self.body = None
+        self.accidental = None
+        self.supplementary_line = None
+
+        if self.clef:
+            self._setup_items()
+
+    def _setup_items(self):
         self._setup_body()
         self._setup_supplementary_line()
         self._setup_accidental()
@@ -123,10 +131,14 @@ class NoteUI(TimelineUIElement):
     @property
     def end_x(self):
         return get_x_by_time(self.get_data("end"))
+
+    @property
+    def clef(self):
+        return self.timeline_ui.get_clef_by_time(self.get_data('start'), self.get_data('staff_index'))
     
     @property
     def top_y(self):
-        central_step, central_octave = self.timeline_ui.get_clef_by_time(self.get_data('start'), self.get_data('staff_index')).central_step()
+        central_step, central_octave = self.clef.central_step()
 
         note_height = self.note_height()
         middle_y = self.timeline_ui.get_staff_middle_y(self.get_data('staff_index'))
@@ -259,6 +271,12 @@ class NoteUI(TimelineUIElement):
 
     def on_deselect(self) -> None:
         self.body.on_deselect()
+
+    def on_components_deserialized(self):
+        if self.body:
+            self.update_position()
+        else:
+            self._setup_items()
 
     def get_inspector_dict(self) -> dict:
         return {

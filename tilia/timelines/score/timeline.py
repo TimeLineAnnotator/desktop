@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 
+from tilia.requests import post, Post
 from tilia.timelines.base.common import scale_discrete, crop_discrete
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -26,5 +27,9 @@ class ScoreTimeline(Timeline):
     
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
+
+    def deserialize_components(self, components: dict[int, dict[str]]):
+        super().deserialize_components(components)
+        post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.id)
 
 

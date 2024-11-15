@@ -32,6 +32,7 @@ class ScoreTimelineUI(TimelineUI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+        listen(self, Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.on_score_timeline_components_deserialized)
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self._measure_count = self._get_measure_count()
 
@@ -112,7 +113,9 @@ class ScoreTimelineUI(TimelineUI):
             cache[idx][(start_time, get(Get.MEDIA_DURATION))] = clefs_in_staff[-1]
         return cache
 
-    def get_clef_by_time(self, time: float, staff_index: int) -> ClefUI:
+    def get_clef_by_time(self, time: float, staff_index: int) -> ClefUI | None:
+        if staff_index not in self.clef_time_cache:
+            return None
         for (start, end) in self.clef_time_cache[staff_index].keys():
             if start <= time < end:
                 return self.clef_time_cache[staff_index][(start, end)]
@@ -177,6 +180,17 @@ class ScoreTimelineUI(TimelineUI):
     def update_height(self):
         self.scene.set_height(self.STAFF_VERTICAL_AREA * self.get_data('staff_count'))
         self.view.set_height(self.STAFF_VERTICAL_AREA * self.get_data('staff_count'))
+
+    def on_score_timeline_components_deserialized(self, id: int):
+        if id != self.id:
+            return
+
+        def element_needs_update(e):
+            return e.kind in [ComponentKind.NOTE, ComponentKind.KEY_SIGNATURE]
+
+        needs_update = self.element_manager.get_elements_by_condition(element_needs_update)
+        for element in needs_update:
+            element.on_components_deserialized()
 
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
