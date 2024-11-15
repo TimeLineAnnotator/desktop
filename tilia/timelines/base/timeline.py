@@ -65,7 +65,7 @@ class Timeline(ABC, Generic[TC]):
         if self.COMPONENT_MANAGER_CLASS:
             self.component_manager = self.COMPONENT_MANAGER_CLASS(self)
         else:
-            self.component_manaer = None
+            self.component_manager = None
 
     def __iter__(self):
         return iter(self.components)
