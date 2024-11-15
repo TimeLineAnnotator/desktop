@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class Clef(TimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["time", "line_number", "step", "octave", "icon"]
+    SERIALIZABLE_BY_VALUE = ["staff_index", "time", "line_number", "step", "octave", "icon"]
     ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.CLEF
