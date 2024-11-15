@@ -23,8 +23,12 @@ class ScoreTimeline(Timeline):
 
     @property
     def staff_count(self):
-        return len(self.component_manager.get_existing_values_for_attr('index', ComponentKind.STAFF))
-    
+        return len(
+            self.component_manager.get_existing_values_for_attr(
+                "index", ComponentKind.STAFF
+            )
+        )
+
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
 

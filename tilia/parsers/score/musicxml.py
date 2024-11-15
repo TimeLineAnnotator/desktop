@@ -74,11 +74,15 @@ def notes_from_musicXML(
         return component.id
 
     def _metric_to_time(measure_number: int, division: int) -> list[float]:
-        a = beat_tl.get_time_by_measure(**metric_division.get_fraction(measure_number, division))
+        a = beat_tl.get_time_by_measure(
+            **metric_division.get_fraction(measure_number, division)
+        )
         return a
 
     def _parse_attributes(attributes: ET.Element | Any, part_id: str):
-        times = _metric_to_time(metric_division.measure_num[1], metric_division.div_position[1])
+        times = _metric_to_time(
+            metric_division.measure_num[1], metric_division.div_position[1]
+        )
         for attribute in attributes:
             constructor_kwargs = dict()
             component_kind = None
@@ -123,7 +127,11 @@ def notes_from_musicXML(
                         "step": NOTE_NAME_TO_INT[sign],
                         "octave": sign_to_octave[sign] + octave_change,
                     }
-                    staff_numbers = [attribute.get("number")] if attribute.get("number") is not None else ['1']
+                    staff_numbers = (
+                        [attribute.get("number")]
+                        if attribute.get("number") is not None
+                        else ["1"]
+                    )
                     component_kind = ComponentKind.CLEF
                 case _:
                     continue
@@ -132,14 +140,18 @@ def notes_from_musicXML(
                 for staff_number in staff_numbers:
                     _create_component(
                         component_kind,
-                        constructor_kwargs | {"time": time, 'staff_index': part_id_to_staves[part_id][staff_number]},
+                        constructor_kwargs
+                        | {
+                            "time": time,
+                            "staff_index": part_id_to_staves[part_id][staff_number],
+                        },
                     )
 
     def _parse_note_tie(element: ET.Element) -> Note.TieType:
-        tie = element.find('tie')
+        tie = element.find("tie")
         if tie is None:
             return Note.TieType.NONE
-        elif tie.text == 'start':
+        elif tie.text == "start":
             return Note.TieType.START
         else:
             return Note.TieType.STOP
@@ -161,9 +173,13 @@ def notes_from_musicXML(
                 element.find("pitch/step").text
             ]
             constructor_kwargs["octave"] = int(element.find("pitch/octave").text)
-            constructor_kwargs["display_accidental"] = True if element.find('accidental') is not None else False
+            constructor_kwargs["display_accidental"] = (
+                True if element.find("accidental") is not None else False
+            )
             alter = element.find("pitch/alter")
-            constructor_kwargs["accidental"] = int(alter.text) if alter is not None else 0
+            constructor_kwargs["accidental"] = (
+                int(alter.text) if alter is not None else 0
+            )
 
         if element.find("unpitched") is not None:
             constructor_kwargs["step"] = NOTE_NAME_TO_INT[
@@ -174,22 +190,26 @@ def notes_from_musicXML(
                 element.find("unpitched/display-octave").text
             )
 
-        constructor_kwargs['tie_type'] = _parse_note_tie(element)
+        constructor_kwargs["tie_type"] = _parse_note_tie(element)
 
         if not constructor_kwargs.keys():
             return
 
         is_chord = element.find("chord") is not None
         start_times = _metric_to_time(
-            metric_division.measure_num[1], metric_division.div_position[0 if is_chord else 1]
+            metric_division.measure_num[1],
+            metric_division.div_position[0 if is_chord else 1],
         )
         end_times = _metric_to_time(
-            metric_division.measure_num[1], metric_division.div_position[0 if is_chord else 1] + duration
+            metric_division.measure_num[1],
+            metric_division.div_position[0 if is_chord else 1] + duration,
         )
         if element.find("staff") is not None:
-            constructor_kwargs["staff_index"] = part_id_to_staves[part_id][element.find("staff").text]
+            constructor_kwargs["staff_index"] = part_id_to_staves[part_id][
+                element.find("staff").text
+            ]
         else:
-            constructor_kwargs['staff_index'] = part_id_to_staves[part_id]['1']
+            constructor_kwargs["staff_index"] = part_id_to_staves[part_id]["1"]
 
         if not is_chord:
             metric_division.update_measure_position(duration)
@@ -221,7 +241,9 @@ def notes_from_musicXML(
             for element in measure:
                 _parse_element(element, part_id)
 
-            times = _metric_to_time(metric_division.measure_num[1], metric_division.div_position[1])
+            times = _metric_to_time(
+                metric_division.measure_num[1], metric_division.div_position[1]
+            )
             for time in times:
                 _create_component(
                     ComponentKind.BAR_LINE,
@@ -238,27 +260,37 @@ def notes_from_musicXML(
             for element in part:
                 _parse_element(element, part_index)
 
-            times = _metric_to_time(metric_division.measure_num[1], metric_division.div_position[1])
+            times = _metric_to_time(
+                metric_division.measure_num[1], metric_division.div_position[1]
+            )
             for time in times:
                 _create_component(
                     ComponentKind.BAR_LINE,
-                    {
-                        "time": time,
-                          "staff_index": part_index
-                    },
+                    {"time": time, "staff_index": part_index},
                 )
 
             metric_division.div_position = div_position_start
 
     def _parse_staves(tree: ET):
         staff_counter = itertools.count()
-        part_ids = [p.get("id") for p in tree.findall('part-list/score-part')]
-        part_id_to_staves = {p.get("id"): {} for p in tree.findall('part-list/score-part')}
+        part_ids = [p.get("id") for p in tree.findall("part-list/score-part")]
+        part_id_to_staves = {
+            p.get("id"): {} for p in tree.findall("part-list/score-part")
+        }
 
         for id in part_ids:
-            staff_numbers = sorted(list(set([s.text for s in tree.findall(f".//part[@id='{id}']//note/staff")])))
+            staff_numbers = sorted(
+                list(
+                    set(
+                        [
+                            s.text
+                            for s in tree.findall(f".//part[@id='{id}']//note/staff")
+                        ]
+                    )
+                )
+            )
             if not staff_numbers:
-                staff_numbers = ['1']
+                staff_numbers = ["1"]
             for number in staff_numbers:
                 staff_index = next(staff_counter)
                 _create_component(

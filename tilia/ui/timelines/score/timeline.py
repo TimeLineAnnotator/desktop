@@ -17,8 +17,12 @@ from tilia.ui.timelines.base.timeline import (
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
 from tilia.ui.timelines.score.context_menu import ScoreTimelineUIContextMenu
 from tilia.ui.timelines.score.element import NoteUI, StaffUI, ClefUI
-from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
-from tilia.ui.timelines.score.request_handlers import ScoreTimelineUIElementRequestHandler
+from tilia.ui.timelines.score.element.with_collision import (
+    TimelineUIElementWithCollision,
+)
+from tilia.ui.timelines.score.request_handlers import (
+    ScoreTimelineUIElementRequestHandler,
+)
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
 
 
@@ -139,8 +143,8 @@ class ScoreTimelineUI(TimelineUI):
             self._update_staff_extreme_notes(element.get_data('staff_index'), element)
 
         try:
-            time = element.get_data('time')
-            staff_index = element.get_data('staff_index')
+            time = element.get_data("time")
+            staff_index = element.get_data("staff_index")
         except GetComponentDataError:
             return
         if overlapping_components := self._get_overlap(staff_index, time, kind):
@@ -174,13 +178,17 @@ class ScoreTimelineUI(TimelineUI):
     def get_clef_time_cache(self) -> dict[int, dict[tuple[int, int], ClefUI]]:
         cache = {}
         start_time = 0
-        all_clefs = self.element_manager.get_elements_by_attribute('kind', ComponentKind.CLEF)
-        for idx in set([clef.get_data('staff_index') for clef in all_clefs]):
-            clefs_in_staff = [clef for clef in all_clefs if clef.get_data('staff_index') == idx]
+        all_clefs = self.element_manager.get_elements_by_attribute(
+            "kind", ComponentKind.CLEF
+        )
+        for idx in set([clef.get_data("staff_index") for clef in all_clefs]):
+            clefs_in_staff = [
+                clef for clef in all_clefs if clef.get_data("staff_index") == idx
+            ]
             cache[idx] = {}
             prev_clef = clefs_in_staff[0]
             for clef in clefs_in_staff[1:]:
-                time = clef.get_data('time')
+                time = clef.get_data("time")
                 cache[idx][(start_time, time)] = prev_clef
                 start_time = time
                 prev_clef = clef
@@ -197,7 +205,11 @@ class ScoreTimelineUI(TimelineUI):
 
     def _get_overlap(self, staff_index: float, time: float, kind: ComponentKind) -> tuple[TimelineUIElementWithCollision]:
         # Elements will be displayed in the order below
-        overlapping_kinds = [ComponentKind.CLEF, ComponentKind.KEY_SIGNATURE, ComponentKind.TIME_SIGNATURE]
+        overlapping_kinds = [
+            ComponentKind.CLEF,
+            ComponentKind.KEY_SIGNATURE,
+            ComponentKind.TIME_SIGNATURE,
+        ]
 
         if kind not in overlapping_kinds:
             return []
@@ -249,10 +261,10 @@ class ScoreTimelineUI(TimelineUI):
         clef = self.get_clef_by_time(time, staff_index)
         if not staff:
             return None
-        line_count = staff.get_data('line_count')
-        clef_step = clef.get_data('step')
-        clef_octave = clef.get_data('octave')
-        clef_line_number = clef.get_data('line_number')
+        line_count = staff.get_data("line_count")
+        clef_step = clef.get_data("step")
+        clef_octave = clef.get_data("octave")
+        clef_line_number = clef.get_data("line_number")
 
         upper_line_number = math.floor(line_count / 2)
         upper_step_diff = (upper_line_number - clef_line_number) * 2
@@ -266,7 +278,10 @@ class ScoreTimelineUI(TimelineUI):
         while lower_step < 0:
             lower_step += 7
 
-        return (lower_step, clef_octave + lower_step_octave_diff), (upper_step % 7, clef_octave + upper_step_octave_diff)
+        return (lower_step, clef_octave + lower_step_octave_diff), (
+            upper_step % 7,
+            clef_octave + upper_step_octave_diff,
+        )
 
     def update_height(self):
         self.scene.set_height(int(self.get_height()))
