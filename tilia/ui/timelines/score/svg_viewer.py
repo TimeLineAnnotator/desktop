@@ -1,25 +1,35 @@
 # TODO:
-# - move into UI
 # - measure tracker
+# - use tilia.errors
+# - zipfile
+# - get str from user
 
-from PyQt6.QtWidgets import QApplication, QDockWidget, QScrollArea
-from PyQt6.QtCore import Qt, QRectF, QPointF, QKeyCombination, QPoint
-from PyQt6.QtGui import QPolygon
-import sys
-from pathlib import Path
-from PyQt6.QtSvgWidgets import QSvgWidget
-import xml.etree.ElementTree as ET
 from enum import Enum, auto
-from PyQt6.QtCore import QUrl, pyqtSlot, QObject
-from PyQt6.QtWebChannel import QWebChannel
 from html import escape, unescape
+from pathlib import Path
 from re import sub
+from xml.etree import ElementTree as ET
 
+from PyQt6.QtCore import (
+    pyqtSlot,
+    Qt,
+    QKeyCombination,
+    QObject,
+    QPoint,
+    QPointF,
+    QRectF,
+    QUrl,
+)
+from PyQt6.QtGui import QPolygon
+from PyQt6.QtSvgWidgets import QSvgWidget
+from PyQt6.QtWebChannel import QWebChannel
+from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWidgets import QDockWidget, QScrollArea
+
+from tilia.ui.windows.view_window import ViewWindow
 import tilia.constants
 import tilia.errors
-
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineSettings
 
 
 class SvgSelectionBox(QRectF):
@@ -277,11 +287,14 @@ class SvgWidget(QSvgWidget):
                 Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Minus
             ): self.zoom_out,
             QKeyCombination(
-                Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Up
+                Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Up
             ): self.annotation_zoom_in,
             QKeyCombination(
-                Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Down
+                Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Down
             ): self.annotation_zoom_out,
+            QKeyCombination(
+                Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Return
+            ): self.edit_tla_annotation,
             QKeyCombination(
                 Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Delete
             ): self.delete_tla_annotation,
@@ -294,14 +307,23 @@ class SvgWidget(QSvgWidget):
         else:
             return super().keyPressEvent(a0)
 
-    def delete_tla_annotation(self):
-        if deletable := self.selected_elements.intersection(self.deletable):
-            for element in deletable:
+    def edit_tla_annotation(self):
+        if annotation := self.selected_elements.intersection(self.deletable):
+            for element in annotation:
                 self.root.remove(self.selectable[element]["node"])
                 self.selectable.pop(element)
                 self.deletable.remove(element)
                 self.selected_elements.remove(element)
             self.save_to_file()
+        else:
+            self.remove_from_selection(self.selected_elements)
+        self.__refresh_svg()
+
+    def delete_tla_annotation(self):
+        if deletable := self.selected_elements.intersection(self.deletable):
+            for element in deletable:
+                pass
+            self.remove_from_selection(self.selected_elements)
         else:
             self.remove_from_selection(self.selected_elements)
         self.__refresh_svg()
@@ -393,7 +415,7 @@ class SvgWidget(QSvgWidget):
         return super().closeEvent(a0)
 
 
-class VexflowTracker(QObject):
+class SvgWebEngineTracker(QObject):
     def __init__(self, page, on_svg_loaded, display_error):
         super().__init__()
         self.page = page
@@ -409,10 +431,9 @@ class VexflowTracker(QObject):
         self.display_error(message)
 
 
-class VexflowViewer(QDockWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setWindowTitle("Score Viewer")
+class SvgViewer(ViewWindow, QDockWidget):
+    def __init__(self, name: str, *args, **kwargs):
+        super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
         self.scroll_area = QScrollArea()
         self.scroll_area.setSizeAdjustPolicy(
             QScrollArea.SizeAdjustPolicy.AdjustToContents
@@ -428,7 +449,7 @@ class VexflowViewer(QDockWidget):
         self.web_engine = QWebEngineView()
         self.web_engine.load(
             QUrl.fromLocalFile(
-                (Path(__file__).parent / "vexflow.html").resolve().__str__()
+                (Path(__file__).parent / "svg_maker.html").resolve().__str__()
             )
         )
         self.web_engine.settings().setAttribute(
@@ -440,7 +461,7 @@ class VexflowViewer(QDockWidget):
         self.web_engine.loadFinished.connect(self.engine_loaded)
 
         self.channel = QWebChannel()
-        self.shared_object = VexflowTracker(
+        self.shared_object = SvgWebEngineTracker(
             self.web_engine.page(),
             self._on_svg_loaded,
             self.display_error,
@@ -456,14 +477,10 @@ class VexflowViewer(QDockWidget):
     def _on_svg_loaded(self, svg: str):
         svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
         path = (Path(__file__).parent / "tmp.svg").resolve().__str__()
-        print(path)
         with open(path, "w") as f:
             f.write(svg)
         self.svg_widget.load(path)
         self.show()
-        self.web_engine.deleteLater()
-        self.is_loaded = False
-        print(self.web_engine)
 
     def load(self, path: Path) -> None:
         def load_svg():
@@ -480,9 +497,3 @@ class VexflowViewer(QDockWidget):
     def closeEvent(self, event):
         self.svg_widget.close()
         return super().closeEvent(event)
-
-
-app = QApplication(sys.argv)
-renderer = VexflowViewer()
-renderer.load("some/file.musicxml")
-app.exec()

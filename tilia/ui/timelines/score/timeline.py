@@ -19,6 +19,7 @@ from tilia.ui.timelines.score.request_handlers import (
     ScoreTimelineUIElementRequestHandler,
 )
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
+from tilia.ui.timelines.score.svg_viewer import SvgViewer
 
 
 class ScoreTimelineUI(TimelineUI):
@@ -40,6 +41,9 @@ class ScoreTimelineUI(TimelineUI):
             lambda updated_settings: self.on_settings_updated(updated_settings),
         )
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
+        self.svg_view = SvgViewer(
+            name=self.get_data("name"), parent=get(Get.MAIN_WINDOW)
+        )
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
@@ -51,6 +55,14 @@ class ScoreTimelineUI(TimelineUI):
         return ScoreTimelineUIElementRequestHandler(self).on_request(
             request, selector, *args, **kwargs
         )
+
+    def update_name(self):
+        name = self.get_data("name")
+        self.scene.set_text(name)
+        self.svg_view.update_title(name)
+
+    def path_updated(self, path):
+        self.svg_view.load(path)
 
     def get_staves_y_coordinates(self):
         staves = self.element_manager.get_elements_by_attribute(
