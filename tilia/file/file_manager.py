@@ -11,8 +11,8 @@ from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile, validate_tla_data
 from tilia.file.media_metadata import MediaMetadata
-from tilia.settings import settings
 import tilia.errors
+from tilia.settings import settings
 
 
 def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
@@ -24,7 +24,9 @@ def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
         return False, None
     except json.decoder.JSONDecodeError as err:
         tilia.errors.display(
-            tilia.errors.OPEN_FILE_INVALID_TLA, file_path, 'File is not valid JSON.',
+            tilia.errors.OPEN_FILE_INVALID_TLA,
+            file_path,
+            "File is not valid JSON.",
         )
         return False, None
 
@@ -33,7 +35,9 @@ def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
         tilia.errors.display(tilia.errors.OPEN_FILE_INVALID_TLA, file_path, reason)
         return False, None
 
-    data["file_path"] = file_path if isinstance(file_path, str) else str(file_path.resolve())
+    data["file_path"] = (
+        file_path if isinstance(file_path, str) else str(file_path.resolve())
+    )
     return True, TiliaFile(**data)
 
 
@@ -172,6 +176,12 @@ class FileManager:
         write_tilia_file_to_disk(TiliaFile(**data), str(path))
         data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
         self.file = TiliaFile(**data)
+
+        try:
+            geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
+        except tilia.exceptions.NoReplyToRequest:
+            geometry, window_state = None, None
+        settings.update_recent_files(path, geometry, window_state)
 
     def new(self):
         self.file = TiliaFile()

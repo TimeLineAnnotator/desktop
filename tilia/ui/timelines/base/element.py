@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 
 from PyQt6.QtCore import QPoint
 
 from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
+from tilia.ui.coords import time_x_converter
 from tilia.utils import get_tilia_class_string
 
 from PyQt6.QtWidgets import QGraphicsScene
@@ -20,10 +22,11 @@ class TimelineUIElement(ABC):
 
     def __init__(
         self,
-        *args,
         id: int,
         timeline_ui,
         scene: QGraphicsScene,
+        get_data: Callable[[str], Any],
+        set_data: Callable[[str, Any], None],
         **kwargs,
     ):
         super().__init__()
@@ -31,6 +34,8 @@ class TimelineUIElement(ABC):
         self.timeline_ui = timeline_ui
         self.id = id
         self.scene = scene
+        self.get_data = get_data
+        self.set_data = set_data
 
     def __repr__(self):
         return get_tilia_class_string(self)
@@ -44,15 +49,9 @@ class TimelineUIElement(ABC):
 
     @property
     def kind(self):
-        return self.tl_component.get_data('KIND')
+        return self.tl_component.get_data("KIND")
 
-    def get_data(self, attr: str):
-        return self.timeline_ui.get_component_data(self.id, attr)
-
-    def set_data(self, attr: str, value: Any):
-        self.timeline_ui.set_component_data(self.id, attr, value)
-
-    def update(self, attr: str):
+    def update(self, attr: str, value: Any):
         if attr not in self.UPDATE_TRIGGERS:
             return
 
@@ -66,7 +65,8 @@ class TimelineUIElement(ABC):
         return self in self.timeline_ui.selected_elements
 
     @abstractmethod
-    def child_items(self): ...
+    def child_items(self):
+        ...
 
     def selection_triggers(self):
         return self.child_items()
@@ -87,9 +87,11 @@ class TimelineUIElement(ABC):
         menu = self.CONTEXT_MENU_CLASS(self)
         menu.exec(QPoint(x, y))
 
-    def on_select(self): ...
+    def on_select(self):
+        ...
 
-    def on_deselect(self): ...
+    def on_deselect(self):
+        ...
 
     def delete(self):
         for item in self.child_items():
@@ -100,3 +102,15 @@ class TimelineUIElement(ABC):
             self.scene.removeItem(item)
 
         stop_listening_to_all(self)
+
+    @property
+    def start_x(self):
+        return time_x_converter.get_x_by_time(self.get_data("start"))
+
+    @property
+    def end_x(self):
+        return time_x_converter.get_x_by_time(self.get_data("end"))
+
+    @property
+    def x(self):
+        return time_x_converter.get_x_by_time(self.get_data("time"))

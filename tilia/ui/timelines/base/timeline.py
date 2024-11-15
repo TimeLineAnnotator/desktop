@@ -28,7 +28,8 @@ from tilia.ui.timelines.copy_paste import (
 from .request_handlers import TimelineRequestHandler
 from ..collection.requests.enums import ElementSelector
 from ..view import TimelineView
-from ...coords import get_x_by_time
+from ...coords import time_x_converter
+from ...windows import WindowKind
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineUIs
@@ -66,7 +67,7 @@ class TimelineUI(ABC):
         self._setup_visibility()
         self._setup_collection_requests()
 
-        listen(self, Post.WINDOW_INSPECT_OPENED, self.on_inspector_window_opened)
+        listen(self, Post.WINDOW_OPEN_DONE, self.on_window_open_done)
 
     def __iter__(self):
         return iter(self.elements)
@@ -157,10 +158,13 @@ class TimelineUI(ABC):
         self.scene.set_width(int(width))
         self.view.setFixedWidth(int(width))
         self.element_manager.update_time_on_elements()
-        self.scene.set_playback_line_pos(get_x_by_time(get(Get.SELECTED_TIME)))
+        self.scene.set_playback_line_pos(
+            time_x_converter.get_x_by_time(get(Get.SELECTED_TIME))
+        )
         (loop_start, loop_end) = get(Get.LOOP_TIME)
         self.scene.set_loop_box_position(
-            get_x_by_time(loop_start), get_x_by_time(loop_end)
+            time_x_converter.get_x_by_time(loop_start),
+            time_x_converter.get_x_by_time(loop_end),
         )
 
     def update_ordinal(self):
@@ -181,9 +185,10 @@ class TimelineUI(ABC):
 
         return selector_to_elements[selector]
 
-    def set_elements_attr(self, elements: list[T], attr: str, value: Any):
+    @staticmethod
+    def set_elements_attr(elements: list[T], attr: str, value: Any):
         for elm in elements:
-            self.set_component_data(elm.id, attr, value)
+            elm.set_data(attr, value)
 
     def get_timeline_component(self, id: int):
         return self.timeline.get_component(id)
@@ -191,20 +196,18 @@ class TimelineUI(ABC):
     def get_component_ui(self, component: TimelineComponent):
         return self.id_to_element[component.id]
 
-    def get_component_data(self, id: int, attr: str):
-        return self.timeline.get_component_data(id, attr)
-
-    def set_component_data(self, id: int, attr: str, value: Any):
-        self.timeline.set_component_data(id, attr, value)
-
     def _setup_collection_requests(self):
         self.request_to_callback = {}
 
     def on_timeline_request(self, request, *args, **kwargs):
         return TimelineRequestHandler(self, {}).on_request(request, *args, **kwargs)
 
-    def on_timeline_component_created(self, kind: ComponentKind, id: int):
-        return self.element_manager.create_element(kind, id, self, self.scene)
+    def on_timeline_component_created(
+        self, kind: ComponentKind, id: int, get_data, set_data
+    ):
+        return self.element_manager.create_element(
+            kind, id, self, self.scene, get_data, set_data
+        )
 
     def on_timeline_component_deleted(self, id: int):
         self.delete_element(self.id_to_element[id])
@@ -374,7 +377,9 @@ class TimelineUI(ABC):
             return
         self.CONTEXT_MENU_CLASS(self).exec(QPoint(x, y))
 
-    def on_inspector_window_opened(self):
+    def on_window_open_done(self, kind: WindowKind):
+        if kind != WindowKind.INSPECT:
+            return
         for element in self.selected_elements:
             self.post_inspectable_selected_event(element)
 
@@ -403,10 +408,10 @@ class TimelineUI(ABC):
 
         attr = element.FIELD_NAMES_TO_ATTRIBUTES[field_name]
 
-        if value == self.get_component_data(element.id, attr):
+        if value == element.get_data(attr):
             return
 
-        self.set_component_data(element.id, attr, value)
+        element.set_data(attr, value)
 
         post(
             Post.APP_RECORD_STATE,

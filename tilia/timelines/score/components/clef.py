@@ -61,23 +61,32 @@ class Clef(TimelineComponent):
 
         super().__init__(timeline, id)
 
-    def from_shorthand(self, shorthand: Shorthand):
-        if shorthand == self.Shorthand.BASS:
+    def central_step(self):
+        return self.get_data('step') + self.get_data('line_number') * -2, self.get_data('octave')
+
+    class Shorthand(Enum):
+        BASS = auto()
+        TREBLE = auto()
+        TREBLE_8VB = auto()
+        ALTO = auto()
+
+    def from_shorthand(self, shorthand: Clef.Shorthand):
+        if shorthand == Clef.Shorthand.BASS:
             self.line_number = 1
             self.step = 3
             self.octave = 2
             self.icon = "clef-bass.svg"
-        elif shorthand == self.Shorthand.TREBLE:
+        elif shorthand == Clef.Shorthand.TREBLE:
             self.line_number = -1
             self.step = 4
             self.octave = 3
             self.icon = "clef-treble.svg"
-        elif shorthand == self.Shorthand.TREBLE_8VB:
+        elif shorthand == Clef.Shorthand.TREBLE_8VB:
             self.line_number = -1
             self.step = 4
             self.octave = 2
             self.icon = "clef-treble-8vb.svg"
-        elif shorthand == self.Shorthand.ALTO:
+        elif shorthand == Clef.Shorthand.ALTO:
             self.line_number = 0
             self.step = 0
             self.octave = 3
@@ -85,16 +94,18 @@ class Clef(TimelineComponent):
         else:
             raise ValueError(f"Invalid shorthand: {shorthand}")
 
-    def central_step(self):
-        return self.get_data("step") + self.get_data("line_number") * -2, self.get_data(
-            "octave"
-        )
+    def shorthand(self) -> Clef.Shorthand | None:
+        match self.line_number, self.step, self.octave:
+            case 1, 3, 2:
+                return Clef.Shorthand.BASS
+            case -1, 4, 3:
+                return Clef.Shorthand.TREBLE
+            case -1, 4, 2:
+                return Clef.Shorthand.TREBLE_8VB
+            case 0, 0, 3:
+                return Clef.Shorthand.ALTO
+            case _:
+                return None
 
     def __str__(self):
         return f"Clef({self.time}, {self.line_number}, {self.step}, {self.octave}, {self.icon})"
-
-    class Shorthand(Enum):
-        BASS = auto()
-        TREBLE = auto()
-        TREBLE_8VB = auto()
-        ALTO = auto()

@@ -3,7 +3,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from tests.mock import PatchPost
-from tilia.requests import Post
+from tilia.requests import Post, post
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.hierarchy import HierarchyUI
 
 
@@ -62,6 +63,24 @@ class TestHierarchyUI:
             tlui[0].on_right_click(0, 0, None)
 
         exec_mock.assert_called_once()
+
+    def test_drag_start_handle(self, tlui, hierarchy_tlui, tilia_state):
+        hierarchy_tlui.create_hierarchy(0, tilia_state.duration, 1)
+        hierarchy_tlui.on_element_left_click(hierarchy_tlui[0], hierarchy_tlui[0].start_handle)
+        time_to_drag = tilia_state.duration / 2
+        x_to_drag = time_x_converter.get_x_by_time(time_to_drag)
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+        assert hierarchy_tlui[0].dragged
+        assert hierarchy_tlui[0].start_x == time_x_converter.get_x_by_time(time_to_drag)
+
+    def test_drag_end_handle(self, tlui, hierarchy_tlui, tilia_state):
+        hierarchy_tlui.create_hierarchy(0, tilia_state.duration, 1)
+        hierarchy_tlui.on_element_left_click(hierarchy_tlui[0], hierarchy_tlui[0].end_handle)
+        time_to_drag = tilia_state.duration / 2
+        x_to_drag = time_x_converter.get_x_by_time(time_to_drag)
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+        assert hierarchy_tlui[0].dragged
+        assert hierarchy_tlui[0].end_x == time_x_converter.get_x_by_time(time_to_drag)
 
 
 class TestPreStartIndicator:

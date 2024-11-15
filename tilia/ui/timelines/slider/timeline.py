@@ -9,12 +9,10 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect,
 )
 
-import tilia.ui.coords
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import get, Get, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui import coords
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.settings import settings
 from tilia.requests import Post, listen
@@ -23,6 +21,7 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.view import TimelineView
+from tilia.ui.coords import time_x_converter
 from ..cursors import CursorMixIn
 
 if TYPE_CHECKING:
@@ -128,7 +127,7 @@ class SliderTimelineUI(TimelineUI):
         self, item_id: int, modifier: ModifierEnum, double: bool, x: int, y: int
     ) -> None:
         if item_id == self.line:
-            time = tilia.ui.coords.get_time_by_x(x)
+            time = time_x_converter.get_time_by_x(x)
             if double:
                 post(Post.PLAYER_SEEK, time)
             else:
@@ -156,13 +155,15 @@ class SliderTimelineUI(TimelineUI):
         post(Post.SLIDER_DRAG, x)
 
     def on_drag_end(self):
-        post(Post.PLAYER_SEEK, coords.get_time_by_x(self.x))  # maybe not necessary
+        post(
+            Post.PLAYER_SEEK, time_x_converter.get_time_by_x(self.x)
+        )  # maybe not necessary
         self.dragging = False
         post(Post.SLIDER_DRAG_END)
 
     def on_audio_time_change(self, time: float, _: MediaTimeChangeReason) -> None:
         if not self.dragging:
-            self.x = coords.get_x_by_time(time)
+            self.x = time_x_converter.get_x_by_time(time)
             self.set_trough_position()
 
     def get_ui_for_component(
@@ -171,7 +172,7 @@ class SliderTimelineUI(TimelineUI):
         """No components in SliderTimeline. Must implement abstract method."""
 
     def update_items_position(self):
-        self.x = coords.get_x_by_time(get(Get.MEDIA_CURRENT_TIME))
+        self.x = time_x_converter.get_x_by_time(get(Get.MEDIA_CURRENT_TIME))
         self.set_trough_position()
         self.line.set_position(*self._get_line_pos_args())
 

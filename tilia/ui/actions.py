@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QMainWindow
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.windows import WindowKind
 
 
 class TiliaAction(Enum):
@@ -78,7 +79,6 @@ class TiliaAction(Enum):
     VIEW_ZOOM_OUT = auto()
     WEBSITE_HELP_OPEN = auto()
     WINDOW_MANAGE_TIMELINES_OPEN = auto()
-    INSPECT_WINDOW_CLOSE = auto()
 
 
 @dataclass
@@ -190,19 +190,19 @@ taction_to_params = {
         Post.TIMELINE_ELEMENT_COLOR_RESET, "Reset color", "", ""
     ),
     TiliaAction.HIERARCHY_SPLIT: ActionParams(
-        Post.HIERARCHY_SPLIT, "Split unit at current position", "split30", "s"
+        Post.HIERARCHY_SPLIT, "Split at current position", "split30", "s"
     ),
     TiliaAction.HIERARCHY_MERGE: ActionParams(
-        Post.HIERARCHY_MERGE, "Merge hierarchies", "merge30", "e"
+        Post.HIERARCHY_MERGE, "Merge", "merge30", "e"
     ),
     TiliaAction.HIERARCHY_GROUP: ActionParams(
-        Post.HIERARCHY_GROUP, "Group hierarchies", "group30", "g"
+        Post.HIERARCHY_GROUP, "Group", "group30", "g"
     ),
     TiliaAction.HIERARCHY_INCREASE_LEVEL: ActionParams(
-        Post.HIERARCHY_INCREASE_LEVEL, "Increase level", "lvlup30", "Ctrl+Up"
+        Post.HIERARCHY_INCREASE_LEVEL, "Move up a level", "lvlup30", "Ctrl+Up"
     ),
     TiliaAction.HIERARCHY_DECREASE_LEVEL: ActionParams(
-        Post.HIERARCHY_DECREASE_LEVEL, "Decrease level", "lvldwn30", "Ctrl+Down"
+        Post.HIERARCHY_DECREASE_LEVEL, "Move down a level", "lvldwn30", "Ctrl+Down"
     ),
     TiliaAction.HIERARCHY_CREATE_CHILD: ActionParams(
         Post.HIERARCHY_CREATE_CHILD, "Create child", "below30", ""
@@ -257,10 +257,10 @@ taction_to_params = {
         Post.UI_MEDIA_LOAD_YOUTUBE, "YouTube...", "", ""
     ),
     TiliaAction.METADATA_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_METADATA_OPEN, "Edit metadata...", "", ""
+        Post.WINDOW_OPEN, "Edit metadata...", "", "", (WindowKind.MEDIA_METADATA,)
     ),
     TiliaAction.SETTINGS_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_SETTINGS_OPEN, "Settings...", "", ""
+        Post.WINDOW_OPEN, "Settings...", "", "", (WindowKind.SETTINGS,)
     ),
     TiliaAction.AUTOSAVES_FOLDER_OPEN: ActionParams(
         Post.AUTOSAVES_FOLDER_OPEN, "Autosaves...", "", ""
@@ -268,7 +268,7 @@ taction_to_params = {
     TiliaAction.EDIT_REDO: ActionParams(Post.EDIT_REDO, "Redo", "", "Ctrl+Shift+Z"),
     TiliaAction.EDIT_UNDO: ActionParams(Post.EDIT_UNDO, "Undo", "", "Ctrl+Z"),
     TiliaAction.WINDOW_MANAGE_TIMELINES_OPEN: ActionParams(
-        Post.WINDOW_MANAGE_TIMELINES_OPEN, "Manage...", "", ""
+        Post.WINDOW_OPEN, "Manage...", "", "", (WindowKind.MANAGE_TIMELINES,)
     ),
     TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE: ActionParams(
         Post.TIMELINE_ADD, "Hierarchy", "", "", (TimelineKind.HIERARCHY_TIMELINE,)
@@ -332,12 +332,9 @@ taction_to_params = {
         Post.VIEW_ZOOM_OUT, "Zoom out", "", "Ctrl+-"
     ),
     TiliaAction.ABOUT_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_ABOUT_OPEN, "About...", "", ""
+        Post.WINDOW_OPEN, "About...", "", "", (WindowKind.ABOUT,)
     ),
     TiliaAction.MEDIA_STOP: ActionParams(Post.PLAYER_STOP, "Stop", "stop15", ""),
-    TiliaAction.INSPECT_WINDOW_CLOSE: ActionParams(
-        Post.WINDOW_INSPECT_CLOSE, "Close", "", ""
-    ),
     TiliaAction.WEBSITE_HELP_OPEN: ActionParams(
         Post.WEBSITE_HELP_OPEN, "Help...", "", ""
     ),

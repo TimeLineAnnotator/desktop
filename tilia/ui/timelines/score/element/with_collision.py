@@ -1,19 +1,10 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
-from PyQt6.QtWidgets import QGraphicsScene
-
-from tilia.ui.coords import get_x_by_time
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score import ScoreTimelineUI
 
 
 class TimelineUIElementWithCollision(TimelineUIElement):
-    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, margin_x: float = 0, **kwargs):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, id: int, timeline_ui, scene, get_data, set_data, margin_x: float = 0, **kwargs):
+        super().__init__(id, timeline_ui, scene, get_data, set_data, **kwargs)
         self.margin_x = margin_x
         self._x_offset = None
 
@@ -23,7 +14,7 @@ class TimelineUIElementWithCollision(TimelineUIElement):
 
     @property
     def x(self):
-        return get_x_by_time(self.get_data('time'))
+        return time_x_converter.get_x_by_time(self.get_data('time'))
 
     @property
     def x_offset(self):

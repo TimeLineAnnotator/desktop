@@ -4,14 +4,13 @@ Defines the ui corresponding to a Hierarchy object.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QColor, QPen, QFont, QFontMetrics, QPixmap
 from PyQt6.QtWidgets import (
-    QGraphicsScene,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsTextItem,
@@ -22,13 +21,10 @@ from .drag import start_drag
 from .extremity import Extremity
 from .handles import HierarchyBodyHandle, HierarchyFrameHandle
 from ..cursors import CursorMixIn
-from ... import coords
 from ...color import get_tinted_color, get_untinted_color
 from ...consts import TINT_FACTOR_ON_SELECTION
+from ...coords import time_x_converter
 from ...windows.inspect import HIDE_FIELD, InspectRowKind
-
-if TYPE_CHECKING:
-    from .timeline import HierarchyTimelineUI
 
 import tilia.ui.format
 
@@ -36,8 +32,6 @@ from tilia.requests import (
     Post,
     post,
     stop_listening_to_all,
-    get,
-    Get,
 )
 from tilia.ui.timelines.copy_paste import CopyAttributes
 from tilia.settings import settings
@@ -102,19 +96,12 @@ class HierarchyUI(TimelineUIElement):
         "color",
     ]
     CONTEXT_MENU_CLASS = HierarchyContextMenu
+    FONT_METRICS = QFontMetrics(QFont("Arial", 10))
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: HierarchyTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.previous_width = 0
-        self.timeline_ui = timeline_ui
-        self.scene = scene
 
         self.label_substrings_widths: list[int] = []
 
@@ -130,28 +117,12 @@ class HierarchyUI(TimelineUIElement):
         self.drag_manager = None
 
     @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
-    @property
     def handle_height(self):
         return settings.get("hierarchy_timeline", "divider_height")
 
     @property
     def colors(self):
         return settings.get("hierarchy_timeline", "default_colors")
-
-    @property
-    def start_x(self):
-        return coords.get_x_by_time(self.get_data("start"))
-
-    @property
-    def end_x(self):
-        return coords.get_x_by_time(self.get_data("end"))
 
     @property
     def has_pre_start(self):
@@ -163,17 +134,14 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def pre_start_x(self):
-        return coords.get_x_by_time(self.get_data("pre_start"))
+        return time_x_converter.get_x_by_time(self.get_data("pre_start"))
 
     @property
     def post_end_x(self):
-        return coords.get_x_by_time(self.get_data("post_end"))
+        return time_x_converter.get_x_by_time(self.get_data("post_end"))
 
-    @property
-    def frame_handle_y(self):
-        return self.timeline_ui.get_data("height") - (
-            self.base_height + (self.get_data("level") - 1.5) * self.x_increment_per_lvl
-        )
+    def frame_handle_y(self, level, tl_height):
+        return tl_height - (self.base_height() + (level - 1.5) * self.x_increment_per_lvl())
 
     @property
     def ui_color(self):
@@ -192,22 +160,29 @@ class HierarchyUI(TimelineUIElement):
     def seek_time(self):
         return self.get_data("pre_start")
 
-    @property
-    def cropped_label(self):
+    @staticmethod
+    def base_height() -> int:
+        return settings.get("hierarchy_timeline", "base_height")
+
+    @staticmethod
+    def x_increment_per_lvl() -> int:
+        return settings.get("hierarchy_timeline", "level_height_diff")
+
+    def get_cropped_label(self, start_x, end_x, label):
         """
         Returns largest substring of self.label that fits inside body
         """
 
-        if not self.get_data("label"):
+        if not label:
             return ""
 
-        max_width = self.end_x - self.start_x
+        max_width = end_x - start_x
 
         for i, width in enumerate(self.label_substrings_widths):
             if width > max_width:
-                return self.get_data("label")[:i]
+                return label[:i]
 
-        return self.get_data("label")
+        return label
 
     @property
     def full_name(self) -> str:
@@ -242,15 +217,24 @@ class HierarchyUI(TimelineUIElement):
             self.post_end_handle.horizontal_line,
         ]
 
-    def update_label_substrings_widths(self):
+    def update_label_substrings_widths(self, value):
         """
-        Calculates length of substrings of label and stores it in self.label_measures
+        Calculates and stores width of substrings of 'value'
         """
         font_metrics = QFontMetrics(QFont("Arial", 10))
         self.label_substrings_widths = [
-            font_metrics.horizontalAdvance(self.get_data("label")[: i + 1])
-            for i in range(len(self.get_data("label")))
+            font_metrics.horizontalAdvance(value[: i + 1]) for i in range(len(value))
         ]
+
+    def update(self, attr: str, value):
+        if attr not in self.UPDATE_TRIGGERS:
+            return
+
+        update_func_name = "update_" + attr
+        if not hasattr(self, update_func_name):
+            raise ValueError(f"{self} has no updater function for attribute '{attr}'")
+
+        getattr(self, update_func_name)()
 
     def update_color(self):
         self.body.set_fill(self.ui_color)
@@ -258,10 +242,20 @@ class HierarchyUI(TimelineUIElement):
     def update_comments(self):
         self.comments_icon.setVisible(bool(self.get_data("comments")))
 
-    def update_label(self):
-        self.update_label_substrings_widths()
-        self.label.set_text(self.cropped_label)
-        self.update_label_position()
+    def update_label(self, start_x=None, end_x=None, level=None, height=None):
+        # if called from update_position,
+        # start_x and end_x will already be available
+        start_x = start_x or self.start_x
+        end_x = end_x or self.end_x
+        level = level or self.get_data("level")
+        height = height or self.timeline_ui.get_data("height")
+
+        new_label = self.get_data("label")
+        if new_label != self.label.toPlainText():
+            self.update_label_substrings_widths(new_label)
+
+        self.label.set_text(self.get_cropped_label(start_x, end_x, new_label))
+        self.update_label_position(level, height, start_x, end_x)
 
     def update_level(self):
         self.update_position()
@@ -274,71 +268,82 @@ class HierarchyUI(TimelineUIElement):
         self.update_position()
 
     def update_pre_start(self):
-        self.update_frame_handle_position(Extremity.PRE_START)
+        self.update_frame_handle_position(
+            Extremity.PRE_START,
+            self.get_data("level"),
+            self.timeline_ui.get_data("height"),
+            self.start_x,
+        )
         if self.is_selected():
             self.update_frame_handle_visibility(Extremity.PRE_START)
 
     def update_post_end(self):
-        self.update_frame_handle_position(Extremity.POST_END)
+        self.update_frame_handle_position(
+            Extremity.POST_END,
+            self.get_data("level"),
+            self.timeline_ui.get_data("height"),
+            self.end_x,
+        )
         if self.is_selected():
             self.update_frame_handle_visibility(Extremity.POST_END)
 
     def update_position(self):
-        self.update_body_position()
-        self.update_comments_icon_position()
-        self.update_loop_icon_position()
-        self.update_label_position()
-        self.update_label()
-        self.update_body_handles_position()
-        self.update_frame_handles_position()
+        start_x = self.start_x
+        end_x = self.end_x
+        level = self.get_data("level")
+        height = self.timeline_ui.get_data("height")
 
-    def update_body_position(self):
+        self.update_body_position(level, height, start_x, end_x)
+        self.update_comments_icon_position(level, height, end_x)
+        self.update_loop_icon_position(level, height, start_x)
+        self.update_label_position(level, height, start_x, end_x)
+        self.update_label(start_x, end_x, level, height)
+        self.update_body_handles_position(height, start_x, end_x)
+        self.update_frame_handles_position(level, height, start_x, end_x)
+
+    def update_body_position(self, level, height, start_x, end_x):
         self.body.set_position(
-            self.get_data("level"),
-            self.start_x,
-            self.end_x,
-            self.timeline_ui.get_data("height"),
+            level,
+            start_x,
+            end_x,
+            height,
         )
 
-    def update_comments_icon_position(self):
-        self.comments_icon.set_position(
-            self.end_x, self.timeline_ui.get_data("height"), self.get_data("level")
-        )
+    def update_comments_icon_position(self, level, height, end_x):
+        self.comments_icon.set_position(end_x, level, height)
 
-    def update_loop_icon_position(self):
-        self.loop_icon.set_position(
-            self.start_x, self.timeline_ui.get_data("height"), self.get_data("level")
-        )
+    def update_loop_icon_position(self, level, height, start_x):
+        self.loop_icon.set_position(start_x, height, level)
 
-    def update_label_position(self):
+    def update_label_position(self, level, height, start_x, end_x):
         self.label.set_position(
-            (self.start_x + self.end_x) / 2,
-            self.timeline_ui.get_data("height"),
-            self.get_data("level"),
+            (start_x + end_x) / 2,
+            height,
+            level,
         )
 
-    def update_body_handles_position(self):
+    def update_body_handles_position(self, height, start_x, end_x):
         for extremity in [Extremity.START, Extremity.END]:
             self.extremity_to_handle(extremity).set_position(
-                self.extremity_to_x(extremity),
+                self.extremity_to_x(extremity, start_x, end_x),
                 self.HANDLE_WIDTH,
                 self.handle_height,
-                self.timeline_ui.get_data("height"),
+                height,
                 self.HANDLE_Y_MARGIN,
             )
 
-    def update_frame_handles_position(self):
-        self.update_frame_handle_position(Extremity.PRE_START)
-        self.update_frame_handle_position(Extremity.POST_END)
+    def update_frame_handles_position(self, level, height, start_x, end_x):
+        self.update_frame_handle_position(Extremity.PRE_START, level, height, start_x)
+        self.update_frame_handle_position(Extremity.POST_END, level, height, end_x)
 
-    def update_frame_handle_position(self, extremity: Extremity):
+    def update_frame_handle_position(self, extremity: Extremity, level, height, body_x):
         if extremity == Extremity.PRE_START:
             self.pre_start_handle.set_position(
-                self.start_x, self.pre_start_x, self.frame_handle_y
+                body_x, self.pre_start_x, self.frame_handle_y(level, height)
             )
         elif extremity == Extremity.POST_END:
             self.post_end_handle.set_position(
-                self.end_x, self.post_end_x, self.frame_handle_y
+                body_x, self.post_end_x, self.frame_handle_y(level, height)
             )
         else:
             raise ValueError("Unrecognized extremity")
@@ -369,12 +374,12 @@ class HierarchyUI(TimelineUIElement):
         self.scene.addItem(self.body)
 
     def _setup_label(self):
-        self.update_label_substrings_widths()
+        self.update_label_substrings_widths(self.get_data("label"))
         self.label = HierarchyLabel(
             (self.start_x + self.end_x) / 2,
             self.timeline_ui.get_data("height"),
             self.get_data("level"),
-            self.cropped_label,
+            self.get_cropped_label(self.start_x, self.end_x, self.get_data("label")),
         )
         self.scene.addItem(self.label)
 
@@ -407,7 +412,9 @@ class HierarchyUI(TimelineUIElement):
             self.scene.addItem(self.end_handle)
 
     def _setup_frame_handles(self):
-        y = self.frame_handle_y
+        y = self.frame_handle_y(
+            self.get_data("level"), self.timeline_ui.get_data("height")
+        )
         self.pre_start_handle = HierarchyFrameHandle(self.start_x, self.pre_start_x, y)
         self.scene.addItem(self.pre_start_handle)
 
@@ -450,17 +457,18 @@ class HierarchyUI(TimelineUIElement):
         except KeyError:
             raise ValueError(f"{handle} if not a handle of {self}")
 
-    def extremity_to_x(self, extremity: Extremity):
+    @staticmethod
+    def extremity_to_x(extremity: Extremity, start_x, end_x):
         if extremity == Extremity.START:
-            return self.start_x
+            return start_x
         elif extremity == Extremity.END:
-            return self.end_x
+            return end_x
         else:
             raise ValueError("Unrecognized extremity")
 
     def _setup_handle(self, extremity: Extremity):
         return HierarchyBodyHandle(
-            self.extremity_to_x(extremity),
+            self.extremity_to_x(extremity, self.start_x, self.end_x),
             self.HANDLE_WIDTH,
             self.handle_height,
             self.timeline_ui.get_data("height"),
@@ -629,14 +637,6 @@ class HierarchyBody(CursorMixIn, QGraphicsRectItem):
         self.set_pen_style_no_pen()
         self.set_fill(color)
 
-    @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
     def set_fill(self, color: str):
         self.setBrush(QColor(color))
 
@@ -666,12 +666,13 @@ class HierarchyBody(CursorMixIn, QGraphicsRectItem):
             QColor(get_untinted_color(self.brush().color(), TINT_FACTOR_ON_SELECTION))
         )
 
-    def get_rect(self, level: int, start_x: float, end_x: float, tl_height: float):
+    @staticmethod
+    def get_rect(level: int, start_x: float, end_x: float, tl_height: float):
         x0 = start_x + HierarchyUI.X_OFFSET
         y0 = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
         )
         x1 = end_x - HierarchyUI.X_OFFSET
 
@@ -686,14 +687,6 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
         self.set_text(text)
         self.set_position(x, tl_height, level)
 
-    @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
     def setup_font(self):
         font = QFont("Arial", 10)
         self.setFont(font)
@@ -704,7 +697,7 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
         )
         return QPointF(x, y)
 
@@ -713,7 +706,8 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
         self.setZValue(level + 1)
 
     def set_text(self, value: str):
-        self.setPlainText(value)
+        if value != self.toPlainText():
+            self.setPlainText(value)
 
 
 class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
@@ -732,14 +726,6 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         self.setPlainText(self.ICON)
         self.set_position(end_x, tl_height, level)
 
-    @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
     def setup_font(self):
         font = QFont("Arial", 6)
         self.setFont(font)
@@ -750,7 +736,7 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
             - self.BOTTOM_MARGIN
         )
         return QPointF(x, y)
@@ -775,20 +761,12 @@ class HierarchyLoopIcon(QGraphicsPixmapItem):
         self.setPixmap(QPixmap(self.ICON))
         self.set_position(start_x, tl_height, level)
 
-    @property
-    def base_height(self):
-        return settings.get("hierarchy_timeline", "base_height")
-
-    @property
-    def x_increment_per_lvl(self):
-        return settings.get("hierarchy_timeline", "level_height_diff")
-
     def get_point(self, start_x: float, tl_height, level):
         x = start_x + self.LEFT_MARGIN
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (self.base_height + ((level - 1) * self.x_increment_per_lvl))
+            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
             + self.TOP_MARGIN
         )
         return QPointF(x, y)

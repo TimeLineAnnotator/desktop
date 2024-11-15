@@ -143,44 +143,9 @@ class QtUI:
             (Post.UI_MEDIA_LOAD_YOUTUBE, self.on_media_load_youtube),
             (Post.TIMELINE_ELEMENT_INSPECT, self.on_timeline_element_inspect),
             (Post.WEBSITE_HELP_OPEN, self.on_website_help_open),
-            (
-                Post.WINDOW_ABOUT_CLOSED,
-                lambda: self.on_window_close_done(WindowKind.ABOUT),
-            ),
-            (Post.WINDOW_ABOUT_OPEN, lambda: self.on_window_open(WindowKind.ABOUT)),
-            (
-                Post.WINDOW_INSPECT_CLOSE,
-                lambda: self.on_window_close(WindowKind.INSPECT),
-            ),
-            (
-                Post.WINDOW_INSPECT_CLOSED,
-                lambda: self.on_window_close_done(WindowKind.INSPECT),
-            ),
-            (Post.WINDOW_INSPECT_OPEN, lambda: self.on_window_open(WindowKind.INSPECT)),
-            (
-                Post.WINDOW_MANAGE_TIMELINES_CLOSE_DONE,
-                lambda: self.on_window_close_done(WindowKind.MANAGE_TIMELINES),
-            ),
-            (
-                Post.WINDOW_MANAGE_TIMELINES_OPEN,
-                lambda: self.on_window_open(WindowKind.MANAGE_TIMELINES),
-            ),
-            (
-                Post.WINDOW_METADATA_CLOSED,
-                lambda: self.on_window_close_done(WindowKind.MEDIA_METADATA),
-            ),
-            (
-                Post.WINDOW_METADATA_OPEN,
-                lambda: self.on_window_open(WindowKind.MEDIA_METADATA),
-            ),
-            (
-                Post.WINDOW_SETTINGS_CLOSED,
-                lambda: self.on_window_close_done(WindowKind.SETTINGS),
-            ),
-            (
-                Post.WINDOW_SETTINGS_OPEN,
-                lambda: self.on_window_open(WindowKind.SETTINGS),
-            ),
+            (Post.WINDOW_OPEN, self.on_window_open),
+            (Post.WINDOW_CLOSE, self.on_window_close),
+            (Post.WINDOW_CLOSE_DONE, self.on_window_close_done),
             (Post.REQUEST_CLEAR_UI, self.on_clear_ui),
             (Post.TIMELINE_KIND_INSTANCED, self.on_timeline_kind_change),
             (Post.TIMELINE_KIND_NOT_INSTANCED, self.on_timeline_kind_change),

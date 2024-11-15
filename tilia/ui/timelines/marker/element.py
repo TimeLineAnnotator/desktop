@@ -1,10 +1,9 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QPolygonF, QPen, QColor, QFont
 from PyQt6.QtWidgets import (
-    QGraphicsScene,
     QGraphicsItem,
     QGraphicsPolygonItem,
     QGraphicsTextItem,
@@ -18,7 +17,7 @@ from ..drag import DragManager
 from ...color import get_tinted_color
 from ...format import format_media_time
 from ...consts import TINT_FACTOR_ON_SELECTION
-from ...coords import get_x_by_time, get_time_by_x
+from ...coords import time_x_converter
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
@@ -49,14 +48,8 @@ class MarkerUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = MarkerContextMenu
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: MarkerTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self._setup_body()
         self._setup_label()
@@ -73,21 +66,17 @@ class MarkerUI(TimelineUIElement):
         self.scene.addItem(self.label)
 
     @property
-    def x(self):
-        return get_x_by_time(self.get_data("time"))
-
-    @property
     def label_y(self):
         return self.height - self.LABEL_MARGIN
 
     @property
     def seek_time(self):
         return self.get_data("time")
-    
+
     @property
     def width(self):
         return settings.get("marker_timeline", "marker_width")
-    
+
     @property
     def height(self):
         return settings.get("marker_timeline", "marker_height")
@@ -116,8 +105,9 @@ class MarkerUI(TimelineUIElement):
         self.update_time()
 
     def update_time(self):
-        self.body.set_position(self.x, self.width, self.height)
-        self.label.set_position(self.x, self.label_y)
+        x = self.x
+        self.body.set_position(x, self.width, self.height)
+        self.label.set_position(x, self.label_y)
 
     def child_items(self):
         return [self.body, self.label]
@@ -152,7 +142,7 @@ class MarkerUI(TimelineUIElement):
             self.dragged = True
 
     def after_each_drag(self, drag_x: int):
-        self.set_data("time", get_time_by_x(drag_x))
+        self.set_data("time", time_x_converter.get_time_by_x(drag_x))
 
     def on_drag_end(self):
         if self.dragged:

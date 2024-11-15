@@ -2,7 +2,7 @@ import functools
 import math
 
 from tilia.requests import get, Get, post, Post
-from tilia.ui import coords
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.hierarchy.handles import (
     HierarchyBodyHandle,
@@ -60,7 +60,7 @@ def get_body_handle_drag_limits(
     hierarchy_ui,
     extremity: Extremity,
 ) -> tuple[int, int]:
-    handle_x = hierarchy_ui.extremity_to_x(extremity)
+    handle_x = hierarchy_ui.extremity_to_x(extremity, hierarchy_ui.start_x, hierarchy_ui.end_x)
     prev_handle_x = hierarchy_ui.timeline_ui.get_previous_handle_x_by_x(handle_x)
     next_handle_x = hierarchy_ui.timeline_ui.get_next_handle_x_by_x(handle_x)
 
@@ -93,7 +93,7 @@ def before_each_drag(hierarchy_ui):
 
 
 def after_each_body_handle_drag(hierarchy_ui, extremity, x: int) -> None:
-    hierarchy_ui.set_data(extremity.value, coords.get_time_by_x(x))
+    hierarchy_ui.set_data(extremity.value, time_x_converter.get_time_by_x(x))
 
 
 def after_each_frame_handle_drag(extremity, uis, x: int):
@@ -102,7 +102,7 @@ def after_each_frame_handle_drag(extremity, uis, x: int):
         Extremity.POST_END: Extremity.END,
     }[extremity]
     if math.isclose(
-        time := coords.get_time_by_x(x),
+        time := time_x_converter.get_time_by_x(x),
         body_extremity_time := uis[0].get_data(body_extremity.value),
     ):
         time = body_extremity_time

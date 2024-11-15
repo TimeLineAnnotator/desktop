@@ -1,24 +1,16 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 from PyQt6.QtCore import QLineF
 from PyQt6.QtGui import QPen, QColor
-from PyQt6.QtWidgets import QGraphicsLineItem, QGraphicsScene
+from PyQt6.QtWidgets import QGraphicsLineItem
 
-from tilia.ui.coords import get_x_by_time
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score.timeline import ScoreTimelineUI
 
 
 class BarLineUI(TimelineUIElement):
     UPDATE_TRIGGERS = ['time']
 
-    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, **kwargs):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene, **kwargs)
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._setup_body()
 
     def child_items(self):
@@ -27,7 +19,7 @@ class BarLineUI(TimelineUIElement):
     def get_body_args(self):
         time = self.get_data('time')
         return (
-            get_x_by_time(time),
+            time_x_converter.get_x_by_time(time),
             self.timeline_ui.get_staves_y_coordinates(),
         )
 

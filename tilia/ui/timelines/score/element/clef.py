@@ -1,26 +1,22 @@
-from __future__ import annotations
-
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
+from tilia.timelines.score.components import Clef
 from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
-
-if TYPE_CHECKING:
-    from PyQt6.QtWidgets import QGraphicsScene
-    from tilia.ui.timelines.score import ScoreTimelineUI
 
 
 class ClefUI(TimelineUIElementWithCollision):
-    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, **kwargs):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._setup_body()
 
     @property
     def icon_path(self):
+        if not self.get_data('icon'):
+            return Path('ui', 'img', 'clef-unknown.svg')
         return Path('ui', 'img', self.get_data('icon'))
 
     def _setup_body(self):
@@ -42,6 +38,9 @@ class ClefUI(TimelineUIElementWithCollision):
 
     def selection_triggers(self):
         return []
+
+    def shorthand(self) -> Clef.Shorthand | None:
+        return self.tl_component.shorthand()
 
 
 class ClefBody(QGraphicsPixmapItem):

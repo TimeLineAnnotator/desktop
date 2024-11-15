@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import math
+from typing import Callable
 
 from tilia.exceptions import GetComponentDataError
 from tilia.requests import Get, get, listen, Post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
@@ -43,6 +45,21 @@ class ScoreTimelineUI(TimelineUI):
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.svg_view = SvgViewer(
             name=self.get_data("name"), parent=get(Get.MAIN_WINDOW)
+        )
+        self._measure_count = self._get_measure_count()
+
+    def _get_measure_count(self):
+        return len(
+            self.element_manager.get_elements_by_attribute(
+                "kind", ComponentKind.BAR_LINE
+            )
+        ) / max(
+            1,
+            len(
+                self.element_manager.get_elements_by_attribute(
+                    "kind", ComponentKind.STAFF
+                )
+            ),
         )
 
     def on_settings_updated(self, updated_settings):
@@ -93,11 +110,15 @@ class ScoreTimelineUI(TimelineUI):
     def get_y_for_symbols_above_staff(self, staff_index: int) -> int:
         return self.STAFF_VERTICAL_AREA * staff_index
 
-    def on_timeline_component_created(self, kind: ComponentKind, id: int):
-        element = super().on_timeline_component_created(kind, id)
+    def on_timeline_component_created(
+        self, kind: ComponentKind, id: int, get_data: Callable, set_data: Callable
+    ):
+        element = super().on_timeline_component_created(kind, id, get_data, set_data)
         if kind == ComponentKind.STAFF:
             self.update_height()
             return
+        elif kind == ComponentKind.BAR_LINE:
+            self._measure_count = self._get_measure_count()
 
         try:
             time = element.get_data("time")
@@ -229,3 +250,15 @@ class ScoreTimelineUI(TimelineUI):
     def update_height(self):
         self.scene.set_height(self.STAFF_VERTICAL_AREA * self.get_data("staff_count"))
         self.view.set_height(self.STAFF_VERTICAL_AREA * self.get_data("staff_count"))
+
+    def average_measure_width(self) -> float:
+        if self._measure_count == 0:
+            return 0
+        bar_lines = sorted(
+            self.element_manager.get_elements_by_attribute(
+                "kind", ComponentKind.BAR_LINE
+            )
+        )
+        x0 = time_x_converter.get_x_by_time(bar_lines[0].get_data("time"))
+        x1 = time_x_converter.get_x_by_time(bar_lines[-1].get_data("time"))
+        return (x1 - x0) / self._measure_count

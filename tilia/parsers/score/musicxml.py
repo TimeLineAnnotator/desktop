@@ -1,12 +1,14 @@
 # NOT COMPLETE
 # TODO:
-#     - Add <tie>
+#     - Fix parsing of anacrusis
 import itertools
 from pathlib import Path
 from zipfile import ZipFile
 from typing import Optional, Any
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+
+import lxml.etree
 
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.score.components import Note
@@ -41,7 +43,7 @@ class TiliaMXLReader:
         else:
             self.file = open(self.path, **self.file_kwargs)
 
-        return ET.parse(self.file, **self.reader_kwargs).getroot()
+        return self.file
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.file.close()
@@ -235,7 +237,7 @@ def notes_from_musicXML(
             case _:
                 pass
 
-    def _parse_partwise(part: ET.Element | Any, part_id: str):
+    def _parse_score(part: ET.Element | Any, part_id: str):
         for measure in part.findall("measure"):
             metric_division.update_measure_number(int(measure.attrib["number"]))
             for element in measure:
@@ -304,26 +306,24 @@ def notes_from_musicXML(
 
         return part_id_to_staves
 
-    with TiliaMXLReader(path, file_kwargs, reader_kwargs) as reader:
+    reader_kwargs = reader_kwargs or {}
 
-        part_id_to_staves = _parse_staves(reader)
+    with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
+        tree = ET.parse(file, **reader_kwargs).getroot()
 
-        match reader.tag:
-            case "score-partwise":
-                for part in reader.findall("part"):
-                    _parse_partwise(part, part.get("id"))
-                score_tl.set_data("path", path)
+    if tree.tag == "score-timewise":
+        tree = _convert_to_partwise(tree)
+    elif tree.tag != "score-partwise":
+        raise ValueError(f"File `{path} is not valid musicxml.")
 
-            case "score-timewise":
-                for measure in reader.findall("measure"):
-                    metric_division.update_measure_number(int(measure.attrib["number"]))
-                    pass
-                    _parse_timewise(measure)
-                score_tl.set_data("path", path)
-            case _:
-                errors.append("File not read")
+    part_id_to_staves = _parse_staves(tree)
 
-        return errors
+    for part in tree.findall("part"):
+        _parse_score(part, part.get("id"))
+
+    score_tl.set_data("path", path)
+
+    return errors
 
 
 @dataclass
@@ -361,3 +361,16 @@ class MetricDivision:
             "number": measure_number,
             "fraction": div_position / self.max_div_per_measure,
         }
+
+
+def _convert_to_partwise(element: ET.Element) -> ET.Element:
+    tree = lxml.etree.fromstring(
+        ET.tostring(element)
+    ).getroottree()  # convert to lxml.ElementTree
+    xsl_path = Path("parsers", "score", "timewise_to_partwise.xsl")
+    with open(str(xsl_path.resolve()), "r", encoding="utf-8") as xsl:
+        xsl_tree = lxml.etree.parse(xsl)
+
+    transform = lxml.etree.XSLT(xsl_tree)
+    transformed = transform(tree)
+    return ET.fromstring(lxml.etree.tostring(transformed, encoding="utf-8"))

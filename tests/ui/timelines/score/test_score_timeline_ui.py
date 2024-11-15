@@ -38,5 +38,6 @@ def test_create_time_signature(score_tlui, time_signature):
 
 @pytest.mark.parametrize('fifths', range(-7, 8))
 def test_create_key_signature(score_tlui, fifths):
+    score_tlui.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)
     score_tlui.create_component(ComponentKind.KEY_SIGNATURE, 0, 0, fifths)
     assert score_tlui[0]

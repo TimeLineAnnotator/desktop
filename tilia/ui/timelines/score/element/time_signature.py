@@ -1,36 +1,30 @@
-from __future__ import annotations
-
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsPixmapItem
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
-from tilia.ui.coords import get_x_by_time
-from tilia.ui.timelines.base.element import TimelineUIElement
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score import ScoreTimelineUI
 
 
 class TimeSignatureUI(TimelineUIElementWithCollision):
     MARGIN_X = 2
 
-    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, **kwargs):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene, margin_x=TimeSignatureUI.MARGIN_X)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._setup_body()
 
-    def get_icon_path(self, number: int) -> Path:
+    @staticmethod
+    def get_icon_path(number: int | str) -> Path:
         return Path('ui', 'img', f'time-signature-{number}.svg')
 
     @property
     def x(self):
-        return get_x_by_time(self.get_data('time'))
+        return time_x_converter.get_x_by_time(self.get_data('time'))
 
     def _setup_body(self):
-        self.body = TimeSignatureBody(self.x, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')), self.get_icon_path(self.get_data('numerator')), self.get_icon_path(self.get_data('denominator')))
+        self.body = TimeSignatureBody(self.x, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')), self.get_data('numerator'), self.get_data('denominator'))
         self.body.moveBy(self.x_offset, 0)
         self.scene.addItem(self.body)
 
@@ -48,25 +42,52 @@ class TimeSignatureBody(QGraphicsItem):
     PIXMAP_HEIGHT = 12
     TOP_MARGIN = 10
 
-    def __init__(self, x: float, y: float, numerator_path: Path, denominator_path: Path):
+    def __init__(self, x: float, y: float, numerator: int, denominator: int):
         super().__init__()
-        self.set_numerator_item(str(numerator_path.resolve()))
-        self.set_denominator_item(str(denominator_path.resolve()))
+        self.set_numerator_items(numerator)
+        self.set_denominator_items(denominator)
+        self.align_pixmaps(numerator, denominator)
         self.set_position(x, y)
 
-    def set_numerator_item(self, path: str):
-        self.numerator_item = QGraphicsPixmapItem(QPixmap(path).scaledToHeight(self.PIXMAP_HEIGHT, mode=Qt.TransformationMode.SmoothTransformation), self)
+    def set_numerator_items(self, numerator: int):
+        self.numerator_items = []
+        for i, digit in enumerate(str(numerator)):
+            path = str(TimeSignatureUI.get_icon_path(digit).resolve())
+            item = QGraphicsPixmapItem(QPixmap(path).scaledToHeight(self.PIXMAP_HEIGHT, mode=Qt.TransformationMode.SmoothTransformation), self)
+            item.setPos(i * item.pixmap().width(), 0)
+            self.numerator_items.append(item)
 
-    def set_denominator_item(self, path: str):
-        self.denominator_item = QGraphicsPixmapItem(QPixmap(path).scaledToHeight(self.PIXMAP_HEIGHT, mode=Qt.TransformationMode.SmoothTransformation), self)
-        self.denominator_item.setPos(0, self.numerator_item.pixmap().height())
+    def set_denominator_items(self, denominator: int):
+        self.denominator_items = []
+        for i, digit in enumerate(str(denominator)):
+            path = str(TimeSignatureUI.get_icon_path(digit).resolve())
+            item = QGraphicsPixmapItem(QPixmap(path).scaledToHeight(self.PIXMAP_HEIGHT, mode=Qt.TransformationMode.SmoothTransformation), self)
+            item.setPos(i * item.pixmap().width(), item.pixmap().height())
+            self.denominator_items.append(item)
+
+    def align_pixmaps(self, numerator: int, denominator: int):
+        difference = len(str(denominator)) - len(str(numerator))
+        if difference > 0:
+            # numerator is shorter than denominator
+            for item in self.numerator_items:
+                item.moveBy(difference * item.pixmap().width() / 2, 0)
+
+        elif difference < 0:
+            # denominator is shorter than numerator
+            for item in self.denominator_items:
+                item.moveBy(difference * item.pixmap().width() * -1 / 2, 0)
 
     def set_position(self, x: float, y: float):
         self.setPos(x, y + self.TOP_MARGIN)
 
-    def boundingRect(self):
-        return self.numerator_item.boundingRect().united(self.denominator_item.boundingRect())
+    def canvas_items(self):
+        return self.numerator_items + self.denominator_items
 
-    def paint(self, painter, option, widget):
-        self.numerator_item.paint(painter, option, widget)
-        self.denominator_item.paint(painter, option, widget)
+    def boundingRect(self):
+        items = self.canvas_items()
+        bounding_rect = items[0].boundingRect()
+        for item in items[1:]:
+            bounding_rect = bounding_rect.united(item.boundingRect())
+        return bounding_rect
+
+    def paint(self, painter, option, widget): ...

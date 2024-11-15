@@ -66,6 +66,7 @@ class SettingsManager(QObject):
             "base_height": 25,
             "level_height_diff": 25,
             "divider_height": 10,
+            "prompt_create_level_below": True,
         },
         "marker_timeline": {
             "default_height": 30,
@@ -89,21 +90,29 @@ class SettingsManager(QObject):
         self._settings = QSettings(
             tilia.constants.APP_NAME, f"Desktop-v.{tilia.constants.VERSION}"
         )
-        self.check_all_default_settings_present()
         self._files_updated_callbacks = set()
+        self._cache = {}
+        self._check_all_default_settings_present()
 
-    def check_all_default_settings_present(self):
+    def _check_all_default_settings_present(self):
         for group_name, setting in self.DEFAULT_SETTINGS.items():
             for name in setting.keys():
-                self.get(group_name, name)
+                if group_name not in self._cache.keys():
+                    self._cache[group_name] = {}
+                self._cache[group_name][name] = self._get(group_name, name)
 
     def reset_to_default(self):
+        self._cache = {}
         self._settings.beginGroup("editable")
         self._settings.remove("")
-        for group, settings in self.DEFAULT_SETTINGS.items():
-            self._settings.beginGroup(group)
+        self._check_all_default_settings_present()
+        for group_name, settings in self.DEFAULT_SETTINGS.items():
+            self._settings.beginGroup(group_name)
             for key, value in settings.items():
                 self._settings.setValue(key, value)
+                if group_name not in self._cache.keys():
+                    self._cache[group_name] = {}
+                self._cache[group_name][key] = value
             self._settings.endGroup()
         self._settings.endGroup()
 
@@ -115,7 +124,7 @@ class SettingsManager(QObject):
     def link_file_update(self, updating_function) -> None:
         self._files_updated_callbacks.add(updating_function)
 
-    def get(self, group_name: str, setting: str, in_default=True):
+    def _get(self, group_name: str, setting: str, in_default=True):
         key = self._get_key(group_name, setting, in_default)
         value = self._settings.value(key, None)
         if not value:
@@ -125,20 +134,29 @@ class SettingsManager(QObject):
                 return None
             self._settings.setValue(key, value)
 
+        # QSettings saves all settings as strings; check typing before parsing
         if value == "true":
             return True
         elif value == "false":
             return False
-        elif sys.platform == 'linux' and isinstance(value, str) and value.isnumeric():
-            # For some reason, PyQt parses numeric values as strings in Linux.
-            # Is this a Qt bug?
+        elif isinstance(value, str) and value.isnumeric():
             return int(value)
 
         return value
 
-    def set(self, group_name: str, setting: str, value, in_default=True):
+    def _set(self, group_name: str, setting: str, value, in_default=True):
         key = self._get_key(group_name, setting, in_default)
         self._settings.setValue(key, value)
+
+    def get(self, group_name: str, setting: str):
+        return self._cache[group_name][setting]
+
+    def set(self, group_name: str, setting: str, value):
+        try:
+            self._cache[group_name][setting] = value
+            self._set(group_name, setting, value)
+        except AttributeError:
+            raise AttributeError(f"{group_name}.{setting} not found in cache.")
 
     @staticmethod
     def _get_key(group_name: str, setting: str, in_default: bool) -> str:
@@ -174,16 +192,7 @@ class SettingsManager(QObject):
         return geometry, state
 
     def get_dict(self) -> dict:
-        editable_settings = {}
-        self._settings.beginGroup("editable")
-        for group_name in self._settings.childGroups():
-            self._settings.beginGroup(group_name)
-            editable_settings[group_name] = {}
-            for setting in self._settings.childKeys():
-                editable_settings[group_name][setting] = self._settings.value(setting)
-            self._settings.endGroup()
-        self._settings.endGroup()
-        return editable_settings
+        return self._cache
 
 
 settings = SettingsManager()

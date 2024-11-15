@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Callable
+from typing import Callable, Iterator
 
 from tilia.requests import Post, get, Get
 from tilia.ui.enums import PasteCardinality
@@ -75,7 +75,7 @@ class ElementRequestHandler(RequestHandler):
         return get(Get.TIMELINE, self.timeline_ui.id)
 
     @staticmethod
-    def elements_to_components(elements: list[TimelineUIElement]):
+    def elements_to_components(elements: Iterator[TimelineUIElement]):
         return [e.tl_component for e in elements]
 
     def on_paste(self, *_, **__):

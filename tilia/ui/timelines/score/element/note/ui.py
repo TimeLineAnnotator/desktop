@@ -1,21 +1,17 @@
-from __future__ import annotations
-
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import (
-    QGraphicsScene,
     QGraphicsItem,
 )
 
 from tilia.requests import Post, post
 from tilia.timelines.score.components.note import pitch
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.score import attrs
 from tilia.ui.color import get_tinted_color
 from tilia.ui.format import format_media_time
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
-from tilia.ui.coords import get_x_by_time
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.score.context_menu import NoteContextMenu
@@ -24,9 +20,6 @@ from tilia.ui.timelines.score.element.note.body import NoteBody
 from tilia.ui.timelines.score.element.note.supplementary_line import (
     NoteSupplementaryLines,
 )
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score.timeline import ScoreTimelineUI
 
 
 class NoteUI(TimelineUIElement):
@@ -40,14 +33,8 @@ class NoteUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = NoteContextMenu
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: ScoreTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self._setup_body()
         self._setup_supplementary_line()
@@ -117,11 +104,11 @@ class NoteUI(TimelineUIElement):
 
     @property
     def start_x(self):
-        return get_x_by_time(self.get_data("start"))
+        return time_x_converter.get_x_by_time(self.get_data("start"))
     
     @property
     def end_x(self):
-        return get_x_by_time(self.get_data("end"))
+        return time_x_converter.get_x_by_time(self.get_data("end"))
     
     @property
     def top_y(self):
@@ -195,15 +182,31 @@ class NoteUI(TimelineUIElement):
         }[accidental]
         return x, y + y_offset
 
-    @staticmethod
-    def get_accidental_height(accidental: int) -> float:
-        return {
+    def get_accidental_height(self, accidental: int) -> int:
+        return int({
            -2: 18,
            -1: 18,
             0: 20,
             1: 20,
             2: 12,
-        }[accidental]
+        }[accidental] * self.get_accidental_scale_factor())
+
+    def get_accidental_scale_factor(self):
+        """
+        Scales accidental according to amw = average measure width.
+        If amw < visibility_treshold, returns 0, indicating accidentals should be hidden.
+        If visibility_treshold < amw < max_size_treshold, scales proportionally with min_scale as a minimum.
+        If amw > max_size_treshold, returns 1, indicating accidentals should be fully visible.
+        """
+        visibility_treshold = 30
+        max_size_treshold = 180
+        min_scale = 0.5
+        average_measure_width = self.timeline_ui.average_measure_width()
+        if not average_measure_width:
+            return 1
+        if average_measure_width < visibility_treshold:
+            return 0
+        return min(1, min_scale + (average_measure_width / max_size_treshold * min_scale))
 
     def update_color(self):
         self.body.set_fill(self.ui_color)
@@ -216,7 +219,9 @@ class NoteUI(TimelineUIElement):
         if self.supplementary_line:
             self.supplementary_line.set_position(*self.get_supplementary_line_position_args(self.supplementary_line.direction, self.get_data('staff_index')))
         if self.accidental:
-            self.accidental.set_position(*self.get_accidental_position(self.get_data('accidental')))
+            accidental = self.get_data('accidental')
+            self.accidental.set_position(*self.get_accidental_position(accidental))
+            self.accidental.set_height(self.get_accidental_height(accidental))
 
     def child_items(self):
         return [self.body]

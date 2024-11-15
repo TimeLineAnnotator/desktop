@@ -5,12 +5,12 @@ import typing
 import music21
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsTextItem
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 from music21.roman import RomanNumeral
 
 from . import harmony_attrs
 from tilia.requests import get, Get, post, Post
-from tilia.ui.coords import get_x_by_time, get_time_by_x
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import (
@@ -46,14 +46,8 @@ class HarmonyUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = HarmonyContextMenu
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: HarmonyTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self._setup_body()
 
@@ -63,10 +57,6 @@ class HarmonyUI(TimelineUIElement):
     def _setup_body(self):
         self.body = HarmonyBody(self.x, self.y, self.label, self.font_type)
         self.scene.addItem(self.body)
-
-    @property
-    def x(self):
-        return get_x_by_time(self.get_data("time"))
 
     @property
     def y(self):
@@ -217,7 +207,6 @@ class HarmonyUI(TimelineUIElement):
 
     def update_label(self):
         self.body.set_text(self.label)
-        # self.body.set_alternate_text(self.alternate_lable)
         self.body.set_position(self.x, self.y)
 
     def update_position(self):
@@ -259,7 +248,7 @@ class HarmonyUI(TimelineUIElement):
             self.dragged = True
 
     def after_each_drag(self, drag_x: int):
-        self.set_data("time", get_time_by_x(drag_x))
+        self.set_data("time", time_x_converter.get_time_by_x(drag_x))
         self.update_label()
 
     def on_drag_end(self):
