@@ -106,9 +106,10 @@ class NoteUI(TimelineUIElement):
     def _setup_accidental(self):
         if self.get_data("display_accidental"):
             accidental_number = self.get_data("accidental")
+            scale_factor = self.get_accidental_scale_factor()
             self.accidental = NoteAccidental(
-                *self.get_accidental_position(accidental_number),
-                self.get_accidental_height(accidental_number),
+                *self.get_accidental_position(accidental_number, scale_factor),
+                self.get_accidental_height(accidental_number, scale_factor),
                 self.get_accidental_icon_path(accidental_number),
             )
             self.scene.addItem(self.accidental)
@@ -183,26 +184,27 @@ class NoteUI(TimelineUIElement):
         }[accidental]
         return Path("ui", "img", f"accidental-{file_name}.svg")
 
-    def get_accidental_position(self, accidental: int) -> tuple[float, float]:
+    def get_accidental_position(self, accidental: int, scale_factor: float) -> tuple[float, float]:
         x = self.start_x - 3
-        y = self.top_y - self.note_height() / 2
+        y = self.top_y + self.note_height() / 2
         y_offset = {
-            -2: -1,
-            -1: -1,
-            0: 3,
-            1: 3,
-            2: 7,
-        }[accidental]
+            -2: -2,
+            -1: -2,
+            0: 0,
+            1: 0,
+            2: 1,
+        }[accidental] * scale_factor
         return x, y + y_offset
 
-    def get_accidental_height(self, accidental: int) -> int:
+    @staticmethod
+    def get_accidental_height(accidental: int, scale_factor: float) -> int:
         return int({
            -2: 18,
            -1: 18,
             0: 20,
             1: 20,
             2: 12,
-        }[accidental] * self.get_accidental_scale_factor())
+        }[accidental] * scale_factor)
 
     def get_accidental_scale_factor(self):
         """
@@ -233,8 +235,9 @@ class NoteUI(TimelineUIElement):
             self.supplementary_line.set_position(*self.get_supplementary_line_position_args(self.supplementary_line.direction, self.get_data('staff_index')))
         if self.accidental:
             accidental = self.get_data('accidental')
-            self.accidental.set_position(*self.get_accidental_position(accidental))
-            self.accidental.set_height(self.get_accidental_height(accidental))
+            scale_factor = self.get_accidental_scale_factor()
+            self.accidental.set_height(self.get_accidental_height(accidental, scale_factor))
+            self.accidental.set_position(*self.get_accidental_position(accidental, scale_factor))
 
     def child_items(self):
         return [self.body]

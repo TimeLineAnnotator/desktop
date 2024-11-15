@@ -24,4 +24,4 @@ class NoteAccidental(QGraphicsPixmapItem):
             self.setVisible(True)
 
     def set_position(self, x: float, y: float):
-        self.setPos(x - self.boundingRect().width(), y)
+        self.setPos(x - self.boundingRect().width(), y - self.boundingRect().height() / 2)
