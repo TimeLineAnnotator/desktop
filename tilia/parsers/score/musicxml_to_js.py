@@ -1,3 +1,7 @@
+# TODO:
+# - move into UI
+# - measure tracker
+
 from PyQt6.QtWidgets import QApplication, QDockWidget, QScrollArea
 from PyQt6.QtCore import Qt, QRectF, QPointF, QKeyCombination, QPoint
 from PyQt6.QtGui import QPolygon
@@ -6,6 +10,16 @@ from pathlib import Path
 from PyQt6.QtSvgWidgets import QSvgWidget
 import xml.etree.ElementTree as ET
 from enum import Enum, auto
+from PyQt6.QtCore import QUrl, pyqtSlot, QObject
+from PyQt6.QtWebChannel import QWebChannel
+from html import escape, unescape
+from re import sub
+
+import tilia.constants
+import tilia.errors
+
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import QWebEngineSettings
 
 
 class SvgSelectionBox(QRectF):
@@ -379,6 +393,22 @@ class SvgWidget(QSvgWidget):
         return super().closeEvent(a0)
 
 
+class VexflowTracker(QObject):
+    def __init__(self, page, on_svg_loaded, display_error):
+        super().__init__()
+        self.page = page
+        self.on_svg_loaded = on_svg_loaded
+        self.display_error = display_error
+
+    @pyqtSlot(str)
+    def set_svg(self, svg: str) -> None:
+        self.on_svg_loaded(svg)
+
+    @pyqtSlot(str)
+    def on_error(self, message: str) -> None:
+        self.display_error(message)
+
+
 class VexflowViewer(QDockWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -395,8 +425,57 @@ class VexflowViewer(QDockWidget):
         self.scroll_area.setWidget(self.svg_widget)
         self.setWidget(self.scroll_area)
 
-    def load(self, path: Path) -> None:
+        self.web_engine = QWebEngineView()
+        self.web_engine.load(
+            QUrl.fromLocalFile(
+                (Path(__file__).parent / "vexflow.html").resolve().__str__()
+            )
+        )
+        self.web_engine.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
+        )
+        self.web_engine.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True
+        )
+        self.web_engine.loadFinished.connect(self.engine_loaded)
+
+        self.channel = QWebChannel()
+        self.shared_object = VexflowTracker(
+            self.web_engine.page(),
+            self._on_svg_loaded,
+            self.display_error,
+        )
+        self.channel.registerObject("backend", self.shared_object)
+        self.web_engine.page().setWebChannel(self.channel)
+
+        self.is_loaded = False
+
+    def engine_loaded(self):
+        self.is_loaded = True
+
+    def _on_svg_loaded(self, svg: str):
+        svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
+        path = (Path(__file__).parent / "tmp.svg").resolve().__str__()
+        print(path)
+        with open(path, "w") as f:
+            f.write(svg)
         self.svg_widget.load(path)
+        self.show()
+        self.web_engine.deleteLater()
+        self.is_loaded = False
+        print(self.web_engine)
+
+    def load(self, path: Path) -> None:
+        def load_svg():
+            self.web_engine.page().runJavaScript(f'loadSVG("{path}")')
+
+        if self.is_loaded:
+            load_svg()
+        else:
+            self.web_engine.loadFinished.connect(load_svg)
+
+    def display_error(self, message: str):
+        print(message)
 
     def closeEvent(self, event):
         self.svg_widget.close()
@@ -405,6 +484,5 @@ class VexflowViewer(QDockWidget):
 
 app = QApplication(sys.argv)
 renderer = VexflowViewer()
-renderer.load("tilia/parsers/score/test.svg")
-renderer.show()
+renderer.load("some/file.musicxml")
 app.exec()
