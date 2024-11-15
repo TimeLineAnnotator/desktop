@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+</head>
+
+<body>
+    <div id="osmdCanvas"></div>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.9/build/opensheetmusicdisplay.min.js"></script>
+    <script type="text/javascript">
+        let backend;
+        new QWebChannel(qt.webChannelTransport, function (channel) {
+            backend = channel.objects.backend;
+        })
+
+        var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {
+            backend: "svg",
+            drawingParameters: "compacttight",
+            renderSingleHorizontalStaffline: true
+        })
+
+        async function loadSVG(filename) {
+            const response = await fetch(filename);
+            if (!response.ok) {
+                backend.on_error(`Response status: ${response.status}`);
+                return;
+            }
+            const blob = await response.blob();
+            const file = new File([blob], filename, { type: blob.type });
+
+            if (!file.name.match('.*\.xml') && !file.name.match('.*\.musicxml') && !file.name.match('.*\.mxl')) {
+                backend.on_error(`Wrong file type. Please input .musicxml, .mxl or .xml files only.`);
+                return;
+            }
+
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                osmd.load(e.target.result).then(
+                    function () {
+                        osmd.render();
+
+                        const svgElement = document.getElementById("osmdSvgPage1");
+                        if (!svgElement) {
+                            return false;
+                        }
+                        else {
+                            backend.set_svg(svgElement.outerHTML);
+                            return true;
+                        }
+                    }
+                );
+            };
+
+            if (file.name.match('.*\.mxl')) {
+                reader.readAsBinaryString(file);
+            }
+            else {
+                reader.readAsText(file);
+            }
+        }
+    </script>
+</body>
+
+</html>
