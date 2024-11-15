@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+from pathlib import Path
 
 from tilia.requests import post, Post
 from tilia.timelines.base.component.mixed import scale_mixed, crop_mixed
@@ -8,6 +9,8 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
+from tilia.requests import get, Get
+from tilia.timelines.base.validators import validate_string
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
@@ -20,6 +23,20 @@ class ScoreTLComponentManager(TimelineComponentManager):
 class ScoreTimeline(Timeline):
     KIND = TimelineKind.SCORE_TIMELINE
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.validators = self.validators | {"path": validate_string}
+        self._path = None
+
+    @property
+    def path(self):
+        return self._path
+
+    @path.setter
+    def path(self, path: Path):
+        self._path = path
+        get(Get.TIMELINE_UI, self.id).path_updated(path)
 
     @property
     def staff_count(self):

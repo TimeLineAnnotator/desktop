@@ -33,6 +33,7 @@ class Get(Enum):
     ID = auto()
     LEFT_MARGIN_X = auto()
     LOOP_TIME = auto()
+    MAIN_WINDOW = auto()
     MEDIA_CURRENT_TIME = auto()
     MEDIA_DURATION = auto()
     MEDIA_METADATA = auto()

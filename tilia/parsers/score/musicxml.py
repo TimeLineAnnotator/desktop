@@ -312,12 +312,14 @@ def notes_from_musicXML(
             case "score-partwise":
                 for part in reader.findall("part"):
                     _parse_partwise(part, part.get("id"))
+                score_tl.set_data("path", path)
 
             case "score-timewise":
                 for measure in reader.findall("measure"):
                     metric_division.update_measure_number(int(measure.attrib["number"]))
                     pass
                     _parse_timewise(measure)
+                score_tl.set_data("path", path)
             case _:
                 errors.append("File not read")
 
