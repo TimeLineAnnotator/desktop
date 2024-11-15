@@ -215,7 +215,6 @@ class NoteUI(TimelineUIElement):
         max_size_treshold = 180
         min_scale = 0.5
         average_measure_width = self.timeline_ui.average_measure_width()
-        print(average_measure_width)
         if not average_measure_width:
             return 1
         if average_measure_width < visibility_treshold:
