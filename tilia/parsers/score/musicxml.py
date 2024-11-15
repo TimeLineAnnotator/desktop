@@ -1,6 +1,6 @@
 # NOT COMPLETE
 # TODO:
-#     - Add <tie>
+#     - Fix parsing of anacrusis
 import itertools
 from pathlib import Path
 from zipfile import ZipFile
