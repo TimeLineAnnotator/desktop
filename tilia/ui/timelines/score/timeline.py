@@ -21,7 +21,7 @@ from tilia.ui.timelines.score.request_handlers import (
     ScoreTimelineUIElementRequestHandler,
 )
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
-from tilia.ui.timelines.score.svg_viewer import SvgViewer
+from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreTimelineUI(TimelineUI):
@@ -43,10 +43,18 @@ class ScoreTimelineUI(TimelineUI):
             lambda updated_settings: self.on_settings_updated(updated_settings),
         )
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
-        self.svg_view = SvgViewer(
+        self._svg_view = SvgViewer(
             name=self.get_data("name"), parent=get(Get.MAIN_WINDOW)
         )
         self._measure_count = self._get_measure_count()
+
+    @property
+    def svg_view(self):
+        if not self._svg_view:
+            self._svg_view = SvgViewer(
+                name=self.get_data("name"), parent=get(Get.MAIN_WINDOW)
+            )
+        return self._svg_view
 
     def _get_measure_count(self):
         return len(
@@ -76,10 +84,8 @@ class ScoreTimelineUI(TimelineUI):
     def update_name(self):
         name = self.get_data("name")
         self.scene.set_text(name)
-        self.svg_view.update_title(name)
-
-    def path_updated(self, path):
-        self.svg_view.load(path)
+        if self._svg_view:
+            self.svg_view.update_title(name)
 
     def get_staves_y_coordinates(self):
         staves = self.element_manager.get_elements_by_attribute(
@@ -262,3 +268,12 @@ class ScoreTimelineUI(TimelineUI):
         x0 = time_x_converter.get_x_by_time(bar_lines[0].get_data("time"))
         x1 = time_x_converter.get_x_by_time(bar_lines[-1].get_data("time"))
         return (x1 - x0) / self._measure_count
+
+    def delete_svg_view(self):
+        if self._svg_view:
+            self._svg_view.deleteLater()
+            self._svg_view = None
+
+    def delete(self):
+        self.delete_svg_view()
+        return super().delete()

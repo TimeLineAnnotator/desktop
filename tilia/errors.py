@@ -92,6 +92,7 @@ OPEN_FILE_INVALID_TLA = Error(
     "Invalid file type", "File '{}' is not a valid .tla file. {}"
 )
 LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. {}")
+SCORE_SVG_CREATE_ERROR = Error("Error creating SVG", {})
 
 
 def display(error: Error, *args):

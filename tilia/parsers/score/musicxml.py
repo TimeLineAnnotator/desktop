@@ -321,7 +321,7 @@ def notes_from_musicXML(
     for part in tree.findall("part"):
         _parse_score(part, part.get("id"))
 
-    score_tl.set_data("path", path)
+    score_tl.path_updated(path)
 
     return errors
 

@@ -23,6 +23,7 @@ class ScoreTLComponentManager(TimelineComponentManager):
                 ComponentKind.BAR_LINE,
                 ComponentKind.TIME_SIGNATURE,
                 ComponentKind.KEY_SIGNATURE,
+                ComponentKind.SCORE_SVG,
             ],
         )
         self.scale = functools.partial(scale_discrete, self)
@@ -33,19 +34,18 @@ class ScoreTimeline(Timeline):
     KIND = TimelineKind.SCORE_TIMELINE
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.validators = self.validators | {"path": validate_string}
-        self._path = None
-
-    @property
-    def path(self):
-        return self._path
-
-    @path.setter
-    def path(self, path: Path):
-        self._path = path
-        get(Get.TIMELINE_UI, self.id).path_updated(path)
+    def path_updated(self, path: Path):
+        if not (
+            score_svg := self.component_manager._get_component_set_by_kind(
+                ComponentKind.SCORE_SVG
+            )
+        ):
+            (score_svg, _) = self.create_component(
+                ComponentKind.SCORE_SVG, **{"start": 0, "end": get(Get.MEDIA_DURATION)}
+            )
+        else:
+            score_svg = list(score_svg)[0]
+        score_svg.path_updated(path)
 
     @property
     def staff_count(self):
@@ -55,5 +55,7 @@ class ScoreTimeline(Timeline):
             )
         )
 
-    def _validate_delete_components(self, component: TimelineComponent) -> None:
-        pass
+    def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
+        for component in components:
+            if hasattr(component, "svg_view"):
+                get(Get.TIMELINE_UI, self.id).delete_svg_view()
