@@ -1,7 +1,5 @@
 # TODO:
 # - measure tracker
-# - use tilia.errors
-# - zipfile
 # - get str from user
 
 from enum import Enum, auto
@@ -28,7 +26,6 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QDockWidget, QScrollArea
 
 from tilia.ui.windows.view_window import ViewWindow
-import tilia.constants
 import tilia.errors
 
 
@@ -56,7 +53,6 @@ class SvgWidget(QSvgWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
-        self.tree = NotImplemented
         self.root = NotImplemented
 
     def reset(self):
@@ -73,12 +69,13 @@ class SvgWidget(QSvgWidget):
     def __refresh_svg(self):
         super().load(bytearray(ET.tostring(self.root)))
 
-    def load(self, path: Path) -> None:
+    @property
+    def viewer(self):
+        return self.parent().parent().parent()
+
+    def load(self, data):
         self.blockSignals(True)
-        self.path = path
-        with open(path) as file:
-            self.tree = ET.parse(file)
-        self.root = self.tree.getroot()
+        self.root = ET.fromstring(data)
         self.svg_width = round(float(self.root.attrib.get("width", 500)))
         self.svg_height = round(float(self.root.attrib.get("height", 500)))
         self.reset()
@@ -310,11 +307,8 @@ class SvgWidget(QSvgWidget):
     def edit_tla_annotation(self):
         if annotation := self.selected_elements.intersection(self.deletable):
             for element in annotation:
-                self.root.remove(self.selectable[element]["node"])
-                self.selectable.pop(element)
-                self.deletable.remove(element)
-                self.selected_elements.remove(element)
-            self.save_to_file()
+                pass
+            self.remove_from_selection(self.selected_elements)
         else:
             self.remove_from_selection(self.selected_elements)
         self.__refresh_svg()
@@ -322,8 +316,11 @@ class SvgWidget(QSvgWidget):
     def delete_tla_annotation(self):
         if deletable := self.selected_elements.intersection(self.deletable):
             for element in deletable:
-                pass
-            self.remove_from_selection(self.selected_elements)
+                self.root.remove(self.selectable[element]["node"])
+                self.selectable.pop(element)
+                self.deletable.remove(element)
+                self.selected_elements.remove(element)
+            self.save_to_file()
         else:
             self.remove_from_selection(self.selected_elements)
         self.__refresh_svg()
@@ -408,11 +405,16 @@ class SvgWidget(QSvgWidget):
 
     def save_to_file(self):
         self.remove_from_selection(self.selected_elements)
-        self.tree.write(self.path.__str__())
+        if self.viewer.measure_box:
+            self.viewer.measure_box.save_data(ET.tostring(self.root, "unicode"))
 
-    def closeEvent(self, a0):
-        self.save_to_file()
-        return super().closeEvent(a0)
+    # def hideEvent(self, a0):
+    #     self.save_to_file()
+    #     return super().hideEvent(a0)
+
+    # def closeEvent(self, a0):
+    #     self.save_to_file()
+    #     return super().closeEvent(a0)
 
 
 class SvgWebEngineTracker(QObject):
@@ -463,37 +465,38 @@ class SvgViewer(ViewWindow, QDockWidget):
         self.channel = QWebChannel()
         self.shared_object = SvgWebEngineTracker(
             self.web_engine.page(),
-            self._on_svg_loaded,
+            self.preprocess_svg,
             self.display_error,
         )
         self.channel.registerObject("backend", self.shared_object)
         self.web_engine.page().setWebChannel(self.channel)
 
         self.is_loaded = False
+        self.measure_box = None
 
     def engine_loaded(self):
         self.is_loaded = True
 
-    def _on_svg_loaded(self, svg: str):
+    def preprocess_svg(self, svg: str):
         svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
-        path = (Path(__file__).parent / "tmp.svg").resolve().__str__()
-        with open(path, "w") as f:
-            f.write(svg)
-        self.svg_widget.load(path)
+        self.measure_box.set_data("data", svg)
+
+    def load_svg_data(self, data):
+        self.svg_widget.load(data)
         self.show()
 
-    def load(self, path: Path) -> None:
-        def load_svg():
+    def get_svg(self, path: Path) -> None:
+        def convert():
             self.web_engine.page().runJavaScript(f'loadSVG("{path}")')
 
         if self.is_loaded:
-            load_svg()
+            convert()
         else:
-            self.web_engine.loadFinished.connect(load_svg)
+            self.web_engine.loadFinished.connect(convert)
 
     def display_error(self, message: str):
-        print(message)
+        tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
 
-    def closeEvent(self, event):
-        self.svg_widget.close()
-        return super().closeEvent(event)
+    def deleteLater(self):
+        self.svg_widget.save_to_file()
+        return super().deleteLater()

@@ -25,3 +25,12 @@ class ScoreTimelineUIElementRequestHandler(ElementRequestHandler):
 
     def on_color_reset(self, elements, *_, **__):
         self.timeline_ui.set_elements_attr(elements, "color", None)
+
+    def on_delete(self, *_, **__):
+        pass
+
+    def on_copy(self, *_, **__):
+        pass
+
+    def on_paste(self, *_, **__):
+        pass
