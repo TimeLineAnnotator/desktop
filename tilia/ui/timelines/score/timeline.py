@@ -34,6 +34,7 @@ class ScoreTimelineUI(TimelineUI):
         listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
         listen(self, Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.on_score_timeline_components_deserialized)
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
+        self.staff_cache: dict[int, StaffUI] = {}
         self._measure_count = self._get_measure_count()
 
     def _get_measure_count(self):
@@ -51,17 +52,14 @@ class ScoreTimelineUI(TimelineUI):
         )
 
     def get_staves_y_coordinates(self):
-        staves = self.element_manager.get_elements_by_attribute('kind', ComponentKind.STAFF)
-        return [(s.top_y(), s.bottom_y()) for s in staves]
+        return [(s.top_y(), s.bottom_y()) for s in self.staff_cache.values()]
 
     def get_staff_top_y(self, index: int) -> float:
-        staves = self.element_manager.get_elements_by_attribute('kind', ComponentKind.STAFF)
-        staff = next((s for s in staves if s.get_data('index') == index))
+        staff = self.staff_cache.get(index)
         return staff.top_y() if staff else 0
 
     def get_staff_bottom_y(self, index: int) -> float:
-        staves = self.element_manager.get_elements_by_attribute('kind', ComponentKind.STAFF)
-        staff = next((s for s in staves if s.get_data('index') == index))
+        staff = self.staff_cache.get(index)
         return staff.bottom_y() if staff else 0
 
     def get_staff_middle_y(self, index: int) -> float:
@@ -77,6 +75,7 @@ class ScoreTimelineUI(TimelineUI):
         element = super().on_timeline_component_created(kind, id)
         if kind == ComponentKind.STAFF:
             self.update_height()
+            self.staff_cache[element.get_data('index')] = element
             return
         elif kind == ComponentKind.BAR_LINE:
             self._measure_count = self._get_measure_count()
