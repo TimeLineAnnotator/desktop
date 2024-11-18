@@ -41,7 +41,7 @@ class TimelineUIElement(ABC):
         return get_tilia_class_string(self)
 
     def __lt__(self, other):
-        return self.tl_component < other.tl_component
+        return self.get_data('ordinal') < other.get_data('ordinal')
 
     @property
     def tl_component(self):
@@ -49,7 +49,7 @@ class TimelineUIElement(ABC):
 
     @property
     def kind(self):
-        return self.tl_component.get_data("KIND")
+        return self.get_data("KIND")
 
     def update(self, attr: str, value: Any):
         if attr not in self.UPDATE_TRIGGERS:
