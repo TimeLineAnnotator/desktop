@@ -58,16 +58,14 @@ class TimelineComponent(ABC):
             self.timeline.update_component_order(self)
         return value, True
 
-    def validate_get_data(self, attr):
-        if not hasattr(self, attr):
-            raise GetComponentDataError(
-                f"Component '{self}' has no attribute named '{attr}'"
-            )
-        return True
-
     def get_data(self, attr: str):
-        if self.validate_get_data(attr):
+        try:
             return getattr(self, attr)
+        except AttributeError:
+            raise GetComponentDataError(
+                "AttributeError while getting data from component."
+                f"Does {type(self)} have a {attr} attribute?"
+            )
 
     @classmethod
     def validate_creation(cls, *args, **kwargs) -> tuple[bool, str]:
