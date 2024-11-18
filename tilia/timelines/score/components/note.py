@@ -83,6 +83,9 @@ class Note(SegmentLikeTimelineComponent):
         self.label = label
         self.color = color
         self.comments = comments
+        # assumes start, end, octave, step, accidental and staff_index
+        # won't change after instantiation
+        self._ordinal = (start, end, octave, step, accidental, staff_index)
 
         super().__init__(timeline, id)
 
@@ -91,6 +94,10 @@ class Note(SegmentLikeTimelineComponent):
 
     def __repr__(self):
         return str(dict(self.__dict__.items()))
+
+    @property
+    def ordinal(self):
+        return self._ordinal
 
     @property
     def pitch_class(self):
