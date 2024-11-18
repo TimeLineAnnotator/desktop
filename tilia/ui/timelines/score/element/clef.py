@@ -1,7 +1,4 @@
-from __future__ import annotations
-
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
@@ -10,14 +7,10 @@ from PyQt6.QtWidgets import QGraphicsPixmapItem
 from tilia.timelines.score.components import Clef
 from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
 
-if TYPE_CHECKING:
-    from PyQt6.QtWidgets import QGraphicsScene
-    from tilia.ui.timelines.score import ScoreTimelineUI
-
 
 class ClefUI(TimelineUIElementWithCollision):
-    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, **kwargs):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
+    def __init__(self, *args, **kwargs):
+        super().__init__(0, *args, **kwargs)
         self._setup_body()
 
     @property

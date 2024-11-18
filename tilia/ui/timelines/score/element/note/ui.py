@@ -15,7 +15,7 @@ from tilia.ui.timelines.score import attrs
 from tilia.ui.color import get_tinted_color
 from tilia.ui.format import format_media_time
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
-from tilia.ui.coords import get_x_by_time
+from tilia.ui.coords import time_x_converter
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.score.context_menu import NoteContextMenu
@@ -40,15 +40,8 @@ class NoteUI(TimelineUIElement):
 
     CONTEXT_MENU_CLASS = NoteContextMenu
 
-    def __init__(
-        self,
-        id: int,
-        timeline_ui: ScoreTimelineUI,
-        scene: QGraphicsScene,
-        **_,
-    ):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene)
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.body = None
         self.accidental = None
         self.supplementary_line = None
@@ -126,11 +119,11 @@ class NoteUI(TimelineUIElement):
 
     @property
     def start_x(self):
-        return get_x_by_time(self.get_data("start"))
+        return time_x_converter.get_x_by_time(self.get_data("start"))
     
     @property
     def end_x(self):
-        return get_x_by_time(self.get_data("end"))
+        return time_x_converter.get_x_by_time(self.get_data("end"))
 
     @property
     def clef(self):

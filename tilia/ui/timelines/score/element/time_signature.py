@@ -1,24 +1,18 @@
-from __future__ import annotations
-
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsPixmapItem
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
-from tilia.ui.coords import get_x_by_time
+from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score import ScoreTimelineUI
 
 
 class TimeSignatureUI(TimelineUIElementWithCollision):
     MARGIN_X = 2
 
-    def __init__(self, id: int, timeline_ui: ScoreTimelineUI, scene: QGraphicsScene, **kwargs):
-        super().__init__(id=id, timeline_ui=timeline_ui, scene=scene, margin_x=TimeSignatureUI.MARGIN_X)
+    def __init__(self, *args, **kwargs):
+        super().__init__(self.MARGIN_X,*args, **kwargs)
         self._setup_body()
 
     @staticmethod
@@ -27,7 +21,7 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
 
     @property
     def x(self):
-        return get_x_by_time(self.get_data('time'))
+        return time_x_converter.get_x_by_time(self.get_data('time'))
 
     def _setup_body(self):
         self.body = TimeSignatureBody(self.x, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')), self.get_data('numerator'), self.get_data('denominator'))
