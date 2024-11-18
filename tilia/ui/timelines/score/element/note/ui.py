@@ -46,6 +46,7 @@ class NoteUI(TimelineUIElement):
         self.accidental = None
         self.supplementary_line = None
 
+        self._top_y = None
         if self.clef:
             self._setup_items()
 
@@ -128,17 +129,19 @@ class NoteUI(TimelineUIElement):
     @property
     def clef(self):
         return self.timeline_ui.get_clef_by_time(self.get_data('start'), self.get_data('staff_index'))
-    
+
     @property
     def top_y(self):
-        central_step, central_octave = self.clef.central_step()
+        if self._top_y is None:
+            central_step, central_octave = self.clef.central_step()
 
-        note_height = self.note_height()
-        middle_y = self.timeline_ui.get_staff_middle_y(self.get_data('staff_index'))
-        note_offset = (self.get_data('step') - central_step) * note_height / 2
-        octave_offset = (self.get_data('octave') - central_octave) * note_height / 2 * 7
-        return middle_y - note_offset - octave_offset - note_height / 2
-    
+            note_height = self.note_height()
+            middle_y = self.timeline_ui.get_staff_middle_y(self.get_data('staff_index'))
+            note_offset = (self.get_data('step') - central_step) * note_height / 2
+            octave_offset = (self.get_data('octave') - central_octave) * note_height / 2 * 7
+            self._top_y = middle_y - note_offset - octave_offset - note_height / 2
+        return self._top_y
+
     @property
     def seek_time(self):
         return self.get_data("start")
