@@ -36,10 +36,7 @@ class ScoreTimelineUI(TimelineUI):
         listen(self, Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.on_score_timeline_components_deserialized)
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.staff_cache: dict[int, StaffUI] = {}
-        self._measure_count = self._get_measure_count()
-
-    def _get_measure_count(self):
-        return len(self.element_manager.get_elements_by_attribute('kind', ComponentKind.BAR_LINE)) / max(1, len(self.element_manager.get_elements_by_attribute('kind', ComponentKind.STAFF)))
+        self._measure_count = 0  # assumes measures can't be deleted
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
@@ -85,7 +82,7 @@ class ScoreTimelineUI(TimelineUI):
             self.staff_cache[element.get_data('index')] = element
             return
         elif kind == ComponentKind.BAR_LINE:
-            self._measure_count = self._get_measure_count()
+            self._measure_count += 1
 
         try:
             time = element.get_data('time')
@@ -158,10 +155,8 @@ class ScoreTimelineUI(TimelineUI):
         - octave_upper is the octave of the highest staff line
         The earliest staff before time + 0.01 will be used. Returns None if there is no such staff.
         """
-        staff = self.element_manager.get_element_by_attribute('kind', ComponentKind.STAFF)
-        clefs = self.element_manager.get_elements_by_attribute('kind', ComponentKind.CLEF)
-        clefs_in_staff = [clef for clef in clefs if clef.get_data('staff_index') == staff_index]
-        clef = self.element_manager.get_previous_element_by_time(time + 0.01, sorted(clefs_in_staff))
+        staff = self.staff_cache.get(staff_index)
+        clef = self.get_clef_by_time(time, staff_index)
         if not staff:
             return None
         line_count = staff.get_data('line_count')
