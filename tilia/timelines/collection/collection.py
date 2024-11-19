@@ -206,7 +206,11 @@ class Timelines:
 
     def serialize_timelines(self):
         state = {tl.id: tl.get_state() for tl in self}
-        hash = hash_function('|'.join([tl_data['hash'] for tl_data in state.values()])) if state else ''
+        hash = (
+            hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
+            if state
+            else ""
+        )
         return state, hash
 
     def deserialize_timelines(self, data: dict) -> None:
@@ -237,10 +241,13 @@ class Timelines:
             self.create_timeline(kind, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
-        if hasattr(timeline, 'component_manager') and timeline.component_manager.hash_components() != state["components_hash"]:
+        if (
+            hasattr(timeline, "component_manager")
+            and timeline.component_manager.hash_components() != state["components_hash"]
+        ):
             timeline.component_manager.restore_state(state["components"])
 
-        if timeline.get_state()['hash'] != state["hash"]:
+        if timeline.get_state()["hash"] != state["hash"]:
             for attr in timeline.SERIALIZABLE_BY_VALUE:
                 self.set_timeline_data(timeline.id, attr, state[attr])
 
