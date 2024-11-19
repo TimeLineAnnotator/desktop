@@ -21,8 +21,8 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.score.context_menu import NoteContextMenu
 from tilia.ui.timelines.score.element.note.accidental import NoteAccidental
 from tilia.ui.timelines.score.element.note.body import NoteBody
-from tilia.ui.timelines.score.element.note.supplementary_line import (
-    NoteSupplementaryLines,
+from tilia.ui.timelines.score.element.note.ledger_line import (
+    NoteLedgerLines,
 )
 
 if TYPE_CHECKING:
@@ -44,7 +44,7 @@ class NoteUI(TimelineUIElement):
         super().__init__(*args, **kwargs)
         self.body = None
         self.accidental = None
-        self.supplementary_line = None
+        self.ledger_line = None
 
         self._top_y = None
         if self.clef:
@@ -52,7 +52,7 @@ class NoteUI(TimelineUIElement):
 
     def _setup_items(self):
         self._setup_body()
-        self._setup_supplementary_line()
+        self._setup_ledger_line()
         self._setup_accidental()
 
     def _setup_body(self):
@@ -61,12 +61,12 @@ class NoteUI(TimelineUIElement):
         )
         self.scene.addItem(self.body)
 
-    def _setup_supplementary_line(self):
+    def _setup_ledger_line(self):
         staff_index = self.get_data('staff_index')
         bounding_steps = self.timeline_ui.get_staff_bounding_steps(self.get_data('start'), staff_index)
         if not bounding_steps:
             # No staff has been created
-            self.supplementary_line = None
+            self.ledger_line = None
             return
         (lower_step, lower_octave), (upper_step, upper_octave) = bounding_steps
 
@@ -77,7 +77,7 @@ class NoteUI(TimelineUIElement):
         interval_step = 0
         interval_octave = 0
         if my_step_pitch < pitch(lower_step, 0, lower_octave):
-            direction = NoteSupplementaryLines.Direction.DOWN
+            direction = NoteLedgerLines.Direction.DOWN
             interval_step = lower_step - my_step
             interval_octave = my_octave - lower_octave
             while interval_octave < 0:
@@ -85,7 +85,7 @@ class NoteUI(TimelineUIElement):
                 interval_octave += 1
 
         elif my_step_pitch > pitch(upper_step, 0, upper_octave):
-            direction = NoteSupplementaryLines.Direction.UP
+            direction = NoteLedgerLines.Direction.UP
             interval_step = my_step - upper_step
             interval_octave = my_octave - upper_octave
             while interval_octave > 0:
@@ -98,16 +98,16 @@ class NoteUI(TimelineUIElement):
 
         # Is the case where interval_step, interval_octave == 0, 0 handled correctly?
 
-        supplementary_line_count = math.floor(interval_step / 2)
+        ledger_line_count = math.floor(interval_step / 2)
 
-        if supplementary_line_count:
-            self.supplementary_line = NoteSupplementaryLines(
-                *self.get_supplementary_line_args(direction, supplementary_line_count, staff_index),
+        if ledger_line_count:
+            self.ledger_line = NoteLedgerLines(
+                *self.get_ledger_line_args(direction, ledger_line_count, staff_index),
             )
-            for line in self.supplementary_line.lines:
+            for line in self.ledger_line.lines:
                 self.scene.addItem(line)
         else:
-            self.supplementary_line = None
+            self.ledger_line = None
 
     def _setup_accidental(self):
         if self.get_data("display_accidental"):
@@ -155,7 +155,7 @@ class NoteUI(TimelineUIElement):
         return settings.get("score_timeline", "note_height")
 
     @classmethod
-    def supplementary_line_offset(cls):
+    def ledger_line_offset(cls):
         return 5
 
     @property
@@ -171,19 +171,19 @@ class NoteUI(TimelineUIElement):
             else get_tinted_color(base_color, TINT_FACTOR_ON_SELECTION)
         )
 
-    def get_supplementary_line_args(self, direction: NoteSupplementaryLines.Direction, line_count: int, staff_index: int):
+    def get_ledger_line_args(self, direction: NoteLedgerLines.Direction, line_count: int, staff_index: int):
         return (
             direction,
             line_count,
-            *self.get_supplementary_line_position_args(direction, staff_index),
+            *self.get_ledger_line_position_args(direction, staff_index),
         )
 
-    def get_supplementary_line_position_args(self, direction: NoteSupplementaryLines.Direction, staff_index: int):
-        if direction == NoteSupplementaryLines.Direction.UP:
+    def get_ledger_line_position_args(self, direction: NoteLedgerLines.Direction, staff_index: int):
+        if direction == NoteLedgerLines.Direction.UP:
             y1 = self.timeline_ui.get_staff_top_y(staff_index)
         else:
             y1 = self.timeline_ui.get_staff_bottom_y(staff_index)
-        return self.start_x - self.supplementary_line_offset(), self.end_x + self.supplementary_line_offset(), y1, self.note_height()
+        return self.start_x - self.ledger_line_offset(), self.end_x + self.ledger_line_offset(), y1, self.note_height()
 
     @staticmethod
     def get_accidental_icon_path(accidental: int) -> Path:
@@ -243,8 +243,8 @@ class NoteUI(TimelineUIElement):
 
     def update_time(self):
         self.body.set_position(self.start_x, self.end_x, self.top_y, self.note_height())
-        if self.supplementary_line:
-            self.supplementary_line.set_position(*self.get_supplementary_line_position_args(self.supplementary_line.direction, self.get_data('staff_index')))
+        if self.ledger_line:
+            self.ledger_line.set_position(*self.get_ledger_line_position_args(self.ledger_line.direction, self.get_data('staff_index')))
         if self.accidental:
             accidental = self.get_data('accidental')
             scale_factor = self.get_accidental_scale_factor()

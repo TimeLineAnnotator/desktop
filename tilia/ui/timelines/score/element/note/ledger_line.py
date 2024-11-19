@@ -5,7 +5,7 @@ from PyQt6.QtGui import QPen, QColor
 from PyQt6.QtWidgets import QGraphicsLineItem
 
 
-class NoteSupplementaryLines:
+class NoteLedgerLines:
     class Direction(Enum):
         UP = -1
         DOWN = 1
