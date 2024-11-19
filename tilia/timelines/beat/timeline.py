@@ -30,7 +30,7 @@ class BeatTLComponentManager(TimelineComponentManager):
 
     def update_is_first_in_measure_of_subsequent_beats(self, start_index):
         beats_that_start_measure = set(self.timeline.beats_that_start_measures)
-        for i, beat in enumerate(self.timeline[start_index :]):
+        for i, beat in enumerate(self.timeline[start_index:]):
             is_first_in_measure = start_index + i in beats_that_start_measure
             if is_first_in_measure != beat.is_first_in_measure:
                 self.timeline.set_component_data(
@@ -40,7 +40,7 @@ class BeatTLComponentManager(TimelineComponentManager):
                 )
 
     def create_component(
-            self, kind: ComponentKind, timeline, id, *args, **kwargs
+        self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
         success, beat, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
@@ -57,11 +57,11 @@ class BeatTLComponentManager(TimelineComponentManager):
         return success, beat, reason
 
     def _validate_component_creation(
-            self,
-            _: ComponentKind,
-            time: float,
-            *args,
-            **kwargs,
+        self,
+        _: ComponentKind,
+        time: float,
+        *args,
+        **kwargs,
     ):
         return Beat.validate_creation(time, self.beat_times)
 
@@ -136,9 +136,9 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().deserialize_components(serialized_components)
 
         # But we restore them here.
-        self.timeline.set_data('measure_numbers', measure_numbers)
-        self.timeline.set_data('beats_in_measure', beats_in_measure)
-        self.timeline.set_data('measures_to_force_display', measures_to_force_display)
+        self.timeline.set_data("measure_numbers", measure_numbers)
+        self.timeline.set_data("beats_in_measure", beats_in_measure)
+        self.timeline.set_data("measures_to_force_display", measures_to_force_display)
 
         self.timeline.recalculate_measures()  # Not sure if this is needed.
 
@@ -461,7 +461,8 @@ class BeatTimeline(Timeline):
             )
 
         if not self.is_empty:
-            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)  # Higher index is possible.
+            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+            # Higher index is possible.
 
     class FillMethod(Enum):
         BY_AMOUNT = auto()
@@ -469,7 +470,8 @@ class BeatTimeline(Timeline):
 
     def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
         duration = get(Get.MEDIA_DURATION)
-        self.component_manager.compute_is_first_in_measure = False  # only compute at end
+        self.component_manager.compute_is_first_in_measure = False
+        # only compute at end
 
         if method == BeatTimeline.FillMethod.BY_AMOUNT:
             for i in range(value):
@@ -480,5 +482,3 @@ class BeatTimeline(Timeline):
 
         self.component_manager.compute_is_first_in_measure = True
         self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
-
-
