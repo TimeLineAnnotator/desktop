@@ -5,10 +5,11 @@ from tilia.timelines.base.validators import validate_time, validate_pre_validate
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.requests import get, Get
+from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreSVG(SegmentLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["start", "end", "data"]
+    SERIALIZABLE_BY_VALUE = ["start", "end", "data", "path"]
     ORDERING_ATTRS = ("start",)
 
     KIND = ComponentKind.SCORE_SVG
@@ -20,6 +21,7 @@ class ScoreSVG(SegmentLikeTimelineComponent):
         start: float,
         end: float,
         data: str = "",
+        path: Path = "",
         **_,
     ):
         self.validators |= {
@@ -27,18 +29,22 @@ class ScoreSVG(SegmentLikeTimelineComponent):
             "end": validate_time,
             "time": validate_time,
             "data": validate_pre_validated,
+            "path": validate_pre_validated,
         }
 
         self.start = start
         self.end = end
         self._data = data
+        self.path = path
 
         super().__init__(timeline, id)
 
-        self.svg_view = get(Get.TIMELINE_UI, self.timeline.id).svg_view
+        self.svg_view: SvgViewer = get(Get.TIMELINE_UI, self.timeline.id).svg_view
         self.svg_view.measure_box = self
         if data:
             self.svg_view.load_svg_data(self.data)
+        elif path:
+            self.path_updated(path)
 
     @property
     def time(self) -> float:
@@ -62,6 +68,7 @@ class ScoreSVG(SegmentLikeTimelineComponent):
             self.svg_view.load_svg_data(self.data)
 
     def path_updated(self, path: Path) -> None:
+        self.path = path
         self.svg_view.get_svg(path)
 
     def save_data(self, data: str = ""):
