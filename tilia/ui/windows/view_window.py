@@ -5,7 +5,7 @@ from tilia.ui.enums import WindowState
 
 class ViewWindow:
     def __init__(self, os_window_title: str, *args, **kwargs):
-        menu_title = kwargs.pop("menu_title", os_window_title)
+        self.menu_title = kwargs.pop("menu_title", os_window_title)
         super().__init__(*args, **kwargs)
         self.setWindowTitle(os_window_title)
         self.setWindowFlags(
@@ -17,11 +17,15 @@ class ViewWindow:
             | Qt.WindowType.WindowMinMaxButtonsHint
         )
         self.id = get(Get.ID)
-        post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.CLOSED, menu_title)
+        self.is_registered = False
         listen(self, Post.WINDOW_UPDATE_REQUEST, self.on_update_request)
 
     def showEvent(self, event):
-        post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.OPENED)
+        if not self.is_registered:
+            post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.OPENED, self.menu_title)
+            self.is_registered = True
+        else:
+            post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.OPENED)
         super().showEvent(event)
 
     def closeEvent(self, event):
@@ -39,8 +43,11 @@ class ViewWindow:
             self.blockSignals(False)
 
     def deleteLater(self):
-        post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.DELETED)
+        if self.is_registered:
+            post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.DELETED)
         super().deleteLater()
 
     def update_title(self, title: str):
-        post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.UPDATE, title)
+        if self.is_registered:
+            post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.UPDATE, title)
+        self.menu_title = title
