@@ -242,7 +242,7 @@ class Timelines:
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
         if (
-            hasattr(timeline, "component_manager")
+            timeline.component_manager is not None
             and timeline.component_manager.hash_components() != state["components_hash"]
         ):
             timeline.component_manager.restore_state(state["components"])
