@@ -87,9 +87,6 @@ class TimelineUIsRequestHandler(RequestHandler):
         if not accepted:
             return False
         timeline, method, value = result
-        if method == BeatTimeline.FillMethod.BY_AMOUNT:
-            timeline.fill_with_beats(BeatTimeline.FillMethod.BY_AMOUNT, value)
-        elif method == BeatTimeline.FillMethod.BY_INTERVAL:
-            timeline.fill_with_beats(BeatTimeline.FillMethod.BY_INTERVAL, value)
+        timeline.fill_with_beats(method, value)
 
         return True
