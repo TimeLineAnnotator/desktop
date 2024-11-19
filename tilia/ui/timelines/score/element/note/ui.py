@@ -80,14 +80,18 @@ class NoteUI(TimelineUIElement):
             direction = NoteSupplementaryLines.Direction.DOWN
             interval_step = lower_step - my_step
             interval_octave = my_octave - lower_octave
+            while interval_octave < 0:
+                interval_step += 7
+                interval_octave += 1
+
         elif my_step_pitch > pitch(upper_step, 0, upper_octave):
             direction = NoteSupplementaryLines.Direction.UP
             interval_step = my_step - upper_step
             interval_octave = my_octave - upper_octave
+            while interval_octave > 0:
+                interval_step += 7
+                interval_octave -= 1
 
-        while interval_octave < 0:
-            interval_step = (interval_step - 7) % 7
-            interval_octave += 1
         while interval_step < 0:
             interval_step += 7
             interval_octave -= 1
