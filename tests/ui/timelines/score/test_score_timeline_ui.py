@@ -8,7 +8,7 @@ from tilia.ui.actions import TiliaAction
 
 
 def test_create(tluis, user_actions):
-    with Serve(Get.FROM_USER_STRING, ("", True)):
+    with Serve(Get.FROM_USER_STRING, (True, '')):
         user_actions.trigger(TiliaAction.TIMELINES_ADD_SCORE_TIMELINE)
 
     assert len(tluis) == 1
