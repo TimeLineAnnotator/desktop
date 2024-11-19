@@ -1,6 +1,5 @@
 # TODO:
 # - measure tracker
-# - get str from user
 
 from enum import Enum, auto
 from html import escape, unescape
@@ -26,6 +25,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QDockWidget, QScrollArea
 
 from tilia.ui.windows.view_window import ViewWindow
+from tilia.requests import get, Get
 import tilia.errors
 
 
@@ -307,8 +307,16 @@ class SvgWidget(QSvgWidget):
     def edit_tla_annotation(self):
         if annotation := self.selected_elements.intersection(self.deletable):
             for element in annotation:
-                pass
-            self.remove_from_selection(self.selected_elements)
+                text_element = self.selectable[element]["node"].find("text")
+                new_annotation, success = get(
+                    Get.FROM_USER_STRING,
+                    "Score Annotation",
+                    "Edit annotation",
+                    text_element.text,
+                )
+                if success:
+                    text_element.text = new_annotation
+            self.save_to_file()
         else:
             self.remove_from_selection(self.selected_elements)
         self.__refresh_svg()
@@ -354,10 +362,14 @@ class SvgWidget(QSvgWidget):
 
     def add_tla_annotation(self):
         if annotatable := self.selected_elements.difference(self.deletable):
-            for element in annotatable:
-                self._add_text(
-                    self.selectable[element]["bounds"].first(), str(self.next_tla_id)
-                )
+            annotation, success = get(
+                Get.FROM_USER_STRING, "Score Annotation", "Add annotation"
+            )
+            if success:
+                for element in annotatable:
+                    self._add_text(
+                        self.selectable[element]["bounds"].first(), annotation
+                    )
             self.save_to_file()
         else:
             self.remove_from_selection(self.selected_elements)
