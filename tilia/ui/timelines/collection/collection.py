@@ -338,7 +338,7 @@ class TimelineUIs:
         for tlui in sorted(self):
             if tlui.get_data("is_visible"):
                 tlui.view.move(0, next_y)
-                next_y += tlui.get_data("height")
+                next_y += tlui.get_height()
 
     def update_height(self):
         self.update_timeline_uis_position()
@@ -365,7 +365,7 @@ class TimelineUIs:
     def get_scene_height(self):
         return (
             sum(
-                tlui.get_data("height")
+                tlui.get_height()
                 for tlui in sorted(self)
                 if tlui.get_data("is_visible")
             )

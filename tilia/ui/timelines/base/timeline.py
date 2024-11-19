@@ -127,6 +127,9 @@ class TimelineUI(ABC):
     def set_data(self, attr: str, value: Any):
         return self.timeline.set_data(attr, value)
 
+    def get_height(self):
+        return self.get_data("height")
+
     def _setup_visibility(self):
         self.view.set_is_visible(self.get_data("is_visible"))
 
