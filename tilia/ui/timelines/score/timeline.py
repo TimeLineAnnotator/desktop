@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Callable, Any
+
+from PyQt6.QtGui import QPixmap
 
 from tilia.exceptions import GetComponentDataError
 from tilia.requests import Get, get, listen, Post
@@ -34,12 +37,24 @@ class ScoreTimelineUI(TimelineUI):
         super().__init__(*args, **kwargs)
         listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
         listen(self, Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.on_score_timeline_components_deserialized)
+
+        self._setup_pixmaps()
+
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.staff_cache: dict[int, StaffUI] = {}
         self.staff_extreme_notes: dict[int, dict[str, NoteUI]] = {}
         self.staff_heights: dict[int, float] = {}
         self._measure_count = 0  # assumes measures can't be deleted
         self.update_height()
+
+    def _setup_pixmaps(self):
+        self.pixmaps = {
+            'time signature': {n: QPixmap(self.get_time_signature_pixmap_path(n)) for n in range(10)},
+        }
+
+    @staticmethod
+    def get_time_signature_pixmap_path(n: int) -> str:
+        return Path('ui', 'img', f'time-signature-{n}.svg').resolve().__str__()
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
