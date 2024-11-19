@@ -465,8 +465,8 @@ class BeatTimeline(Timeline):
             # Higher index is possible.
 
     class FillMethod(Enum):
-        BY_AMOUNT = auto()
-        BY_INTERVAL = auto()
+        BY_AMOUNT = 0
+        BY_INTERVAL = 1
 
     def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
         duration = get(Get.MEDIA_DURATION)
