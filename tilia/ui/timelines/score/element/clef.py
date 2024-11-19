@@ -36,6 +36,9 @@ class ClefUI(TimelineUIElementWithCollision):
     def central_step(self) -> tuple[int, int]:
         return self.get_data('central_step')()
 
+    def on_components_deserialized(self):
+        self.update_position()
+
     def selection_triggers(self):
         return []
 

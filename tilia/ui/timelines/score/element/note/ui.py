@@ -273,10 +273,11 @@ class NoteUI(TimelineUIElement):
         self.body.on_deselect()
 
     def on_components_deserialized(self):
-        if self.body:
-            self.update_position()
-        else:
+        self._top_y = None  # recalculate since staff position might have changed
+        if not self.body:
             self._setup_items()
+        else:
+            self.update_position()
 
     def get_inspector_dict(self) -> dict:
         return {

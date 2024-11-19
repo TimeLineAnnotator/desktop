@@ -36,6 +36,9 @@ class StaffUI(TimelineUIElement):
         for line in self.staff_lines.lines:
             self.scene.addItem(line)
 
+    def on_components_deserialized(self):
+        self.update_position()
+
     def child_items(self):
         return self.staff_lines.lines
 

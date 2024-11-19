@@ -28,7 +28,7 @@ class ScoreTimelineUI(TimelineUI):
 
     CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
 
-    STAFF_VERTICAL_AREA = 150
+    STAFF_MIN_HEIGHT = 150
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -36,6 +36,8 @@ class ScoreTimelineUI(TimelineUI):
         listen(self, Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.on_score_timeline_components_deserialized)
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.staff_cache: dict[int, StaffUI] = {}
+        self.staff_extreme_notes: dict[int, dict[str, NoteUI]] = {}
+        self.staff_heights: dict[int, float] = {}
         self._measure_count = 0  # assumes measures can't be deleted
 
     def on_settings_updated(self, updated_settings):
@@ -61,13 +63,34 @@ class ScoreTimelineUI(TimelineUI):
         return staff.bottom_y() if staff else 0
 
     def get_staff_middle_y(self, index: int) -> float:
-        return index * self.STAFF_VERTICAL_AREA + self.STAFF_VERTICAL_AREA / 2
+        if not self.staff_heights:
+            return index * self.STAFF_MIN_HEIGHT + self.STAFF_MIN_HEIGHT / 2
+
+        cumulative_height = 0
+        for j, value in self.staff_heights.items():
+            if j == index:
+                return cumulative_height + value / 2
+            else:
+                cumulative_height += value
 
     def get_height_for_symbols_above_staff(self) -> int:
         return 50
 
+    def get_height(self):
+        if not self.staff_heights:
+            return self.STAFF_MIN_HEIGHT
+        return sum(self.staff_heights.values())
+
     def get_y_for_symbols_above_staff(self, staff_index: int) -> int:
-        return self.STAFF_VERTICAL_AREA * staff_index
+        if not self.staff_heights:
+            return self.STAFF_MIN_HEIGHT * staff_index
+
+        cumulative_height = 0
+        for j, value in self.staff_heights.items():
+            if j == staff_index:
+                return cumulative_height
+            else:
+                cumulative_height += value
 
     def on_timeline_component_created(
         self,
@@ -83,6 +106,8 @@ class ScoreTimelineUI(TimelineUI):
             return
         elif kind == ComponentKind.BAR_LINE:
             self._measure_count += 1
+        elif kind == ComponentKind.NOTE:
+            self._update_staff_extreme_notes(element.get_data('staff_index'), element)
 
         try:
             time = element.get_data('time')
@@ -98,6 +123,25 @@ class ScoreTimelineUI(TimelineUI):
             # Clefs need to be frequently found by time,
             # so we cache them here
             self.clef_time_cache = self.get_clef_time_cache()
+
+    def _update_staff_extreme_notes(self, staff_index: int, note: NoteUI) -> None:
+        pitch = note.get_data('pitch')
+        if staff_index not in self.staff_extreme_notes:
+            self.staff_extreme_notes[staff_index] = {'low': note, 'high': note}
+        elif pitch < self.staff_extreme_notes[staff_index]['low'].get_data('pitch'):
+            self.staff_extreme_notes[staff_index]['low'] = note
+        elif pitch > self.staff_extreme_notes[staff_index]['high'].get_data('pitch'):
+            self.staff_extreme_notes[staff_index]['high'] = note
+
+    def _update_staff_heights(self) -> None:
+        min_margin_top = 70
+        min_margin_bottom = 30
+        self.staff_heights = {}
+        for i, notes in self.staff_extreme_notes.items():
+            bottom = max(notes['low'].top_y + notes['low'].note_height(), self.get_staff_bottom_y(i) + min_margin_bottom)
+            top = min(notes['high'].top_y, self.get_staff_top_y(i) - min_margin_top)
+
+            self.staff_heights[i] = bottom - top
 
     def get_clef_time_cache(self) -> dict[int, dict[tuple[int, int], ClefUI]]:
         cache = {}
@@ -179,19 +223,26 @@ class ScoreTimelineUI(TimelineUI):
         return (lower_step, clef_octave + lower_step_octave_diff), (upper_step % 7, clef_octave + upper_step_octave_diff)
 
     def update_height(self):
-        self.scene.set_height(self.STAFF_VERTICAL_AREA * self.get_data('staff_count'))
-        self.view.set_height(self.STAFF_VERTICAL_AREA * self.get_data('staff_count'))
+        self.scene.set_height(int(self.get_height()))
+        self.view.set_height(int(self.get_height()))
 
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
             return
 
         def element_needs_update(e):
-            return e.kind in [ComponentKind.NOTE, ComponentKind.KEY_SIGNATURE]
+            return e.kind in [ComponentKind.NOTE, ComponentKind.KEY_SIGNATURE, ComponentKind.STAFF, ComponentKind.CLEF]
+
+        self._update_staff_heights()
 
         needs_update = self.element_manager.get_elements_by_condition(element_needs_update)
+        for element in self.staff_cache.values():
+            element.on_components_deserialized()
         for element in needs_update:
             element.on_components_deserialized()
+
+        self.update_height()
+        self.collection.update_timeline_uis_position()
 
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
