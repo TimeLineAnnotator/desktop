@@ -39,6 +39,7 @@ class ScoreTimelineUI(TimelineUI):
         self.staff_extreme_notes: dict[int, dict[str, NoteUI]] = {}
         self.staff_heights: dict[int, float] = {}
         self._measure_count = 0  # assumes measures can't be deleted
+        self.update_height()
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
