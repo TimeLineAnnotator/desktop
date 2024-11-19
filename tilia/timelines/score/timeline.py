@@ -10,7 +10,6 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 from tilia.requests import get, Get
-from tilia.timelines.base.validators import validate_string
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
@@ -42,7 +41,7 @@ class ScoreTimeline(Timeline):
             )
         ):
             (score_svg, _) = self.create_component(
-                ComponentKind.SCORE_SVG, **{"start": 0, "end": get(Get.MEDIA_DURATION)}
+                kind=ComponentKind.SCORE_SVG, start=0, end=get(Get.MEDIA_DURATION)
             )
         else:
             score_svg = list(score_svg)[0]
