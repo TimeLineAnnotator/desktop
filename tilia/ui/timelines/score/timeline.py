@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Callable, Any
+from typing import Callable, Any, Iterable
 
 from PyQt6.QtGui import QPixmap
 
@@ -32,6 +32,7 @@ class ScoreTimelineUI(TimelineUI):
     CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
 
     STAFF_MIN_HEIGHT = 150
+    SYMBOLS_ABOVE_STAFF_MAX_HEIGHT = 50
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -46,6 +47,7 @@ class ScoreTimelineUI(TimelineUI):
         self.staff_heights: dict[int, float] = {}
         self._measure_count = 0  # assumes measures can't be deleted
         self.update_height()
+        self.overlapping_elements = set()
 
     def _setup_pixmaps(self):
         self.pixmaps = {
@@ -89,8 +91,19 @@ class ScoreTimelineUI(TimelineUI):
             else:
                 cumulative_height += value
 
+    def get_scale_for_symbols_above_staff(self) -> float:
+        visibility_treshold = 10
+        max_size_treshold = 280
+        min_scale = 0.4
+        average_measure_width = self.average_measure_width()
+        if not average_measure_width:
+            return 1.0
+        if average_measure_width < visibility_treshold:
+            return 0
+        return min(1.0, min_scale + (average_measure_width / max_size_treshold * min_scale))
+
     def get_height_for_symbols_above_staff(self) -> int:
-        return 50
+        return int(self.SYMBOLS_ABOVE_STAFF_MAX_HEIGHT * self.get_scale_for_symbols_above_staff())
 
     def get_height(self):
         if not self.staff_heights:
@@ -131,9 +144,8 @@ class ScoreTimelineUI(TimelineUI):
         except GetComponentDataError:
             return
         if overlapping_components := self._get_overlap(staff_index, time, kind):
-            component_to_offset = self._get_offsets_for_overlapping_elements(overlapping_components)
-            for component in overlapping_components:
-                component.x_offset = component_to_offset[component]
+            self._add_to_overlapping_elements(overlapping_components)
+            self._offset_overlapping_elements(overlapping_components)
 
         if kind == ComponentKind.CLEF:
             # Clefs need to be frequently found by time,
@@ -183,7 +195,7 @@ class ScoreTimelineUI(TimelineUI):
             if start <= time < end:
                 return self.clef_time_cache[staff_index][(start, end)]
 
-    def _get_overlap(self, staff_index: float, time: float, kind: ComponentKind) -> list[TimelineUIElementWithCollision]:
+    def _get_overlap(self, staff_index: float, time: float, kind: ComponentKind) -> tuple[TimelineUIElementWithCollision]:
         # Elements will be displayed in the order below
         overlapping_kinds = [ComponentKind.CLEF, ComponentKind.KEY_SIGNATURE, ComponentKind.TIME_SIGNATURE]
 
@@ -191,10 +203,11 @@ class ScoreTimelineUI(TimelineUI):
             return []
 
         overlapping = [c for c in self if c.kind in overlapping_kinds and c.get_data('time') == time and c.get_data('staff_index') == staff_index]
-        overlapping = sorted(overlapping, key=lambda c: overlapping_kinds.index(c.kind))
-        return overlapping if len(overlapping) > 1 else []
+        overlapping = tuple(sorted(overlapping, key=lambda c: overlapping_kinds.index(c.kind)))
+        return overlapping if len(overlapping) > 1 else tuple()
 
-    def _get_offsets_for_overlapping_elements(self, overlapping_elements: list[TimelineUIElementWithCollision]):
+    @staticmethod
+    def _get_offsets_for_overlapping_elements(overlapping_elements: Iterable[TimelineUIElementWithCollision]):
         mid_x = sum([c.width for c in overlapping_elements]) / 2
         element_to_offset = {}
         total_width = 0
@@ -205,6 +218,23 @@ class ScoreTimelineUI(TimelineUI):
             total_width += element.width
 
         return element_to_offset
+
+    def _offset_overlapping_elements(self, elements: tuple[TimelineUIElementWithCollision]):
+        component_to_offset = self._get_offsets_for_overlapping_elements(elements)
+        for elm in elements:
+            elm.x_offset = component_to_offset[elm]
+
+    def _add_to_overlapping_elements(self, group: tuple[TimelineUIElementWithCollision]):
+        for existing_group in self.overlapping_elements.copy():
+            if any(element in existing_group for element in group):
+                self.overlapping_elements.remove(existing_group)
+                break
+
+        self.overlapping_elements.add(group)
+
+    def update_overlapping_elements_offsets(self):
+        for group in self.overlapping_elements:
+            self._offset_overlapping_elements(group)
 
     def get_staff_bounding_steps(self, time: float, staff_index: int) -> tuple[tuple[int, int], tuple[int, int]] | None:
         """
@@ -242,19 +272,21 @@ class ScoreTimelineUI(TimelineUI):
         self.scene.set_height(int(self.get_height()))
         self.view.set_height(int(self.get_height()))
 
+    def set_width(self, width):
+        super().set_width(width)
+        self.update_overlapping_elements_offsets()
+
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
             return
 
-        def element_needs_update(e):
-            return e.kind in [ComponentKind.NOTE, ComponentKind.KEY_SIGNATURE, ComponentKind.STAFF, ComponentKind.CLEF]
-
         self._update_staff_heights()
 
-        needs_update = self.element_manager.get_elements_by_condition(element_needs_update)
         for element in self.staff_cache.values():
             element.on_components_deserialized()
-        for element in needs_update:
+        for element in self.elements:
+            if element.kind in [ComponentKind.BAR_LINE, ComponentKind.STAFF]:
+                continue
             element.on_components_deserialized()
 
         self.update_height()

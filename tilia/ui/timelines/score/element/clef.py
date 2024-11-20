@@ -32,6 +32,7 @@ class ClefUI(TimelineUIElementWithCollision):
 
     def update_position(self):
         self.body.set_position(self.x + self.x_offset, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')))
+        self.body.set_height(self.height())
 
     def central_step(self) -> tuple[int, int]:
         return self.get_data('central_step')()
@@ -54,10 +55,11 @@ class ClefBody(QGraphicsPixmapItem):
         self.set_position(x, y)
 
     def set_icon(self, path: str):
+        self._pixmap = QPixmap(path)
         self.setPixmap(QPixmap(path))
 
     def set_height(self, height: float):
-        self.setPixmap(self.pixmap().scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
+        self.setPixmap(self._pixmap.scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
 
     def set_position(self, x: float, y: float):
         self.setPos(x, y)

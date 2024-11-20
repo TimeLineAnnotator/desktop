@@ -57,6 +57,7 @@ class KeySignatureUI(TimelineUIElementWithCollision):
 
     def update_position(self):
         self.body.set_position(self.x + self.x_offset, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')))
+        self.body.set_height(int(self.height()))
 
     def selection_triggers(self):
         return []
@@ -74,10 +75,15 @@ class KeySignatureBody(QGraphicsPixmapItem):
         self.set_position(x, y)
 
     def set_icon(self, path: str):
+        self._pixmap = QPixmap(path)
         self.setPixmap(QPixmap(path))
 
     def set_height(self, height: int):
-        self.setPixmap(self.pixmap().scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
+        if height == 0:
+            self.setVisible(False)
+        else:
+            self.setPixmap(self._pixmap.scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
+            self.setVisible(True)
 
     def set_position(self, x: float, y: float):
         self.setPos(x, y)
