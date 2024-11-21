@@ -68,19 +68,19 @@ class TimelineUIsRequestHandler(RequestHandler):
         success, name = _get_timeline_name()
         kwargs = dict()
         if not success:
-            return
+            return False
         cls = self.timeline_uis.get_timeline_ui_class(kind)
         if hasattr(cls, "get_additional_args_for_creation"):
             success, additional_args = cls.get_additional_args_for_creation()
             if not success:
-                return
+                return False
             kwargs |= additional_args
 
-        timeline = self.timelines.create_timeline(
+        self.timelines.create_timeline(
             kind=kind, components=None, name=name, **kwargs
         )
 
-        return bool(timeline)
+        return True
 
     def on_timelines_clear(self, confirmed):
         if confirmed:
