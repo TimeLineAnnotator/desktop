@@ -68,7 +68,6 @@ def notes_from_musicXML(
 
     def _create_component(component_kind: ComponentKind, kwargs: dict) -> int | None:
         component, fail_reason = score_tl.create_component(component_kind, **kwargs)
-        # print(component_kind, kwargs, component is not None)
         if not component:
             errors.append(fail_reason)
             return None
@@ -85,8 +84,6 @@ def notes_from_musicXML(
             metric_division.measure_num[1], metric_division.div_position[1]
         )
         for attribute in attributes:
-            constructor_kwargs = dict()
-            component_kind = None
             match attribute.tag:
                 case "divisions":
                     metric_division.update_divisions(int(attribute.text))
