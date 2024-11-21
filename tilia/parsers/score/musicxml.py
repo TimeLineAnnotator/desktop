@@ -157,6 +157,38 @@ def notes_from_musicXML(
         else:
             return Note.TieType.STOP
 
+    def _parse_pitch(element: etree.Element) -> dict:
+        alter = element.find("pitch/alter")
+        return {
+            "step": NOTE_NAME_TO_INT[element.find("pitch/step").text],
+            "octave": int(element.find("pitch/octave").text),
+            "display_accidental": (
+                True if element.find("accidental") is not None else False
+            ),
+            "accidental": int(alter.text) if alter is not None else 0
+        }
+
+    def _parse_unpitched(element: etree.Element) -> dict:
+        return {
+            "step": NOTE_NAME_TO_INT[element.find("unpitched/display-step").text],
+            "accidental": 0,
+            "octave": int(element.find("unpitched/display-octave").text)
+        }
+
+    def _get_note_times(metric_division: MetricDivision, duration: float, is_chord: bool) -> tuple[list[float], list[float]]:
+        start_times = _metric_to_time(
+            metric_division.measure_num[1],
+            metric_division.div_position[0 if is_chord else 1],
+        )
+        end_times = _metric_to_time(
+            metric_division.measure_num[1],
+            metric_division.div_position[0 if is_chord else 1] + duration,
+        )
+        return start_times, end_times
+
+    def _parse_staff(element: etree.Element, part_id: str):
+        return part_id_to_staves[part_id][element.find("staff").text]
+
     def _parse_note(element: etree.Element, part_id: str):
         if element.find("grace") is not None:
             errors.append(f"<grace> not implemented.")
@@ -170,47 +202,24 @@ def notes_from_musicXML(
             return
 
         if element.find("pitch") is not None:
-            constructor_kwargs["step"] = NOTE_NAME_TO_INT[
-                element.find("pitch/step").text
-            ]
-            constructor_kwargs["octave"] = int(element.find("pitch/octave").text)
-            constructor_kwargs["display_accidental"] = (
-                True if element.find("accidental") is not None else False
-            )
-            alter = element.find("pitch/alter")
-            constructor_kwargs["accidental"] = (
-                int(alter.text) if alter is not None else 0
-            )
+            constructor_kwargs = _parse_pitch(element)
 
         if element.find("unpitched") is not None:
-            constructor_kwargs["step"] = NOTE_NAME_TO_INT[
-                element.find("unpitched/display-step").text
-            ]
-            constructor_kwargs["accidental"] = 0
-            constructor_kwargs["octave"] = int(
-                element.find("unpitched/display-octave").text
-            )
-
-        constructor_kwargs["tie_type"] = _parse_note_tie(element)
+            constructor_kwargs = _parse_unpitched(element)
 
         if not constructor_kwargs.keys():
             return
 
-        is_chord = element.find("chord") is not None
-        start_times = _metric_to_time(
-            metric_division.measure_num[1],
-            metric_division.div_position[0 if is_chord else 1],
-        )
-        end_times = _metric_to_time(
-            metric_division.measure_num[1],
-            metric_division.div_position[0 if is_chord else 1] + duration,
-        )
+        constructor_kwargs["tie_type"] = _parse_note_tie(element)
+
         if element.find("staff") is not None:
-            constructor_kwargs["staff_index"] = part_id_to_staves[part_id][
-                element.find("staff").text
-            ]
+            constructor_kwargs['staff_index'] = _parse_staff(element, part_id)
         else:
-            constructor_kwargs["staff_index"] = part_id_to_staves[part_id]["1"]
+            constructor_kwargs['staff_index'] = part_id_to_staves[part_id]['1']
+
+        is_chord = element.find("chord") is not None
+
+        start_times, end_times = _get_note_times(metric_division, duration, is_chord)
 
         if not is_chord:
             metric_division.update_measure_position(duration)
