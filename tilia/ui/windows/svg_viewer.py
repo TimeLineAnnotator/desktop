@@ -548,7 +548,9 @@ class SvgViewer(ViewWindow, QDockWidget):
 
     def get_svg(self, path: Path) -> None:
         def convert():
-            self.web_engine.page().runJavaScript(f'loadSVG("{path.absolute()}")')
+            self.web_engine.page().runJavaScript(
+                f'loadSVG("{Path(path).resolve().as_posix()}")'
+            )
 
         if self.is_loaded:
             convert()
