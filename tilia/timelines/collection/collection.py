@@ -106,7 +106,7 @@ class Timelines:
         components: dict[int, dict[str, Any]] | None = None,
         *args,
         **kwargs,
-    ) -> Timeline | None:
+    ) -> Timeline:
 
         if isinstance(kind, str):
             kind = get_timeline_kind_from_string(kind)
