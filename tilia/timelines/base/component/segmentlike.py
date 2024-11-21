@@ -7,6 +7,7 @@ from tilia.requests import get, Get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_extended
 from tilia.timelines.base.metric_position import MetricInterval, MetricPosition
+from tilia.timelines.base.timeline import TimelineComponentManager
 
 T = TypeVar("T")
 
@@ -113,3 +114,19 @@ class SegmentLikeTimelineComponent(TimelineComponent):
                 f"There is already a {cls.frontend_name} at the same position.",
             )
         return True, ""
+
+
+def scale_segmentlike(cm: TimelineComponentManager, factor: float) -> None:
+    for component in cm:
+        component.set_data('start', component.get_data('start') * factor)
+        component.set_data('end', component.get_data('end') * factor)
+
+
+def crop_segmentlike(cm: TimelineComponentManager, length: float) -> None:
+    for component in list(cm).copy():
+        start = component.get_data('start')
+        end = component.get_data('end')
+        if start >= length:
+            cm.delete_component(component)
+        elif end > length:
+            component.set_data('end', length)

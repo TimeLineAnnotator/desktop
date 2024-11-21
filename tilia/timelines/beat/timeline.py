@@ -9,8 +9,8 @@ from typing import Optional
 import tilia.errors
 from tilia.requests import post, Post, get, Get
 from tilia.settings import settings
-from tilia.timelines.base.common import scale_discrete, crop_discrete
 from tilia.timelines.beat.validators import validate_integer_list
+from tilia.timelines.base.component.pointlike import scale_pointlike, crop_pointlike
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager, TC
@@ -20,8 +20,8 @@ from tilia.timelines.beat.components import Beat
 class BeatTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: BeatTimeline):
         super().__init__(timeline, [ComponentKind.BEAT])
-        self.scale = functools.partial(scale_discrete, self)
-        self.crop = functools.partial(crop_discrete, self)
+        self.scale = functools.partial(scale_pointlike, self)
+        self.crop = functools.partial(crop_pointlike, self)
         self.compute_is_first_in_measure = True
 
     @property
