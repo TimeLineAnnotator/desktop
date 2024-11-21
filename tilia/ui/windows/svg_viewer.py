@@ -54,7 +54,7 @@ class SvgWidget(QSvgWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
-        self.root = NotImplemented
+        self.root = ET.Element("svg")
 
     def reset(self):
         self.selectable = {}
@@ -95,9 +95,12 @@ class SvgWidget(QSvgWidget):
         self.blockSignals(False)
 
     def update_annotation(self, data, tl_component):
-        annotation = ET.fromstring(data)
-        id = annotation.attrib.get("id")
         if data == "delete":
+            id = [
+                d
+                for d in self.deletable
+                if self.selectable[d]["component"] is tl_component
+            ][0]
             self.root.remove(self.selectable[id]["node"])
             self.selectable.pop(id)
             self.deletable.remove(id)
@@ -105,8 +108,9 @@ class SvgWidget(QSvgWidget):
                 self.selected_elements.remove(id)
 
         else:
+            annotation = ET.fromstring(data)
             self.root.append(annotation)
-            if id in self.deletable:
+            if (id := annotation.attrib.get("id")) in self.deletable:
                 self.root.remove(self.selectable[id]["node"])
             else:
                 self.selectable[id] = {"component": tl_component}
