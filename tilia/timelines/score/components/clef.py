@@ -44,6 +44,7 @@ class Clef(PointLikeTimelineComponent):
         octave: int | None = None,
         icon: str | None = None,
         shorthand: Shorthand | None = None,
+        **_,
     ):
 
         self.staff_index = staff_index
@@ -62,7 +63,9 @@ class Clef(PointLikeTimelineComponent):
         super().__init__(timeline, id)
 
     def central_step(self):
-        return self.get_data('step') + self.get_data('line_number') * -2, self.get_data('octave')
+        return self.get_data("step") + self.get_data("line_number") * -2, self.get_data(
+            "octave"
+        )
 
     class Shorthand(Enum):
         BASS = auto()

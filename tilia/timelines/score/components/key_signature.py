@@ -13,10 +13,22 @@ if TYPE_CHECKING:
 
 class KeySignature(PointLikeTimelineComponent):
     KIND = ComponentKind.KEY_SIGNATURE
-    SERIALIZABLE_BY_VALUE = ['staff_index', 'time', 'fifths']
+    SERIALIZABLE_BY_VALUE = ["staff_index", "time", "fifths"]
 
-    def __init__(self, timeline: ScoreTimeline, id: int, staff_index: int, time: float, fifths: int):
-        self.validators |= {'staff_index': validate_non_negative_integer, 'time': validate_time, 'fifths': functools.partial(validate_integer, min=-7, max=7)}
+    def __init__(
+        self,
+        timeline: ScoreTimeline,
+        id: int,
+        staff_index: int,
+        time: float,
+        fifths: int,
+        **_,
+    ):
+        self.validators |= {
+            "staff_index": validate_non_negative_integer,
+            "time": validate_time,
+            "fifths": functools.partial(validate_integer, min=-7, max=7),
+        }
 
         self.staff_index = staff_index
         self.time = time

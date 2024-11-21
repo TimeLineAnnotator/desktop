@@ -5,20 +5,21 @@ from tilia.timelines.score.timeline import ScoreTimeline
 
 
 class Staff(TimelineComponent):
-    SERIALIZABLE_BY_VALUE = ['line_count', 'index']
-    ORDERING_ATTRS = ('index',)
+    SERIALIZABLE_BY_VALUE = ["line_count", "index"]
+    ORDERING_ATTRS = ("index",)
 
     KIND = ComponentKind.STAFF
 
     validators = {
-        'timeline': lambda _: False,  # read-only
-        'id': lambda _: False,  # read-only
+        "timeline": lambda _: False,  # read-only
+        "id": lambda _: False,  # read-only
         "line_count": validate_positive_integer,
         "index": validate_positive_integer,
-
     }
 
-    def __init__(self, timeline: ScoreTimeline, id: int, index: int, line_count: int):
+    def __init__(
+        self, timeline: ScoreTimeline, id: int, index: int, line_count: int, **_
+    ):
 
         self.index = index
         self.line_count = line_count
