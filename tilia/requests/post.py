@@ -63,7 +63,6 @@ class Post(Enum):
     HIERARCHY_MERGE = auto()
     HIERARCHY_MERGE_SPLIT_DONE = auto()
     HIERARCHY_PASTE = auto()
-    HIERARCHY_POSITION_CHANGED = auto()
     HIERARCHY_SELECTED = auto()
     HIERARCHY_SPLIT = auto()
     INSPECTABLE_ELEMENT_DESELECTED = auto()

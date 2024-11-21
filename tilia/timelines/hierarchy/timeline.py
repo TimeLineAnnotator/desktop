@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import functools
 import itertools
 from typing import Any
 
 from tilia.settings import settings
 from .common import update_component_genealogy
+from tilia.timelines.base.component.segmentlike import scale_segmentlike, crop_segmentlike
 from ..base.timeline import Timeline, TimelineComponentManager
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import post, Post, get, Get
@@ -16,6 +18,8 @@ import tilia.errors
 class HierarchyTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: HierarchyTimeline):
         super().__init__(timeline, [ComponentKind.HIERARCHY])
+        self.scale = functools.partial(scale_segmentlike, self)
+        self.crop = functools.partial(crop_segmentlike, self)
 
     def _validate_component_creation(
         self, _, start: float, end: float, level: int, **kwargs
@@ -493,21 +497,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         super().delete_component(component, **kwargs)
 
         self._update_genealogy_after_deletion(component)
-
-    def scale(self, factor: float) -> None:
-        for hrc in self._components:
-            hrc.start *= factor
-            hrc.end *= factor
-            self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
-
-    def crop(self, length: float) -> None:
-        for hrc in self._components.copy():
-            if hrc.end > length:
-                if hrc.start >= length:
-                    self.delete_component(hrc)
-                else:
-                    hrc.end = length
-                    self.post_component_event(Post.HIERARCHY_POSITION_CHANGED, hrc.id)
 
     def _update_genealogy_after_deletion(self, component: Hierarchy) -> None:
         if not component.parent:

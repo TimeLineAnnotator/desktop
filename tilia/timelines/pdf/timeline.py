@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import functools
+
 import pypdf
 
 from tilia.settings import settings
+from tilia.timelines.base.component.pointlike import scale_pointlike, crop_pointlike
 from tilia.timelines.base.validators import validate_string
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.pdf.components import PdfMarker
@@ -14,18 +17,11 @@ from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 class PdfTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: PdfTimeline):
         super().__init__(timeline, [ComponentKind.PDF_MARKER])
+        self.scale = functools.partial(scale_pointlike, self)
+        self.crop = functools.partial(crop_pointlike, self)
 
     def _validate_component_creation(self, _, time, *args, **kwargs):
         return PdfMarker.validate_creation(time, {c.get_data("time") for c in self})
-
-    def scale(self, factor: float) -> None:
-        for marker in self:
-            marker.set_data("time", marker.get_data("time") * factor)
-
-    def crop(self, length: float) -> None:
-        for marker in list(self).copy():
-            if marker.get_data("time") > length:
-                self.delete_component(marker)
 
 
 class PdfTimeline(Timeline):
@@ -70,11 +66,3 @@ class PdfTimeline(Timeline):
     def get_previous_page_number(self, time: float) -> int:
         previous_component = self.get_previous_component_by_time(time)
         return previous_component.get_data("page_number") if previous_component else 0
-
-    def scale(self, factor: float) -> None:
-        self.component_manager: PdfTLComponentManager
-        self.component_manager.scale(factor)
-
-    def crop(self, length: float) -> None:
-        self.component_manager: PdfTLComponentManager
-        self.component_manager.crop(length)

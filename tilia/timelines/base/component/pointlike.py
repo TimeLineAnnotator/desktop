@@ -7,6 +7,7 @@ from tilia.requests import get, Get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.metric_position import MetricPosition
+from tilia.timelines.base.timeline import TimelineComponentManager
 from tilia.ui.format import format_media_time
 
 
@@ -63,3 +64,14 @@ class PointLikeTimelineComponent(TimelineComponent):
             return False, f"Time can't be negative. Got '{format_media_time(time)}'"
         else:
             return True, ""
+
+
+def scale_pointlike(cm: TimelineComponentManager, factor: float) -> None:
+    for component in cm:
+        component.set_data('time', component.get_data('time') * factor)
+
+
+def crop_pointlike(cm: TimelineComponentManager, length: float) -> None:
+    for component in list(cm).copy():
+        if component.get_data('time') > length:
+            cm.delete_component(component)

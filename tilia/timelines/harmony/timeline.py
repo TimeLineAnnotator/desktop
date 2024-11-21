@@ -8,7 +8,7 @@ from typing import Any
 import music21
 
 from tilia.requests import post, Post
-from tilia.timelines.base.common import crop_discrete, scale_discrete
+from tilia.timelines.base.component.pointlike import scale_pointlike, crop_pointlike
 from tilia.timelines.base.validators import validate_positive_integer
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Mode, Harmony
@@ -22,8 +22,8 @@ class HarmonyTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: HarmonyTimeline):
         super().__init__(timeline, [ComponentKind.HARMONY, ComponentKind.MODE])
         self.is_deserializing = False
-        self.crop = functools.partial(crop_discrete, self)
-        self.scale = functools.partial(scale_discrete, self)
+        self.crop = functools.partial(crop_pointlike, self)
+        self.scale = functools.partial(scale_pointlike, self)
 
     def _validate_component_creation(
         self,
