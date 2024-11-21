@@ -208,11 +208,52 @@ class BeatTimeline(Timeline):
     def measure_count(self):
         return len(self.beats_in_measure)
 
-    def get_time_by_measure(self, number: int, fraction: float = 0) -> list[int]:
+    def get_time_by_fraction_last_measure(self, fraction: float) -> float:
+        first_beat_in_measure_index = self.beats_that_start_measures[-1]
+        measure_time = self.components[first_beat_in_measure_index].time
+        if len(self.beats_that_start_measures) == 1:
+            # we return whatever if there's only one measure in the timeline.
+            # this can be improved
+            return measure_time
+        first_beat_in_prev_measure_index = self.beats_that_start_measures[-2]
+        prev_measure_time = self.components[first_beat_in_prev_measure_index].time
+        estimated_measure_duration = measure_time - prev_measure_time
+        return measure_time + fraction * estimated_measure_duration
+
+    def get_time_by_fraction(self, measure_index: int, fraction: float) -> float:
+        if measure_index == len(self.beats_in_measure) - 1:
+            return self.get_time_by_fraction_last_measure(fraction)
+        if fraction == 1.0:
+            # if fraction is 1.0, get the start time of the next measure
+            return self.get_time_by_fraction(measure_index + 1, 0)
+
+        measure_beat_count = self.beats_in_measure[measure_index]
+        beat_fractions = [i/measure_beat_count for i in range(measure_beat_count + 1)]
+        prev_beat_index = 0  # index in measure
+        first_beat_in_measure_index = self.beats_that_start_measures[measure_index]
+
+        for beat_frac in beat_fractions[1:]:
+            if abs(beat_frac - fraction) < 0.01:
+                # fraction is at or close to a beat
+                # return that beat's time
+                return self.components[first_beat_in_measure_index + prev_beat_index + 1].time
+            if fraction < beat_frac:
+                break
+            prev_beat_index += 1
+
+        # If we got here, then fraction is between beats.
+        # We calculate the fraction of the previous beat
+        # that it exceeds, multiply by the duration
+        # of the previous beat, and add that to the previous beat's time.
+        prev_beat_time = self.components[first_beat_in_measure_index + prev_beat_index].time
+        next_beat_time = self.components[first_beat_in_measure_index + prev_beat_index + 1].time
+        beat_duration = next_beat_time - prev_beat_time
+        fraction_after_beat = (fraction - beat_fractions[prev_beat_index]) / (beat_fractions[prev_beat_index + 1] - beat_fractions[prev_beat_index])
+        return prev_beat_time + fraction_after_beat * beat_duration
+
+    def get_time_by_measure(self, number: int, fraction: float = 0.0) -> list[float]:
         """
-        Given the measure index, returns the start time of the measure.
-        If fraction is supplied, sums that fraction of the measure's
-        length to the result.
+        Given a measure index and a fraction value, returns a list of corresponding times.
         """
 
         if not self.measure_count:
@@ -222,17 +263,8 @@ class BeatTimeline(Timeline):
         measure_times = []
 
         for index in measure_indices:
-            beat_number = self.beats_that_start_measures[index]
-            measure_time = self.components[beat_number].time
-
-            if index == self.measure_count - 1:
-                next_measure_time = measure_time
-            else:
-                beat_number = self.beats_that_start_measures[index + 1]
-                next_measure_time = self.components[beat_number].time
-
             measure_times.append(
-                measure_time + (next_measure_time - measure_time) * fraction
+                self.get_time_by_fraction(index, fraction)
             )
 
         return measure_times
