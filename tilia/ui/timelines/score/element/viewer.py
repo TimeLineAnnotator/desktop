@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 class ScoreViewerUI(TimelineUIElement):
-    INSPECTOR_FILEDS = [
+    INSPECTOR_FIELDS = [
         ("Start / end", InspectRowKind.LABEL, None),
         ("Start / end (metric)", InspectRowKind.LABEL, None),
         ("Length", InspectRowKind.LABEL, None),
