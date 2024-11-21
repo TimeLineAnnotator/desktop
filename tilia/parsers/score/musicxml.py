@@ -312,7 +312,7 @@ def notes_from_musicXML(
     for part in tree.findall("part"):
         _parse_score(part, part.get("id"))
 
-    score_tl.path_updated(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
+    score_tl.mxl_updated(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
 
     return errors
 

@@ -1,5 +1,6 @@
 # TODO:
 # - measure tracker
+# - lxml
 
 from enum import Enum, auto
 from html import escape, unescape
@@ -542,7 +543,7 @@ class SvgViewer(ViewWindow, QDockWidget):
 
     def preprocess_svg(self, svg: str):
         svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
-        self.measure_box.set_data("data", svg)
+        self.measure_box.timeline.set_data("svg_data", svg)
 
     def load_svg_data(self, data):
         self.svg_widget.load(data)
@@ -551,7 +552,7 @@ class SvgViewer(ViewWindow, QDockWidget):
     def update_annotation(self, data, tl_component):
         self.svg_widget.update_annotation(data, tl_component)
 
-    def get_svg(self, data: str) -> None:
+    def to_svg(self, data: str) -> None:
         def convert():
             self.web_engine.page().runJavaScript(f"loadSVG(`{data}`)")
 

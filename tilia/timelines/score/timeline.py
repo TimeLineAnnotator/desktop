@@ -5,6 +5,7 @@ from pathlib import Path
 
 from tilia.requests import post, Post
 from tilia.timelines.base.component.mixed import scale_mixed, crop_mixed
+from tilia.timelines.base.validators import validate_string
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
@@ -33,9 +34,29 @@ class ScoreTLComponentManager(TimelineComponentManager):
 
 class ScoreTimeline(Timeline):
     KIND = TimelineKind.SCORE_TIMELINE
+    SERIALIZABLE_BY_VALUE = ["height", "is_visible", "name", "ordinal", "svg_data"]
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
 
-    def path_updated(self, data):
+    def __init__(self, svg_data: str = "", **kwargs):
+        super().__init__(**kwargs)
+
+        self.validators = self.validators | {"svg_data": validate_string}
+        self.svg_data = svg_data
+
+    @property
+    def svg_data(self):
+        return self._svg_data
+
+    @svg_data.setter
+    def svg_data(self, svg_data):
+        self._svg_data = svg_data
+        if svg_data:
+            get(Get.TIMELINE_UI, self.id).svg_view.load_svg_data(svg_data)
+
+    def save_svg_data(self, svg_data):
+        self._svg_data = svg_data
+
+    def mxl_updated(self, mxl_data):
         if not (
             score_svg := self.component_manager._get_component_set_by_kind(
                 ComponentKind.SCORE_VIEWER
@@ -46,7 +67,7 @@ class ScoreTimeline(Timeline):
             )
         else:
             score_svg = list(score_svg)[0]
-        score_svg.path_updated(data)
+        get(Get.TIMELINE_UI, self.id).svg_view.to_svg(mxl_data)
 
     @property
     def staff_count(self):

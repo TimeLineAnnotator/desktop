@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tilia.timelines.base.component import SegmentLikeTimelineComponent
-from tilia.timelines.base.validators import validate_time, validate_pre_validated
+from tilia.timelines.base.validators import validate_time
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.requests import get, Get
@@ -9,7 +9,7 @@ from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreViewer(SegmentLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["start", "end", "data"]
+    SERIALIZABLE_BY_VALUE = ["start", "end"]
     ORDERING_ATTRS = ("start",)
 
     KIND = ComponentKind.SCORE_VIEWER
@@ -20,26 +20,21 @@ class ScoreViewer(SegmentLikeTimelineComponent):
         id: int,
         start: float,
         end: float,
-        data: str = "",
         **_,
     ):
         self.validators |= {
             "start": validate_time,
             "end": validate_time,
             "time": validate_time,
-            "data": validate_pre_validated,
         }
 
         self.start = start
         self.end = end
-        self._data = data
 
         super().__init__(timeline, id)
 
         self.svg_view: SvgViewer = get(Get.TIMELINE_UI, self.timeline.id).svg_view
         self.svg_view.measure_box = self
-        if data:
-            self.svg_view.load_svg_data(self.data)
 
     @property
     def time(self) -> float:
@@ -51,20 +46,3 @@ class ScoreViewer(SegmentLikeTimelineComponent):
             (mp := get(Get.METRIC_POSITION, value)).measure,
             mp.beat / mp.measure_beat_count,
         )
-
-    @property
-    def data(self) -> str:
-        return self._data
-
-    @data.setter
-    def data(self, data: str = "") -> None:
-        self._data = data
-        if data:
-            self.svg_view.load_svg_data(self.data)
-
-    def path_updated(self, data) -> None:
-        self.svg_view.get_svg(data)
-
-    def save_data(self, data: str = ""):
-        self._data = data
-        self.update_hash()
