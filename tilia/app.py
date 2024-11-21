@@ -199,16 +199,6 @@ class App:
         self.on_clear()
         self._restore_app_state(state)
 
-    def get_app_state(self) -> dict:
-        return {
-            "timelines": self.timelines.serialize_timelines(),
-            "media_metadata": dict(self.file_manager.file.media_metadata),
-            "media_path": get(Get.MEDIA_PATH),
-            "file_path": self.file_manager.get_file_path(),
-            "version": tilia.constants.VERSION,
-            "app_name": tilia.constants.APP_NAME,
-        }
-
     def on_record_state(self, action, no_repeat=False, repeat_identifier=""):
         self.undo_manager.record(
             self.get_app_state(),
