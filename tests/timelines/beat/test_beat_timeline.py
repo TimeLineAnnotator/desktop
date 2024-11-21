@@ -379,6 +379,37 @@ class TestBeatTimeline:
 
         assert beat_tl.get_time_by_measure(-1) == []
 
+    def test_get_times_by_measure_measure_zero(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        beat_tl.create_beat(time=5)
+        beat_tl.create_beat(time=6)
+        beat_tl.create_beat(time=7)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(0) == [3]
+        assert beat_tl.get_time_by_measure(0, 0.5) == [4]
+        assert beat_tl.get_time_by_measure(0, 0.75) == [4.5]
+
+    def test_get_times_by_measure_measure_zero_has_zero_as_minimum(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        beat_tl.create_beat(time=0.5)
+        beat_tl.create_beat(time=1.5)
+        beat_tl.create_beat(time=2.5)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(0) == [0]
+        assert beat_tl.get_time_by_measure(0, 0.5) == [0]
+
+    def test_get_times_by_measure_measure_zero_no_complete_first_measure(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        beat_tl.create_beat(time=1)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(0) == [1]
+
     def test_delete_beat_updates_is_first_in_measure_of_subsequent_beats(self, beat_tl):
         beat_tl.beat_pattern = [2]
         beat_tl.create_beat(0)

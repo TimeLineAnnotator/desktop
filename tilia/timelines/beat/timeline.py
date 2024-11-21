@@ -251,6 +251,18 @@ class BeatTimeline(Timeline):
         fraction_after_beat = (fraction - beat_fractions[prev_beat_index]) / (beat_fractions[prev_beat_index + 1] - beat_fractions[prev_beat_index])
         return prev_beat_time + fraction_after_beat * beat_duration
 
+    def get_time_for_measure_zero(self, fraction: float) -> float:
+
+        first_measure_start = self.components[self.beats_that_start_measures[0]].time
+        if self.measure_count < 2:
+            # If there's only one measure, we can't estimate measure zero's duration
+            # so we just return the start time
+            return first_measure_start
+        second_measure_start = self.components[self.beats_that_start_measures[1]].time
+        first_measure_duration = second_measure_start - first_measure_start
+
+        return max(0, first_measure_start - ((1 - fraction) * first_measure_duration))
+
     def get_time_by_measure(self, number: int, fraction: float = 0.0) -> list[float]:
         """
         Given a measure index and a fraction value, returns a list of corresponding times.
@@ -261,6 +273,9 @@ class BeatTimeline(Timeline):
 
         measure_indices = [i for i, n in enumerate(self.measure_numbers) if n == number]
         measure_times = []
+
+        if number == 0:
+            return [self.get_time_for_measure_zero(fraction)]
 
         for index in measure_indices:
             measure_times.append(
