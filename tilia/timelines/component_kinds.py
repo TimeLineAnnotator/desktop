@@ -21,7 +21,8 @@ class ComponentKind(Enum):
     BAR_LINE = auto()
     TIME_SIGNATURE = auto()
     KEY_SIGNATURE = auto()
-    SCORE_SVG = auto()
+    SCORE_VIEWER = auto()
+    SCORE_ANNOTATION = auto()
 
 
 def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
@@ -38,7 +39,8 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
         BarLine,
         TimeSignature,
         KeySignature,
-        ScoreSVG,
+        ScoreViewer,
+        ScoreAnnotation,
     )
 
     kind_to_class_dict = {
@@ -55,7 +57,8 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
         ComponentKind.BAR_LINE: BarLine,
         ComponentKind.TIME_SIGNATURE: TimeSignature,
         ComponentKind.KEY_SIGNATURE: KeySignature,
-        ComponentKind.SCORE_SVG: ScoreSVG,
+        ComponentKind.SCORE_VIEWER: ScoreViewer,
+        ComponentKind.SCORE_ANNOTATION: ScoreAnnotation,
     }
 
     return kind_to_class_dict[kind]

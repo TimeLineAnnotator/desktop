@@ -8,7 +8,7 @@ from tilia.requests import get, Get
 from tilia.ui.windows.svg_viewer import SvgViewer
 
 
-class ScoreSVG(SegmentLikeTimelineComponent):
+class ScoreViewer(SegmentLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = ["start", "end", "data", "path"]
     ORDERING_ATTRS = ("start",)
 
