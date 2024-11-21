@@ -253,25 +253,6 @@ def notes_from_musicXML(
                     },
                 )
 
-    def _parse_timewise(measure: etree.Element):
-        metric_division.update_measure_number(int(measure.attrib["number"]))
-        div_position_start = metric_division.div_position
-        for part in measure.findall("part"):
-            part_index = part_id_to_staves[part.get("id")]
-            for element in part:
-                _parse_element(element, part_index)
-
-            times = _metric_to_time(
-                metric_division.measure_num[1], metric_division.div_position[1]
-            )
-            for time in times:
-                _create_component(
-                    ComponentKind.BAR_LINE,
-                    {"time": time, "staff_index": part_index},
-                )
-
-            metric_division.div_position = div_position_start
-
     def _parse_staves(tree: etree.ElementTree):
         staff_counter = itertools.count()
         part_ids = [p.get("id") for p in tree.findall("part-list/score-part")]
@@ -364,15 +345,6 @@ class MetricDivision:
 
 def _convert_to_partwise(element: etree.Element) -> etree.Element:
     xsl_path = Path('parsers', 'score', 'timewise_to_partwise.xsl')
-    with open(str(xsl_path.resolve()), 'r', encoding='utf-8') as xsl:
-        xsl_tree = etree.parse(xsl)
-
-    transform = etree.XSLT(xsl_tree)
-    return transform(element)
-
-
-def _convert_to_timewise(element: etree.Element) -> etree.Element:
-    xsl_path = Path('parsers', 'score', 'parttime.xsl')
     with open(str(xsl_path.resolve()), 'r', encoding='utf-8') as xsl:
         xsl_tree = etree.parse(xsl)
 
