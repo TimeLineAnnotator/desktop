@@ -24,7 +24,7 @@
         })
 
         async function loadSVG(filename) {
-            const response = await fetch(filename);
+            const response = await fetch(filename).catch((e)=>{backend.on_error(e)});
             if (!response.ok) {
                 backend.on_error(`Response status: ${response.status}`);
                 return;
