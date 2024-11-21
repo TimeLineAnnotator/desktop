@@ -24,43 +24,22 @@
         })
 
         async function loadSVG(filename) {
-            const response = await fetch(filename).catch((e)=>{backend.on_error(e.info)});
-            if (!response.ok) {
-                backend.on_error(`Response status: ${response.status}`);
-                return;
-            }
-            const blob = await response.blob();
-            const file = new File([blob], filename, { type: blob.type });
+            osmd.load(filename).then(
+                function () {
+                    osmd.render();
 
-            if (!file.name.match('.*\.xml') && !file.name.match('.*\.musicxml') && !file.name.match('.*\.mxl')) {
-                backend.on_error(`Wrong file type. Please input .musicxml, .mxl or .xml files only.`);
-                return;
-            }
-
-            var reader = new FileReader();
-            reader.onload = function (e) {
-                osmd.load(e.target.result).then(
-                    function () {
-                        osmd.render();
-
-                        const svgElement = document.getElementById("osmdSvgPage1");
-                        if (!svgElement) {
-                            return false;
-                        }
-                        else {
-                            backend.set_svg(svgElement.outerHTML);
-                            return true;
-                        }
+                    const svgElement = document.getElementById("osmdSvgPage1");
+                    if (!svgElement) {
+                        return false;
                     }
-                );
-            };
-
-            if (file.name.match('.*\.mxl')) {
-                reader.readAsBinaryString(file);
-            }
-            else {
-                reader.readAsText(file);
-            }
+                    else {
+                        backend.set_svg(svgElement.outerHTML);
+                        return true;
+                    }
+                }
+            ).catch((response) => {
+                backend.on_error(JSON.stringify(response));
+            });
         }
     </script>
 </body>

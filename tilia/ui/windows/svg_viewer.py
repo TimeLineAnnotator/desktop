@@ -546,11 +546,9 @@ class SvgViewer(ViewWindow, QDockWidget):
     def update_annotation(self, data, tl_component):
         self.svg_widget.update_annotation(data, tl_component)
 
-    def get_svg(self, path: Path) -> None:
+    def get_svg(self, data: str) -> None:
         def convert():
-            self.web_engine.page().runJavaScript(
-                f'loadSVG("{Path(path).resolve().as_posix()}")'
-            )
+            self.web_engine.page().runJavaScript(f"loadSVG(`{data}`)")
 
         if self.is_loaded:
             convert()

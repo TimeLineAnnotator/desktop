@@ -35,7 +35,7 @@ class ScoreTimeline(Timeline):
     KIND = TimelineKind.SCORE_TIMELINE
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
 
-    def path_updated(self, path: Path):
+    def path_updated(self, data):
         if not (
             score_svg := self.component_manager._get_component_set_by_kind(
                 ComponentKind.SCORE_VIEWER
@@ -46,7 +46,7 @@ class ScoreTimeline(Timeline):
             )
         else:
             score_svg = list(score_svg)[0]
-        score_svg.path_updated(path)
+        score_svg.path_updated(data)
 
     @property
     def staff_count(self):
@@ -79,5 +79,3 @@ class ScoreTimeline(Timeline):
     def deserialize_components(self, components: dict[int, dict[str]]):
         super().deserialize_components(components)
         post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.id)
-
-

@@ -9,7 +9,7 @@ from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreViewer(SegmentLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["start", "end", "data", "path"]
+    SERIALIZABLE_BY_VALUE = ["start", "end", "data"]
     ORDERING_ATTRS = ("start",)
 
     KIND = ComponentKind.SCORE_VIEWER
@@ -21,7 +21,6 @@ class ScoreViewer(SegmentLikeTimelineComponent):
         start: float,
         end: float,
         data: str = "",
-        path: Path = "",
         **_,
     ):
         self.validators |= {
@@ -29,13 +28,11 @@ class ScoreViewer(SegmentLikeTimelineComponent):
             "end": validate_time,
             "time": validate_time,
             "data": validate_pre_validated,
-            "path": validate_pre_validated,
         }
 
         self.start = start
         self.end = end
         self._data = data
-        self.path = path
 
         super().__init__(timeline, id)
 
@@ -43,8 +40,6 @@ class ScoreViewer(SegmentLikeTimelineComponent):
         self.svg_view.measure_box = self
         if data:
             self.svg_view.load_svg_data(self.data)
-        elif path:
-            self.path_updated(path)
 
     @property
     def time(self) -> float:
@@ -67,9 +62,8 @@ class ScoreViewer(SegmentLikeTimelineComponent):
         if data:
             self.svg_view.load_svg_data(self.data)
 
-    def path_updated(self, path: Path) -> None:
-        self.path = path
-        self.svg_view.get_svg(path)
+    def path_updated(self, data) -> None:
+        self.svg_view.get_svg(data)
 
     def save_data(self, data: str = ""):
         self._data = data
