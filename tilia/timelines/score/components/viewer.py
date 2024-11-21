@@ -12,7 +12,7 @@ class ScoreViewer(SegmentLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = ["start", "end", "data", "path"]
     ORDERING_ATTRS = ("start",)
 
-    KIND = ComponentKind.SCORE_SVG
+    KIND = ComponentKind.SCORE_VIEWER
 
     def __init__(
         self,

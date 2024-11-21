@@ -80,7 +80,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
             "parent": functools.partial(validate_is_instance, Hierarchy),
             "children": functools.partial(validate_is_instance, Hierarchy),
         }
-        super().__init__(timeline, id)
 
         self._start = start
         self._end = end
@@ -98,7 +97,7 @@ class Hierarchy(SegmentLikeTimelineComponent):
         self.pre_start = pre_start if pre_start is not None else self.start
         self.post_end = post_end if post_end is not None else self.end
 
-        self.update_hash()
+        super().__init__(timeline, id)
 
     @property
     def start(self):
