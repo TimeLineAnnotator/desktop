@@ -188,7 +188,10 @@ def notes_from_musicXML(
 
     def _parse_note(element: etree.Element, part_id: str):
         if element.find("grace") is not None:
-            errors.append(f"<grace> not implemented.")
+            # We do not support grace notes yet.
+            return
+        elif element.find("cue") is not None:
+            # We do not support cue notes yet.
             return
 
         duration = int(element.find("duration").text)
