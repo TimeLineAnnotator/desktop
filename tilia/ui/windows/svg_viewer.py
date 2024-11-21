@@ -25,7 +25,8 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QDockWidget, QScrollArea
 
 from tilia.ui.windows.view_window import ViewWindow
-from tilia.requests import get, Get
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.requests import get, Get, post, Post
 import tilia.errors
 
 
@@ -75,17 +76,51 @@ class SvgWidget(QSvgWidget):
 
     def load(self, data):
         self.blockSignals(True)
+        old_selectable = self.selectable.copy()
+        old_deletable = self.deletable.copy()
         self.root = ET.fromstring(data)
         self.svg_width = round(float(self.root.attrib.get("width", 500)))
         self.svg_height = round(float(self.root.attrib.get("height", 500)))
         self.reset()
         self.get_editable_elements(self.root)
+        for deletable in old_deletable:
+            self.selectable[deletable] = old_selectable[deletable]
+            self.root.append(old_selectable[deletable]["node"])
+        self.deletable = old_deletable
 
         self.__refresh_svg()
         self.renderer().setAspectRatioMode(Qt.AspectRatioMode.KeepAspectRatio)
         self.resize(self.svg_width, self.svg_height)
         self.show()
         self.blockSignals(False)
+
+    def update_annotation(self, data, tl_component):
+        if data == "delete":
+            self.root.remove(self.selectable[id]["node"])
+            self.selectable.pop(id)
+            self.deletable.remove(id)
+            if id in self.selected_elements:
+                self.selected_elements.remove(id)
+
+        else:
+            annotation = ET.fromstring(data)
+            self.root.append(annotation)
+            if (id := annotation.attrib.get("id")) in self.deletable:
+                self.root.remove(self.selectable[id]["node"])
+            else:
+                self.selectable[id] = {"component": tl_component}
+                self.deletable.add(id)
+                self.check_tla_id(id)
+                if hasattr(self, "transform_x"):
+                    self._get_bounds(self.selectable, id)
+            self.selectable[id]["node"] = annotation
+
+        self.__refresh_svg()
+
+    def check_tla_id(self, id):
+        id = int(id.split("tla_")[1])
+        if self.next_tla_id <= id:
+            self.next_tla_id = id + 1
 
     def get_editable_elements(self, node: ET.Element):
         for glyph in node.findall("g"):
@@ -97,12 +132,6 @@ class SvgWidget(QSvgWidget):
         match v_class:
             case "vf-stavenote":
                 self.selectable[node.attrib["id"]] = {"node": node}
-            case "tla-annotation":
-                self.selectable[(element := node.attrib["id"])] = {"node": node}
-                self.deletable.add(element)
-                element = int(element.split("tla_")[1])
-                if self.next_tla_id <= element:
-                    self.next_tla_id = element + 1
             case "vf-measure":
                 self.measures[node.attrib["id"]] = {"node": node}
 
@@ -243,7 +272,7 @@ class SvgWidget(QSvgWidget):
             )
             self._get_bounds(self.selectable, element)
         if is_final:
-            self.save_to_file()
+            self.save_to_file(self.to_move)
         self.__refresh_svg()
 
     def enterEvent(self, event):
@@ -316,24 +345,25 @@ class SvgWidget(QSvgWidget):
                 )
                 if success:
                     text_element.text = new_annotation
-            self.save_to_file()
+            self.save_to_file(annotation)
         else:
             self.remove_from_selection(self.selected_elements)
         self.__refresh_svg()
 
     def delete_tla_annotation(self):
         if deletable := self.selected_elements.intersection(self.deletable):
+            to_delete = []
             for element in deletable:
                 self.root.remove(self.selectable[element]["node"])
+                to_delete.append(self.selectable[element]["component"])
                 self.selectable.pop(element)
                 self.deletable.remove(element)
                 self.selected_elements.remove(element)
-            self.save_to_file()
-        else:
-            self.remove_from_selection(self.selected_elements)
+            self.viewer.measure_box.timeline.delete_components(to_delete)
+        self.remove_from_selection(self.selected_elements)
         self.__refresh_svg()
 
-    def _add_text(self, point: QPoint, text: str):
+    def _add_text(self, point: QPoint, text: str) -> str:
         tla_id = "tla_" + str(self.next_tla_id)
         glyph = ET.Element("g", {"class": "tla-annotation", "id": tla_id})
         glyph_text = ET.Element(
@@ -359,18 +389,22 @@ class SvgWidget(QSvgWidget):
         self.__refresh_svg()
         self._get_bounds(self.selectable, tla_id)
         self.next_tla_id += 1
+        return tla_id
 
     def add_tla_annotation(self):
         if annotatable := self.selected_elements.difference(self.deletable):
+            to_add = set()
             annotation, success = get(
                 Get.FROM_USER_STRING, "Score Annotation", "Add annotation"
             )
             if success:
                 for element in annotatable:
-                    self._add_text(
-                        self.selectable[element]["bounds"].first(), annotation
+                    to_add.add(
+                        self._add_text(
+                            self.selectable[element]["bounds"].first(), annotation
+                        )
                     )
-            self.save_to_file()
+            self.save_to_file(to_add)
         else:
             self.remove_from_selection(self.selected_elements)
         self.__refresh_svg()
@@ -389,6 +423,9 @@ class SvgWidget(QSvgWidget):
                 )
                 + "px"
             )
+        cur_selection = self.selected_elements
+        self.save_to_file(cur_selection)
+        self.add_to_selection(cur_selection)
 
         self.__refresh_svg()
 
@@ -406,6 +443,9 @@ class SvgWidget(QSvgWidget):
                 )
                 + "px"
             )
+        cur_selection = self.selected_elements
+        self.save_to_file(cur_selection)
+        self.add_to_selection(cur_selection)
 
         self.__refresh_svg()
 
@@ -415,18 +455,24 @@ class SvgWidget(QSvgWidget):
     def zoom_out(self):
         self.resize(round(self.width() / 1.1), round(self.height() / 1.1))
 
-    def save_to_file(self):
+    def save_to_file(self, elements: set[int]):
         self.remove_from_selection(self.selected_elements)
         if self.viewer.measure_box:
-            self.viewer.measure_box.save_data(ET.tostring(self.root, "unicode"))
+            for element in elements:
+                if not (score_annotation := self.selectable[element].get("component")):
+                    (
+                        score_annotation,
+                        _,
+                    ) = self.viewer.measure_box.timeline.create_component(
+                        kind=ComponentKind.SCORE_ANNOTATION
+                    )
+                    self.selectable[element].update({"component": score_annotation})
 
-    # def hideEvent(self, a0):
-    #     self.save_to_file()
-    #     return super().hideEvent(a0)
+                score_annotation.save_data(
+                    ET.tostring(self.selectable[element]["node"], "unicode")
+                )
 
-    # def closeEvent(self, a0):
-    #     self.save_to_file()
-    #     return super().closeEvent(a0)
+                post(Post.APP_RECORD_STATE, "score annotation")
 
 
 class SvgWebEngineTracker(QObject):
@@ -497,6 +543,9 @@ class SvgViewer(ViewWindow, QDockWidget):
         self.svg_widget.load(data)
         self.show()
 
+    def update_annotation(self, data, tl_component):
+        self.svg_widget.update_annotation(data, tl_component)
+
     def get_svg(self, path: Path) -> None:
         def convert():
             self.web_engine.page().runJavaScript(f'loadSVG("{path}")')
@@ -508,7 +557,3 @@ class SvgViewer(ViewWindow, QDockWidget):
 
     def display_error(self, message: str):
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
-
-    def deleteLater(self):
-        self.svg_widget.save_to_file()
-        return super().deleteLater()

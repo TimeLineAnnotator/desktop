@@ -14,7 +14,8 @@ def get_element_class_by_kind(kind: ComponentKind):
         BarLineUI,
         TimeSignatureUI,
         KeySignatureUI,
-        ScoreSVGUI,
+        ScoreViewerUI,
+        ScoreAnnotationUI,
     )
 
     kind_to_class_dict = {
@@ -30,7 +31,8 @@ def get_element_class_by_kind(kind: ComponentKind):
         ComponentKind.BAR_LINE: BarLineUI,
         ComponentKind.TIME_SIGNATURE: TimeSignatureUI,
         ComponentKind.KEY_SIGNATURE: KeySignatureUI,
-        ComponentKind.SCORE_SVG: ScoreSVGUI,
+        ComponentKind.SCORE_VIEWER: ScoreViewerUI,
+        ComponentKind.SCORE_ANNOTATION: ScoreAnnotationUI,
     }
 
     return kind_to_class_dict[kind]

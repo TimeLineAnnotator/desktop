@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from ..timeline import ScoreTimelineUI
 
 
-class ScoreSVGUI(TimelineUIElement):
+class ScoreViewerUI(TimelineUIElement):
     INSPECTOR_FILEDS = [
         ("Start / end", InspectRowKind.LABEL, None),
         ("Start / end (metric)", InspectRowKind.LABEL, None),
@@ -87,10 +87,10 @@ class ScoreSVGUI(TimelineUIElement):
         self.scene.addItem(self.body)
 
     def selection_triggers(self):
-        return self.body
+        return [self.body]
 
     def left_click_triggers(self):
-        return self.body
+        return [self.body]
 
     def on_left_click(self, _) -> None:
         self.setup_drag()
@@ -105,7 +105,7 @@ class ScoreSVGUI(TimelineUIElement):
         post(Post.PLAYER_SEEK, self.seek_time)
 
     def right_click_triggers(self):
-        return self.body
+        return [self.body]
 
     def setup_drag(self):
         self.drag_manager = DragManager(
