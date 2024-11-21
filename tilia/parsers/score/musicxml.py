@@ -162,17 +162,19 @@ def notes_from_musicXML(
             "display_accidental": (
                 True if element.find("accidental") is not None else False
             ),
-            "accidental": int(alter.text) if alter is not None else 0
+            "accidental": int(alter.text) if alter is not None else 0,
         }
 
     def _parse_unpitched(element: etree.Element) -> dict:
         return {
             "step": NOTE_NAME_TO_INT[element.find("unpitched/display-step").text],
             "accidental": 0,
-            "octave": int(element.find("unpitched/display-octave").text)
+            "octave": int(element.find("unpitched/display-octave").text),
         }
 
-    def _get_note_times(metric_division: MetricDivision, duration: float, is_chord: bool) -> tuple[list[float], list[float]]:
+    def _get_note_times(
+        metric_division: MetricDivision, duration: float, is_chord: bool
+    ) -> tuple[list[float], list[float]]:
         start_times = _metric_to_time(
             metric_division.measure_num[1],
             metric_division.div_position[0 if is_chord else 1],
@@ -213,9 +215,9 @@ def notes_from_musicXML(
         constructor_kwargs["tie_type"] = _parse_note_tie(element)
 
         if element.find("staff") is not None:
-            constructor_kwargs['staff_index'] = _parse_staff(element, part_id)
+            constructor_kwargs["staff_index"] = _parse_staff(element, part_id)
         else:
-            constructor_kwargs['staff_index'] = part_id_to_staves[part_id]['1']
+            constructor_kwargs["staff_index"] = part_id_to_staves[part_id]["1"]
 
         is_chord = element.find("chord") is not None
 
@@ -303,7 +305,7 @@ def notes_from_musicXML(
     if tree.tag == "score-timewise":
         tree = _convert_to_partwise(tree)
     elif tree.tag != "score-partwise":
-        raise ValueError(f"File `{path} is not valid musicxml.")
+        raise ValueError(f"File `{path}` is not valid musicxml.")
 
     part_id_to_staves = _parse_staves(tree)
 
@@ -353,8 +355,8 @@ class MetricDivision:
 
 
 def _convert_to_partwise(element: etree.Element) -> etree.Element:
-    xsl_path = Path('parsers', 'score', 'timewise_to_partwise.xsl')
-    with open(str(xsl_path.resolve()), 'r', encoding='utf-8') as xsl:
+    xsl_path = Path("parsers", "score", "timewise_to_partwise.xsl")
+    with open(str(xsl_path.resolve()), "r", encoding="utf-8") as xsl:
         xsl_tree = etree.parse(xsl)
 
     transform = etree.XSLT(xsl_tree)
