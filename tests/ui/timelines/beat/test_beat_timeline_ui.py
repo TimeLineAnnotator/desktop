@@ -410,6 +410,24 @@ class TestFillWithBeats:
         assert len(beat_tlui) == amount
         assert beat_tlui[1].get_data("time") - beat_tlui[0].get_data("time") == interval
 
+    def test_accept_delete_existing_beats(self, beat_tlui, user_actions):
+        beat_tlui.create_beat(0)
+        response = (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100))
+        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, response):
+            with Serve(Get.FROM_USER_YES_OR_NO, True):
+                user_actions.trigger(TiliaAction.BEAT_TIMELINE_FILL)
+
+        assert len(beat_tlui) == 100
+
+    def test_reject_delete_existing_beats(self, beat_tlui, user_actions):
+        beat_tlui.create_beat(0)
+        response = (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100))
+        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, response):
+            with Serve(Get.FROM_USER_YES_OR_NO, False):
+                user_actions.trigger(TiliaAction.BEAT_TIMELINE_FILL)
+
+        assert len(beat_tlui) == 1
+
 
 class TestUndoRedo:
     def test_undo_redo_add_beat(self, beat_tlui, tluis, user_actions):
