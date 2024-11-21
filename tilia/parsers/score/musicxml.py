@@ -5,10 +5,9 @@ import itertools
 from pathlib import Path
 from zipfile import ZipFile
 from typing import Optional, Any
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
-import lxml.etree
+from lxml import etree
 
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.score.components import Note
@@ -35,7 +34,7 @@ class TiliaMXLReader:
                 "META-INF/container.xml", **self.file_kwargs
             ) as meta:
                 full_path = (
-                    ET.parse(meta, **self.reader_kwargs)
+                    etree.parse(meta, **self.reader_kwargs)
                     .findall(".//rootfile")[0]
                     .get("full-path")
                 )
@@ -81,7 +80,7 @@ def notes_from_musicXML(
         )
         return a
 
-    def _parse_attributes(attributes: ET.Element | Any, part_id: str):
+    def _parse_attributes(attributes: etree.Element, part_id: str):
         times = _metric_to_time(
             metric_division.measure_num[1], metric_division.div_position[1]
         )
@@ -149,7 +148,7 @@ def notes_from_musicXML(
                         },
                     )
 
-    def _parse_note_tie(element: ET.Element) -> Note.TieType:
+    def _parse_note_tie(element: etree.Element) -> Note.TieType:
         tie = element.find("tie")
         if tie is None:
             return Note.TieType.NONE
@@ -158,7 +157,7 @@ def notes_from_musicXML(
         else:
             return Note.TieType.STOP
 
-    def _parse_note(element: ET.Element | Any, part_id: str):
+    def _parse_note(element: etree.Element, part_id: str):
         if element.find("grace") is not None:
             errors.append(f"<grace> not implemented.")
             return
@@ -222,7 +221,7 @@ def notes_from_musicXML(
                 constructor_kwargs | {"start": start, "end": end},
             )
 
-    def _parse_element(element: ET.Element | Any, part_id: str):
+    def _parse_element(element: etree.Element, part_id: str):
         match element.tag:
             case "attributes":
                 _parse_attributes(element, part_id)
@@ -237,7 +236,7 @@ def notes_from_musicXML(
             case _:
                 pass
 
-    def _parse_score(part: ET.Element | Any, part_id: str):
+    def _parse_score(part: etree.Element, part_id: str):
         for measure in part.findall("measure"):
             metric_division.update_measure_number(int(measure.attrib["number"]))
             for element in measure:
@@ -254,7 +253,7 @@ def notes_from_musicXML(
                     },
                 )
 
-    def _parse_timewise(measure: ET.Element | Any):
+    def _parse_timewise(measure: etree.Element):
         metric_division.update_measure_number(int(measure.attrib["number"]))
         div_position_start = metric_division.div_position
         for part in measure.findall("part"):
@@ -273,7 +272,7 @@ def notes_from_musicXML(
 
             metric_division.div_position = div_position_start
 
-    def _parse_staves(tree: ET):
+    def _parse_staves(tree: etree.ElementTree):
         staff_counter = itertools.count()
         part_ids = [p.get("id") for p in tree.findall("part-list/score-part")]
         part_id_to_staves = {
@@ -309,7 +308,7 @@ def notes_from_musicXML(
     reader_kwargs = reader_kwargs or {}
 
     with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
-        tree = ET.parse(file, **reader_kwargs).getroot()
+        tree = etree.parse(file, **reader_kwargs).getroot()
 
     if tree.tag == "score-timewise":
         tree = _convert_to_partwise(tree)
@@ -321,7 +320,7 @@ def notes_from_musicXML(
     for part in tree.findall("part"):
         _parse_score(part, part.get("id"))
 
-    score_tl.path_updated(path)
+    # score_tl.path_updated(path)
 
     return errors
 
@@ -363,12 +362,19 @@ class MetricDivision:
         }
 
 
-def _convert_to_partwise(element: ET.Element) -> ET.Element:
-    tree = lxml.etree.fromstring(ET.tostring(element)).getroottree()  # convert to lxml.ElementTree
+def _convert_to_partwise(element: etree.Element) -> etree.Element:
     xsl_path = Path('parsers', 'score', 'timewise_to_partwise.xsl')
     with open(str(xsl_path.resolve()), 'r', encoding='utf-8') as xsl:
-        xsl_tree = lxml.etree.parse(xsl)
+        xsl_tree = etree.parse(xsl)
 
-    transform = lxml.etree.XSLT(xsl_tree)
-    transformed = transform(tree)
-    return ET.fromstring(lxml.etree.tostring(transformed, encoding='utf-8'))
+    transform = etree.XSLT(xsl_tree)
+    return transform(element)
+
+
+def _convert_to_timewise(element: etree.Element) -> etree.Element:
+    xsl_path = Path('parsers', 'score', 'parttime.xsl')
+    with open(str(xsl_path.resolve()), 'r', encoding='utf-8') as xsl:
+        xsl_tree = etree.parse(xsl)
+
+    transform = etree.XSLT(xsl_tree)
+    return transform(element)
