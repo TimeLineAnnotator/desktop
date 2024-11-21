@@ -95,6 +95,8 @@ class SvgWidget(QSvgWidget):
         self.blockSignals(False)
 
     def update_annotation(self, data, tl_component):
+        annotation = ET.fromstring(data)
+        id = annotation.attrib.get("id")
         if data == "delete":
             self.root.remove(self.selectable[id]["node"])
             self.selectable.pop(id)
@@ -103,9 +105,8 @@ class SvgWidget(QSvgWidget):
                 self.selected_elements.remove(id)
 
         else:
-            annotation = ET.fromstring(data)
             self.root.append(annotation)
-            if (id := annotation.attrib.get("id")) in self.deletable:
+            if id in self.deletable:
                 self.root.remove(self.selectable[id]["node"])
             else:
                 self.selectable[id] = {"component": tl_component}
@@ -394,7 +395,7 @@ class SvgWidget(QSvgWidget):
     def add_tla_annotation(self):
         if annotatable := self.selected_elements.difference(self.deletable):
             to_add = set()
-            annotation, success = get(
+            success, annotation = get(
                 Get.FROM_USER_STRING, "Score Annotation", "Add annotation"
             )
             if success:
