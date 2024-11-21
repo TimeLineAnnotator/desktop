@@ -74,28 +74,38 @@ class Clef(PointLikeTimelineComponent):
         if shorthand == Clef.Shorthand.BASS:
             self.line_number = 1
             self.step = 3
-            self.octave = 2
+            self.octave = 3
             self.icon = "clef-bass.svg"
         elif shorthand == Clef.Shorthand.TREBLE:
             self.line_number = -1
             self.step = 4
-            self.octave = 3
+            self.octave = 4
             self.icon = "clef-treble.svg"
         elif shorthand == Clef.Shorthand.TREBLE_8VB:
             self.line_number = -1
             self.step = 4
-            self.octave = 2
+            self.octave = 3
             self.icon = "clef-treble-8vb.svg"
         elif shorthand == Clef.Shorthand.ALTO:
             self.line_number = 0
             self.step = 0
-            self.octave = 3
+            self.octave = 4
             self.icon = "clef-alto.svg"
         else:
             raise ValueError(f"Invalid shorthand: {shorthand}")
 
-    def central_step(self):
-        return self.get_data('step') + self.get_data('line_number') * -2, self.get_data('octave')
+    def shorthand(self) -> Clef.Shorthand | None:
+        match self.line_number, self.step, self.octave:
+            case 1, 3, 3:
+                return Clef.Shorthand.BASS
+            case -1, 4, 4:
+                return Clef.Shorthand.TREBLE
+            case -1, 4, 3:
+                return Clef.Shorthand.TREBLE_8VB
+            case 0, 0, 4:
+                return Clef.Shorthand.ALTO
+            case _:
+                return None
 
     def __str__(self):
         return f"Clef({self.time}, {self.line_number}, {self.step}, {self.octave}, {self.icon})"
