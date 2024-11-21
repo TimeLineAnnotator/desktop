@@ -6,6 +6,7 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 from tilia.ui.request_handler import RequestHandler
+from tilia.ui.strings import BEAT_TIMELINE_FILL_TITLE, BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT
 
 
 def _get_media_is_loaded():
@@ -86,7 +87,19 @@ class TimelineUIsRequestHandler(RequestHandler):
         accepted, result = get(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD)
         if not accepted:
             return False
+
         timeline, method, value = result
+
+        if not timeline.is_empty:
+            confirmed = get(
+                Get.FROM_USER_YES_OR_NO,
+                BEAT_TIMELINE_FILL_TITLE,
+                BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT
+            )
+            if not confirmed:
+                return False
+            timeline.clear()
+
         timeline.fill_with_beats(method, value)
 
         return True
