@@ -11,9 +11,7 @@ from tilia.requests import Get, get, listen, Post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.coords import time_x_converter
-from tilia.ui.timelines.base.timeline import (
-    TimelineUI,
-)
+from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
 from tilia.ui.timelines.score.context_menu import ScoreTimelineUIContextMenu
 from tilia.ui.timelines.score.element import NoteUI, StaffUI, ClefUI
@@ -52,7 +50,7 @@ class ScoreTimelineUI(TimelineUI):
         self._svg_view = SvgViewer(
             name=self.get_data("name"), parent=get(Get.MAIN_WINDOW)
         )
-        
+
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.staff_cache: dict[int, StaffUI] = {}
@@ -72,12 +70,14 @@ class ScoreTimelineUI(TimelineUI):
 
     def _setup_pixmaps(self):
         self.pixmaps = {
-            'time signature': {n: QPixmap(self.get_time_signature_pixmap_path(n)) for n in range(10)},
+            "time signature": {
+                n: QPixmap(self.get_time_signature_pixmap_path(n)) for n in range(10)
+            },
         }
 
     @staticmethod
     def get_time_signature_pixmap_path(n: int) -> str:
-        return Path('ui', 'img', f'time-signature-{n}.svg').resolve().__str__()
+        return Path("ui", "img", f"time-signature-{n}.svg").resolve().__str__()
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
@@ -127,10 +127,15 @@ class ScoreTimelineUI(TimelineUI):
             return 1.0
         if average_measure_width < visibility_treshold:
             return 0
-        return min(1.0, min_scale + (average_measure_width / max_size_treshold * min_scale))
+        return min(
+            1.0, min_scale + (average_measure_width / max_size_treshold * min_scale)
+        )
 
     def get_height_for_symbols_above_staff(self) -> int:
-        return int(self.SYMBOLS_ABOVE_STAFF_MAX_HEIGHT * self.get_scale_for_symbols_above_staff())
+        return int(
+            self.SYMBOLS_ABOVE_STAFF_MAX_HEIGHT
+            * self.get_scale_for_symbols_above_staff()
+        )
 
     def get_height(self):
         if not self.staff_heights:
@@ -158,12 +163,12 @@ class ScoreTimelineUI(TimelineUI):
         element = super().on_timeline_component_created(kind, id, get_data, set_data)
         if kind == ComponentKind.STAFF:
             self.update_height()
-            self.staff_cache[element.get_data('index')] = element
+            self.staff_cache[element.get_data("index")] = element
             return
         elif kind == ComponentKind.BAR_LINE:
             self._measure_count += 1
         elif kind == ComponentKind.NOTE:
-            self._update_staff_extreme_notes(element.get_data('staff_index'), element)
+            self._update_staff_extreme_notes(element.get_data("staff_index"), element)
 
         try:
             time = element.get_data("time")
@@ -180,21 +185,24 @@ class ScoreTimelineUI(TimelineUI):
             self.clef_time_cache = self.get_clef_time_cache()
 
     def _update_staff_extreme_notes(self, staff_index: int, note: NoteUI) -> None:
-        pitch = note.get_data('pitch')
+        pitch = note.get_data("pitch")
         if staff_index not in self.staff_extreme_notes:
-            self.staff_extreme_notes[staff_index] = {'low': note, 'high': note}
-        elif pitch < self.staff_extreme_notes[staff_index]['low'].get_data('pitch'):
-            self.staff_extreme_notes[staff_index]['low'] = note
-        elif pitch > self.staff_extreme_notes[staff_index]['high'].get_data('pitch'):
-            self.staff_extreme_notes[staff_index]['high'] = note
+            self.staff_extreme_notes[staff_index] = {"low": note, "high": note}
+        elif pitch < self.staff_extreme_notes[staff_index]["low"].get_data("pitch"):
+            self.staff_extreme_notes[staff_index]["low"] = note
+        elif pitch > self.staff_extreme_notes[staff_index]["high"].get_data("pitch"):
+            self.staff_extreme_notes[staff_index]["high"] = note
 
     def _update_staff_heights(self) -> None:
         min_margin_top = 70
         min_margin_bottom = 30
         self.staff_heights = {}
         for i, notes in self.staff_extreme_notes.items():
-            bottom = max(notes['low'].top_y + notes['low'].note_height(), self.get_staff_bottom_y(i) + min_margin_bottom)
-            top = min(notes['high'].top_y, self.get_staff_top_y(i) - min_margin_top)
+            bottom = max(
+                notes["low"].top_y + notes["low"].note_height(),
+                self.get_staff_bottom_y(i) + min_margin_bottom,
+            )
+            top = min(notes["high"].top_y, self.get_staff_top_y(i) - min_margin_top)
 
             self.staff_heights[i] = int(bottom - top)
 
@@ -226,7 +234,9 @@ class ScoreTimelineUI(TimelineUI):
             if start <= time < end:
                 return self.clef_time_cache[staff_index][(start, end)]
 
-    def _get_overlap(self, staff_index: float, time: float, kind: ComponentKind) -> tuple[TimelineUIElementWithCollision]:
+    def _get_overlap(
+        self, staff_index: float, time: float, kind: ComponentKind
+    ) -> tuple[TimelineUIElementWithCollision]:
         # Elements will be displayed in the order below
         overlapping_kinds = [
             ComponentKind.CLEF,
@@ -237,12 +247,22 @@ class ScoreTimelineUI(TimelineUI):
         if kind not in overlapping_kinds:
             return []
 
-        overlapping = [c for c in self if c.kind in overlapping_kinds and c.get_data('time') == time and c.get_data('staff_index') == staff_index]
-        overlapping = tuple(sorted(overlapping, key=lambda c: overlapping_kinds.index(c.kind)))
+        overlapping = [
+            c
+            for c in self
+            if c.kind in overlapping_kinds
+            and c.get_data("time") == time
+            and c.get_data("staff_index") == staff_index
+        ]
+        overlapping = tuple(
+            sorted(overlapping, key=lambda c: overlapping_kinds.index(c.kind))
+        )
         return overlapping if len(overlapping) > 1 else tuple()
 
     @staticmethod
-    def _get_offsets_for_overlapping_elements(overlapping_elements: Iterable[TimelineUIElementWithCollision]):
+    def _get_offsets_for_overlapping_elements(
+        overlapping_elements: Iterable[TimelineUIElementWithCollision],
+    ):
         mid_x = sum([c.width for c in overlapping_elements]) / 2
         element_to_offset = {}
         total_width = 0
@@ -254,12 +274,16 @@ class ScoreTimelineUI(TimelineUI):
 
         return element_to_offset
 
-    def _offset_overlapping_elements(self, elements: tuple[TimelineUIElementWithCollision]):
+    def _offset_overlapping_elements(
+        self, elements: tuple[TimelineUIElementWithCollision]
+    ):
         component_to_offset = self._get_offsets_for_overlapping_elements(elements)
         for elm in elements:
             elm.x_offset = component_to_offset[elm]
 
-    def _add_to_overlapping_elements(self, group: tuple[TimelineUIElementWithCollision]):
+    def _add_to_overlapping_elements(
+        self, group: tuple[TimelineUIElementWithCollision]
+    ):
         for existing_group in self.overlapping_elements.copy():
             if any(element in existing_group for element in group):
                 self.overlapping_elements.remove(existing_group)
@@ -271,7 +295,9 @@ class ScoreTimelineUI(TimelineUI):
         for group in self.overlapping_elements:
             self._offset_overlapping_elements(group)
 
-    def get_staff_bounding_steps(self, time: float, staff_index: int) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    def get_staff_bounding_steps(
+        self, time: float, staff_index: int
+    ) -> tuple[tuple[int, int], tuple[int, int]] | None:
         """
         Returns a tuple of the form ((step_lower, octave_lower), (step_upper, octave_upper)) where:
         - step_lower is the step of the lowest staff line
@@ -333,9 +359,13 @@ class ScoreTimelineUI(TimelineUI):
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
             return 0
-        bar_lines = sorted(self.element_manager.get_elements_by_attribute('kind', ComponentKind.BAR_LINE))
-        x0 = time_x_converter.get_x_by_time(bar_lines[0].get_data('time'))
-        x1 = time_x_converter.get_x_by_time(bar_lines[-1].get_data('time'))
+        bar_lines = sorted(
+            self.element_manager.get_elements_by_attribute(
+                "kind", ComponentKind.BAR_LINE
+            )
+        )
+        x0 = time_x_converter.get_x_by_time(bar_lines[0].get_data("time"))
+        x1 = time_x_converter.get_x_by_time(bar_lines[-1].get_data("time"))
         return (x1 - x0) / self._measure_count
 
     def delete_svg_view(self):
