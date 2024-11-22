@@ -6,7 +6,7 @@ from enum import Enum, auto
 from html import escape, unescape
 from pathlib import Path
 from re import sub
-from xml.etree import ElementTree as ET
+from lxml import etree
 
 from PyQt6.QtCore import (
     pyqtSlot,
@@ -55,7 +55,7 @@ class SvgWidget(QSvgWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
-        self.root = ET.Element("svg")
+        self.root = etree.Element("svg")
 
     def reset(self):
         self.selectable = {}
@@ -69,7 +69,7 @@ class SvgWidget(QSvgWidget):
         self.selection_mode = self.SELECTION_MODE.NEW
 
     def __refresh_svg(self):
-        super().load(bytearray(ET.tostring(self.root)))
+        super().load(bytearray(etree.tostring(self.root)))
 
     @property
     def viewer(self):
@@ -79,7 +79,7 @@ class SvgWidget(QSvgWidget):
         self.blockSignals(True)
         old_selectable = self.selectable.copy()
         old_deletable = self.deletable.copy()
-        self.root = ET.fromstring(data)
+        self.root = etree.fromstring(data)
         self.svg_width = round(float(self.root.attrib.get("width", 500)))
         self.svg_height = round(float(self.root.attrib.get("height", 500)))
         self.reset()
@@ -109,7 +109,7 @@ class SvgWidget(QSvgWidget):
                 self.selected_elements.remove(id)
 
         else:
-            annotation = ET.fromstring(data)
+            annotation = etree.fromstring(data)
             self.root.append(annotation)
             if (id := annotation.attrib.get("id")) in self.deletable:
                 self.root.remove(self.selectable[id]["node"])
@@ -128,7 +128,7 @@ class SvgWidget(QSvgWidget):
         if self.next_tla_id <= id:
             self.next_tla_id = id + 1
 
-    def get_editable_elements(self, node: ET.Element):
+    def get_editable_elements(self, node: etree.Element):
         for glyph in node.findall("g"):
             self.get_editable_elements(glyph)
 
@@ -223,7 +223,7 @@ class SvgWidget(QSvgWidget):
         self.selection_box = None
 
     def add_to_selection(self, elements):
-        def make_coloured(cur_node: ET.Element):
+        def make_coloured(cur_node: etree.Element):
             if (fill := cur_node.attrib.get("fill", "none")) and fill != "none":
                 cur_node.attrib["fill"] = "#ff0000"  # use settings
             if (stroke := cur_node.attrib.get("stroke", "none")) and stroke != "none":
@@ -236,7 +236,7 @@ class SvgWidget(QSvgWidget):
             self.selected_elements.add(element)
 
     def remove_from_selection(self, elements):
-        def make_black(cur_node: ET.Element):
+        def make_black(cur_node: etree.Element):
             if (fill := cur_node.attrib.get("fill", "none")) and fill != "none":
                 cur_node.attrib["fill"] = "#000000"  # use settings
             if (stroke := cur_node.attrib.get("stroke", "none")) and stroke != "none":
@@ -371,8 +371,8 @@ class SvgWidget(QSvgWidget):
 
     def _add_text(self, point: QPoint, text: str) -> str:
         tla_id = "tla_" + str(self.next_tla_id)
-        glyph = ET.Element("g", {"class": "tla-annotation", "id": tla_id})
-        glyph_text = ET.Element(
+        glyph = etree.Element("g", {"class": "tla-annotation", "id": tla_id})
+        glyph_text = etree.Element(
             "text",
             {
                 "stroke-width": "0.3",
@@ -475,7 +475,7 @@ class SvgWidget(QSvgWidget):
                     self.selectable[element].update({"component": score_annotation})
 
                 score_annotation.save_data(
-                    ET.tostring(self.selectable[element]["node"], "unicode")
+                    str(etree.tostring(self.selectable[element]["node"]), "utf-8")
                 )
 
                 post(Post.APP_RECORD_STATE, "score annotation")
