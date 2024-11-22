@@ -1,5 +1,5 @@
 # TODO:
-# - measure tracker
+# - control pos from mw
 
 from enum import Enum, auto
 from html import escape, unescape
@@ -644,6 +644,5 @@ class SvgViewer(ViewWindow, QDockWidget):
             )
 
     def position_updated(self, metric_position):
+        # TODO: calculate position, update tlui.
         pass
-
-    # calculate position, update tlui.

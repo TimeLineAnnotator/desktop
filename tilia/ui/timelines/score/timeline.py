@@ -415,6 +415,7 @@ class ScoreTimelineUI(TimelineUI):
 
     def update_measure_tracker_position(self) -> None:
         # TODO: select closest time
+        # TODO: what happens when measures go out of scope
         self.measure_tracker.update_position(
             get(Get.LEFT_MARGIN_X)
             if not len(self.tracker_start)
