@@ -432,7 +432,7 @@ class MeasureTracker(CursorMixIn, QGraphicsRectItem):
         self.update_color()
 
     def update_position(self, start: float, end: float, height: float) -> None:
-        self.setRect(QRectF(start, 0, end, height))
+        self.setRect(QRectF(start, 0, end - start, height))
         self.setZValue(-10)
 
     def update_color(self) -> None:
