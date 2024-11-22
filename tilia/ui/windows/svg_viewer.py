@@ -26,9 +26,9 @@ from PyQt6.QtWidgets import QDockWidget, QScrollArea
 
 from tilia.ui.windows.view_window import ViewWindow
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.requests import get, Get, post, Post
 import tilia.errors
+from tilia.ui.coords import time_x_converter
 
 
 class SvgSelectionBox(QRectF):
@@ -144,6 +144,12 @@ class SvgWidget(QSvgWidget):
     def resizeEvent(self, a0):
         super().resizeEvent(a0)
         self.update_bounds()
+        self.update_measure_visibility()
+
+    def moveEvent(self, a0):
+        super().moveEvent(a0)
+        if hasattr(self, "transform_x"):
+            self.update_measure_visibility()
 
     def _get_bounds(self, d: dict, element_id: str):
         d[element_id].update(
@@ -168,6 +174,50 @@ class SvgWidget(QSvgWidget):
         self.transform_y = self.height() / self.renderer().viewBox().size().height()
         update(self.selectable_elements)
         update(self.measures)
+
+    def update_measure_visibility(self):
+        p = self.parentWidget().parentWidget().childrenRect()
+        p_min = self.parentWidget().parentWidget().mapToGlobal(p.topLeft()).x()
+        p_max = self.parentWidget().parentWidget().mapToGlobal(p.bottomRight()).x()
+        visible_measures = []
+
+        for id, measure in self.measures.items():
+
+            def intersects():
+                if p_min <= m_min and p_max >= m_max:
+                    return True, (0, 0)
+                m_length = m_max - m_min
+                if p_min >= m_min and p_max <= m_max:
+                    return True, (
+                        (p_min - m_min) / m_length,
+                        (p_max - m_min) / m_length,
+                    )
+                if p_min > m_min and p_min < m_max <= p_max:
+                    return True, ((p_min - m_min) / m_length, 0)
+                if p_min <= m_min < p_max and p_max < m_max:
+                    return True, (0, (p_max - m_min) / m_length)
+                return False, (-1, -1)
+
+            m = measure["bounds"].boundingRect()
+            m_min = self.mapToGlobal(m.topLeft()).x()
+            m_max = self.mapToGlobal(m.bottomRight()).x()
+            is_intersecting, fractions = intersects()
+            if is_intersecting:
+                if len(visible_measures) == 0:
+                    visible_measures.append(
+                        {"number": int(id), "fraction": fractions[0]}
+                    )
+                if fractions[1] != 0:
+                    visible_measures.append(
+                        {"number": int(id), "fraction": fractions[1]}
+                    )
+                    break
+            else:
+                if len(visible_measures) == 1:
+                    visible_measures.append({"number": int(id), "fraction": 0})
+                    break
+
+        self.viewer.update_visible_measures(visible_measures)
 
     def mousePressEvent(self, a0):
         if (to_move := self.selected_elements_id.intersection(self.deletable_ids)) and [
@@ -504,7 +554,7 @@ class SvgWebEngineTracker(QObject):
 
 
 class SvgViewer(ViewWindow, QDockWidget):
-    def __init__(self, name: str, tl_ui: TimelineUI, *args, **kwargs):
+    def __init__(self, name: str, tl_ui, *args, **kwargs):
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
         self.scroll_area = QScrollArea()
         self.scroll_area.setSizeAdjustPolicy(
@@ -543,6 +593,7 @@ class SvgViewer(ViewWindow, QDockWidget):
 
         self.is_loaded = False
         self.timeline_ui = tl_ui
+        self.visible_measures = [(0, 0), (0, 0)]
 
     def engine_loaded(self):
         self.is_loaded = True
@@ -569,6 +620,28 @@ class SvgViewer(ViewWindow, QDockWidget):
 
     def display_error(self, message: str):
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
+
+    def update_visible_measures(self, visible_measures: list[dict]):
+        if visible_measures != self.visible_measures:
+            self.visible_measures = visible_measures
+            beat_tl = get(
+                Get.TIMELINE_COLLECTION
+            ).get_beat_timeline_for_measure_calculation()
+            self.timeline_ui.tracker_start = [
+                time_x_converter.get_x_by_time(t)
+                for t in beat_tl.get_time_by_measure(**visible_measures[0])
+            ]
+            self.timeline_ui.tracker_end = [
+                time_x_converter.get_x_by_time(t)
+                for t in beat_tl.get_time_by_measure(**visible_measures[1])
+            ]
+            self.timeline_ui.update_measure_tracker_position()
+
+            print(
+                visible_measures,
+                self.timeline_ui.tracker_start,
+                self.timeline_ui.tracker_end,
+            )
 
     def position_updated(self, metric_position):
         pass

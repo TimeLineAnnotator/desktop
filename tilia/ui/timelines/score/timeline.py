@@ -378,10 +378,10 @@ class ScoreTimelineUI(TimelineUI):
         self.svg_view = SvgViewer(
             name=self.get_data("name"), parent=get(Get.MAIN_WINDOW), tl_ui=self
         )
-        self.start = get(Get.LEFT_MARGIN_X)
-        self.end = get(Get.LEFT_MARGIN_X)
+        self.tracker_start = [get(Get.LEFT_MARGIN_X)]
+        self.tracker_end = [get(Get.LEFT_MARGIN_X)]
         self.dragged = False
-        self.measure_tracker = MeasureTracker(self.start, self.end, self.view.height())
+        self.measure_tracker = MeasureTracker()
         self.scene.addItem(self.measure_tracker)
 
     def on_left_click(self, item, modifier, double, x, y):
@@ -414,13 +414,21 @@ class ScoreTimelineUI(TimelineUI):
         self.dragged = False
 
     def update_measure_tracker_position(self) -> None:
-        self.measure_tracker.update_position(self.start, self.end, self.view.height())
+        # TODO: select closest time
+        self.measure_tracker.update_position(
+            get(Get.LEFT_MARGIN_X)
+            if not len(self.tracker_start)
+            else self.tracker_start[0],
+            get(Get.RIGHT_MARGIN_X)
+            if not len(self.tracker_end)
+            else self.tracker_end[0],
+            self.view.height(),
+        )
 
 
 class MeasureTracker(CursorMixIn, QGraphicsRectItem):
-    def __init__(self, start: float, end: float, height: float) -> None:
+    def __init__(self) -> None:
         super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
-        self.update_position(start, end, height)
         self.update_color()
 
     def update_position(self, start: float, end: float, height: float) -> None:
