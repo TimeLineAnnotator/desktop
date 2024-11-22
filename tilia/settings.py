@@ -78,7 +78,7 @@ class SettingsManager(QObject):
             "default_height": 160,
             "note_height": 12,
             "default_note_color": "#000000",
-            "measure_box_color": "#ff000077",
+            "measure_tracker_color": "#80ff8000",
         },
         "PDF_timeline": {
             "default_height": 30,

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_pre_validated
 from tilia.timelines.component_kinds import ComponentKind

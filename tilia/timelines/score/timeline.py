@@ -24,7 +24,6 @@ class ScoreTLComponentManager(TimelineComponentManager):
                 ComponentKind.BAR_LINE,
                 ComponentKind.TIME_SIGNATURE,
                 ComponentKind.KEY_SIGNATURE,
-                ComponentKind.SCORE_VIEWER,
                 ComponentKind.SCORE_ANNOTATION,
             ],
         )
@@ -57,16 +56,6 @@ class ScoreTimeline(Timeline):
         self._svg_data = svg_data
 
     def mxl_updated(self, mxl_data):
-        if not (
-            score_svg := self.component_manager._get_component_set_by_kind(
-                ComponentKind.SCORE_VIEWER
-            )
-        ):
-            (score_svg, _) = self.create_component(
-                kind=ComponentKind.SCORE_VIEWER, start=0, end=get(Get.MEDIA_DURATION)
-            )
-        else:
-            score_svg = list(score_svg)[0]
         get(Get.TIMELINE_UI, self.id).svg_view.to_svg(mxl_data)
 
     @property
@@ -81,15 +70,6 @@ class ScoreTimeline(Timeline):
         score_annotations = self.component_manager._get_component_set_by_kind(
             ComponentKind.SCORE_ANNOTATION
         )
-        if (
-            score_svg := self.component_manager._get_component_set_by_kind(
-                ComponentKind.SCORE_VIEWER
-            )
-        ) and list(score_svg)[0] in components:
-            self.delete_components(
-                [s for s in score_annotations if s not in components]
-            )
-            get(Get.TIMELINE_UI, self.id).delete_svg_view()
 
         self._remove_from_viewer([s for s in score_annotations if s in components])
 

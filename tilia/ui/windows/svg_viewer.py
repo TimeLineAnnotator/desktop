@@ -1,6 +1,5 @@
 # TODO:
 # - measure tracker
-# - lxml
 
 from enum import Enum, auto
 from html import escape, unescape
@@ -27,6 +26,7 @@ from PyQt6.QtWidgets import QDockWidget, QScrollArea
 
 from tilia.ui.windows.view_window import ViewWindow
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.requests import get, Get, post, Post
 import tilia.errors
 
@@ -355,6 +355,7 @@ class SvgWidget(QSvgWidget):
                 )
                 if success:
                     text_element.text = new_annotation
+                    self._get_bounds(self.selectable_elements, id)
             self.save_to_file(ids_to_edit)
         else:
             self.remove_from_selection(self.selected_elements_id)
@@ -365,7 +366,7 @@ class SvgWidget(QSvgWidget):
             to_delete = []
             for id in ids_to_delete:
                 to_delete.append(self.selectable_elements[id]["component"])
-            self.viewer.measure_box.timeline.delete_components(to_delete)
+            self.viewer.timeline_ui.timeline.delete_components(to_delete)
         self.remove_from_selection(self.selected_elements_id)
         self.__refresh_svg()
 
@@ -431,6 +432,7 @@ class SvgWidget(QSvgWidget):
                 )
                 + "px"
             )
+            self._get_bounds(self.selectable_elements, id)
         cur_selection = self.selected_elements_id.copy()
         self.save_to_file(cur_selection)
         self.add_to_selection(cur_selection)
@@ -453,6 +455,7 @@ class SvgWidget(QSvgWidget):
                 )
                 + "px"
             )
+            self._get_bounds(self.selectable_elements, id)
         cur_selection = self.selected_elements_id.copy()
         self.save_to_file(cur_selection)
         self.add_to_selection(cur_selection)
@@ -467,24 +470,21 @@ class SvgWidget(QSvgWidget):
 
     def save_to_file(self, ids_to_save: set[int]):
         self.remove_from_selection(self.selected_elements_id)
-        if self.viewer.measure_box:
-            for id in ids_to_save:
-                if not (
-                    score_annotation := self.selectable_elements[id].get("component")
-                ):
-                    (
-                        score_annotation,
-                        _,
-                    ) = self.viewer.measure_box.timeline.create_component(
-                        kind=ComponentKind.SCORE_ANNOTATION
-                    )
-                    self.selectable_elements[id].update({"component": score_annotation})
-
-                score_annotation.save_data(
-                    str(etree.tostring(self.selectable_elements[id]["node"]), "utf-8")
+        for id in ids_to_save:
+            if not (score_annotation := self.selectable_elements[id].get("component")):
+                (
+                    score_annotation,
+                    _,
+                ) = self.viewer.timeline_ui.timeline.create_component(
+                    kind=ComponentKind.SCORE_ANNOTATION
                 )
+                self.selectable_elements[id].update({"component": score_annotation})
 
-                post(Post.APP_RECORD_STATE, "score annotation")
+            score_annotation.save_data(
+                str(etree.tostring(self.selectable_elements[id]["node"]), "utf-8")
+            )
+
+            post(Post.APP_RECORD_STATE, "score annotation")
 
 
 class SvgWebEngineTracker(QObject):
@@ -504,7 +504,7 @@ class SvgWebEngineTracker(QObject):
 
 
 class SvgViewer(ViewWindow, QDockWidget):
-    def __init__(self, name: str, *args, **kwargs):
+    def __init__(self, name: str, tl_ui: TimelineUI, *args, **kwargs):
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
         self.scroll_area = QScrollArea()
         self.scroll_area.setSizeAdjustPolicy(
@@ -542,14 +542,14 @@ class SvgViewer(ViewWindow, QDockWidget):
         self.web_engine.page().setWebChannel(self.channel)
 
         self.is_loaded = False
-        self.measure_box = None
+        self.timeline_ui = tl_ui
 
     def engine_loaded(self):
         self.is_loaded = True
 
     def preprocess_svg(self, svg: str):
         svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
-        self.measure_box.timeline.set_data("svg_data", svg)
+        self.timeline_ui.timeline.set_data("svg_data", svg)
 
     def load_svg_data(self, data):
         self.svg_widget.load(data)
@@ -569,3 +569,8 @@ class SvgViewer(ViewWindow, QDockWidget):
 
     def display_error(self, message: str):
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
+
+    def position_updated(self, metric_position):
+        pass
+
+    # calculate position, update tlui.

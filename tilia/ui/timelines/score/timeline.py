@@ -4,15 +4,22 @@ import math
 from pathlib import Path
 from typing import Callable, Any, Iterable
 
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtGui import QPixmap, QColor
+from PyQt6.QtWidgets import QGraphicsRectItem
 
 from tilia.exceptions import GetComponentDataError
-from tilia.requests import Get, get, listen, Post
+from tilia.requests import Get, get, listen, Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.settings import settings
+from tilia.ui.color import get_tinted_color
+from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
+from tilia.ui.timelines.cursors import CursorMixIn
+from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.score.context_menu import ScoreTimelineUIContextMenu
 from tilia.ui.timelines.score.element import NoteUI, StaffUI, ClefUI
 from tilia.ui.timelines.score.element.with_collision import (
@@ -47,10 +54,6 @@ class ScoreTimelineUI(TimelineUI):
 
         self._setup_pixmaps()
 
-        self._svg_view = SvgViewer(
-            name=self.get_data("name"), parent=get(Get.MAIN_WINDOW)
-        )
-
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.staff_cache: dict[int, StaffUI] = {}
@@ -60,13 +63,7 @@ class ScoreTimelineUI(TimelineUI):
         self.update_height()
         self.overlapping_elements = set()
 
-    @property
-    def svg_view(self):
-        if not self._svg_view:
-            self._svg_view = SvgViewer(
-                name=self.get_data("name"), parent=get(Get.MAIN_WINDOW)
-            )
-        return self._svg_view
+        self._setup_svg_view()
 
     def _setup_pixmaps(self):
         self.pixmaps = {
@@ -93,7 +90,7 @@ class ScoreTimelineUI(TimelineUI):
     def update_name(self):
         name = self.get_data("name")
         self.scene.set_text(name)
-        if self._svg_view:
+        if self.svg_view:
             self.svg_view.update_title(name)
 
     def get_staves_y_coordinates(self):
@@ -368,11 +365,76 @@ class ScoreTimelineUI(TimelineUI):
         x1 = time_x_converter.get_x_by_time(bar_lines[-1].get_data("time"))
         return (x1 - x0) / self._measure_count
 
-    def delete_svg_view(self):
-        if self._svg_view:
-            self._svg_view.deleteLater()
-            self._svg_view = None
+    def delete_svg_view(self) -> None:
+        if self.svg_view:
+            self.svg_view.deleteLater()
+            self.svg_view = None
 
-    def delete(self):
+    def delete(self) -> None:
         self.delete_svg_view()
         return super().delete()
+
+    def _setup_svg_view(self) -> None:
+        self.svg_view = SvgViewer(
+            name=self.get_data("name"), parent=get(Get.MAIN_WINDOW), tl_ui=self
+        )
+        self.start = get(Get.LEFT_MARGIN_X)
+        self.end = get(Get.LEFT_MARGIN_X)
+        self.dragged = False
+        self.measure_tracker = MeasureTracker(self.start, self.end, self.view.height())
+        self.scene.addItem(self.measure_tracker)
+
+    def on_left_click(self, item, modifier, double, x, y):
+        if item != self.measure_tracker:
+            return super().on_left_click(item, modifier, double, x, y)
+        self.setup_drag()
+
+    def setup_drag(self) -> None:
+        DragManager(
+            get_min_x=lambda: get(Get.LEFT_MARGIN_X),
+            get_max_x=lambda: get(Get.RIGHT_MARGIN_X),
+            before_each=self.before_each_drag,
+            after_each=self.after_each_drag,
+            on_release=self.on_drag_end,
+        )
+
+    def before_each_drag(self):
+        if not self.dragged:
+            self.dragged = True
+            post(Post.ELEMENT_DRAG_START)
+
+    def after_each_drag(self, drag_x: int):
+        self.svg_view.position_updated(
+            get(Get.METRIC_POSITION, time_x_converter.get_time_by_x(drag_x))
+        )
+
+    def on_drag_end(self):
+        if self.dragged:
+            post(Post.ELEMENT_DRAG_END)
+        self.dragged = False
+
+    def update_measure_tracker_position(self) -> None:
+        self.measure_tracker.update_position(self.start, self.end, self.view.height())
+
+
+class MeasureTracker(CursorMixIn, QGraphicsRectItem):
+    def __init__(self, start: float, end: float, height: float) -> None:
+        super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
+        self.update_position(start, end, height)
+        self.update_color()
+
+    def update_position(self, start: float, end: float, height: float) -> None:
+        self.setRect(QRectF(start, 0, end, height))
+        self.setZValue(-10)
+
+    def update_color(self) -> None:
+        color = settings.get("score_timeline", "measure_tracker_color")
+        self.setBrush(QColor(color))
+        self.setPen(
+            QColor(
+                get_tinted_color(
+                    color,
+                    TINT_FACTOR_ON_SELECTION,
+                )
+            )
+        )
