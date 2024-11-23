@@ -80,7 +80,7 @@ class ScoreTimelineUI(TimelineUI):
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
-            pass
+            self.measure_tracker.update_color()
 
     def on_timeline_element_request(
         self, request, selector: ElementSelector, *args, **kwargs
@@ -387,8 +387,8 @@ class ScoreTimelineUI(TimelineUI):
         self.svg_view = SvgViewer(
             name=self.get_data("name"), parent=get(Get.MAIN_WINDOW), tl_ui=self
         )
-        self.tracker_start = get(Get.LEFT_MARGIN_X)
-        self.tracker_end = get(Get.LEFT_MARGIN_X)
+        self.tracker_start = 0
+        self.tracker_end = get(Get.MEDIA_DURATION)
         self.dragged = False
         self.measure_tracker = MeasureTracker()
         self.scene.addItem(self.measure_tracker)

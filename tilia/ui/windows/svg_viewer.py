@@ -26,6 +26,7 @@ from tilia.ui.windows.view_window import ViewWindow
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get, post, Post
 import tilia.errors
+from tilia.settings import settings
 
 
 class SvgSelectionBox(QRectF):
@@ -307,24 +308,27 @@ class SvgWidget(QSvgWidget):
         self.selection_box = None
 
     def add_to_selection(self, element_ids: set[str]):
-        def make_coloured(cur_node: etree.Element):
+        def make_coloured(cur_node: etree.Element, colour):
             if (fill := cur_node.attrib.get("fill", "none")) and fill != "none":
-                cur_node.attrib["fill"] = "#ff0000"  # use settings
+                cur_node.attrib["fill"] = colour
             if (stroke := cur_node.attrib.get("stroke", "none")) and stroke != "none":
-                cur_node.attrib["stroke"] = "#ff0000"  # use settings
+                cur_node.attrib["stroke"] = colour
             for child in cur_node:
-                make_coloured(child)
+                make_coloured(child, colour)
 
+        colour = settings.get("score_timeline", "viewer_selected_notes")
+        if len(colour) != 7:
+            colour = "#" + colour[3:]
         for id in element_ids:
-            make_coloured(self.selectable_elements[id]["node"])
+            make_coloured(self.selectable_elements[id]["node"], colour)
             self.selected_elements_id.add(id)
 
     def remove_from_selection(self, element_ids: set[str]):
         def make_black(cur_node: etree.Element):
             if (fill := cur_node.attrib.get("fill", "none")) and fill != "none":
-                cur_node.attrib["fill"] = "#000000"  # use settings
+                cur_node.attrib["fill"] = "#000000"
             if (stroke := cur_node.attrib.get("stroke", "none")) and stroke != "none":
-                cur_node.attrib["stroke"] = "#000000"  # use settings
+                cur_node.attrib["stroke"] = "#000000"
             for child in cur_node:
                 make_black(child)
 

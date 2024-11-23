@@ -79,6 +79,7 @@ class SettingsManager(QObject):
             "note_height": 12,
             "default_note_color": "#000000",
             "measure_tracker_color": "#80ff8000",
+            "viewer_selected_notes": "#ff0000",
         },
         "PDF_timeline": {
             "default_height": 30,
