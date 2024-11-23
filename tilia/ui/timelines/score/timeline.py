@@ -30,7 +30,6 @@ from tilia.ui.timelines.score.request_handlers import (
     ScoreTimelineUIElementRequestHandler,
 )
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
-from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreTimelineUI(TimelineUI):
@@ -384,9 +383,8 @@ class ScoreTimelineUI(TimelineUI):
             self.svg_view.scroll_to_metric_position(self.metric_position)
 
     def _setup_svg_view(self) -> None:
-        self.svg_view = SvgViewer(
-            name=self.get_data("name"), parent=get(Get.MAIN_WINDOW), tl_ui=self
-        )
+        self.svg_view = self.timeline.svg_view
+        self.svg_view.timeline_ui = self
         self.tracker_start = 0
         self.tracker_end = get(Get.MEDIA_DURATION)
         self.dragged = False

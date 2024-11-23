@@ -11,6 +11,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
 from tilia.requests import get, Get
+from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
@@ -41,6 +42,9 @@ class ScoreTimeline(Timeline):
 
         self.validators = self.validators | {"svg_data": validate_string}
         self.svg_data = svg_data
+        self.svg_view = SvgViewer(
+            name=self.get_data("name"), parent=get(Get.MAIN_WINDOW), tl=self
+        )
 
     @property
     def svg_data(self):

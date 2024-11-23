@@ -90,7 +90,6 @@ class SvgWidget(QSvgWidget):
         self.__refresh_svg()
         self.renderer().setAspectRatioMode(Qt.AspectRatioMode.KeepAspectRatio)
         self.resize(self.svg_width, self.svg_height)
-        self.show()
         self.blockSignals(False)
 
     def update_annotation(self, data: str, tl_component):
@@ -450,7 +449,7 @@ class SvgWidget(QSvgWidget):
             to_delete = []
             for id in ids_to_delete:
                 to_delete.append(self.selectable_elements[id]["component"])
-            self.viewer.timeline_ui.timeline.delete_components(to_delete)
+            self.viewer.timeline.delete_components(to_delete)
         self.remove_from_selection(self.selected_elements_id)
         self.__refresh_svg()
 
@@ -556,10 +555,7 @@ class SvgWidget(QSvgWidget):
         self.remove_from_selection(self.selected_elements_id)
         for id in ids_to_save:
             if not (score_annotation := self.selectable_elements[id].get("component")):
-                (
-                    score_annotation,
-                    _,
-                ) = self.viewer.timeline_ui.timeline.create_component(
+                (score_annotation, _,) = self.viewer.timeline.create_component(
                     kind=ComponentKind.SCORE_ANNOTATION
                 )
                 self.selectable_elements[id].update({"component": score_annotation})
@@ -588,7 +584,7 @@ class SvgWebEngineTracker(QObject):
 
 
 class SvgViewer(ViewWindow, QDockWidget):
-    def __init__(self, name: str, tl_ui, *args, **kwargs):
+    def __init__(self, name: str, tl, *args, **kwargs):
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
         self.scroll_area = QScrollArea()
         self.scroll_area.setSizeAdjustPolicy(
@@ -626,7 +622,8 @@ class SvgViewer(ViewWindow, QDockWidget):
         self.web_engine.page().setWebChannel(self.channel)
 
         self.is_loaded = False
-        self.timeline_ui = tl_ui
+        self.timeline = tl
+        self.timeline_ui = None
         self.visible_measures = [
             {"number": 1, "fraction": 0},
             {"number": 1, "fraction": 0},
@@ -638,11 +635,12 @@ class SvgViewer(ViewWindow, QDockWidget):
 
     def preprocess_svg(self, svg: str):
         svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
-        self.timeline_ui.timeline.set_data("svg_data", svg)
+        self.timeline.set_data("svg_data", svg)
 
     def load_svg_data(self, data):
         self.svg_widget.load(data)
-        self.show()
+        if self.timeline_ui:
+            self.show()
 
     def update_annotation(self, data, tl_component):
         self.svg_widget.update_annotation(data, tl_component)
