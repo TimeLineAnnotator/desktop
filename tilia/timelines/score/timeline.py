@@ -54,13 +54,13 @@ class ScoreTimeline(Timeline):
     def svg_data(self, svg_data):
         self._svg_data = svg_data
         if svg_data:
-            get(Get.TIMELINE_UI, self.id).svg_view.load_svg_data(svg_data)
+            self.svg_view.load_svg_data(svg_data)
 
     def save_svg_data(self, svg_data):
         self._svg_data = svg_data
 
     def mxl_updated(self, mxl_data):
-        get(Get.TIMELINE_UI, self.id).svg_view.to_svg(mxl_data)
+        self.svg_view.to_svg(mxl_data)
 
     @property
     def staff_count(self):
