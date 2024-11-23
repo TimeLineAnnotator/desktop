@@ -1,11 +1,9 @@
-# TODO:
-# - control pos from mw
-
 from enum import Enum, auto
 from html import escape, unescape
 from pathlib import Path
 from re import sub
 from lxml import etree
+from bisect import bisect
 
 from PyQt6.QtCore import (
     pyqtSlot,
@@ -180,6 +178,8 @@ class SvgWidget(QSvgWidget):
         p_min = self.parentWidget().parentWidget().mapToGlobal(p.topLeft()).x()
         p_max = self.parentWidget().parentWidget().mapToGlobal(p.bottomRight()).x()
         visible_measures = []
+        relative_start_x = {}
+        cur_max = 0
 
         for id, measure in self.measures.items():
 
@@ -200,24 +200,42 @@ class SvgWidget(QSvgWidget):
 
             m = measure["bounds"].boundingRect()
             m_min = self.mapToGlobal(m.topLeft()).x()
-            m_max = self.mapToGlobal(m.bottomRight()).x()
-            is_intersecting, fractions = intersects()
-            if is_intersecting:
-                if len(visible_measures) == 0:
-                    visible_measures.append(
-                        {"number": int(id), "fraction": fractions[0]}
-                    )
-                if fractions[1] != 0:
-                    visible_measures.append(
-                        {"number": int(id), "fraction": fractions[1]}
-                    )
-                    break
-            else:
-                if len(visible_measures) == 1:
-                    visible_measures.append({"number": int(id), "fraction": 0})
-                    break
+            m_max = cur_max = self.mapToGlobal(m.bottomRight()).x()
+            relative_start_x[int(id)] = m_min
 
-        self.viewer.update_visible_measures(visible_measures)
+            if len(visible_measures) != 2:  # start and end not found
+                is_intersecting, fractions = intersects()
+                if is_intersecting:
+                    if len(visible_measures) == 0:  # found start
+                        visible_measures.append(
+                            {"number": int(id), "fraction": fractions[0]}
+                        )
+                    if fractions[1] != 0:
+                        # measure intersects with window edge
+                        # therefore is end
+                        visible_measures.append(
+                            {"number": int(id), "fraction": fractions[1]}
+                        )
+                else:  # not intersecting but only start found
+                    if len(visible_measures) == 1:
+                        visible_measures.append({"number": int(id), "fraction": 0})
+        if len(visible_measures) == 1:
+            # only start found, make last measure the end
+            visible_measures.append(
+                {"number": int(list(self.measures.keys())[-1]), "fraction": 1}
+            )
+
+        m_length = cur_max - relative_start_x[list(relative_start_x.keys())[0]]
+        cur_pos = 0
+        for k in relative_start_x.keys():
+            relative_start_x[k] = (
+                ((relative_start_x[k + 1] - relative_start_x[k]) / m_length + cur_pos)
+                if k != len(relative_start_x)
+                else 1
+            )
+            cur_pos = relative_start_x[k]
+
+        self.viewer.update_visible_measures(visible_measures, relative_start_x)
 
     def mousePressEvent(self, a0):
         if (to_move := self.selected_elements_id.intersection(self.deletable_ids)) and [
@@ -593,7 +611,11 @@ class SvgViewer(ViewWindow, QDockWidget):
 
         self.is_loaded = False
         self.timeline_ui = tl_ui
-        self.visible_measures = [(0, 0), (0, 0)]
+        self.visible_measures = [
+            {"number": 1, "fraction": 0},
+            {"number": 1, "fraction": 0},
+        ]
+        self.relative_start_x = {}
 
     def engine_loaded(self):
         self.is_loaded = True
@@ -621,28 +643,63 @@ class SvgViewer(ViewWindow, QDockWidget):
     def display_error(self, message: str):
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
 
-    def update_visible_measures(self, visible_measures: list[dict]):
-        if visible_measures != self.visible_measures:
-            self.visible_measures = visible_measures
+    def update_visible_measures(self, visible_measures: list[dict], relative_start_x):
+        """Estimate position of visible measures closest to current selected time."""
+        if visible_measures == self.visible_measures:
+            return
+
+        self.visible_measures = visible_measures
+        self.relative_start_x = relative_start_x
+        if not visible_measures:
+            self.timeline_ui.tracker_start = self.timeline_ui.tracker_end = get(
+                Get.LEFT_MARGIN_X
+            )
+        else:
             beat_tl = get(
                 Get.TIMELINE_COLLECTION
             ).get_beat_timeline_for_measure_calculation()
-            self.timeline_ui.tracker_start = [
+            start_xs = [
                 time_x_converter.get_x_by_time(t)
                 for t in beat_tl.get_time_by_measure(**visible_measures[0])
             ]
-            self.timeline_ui.tracker_end = [
+            end_xs = [
                 time_x_converter.get_x_by_time(t)
                 for t in beat_tl.get_time_by_measure(**visible_measures[1])
             ]
-            self.timeline_ui.update_measure_tracker_position()
+            current_x = time_x_converter.get_x_by_time(get(Get.SELECTED_TIME))
 
-            print(
-                visible_measures,
-                self.timeline_ui.tracker_start,
-                self.timeline_ui.tracker_end,
+            if len(start_xs) == 0:
+                start_xs.append(get(Get.LEFT_MARGIN_X))
+            if len(end_xs) == 0:
+                end_xs.append(get(Get.RIGHT_MARGIN_X))
+
+            start_index = bisect(start_xs, current_x)
+            self.timeline_ui.tracker_start = start_xs[
+                start_index - 1 if start_index != 0 else start_index
+            ]
+            end_index = bisect(end_xs, self.timeline_ui.tracker_start)
+            self.timeline_ui.tracker_end = (
+                end_xs[end_index]
+                if end_index != len(end_xs)
+                else get(Get.RIGHT_MARGIN_X)
             )
 
-    def position_updated(self, metric_position):
-        # TODO: calculate position, update tlui.
-        pass
+            if self.timeline_ui.tracker_start == get(
+                Get.LEFT_MARGIN_X
+            ) and self.timeline_ui.tracker_end == get(Get.RIGHT_MARGIN_X):
+                # start and end not found - hide tracker
+                self.timeline_ui.tracker_end = self.timeline_ui.tracker_start
+
+        self.timeline_ui.update_measure_tracker_position()
+
+    def scroll_to_metric_position(self, metric_position):
+        # relative_start_x[2] - relative_start_x[1] = length of measure 2
+        # relative_start_x[1] = starting position of measure 2
+        if metric_position and metric_position.measure in self.relative_start_x.keys():
+            beat_x = self.relative_start_x.get(metric_position.measure - 1, 0)
+            dx = (self.relative_start_x.get(metric_position.measure) - beat_x) * (
+                metric_position.beat - 1 / metric_position.measure_beat_count
+            )
+            self.scroll_area.horizontalScrollBar().setValue(
+                round((beat_x + dx) * self.scroll_area.horizontalScrollBar().maximum())
+            )

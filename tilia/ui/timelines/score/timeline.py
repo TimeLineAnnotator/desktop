@@ -9,6 +9,7 @@ from PyQt6.QtGui import QPixmap, QColor
 from PyQt6.QtWidgets import QGraphicsRectItem
 
 from tilia.exceptions import GetComponentDataError
+from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Get, get, listen, Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -51,6 +52,7 @@ class ScoreTimelineUI(TimelineUI):
             Post.SETTINGS_UPDATED,
             lambda updated_settings: self.on_settings_updated(updated_settings),
         )
+        listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_audio_time_change)
 
         self._setup_pixmaps()
 
@@ -374,12 +376,18 @@ class ScoreTimelineUI(TimelineUI):
         self.delete_svg_view()
         return super().delete()
 
+    def on_audio_time_change(self, time: float, reason: MediaTimeChangeReason) -> None:
+        self.metric_position = get(Get.METRIC_POSITION, time)
+
+        if reason == MediaTimeChangeReason.PLAYBACK:
+            self.svg_view.scroll_to_metric_position(self.metric_position)
+
     def _setup_svg_view(self) -> None:
         self.svg_view = SvgViewer(
             name=self.get_data("name"), parent=get(Get.MAIN_WINDOW), tl_ui=self
         )
-        self.tracker_start = [get(Get.LEFT_MARGIN_X)]
-        self.tracker_end = [get(Get.LEFT_MARGIN_X)]
+        self.tracker_start = get(Get.LEFT_MARGIN_X)
+        self.tracker_end = get(Get.LEFT_MARGIN_X)
         self.dragged = False
         self.measure_tracker = MeasureTracker()
         self.scene.addItem(self.measure_tracker)
@@ -404,7 +412,7 @@ class ScoreTimelineUI(TimelineUI):
             post(Post.ELEMENT_DRAG_START)
 
     def after_each_drag(self, drag_x: int):
-        self.svg_view.position_updated(
+        self.svg_view.scroll_to_metric_position(
             get(Get.METRIC_POSITION, time_x_converter.get_time_by_x(drag_x))
         )
 
@@ -414,15 +422,9 @@ class ScoreTimelineUI(TimelineUI):
         self.dragged = False
 
     def update_measure_tracker_position(self) -> None:
-        # TODO: select closest time
-        # TODO: what happens when measures go out of scope
         self.measure_tracker.update_position(
-            get(Get.LEFT_MARGIN_X)
-            if not len(self.tracker_start)
-            else self.tracker_start[0],
-            get(Get.RIGHT_MARGIN_X)
-            if not len(self.tracker_end)
-            else self.tracker_end[0],
+            self.tracker_start,
+            self.tracker_end,
             self.view.height(),
         )
 
