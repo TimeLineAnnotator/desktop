@@ -338,6 +338,7 @@ class ScoreTimelineUI(TimelineUI):
     def set_width(self, width):
         super().set_width(width)
         self.update_overlapping_elements_offsets()
+        self.update_measure_tracker_position()
 
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
@@ -423,8 +424,8 @@ class ScoreTimelineUI(TimelineUI):
 
     def update_measure_tracker_position(self) -> None:
         self.measure_tracker.update_position(
-            self.tracker_start,
-            self.tracker_end,
+            time_x_converter.get_x_by_time(self.tracker_start),
+            time_x_converter.get_x_by_time(self.tracker_end),
             self.view.height(),
         )
 

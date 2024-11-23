@@ -26,7 +26,6 @@ from tilia.ui.windows.view_window import ViewWindow
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get, post, Post
 import tilia.errors
-from tilia.ui.coords import time_x_converter
 
 
 class SvgSelectionBox(QRectF):
@@ -663,42 +662,34 @@ class SvgViewer(ViewWindow, QDockWidget):
 
         self.visible_measures = visible_measures
         if not visible_measures:
-            self.timeline_ui.tracker_start = self.timeline_ui.tracker_end = get(
-                Get.LEFT_MARGIN_X
-            )
+            self.timeline_ui.tracker_start = self.timeline_ui.tracker_end = 0
         else:
+            max_t = get(Get.MEDIA_DURATION)
             beat_tl = get(
                 Get.TIMELINE_COLLECTION
             ).get_beat_timeline_for_measure_calculation()
-            start_xs = [
-                time_x_converter.get_x_by_time(t)
-                for t in beat_tl.get_time_by_measure(**visible_measures[0])
-            ]
-            end_xs = [
-                time_x_converter.get_x_by_time(t)
-                for t in beat_tl.get_time_by_measure(**visible_measures[1])
-            ]
-            current_x = time_x_converter.get_x_by_time(get(Get.SELECTED_TIME))
+            start_ts = beat_tl.get_time_by_measure(**visible_measures[0])
+            end_ts = beat_tl.get_time_by_measure(**visible_measures[1])
+            current_t = get(Get.SELECTED_TIME)
 
-            if len(start_xs) == 0:
-                start_xs.append(get(Get.LEFT_MARGIN_X))
-            if len(end_xs) == 0:
-                end_xs.append(get(Get.RIGHT_MARGIN_X))
+            if len(start_ts) == 0:
+                start_ts.append(0)
+            if len(end_ts) == 0:
+                end_ts.append(max_t)
 
-            start_index = bisect(start_xs, current_x)
-            self.timeline_ui.tracker_start = start_xs[
+            start_index = bisect(start_ts, current_t)
+            self.timeline_ui.tracker_start = start_ts[
                 start_index - 1 if start_index != 0 else start_index
             ]
-            end_index = bisect(end_xs, self.timeline_ui.tracker_start)
+            end_index = bisect(end_ts, self.timeline_ui.tracker_start)
             self.timeline_ui.tracker_end = (
-                end_xs[end_index]
-                if end_index != len(end_xs)
-                else get(Get.RIGHT_MARGIN_X)
+                end_ts[end_index] if end_index != len(end_ts) else max_t
             )
 
-            if self.timeline_ui.tracker_start == get(
-                Get.LEFT_MARGIN_X
-            ) and self.timeline_ui.tracker_end == get(Get.RIGHT_MARGIN_X):
+            if (
+                self.timeline_ui.tracker_start == 0
+                and self.timeline_ui.tracker_end == max_t
+            ):
                 # start and end not found - hide tracker
                 self.timeline_ui.tracker_end = self.timeline_ui.tracker_start
 
