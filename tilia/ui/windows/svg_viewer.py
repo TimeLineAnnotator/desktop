@@ -143,6 +143,7 @@ class SvgWidget(QSvgWidget):
         super().resizeEvent(a0)
         self.update_bounds()
         self.update_measure_visibility()
+        self.update_relative_x()
 
     def moveEvent(self, a0):
         super().moveEvent(a0)
@@ -178,8 +179,6 @@ class SvgWidget(QSvgWidget):
         p_min = self.parentWidget().parentWidget().mapToGlobal(p.topLeft()).x()
         p_max = self.parentWidget().parentWidget().mapToGlobal(p.bottomRight()).x()
         visible_measures = []
-        relative_start_x = {}
-        cur_max = 0
 
         for id, measure in self.measures.items():
 
@@ -200,30 +199,44 @@ class SvgWidget(QSvgWidget):
 
             m = measure["bounds"].boundingRect()
             m_min = self.mapToGlobal(m.topLeft()).x()
-            m_max = cur_max = self.mapToGlobal(m.bottomRight()).x()
-            relative_start_x[int(id)] = m_min
+            m_max = self.mapToGlobal(m.bottomRight()).x()
 
-            if len(visible_measures) != 2:  # start and end not found
-                is_intersecting, fractions = intersects()
-                if is_intersecting:
-                    if len(visible_measures) == 0:  # found start
-                        visible_measures.append(
-                            {"number": int(id), "fraction": fractions[0]}
-                        )
-                    if fractions[1] != 0:
-                        # measure intersects with window edge
-                        # therefore is end
-                        visible_measures.append(
-                            {"number": int(id), "fraction": fractions[1]}
-                        )
-                else:  # not intersecting but only start found
-                    if len(visible_measures) == 1:
-                        visible_measures.append({"number": int(id), "fraction": 0})
+            is_intersecting, fractions = intersects()
+            if is_intersecting:
+                if len(visible_measures) == 0:  # found start
+                    visible_measures.append(
+                        {"number": int(id), "fraction": fractions[0]}
+                    )
+                if fractions[1] != 0:
+                    # measure intersects with window edge
+                    # therefore is end
+                    visible_measures.append(
+                        {"number": int(id), "fraction": fractions[1]}
+                    )
+                    break
+            elif len(visible_measures) == 1:
+                # not intersecting but only start found
+                visible_measures.append({"number": int(id), "fraction": 0})
+                break
+
         if len(visible_measures) == 1:
             # only start found, make last measure the end
             visible_measures.append(
                 {"number": int(list(self.measures.keys())[-1]), "fraction": 1}
             )
+
+        self.viewer.update_visible_measures(visible_measures)
+
+    def update_relative_x(self):
+        relative_start_x = {}
+        cur_max = 0
+
+        for id, measure in self.measures.items():
+
+            m = measure["bounds"].boundingRect()
+            m_min = self.mapToGlobal(m.topLeft()).x()
+            cur_max = self.mapToGlobal(m.bottomRight()).x()
+            relative_start_x[int(id)] = m_min
 
         m_length = cur_max - relative_start_x[list(relative_start_x.keys())[0]]
         cur_pos = 0
@@ -235,7 +248,7 @@ class SvgWidget(QSvgWidget):
             )
             cur_pos = relative_start_x[k]
 
-        self.viewer.update_visible_measures(visible_measures, relative_start_x)
+        self.viewer.relative_start_x = relative_start_x
 
     def mousePressEvent(self, a0):
         if (to_move := self.selected_elements_id.intersection(self.deletable_ids)) and [
@@ -643,13 +656,12 @@ class SvgViewer(ViewWindow, QDockWidget):
     def display_error(self, message: str):
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
 
-    def update_visible_measures(self, visible_measures: list[dict], relative_start_x):
+    def update_visible_measures(self, visible_measures: list[dict]):
         """Estimate position of visible measures closest to current selected time."""
         if visible_measures == self.visible_measures:
             return
 
         self.visible_measures = visible_measures
-        self.relative_start_x = relative_start_x
         if not visible_measures:
             self.timeline_ui.tracker_start = self.timeline_ui.tracker_end = get(
                 Get.LEFT_MARGIN_X
@@ -693,8 +705,8 @@ class SvgViewer(ViewWindow, QDockWidget):
         self.timeline_ui.update_measure_tracker_position()
 
     def scroll_to_metric_position(self, metric_position):
-        # relative_start_x[2] - relative_start_x[1] = length of measure 2
-        # relative_start_x[1] = starting position of measure 2
+        # relative_start_x[x + 1] - relative_start_x[x] = length of measure x
+        # relative_start_x[x - 1] = starting position of measure x
         if metric_position and metric_position.measure in self.relative_start_x.keys():
             beat_x = self.relative_start_x.get(metric_position.measure - 1, 0)
             dx = (self.relative_start_x.get(metric_position.measure) - beat_x) * (
