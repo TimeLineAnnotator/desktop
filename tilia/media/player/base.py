@@ -225,13 +225,13 @@ class Player(ABC):
             )
             return
 
-        path, _ = get(
+        success, path = get(
             Get.FROM_USER_SAVE_PATH_OGG,
             "Export audio",
             f"{get(Get.MEDIA_TITLE)}_{segment_name}",
         )
 
-        if not path:
+        if not success:
             return
 
         exporter.export_audio(
