@@ -297,7 +297,7 @@ class SvgWidget(QSvgWidget):
             self.new_selection = {
                 k
                 for (k, v) in self.selectable_elements.items()
-                if v["bounds"].intersects(sb)
+                if (bounds := v.get("bounds", None)) and bounds.intersects(sb)
             }
             self.update_selection()
 
@@ -313,7 +313,7 @@ class SvgWidget(QSvgWidget):
             self.new_selection = {
                 k
                 for (k, v) in self.selectable_elements.items()
-                if v["bounds"].intersects(sb)
+                if (bounds := v.get("bounds", None)) and bounds.intersects(sb)
             }
             self.update_selection()
         self.selection_box = None
