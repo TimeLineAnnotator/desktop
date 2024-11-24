@@ -15,7 +15,7 @@ from PyQt6.QtCore import (
     QRectF,
     QUrl,
 )
-from PyQt6.QtGui import QPolygon
+from PyQt6.QtGui import QKeySequence, QPolygon
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineCore import QWebEngineSettings
@@ -54,6 +54,18 @@ class SvgWidget(QSvgWidget):
         super().__init__(*args, **kwargs)
         self.reset()
         self.root = etree.Element("svg")
+        self.addAction("Undo", QKeySequence.StandardKey.Undo).triggered.connect(
+            lambda: post(Post.EDIT_UNDO)
+        )
+        self.addAction("Redo", QKeySequence.StandardKey.Redo).triggered.connect(
+            lambda: post(Post.EDIT_REDO)
+        )
+        self.addAction("Zoom in", QKeySequence.StandardKey.ZoomIn).triggered.connect(
+            self.zoom_in
+        )
+        self.addAction("Zoom out", QKeySequence.StandardKey.ZoomOut).triggered.connect(
+            self.zoom_out
+        )
 
     def reset(self):
         self.selectable_elements = {}
@@ -399,12 +411,6 @@ class SvgWidget(QSvgWidget):
 
     def keyPressEvent(self, a0):
         key_comb_to_action = {
-            QKeyCombination(
-                Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Plus
-            ): self.zoom_in,
-            QKeyCombination(
-                Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Minus
-            ): self.zoom_out,
             QKeyCombination(
                 Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Up
             ): self.annotation_zoom_in,
