@@ -23,6 +23,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QDockWidget, QScrollArea
 
 from tilia.ui.windows.view_window import ViewWindow
+from tilia.ui.smooth_scroll import smooth, setup_smooth
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get, post, Post
 import tilia.errors
@@ -635,6 +636,7 @@ class SvgViewer(ViewWindow, QDockWidget):
             {"number": 1, "fraction": 0},
         ]
         self.relative_start_x = {}
+        setup_smooth(self)
 
     def engine_loaded(self):
         self.is_loaded = True
@@ -703,14 +705,59 @@ class SvgViewer(ViewWindow, QDockWidget):
 
         self.timeline_ui.update_measure_tracker_position()
 
-    def scroll_to_metric_position(self, metric_position):
-        # relative_start_x[x + 1] - relative_start_x[x] = length of measure x
-        # relative_start_x[x - 1] = starting position of measure x
-        if metric_position and metric_position.measure in self.relative_start_x.keys():
-            beat_x = self.relative_start_x.get(metric_position.measure - 1, 0)
-            dx = (self.relative_start_x.get(metric_position.measure) - beat_x) * (
-                metric_position.beat - 1 / metric_position.measure_beat_count
+    def scroll_to_time(self, time):
+        # relative_start_x[a] - relative_start_x[a - 1] = length of measure a
+        # relative_start_x[a - 1] = start position of measure a
+
+        def __get_h_bar_position():
+            return [self.scroll_area.horizontalScrollBar().value()]
+
+        @smooth(self, __get_h_bar_position)
+        def __set_h_bar_position(position):
+            self.scroll_area.horizontalScrollBar().setValue(position)
+
+        beat_tl = get(
+            Get.TIMELINE_COLLECTION
+        ).get_beat_timeline_for_measure_calculation()
+        beats = beat_tl.components
+
+        if not beats or not self.relative_start_x:
+            return
+
+        times = [beat.get_data("time") for beat in beats]
+        time_index = bisect(times, time)
+
+        if time_index == 0:
+            return __set_h_bar_position(0)
+
+        if (
+            measure := beats[time_index - 1].metric_position.measure
+        ) not in self.relative_start_x.keys():
+            if measure < list(self.relative_start_x.keys())[0]:
+                return __set_h_bar_position(0)
+            return __set_h_bar_position(
+                self.scroll_area.horizontalScrollBar().maximum()
             )
-            self.scroll_area.horizontalScrollBar().setValue(
-                round((beat_x + dx) * self.scroll_area.horizontalScrollBar().maximum())
+
+        m_ends = beat_tl.get_time_by_measure(measure, 1)
+        end_index = bisect(m_ends, time)
+
+        if end_index == len(m_ends):
+            beat_x = self.relative_start_x.get(measure)
+
+        else:
+            m_starts = beat_tl.get_time_by_measure(measure)
+            start_index = bisect(m_starts, time)
+            beat_x = self.relative_start_x.get(measure - 1, 0)
+            m_start = m_starts[start_index - 1]
+            m_end = m_ends[end_index]
+            dx = (
+                (time - m_start)
+                / (m_end - m_start)
+                * (self.relative_start_x.get(measure) - beat_x)
             )
+            beat_x += dx
+
+        __set_h_bar_position(
+            round(beat_x * self.scroll_area.horizontalScrollBar().maximum())
+        )

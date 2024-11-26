@@ -377,10 +377,8 @@ class ScoreTimelineUI(TimelineUI):
         return super().delete()
 
     def on_audio_time_change(self, time: float, reason: MediaTimeChangeReason) -> None:
-        self.metric_position = get(Get.METRIC_POSITION, time)
-
         if reason == MediaTimeChangeReason.PLAYBACK:
-            self.svg_view.scroll_to_metric_position(self.metric_position)
+            self.svg_view.scroll_to_time(time)
 
     def _setup_svg_view(self) -> None:
         self.svg_view = self.timeline.svg_view
@@ -411,9 +409,7 @@ class ScoreTimelineUI(TimelineUI):
             post(Post.ELEMENT_DRAG_START)
 
     def after_each_drag(self, drag_x: int):
-        self.svg_view.scroll_to_metric_position(
-            get(Get.METRIC_POSITION, time_x_converter.get_time_by_x(drag_x))
-        )
+        self.svg_view.scroll_to_time(time_x_converter.get_time_by_x(drag_x))
 
     def on_drag_end(self):
         if self.dragged:
