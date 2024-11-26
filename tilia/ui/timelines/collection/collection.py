@@ -856,11 +856,12 @@ class TimelineUIs:
         ) = self.pre_process_timeline_request(
             request, selector.tl_kind, selector.timeline
         )
-        args += more_args
-        kwargs |= more_kwargs
 
         if not success:
             return
+
+        args += more_args
+        kwargs |= more_kwargs
 
         result = []
 
