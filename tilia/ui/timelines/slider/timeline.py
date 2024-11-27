@@ -17,6 +17,7 @@ from tilia.ui.modifier_enum import ModifierEnum
 from tilia.settings import settings
 from tilia.requests import Post, listen
 from tilia.timelines.base.component import TimelineComponent
+from tilia.ui.smooth_scroll import setup_smooth, smooth
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.drag import DragManager
@@ -62,6 +63,7 @@ class SliderTimelineUI(TimelineUI):
         self._setup_line()
         self._setup_trough()
         self._setup_playback_line()
+        setup_smooth(self)
 
         self.dragging = False
 
@@ -162,9 +164,16 @@ class SliderTimelineUI(TimelineUI):
         post(Post.SLIDER_DRAG_END)
 
     def on_audio_time_change(self, time: float, _: MediaTimeChangeReason) -> None:
-        if not self.dragging:
-            self.x = time_x_converter.get_x_by_time(time)
+        def __get_x():
+            return [self.x]
+
+        @smooth(self, __get_x)
+        def __set_x(x):
+            self.x = x
             self.set_trough_position()
+
+        if not self.dragging:
+            __set_x(time_x_converter.get_x_by_time(time))
 
     def get_ui_for_component(
         self, component_kind: ComponentKind, component: TimelineComponent, **kwargs
