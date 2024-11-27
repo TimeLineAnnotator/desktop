@@ -1,14 +1,14 @@
+# TODO:
+# - use global timer? update all frames at the same time
+# - apply smoothing curve to input - currently linear
+
 from typing import Any, Callable
-from datetime import datetime
 from PyQt6.QtCore import QTimer
 
 
 def setup_smooth(self):
     self.smoothing_timer = QTimer()
     self.step_queue = []
-    self.smoothing_duration = 150
-    self.prev_timestamp = 0
-    self.average_count = 1
 
 
 def smooth(self: Any, args_getter: Callable[[], tuple[Any]]):
@@ -24,22 +24,14 @@ def smooth(self: Any, args_getter: Callable[[], tuple[Any]]):
     `args_getter` and `args_setter` must refer to the same variables in `args_setpoint` in the same order.
     """
     fps = 500
-    steps_total = lambda: round(fps * self.smoothing_duration / 1000)
+    smoothing_duration = 150
+    steps_total = fps * smoothing_duration / 1000
     is_ints = [isinstance(o, int) for o in args_getter()]
 
     def wrapper(args_setter: Callable[[tuple[Any]], None]) -> None:
         def wrapped_setter(*args_setpoint: tuple[Any]) -> None:
             if list(args_setpoint) == list(args_getter()):
                 return
-
-            now = datetime.now().timestamp()
-            if self.prev_timestamp != 0:
-                self.smoothing_duration = (
-                    self.smoothing_duration * self.average_count
-                    + (now - self.prev_timestamp)
-                ) / (self.average_count + 1)
-            self.average_count += 1
-            self.prev_timestamp = now
 
             current_values = args_getter()
             new_queue = []
@@ -48,12 +40,12 @@ def smooth(self: Any, args_getter: Callable[[], tuple[Any]]):
                 if v == c:
                     new_queue.append({"target": c, "remaining_steps": 0})
                 else:
-                    new_queue.append({"target": v, "remaining_steps": steps_total()})
+                    new_queue.append({"target": v, "remaining_steps": steps_total})
                     to_activate = True
 
             self.step_queue = new_queue
             if not to_activate and self.smoothing_timer.isActive():
-                reset()
+                self.smoothing_timer.stop()
             elif to_activate and not self.smoothing_timer.isActive():
                 self.smoothing_timer.start(1000 // fps)
 
@@ -61,7 +53,7 @@ def smooth(self: Any, args_getter: Callable[[], tuple[Any]]):
             new_values, to_stop = get_new_values()
             args_setter(*new_values)
             if to_stop:
-                reset()
+                self.smoothing_timer.stop()
 
         def get_new_values() -> tuple[list[Any], bool]:
             new_values = []
@@ -81,11 +73,6 @@ def smooth(self: Any, args_getter: Callable[[], tuple[Any]]):
                     step["remaining_steps"] -= 1
 
             return new_values, empty_count == len(self.step_queue)
-
-        def reset() -> None:
-            self.smoothing_timer.stop()
-            self.prev_timestamp = 0
-            self.average_count = 1
 
         self.smoothing_timer.timeout.connect(timeout)
         return wrapped_setter
