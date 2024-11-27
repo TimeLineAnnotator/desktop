@@ -672,38 +672,37 @@ class SvgViewer(ViewWindow, QDockWidget):
 
         self.visible_measures = visible_measures
         if not visible_measures:
-            self.timeline_ui.tracker_start = self.timeline_ui.tracker_end = 0
+            self.timeline_ui.measure_tracker.hide()
+            return
+
+        max_t = get(Get.MEDIA_DURATION)
+        beat_tl = get(
+            Get.TIMELINE_COLLECTION
+        ).get_beat_timeline_for_measure_calculation()
+        start_ts = beat_tl.get_time_by_measure(**visible_measures[0])
+        end_ts = beat_tl.get_time_by_measure(**visible_measures[1])
+        current_t = get(Get.SELECTED_TIME)
+
+        if len(start_ts) == 0:
+            start_ts.append(0)
+        if len(end_ts) == 0:
+            end_ts.append(max_t)
+
+        start_index = bisect(start_ts, current_t)
+        tracker_start = start_ts[start_index - 1 if start_index != 0 else start_index]
+        end_index = bisect(end_ts, tracker_start)
+        tracker_end = end_ts[end_index] if end_index != len(end_ts) else max_t
+
+        if tracker_start == 0 and tracker_end == max_t:
+            # start and end not found - hide tracker
+            self.timeline_ui.measure_tracker.hide()
+
         else:
-            max_t = get(Get.MEDIA_DURATION)
-            beat_tl = get(
-                Get.TIMELINE_COLLECTION
-            ).get_beat_timeline_for_measure_calculation()
-            start_ts = beat_tl.get_time_by_measure(**visible_measures[0])
-            end_ts = beat_tl.get_time_by_measure(**visible_measures[1])
-            current_t = get(Get.SELECTED_TIME)
+            self.timeline_ui.update_measure_tracker_position(tracker_start, tracker_end)
 
-            if len(start_ts) == 0:
-                start_ts.append(0)
-            if len(end_ts) == 0:
-                end_ts.append(max_t)
-
-            start_index = bisect(start_ts, current_t)
-            self.timeline_ui.tracker_start = start_ts[
-                start_index - 1 if start_index != 0 else start_index
-            ]
-            end_index = bisect(end_ts, self.timeline_ui.tracker_start)
-            self.timeline_ui.tracker_end = (
-                end_ts[end_index] if end_index != len(end_ts) else max_t
-            )
-
-            if (
-                self.timeline_ui.tracker_start == 0
-                and self.timeline_ui.tracker_end == max_t
-            ):
-                # start and end not found - hide tracker
-                self.timeline_ui.tracker_end = self.timeline_ui.tracker_start
-
-        self.timeline_ui.update_measure_tracker_position()
+    def hideEvent(self, a0):
+        self.timeline_ui.measure_tracker.hide()
+        return super().hideEvent(a0)
 
     def scroll_to_time(self, time):
         # relative_start_x[a] - relative_start_x[a - 1] = length of measure a
