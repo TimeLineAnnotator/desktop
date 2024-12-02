@@ -191,16 +191,7 @@ class QtUI:
             serve(self, request, callback)
 
     def _setup_main_window(self, mw: TiliaMainWindow):
-        def get_initial_geometry():
-            x = settings.get("general", "window_x")
-            y = settings.get("general", "window_y")
-            w = settings.get("general", "window_width")
-            h = settings.get("general", "window_height")
-
-            return x, y, w, h
-
         self.main_window = mw
-        # self.main_window.setGeometry(*get_initial_geometry())
 
     @staticmethod
     def _setup_fonts():
