@@ -157,6 +157,22 @@ def tilia_errors():
     errors.reset()
 
 
+@pytest.fixture(autouse=True)
+def print_errors():
+    """
+    Prints "errors" that would be displayed by the QtUI.
+    Without this we may miss unexpected failure messages,
+    since they  do not raise unhandled exceptions.
+    """
+    def _print_errors(title, message):
+        print(' ############## TILIA ERROR MESSAGE ############## ')
+        print(title)
+        print(message)
+        print(' ############################## ')
+
+    listen(print_errors, Post.DISPLAY_ERROR, _print_errors)
+
+
 @pytest.fixture()
 def resources() -> Path:
     return Path(__file__).parent / "resources"
