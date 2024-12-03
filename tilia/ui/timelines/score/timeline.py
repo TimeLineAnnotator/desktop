@@ -205,7 +205,7 @@ class ScoreTimelineUI(TimelineUI):
     def _update_staff_heights(self) -> None:
         min_margin_top = 70
         min_margin_bottom = 30
-        self.staff_heights = {}
+        staff_heights = {}
         for i, notes in self.staff_extreme_notes.items():
             bottom = max(
                 notes["low"].top_y + notes["low"].note_height(),
@@ -213,7 +213,9 @@ class ScoreTimelineUI(TimelineUI):
             )
             top = min(notes["high"].top_y, self.get_staff_top_y(i) - min_margin_top)
 
-            self.staff_heights[i] = int(bottom - top)
+            staff_heights[i] = int(bottom - top)
+
+        self.staff_heights = staff_heights
 
     def get_clef_time_cache(self) -> dict[int, dict[tuple[int, int], ClefUI]]:
         cache = {}
