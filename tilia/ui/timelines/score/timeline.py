@@ -169,7 +169,7 @@ class ScoreTimelineUI(TimelineUI):
             bottom = max(notes['low'].top_y + notes['low'].note_height(), self.get_staff_bottom_y(i) + min_margin_bottom)
             top = min(notes['high'].top_y, self.get_staff_top_y(i) - min_margin_top)
 
-            self.staff_heights[i] = bottom - top
+            self.staff_heights[i] = int(bottom - top)
 
     def get_clef_time_cache(self) -> dict[int, dict[tuple[int, int], ClefUI]]:
         cache = {}
