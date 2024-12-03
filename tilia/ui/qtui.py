@@ -312,7 +312,10 @@ class QtUI:
 
         if window:
             self._windows[kind] = window
-            window.activateWindow()
+            if isinstance(window, QDialog):
+                window.activateWindow()
+            elif isinstance(window, QDockWidget):
+                window.setFocus()
             window.raise_()
 
     def open_inspect_window(self):
