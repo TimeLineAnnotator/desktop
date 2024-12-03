@@ -10,7 +10,7 @@ from typing import Optional, Callable
 from PyQt6 import QtGui
 from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl, QtMsgType
 from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices
-from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar
+from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar, QDialog, QDockWidget
 
 import tilia.constants
 import tilia.errors
@@ -223,7 +223,7 @@ class QtUI:
         self.update_dynamic_menus()
 
     def _setup_windows(self):
-        self._windows = {
+        self._windows: dict[WindowKind, QDialog | QDockWidget | None] = {
             WindowKind.INSPECT: None,
             WindowKind.MEDIA_METADATA: None,
             WindowKind.MANAGE_TIMELINES: None,
@@ -293,7 +293,6 @@ class QtUI:
     def _setup_actions(self):
         actions.setup_actions(self.main_window)
 
-    # noinspection PyTypeChecker,PyUnresolvedReferences
     def on_window_open(self, kind: WindowKind):
         """Open a window of 'kind', if there is no window of that kind open.
         Otherwise, focus window of that kind."""
