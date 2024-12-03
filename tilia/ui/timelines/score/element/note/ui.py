@@ -252,7 +252,12 @@ class NoteUI(TimelineUIElement):
             self.accidental.set_position(*self.get_accidental_position(accidental, scale_factor))
 
     def child_items(self):
-        return [self.body]
+        children = [self.body]
+        if self.ledger_line:
+            children += self.ledger_line.lines
+        if self.accidental:
+            children.append(self.accidental)
+        return children
 
     def left_click_triggers(self) -> list[QGraphicsItem]:
         return [self.body]
