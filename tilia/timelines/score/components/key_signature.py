@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING
 
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_integer, validate_time, validate_non_negative_integer
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from tilia.timelines.score.timeline import ScoreTimeline
 
 
-class KeySignature(TimelineComponent):
+class KeySignature(PointLikeTimelineComponent):
     KIND = ComponentKind.KEY_SIGNATURE
     SERIALIZABLE_BY_VALUE = ['staff_index', 'time', 'fifths']
 

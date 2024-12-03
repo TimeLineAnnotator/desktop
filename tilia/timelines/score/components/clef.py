@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from enum import Enum, auto
 
-from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_time, validate_integer
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components.validators import validate_step
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from tilia.timelines.score.timeline import ScoreTimeline
 
 
-class Clef(TimelineComponent):
+class Clef(PointLikeTimelineComponent):
     SERIALIZABLE_BY_VALUE = ["staff_index", "time", "line_number", "step", "octave", "icon"]
     ORDERING_ATTRS = ("time",)
 
