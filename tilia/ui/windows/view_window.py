@@ -1,21 +1,19 @@
+from typing import TypeVar, Generic
+
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QDockWidget, QDialog, QWidget
+
 from tilia.requests import get, Get, post, Post, listen
 from tilia.ui.enums import WindowState
 
 
-class ViewWindow:
+T = TypeVar("T", QDialog, QDockWidget)
+
+
+class ViewWidget(Generic[T]):
     def __init__(self, os_window_title: str, *args, **kwargs):
         menu_title = kwargs.pop("menu_title", os_window_title)
         super().__init__(*args, **kwargs)
-        self.setWindowTitle(os_window_title)
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.CustomizeWindowHint
-            | Qt.WindowType.WindowTitleHint
-            | Qt.WindowType.WindowSystemMenuHint
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowMinMaxButtonsHint
-        )
         self.id = get(Get.ID)
         post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.CLOSED, menu_title)
         listen(self, Post.WINDOW_UPDATE_REQUEST, self.on_update_request)
@@ -29,7 +27,7 @@ class ViewWindow:
         event.ignore()
         self.hide()
 
-    def on_update_request(self, window_id: int, to_show: bool) -> None:
+    def on_update_request(self: T, window_id: int, to_show: bool) -> None:
         if window_id == self.id:
             self.blockSignals(True)
             if to_show:
@@ -44,3 +42,24 @@ class ViewWindow:
 
     def update_title(self, title: str):
         post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.UPDATE, title)
+
+
+class ViewDockWidget(ViewWidget[QDockWidget], QDockWidget):
+    def __init__(self, os_window_title: str, *args, **kwargs):
+        super().__init__(os_window_title, *args, **kwargs)
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+
+
+class ViewWindow(ViewWidget[QDialog]):
+    def __init__(self: QWidget, os_window_title: str, *args, menu_title: str, **kwargs):
+        super().__init__(os_window_title, *args, menu_title=menu_title, **kwargs)
+        self.setWindowTitle(os_window_title)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowMinMaxButtonsHint
+        )
+        self.show()
