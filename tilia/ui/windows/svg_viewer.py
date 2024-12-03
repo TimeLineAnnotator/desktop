@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from enum import Enum, auto
 from html import escape, unescape
 from pathlib import Path
 from re import sub
 from lxml import etree
 from bisect import bisect
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import (
     pyqtSlot,
@@ -20,14 +23,17 @@ from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWidgets import QDockWidget, QScrollArea
+from PyQt6.QtWidgets import QScrollArea, QMainWindow
 
-from tilia.ui.windows.view_window import ViewWindow
+from tilia.ui.windows.view_window import ViewDockWidget
 from tilia.ui.smooth_scroll import smooth, setup_smooth
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get, post, Post
 import tilia.errors
 from tilia.settings import settings
+
+if TYPE_CHECKING:
+    from tilia.timelines.score.timeline import ScoreTimeline
 
 
 class SvgSelectionBox(QRectF):
@@ -181,10 +187,11 @@ class SvgWidget(QSvgWidget):
             for element in to_update.keys():
                 self._get_bounds(to_update, element)
 
-        self.transform_x = self.width() / self.renderer().viewBox().size().width()
-        self.transform_y = self.height() / self.renderer().viewBox().size().height()
-        update(self.selectable_elements)
-        update(self.measures)
+        if self.renderer().viewBox().size().width():
+            self.transform_x = self.width() / self.renderer().viewBox().size().width()
+            self.transform_y = self.height() / self.renderer().viewBox().size().height()
+            update(self.selectable_elements)
+            update(self.measures)
 
     def update_measure_visibility(self):
         p = self.parentWidget().parentWidget().childrenRect()
@@ -249,6 +256,9 @@ class SvgWidget(QSvgWidget):
             m_min = self.mapToGlobal(m.topLeft()).x()
             cur_max = self.mapToGlobal(m.bottomRight()).x()
             relative_start_x[int(id)] = m_min
+
+        if not relative_start_x:
+            return
 
         m_length = cur_max - relative_start_x[list(relative_start_x.keys())[0]]
         cur_pos = 0
@@ -590,9 +600,14 @@ class SvgWebEngineTracker(QObject):
         self.display_error(message)
 
 
-class SvgViewer(ViewWindow, QDockWidget):
-    def __init__(self, name: str, tl, *args, **kwargs):
+class SvgViewer(ViewDockWidget):
+    def __init__(self, name: str, parent: QMainWindow, tl: ScoreTimeline, *args, **kwargs):
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
+
+        self.setParent(parent)
+        self.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea)
+        parent.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self)
+
         self.scroll_area = QScrollArea()
         self.scroll_area.setSizeAdjustPolicy(
             QScrollArea.SizeAdjustPolicy.AdjustToContents
