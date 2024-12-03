@@ -23,7 +23,7 @@ from tilia.ui.timelines.collection.requests.enums import ElementSelector
 from tilia.ui.timelines.cursors import CursorMixIn
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.score.context_menu import ScoreTimelineUIContextMenu
-from tilia.ui.timelines.score.element import NoteUI, StaffUI, ClefUI
+from tilia.ui.timelines.score.element import NoteUI, StaffUI, ClefUI, BarLineUI, TimeSignatureUI, KeySignatureUI
 from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,
 )
@@ -38,7 +38,7 @@ class ScoreTimelineUI(TimelineUI):
     ACCEPTS_HORIZONTAL_ARROWS = True
 
     TIMELINE_KIND = TimelineKind.SCORE_TIMELINE
-    ELEMENT_CLASS = [NoteUI, StaffUI]
+    ELEMENT_CLASS = [NoteUI, StaffUI, BarLineUI, ClefUI, TimeSignatureUI, KeySignatureUI]
 
     CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
 
@@ -57,8 +57,9 @@ class ScoreTimelineUI(TimelineUI):
         self._setup_pixmaps()
 
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
-        self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.staff_cache: dict[int, StaffUI] = {}
+        self.first_bar_line: BarLineUI | None = None
+        self.last_bar_line: BarLineUI | None = None
         self.staff_extreme_notes: dict[int, dict[str, NoteUI]] = {}
         self.staff_heights: dict[int, float] = {}
         self._measure_count = 0  # assumes measures can't be deleted
@@ -66,6 +67,8 @@ class ScoreTimelineUI(TimelineUI):
         self.overlapping_elements = set()
 
         self._setup_svg_view()
+
+        listen(self, Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.on_score_timeline_components_deserialized)
 
     def _setup_pixmaps(self):
         self.pixmaps = {
@@ -156,8 +159,8 @@ class ScoreTimelineUI(TimelineUI):
         self,
         kind: ComponentKind,
         id: int,
-        get_data: Callable[[str, Any], None],
-        set_data: Callable[[str], Any],
+        get_data: Callable[[str], Any],
+        set_data: Callable[[str, Any], None],
     ):
         element = super().on_timeline_component_created(kind, id, get_data, set_data)
         if kind == ComponentKind.STAFF:
@@ -166,6 +169,13 @@ class ScoreTimelineUI(TimelineUI):
             return
         elif kind == ComponentKind.BAR_LINE:
             self._measure_count += 1
+            if not self.first_bar_line:
+                self.first_bar_line = element
+                self.last_bar_line = element
+            elif get_data("time") > self.last_bar_line.get_data("time"):
+                self.last_bar_line = element
+            elif get_data("time") == self.last_bar_line.get_data("time"):
+                self.last_bar_line = element
         elif kind == ComponentKind.NOTE:
             self._update_staff_extreme_notes(element.get_data("staff_index"), element)
 
@@ -338,7 +348,7 @@ class ScoreTimelineUI(TimelineUI):
     def set_width(self, width):
         super().set_width(width)
         self.update_overlapping_elements_offsets()
-        self.update_measure_tracker_position()
+        # self.update_measure_tracker_position()
 
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
@@ -359,13 +369,8 @@ class ScoreTimelineUI(TimelineUI):
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
             return 0
-        bar_lines = sorted(
-            self.element_manager.get_elements_by_attribute(
-                "kind", ComponentKind.BAR_LINE
-            )
-        )
-        x0 = time_x_converter.get_x_by_time(bar_lines[0].get_data("time"))
-        x1 = time_x_converter.get_x_by_time(bar_lines[-1].get_data("time"))
+        x0 = self.first_bar_line.get_data("time")
+        x1 = self.last_bar_line.get_data("time")
         return (x1 - x0) / self._measure_count
 
     def delete_svg_view(self) -> None:
