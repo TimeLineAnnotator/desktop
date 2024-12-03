@@ -22,7 +22,7 @@ import tilia.parsers.csv.harmony
 import tilia.parsers.csv.hierarchy
 import tilia.parsers.csv.beat
 import tilia.parsers.csv.marker
-from . import dialogs, actions
+from . import actions
 from .actions import TiliaAction
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
@@ -320,8 +320,7 @@ class QtUI:
 
     def open_inspect_window(self):
         widget = Inspect(self.main_window)
-        self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, widget)
-        widget.setFloating(True)
+        self.main_window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, widget)
         return widget
 
     def open_about_window(self):

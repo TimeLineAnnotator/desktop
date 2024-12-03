@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 from enum import Enum, auto
 
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from PyQt6.QtWidgets import (
     QDockWidget,
@@ -50,7 +50,9 @@ class Inspect(QDockWidget):
     def __init__(self, main_window) -> None:
         super().__init__(main_window)
         self.setWindowTitle("Inspector")
-        self.setMinimumSize(400, 0)
+        self.resize(250, self.height())
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        self.setFloating(False)
         self._setup_requests()
         self.inspected_objects_stack = []
         self.element_id = ""
@@ -112,6 +114,15 @@ class Inspect(QDockWidget):
 
         self.update_values(element.get_inspector_dict(), element_id)
 
+    def _select_first_row(self):
+        if isinstance(self.focusProxy(), (QLineEdit, QTextEdit)):
+            proxy = cast(QLineEdit | QTextEdit, self.focusProxy())
+            proxy.selectAll()
+
+    def setFocus(self):
+        super().setFocus()
+        self._select_first_row()
+
     def on_element_selected(
         self,
         element_class: type[TimelineComponent],
@@ -126,10 +137,8 @@ class Inspect(QDockWidget):
             element_class, inspector_fields, inspector_values, element_id
         )
 
-        try:
-            self.inspect_widget.focusProxy().selectAll()
-        except AttributeError:
-            pass  # focus proxy is not a QLineEdit
+        if self.hasFocus():
+            self._select_first_row()
 
         self.setWindowTitle(f"Inspector - {element_class.__name__}")
         self.stack_widget.setCurrentWidget(self.inspect_widget)
@@ -323,4 +332,4 @@ class Inspect(QDockWidget):
 
             self.field_name_to_widgets[name] = (left_widget, right_widget)
 
-        self.inspect_widget.setFocusProxy(self.inspect_layout.itemAt(1).widget())
+        self.setFocusProxy(self.inspect_layout.itemAt(1).widget())
