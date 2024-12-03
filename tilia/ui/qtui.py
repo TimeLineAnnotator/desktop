@@ -484,6 +484,9 @@ class QtUI:
         if errors:
             self._display_import_from_csv_errors(errors)
 
+        if tlkind == TlKind.SCORE_TIMELINE:
+            post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, timeline.id)
+
         post(Post.APP_RECORD_STATE, "Import from csv file")
 
     def _validate_timeline_kind_on_import_from_csv(self, tlkind: TlKind):
