@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from enum import Enum, auto
 from html import escape, unescape
 from pathlib import Path
@@ -262,9 +263,9 @@ class SvgWidget(QSvgWidget):
 
         m_length = cur_max - relative_start_x[list(relative_start_x.keys())[0]]
         cur_pos = 0
-        for k in relative_start_x.keys():
+        for k, next_k in itertools.pairwise(relative_start_x.keys()):
             relative_start_x[k] = (
-                ((relative_start_x[k + 1] - relative_start_x[k]) / m_length + cur_pos)
+                ((relative_start_x[next_k] - relative_start_x[k]) / m_length + cur_pos)
                 if k != len(relative_start_x)
                 else 1
             )
