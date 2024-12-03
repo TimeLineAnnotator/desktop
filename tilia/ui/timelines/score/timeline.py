@@ -219,7 +219,6 @@ class ScoreTimelineUI(TimelineUI):
 
     def get_clef_time_cache(self) -> dict[int, dict[tuple[int, int], ClefUI]]:
         cache = {}
-        start_time = 0
         all_clefs = self.element_manager.get_elements_by_attribute(
             "kind", ComponentKind.CLEF
         )
@@ -229,6 +228,7 @@ class ScoreTimelineUI(TimelineUI):
             ]
             cache[idx] = {}
             prev_clef = clefs_in_staff[0]
+            start_time = prev_clef.get_data("time")
             for clef in clefs_in_staff[1:]:
                 time = clef.get_data("time")
                 cache[idx][(start_time, time)] = prev_clef
