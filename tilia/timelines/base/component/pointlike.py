@@ -67,7 +67,7 @@ class PointLikeTimelineComponent(TimelineComponent):
 
 
 def scale_pointlike(cm: TimelineComponentManager, factor: float) -> None:
-    for component in cm:
+    for component in list(cm).copy():  # Order might change when setting time, so we need a copy
         component.set_data('time', component.get_data('time') * factor)
 
 
