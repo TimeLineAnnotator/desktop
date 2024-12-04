@@ -12,6 +12,11 @@ from tilia.timelines.marker.components import Marker
 from tilia.ui.actions import TiliaAction
 
 
+def _trigger_export_action(user_actions, path):
+    with Serve(Get.FROM_USER_EXPORT_PATH, (True, path)):
+        user_actions.trigger(TiliaAction.FILE_EXPORT)
+
+
 def test_export_timelines(tilia, marker_tlui, harmony_tlui, user_actions, tilia_state, tmp_path):
     for i in range(5):
         tilia_state.current_time = i
@@ -22,7 +27,7 @@ def test_export_timelines(tilia, marker_tlui, harmony_tlui, user_actions, tilia_
 
     tmp_file = tmp_path / 'test.json'
 
-    post(Post.FILE_EXPORT, tmp_file)
+    _trigger_export_action(user_actions, tmp_file)
 
     with open(tmp_file, encoding='utf-8') as f:
         data = json.load(f)
@@ -47,12 +52,12 @@ def test_export_timelines(tilia, marker_tlui, harmony_tlui, user_actions, tilia_
     assert len(data['timelines'][1]['components'][ComponentKind.MODE.name]) == 1
 
 
-def test_export_has_media_path(tilia, tmp_path):
+def test_export_has_media_path(tilia, user_actions, tmp_path):
     post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH)
 
     tmp_file = tmp_path / 'test.json'
 
-    post(Post.FILE_EXPORT, tmp_file)
+    _trigger_export_action(user_actions, tmp_file)
 
     with open(tmp_file, encoding='utf-8') as f:
         data = json.load(f)
@@ -60,12 +65,12 @@ def test_export_has_media_path(tilia, tmp_path):
     assert data['media_path'] == EXAMPLE_MEDIA_PATH
 
 
-def test_export_has_media_metadata(tilia, tmp_path):
+def test_export_has_media_metadata(tilia, user_actions, tmp_path):
     post(Post.MEDIA_METADATA_FIELD_SET, 'title', 'Test Title')
 
     tmp_file = tmp_path / 'test.json'
 
-    post(Post.FILE_EXPORT, tmp_file)
+    _trigger_export_action(user_actions, tmp_file)
 
     with open(tmp_file, encoding='utf-8') as f:
         data = json.load(f)
@@ -73,7 +78,7 @@ def test_export_has_media_metadata(tilia, tmp_path):
     assert data['media_metadata']['title'] == 'Test Title'
 
 
-def test_export_without_path(tilia, tmp_path):
+def test_export_without_path(tilia, user_actions, tmp_path):
     tmp_file = tmp_path / 'test.json'
 
     with Serve(Get.FROM_USER_EXPORT_PATH, (True, tmp_file)):
@@ -82,12 +87,12 @@ def test_export_without_path(tilia, tmp_path):
     assert tmp_file.exists()
 
 
-def test_export_attributes_are_present(tilia, hierarchy_tl, tmp_path):
+def test_export_attributes_are_present(tilia, user_actions, hierarchy_tl, tmp_path):
     hierarchy_tl.create_hierarchy(start=0, end=1, level=1)
 
     tmp_file = tmp_path / "test.json"
 
-    post(Post.FILE_EXPORT, tmp_file)
+    _trigger_export_action(user_actions, tmp_file)
 
     with open(tmp_file, encoding='utf-8') as f:
         data = json.load(f)
@@ -120,11 +125,11 @@ def test_export_attributes_are_present(tilia, hierarchy_tl, tmp_path):
 
 
 @parametrize_tl
-def test_appropriate_attributes_are_exported(tl, tilia, request, tmp_path):
+def test_appropriate_attributes_are_exported(tl, user_actions, tilia, request, tmp_path):
     tl = request.getfixturevalue(tl)
     tmp_file = tmp_path / "test.json"
 
-    post(Post.FILE_EXPORT, tmp_file)
+    _trigger_export_action(user_actions, tmp_file)
 
     with open(tmp_file, encoding='utf-8') as f:
         data = json.load(f)
@@ -140,14 +145,14 @@ def test_appropriate_attributes_are_exported(tl, tilia, request, tmp_path):
 
 
 @parametrize_component
-def test_exported_component_attributes_values_are_correct(tilia, comp, tmp_path, request):
+def test_exported_component_attributes_values_are_correct(tilia, user_actions, comp, tmp_path, request):
     comp = request.getfixturevalue(comp)
     if TimelineFlag.NOT_EXPORTABLE in comp.timeline.FLAGS:
         return
 
     tmp_file = tmp_path / "test.json"
 
-    post(Post.FILE_EXPORT, tmp_file)
+    _trigger_export_action(user_actions, tmp_file)
 
     with open(tmp_file, encoding='utf-8') as f:
         data = json.load(f)

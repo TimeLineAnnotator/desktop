@@ -40,6 +40,7 @@ class TiliaAction(Enum):
     BEAT_SET_MEASURE_NUMBER = auto()
     EDIT_REDO = auto()
     EDIT_UNDO = auto()
+    FILE_EXPORT = auto()
     FILE_NEW = auto()
     FILE_OPEN = auto()
     FILE_SAVE = auto()
@@ -245,6 +246,7 @@ taction_to_params = {
     TiliaAction.FILE_NEW: ActionParams(Post.REQUEST_FILE_NEW, "New...", "", "Ctrl+N"),
     TiliaAction.FILE_OPEN: ActionParams(Post.FILE_OPEN, "Open...", "", "Ctrl+O"),
     TiliaAction.FILE_SAVE: ActionParams(Post.FILE_SAVE, "Save", "", "Ctrl+S"),
+    TiliaAction.FILE_EXPORT: ActionParams(Post.FILE_EXPORT, "Export...", "", ""),
     TiliaAction.FILE_SAVE_AS: ActionParams(
         Post.FILE_SAVE_AS, "Save as...", "", "Ctrl+Shift+S"
     ),

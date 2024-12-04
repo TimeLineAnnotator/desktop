@@ -95,6 +95,7 @@ class FileMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, RecentFilesMenu),
         (MenuItemKind.ACTION, TiliaAction.FILE_SAVE),
         (MenuItemKind.ACTION, TiliaAction.FILE_SAVE_AS),
+        (MenuItemKind.ACTION, TiliaAction.FILE_EXPORT),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.SUBMENU, LoadMediaMenu),
         (MenuItemKind.ACTION, TiliaAction.METADATA_WINDOW_OPEN),
