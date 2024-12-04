@@ -49,6 +49,6 @@ class BarLineBody:
         self.set_position(x, ys)
 
     def set_position(self, x: float, ys: list[tuple[float, float]]):
-        for line in self.lines:
-            y0, y1 = ys.pop(0)
-            line.setLine(QLineF(x, y0, x, y1))
+        for line, (y0, y1) in zip(self.lines, ys):
+            line.setLine(x, y0, x, y1)
+
