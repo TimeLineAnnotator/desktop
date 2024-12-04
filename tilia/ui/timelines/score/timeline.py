@@ -58,6 +58,7 @@ class ScoreTimelineUI(TimelineUI):
 
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.staff_cache: dict[int, StaffUI] = {}
+        self.staff_y_cache: dict[int, tuple[int, int]] = {}
         self.first_bar_line: BarLineUI | None = None
         self.last_bar_line: BarLineUI | None = None
         self.staff_extreme_notes: dict[int, dict[str, NoteUI]] = {}
@@ -98,8 +99,16 @@ class ScoreTimelineUI(TimelineUI):
         if self.svg_view:
             self.svg_view.update_title(name)
 
+    def get_staff_y_cache(self):
+        return {
+            index: (staff.top_y(), staff.bottom_y())
+            for index, staff in self.staff_cache.items()
+        }
+
     def get_staves_y_coordinates(self):
-        return [(s.top_y(), s.bottom_y()) for s in self.staff_cache.values()]
+        if not self.staff_y_cache:
+            self.staff_y_cache = self.get_staff_y_cache()
+        return [(top, bottom) for top, bottom in self.staff_y_cache.values()]
 
     def get_staff_top_y(self, index: int) -> float:
         staff = self.staff_cache.get(index)
@@ -367,6 +376,7 @@ class ScoreTimelineUI(TimelineUI):
 
         self.update_height()
         self.collection.update_timeline_uis_position()
+        self.staff_y_cache = self.get_staff_y_cache()
 
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
