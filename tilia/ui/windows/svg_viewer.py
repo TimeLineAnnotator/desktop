@@ -646,6 +646,7 @@ class SvgViewer(ViewDockWidget):
 
         self.is_engine_loaded = False
         self.is_svg_loaded = False
+        self.is_hidden = False
         self.timeline = tl
         self.timeline_ui = None
         self.visible_measures = [
@@ -665,7 +666,8 @@ class SvgViewer(ViewDockWidget):
     def load_svg_data(self, data):
         self.svg_widget.load(data)
         self.is_svg_loaded = True
-        if self.timeline_ui:
+        # Viewer migth already have been hidden by user.
+        if self.timeline_ui and not self.is_hidden:
             self.show()
 
     def update_annotation(self, data, tl_component):
@@ -720,10 +722,12 @@ class SvgViewer(ViewDockWidget):
 
     def hideEvent(self, a0):
         self.timeline_ui.measure_tracker.hide()
+        self.is_hidden = True
         return super().hideEvent(a0)
 
     def showEvent(self, event):
         self.timeline_ui.measure_tracker.show()
+        self.is_hidden = False
         return super().showEvent(event)
 
     def scroll_to_time(self, time):
