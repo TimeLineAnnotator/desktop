@@ -213,15 +213,15 @@ class ScoreTimelineUI(TimelineUI):
             self.staff_extreme_notes[staff_index]["high"] = note
 
     def _update_staff_heights(self) -> None:
-        min_margin_top = 70
+        min_margin_top = 50
         min_margin_bottom = 30
         staff_heights = {}
         for i, notes in self.staff_extreme_notes.items():
             bottom = max(
                 notes["low"].top_y + notes["low"].note_height(),
-                self.get_staff_bottom_y(i) + min_margin_bottom,
-            )
-            top = min(notes["high"].top_y, self.get_staff_top_y(i) - min_margin_top)
+                self.get_staff_bottom_y(i),
+            ) + min_margin_bottom
+            top = min(notes["high"].top_y, self.get_staff_top_y(i)) - min_margin_top
 
             staff_heights[i] = int(bottom - top)
 
