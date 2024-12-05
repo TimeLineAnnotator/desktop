@@ -461,14 +461,14 @@ class ScoreTimelineUI(TimelineUI):
             __set_tracker_position(start, end)
 
     def on_timeline_width_set_done(self, _: float) -> None:
-        self.update_measure_tracker_position()
+        if self.svg_view and self.svg_view.is_svg_loaded:
+            self.update_measure_tracker_position()
 
 
 class MeasureTracker(CursorMixIn, QGraphicsRectItem):
     def __init__(self) -> None:
         super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
         self.update_color()
-        self.show()
 
     def update_position(self, start: float, end: float, height: float) -> None:
         self.setRect(QRectF(start, 0, end - start, height))

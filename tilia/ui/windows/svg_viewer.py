@@ -644,7 +644,8 @@ class SvgViewer(ViewDockWidget):
         self.channel.registerObject("backend", self.shared_object)
         self.web_engine.page().setWebChannel(self.channel)
 
-        self.is_loaded = False
+        self.is_engine_loaded = False
+        self.is_svg_loaded = False
         self.timeline = tl
         self.timeline_ui = None
         self.visible_measures = [
@@ -655,7 +656,7 @@ class SvgViewer(ViewDockWidget):
         setup_smooth(self)
 
     def engine_loaded(self):
-        self.is_loaded = True
+        self.is_engine_loaded = True
 
     def preprocess_svg(self, svg: str):
         svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
@@ -663,6 +664,7 @@ class SvgViewer(ViewDockWidget):
 
     def load_svg_data(self, data):
         self.svg_widget.load(data)
+        self.is_svg_loaded = True
         if self.timeline_ui:
             self.show()
 
@@ -673,7 +675,7 @@ class SvgViewer(ViewDockWidget):
         def convert():
             self.web_engine.page().runJavaScript(f"loadSVG(`{data}`)")
 
-        if self.is_loaded:
+        if self.is_engine_loaded:
             convert()
         else:
             self.web_engine.loadFinished.connect(convert)
