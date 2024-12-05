@@ -266,7 +266,7 @@ class ScoreTimelineUI(TimelineUI):
         ]
 
         if kind not in overlapping_kinds:
-            return []
+            return tuple()
 
         overlapping = [
             c
