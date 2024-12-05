@@ -11,6 +11,7 @@ class NoteAccidental(QGraphicsPixmapItem):
         self.set_icon(str(path.resolve()))
         self.set_height(height)
         self.set_position(x, y)
+        self.setZValue(3)  # in front of notes
 
     def set_icon(self, path: str):
         self._pixmap = QPixmap(path)
