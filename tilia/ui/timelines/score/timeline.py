@@ -53,6 +53,7 @@ class ScoreTimelineUI(TimelineUI):
             lambda updated_settings: self.on_settings_updated(updated_settings),
         )
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_audio_time_change)
+        listen(self, Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_doneg)
 
         self._setup_pixmaps()
 
@@ -458,6 +459,9 @@ class ScoreTimelineUI(TimelineUI):
             __update_position()
         else:
             __set_tracker_position(start, end)
+
+    def on_timeline_width_set_doneg(self, _: float) -> None:
+        self.update_measure_tracker_position()
 
 
 class MeasureTracker(CursorMixIn, QGraphicsRectItem):
