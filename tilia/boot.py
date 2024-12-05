@@ -89,7 +89,6 @@ def setup_logic(autosaver=True):
 def setup_ui(q_application: QApplication, interface: str):
     if interface == "qt":
         mw = TiliaMainWindow()
-        setup_actions(mw)
         return QtUI(q_application, mw)
     elif interface == "cli":
         return CLI()
