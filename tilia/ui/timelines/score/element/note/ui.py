@@ -41,8 +41,6 @@ class NoteUI(TimelineUIElement):
         self.ledger_line = None
 
         self._top_y = None
-        if self.clef:
-            self._setup_items()
 
     def _setup_items(self):
         self._setup_body()

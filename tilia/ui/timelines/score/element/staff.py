@@ -64,6 +64,7 @@ class StaffLines:
         pen.setWidth(2)
         for line in self.lines:
             line.setPen(pen)
+            line.setZValue(-1)
         self.set_position(line_count, x1, x2, middle_y, line_spacing)
 
     def set_position(self, line_count: int, x1: float, x2: float, middle_y: float, line_spacing: float):

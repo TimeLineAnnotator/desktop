@@ -31,6 +31,10 @@ class ScoreTLComponentManager(TimelineComponentManager):
         self.scale = functools.partial(scale_mixed, self)
         self.crop = functools.partial(crop_mixed, self)
 
+    def restore_state(self, prev_state: dict):
+        super().restore_state(prev_state)
+        post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
+
 
 class ScoreTimeline(Timeline):
     KIND = TimelineKind.SCORE_TIMELINE
