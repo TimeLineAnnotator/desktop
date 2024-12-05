@@ -38,7 +38,7 @@ example = """<score-partwise version="3.1">
 """
 
 
-def test_example(score_tl, beat_tl, tmp_path):
+def test_example(qtui, score_tl, beat_tl, tmp_path):
     beat_tl.beat_pattern = [4]
     for i in range(5):
         beat_tl.create_beat(i)
