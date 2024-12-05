@@ -13,13 +13,15 @@ class BarLineUI(TimelineUIElement):
         super().__init__(*args, **kwargs)
         self._setup_body()
 
+    def x(self):
+        return time_x_converter.get_x_by_time(self.get_data('time'))
+
     def child_items(self):
         return self.body.lines
 
     def get_body_args(self):
-        time = self.get_data('time')
         return (
-            time_x_converter.get_x_by_time(time),
+            self.x(),
             self.timeline_ui.get_staves_y_coordinates(),
         )
 
