@@ -468,11 +468,11 @@ class MeasureTracker(CursorMixIn, QGraphicsRectItem):
     def __init__(self) -> None:
         super().__init__(cursor_shape=Qt.CursorShape.SizeHorCursor)
         self.update_color()
+        self.show()
 
     def update_position(self, start: float, end: float, height: float) -> None:
         self.setRect(QRectF(start, 0, end - start, height))
         self.setZValue(-10)
-        self.show()
 
     def update_color(self) -> None:
         color = settings.get("score_timeline", "measure_tracker_color")

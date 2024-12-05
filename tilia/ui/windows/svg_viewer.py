@@ -720,6 +720,10 @@ class SvgViewer(ViewDockWidget):
         self.timeline_ui.measure_tracker.hide()
         return super().hideEvent(a0)
 
+    def showEvent(self, event):
+        self.timeline_ui.measure_tracker.show()
+        return super().showEvent(event)
+
     def scroll_to_time(self, time):
         # relative_start_x[a] - relative_start_x[a - 1] = length of measure a
         # relative_start_x[a - 1] = start position of measure a
