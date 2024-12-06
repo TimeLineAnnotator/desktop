@@ -5,6 +5,8 @@
 from typing import Any, Callable
 from PyQt6.QtCore import QTimer
 
+from tilia.settings import settings
+
 
 def setup_smooth(self):
     self.smoothing_timer = QTimer()
@@ -28,7 +30,10 @@ def smooth(self: Any, args_getter: Callable[[], tuple[Any]]):
     steps_total = fps * smoothing_duration / 1000
     is_ints = [isinstance(o, int) for o in args_getter()]
 
-    def wrapper(args_setter: Callable[[tuple[Any]], None]) -> None:
+    def wrapper(args_setter: Callable[[tuple[Any]], None]) -> Callable:
+        if settings.get("general", "smooth-scroll") is False:
+            return args_setter
+
         def wrapped_setter(*args_setpoint: tuple[Any]) -> None:
             if list(args_setpoint) == list(args_getter()):
                 return
