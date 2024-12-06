@@ -6,7 +6,7 @@
 </head>
 
 <body>
-    <div id="osmdCanvas"></div>
+    <div id="osmdCanvas" style="width: 100000px;"></div>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.9/build/opensheetmusicdisplay.min.js"></script>
     <script type="text/javascript">
@@ -22,6 +22,8 @@
             drawPartNames: true,
             measureNumberInterval: 5,
         })
+
+        osmd.EngravingRules.SheetMaximumWidth = 9999999;
 
         async function loadSVG(filename) {
             osmd.load(filename).then(
