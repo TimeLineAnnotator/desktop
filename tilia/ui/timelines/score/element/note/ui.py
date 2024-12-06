@@ -244,7 +244,9 @@ class NoteUI(TimelineUIElement):
             self.accidental.set_position(*self.get_accidental_position(accidental, scale_factor))
 
     def child_items(self):
-        children = [self.body]
+        children = []
+        if self.body:
+            children.append(self.body)
         if self.ledger_line:
             children += self.ledger_line.lines
         if self.accidental:
