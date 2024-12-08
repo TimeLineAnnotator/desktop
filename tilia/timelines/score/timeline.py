@@ -75,15 +75,15 @@ class ScoreTimeline(Timeline):
         )
 
     def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
+        def _remove_from_viewer(components: list[TimelineComponent]) -> None:
+            for component in components:
+                component.remove_from_viewer()
+
         score_annotations = self.component_manager._get_component_set_by_kind(
             ComponentKind.SCORE_ANNOTATION
         )
 
-        self._remove_from_viewer([s for s in score_annotations if s in components])
-
-    def _remove_from_viewer(self, components: list[TimelineComponent]) -> None:
-        for component in components:
-            component.set_data("data", "delete")
+        _remove_from_viewer([s for s in score_annotations if s in components])
 
     def deserialize_components(self, components: dict[int, dict[str]]):
         super().deserialize_components(components)
