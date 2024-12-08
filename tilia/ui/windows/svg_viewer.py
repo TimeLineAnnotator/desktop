@@ -85,7 +85,7 @@ class SvgViewer(ViewDockWidget):
         self.__setup_score_viewer()
 
     def __setup_score_creator(self) -> None:
-        self.is_loaded = False
+        self.is_engine_loaded = False
         self.web_engine = QWebEngineView()
         self.web_engine.load(
             QUrl.fromLocalFile(
@@ -110,7 +110,7 @@ class SvgViewer(ViewDockWidget):
         self.web_engine.page().setWebChannel(self.channel)
 
     def engine_loaded(self) -> None:
-        self.is_loaded = True
+        self.is_engine_loaded = True
 
     def preprocess_svg(self, svg: str) -> None:
         svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
