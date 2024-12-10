@@ -51,7 +51,11 @@ class Beat(PointLikeTimelineComponent):
         beat_index = self.timeline.get_beat_index(self)
         measure_index, index_in_measure = self.timeline.get_measure_index(beat_index)
 
-        return MetricPosition(self.timeline.measure_numbers[measure_index], index_in_measure + 1, self.timeline.beats_in_measure[measure_index])
+        return MetricPosition(
+            self.timeline.measure_numbers[measure_index],
+            index_in_measure + 1,
+            self.timeline.beats_in_measure[measure_index],
+        )
 
     @property
     def measure_number(self):
@@ -64,3 +68,9 @@ class Beat(PointLikeTimelineComponent):
     @classmethod
     def get_export_attributes(cls) -> list[str]:
         return get_export_attributes_point_like(cls)
+
+    def set_data(self, attr, value):
+        value, success = super().set_data(attr, value)
+        if success:
+            self.timeline.update_metric_fraction_dicts()
+        return value, success
