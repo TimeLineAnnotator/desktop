@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import functools
 import itertools
+from bisect import bisect
 from typing import Optional
 
 import tilia.errors
-from tilia.requests import post, Post
+from tilia.requests import post, Post, get, Get
 from tilia.settings import settings
 from tilia.timelines.base.common import scale_discrete, crop_discrete
 from tilia.timelines.beat.validators import validate_integer_list
@@ -51,6 +52,7 @@ class BeatTLComponentManager(TimelineComponentManager):
                 self.update_is_first_in_measure_of_subsequent_beats(
                     self.get_components().index(beat) + 1
                 )
+            self.timeline.update_metric_position_dict()
 
         return success, beat, reason
 
@@ -231,31 +233,46 @@ class BeatTimeline(Timeline):
     def get_time_by_measure(self, number: int, fraction: float = 0) -> list[int]:
         """
         Given the measure index, returns the start time of the measure.
-        If fraction is supplied, sums that fraction of the measure's
-        length to the result.
+        If fraction is supplied, returns interpolated time between measure's beats.
         """
 
         if not self.measure_count:
             raise ValueError("No beats in timeline. Can't get time.")
 
-        measure_indices = [i for i, n in enumerate(self.measure_numbers) if n == number]
-        measure_times = []
+        if not (min(self.measure_numbers) <= number <= max(self.measure_numbers)):
+            return []
 
-        for index in measure_indices:
-            beat_number = self.beats_that_start_measures[index]
-            measure_time = self.components[beat_number].time
+        metric_fraction = number + fraction
+        if beats := self.metric_position_dict.get(metric_fraction):
+            return [beat.time for beat in beats]
 
-            if index == self.measure_count - 1:
-                next_measure_time = measure_time
+        keys = list(self.metric_position_dict.keys())
+        idx = bisect(keys, metric_fraction)
+
+        if idx == 0 or idx == len(keys):
+            return []
+
+        starts = self.metric_position_dict[keys[idx - 1]]
+        output = []
+        start_measure = keys[idx - 1] // 1
+        start_metric_fraction = keys[idx - 1] % 1
+        for start in starts:
+            if e := self.get_next_component(start.id):
+                end_metric_fraction = (
+                    (mp := e.metric_position).beat - 1
+                ) / mp.measure_beat_count + (mp.measure - start_measure)
+                end_time = e.time
             else:
-                beat_number = self.beats_that_start_measures[index + 1]
-                next_measure_time = self.components[beat_number].time
-
-            measure_times.append(
-                measure_time + (next_measure_time - measure_time) * fraction
+                end_metric_fraction = 1.0
+                end_time = get(Get.MEDIA_DURATION)
+            output.append(
+                (start_time := start.time)
+                + (fraction - start_metric_fraction)
+                / (end_metric_fraction - start_metric_fraction)
+                * (end_time - start_time)
             )
-
-        return measure_times
+        self.metric_position_dict[metric_fraction] = output
+        return output
 
     def is_first_in_measure(self, beat):
         return self.components.index(beat) in set(self.beats_that_start_measures)
@@ -270,6 +287,7 @@ class BeatTimeline(Timeline):
             self.reduce_measure_numbers()
 
         self.update_beats_that_start_measures()
+        self.update_metric_position_dict()
 
     @staticmethod
     def get_extension_from_beat_pattern(
@@ -394,6 +412,17 @@ class BeatTimeline(Timeline):
             itertools.accumulate(self.beats_in_measure[:-1])
         )
         self.beats_that_start_measures_set = set(self.beats_that_start_measures)
+
+    def update_metric_position_dict(self):
+        self.metric_position_dict = {}
+        for beat in self.components:
+            metric_position = (mp := beat.metric_position).measure + (
+                mp.beat - 1
+            ) / mp.measure_beat_count
+            if mp := self.metric_position_dict.get(metric_position):
+                mp.append(beat)
+            else:
+                self.metric_position_dict[metric_position] = [beat]
 
     def get_measure_index(self, beat_index: int) -> tuple[int, int]:
         prev_n = 0

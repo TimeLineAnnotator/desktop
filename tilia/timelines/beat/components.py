@@ -68,3 +68,9 @@ class Beat(PointLikeTimelineComponent):
     @classmethod
     def get_export_attributes(cls) -> list[str]:
         return get_export_attributes_point_like(cls)
+
+    def set_data(self, attr, value):
+        value, success = super().set_data(attr, value)
+        if success:
+            self.timeline.update_metric_position_dict()
+        return value, success
