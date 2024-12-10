@@ -403,13 +403,11 @@ class BeatTimeline(Timeline):
             elif beat_index == n:
                 return measure_index, 0
             prev_n = n
+
+        if beat_index > n:
+            return measure_index, beat_index - n
         else:
-            # noinspection PyUnboundLocalVariable
-            if beat_index > n:
-                # noinspection PyUnboundLocalVariable
-                return measure_index, 1
-            else:
-                raise ValueError(f'No beat with index "{beat_index}" at {self}.')
+            raise ValueError(f'No beat with index "{beat_index}" at {self}.')
 
     def get_beat_index(self, beat: Beat) -> int:
         return self.components.index(beat)
