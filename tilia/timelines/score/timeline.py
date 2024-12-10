@@ -46,9 +46,7 @@ class ScoreTimeline(Timeline):
 
         self.validators = self.validators | {"svg_data": validate_string}
         self.svg_data = svg_data
-        self.svg_view = SvgViewer(
-            name=self.get_data("name"), parent=get(Get.MAIN_WINDOW), tl=self
-        )
+        self.svg_view = SvgViewer(name=self.get_data("name"), tl=self)
 
     @property
     def svg_data(self):

@@ -1,5 +1,4 @@
 # TODO: reimplement tracker
-# TODO: fix separation with ui
 
 from __future__ import annotations
 
@@ -31,7 +30,6 @@ from PyQt6.QtWidgets import (
     QGraphicsScene,
     QGraphicsSimpleTextItem,
     QHBoxLayout,
-    QMainWindow,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -69,12 +67,9 @@ class SvgWebEngineTracker(QObject):
 
 
 class SvgViewer(ViewDockWidget):
-    def __init__(
-        self, name: str, parent: QMainWindow, tl: ScoreTimeline, *args, **kwargs
-    ) -> None:
+    def __init__(self, name: str, tl: ScoreTimeline, *args, **kwargs) -> None:
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
 
-        self.setParent(parent)
         self.setAllowedAreas(
             Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
         )

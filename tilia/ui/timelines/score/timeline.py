@@ -402,6 +402,7 @@ class ScoreTimelineUI(TimelineUI):
     def _setup_svg_view(self) -> None:
         self.svg_view = self.timeline.svg_view
         self.svg_view.timeline_ui = self
+        self.svg_view.setParent(get(Get.MAIN_WINDOW))
         self.tracker_start = 0
         self.tracker_end = get(Get.MEDIA_DURATION)
         self.dragged = False
