@@ -243,8 +243,8 @@ class BeatTimeline(Timeline):
             return []
 
         metric_fraction = number + fraction
-        if beats := self.metric_position_dict.get(metric_fraction):
-            return [beat.time for beat in beats]
+        if beats := self.metric_position_to_time.get(metric_fraction):
+            return beats
 
         keys = list(self.metric_position_dict.keys())
         idx = bisect(keys, metric_fraction)
@@ -271,7 +271,7 @@ class BeatTimeline(Timeline):
                 / (end_metric_fraction - start_metric_fraction)
                 * (end_time - start_time)
             )
-        self.metric_position_dict[metric_fraction] = output
+        self.metric_position_to_time[metric_fraction] = output
         return output
 
     def is_first_in_measure(self, beat):
@@ -415,14 +415,17 @@ class BeatTimeline(Timeline):
 
     def update_metric_position_dict(self):
         self.metric_position_dict = {}
+        self.metric_position_to_time = {}
         for beat in self.components:
             metric_position = (mp := beat.metric_position).measure + (
                 mp.beat - 1
             ) / mp.measure_beat_count
             if mp := self.metric_position_dict.get(metric_position):
                 mp.append(beat)
+                self.metric_position_to_time[metric_position].append(beat.time)
             else:
                 self.metric_position_dict[metric_position] = [beat]
+                self.metric_position_to_time[metric_position] = [beat.time]
 
     def get_measure_index(self, beat_index: int) -> tuple[int, int]:
         prev_n = 0
