@@ -143,7 +143,6 @@ class SvgViewer(ViewDockWidget):
         self.score_renderer = QSvgRenderer()
         self.tla_annotations = {}
         self.next_tla_id = 0
-        self.is_dragging = False
         self.drag_pos = QPointF()
         self.is_hidden = False
         self.visible_measures = [
@@ -210,7 +209,6 @@ class SvgViewer(ViewDockWidget):
     def _get_drag_actions(self) -> None:
         def _start_drag(start_pos: QPointF) -> None:
             self.filter_selection(SvgTlaAnnotation)
-            self.is_dragging = True
             self.drag_pos = start_pos
 
         def _while_drag(current_pos: QPointF) -> None:
@@ -224,7 +222,6 @@ class SvgViewer(ViewDockWidget):
             for item in self.scene.selectedItems():
                 item.moveBy(d_pos.x(), d_pos.y())
                 self.save_tla_annotation(item)
-            self.is_dragging = False
             post(Post.APP_RECORD_STATE, "score annotation")
 
         return {"press": _start_drag, "move": _while_drag, "release": _after_drag}
