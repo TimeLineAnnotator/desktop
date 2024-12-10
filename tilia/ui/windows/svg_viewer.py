@@ -175,6 +175,21 @@ class SvgViewer(ViewDockWidget):
 
     def load_svg_data(self, data: str) -> None:
         self.score_root = etree.fromstring(data)
+        beat_x_pos, success = self.timeline.set_data(
+            "viewer_beat_x", self._get_beat_x_pos(self.score_root)
+        )
+        if not success:
+            tilia.errors.display(
+                tilia.errors.SCORE_SVG_CREATE_ERROR,
+                "File not properly set up. Beat positions not found.",
+            )
+        else:
+            self.relative_start_x = beat_x_pos
+        self.timeline.save_svg_data(str(etree.tostring(self.score_root), "utf-8"))
+
+        if not self.timeline_ui:
+            return
+
         self.score_renderer.load(bytearray(etree.tostring(self.score_root)))
 
         for item in self.scene.items():
@@ -187,12 +202,53 @@ class SvgViewer(ViewDockWidget):
         self.scene.addItem(bg)
         self.create_stavenotes(self.score_root)
 
-        if self.timeline_ui and not self.is_hidden:
-            if not self.isVisible():
-                self.parent().addDockWidget(
-                    Qt.DockWidgetArea.BottomDockWidgetArea, self
-                )
-            self.show()
+        if not self.isVisible():
+            self.parent().addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self)
+
+        self.show()
+        if (
+            visible := self.view.mapToScene(self.view.viewport().geometry())
+            .boundingRect()
+            .height()
+            - (
+                s.height()
+                if (s := self.view.horizontalScrollBar()).maximum() != 0
+                else 0
+            )
+        ) < (actual := self.view.sceneRect().height()):
+            zoom_level = visible / actual
+            self.view.setTransform(self.view.transform().scale(zoom_level, zoom_level))
+
+    def _get_beat_x_pos(self, root: etree.Element) -> dict:
+        texts = root.findall(".//g[@class='vf-text']")
+        x_stamps = {}
+        measure_divs = {}
+        for e in texts:
+            if float(e[0].attrib["font-size"].strip("px")) > 1:
+                continue
+            if len(x_stamp := e[0].text.split("␟")) != 3:
+                e[0].attrib["font-size"] = "15px"
+                continue
+
+            e.getparent().remove(e)
+
+            measure, beat_div, max_div = map(int, x_stamp)
+            if x_stamps.get(measure):
+                if cur_x := x_stamps[measure].get(beat_div):
+                    if cur_x > (x := float(e[0].attrib["x"])):
+                        x_stamps[measure][beat_div] = x
+                else:
+                    x_stamps[measure][beat_div] = float(e[0].attrib["x"])
+
+            else:
+                x_stamps[measure] = {beat_div: float(e[0].attrib["x"])}
+                measure_divs[measure] = max_div
+
+        return {
+            measure + beat_div / max_div: x
+            for measure, value in x_stamps.items()
+            for beat_div, x in value.items()
+        }
 
     def create_stavenotes(self, root: etree.Element) -> None:
         def process(element: etree.Element):

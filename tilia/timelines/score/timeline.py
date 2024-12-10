@@ -5,7 +5,7 @@ from pathlib import Path
 
 from tilia.requests import post, Post
 from tilia.timelines.base.component.mixed import scale_mixed, crop_mixed
-from tilia.timelines.base.validators import validate_string
+from tilia.timelines.base.validators import validate_string, validate_pre_validated
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
@@ -38,13 +38,24 @@ class ScoreTLComponentManager(TimelineComponentManager):
 
 class ScoreTimeline(Timeline):
     KIND = TimelineKind.SCORE_TIMELINE
-    SERIALIZABLE_BY_VALUE = ["height", "is_visible", "name", "ordinal", "svg_data"]
+    SERIALIZABLE_BY_VALUE = [
+        "height",
+        "is_visible",
+        "name",
+        "ordinal",
+        "svg_data",
+        "viewer_beat_x",
+    ]
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
 
-    def __init__(self, svg_data: str = "", **kwargs):
+    def __init__(self, svg_data: str = "", viewer_beat_x: dict = {}, **kwargs):
         super().__init__(**kwargs)
 
-        self.validators = self.validators | {"svg_data": validate_string}
+        self.validators = self.validators | {
+            "svg_data": validate_string,
+            "viewer_beat_x": validate_pre_validated,
+        }
+        self._viewer_beat_x = viewer_beat_x
         self.svg_data = svg_data
         self.svg_view = SvgViewer(name=self.get_data("name"), tl=self)
 
@@ -57,6 +68,15 @@ class ScoreTimeline(Timeline):
         self._svg_data = svg_data
         if svg_data:
             self.svg_view.load_svg_data(svg_data)
+
+    @property
+    def viewer_beat_x(self):
+        return self._viewer_beat_x
+
+    @viewer_beat_x.setter
+    def viewer_beat_x(self, x_pos: dict = {}) -> dict:
+        if x_pos:
+            self._viewer_beat_x = x_pos
 
     def save_svg_data(self, svg_data):
         self._svg_data = svg_data

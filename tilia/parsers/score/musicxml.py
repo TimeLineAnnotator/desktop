@@ -172,6 +172,14 @@ def notes_from_musicXML(
             "octave": int(element.find("unpitched/display-octave").text),
         }
 
+    def __annotate_metric_position(
+        element: etree.Element, metric_division: MetricDivision
+    ) -> None:
+        n = etree.SubElement(element, "notations")
+        t = etree.SubElement(n, "technical")
+        f = etree.SubElement(t, "fingering")
+        f.text = f"{metric_division.measure_num[1]}␟{metric_division.div_position[1]}␟{metric_division.max_div_per_measure}"
+
     def _get_note_times(
         metric_division: MetricDivision, duration: float, is_chord: bool
     ) -> tuple[list[float], list[float]]:
@@ -200,6 +208,7 @@ def notes_from_musicXML(
         constructor_kwargs = dict()
 
         if element.find("rest") is not None:
+            __annotate_metric_position(element, metric_division)
             metric_division.update_measure_position(duration)
             return
 
@@ -224,6 +233,7 @@ def notes_from_musicXML(
         start_times, end_times = _get_note_times(metric_division, duration, is_chord)
 
         if not is_chord:
+            __annotate_metric_position(element, metric_division)
             metric_division.update_measure_position(duration)
 
         for start, end in zip(start_times, end_times):
@@ -343,7 +353,7 @@ class MetricDivision:
         self.update_max_divs()
 
     def update_max_divs(self):
-        self.max_div_per_measure = (
+        self.max_div_per_measure = round(
             4 / self.ts_denominator * self.ts_numerator * self.div_per_quarter
         )
 

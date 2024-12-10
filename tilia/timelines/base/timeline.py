@@ -125,7 +125,7 @@ class Timeline(ABC, Generic[TC]):
         if not self.validate_set_data(attr, value):
             return None, False
         setattr(self, attr, value)
-        return value, True
+        return getattr(self, attr), True
 
     def validate_get_data(self, attr):
         if not hasattr(self, attr):
