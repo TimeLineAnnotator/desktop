@@ -23,7 +23,14 @@ from tilia.ui.timelines.collection.requests.enums import ElementSelector
 from tilia.ui.timelines.cursors import CursorMixIn
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.score.context_menu import ScoreTimelineUIContextMenu
-from tilia.ui.timelines.score.element import NoteUI, StaffUI, ClefUI, BarLineUI, TimeSignatureUI, KeySignatureUI
+from tilia.ui.timelines.score.element import (
+    NoteUI,
+    StaffUI,
+    ClefUI,
+    BarLineUI,
+    TimeSignatureUI,
+    KeySignatureUI,
+)
 from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,
 )
@@ -38,7 +45,14 @@ class ScoreTimelineUI(TimelineUI):
     ACCEPTS_HORIZONTAL_ARROWS = True
 
     TIMELINE_KIND = TimelineKind.SCORE_TIMELINE
-    ELEMENT_CLASS = [NoteUI, StaffUI, BarLineUI, ClefUI, TimeSignatureUI, KeySignatureUI]
+    ELEMENT_CLASS = [
+        NoteUI,
+        StaffUI,
+        BarLineUI,
+        ClefUI,
+        TimeSignatureUI,
+        KeySignatureUI,
+    ]
 
     CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
 
@@ -70,7 +84,11 @@ class ScoreTimelineUI(TimelineUI):
 
         self._setup_svg_view()
 
-        listen(self, Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.on_score_timeline_components_deserialized)
+        listen(
+            self,
+            Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED,
+            self.on_score_timeline_components_deserialized,
+        )
 
     def _setup_pixmaps(self):
         self.pixmaps = {
@@ -217,10 +235,13 @@ class ScoreTimelineUI(TimelineUI):
         min_margin_bottom = 30
         staff_heights = {}
         for i, notes in self.staff_extreme_notes.items():
-            bottom = max(
-                notes["low"].top_y + notes["low"].note_height(),
-                self.get_staff_bottom_y(i),
-            ) + min_margin_bottom
+            bottom = (
+                max(
+                    notes["low"].top_y + notes["low"].note_height(),
+                    self.get_staff_bottom_y(i),
+                )
+                + min_margin_bottom
+            )
             top = min(notes["high"].top_y, self.get_staff_top_y(i)) - min_margin_top
 
             staff_heights[i] = int(bottom - top)
