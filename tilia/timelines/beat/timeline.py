@@ -52,7 +52,6 @@ class BeatTLComponentManager(TimelineComponentManager):
                 self.update_is_first_in_measure_of_subsequent_beats(
                     self.get_components().index(beat) + 1
                 )
-            self.timeline.update_metric_position_dict()
 
         return success, beat, reason
 
