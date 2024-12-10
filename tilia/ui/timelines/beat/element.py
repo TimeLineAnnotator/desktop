@@ -190,7 +190,7 @@ class BeatUI(TimelineUIElement):
             self.dragged = True
 
     def after_each_drag(self, drag_x: int):
-        self.tl_component.time = time_x_converter.get_time_by_x(drag_x)
+        self.set_data("time", time_x_converter.get_time_by_x(drag_x))
         self.update_position()
 
     def on_drag_end(self):
