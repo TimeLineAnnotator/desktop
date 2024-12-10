@@ -245,7 +245,7 @@ class SvgViewer(ViewDockWidget):
                 measure_divs[measure] = max_div
 
         return {
-            measure + beat_div / max_div: x
+            measure + beat_div / measure_divs[measure]: x
             for measure, value in x_stamps.items()
             for beat_div, x in value.items()
         }
