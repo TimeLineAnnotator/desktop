@@ -430,6 +430,8 @@ class ScoreTimelineUI(TimelineUI):
         self.measure_tracker = MeasureTracker()
         self.scene.addItem(self.measure_tracker)
         setup_smooth(self)
+        if (data := self.timeline.svg_data) and not self.svg_view.is_data_loaded:
+            self.svg_view.load_svg_data(data)
 
     def on_left_click(self, item, modifier, double, x, y):
         if item != self.measure_tracker:

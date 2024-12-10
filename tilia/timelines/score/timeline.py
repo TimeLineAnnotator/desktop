@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-from pathlib import Path
 
 from tilia.requests import post, Post
 from tilia.timelines.base.component.mixed import scale_mixed, crop_mixed
@@ -10,7 +9,6 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
-from tilia.requests import get, Get
 from tilia.ui.windows.svg_viewer import SvgViewer
 
 
@@ -48,7 +46,9 @@ class ScoreTimeline(Timeline):
     ]
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
 
-    def __init__(self, svg_data: str = "", viewer_beat_x: dict = {}, **kwargs):
+    def __init__(
+        self, svg_data: str = "", viewer_beat_x: dict[float, float] = {}, **kwargs
+    ):
         super().__init__(**kwargs)
 
         self.validators = self.validators | {
@@ -57,7 +57,12 @@ class ScoreTimeline(Timeline):
         }
         self._viewer_beat_x = viewer_beat_x
         self.svg_data = svg_data
-        self.svg_view = SvgViewer(name=self.get_data("name"), tl=self)
+
+    @property
+    def svg_view(self):
+        if not hasattr(self, "_svg_view"):
+            self._svg_view = SvgViewer(name=self.get_data("name"), tl=self)
+        return self._svg_view
 
     @property
     def svg_data(self):
@@ -74,7 +79,7 @@ class ScoreTimeline(Timeline):
         return self._viewer_beat_x
 
     @viewer_beat_x.setter
-    def viewer_beat_x(self, x_pos: dict = {}) -> dict:
+    def viewer_beat_x(self, x_pos: dict[float, float] = {}) -> dict[float, float]:
         if x_pos:
             self._viewer_beat_x = x_pos
 

@@ -130,6 +130,9 @@ class SvgViewer(ViewDockWidget):
         self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.view.setFrameShadow(QFrame.Shadow.Sunken)
         self.view.setFrameShape(QFrame.Shape.Panel)
+        self.view.setViewportUpdateMode(
+            QGraphicsView.ViewportUpdateMode.FullViewportUpdate
+        )
 
         v_toolbar = self._get_toolbar()
         h_box = QHBoxLayout()
@@ -145,11 +148,12 @@ class SvgViewer(ViewDockWidget):
         self.next_tla_id = 0
         self.drag_pos = QPointF()
         self.is_hidden = False
+        self.is_data_loaded = False
         self.visible_measures = [
             {"number": 1, "fraction": 0},
             {"number": 1, "fraction": 0},
         ]
-        self.relative_start_x = {}
+        self.beat_x_position = {}
 
     def _get_toolbar(self) -> QVBoxLayout:
         def get_button(qaction, callback):
@@ -184,13 +188,16 @@ class SvgViewer(ViewDockWidget):
                 "File not properly set up. Beat positions not found.",
             )
         else:
-            self.relative_start_x = beat_x_pos
+            self.beat_x_position = {
+                float(beat): float(x) for beat, x in beat_x_pos.items()
+            }
         self.timeline.save_svg_data(str(etree.tostring(self.score_root), "utf-8"))
 
         if not self.timeline_ui:
             return
 
         self.score_renderer.load(bytearray(etree.tostring(self.score_root)))
+        self.is_data_loaded = True
 
         for item in self.scene.items():
             if not isinstance(item, SvgTlaAnnotation):
@@ -219,7 +226,7 @@ class SvgViewer(ViewDockWidget):
             zoom_level = visible / actual
             self.view.setTransform(self.view.transform().scale(zoom_level, zoom_level))
 
-    def _get_beat_x_pos(self, root: etree.Element) -> dict:
+    def _get_beat_x_pos(self, root: etree.Element) -> dict[float, float]:
         texts = root.findall(".//g[@class='vf-text']")
         x_stamps = {}
         measure_divs = {}
