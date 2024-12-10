@@ -397,6 +397,8 @@ class SvgViewer(ViewDockWidget):
             return
         for item in to_edit:
             font = item.font()
+            if font.pointSize() < 2:
+                continue
             font.setPointSize(font.pointSize() // 2)
             item.setFont(font)
             self.save_tla_annotation(item)
