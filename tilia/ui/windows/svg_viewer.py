@@ -1,5 +1,5 @@
-# TODO: reimplement tracker
-
+# TODO: playback line
+# TODO: QThreads
 from __future__ import annotations
 
 from html import escape, unescape
@@ -7,8 +7,8 @@ from pathlib import Path
 from re import sub
 from lxml import etree
 
-# from bisect import bisect
-from typing import TYPE_CHECKING
+from bisect import bisect
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6.QtCore import (
     pyqtSlot,
@@ -38,7 +38,7 @@ from PyQt6.QtSvg import QSvgRenderer
 
 from tilia.ui.actions import TiliaAction, get_qaction
 
-# from tilia.ui.smooth_scroll import smooth, setup_smooth
+from tilia.ui.smooth_scroll import smooth, setup_smooth
 from tilia.ui.windows.view_window import ViewDockWidget
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import get, Get, post, Post
@@ -124,15 +124,13 @@ class SvgViewer(ViewDockWidget):
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
 
     def __setup_score_viewer(self) -> None:
-        self.view = QGraphicsView(self)
+        self.view = SvgGraphicsView(
+            get_times=self._get_time_from_scene_x,
+            update_measure_tracker=self.update_measure_tracker,
+            parent=self,
+        )
         self.scene = QGraphicsScene(self.view)
         self.view.setScene(self.scene)
-        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        self.view.setFrameShadow(QFrame.Shadow.Sunken)
-        self.view.setFrameShape(QFrame.Shape.Panel)
-        self.view.setViewportUpdateMode(
-            QGraphicsView.ViewportUpdateMode.FullViewportUpdate
-        )
 
         v_toolbar = self._get_toolbar()
         h_box = QHBoxLayout()
@@ -149,6 +147,7 @@ class SvgViewer(ViewDockWidget):
         self.drag_pos = QPointF()
         self.is_hidden = False
         self.is_svg_loaded = False
+        self.visible_times = [0, 0]
         self.beat_x_position = {}
 
     def _get_toolbar(self) -> QVBoxLayout:
@@ -208,18 +207,7 @@ class SvgViewer(ViewDockWidget):
             self.parent().addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self)
 
         self.show()
-        if (
-            visible := self.view.mapToScene(self.view.viewport().geometry())
-            .boundingRect()
-            .height()
-            - (
-                s.height()
-                if (s := self.view.horizontalScrollBar()).maximum() != 0
-                else 0
-            )
-        ) < (actual := self.view.sceneRect().height()):
-            zoom_level = visible / actual
-            self.view.setTransform(self.view.transform().scale(zoom_level, zoom_level))
+        self.view.check_scale()
 
     def _get_beat_x_pos(self, root: etree._Element) -> dict[float, float]:
         texts = root.findall(".//g[@class='vf-text']", None)
@@ -259,7 +247,9 @@ class SvgViewer(ViewDockWidget):
                     process(child)
             else:
                 id = element.attrib.get("id")
-                stavenote = SvgStaveNote(self.score_renderer, id)
+                stavenote = SvgStaveNote(
+                    self.score_renderer, id, self._get_closest_time
+                )
                 self.scene.addItem(stavenote)
 
         process(root)
@@ -326,7 +316,7 @@ class SvgViewer(ViewDockWidget):
         self, text: str, id: int, x: float, y: float, font_size: int = 16
     ) -> SvgTlaAnnotation:
         new_annotation = SvgTlaAnnotation(
-            text, id, x, y, font_size, self._get_drag_actions()
+            text, id, x, y, font_size, self._get_drag_actions(), self._get_closest_time
         )
         self._check_tla_id(id)
         self.scene.addItem(new_annotation)
@@ -417,17 +407,115 @@ class SvgViewer(ViewDockWidget):
             self.save_tla_annotation(item)
         post(Post.APP_RECORD_STATE, "score annotation")
 
-    def zoom_in(self) -> None:
-        self.view.setTransform(self.view.transform().scale(1.1, 1.1))
-        self._check_zoom_limits()
+    def _get_time_from_scene_x(self, xs: dict[int, float]) -> dict[int, list[float]]:
+        output = {}
+        beat_pos = {}
+        beats, x_pos = list(self.beat_x_position.keys()), list(
+            self.beat_x_position.values()
+        )
+        for key, x in xs.items():
+            if x in x_pos:
+                idx = x_pos.index(x)
+                beat_pos[key] = ((b := beats[idx]) // 1, b % 1)
+                continue
 
-    def zoom_out(self) -> None:
-        self.view.setTransform(self.view.transform().scale(1 / 1.1, 1 / 1.1))
-        self._check_zoom_limits()
+            idx = bisect(x_pos, x)
+            if idx == 0 and len(beats) == 0:
+                b0 = 0
+                b1 = 1
+                x0 = self.scene.sceneRect().left()
+                x1 = self.scene.sceneRect().right()
+            elif idx == 0:
+                b0 = 0
+                b1 = beats[0]
+                x0 = self.scene.sceneRect().left()
+                x1 = x_pos[0]
+            elif idx == len(beats):
+                b0 = beats[idx - 1]
+                b1 = round(-(-b0 // 1))
+                x0 = x_pos[idx - 1]
+                x1 = self.scene.sceneRect().right()
+            else:
+                b0 = beats[idx - 1]
+                b1 = beats[idx]
+                x0 = x_pos[idx - 1]
+                x1 = x_pos[idx]
+            beat_pos[key] = (
+                (num := b0 // 1),
+                (frac := (b1 - b0) * (x - x0) / (x1 - x0) + b0 % 1),
+            )
+            self.beat_x_position[num + frac] = x
 
-    def _check_zoom_limits(self) -> None:
-        if (br := self.scene.itemsBoundingRect()) != self.scene.sceneRect():
-            self.scene.setSceneRect(br)
+            self.beat_x_position = {
+                k: self.beat_x_position[k] for k in sorted(self.beat_x_position.keys())
+            }
+
+        beat_tl = get(
+            Get.TIMELINE_COLLECTION
+        ).get_beat_timeline_for_measure_calculation()
+        for key, beat in beat_pos.items():
+            t = beat_tl.get_time_by_measure(*beat)
+            if not t:
+                t = (
+                    [0]
+                    if beat[0] < min(beat_tl.measure_numbers)
+                    else [get(Get.MEDIA_DURATION)]
+                )
+            output[key] = t
+
+        return output
+
+    def _get_scene_x_from_time(self, time: float) -> float:
+        beat_tl = get(
+            Get.TIMELINE_COLLECTION
+        ).get_beat_timeline_for_measure_calculation()
+        beat = beat_tl.get_metric_fraction_by_time(time)
+        if x := self.beat_x_position.get(beat):
+            return x
+        beats, x_pos = list(self.beat_x_position.keys()), list(
+            self.beat_x_position.values()
+        )
+        idx = bisect(beats, beat)
+        if idx == 0:
+            return x_pos[0]
+        if idx == len(beats):
+            return x_pos[idx - 1]
+        return (beat - beats[idx - 1]) / (beats[idx] - beats[idx - 1]) * (
+            x_pos[idx] - x_pos[idx - 1]
+        ) + x_pos[idx - 1]
+
+    def _get_closest_time(
+        self, x: float
+    ) -> tuple[tuple[float, float], None | tuple[float, float]]:
+        times = self._get_time_from_scene_x({0: x}).get(0)
+        current_time = get(Get.SELECTED_TIME)
+        idx = bisect(times, current_time)
+        if idx == 0:
+            return ((times[0], current_time - times[0]), None)
+        if idx == len(times):
+            return ((times[-1], current_time - times[0]), None)
+        return (
+            ((t0 := times[idx - 1]), current_time - t0),
+            ((t1 := times[idx]), current_time - t1),
+        )
+
+    def update_measure_tracker(self, start: float, end: float) -> None:
+        if (new_visible_times := [start, end]) == self.visible_times:
+            return
+        self.visible_times = new_visible_times
+        if start != end:
+            self.timeline_ui.update_measure_tracker_position(start, end)
+            self.timeline_ui.measure_tracker.show()
+        else:
+            self.timeline_ui.measure_tracker.hide()
+
+    def scroll_to_time(self, time: float, is_centered: bool):
+        x = self._get_scene_x_from_time(time)
+        cur_viewport = self.view.current_viewport_x
+        margin = (width := (cur_viewport[1] - cur_viewport[0])) / 10
+        if (cur_viewport[0] + margin) < x < (cur_viewport[1] - margin):
+            return
+        self.view.scroll_to_x(x if is_centered else x + width / 2 - margin)
 
     def hideEvent(self, a0) -> None:
         self.timeline_ui.measure_tracker.hide()
@@ -463,26 +551,111 @@ class SvgViewer(ViewDockWidget):
         else:
             return super().keyPressEvent(a0)
 
-    def wheelEvent(self, a0) -> None:
-        if Qt.KeyboardModifier.ControlModifier not in a0.modifiers():
-            return super().wheelEvent(a0)
 
-        if Qt.KeyboardModifier.ShiftModifier in a0.modifiers():
-            dx = a0.angleDelta().y()
-            dy = a0.angleDelta().x()
+class SvgGraphicsView(QGraphicsView):
+    def __init__(
+        self,
+        get_times: Callable[[dict[int, float]], dict[int, list[float]]],
+        update_measure_tracker: Callable[[float, float], None],
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self.setFrameShadow(QFrame.Shadow.Sunken)
+        self.setFrameShape(QFrame.Shape.Panel)
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        self.get_times = get_times
+        self.current_viewport_x = {0: 0.0, 1: 0.0}
+        self.current_viewport_y_center = 0.0
+        self.current_viewport_x_center = 0.0
+        self._viewport_updated()
+        self.update_measure_tracker = update_measure_tracker
+        setup_smooth(self)
+
+    def _viewport_updated(self) -> bool:
+        viewport = self.mapToScene(self.viewport().geometry()).boundingRect()
+        self.current_viewport_y_center = viewport.center().y()
+        self.current_viewport_x_center = viewport.center().x()
+        if (
+            vp := {0: viewport.left(), 1: viewport.right()}
+        ).values() == self.current_viewport_x.values():
+            return False
+
+        self.current_viewport_x = vp
+        return True
+
+    def _check_scene_bounding_rect(self) -> None:
+        if (
+            scene_bounding_rect := self.scene().itemsBoundingRect()
+        ) != self.scene().sceneRect():
+            self.scene().setSceneRect(scene_bounding_rect)
+
+    def check_scale(self) -> None:
+        if (
+            visible := self.mapToScene(self.viewport().geometry())
+            .boundingRect()
+            .height()
+            - (
+                h_scroll_bar.height()
+                if (h_scroll_bar := self.horizontalScrollBar()).maximum() != 0
+                else 0
+            )
+        ) < (actual := self.sceneRect().height()):
+            self.setTransform(
+                self.transform().scale((zoom_level := visible / actual), zoom_level)
+            )
+            self._check_scene_bounding_rect()
+
+    def scroll_to_x(self, x: float):
+        def __get_x():
+            return [self.current_viewport_x_center]
+
+        @smooth(self, __get_x)
+        def __set_x(x):
+            self.centerOn(x, self.current_viewport_y_center)
+
+        __set_x(x)
+
+    def wheelEvent(self, event):
+        if Qt.KeyboardModifier.ControlModifier not in event.modifiers():
+            return super().wheelEvent(event)
+
+        if Qt.KeyboardModifier.ShiftModifier in event.modifiers():
+            dx = event.angleDelta().y()
+            dy = event.angleDelta().x()
         else:
-            dx = a0.angleDelta().x()
-            dy = a0.angleDelta().y()
+            dx = event.angleDelta().x()
+            dy = event.angleDelta().y()
 
-        if a0.inverted():
+        if event.inverted():
             temp = dx
             dx = dy
             dy = temp
 
+        old_anchor = self.transformationAnchor()
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         if dy > 0:
-            self.zoom_in()
+            self.setTransform(self.transform().scale(1.1, 1.1))
         else:
-            self.zoom_out()
+            self.setTransform(self.transform().scale(1 / 1.1, 1 / 1.1))
+        self.setTransformationAnchor(old_anchor)
+        self._check_scene_bounding_rect()
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        if self._viewport_updated():
+            start_ts, end_ts = self.get_times(self.current_viewport_x).values()
+            current_time = get(Get.SELECTED_TIME)
+            start_time = start_ts[
+                s_idx - 1 if (s_idx := bisect(start_ts, current_time)) != 0 else s_idx
+            ]
+            end_time = (
+                end_ts[e_idx]
+                if (e_idx := bisect(end_ts, start_time)) != len(end_ts)
+                else get(Get.MEDIA_DURATION)
+            )
+            self.update_measure_tracker(start_time, end_time)
 
 
 class SvgStaveNote(QGraphicsSvgItem):
@@ -490,12 +663,16 @@ class SvgStaveNote(QGraphicsSvgItem):
         self,
         renderer: QSvgRenderer,
         id: str,
+        get_time: Callable[
+            [float], tuple[tuple[float, float], None | tuple[float, float]]
+        ],
     ) -> None:
         super().__init__()
         self.setSharedRenderer(renderer)
         self.setElementId(id)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setPos(renderer.boundsOnElement(id).topLeft())
+        self.get_time = get_time
 
     def paint(self, painter, option, widget) -> None:
         super().paint(painter, option, widget)
@@ -503,6 +680,14 @@ class SvgStaveNote(QGraphicsSvgItem):
             painter.setRenderHint(painter.RenderHint.Antialiasing, True)
             painter.setCompositionMode(painter.CompositionMode.CompositionMode_SourceIn)
             painter.fillRect(self.boundingRect(), Qt.GlobalColor.red)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        t0, t1 = self.get_time(event.scenePos().x())
+        if not t1 or abs(t0[1]) < abs(t1[1]):
+            post(Post.PLAYER_SEEK, t0[0])
+        else:
+            post(Post.PLAYER_SEEK, t1[0])
+        return super().mouseDoubleClickEvent(event)
 
 
 class SvgTlaAnnotation(QGraphicsSimpleTextItem):
@@ -514,6 +699,9 @@ class SvgTlaAnnotation(QGraphicsSimpleTextItem):
         y: float,
         font_size: int,
         drag_actions: dict[str, Callable[[QPointF], None]],
+        get_time: Callable[
+            [float], tuple[tuple[float, float], None | tuple[float, float]]
+        ],
     ) -> None:
         super().__init__(text)
         self.id = id
@@ -522,9 +710,11 @@ class SvgTlaAnnotation(QGraphicsSimpleTextItem):
         font = self.font()
         font.setPointSize(font_size)
         font.setStyle(QFont.Style.StyleOblique)
+        font.setWeight(QFont.Weight.Medium)
         font.setStyleHint(QFont.StyleHint.Serif, QFont.StyleStrategy.PreferDevice)
         self.setFont(font)
         self.drag_actions = drag_actions
+        self.get_time = get_time
 
     def paint(self, painter, option, widget) -> None:
         self.setBrush(Qt.GlobalColor.red if self.isSelected() else Qt.GlobalColor.black)
@@ -541,3 +731,11 @@ class SvgTlaAnnotation(QGraphicsSimpleTextItem):
     def mouseReleaseEvent(self, event) -> None:
         self.drag_actions["release"](event.scenePos())
         return super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        t0, t1 = self.get_time(event.scenePos().x())
+        if not t1 or abs(t0[1]) < abs(t1[1]):
+            post(Post.PLAYER_SEEK, t0[0])
+        else:
+            post(Post.PLAYER_SEEK, t1[0])
+        return super().mouseDoubleClickEvent(event)
