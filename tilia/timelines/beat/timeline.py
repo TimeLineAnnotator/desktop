@@ -261,6 +261,8 @@ class BeatTimeline(Timeline):
                     (mp := e.metric_position).beat - 1
                 ) / mp.measure_beat_count + (mp.measure - start_measure)
                 end_time = e.time
+                if mp.measure < start_measure:
+                    end_metric_fraction = 1.0
             else:
                 end_metric_fraction = 1.0
                 end_time = get(Get.MEDIA_DURATION)
