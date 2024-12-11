@@ -72,5 +72,5 @@ class Beat(PointLikeTimelineComponent):
     def set_data(self, attr, value):
         value, success = super().set_data(attr, value)
         if success:
-            self.timeline.update_metric_position_dict()
+            self.timeline.update_metric_fraction_dicts()
         return value, success

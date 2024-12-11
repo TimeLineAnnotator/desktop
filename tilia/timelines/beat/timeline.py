@@ -242,16 +242,16 @@ class BeatTimeline(Timeline):
             return []
 
         metric_fraction = number + fraction
-        if beats := self.metric_position_to_time.get(metric_fraction):
+        if beats := self.metric_fraction_to_time.get(metric_fraction):
             return beats
 
-        keys = list(self.metric_position_dict.keys())
+        keys = list(self.metric_fraction_to_beat_dict.keys())
         idx = bisect(keys, metric_fraction)
 
         if idx == 0 or idx == len(keys):
             return []
 
-        starts = self.metric_position_dict[keys[idx - 1]]
+        starts = self.metric_fraction_to_beat_dict[keys[idx - 1]]
         output = []
         start_measure = keys[idx - 1] // 1
         start_metric_fraction = keys[idx - 1] % 1
@@ -270,7 +270,7 @@ class BeatTimeline(Timeline):
                 / (end_metric_fraction - start_metric_fraction)
                 * (end_time - start_time)
             )
-        self.metric_position_to_time[metric_fraction] = output
+        self.metric_fraction_to_time[metric_fraction] = output
         return output
 
     def is_first_in_measure(self, beat):
@@ -286,7 +286,6 @@ class BeatTimeline(Timeline):
             self.reduce_measure_numbers()
 
         self.update_beats_that_start_measures()
-        self.update_metric_position_dict()
 
     @staticmethod
     def get_extension_from_beat_pattern(
@@ -411,20 +410,21 @@ class BeatTimeline(Timeline):
             itertools.accumulate(self.beats_in_measure[:-1])
         )
         self.beats_that_start_measures_set = set(self.beats_that_start_measures)
+        self.update_metric_fraction_dicts()
 
-    def update_metric_position_dict(self):
-        self.metric_position_dict = {}
-        self.metric_position_to_time = {}
+    def update_metric_fraction_dicts(self):
+        self.metric_fraction_to_beat_dict = {}
+        self.metric_fraction_to_time = {}
         for beat in self.components:
-            metric_position = (mp := beat.metric_position).measure + (
+            metric_fraction = (mp := beat.metric_position).measure + (
                 mp.beat - 1
             ) / mp.measure_beat_count
-            if mp := self.metric_position_dict.get(metric_position):
+            if mp := self.metric_fraction_to_beat_dict.get(metric_fraction):
                 mp.append(beat)
-                self.metric_position_to_time[metric_position].append(beat.time)
+                self.metric_fraction_to_time[metric_fraction].append(beat.time)
             else:
-                self.metric_position_dict[metric_position] = [beat]
-                self.metric_position_to_time[metric_position] = [beat.time]
+                self.metric_fraction_to_beat_dict[metric_fraction] = [beat]
+                self.metric_fraction_to_time[metric_fraction] = [beat.time]
 
     def get_measure_index(self, beat_index: int) -> tuple[int, int]:
         prev_n = 0
