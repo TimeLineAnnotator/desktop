@@ -148,11 +148,7 @@ class SvgViewer(ViewDockWidget):
         self.next_tla_id = 0
         self.drag_pos = QPointF()
         self.is_hidden = False
-        self.is_data_loaded = False
-        self.visible_measures = [
-            {"number": 1, "fraction": 0},
-            {"number": 1, "fraction": 0},
-        ]
+        self.is_svg_loaded = False
         self.beat_x_position = {}
 
     def _get_toolbar(self) -> QVBoxLayout:
@@ -197,7 +193,7 @@ class SvgViewer(ViewDockWidget):
             return
 
         self.score_renderer.load(bytearray(etree.tostring(self.score_root)))
-        self.is_data_loaded = True
+        self.is_svg_loaded = True
 
         for item in self.scene.items():
             if not isinstance(item, SvgTlaAnnotation):
