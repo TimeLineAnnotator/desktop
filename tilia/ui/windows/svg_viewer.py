@@ -174,7 +174,7 @@ class SvgViewer(ViewDockWidget):
         return v_toolbar
 
     def load_svg_data(self, data: str) -> None:
-        self.score_root = etree.fromstring(data)
+        self.score_root = etree.fromstring(data, None)
         beat_x_pos, success = self.timeline.set_data(
             "viewer_beat_x", self._get_beat_x_pos(self.score_root)
         )
@@ -198,7 +198,6 @@ class SvgViewer(ViewDockWidget):
         for item in self.scene.items():
             if not isinstance(item, SvgTlaAnnotation):
                 self.scene.removeItem(item)
-                item.deleteLater()
 
         bg = QGraphicsSvgItem()
         bg.setSharedRenderer(self.score_renderer)
@@ -222,8 +221,8 @@ class SvgViewer(ViewDockWidget):
             zoom_level = visible / actual
             self.view.setTransform(self.view.transform().scale(zoom_level, zoom_level))
 
-    def _get_beat_x_pos(self, root: etree.Element) -> dict[float, float]:
-        texts = root.findall(".//g[@class='vf-text']")
+    def _get_beat_x_pos(self, root: etree._Element) -> dict[float, float]:
+        texts = root.findall(".//g[@class='vf-text']", None)
         x_stamps = {}
         measure_divs = {}
         for e in texts:
@@ -253,8 +252,8 @@ class SvgViewer(ViewDockWidget):
             for beat_div, x in value.items()
         }
 
-    def create_stavenotes(self, root: etree.Element) -> None:
-        def process(element: etree.Element):
+    def create_stavenotes(self, root: etree._Element) -> None:
+        def process(element: etree._Element):
             if element.attrib.get("class", "none") != "vf-stavenote":
                 for child in element:
                     process(child)
@@ -265,7 +264,7 @@ class SvgViewer(ViewDockWidget):
 
         process(root)
 
-    def _get_drag_actions(self) -> None:
+    def _get_drag_actions(self) -> dict[str, Callable[[QPointF], None]]:
         def _start_drag(start_pos: QPointF) -> None:
             self.filter_selection(SvgTlaAnnotation)
             self.drag_pos = start_pos
@@ -305,7 +304,7 @@ class SvgViewer(ViewDockWidget):
             "annotation": annotation,
         }
 
-    def filter_selection(self, type: SvgStaveNote | SvgTlaAnnotation):
+    def filter_selection(self, type: type[SvgStaveNote | SvgTlaAnnotation]) -> None:
         for selected in self.scene.selectedItems():
             if not isinstance(selected, type):
                 selected.setSelected(False)
@@ -325,7 +324,7 @@ class SvgViewer(ViewDockWidget):
 
     def create_annotation(
         self, text: str, id: int, x: float, y: float, font_size: int = 16
-    ) -> None:
+    ) -> SvgTlaAnnotation:
         new_annotation = SvgTlaAnnotation(
             text, id, x, y, font_size, self._get_drag_actions()
         )
@@ -444,9 +443,9 @@ class SvgViewer(ViewDockWidget):
         self.setFocus()
         return super().enterEvent(event)
 
-    def leaveEvent(self, event) -> None:
+    def leaveEvent(self, a0) -> None:
         self.clearFocus()
-        return super().leaveEvent(event)
+        return super().leaveEvent(a0)
 
     def keyPressEvent(self, a0) -> None:
         # listen here because these shortcuts are shared with the main window
@@ -487,7 +486,11 @@ class SvgViewer(ViewDockWidget):
 
 
 class SvgStaveNote(QGraphicsSvgItem):
-    def __init__(self, renderer, id) -> None:
+    def __init__(
+        self,
+        renderer: QSvgRenderer,
+        id: str,
+    ) -> None:
         super().__init__()
         self.setSharedRenderer(renderer)
         self.setElementId(id)
@@ -503,7 +506,15 @@ class SvgStaveNote(QGraphicsSvgItem):
 
 
 class SvgTlaAnnotation(QGraphicsSimpleTextItem):
-    def __init__(self, text, id, x, y, font_size, drag_actions) -> None:
+    def __init__(
+        self,
+        text: str,
+        id: int,
+        x: float,
+        y: float,
+        font_size: int,
+        drag_actions: dict[str, Callable[[QPointF], None]],
+    ) -> None:
         super().__init__(text)
         self.id = id
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
