@@ -9,7 +9,6 @@ from PyQt6.QtGui import QPixmap, QColor
 from PyQt6.QtWidgets import QGraphicsRectItem
 
 from tilia.exceptions import GetComponentDataError
-from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Get, get, listen, Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -416,9 +415,8 @@ class ScoreTimelineUI(TimelineUI):
         self.delete_svg_view()
         return super().delete()
 
-    def on_audio_time_change(self, time: float, reason: MediaTimeChangeReason) -> None:
-        if reason == MediaTimeChangeReason.PLAYBACK:
-            self.svg_view.scroll_to_time(time)
+    def on_audio_time_change(self, time: float, _) -> None:
+        self.svg_view.scroll_to_time(time, False)
 
     def _setup_svg_view(self) -> None:
         self.svg_view = self.timeline.svg_view
