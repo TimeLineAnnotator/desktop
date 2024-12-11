@@ -487,6 +487,7 @@ class BeatTimeline(Timeline):
         self.measure_numbers[measure_index] = number
         self.propagate_measure_number_change(measure_index)
         self.force_display_measure_number(measure_index)
+        self.update_metric_fraction_dicts()
 
     def reset_measure_number(self, measure_index: int) -> None:
         if measure_index == 0:
@@ -496,6 +497,7 @@ class BeatTimeline(Timeline):
                 self.measure_numbers[measure_index - 1] + 1
             )
         self.propagate_measure_number_change(measure_index)
+        self.update_metric_fraction_dicts()
 
         try:
             self.unforce_display_measure_number(measure_index)
