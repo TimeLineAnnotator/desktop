@@ -518,7 +518,10 @@ class SvgViewer(ViewDockWidget):
         self.view.scroll_to_x(x if is_centered else x + width / 2 - margin)
 
     def hideEvent(self, a0) -> None:
-        self.timeline_ui.measure_tracker.hide()
+        try:
+            self.timeline_ui.measure_tracker.hide()
+        except RuntimeError:
+            pass
         self.is_hidden = True
         return super().hideEvent(a0)
 
