@@ -273,7 +273,25 @@ class BeatTimeline(Timeline):
                 * (end_time - start_time)
             )
         self.metric_fraction_to_time[metric_fraction] = output
+        for o in output:
+            self.time_to_metric_fraction[o] = metric_fraction
+        self.__sort_time_to_metric()
+
         return output
+
+    def get_metric_fraction_by_time(self, time: float) -> float:
+        if mf := self.time_to_metric_fraction.get(time):
+            return mf
+        times = list(self.time_to_metric_fraction.keys())
+        metric_fraction = list(self.time_to_metric_fraction.values())
+        idx = bisect(times, time)
+        if idx == 0:
+            return metric_fraction[0]
+        if idx == len(times) or metric_fraction[idx] < metric_fraction[idx - 1]:
+            return metric_fraction[idx - 1]
+        return (time - times[idx - 1]) / (times[idx] - times[idx - 1]) * (
+            metric_fraction[idx] - metric_fraction[idx - 1]
+        ) + metric_fraction[idx - 1]
 
     def is_first_in_measure(self, beat):
         return self.components.index(beat) in set(self.beats_that_start_measures)
@@ -417,6 +435,7 @@ class BeatTimeline(Timeline):
     def update_metric_fraction_dicts(self):
         self.metric_fraction_to_beat_dict = {}
         self.metric_fraction_to_time = {}
+        self.time_to_metric_fraction = {}
         for beat in self.components:
             metric_fraction = (mp := beat.metric_position).measure + (
                 mp.beat - 1
@@ -424,9 +443,18 @@ class BeatTimeline(Timeline):
             if mp := self.metric_fraction_to_beat_dict.get(metric_fraction):
                 mp.append(beat)
                 self.metric_fraction_to_time[metric_fraction].append(beat.time)
+                self.time_to_metric_fraction[beat.time] = metric_fraction
             else:
                 self.metric_fraction_to_beat_dict[metric_fraction] = [beat]
                 self.metric_fraction_to_time[metric_fraction] = [beat.time]
+                self.time_to_metric_fraction[beat.time] = metric_fraction
+        self.__sort_time_to_metric()
+
+    def __sort_time_to_metric(self) -> None:
+        self.time_to_metric_fraction = {
+            k: self.time_to_metric_fraction[k]
+            for k in sorted(self.time_to_metric_fraction.keys())
+        }
 
     def get_measure_index(self, beat_index: int) -> tuple[int, int]:
         prev_n = 0
