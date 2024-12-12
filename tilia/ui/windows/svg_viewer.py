@@ -661,6 +661,8 @@ class SvgGraphicsView(QGraphicsView):
                 end_ts[e_idx]
                 if (e_idx := bisect(end_ts, start_time)) != len(end_ts)
                 else get(Get.MEDIA_DURATION)
+                if start_time != 0 and end_ts[0] != 0
+                else 0
             )
             self.update_measure_tracker(start_time, end_time)
 
