@@ -33,6 +33,10 @@ class ScoreTLComponentManager(TimelineComponentManager):
         super().restore_state(prev_state)
         post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
+    def clear(self):
+        self.timeline.reset_svg()
+        return super().clear()
+
 
 class ScoreTimeline(Timeline):
     KIND = TimelineKind.SCORE_TIMELINE
@@ -96,6 +100,11 @@ class ScoreTimeline(Timeline):
                 "index", ComponentKind.STAFF
             )
         )
+
+    def reset_svg(self):
+        self.svg_view.deleteLater()
+        self.save_svg_data("")
+        self._viewer_beat_x = {}
 
     def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
         def _remove_from_viewer(components: list[TimelineComponent]) -> None:
