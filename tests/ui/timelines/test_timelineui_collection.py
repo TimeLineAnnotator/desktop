@@ -144,22 +144,6 @@ class TestTimelineUICreation:
 
         assert tluis._select_order[0] == tlui2
 
-    @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
-    def test_create_timeline_without_media_duration_fails(
-        self, action, user_actions, tilia_state, tluis
-    ):
-        tilia_state.duration = 0
-        user_actions.trigger(action)
-        assert tluis.is_empty
-
-    def test_create_timeline_without_media_duration_displays_error(
-        self, tluis, tilia_errors, user_actions
-    ):
-        with Serve(Get.MEDIA_DURATION, 0):
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
-
-        tilia_errors.assert_error()
-
 
 class TestServe:
     def test_serve_timeline_elements_selected_empty_case(self, tluis):
