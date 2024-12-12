@@ -477,7 +477,7 @@ class ScoreTimelineUI(TimelineUI):
                 self.view.height(),
             )
 
-        if not (start and end):
+        if not (start or end):
             __update_position()
         else:
             __set_tracker_position(start, end)
