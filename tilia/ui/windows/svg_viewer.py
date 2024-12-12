@@ -299,7 +299,6 @@ class SvgViewer(ViewDockWidget):
         annotation = self.create_annotation(
             data["text"], data["viewer_id"], data["x"], data["y"], data["font_size"]
         )
-        annotation.setSelected(True)
         self.tla_annotations[data["viewer_id"]] = {
             "component": tl_component,
             "annotation": annotation,
