@@ -290,7 +290,9 @@ class BeatTimeline(Timeline):
         metric_fraction = list(self.time_to_metric_fraction.values())
         idx = bisect(times, time)
         if idx == 0:
-            return metric_fraction[0]
+            if len(times):
+                return metric_fraction[0]
+            return 0
         if idx == len(times) or metric_fraction[idx] < metric_fraction[idx - 1]:
             return metric_fraction[idx - 1]
         return (time - times[idx - 1]) / (times[idx] - times[idx - 1]) * (
