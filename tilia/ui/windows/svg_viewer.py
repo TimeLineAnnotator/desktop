@@ -535,7 +535,6 @@ class SvgViewer(ViewDockWidget):
         self.view.blockSignals(True)
         sr = self.scene.sceneRect()
         self.playback_line.setLine(self.cur_t_x, sr.top(), self.cur_t_x, sr.bottom())
-        self.playback_line.setVisible(True)
         self.view.blockSignals(False)
 
     def deleteLater(self):
@@ -550,6 +549,8 @@ class SvgViewer(ViewDockWidget):
         return super().hideEvent(a0)
 
     def showEvent(self, event):
+        self.scroll_to_time(get(Get.SELECTED_TIME), True)
+        self.playback_line.setVisible(True)
         self.timeline_ui.measure_tracker.show()
         return super().showEvent(event)
 
