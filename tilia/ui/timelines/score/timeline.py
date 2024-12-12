@@ -459,9 +459,9 @@ class ScoreTimelineUI(TimelineUI):
         self.dragged = False
 
     def update_measure_tracker_position(
-        self, start: float = None, end: float = None
+        self, start: float | None = None, end: float | None = None
     ) -> None:
-        def __get_tracker_position():
+        def __get_tracker_position() -> list[float]:
             return [self.tracker_start, self.tracker_end]
 
         @smooth(self, __get_tracker_position)
