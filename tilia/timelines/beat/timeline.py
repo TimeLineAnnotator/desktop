@@ -259,13 +259,14 @@ class BeatTimeline(Timeline):
         start_measure = keys[idx - 1] // 1
         start_metric_fraction = keys[idx - 1] % 1
         for start in starts:
-            if e := self.get_next_component(start.id):
+            if next_comp := self.get_next_component(start.id):
+                end_time = next_comp.time
                 end_metric_fraction = (
-                    (mp := e.metric_position).beat - 1
-                ) / mp.measure_beat_count + (mp.measure - start_measure)
-                end_time = e.time
-                if mp.measure < start_measure:
-                    end_metric_fraction = 1.0
+                    1.0
+                    if (mp := next_comp.metric_position).measure < start_measure
+                    else (mp.beat - 1) / mp.measure_beat_count
+                    + (mp.measure - start_measure)
+                )
             else:
                 end_metric_fraction = 1.0
                 end_time = get(Get.MEDIA_DURATION)
