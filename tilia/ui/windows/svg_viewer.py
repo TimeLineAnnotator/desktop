@@ -146,7 +146,6 @@ class SvgViewer(ViewDockWidget):
         self.tla_annotations = {}
         self.next_tla_id = 0
         self.drag_pos = QPointF()
-        self.is_hidden = False
         self.is_svg_loaded = False
         self.visible_times = [0, 0]
         self.beat_x_position = {}
@@ -526,12 +525,10 @@ class SvgViewer(ViewDockWidget):
             self.timeline_ui.measure_tracker.hide()
         except RuntimeError:
             pass
-        self.is_hidden = True
         return super().hideEvent(a0)
 
     def showEvent(self, event):
         self.timeline_ui.measure_tracker.show()
-        self.is_hidden = False
         return super().showEvent(event)
 
     def enterEvent(self, event) -> None:
