@@ -16,3 +16,6 @@ class ScoreAnnotationUI(TimelineUIElement):
 
     def on_deselect(self) -> None:
         pass
+
+    def update_position(self) -> None:
+        pass
