@@ -1,4 +1,3 @@
-# TODO: playback line
 # TODO: QThreads
 from __future__ import annotations
 
@@ -18,7 +17,7 @@ from PyQt6.QtCore import (
     QPointF,
     QUrl,
 )
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QColor, QFont, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineCore import QWebEngineSettings
@@ -124,6 +123,15 @@ class SvgViewer(ViewDockWidget):
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
 
     def __setup_score_viewer(self) -> None:
+        def get_playback_line():
+            pen = QPen()
+            pen.setColor(QColor("#80ff0000"))
+            pen.setWidth(10)
+            line = self.scene.addLine(0, 0, 0, 0, pen)
+            line.hide()
+            line.setZValue(3)
+            return line
+
         self.view = SvgGraphicsView(
             get_times=self._get_time_from_scene_x,
             update_measure_tracker=self.update_measure_tracker,
@@ -139,6 +147,7 @@ class SvgViewer(ViewDockWidget):
         widget = QWidget()
         widget.setLayout(h_box)
         self.setWidget(widget)
+        self.playback_line = get_playback_line()
 
         self.score_root = ""
         self.score_renderer = QSvgRenderer()
@@ -148,6 +157,7 @@ class SvgViewer(ViewDockWidget):
         self.is_svg_loaded = False
         self.visible_times = [0, 0]
         self.beat_x_position = {}
+        self.cur_t_x = 0.0
 
     def _get_toolbar(self) -> QVBoxLayout:
         def get_button(qaction, callback):
@@ -194,10 +204,11 @@ class SvgViewer(ViewDockWidget):
         self.is_svg_loaded = True
 
         for item in self.scene.items():
-            if not isinstance(item, SvgTlaAnnotation):
+            if isinstance(item, SvgStaveNote) or isinstance(item, QGraphicsSvgItem):
                 self.scene.removeItem(item)
 
         bg = QGraphicsSvgItem()
+        bg.setZValue(0)
         bg.setSharedRenderer(self.score_renderer)
         self.scene.addItem(bg)
         self.create_stavenotes(self.score_root)
@@ -509,15 +520,23 @@ class SvgViewer(ViewDockWidget):
             self.timeline_ui.measure_tracker.hide()
 
     def scroll_to_time(self, time: float, is_centered: bool):
-        x = self._get_scene_x_from_time(time)
+        self.cur_t_x = self._get_scene_x_from_time(time)
+        self._update_playback_line()
         if is_centered:
-            self.view.scroll_to_x(x)
+            self.view.scroll_to_x(self.cur_t_x)
             return
         cur_viewport = self.view.current_viewport_x
         margin = (width := (cur_viewport[1] - cur_viewport[0])) / 10
-        if (cur_viewport[0] + margin) < x < (cur_viewport[1] - margin):
+        if (cur_viewport[0] + margin) < self.cur_t_x < (cur_viewport[1] - margin):
             return
-        self.view.scroll_to_x(x + width / 2 - margin)
+        self.view.scroll_to_x(self.cur_t_x + width / 2 - margin)
+
+    def _update_playback_line(self):
+        self.view.blockSignals(True)
+        sr = self.scene.sceneRect()
+        self.playback_line.setLine(self.cur_t_x, sr.top(), self.cur_t_x, sr.bottom())
+        self.playback_line.setVisible(True)
+        self.view.blockSignals(False)
 
     def hideEvent(self, a0) -> None:
         try:
@@ -684,6 +703,7 @@ class SvgStaveNote(QGraphicsSvgItem):
         self.setElementId(id)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setPos(renderer.boundsOnElement(id).topLeft())
+        self.setZValue(1)
         self.get_time = get_time
 
     def paint(self, painter, option, widget) -> None:
@@ -725,6 +745,7 @@ class SvgTlaAnnotation(QGraphicsSimpleTextItem):
         font.setWeight(QFont.Weight.Medium)
         font.setStyleHint(QFont.StyleHint.Serif, QFont.StyleStrategy.PreferDevice)
         self.setFont(font)
+        self.setZValue(1)
         self.drag_actions = drag_actions
         self.get_time = get_time
 
