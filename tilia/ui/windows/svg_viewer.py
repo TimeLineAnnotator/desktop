@@ -620,7 +620,14 @@ class SvgGraphicsView(QGraphicsView):
 
         @smooth(self, __get_x)
         def __set_x(x):
-            self.centerOn(x, self.current_viewport_y_center)
+            old, has_sb = (
+                (sb.value(), True)
+                if (sb := self.verticalScrollBar())
+                else (None, False)
+            )
+            self.centerOn(x, 0)
+            if has_sb:
+                self.verticalScrollBar().setValue(old)
 
         __set_x(x)
 
