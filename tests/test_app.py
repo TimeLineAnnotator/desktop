@@ -501,8 +501,10 @@ class TestOpen:
 
 
 class TestUndoRedo:
-    def test_undo_fails(self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors):
-        with Serve(Get.FROM_USER_STRING, (True, 'test')):
+    def test_undo_fails(
+        self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors
+    ):
+        with Serve(Get.FROM_USER_STRING, (True, "test")):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
         # this will record an invalid state that will raise an exception when
@@ -524,8 +526,10 @@ class TestUndoRedo:
         assert len(tluis[0]) == 2
         tilia_errors.assert_error()
 
-    def test_redo_fails(self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors):
-        with Serve(Get.FROM_USER_STRING, (True, 'test')):
+    def test_redo_fails(
+        self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors
+    ):
+        with Serve(Get.FROM_USER_STRING, (True, "test")):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
         # this will record an invalid state that will raise an exception when
