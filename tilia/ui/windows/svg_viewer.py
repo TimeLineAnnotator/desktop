@@ -191,6 +191,7 @@ class SvgViewer(ViewDockWidget):
                 tilia.errors.SCORE_SVG_CREATE_ERROR,
                 "File not properly set up. Beat positions not found.",
             )
+            return
         else:
             self.beat_x_position = {
                 float(beat): float(x) for beat, x in beat_x_pos.items()
