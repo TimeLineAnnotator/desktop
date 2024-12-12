@@ -240,8 +240,7 @@ class BeatTimeline(Timeline):
 
         if not (min(self.measure_numbers) <= number <= max(self.measure_numbers)):
             return []
-
-        metric_fraction = number + fraction
+        metric_fraction = round(number + fraction, 3)
         if beats := self.metric_fraction_to_time.get(metric_fraction):
             return beats
 
@@ -437,9 +436,11 @@ class BeatTimeline(Timeline):
         self.metric_fraction_to_time = {}
         self.time_to_metric_fraction = {}
         for beat in self.components:
-            metric_fraction = (mp := beat.metric_position).measure + (
-                mp.beat - 1
-            ) / mp.measure_beat_count
+            metric_fraction = round(
+                (mp := beat.metric_position).measure
+                + (mp.beat - 1) / mp.measure_beat_count,
+                3,
+            )
             if mp := self.metric_fraction_to_beat_dict.get(metric_fraction):
                 mp.append(beat)
                 self.metric_fraction_to_time[metric_fraction].append(beat.time)
