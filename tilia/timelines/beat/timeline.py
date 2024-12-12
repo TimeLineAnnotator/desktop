@@ -240,6 +240,10 @@ class BeatTimeline(Timeline):
 
         if not (min(self.measure_numbers) <= number < max(self.measure_numbers)):
             return []
+
+        if not (0 <= fraction <= 1.0):
+            raise ValueError("Fraction must be between 0 and 1 inclusive.")
+
         metric_fraction = round(number + fraction, 3)
         if beats := self.metric_fraction_to_time.get(metric_fraction):
             return beats
