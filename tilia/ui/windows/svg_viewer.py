@@ -1,5 +1,6 @@
 # TODO: playback line
 # TODO: QThreads
+# TODO: tracker does not load after viewer is loaded
 from __future__ import annotations
 
 from html import escape, unescape
@@ -511,11 +512,14 @@ class SvgViewer(ViewDockWidget):
 
     def scroll_to_time(self, time: float, is_centered: bool):
         x = self._get_scene_x_from_time(time)
+        if is_centered:
+            self.view.scroll_to_x(x)
+            return
         cur_viewport = self.view.current_viewport_x
         margin = (width := (cur_viewport[1] - cur_viewport[0])) / 10
         if (cur_viewport[0] + margin) < x < (cur_viewport[1] - margin):
             return
-        self.view.scroll_to_x(x if is_centered else x + width / 2 - margin)
+        self.view.scroll_to_x(x + width / 2 - margin)
 
     def hideEvent(self, a0) -> None:
         try:

@@ -451,7 +451,7 @@ class ScoreTimelineUI(TimelineUI):
             post(Post.ELEMENT_DRAG_START)
 
     def after_each_drag(self, drag_x: int):
-        self.svg_view.scroll_to_time(time_x_converter.get_time_by_x(drag_x))
+        self.svg_view.scroll_to_time(time_x_converter.get_time_by_x(drag_x), True)
 
     def on_drag_end(self):
         if self.dragged:
