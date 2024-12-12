@@ -262,7 +262,11 @@ class SvgViewer(ViewDockWidget):
                     self.score_renderer, id, self._get_closest_time
                 )
                 self.scene.addItem(stavenote)
+                stavenote.seek_x = x_pos[
+                    bisect(x_pos, stavenote.sceneBoundingRect().right()) - 1
+                ]
 
+        x_pos = list(self.beat_x_position.values())
         process(root)
 
     def _get_drag_actions(self) -> dict[str, Callable[[QPointF], None]]:
@@ -326,7 +330,7 @@ class SvgViewer(ViewDockWidget):
         self, text: str, id: int, x: float, y: float, font_size: int = 16
     ) -> SvgTlaAnnotation:
         new_annotation = SvgTlaAnnotation(
-            text, id, x, y, font_size, self._get_drag_actions(), self._get_closest_time
+            text, id, x, y, font_size, self._get_drag_actions()
         )
         self._check_tla_id(id)
         self.scene.addItem(new_annotation)
@@ -709,6 +713,7 @@ class SvgStaveNote(QGraphicsSvgItem):
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setPos(renderer.boundsOnElement(id).topLeft())
         self.setZValue(1)
+        self.seek_x = 0.0
         self.get_time = get_time
 
     def paint(self, painter, option, widget) -> None:
@@ -719,7 +724,7 @@ class SvgStaveNote(QGraphicsSvgItem):
             painter.fillRect(self.boundingRect(), Qt.GlobalColor.red)
 
     def mouseDoubleClickEvent(self, event) -> None:
-        t0, t1 = self.get_time(event.scenePos().x())
+        t0, t1 = self.get_time(self.seek_x)
         if not t1 or abs(t0[1]) < abs(t1[1]):
             post(Post.PLAYER_SEEK, t0[0])
         else:
@@ -736,9 +741,6 @@ class SvgTlaAnnotation(QGraphicsSimpleTextItem):
         y: float,
         font_size: int,
         drag_actions: dict[str, Callable[[QPointF], None]],
-        get_time: Callable[
-            [float], tuple[tuple[float, float], None | tuple[float, float]]
-        ],
     ) -> None:
         super().__init__(text)
         self.id = id
@@ -752,7 +754,6 @@ class SvgTlaAnnotation(QGraphicsSimpleTextItem):
         self.setFont(font)
         self.setZValue(1)
         self.drag_actions = drag_actions
-        self.get_time = get_time
 
     def paint(self, painter, option, widget) -> None:
         self.setBrush(Qt.GlobalColor.red if self.isSelected() else Qt.GlobalColor.black)
@@ -769,11 +770,3 @@ class SvgTlaAnnotation(QGraphicsSimpleTextItem):
     def mouseReleaseEvent(self, event) -> None:
         self.drag_actions["release"](event.scenePos())
         return super().mouseReleaseEvent(event)
-
-    def mouseDoubleClickEvent(self, event) -> None:
-        t0, t1 = self.get_time(event.scenePos().x())
-        if not t1 or abs(t0[1]) < abs(t1[1]):
-            post(Post.PLAYER_SEEK, t0[0])
-        else:
-            post(Post.PLAYER_SEEK, t1[0])
-        return super().mouseDoubleClickEvent(event)
