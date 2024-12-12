@@ -238,7 +238,7 @@ class BeatTimeline(Timeline):
         if not self.measure_count:
             raise ValueError("No beats in timeline. Can't get time.")
 
-        if not (min(self.measure_numbers) <= number <= max(self.measure_numbers)):
+        if not (min(self.measure_numbers) <= number < max(self.measure_numbers)):
             return []
         metric_fraction = round(number + fraction, 3)
         if beats := self.metric_fraction_to_time.get(metric_fraction):
