@@ -70,7 +70,7 @@ class SvgWebEngineTracker(QObject):
 class SvgViewer(ViewDockWidget):
     def __init__(self, name: str, tl: ScoreTimeline, *args, **kwargs) -> None:
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
-
+        self.setObjectName(f"TiLiA Score Viewer {tl.id}")
         self.setAllowedAreas(
             Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
         )
