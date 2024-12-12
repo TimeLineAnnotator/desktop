@@ -1,6 +1,5 @@
 # TODO: playback line
 # TODO: QThreads
-# TODO: tracker does not load after viewer is loaded
 from __future__ import annotations
 
 from html import escape, unescape
