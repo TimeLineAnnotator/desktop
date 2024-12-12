@@ -391,7 +391,11 @@ class ScoreTimelineUI(TimelineUI):
         for element in self.staff_cache.values():
             element.on_components_deserialized()
         for element in self.elements:
-            if element.kind in [ComponentKind.BAR_LINE, ComponentKind.STAFF]:
+            if element.kind in [
+                ComponentKind.BAR_LINE,
+                ComponentKind.STAFF,
+                ComponentKind.SCORE_ANNOTATION,
+            ]:
                 continue
             element.on_components_deserialized()
 
