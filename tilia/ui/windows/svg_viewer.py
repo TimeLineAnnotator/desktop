@@ -538,6 +538,10 @@ class SvgViewer(ViewDockWidget):
         self.playback_line.setVisible(True)
         self.view.blockSignals(False)
 
+    def deleteLater(self):
+        self.hide()
+        super().deleteLater()
+
     def hideEvent(self, a0) -> None:
         try:
             self.timeline_ui.measure_tracker.hide()
