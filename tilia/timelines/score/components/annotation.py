@@ -42,9 +42,12 @@ class ScoreAnnotation(PointLikeTimelineComponent):
 
         super().__init__(timeline, id)
 
-        self.svg_view: SvgViewer = get(Get.TIMELINE_UI, self.timeline.id).svg_view
         if text:
             self.svg_view.update_annotation(self)
+
+    @property
+    def svg_view(self) -> SvgViewer:
+        return get(Get.TIMELINE, self.timeline.id).svg_view
 
     @property
     def x(self) -> float:

@@ -61,12 +61,14 @@ class ScoreTimeline(Timeline):
         }
         self._viewer_beat_x = viewer_beat_x
         self.svg_data = svg_data
+        self.__svg_view = None
+        self.has_ui = False
 
     @property
     def svg_view(self):
-        if not hasattr(self, "_svg_view"):
-            self._svg_view = SvgViewer(name=self.get_data("name"), tl=self)
-        return self._svg_view
+        if not self.__svg_view:
+            self.__svg_view = SvgViewer(name=self.get_data("name"), tl=self)
+        return self.__svg_view
 
     @property
     def svg_data(self):
@@ -76,7 +78,7 @@ class ScoreTimeline(Timeline):
     def svg_data(self, svg_data):
         self._svg_data = svg_data
         if svg_data:
-            self.svg_view.load_svg_data(svg_data)
+            self.svg_view.load_svg_data(svg_data, self.has_ui)
 
     @property
     def viewer_beat_x(self):
@@ -103,8 +105,12 @@ class ScoreTimeline(Timeline):
 
     def reset_svg(self):
         self.svg_view.deleteLater()
+        self.__svg_view = None
         self.save_svg_data("")
         self._viewer_beat_x = {}
+
+    def svg_view_deleted(self):
+        self.__svg_view = None
 
     def _validate_delete_components(self, components: list[TimelineComponent]) -> None:
         def _remove_from_viewer(components: list[TimelineComponent]) -> None:

@@ -96,6 +96,10 @@ class ScoreTimelineUI(TimelineUI):
             },
         }
 
+    @property
+    def svg_view(self):
+        return self.timeline.svg_view
+
     @staticmethod
     def get_time_signature_pixmap_path(n: int) -> str:
         return Path("ui", "img", f"time-signature-{n}.svg").resolve().__str__()
@@ -410,22 +414,11 @@ class ScoreTimelineUI(TimelineUI):
         x1 = self.last_bar_line.x()
         return (x1 - x0) / self._measure_count
 
-    def delete_svg_view(self) -> None:
-        if self.svg_view:
-            self.svg_view.deleteLater()
-            self.svg_view = None
-
-    def delete(self) -> None:
-        self.delete_svg_view()
-        return super().delete()
-
     def on_audio_time_change(self, time: float, _) -> None:
         self.svg_view.scroll_to_time(time, False)
 
     def _setup_svg_view(self) -> None:
-        self.svg_view = self.timeline.svg_view
-        self.svg_view.timeline_ui = self
-        self.svg_view.setParent(get(Get.MAIN_WINDOW))
+        self.timeline.has_ui = True
         self.tracker_start = 0
         self.tracker_end = 0
         self.dragged = False

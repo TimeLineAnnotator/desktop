@@ -154,6 +154,7 @@ class SvgViewer(ViewDockWidget):
         self.tla_annotations = {}
         self.next_tla_id = 0
         self.drag_pos = QPointF()
+        self.is_hidden = False
         self.is_svg_loaded = False
         self.visible_times = [0, 0]
         self.beat_x_position = {}
@@ -181,7 +182,7 @@ class SvgViewer(ViewDockWidget):
 
         return v_toolbar
 
-    def load_svg_data(self, data: str) -> None:
+    def load_svg_data(self, data: str, has_ui: bool) -> None:
         self.score_root = etree.fromstring(data, None)
         beat_x_pos, success = self.timeline.set_data(
             "viewer_beat_x", self._get_beat_x_pos(self.score_root)
@@ -198,9 +199,11 @@ class SvgViewer(ViewDockWidget):
             }
         self.timeline.save_svg_data(str(etree.tostring(self.score_root), "utf-8"))
 
-        if not self.timeline_ui:
+        if not has_ui:
             return
 
+        self.timeline_ui = get(Get.TIMELINE_UI, self.timeline.id)
+        self.setParent(get(Get.MAIN_WINDOW))
         self.score_renderer.load(bytearray(etree.tostring(self.score_root)))
         self.is_svg_loaded = True
 
@@ -214,7 +217,7 @@ class SvgViewer(ViewDockWidget):
         self.scene.addItem(bg)
         self.create_stavenotes(self.score_root)
 
-        if not self.isVisible():
+        if not self.isVisible() and not self.is_hidden:
             self.parent().addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self)
 
         self.show()
@@ -543,6 +546,7 @@ class SvgViewer(ViewDockWidget):
 
     def deleteLater(self):
         self.hide()
+        self.timeline.svg_view_deleted()
         super().deleteLater()
 
     def hideEvent(self, a0) -> None:
@@ -550,12 +554,15 @@ class SvgViewer(ViewDockWidget):
             self.timeline_ui.measure_tracker.hide()
         except RuntimeError:
             pass
+
+        self.is_hidden = True
         return super().hideEvent(a0)
 
     def showEvent(self, event):
         self.scroll_to_time(get(Get.SELECTED_TIME), True)
         self.playback_line.setVisible(True)
         self.timeline_ui.measure_tracker.show()
+        self.is_hidden = False
         return super().showEvent(event)
 
     def enterEvent(self, event) -> None:
