@@ -286,6 +286,19 @@ class TestBeatTimeline:
 
         assert beat_tl.get_time_by_measure(1) == [1]
 
+    def test_get_times_by_measure_one_measures_repeating_decimal(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [3])
+        beat_tl.create_beat(time=1)
+        beat_tl.create_beat(time=2)
+        beat_tl.create_beat(time=3)
+        beat_tl.create_beat(time=4)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(1, 0) == [1]
+        assert beat_tl.get_time_by_measure(1, 0.333) == [2]
+        assert beat_tl.get_time_by_measure(1, 0.667) == [3]
+
     def test_get_times_by_measure_multiple_measures(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         beat_tl.create_beat(time=1)
@@ -300,6 +313,58 @@ class TestBeatTimeline:
         assert beat_tl.get_time_by_measure(1) == [1]
         assert beat_tl.get_time_by_measure(2) == [3]
         assert beat_tl.get_time_by_measure(3) == [5]
+
+    def test_get_times_by_measure_uneven_beats_time_at_beats(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [4])
+        beat_tl.create_beat(time=1)
+        beat_tl.create_beat(time=3)
+        beat_tl.create_beat(time=7)
+        beat_tl.create_beat(time=8)
+        beat_tl.create_beat(time=9)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(1, 0) == [1]
+        assert beat_tl.get_time_by_measure(1, 0.25) == [3]
+        assert beat_tl.get_time_by_measure(1, 0.5) == [7]
+        assert beat_tl.get_time_by_measure(1, 0.75) == [8]
+
+    def test_get_times_by_measure_fraction_is_1(self, beat_tl):
+        # fraction == 1.0 means get the start time of the next measure
+        beat_tl.set_data("beat_pattern", [2])
+        beat_tl.create_beat(time=1)
+        beat_tl.create_beat(time=2)
+        beat_tl.create_beat(time=3)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(1, 1) == [3]
+
+    def test_get_times_by_measure_uneven_beats_time_in_between_beats(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [4])
+        beat_tl.create_beat(time=1)
+        beat_tl.create_beat(time=3)
+        beat_tl.create_beat(time=4)
+        beat_tl.create_beat(time=5)
+        beat_tl.create_beat(time=6)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(1, 0.125) == [2]
+        assert beat_tl.get_time_by_measure(1, 0.375) == [3.5]
+        assert beat_tl.get_time_by_measure(1, 0.625) == [4.5]
+
+    def test_get_time_between_last_beat_of_measure_and_first_beat_of_next_measure(
+        self, beat_tl
+    ):
+        beat_tl.set_data("beat_pattern", [2])
+        beat_tl.create_beat(time=1)
+        beat_tl.create_beat(time=2)
+        beat_tl.create_beat(time=3)
+
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(1, 0.75) == [2.5]
 
     def test_get_times_by_measure_index_bigger_than_measure_count(self, beat_tl):
         beat_tl.create_beat(time=1)
