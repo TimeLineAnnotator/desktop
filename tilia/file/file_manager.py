@@ -205,8 +205,9 @@ class FileManager:
     def set_media_duration(self, value: float):
         self.file.media_metadata["media length"] = value
 
-    def set_timelines(self, value: dict):
-        self.file.timelines = value
+    def set_timelines(self, state: dict, hash: str):
+        self.file.timelines = state
+        self.file.timelines_hash = hash
 
     def update_file(self, data: dict):
         """Directly updates the file manager's file, bypassing opening."""

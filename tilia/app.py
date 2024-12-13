@@ -305,6 +305,6 @@ class App:
             TimelineKind.SLIDER_TIMELINE
         ):
             self.timelines.create_timeline(TimelineKind.SLIDER_TIMELINE)
-            self.file_manager.set_timelines(self.get_timelines_state())
+            self.file_manager.set_timelines(*self.timelines.serialize_timelines())
 
         self.reset_undo_manager()
