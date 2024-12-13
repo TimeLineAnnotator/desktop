@@ -386,6 +386,19 @@ class TestBeatTimeline:
         beat_tl.recalculate_measures()
         assert beat_tl.get_time_by_measure(0) == [1]
 
+    def test_get_times_by_fraction_in_repeat_measure_number(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        for t in range(1, 13):
+            beat_tl.create_beat(time=t)
+        beat_tl.measure_numbers = [1, 2, 3, 1, 2, 1]
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.get_time_by_measure(1) == [1, 7, 11]
+        assert beat_tl.get_time_by_measure(2, 0.5) == [4, 10]
+        assert beat_tl.get_time_by_measure(2, 0.75) == [4.5, 10.5]
+        assert beat_tl.get_time_by_measure(3, 0.5) == [6]
+        assert beat_tl.get_time_by_measure(3, 0.75) == [6.5]
+
     def test_delete_beat_updates_is_first_in_measure_of_subsequent_beats(self, beat_tl):
         beat_tl.beat_pattern = [2]
         beat_tl.create_beat(0)
