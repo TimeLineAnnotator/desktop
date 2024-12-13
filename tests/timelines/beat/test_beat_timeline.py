@@ -366,7 +366,7 @@ class TestBeatTimeline:
 
         assert beat_tl.get_time_by_measure(1, 0.75) == [2.5]
 
-    def test_get_times_by_measure_index_bigger_than_measure_count(self, beat_tl):
+    def test_get_times_by_measure_index_bigger_than_max_measure(self, beat_tl):
         beat_tl.create_beat(time=1)
         beat_tl.create_beat(time=2)
 
@@ -376,12 +376,15 @@ class TestBeatTimeline:
 
         assert beat_tl.get_time_by_measure(999) == []
 
-    def test_get_times_by_measure_negative_index(self, beat_tl):
+    def test_get_times_by_measure_smaller_than_min_measure_number(self, beat_tl):
         beat_tl.create_beat(time=1)
 
         beat_tl.recalculate_measures()
+        assert beat_tl.get_time_by_measure(0) == []
 
-        assert beat_tl.get_time_by_measure(-1) == []
+        beat_tl.set_measure_number(0, 0)
+        beat_tl.recalculate_measures()
+        assert beat_tl.get_time_by_measure(0) == [1]
 
     def test_delete_beat_updates_is_first_in_measure_of_subsequent_beats(self, beat_tl):
         beat_tl.beat_pattern = [2]
