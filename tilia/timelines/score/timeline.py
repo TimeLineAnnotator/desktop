@@ -35,7 +35,9 @@ class ScoreTLComponentManager(TimelineComponentManager):
 
     def clear(self):
         self.timeline.reset_svg()
-        return super().clear()
+        super().clear()
+        post(Post.SCORE_TIMELINE_CLEAR_DONE, self.timeline.id)
+
 
 
 class ScoreTimeline(Timeline):

@@ -88,6 +88,11 @@ class ScoreTimelineUI(TimelineUI):
             Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED,
             self.on_score_timeline_components_deserialized,
         )
+        listen(
+            self,
+            Post.SCORE_TIMELINE_CLEAR_DONE,
+            self.on_score_timeline_clear_done,
+        )
 
     def _setup_pixmaps(self):
         self.pixmaps = {
@@ -385,6 +390,14 @@ class ScoreTimelineUI(TimelineUI):
         super().set_width(width)
         self.update_overlapping_elements_offsets()
         # self.update_measure_tracker_position()
+
+    def on_score_timeline_clear_done(self, id: int):
+        if id != self.id:
+            return
+
+        self.staff_y_cache = {}
+        self.staff_cache = {}
+        self.clef_time_cache = {}
 
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
