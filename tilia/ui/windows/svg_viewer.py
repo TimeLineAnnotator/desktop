@@ -457,11 +457,10 @@ class SvgViewer(ViewDockWidget):
                 b1 = beats[idx]
                 x0 = x_pos[idx - 1]
                 x1 = x_pos[idx]
-            beat_pos[key] = (
-                (num := b0 // 1),
-                (frac := (b1 - b0) * (x - x0) / (x1 - x0) + b0 % 1),
-            )
-            self.beat_x_position[num + frac] = x
+
+            beat = b0 + (b1 - b0) * (x - x0) / (x1 - x0)
+            beat_pos[key] = (beat // 1, beat % 1)
+            self.beat_x_position[beat] = x
 
             self.beat_x_position = {
                 k: self.beat_x_position[k] for k in sorted(self.beat_x_position.keys())
