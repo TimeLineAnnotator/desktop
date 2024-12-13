@@ -9,7 +9,9 @@ class TestBeatTimeline:
         user_actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tlui) == 1
 
-    def test_create_beat_at_negative_time_fails(self, beat_tlui, tilia_state, user_actions):
+    def test_create_beat_at_negative_time_fails(
+        self, beat_tlui, tilia_state, user_actions
+    ):
         tilia_state.current_time = -10
         user_actions.trigger(TiliaAction.BEAT_ADD)
         assert len(beat_tlui) == 0
@@ -211,7 +213,7 @@ class TestBeatTimeline:
 
         beat_tl.recalculate_measures()
 
-        beat_tl.delete_components([beat_tl[2],beat_tl[3],beat_tl[4],beat_tl[5]])
+        beat_tl.delete_components([beat_tl[2], beat_tl[3], beat_tl[4], beat_tl[5]])
 
         beat_tl.recalculate_measures()
 
