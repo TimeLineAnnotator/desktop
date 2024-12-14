@@ -69,18 +69,8 @@ class ScoreTimelineUI(TimelineUI):
         listen(self, Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done)
 
         self._setup_pixmaps()
-
-        self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
-        self.staff_cache: dict[int, StaffUI] = {}
-        self.staff_y_cache: dict[int, tuple[int, int]] = {}
-        self.first_bar_line: BarLineUI | None = None
-        self.last_bar_line: BarLineUI | None = None
-        self.staff_extreme_notes: dict[int, dict[str, NoteUI]] = {}
-        self.staff_heights: dict[int, float] = {}
-        self._measure_count = 0  # assumes measures can't be deleted
+        self._reset_caches()
         self.update_height()
-        self.overlapping_elements = set()
-
         self._setup_svg_view()
 
         listen(
@@ -391,13 +381,22 @@ class ScoreTimelineUI(TimelineUI):
         self.update_overlapping_elements_offsets()
         # self.update_measure_tracker_position()
 
+    def _reset_caches(self):
+        self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
+        self.staff_cache: dict[int, StaffUI] = {}
+        self.staff_y_cache: dict[int, tuple[int, int]] = {}
+        self.first_bar_line: BarLineUI | None = None
+        self.last_bar_line: BarLineUI | None = None
+        self.staff_extreme_notes: dict[int, dict[str, NoteUI]] = {}
+        self.staff_heights: dict[int, float] = {}
+        self._measure_count = 0  # assumes measures can't be deleted
+        self.overlapping_elements = set()
+
     def on_score_timeline_clear_done(self, id: int):
         if id != self.id:
             return
 
-        self.staff_y_cache = {}
-        self.staff_cache = {}
-        self.clef_time_cache = {}
+        self._reset_caches()
 
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
