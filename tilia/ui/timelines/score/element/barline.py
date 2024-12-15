@@ -33,6 +33,9 @@ class BarLineUI(TimelineUIElement):
     def update_position(self):
         self.body.set_position(*self.get_body_args())
 
+    def on_components_deserialized(self):
+        self.update_position()
+
     def selection_triggers(self):
         return []
 

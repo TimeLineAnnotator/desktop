@@ -406,9 +406,11 @@ class ScoreTimelineUI(TimelineUI):
 
         for element in self.staff_cache.values():
             element.on_components_deserialized()
+
+        self.staff_y_cache = self.get_staff_y_cache()
+
         for element in self.elements:
             if element.kind in [
-                ComponentKind.BAR_LINE,
                 ComponentKind.STAFF,
                 ComponentKind.SCORE_ANNOTATION,
             ]:
@@ -417,7 +419,6 @@ class ScoreTimelineUI(TimelineUI):
 
         self.update_height()
         self.collection.update_timeline_uis_position()
-        self.staff_y_cache = self.get_staff_y_cache()
 
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
