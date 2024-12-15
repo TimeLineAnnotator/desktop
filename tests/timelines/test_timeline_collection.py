@@ -150,7 +150,7 @@ class TestTimelines:
         tl3 = tls.create_timeline(TimelineKind.MARKER_TIMELINE)
         tl4 = tls.create_timeline(TimelineKind.BEAT_TIMELINE, beat_pattern=[2])
 
-        serialized = tls.serialize_timelines()
+        serialized = tls.serialize_timelines()[0]
 
         assert serialized[tl1.id]["ordinal"] == 1
         assert serialized[tl1.id]["kind"] == "SLIDER_TIMELINE"
@@ -160,15 +160,6 @@ class TestTimelines:
         assert serialized[tl3.id]["kind"] == "MARKER_TIMELINE"
         assert serialized[tl4.id]["ordinal"] == 4
         assert serialized[tl4.id]["kind"] == "BEAT_TIMELINE"
-
-    def test_hash_timelines(self, tls):
-        tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
-        tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        tls.create_timeline(TimelineKind.BEAT_TIMELINE, beat_pattern=[2])
-
-        # assert that no error is raised
-        hash_timelines.hash_timeline_collection_data(tls.serialize_timelines())
 
     def test_delete_timeline_updates_ordinals_correctly(self, tls):
         tl1 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)

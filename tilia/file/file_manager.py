@@ -50,7 +50,7 @@ class FileManager:
 
     def __init__(self):
         self._setup_requests()
-        self.file = TiliaFile()
+        self._setup_file()
 
     def _setup_requests(self):
         LISTENS = {
@@ -82,6 +82,9 @@ class FileManager:
 
         for request, callback in SERVES:
             serve(self, request, callback)
+
+    def _setup_file(self):
+        self.file = TiliaFile()
 
     def on_save_request(self):
         """Saves tilia file to current file path."""
@@ -185,7 +188,7 @@ class FileManager:
         settings.update_recent_files(path, geometry, window_state)
 
     def new(self):
-        self.file = TiliaFile()
+        self._setup_file()
 
     def is_file_modified(self, current_data: dict) -> bool:
         return not are_tilia_data_equal(current_data, self.file.__dict__)
@@ -204,8 +207,9 @@ class FileManager:
     def set_media_duration(self, value: float):
         self.file.media_metadata["media length"] = value
 
-    def set_timelines(self, value: dict):
-        self.file.timelines = value
+    def set_timelines(self, state: dict, hash: str):
+        self.file.timelines = state
+        self.file.timelines_hash = hash
 
     def update_file(self, data: dict):
         """Directly updates the file manager's file, bypassing opening."""

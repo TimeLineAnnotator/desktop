@@ -29,11 +29,11 @@ class AmplitudeBar(SegmentLikeTimelineComponent):
     }
 
     def __init__(self, timeline: AudioWaveTimeline, id: int, start: float, end: float, amplitude: float, **__):
-        super().__init__(timeline, id)
-
         self.start = start
         self.end = end
         self.amplitude = amplitude
-    
+
+        super().__init__(timeline, id)
+
     def __repr__(self):
         return f"AudioWave({self.start}, {self.amplitude})"

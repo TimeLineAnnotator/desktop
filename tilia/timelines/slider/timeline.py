@@ -22,6 +22,13 @@ class SliderTimeline(Timeline):
     def default_height(self):
         return settings.get("slider_timeline", "default_height")
 
+    @property
+    def components(self):
+        return []
+
+    def _validate_delete_components(self, component: TimelineComponent):
+        """Nothing to do. Must impement abstract method."""
+            
     def get_state(self) -> dict:
         result = {}
 
@@ -30,11 +37,10 @@ class SliderTimeline(Timeline):
 
         result["kind"] = self.KIND.name
         result["components"] = {}
+        result['components_hash'] = ''
+        result['hash'] = ''
 
         return result
-
-    def _validate_delete_components(self, component: TimelineComponent):
-        """Nothing to do."""
 
     def deserialize_components(self, components: dict[int, dict[str]]):
         """Nothing to do."""

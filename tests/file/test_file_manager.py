@@ -3,7 +3,7 @@ from unittest.mock import mock_open
 from tests.mock import PatchPost, Serve
 from tilia.file.media_metadata import MediaMetadata
 
-from tilia.requests import Post, post, Get
+from tilia.requests import Post, post, Get, get
 from tilia.file.tilia_file import TiliaFile
 from tilia.file.file_manager import FileManager
 from unittest.mock import patch
@@ -16,7 +16,7 @@ def get_empty_save_params():
         k: v
         for k, v in TiliaFile().__dict__.items()
         if k in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION
-    }
+    } | {'timelines_hash': ''}
 
 
 class TestUserActions:
@@ -74,7 +74,7 @@ class TestFileManager:
         assert tilia.file_manager.file.media_metadata["title"] == "new title"
 
     def test_is_file_modified_empty_file(self, tilia):
-        assert not tilia.file_manager.is_file_modified(get_empty_save_params())
+        assert not tilia.file_manager.is_file_modified(get(Get.APP_STATE))
 
     def test_is_file_modified_not_modified_after_update(self, tilia):
         params = get_empty_save_params()
@@ -82,27 +82,11 @@ class TestFileManager:
         tilia.file_manager.update_file(params)
         assert not tilia.file_manager.is_file_modified(params)
 
-    def test_is_file_modified_when_modified_timelines(self, tilia):
-        params = get_empty_save_params()
-
-        params["timelines"] = {
-            "0": {
-                "kind": "SLIDER_TIMELINE",
-                "ordinal": 0,
-                "is_visible": True,
-                "height": 10,
-            },
-            "1": {
-                "kind": "HIERARCHY_TIMELINE",
-                "ordinal": 0,
-                "height": 10,
-                "is_visible": True,
-                "name": "test",
-                "components": {},
-            },
-        }
-
-        assert tilia.file_manager.is_file_modified(params)
+    def test_is_file_modified_when_modified_timelines(self, tilia, marker_tlui, tmp_path):
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, tmp_path / 'temp.tla')):
+            post(Post.FILE_SAVE)
+        post(Post.MARKER_ADD)
+        assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))
 
     def test_is_file_modified_modified_tile(self, tilia):
         params = get_empty_save_params()

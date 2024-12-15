@@ -6,24 +6,20 @@ from pathlib import Path
 
 import tilia.errors
 from tilia.file.tilia_file import TiliaFile
-from tilia.timelines.hash_timelines import hash_timeline_collection_data
 
 JSON_CONFIG = {"indent": 2}
 
 
 def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
     """Returns True if data1 is equivalent to data2, False otherwise."""
-
-    attrs_to_check = ["media_metadata", "timelines", "media_path"]
-
-    for attr in attrs_to_check:
-        if attr == "timelines":
-            hash1 = hash_timeline_collection_data(data1["timelines"])
-            hash2 = hash_timeline_collection_data(data2["timelines"])
-            if hash1 != hash2:
-                return False
-        elif data1[attr] != data2[attr]:
+    for attr in ["media_metadata", "media_path", "timelines_hash"]:
+        if data1[attr] != data2[attr]:
             return False
+    component_hashes_1 = {tl_data['components_hash'] for tl_data in data1['timelines'].values()}
+    component_hashes_2 = {tl_data['components_hash'] for tl_data in data2['timelines'].values()}
+    if component_hashes_1 != component_hashes_2:
+        return False
+
     return True
 
 

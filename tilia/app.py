@@ -43,6 +43,7 @@ class App:
         self.duration = 0.0
         self.should_scale_timelines = "prompt"
         self._setup_timelines()
+        self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
         self._setup_requests()
 
     def __str__(self):
@@ -258,9 +259,12 @@ class App:
 
         return True
 
+        post(Post.DEBUG)
+
     def on_clear(self) -> None:
         self.timelines.clear()
         self.file_manager.new()
+        self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
         if self.player:
             self.player.clear()
         self.undo_manager.clear()
@@ -280,9 +284,11 @@ class App:
         return self.timelines.serialize_timelines()
 
     def get_app_state(self) -> dict:
+        timelines_state, timelines_hash = self.timelines.serialize_timelines()
         params = {
             "media_metadata": dict(self.file_manager.file.media_metadata),
-            "timelines": self.get_timelines_state(),
+            "timelines": timelines_state,
+            'timelines_hash': timelines_hash,
             "media_path": get(Get.MEDIA_PATH),
             "file_path": self.file_manager.get_file_path(),
             "version": tilia.constants.VERSION,
@@ -303,6 +309,6 @@ class App:
             TimelineKind.SLIDER_TIMELINE
         ):
             self.timelines.create_timeline(TimelineKind.SLIDER_TIMELINE)
-            self.file_manager.set_timelines(self.get_timelines_state())
+            self.file_manager.set_timelines(*self.get_timelines_state())
 
         self.reset_undo_manager()

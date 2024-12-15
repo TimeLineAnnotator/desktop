@@ -44,6 +44,7 @@ def get_dummy_timeline_data(id: int = 1) -> dict[str, dict]:
             "ordinal": 1,
             "name": "test",
             "kind": "HIERARCHY_TIMELINE",
+            "components_hash": "",
             "components": {},
         }
     }

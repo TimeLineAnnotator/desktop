@@ -77,10 +77,6 @@ class TiliaState:
         self.current_time = 0
         self.media_path = ""
         self._reset_undo_manager()
-        self._reset_file_manager()
-
-    def _reset_file_manager(self):
-        self.file_manager.new()
 
     def _reset_undo_manager(self):
         self.app.reset_undo_manager()

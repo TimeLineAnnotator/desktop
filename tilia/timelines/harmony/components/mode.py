@@ -52,14 +52,14 @@ class Mode(PointLikeTimelineComponent):
         level: int = 2,
         comments: str = "",
     ):
-        super().__init__(timeline, id)
-
         self.time = time
         self.step = step
         self.accidental = accidental
         self.type = type
         self.level = level
         self.comments = comments
+
+        super().__init__(timeline, id)
 
     def __str__(self):
         return f"Mode({self.step, self.accidental, self.type}) at {self.time}"
