@@ -16,15 +16,8 @@ STEP_TO_PC = {
     6: 11
 }
 
-OCTAVE_TO_PC = {
-    0: -36,
-    1: -24,
-    2: -12,
-    3: 0,
-    4: 12,
-    5: 24,
-    6: 36
-}
+def octave_to_pc(octave: int) -> int:
+    return (octave - 3) * 12
 
 
 class Note(SegmentLikeTimelineComponent):
@@ -109,7 +102,7 @@ class Note(SegmentLikeTimelineComponent):
 
 
 def pitch(step, accidental, octave):
-    return OCTAVE_TO_PC[octave] + STEP_TO_PC[step] + accidental
+    return octave_to_pc(octave) + STEP_TO_PC[step] + accidental
 
 
 def pitch_class(step, accidental):
