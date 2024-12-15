@@ -135,8 +135,6 @@ class TestByMeasure:
 
         data = _get_csv_data(*rows)
 
-        print(data)
-
         errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
 
         assert not errors
