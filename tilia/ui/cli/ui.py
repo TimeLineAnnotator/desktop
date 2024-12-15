@@ -24,6 +24,7 @@ from tilia.ui.cli import (
 )
 from tilia.ui.cli.io import ask_yes_or_no
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
+from tilia.constants import VERSION
 
 
 class CLI:
@@ -83,7 +84,7 @@ class CLI:
         """
         Launches the CLI.
         """
-        print("--- TiLiA CLI v0.1 ---")
+        print(f"--- TiLiA v{VERSION} CLI ---")
         while True:
             cmd = input(">>> ")
             self.parse_and_run(cmd)
