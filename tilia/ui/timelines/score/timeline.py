@@ -427,7 +427,8 @@ class ScoreTimelineUI(TimelineUI):
         return (x1 - x0) / self._measure_count
 
     def on_audio_time_change(self, time: float, _) -> None:
-        self.svg_view.scroll_to_time(time, False)
+        if self.svg_view.is_svg_loaded:
+            self.svg_view.scroll_to_time(time, False)
 
     def _setup_svg_view(self) -> None:
         self.timeline.has_ui = True
