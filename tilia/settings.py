@@ -16,6 +16,7 @@ class SettingsManager(QObject):
             "window_y": 10,
             "timeline_background_color": "#EEE",
             "loop_box_shade": "#78c0c0c0",
+            "smooth-scroll": "true",
         },
         "auto-save": {"max_stored_files": 100, "interval_(seconds)": 300},
         "media_metadata": {
@@ -73,6 +74,13 @@ class SettingsManager(QObject):
             "marker_width": 8,
             "marker_height": 10,
             "default_color": "#999999",
+        },
+        "score_timeline": {
+            "default_height": 160,
+            "note_height": 12,
+            "default_note_color": "#000000",
+            "measure_tracker_color": "#80ff8000",
+            "viewer_selected_notes": "#ff0000",
         },
         "PDF_timeline": {
             "default_height": 30,

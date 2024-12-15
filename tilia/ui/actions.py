@@ -13,6 +13,7 @@ from tilia.ui.windows import WindowKind
 
 
 class TiliaAction(Enum):
+    SCORE_IMPORT_FROM_MUSICXML = auto()
     PDF_IMPORT_FROM_CSV = auto()
     PDF_MARKER_ADD = auto()
     AUTOSAVES_FOLDER_OPEN = auto()
@@ -57,6 +58,11 @@ class TiliaAction(Enum):
     MEDIA_LOAD_LOCAL = auto()
     MEDIA_STOP = auto()
     METADATA_WINDOW_OPEN = auto()
+    SCORE_ANNOTATION_ADD = auto()
+    SCORE_ANNOTATION_DELETE = auto()
+    SCORE_ANNOTATION_EDIT = auto()
+    SCORE_ANNOTATION_FONT_DEC = auto()
+    SCORE_ANNOTATION_FONT_INC = auto()
     SETTINGS_WINDOW_OPEN = auto()
     TIMELINES_AUTO_SCROLL_ENABLE = auto()
     TIMELINES_AUTO_SCROLL_DISABLE = auto()
@@ -66,6 +72,7 @@ class TiliaAction(Enum):
     TIMELINES_ADD_MARKER_TIMELINE = auto()
     TIMELINES_ADD_PDF_TIMELINE = auto()
     TIMELINES_ADD_AUDIOWAVE_TIMELINE = auto()
+    TIMELINES_ADD_SCORE_TIMELINE = auto()
     TIMELINE_ELEMENT_COLOR_SET = auto()
     TIMELINE_ELEMENT_COLOR_RESET = auto()
     TIMELINE_ELEMENT_COPY = auto()
@@ -115,10 +122,12 @@ def get_img_path(basename: str):
 
 def set_request(
     action: QAction,
-    request: Post,
+    request: Post | None,
     args: Optional[Any],
     kwargs: Optional[dict[str, Any]],
 ):
+    if not request:
+        return
     args = args or []
     kwargs = kwargs or {}
     callback = _get_request_callback(request, args, kwargs)
@@ -292,6 +301,9 @@ taction_to_params = {
     TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE: ActionParams(
         Post.TIMELINE_ADD, "AudioWave", "", "", (TimelineKind.AUDIOWAVE_TIMELINE,)
     ),
+    TiliaAction.TIMELINES_ADD_SCORE_TIMELINE: ActionParams(
+        Post.TIMELINE_ADD, "Score", "", "", (TimelineKind.SCORE_TIMELINE,)
+    ),
     TiliaAction.HARMONY_IMPORT_FROM_CSV: ActionParams(
         Post.HARMONY_IMPORT_FROM_CSV, "Import from CSV file", "", ""
     ),
@@ -344,6 +356,24 @@ taction_to_params = {
     ),
     TiliaAction.PDF_IMPORT_FROM_CSV: ActionParams(
         Post.PDF_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+    ),
+    TiliaAction.SCORE_IMPORT_FROM_MUSICXML: ActionParams(
+        Post.SCORE_IMPORT_FROM_MUSICXML, "Import from musicxml file", "", ""
+    ),
+    TiliaAction.SCORE_ANNOTATION_ADD: ActionParams(
+        None, "Add Annotation (Return)", "annotation_add", "", "", ""
+    ),
+    TiliaAction.SCORE_ANNOTATION_DELETE: ActionParams(
+        None, "Delete Annotation (Delete)", "annotation_delete", "", "", ""
+    ),
+    TiliaAction.SCORE_ANNOTATION_EDIT: ActionParams(
+        None, "Edit Annotation", "annotation_edit", "Shift+Return", "", ""
+    ),
+    TiliaAction.SCORE_ANNOTATION_FONT_DEC: ActionParams(
+        None, "Decrease Annotation Font", "annotation_font_dec", "Shift+Down", "", ""
+    ),
+    TiliaAction.SCORE_ANNOTATION_FONT_INC: ActionParams(
+        None, "Increase Annotation Font", "annotation_font_inc", "Shift+Up", "", ""
     ),
 }
 

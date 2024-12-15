@@ -53,7 +53,7 @@ class Timeline(ABC, Generic[TC]):
         height: int = 0,
         is_visible: bool = True,
         ordinal: int = None,
-        **kwargs  # ignores components_hash
+        **kwargs,  # ignores components_hash
     ):
         self.id = get(Get.ID)
 
@@ -65,7 +65,7 @@ class Timeline(ABC, Generic[TC]):
         if self.COMPONENT_MANAGER_CLASS:
             self.component_manager = self.COMPONENT_MANAGER_CLASS(self)
         else:
-            self.component_manaer = None
+            self.component_manager = None
 
     def __iter__(self):
         return iter(self.components)
@@ -125,7 +125,7 @@ class Timeline(ABC, Generic[TC]):
         if not self.validate_set_data(attr, value):
             return None, False
         setattr(self, attr, value)
-        return value, True
+        return getattr(self, attr), True
 
     def validate_get_data(self, attr):
         if not hasattr(self, attr):
@@ -148,8 +148,13 @@ class Timeline(ABC, Generic[TC]):
 
         if success:
             post(
-                Post.TIMELINE_COMPONENT_CREATED, self.KIND, self.id, kind, component.id, component.get_data,
-                functools.partial(self.set_component_data, component.id)
+                Post.TIMELINE_COMPONENT_CREATED,
+                self.KIND,
+                self.id,
+                kind,
+                component.id,
+                component.get_data,
+                functools.partial(self.set_component_data, component.id),
             )
             return component, None
         else:
@@ -216,6 +221,7 @@ class Timeline(ABC, Generic[TC]):
             if isinstance(value := getattr(self, attr), list):
                 value = value.copy()
             state[attr] = value
+            string_to_hash += str(value) + "|"
 
             string_to_hash += str(value) + '|'
         state["hash"] = hash_function(f'{state["kind"]}|{string_to_hash}')
@@ -237,9 +243,9 @@ class Timeline(ABC, Generic[TC]):
             kind.name for kind in self.component_manager.component_kinds
         ]
         result["components"] = {name: [] for name in result["component_kinds"]}
-        result["component_attributes"] = (
-            self.component_manager.get_component_attributes()
-        )
+        result[
+            "component_attributes"
+        ] = self.component_manager.get_component_attributes()
         for kind in self.component_manager.component_kinds:
             components = self.component_manager.get_components_by_condition(
                 lambda _: True, kind
@@ -276,6 +282,17 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def associate_to_timeline(self, timeline: Timeline):
         self.timeline = timeline
+
+    @staticmethod
+    def _compose_validators(
+        validators: list[Callable[[], tuple[bool, str]]]
+    ) -> tuple[bool, str]:
+        """Calls validators in order and returns (False, reason) if any fails."""
+        for validator in validators:
+            success, reason = validator()
+            if not success:
+                return False, reason
+        return True, ""
 
     def _validate_component_creation(self, *args, **kwargs):
         return True, ""

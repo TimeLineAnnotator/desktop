@@ -22,6 +22,7 @@ import tilia.parsers.csv.harmony
 import tilia.parsers.csv.hierarchy
 import tilia.parsers.csv.beat
 import tilia.parsers.csv.marker
+import tilia.parsers.score.musicxml
 from . import actions
 from .actions import TiliaAction
 from .dialog_manager import DialogManager
@@ -37,6 +38,7 @@ from .menus import (
     BeatMenu,
     HarmonyMenu,
     PdfMenu,
+    ScoreMenu,
 )
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
@@ -167,6 +169,10 @@ class QtUI:
                 Post.PDF_IMPORT_FROM_CSV,
                 partial(self.on_import_from_csv, TlKind.PDF_TIMELINE),
             ),
+            (
+                Post.SCORE_IMPORT_FROM_MUSICXML,
+                partial(self.on_import_from_csv, TlKind.SCORE_TIMELINE),
+            ),
             (Post.DISPLAY_ERROR, display_error),
             (Post.UI_EXIT, self.exit),
         }
@@ -182,6 +188,7 @@ class QtUI:
             (Get.WINDOW_GEOMETRY, self.get_window_geometry),
             (Get.WINDOW_STATE, self.get_window_state),
             (Get.PLAYER_CLASS, self.get_player_class),
+            (Get.MAIN_WINDOW, lambda: self.main_window),
         }
 
         for post, callback in LISTENS:
@@ -215,6 +222,7 @@ class QtUI:
             (TlKind.BEAT_TIMELINE, BeatMenu),
             (TlKind.HARMONY_TIMELINE, HarmonyMenu),
             (TlKind.PDF_TIMELINE, PdfMenu),
+            (TlKind.SCORE_TIMELINE, ScoreMenu),
         }
         self.kind_to_dynamic_menus = {
             kind: self.menu_bar.get_menu(TimelinesMenu).get_submenu(menu_class)
@@ -239,6 +247,7 @@ class QtUI:
             TlKind.MARKER_TIMELINE,
             TlKind.HARMONY_TIMELINE,
             TlKind.PDF_TIMELINE,
+            TlKind.SCORE_TIMELINE,
         ]:
             if kind in instanced_kinds:
                 self.show_dynamic_menus(kind)
@@ -405,23 +414,37 @@ class QtUI:
         ):
             return
 
-        if tlkind == TlKind.BEAT_TIMELINE:
-            time_or_measure = "time"
-        else:
-            time_or_measure = self._get_by_time_or_by_measure_from_user()
-
-        if time_or_measure == "measure":
+        if tlkind == TlKind.SCORE_TIMELINE:
+            time_or_measure = "measure"
             beat_tlui = self._get_beat_timeline_ui_for_import_from_csv()
             if not beat_tlui:
                 return
 
             beat_tl = get(Get.TIMELINE, beat_tlui.id)
-        else:
-            beat_tl = None
+            success, path = get(
+                Get.FROM_USER_FILE_PATH,
+                "Import components",
+                ["musicXML files (*.musicxml; *.mxl)"],
+            )
 
-        success, path = get(
-            Get.FROM_USER_FILE_PATH, "Import components", ["CSV files (*.csv)"]
-        )
+        else:
+            if tlkind == TlKind.BEAT_TIMELINE:
+                time_or_measure = "time"
+            else:
+                time_or_measure = self._get_by_time_or_by_measure_from_user()
+
+            if time_or_measure == "measure":
+                beat_tlui = self._get_beat_timeline_ui_for_import_from_csv()
+                if not beat_tlui:
+                    return
+
+                beat_tl = get(Get.TIMELINE, beat_tlui.id)
+            else:
+                beat_tl = None
+
+            success, path = get(
+                Get.FROM_USER_FILE_PATH, "Import components", ["CSV files (*.csv)"]
+            )
 
         if not success:
             return
@@ -444,6 +467,9 @@ class QtUI:
                 "time": tilia.parsers.csv.pdf.import_by_time,
                 "measure": tilia.parsers.csv.pdf.import_by_measure,
             },
+            TlKind.SCORE_TIMELINE: {
+                "measure": tilia.parsers.score.musicxml.notes_from_musicXML,
+            },
         }
 
         timeline.clear()
@@ -457,6 +483,9 @@ class QtUI:
 
         if errors:
             self._display_import_from_csv_errors(errors)
+
+        if tlkind == TlKind.SCORE_TIMELINE:
+            post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, timeline.id)
 
         post(Post.APP_RECORD_STATE, "Import from csv file")
 

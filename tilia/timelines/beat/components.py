@@ -39,7 +39,6 @@ class Beat(PointLikeTimelineComponent):
 
         super().__init__(timeline, id)
 
-
     def __str__(self):
         return f"Beat({self.time})"
 

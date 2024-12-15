@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+</head>
+
+<body>
+    <div id="osmdCanvas" style="width: 100000px;"></div>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.9/build/opensheetmusicdisplay.min.js"></script>
+    <script type="text/javascript">
+        let backend;
+        new QWebChannel(qt.webChannelTransport, function (channel) {
+            backend = channel.objects.backend;
+        })
+
+        var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {
+            backend: "svg",
+            drawingParameters: "compacttight",
+            renderSingleHorizontalStaffline: true,
+            drawPartNames: true,
+            measureNumberInterval: 5,
+        })
+
+        osmd.EngravingRules.SheetMaximumWidth = 9999999;
+        osmd.EngravingRules.FingeringTextSize = 0.000001;
+
+        async function loadSVG(filename) {
+            osmd.load(filename).then(
+                function () {
+                    osmd.render();
+
+                    const svgElement = document.getElementById("osmdSvgPage1");
+                    if (!svgElement) {
+                        return false;
+                    }
+                    else {
+                        backend.set_svg(svgElement.outerHTML);
+                        return true;
+                    }
+                }
+            ).catch((response) => {
+                backend.on_error(JSON.stringify(response));
+            });
+        }
+    </script>
+</body>
+
+</html>

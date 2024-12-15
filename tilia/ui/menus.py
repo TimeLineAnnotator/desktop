@@ -127,6 +127,7 @@ class AddTimelinesMenu(TiliaMenu):
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_MARKER_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_PDF_TIMELINE),
+        (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_SCORE_TIMELINE),
     ]
 
 
@@ -155,6 +156,11 @@ class PdfMenu(TiliaMenu):
     items = [(MenuItemKind.ACTION, TiliaAction.PDF_IMPORT_FROM_CSV)]
 
 
+class ScoreMenu(TiliaMenu):
+    title = "Score"
+    items = [(MenuItemKind.ACTION, TiliaAction.SCORE_IMPORT_FROM_MUSICXML)]
+
+
 class TimelinesMenu(TiliaMenu):
     title = "Timelines"
     items = [
@@ -166,6 +172,7 @@ class TimelinesMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, BeatMenu),
         (MenuItemKind.SUBMENU, HarmonyMenu),
         (MenuItemKind.SUBMENU, PdfMenu),
+        (MenuItemKind.SUBMENU, ScoreMenu),
     ]
 
 

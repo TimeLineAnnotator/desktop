@@ -36,6 +36,7 @@ pytest_plugins = [
     "tests.timelines.slider.fixtures",
     "tests.timelines.audiowave.fixtures",
     "tests.timelines.pdf.fixtures",
+    "tests.timelines.score.fixtures"
 ]
 
 
@@ -180,6 +181,7 @@ def use_test_settings(qapplication):
         constants_module.APP_NAME, f"DesktopTests"
     )
     settings_module.settings._check_all_default_settings_present()
+    settings_module.settings.set("general", "smooth-scroll", False)
     yield
 
 

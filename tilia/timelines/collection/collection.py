@@ -237,12 +237,13 @@ class Timelines:
             self.create_timeline(kind, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
-        if timeline.component_manager.hash_components() != state["components_hash"]:
+        if (
+            timeline.component_manager is not None
+            and timeline.component_manager.hash_components() != state["components_hash"]
+        ):
             timeline.component_manager.restore_state(state["components"])
-            # timeline.clear()
-            # timeline.deserialize_components(state["components"])
 
-        if timeline.get_state()['hash'] != state["hash"]:
+        if timeline.get_state()["hash"] != state["hash"]:
             for attr in timeline.SERIALIZABLE_BY_VALUE:
                 self.set_timeline_data(timeline.id, attr, state[attr])
 

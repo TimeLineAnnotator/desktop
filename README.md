@@ -25,6 +25,7 @@ Instructions can be found [at the website](https://tilia-app.com/help/introducti
    - Hierarchy: nested and levelled units organized in arbitrally complex hierarchical structures
    - Marker: simple labelled markers to indicate discrete events
    - PDF: visualize PDF files synced to playback
+   - Score: visualize music scores in a custom, to-scale notation or in conventional engraving
  - Controlling playback by clicking on timeline units
  - Multiple attributes linked to each timeline unit
  - Local audio and video support

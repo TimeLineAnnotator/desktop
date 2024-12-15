@@ -1,13 +1,14 @@
 from pathlib import Path
 from typing import Optional, Tuple, Literal
 
-from tilia.parsers import csv
+from tilia.parsers import csv, score
 from tilia.exceptions import WrongTimelineForImport
 from tilia.requests import get, Get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli import io
 
@@ -26,6 +27,7 @@ def setup_parser(subparsers):
 
     import_subparsers = import_parser.add_subparsers(dest="tl_kind")
     setup_import_marker_and_hierarchy_parser(import_subparsers)
+    setup_import_score_parser(import_subparsers)
     setup_import_beat_parser(import_subparsers)
 
 
@@ -52,6 +54,22 @@ def setup_import_marker_and_hierarchy_parser(subparser):
         subparsers = parser.add_subparsers(dest="measure_or_time")
         setup_import_by_time(subparsers)
         setup_import_by_measure(subparsers)
+
+
+def setup_import_score_parser(subparser):
+    parser = subparser.add_parser(
+        "score", help="Import score (.mxl, .musicxml) data", aliases=["sco"]
+    )
+    named_args = setup_import_file_and_target_args(parser)
+
+    ref_group = named_args.add_mutually_exclusive_group(required=True)
+
+    ref_group.add_argument(
+        "--reference-tl-ordinal", type=int, help="Reference beat timeline ordinal"
+    )
+    ref_group.add_argument(
+        "--reference-tl-name", type=str, help="Reference beat timeline name"
+    )
 
 
 def setup_import_by_time(subparser):
@@ -111,6 +129,8 @@ def validate_timelines_for_import(
         raise WrongTimelineForImport(f"{tl} is not a hierarchy timeline")
     elif kind_str == "beat" and tl.KIND != TimelineKind.BEAT_TIMELINE:
         raise WrongTimelineForImport(f"{tl} is not a beat timeline")
+    elif kind_str == "score" and tl.KIND != TimelineKind.SCORE_TIMELINE:
+        raise WrongTimelineForImport(f"{tl} is not a score timeline")
 
     if ref_tl and ref_tl.KIND != TimelineKind.BEAT_TIMELINE:
         raise WrongTimelineForImport(f"{ref_tl} is not a beat timeline")
@@ -127,7 +147,7 @@ def import_timeline(namespace):
 
     tl_kind = namespace.tl_kind
 
-    if tl_kind == "beat":
+    if tl_kind in {"beat", "score"}:
         measure_or_time = None
     else:
         measure_or_time = namespace.measure_or_time
@@ -168,6 +188,10 @@ def import_timeline(namespace):
     elif tl_kind == "beat":
         tl: BeatTimeline
         errors = csv.beat.beats_from_csv(tl, file)
+
+    elif tl_kind == "score":
+        tl: ScoreTimeline
+        errors = score.musicxml.notes_from_musicXML(tl, ref_tl, file)
 
     if errors:
         io.output(f"Errors: {errors}")

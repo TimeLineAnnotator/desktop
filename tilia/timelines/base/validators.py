@@ -3,8 +3,6 @@ from typing import Any
 
 from PyQt6.QtGui import QColor
 
-from tilia.requests import Get, get
-
 
 def validate_time(value):
     return isinstance(value, (float, int)) and value >= 0
@@ -34,6 +32,10 @@ def validate_boolean(value):
 
 def validate_integer(value):
     return isinstance(value, int)
+
+
+def validate_non_negative_integer(value):
+    return isinstance(value, int) and value >= 0
 
 
 def validate_positive_integer(value):
