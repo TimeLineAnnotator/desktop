@@ -46,7 +46,7 @@ import tilia.errors
 # from tilia.settings import settings
 
 if TYPE_CHECKING:
-    from tilia.timelines.score.timeline import ScoreTimeline
+    from tilia.ui.timelines.score import ScoreTimelineUI
 
 
 class SvgWebEngineTracker(QObject):
@@ -66,14 +66,14 @@ class SvgWebEngineTracker(QObject):
 
 
 class SvgViewer(ViewDockWidget):
-    def __init__(self, name: str, tl: ScoreTimeline, *args, **kwargs) -> None:
+    def __init__(self, name: str, tlui: ScoreTimelineUI, *args, **kwargs) -> None:
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
-        self.setObjectName(f"TiLiA Score Viewer {tl.id}")
+        self.setObjectName(f"TiLiA Score Viewer {tlui.id}")
         self.setAllowedAreas(
             Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
         )
-        self.timeline = tl
-        self.timeline_ui = None
+        self.timeline_ui = tlui
+        self.timeline = self.timeline_ui.timeline
 
         self.__setup_score_creator()
         self.__setup_score_viewer()
@@ -182,7 +182,7 @@ class SvgViewer(ViewDockWidget):
 
         return v_toolbar
 
-    def load_svg_data(self, data: str, has_ui: bool) -> None:
+    def load_svg_data(self, data: str) -> None:
         self.score_root = etree.fromstring(data, None)
         beat_x_pos, success = self.timeline.set_data(
             "viewer_beat_x", self._get_beat_x_pos(self.score_root)
@@ -198,11 +198,9 @@ class SvgViewer(ViewDockWidget):
                 float(beat): float(x) for beat, x in beat_x_pos.items()
             }
         self.timeline.save_svg_data(str(etree.tostring(self.score_root), "utf-8"))
+        self.show_svg_data()
 
-        if not has_ui:
-            return
-
-        self.timeline_ui = get(Get.TIMELINE_UI, self.timeline.id)
+    def show_svg_data(self):
         self.setParent(get(Get.MAIN_WINDOW))
         self.score_renderer.load(bytearray(etree.tostring(self.score_root)))
         self.is_svg_loaded = True

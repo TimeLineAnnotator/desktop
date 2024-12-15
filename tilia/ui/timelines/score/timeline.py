@@ -37,6 +37,7 @@ from tilia.ui.timelines.score.request_handlers import (
     ScoreTimelineUIElementRequestHandler,
 )
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
+from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreTimelineUI(TimelineUI):
@@ -60,6 +61,9 @@ class ScoreTimelineUI(TimelineUI):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.__svg_view = None
+
         listen(
             self,
             Post.SETTINGS_UPDATED,
@@ -90,10 +94,6 @@ class ScoreTimelineUI(TimelineUI):
                 n: QPixmap(self.get_time_signature_pixmap_path(n)) for n in range(10)
             },
         }
-
-    @property
-    def svg_view(self):
-        return self.timeline.svg_view
 
     @staticmethod
     def get_time_signature_pixmap_path(n: int) -> str:
@@ -395,8 +395,8 @@ class ScoreTimelineUI(TimelineUI):
     def on_score_timeline_clear_done(self, id: int):
         if id != self.id:
             return
-
         self._reset_caches()
+        self.reset_svg()
 
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
@@ -430,8 +430,19 @@ class ScoreTimelineUI(TimelineUI):
         if self.svg_view.is_svg_loaded:
             self.svg_view.scroll_to_time(time, False)
 
+    @property
+    def svg_view(self):
+        if not self.__svg_view:
+            self.__svg_view = SvgViewer(name=self.get_data("name"), tlui=self)
+        return self.__svg_view
+
+    def on_svg_data_set_done(self, data: str):
+        self.svg_view.load_svg_data(data)
+
+    def on_music_xml_updated(self, data: str):
+        self.svg_view.to_svg(data)
+
     def _setup_svg_view(self) -> None:
-        self.timeline.has_ui = True
         self.tracker_start = 0
         self.tracker_end = 0
         self.dragged = False
@@ -440,6 +451,12 @@ class ScoreTimelineUI(TimelineUI):
         setup_smooth(self)
         if (data := self.timeline.svg_data) and not self.svg_view.is_svg_loaded:
             self.svg_view.load_svg_data(data)
+
+    def reset_svg(self):
+        self.svg_view.deleteLater()
+        self.__svg_view = None
+        self.timeline.save_svg_data("")
+        self.timeline._viewer_beat_x = {}
 
     def on_left_click(self, item, modifier, double, x, y):
         if item != self.measure_tracker:

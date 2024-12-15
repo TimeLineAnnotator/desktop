@@ -9,7 +9,6 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.timeline import Timeline, TimelineComponentManager
-from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
@@ -34,10 +33,8 @@ class ScoreTLComponentManager(TimelineComponentManager):
         post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def clear(self):
-        self.timeline.reset_svg()
         super().clear()
         post(Post.SCORE_TIMELINE_CLEAR_DONE, self.timeline.id)
-
 
 
 class ScoreTimeline(Timeline):
@@ -63,14 +60,6 @@ class ScoreTimeline(Timeline):
         }
         self._viewer_beat_x = viewer_beat_x
         self.svg_data = svg_data
-        self.__svg_view = None
-        self.has_ui = False
-
-    @property
-    def svg_view(self):
-        if not self.__svg_view:
-            self.__svg_view = SvgViewer(name=self.get_data("name"), tl=self)
-        return self.__svg_view
 
     @property
     def svg_data(self):
@@ -79,8 +68,7 @@ class ScoreTimeline(Timeline):
     @svg_data.setter
     def svg_data(self, svg_data):
         self._svg_data = svg_data
-        if svg_data:
-            self.svg_view.load_svg_data(svg_data, self.has_ui)
+        post(Post.SCORE_TIMELINE_SVG_DATA_SET_DONE, self.id, svg_data)
 
     @property
     def viewer_beat_x(self):
@@ -95,7 +83,7 @@ class ScoreTimeline(Timeline):
         self._svg_data = svg_data
 
     def mxl_updated(self, mxl_data):
-        self.svg_view.to_svg(mxl_data)
+        post(Post.SCORE_TIMELINE_MUSIC_XML_UPDATED, self.id, mxl_data)
 
     @property
     def staff_count(self):
@@ -104,12 +92,6 @@ class ScoreTimeline(Timeline):
                 "index", ComponentKind.STAFF
             )
         )
-
-    def reset_svg(self):
-        self.svg_view.deleteLater()
-        self.__svg_view = None
-        self.save_svg_data("")
-        self._viewer_beat_x = {}
 
     def svg_view_deleted(self):
         self.__svg_view = None
