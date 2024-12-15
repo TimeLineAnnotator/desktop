@@ -26,7 +26,7 @@ from tilia.timelines import timeline_kinds
 from tilia.timelines.component_kinds import ComponentKind
 from .scene import TimelineUIsScene
 from .validators import validate
-from tilia.exceptions import TimelineUINotFound, UserCancelledDialog
+from tilia.exceptions import UserCancelledDialog
 from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
 from tilia.timelines.base.timeline import Timeline
@@ -1124,11 +1124,8 @@ class TimelineUIs:
     def get_timeline_uis(self):
         return sorted(list(self._timeline_uis))
 
-    def get_timeline_ui(self, tl_id: int) -> TimelineUI:
-        try:
-            return next(tlui for tlui in self if tlui.id == tl_id)
-        except StopIteration:
-            raise TimelineUINotFound(f"No timeline UI with id={tl_id}")
+    def get_timeline_ui(self, tl_id: int) -> TimelineUI | None:
+        return next((tlui for tlui in self if tlui.id == tl_id), None)
 
     def get_timeline_ui_element(self, timeline_id: int, element_id: int):
         return self.get_timeline_ui(timeline_id).get_element(element_id)

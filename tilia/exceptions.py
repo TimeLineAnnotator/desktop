@@ -29,12 +29,6 @@ class NoCallbackAttached(TiliaException):
     pass
 
 
-class TimelineUINotFound(TiliaException):
-    """Raised when a timeline UI is not found when trying to get it by id"""
-
-    pass
-
-
 class TiliaFileWriteError(TiliaException):
     pass
 
