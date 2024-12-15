@@ -25,7 +25,7 @@ def handle_expection(type, value, tb):
     if app:
         # The app state should be dumped to a file
         # for debugging purposes.
-        print(app.get_app_state())
+        pass
     exc_message = ''.join(traceback.format_exception(type, value, tb))
     if ui:
         # Additonally. the exception info should
