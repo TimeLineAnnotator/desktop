@@ -570,3 +570,23 @@ class BeatTimeline(Timeline):
 
         self.component_manager.compute_is_first_in_measure = True
         self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+
+    def add_measure_zero(self, fraction_of_measure_one: float) -> tuple[bool, str]:
+        if self.measure_count < 2:
+            return False, "Timeline has less than two measures. Cannot estimate measure zero duration."
+
+        measure_one_start = self.get_time_by_measure(1)[0]
+        measure_two_start = self.get_time_by_measure(2)[0]
+
+        measure_zero_duration = (measure_two_start - measure_one_start) * fraction_of_measure_one
+        measure_zero_start = measure_one_start - measure_zero_duration
+        if measure_zero_start < 0:
+            return False, "There is not enough available space before the first measure."
+
+        self.create_component(ComponentKind.BEAT, measure_zero_start)
+
+        self.set_measure_number(0, 0)
+        self.set_beat_amount_in_measure(0, 1)
+
+        return True, ""
+
