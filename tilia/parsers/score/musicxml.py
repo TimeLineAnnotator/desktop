@@ -1,6 +1,3 @@
-# NOT COMPLETE
-# TODO:
-#     - Fix parsing of anacrusis
 import itertools
 from pathlib import Path
 from zipfile import ZipFile
