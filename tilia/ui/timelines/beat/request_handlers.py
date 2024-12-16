@@ -51,7 +51,14 @@ class BeatUIRequestHandler(ElementRequestHandler):
 
         return sorted(list(measure_indices))
 
-    def on_set_measure_number(self, elements, number):
+    def on_set_measure_number(self, elements):
+        accepted, number = get(
+            Get.FROM_USER_INT,
+            "Change measure number",
+            "Insert measure number",
+        )
+        if not accepted:
+            return
         for i in reversed(self._get_measure_indices(elements)):
             self.timeline.set_measure_number(i, number)
         return True
@@ -66,7 +73,15 @@ class BeatUIRequestHandler(ElementRequestHandler):
             self.timeline.distribute_beats(i)
         return True
 
-    def on_set_amount_in_measure(self, elements, amount):
+    def on_set_amount_in_measure(self, elements):
+        accepted, amount = get(
+            Get.FROM_USER_INT,
+            "Change beats in measure",
+            "Insert amount of beats in measure",
+            min=1,
+        )
+        if not accepted:
+            return
         for i in reversed(self._get_measure_indices(elements)):
             self.timeline.set_beat_amount_in_measure(i, amount)
         return True

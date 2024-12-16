@@ -112,27 +112,6 @@ def _get_args_for_timelines_clear(_):
     return (confirmed,), {}
 
 
-def _get_args_for_beat_set_measure_number(_):
-    accepted, number = get(
-        Get.FROM_USER_INT, "Change measure number", "Insert measure number", min=0
-    )
-    if not accepted:
-        raise UserCancelledDialog
-    return (number,), {}
-
-
-def _get_args_for_beat_set_amount_in_measure(_):
-    accepted, number = get(
-        Get.FROM_USER_INT,
-        "Change beats in measure",
-        "Insert amount of beats in measure",
-        min=1,
-    )
-    if not accepted:
-        raise UserCancelledDialog
-    return (number,), {}
-
-
 def _get_args_for_hierarchy_add_pre_start(_):
     accept, number = get(Get.FROM_USER_FLOAT, "Add pre-start", "Pre-start length")
     if not accept:
