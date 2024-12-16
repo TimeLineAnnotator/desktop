@@ -38,6 +38,10 @@ class BeatTimelineUI(TimelineUI):
             lambda updated_settings: self.on_settings_updated(updated_settings),
         )
 
+    def on_timeline_components_deserialized(self):
+        for beat_ui in self:
+            beat_ui.update_label()
+
     @classmethod
     def get_additional_args_for_creation(cls):
         success, beat_pattern = get(Get.FROM_USER_BEAT_PATTERN)
