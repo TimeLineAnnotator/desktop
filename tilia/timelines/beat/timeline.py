@@ -586,6 +586,8 @@ class BeatTimeline(Timeline):
 
         if not self.is_empty:
             self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+            post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
+
             # Higher index is possible.
 
     class FillMethod(Enum):
