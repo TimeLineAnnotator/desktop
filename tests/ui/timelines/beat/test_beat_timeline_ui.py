@@ -10,7 +10,10 @@ from tilia.ui.windows import WindowKind
 
 
 def get_displayed_measure_number(beat_ui):
-    return beat_ui.label.toPlainText()
+    if beat_ui.label.isVisible():
+        return beat_ui.label.toPlainText()
+    else:
+        return ""
 
 
 def test_measure_numbers_are_loaded_from_file(beat_tl, tluis, tmp_path):
@@ -435,7 +438,9 @@ class TestActions:
         assert beat_tlui[0].get_data("time") == 0
         assert beat_tlui[1].get_data("time") == 1
 
-    def test_change_beats_in_measure(self, beat_tlui, user_actions):
+
+class TestSetBeatAmountInMeasure:
+    def test_set_beat_amount_in_measure(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)
 
         beat_tlui.select_element(beat_tlui[0])
@@ -445,6 +450,20 @@ class TestActions:
             user_actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
 
         beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)
+
+    def test_updates_measure_numbers(self, beat_tlui, user_actions):
+        beat_tlui.timeline.beat_pattern = [1]
+        beat_tlui.timeline.measures_to_force_display = [0, 1, 2]
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(1)
+        beat_tlui.create_beat(2)
+
+        beat_tlui.select_element(beat_tlui[0])
+
+        with Serve(Get.FROM_USER_INT, (True, 2)):
+            user_actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
+
+        assert [get_displayed_measure_number(b) for b in beat_tlui] == ['1', '', '2']
 
 
 class TestFillWithBeats:

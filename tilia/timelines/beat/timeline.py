@@ -465,6 +465,9 @@ class BeatTimeline(Timeline):
         if not extra_measure_count:
             return
         self.measure_numbers = self.measure_numbers[:-extra_measure_count]
+        if self.measures_to_force_display:
+            while self.measures_to_force_display[-1] >= self.measure_count:
+                self.measures_to_force_display.pop(-1)
 
     def update_beats_that_start_measures(self):
         # noinspection PyAttributeOutsideInit
@@ -574,6 +577,7 @@ class BeatTimeline(Timeline):
         new_beats_in_measure = self.beats_in_measure.copy()
         new_beats_in_measure[measure_index] = beat_amount
         self.set_data("beats_in_measure", new_beats_in_measure)
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, measure_index)
 
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
