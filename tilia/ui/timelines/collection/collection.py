@@ -46,7 +46,6 @@ from tilia.ui.timelines.collection.requests.timeline import (
 )
 from tilia.ui.timelines.collection.requests.element import TlElmRequestSelector
 from .view import TimelineUIsView
-from ..score import ScoreTimelineUI
 from ..beat import BeatTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
@@ -165,6 +164,7 @@ class TimelineUIs:
             (Post.SELECTION_BOX_DESELECT_ITEM, self.on_selection_box_deselect_item),
             (Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done),
             (Post.TIMELINES_CROP_DONE, self.on_timelines_crop_done),
+            (Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.on_beat_timeline_measure_number_change_done),
             (Post.HIERARCHY_SELECTED, self.on_hierarchy_selected),
             (Post.HIERARCHY_DESELECTED, self.on_hierarchy_deselected),
             (Post.HIERARCHY_MERGE_SPLIT_DONE, self.on_hierarchy_merge_split),
@@ -646,6 +646,10 @@ class TimelineUIs:
                 tlui.on_horizontal_arrow_press(arrow)
             if direction == "vertical" and tlui.ACCEPTS_VERTICAL_ARROWS:
                 tlui.on_vertical_arrow_press(arrow)
+
+    def on_beat_timeline_measure_number_change_done(self, id: int, start_index: int):
+        timeline_ui = cast(BeatTimelineUI, self.get_timeline_ui(id))
+        timeline_ui.on_measure_number_change_done(start_index)
 
     @staticmethod
     def on_hierarchy_selected():

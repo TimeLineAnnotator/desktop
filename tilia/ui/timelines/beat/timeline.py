@@ -92,6 +92,10 @@ class BeatTimelineUI(TimelineUI):
             self.element_manager.deselect_element(selected_element)
             self.select_element(element_to_select)
 
+    def on_measure_number_change_done(self, start_index: int):
+        for beat_ui in self[start_index:]:
+            beat_ui.update_label()
+
     def get_copy_data_from_selected_elements(self):
         self.validate_copy(self.selected_elements)
 

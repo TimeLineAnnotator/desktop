@@ -25,6 +25,7 @@ class Post(Enum):
     BEAT_SET_MEASURE_NUMBER = auto()
     BEAT_TIMELINE_COMPONENTS_DESERIALIZED = auto()
     BEAT_TIMELINE_FILL = auto()
+    BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE = auto()
     CANVAS_RIGHT_CLICK = auto()
     DEBUG = auto()
     DISPLAY_ERROR = auto()

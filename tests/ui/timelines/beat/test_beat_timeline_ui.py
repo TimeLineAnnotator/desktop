@@ -9,6 +9,10 @@ from tilia.ui.actions import TiliaAction
 from tilia.ui.windows import WindowKind
 
 
+def get_displayed_measure_number(beat_ui):
+    return beat_ui.label.toPlainText()
+
+
 def test_measure_numbers_are_loaded_from_file(beat_tl, tluis, tmp_path):
     beat_tl.beat_pattern = [1]
 
@@ -53,6 +57,19 @@ class TestCreateDeleteBeat:
 
         assert len(beat_tlui) == 0
         assert not beat_tlui.selected_elements
+
+    def test_delete_update_next_measures_numbers(self, beat_tlui, user_actions):
+        beat_tlui.timeline.beat_pattern = [1]
+        beat_tlui.timeline.measures_to_force_display = [0, 1, 2]
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(1)
+        beat_tlui.create_beat(2)
+
+        beat_tlui.select_element(beat_tlui[0])
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+
+        assert get_displayed_measure_number(beat_tlui[0]) == "1"
+        assert get_displayed_measure_number(beat_tlui[1]) == "2"
 
 
 class TestSelect:
