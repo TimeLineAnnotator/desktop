@@ -399,11 +399,16 @@ class QtUI:
         if not self._validate_timeline_kind_on_import_from_csv(tlkind):
             return
 
-        timeline_ui = self.timeline_uis.ask_choose_timeline(
-            "Import components from CSV",
-            "Choose timeline where components will be created",
-            tlkind,
-        )
+        tls_of_kind = self.timeline_uis.get_timeline_uis_by_attr("TIMELINE_KIND", tlkind)
+        if len(tls_of_kind) == 1:
+            timeline_ui = tls_of_kind[0]
+        else:
+            timeline_ui = self.timeline_uis.ask_choose_timeline(
+                "Import components from CSV",
+                "Choose timeline where components will be created",
+                tlkind,
+            )
+
         if not timeline_ui:
             return
 
@@ -507,20 +512,23 @@ class QtUI:
         )
 
     def _get_beat_timeline_ui_for_import_from_csv(self):
-        if not self.timeline_uis.get_timeline_uis_by_attr(
+        beat_tls = self.timeline_uis.get_timeline_uis_by_attr(
             "TIMELINE_KIND", TlKind.BEAT_TIMELINE
-        ):
+        )
+        if not beat_tls:
             tilia.errors.display(
                 tilia.errors.CSV_IMPORT_FAILED,
                 "No beat timelines found. Must have a beat timeline if importing by measure.",
             )
             return
-
-        return self.timeline_uis.ask_choose_timeline(
-            "Import components from CSV",
-            "Choose timeline with measures to be used when importing",
-            TlKind.BEAT_TIMELINE,
-        )
+        elif len(beat_tls) == 1:
+            return beat_tls[0]
+        else:
+            return self.timeline_uis.ask_choose_timeline(
+                "Import components from CSV",
+                "Choose timeline with measures to be used when importing",
+                TlKind.BEAT_TIMELINE,
+            )
 
     @staticmethod
     def _display_import_from_csv_errors(errors):
