@@ -47,6 +47,7 @@ from tilia.ui.timelines.collection.requests.timeline import (
 )
 from tilia.ui.timelines.collection.requests.element import TlElmRequestSelector
 from .view import TimelineUIsView
+from ..beat import BeatTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...actions import TiliaAction
@@ -180,6 +181,7 @@ class TimelineUIs:
             (Post.PLAYER_TOGGLE_LOOP, self.on_loop_toggle),
             (Post.EDIT_REDO, self.loop_cancel),
             (Post.EDIT_UNDO, self.loop_cancel),
+            (Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.on_beat_timeline_components_deserialized),
         }
 
         SERVES = {
@@ -671,6 +673,10 @@ class TimelineUIs:
 
     def on_harmony_timeline_components_deserialized(self, id):
         self.get_timeline_ui(id).on_timeline_components_deserialized()  # noqa
+
+    def on_beat_timeline_components_deserialized(self, id: int):
+        timeline_ui = cast(BeatTimelineUI, self.get_timeline_ui(id))
+        timeline_ui.on_timeline_components_deserialized()
 
     def on_loop_ignore_delete(self, tl_id: int, comp_id: int):
         self.loop_delete_ignore.add((tl_id, comp_id))

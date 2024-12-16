@@ -9,6 +9,30 @@ from tilia.ui.actions import TiliaAction
 from tilia.ui.windows import WindowKind
 
 
+def test_measure_numbers_are_loaded_from_file(beat_tl, tluis, tmp_path):
+    beat_tl.beat_pattern = [1]
+
+    beat_tl.create_beat(0)
+    beat_tl.create_beat(1)
+    beat_tl.create_beat(2)
+    beat_tl.create_beat(3)
+
+    beat_tl.recalculate_measures()
+
+    beat_tl.set_measure_number(0, 1)
+    beat_tl.set_measure_number(1, 3)
+    beat_tl.set_measure_number(2, 5)
+    beat_tl.set_measure_number(3, 7)
+
+    tmp_file = tmp_path / "test.tla"
+
+    post(Post.REQUEST_SAVE_TO_PATH, tmp_file)
+
+    post(Post.FILE_OPEN, tmp_file)
+
+    assert [x.label.toPlainText() for x in tluis[0]] == ["1", "3", "5", "7"]
+
+
 class TestCreateDeleteBeat:
     def test_create_single(self, beat_tlui):
         beat_tlui.create_beat(0)

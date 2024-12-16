@@ -151,6 +151,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline.set_data("measures_to_force_display", measures_to_force_display)
 
         self.timeline.recalculate_measures()  # Not sure if this is needed.
+        post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def restore_state(self, prev_state: dict):
         self.compute_is_first_in_measure = False
