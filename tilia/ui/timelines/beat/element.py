@@ -270,6 +270,9 @@ class BeatLabel(QGraphicsTextItem):
 
     def set_text(self, value: str):
         if not value:
+            # Settting plain text to empty string
+            # keeps the graphics item interactable,
+            # so we need to hide it, instead.
             self.setVisible(False)
         else:
             self.setVisible(True)
