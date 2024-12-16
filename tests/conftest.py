@@ -6,6 +6,7 @@ from typing import Literal
 import pytest
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication
+from colorama import Fore, Style
 
 import tilia.settings as settings_module
 import tilia.constants as constants_module
@@ -162,10 +163,14 @@ def print_errors():
     since they  do not raise unhandled exceptions.
     """
     def _print_errors(title, message):
-        print(' ############## TILIA ERROR MESSAGE ############## ')
+        print(Fore.YELLOW)
+        print()
+        print('############## TILIA ERROR MESSAGE ############## ')
         print(title)
         print(message)
-        print(' ############################## ')
+        print('############################## ')
+        print()
+        print(Style.RESET_ALL)
 
     listen(print_errors, Post.DISPLAY_ERROR, _print_errors)
 
