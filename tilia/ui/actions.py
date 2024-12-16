@@ -184,7 +184,7 @@ taction_to_params = {
         Post.BEAT_SET_AMOUNT_IN_MEASURE, "Set beat amount in measure", "", ""
     ),
     TiliaAction.BEAT_IMPORT_FROM_CSV: ActionParams(
-        Post.BEAT_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+        Post.BEAT_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
     ),
     TiliaAction.BEAT_TIMELINE_FILL: ActionParams(
         Post.BEAT_TIMELINE_FILL, "Fill timeline with beats", "", ""
@@ -193,7 +193,7 @@ taction_to_params = {
         Post.MARKER_ADD, "Add marker at current position", "add_marker30", "m"
     ),
     TiliaAction.MARKER_IMPORT_FROM_CSV: ActionParams(
-        Post.MARKER_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+        Post.MARKER_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
     ),
     TiliaAction.TIMELINE_ELEMENT_COLOR_SET: ActionParams(
         Post.TIMELINE_ELEMENT_COLOR_SET, "Change color", "", ""
@@ -227,12 +227,12 @@ taction_to_params = {
     ),
     TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE: ActionParams(
         Post.TIMELINE_ELEMENT_PASTE_COMPLETE,
-        "Paste complete",
+        "Pas&te complete",
         "paste_with_data30",
         "Ctrl+Shift+V",
     ),
     TiliaAction.HIERARCHY_IMPORT_FROM_CSV: ActionParams(
-        Post.HIERARCHY_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+        Post.HIERARCHY_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
     ),
     TiliaAction.HARMONY_ADD: ActionParams(
         Post.HARMONY_ADD, "Add harmony", "harmony_add", "h"
@@ -256,56 +256,56 @@ taction_to_params = {
     TiliaAction.HARMONY_TIMELINE_HIDE_KEYS: ActionParams(
         Post.HARMONY_TIMELINE_HIDE_KEYS, "Hide keys", "", ""
     ),
-    TiliaAction.FILE_NEW: ActionParams(Post.REQUEST_FILE_NEW, "New...", "", "Ctrl+N"),
-    TiliaAction.FILE_OPEN: ActionParams(Post.FILE_OPEN, "Open...", "", "Ctrl+O"),
-    TiliaAction.FILE_SAVE: ActionParams(Post.FILE_SAVE, "Save", "", "Ctrl+S"),
-    TiliaAction.FILE_EXPORT: ActionParams(Post.FILE_EXPORT, "Export...", "", ""),
+    TiliaAction.FILE_NEW: ActionParams(Post.REQUEST_FILE_NEW, "&New...", "", "Ctrl+N"),
+    TiliaAction.FILE_OPEN: ActionParams(Post.FILE_OPEN, "&Open...", "", "Ctrl+O"),
+    TiliaAction.FILE_SAVE: ActionParams(Post.FILE_SAVE, "&Save", "", "Ctrl+S"),
     TiliaAction.FILE_SAVE_AS: ActionParams(
-        Post.FILE_SAVE_AS, "Save as...", "", "Ctrl+Shift+S"
+        Post.FILE_SAVE_AS, "Save &As...", "", "Ctrl+Shift+S"
     ),
+    TiliaAction.FILE_EXPORT: ActionParams(Post.FILE_EXPORT, "&Export...", "", ""),
     TiliaAction.MEDIA_LOAD_LOCAL: ActionParams(
-        Post.UI_MEDIA_LOAD_LOCAL, "Local...", "", "Ctrl+Shift+L"
+        Post.UI_MEDIA_LOAD_LOCAL, "&Local...", "", "Ctrl+Shift+L"
     ),
     TiliaAction.MEDIA_LOAD_YOUTUBE: ActionParams(
-        Post.UI_MEDIA_LOAD_YOUTUBE, "YouTube...", "", ""
+        Post.UI_MEDIA_LOAD_YOUTUBE, "&YouTube...", "", ""
     ),
     TiliaAction.METADATA_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_OPEN, "Edit metadata...", "", "", (WindowKind.MEDIA_METADATA,)
+        Post.WINDOW_OPEN, "Edit &Metadata...", "", "", (WindowKind.MEDIA_METADATA,)
     ),
     TiliaAction.SETTINGS_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_OPEN, "Settings...", "", "", (WindowKind.SETTINGS,)
+        Post.WINDOW_OPEN, "&Settings...", "", "", (WindowKind.SETTINGS,)
     ),
     TiliaAction.AUTOSAVES_FOLDER_OPEN: ActionParams(
-        Post.AUTOSAVES_FOLDER_OPEN, "Autosaves...", "", ""
+        Post.AUTOSAVES_FOLDER_OPEN, "Open autosa&ves folder...", "", ""
     ),
-    TiliaAction.EDIT_REDO: ActionParams(Post.EDIT_REDO, "Redo", "", "Ctrl+Shift+Z"),
-    TiliaAction.EDIT_UNDO: ActionParams(Post.EDIT_UNDO, "Undo", "", "Ctrl+Z"),
+    TiliaAction.EDIT_REDO: ActionParams(Post.EDIT_REDO, "&Redo", "", "Ctrl+Shift+Z"),
+    TiliaAction.EDIT_UNDO: ActionParams(Post.EDIT_UNDO, "&Undo", "", "Ctrl+Z"),
     TiliaAction.WINDOW_MANAGE_TIMELINES_OPEN: ActionParams(
-        Post.WINDOW_OPEN, "Manage...", "", "", (WindowKind.MANAGE_TIMELINES,)
+        Post.WINDOW_OPEN, "&Manage...", "", "", (WindowKind.MANAGE_TIMELINES,)
     ),
     TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "Hierarchy", "", "", (TimelineKind.HIERARCHY_TIMELINE,)
+        Post.TIMELINE_ADD, "&Hierarchy", "", "", (TimelineKind.HIERARCHY_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_MARKER_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "Marker", "", "", (TimelineKind.MARKER_TIMELINE,)
+        Post.TIMELINE_ADD, "&Marker", "", "", (TimelineKind.MARKER_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_BEAT_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "Beat", "", "", (TimelineKind.BEAT_TIMELINE,)
+        Post.TIMELINE_ADD, "&Beat", "", "", (TimelineKind.BEAT_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "Harmony", "", "", (TimelineKind.HARMONY_TIMELINE,)
+        Post.TIMELINE_ADD, "Ha&rmony", "", "", (TimelineKind.HARMONY_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_PDF_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "PDF", "", "", (TimelineKind.PDF_TIMELINE,)
+        Post.TIMELINE_ADD, "&PDF", "", "", (TimelineKind.PDF_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "AudioWave", "", "", (TimelineKind.AUDIOWAVE_TIMELINE,)
+        Post.TIMELINE_ADD, "&AudioWave", "", "", (TimelineKind.AUDIOWAVE_TIMELINE,)
     ),
     TiliaAction.TIMELINES_ADD_SCORE_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "Score", "", "", (TimelineKind.SCORE_TIMELINE,)
+        Post.TIMELINE_ADD, "&Score", "", "", (TimelineKind.SCORE_TIMELINE,)
     ),
     TiliaAction.HARMONY_IMPORT_FROM_CSV: ActionParams(
-        Post.HARMONY_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+        Post.HARMONY_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
     ),
     TiliaAction.TIMELINES_CLEAR: ActionParams(
         Post.TIMELINES_CLEAR, "Clear all", "", ""
@@ -320,13 +320,13 @@ taction_to_params = {
         Post.TIMELINE_ELEMENT_INSPECT, "Inspect", "", ""
     ),
     TiliaAction.TIMELINE_ELEMENT_EDIT: ActionParams(
-        Post.TIMELINE_ELEMENT_INSPECT, "Edit", "", ""
+        Post.TIMELINE_ELEMENT_INSPECT, "&Edit", "", ""
     ),
     TiliaAction.TIMELINE_ELEMENT_COPY: ActionParams(
-        Post.TIMELINE_ELEMENT_COPY, "Copy", "", "Ctrl+C"
+        Post.TIMELINE_ELEMENT_COPY, "&Copy", "", "Ctrl+C"
     ),
     TiliaAction.TIMELINE_ELEMENT_PASTE: ActionParams(
-        Post.TIMELINE_ELEMENT_PASTE, "Paste", "", "Ctrl+V"
+        Post.TIMELINE_ELEMENT_PASTE, "&Paste", "", "Ctrl+V"
     ),
     TiliaAction.TIMELINE_ELEMENT_EXPORT_AUDIO: ActionParams(
         Post.TIMELINE_ELEMENT_EXPORT_AUDIO, "Export to audio", "", ""
@@ -340,25 +340,25 @@ taction_to_params = {
     TiliaAction.TIMELINE_HEIGHT_SET: ActionParams(
         Post.TIMELINE_HEIGHT_SET, "Change height", "", ""
     ),
-    TiliaAction.VIEW_ZOOM_IN: ActionParams(Post.VIEW_ZOOM_IN, "Zoom in", "", "Ctrl++"),
+    TiliaAction.VIEW_ZOOM_IN: ActionParams(Post.VIEW_ZOOM_IN, "Zoom &In", "", "Ctrl++"),
     TiliaAction.VIEW_ZOOM_OUT: ActionParams(
-        Post.VIEW_ZOOM_OUT, "Zoom out", "", "Ctrl+-"
+        Post.VIEW_ZOOM_OUT, "Zoom &Out", "", "Ctrl+-"
     ),
     TiliaAction.ABOUT_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_OPEN, "About...", "", "", (WindowKind.ABOUT,)
+        Post.WINDOW_OPEN, "&About...", "", "", (WindowKind.ABOUT,)
     ),
     TiliaAction.MEDIA_STOP: ActionParams(Post.PLAYER_STOP, "Stop", "stop15", ""),
     TiliaAction.WEBSITE_HELP_OPEN: ActionParams(
-        Post.WEBSITE_HELP_OPEN, "Help...", "", ""
+        Post.WEBSITE_HELP_OPEN, "&Help...", "", ""
     ),
     TiliaAction.PDF_MARKER_ADD: ActionParams(
         Post.PDF_MARKER_ADD, "Add PDF marker", "pdf_add", "p"
     ),
     TiliaAction.PDF_IMPORT_FROM_CSV: ActionParams(
-        Post.PDF_IMPORT_FROM_CSV, "Import from CSV file", "", ""
+        Post.PDF_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
     ),
     TiliaAction.SCORE_IMPORT_FROM_MUSICXML: ActionParams(
-        Post.SCORE_IMPORT_FROM_MUSICXML, "Import from musicxml file", "", ""
+        Post.SCORE_IMPORT_FROM_MUSICXML, "&Import from musicxml file", "", ""
     ),
     TiliaAction.SCORE_ANNOTATION_ADD: ActionParams(
         None, "Add Annotation (Return)", "annotation_add", "", "", ""

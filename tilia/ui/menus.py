@@ -58,7 +58,7 @@ class TiliaMenu(QMenu):
 
 
 class LoadMediaMenu(TiliaMenu):
-    title = "Load media"
+    title = "&Load media"
     items = [
         (MenuItemKind.ACTION, TiliaAction.MEDIA_LOAD_LOCAL),
         (MenuItemKind.ACTION, TiliaAction.MEDIA_LOAD_YOUTUBE),
@@ -68,7 +68,7 @@ class LoadMediaMenu(TiliaMenu):
 class RecentFilesMenu(QMenu):
     def __init__(self):
         super().__init__()
-        self.setTitle("Open Recent File...")
+        self.setTitle("Open &Recent file")
         self.add_items()
         settings.link_file_update(self.update_items)
 
@@ -88,7 +88,7 @@ class RecentFilesMenu(QMenu):
 
 
 class FileMenu(TiliaMenu):
-    title = "File"
+    title = "&File"
     items = [
         (MenuItemKind.ACTION, TiliaAction.FILE_NEW),
         (MenuItemKind.ACTION, TiliaAction.FILE_OPEN),
@@ -100,14 +100,12 @@ class FileMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, LoadMediaMenu),
         (MenuItemKind.ACTION, TiliaAction.METADATA_WINDOW_OPEN),
         (MenuItemKind.SEPARATOR, None),
-        (MenuItemKind.ACTION, TiliaAction.SETTINGS_WINDOW_OPEN),
-        (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.ACTION, TiliaAction.AUTOSAVES_FOLDER_OPEN),
     ]
 
 
 class EditMenu(TiliaMenu):
-    title = "Edit"
+    title = "&Edit"
     items = [
         (MenuItemKind.ACTION, TiliaAction.EDIT_UNDO),
         (MenuItemKind.ACTION, TiliaAction.EDIT_REDO),
@@ -115,11 +113,13 @@ class EditMenu(TiliaMenu):
         (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_COPY),
         (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_PASTE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE),
+        (MenuItemKind.SEPARATOR, None),
+        (MenuItemKind.ACTION, TiliaAction.SETTINGS_WINDOW_OPEN),
     ]
 
 
 class AddTimelinesMenu(TiliaMenu):
-    title = "Add..."
+    title = "&Add"
     items = [
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.TIMELINES_ADD_BEAT_TIMELINE),
@@ -132,37 +132,37 @@ class AddTimelinesMenu(TiliaMenu):
 
 
 class HierarchyMenu(TiliaMenu):
-    title = "Hierarchy"
+    title = "&Hierarchy"
     items = [(MenuItemKind.ACTION, TiliaAction.HIERARCHY_IMPORT_FROM_CSV)]
 
 
 class MarkerMenu(TiliaMenu):
-    title = "Marker"
+    title = "&Marker"
     items = [(MenuItemKind.ACTION, TiliaAction.MARKER_IMPORT_FROM_CSV)]
 
 
 class BeatMenu(TiliaMenu):
-    title = "Beat"
+    title = "&Beat"
     items = [(MenuItemKind.ACTION, TiliaAction.BEAT_IMPORT_FROM_CSV), (MenuItemKind.ACTION, TiliaAction.BEAT_TIMELINE_FILL)]
 
 
 class HarmonyMenu(TiliaMenu):
-    title = "Harmony"
+    title = "Ha&rmony"
     items = [(MenuItemKind.ACTION, TiliaAction.HARMONY_IMPORT_FROM_CSV)]
 
 
 class PdfMenu(TiliaMenu):
-    title = "PDF"
+    title = "&PDF"
     items = [(MenuItemKind.ACTION, TiliaAction.PDF_IMPORT_FROM_CSV)]
 
 
 class ScoreMenu(TiliaMenu):
-    title = "Score"
+    title = "&Score"
     items = [(MenuItemKind.ACTION, TiliaAction.SCORE_IMPORT_FROM_MUSICXML)]
 
 
 class TimelinesMenu(TiliaMenu):
-    title = "Timelines"
+    title = "&Timelines"
     items = [
         (MenuItemKind.SUBMENU, AddTimelinesMenu),
         (MenuItemKind.ACTION, TiliaAction.WINDOW_MANAGE_TIMELINES_OPEN),
@@ -179,7 +179,7 @@ class TimelinesMenu(TiliaMenu):
 class ViewMenu(QMenu):
     def __init__(self):
         super().__init__()
-        self.setTitle("View")
+        self.setTitle("&View")
         self.add_default_items()
 
         self.windows = {}
@@ -222,7 +222,7 @@ class ViewMenu(QMenu):
 
 
 class HelpMenu(TiliaMenu):
-    title = "Help"
+    title = "&Help"
     items = [
         (MenuItemKind.ACTION, TiliaAction.ABOUT_WINDOW_OPEN),
         (MenuItemKind.ACTION, TiliaAction.WEBSITE_HELP_OPEN),
