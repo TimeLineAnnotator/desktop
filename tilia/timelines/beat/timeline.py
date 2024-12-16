@@ -151,7 +151,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline.set_data("beats_in_measure", beats_in_measure)
         self.timeline.set_data("measures_to_force_display", measures_to_force_display)
 
-        self.timeline.recalculate_measures()  # Not sure if this is needed.
+        self.timeline.recalculate_measures()
         post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def restore_state(self, prev_state: dict):
@@ -202,7 +202,6 @@ class BeatTimeline(Timeline):
         self.beat_pattern = beat_pattern or [4]
         self._beats_in_measure = beats_in_measure or []
         self.measure_numbers = measure_numbers or []
-        self.update_beats_that_start_measures()
         self.measures_to_force_display = measures_to_force_display or []
 
     @property

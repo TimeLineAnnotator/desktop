@@ -24,7 +24,6 @@ def beat_tl(tls):
         beat, error = tl.create_component(ComponentKind.BEAT, *args, **kwargs)
         if error:
             raise ValueError(f'Unable to create beat: {error}')
-        tl.recalculate_measures()
         return beat, None
 
     tl.create_beat = create_beat
