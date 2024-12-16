@@ -27,3 +27,7 @@ BEAT_TIMELINE_BY_AMOUNT_SUFFIX = " beat(s)"
 BEAT_TIMELINE_BY_INTERVAL_OPTION = "with beats spaced by"
 BEAT_TIMELINE_BY_INTERVAL_SUFFIX = " second(s)"
 BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT = "This will delete existing beats. Continue?"
+INSERT_MEASURE_ZERO_TITLE = "Insert measure zero"
+INSERT_MEASURE_ZERO_PROMPT = "The selected score has a measure numbered 0, but there is no such measure at the selected beat timeline. Attempt to insert it? Measure 0 is usually a pickup measure."
+INSERT_MEASURE_ZERO_FAILED = "Unable to insert measure at the start of the timeline. {}"
+
