@@ -1,9 +1,27 @@
-from unittest.mock import patch
+from unittest.mock import patch, mock_open
 
 from tests.conftest import parametrize_tlui
+from tests.mock import Serve
+from tilia.requests import Post, post, Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
+
+
+class TestImport:
+    def test_timeline_gets_restored_if_import_fails(self, qtui, marker_tl):
+        for i in range(100):
+            marker_tl.create_marker(i)
+
+        prev_state = marker_tl.get_state()
+
+        with patch("tilia.ui.qtui.QtUI._get_by_time_or_by_measure_from_user", return_value="time"):
+            with patch("builtins.open", mock_open(read_data='nonsense')):
+                with Serve(Get.FROM_USER_FILE_PATH, (True, "")):
+                    with Serve(Get.FROM_USER_YES_OR_NO, True):  # confirm overwriting components
+                        post(Post.MARKER_IMPORT_FROM_CSV)
+
+        assert marker_tl.get_state() == prev_state
 
 
 class TestCreateTimeline:

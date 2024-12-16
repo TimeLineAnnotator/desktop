@@ -95,13 +95,14 @@ def import_by_time(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create harmonies in a timeline from a csv file with times.
     Assumes the first row of the file will contain headers.
     Header names should match harmony properties.
     At least, 'harmony_or_key', 'time' and 'symbol' should be present.
-    Returns an array with descriptions of any errors during the process.
+    Returns a boolean indicating if the process was successful and
+    an array with descriptions of any errors during the process.
     """
     errors = []
 
@@ -109,7 +110,7 @@ def import_by_time(
         try:
             header = next(reader)
         except StopIteration:
-            return ["Can't import: file is empty."]
+            return False, ["Can't import: file is empty."]
 
         attrs_with_parsers = [
             ("harmony_or_key", _parse_harmony_or_key),
@@ -129,7 +130,7 @@ def import_by_time(
         success, error = _validate_required_attrs(required_attrs, header)
         if not success:
             errors.append(error)
-            return errors
+            return False, errors
 
         attr_data = _get_attr_data(attrs_with_parsers, indices)
 
@@ -151,7 +152,7 @@ def import_by_time(
                 attr_to_value["time"],
             )
 
-        return errors
+        return True, errors
 
 
 def import_by_measure(
@@ -160,13 +161,14 @@ def import_by_measure(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create harmonies in a timeline from a csv file with csv file with 1-based measure indices.
     Assumes the first row of the file will contain headers.
     Header names should match harmony properties.
     At least, 'harmony_or_key', 'time' and 'symbol' should be present.
-    Returns an array with descriptions of any errors during the process.
+    Returns a boolean indicating if the process was successful and
+    an array with descriptions of any errors during the process.
     """
     errors = []
 
@@ -174,7 +176,7 @@ def import_by_measure(
         try:
             header = next(reader)
         except StopIteration:
-            return ["Can't import: file is empty."]
+            return False, ["Can't import: file is empty."]
 
         attrs_with_parsers = [
             ("harmony_or_key", _parse_harmony_or_key),
@@ -195,7 +197,7 @@ def import_by_measure(
         success, error = _validate_required_attrs(required_attrs, header)
         if not success:
             errors.append(error)
-            return errors
+            return False, errors
 
         attr_data = _get_attr_data(attrs_with_parsers, indices)
 
@@ -227,4 +229,4 @@ def import_by_measure(
                     time,
                 )
 
-        return errors
+        return True, errors

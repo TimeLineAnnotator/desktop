@@ -123,7 +123,7 @@ def test_markers_by_time_from_csv_fails_if_no_time_column(marker_tlui):
 def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):
     data = "time\nnonsense"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_time(marker_tlui.timeline, Path())
+        success, errors = import_by_time(marker_tlui.timeline, Path())
 
     assert "nonsense" in errors[0]
 
@@ -134,7 +134,7 @@ def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
     tilia_state.duration = 100
     data = "time\n999"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_time(marker_tlui.timeline, Path())
+        success, errors = import_by_time(marker_tlui.timeline, Path())
 
     assert format_media_time(999) in errors[0]
 
@@ -144,7 +144,7 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
 ):
     data = "measure\nnonsense"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_measure(marker_tlui.timeline, beat_tlui.timeline, Path())
+        success, errors = import_by_measure(marker_tlui.timeline, beat_tlui.timeline, Path())
 
     assert "nonsense" in errors[0]
 
@@ -160,7 +160,7 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
 
     data = "measure,fraction\n1,nonsense"
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_measure(marker_tlui.timeline, beat_tlui.timeline, Path())
+        success, errors = import_by_measure(marker_tlui.timeline, beat_tlui.timeline, Path())
 
     assert "nonsense" in errors[0]
 
@@ -175,7 +175,7 @@ def test_component_creation_fail_reason_gets_into_errors(
     data = "time\n101"
 
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = import_by_time(
+        success, errors = import_by_time(
             marker_tl,
             Path(),
         )

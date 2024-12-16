@@ -44,12 +44,13 @@ def import_by_time(
     path: Path,
     file_kwargs: dict[str, Any] | None = None,
     reader_kwargs: dict[str, Any] | None = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create .pdf markers in a timeline from a csv file with times.
     Assumes the first row of the file will contain headers.
     Header names must contain 'time' and 'page_number'.
-    Returns an array with descriptions of any errors during the process.
+    Returns a boolean indicating if the process was successful and
+    an array with descriptions of any errors during the process.
     """
     errors = []
 
@@ -57,7 +58,7 @@ def import_by_time(
         try:
             header = next(reader)
         except StopIteration:
-            return ["Can't import: file is empty."]
+            return False, ["Can't import: file is empty."]
 
         attrs_with_parsers = [
             ("time", float),
@@ -72,7 +73,7 @@ def import_by_time(
         success, error = _validate_required_attrs(required_attrs, header)
         if not success:
             errors.append(error)
-            return errors
+            return False, errors
 
         attr_data = _get_attr_data(attrs_with_parsers, indices)
 
@@ -91,7 +92,7 @@ def import_by_time(
                 timeline, attr_to_value["time"], attr_to_value["page_number"]
             )
 
-        return errors
+        return True, errors
 
 
 def import_by_measure(
@@ -100,12 +101,13 @@ def import_by_measure(
     path: Path,
     file_kwargs: dict[str, Any] | None = None,
     reader_kwargs: dict[str, Any] | None = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create .pdf markers in a timeline from a csv file with 1-based measure indices.
     Assumes the first row of the file will contain headers.
     Header names must contain 'time' and 'page_number'.
-    Returns an array with any errors during the process.
+    Returns a boolean indicating if the process was successful and
+    an array with descriptions of any errors during the process.
     """
     errors = []
 
@@ -113,7 +115,7 @@ def import_by_measure(
         try:
             header = next(reader)
         except StopIteration:
-            return ["Can't import: file is empty."]
+            return False, ["Can't import: file is empty."]
 
         attrs_with_parsers = [
             ("measure", int),
@@ -129,7 +131,7 @@ def import_by_measure(
         success, error = _validate_required_attrs(required_attrs, header)
         if not success:
             errors.append(error)
-            return errors
+            return False, errors
 
         attr_data = _get_attr_data(attrs_with_parsers, indices)
 
@@ -156,4 +158,4 @@ def import_by_measure(
             for time in times:
                 errors += _create_component(pdf_tl, time, attr_to_value["page_number"])
 
-        return errors
+        return True, errors

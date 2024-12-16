@@ -4,7 +4,7 @@ from typing import Optional, Any
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
     get_params_indices,
-    display_column_not_found_error,
+    get_column_not_found_error_message,
 )
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
@@ -16,7 +16,7 @@ def import_by_time(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create markers in a timeline from a csv file with times.
     Assumes the first row of the file will contain headers.
@@ -33,9 +33,7 @@ def import_by_time(
         )
 
         if "time" not in params_to_indices:
-            display_column_not_found_error("time")
-            return errors
-
+            return False, [get_column_not_found_error_message("time")]
         for row in reader:
             if not row:
                 continue
@@ -64,7 +62,7 @@ def import_by_time(
             if not component:
                 errors.append(reason)
 
-        return errors
+        return True, errors
 
 
 def import_by_measure(
@@ -73,7 +71,7 @@ def import_by_measure(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create markers in a timeline from a csv file with 1-based measure indices.
     Assumes the first row of the file will contain headers.
@@ -89,9 +87,7 @@ def import_by_measure(
         )
 
         if "measure" not in params_to_indices:
-            display_column_not_found_error("measure")
-            return errors
-
+            return False, [get_column_not_found_error_message("measure")]
         for row in reader:
             if not row:
                 continue
@@ -140,4 +136,4 @@ def import_by_measure(
                 if not marker:
                     errors.append(f"{measure=} | {fail_reason}")
 
-        return errors
+        return True, errors

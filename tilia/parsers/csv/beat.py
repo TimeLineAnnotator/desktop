@@ -4,7 +4,7 @@ from typing import Optional, Any
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
     get_params_indices,
-    display_column_not_found_error,
+    get_column_not_found_error_message,
 )
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
@@ -15,14 +15,14 @@ def beats_from_csv(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create beat in a timeline from times extracted from a csv file.
     Assumes the first row of the file will contain headers.
     At least 'time' should be present.
     'measure' and 'is_first_in_measure' are optional.
-    Returns an array with descriptions of any CreateComponentErrors
-    raised during beat creation.
+    Returns a boolean indicating if the process was successful and
+    an array with descriptions of any errors during the process.
 
     Please ensure 'time' column is sorted (ascending) before input.
     """
@@ -37,9 +37,7 @@ def beats_from_csv(
         params_to_indices = get_params_indices(params, next(reader))
 
         if "time" not in params_to_indices:
-            display_column_not_found_error("time")
-            return errors
-
+            return False, [get_column_not_found_error_message("time")]
         if any(param in params_to_indices for param in optional_params):
             if "is_first_in_measure" in params_to_indices:
                 is_reading_beats = True
@@ -75,13 +73,13 @@ def beats_from_csv(
                     continue
 
                 if not check_params():
-                    return errors
+                    return False, errors
 
                 if float(row[params_to_indices.get("time")]) < current_time:
                     errors.append(
                         "Time is not sorted in ascending order. Please sort before importing."
                     )
-                    return errors
+                    return False, errors
                 else:
                     current_time = float(row[params_to_indices.get("time")])
 
@@ -142,4 +140,4 @@ def beats_from_csv(
                 errors.append(fail_reason)
 
             timeline.recalculate_measures()
-        return errors
+        return True, errors
