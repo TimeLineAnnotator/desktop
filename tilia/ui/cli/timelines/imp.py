@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Literal
 
 from tilia.parsers import csv, score
 from tilia.exceptions import WrongTimelineForImport
-from tilia.requests import get, Get
+from tilia.requests import get, Get, post, Post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
@@ -170,31 +170,39 @@ def import_timeline(namespace):
             f"Unknown value: {measure_or_time}. Should be 'by-measure' or 'by-time'"
         )
 
+    prev_state = get(Get.APP_STATE)
+
     tl.clear()
 
     errors = None
     if tl_kind == "marker":
         tl: MarkerTimeline
         if measure_or_time == "by-measure":
-            errors = csv.marker.import_by_measure(tl, ref_tl, file)
+            success, errors = csv.marker.import_by_measure(tl, ref_tl, file)
         else:
-            errors = csv.marker.import_by_time(tl, file)
+            success, errors = csv.marker.import_by_time(tl, file)
     elif tl_kind == "hierarchy":
         tl: HierarchyTimeline
         if measure_or_time == "by-measure":
-            errors = csv.hierarchy.import_by_measure(tl, ref_tl, file)
+            success, errors = csv.hierarchy.import_by_measure(tl, ref_tl, file)
         else:
-            errors = csv.hierarchy.import_by_time(tl, file)
+            success, errors = csv.hierarchy.import_by_time(tl, file)
     elif tl_kind == "beat":
         tl: BeatTimeline
-        errors = csv.beat.beats_from_csv(tl, file)
+        success, errors = csv.beat.beats_from_csv(tl, file)
 
     elif tl_kind == "score":
         tl: ScoreTimeline
-        errors = score.musicxml.notes_from_musicXML(tl, ref_tl, file)
+        success, errors = score.musicxml.notes_from_musicXML(tl, ref_tl, file)
+    else:
+        raise ValueError(f"Unknown timeline kind: {tl_kind}")
 
     if errors:
         io.output(f"Errors: {errors}")
+
+    if not success:
+        post(Post.APP_STATE_RESTORE, prev_state)
+        return
 
 
 def get_timelines_for_import(

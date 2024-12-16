@@ -51,10 +51,11 @@ def notes_from_musicXML(
     path: Path,
     file_kwargs: Optional[dict[str | Any]] = None,
     reader_kwargs: Optional[dict[str | Any]] = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create notes in a timeline from data extracted from a .musicXML(uncompressed) or .mxl(compressed) file.
-    Returns an array of descriptions of any CreateComponentErrors raised during note creation.
+    Returns a boolean indicating if the process was successful and
+    an array with descriptions of any errors during the process.
     """
     errors = []
     parts = {}
@@ -312,7 +313,7 @@ def notes_from_musicXML(
     if tree.tag == "score-timewise":
         tree = _convert_to_partwise(tree)
     elif tree.tag != "score-partwise":
-        raise ValueError(f"File `{path}` is not valid musicxml.")
+        return False, [f"File `{path}` is not valid musicxml."]
 
     part_id_to_staves = _parse_staves(tree)
 
@@ -321,7 +322,7 @@ def notes_from_musicXML(
 
     score_tl.mxl_updated(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
 
-    return errors
+    return True, errors
 
 
 @dataclass

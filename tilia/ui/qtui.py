@@ -477,17 +477,25 @@ class QtUI:
             },
         }
 
+        prev_state = get(Get.APP_STATE)
+
         timeline.clear()
 
         if time_or_measure == "time":
-            errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
+            success, errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
         elif time_or_measure == "measure":
-            errors = tlkind_to_funcs[tlkind]["measure"](timeline, beat_tl, path)
+            success, errors = tlkind_to_funcs[tlkind]["measure"](timeline, beat_tl, path)
         else:
             raise ValueError("Invalid time_or_measure value '{time_or_measure}'")
 
+        if not success:
+            post(Post.APP_STATE_RESTORE, prev_state)
+            if errors:
+                self._display_import_from_csv_errors(success, errors)
+            return
+
         if errors:
-            self._display_import_from_csv_errors(errors)
+            self._display_import_from_csv_errors(success, errors)
 
         if tlkind == TlKind.SCORE_TIMELINE:
             post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, timeline.id)
@@ -531,12 +539,14 @@ class QtUI:
             )
 
     @staticmethod
-    def _display_import_from_csv_errors(errors):
+    def _display_import_from_csv_errors(success: bool, errors: list[str]):
         errors_str = "\n".join(errors)
-        tilia.errors.display(
-            tilia.errors.CSV_IMPORT_FAILED,
-            f"Some components were not imported. The following errors occured:\n{errors_str}",
-        )
+        if success:
+            tilia.errors.display(tilia.errors.CSV_IMPORT_SUCCESS_ERRORS, errors_str)
+        else:
+            tilia.errors.display(
+                tilia.errors.CSV_IMPORT_FAILED, errors_str
+            )
 
     @staticmethod
     def show_crash_dialog(exception_info):

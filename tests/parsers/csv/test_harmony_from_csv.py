@@ -12,23 +12,23 @@ from tilia.timelines.harmony.timeline import HarmonyTimeline
 
 def call_patched_import_by_time_func(timeline: HarmonyTimeline, data: str):
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = tilia.parsers.csv.harmony.import_by_time(
+        success, errors = tilia.parsers.csv.harmony.import_by_time(
             timeline,
             Path(),  # any path will do, as builtins.open is patched
         )
-    return errors
+    return success, errors
 
 
 def call_patched_import_by_measure_func(
     harmony_tl: HarmonyTimeline, beat_tl: BeatTimeline, data: str
 ):
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = tilia.parsers.csv.harmony.import_by_measure(
+        success, errors = tilia.parsers.csv.harmony.import_by_measure(
             harmony_tl,
             beat_tl,
             Path(),  # any path will do, as builtins.open is patched
         )
-    return errors
+    return success, errors
 
 
 TEST_HARMONY_PARAMETERS = [
@@ -49,7 +49,7 @@ class TestByTime:
     def test_harmony_by_time(self, symbol, step, accidental, quality, harmony_tl):
         data = "\n".join(["time,harmony_or_key,symbol", f"0,harmony,{symbol}"])
 
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
 
         assert not errors
         assert len(harmony_tl) == 1
@@ -62,7 +62,7 @@ class TestByTime:
     def test_mode_by_time(self, symbol, step, accidental, type, harmony_tl):
         data = "\n".join(["time,harmony_or_key,symbol", f"0,key,{symbol}"])
 
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
 
         assert not errors
         assert len(harmony_tl) == 1
@@ -79,7 +79,7 @@ class TestByTime:
             ]
         )
         data = data.replace(f"{required_attr},", "")
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors(required_attr, errors)
 
     def test_returns_error_for_invalid_rows_and_processess_valid_rows(self, harmony_tl):
@@ -92,13 +92,13 @@ class TestByTime:
             ]
         )
 
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert len(harmony_tl) == 2
         assert_in_errors("nonsense", errors)
 
     def test_returns_reason_for_invalid_component(self, harmony_tl):
         data = "\n".join(["time,harmony_or_key,symbol", "0,harmony,C", "0,harmony,D"])
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors("harmony", errors)
 
     @pytest.mark.parametrize("invalid_row_index", [0, 1, 2])
@@ -113,13 +113,13 @@ class TestByTime:
                 ]
             )
         )
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors("cursed", errors)
         assert harmony_tl.is_empty
 
     def test_row_fails_if_missing_required_value(self, harmony_tl):
         data = "\n".join(["time,harmony_or_key,symbol", "0,harmony", "0,harmony,D"])
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors("symbol", errors)
         assert len(harmony_tl) == 1
 
@@ -131,7 +131,7 @@ class TestByTime:
                 "10,harmony,D,chord",
             ]
         )
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors("display_mode", errors)
         assert len(harmony_tl) == 2
 
@@ -142,7 +142,7 @@ class TestByTime:
                 "0,nonsense,C",
             ]
         )
-        errors = call_patched_import_by_time_func(harmony_tl, data)
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors("Must be", errors)
 
     def test_harmony_considers_existing_key(self, harmony_tl):
@@ -186,7 +186,7 @@ class TestByMeasure:
             ]
         )
 
-        errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
 
         assert not errors
         assert len(harmony_tl) == 3
@@ -213,7 +213,7 @@ class TestByMeasure:
             ]
         )
 
-        errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
 
         assert not errors
         assert len(harmony_tl) == 3

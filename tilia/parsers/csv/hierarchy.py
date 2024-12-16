@@ -4,7 +4,7 @@ from typing import Optional, Any
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
     get_params_indices,
-    display_column_not_found_error,
+    get_column_not_found_error_message,
 )
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
@@ -16,13 +16,14 @@ def import_by_time(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create hierarchies in a timeline from a csv file with times.
     Assumes the first row of the file will contain headers.
     Header names should match hierarchy properties.
     At least, 'start', 'end' and 'level' should be present.
-    Returns an array with descriptions of any errors during the process.
+    Returns a boolean indicating if the process was successful and
+    an array with descriptions of any errors during the process.
     """
 
     errors = []
@@ -45,9 +46,7 @@ def import_by_time(
 
         for attr in ["start", "end", "level"]:
             if attr not in params_to_indices:
-                display_column_not_found_error(attr)
-                return errors
-
+                return False, [get_column_not_found_error_message(attr)]
         for row in reader:
             if not row:
                 continue
@@ -74,7 +73,7 @@ def import_by_time(
                 errors.append(fail_reason)
 
         timeline.do_genealogy()
-        return errors
+        return True, errors
 
 
 def import_by_measure(
@@ -83,13 +82,14 @@ def import_by_measure(
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create hierarchies in a timeline from a csv file with 1-based measure indices.
     Assumes the first row of the file will contain headers.
     Header names should match hierarchy propertiesAll properties
     but 'measure' are optional.
-    Returns an array with descriptions of any errors during the process.
+    Returns a boolean indicating if the process was successful and
+    an array with descriptions of any errors during the process.
 
     Note: The measure column should have measure indices, not measure numbers.
     That means that repeated measure numbers should not be taken into account.
@@ -127,9 +127,7 @@ def import_by_measure(
 
         for attr, _ in required_params:
             if attr not in params_to_indices:
-                display_column_not_found_error(attr)
-                return errors
-
+                return False, [get_column_not_found_error_message(attr)]
         for row in reader:
             if not row:
                 continue
@@ -208,4 +206,4 @@ def import_by_measure(
 
             hierarchy_tl.do_genealogy()
 
-        return errors
+        return True, errors

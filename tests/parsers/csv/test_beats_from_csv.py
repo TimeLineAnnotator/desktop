@@ -9,11 +9,11 @@ from tilia.ui.format import format_media_time
 
 def _import_with_patch(tl, data):
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = beats_from_csv(
+        success, errors = beats_from_csv(
             tl,
             Path(),
         )
-    return errors
+    return success, errors
 
 
 def test_by_time(beat_tl):
@@ -32,7 +32,7 @@ def test_component_creation_fail_reason_gets_into_errors(beat_tl, tilia_state):
     tilia_state.duration = 100
     data = "time\n101"
 
-    errors = _import_with_patch(beat_tl, data)
+    success, errors = _import_with_patch(beat_tl, data)
 
     assert_in_errors(format_media_time(101), errors)
 
@@ -93,7 +93,7 @@ def test_with_measure_number_and_is_first_in_csv(beat_tl):
 def test_with_optional_params_not_sorted(beat_tl):
     data = "time,is_first_in_measure,measure\n0,,\n10,,\n5,,\n15,True,"
 
-    errors = _import_with_patch(beat_tl, data)
+    success, errors = _import_with_patch(beat_tl, data)
 
     assert_in_errors("sorted", errors)
 

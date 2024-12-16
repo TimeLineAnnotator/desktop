@@ -20,23 +20,23 @@ def _get_csv_data(*rows: list[Any]):
 
 def call_patched_import_by_time_func(timeline: PdfTimeline, data: str):
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = tilia.parsers.csv.pdf.import_by_time(
+        success, errors = tilia.parsers.csv.pdf.import_by_time(
             timeline,
             Path(),  # any path will do, as builtins.open is patched
         )
-    return errors
+    return success, errors
 
 
 def call_patched_import_by_measure_func(
     timeline: PdfTimeline, beat_tl: BeatTimeline, data: str
 ):
     with patch("builtins.open", mock_open(read_data=data)):
-        errors = tilia.parsers.csv.pdf.import_by_measure(
+        success, errors = tilia.parsers.csv.pdf.import_by_measure(
             timeline,
             beat_tl,
             Path(),  # any path will do, as builtins.open is patched
         )
-    return errors
+    return success, errors
 
 
 class TestByTime:
@@ -47,7 +47,7 @@ class TestByTime:
             [5, 1],
         )
 
-        errors = call_patched_import_by_time_func(pdf_tl, data)
+        success, errors = call_patched_import_by_time_func(pdf_tl, data)
 
         assert not errors
         assert len(pdf_tl) == 1
@@ -63,7 +63,7 @@ class TestByTime:
 
         data = _get_csv_data(*rows)
 
-        errors = call_patched_import_by_time_func(pdf_tl, data)
+        success, errors = call_patched_import_by_time_func(pdf_tl, data)
 
         assert not errors
         for i, (time, page_number) in enumerate(rows[1:]):
@@ -74,7 +74,7 @@ class TestByTime:
         pdf_tl.page_total = 1
         data = _get_csv_data(["time", "page_number"], ["invalid", 1], [1, "invalid"])
 
-        errors = call_patched_import_by_time_func(pdf_tl, data)
+        success, errors = call_patched_import_by_time_func(pdf_tl, data)
 
         assert len(errors) == 2
 
@@ -83,7 +83,7 @@ class TestByTime:
 
         data = _get_csv_data(["time", "page_number"], [0, -1], [1, 2])
 
-        errors = call_patched_import_by_time_func(pdf_tl, data)
+        success, errors = call_patched_import_by_time_func(pdf_tl, data)
 
         assert len(errors) == 2
         assert pdf_tl.is_empty
@@ -97,7 +97,7 @@ class TestByTime:
             [1, 1],
         )
 
-        errors = call_patched_import_by_time_func(pdf_tl, data)
+        success, errors = call_patched_import_by_time_func(pdf_tl, data)
 
         assert len(errors) == 1
         assert len(pdf_tl) == 1
@@ -115,7 +115,7 @@ class TestByMeasure:
             [1, 0, 1],
         )
 
-        errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
+        success, errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
 
         assert not errors
         assert len(pdf_tl) == 1
@@ -135,7 +135,7 @@ class TestByMeasure:
 
         data = _get_csv_data(*rows)
 
-        errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
+        success, errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
 
         assert not errors
 
@@ -150,7 +150,7 @@ class TestByMeasure:
             ["measure", "fraction", "page_number"], ["invalid", 0, 1], [1, "invalid", 1], [1, 0, 'invalid']
         )
 
-        errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
+        success, errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
 
         assert len(errors) == 3
 
@@ -159,7 +159,7 @@ class TestByMeasure:
         setup_beat_tl(beat_tl, 5)
         data = _get_csv_data(["measure", "fraction", "page_number"], [-1, 0, 1], [6, 0, 1])
 
-        errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
+        success, errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
 
         assert len(errors) == 2
         assert pdf_tl.is_empty
@@ -174,7 +174,7 @@ class TestByMeasure:
             [1, 0, 1],
         )
 
-        errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
+        success, errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
 
         assert len(errors) == 1
         assert len(pdf_tl) == 1

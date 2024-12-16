@@ -26,11 +26,8 @@ class TiliaCSVReader:
         self.file.close()
 
 
-def display_column_not_found_error(column: str) -> None:    
-    tilia.errors.display(
-        tilia.errors.CSV_IMPORT_FAILED, 
-        f"Column '{column}' not found on first row of .csv file."
-    )
+def get_column_not_found_error_message(column: str) -> str:
+    return f"Column '{column}' not found on first row of .csv file."
 
 
 def get_params_indices(params: list[str], headers: list[str]) -> dict[str, int]:
