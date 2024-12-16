@@ -71,6 +71,18 @@ class TestCreateDeleteBeat:
         assert get_displayed_measure_number(beat_tlui[0]) == "1"
         assert get_displayed_measure_number(beat_tlui[1]) == "2"
 
+    def test_create_update_next_measures_numbers(self, beat_tlui, user_actions, tilia_state):
+        beat_tlui.timeline.beat_pattern = [1]
+        beat_tlui.timeline.measures_to_force_display = [0, 1, 2, 3]
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(1)
+        beat_tlui.create_beat(2)
+
+        tilia_state.current_time = 0.5
+        user_actions.trigger(TiliaAction.BEAT_ADD)
+
+        assert [get_displayed_measure_number(beat) for beat in beat_tlui] == ["1", "2", "3", "4"]
+
 
 class TestSelect:
     def test_deselect_all_but_last(self, beat_tlui):
