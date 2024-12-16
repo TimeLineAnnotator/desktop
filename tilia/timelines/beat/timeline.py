@@ -52,9 +52,10 @@ class BeatTLComponentManager(TimelineComponentManager):
             self.timeline.recalculate_measures()
             if self.compute_is_first_in_measure:
                 beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
-                self.update_is_first_in_measure_of_subsequent_beats(
-                    self.get_components().index(beat) + 1
-                )
+                beat_index = self.get_components().index(beat) + 1
+                self.update_is_first_in_measure_of_subsequent_beats(beat_index)
+                measure_index = self.timeline.get_measure_index(beat_index)[0]
+                post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.timeline.id, measure_index - 1)
 
         return success, beat, reason
 
