@@ -159,6 +159,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().restore_state(prev_state)
         self.compute_is_first_in_measure = True
         self.update_is_first_in_measure_of_subsequent_beats(0)
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.timeline.id, 0)
 
 
 class BeatTimeline(Timeline):

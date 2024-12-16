@@ -517,3 +517,26 @@ class TestUndoRedo:
 
         post(Post.EDIT_REDO)
         assert len(beat_tlui) == 0
+
+    def test_undo_redo_updates_displayed_measure_numbers(self, beat_tlui, user_actions):
+        beat_tlui.timeline.beat_pattern = [1]
+        beat_tlui.timeline.measures_to_force_display = [0, 1, 2]
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(1)
+        beat_tlui.create_beat(2)
+
+        post(Post.APP_RECORD_STATE, "test")
+
+        beat_tlui.select_element(beat_tlui[0])
+        user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+
+        user_actions.trigger(TiliaAction.EDIT_UNDO)
+
+        assert [get_displayed_measure_number(beat_ui) for beat_ui in beat_tlui] == ["1", "2", "3"]
+
+        user_actions.trigger(TiliaAction.EDIT_REDO)
+
+        assert [get_displayed_measure_number(beat_ui) for beat_ui in beat_tlui] == ["1", "2"]
+
+
+
