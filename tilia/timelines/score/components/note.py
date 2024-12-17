@@ -1,27 +1,39 @@
 from enum import Enum, auto
 
 from tilia.timelines.base.component import SegmentLikeTimelineComponent
-from tilia.timelines.base.validators import validate_time, validate_color, validate_string, validate_integer
+from tilia.timelines.base.validators import (
+    validate_time,
+    validate_color,
+    validate_string,
+    validate_integer,
+)
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.score.components.validators import validate_step, validate_accidental, validate_tie_type
+from tilia.timelines.score.components.validators import (
+    validate_step,
+    validate_accidental,
+    validate_tie_type,
+)
 from tilia.timelines.score.timeline import ScoreTimeline
 
-STEP_TO_PC = {
-    0: 0,
-    1: 2,
-    2: 4,
-    3: 5,
-    4: 7,
-    5: 9,
-    6: 11
-}
+STEP_TO_PC = {0: 0, 1: 2, 2: 4, 3: 5, 4: 7, 5: 9, 6: 11}
+
 
 def octave_to_pc(octave: int) -> int:
     return (octave - 3) * 12
 
 
 class Note(SegmentLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["start", "end", "step", "accidental", "octave", "staff_index", "color", "comments", "display_accidental"]
+    SERIALIZABLE_BY_VALUE = [
+        "start",
+        "end",
+        "step",
+        "accidental",
+        "octave",
+        "staff_index",
+        "color",
+        "comments",
+        "display_accidental",
+    ]
     SERIALIZABLE_BY_ID = []
     SERIALIZABLE_BY_ID_LIST = []
     ORDERING_ATTRS = ("start", "end", "pitch", "staff_index")
