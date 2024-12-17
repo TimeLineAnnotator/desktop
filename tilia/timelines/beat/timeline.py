@@ -166,8 +166,8 @@ class BeatTLComponentManager(TimelineComponentManager):
 class BeatTimeline(Timeline):
     SERIALIZABLE_BY_VALUE = [
         "beat_pattern",
-        "beats_in_measure",
-        "measure_numbers",
+        "measure_numbers",  # order matters, m. ns. need to be restored
+        "beats_in_measure",  # before beats in measure
         "measures_to_force_display",
         "height",
         "is_visible",

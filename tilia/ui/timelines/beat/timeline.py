@@ -148,7 +148,15 @@ class BeatTimelineUI(TimelineUI):
 
     def update_measure_numbers(self):
         for beat_ui in self:
-            beat_ui.update_label()
+            try:
+                beat_ui.update_label()
+            except IndexError:
+                # State is being restored and
+                # beats in measure has not been
+                # updated yet. This is a dangerous
+                # workaroung, as it might conceal
+                # other exceptions. Let's fix this ASAP.
+                continue
 
     def update_measures_to_force_display(self):
         for beat_ui in self:
