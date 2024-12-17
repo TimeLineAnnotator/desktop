@@ -30,13 +30,17 @@ class MarkerUIRequestHandler(ElementRequestHandler):
 
     def on_color_set(self, elements, value, **_):
         self.timeline_ui.set_elements_attr(elements, "color", value.name())
+        return True
 
     def on_color_reset(self, elements, *_, **__):
         self.timeline_ui.set_elements_attr(elements, "color", None)
+        return True
 
     def on_add(self, *_, **__):
-        self.timeline.create_component(ComponentKind.MARKER, get(Get.SELECTED_TIME))
+        component, _ = self.timeline.create_component(ComponentKind.MARKER, get(Get.SELECTED_TIME))
+        return False if component is None else True
 
     def on_delete(self, elements, *_, **__):
         self.timeline.delete_components(self.elements_to_components(elements))
+        return True
 

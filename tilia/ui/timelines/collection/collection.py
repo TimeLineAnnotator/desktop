@@ -49,7 +49,6 @@ from .view import TimelineUIsView
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...actions import TiliaAction
-from ...request_handler import RequestFailure
 
 
 class TimelineUIs:
@@ -840,6 +839,17 @@ class TimelineUIs:
 
         return args, kwargs, True
 
+    @staticmethod
+    def validate_request_return_value(request: Post, success: Any):
+        if isinstance(success, list) and all(isinstance(s, bool) for s in success):
+            valid = True
+        else:
+            valid = isinstance(success, bool)
+
+        if not valid:
+            print(f"Request {request} returned an invalid value: {success}.\n"
+                  f"Return value should be a bool or a list of bools.")
+
     def on_timeline_element_request(
         self,
         request: Post,
@@ -872,9 +882,9 @@ class TimelineUIs:
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
             return
 
-        if not all(
-            [isinstance(r, RequestFailure) for r in result]
-        ):
+        self.validate_request_return_value(request, result)
+
+        if not all([r is False for r in result]):
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
     def on_timeline_ui_request(
@@ -900,6 +910,8 @@ class TimelineUIs:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
             return
+
+        self.validate_request_return_value(request, success)
 
         if success:
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
@@ -933,6 +945,8 @@ class TimelineUIs:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
             return
+
+        self.validate_request_return_value(request, result)
 
         if request:
             post(Post.APP_RECORD_STATE, f"timeline request: {request.name}")

@@ -157,6 +157,7 @@ class Timelines:
         value, success = self.get_timeline(id).set_data(attr, value)
         if success:
             post(Post.TIMELINE_SET_DATA_DONE, id, attr, value)
+        return success
 
     def get_timeline_data(self, id: int, attr: str):
         return self.get_timeline(id).get_data(attr)

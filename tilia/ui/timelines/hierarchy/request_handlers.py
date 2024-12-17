@@ -1,8 +1,6 @@
 import tilia.ui.strings
 from tilia.requests import Post, get, Get, post
 from tilia.settings import settings
-from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.request_handler import fallible
 from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
 from tilia.ui.timelines.hierarchy.copy_paste import (
     _display_copy_error,
@@ -37,7 +35,6 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
             },
         )
 
-    @fallible
     def on_increase_level(self, elements, *_, **__):
         min_margin = 10
         success = self.timeline.alter_levels(
@@ -52,23 +49,18 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
 
         return success
 
-    @fallible
     def on_decrease_level(self, elements, *_, **__):
         return self.timeline.alter_levels(self.elements_to_components(elements), -1)
 
-    @fallible
     def on_group(self, elements, *_, **__):
         return self.timeline.group(self.elements_to_components(elements))
 
-    @fallible
     def on_split(self, *_, **__):
         return self.timeline.split(get(Get.SELECTED_TIME))
 
-    @fallible
     def on_merge(self, elements, *_, **__):
         return self.timeline.merge(self.elements_to_components(elements))
 
-    @fallible
     def on_create_child(self, elements, *_, **__):
         def _should_prompt_create_level_below() -> bool:
             return settings.get("hierarchy_timeline", "prompt_create_level_below")
@@ -90,9 +82,11 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
 
     def on_add_pre_start(self, elements, value, *_, **__):
         self.on_add_frame(elements, value, Extremity.PRE_START)
+        return True
 
     def on_add_post_end(self, elements, value, *_, **__):
         self.on_add_frame(elements, value, Extremity.POST_END)
+        return True
 
     def on_add_frame(self, elements, value, extremity):
         from tilia.ui.timelines.hierarchy.element import HierarchyUI
@@ -115,9 +109,11 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
 
     def on_delete(self, elements, *_, **__):
         self.timeline.delete_components(self.elements_to_components(elements))
+        return True
 
     def on_color_set(self, elements, value, **_):
         self.timeline_ui.set_elements_attr(elements, "color", value.name())
+        return True
 
     def on_color_reset(self, elements, *_, **__):
         self.timeline_ui.set_elements_attr(
@@ -125,6 +121,7 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
             "color",
             None,
         )
+        return True
 
     @staticmethod
     def on_export_audio(elements, *_, **__):
@@ -135,6 +132,7 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
                 start_time=elm.get_data("start"),
                 end_time=elm.get_data("end"),
             )
+        return False  # this action shouldn't be recorded in undo manager
 
     def on_copy(self, elements):
         success, reason = _validate_copy_cardinality(elements)
@@ -144,14 +142,15 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
         component_data = [self.timeline_ui.get_copy_data_from_hierarchy_ui(e) for e in elements]
 
         if not component_data:
-            return
+            return False
 
         post(
             Post.TIMELINE_ELEMENT_COPY_DONE,
             {"components": component_data, "timeline_kind": self.timeline.KIND},
         )
 
-    @fallible
+        return True
+
     def on_paste_complete(self, *_, **__) -> bool:
         copied_components = get(Get.CLIPBOARD_CONTENTS)["components"]
         if not copied_components or not self.timeline_ui.has_selected_elements:

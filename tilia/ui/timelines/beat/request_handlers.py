@@ -4,10 +4,7 @@ from typing import TYPE_CHECKING
 
 from tilia.requests import Post, get, Get
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
-from tilia.ui.timelines.copy_paste import get_copy_data_from_element
-from tilia.ui.timelines.beat import BeatUI
 
 
 if TYPE_CHECKING:
@@ -32,14 +29,16 @@ class BeatUIRequestHandler(ElementRequestHandler):
 
     def on_add(self, *_, **__):
         self.timeline_ui: BeatTimelineUI
-        self.timeline.create_component(ComponentKind.BEAT, get(Get.SELECTED_TIME))
+        component, _ = self.timeline.create_component(ComponentKind.BEAT, get(Get.SELECTED_TIME))
         self.timeline.recalculate_measures()
+        return False if component is None else True
 
     def on_delete(self, elements, *_, **__):
         self.timeline.delete_components(
             [self.timeline.get_component(e.id) for e in elements]
         )
         self.timeline.recalculate_measures()
+        return True
 
     def _get_measure_indices(self, elements):
         measure_indices = set()
@@ -53,15 +52,19 @@ class BeatUIRequestHandler(ElementRequestHandler):
     def on_set_measure_number(self, elements, number):
         for i in reversed(self._get_measure_indices(elements)):
             self.timeline.set_measure_number(i, number)
+        return True
 
     def on_reset_measure_number(self, elements):
         for i in reversed(self._get_measure_indices(elements)):
             self.timeline.reset_measure_number(i)
+        return True
 
     def on_distribute(self, elements):
         for i in self._get_measure_indices(elements):
             self.timeline.distribute_beats(i)
+        return True
 
     def on_set_amount_in_measure(self, elements, amount):
         for i in reversed(self._get_measure_indices(elements)):
             self.timeline.set_beat_amount_in_measure(i, amount)
+            return True

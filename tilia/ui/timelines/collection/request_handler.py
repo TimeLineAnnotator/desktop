@@ -64,7 +64,7 @@ class TimelineUIsRequestHandler(RequestHandler):
 
     def on_timeline_add(self, kind: TimelineKind):
         if not _get_media_is_loaded() and not self._handle_media_not_loaded():
-            return
+            return False
         success, name = _get_timeline_name()
         kwargs = dict()
         if not success:
