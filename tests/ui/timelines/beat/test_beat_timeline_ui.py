@@ -5,6 +5,7 @@ from tilia.requests import Post, post
 from tilia.enums import Side
 from tilia.requests import Get
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.settings import settings
 from tilia.ui.actions import TiliaAction
 from tilia.ui.windows import WindowKind
 
@@ -313,7 +314,7 @@ class TestOther:
 DUMMY_MEASURE_NUMBER = 11
 
 
-class TestChangeMeasureNumber:
+class TestSetMeasureNumber:
     @staticmethod
     def _set_measure_number(beat_tlui, actions, number=DUMMY_MEASURE_NUMBER):
         """Assumes there a beat in the measure is selected"""
@@ -395,6 +396,24 @@ class TestChangeMeasureNumber:
         user_actions.trigger(TiliaAction.EDIT_UNDO)
         user_actions.trigger(TiliaAction.EDIT_REDO)
         assert beat_tlui.timeline.measure_numbers[0] == 1
+
+    def test_measure_zero_number_is_not_displayed(self, beat_tlui, user_actions):
+        settings.set("beat_timeline", "display_measure_periodicity", 2)
+        beat_tlui.timeline.beat_pattern = [1]
+
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(1)
+        beat_tlui.create_beat(2)
+        beat_tlui.create_beat(3)
+
+        beat_tlui.timeline.recalculate_measures()
+
+        beat_tlui.select_element(beat_tlui[0])
+
+        self._set_measure_number(beat_tlui, user_actions, 0)
+
+        displayed_measure = [get_displayed_measure_number(b) for b in beat_tlui]
+        assert displayed_measure == ["", "1", "", "3"]
 
 
 class TestActions:
