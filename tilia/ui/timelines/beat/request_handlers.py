@@ -56,6 +56,7 @@ class BeatUIRequestHandler(ElementRequestHandler):
             Get.FROM_USER_INT,
             "Change measure number",
             "Insert measure number",
+            min=0,
         )
         if not accepted:
             return
