@@ -7,8 +7,6 @@ from tilia.requests import Post, get, Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
-from tilia.ui.timelines.copy_paste import get_copy_data_from_element
-from tilia.ui.timelines.pdf.element import PdfMarkerUI
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.pdf import PdfTimelineUI
@@ -42,18 +40,3 @@ class PdfMarkerUIRequestHandler(ElementRequestHandler):
 
     def on_delete(self, elements, *_, **__):
         self.timeline.delete_components(self.elements_to_components(elements))
-
-    @staticmethod
-    def on_copy(elements):
-        copy_data = []
-        for elm in elements:
-            copy_data.append(
-                {
-                    "components": get_copy_data_from_element(
-                        elm, PdfMarkerUI.DEFAULT_COPY_ATTRIBUTES
-                    ),
-                    "timeline_kind": TimelineKind.PDF_TIMELINE,
-                }
-            )
-
-        return copy_data

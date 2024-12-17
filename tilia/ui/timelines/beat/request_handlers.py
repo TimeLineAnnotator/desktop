@@ -65,18 +65,3 @@ class BeatUIRequestHandler(ElementRequestHandler):
     def on_set_amount_in_measure(self, elements, amount):
         for i in reversed(self._get_measure_indices(elements)):
             self.timeline.set_beat_amount_in_measure(i, amount)
-
-    @staticmethod
-    def on_copy(elements):
-        copy_data = []
-        for elm in elements:
-            copy_data.append(
-                {
-                    "components": get_copy_data_from_element(
-                        elm, BeatUI.DEFAULT_COPY_ATTRIBUTES
-                    ),
-                    "timeline_kind": TimelineKind.BEAT_TIMELINE,
-                }
-            )
-
-        return copy_data

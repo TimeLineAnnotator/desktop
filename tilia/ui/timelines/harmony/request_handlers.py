@@ -101,9 +101,6 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
             "timeline_kind": TimelineKind.HARMONY_TIMELINE,
         }
 
-    def on_copy(self, elements):
-        return [self._get_copy_data_from_element(e) for e in elements]
-
 
 class HarmonyTimelineUIRequestHandler(TimelineRequestHandler):
     def __init__(self, timeline_ui):
