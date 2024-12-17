@@ -65,7 +65,6 @@ def notes_from_musicXML(
     an array with descriptions of any errors during the process.
     """
     errors = []
-    parts = {}
     metric_division = MetricDivision()
 
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
