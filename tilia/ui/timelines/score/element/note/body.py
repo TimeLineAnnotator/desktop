@@ -47,8 +47,16 @@ class NoteBody(CursorMixIn, QGraphicsRectItem):
     def set_position(
         self, start_x: float, end_x: float, top_y: float, note_height: float
     ):
-        x0 = start_x + (-1 if self.tie_type == Note.TieType.STOP else self.X_OFFSET)
-        x1 = end_x - (-1 if self.tie_type == Note.TieType.START else self.X_OFFSET)
+        x0 = start_x + (
+            -1
+            if self.tie_type in {Note.TieType.STOP, Note.TieType.START_STOP}
+            else self.X_OFFSET
+        )
+        x1 = end_x - (
+            -1
+            if self.tie_type in {Note.TieType.START, Note.TieType.START_STOP}
+            else self.X_OFFSET
+        )
         y0 = top_y + self.Y_OFFSET / 2
         self.setRect(x0, y0, x1 - x0, note_height - self.Y_OFFSET)
 
