@@ -77,22 +77,20 @@ def notes_from_musicXML(
             return None
         return component.id
 
-    def _metric_to_time(measure_number: int, division: int) -> list[float]:
-        a = beat_tl.get_time_by_measure(
-            **metric_division.get_fraction(measure_number, division)
+    def _metric_to_time(
+        measure_number: int, division: int, is_end=False
+    ) -> list[float]:
+        return beat_tl.get_time_by_measure(
+            **metric_division.get_fraction(measure_number, division),
+            is_segment_end=is_end,
         )
-        return a
 
     def _parse_attributes(attributes: etree._Element, part_id: str):
         times = _metric_to_time(
-            metric_division.measure_num[1], metric_division.div_position[1]
+            metric_division.measure_num, metric_division.div_position[1]
         )
         for attribute in attributes:
             match attribute.tag:
-                case "divisions":
-                    metric_division.update_divisions(int(attribute.text))
-                    continue
-
                 case "key":
                     constructor_kwargs = {
                         "fifths": int(attribute.find("fifths").text),
@@ -102,7 +100,6 @@ def notes_from_musicXML(
                 case "time":
                     ts_numerator = int(attribute.find("beats").text)
                     ts_denominator = int(attribute.find("beat-type").text)
-                    metric_division.update_ts(ts_numerator, ts_denominator)
                     constructor_kwargs = {
                         "numerator": ts_numerator,
                         "denominator": ts_denominator,
@@ -180,44 +177,41 @@ def notes_from_musicXML(
         }
 
     def __annotate_metric_position(
-        element: etree._Element, metric_division: MetricDivision
+        element: etree._Element, metric_division: MetricDivision, div_position: int
     ) -> None:
         n = etree.SubElement(element, "notations")
         t = etree.SubElement(n, "technical")
         f = etree.SubElement(t, "fingering")
-        f.text = f"{metric_division.measure_num[1]}␟{metric_division.div_position[1]}␟{metric_division.max_div_per_measure}"
+        f.text = f"{metric_division.measure_num}␟{div_position}␟{metric_division.max_div_per_measure}"
 
     def _get_note_times(
-        metric_division: MetricDivision, duration: float, is_chord: bool
+        measure_num: int, div_position: int, duration: int
     ) -> tuple[list[float], list[float]]:
-        start_times = _metric_to_time(
-            metric_division.measure_num[1],
-            metric_division.div_position[0 if is_chord else 1],
-        )
-        end_times = _metric_to_time(
-            metric_division.measure_num[1],
-            metric_division.div_position[0 if is_chord else 1] + duration,
-        )
-        return start_times, end_times
+        start_times = _metric_to_time(measure_num, div_position)
+        end_times = _metric_to_time(measure_num, div_position + duration, True)
+        return start_times.copy(), end_times.copy()
 
     def _parse_staff(element: etree._Element, part_id: str):
         return part_id_to_staves[part_id][element.find("staff").text]
 
-    def _parse_note(element: etree._Element, part_id: str):
+    def _parse_note(element: etree._Element, part_id: str) -> dict[str, Any]:
         if element.find("grace") is not None:
             # We do not support grace notes yet.
-            return
+            return dict()
         elif element.find("cue") is not None:
             # We do not support cue notes yet.
-            return
+            return dict()
 
         duration = int(element.find("duration").text)
         constructor_kwargs = dict()
 
         if element.find("rest") is not None:
-            __annotate_metric_position(element, metric_division)
             metric_division.update_measure_position(duration)
-            return
+            return {
+                "div_pos": metric_division.div_position[1],
+                "element": element,
+                "to_annotate": True,
+            }
 
         if element.find("pitch") is not None:
             constructor_kwargs = _parse_pitch(element)
@@ -226,7 +220,7 @@ def notes_from_musicXML(
             constructor_kwargs = _parse_unpitched(element)
 
         if not constructor_kwargs.keys():
-            return
+            return dict()
 
         constructor_kwargs["tie_type"] = _parse_note_tie(element)
 
@@ -237,24 +231,27 @@ def notes_from_musicXML(
 
         is_chord = element.find("chord") is not None
 
-        start_times, end_times = _get_note_times(metric_division, duration, is_chord)
+        output = {
+            "div_pos": metric_division.div_position[0],
+            "duration": duration,
+            "element": element,
+            "kwargs": constructor_kwargs,
+            "to_annotate": not is_chord,
+        }
 
         if not is_chord:
-            __annotate_metric_position(element, metric_division)
             metric_division.update_measure_position(duration)
+            return output
 
-        for start, end in zip(start_times, end_times):
-            _create_component(
-                ComponentKind.NOTE,
-                constructor_kwargs | {"start": start, "end": end},
-            )
+        metric_division.check_max_divs(duration)
+        return output
 
-    def _parse_element(element: etree._Element, part_id: str):
+    def _parse_element(element: etree._Element, part_id: str) -> dict[str, Any]:
         match element.tag:
             case "attributes":
                 _parse_attributes(element, part_id)
             case "note":
-                _parse_note(element, part_id)
+                return _parse_note(element, part_id)
             case "backup":
                 duration = int(element.find("duration").text)
                 metric_division.update_measure_position(-duration)
@@ -263,15 +260,40 @@ def notes_from_musicXML(
                 metric_division.update_measure_position(duration)
             case _:
                 pass
+        return dict()
 
     def _parse_score(part: etree._Element, part_id: str):
         for measure in part.findall("measure"):
             metric_division.update_measure_number(int(measure.attrib["number"]))
+            elements_to_create = []
             for element in measure:
-                _parse_element(element, part_id)
+                elements_to_create.append(_parse_element(element, part_id))
+            for elem in elements_to_create:
+                if not elem:
+                    continue
+                if "kwargs" in elem.keys():
+                    start_times, end_times = _get_note_times(
+                        metric_division.measure_num, elem["div_pos"], elem["duration"]
+                    )
+                    while len(start_times) and len(end_times):
+                        if (start := start_times[0]) < (end := end_times[0]):
+                            _create_component(
+                                ComponentKind.NOTE,
+                                elem["kwargs"] | {"start": start, "end": end},
+                            )
+                            start_times.pop(0)
+                            end_times.pop(0)
+                            continue
+                        while len(end_times) and start_times[0] > end_times[0]:
+                            end_times.pop(0)
+
+                if elem["to_annotate"]:
+                    __annotate_metric_position(
+                        elem["element"], metric_division, elem["div_pos"]
+                    )
 
             times = _metric_to_time(
-                metric_division.measure_num[1], metric_division.div_position[1]
+                metric_division.measure_num, metric_division.div_position[1]
             )
             for time in times:
                 _create_component(
@@ -283,12 +305,11 @@ def notes_from_musicXML(
 
     def _parse_staves(tree: etree._Element):
         staff_counter = itertools.count()
-        part_ids = [p.get("id") for p in tree.findall("part-list/score-part")]
         part_id_to_staves = {
             p.get("id"): {} for p in tree.findall("part-list/score-part")
         }
 
-        for id in part_ids:
+        for id in part_id_to_staves.keys():
             staff_numbers = sorted(
                 list(
                     set(
@@ -333,7 +354,6 @@ def notes_from_musicXML(
             return False, [INSERT_MEASURE_ZERO_FAILED.format(reason)]
 
     part_id_to_staves = _parse_staves(tree)
-
     for part in tree.findall("part"):
         _parse_score(part, part.get("id"))
 
@@ -344,7 +364,7 @@ def notes_from_musicXML(
 
 @dataclass
 class MetricDivision:
-    measure_num: tuple = (0, 0)
+    measure_num: int = 0
     div_position: tuple = (0, 0)
     div_per_quarter: int = 1
     ts_numerator: int = 1
@@ -353,23 +373,16 @@ class MetricDivision:
 
     def update_measure_position(self, divisions: int):
         self.div_position = (self.div_position[1], self.div_position[1] + divisions)
+        self.check_max_divs(0)
 
     def update_measure_number(self, measure_number: int):
-        self.measure_num = (self.measure_num[1], measure_number)
+        self.measure_num = measure_number
         self.div_position = (self.div_position[1], 0)
+        self.max_div_per_measure = 1
 
-    def update_divisions(self, division_per_quarter):
-        self.div_per_quarter = division_per_quarter
-        self.update_max_divs()
-
-    def update_ts(self, numerator, denominator):
-        self.ts_numerator = numerator
-        self.ts_denominator = denominator
-        self.update_max_divs()
-
-    def update_max_divs(self):
-        self.max_div_per_measure = round(
-            4 / self.ts_denominator * self.ts_numerator * self.div_per_quarter
+    def check_max_divs(self, divisions):
+        self.max_div_per_measure = max(
+            self.max_div_per_measure, self.div_position[1] + divisions
         )
 
     def get_fraction(self, measure_number, div_position):

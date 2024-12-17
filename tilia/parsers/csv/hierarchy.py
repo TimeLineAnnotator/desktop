@@ -159,12 +159,12 @@ def import_by_measure(
                         )
                         fractions[ext] = 0
 
-            times = {"start": 0, "end": 0}
+            times = {"start": [0], "end": [0]}
 
             # get and validate times
             for ext in times:
                 times[ext] = beat_tl.get_time_by_measure(
-                    required_values[ext], fractions[ext]
+                    required_values[ext], fractions[ext], ext == "end"
                 )
                 if not times[ext]:
                     value = required_values[ext]
@@ -173,12 +173,12 @@ def import_by_measure(
 
             # get remaining params
             kwargs = {}
-            reamaining_params = [
+            remaining_params = [
                 p
                 for p in optional_params
                 if p[0] not in ["start_fraction", "end_fraction"]
             ]
-            for param, parser in reamaining_params:
+            for param, parser in remaining_params:
                 if param in params_to_indices:
                     index = params_to_indices[param]
                     try:
@@ -191,18 +191,26 @@ def import_by_measure(
                         )
 
             # create hierarchies
-            for start, end in zip(times["start"], times["end"]):
-                component, fail_reason = hierarchy_tl.create_component(
-                    ComponentKind.HIERARCHY,
-                    start,
-                    end,
-                    required_values["level"],
-                    start_fraction=fractions["start"],
-                    end_fraction=fractions["end"],
-                    **kwargs,
-                )
-                if not component:
-                    errors.append(fail_reason)
+            start_times = times["start"].copy()
+            end_times = times["end"].copy()
+            while len(start_times) and len(end_times):
+                if (start := start_times[0]) < (end := end_times[0]):
+                    component, fail_reason = hierarchy_tl.create_component(
+                        ComponentKind.HIERARCHY,
+                        start,
+                        end,
+                        required_values["level"],
+                        start_fraction=fractions["start"],
+                        end_fraction=fractions["end"],
+                        **kwargs,
+                    )
+                    if not component:
+                        errors.append(fail_reason)
+                    start_times.pop(0)
+                    end_times.pop(0)
+                    continue
+                while len(end_times) and start_times[0] > end_times[0]:
+                    end_times.pop(0)
 
             hierarchy_tl.do_genealogy()
 
