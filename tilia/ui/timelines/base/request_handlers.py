@@ -41,21 +41,25 @@ class TimelineRequestHandler(RequestHandler):
         return get(Get.TIMELINE, self.timeline_ui.id)
 
     def on_timeline_data_set(self, attr, value, **_):
-        get(Get.TIMELINE_COLLECTION).set_timeline_data(self.timeline_ui.id, attr, value)
+        return get(Get.TIMELINE_COLLECTION).set_timeline_data(self.timeline_ui.id, attr, value)
 
     def on_timeline_ordinal_permute_from_manage_timelines(self, id_to_ordinal):
-        self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
+        return self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
 
     def on_timeline_ordinal_permute_from_context_menu(self, id_to_ordinal):
-        self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
+        return self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
 
     def on_timeline_delete(self, confirmed):
-        if confirmed:
-            get(Get.TIMELINE_COLLECTION).delete_timeline(self.timeline_ui.timeline)
+        if not confirmed:
+            return False
+        get(Get.TIMELINE_COLLECTION).delete_timeline(self.timeline_ui.timeline)
+        return True
 
     def on_timeline_clear(self, confirmed):
-        if confirmed:
-            get(Get.TIMELINE_COLLECTION).clear_timeline(self.timeline_ui.timeline)
+        if not confirmed:
+            return False
+        get(Get.TIMELINE_COLLECTION).clear_timeline(self.timeline_ui.timeline)
+        return True
 
 
 class ElementRequestHandler(RequestHandler):
@@ -83,12 +87,13 @@ class ElementRequestHandler(RequestHandler):
         component_data = [get_copy_data_from_element(e, e.DEFAULT_COPY_ATTRIBUTES) for e in elements]
 
         if not component_data:
-            return
+            return False
 
         post(
             Post.TIMELINE_ELEMENT_COPY_DONE,
             {"components": component_data, "timeline_kind": self.timeline.KIND},
         )
+        return True
 
     def on_paste(self, *_, **__):
         clipboard_contents = get(Get.CLIPBOARD_CONTENTS)
@@ -116,3 +121,5 @@ class ElementRequestHandler(RequestHandler):
                 self.timeline_ui, "paste_multiple_into_timeline"
             ):
                 self.timeline_ui.paste_multiple_into_timeline(components)
+
+        return True

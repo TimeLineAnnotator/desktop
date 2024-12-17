@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 import tilia.errors
 from tilia.requests import Post, get, Get
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
 
 if TYPE_CHECKING:
@@ -37,6 +36,9 @@ class PdfMarkerUIRequestHandler(ElementRequestHandler):
         )
         if not pdf_marker:
             tilia.errors.display(tilia.errors.ADD_PDF_MARKER_FAILED, reason)
+            return False
+        return True
 
     def on_delete(self, elements, *_, **__):
         self.timeline.delete_components(self.elements_to_components(elements))
+        return True

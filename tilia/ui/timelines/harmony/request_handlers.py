@@ -39,17 +39,19 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
 
         if not valid:
             tilia.errors.display(tilia.errors.ADD_MODE_FAILED, reason)
-            return
+            return False
 
         confirmed, kwargs = get(Get.FROM_USER_MODE_PARAMS)
         if not confirmed:
-            return
+            return False
         mode, reason = self.timeline.create_component(
             ComponentKind.MODE, time, **kwargs
         )
         if not mode:
             tilia.errors.display(tilia.errors.ADD_MODE_FAILED, reason)
+            return False
         self.timeline_ui.on_mode_add_done()
+        return True
 
     def on_harmony_add(self, *_, **__):
         time = get(Get.SELECTED_TIME)
@@ -59,11 +61,11 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
 
         if not valid:
             tilia.errors.display(tilia.errors.ADD_HARMONY_FAILED, reason)
-            return
+            return False
 
         confirmed, kwargs = get(Get.FROM_USER_HARMONY_PARAMS)
         if not confirmed:
-            return
+            return False
 
         harmony, reason = self.timeline.create_component(
             ComponentKind.HARMONY, time, **kwargs
@@ -71,6 +73,8 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
 
         if not harmony:
             tilia.errors.display(tilia.errors.ADD_HARMONY_FAILED, reason)
+            return False
+        return True
 
     def on_element_delete(self, elements, *_, **__):
 
@@ -84,13 +88,17 @@ class HarmonyUIRequestHandler(ElementRequestHandler):
         if needs_recalculation:
             self.timeline_ui.on_mode_delete_done()
 
+        return True
+
     def on_display_as_chord_symbol(self, elements, *_, **__):
         elements = self.filter_harmonies(elements)
         self.timeline_ui.set_elements_attr(elements, "display_mode", "chord")
+        return True
 
     def on_display_as_roman_numeral(self, elements, *_, **__):
         elements = self.filter_harmonies(elements)
         self.timeline_ui.set_elements_attr(elements, "display_mode", "roman")
+        return True
 
     @staticmethod
     def _get_copy_data_from_element(element: HarmonyUI | ModeUI):
@@ -118,6 +126,7 @@ class HarmonyTimelineUIRequestHandler(TimelineRequestHandler):
             "visible_level_count",
             2,
         )
+        return True
 
     def on_hide_keys(self):
         get(Get.TIMELINE_COLLECTION).set_timeline_data(
@@ -125,3 +134,4 @@ class HarmonyTimelineUIRequestHandler(TimelineRequestHandler):
             "visible_level_count",
             1,
         )
+        return True

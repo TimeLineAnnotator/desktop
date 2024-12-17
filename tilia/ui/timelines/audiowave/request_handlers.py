@@ -8,6 +8,7 @@ from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
 if TYPE_CHECKING:
     from tilia.ui.timelines.audiowave import AudioWaveTimelineUI
 
+
 class AudioWaveUIRequestHandler(ElementRequestHandler):
     def __init__(self, timeline_ui: AudioWaveTimelineUI):
         super().__init__(
@@ -20,10 +21,10 @@ class AudioWaveUIRequestHandler(ElementRequestHandler):
         )
 
     def on_delete(self, *_, **__):
-        pass
+        return False
 
     def on_copy(self, *_, **__):
-        pass
+        return False
 
     def on_paste(self, *_, **__):
-        pass
+        return False
