@@ -83,7 +83,7 @@ def notes_from_musicXML(
         )
         return a
 
-    def _parse_attributes(attributes: etree.Element, part_id: str):
+    def _parse_attributes(attributes: etree._Element, part_id: str):
         times = _metric_to_time(
             metric_division.measure_num[1], metric_division.div_position[1]
         )
@@ -149,7 +149,7 @@ def notes_from_musicXML(
                         },
                     )
 
-    def _parse_note_tie(element: etree.Element) -> Note.TieType:
+    def _parse_note_tie(element: etree._Element) -> Note.TieType:
         tie = element.find("tie")
         if tie is None:
             return Note.TieType.NONE
@@ -158,7 +158,7 @@ def notes_from_musicXML(
         else:
             return Note.TieType.STOP
 
-    def _parse_pitch(element: etree.Element) -> dict:
+    def _parse_pitch(element: etree._Element) -> dict:
         alter = element.find("pitch/alter")
         return {
             "step": NOTE_NAME_TO_INT[element.find("pitch/step").text],
@@ -169,7 +169,7 @@ def notes_from_musicXML(
             "accidental": int(alter.text) if alter is not None else 0,
         }
 
-    def _parse_unpitched(element: etree.Element) -> dict:
+    def _parse_unpitched(element: etree._Element) -> dict:
         return {
             "step": NOTE_NAME_TO_INT[element.find("unpitched/display-step").text],
             "accidental": 0,
@@ -177,7 +177,7 @@ def notes_from_musicXML(
         }
 
     def __annotate_metric_position(
-        element: etree.Element, metric_division: MetricDivision
+        element: etree._Element, metric_division: MetricDivision
     ) -> None:
         n = etree.SubElement(element, "notations")
         t = etree.SubElement(n, "technical")
@@ -197,10 +197,10 @@ def notes_from_musicXML(
         )
         return start_times, end_times
 
-    def _parse_staff(element: etree.Element, part_id: str):
+    def _parse_staff(element: etree._Element, part_id: str):
         return part_id_to_staves[part_id][element.find("staff").text]
 
-    def _parse_note(element: etree.Element, part_id: str):
+    def _parse_note(element: etree._Element, part_id: str):
         if element.find("grace") is not None:
             # We do not support grace notes yet.
             return
@@ -246,7 +246,7 @@ def notes_from_musicXML(
                 constructor_kwargs | {"start": start, "end": end},
             )
 
-    def _parse_element(element: etree.Element, part_id: str):
+    def _parse_element(element: etree._Element, part_id: str):
         match element.tag:
             case "attributes":
                 _parse_attributes(element, part_id)
@@ -261,7 +261,7 @@ def notes_from_musicXML(
             case _:
                 pass
 
-    def _parse_score(part: etree.Element, part_id: str):
+    def _parse_score(part: etree._Element, part_id: str):
         for measure in part.findall("measure"):
             metric_division.update_measure_number(int(measure.attrib["number"]))
             for element in measure:
@@ -278,7 +278,7 @@ def notes_from_musicXML(
                     },
                 )
 
-    def _parse_staves(tree: etree.ElementTree):
+    def _parse_staves(tree: etree._Element):
         staff_counter = itertools.count()
         part_ids = [p.get("id") for p in tree.findall("part-list/score-part")]
         part_id_to_staves = {
