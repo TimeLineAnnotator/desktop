@@ -18,7 +18,7 @@ def _get_args_for_timeline_name_set(timeline_uis):
         Get.FROM_USER_STRING,
         "Change timeline name",
         "Choose new name",
-        get(Get.TIMELINE, timeline_ui.id).name,
+        text=get(Get.TIMELINE, timeline_ui.id).name,
     )
     if not accepted:
         raise UserCancelledDialog
@@ -31,7 +31,7 @@ def _get_args_for_timeline_height_set(timeline_uis):
         Get.FROM_USER_INT,
         "Change timeline height",
         "Insert new timeline height",
-        initial=timeline_ui.get_data("height"),
+        value=timeline_ui.get_data("height"),
         min=10,
     )
     if not accepted:

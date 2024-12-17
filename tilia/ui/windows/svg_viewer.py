@@ -379,7 +379,7 @@ class SvgViewer(ViewDockWidget):
             return
         for item in to_edit:
             success, annotation = get(
-                Get.FROM_USER_STRING, "Score Annotation", "Edit Annotation", item.text()
+                Get.FROM_USER_STRING, "Score Annotation", "Edit Annotation", text=item.text()
             )
             if not success:
                 continue
