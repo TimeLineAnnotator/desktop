@@ -903,6 +903,7 @@ class TimelineUIs:
         except Exception:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
+            traceback.print_exc()
             return
 
         self.validate_request_return_value(request, result)
@@ -932,6 +933,7 @@ class TimelineUIs:
         except Exception:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
+            traceback.print_exc()
             return
 
         self.validate_request_return_value(request, success)
@@ -970,6 +972,7 @@ class TimelineUIs:
         except Exception:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
+            traceback.print_exc()
             return
 
         self.validate_request_return_value(request, result)
