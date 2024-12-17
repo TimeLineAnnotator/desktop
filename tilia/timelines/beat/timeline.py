@@ -3,8 +3,9 @@ from __future__ import annotations
 import functools
 import itertools
 import math
-from enum import Enum, auto
+from enum import Enum
 from bisect import bisect
+from math import isclose
 from typing import Optional
 
 import tilia.errors
@@ -232,7 +233,9 @@ class BeatTimeline(Timeline):
     def measure_count(self):
         return len(self.beats_in_measure)
 
-    def get_time_by_measure(self, number: int, fraction: float = 0) -> list[int]:
+    def get_time_by_measure(
+        self, number: int, fraction: float = 0, is_segment_end: bool = False
+    ) -> list[float]:
         """
         Given the measure index, returns the start time of the measure.
         If fraction is supplied, returns interpolated time between measure's beats.
@@ -245,9 +248,6 @@ class BeatTimeline(Timeline):
             raise ValueError("Fraction must be between 0 and 1 inclusive.")
 
         metric_fraction = round(number + fraction, 3)
-        if beats := self.metric_fraction_to_time.get(metric_fraction):
-            return beats
-
         keys = list(self.metric_fraction_to_beat_dict.keys())
         if min(keys) > metric_fraction or max(keys) < metric_fraction // 1:
             return []
@@ -256,8 +256,15 @@ class BeatTimeline(Timeline):
         if idx == 0:
             return []
 
+        times = []
+        if beats := self.metric_fraction_to_time.get(metric_fraction):
+            if idx == 1 or not is_segment_end:
+                return beats
+
+            times.extend(beats)
+            idx -= 1
+
         starts = self.metric_fraction_to_beat_dict[keys[idx - 1]]
-        output = []
         start_measure = keys[idx - 1] // 1
         start_metric_fraction = keys[idx - 1] % 1
         for start in starts:
@@ -274,19 +281,27 @@ class BeatTimeline(Timeline):
             else:
                 continue
 
-            output.append(
-                (start_time := start.time)
-                + (metric_fraction % 1 - start_metric_fraction)
-                / (end_metric_fraction - start_metric_fraction)
-                * (end_time - start_time)
-            )
-        self.metric_fraction_to_time[metric_fraction] = output
-        for o in output:
-            self.time_to_metric_fraction[o] = metric_fraction
-        self.__sort_metric_to_time()
-        self.__sort_time_to_metric()
+            to_add = (start_time := start.time) + (metric_fraction - keys[idx - 1]) / (
+                end_metric_fraction - start_metric_fraction
+            ) * (end_time - start_time)
+            for t in times:
+                if isclose(to_add, t):
+                    to_add = -1
+                    break
+                if to_add < t:
+                    times.insert(times.index(t) - 1, to_add)
+                    to_add = -1
+                    break
+            if to_add != -1:
+                times.append(to_add)
 
-        return output
+        if not is_segment_end:
+            self.metric_fraction_to_time[metric_fraction] = times
+            for o in times:
+                self.time_to_metric_fraction[o] = metric_fraction
+            self.__sort_metric_to_time()
+            self.__sort_time_to_metric()
+        return times
 
     def get_metric_fraction_by_time(self, time: float) -> float:
         if mf := self.time_to_metric_fraction.get(time):
