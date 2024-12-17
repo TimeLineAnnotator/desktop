@@ -74,20 +74,6 @@ class BeatTLComponentManager(TimelineComponentManager):
         if update_is_first_in_measure:
             self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
 
-    def update_beat_uis(self):
-        beats = self.get_components().copy()
-        for beat in beats:
-            beat_index = beats.index(beat)
-            is_first_in_measure = beat_index in self.timeline.beats_that_start_measures
-
-            post(
-                Post.TIMELINE_COMPONENT_SET_DATA_DONE,
-                self.timeline.id,
-                beat.id,
-                "is_first_in_measure",
-                is_first_in_measure,
-            )
-
     def update_component_order(self, component: TC):
         super().update_component_order(component)
         for component in self:
@@ -225,10 +211,14 @@ class BeatTimeline(Timeline):
         self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
 
     def should_display_measure_number(self, measure_index):
+        # this is a cheap workaround to deal with pickup measures
+        # we should implement a more robust solution
+        display_index = measure_index if 0 not in self.measure_numbers else measure_index - 1
         return (
             measure_index in self.measures_to_force_display
-            or measure_index % self.display_measure_number_period == 0
+            or display_index % self.display_measure_number_period == 0
         )
+
 
     @property
     def measure_count(self):
@@ -547,7 +537,9 @@ class BeatTimeline(Timeline):
     def set_measure_number(self, measure_index: int, number: int) -> None:
         self.measure_numbers[measure_index] = number
         self.propagate_measure_number_change(measure_index)
-        self.force_display_measure_number(measure_index)
+        if not number == 0:
+            self.force_display_measure_number(measure_index)
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, measure_index)
         self.update_metric_fraction_dicts()
 
     def reset_measure_number(self, measure_index: int) -> None:
@@ -567,11 +559,10 @@ class BeatTimeline(Timeline):
 
     def force_display_measure_number(self, measure_index: int) -> None:
         self.measures_to_force_display.append(measure_index)
-        self.component_manager.update_beat_uis()
 
     def unforce_display_measure_number(self, measure_index: int) -> None:
         self.measures_to_force_display.remove(measure_index)
-        self.component_manager.update_beat_uis()
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, measure_index)
 
     def set_beat_amount_in_measure(self, measure_index: int, beat_amount: int) -> None:
         new_beats_in_measure = self.beats_in_measure.copy()
