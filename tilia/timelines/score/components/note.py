@@ -57,6 +57,7 @@ class Note(SegmentLikeTimelineComponent):
     class TieType(Enum):
         START = auto()
         STOP = auto()
+        START_STOP = auto()
         NONE = auto()
 
     def __init__(

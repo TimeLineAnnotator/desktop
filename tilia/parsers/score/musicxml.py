@@ -150,10 +150,13 @@ def notes_from_musicXML(
                     )
 
     def _parse_note_tie(element: etree._Element) -> Note.TieType:
-        tie = element.find("tie")
-        if tie is None:
+        ties = element.findall("tie")
+        if not ties:
             return Note.TieType.NONE
-        elif tie.text == "start":
+        tie_types = {tie.attrib["type"] for tie in ties}
+        if "start" in tie_types and "stop" in tie_types:
+            return Note.TieType.START_STOP
+        elif "start" in tie_types:
             return Note.TieType.START
         else:
             return Note.TieType.STOP
