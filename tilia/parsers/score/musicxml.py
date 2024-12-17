@@ -27,17 +27,22 @@ class TiliaMXLReader:
         self.file_kwargs = file_kwargs or {}
         self.reader_kwargs = reader_kwargs or {}
 
-    def __enter__(self):
-        if ".mxl" in self.path:
-            with ZipFile(self.path) as zipfile, zipfile.open(
+    def _get_mxl_data(self):
+        with ZipFile(self.path) as zipfile, zipfile.open(
                 "META-INF/container.xml", **self.file_kwargs
-            ) as meta:
-                full_path = (
-                    etree.parse(meta, **self.reader_kwargs)
-                    .findall(".//rootfile")[0]
-                    .get("full-path")
-                )
-                self.file = zipfile.open(full_path, **self.file_kwargs)
+        ) as meta:
+            full_path = (
+                etree.parse(meta, **self.reader_kwargs)
+                .findall(".//rootfile")[0]
+                .get("full-path")
+            )
+            data = zipfile.open(full_path, **self.file_kwargs)
+        return data
+
+    def __enter__(self):
+
+        if ".mxl" in self.path:
+            self.file = self._get_mxl_data()
         else:
             self.file = open(self.path, **self.file_kwargs)
 
