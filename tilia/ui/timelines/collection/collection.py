@@ -18,7 +18,6 @@ import tilia.ui.timelines.collection.request_handler
 import tilia.ui.timelines.collection.requests.timeline_uis
 import tilia.ui.timelines.collection.requests.args
 import tilia.ui.timelines.collection.requests.enums
-import tilia.ui.timelines.collection.requests.post_process
 from tilia.ui import actions
 from tilia.settings import settings
 from tilia.media.player.base import MediaTimeChangeReason
@@ -57,9 +56,6 @@ from ...request_handler import RequestFailure
 
 class TimelineUIs:
     ZOOM_FACTOR = 0.1
-    DO_NOT_RECORD = [
-        Post.TIMELINE_ELEMENT_COPY,
-    ]
     UPDATE_TRIGGERS = ["height", "level_count"]
 
     def __init__(
@@ -901,10 +897,7 @@ class TimelineUIs:
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
             return
 
-        tilia.ui.timelines.collection.requests.post_process.post_process_request(
-            request, result
-        )
-        if request not in self.DO_NOT_RECORD and not all(
+        if not all(
             [isinstance(r, RequestFailure) for r in result]
         ):
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
@@ -933,7 +926,7 @@ class TimelineUIs:
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
             return
 
-        if success and request not in self.DO_NOT_RECORD:
+        if success:
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
     def on_timeline_request(
@@ -969,10 +962,7 @@ class TimelineUIs:
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
             return
 
-        tilia.ui.timelines.collection.requests.post_process.post_process_request(
-            request, result
-        )
-        if request not in self.DO_NOT_RECORD:
+        if request:
             post(Post.APP_RECORD_STATE, f"timeline request: {request.name}")
 
     def get_timelines_uis_for_request(

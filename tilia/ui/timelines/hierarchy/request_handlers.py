@@ -140,16 +140,16 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
         success, reason = _validate_copy_cardinality(elements)
         if not success:
             _display_copy_error(reason)
-            return []
-        copy_data = []
-        for ui in elements:
-            copy_data.append(
-                {
-                    "components": self.timeline_ui.get_copy_data_from_hierarchy_ui(ui),
-                    "timeline_kind": TimelineKind.HIERARCHY_TIMELINE,
-                }
-            )
-        return copy_data
+
+        component_data = [self.timeline_ui.get_copy_data_from_hierarchy_ui(e) for e in elements]
+
+        if not component_data:
+            return
+
+        post(
+            Post.TIMELINE_ELEMENT_COPY_DONE,
+            {"components": component_data, "timeline_kind": self.timeline.KIND},
+        )
 
     @fallible
     def on_paste_complete(self, *_, **__) -> bool:

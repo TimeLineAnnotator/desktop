@@ -3,10 +3,11 @@ from __future__ import annotations
 import functools
 from typing import Callable, Iterator
 
-from tilia.requests import Post, get, Get
+from tilia.requests import Post, get, Get, post
 from tilia.ui.enums import PasteCardinality
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.request_handler import RequestHandler
+from tilia.ui.timelines.copy_paste import get_copy_data_from_element, CopyAttributes
 
 
 class TimelineRequestHandler(RequestHandler):
@@ -77,6 +78,17 @@ class ElementRequestHandler(RequestHandler):
     @staticmethod
     def elements_to_components(elements: Iterator[TimelineUIElement]):
         return [e.tl_component for e in elements]
+
+    def on_copy(self, elements: list[TimelineUIElement]):
+        component_data = [get_copy_data_from_element(e, e.DEFAULT_COPY_ATTRIBUTES) for e in elements]
+
+        if not component_data:
+            return
+
+        post(
+            Post.TIMELINE_ELEMENT_COPY_DONE,
+            {"components": component_data, "timeline_kind": self.timeline.KIND},
+        )
 
     def on_paste(self, *_, **__):
         clipboard_contents = get(Get.CLIPBOARD_CONTENTS)
