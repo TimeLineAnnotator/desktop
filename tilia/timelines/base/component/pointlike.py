@@ -47,7 +47,7 @@ class PointLikeTimelineComponent(TimelineComponent):
         if time in existing_times:
             return (
                 False,
-                f"There is already a {cls.frontend_name} at '{format_media_time(time)}'.",
+                f"There is already a {cls.frontend_name()} at the selected position.",
             )
         else:
             return True, ""
