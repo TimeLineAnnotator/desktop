@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 import traceback
-from typing import Any, Optional, Callable, Iterable
+from typing import Any, Optional, Callable, cast
 
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtWidgets import (
