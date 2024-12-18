@@ -181,7 +181,10 @@ class TimelineUIs:
             (Post.PLAYER_TOGGLE_LOOP, self.on_loop_toggle),
             (Post.EDIT_REDO, self.loop_cancel),
             (Post.EDIT_UNDO, self.loop_cancel),
-            (Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.on_beat_timeline_components_deserialized),
+            (
+                Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED,
+                self.on_beat_timeline_components_deserialized,
+            ),
         }
 
         SERVES = {
@@ -857,10 +860,13 @@ class TimelineUIs:
         *args: tuple[Any],
         **kwargs: dict[str, Any],
     ) -> None:
-        timeline_uis, more_args, more_kwargs, success = (
-            self.pre_process_timeline_request(
-                request, selector.tl_kind, selector.timeline
-            )
+        (
+            timeline_uis,
+            more_args,
+            more_kwargs,
+            success,
+        ) = self.pre_process_timeline_request(
+            request, selector.tl_kind, selector.timeline
         )
         args += more_args
         kwargs |= more_kwargs
@@ -924,12 +930,15 @@ class TimelineUIs:
         *args: tuple[Any],
         **kwargs: dict[str, Any],
     ):
-        timeline_uis, more_args, more_kwargs, success = (
-            self.pre_process_timeline_request(
-                request,
-                selector.tl_kind,
-                selector.timeline,
-            )
+        (
+            timeline_uis,
+            more_args,
+            more_kwargs,
+            success,
+        ) = self.pre_process_timeline_request(
+            request,
+            selector.tl_kind,
+            selector.timeline,
         )
         args += more_args
         kwargs |= more_kwargs
