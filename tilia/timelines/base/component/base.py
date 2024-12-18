@@ -33,9 +33,9 @@ class TimelineComponent(ABC):
     def __lt__(self, other):
         return self.ordinal < other.ordinal
 
-    @property
-    def frontend_name(self):
-        return self.__class__.__name__.lower()
+    @classmethod
+    def frontend_name(cls):
+        return cls.__name__.lower()
 
     @property
     def ordinal(self):

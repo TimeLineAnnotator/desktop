@@ -99,7 +99,7 @@ class TestByTime:
     def test_returns_reason_for_invalid_component(self, harmony_tl):
         data = "\n".join(["time,harmony_or_key,symbol", "0,harmony,C", "0,harmony,D"])
         errors = call_patched_import_by_time_func(harmony_tl, data)
-        assert_in_errors("0", errors)
+        assert_in_errors("harmony", errors)
 
     @pytest.mark.parametrize("invalid_row_index", [0, 1, 2])
     def test_fails_if_invalid_attr_value(self, invalid_row_index, harmony_tl):
