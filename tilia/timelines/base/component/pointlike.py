@@ -67,11 +67,12 @@ class PointLikeTimelineComponent(TimelineComponent):
 
 
 def scale_pointlike(cm: TimelineComponentManager, factor: float) -> None:
-    for component in list(cm).copy():  # Order might change when setting time, so we need a copy
-        component.set_data('time', component.get_data('time') * factor)
+    # Order might change when setting time, so we need a copy
+    for component in list(cm).copy():
+        component.set_data("time", component.get_data("time") * factor)
 
 
 def crop_pointlike(cm: TimelineComponentManager, length: float) -> None:
     for component in list(cm).copy():
-        if component.get_data('time') > length:
+        if component.get_data("time") > length:
             cm.delete_component(component)

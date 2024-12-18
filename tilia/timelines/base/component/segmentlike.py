@@ -118,15 +118,15 @@ class SegmentLikeTimelineComponent(TimelineComponent):
 
 def scale_segmentlike(cm: TimelineComponentManager, factor: float) -> None:
     for component in cm:
-        component.set_data('start', component.get_data('start') * factor)
-        component.set_data('end', component.get_data('end') * factor)
+        component.set_data("start", component.get_data("start") * factor)
+        component.set_data("end", component.get_data("end") * factor)
 
 
 def crop_segmentlike(cm: TimelineComponentManager, length: float) -> None:
     for component in list(cm).copy():
-        start = component.get_data('start')
-        end = component.get_data('end')
+        start = component.get_data("start")
+        end = component.get_data("end")
         if start >= length:
             cm.delete_component(component)
         elif end > length:
-            component.set_data('end', length)
+            component.set_data("end", length)
