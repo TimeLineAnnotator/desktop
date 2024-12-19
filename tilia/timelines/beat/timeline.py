@@ -282,9 +282,9 @@ class BeatTimeline(Timeline):
             else:
                 continue
 
-            to_add = (start_time := start.time) + (metric_fraction - keys[idx - 1]) / (
+            to_add = start.time + (metric_fraction - keys[idx - 1]) / (
                 end_metric_fraction - start_metric_fraction
-            ) * (end_time - start_time)
+            ) * (end_time - start.time)
             for t in times:
                 if isclose(to_add, t):
                     to_add = -1
