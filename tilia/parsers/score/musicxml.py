@@ -369,24 +369,19 @@ def notes_from_musicXML(
 class MetricDivision:
     measure_num: int = 0
     div_position: tuple = (0, 0)
-    div_per_quarter: int = 1
-    ts_numerator: int = 1
-    ts_denominator: int = 1
     max_div_per_measure: int = 1
 
     def update_measure_position(self, divisions: int):
         self.div_position = (self.div_position[1], self.div_position[1] + divisions)
-        self.check_max_divs(0)
+        self.check_max_divs()
 
     def update_measure_number(self, measure_number: int):
         self.measure_num = measure_number
         self.div_position = (self.div_position[1], 0)
         self.max_div_per_measure = 1
 
-    def check_max_divs(self, divisions):
-        self.max_div_per_measure = max(
-            self.max_div_per_measure, self.div_position[1] + divisions
-        )
+    def check_max_divs(self):
+        self.max_div_per_measure = max(self.max_div_per_measure, self.div_position[1])
 
     def get_fraction(self, measure_number, div_position):
         return {
