@@ -322,7 +322,7 @@ def notes_from_musicXML(
     elif tree.tag != "score-partwise":
         return False, [f"File `{path}` is not valid musicxml."]
 
-    if tree.find('.//measure[@number="0"]') is not None and (0 not in beat_tl.measure_numbers):
+    if tree.find('.//measure[@number="0"]') is not None and (0 not in beat_tl.measure_numbers) and (1 in beat_tl.measure_numbers):
         if not get(Get.FROM_USER_YES_OR_NO, INSERT_MEASURE_ZERO_TITLE, INSERT_MEASURE_ZERO_PROMPT):
             return False, []
 
