@@ -232,7 +232,7 @@ def notes_from_musicXML(
         is_chord = element.find("chord") is not None
 
         output = {
-            "div_pos": metric_division.div_position[0],
+            "div_pos": metric_division.div_position[0 if is_chord else 1],
             "duration": duration,
             "element": element,
             "kwargs": constructor_kwargs,
@@ -241,9 +241,7 @@ def notes_from_musicXML(
 
         if not is_chord:
             metric_division.update_measure_position(duration)
-            return output
 
-        metric_division.check_max_divs(duration)
         return output
 
     def _parse_element(element: etree._Element, part_id: str) -> dict[str, Any]:

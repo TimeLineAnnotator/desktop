@@ -249,7 +249,9 @@ class BeatTimeline(Timeline):
 
         metric_fraction = round(number + fraction, 3)
         keys = list(self.metric_fraction_to_beat_dict.keys())
-        if min(keys) > metric_fraction or max(keys) < metric_fraction // 1:
+        if min(keys) > metric_fraction or max(keys) < (
+            metric_fraction // 1 if not is_segment_end else metric_fraction - 1
+        ):
             return []
 
         idx = bisect(keys, metric_fraction)
@@ -262,7 +264,6 @@ class BeatTimeline(Timeline):
                 return beats
 
             times.extend(beats)
-            idx -= 1
 
         starts = self.metric_fraction_to_beat_dict[keys[idx - 1]]
         start_measure = keys[idx - 1] // 1
