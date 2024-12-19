@@ -77,6 +77,33 @@ def notes_from_musicXML(
             return None
         return component.id
 
+    def _create_elements(elements: dict) -> None:
+        for elem in elements:
+            if not elem:
+                continue
+            if "kwargs" in elem.keys():
+                _create_components(elem)
+            if "to_annotate" in elem.keys():
+                __annotate_metric_position(
+                    elem["element"], metric_division, elem["div_pos"]
+                )
+
+    def _create_components(elem: dict) -> None:
+        start_times, end_times = _get_note_times(
+            metric_division.measure_num, elem["div_pos"], elem["duration"]
+        )
+        while len(start_times) and len(end_times):
+            if (start := start_times[0]) < (end := end_times[0]):
+                _create_component(
+                    ComponentKind.NOTE,
+                    elem["kwargs"] | {"start": start, "end": end},
+                )
+                start_times.pop(0)
+                end_times.pop(0)
+                continue
+            while len(end_times) and start_times[0] > end_times[0]:
+                end_times.pop(0)
+
     def _metric_to_time(
         measure_number: int, division: int, is_end=False
     ) -> list[float]:
@@ -266,29 +293,7 @@ def notes_from_musicXML(
             elements_to_create = []
             for element in measure:
                 elements_to_create.append(_parse_element(element, part_id))
-            for elem in elements_to_create:
-                if not elem:
-                    continue
-                if "kwargs" in elem.keys():
-                    start_times, end_times = _get_note_times(
-                        metric_division.measure_num, elem["div_pos"], elem["duration"]
-                    )
-                    while len(start_times) and len(end_times):
-                        if (start := start_times[0]) < (end := end_times[0]):
-                            _create_component(
-                                ComponentKind.NOTE,
-                                elem["kwargs"] | {"start": start, "end": end},
-                            )
-                            start_times.pop(0)
-                            end_times.pop(0)
-                            continue
-                        while len(end_times) and start_times[0] > end_times[0]:
-                            end_times.pop(0)
-
-                if elem["to_annotate"]:
-                    __annotate_metric_position(
-                        elem["element"], metric_division, elem["div_pos"]
-                    )
+            _create_elements(elements_to_create)
 
             times = _metric_to_time(
                 metric_division.measure_num, metric_division.div_position[1]
