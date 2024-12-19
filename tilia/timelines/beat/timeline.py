@@ -239,6 +239,9 @@ class BeatTimeline(Timeline):
         """
         Given the measure index, returns the start time of the measure.
         If fraction is supplied, returns interpolated time between measure's beats.
+
+        `is_segment_end` should be set to `True` on the end of any segment-like components.
+        Searches for end points from the previous known beat even if the end point already exists in `metric_fraction_to_time`, since the actual end point might have a non-consecutive measure number to the start point.
         """
 
         if not self.measure_count:

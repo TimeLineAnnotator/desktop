@@ -92,6 +92,7 @@ def notes_from_musicXML(
         start_times, end_times = _get_note_times(
             metric_division.measure_num, elem["div_pos"], elem["duration"]
         )
+        # start_times and end_times are always sorted. If start_times[n] is greater than end_time[n], all start_times[n+] will also be greater than end_times[n], which would create a segment-like component with start > end. Therefore, pop off head of end_times until a suitable end_time is found.
         while len(start_times) and len(end_times):
             if (start := start_times[0]) < (end := end_times[0]):
                 _create_component(
@@ -367,6 +368,10 @@ def notes_from_musicXML(
 
 @dataclass
 class MetricDivision:
+    """
+    Tracks the current number of divisions and resets to 1 in the new measure
+    """
+
     measure_num: int = 0
     div_position: tuple = (0, 0)
     max_div_per_measure: int = 1
