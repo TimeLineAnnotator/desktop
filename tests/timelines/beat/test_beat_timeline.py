@@ -399,6 +399,8 @@ class TestBeatTimeline:
         assert beat_tl.get_time_by_measure(2, 0.75) == [4.5, 10.5]
         assert beat_tl.get_time_by_measure(3, 0.5) == [6]
         assert beat_tl.get_time_by_measure(3, 0.75) == [6.5]
+        assert beat_tl.get_time_by_measure(3, 1.0) == []
+        assert beat_tl.get_time_by_measure(3, 1.0, True) == [7]
 
     def test_delete_beat_updates_is_first_in_measure_of_subsequent_beats(self, beat_tl):
         beat_tl.beat_pattern = [2]
