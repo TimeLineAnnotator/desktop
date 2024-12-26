@@ -265,6 +265,8 @@ class BeatTimeline(Timeline):
         if beats := self.metric_fraction_to_time.get(metric_fraction):
             if idx == 1 or not is_segment_end:
                 return beats
+            if keys[idx - 1] == metric_fraction:
+                idx -= 1
 
             times.extend(beats)
 
@@ -285,15 +287,13 @@ class BeatTimeline(Timeline):
             else:
                 continue
 
+            metric_fraction_diff = (end_metric_fraction - start_metric_fraction) % 1
             to_add = start.time + (metric_fraction - keys[idx - 1]) / (
-                end_metric_fraction - start_metric_fraction
+                metric_fraction_diff if metric_fraction_diff != 0 else 1
             ) * (end_time - start.time)
+
             for t in times:
                 if isclose(to_add, t):
-                    to_add = -1
-                    break
-                if to_add < t:
-                    times.insert(times.index(t) - 1, to_add)
                     to_add = -1
                     break
             if to_add != -1:
@@ -305,7 +305,7 @@ class BeatTimeline(Timeline):
                 self.time_to_metric_fraction[o] = metric_fraction
             self.__sort_metric_to_time()
             self.__sort_time_to_metric()
-        return times
+        return sorted(times)
 
     def get_metric_fraction_by_time(self, time: float) -> float:
         if mf := self.time_to_metric_fraction.get(time):
@@ -480,8 +480,15 @@ class BeatTimeline(Timeline):
                 self.metric_fraction_to_beat_dict[metric_fraction] = [beat]
                 self.metric_fraction_to_time[metric_fraction] = [beat.time]
                 self.time_to_metric_fraction[beat.time] = metric_fraction
+        self.__sort_metric_to_beat()
         self.__sort_metric_to_time()
         self.__sort_time_to_metric()
+
+    def __sort_metric_to_beat(self) -> None:
+        self.metric_fraction_to_beat_dict = {
+            k: self.metric_fraction_to_beat_dict[k]
+            for k in sorted(self.metric_fraction_to_beat_dict.keys())
+        }
 
     def __sort_metric_to_time(self) -> None:
         self.metric_fraction_to_time = {
