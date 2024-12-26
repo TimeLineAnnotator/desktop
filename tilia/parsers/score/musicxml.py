@@ -3,6 +3,7 @@ from pathlib import Path
 from zipfile import ZipFile
 from typing import Optional, Any
 from dataclasses import dataclass
+from bisect import bisect
 
 from lxml import etree
 
@@ -113,10 +114,75 @@ def notes_from_musicXML(
             is_segment_end=is_end,
         )
 
-    def _parse_attributes(attributes: etree._Element, part_id: str):
-        times = _metric_to_time(
-            metric_division.measure_num, metric_division.div_position[1]
-        )
+    def _parse_attributes(part: etree._Element, part_id: str):
+        metric_pos_to_attributes = dict()
+        for attributes in part.iter("attributes"):
+            measure_number = int(attributes.getparent().get("number"))
+            prev_divs = 0
+            cur_div = 0
+            for prev_note in attributes.itersiblings(
+                *["note", "backup", "forward"], preceding=True
+            ):
+                match prev_note.tag:
+                    case "backup":
+                        cur_div -= int(prev_note.find("duration").text)
+                    case _:
+                        cur_div += int(prev_note.find("duration").text)
+
+                prev_divs = max(prev_divs, cur_div)
+            if prev_divs > 0:
+                next_divs = 0
+                cur_div = 0
+                for next_note in attributes.itersiblings(
+                    *["note", "backup", "forward"]
+                ):
+                    match next_note.tag:
+                        case "backup":
+                            cur_div -= int(next_note.find("duration").text)
+                        case _:
+                            cur_div += int(next_note.find("duration").text)
+                    next_divs = max(next_divs, cur_div)
+                measure_number += prev_divs / (prev_divs + next_divs)
+            _parse_attribute(attributes, part_id, measure_number)
+            metric_pos_to_attributes[measure_number] = attributes
+
+        metric_pos = sorted(metric_pos_to_attributes.keys())
+        if beat_tl.measure_numbers[0] not in metric_pos:
+            _parse_attribute(
+                metric_pos_to_attributes[metric_pos[0]],
+                part_id,
+                beat_tl.measure_numbers[0],
+                0,
+            )
+        for m in range(len(beat_tl.measure_numbers) - 1):
+            if beat_tl.measure_numbers[m] + 1 == beat_tl.measure_numbers[m + 1]:
+                continue
+            index = bisect(metric_pos, beat_tl.measure_numbers[m + 1])
+            if (
+                index < len(metric_pos)
+                and beat_tl.measure_numbers[m]
+                < metric_pos[index]
+                < beat_tl.measure_numbers[m + 1]
+            ):
+                found_positions = [
+                    i
+                    for i, v in enumerate(beat_tl.measure_numbers)
+                    if v == beat_tl.measure_numbers[m + 1]
+                ]
+                _parse_attribute(
+                    metric_pos_to_attributes[metric_pos[index]],
+                    part_id,
+                    beat_tl.measure_numbers[m + 1],
+                    found_positions.index(m + 1),
+                )
+
+    def _parse_attribute(
+        attributes: etree._Element,
+        part_id: str,
+        metric_pos: float,
+        list_position: None | int = None,
+    ):
+        times = beat_tl.get_time_by_measure(metric_pos // 1, metric_pos % 1)
         for attribute in attributes:
             match attribute.tag:
                 case "key":
@@ -162,6 +228,18 @@ def notes_from_musicXML(
                     component_kind = ComponentKind.CLEF
                 case _:
                     continue
+
+            if list_position is not None:
+                for staff_number in staff_numbers:
+                    _create_component(
+                        component_kind,
+                        constructor_kwargs
+                        | {
+                            "time": times[list_position],
+                            "staff_index": part_id_to_staves[part_id][staff_number],
+                        },
+                    )
+                continue
 
             for time in times:
                 for staff_number in staff_numbers:
@@ -274,8 +352,6 @@ def notes_from_musicXML(
 
     def _parse_element(element: etree._Element, part_id: str) -> dict[str, Any]:
         match element.tag:
-            case "attributes":
-                _parse_attributes(element, part_id)
             case "note":
                 return _parse_note(element, part_id)
             case "backup":
@@ -288,7 +364,8 @@ def notes_from_musicXML(
                 pass
         return dict()
 
-    def _parse_score(part: etree._Element, part_id: str):
+    def _parse_part(part: etree._Element, part_id: str):
+        _parse_attributes(part, part_id)
         for measure in part.findall("measure"):
             metric_division.update_measure_number(int(measure.attrib["number"]))
             elements_to_create = []
@@ -359,7 +436,7 @@ def notes_from_musicXML(
 
     part_id_to_staves = _parse_staves(tree)
     for part in tree.findall("part"):
-        _parse_score(part, part.get("id"))
+        _parse_part(part, part.get("id"))
 
     score_tl.mxl_updated(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
 
