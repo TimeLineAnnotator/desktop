@@ -15,6 +15,7 @@ from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
+from tilia.ui.timelines.harmony.constants import Accidental
 from tilia.ui.timelines.score.context_menu import NoteContextMenu
 from tilia.ui.timelines.score.element.note.accidental import NoteAccidental
 from tilia.ui.timelines.score.element.note.body import NoteBody
@@ -314,11 +315,22 @@ class NoteUI(TimelineUIElement):
             self.update_position()
 
     def get_inspector_dict(self) -> dict:
-        return {
+        inspector = {
             "Start": format_media_time(self.get_data("start")),
             "End": format_media_time(self.get_data("end")),
-            "Step": str(self.get_data("step")),
-            "Accidental": str(self.get_data("accidental")),
-            "Octave": str(self.get_data("octave")),
             "Comments": self.get_data("comments"),
         }
+        inspector["Note"] = "".join(
+            [
+                chr(65 + (self.get_data("step") - 5) % 7),
+                Accidental.get_from_int("musanalysis", self.get_data("accidental")),
+                str(self.get_data("octave")),
+            ]
+        )
+        if start := self.get_data("start_metric_position"):
+            end = self.get_data("end_metric_position")
+            inspector[
+                "Start / end (metric)"
+            ] = f"{start.measure}.{start.beat} / {end.measure}.{end.beat}"
+
+        return inspector
