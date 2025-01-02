@@ -12,24 +12,22 @@ def ask_for_color(
 
 
 def ask_for_int(
-    title: str, prompt: str, initial: Optional[int] = 0, **kwargs
+    title: str, prompt: str, initial: int = 0, **kwargs
 ) -> tuple[bool, int]:
     number, accepted = QInputDialog().getInt(None, title, prompt, initial, **kwargs)
-    return accepted, number
+    return bool(accepted) & True, number
 
 
 def ask_for_string(
     title: str, prompt: str, initial: Optional[str] = ""
 ) -> tuple[bool, str]:
     string, accepted = QInputDialog().getText(None, title, prompt, text=initial)
-    return accepted, string
+    return bool(accepted) & True, string
 
 
-def ask_for_float(
-    title: str, prompt: str, initial: Optional[float] = 0.0
-) -> tuple[bool, float]:
+def ask_for_float(title: str, prompt: str, initial: float = 0.0) -> tuple[bool, float]:
     number, accepted = QInputDialog().getDouble(None, title, prompt, initial)
-    return accepted, number
+    return bool(accepted) & True, number
 
 
 def ask_yes_no_or_cancel(title: str, prompt: str) -> tuple[bool, bool]:
