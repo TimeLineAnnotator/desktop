@@ -49,21 +49,28 @@ class NoteUI(TimelineUIElement):
 
     def _setup_body(self):
         self.body = NoteBody(
-            self.start_x, self.end_x, self.top_y, self.note_height(), self.ui_color, self.get_data('tie_type')
+            self.start_x,
+            self.end_x,
+            self.top_y,
+            self.note_height(),
+            self.ui_color,
+            self.get_data("tie_type"),
         )
         self.scene.addItem(self.body)
 
     def _setup_ledger_line(self):
-        staff_index = self.get_data('staff_index')
-        bounding_steps = self.timeline_ui.get_staff_bounding_steps(self.get_data('start'), staff_index)
+        staff_index = self.get_data("staff_index")
+        bounding_steps = self.timeline_ui.get_staff_bounding_steps(
+            self.get_data("start"), staff_index
+        )
         if not bounding_steps:
             # No staff has been created
             self.ledger_line = None
             return
         (lower_step, lower_octave), (upper_step, upper_octave) = bounding_steps
 
-        my_step = self.get_data('step')
-        my_octave = self.get_data('octave')
+        my_step = self.get_data("step")
+        my_octave = self.get_data("octave")
         my_step_pitch = pitch(my_step, 0, my_octave)
 
         interval_step = 0
@@ -117,14 +124,16 @@ class NoteUI(TimelineUIElement):
     @property
     def start_x(self):
         return time_x_converter.get_x_by_time(self.get_data("start"))
-    
+
     @property
     def end_x(self):
         return time_x_converter.get_x_by_time(self.get_data("end"))
 
     @property
     def clef(self):
-        return self.timeline_ui.get_clef_by_time(self.get_data('start'), self.get_data('staff_index'))
+        return self.timeline_ui.get_clef_by_time(
+            self.get_data("start"), self.get_data("staff_index")
+        )
 
     @property
     def top_y(self):
@@ -132,9 +141,11 @@ class NoteUI(TimelineUIElement):
             central_step, central_octave = self.clef.central_step()
 
             note_height = self.note_height()
-            middle_y = self.timeline_ui.get_staff_middle_y(self.get_data('staff_index'))
-            note_offset = (self.get_data('step') - central_step) * note_height / 2
-            octave_offset = (self.get_data('octave') - central_octave) * note_height / 2 * 7
+            middle_y = self.timeline_ui.get_staff_middle_y(self.get_data("staff_index"))
+            note_offset = (self.get_data("step") - central_step) * note_height / 2
+            octave_offset = (
+                (self.get_data("octave") - central_octave) * note_height / 2 * 7
+            )
             self._top_y = middle_y - note_offset - octave_offset - note_height / 2
         return self._top_y
 
@@ -163,19 +174,28 @@ class NoteUI(TimelineUIElement):
             else get_tinted_color(base_color, TINT_FACTOR_ON_SELECTION)
         )
 
-    def get_ledger_line_args(self, direction: NoteLedgerLines.Direction, line_count: int, staff_index: int):
+    def get_ledger_line_args(
+        self, direction: NoteLedgerLines.Direction, line_count: int, staff_index: int
+    ):
         return (
             direction,
             line_count,
             *self.get_ledger_line_position_args(direction, staff_index),
         )
 
-    def get_ledger_line_position_args(self, direction: NoteLedgerLines.Direction, staff_index: int):
+    def get_ledger_line_position_args(
+        self, direction: NoteLedgerLines.Direction, staff_index: int
+    ):
         if direction == NoteLedgerLines.Direction.UP:
             y1 = self.timeline_ui.get_staff_top_y(staff_index)
         else:
             y1 = self.timeline_ui.get_staff_bottom_y(staff_index)
-        return self.start_x - self.ledger_line_offset(), self.end_x + self.ledger_line_offset(), y1, self.note_height()
+        return (
+            self.start_x - self.ledger_line_offset(),
+            self.end_x + self.ledger_line_offset(),
+            y1,
+            self.note_height(),
+        )
 
     @staticmethod
     def get_accidental_icon_path(accidental: int) -> Path:
@@ -188,7 +208,9 @@ class NoteUI(TimelineUIElement):
         }[accidental]
         return Path("ui", "img", f"accidental-{file_name}.svg")
 
-    def get_accidental_position(self, accidental: int, scale_factor: float) -> tuple[float, float]:
+    def get_accidental_position(
+        self, accidental: int, scale_factor: float
+    ) -> tuple[float, float]:
         x = self.start_x - 3
         y = self.top_y + self.note_height() / 2
         y_offset = {
@@ -202,13 +224,16 @@ class NoteUI(TimelineUIElement):
 
     @staticmethod
     def get_accidental_height(accidental: int, scale_factor: float) -> int:
-        return int({
-           -2: 18,
-           -1: 18,
-            0: 20,
-            1: 20,
-            2: 12,
-        }[accidental] * scale_factor)
+        return int(
+            {
+                -2: 18,
+                -1: 18,
+                0: 20,
+                1: 20,
+                2: 12,
+            }[accidental]
+            * scale_factor
+        )
 
     def get_accidental_scale_factor(self):
         """
@@ -225,7 +250,9 @@ class NoteUI(TimelineUIElement):
             return 1
         if average_measure_width < visibility_treshold:
             return 0
-        return min(1, min_scale + (average_measure_width / max_size_treshold * min_scale))
+        return min(
+            1, min_scale + (average_measure_width / max_size_treshold * min_scale)
+        )
 
     def update_color(self):
         self.body.set_fill(self.ui_color)
@@ -236,12 +263,20 @@ class NoteUI(TimelineUIElement):
     def update_time(self):
         self.body.set_position(self.start_x, self.end_x, self.top_y, self.note_height())
         if self.ledger_line:
-            self.ledger_line.set_position(*self.get_ledger_line_position_args(self.ledger_line.direction, self.get_data('staff_index')))
+            self.ledger_line.set_position(
+                *self.get_ledger_line_position_args(
+                    self.ledger_line.direction, self.get_data("staff_index")
+                )
+            )
         if self.accidental:
-            accidental = self.get_data('accidental')
+            accidental = self.get_data("accidental")
             scale_factor = self.get_accidental_scale_factor()
-            self.accidental.set_height(self.get_accidental_height(accidental, scale_factor))
-            self.accidental.set_position(*self.get_accidental_position(accidental, scale_factor))
+            self.accidental.set_height(
+                self.get_accidental_height(accidental, scale_factor)
+            )
+            self.accidental.set_position(
+                *self.get_accidental_position(accidental, scale_factor)
+            )
 
     def child_items(self):
         children = []
