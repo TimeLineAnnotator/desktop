@@ -11,23 +11,17 @@ def ask_for_color(
     return color.isValid(), color  # returned color is invalid if user cancels
 
 
-def ask_for_int(
-    title: str, prompt: str, **kwargs
-) -> tuple[bool, int]:
+def ask_for_int(title: str, prompt: str, **kwargs) -> tuple[bool, int]:
     number, accepted = QInputDialog().getInt(None, title, prompt, **kwargs)
     return accepted, number
 
 
-def ask_for_string(
-    title: str, prompt: str, **kwargs
-) -> tuple[bool, str]:
+def ask_for_string(title: str, prompt: str, **kwargs) -> tuple[bool, str]:
     string, accepted = QInputDialog().getText(None, title, prompt, **kwargs)
     return accepted, string
 
 
-def ask_for_float(
-    title: str, prompt: str, **kwargs
-) -> tuple[bool, float]:
+def ask_for_float(title: str, prompt: str, **kwargs) -> tuple[bool, float]:
     number, accepted = QInputDialog().getDouble(None, title, prompt, **kwargs)
     return accepted, number
 
