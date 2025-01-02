@@ -25,8 +25,10 @@ def ask_for_string(
     return bool(accepted) & True, string
 
 
-def ask_for_float(title: str, prompt: str, initial: float = 0.0) -> tuple[bool, float]:
-    number, accepted = QInputDialog().getDouble(None, title, prompt, initial)
+def ask_for_float(
+    title: str, prompt: str, initial: float = 0.0, **kwargs
+) -> tuple[bool, float]:
+    number, accepted = QInputDialog().getDouble(None, title, prompt, initial, **kwargs)
     return bool(accepted) & True, number
 
 

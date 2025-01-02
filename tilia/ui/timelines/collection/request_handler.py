@@ -47,7 +47,11 @@ class TimelineUIsRequestHandler(RequestHandler):
 
         if action_to_take == AddTimelineWithoutMedia.Result.SET_DURATION:
             success, duration = get(
-                Get.FROM_USER_FLOAT, "Set duration", "Insert duration"
+                Get.FROM_USER_FLOAT,
+                "Set duration",
+                "Insert duration",
+                initial=1.0,
+                min=0.1,
             )
             if not success:
                 return False
@@ -65,8 +69,12 @@ class TimelineUIsRequestHandler(RequestHandler):
         return True
 
     def on_timeline_add(self, kind: TimelineKind):
-        if not _get_media_is_loaded() and not self._handle_media_not_loaded():
-            return
+        if not _get_media_is_loaded():
+            if kind == TimelineKind.AUDIOWAVE_TIMELINE:
+                tilia.errors.display(tilia.errors.CREATE_TIMELINE_WITHOUT_MEDIA)
+                return
+            if not self._handle_media_not_loaded():
+                return
         success, name = _get_timeline_name()
         kwargs = dict()
         if not success:
