@@ -20,7 +20,7 @@ from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
 class TiliaMXLReader:
     def __init__(
         self,
-        path: Path,
+        path: str,
         file_kwargs: Optional[dict[str, Any]] = None,
         reader_kwargs: Optional[dict[str, Any]] = None,
     ):
@@ -56,7 +56,7 @@ class TiliaMXLReader:
 def notes_from_musicXML(
     score_tl: ScoreTimeline,
     beat_tl: BeatTimeline,
-    path: Path,
+    path: str,
     file_kwargs: Optional[dict[str, Any]] = None,
     reader_kwargs: Optional[dict[str, Any]] = None,
 ) -> list[str]:
