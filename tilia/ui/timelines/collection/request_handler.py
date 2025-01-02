@@ -6,7 +6,10 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 from tilia.ui.request_handler import RequestHandler
-from tilia.ui.strings import BEAT_TIMELINE_FILL_TITLE, BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT
+from tilia.ui.strings import (
+    BEAT_TIMELINE_FILL_TITLE,
+    BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT,
+)
 
 
 def _get_media_is_loaded():
@@ -45,7 +48,11 @@ class TimelineUIsRequestHandler(RequestHandler):
 
         if action_to_take == AddTimelineWithoutMedia.Result.SET_DURATION:
             success, duration = get(
-                Get.FROM_USER_FLOAT, "Set duration", "Insert duration", value=60, min=1
+                Get.FROM_USER_FLOAT,
+                "Set duration",
+                "Insert duration (s)",
+                value=60,
+                min=1,
             )
             if not success:
                 return False
@@ -76,9 +83,7 @@ class TimelineUIsRequestHandler(RequestHandler):
                 return False
             kwargs |= additional_args
 
-        self.timelines.create_timeline(
-            kind=kind, components=None, name=name, **kwargs
-        )
+        self.timelines.create_timeline(kind=kind, components=None, name=name, **kwargs)
 
         return True
 
@@ -100,7 +105,7 @@ class TimelineUIsRequestHandler(RequestHandler):
             confirmed = get(
                 Get.FROM_USER_YES_OR_NO,
                 BEAT_TIMELINE_FILL_TITLE,
-                BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT
+                BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT,
             )
             if not confirmed:
                 return False
