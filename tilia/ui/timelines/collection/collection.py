@@ -869,8 +869,10 @@ class TimelineUIs:
             valid = isinstance(success, bool)
 
         if not valid:
-            print(f"Request {request} returned an invalid value: {success}.\n"
-                  f"Return value should be a bool or a list of bools.")
+            print(
+                f"Request {request} returned an invalid value: {success}.\n"
+                f"Return value should be a bool or a list of bools."
+            )
 
     def on_timeline_element_request(
         self,
