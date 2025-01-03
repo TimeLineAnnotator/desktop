@@ -69,4 +69,4 @@ class BeatUIRequestHandler(ElementRequestHandler):
     def on_set_amount_in_measure(self, elements, amount):
         for i in reversed(self._get_measure_indices(elements)):
             self.timeline.set_beat_amount_in_measure(i, amount)
-            return True
+        return True
