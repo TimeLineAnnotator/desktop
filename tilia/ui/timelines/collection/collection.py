@@ -847,8 +847,10 @@ class TimelineUIs:
             valid = isinstance(success, bool)
 
         if not valid:
-            print(f"Request {request} returned an invalid value: {success}.\n"
-                  f"Return value should be a bool or a list of bools.")
+            print(
+                f"Request {request} returned an invalid value: {success}.\n"
+                f"Return value should be a bool or a list of bools."
+            )
 
     def on_timeline_element_request(
         self,
@@ -857,10 +859,13 @@ class TimelineUIs:
         *args: tuple[Any],
         **kwargs: dict[str, Any],
     ) -> None:
-        timeline_uis, more_args, more_kwargs, success = (
-            self.pre_process_timeline_request(
-                request, selector.tl_kind, selector.timeline
-            )
+        (
+            timeline_uis,
+            more_args,
+            more_kwargs,
+            success,
+        ) = self.pre_process_timeline_request(
+            request, selector.tl_kind, selector.timeline
         )
         args += more_args
         kwargs |= more_kwargs
@@ -923,12 +928,15 @@ class TimelineUIs:
         *args: tuple[Any],
         **kwargs: dict[str, Any],
     ):
-        timeline_uis, more_args, more_kwargs, success = (
-            self.pre_process_timeline_request(
-                request,
-                selector.tl_kind,
-                selector.timeline,
-            )
+        (
+            timeline_uis,
+            more_args,
+            more_kwargs,
+            success,
+        ) = self.pre_process_timeline_request(
+            request,
+            selector.tl_kind,
+            selector.timeline,
         )
         args += more_args
         kwargs |= more_kwargs
