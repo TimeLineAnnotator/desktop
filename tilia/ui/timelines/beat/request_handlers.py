@@ -29,7 +29,9 @@ class BeatUIRequestHandler(ElementRequestHandler):
 
     def on_add(self, *_, **__):
         self.timeline_ui: BeatTimelineUI
-        component, _ = self.timeline.create_component(ComponentKind.BEAT, get(Get.SELECTED_TIME))
+        component, _ = self.timeline.create_component(
+            ComponentKind.BEAT, get(Get.SELECTED_TIME)
+        )
         self.timeline.recalculate_measures()
         return False if component is None else True
 
