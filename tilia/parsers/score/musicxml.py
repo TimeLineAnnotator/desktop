@@ -1,7 +1,7 @@
 import itertools
 from pathlib import Path
 from zipfile import ZipFile
-from typing import Optional, Any
+from typing import Any
 from dataclasses import dataclass
 from bisect import bisect
 
@@ -21,8 +21,8 @@ class TiliaMXLReader:
     def __init__(
         self,
         path: str,
-        file_kwargs: Optional[dict[str, Any]] = None,
-        reader_kwargs: Optional[dict[str, Any]] = None,
+        file_kwargs: dict[str, Any] | None = None,
+        reader_kwargs: dict[str, Any] | None = None,
     ):
         self.path = path
         self.file_kwargs = file_kwargs or {}
@@ -57,8 +57,8 @@ def notes_from_musicXML(
     score_tl: ScoreTimeline,
     beat_tl: BeatTimeline,
     path: str,
-    file_kwargs: Optional[dict[str, Any]] = None,
-    reader_kwargs: Optional[dict[str, Any]] = None,
+    file_kwargs: dict[str, Any] | None = None,
+    reader_kwargs: dict[str, Any] | None = None,
 ) -> list[str]:
     """
     Create notes in a timeline from data extracted from a .musicXML(uncompressed) or .mxl(compressed) file.
