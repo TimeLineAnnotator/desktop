@@ -67,7 +67,7 @@ class TiliaMainWindow(QMainWindow):
 
     @staticmethod
     def handle_qt_log_message(type, _, msg):
-        if type == QtMsgType.QtCriticalMsg or type == QtMsgType.QtFatalMsg:
+        if type == QtMsgType.QtFatalMsg:
             raise Exception(f"{type.name}: {msg}")
         else:
             print(f"{type.name}: {msg}")
