@@ -26,6 +26,13 @@ class Accidental:
             1: "`#",
             2: "`x",
         },
+        "frontend": {
+            -2: "bb",
+            -1: "b",
+            0: "",
+            1: "#",
+            2: "##",
+        },
     }
 
     @staticmethod

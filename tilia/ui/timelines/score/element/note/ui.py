@@ -323,7 +323,7 @@ class NoteUI(TimelineUIElement):
         inspector["Note"] = "".join(
             [
                 chr(65 + (self.get_data("step") - 5) % 7),
-                Accidental.get_from_int("musanalysis", self.get_data("accidental")),
+                Accidental.get_from_int("frontend", self.get_data("accidental")),
                 str(self.get_data("octave")),
             ]
         )
