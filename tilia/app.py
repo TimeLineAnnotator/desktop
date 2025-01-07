@@ -66,6 +66,7 @@ class App:
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
             (Post.AUTOSAVES_FOLDER_OPEN, tilia.dirs.open_autosaves_dir),
+            (Post.PLAYER_MEDIA_UNLOADED, self.on_media_unloaded),
         }
 
         SERVES = {
@@ -291,6 +292,9 @@ class App:
             self.player.clear()
         self.undo_manager.clear()
         post(Post.REQUEST_CLEAR_UI)
+
+    def on_media_unloaded(self) -> None:
+        self.duration = 0
 
     def reset_undo_manager(self):
         self.undo_manager.clear()
