@@ -6,11 +6,12 @@ from unittest.mock import patch
 import pytest
 
 import tests.utils
+from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, PatchPost
 from tilia.media.player import YouTubePlayer, QtAudioPlayer
 from tilia.settings import settings
 
-from tilia.requests import Get, Post, post
+from tilia.requests import Get, Post, post, get
 from tilia.ui.actions import TiliaAction
 from tilia.timelines.timeline_kinds import TimelineKind
 
@@ -545,3 +546,15 @@ class TestUndoRedo:
         # should be recovered
         assert tluis[0].is_empty
         tilia_errors.assert_error()
+
+
+class TestFileNew:
+    def test_media_is_unloaded(self, tilia, qtui, user_actions):
+        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
+            user_actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            user_actions.trigger(TiliaAction.FILE_NEW)
+
+        assert get(Get.MEDIA_DURATION) == 0
+        assert not tilia.player.media_path
