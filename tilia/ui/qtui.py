@@ -383,8 +383,7 @@ class QtUI:
         """Closes all UI windows."""
         for kind, window in self._windows.items():
             if window is not None:
-                window.destroy()
-                self._windows[kind] = None
+                window.close()
 
     def _get_by_time_or_by_measure_from_user(self):
         dialog = ByTimeOrByMeasure(self.main_window)
