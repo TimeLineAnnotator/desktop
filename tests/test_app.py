@@ -14,6 +14,7 @@ from tilia.settings import settings
 from tilia.requests import Get, Post, post, get
 from tilia.ui.actions import TiliaAction
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.windows import WindowKind
 
 
 class TestSaveFileOnClose:
@@ -558,3 +559,16 @@ class TestFileNew:
 
         assert get(Get.MEDIA_DURATION) == 0
         assert not tilia.player.media_path
+
+    def test_all_windows_are_closed(self, tilia, qtui, user_actions):
+        for kind in WindowKind:
+            post(Post.WINDOW_OPEN, kind)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            user_actions.trigger(TiliaAction.FILE_NEW)
+
+        # this doesn't actaully check if windows are closed
+        # it checks if app._windows[kind] is None.
+        # Those should be equivalent, if everything is working as it should
+        assert not any(qtui.is_window_open(k) for k in WindowKind)
+
