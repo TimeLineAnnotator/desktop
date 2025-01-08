@@ -168,7 +168,9 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
                 _display_paste_complete_error(reason)
                 return False
 
-            self.timeline.delete_components(element.get_data("children"))
+            while children := element.get_data("children"):
+                self.timeline.delete_components(children)
+
             self.timeline_ui.paste_with_children_into_element(data, element)
 
         return True
