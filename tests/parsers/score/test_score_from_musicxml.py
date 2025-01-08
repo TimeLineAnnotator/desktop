@@ -140,13 +140,6 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
             </measure>
             <measure number="2">
             <attributes>
-                <key>
-                <fifths>-5</fifths>
-                </key>
-                <time>
-                <beats>7</beats>
-                <beat-type>8</beat-type>
-                </time>
                 <clef>
                 <sign>F</sign>
                 <line>4</line>
@@ -157,14 +150,11 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
                 <step>C</step>
                 <octave>4</octave>
                 </pitch>
-                <duration>7</duration>
+                <duration>8</duration>
                 <tie type="stop"/>
                 <tie type="start"/>
                 <voice>1</voice>
-                <type>half</type>
-                <dot/>
-                <dot/>
-                <stem>down</stem>
+                <type>whole</type>
                 <notations>
                 <tied type="stop"/>
                 <tied type="start"/>
@@ -176,24 +166,41 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
                 <key>
                 <fifths>7</fifths>
                 </key>
-                <time>
-                <beats>16</beats>
-                <beat-type>4</beat-type>
-                </time>
-                <clef>
-                <sign>C</sign>
-                <line>3</line>
-                </clef>
                 </attributes>
             <note>
                 <pitch>
                 <step>C</step>
                 <octave>4</octave>
                 </pitch>
-                <duration>32</duration>
+                <duration>8</duration>
+                <tie type="stop"/>
+                <tie type="start"/>
+                <voice>1</voice>
+                <type>whole</type>
+                <notations>
+                <tied type="stop"/>
+                <tied type="start"/>
+                </notations>
+                </note>
+            </measure>
+            <measure number="4">
+            <attributes>
+                <time>
+                <beats>7</beats>
+                <beat-type>8</beat-type>
+                </time>
+                </attributes>
+            <note>
+                <pitch>
+                <step>C</step>
+                <octave>4</octave>
+                </pitch>
+                <duration>7</duration>
                 <tie type="stop"/>
                 <voice>1</voice>
-                <type>long</type>
+                <type>half</type>
+                <dot/>
+                <dot/>
                 <stem>down</stem>
                 <notations>
                 <tied type="stop"/>
@@ -207,9 +214,9 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
         </score-partwise>"""
 
     beat_tl.set_data("beat_pattern", [1])
-    for i in range(5):
+    for i in range(6):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [1, 2, 0, 3, 4]
+    beat_tl.measure_numbers = [1, 3, 0, 2, 4, 5]
     beat_tl.recalculate_measures()
 
     _import_with_patch(score_tl, beat_tl, example, tmp_path)
@@ -218,12 +225,15 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
         len(score_tl.component_manager._get_component_set_by_kind(ComponentKind.CLEF))
         == 4
     )
-    for index, clef in enumerate(
-        [Clef.ICON["G"], Clef.ICON["F"], Clef.ICON["G"], Clef.ICON["C"]]
-    ):
+    for time, clef in {
+        0: Clef.ICON["G"],
+        1: Clef.ICON["F"],
+        2: Clef.ICON["G"],
+        3: Clef.ICON["F"],
+    }.items():
         assert (
             score_tl.component_manager.get_component_by_attribute(
-                "time", index, ComponentKind.CLEF
+                "time", time, ComponentKind.CLEF
             ).icon
             == clef
         )
@@ -236,21 +246,21 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
         )
         == 4
     )
-    for index, key in enumerate([0, -5, 0, 7]):
+    for time, key_sig in {0: 0, 1: 7, 2: 0, 4: 7}.items():
         assert (
             score_tl.component_manager.get_component_by_attribute(
-                "time", index, ComponentKind.KEY_SIGNATURE
+                "time", time, ComponentKind.KEY_SIGNATURE
             ).fifths
-            == key
+            == key_sig
         )
 
     assert (
         len(score_tl.component_manager._get_component_set_by_kind(ComponentKind.NOTE))
-        == 4
+        == 5
     )
-    for index in range(4):
+    for time in range(5):
         note = score_tl.component_manager.get_component_by_attribute(
-            "start", index, ComponentKind.NOTE
+            "start", time, ComponentKind.NOTE
         )
         assert note.accidental == 0
         assert note.octave == 4
@@ -262,11 +272,11 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
                 ComponentKind.TIME_SIGNATURE
             )
         )
-        == 4
+        == 3
     )
-    for index, actual_ts in enumerate([(4, 4), (7, 8), (4, 4), (16, 4)]):
+    for index, time_sig in {0: (4, 4), 2: (4, 4), 4: (7, 8)}.items():
         ts = score_tl.component_manager.get_component_by_attribute(
             "time", index, ComponentKind.TIME_SIGNATURE
         )
-        assert ts.numerator == actual_ts[0]
-        assert ts.denominator == actual_ts[1]
+        assert ts.numerator == time_sig[0]
+        assert ts.denominator == time_sig[1]

@@ -115,9 +115,15 @@ def notes_from_musicXML(
         )
 
     def _parse_attributes(part: etree._Element, part_id: str):
-        metric_pos_to_attributes = dict()
+        attr_types = {
+            "clef": ComponentKind.CLEF,
+            "key": ComponentKind.KEY_SIGNATURE,
+            "time": ComponentKind.TIME_SIGNATURE,
+        }
+        metric_pos_to_attr = {attr_type: {} for attr_type in attr_types}
+
         for attributes in part.iter("attributes"):
-            measure_number = int(attributes.getparent().get("number"))
+            measure_number = float(attributes.getparent().get("number"))
             prev_divs = 0
             cur_div = 0
             for prev_note in attributes.itersiblings(
@@ -143,46 +149,80 @@ def notes_from_musicXML(
                             cur_div += int(next_note.find("duration").text)
                     next_divs = max(next_divs, cur_div)
                 measure_number += prev_divs / (prev_divs + next_divs)
-            _parse_attribute(attributes, part_id, measure_number)
-            metric_pos_to_attributes[measure_number] = attributes
+            attrs = _get_attributes(attributes, part_id, measure_number)
+            for attr_type in attrs:
+                metric_pos_to_attr[attr_type][measure_number] = attrs[attr_type]
 
-        metric_pos = sorted(metric_pos_to_attributes.keys())
-        if beat_tl.measure_numbers[0] not in metric_pos:
-            _parse_attribute(
-                metric_pos_to_attributes[metric_pos[0]],
-                part_id,
-                beat_tl.measure_numbers[0],
-                0,
-            )
+        metric_pos_to_attr = {
+            attr_type: {
+                k: metric_pos_to_attr[attr_type][k]
+                for k in sorted(metric_pos_to_attr[attr_type].keys())
+            }
+            for attr_type in attr_types
+        }
+
+        def set_attributes_for_measure(index: int, check_previous: bool = True):
+            to_create = {}
+            measure = beat_tl.measure_numbers[index]
+            for attr_type in attr_types:
+                measure_nums = list(metric_pos_to_attr[attr_type].keys())
+                current_mp_index = bisect(measure_nums, measure)
+                if current_mp_index == 0:
+                    errors.append(
+                        f"Cannot create {attr_type} for measure {measure}. {measure} is smaller than the smallest measure found in the provided file {measure_nums[0]}."
+                    )
+                    continue
+                if measure_nums[current_mp_index - 1] == measure:
+                    continue
+                if check_previous:
+                    previous_mp_index = bisect(
+                        measure_nums, beat_tl.measure_numbers[index - 1]
+                    )
+                    if (
+                        metric_pos_to_attr[attr_type][
+                            measure_nums[current_mp_index - 1]
+                        ]
+                        == metric_pos_to_attr[attr_type][
+                            measure_nums[previous_mp_index - 1]
+                        ]
+                    ):
+                        continue
+
+                to_create[attr_type] = measure_nums[current_mp_index - 1]
+
+            if not to_create:
+                return
+
+            times = beat_tl.get_time_by_measure(measure // 1, measure % 1)
+            position = [
+                i for i, v in enumerate(beat_tl.measure_numbers) if v == measure
+            ].index(index)
+
+            for attr, attr_measure in to_create.items():
+                for staff_number in metric_pos_to_attr[attr][attr_measure][
+                    "staff_nums"
+                ]:
+                    _create_component(
+                        attr_types[attr],
+                        metric_pos_to_attr[attr][attr_measure]["kwargs"]
+                        | {
+                            "time": times[position],
+                            "staff_index": part_id_to_staves[part_id][staff_number],
+                        },
+                    )
+
+        set_attributes_for_measure(0, False)
         for m in range(len(beat_tl.measure_numbers) - 1):
-            if beat_tl.measure_numbers[m] + 1 == beat_tl.measure_numbers[m + 1]:
-                continue
-            index = bisect(metric_pos, beat_tl.measure_numbers[m + 1])
-            if (
-                index < len(metric_pos)
-                and beat_tl.measure_numbers[m]
-                < metric_pos[index]
-                < beat_tl.measure_numbers[m + 1]
-            ):
-                found_positions = [
-                    i
-                    for i, v in enumerate(beat_tl.measure_numbers)
-                    if v == beat_tl.measure_numbers[m + 1]
-                ]
-                _parse_attribute(
-                    metric_pos_to_attributes[metric_pos[index]],
-                    part_id,
-                    beat_tl.measure_numbers[m + 1],
-                    found_positions.index(m + 1),
-                )
+            if beat_tl.measure_numbers[m] + 1 != beat_tl.measure_numbers[m + 1]:
+                set_attributes_for_measure(m + 1)
 
-    def _parse_attribute(
+    def _get_attributes(
         attributes: etree._Element,
         part_id: str,
         metric_pos: float,
-        list_position: None | int = None,
-    ):
+    ) -> dict[str, dict[str, list[str] | dict[str, int | str]]]:
         times = beat_tl.get_time_by_measure(metric_pos // 1, metric_pos % 1)
+        attributes_found = {}
         for attribute in attributes:
             match attribute.tag:
                 case "key":
@@ -197,7 +237,6 @@ def notes_from_musicXML(
                     constructor_kwargs = {
                         "numerator": ts_numerator,
                         "denominator": ts_denominator,
-                        "staff_index": part_id_to_staves[part_id],
                     }
                     staff_numbers = list(part_id_to_staves[part_id].keys())
                     component_kind = ComponentKind.TIME_SIGNATURE
@@ -229,18 +268,10 @@ def notes_from_musicXML(
                 case _:
                     continue
 
-            if list_position is not None:
-                for staff_number in staff_numbers:
-                    _create_component(
-                        component_kind,
-                        constructor_kwargs
-                        | {
-                            "time": times[list_position],
-                            "staff_index": part_id_to_staves[part_id][staff_number],
-                        },
-                    )
-                continue
-
+            attributes_found[attribute.tag] = {
+                "staff_nums": staff_numbers,
+                "kwargs": constructor_kwargs,
+            }
             for time in times:
                 for staff_number in staff_numbers:
                     _create_component(
@@ -251,6 +282,7 @@ def notes_from_musicXML(
                             "staff_index": part_id_to_staves[part_id][staff_number],
                         },
                     )
+        return attributes_found
 
     def _parse_note_tie(element: etree._Element) -> Note.TieType:
         ties = element.findall("tie")
