@@ -66,7 +66,8 @@ class Inspect(QDockWidget):
         self.inspect_layout = QFormLayout(self.inspect_widget)
         self.inspect_widget.setLayout(self.inspect_layout)
 
-        self.empty_label = QLabel("<h2 style='color:grey'>No element selected.</h2>")
+        self.empty_label = QLabel("<h2> No element selected.</h2>")
+        self.empty_label.setStyleSheet("color:grey;padding:10px")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.stack_widget.addWidget(self.inspect_widget)
