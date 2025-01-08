@@ -288,6 +288,7 @@ class TestCopyPaste:
         assert copied_children_2.end == 1.5
 
     def test_paste_with_children_that_have_children(self, tlui, user_actions):
+    def test_paste_from_hierarchy_with_grandchildren(self, tlui, user_actions):
         tlui.create_hierarchy(0, 0.5, 1)
         tlui.create_hierarchy(0.5, 1, 1)
         tlui.create_hierarchy(0, 0.5, 2)
@@ -296,19 +297,12 @@ class TestCopyPaste:
         tlui.create_hierarchy(1, 2, 3)
 
         # order will change with paste
-        hrc1 = tlui.timeline[0]
-        hrc2 = tlui.timeline[1]
-        hrc3 = tlui.timeline[2]
-        hrc4 = tlui.timeline[3]
-        hrc5 = tlui.timeline[4]
         hrc6 = tlui.timeline[5]
 
-        set_dummy_copy_attributes(hrc1)
-        set_dummy_copy_attributes(hrc2)
+        set_dummy_copy_attributes(tlui.timeline[0])
+        set_dummy_copy_attributes(tlui.timeline[1])
 
-        tlui.relate_hierarchies(parent=hrc3, children=[hrc1])
-        tlui.relate_hierarchies(parent=hrc4, children=[hrc2])
-        tlui.relate_hierarchies(parent=hrc5, children=[hrc3, hrc4])
+        tlui.timeline.do_genealogy()
 
         tlui.select_element(tlui[4])
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
