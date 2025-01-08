@@ -287,7 +287,29 @@ class TestCopyPaste:
         assert copied_children_2.start == 1.25
         assert copied_children_2.end == 1.5
 
-    def test_paste_with_children_that_have_children(self, tlui, user_actions):
+    def test_paste_into_hierarchy_that_has_grandchildren(self, tlui):
+        tlui.create_hierarchy(0, 0.5, 1)
+        tlui.create_hierarchy(0.5, 1, 1)
+        tlui.create_hierarchy(1, 1.5, 1)
+        tlui.create_hierarchy(1.5, 2, 1)
+        tlui.create_hierarchy(0, 1, 2)
+        tlui.create_hierarchy(1, 2, 2)
+        tlui.create_hierarchy(0, 2, 3)
+
+        tlui.timeline.do_genealogy()
+
+        tlui.select_element(tlui[-1])
+
+        post(Post.TIMELINE_ELEMENT_COPY)
+
+        tlui.create_hierarchy(2, 4, 3)
+
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui[-1])
+
+        post(Post.TIMELINE_ELEMENT_PASTE_COMPLETE)
+        post(Post.TIMELINE_ELEMENT_PASTE_COMPLETE)
+
     def test_paste_from_hierarchy_with_grandchildren(self, tlui, user_actions):
         tlui.create_hierarchy(0, 0.5, 1)
         tlui.create_hierarchy(0.5, 1, 1)
