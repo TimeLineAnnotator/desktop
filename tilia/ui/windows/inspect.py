@@ -51,7 +51,10 @@ class Inspect(QDockWidget):
         super().__init__(main_window)
         self.setWindowTitle("Inspector")
         self.setFixedWidth(300)
-        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetClosable
+        )
         self.setFloating(False)
         self._setup_requests()
         self.inspected_objects_stack = []
