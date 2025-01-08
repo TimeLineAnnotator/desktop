@@ -50,7 +50,7 @@ class Inspect(QDockWidget):
     def __init__(self, main_window) -> None:
         super().__init__(main_window)
         self.setWindowTitle("Inspector")
-        self.resize(250, self.height())
+        self.setFixedWidth(300)
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
         self.setFloating(False)
         self._setup_requests()
@@ -143,7 +143,6 @@ class Inspect(QDockWidget):
 
         self.setWindowTitle(f"Inspector - {element_class.__name__}")
         self.stack_widget.setCurrentWidget(self.inspect_widget)
-        self.adjustSize()
         self.setUpdatesEnabled(True)
         self.raise_()
 
@@ -200,7 +199,6 @@ class Inspect(QDockWidget):
 
             self.setWindowTitle(f"Inspector")
             self.stack_widget.setCurrentWidget(self.empty_label)
-            self.adjustSize()
 
         self.setUpdatesEnabled(True)
 
