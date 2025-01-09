@@ -252,6 +252,8 @@ class BeatTimeline(Timeline):
 
         metric_fraction = round(number + fraction, 3)
         keys = list(self.metric_fraction_to_beat_dict.keys())
+
+        # make sure metric_fraction is within available beats
         if min(keys) > metric_fraction or max(keys) < (
             metric_fraction // 1 if not is_segment_end else metric_fraction - 1
         ):
@@ -263,6 +265,11 @@ class BeatTimeline(Timeline):
 
         times = []
         if beats := self.metric_fraction_to_time.get(metric_fraction):
+            # check if the given metric_fraction has already been memoised
+            # if found and is segment-like start, or point-like time, return because a second search will produce duplicates that should not be considered.
+            # if found and idx == 1, given metric_fraction is equal to min metric_position of beats. return because no other times will be found through iteration.
+
+            # otherwise, if the metric_fraction already exists, push idx back by one to do a second search.
             if idx == 1 or not is_segment_end:
                 return beats
             if keys[idx - 1] == metric_fraction:
@@ -288,18 +295,22 @@ class BeatTimeline(Timeline):
                 continue
 
             metric_fraction_diff = (end_metric_fraction - start_metric_fraction) % 1
-            to_add = start.time + (metric_fraction - keys[idx - 1]) / (
+
+            # interpolate between beats to get new time
+            new_time = start.time + (metric_fraction - keys[idx - 1]) / (
                 metric_fraction_diff if metric_fraction_diff != 0 else 1
             ) * (end_time - start.time)
 
-            for t in times:
-                if isclose(to_add, t):
-                    to_add = -1
-                    break
-            if to_add != -1:
-                times.append(to_add)
+            index = bisect(times, new_time)
+            # if new_time is close to its neighbours, don't add to list. otherwise, insert in sorted order.
+            if not (
+                (index != 0 and isclose(new_time, times[index - 1]))
+                or (index != len(times) and isclose(new_time, times[index]))
+            ):
+                times.insert(index, new_time)
 
         if not is_segment_end:
+            # don't memoise if not is_segment_end - interpolated times will contain beat numbers that don't actually exist.
             self.metric_fraction_to_time[metric_fraction] = times
             for o in times:
                 self.time_to_metric_fraction[o] = metric_fraction
