@@ -51,6 +51,7 @@ class Mode(PointLikeTimelineComponent):
         type: str = "major",
         level: int = 2,
         comments: str = "",
+        **_,
     ):
         self.time = time
         self.step = step
