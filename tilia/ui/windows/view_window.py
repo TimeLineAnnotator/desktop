@@ -51,9 +51,9 @@ class ViewWidget(Generic[T]):
         self.menu_title = title
 
 
-class ViewDockWidget(ViewWidget[QDockWidget], QDockWidget):
-    def __init__(self, os_window_title: str, *args, **kwargs):
-        super().__init__(os_window_title, *args, **kwargs)
+class ViewDockWidget(ViewWidget, QDockWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
 
 
