@@ -122,6 +122,14 @@ class Hierarchy(SegmentLikeTimelineComponent):
             self.post_end = value
 
     @property
+    def loop_start(self) -> float:
+        return self.pre_start
+
+    @property
+    def loop_end(self) -> float:
+        return self.post_end
+
+    @property
     def pre_start_metric_position(self):
         return get(Get.METRIC_POSITION, self.pre_start)
 

@@ -761,20 +761,20 @@ class TimelineUIs:
             for element_id in self.loop_elements
         ]
         for element in elements:
-            if element.get_data("start") in graph:
-                graph[element.get_data("start")]["node"].add(element.get_data("end"))
+            if element.get_data("loop_start") in graph:
+                graph[element.get_data("loop_start")]["node"].add(element.get_data("loop_end"))
             else:
-                graph[element.get_data("start")] = {
+                graph[element.get_data("loop_start")] = {
                     "is_visited": False,
-                    "node": {element.get_data("end")},
+                    "node": {element.get_data("loop_end")},
                 }
 
-            if element.get_data("end") in graph:
-                graph[element.get_data("end")]["node"].add(element.get_data("start"))
+            if element.get_data("loop_end") in graph:
+                graph[element.get_data("loop_end")]["node"].add(element.get_data("loop_start"))
             else:
-                graph[element.get_data("end")] = {
+                graph[element.get_data("loop_end")] = {
                     "is_visited": False,
-                    "node": {element.get_data("start")},
+                    "node": {element.get_data("loop_start")},
                 }
 
         connections = {}

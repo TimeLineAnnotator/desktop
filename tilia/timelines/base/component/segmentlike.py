@@ -64,6 +64,14 @@ class SegmentLikeTimelineComponent(TimelineComponent):
     def end_beat(self) -> int | None:
         return self.end_metric_position.beat if self.end_metric_position else None
 
+    @property
+    def loop_start(self) -> float:
+        return self.get_data("start")
+
+    @property
+    def loop_end(self):
+        return self.get_data("end")
+
     @classmethod
     def get_export_attributes(cls) -> list[str]:
         return get_export_attributes_extended(cls)
