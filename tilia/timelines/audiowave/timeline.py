@@ -78,7 +78,10 @@ class AudioWaveTimeline(Timeline):
     def get_dB(self, start_time, end_time):
         return self.audio[start_time * 1000 : end_time * 1000].dBFS
 
-    def clear(self):
-        # AudioWave timelines shouldn't be cleared
-        # as user can't reacreate its components
+    def scale(self, factor: float) -> None:
+        # refresh will be called when new media is loaded
+        pass
+
+    def crop(self, factor: float) -> None:
+        # refresh will be called when new media is loaded
         pass
