@@ -143,7 +143,10 @@ class MarkerMenu(TiliaMenu):
 
 class BeatMenu(TiliaMenu):
     title = "&Beat"
-    items = [(MenuItemKind.ACTION, TiliaAction.BEAT_IMPORT_FROM_CSV), (MenuItemKind.ACTION, TiliaAction.BEAT_TIMELINE_FILL)]
+    items = [
+        (MenuItemKind.ACTION, TiliaAction.BEAT_IMPORT_FROM_CSV),
+        (MenuItemKind.ACTION, TiliaAction.BEAT_TIMELINE_FILL),
+    ]
 
 
 class HarmonyMenu(TiliaMenu):
