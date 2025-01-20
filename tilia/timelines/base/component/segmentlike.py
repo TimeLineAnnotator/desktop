@@ -118,8 +118,10 @@ class SegmentLikeTimelineComponent(TimelineComponent):
 
 def scale_segmentlike(cm: TimelineComponentManager, factor: float) -> None:
     for component in cm:
-        component.set_data("start", component.get_data("start") * factor)
-        component.set_data("end", component.get_data("end") * factor)
+        # attributes need to be set directly
+        # to override validation
+        component.start = component.get_data("start") * factor
+        component.end = component.get_data("end") * factor
 
 
 def crop_segmentlike(cm: TimelineComponentManager, length: float) -> None:
