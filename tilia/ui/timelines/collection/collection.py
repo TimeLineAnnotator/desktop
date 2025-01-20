@@ -55,7 +55,7 @@ from ...actions import TiliaAction
 
 class TimelineUIs:
     ZOOM_FACTOR = 0.1
-    UPDATE_TRIGGERS = ["height", "level_count"]
+    UPDATE_TRIGGERS = ["height", "level_count", "visible_level_count"]
 
     def __init__(
         self,
@@ -352,6 +352,9 @@ class TimelineUIs:
         self.change_loop_box_position()
 
     def update_level_count(self):
+        self.update_height()
+
+    def update_visible_level_count(self):
         self.update_height()
 
     def set_playback_lines_position(self, time):
