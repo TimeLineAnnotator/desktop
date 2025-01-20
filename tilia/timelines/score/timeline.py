@@ -50,7 +50,10 @@ class ScoreTimeline(Timeline):
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
 
     def __init__(
-        self, svg_data: str = "", viewer_beat_x: dict[float, float] = {}, **kwargs
+        self,
+        svg_data: str = "",
+        viewer_beat_x: dict[float, float] = {},
+        **kwargs,
     ):
         super().__init__(**kwargs)
 

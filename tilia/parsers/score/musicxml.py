@@ -13,7 +13,11 @@ from tilia.timelines.score.components import Note
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components.clef import Clef
-from tilia.ui.strings import INSERT_MEASURE_ZERO_TITLE, INSERT_MEASURE_ZERO_PROMPT, INSERT_MEASURE_ZERO_FAILED
+from tilia.ui.strings import (
+    INSERT_MEASURE_ZERO_TITLE,
+    INSERT_MEASURE_ZERO_PROMPT,
+    INSERT_MEASURE_ZERO_FAILED,
+)
 from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
 
 
@@ -30,7 +34,7 @@ class TiliaMXLReader:
 
     def _get_mxl_data(self):
         with ZipFile(self.path) as zipfile, zipfile.open(
-                "META-INF/container.xml", **self.file_kwargs
+            "META-INF/container.xml", **self.file_kwargs
         ) as meta:
             full_path = (
                 etree.parse(meta, **self.reader_kwargs)
@@ -458,8 +462,16 @@ def notes_from_musicXML(
     elif tree.tag != "score-partwise":
         return False, [f"File `{path}` is not valid musicxml."]
 
-    if tree.find('.//measure[@number="0"]') is not None and (0 not in beat_tl.measure_numbers) and (1 in beat_tl.measure_numbers):
-        if not get(Get.FROM_USER_YES_OR_NO, INSERT_MEASURE_ZERO_TITLE, INSERT_MEASURE_ZERO_PROMPT):
+    if (
+        tree.find('.//measure[@number="0"]') is not None
+        and (0 not in beat_tl.measure_numbers)
+        and (1 in beat_tl.measure_numbers)
+    ):
+        if not get(
+            Get.FROM_USER_YES_OR_NO,
+            INSERT_MEASURE_ZERO_TITLE,
+            INSERT_MEASURE_ZERO_PROMPT,
+        ):
             return False, []
 
         success, reason = _insert_measure_zero(tree, beat_tl)
@@ -513,9 +525,15 @@ def _convert_to_partwise(element: etree.Element) -> etree.Element:
     return transform(element)
 
 
-def _insert_measure_zero(tree: etree.Element, beat_tl: BeatTimeline) -> tuple[bool, str]:
+def _insert_measure_zero(
+    tree: etree.Element, beat_tl: BeatTimeline
+) -> tuple[bool, str]:
     measure_zero = tree.find('.//measure[@number="0"]')
-    measure_zero_divisions = sum([int(d.text) for d in measure_zero.findall("note//duration")])
+    measure_zero_divisions = sum(
+        [int(d.text) for d in measure_zero.findall("note//duration")]
+    )
     measure_one = tree.find('.//measure[@number="1"]')
-    measure_one_divisions = sum([int(d.text) for d in measure_one.findall("note//duration")])
+    measure_one_divisions = sum(
+        [int(d.text) for d in measure_one.findall("note//duration")]
+    )
     return beat_tl.add_measure_zero(measure_zero_divisions / measure_one_divisions)
