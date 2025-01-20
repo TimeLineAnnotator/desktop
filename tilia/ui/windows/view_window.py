@@ -55,6 +55,7 @@ class ViewDockWidget(ViewWidget, QDockWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
 
 class ViewWindow(ViewWidget[QDialog]):
