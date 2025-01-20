@@ -210,6 +210,7 @@ class ViewMenu(QMenu):
                 self.windows[window_id].blockSignals(False)
             case WindowState.DELETED:
                 self.removeAction(self.windows[window_id])
+                self.windows.pop(window_id)
 
         if window_title != "":
             self.windows[window_id].setText(window_title)
