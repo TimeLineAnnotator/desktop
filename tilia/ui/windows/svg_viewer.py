@@ -186,12 +186,12 @@ class SvgViewer(ViewDockWidget):
             if x_stamps.get(measure):
                 if cur_x := x_stamps[measure].get(beat_div):
                     if cur_x > (x := float(e[0].attrib["x"])):
-                        x_stamps[measure][beat_div] = x
+                        x_stamps[measure][beat_div] = round(x, 3)
                 else:
-                    x_stamps[measure][beat_div] = float(e[0].attrib["x"])
+                    x_stamps[measure][beat_div] = round(float(e[0].attrib["x"]), 3)
 
             else:
-                x_stamps[measure] = {beat_div: float(e[0].attrib["x"])}
+                x_stamps[measure] = {beat_div: round(float(e[0].attrib["x"]), 3)}
                 measure_divs[measure] = max_div
 
         return {
@@ -389,6 +389,7 @@ class SvgViewer(ViewDockWidget):
             self.beat_x_position.values()
         )
         for key, x in xs.items():
+            x = round(x, 3)
             if x in x_pos:
                 idx = x_pos.index(x)
                 beat_pos[key] = ((b := beats[idx]) // 1, b % 1)
