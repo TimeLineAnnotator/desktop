@@ -517,6 +517,10 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         self._update_genealogy(component.parent, component_parent_new_children)
 
+    def restore_state(self, prev_state: dict):
+        super().restore_state(prev_state)
+        self.do_genealogy()
+
 
 class HierarchyTimeline(Timeline):
     KIND = TimelineKind.HIERARCHY_TIMELINE
