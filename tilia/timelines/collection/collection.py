@@ -177,7 +177,8 @@ class Timelines:
     def clear_timelines(self):
         with PauseUndoManager():
             for timeline in self:
-                timeline.clear()
+                if TimelineFlag.NOT_CLEARABLE not in timeline.FLAGS:
+                    timeline.clear()
 
     def _add_to_timelines(self, timeline: Timeline) -> None:
         self._timelines.append(timeline)
