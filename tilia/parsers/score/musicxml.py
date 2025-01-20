@@ -8,6 +8,7 @@ from bisect import bisect
 from lxml import etree
 
 from tilia.requests import Get, get
+from tilia.parsers.score.musicxml_to_svg import musicxml_to_svg
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.score.components import Note
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -454,6 +455,7 @@ def notes_from_musicXML(
 
     reader_kwargs = reader_kwargs or {}
 
+    svg_converter = musicxml_to_svg(score_tl.id)
     with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
         tree = etree.parse(file, **reader_kwargs).getroot()
 
@@ -482,7 +484,7 @@ def notes_from_musicXML(
     for part in tree.findall("part"):
         _parse_part(part, part.get("id"))
 
-    score_tl.mxl_updated(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
+    svg_converter.to_svg(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
 
     return True, errors
 

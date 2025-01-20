@@ -177,8 +177,6 @@ class TimelineUIs:
             (Post.PLAYER_TOGGLE_LOOP, self.on_loop_toggle),
             (Post.EDIT_REDO, self.loop_cancel),
             (Post.EDIT_UNDO, self.loop_cancel),
-            (Post.SCORE_TIMELINE_SVG_DATA_SET_DONE, self.on_score_timeline_svg_data_set_done),
-            (Post.SCORE_TIMELINE_MUSIC_XML_UPDATED, self.on_score_timeline_music_xml_updated),
             (
                 Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED,
                 self.on_beat_timeline_components_deserialized,
@@ -674,16 +672,6 @@ class TimelineUIs:
 
     def on_harmony_timeline_components_deserialized(self, id):
         self.get_timeline_ui(id).on_timeline_components_deserialized()  # noqa
-
-    def on_score_timeline_svg_data_set_done(self, data: str, id: int):
-        if timeline_ui := self.get_timeline_ui(id):
-            timeline_ui = cast(ScoreTimelineUI, timeline_ui)
-            timeline_ui.on_svg_data_set_done(data)
-
-    def on_score_timeline_music_xml_updated(self, id: int, data: str):
-        if timeline_ui := self.get_timeline_ui(id):
-            timeline_ui = cast(ScoreTimelineUI, timeline_ui)
-            timeline_ui.on_music_xml_updated(data)
 
     def on_beat_timeline_components_deserialized(self, id: int):
         timeline_ui = cast(BeatTimelineUI, self.get_timeline_ui(id))

@@ -6,8 +6,6 @@ from tilia.timelines.base.validators import (
 )
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
-from tilia.requests import get, Get
-from tilia.ui.windows.svg_viewer import SvgViewer
 
 
 class ScoreAnnotation(PointLikeTimelineComponent):
@@ -42,13 +40,6 @@ class ScoreAnnotation(PointLikeTimelineComponent):
 
         super().__init__(timeline, id)
 
-        if text:
-            self.svg_view.update_annotation(self)
-
-    @property
-    def svg_view(self) -> SvgViewer:
-        return get(Get.TIMELINE, self.timeline.id).svg_view
-
     @property
     def x(self) -> float:
         return self._x
@@ -57,7 +48,6 @@ class ScoreAnnotation(PointLikeTimelineComponent):
     def x(self, x: float = 0) -> None:
         if self._x != x:
             self._x = x
-            self.svg_view.update_annotation(self)
 
     @property
     def y(self) -> float:
@@ -67,7 +57,6 @@ class ScoreAnnotation(PointLikeTimelineComponent):
     def y(self, y: float = 0) -> None:
         if self._y != y:
             self._y = y
-            self.svg_view.update_annotation(self)
 
     @property
     def viewer_id(self) -> int:
@@ -77,7 +66,6 @@ class ScoreAnnotation(PointLikeTimelineComponent):
     def viewer_id(self, viewer_id: int = 0) -> None:
         if self._viewer_id != viewer_id:
             self._viewer_id = viewer_id
-            self.svg_view.update_annotation(self)
 
     @property
     def text(self) -> str:
@@ -87,7 +75,6 @@ class ScoreAnnotation(PointLikeTimelineComponent):
     def text(self, text: str = "") -> None:
         if self._text != text:
             self._text = text
-            self.svg_view.update_annotation(self)
 
     @property
     def font_size(self) -> int:
@@ -97,10 +84,6 @@ class ScoreAnnotation(PointLikeTimelineComponent):
     def font_size(self, font_size: int = 12) -> None:
         if self._font_size != font_size:
             self._font_size = font_size
-            self.svg_view.update_annotation(self)
-
-    def remove_from_viewer(self):
-        self.svg_view.remove_annotation(self)
 
     def save_data(
         self, x: float, y: float, viewer_id: int, text: str, font_size: int
