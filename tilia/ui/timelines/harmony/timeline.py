@@ -164,7 +164,7 @@ class HarmonyTimelineUI(TimelineUI):
         self.create_pasted_components(
             paste_data,
             reference_time,
-            get(Get.MEDIA_CURRENT_TIME),
+            get(Get.SELECTED_TIME),
         )
 
     def create_pasted_components(
