@@ -1,27 +1,18 @@
 # TODO: QThreads
 from __future__ import annotations
 
-from html import escape, unescape
-from pathlib import Path
-from re import sub
 from lxml import etree
 
 from bisect import bisect
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 from PyQt6.QtCore import (
-    pyqtSlot,
     Qt,
     QKeyCombination,
-    QObject,
     QPointF,
-    QUrl,
 )
 from PyQt6.QtGui import QColor, QFont, QPen
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
-from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtWebEngineCore import QWebEngineSettings
-from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import (
     QFrame,
     QGraphicsView,
@@ -40,87 +31,41 @@ from tilia.ui.actions import TiliaAction, get_qaction
 from tilia.ui.smooth_scroll import smooth, setup_smooth
 from tilia.ui.windows.view_window import ViewDockWidget
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.requests import get, Get, post, Post
+from tilia.requests import (
+    get,
+    Get,
+    post,
+    Post,
+    serve,
+    stop_listening_to_all,
+    stop_serving_all,
+)
 import tilia.errors
-
-# from tilia.settings import settings
-
-if TYPE_CHECKING:
-    from tilia.ui.timelines.score import ScoreTimelineUI
-
-
-class SvgWebEngineTracker(QObject):
-    def __init__(self, page, on_svg_loaded, display_error) -> None:
-        super().__init__()
-        self.page = page
-        self.on_svg_loaded = on_svg_loaded
-        self.display_error = display_error
-
-    @pyqtSlot(str)
-    def set_svg(self, svg: str) -> None:
-        self.on_svg_loaded(svg)
-
-    @pyqtSlot(str)
-    def on_error(self, message: str) -> None:
-        self.display_error(message)
 
 
 class SvgViewer(ViewDockWidget):
-    def __init__(self, name: str, tlui: ScoreTimelineUI, *args, **kwargs) -> None:
+    def __init__(self, name: str, tl_id: int, *args, **kwargs) -> None:
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
-        self.setObjectName(f"TiLiA Score Viewer {tlui.id}")
+        self.setObjectName(f"TiLiA Score Viewer {tl_id}")
         self.setAllowedAreas(
             Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
         )
-        self.timeline_ui = tlui
-        self.timeline = self.timeline_ui.timeline
+        self.timeline_id = tl_id
 
-        self.__setup_score_creator()
         self.__setup_score_viewer()
+        serve(self, Get.SCORE_VIEWER, self.get_viewer)
 
-    def __setup_score_creator(self) -> None:
-        self.is_engine_loaded = False
-        self.web_engine = QWebEngineView()
-        self.web_engine.load(
-            QUrl.fromLocalFile(
-                (Path(__file__).parent / "svg_maker.html").resolve().__str__()
-            )
-        )
-        self.web_engine.settings().setAttribute(
-            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
-        )
-        self.web_engine.settings().setAttribute(
-            QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True
-        )
-        self.web_engine.loadFinished.connect(self.engine_loaded)
+    def get_viewer(self, tl_id: int):
+        if tl_id == self.timeline_id:
+            return self
 
-        self.channel = QWebChannel()
-        self.shared_object = SvgWebEngineTracker(
-            self.web_engine.page(),
-            self.preprocess_svg,
-            self.display_error,
-        )
-        self.channel.registerObject("backend", self.shared_object)
-        self.web_engine.page().setWebChannel(self.channel)
+    @property
+    def timeline(self):
+        return get(Get.TIMELINE, self.timeline_id)
 
-    def engine_loaded(self) -> None:
-        self.is_engine_loaded = True
-
-    def preprocess_svg(self, svg: str) -> None:
-        svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
-        self.timeline.set_data("svg_data", svg)
-
-    def to_svg(self, data: str) -> None:
-        def convert():
-            self.web_engine.page().runJavaScript(f"loadSVG(`{data}`)")
-
-        if self.is_engine_loaded:
-            convert()
-        else:
-            self.web_engine.loadFinished.connect(convert)
-
-    def display_error(self, message: str) -> None:
-        tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
+    @property
+    def timeline_ui(self):
+        return get(Get.TIMELINE_UI, self.timeline_id)
 
     def __setup_score_viewer(self) -> None:
         def get_playback_line():
@@ -184,23 +129,24 @@ class SvgViewer(ViewDockWidget):
 
     def load_svg_data(self, data: str) -> None:
         self.score_root = etree.fromstring(data, None)
-        beat_x_pos, success = self.timeline.set_data(
-            "viewer_beat_x", self._get_beat_x_pos(self.score_root)
-        )
-        if not success:
-            tilia.errors.display(
-                tilia.errors.SCORE_SVG_CREATE_ERROR,
-                "File not properly set up. Beat positions not found.",
+        if not (x_pos := self.timeline.get_data("viewer_beat_x")):
+            beat_x_pos, success = self.timeline.set_data(
+                "viewer_beat_x", self._get_beat_x_pos(self.score_root)
             )
-            return
+            if not success:
+                tilia.errors.display(
+                    tilia.errors.SCORE_SVG_CREATE_ERROR,
+                    "File not properly set up. Beat positions not found.",
+                )
+                return
+            else:
+                self.beat_x_position = {
+                    float(beat): float(x) for beat, x in beat_x_pos.items()
+                }
+            self.timeline.save_svg_data(str(etree.tostring(self.score_root), "utf-8"))
         else:
-            self.beat_x_position = {
-                float(beat): float(x) for beat, x in beat_x_pos.items()
-            }
-        self.timeline.save_svg_data(str(etree.tostring(self.score_root), "utf-8"))
-        self.show_svg_data()
+            self.beat_x_position = {float(beat): float(x) for beat, x in x_pos.items()}
 
-    def show_svg_data(self):
         self.setParent(get(Get.MAIN_WINDOW))
         self.score_renderer.load(bytearray(etree.tostring(self.score_root)))
         self.is_svg_loaded = True
@@ -216,9 +162,11 @@ class SvgViewer(ViewDockWidget):
         self.create_stavenotes(self.score_root)
 
         if not self.isVisible() and not self.is_hidden:
-            self.parent().addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self)
+            self.parentWidget().addDockWidget(
+                Qt.DockWidgetArea.BottomDockWidgetArea, self
+            )
+            self.show()
 
-        self.show()
         self.view.check_scale()
 
     def _get_beat_x_pos(self, root: etree._Element) -> dict[float, float]:
@@ -290,13 +238,18 @@ class SvgViewer(ViewDockWidget):
 
         return {"press": _start_drag, "move": _while_drag, "release": _after_drag}
 
-    def remove_annotation(self, tl_component) -> None:
-        viewer_id = tl_component.get_data("viewer_id")
-        self.scene.removeItem(self.tla_annotations[viewer_id]["annotation"])
-        self.tla_annotations.pop(viewer_id)
+    def remove_annotation(self, tl_component_id) -> None:
+        viewer_ids = [
+            v_id
+            for v_id, value in self.tla_annotations.items()
+            if value["component"] == tl_component_id
+        ]
+        for viewer_id in viewer_ids:
+            self.scene.removeItem(self.tla_annotations[viewer_id]["annotation"])
+            self.tla_annotations.pop(viewer_id)
 
-    def update_annotation(self, tl_component) -> None:
-        data: dict = tl_component.get_viewer_data()
+    def update_annotation(self, tl_component_id) -> None:
+        data: dict = self.timeline.get_component(tl_component_id).get_viewer_data()
         if data["viewer_id"] in self.tla_annotations.keys():
             component_id = data["viewer_id"]
             self.scene.removeItem(self.tla_annotations[component_id]["annotation"])
@@ -305,7 +258,7 @@ class SvgViewer(ViewDockWidget):
             data["text"], data["viewer_id"], data["x"], data["y"], data["font_size"]
         )
         self.tla_annotations[data["viewer_id"]] = {
-            "component": tl_component,
+            "component": tl_component_id,
             "annotation": annotation,
         }
 
@@ -315,7 +268,9 @@ class SvgViewer(ViewDockWidget):
                 selected.setSelected(False)
 
     def save_tla_annotation(self, item: SvgTlaAnnotation) -> None:
-        self.tla_annotations[item.id]["component"].save_data(
+        self.timeline.get_component(
+            self.tla_annotations[item.id]["component"]
+        ).save_data(
             x=item.x(),
             y=item.y(),
             viewer_id=item.id,
@@ -356,7 +311,7 @@ class SvgViewer(ViewDockWidget):
                 kind=ComponentKind.SCORE_ANNOTATION
             )
             self.tla_annotations[new_annotation.id] = {
-                "component": score_annotation,
+                "component": score_annotation.id,
                 "annotation": new_annotation,
             }
             self.save_tla_annotation(new_annotation)
@@ -366,8 +321,12 @@ class SvgViewer(ViewDockWidget):
         self.filter_selection(SvgTlaAnnotation)
         if not (to_delete := self.scene.selectedItems()):
             return
+        tl = self.timeline
         self.timeline.delete_components(
-            [self.tla_annotations[item.id]["component"] for item in to_delete]
+            [
+                tl.get_component(self.tla_annotations[item.id]["component"])
+                for item in to_delete
+            ]
         )
         post(Post.APP_RECORD_STATE, "score annotation")
 
@@ -387,8 +346,9 @@ class SvgViewer(ViewDockWidget):
                     "Edit annotation",
                     "No text inputted. Delete annotation?",
                 ):
+                    tl = self.timeline
                     self.timeline.delete_components(
-                        [self.tla_annotations[item.id]["component"]]
+                        [tl.get_component(self.tla_annotations[item.id]["component"])]
                     )
                     post(Post.APP_RECORD_STATE, "score annotation")
                 continue
@@ -542,9 +502,9 @@ class SvgViewer(ViewDockWidget):
         self.view.blockSignals(False)
 
     def deleteLater(self):
-        self.hide()
-        self.timeline.svg_view_deleted()
         super().deleteLater()
+        stop_serving_all(self)
+        stop_listening_to_all(self)
 
     def hideEvent(self, a0) -> None:
         try:
@@ -558,7 +518,8 @@ class SvgViewer(ViewDockWidget):
     def showEvent(self, event):
         self.scroll_to_time(get(Get.SELECTED_TIME), True)
         self.playback_line.setVisible(True)
-        self.timeline_ui.measure_tracker.show()
+        if self.timeline_ui:
+            self.timeline_ui.measure_tracker.show()
         self.is_hidden = False
         return super().showEvent(event)
 
