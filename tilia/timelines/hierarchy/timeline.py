@@ -52,6 +52,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         """
 
         for lvl in sorted([hrc.level for hrc in self._components]):
+        for lvl in sorted(list({hrc.level for hrc in self._components})):
             for child in [hrc for hrc in self._components if hrc.level == lvl]:
                 for hrc in self:
                     if (
