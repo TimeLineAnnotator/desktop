@@ -1,6 +1,6 @@
 from tilia.ui.actions import TiliaAction
 from tilia.ui.menus import MenuItemKind
-from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
+from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu, TimelineUIContextMenu
 
 
 class MarkerContextMenu(TimelineUIElementContextMenu):
@@ -16,3 +16,8 @@ class MarkerContextMenu(TimelineUIElementContextMenu):
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_DELETE),
     ]
+
+
+class MarkerTimelineUIContextMenu(TimelineUIContextMenu):
+    name = "Marker timeline"
+    items = [(MenuItemKind.ACTION, TiliaAction.TIMELINE_NAME_SET)]

@@ -11,6 +11,7 @@ from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
 from tilia.ui.timelines.collection.requests.enums import ElementSelector
+from tilia.ui.timelines.marker.context_menu import MarkerTimelineUIContextMenu
 from tilia.ui.timelines.marker.element import MarkerUI
 from tilia.ui.timelines.marker.request_handlers import MarkerUIRequestHandler
 from tilia.ui.timelines.marker.toolbar import MarkerTimelineToolbar
@@ -24,6 +25,7 @@ class MarkerTimelineUI(TimelineUI):
     TOOLBAR_CLASS = MarkerTimelineToolbar
     ELEMENT_CLASS = MarkerUI
     ACCEPTS_HORIZONTAL_ARROWS = True
+    CONTEXT_MENU_CLASS = MarkerTimelineUIContextMenu
 
     TIMELINE_KIND = TimelineKind.MARKER_TIMELINE
 
