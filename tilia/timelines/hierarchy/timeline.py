@@ -13,6 +13,7 @@ from tilia.requests import post, Post, get, Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from .components import Hierarchy
 import tilia.errors
+from ...ui.format import format_media_time
 
 
 class HierarchyTLComponentManager(TimelineComponentManager):
@@ -110,11 +111,11 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         def _validate_create_unit_below(h: Hierarchy):
             if h.level == 1:
-                return False, "Hierarchy is at lowest level"
+                return False, "Component is already at lowest level."
             if h.children:
                 for child in h.children:
                     if child.level == h.level - 1:
-                        return False, "Hierarchy would overlap with existing hierarchy."
+                        return False, "Component would overlap with existing component."
             return True, ""
 
         success, reason = _validate_create_unit_below(hierarchy)
@@ -130,7 +131,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         )
 
         if not created_unit:
-            return False, f"Couldn't create unit below: {reason}"
+            return False, f"Could not create component below: {reason}"
 
         if hierarchy.children:
             # Making former children child to unit created below {self}
@@ -143,7 +144,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
     def group(self, hierarchies: list[Hierarchy]):
         def _validate_at_least_two_selected(units_to_group):
             if len(units_to_group) <= 1:
-                return False, "At least two units are needed for grouping"
+                return False, "At least two components must be selected."
             return True, ""
 
         def _validate_no_boundary_crossing(start: float, end: float, group_level: int):
@@ -175,7 +176,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 ):
                     return (
                         False,
-                        f"Grouping unit would cross boundary of {unit_to_check}",
+                        f"Grouping component would overlap with existing component.",
                     )
             return True, ""
 
@@ -190,7 +191,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     for u in [u for u in self.timeline if u.level == grouping_level]
                 ]
             ):
-                return False, "Grouping unit would overlap with unit in grouping level."
+                return False, "Grouping component would overlap with component in same level."
             return True, ""
 
         def _get_previous_common_parent(
@@ -299,7 +300,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             if not hierarchy.start < time < hierarchy.end:
                 return (
                     False,
-                    f"Time '{time}' is not inside unit '{hierarchy}' boundaries.",
+                    f"Time '{format_media_time(time)}' is outside component.",
                 )
             return True, ""
 
@@ -404,17 +405,17 @@ class HierarchyTLComponentManager(TimelineComponentManager):
     def merge(self, hierarchies: list[Hierarchy]):
         def _validate_at_least_two_units(units: list[Hierarchy]):
             if len(units) <= 1:
-                return False, "At least two hierarchies are needed."
+                return False, "At least two components are needed."
             return True, ""
 
         def _validate_at_same_level(hs: list[Hierarchy]):
             if any(h.level != hs[0].level for h in hs):
-                return False, "Hierarchies need to be on the same level."
+                return False, "Components need to be at the same level."
             return True, ""
 
         def _validate_common_parent(hs: list[Hierarchy]):
             if any(h.parent != hs[0].parent for h in hs):
-                return False, "Hierarchies need to have a common parent."
+                return False, "Components need to have a common parent."
             return True, ""
 
         def _get_units_to_merge_from_unit_list(
@@ -558,13 +559,13 @@ class HierarchyTimeline(Timeline):
             if level < 1:
                 return False, "minimum level is 1."
             elif hierarchy.parent and hierarchy.parent.level == level:
-                return False, "would overlap with parent"
+                return False, "would overlap with parent."
 
             max_child_level = 0
             for child in hierarchy.children:
                 max_child_level = max(max_child_level, child.level)
             if level <= max_child_level:
-                return False, "would overlap with children"
+                return False, "would overlap with children."
             return True, ""
 
         if not amount:
