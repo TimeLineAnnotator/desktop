@@ -140,7 +140,7 @@ class ScoreTimelineUI(TimelineUI):
             return index * self.STAFF_MIN_HEIGHT + self.STAFF_MIN_HEIGHT / 2
 
         cumulative_height = 0
-        for j, value in self.staff_heights.items():
+        for j, value in sorted(self.staff_heights.items(), key=lambda x: x[0]):
             if j == index:
                 return cumulative_height + value / 2
             else:
