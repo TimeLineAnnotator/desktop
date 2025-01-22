@@ -139,9 +139,11 @@ class HarmonyUI(TimelineUIElement):
             case "Neapolitan":
                 return "N6"
             case "power":
-                return figure.replace("o", "@o")
+                return figure.replace("power", "&5")
             case "Tristan":
-                return figure.replace("n", "@n")
+                return figure.replace("tristan", "`t`r`i`s`t")
+            case "pedal":
+                return figure.replace("pedal", "`p`e`d")
             case "seventh-flat-five":
                 return figure.replace("dom7dim5", "7((b5))")
         match self.get_data("accidental"):
