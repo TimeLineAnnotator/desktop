@@ -18,8 +18,6 @@ def _handle_special_qualities(quality: str) -> str | None:
             return "Gr6+"
         case "Neapolitan":
             return "N6"
-        case "Tristan":
-            return "Trista@n"
 
 
 QUALITY_TO_ROMAN_NUMERAL_SUFFIX = {
@@ -92,8 +90,9 @@ QUALITY_TO_ROMAN_NUMERAL_SUFFIX = {
     "suspended-second": ("52", "74", "54", None),
     "suspended-fourth": ("54", "52", "74", None),
     "suspended-fourth-seventh": ("74", "54", "52", None),
-    "pedal": ("`p`e`d`a`l", None, None, None),
-    "power": ("`p`o`w`e`r", None, None, None),
+    "pedal": ("`p`e`d", None, None, None),
+    "power": ("5", None, None, None),
+    "Tristan": ("`t`r`i`s`t", None, None, None),
 }
 
 INT_TO_APPLIED_TO_SUFFIX = {
