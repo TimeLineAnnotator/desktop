@@ -45,11 +45,11 @@ class TestActions:
         tlui.select_element(tlui[0])
         user_actions.trigger(TiliaAction.HIERARCHY_INCREASE_LEVEL)
 
-        assert tlui[2].get_data('level') == 2
-        assert tlui[2].get_data('start') == 0
-        assert tlui[2].get_data('end') == 1
-        assert tlui[0].get_data('level') == 1
-        assert tlui[1].get_data('level') == 1
+        assert tlui[2].get_data("level") == 2
+        assert tlui[2].get_data("start") == 0
+        assert tlui[2].get_data("end") == 1
+        assert tlui[0].get_data("level") == 1
+        assert tlui[1].get_data("level") == 1
 
     def test_increase_level_multiple_hierarchies(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 1)
@@ -61,9 +61,9 @@ class TestActions:
         tlui.select_element(tlui[2])
         user_actions.trigger(TiliaAction.HIERARCHY_INCREASE_LEVEL)
 
-        assert tlui[0].get_data('level') == 2
-        assert tlui[1].get_data('level') == 2
-        assert tlui[2].get_data('level') == 2
+        assert tlui[0].get_data("level") == 2
+        assert tlui[1].get_data("level") == 2
+        assert tlui[2].get_data("level") == 2
 
     def test_decrease_level(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 2)
@@ -73,9 +73,9 @@ class TestActions:
         tlui.select_element(tlui[0])
         user_actions.trigger(TiliaAction.HIERARCHY_DECREASE_LEVEL)
 
-        assert tlui[0].get_data('level') == 1
-        assert tlui[1].get_data('level') == 2
-        assert tlui[2].get_data('level') == 2
+        assert tlui[0].get_data("level") == 1
+        assert tlui[1].get_data("level") == 2
+        assert tlui[2].get_data("level") == 2
 
     def test_decrease_level_multiple_hierarchies(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 2)
@@ -87,9 +87,9 @@ class TestActions:
         tlui.select_element(tlui[2])
         user_actions.trigger(TiliaAction.HIERARCHY_DECREASE_LEVEL)
 
-        assert tlui[0].get_data('level') == 1
-        assert tlui[1].get_data('level') == 1
-        assert tlui[2].get_data('level') == 1
+        assert tlui[0].get_data("level") == 1
+        assert tlui[1].get_data("level") == 1
+        assert tlui[2].get_data("level") == 1
 
     def test_set_color(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 1)
@@ -98,7 +98,7 @@ class TestActions:
         with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
             user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_SET)
 
-        assert tlui[0].get_data('color') == "#000000"
+        assert tlui[0].get_data("color") == "#000000"
 
     def test_reset_color(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 1)
@@ -109,7 +109,7 @@ class TestActions:
 
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COLOR_RESET)
 
-        assert tlui[0].get_data('color') is None
+        assert tlui[0].get_data("color") is None
 
     def test_add_pre_start(self, tlui, user_actions):
         tlui.create_hierarchy(0.1, 1, 1)
@@ -118,7 +118,7 @@ class TestActions:
         with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
             user_actions.trigger(TiliaAction.HIERARCHY_ADD_PRE_START)
 
-        assert tlui[0].get_data('pre_start') != tlui[0].get_data('start')
+        assert tlui[0].get_data("pre_start") != tlui[0].get_data("start")
         assert tlui[0].pre_start_handle
 
     def test_add_post_end(self, tlui, user_actions, tilia_state):
@@ -128,7 +128,7 @@ class TestActions:
         with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
             user_actions.trigger(TiliaAction.HIERARCHY_ADD_POST_END)
 
-        assert tlui[0].get_data('post_end') != tlui[0].get_data('end')
+        assert tlui[0].get_data("post_end") != tlui[0].get_data("end")
         assert tlui[0].post_end_handle
 
     def test_split(self, tlui, user_actions, tilia_state):
@@ -343,9 +343,7 @@ class TestCopyPaste:
         assert copied_children_2.children[0].start == 1.5
         assert copied_children_2.children[0].end == 2.0
 
-    def test_paste_with_children_into_different_level_fails(
-        self, tlui, user_actions
-    ):
+    def test_paste_with_children_into_different_level_fails(self, tlui, user_actions):
         tlui.create_hierarchy(0, 0.5, 1)
         tlui.create_hierarchy(0.5, 1, 1)
         tlui.create_hierarchy(0, 1, 2)
@@ -496,7 +494,6 @@ class TestUndoRedo:
         post(Post.EDIT_REDO)
         assert len(tlui) == 0
 
-
     def test_create_unit_below(self, tlui, tluis, user_actions):
         tlui.create_hierarchy(0, 1, 2)
 
@@ -532,7 +529,9 @@ class TestUndoRedo:
         user_actions.trigger(TiliaAction.EDIT_REDO)
         assert tlui[1].get_data("label") == "paste test"
 
-    @pytest.mark.skip('Paste complete is not being recorded. This has been fixed in another branch')
+    @pytest.mark.skip(
+        "Paste complete is not being recorded. This has been fixed in another branch"
+    )
     def test_paste_with_children(self, tlui, tluis, user_actions):
         tlui.create_hierarchy(0, 1, 1)
         tlui.create_hierarchy(1, 2, 1)
@@ -576,12 +575,12 @@ class TestCreateChild:
 
         tlui.select_element(tlui[0])
 
-        settings.set('hierarchy_timeline', 'prompt_create_level_below', True)
+        settings.set("hierarchy_timeline", "prompt_create_level_below", True)
         with Serve(Get.FROM_USER_YES_OR_NO, False):
             user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
 
         assert len(tlui) == 1
-        assert tlui[0].get_data('level') == 1
+        assert tlui[0].get_data("level") == 1
 
     class TestUserAcceptsNewLevel:
         def test_single_hierarchy(self, tlui, user_actions):
@@ -589,13 +588,13 @@ class TestCreateChild:
 
             tlui.select_element(tlui[0])
 
-            settings.set('hierarchy_timeline', 'prompt_create_level_below', True)
+            settings.set("hierarchy_timeline", "prompt_create_level_below", True)
             with Serve(Get.FROM_USER_YES_OR_NO, True):
                 user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
 
             assert len(tlui) == 2
-            assert tlui[0].get_data('level') == 1
-            assert tlui[1].get_data('level') == 2
+            assert tlui[0].get_data("level") == 1
+            assert tlui[1].get_data("level") == 2
 
         def test_with_parent(self, tlui, user_actions):
             tlui.create_hierarchy(0, 1, 1)
@@ -605,14 +604,14 @@ class TestCreateChild:
 
             tlui.select_element(tlui[0])
 
-            settings.set('hierarchy_timeline', 'prompt_create_level_below', True)
+            settings.set("hierarchy_timeline", "prompt_create_level_below", True)
             with Serve(Get.FROM_USER_YES_OR_NO, True):
                 user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
 
             assert len(tlui) == 3
-            assert tlui[0].get_data('level') == 1
-            assert tlui[1].get_data('level') == 2
-            assert tlui[2].get_data('level') == 3
+            assert tlui[0].get_data("level") == 1
+            assert tlui[1].get_data("level") == 2
+            assert tlui[2].get_data("level") == 3
 
         def test_with_siblings(self, tlui, user_actions):
             tlui.create_hierarchy(0, 1, 1)
@@ -621,24 +620,22 @@ class TestCreateChild:
 
             tlui.select_element(tlui[0])
 
-            settings.set('hierarchy_timeline', 'prompt_create_level_below', True)
+            settings.set("hierarchy_timeline", "prompt_create_level_below", True)
             with Serve(Get.FROM_USER_YES_OR_NO, True):
                 user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
 
             assert len(tlui) == 4
-            assert tlui[0].get_data('level') == 1
-            assert tlui[1].get_data('level') == 2
-            assert tlui[2].get_data('level') == 2
-            assert tlui[3].get_data('level') == 2
+            assert tlui[0].get_data("level") == 1
+            assert tlui[1].get_data("level") == 2
+            assert tlui[2].get_data("level") == 2
+            assert tlui[3].get_data("level") == 2
 
         def test_prompt_create_level_below_is_false(self, tlui, user_actions):
             tlui.create_hierarchy(0, 1, 1)
 
             tlui.select_element(tlui[0])
 
-            settings.set('hierarchy_timeline', 'prompt_create_level_below', False)
+            settings.set("hierarchy_timeline", "prompt_create_level_below", False)
             user_actions.trigger(TiliaAction.HIERARCHY_CREATE_CHILD)
 
             assert len(tlui) == 2
-
-
