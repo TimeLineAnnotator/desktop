@@ -316,10 +316,7 @@ class TestCopyPaste:
         tlui.create_hierarchy(0, 0.5, 2)
         tlui.create_hierarchy(0.5, 1, 2)
         tlui.create_hierarchy(0, 1, 3)
-        tlui.create_hierarchy(1, 2, 3)
-
-        # order will change with paste
-        hrc6 = tlui.timeline[5]
+        hrc6, _ = tlui.create_hierarchy(1, 2, 3)
 
         set_dummy_copy_attributes(tlui.timeline[0])
         set_dummy_copy_attributes(tlui.timeline[1])
