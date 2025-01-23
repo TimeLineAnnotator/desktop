@@ -288,27 +288,33 @@ class TestCopyPaste:
         assert copied_children_2.end == 1.5
 
     def test_paste_into_hierarchy_that_has_grandchildren(self, tlui):
-        tlui.create_hierarchy(0, 0.5, 1)
-        tlui.create_hierarchy(0.5, 1, 1)
-        tlui.create_hierarchy(1, 1.5, 1)
-        tlui.create_hierarchy(1.5, 2, 1)
-        tlui.create_hierarchy(0, 1, 2)
-        tlui.create_hierarchy(1, 2, 2)
-        tlui.create_hierarchy(0, 2, 3)
+        tlui.create_hierarchy(0, 0.5, 1)  # grandchild
+        tlui.create_hierarchy(0.5, 1, 1)  # grandchild
+        tlui.create_hierarchy(1, 1.5, 1)  # grandchild
+        tlui.create_hierarchy(1.5, 2, 1)  # grandchild
+        tlui.create_hierarchy(0, 1, 2)  # child
+        tlui.create_hierarchy(1, 2, 2)  # child
+        destination, _ = tlui.create_hierarchy(0, 2, 3)  # grandparent
+
+        tlui.create_hierarchy(2, 2.25, 2)  # child
+        tlui.create_hierarchy(2.25, 2.5, 2)  # child
+        tlui.create_hierarchy(2.5, 2.75, 2)  # child
+        tlui.create_hierarchy(2.75, 3, 2)  # child
+        source, _ = tlui.create_hierarchy(2, 3, 3)  # parent
 
         tlui.timeline.do_genealogy()
 
-        tlui.select_element(tlui[-1])
-
+        tlui.select_element(tlui.get_element(source.id))
         post(Post.TIMELINE_ELEMENT_COPY)
-
-        tlui.create_hierarchy(2, 4, 3)
-
         tlui.deselect_all_elements()
-        tlui.select_element(tlui[-1])
+        tlui.select_element(tlui.get_element(destination.id))
+        post(Post.TIMELINE_ELEMENT_PASTE_COMPLETE)
 
-        post(Post.TIMELINE_ELEMENT_PASTE_COMPLETE)
-        post(Post.TIMELINE_ELEMENT_PASTE_COMPLETE)
+        assert len(destination.children) == 4
+        for i, child in enumerate(sorted(destination.children)):
+            assert child.parent == destination
+            assert child.start == i * 0.5
+            assert child.end == (i + 1) * 0.5
 
     def test_paste_from_hierarchy_with_grandchildren(self, tlui, user_actions):
         tlui.create_hierarchy(0, 0.5, 1)
