@@ -282,8 +282,6 @@ class App:
 
         return True
 
-        post(Post.DEBUG)
-
     def on_clear(self) -> None:
         self.timelines.clear()
         self.file_manager.new()
