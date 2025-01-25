@@ -89,8 +89,9 @@ class Player(ABC):
         return self.playback_end - self.playback_start
 
     def load_media(
-        self, path: str | Path, start: float = 0.0, end: float = 0.0
+        self, path: str | Path, start: float = 0.0, end: float = 0.0, initial_duration: float = False
     ) -> bool:
+        # Initial_duration is only used by YouTube player
         if self.is_playing:
             self.stop()
 
@@ -133,7 +134,6 @@ class Player(ABC):
         self.is_playing = False
         self.is_looping = False
         post(Post.PLAYER_CANCEL_LOOP)
-        post(Post.PLAYER_MEDIA_UNLOADED)
 
     def toggle_play(self, toggle_is_playing: bool):
         if toggle_is_playing:

@@ -66,7 +66,6 @@ class App:
             # Listening on tilia.dirs would need to be top-level.
             # That sounds like a bad idea, so we're listening here.
             (Post.AUTOSAVES_FOLDER_OPEN, tilia.dirs.open_autosaves_dir),
-            (Post.PLAYER_MEDIA_UNLOADED, self.on_media_unloaded),
         }
 
         SERVES = {
@@ -163,13 +162,15 @@ class App:
         path: str,
         record: bool = True,
         scale_timelines: Literal["yes", "no", "prompt"] = "prompt",
+        initial_duration: float | None = None,
     ) -> None:
         self.should_scale_timelines = scale_timelines
         if not path:
             self.player.unload_media()
+            self.set_file_media_duration(0.0)
             return
 
-        player = load_media(self.player, path)
+        player = load_media(self.player, path, initial_duration=initial_duration)
         if player and record:
             self.player = player
             post(Post.PLAYER_CANCEL_LOOP)
@@ -177,9 +178,9 @@ class App:
 
     def _restore_app_state(self, state: dict) -> None:
         with PauseUndoManager():
-            self.timelines.restore_state(state["timelines"])
+            self.restore_player_state(state["media_path"], state["media_metadata"]["media length"])
             self.file_manager.set_media_metadata(state["media_metadata"])
-            self.restore_player_state(state["media_path"])
+            self.timelines.restore_state(state["timelines"])
 
     def on_restore_state(self, state: dict) -> None:
         backup = self.get_app_state()
@@ -253,7 +254,7 @@ class App:
 
     @staticmethod
     def _check_if_media_exists(path: str) -> bool:
-        return re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists()
+        return path and (re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists())
 
     def _setup_file_media(self, path: str, duration: float | None):
         if duration:
@@ -264,7 +265,7 @@ class App:
             post(Post.PLAYER_URL_CHANGED, "")
             return
 
-        self.load_media(path)
+        self.load_media(path, initial_duration=duration)
 
     def on_file_load(self, file: TiliaFile) -> bool:
         media_path = file.media_path
@@ -288,21 +289,24 @@ class App:
         self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
         if self.player:
             self.player.clear()
+            self.set_file_media_duration(0.0)
         self.undo_manager.clear()
         post(Post.REQUEST_CLEAR_UI)
-
-    def on_media_unloaded(self) -> None:
-        self.duration = 0
 
     def reset_undo_manager(self):
         self.undo_manager.clear()
         self.undo_manager.record(self.get_app_state(), "file start")
 
-    def restore_player_state(self, media_path: str) -> None:
+    def restore_player_state(self, media_path: str, duration: float) -> None:
         if self.player.media_path == media_path:
+            # Media has not changed. We need to restore
+            # the duration as it was set to 0 while
+            # clearing the app
+            if duration:
+                self.set_file_media_duration(duration)
             return
 
-        self.load_media(media_path, record=False)
+        self.load_media(media_path, record=False, initial_duration=duration)
 
     def get_timelines_state(self):
         return self.timelines.serialize_timelines()

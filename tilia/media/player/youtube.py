@@ -111,11 +111,17 @@ class YouTubePlayer(Player):
         self.view.page().setWebChannel(self.channel)
         self.view.page().setUrlRequestInterceptor(self.request_interceptor)
 
-    def load_media(self, path: str | Path, start: float = 0.0, end: float = 0.0):
+    def load_media(self, path: str | Path, start: float = 0.0, end: float = 0.0, initial_duration: float = 0.0):
         if not self.view.isVisible():
             self.view.show()
 
         super().load_media(path, start, end)
+
+        if initial_duration:
+            # This ensures duration is available
+            # after opening a file, as self.on_media_duration_available
+            # will not be called immediately by the engine.
+            self.on_media_duration_available(initial_duration)
 
     def on_media_load_done(self, path, start, end):
         self.media_path = str(path)
