@@ -23,7 +23,9 @@ def audiowave_tl(tls):
 
     tl.clear()
 
-    tl.create_amplitudebar = functools.partial(tl.create_component, ComponentKind.AUDIOWAVE)
+    tl.create_amplitudebar = functools.partial(
+        tl.create_component, ComponentKind.AUDIOWAVE
+    )
     return tl
 
 

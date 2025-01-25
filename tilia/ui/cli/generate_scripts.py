@@ -24,7 +24,7 @@ def generate(namespace: argparse.Namespace, parse_and_run: Callable[[str], bool]
     if not script_paths:
         return
 
-    io.output('\n'.join(["Saved scripts:", *script_paths]))
+    io.output("\n".join(["Saved scripts:", *script_paths]))
     confirm = io.ask_yes_or_no("Would you like to run the generated scripts?")
     if confirm:
         for path in script_paths:

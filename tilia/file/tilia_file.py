@@ -16,7 +16,14 @@ class TiliaFile:
 
 
 def validate_tla_data(data: dict) -> tuple[bool, str]:
-    for key in ['file_path', 'media_path', 'media_metadata', 'timelines', 'app_name', 'version']:
+    for key in [
+        "file_path",
+        "media_path",
+        "media_metadata",
+        "timelines",
+        "app_name",
+        "version",
+    ]:
         if key not in data:
             return False, f"Missing field: {key}"
 

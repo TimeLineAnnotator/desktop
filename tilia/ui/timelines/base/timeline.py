@@ -325,12 +325,18 @@ class TimelineUI(ABC):
             self._deselect_all_but_first()
 
         selected_element = self.element_manager.get_selected_elements()[0]
-        elements_of_kind = self.element_manager.get_elements_by_attribute("kind", selected_element.get_data('KIND'))
-        time = selected_element.get_data('time')
+        elements_of_kind = self.element_manager.get_elements_by_attribute(
+            "kind", selected_element.get_data("KIND")
+        )
+        time = selected_element.get_data("time")
         if arrow == "right":
-            element_to_select = self.element_manager.get_next_element_by_time(time, elements_of_kind)
+            element_to_select = self.element_manager.get_next_element_by_time(
+                time, elements_of_kind
+            )
         else:
-            element_to_select = self.element_manager.get_previous_element_by_time(time, elements_of_kind)
+            element_to_select = self.element_manager.get_previous_element_by_time(
+                time, elements_of_kind
+            )
 
         if element_to_select:
             self.deselect_element(selected_element)

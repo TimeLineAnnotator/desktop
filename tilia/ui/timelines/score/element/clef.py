@@ -5,7 +5,9 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
 from tilia.timelines.score.components import Clef
-from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
+from tilia.ui.timelines.score.element.with_collision import (
+    TimelineUIElementWithCollision,
+)
 
 
 class ClefUI(TimelineUIElementWithCollision):
@@ -15,12 +17,19 @@ class ClefUI(TimelineUIElementWithCollision):
 
     @property
     def icon_path(self):
-        if not self.get_data('icon'):
-            return Path('ui', 'img', 'clef-unknown.svg')
-        return Path('ui', 'img', self.get_data('icon'))
+        if not self.get_data("icon"):
+            return Path("ui", "img", "clef-unknown.svg")
+        return Path("ui", "img", self.get_data("icon"))
 
     def _setup_body(self):
-        self.body = ClefBody(self.x, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')), self.height(), self.icon_path)
+        self.body = ClefBody(
+            self.x,
+            self.timeline_ui.get_y_for_symbols_above_staff(
+                self.get_data("staff_index")
+            ),
+            self.height(),
+            self.icon_path,
+        )
         self.body.moveBy(self.x_offset, 0)
         self.scene.addItem(self.body)
 
@@ -31,11 +40,16 @@ class ClefUI(TimelineUIElementWithCollision):
         return [self.body]
 
     def update_position(self):
-        self.body.set_position(self.x + self.x_offset, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')))
+        self.body.set_position(
+            self.x + self.x_offset,
+            self.timeline_ui.get_y_for_symbols_above_staff(
+                self.get_data("staff_index")
+            ),
+        )
         self.body.set_height(self.height())
 
     def central_step(self) -> tuple[int, int]:
-        return self.get_data('central_step')()
+        return self.get_data("central_step")()
 
     def on_components_deserialized(self):
         self.update_position()
@@ -59,7 +73,11 @@ class ClefBody(QGraphicsPixmapItem):
         self.setPixmap(QPixmap(path))
 
     def set_height(self, height: float):
-        self.setPixmap(self._pixmap.scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
+        self.setPixmap(
+            self._pixmap.scaledToHeight(
+                height, mode=Qt.TransformationMode.SmoothTransformation
+            )
+        )
 
     def set_position(self, x: float, y: float):
         self.setPos(x, y)

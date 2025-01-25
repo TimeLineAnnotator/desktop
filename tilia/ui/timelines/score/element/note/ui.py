@@ -329,8 +329,8 @@ class NoteUI(TimelineUIElement):
         )
         if start := self.get_data("start_metric_position"):
             end = self.get_data("end_metric_position")
-            inspector[
-                "Start / end (metric)"
-            ] = f"{start.measure}.{start.beat} / {end.measure}.{end.beat}"
+            inspector["Start / end (metric)"] = (
+                f"{start.measure}.{start.beat} / {end.measure}.{end.beat}"
+            )
 
         return inspector

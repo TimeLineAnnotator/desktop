@@ -15,7 +15,9 @@ class TimelineRequestHandler(RequestHandler):
         base_request_to_callback = {
             Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES: self.on_timeline_delete,
             Post.TIMELINE_CLEAR_FROM_MANAGE_TIMELINES: self.on_timeline_clear,
-            Post.TIMELINE_DELETE_FROM_CLI: functools.partial(self.on_timeline_delete, True),
+            Post.TIMELINE_DELETE_FROM_CLI: functools.partial(
+                self.on_timeline_delete, True
+            ),
             Post.TIMELINE_NAME_SET: functools.partial(
                 self.on_timeline_data_set, "name"
             ),
@@ -41,7 +43,9 @@ class TimelineRequestHandler(RequestHandler):
         return get(Get.TIMELINE, self.timeline_ui.id)
 
     def on_timeline_data_set(self, attr, value, **_):
-        return get(Get.TIMELINE_COLLECTION).set_timeline_data(self.timeline_ui.id, attr, value)
+        return get(Get.TIMELINE_COLLECTION).set_timeline_data(
+            self.timeline_ui.id, attr, value
+        )
 
     def on_timeline_ordinal_permute_from_manage_timelines(self, id_to_ordinal):
         return self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
@@ -84,7 +88,9 @@ class ElementRequestHandler(RequestHandler):
         return [e.tl_component for e in elements]
 
     def on_copy(self, elements: list[TimelineUIElement]):
-        component_data = [get_copy_data_from_element(e, e.DEFAULT_COPY_ATTRIBUTES) for e in elements]
+        component_data = [
+            get_copy_data_from_element(e, e.DEFAULT_COPY_ATTRIBUTES) for e in elements
+        ]
 
         if not component_data:
             return False

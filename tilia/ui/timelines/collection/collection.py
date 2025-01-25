@@ -164,7 +164,10 @@ class TimelineUIs:
             (Post.SELECTION_BOX_DESELECT_ITEM, self.on_selection_box_deselect_item),
             (Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done),
             (Post.TIMELINES_CROP_DONE, self.on_timelines_crop_done),
-            (Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.on_beat_timeline_measure_number_change_done),
+            (
+                Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
+                self.on_beat_timeline_measure_number_change_done,
+            ),
             (Post.HIERARCHY_SELECTED, self.on_hierarchy_selected),
             (Post.HIERARCHY_DESELECTED, self.on_hierarchy_deselected),
             (Post.HIERARCHY_MERGE_SPLIT_DONE, self.on_hierarchy_merge_split),
@@ -754,7 +757,9 @@ class TimelineUIs:
         ]
         for element in elements:
             if element.get_data("loop_start") in graph:
-                graph[element.get_data("loop_start")]["node"].add(element.get_data("loop_end"))
+                graph[element.get_data("loop_start")]["node"].add(
+                    element.get_data("loop_end")
+                )
             else:
                 graph[element.get_data("loop_start")] = {
                     "is_visited": False,
@@ -762,7 +767,9 @@ class TimelineUIs:
                 }
 
             if element.get_data("loop_end") in graph:
-                graph[element.get_data("loop_end")]["node"].add(element.get_data("loop_start"))
+                graph[element.get_data("loop_end")]["node"].add(
+                    element.get_data("loop_start")
+                )
             else:
                 graph[element.get_data("loop_end")] = {
                     "is_visited": False,

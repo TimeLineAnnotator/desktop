@@ -17,7 +17,7 @@ class TestRightClick:
     def test_right_click(self, tlui):
         tlui.create_mode()
         with patch(
-                "tilia.ui.timelines.harmony.context_menu.ModeContextMenu.exec"
+            "tilia.ui.timelines.harmony.context_menu.ModeContextMenu.exec"
         ) as exec_mock:
             tlui[0].on_right_click(0, 0, None)
 

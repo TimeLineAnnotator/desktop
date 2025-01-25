@@ -9,6 +9,7 @@ class TestAudioWaveUI:
         audiowave_tlui.create_amplitudebar(0, 1, 1)
         assert len(audiowave_tlui) == 1
 
+
 class TestDoubleClick:
     def test_amplitudebar_seek(self, audiowave_tlui):
         audiowave_tlui.create_amplitudebar(10, 15, 1)

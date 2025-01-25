@@ -7,7 +7,9 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
 from tilia.timelines.score.components import Clef
-from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
+from tilia.ui.timelines.score.element.with_collision import (
+    TimelineUIElementWithCollision,
+)
 
 
 class KeySignatureUI(TimelineUIElementWithCollision):
@@ -21,31 +23,44 @@ class KeySignatureUI(TimelineUIElementWithCollision):
             # Key signature not implmemented
             # for custom clefs. Using "treble"
             # just to prevent a crash
-            return 'treble'
+            return "treble"
         return {
-            Clef.Shorthand.BASS: 'bass',
-            Clef.Shorthand.TREBLE: 'treble',
-            Clef.Shorthand.TREBLE_8VB: 'treble',
-            Clef.Shorthand.ALTO: 'alto',
+            Clef.Shorthand.BASS: "bass",
+            Clef.Shorthand.TREBLE: "treble",
+            Clef.Shorthand.TREBLE_8VB: "treble",
+            Clef.Shorthand.ALTO: "alto",
         }[shorthand]
 
     @property
     def icon_path(self) -> str:
-        fifths = self.get_data('fifths')
+        fifths = self.get_data("fifths")
         if fifths == 0:
-            return str(Path('ui', 'img', 'key-signature-no-accidentals.svg').resolve())
+            return str(Path("ui", "img", "key-signature-no-accidentals.svg").resolve())
         accidental_count = abs(fifths)
-        accidental_type = 'flats' if fifths < 0 else 'sharps'
-        clef = self.timeline_ui.get_clef_by_time(self.get_data('time'), self.get_data('staff_index'))
+        accidental_type = "flats" if fifths < 0 else "sharps"
+        clef = self.timeline_ui.get_clef_by_time(
+            self.get_data("time"), self.get_data("staff_index")
+        )
         if not clef:
-            clef_string = 'treble'
+            clef_string = "treble"
         else:
             clef_string = self._clef_shorthand_to_icon_path_string(clef.shorthand())
-        path = Path('ui', 'img', f'key-signature-{clef_string}-{accidental_count}-{accidental_type}.svg')
+        path = Path(
+            "ui",
+            "img",
+            f"key-signature-{clef_string}-{accidental_count}-{accidental_type}.svg",
+        )
         return str(path.resolve())
 
     def _setup_body(self):
-        self.body = KeySignatureBody(self.x, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')), self.height(), self.icon_path)
+        self.body = KeySignatureBody(
+            self.x,
+            self.timeline_ui.get_y_for_symbols_above_staff(
+                self.get_data("staff_index")
+            ),
+            self.height(),
+            self.icon_path,
+        )
         self.body.moveBy(self.x_offset, 0)
         self.scene.addItem(self.body)
 
@@ -56,7 +71,12 @@ class KeySignatureUI(TimelineUIElementWithCollision):
         return [self.body]
 
     def update_position(self):
-        self.body.set_position(self.x + self.x_offset, self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')))
+        self.body.set_position(
+            self.x + self.x_offset,
+            self.timeline_ui.get_y_for_symbols_above_staff(
+                self.get_data("staff_index")
+            ),
+        )
         self.body.set_height(int(self.height()))
 
     def selection_triggers(self):
@@ -82,7 +102,11 @@ class KeySignatureBody(QGraphicsPixmapItem):
         if height == 0:
             self.setVisible(False)
         else:
-            self.setPixmap(self._pixmap.scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
+            self.setPixmap(
+                self._pixmap.scaledToHeight(
+                    height, mode=Qt.TransformationMode.SmoothTransformation
+                )
+            )
             self.setVisible(True)
 
     def set_position(self, x: float, y: float):

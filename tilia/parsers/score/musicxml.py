@@ -34,9 +34,10 @@ class TiliaMXLReader:
         self.reader_kwargs = reader_kwargs or {}
 
     def _get_mxl_data(self):
-        with ZipFile(self.path) as zipfile, zipfile.open(
-            "META-INF/container.xml", **self.file_kwargs
-        ) as meta:
+        with (
+            ZipFile(self.path) as zipfile,
+            zipfile.open("META-INF/container.xml", **self.file_kwargs) as meta,
+        ):
             full_path = (
                 etree.parse(meta, **self.reader_kwargs)
                 .findall(".//rootfile")[0]

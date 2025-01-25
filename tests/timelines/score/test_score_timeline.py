@@ -20,7 +20,7 @@ class TestCreateClef:
     def test_create_clef(self, clef):
         assert clef
 
-    @pytest.mark.parametrize('shorthand', Clef.Shorthand)
+    @pytest.mark.parametrize("shorthand", Clef.Shorthand)
     def test_create_with_shorthand(self, shorthand, score_tl):
         score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=shorthand)
         assert len(score_tl) == 1
@@ -40,10 +40,18 @@ def test_create_key_signature(key_signature):
 
 def test_crop_segmentlike_components(score_tl, tilia_state):
     tilia_state.duration = 100
-    c1, _ = score_tl.create_component(ComponentKind.NOTE, 0, 100, 0, 0, 3, 0)  # end will be cropped
-    c2, _ = score_tl.create_component(ComponentKind.NOTE, 0, 50, 0, 0, 3, 0)  # will not be altered
-    c3, _ = score_tl.create_component(ComponentKind.NOTE, 50, 100, 0, 0, 3, 0)  # start will be cropped
-    c4, _ = score_tl.create_component(ComponentKind.NOTE, 80, 100, 0, 0, 3, 0)  # will be deleted
+    c1, _ = score_tl.create_component(
+        ComponentKind.NOTE, 0, 100, 0, 0, 3, 0
+    )  # end will be cropped
+    c2, _ = score_tl.create_component(
+        ComponentKind.NOTE, 0, 50, 0, 0, 3, 0
+    )  # will not be altered
+    c3, _ = score_tl.create_component(
+        ComponentKind.NOTE, 50, 100, 0, 0, 3, 0
+    )  # start will be cropped
+    c4, _ = score_tl.create_component(
+        ComponentKind.NOTE, 80, 100, 0, 0, 3, 0
+    )  # will be deleted
 
     new_end = 75
     score_tl.crop(new_end)
@@ -72,8 +80,12 @@ def test_scale_segmentlike_components(score_tl, tilia_state):
 
 def test_crop_pointlike_components(score_tl, tilia_state):
     tilia_state.duration = 100
-    c1, _ = score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)
-    c2, _ = score_tl.create_component(ComponentKind.CLEF, 0, 100, shorthand=Clef.Shorthand.TREBLE)
+    c1, _ = score_tl.create_component(
+        ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE
+    )
+    c2, _ = score_tl.create_component(
+        ComponentKind.CLEF, 0, 100, shorthand=Clef.Shorthand.TREBLE
+    )
 
     b1, _ = score_tl.create_component(ComponentKind.BAR_LINE, 0)
     b2, _ = score_tl.create_component(ComponentKind.BAR_LINE, 100)
@@ -95,7 +107,9 @@ def test_crop_pointlike_components(score_tl, tilia_state):
 
 def test_scale_pointlike_components(score_tl, tilia_state):
     tilia_state.duration = 100
-    c, _ = score_tl.create_component(ComponentKind.CLEF, 0, 10, shorthand=Clef.Shorthand.TREBLE)
+    c, _ = score_tl.create_component(
+        ComponentKind.CLEF, 0, 10, shorthand=Clef.Shorthand.TREBLE
+    )
     b, _ = score_tl.create_component(ComponentKind.BAR_LINE, 20)
     ts, _ = score_tl.create_component(ComponentKind.TIME_SIGNATURE, 0, 30, 4, 4)
     ks, _ = score_tl.create_component(ComponentKind.KEY_SIGNATURE, 0, 40, 0)
@@ -115,6 +129,3 @@ def test_crop_staff(score_tl, tilia_state):
     score_tl.crop(50)
 
     assert s in score_tl
-
-
-

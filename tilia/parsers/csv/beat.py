@@ -111,7 +111,8 @@ def beats_from_csv(
                         # measure numbers are considered if is_first_in_measure is true
                         # or if is_first_in_measure is not present
                         not params_to_indices.get("is_first_in_measure")
-                        or row[params_to_indices['is_first_in_measure']].lower() == 'true'
+                        or row[params_to_indices["is_first_in_measure"]].lower()
+                        == "true"
                     )
                 ):
                     current_measure = int(row[params_to_indices["measure"]])

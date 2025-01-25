@@ -46,7 +46,9 @@ def staff_ui(score_tlui, staff):
 
 @pytest.fixture
 def clef(score_tl):
-    return score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)[0]
+    return score_tl.create_component(
+        ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE
+    )[0]
 
 
 @pytest.fixture

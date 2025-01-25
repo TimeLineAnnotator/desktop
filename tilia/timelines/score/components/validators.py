@@ -8,4 +8,5 @@ def validate_accidental(value):
 
 def validate_tie_type(value):
     from .note import Note
+
     return value in Note.TieType

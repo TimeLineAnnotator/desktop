@@ -17,15 +17,13 @@ class Clipboard:
 
     def __str__(self):
         return get_tilia_class_string(self)
-    
+
     def _setup_requests(self):
         LISTENS = {
             (Post.TIMELINE_ELEMENT_COPY_DONE, self.on_timeline_element_copy_done)
         }
 
-        SERVES = {
-            (Get.CLIPBOARD_CONTENTS, self.get_contents)
-        }
+        SERVES = {(Get.CLIPBOARD_CONTENTS, self.get_contents)}
 
         for post, callback in LISTENS:
             listen(self, post, callback)

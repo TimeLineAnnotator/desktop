@@ -21,8 +21,14 @@ class NoteAccidental(QGraphicsPixmapItem):
         if height == 0:
             self.setVisible(False)
         else:
-            self.setPixmap(self._pixmap.scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation))
+            self.setPixmap(
+                self._pixmap.scaledToHeight(
+                    height, mode=Qt.TransformationMode.SmoothTransformation
+                )
+            )
             self.setVisible(True)
 
     def set_position(self, x: float, y: float):
-        self.setPos(x - self.boundingRect().width(), y - self.boundingRect().height() / 2)
+        self.setPos(
+            x - self.boundingRect().width(), y - self.boundingRect().height() / 2
+        )

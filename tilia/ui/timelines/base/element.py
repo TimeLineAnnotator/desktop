@@ -41,7 +41,7 @@ class TimelineUIElement(ABC):
         return get_tilia_class_string(self)
 
     def __lt__(self, other):
-        return self.get_data('ordinal') < other.get_data('ordinal')
+        return self.get_data("ordinal") < other.get_data("ordinal")
 
     @property
     def tl_component(self):
@@ -65,8 +65,7 @@ class TimelineUIElement(ABC):
         return self in self.timeline_ui.selected_elements
 
     @abstractmethod
-    def child_items(self):
-        ...
+    def child_items(self): ...
 
     def selection_triggers(self):
         return self.child_items()
@@ -87,17 +86,15 @@ class TimelineUIElement(ABC):
         menu = self.CONTEXT_MENU_CLASS(self)
         menu.exec(QPoint(x, y))
 
-    def on_select(self):
-        ...
+    def on_select(self): ...
 
-    def on_deselect(self):
-        ...
+    def on_deselect(self): ...
 
     def delete(self):
         for item in self.child_items():
             if item.parentItem():
                 continue  # item will be removed with parent
-            if hasattr(item, 'cleanup'):
+            if hasattr(item, "cleanup"):
                 item.cleanup()
             self.scene.removeItem(item)
 

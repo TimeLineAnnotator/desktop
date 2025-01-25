@@ -74,7 +74,7 @@ class ServeSequence:
         try:
             return_value = self.return_values[self.return_count]
         except IndexError as exc:
-            raise IndexError('Not enough return values to serve')
+            raise IndexError("Not enough return values to serve")
 
         self.return_count += 1
         return return_value

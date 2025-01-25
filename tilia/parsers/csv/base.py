@@ -19,7 +19,7 @@ class TiliaCSVReader:
         self.reader_kwargs = reader_kwargs or {}
 
     def __enter__(self):
-        self.file = open(self.path, newline="", encoding='utf-8', **self.file_kwargs)
+        self.file = open(self.path, newline="", encoding="utf-8", **self.file_kwargs)
         return csv.reader(self.file, **self.reader_kwargs)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):

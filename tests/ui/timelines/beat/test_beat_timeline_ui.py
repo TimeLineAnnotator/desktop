@@ -75,7 +75,9 @@ class TestCreateDeleteBeat:
         assert get_displayed_measure_number(beat_tlui[0]) == "1"
         assert get_displayed_measure_number(beat_tlui[1]) == "2"
 
-    def test_create_update_next_measures_numbers(self, beat_tlui, user_actions, tilia_state):
+    def test_create_update_next_measures_numbers(
+        self, beat_tlui, user_actions, tilia_state
+    ):
         beat_tlui.timeline.beat_pattern = [1]
         beat_tlui.timeline.measures_to_force_display = [0, 1, 2, 3]
         beat_tlui.create_beat(0)
@@ -85,7 +87,12 @@ class TestCreateDeleteBeat:
         tilia_state.current_time = 0.5
         user_actions.trigger(TiliaAction.BEAT_ADD)
 
-        assert [get_displayed_measure_number(beat) for beat in beat_tlui] == ["1", "2", "3", "4"]
+        assert [get_displayed_measure_number(beat) for beat in beat_tlui] == [
+            "1",
+            "2",
+            "3",
+            "4",
+        ]
 
 
 class TestSelect:
@@ -482,12 +489,15 @@ class TestSetBeatAmountInMeasure:
         with Serve(Get.FROM_USER_INT, (True, 2)):
             user_actions.trigger(TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE)
 
-        assert [get_displayed_measure_number(b) for b in beat_tlui] == ['1', '', '2']
+        assert [get_displayed_measure_number(b) for b in beat_tlui] == ["1", "", "2"]
 
 
 class TestFillWithBeats:
     def test_by_amount(self, beat_tlui, user_actions):
-        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100))):
+        with Serve(
+            Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD,
+            (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100)),
+        ):
             user_actions.trigger(TiliaAction.BEAT_TIMELINE_FILL)
 
         assert len(beat_tlui) == 100
@@ -495,7 +505,10 @@ class TestFillWithBeats:
     def test_by_interval(self, beat_tlui, user_actions, tilia_state):
         interval = 0.5
         amount = int(tilia_state.duration / interval)
-        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_INTERVAL, interval))):
+        with Serve(
+            Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD,
+            (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_INTERVAL, interval)),
+        ):
             user_actions.trigger(TiliaAction.BEAT_TIMELINE_FILL)
 
         assert len(beat_tlui) == amount
@@ -582,11 +595,15 @@ class TestUndoRedo:
 
         user_actions.trigger(TiliaAction.EDIT_UNDO)
 
-        assert [get_displayed_measure_number(beat_ui) for beat_ui in beat_tlui] == ["1", "2", "3"]
+        assert [get_displayed_measure_number(beat_ui) for beat_ui in beat_tlui] == [
+            "1",
+            "2",
+            "3",
+        ]
 
         user_actions.trigger(TiliaAction.EDIT_REDO)
 
-        assert [get_displayed_measure_number(beat_ui) for beat_ui in beat_tlui] == ["1", "2"]
-
-
-
+        assert [get_displayed_measure_number(beat_ui) for beat_ui in beat_tlui] == [
+            "1",
+            "2",
+        ]

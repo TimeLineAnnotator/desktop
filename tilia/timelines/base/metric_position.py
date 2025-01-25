@@ -33,10 +33,7 @@ class MetricPosition:
             measures -= 1
             beats = max(self.measure_beat_count, other.measure_beat_count) + beats
 
-        return MetricInterval(
-            measures=measures,
-            beats=beats
-        )
+        return MetricInterval(measures=measures, beats=beats)
 
 
 @dataclass
@@ -49,5 +46,3 @@ class MetricInterval:
 
     def __eq__(self, other):
         return self.measures == other.measures and self.beats == other.beats
-
-

@@ -55,7 +55,11 @@ class BeatTLComponentManager(TimelineComponentManager):
                 beat_index = self.get_components().index(beat) + 1
                 self.update_is_first_in_measure_of_subsequent_beats(beat_index)
                 measure_index = self.timeline.get_measure_index(beat_index)[0]
-                post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.timeline.id, measure_index - 1)
+                post(
+                    Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
+                    self.timeline.id,
+                    measure_index - 1,
+                )
 
         return success, beat, reason
 
@@ -213,12 +217,13 @@ class BeatTimeline(Timeline):
     def should_display_measure_number(self, measure_index):
         # this is a cheap workaround to deal with pickup measures
         # we should implement a more robust solution
-        display_index = measure_index if 0 not in self.measure_numbers else measure_index - 1
+        display_index = (
+            measure_index if 0 not in self.measure_numbers else measure_index - 1
+        )
         return (
             measure_index in self.measures_to_force_display
             or display_index % self.display_measure_number_period == 0
         )
-
 
     @property
     def measure_count(self):
@@ -608,15 +613,23 @@ class BeatTimeline(Timeline):
 
     def add_measure_zero(self, fraction_of_measure_one: float) -> tuple[bool, str]:
         if self.measure_count < 2:
-            return False, "Timeline has less than two measures. Cannot estimate measure zero duration."
+            return (
+                False,
+                "Timeline has less than two measures. Cannot estimate measure zero duration.",
+            )
 
         measure_one_start = self.get_time_by_measure(1)[0]
         measure_two_start = self.get_time_by_measure(2)[0]
 
-        measure_zero_duration = (measure_two_start - measure_one_start) * fraction_of_measure_one
+        measure_zero_duration = (
+            measure_two_start - measure_one_start
+        ) * fraction_of_measure_one
         measure_zero_start = measure_one_start - measure_zero_duration
         if measure_zero_start < 0:
-            return False, "There is not enough available space before the first measure."
+            return (
+                False,
+                "There is not enough available space before the first measure.",
+            )
 
         self.create_component(ComponentKind.BEAT, measure_zero_start)
 
@@ -624,4 +637,3 @@ class BeatTimeline(Timeline):
         self.set_beat_amount_in_measure(0, 1)
 
         return True, ""
-

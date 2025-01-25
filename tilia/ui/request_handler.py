@@ -12,6 +12,3 @@ class RequestHandler:
 
     def on_request(self, request, *args, **kwargs):
         return self.request_to_callback[request](*args, **kwargs)
-
-
-

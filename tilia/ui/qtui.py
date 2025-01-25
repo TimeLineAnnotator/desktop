@@ -398,7 +398,9 @@ class QtUI:
         if not self._validate_timeline_kind_on_import_from_csv(tlkind):
             return
 
-        tls_of_kind = self.timeline_uis.get_timeline_uis_by_attr("TIMELINE_KIND", tlkind)
+        tls_of_kind = self.timeline_uis.get_timeline_uis_by_attr(
+            "TIMELINE_KIND", tlkind
+        )
         if len(tls_of_kind) == 1:
             timeline_ui = tls_of_kind[0]
         else:
@@ -483,7 +485,9 @@ class QtUI:
         if time_or_measure == "time":
             success, errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
         elif time_or_measure == "measure":
-            success, errors = tlkind_to_funcs[tlkind]["measure"](timeline, beat_tl, path)
+            success, errors = tlkind_to_funcs[tlkind]["measure"](
+                timeline, beat_tl, path
+            )
         else:
             raise ValueError("Invalid time_or_measure value '{time_or_measure}'")
 
@@ -543,9 +547,7 @@ class QtUI:
         if success:
             tilia.errors.display(tilia.errors.CSV_IMPORT_SUCCESS_ERRORS, errors_str)
         else:
-            tilia.errors.display(
-                tilia.errors.CSV_IMPORT_FAILED, errors_str
-            )
+            tilia.errors.display(tilia.errors.CSV_IMPORT_FAILED, errors_str)
 
     @staticmethod
     def show_crash_dialog(exception_info):

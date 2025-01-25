@@ -50,9 +50,13 @@ class ElementManager(Generic[TE]):
         set_data: Callable[[str, Any], None],
     ):
         if self.is_single_element:
-            element = self.element_classes[0](id, timeline_ui, scene, get_data, set_data)
+            element = self.element_classes[0](
+                id, timeline_ui, scene, get_data, set_data
+            )
         else:
-            element = get_element_class_by_kind(kind)(id, timeline_ui, scene, get_data, set_data)
+            element = get_element_class_by_kind(kind)(
+                id, timeline_ui, scene, get_data, set_data
+            )
 
         self._add_to_elements_set(element)
 
@@ -99,7 +103,9 @@ class ElementManager(Generic[TE]):
         else:
             return self._elements[element_idx - 1]
 
-    def get_next_element_by_time(self, time: float, elements: Iterable[TE] | None = None) -> TE | None:
+    def get_next_element_by_time(
+        self, time: float, elements: Iterable[TE] | None = None
+    ) -> TE | None:
         # Expects elements to be sorted by time
         elements = elements if elements is not None else self.get_elements()
         times = [e.get_data("time") for e in elements]
@@ -109,7 +115,9 @@ class ElementManager(Generic[TE]):
         else:
             return elements[idx + 1]
 
-    def get_previous_element_by_time(self, time: float, elements: Iterable[TE] | None = None) -> TE | None:
+    def get_previous_element_by_time(
+        self, time: float, elements: Iterable[TE] | None = None
+    ) -> TE | None:
         # Expects elements to be sorted by time
         elements = elements if elements is not None else self.get_elements()
         times = [e.get_data("time") for e in elements]

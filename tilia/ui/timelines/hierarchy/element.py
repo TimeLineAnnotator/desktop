@@ -141,7 +141,9 @@ class HierarchyUI(TimelineUIElement):
         return time_x_converter.get_x_by_time(self.get_data("post_end"))
 
     def frame_handle_y(self, level, tl_height):
-        return tl_height - (self.base_height() + (level - 1.5) * self.x_increment_per_lvl())
+        return tl_height - (
+            self.base_height() + (level - 1.5) * self.x_increment_per_lvl()
+        )
 
     @property
     def ui_color(self):
@@ -572,7 +574,7 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def length_formatted(self) -> str:
-        return tilia.ui.format.format_media_time(self.get_data('length'))
+        return tilia.ui.format.format_media_time(self.get_data("length"))
 
     @property
     def pre_start_formatted(self) -> str:
@@ -672,7 +674,10 @@ class HierarchyBody(CursorMixIn, QGraphicsRectItem):
         y0 = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
+            - (
+                HierarchyUI.base_height()
+                + ((level - 1) * HierarchyUI.x_increment_per_lvl())
+            )
         )
         x1 = end_x - HierarchyUI.X_OFFSET
 
@@ -697,7 +702,10 @@ class HierarchyLabel(CursorMixIn, QGraphicsTextItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
+            - (
+                HierarchyUI.base_height()
+                + ((level - 1) * HierarchyUI.x_increment_per_lvl())
+            )
         )
         return QPointF(x, y)
 
@@ -736,7 +744,10 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
+            - (
+                HierarchyUI.base_height()
+                + ((level - 1) * HierarchyUI.x_increment_per_lvl())
+            )
             - self.BOTTOM_MARGIN
         )
         return QPointF(x, y)
@@ -766,7 +777,10 @@ class HierarchyLoopIcon(QGraphicsPixmapItem):
         y = (
             tl_height
             - HierarchyUI.Y_OFFSET
-            - (HierarchyUI.base_height() + ((level - 1) * HierarchyUI.x_increment_per_lvl()))
+            - (
+                HierarchyUI.base_height()
+                + ((level - 1) * HierarchyUI.x_increment_per_lvl())
+            )
             + self.TOP_MARGIN
         )
         return QPointF(x, y)

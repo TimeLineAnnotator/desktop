@@ -12,12 +12,12 @@ if TYPE_CHECKING:
 class AudioWaveUIRequestHandler(ElementRequestHandler):
     def __init__(self, timeline_ui: AudioWaveTimelineUI):
         super().__init__(
-            timeline_ui, 
+            timeline_ui,
             {
                 Post.TIMELINE_ELEMENT_DELETE: self.on_delete,
                 Post.TIMELINE_ELEMENT_COPY: self.on_copy,
                 Post.TIMELINE_ELEMENT_PASTE: self.on_paste,
-            }
+            },
         )
 
     def on_delete(self, *_, **__):

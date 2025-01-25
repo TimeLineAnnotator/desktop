@@ -12,11 +12,9 @@ from tilia.ui.timelines.pdf import PdfTimelineUI, PdfMarkerUI
 
 
 class TestPdfTimelineUI(PdfTimelineUI):
-    def create_component(self, time=0, **kwargs) -> tuple[PdfMarker, PdfMarkerUI]:
-        ...
+    def create_component(self, time=0, **kwargs) -> tuple[PdfMarker, PdfMarkerUI]: ...
 
-    def create_pdf_marker(self, time=0, **kwargs) -> tuple[PdfMarker, PdfMarkerUI]:
-        ...
+    def create_pdf_marker(self, time=0, **kwargs) -> tuple[PdfMarker, PdfMarkerUI]: ...
 
 
 @pytest.fixture

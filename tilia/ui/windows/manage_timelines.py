@@ -74,10 +74,16 @@ class ManageTimelines(QDialog):
 
         layout.addLayout(right_layout)
 
-    def _setup_requests(self):        
+    def _setup_requests(self):
         SERVES = {
-            (Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE, self.get_timeline_uis_to_permute),
-            (Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT, self.get_current_timeline_ui)
+            (
+                Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE,
+                self.get_timeline_uis_to_permute,
+            ),
+            (
+                Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT,
+                self.get_current_timeline_ui,
+            ),
         }
 
         for request, callback in SERVES:

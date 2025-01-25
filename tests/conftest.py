@@ -37,7 +37,7 @@ pytest_plugins = [
     "tests.timelines.slider.fixtures",
     "tests.timelines.audiowave.fixtures",
     "tests.timelines.pdf.fixtures",
-    "tests.timelines.score.fixtures"
+    "tests.timelines.score.fixtures",
 ]
 
 
@@ -162,13 +162,14 @@ def print_errors():
     Without this we may miss unexpected failure messages,
     since they  do not raise unhandled exceptions.
     """
+
     def _print_errors(title, message):
         print(Fore.YELLOW)
         print()
-        print('############## TILIA ERROR MESSAGE ############## ')
+        print("############## TILIA ERROR MESSAGE ############## ")
         print(title)
         print(message)
-        print('############################## ')
+        print("############################## ")
         print()
         print(Style.RESET_ALL)
 

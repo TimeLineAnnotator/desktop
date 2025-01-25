@@ -31,17 +31,23 @@ class HierarchyTimelineUI(TimelineUI):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+        listen(
+            self,
+            Post.SETTINGS_UPDATED,
+            lambda updated_settings: self.on_settings_updated(updated_settings),
+        )
 
     def on_settings_updated(self, updated_settings):
         if "hierarchy_timeline" in updated_settings:
-            get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
+            get(Get.TIMELINE_COLLECTION).set_timeline_data(
+                self.id, "height", self.timeline.default_height
+            )
             for hierarchy_ui in self:
                 hierarchy_ui.update_position()
                 hierarchy_ui.update_color()
 
     def on_timeline_element_request(
-            self, request, selector: ElementSelector, *args, **kwargs
+        self, request, selector: ElementSelector, *args, **kwargs
     ):
         return HierarchyUIRequestHandler(self).on_request(
             request, selector, *args, **kwargs
@@ -68,7 +74,7 @@ class HierarchyTimelineUI(TimelineUI):
             )
 
     def get_units_sharing_handle(
-            self, handle: HierarchyBodyHandle
+        self, handle: HierarchyBodyHandle
     ) -> list[HierarchyBodyHandle]:
         def is_using_handle(e: HierarchyUI):
             return e.start_handle == handle or e.end_handle == handle
@@ -111,11 +117,11 @@ class HierarchyTimelineUI(TimelineUI):
             self.select_element(element)
 
     def _create_child_from_paste_data(
-            self,
-            new_parent: HierarchyUI,
-            prev_parent_start: float,
-            prev_parent_end: float,
-            child_pastedata_: dict,
+        self,
+        new_parent: HierarchyUI,
+        prev_parent_start: float,
+        prev_parent_end: float,
+        child_pastedata_: dict,
     ):
 
         new_parent_length = new_parent.tl_component.end - new_parent.tl_component.start
@@ -124,20 +130,20 @@ class HierarchyTimelineUI(TimelineUI):
         scale_factor = new_parent_length / prev_parent_length
 
         relative_child_start = (
-                child_pastedata_["support_by_component_value"]["start"] - prev_parent_start
+            child_pastedata_["support_by_component_value"]["start"] - prev_parent_start
         )
 
         new_child_start = (
-                                  relative_child_start * scale_factor
-                          ) + new_parent.tl_component.start
+            relative_child_start * scale_factor
+        ) + new_parent.tl_component.start
 
         relative_child_end = (
-                child_pastedata_["support_by_component_value"]["end"] - prev_parent_end
+            child_pastedata_["support_by_component_value"]["end"] - prev_parent_end
         )
 
         new_child_end = (
-                                relative_child_end * scale_factor
-                        ) + new_parent.tl_component.end
+            relative_child_end * scale_factor
+        ) + new_parent.tl_component.end
 
         component, _ = self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
@@ -173,12 +179,12 @@ class HierarchyTimelineUI(TimelineUI):
             update_component_genealogy(element.tl_component, children_of_element)
 
     def paste_with_children_into_elements(
-            self, elements: list[HierarchyUI], data: list[dict]
+        self, elements: list[HierarchyUI], data: list[dict]
     ):
         def get_descendants(parent: HierarchyUI):
             is_in_branch = (
                 lambda e: e.tl_component.start >= parent.tl_component.start
-                          and e.tl_component.end <= parent.tl_component.end
+                and e.tl_component.end <= parent.tl_component.end
             )
             elements_in_branch = self.element_manager.get_elements_by_condition(
                 is_in_branch
@@ -219,6 +225,11 @@ class HierarchyTimelineUI(TimelineUI):
         HierarchyTimelineUIKeyPressManager(self).on_vertical_arrow_press(arrow)
 
     def get_max_hierarchy_height(self):
-        max_level = max(self.timeline.component_manager.get_existing_values_for_attr("level", ComponentKind.HIERARCHY))
-        return HierarchyUI.base_height() + (HierarchyUI.x_increment_per_lvl() * max_level)
-
+        max_level = max(
+            self.timeline.component_manager.get_existing_values_for_attr(
+                "level", ComponentKind.HIERARCHY
+            )
+        )
+        return HierarchyUI.base_height() + (
+            HierarchyUI.x_increment_per_lvl() * max_level
+        )

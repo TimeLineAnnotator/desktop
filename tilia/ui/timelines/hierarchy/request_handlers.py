@@ -139,7 +139,9 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
         if not success:
             _display_copy_error(reason)
 
-        component_data = [self.timeline_ui.get_copy_data_from_hierarchy_ui(e) for e in elements]
+        component_data = [
+            self.timeline_ui.get_copy_data_from_hierarchy_ui(e) for e in elements
+        ]
 
         if not component_data:
             return False

@@ -17,7 +17,7 @@ class StaffUI(TimelineUIElement):
 
     @property
     def middle_y(self):
-        return self.timeline_ui.get_staff_middle_y(self.get_data('index'))
+        return self.timeline_ui.get_staff_middle_y(self.get_data("index"))
 
     def top_y(self):
         return self.staff_lines.lines[0].line().y1()
@@ -26,7 +26,13 @@ class StaffUI(TimelineUIElement):
         return self.staff_lines.lines[-1].line().y1()
 
     def line_args(self):
-        return self.get_data('line_count'), get(Get.LEFT_MARGIN_X), get(Get.RIGHT_MARGIN_X), self.middle_y, NoteUI.note_height()
+        return (
+            self.get_data("line_count"),
+            get(Get.LEFT_MARGIN_X),
+            get(Get.RIGHT_MARGIN_X),
+            self.middle_y,
+            NoteUI.note_height(),
+        )
 
     def update_position(self):
         self.staff_lines.set_position(*self.line_args())
@@ -47,18 +53,39 @@ class StaffUI(TimelineUIElement):
 
 
 class StaffLines:
-    COLOR = 'gray'
-    def __init__(self, line_count: int, x1: float, x2: float, middle_y: float, line_spacing: float):
+    COLOR = "gray"
+
+    def __init__(
+        self,
+        line_count: int,
+        x1: float,
+        x2: float,
+        middle_y: float,
+        line_spacing: float,
+    ):
         self._setup_lines(line_count, x1, x2, middle_y, line_spacing)
 
     @staticmethod
     def get_offsets(line_count: int, line_spacing: float) -> list[float]:
         if line_count % 2 == 0:
-            return [(line_spacing * i) - ((line_count - 1) * line_spacing / 2) for i in range(line_count)]
+            return [
+                (line_spacing * i) - ((line_count - 1) * line_spacing / 2)
+                for i in range(line_count)
+            ]
         else:
-            return [(line_spacing * i) - ((line_count / 2 - 1) * line_spacing) for i in range(line_count)]
+            return [
+                (line_spacing * i) - ((line_count / 2 - 1) * line_spacing)
+                for i in range(line_count)
+            ]
 
-    def _setup_lines(self, line_count: int, x1: float, x2: float, middle_y: float, line_spacing: float):
+    def _setup_lines(
+        self,
+        line_count: int,
+        x1: float,
+        x2: float,
+        middle_y: float,
+        line_spacing: float,
+    ):
         self.lines = [QGraphicsLineItem() for _ in range(line_count)]
         pen = QPen(QColor("gray"))
         pen.setWidth(2)
@@ -67,7 +94,14 @@ class StaffLines:
             line.setZValue(-1)
         self.set_position(line_count, x1, x2, middle_y, line_spacing)
 
-    def set_position(self, line_count: int, x1: float, x2: float, middle_y: float, line_spacing: float):
+    def set_position(
+        self,
+        line_count: int,
+        x1: float,
+        x2: float,
+        middle_y: float,
+        line_spacing: float,
+    ):
         for i, y_offset in enumerate(self.get_offsets(line_count, line_spacing)):
             y = middle_y + y_offset - line_spacing / 2
             self.lines[i].setLine(QLineF(x1, y, x2, y))

@@ -144,7 +144,9 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
 ):
     data = "measure\nnonsense"
     with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(marker_tlui.timeline, beat_tlui.timeline, Path())
+        success, errors = import_by_measure(
+            marker_tlui.timeline, beat_tlui.timeline, Path()
+        )
 
     assert "nonsense" in errors[0]
 
@@ -160,7 +162,9 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
 
     data = "measure,fraction\n1,nonsense"
     with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(marker_tlui.timeline, beat_tlui.timeline, Path())
+        success, errors = import_by_measure(
+            marker_tlui.timeline, beat_tlui.timeline, Path()
+        )
 
     assert "nonsense" in errors[0]
 

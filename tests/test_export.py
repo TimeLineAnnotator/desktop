@@ -17,7 +17,9 @@ def _trigger_export_action(user_actions, path):
         user_actions.trigger(TiliaAction.FILE_EXPORT)
 
 
-def test_export_timelines(tilia, marker_tlui, harmony_tlui, user_actions, tilia_state, tmp_path):
+def test_export_timelines(
+    tilia, marker_tlui, harmony_tlui, user_actions, tilia_state, tmp_path
+):
     for i in range(5):
         tilia_state.current_time = i
         user_actions.trigger(TiliaAction.MARKER_ADD)
@@ -25,61 +27,64 @@ def test_export_timelines(tilia, marker_tlui, harmony_tlui, user_actions, tilia_
     harmony_tlui.create_harmony(0)
     harmony_tlui.create_mode(0)
 
-    tmp_file = tmp_path / 'test.json'
+    tmp_file = tmp_path / "test.json"
 
     _trigger_export_action(user_actions, tmp_file)
 
-    with open(tmp_file, encoding='utf-8') as f:
+    with open(tmp_file, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert len(data['timelines']) == 2
-    assert data['timelines'][0]['kind'] == 'MARKER_TIMELINE'
-    assert data['timelines'][1]['kind'] == 'HARMONY_TIMELINE'
+    assert len(data["timelines"]) == 2
+    assert data["timelines"][0]["kind"] == "MARKER_TIMELINE"
+    assert data["timelines"][1]["kind"] == "HARMONY_TIMELINE"
 
     # check marker timeline components
-    assert data['timelines'][0]['component_kinds'] == [Marker.KIND.name]
-    assert data['timelines'][0]['component_attributes'][ComponentKind.MARKER.name] == Marker.get_export_attributes()
-    assert len(data['timelines'][0]['components'][ComponentKind.MARKER.name]) == 5
+    assert data["timelines"][0]["component_kinds"] == [Marker.KIND.name]
+    assert (
+        data["timelines"][0]["component_attributes"][ComponentKind.MARKER.name]
+        == Marker.get_export_attributes()
+    )
+    assert len(data["timelines"][0]["components"][ComponentKind.MARKER.name]) == 5
 
     # check harmony timeline components
-    assert Harmony.KIND.name in data['timelines'][1]['component_kinds']
-    assert Mode.KIND.name in data['timelines'][1]['component_kinds']
-    assert data['timelines'][1]['component_attributes'] == {
-        'HARMONY': Harmony.get_export_attributes(),
-        'MODE': Mode.get_export_attributes()
+    assert Harmony.KIND.name in data["timelines"][1]["component_kinds"]
+    assert Mode.KIND.name in data["timelines"][1]["component_kinds"]
+    assert data["timelines"][1]["component_attributes"] == {
+        "HARMONY": Harmony.get_export_attributes(),
+        "MODE": Mode.get_export_attributes(),
     }
-    assert len(data['timelines'][1]['components'][ComponentKind.HARMONY.name]) == 1
-    assert len(data['timelines'][1]['components'][ComponentKind.MODE.name]) == 1
+    assert len(data["timelines"][1]["components"][ComponentKind.HARMONY.name]) == 1
+    assert len(data["timelines"][1]["components"][ComponentKind.MODE.name]) == 1
 
 
 def test_export_has_media_path(tilia, user_actions, tmp_path):
     post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH)
 
-    tmp_file = tmp_path / 'test.json'
+    tmp_file = tmp_path / "test.json"
 
     _trigger_export_action(user_actions, tmp_file)
 
-    with open(tmp_file, encoding='utf-8') as f:
+    with open(tmp_file, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert data['media_path'] == EXAMPLE_MEDIA_PATH
+    assert data["media_path"] == EXAMPLE_MEDIA_PATH
 
 
 def test_export_has_media_metadata(tilia, user_actions, tmp_path):
-    post(Post.MEDIA_METADATA_FIELD_SET, 'title', 'Test Title')
+    post(Post.MEDIA_METADATA_FIELD_SET, "title", "Test Title")
 
-    tmp_file = tmp_path / 'test.json'
+    tmp_file = tmp_path / "test.json"
 
     _trigger_export_action(user_actions, tmp_file)
 
-    with open(tmp_file, encoding='utf-8') as f:
+    with open(tmp_file, encoding="utf-8") as f:
         data = json.load(f)
 
-    assert data['media_metadata']['title'] == 'Test Title'
+    assert data["media_metadata"]["title"] == "Test Title"
 
 
 def test_export_without_path(tilia, user_actions, tmp_path):
-    tmp_file = tmp_path / 'test.json'
+    tmp_file = tmp_path / "test.json"
 
     with Serve(Get.FROM_USER_EXPORT_PATH, (True, tmp_file)):
         post(Post.FILE_EXPORT)
@@ -94,28 +99,28 @@ def test_export_attributes_are_present(tilia, user_actions, hierarchy_tl, tmp_pa
 
     _trigger_export_action(user_actions, tmp_file)
 
-    with open(tmp_file, encoding='utf-8') as f:
+    with open(tmp_file, encoding="utf-8") as f:
         data = json.load(f)
 
-    exported_attributes = data['timelines'][0]['component_attributes'][Hierarchy.KIND.name]
+    exported_attributes = data["timelines"][0]["component_attributes"][
+        Hierarchy.KIND.name
+    ]
     expected = [
-        'start',
-        'pre_start',
-        'end',
-        'post_end',
-        'level',
-        'label',
-        'comments',
-        'start_measure',
-        'start_beat',
-        'end_measure',
-        'end_beat',
-        'length',
-        'length_in_measures'
+        "start",
+        "pre_start",
+        "end",
+        "post_end",
+        "level",
+        "label",
+        "comments",
+        "start_measure",
+        "start_beat",
+        "end_measure",
+        "end_beat",
+        "length",
+        "length_in_measures",
     ]
-    not_expected = [
-        'color'
-    ]
+    not_expected = ["color"]
 
     for attr in expected:
         assert attr in exported_attributes
@@ -125,27 +130,33 @@ def test_export_attributes_are_present(tilia, user_actions, hierarchy_tl, tmp_pa
 
 
 @parametrize_tl
-def test_appropriate_attributes_are_exported(tl, user_actions, tilia, request, tmp_path):
+def test_appropriate_attributes_are_exported(
+    tl, user_actions, tilia, request, tmp_path
+):
     tl = request.getfixturevalue(tl)
     tmp_file = tmp_path / "test.json"
 
     _trigger_export_action(user_actions, tmp_file)
 
-    with open(tmp_file, encoding='utf-8') as f:
+    with open(tmp_file, encoding="utf-8") as f:
         data = json.load(f)
 
     if TimelineFlag.NOT_EXPORTABLE in tl.FLAGS:
-        assert not data['timelines']
+        assert not data["timelines"]
     else:
         for kind in tl.component_manager.component_kinds:
-            exported_attributes = data['timelines'][0]['component_attributes'][kind.name]
+            exported_attributes = data["timelines"][0]["component_attributes"][
+                kind.name
+            ]
             comp_cls = tl.component_manager._get_component_class_by_kind(kind)
             expected_attrs = comp_cls.get_export_attributes()
             assert set(exported_attributes) == set(expected_attrs)
 
 
 @parametrize_component
-def test_exported_component_attributes_values_are_correct(tilia, user_actions, comp, tmp_path, request):
+def test_exported_component_attributes_values_are_correct(
+    tilia, user_actions, comp, tmp_path, request
+):
     comp = request.getfixturevalue(comp)
     if TimelineFlag.NOT_EXPORTABLE in comp.timeline.FLAGS:
         return
@@ -154,10 +165,10 @@ def test_exported_component_attributes_values_are_correct(tilia, user_actions, c
 
     _trigger_export_action(user_actions, tmp_file)
 
-    with open(tmp_file, encoding='utf-8') as f:
+    with open(tmp_file, encoding="utf-8") as f:
         data = json.load(f)
 
-    exported_values = data['timelines'][0]['components'][comp.KIND.name][0]
+    exported_values = data["timelines"][0]["components"][comp.KIND.name][0]
     for i, attr in enumerate(comp.get_export_attributes()):
         comp_value = getattr(comp, attr)
         if isinstance(comp_value, tuple):

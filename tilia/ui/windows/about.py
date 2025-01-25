@@ -17,7 +17,7 @@ class About(QDialog):
 
         name_label = QLabel(tilia.constants.APP_NAME)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        version_label = QLabel('v' + tilia.constants.VERSION)
+        version_label = QLabel("v" + tilia.constants.VERSION)
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         site_label = QLabel(f'<a href="{tilia.constants.WEBSITE_URL}">Website</a>')
         site_label.setOpenExternalLinks(True)

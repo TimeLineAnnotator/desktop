@@ -111,7 +111,13 @@ class YouTubePlayer(Player):
         self.view.page().setWebChannel(self.channel)
         self.view.page().setUrlRequestInterceptor(self.request_interceptor)
 
-    def load_media(self, path: str | Path, start: float = 0.0, end: float = 0.0, initial_duration: float = 0.0):
+    def load_media(
+        self,
+        path: str | Path,
+        start: float = 0.0,
+        end: float = 0.0,
+        initial_duration: float = 0.0,
+    ):
         if not self.view.isVisible():
             self.view.show()
 

@@ -1,4 +1,3 @@
-
 class TestBeatTlComponentManager:
     def test_distribute_beats_2beats(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])

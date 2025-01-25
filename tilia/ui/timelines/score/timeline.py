@@ -279,7 +279,7 @@ class ScoreTimelineUI(TimelineUI):
     def get_clef_by_time(self, time: float, staff_index: int) -> ClefUI | None:
         if staff_index not in self.clef_time_cache:
             return None
-        for (start, end) in self.clef_time_cache[staff_index].keys():
+        for start, end in self.clef_time_cache[staff_index].keys():
             if start <= time < end:
                 return self.clef_time_cache[staff_index][(start, end)]
 

@@ -178,7 +178,9 @@ class App:
 
     def _restore_app_state(self, state: dict) -> None:
         with PauseUndoManager():
-            self.restore_player_state(state["media_path"], state["media_metadata"]["media length"])
+            self.restore_player_state(
+                state["media_path"], state["media_metadata"]["media length"]
+            )
             self.file_manager.set_media_metadata(state["media_metadata"])
             self.timelines.restore_state(state["timelines"])
 
@@ -254,7 +256,9 @@ class App:
 
     @staticmethod
     def _check_if_media_exists(path: str) -> bool:
-        return path and (re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists())
+        return path and (
+            re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists()
+        )
 
     def _setup_file_media(self, path: str, duration: float | None):
         if duration:

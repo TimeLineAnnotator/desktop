@@ -46,7 +46,7 @@ class FileManager:
         "media_metadata",
         "timelines",
         "media_path",
-        "timelines_hash"
+        "timelines_hash",
     ]
 
     def __init__(self):

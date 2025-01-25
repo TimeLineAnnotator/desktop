@@ -31,15 +31,20 @@ class MarkerTimelineUI(TimelineUI):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        listen(self, Post.SETTINGS_UPDATED, lambda updated_settings: self.on_settings_updated(updated_settings))
+        listen(
+            self,
+            Post.SETTINGS_UPDATED,
+            lambda updated_settings: self.on_settings_updated(updated_settings),
+        )
 
-    def on_settings_updated(self, updated_settings):        
-        if "marker_timeline" in updated_settings:  
-            get(Get.TIMELINE_COLLECTION).set_timeline_data(self.id, "height", self.timeline.default_height)
+    def on_settings_updated(self, updated_settings):
+        if "marker_timeline" in updated_settings:
+            get(Get.TIMELINE_COLLECTION).set_timeline_data(
+                self.id, "height", self.timeline.default_height
+            )
             for marker_ui in self:
                 marker_ui.update_time()
                 marker_ui.update_color()
-
 
     def on_timeline_element_request(
         self, request, selector: ElementSelector, *args, **kwargs

@@ -140,14 +140,17 @@ class TestByMeasure:
         assert not errors
 
         for i, (measure, fraction, page_number) in enumerate(rows[1:]):
-            assert pdf_tl[i].get_data('time') == measure - 1 + fraction
-            assert pdf_tl[i].get_data('page_number') == page_number
+            assert pdf_tl[i].get_data("time") == measure - 1 + fraction
+            assert pdf_tl[i].get_data("page_number") == page_number
 
     def test_invalid_values_return_errors(self, beat_tl, pdf_tl):
         pdf_tl.page_total = 1
         setup_beat_tl(beat_tl, 2)
         data = _get_csv_data(
-            ["measure", "fraction", "page_number"], ["invalid", 0, 1], [1, "invalid", 1], [1, 0, 'invalid']
+            ["measure", "fraction", "page_number"],
+            ["invalid", 0, 1],
+            [1, "invalid", 1],
+            [1, 0, "invalid"],
         )
 
         success, errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
@@ -157,7 +160,9 @@ class TestByMeasure:
     def test_measure_out_of_bound_returns_error(self, beat_tl, pdf_tl):
         pdf_tl.page_total = 1
         setup_beat_tl(beat_tl, 5)
-        data = _get_csv_data(["measure", "fraction", "page_number"], [-1, 0, 1], [6, 0, 1])
+        data = _get_csv_data(
+            ["measure", "fraction", "page_number"], [-1, 0, 1], [6, 0, 1]
+        )
 
         success, errors = call_patched_import_by_measure_func(pdf_tl, beat_tl, data)
 
@@ -170,7 +175,7 @@ class TestByMeasure:
 
         data = _get_csv_data(
             ["measure", "fraction", "page_number"],
-            ['this', 'line', 'errors'],
+            ["this", "line", "errors"],
             [1, 0, 1],
         )
 

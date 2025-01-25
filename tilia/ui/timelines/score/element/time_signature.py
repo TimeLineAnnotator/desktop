@@ -5,7 +5,9 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
 from tilia.ui.coords import time_x_converter
-from tilia.ui.timelines.score.element.with_collision import TimelineUIElementWithCollision
+from tilia.ui.timelines.score.element.with_collision import (
+    TimelineUIElementWithCollision,
+)
 
 
 class TimeSignatureUI(TimelineUIElementWithCollision):
@@ -14,29 +16,49 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
     MAX_PIXMAP_HEIGHT = 12
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self.MARGIN_X,*args, **kwargs)
+        super().__init__(self.MARGIN_X, *args, **kwargs)
         self._setup_body()
 
     @property
     def x(self):
-        return time_x_converter.get_x_by_time(self.get_data('time'))
+        return time_x_converter.get_x_by_time(self.get_data("time"))
 
     def body_y(self):
         return self.MARGIN_Y * self.timeline_ui.get_scale_for_symbols_above_staff()
 
     def _setup_body(self):
-        self.body = TimeSignatureBody(self.x, self.body_y(), self.get_data('numerator'), self.get_data('denominator'), self.get_body_digit_height(), self.timeline_ui.pixmaps['time signature'])
+        self.body = TimeSignatureBody(
+            self.x,
+            self.body_y(),
+            self.get_data("numerator"),
+            self.get_data("denominator"),
+            self.get_body_digit_height(),
+            self.timeline_ui.pixmaps["time signature"],
+        )
         self.body.moveBy(self.x_offset, 0)
         self.scene.addItem(self.body)
 
     def get_body_digit_height(self) -> int:
-        return min(self.MAX_PIXMAP_HEIGHT, int((self.timeline_ui.get_height_for_symbols_above_staff() - self.MARGIN_Y) / 2))
+        return min(
+            self.MAX_PIXMAP_HEIGHT,
+            int(
+                (self.timeline_ui.get_height_for_symbols_above_staff() - self.MARGIN_Y)
+                / 2
+            ),
+        )
 
     def child_items(self):
         return [self.body]
 
     def update_position(self):
-        self.body.set_position(self.x + self.x_offset + (self.margin_x if self.x_offset is not None else 0), self.timeline_ui.get_y_for_symbols_above_staff(self.get_data('staff_index')))
+        self.body.set_position(
+            self.x
+            + self.x_offset
+            + (self.margin_x if self.x_offset is not None else 0),
+            self.timeline_ui.get_y_for_symbols_above_staff(
+                self.get_data("staff_index")
+            ),
+        )
         self.body.set_height(self.get_body_digit_height())
         self.body.setY(self.body_y())
 
@@ -48,7 +70,15 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
 
 
 class TimeSignatureBody(QGraphicsItem):
-    def __init__(self, x: float, y: float, numerator: int, denominator: int, digit_height: int, pixmaps: dict[int, QPixmap]):
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        numerator: int,
+        denominator: int,
+        digit_height: int,
+        pixmaps: dict[int, QPixmap],
+    ):
         super().__init__()
         self.pixmaps = pixmaps
         self.numerator = numerator
@@ -59,7 +89,9 @@ class TimeSignatureBody(QGraphicsItem):
         self.set_position(x, y)
 
     def get_scaled_pixmap(self, digit: int | str, height: int):
-        return self.pixmaps[int(digit)].scaledToHeight(height, mode=Qt.TransformationMode.SmoothTransformation)
+        return self.pixmaps[int(digit)].scaledToHeight(
+            height, mode=Qt.TransformationMode.SmoothTransformation
+        )
 
     def set_numerator_items(self, numerator: int, height: int):
         self.numerator_items = []

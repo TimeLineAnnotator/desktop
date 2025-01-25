@@ -39,7 +39,9 @@ def hierarchy_tl(tls):
     # remove initial hierarchy
     tl.clear()
 
-    tl.create_hierarchy = functools.partial(tl.create_component, ComponentKind.HIERARCHY)
+    tl.create_hierarchy = functools.partial(
+        tl.create_component, ComponentKind.HIERARCHY
+    )
     tl.relate_hierarchies = relate_hierarchies
     return tl
 

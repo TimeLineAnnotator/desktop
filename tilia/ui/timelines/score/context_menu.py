@@ -14,5 +14,5 @@ class NoteContextMenu(TimelineUIElementContextMenu):
 
 
 class ScoreTimelineUIContextMenu(TimelineUIElementContextMenu):
-    name = 'Beat timeline'
+    name = "Beat timeline"
     items = [(MenuItemKind, TiliaAction.TIMELINE_NAME_SET)]

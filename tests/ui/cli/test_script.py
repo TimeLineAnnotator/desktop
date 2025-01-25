@@ -22,11 +22,11 @@ def test_create_timelines(cli, tmp_path, tls):
     run_script(cli, path)
 
     assert len(tls) == 1
-    assert tls[0].get_data('name') == "test"
+    assert tls[0].get_data("name") == "test"
 
 
 def test_load_media(cli, tmp_path, tilia_state):
-    media_path = Path(__file__).parent.parent.parent / 'resources' / 'example.mp3'
+    media_path = Path(__file__).parent.parent.parent / "resources" / "example.mp3"
     path = write_script(tmp_path, f"load-media {str(media_path.resolve())}")
     run_script(cli, path)
 

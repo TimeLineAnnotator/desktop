@@ -8,7 +8,9 @@ from tilia.media.player import Player
 from tilia.requests import get, Get
 
 
-def load_media(player: Player, path: str, initial_duration: float = 0.0) -> Player | None:
+def load_media(
+    player: Player, path: str, initial_duration: float = 0.0
+) -> Player | None:
     extension, media_type = get_media_type_from_path(path)
 
     if media_type == "unsupported":

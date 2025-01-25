@@ -28,8 +28,8 @@ class TestActions:
         audiowave_tlui.select_element(audiowave_tlui[1])
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
 
-        assert audiowave_tlui[1].get_data('start') != 0
-        
+        assert audiowave_tlui[1].get_data("start") != 0
+
     def test_delete(self, audiowave_tlui, user_actions):
         audiowave_tlui.create_amplitudebar(0, 1, 1)
 

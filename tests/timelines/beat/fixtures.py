@@ -23,7 +23,7 @@ def beat_tl(tls):
     def create_beat(*args, **kwargs):
         beat, error = tl.create_component(ComponentKind.BEAT, *args, **kwargs)
         if error:
-            raise ValueError(f'Unable to create beat: {error}')
+            raise ValueError(f"Unable to create beat: {error}")
         return beat, None
 
     tl.create_beat = create_beat

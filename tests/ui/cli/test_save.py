@@ -29,14 +29,14 @@ def test_save(cli, tmp_path):
 def test_save_parent_is_file_fails(cli, tmp_path, tilia_errors):
     parent = tmp_path / "parent"
     parent.touch()
-    save_path = tmp_path / 'parent' / "file.tla"
+    save_path = tmp_path / "parent" / "file.tla"
     cli.parse_and_run(f'save "{str(save_path.resolve())}"')
     tilia_errors.assert_error()
     assert not save_path.exists()
 
 
 def test_save_parent_doesnt_exist_fails(cli, tmp_path, tilia_errors):
-    save_path = tmp_path / 'parent' / "file.tla"
+    save_path = tmp_path / "parent" / "file.tla"
     cli.parse_and_run(f'save "{str(save_path.resolve())}"')
     tilia_errors.assert_error()
     assert not save_path.exists()
@@ -69,6 +69,3 @@ def test_save_invalid_save_path(cli, tmp_path, tilia_errors):
     path = tmp_path / "invalid" / "file.tla"
     cli.parse_and_run(f'save "{str(path.resolve())}"')
     tilia_errors.assert_error()
-
-
-

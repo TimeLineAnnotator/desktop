@@ -14,8 +14,12 @@ def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
     for attr in ["media_metadata", "media_path", "timelines_hash"]:
         if data1[attr] != data2[attr]:
             return False
-    component_hashes_1 = {tl_data['components_hash'] for tl_data in data1['timelines'].values()}
-    component_hashes_2 = {tl_data['components_hash'] for tl_data in data2['timelines'].values()}
+    component_hashes_1 = {
+        tl_data["components_hash"] for tl_data in data1["timelines"].values()
+    }
+    component_hashes_2 = {
+        tl_data["components_hash"] for tl_data in data2["timelines"].values()
+    }
     if component_hashes_1 != component_hashes_2:
         return False
 
@@ -29,7 +33,7 @@ def write_tilia_file_to_disk(file: TiliaFile, path: str | Path):
 
 def validate_save_path(path: Path):
     error = False
-    error_message = ''
+    error_message = ""
     if not path.parent.exists():
         error = True
         error_message = f"Parent directory {path.parent} does not exist."

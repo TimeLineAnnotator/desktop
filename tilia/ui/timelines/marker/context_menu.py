@@ -1,6 +1,9 @@
 from tilia.ui.actions import TiliaAction
 from tilia.ui.menus import MenuItemKind
-from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu, TimelineUIContextMenu
+from tilia.ui.timelines.base.context_menus import (
+    TimelineUIElementContextMenu,
+    TimelineUIContextMenu,
+)
 
 
 class MarkerContextMenu(TimelineUIElementContextMenu):

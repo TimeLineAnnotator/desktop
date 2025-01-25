@@ -4,7 +4,11 @@ import functools
 from typing import TYPE_CHECKING
 
 from tilia.timelines.base.component import PointLikeTimelineComponent
-from tilia.timelines.base.validators import validate_integer, validate_time, validate_non_negative_integer
+from tilia.timelines.base.validators import (
+    validate_integer,
+    validate_time,
+    validate_non_negative_integer,
+)
 from tilia.timelines.component_kinds import ComponentKind
 
 if TYPE_CHECKING:

@@ -14,11 +14,11 @@ class TimelineUIElementWithCollision(TimelineUIElement):
 
     @property
     def x(self):
-        return time_x_converter.get_x_by_time(self.get_data('time'))
+        return time_x_converter.get_x_by_time(self.get_data("time"))
 
     @property
     def x_offset(self):
-        return - self.width / 2 if self._x_offset is None else self._x_offset
+        return -self.width / 2 if self._x_offset is None else self._x_offset
 
     @x_offset.setter
     def x_offset(self, value):

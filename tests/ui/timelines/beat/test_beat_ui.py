@@ -26,5 +26,7 @@ class TestDoubleClick:
     def test_does_not_trigger_drag(self, beat_tlui):
         beat_tlui.create_beat(0)
         click_beat_ui(beat_tlui[0], double=True)
-        drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(50), beat_tlui[0].height / 2)
+        drag_mouse_in_timeline_view(
+            time_x_converter.get_x_by_time(50), beat_tlui[0].height / 2
+        )
         assert beat_tlui[0].get_data("time") == 0

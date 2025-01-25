@@ -28,7 +28,7 @@ class SliderTimeline(Timeline):
 
     def _validate_delete_components(self, component: TimelineComponent):
         """Nothing to do. Must impement abstract method."""
-            
+
     def get_state(self) -> dict:
         result = {}
 
@@ -37,8 +37,8 @@ class SliderTimeline(Timeline):
 
         result["kind"] = self.KIND.name
         result["components"] = {}
-        result['components_hash'] = ''
-        result['hash'] = ''
+        result["components_hash"] = ""
+        result["hash"] = ""
 
         return result
 

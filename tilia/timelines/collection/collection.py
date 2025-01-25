@@ -208,7 +208,7 @@ class Timelines:
 
     def serialize_timelines(self):
         state = {tl.id: tl.get_state() for tl in self}
-        hash = hash_function('|'.join([tl_data['hash'] for tl_data in state.values()]))
+        hash = hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
         return state, hash
 
     def deserialize_timelines(self, data: dict) -> None:

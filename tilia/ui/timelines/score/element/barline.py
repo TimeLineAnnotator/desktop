@@ -7,14 +7,14 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 
 
 class BarLineUI(TimelineUIElement):
-    UPDATE_TRIGGERS = ['time']
+    UPDATE_TRIGGERS = ["time"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._setup_body()
 
     def x(self):
-        return time_x_converter.get_x_by_time(self.get_data('time'))
+        return time_x_converter.get_x_by_time(self.get_data("time"))
 
     def child_items(self):
         return self.body.lines
@@ -56,4 +56,3 @@ class BarLineBody:
     def set_position(self, x: float, ys: list[tuple[float, float]]):
         for line, (y0, y1) in zip(self.lines, ys):
             line.setLine(x, y0, x, y1)
-

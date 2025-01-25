@@ -8,7 +8,7 @@ from tilia.ui.actions import TiliaAction
 
 
 def test_create(tluis, user_actions):
-    with Serve(Get.FROM_USER_STRING, (True, '')):
+    with Serve(Get.FROM_USER_STRING, (True, "")):
         user_actions.trigger(TiliaAction.TIMELINES_ADD_SCORE_TIMELINE)
 
     assert len(tluis) == 1
@@ -22,7 +22,7 @@ def test_create_staff(score_tlui, staff):
     assert score_tlui[0]
 
 
-@pytest.mark.parametrize('shorthand', Clef.Shorthand)
+@pytest.mark.parametrize("shorthand", Clef.Shorthand)
 def test_create_clef(score_tlui, shorthand):
     score_tlui.create_component(ComponentKind.CLEF, 0, 0, shorthand=shorthand)
     assert score_tlui[0]
@@ -36,8 +36,10 @@ def test_create_time_signature(score_tlui, time_signature):
     assert score_tlui[0]
 
 
-@pytest.mark.parametrize('fifths', range(-7, 8))
+@pytest.mark.parametrize("fifths", range(-7, 8))
 def test_create_key_signature(score_tlui, fifths):
-    score_tlui.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)
+    score_tlui.create_component(
+        ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE
+    )
     score_tlui.create_component(ComponentKind.KEY_SIGNATURE, 0, 0, fifths)
     assert score_tlui[0]

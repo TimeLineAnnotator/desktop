@@ -223,7 +223,7 @@ class Timeline(ABC, Generic[TC]):
             state[attr] = value
             string_to_hash += str(value) + "|"
 
-            string_to_hash += str(value) + '|'
+            string_to_hash += str(value) + "|"
         state["hash"] = hash_function(f'{state["kind"]}|{string_to_hash}')
 
         return state
@@ -232,7 +232,7 @@ class Timeline(ABC, Generic[TC]):
         """Creates a dict with timeline components and attributes."""
         state = self._get_base_state()
         state["components"] = self.component_manager.serialize_components()
-        state['components_hash'] = self.component_manager.hash_components()
+        state["components_hash"] = self.component_manager.hash_components()
 
         return state
 
@@ -243,9 +243,9 @@ class Timeline(ABC, Generic[TC]):
             kind.name for kind in self.component_manager.component_kinds
         ]
         result["components"] = {name: [] for name in result["component_kinds"]}
-        result[
-            "component_attributes"
-        ] = self.component_manager.get_component_attributes()
+        result["component_attributes"] = (
+            self.component_manager.get_component_attributes()
+        )
         for kind in self.component_manager.component_kinds:
             components = self.component_manager.get_components_by_condition(
                 lambda _: True, kind
@@ -450,9 +450,9 @@ class TimelineComponentManager(Generic[T, TC]):
             self.delete_component(component)
 
     def hash_components(self):
-        str_to_hash = ''
+        str_to_hash = ""
         for component in self._components:
-            str_to_hash += component.hash + '|'
+            str_to_hash += component.hash + "|"
 
         return hash_function(str_to_hash)
 
@@ -466,23 +466,30 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def restore_state(self, prev_state: dict):
         cur_hash_to_id = {cmp.hash: cmp.id for cmp in self._components}
-        prev_hash_to_data = {data['hash']: data | {'id': id} for id, data in prev_state.items()}
+        prev_hash_to_data = {
+            data["hash"]: data | {"id": id} for id, data in prev_state.items()
+        }
         cur_hashes = set(cur_hash_to_id.keys())
         prev_hashes = set(prev_hash_to_data.keys())
 
         hashes_to_delete = cur_hashes.difference(prev_hashes)
         ids_to_delete = [cur_hash_to_id[id] for id in hashes_to_delete]
-        self.timeline.delete_components([self.timeline.get_component(id) for id in ids_to_delete])
+        self.timeline.delete_components(
+            [self.timeline.get_component(id) for id in ids_to_delete]
+        )
 
         hashes_to_create = prev_hashes.difference(cur_hashes)
         components_to_create = [prev_hash_to_data[hash] for hash in hashes_to_create]
         for component_data in components_to_create:
             component_data = component_data.copy()
-            kind = ComponentKind[component_data.pop('kind')]
-            id = component_data.pop('id')
+            kind = ComponentKind[component_data.pop("kind")]
+            id = component_data.pop("id")
 
             component_class = get_component_class_by_kind(kind)
-            for attr in component_class.SERIALIZABLE_BY_ID_LIST + component_class.SERIALIZABLE_BY_ID:
+            for attr in (
+                component_class.SERIALIZABLE_BY_ID_LIST
+                + component_class.SERIALIZABLE_BY_ID
+            ):
                 # These ids will be substitued by object references later,
                 # when all the components have been created. Doing that
                 # now would run the risk of trying to reference a component
@@ -493,17 +500,24 @@ class TimelineComponentManager(Generic[T, TC]):
             self.timeline.create_component(kind, id=id, **component_data)
 
         for component_data in components_to_create:
-            component_class = get_component_class_by_kind(ComponentKind[component_data['kind']])
+            component_class = get_component_class_by_kind(
+                ComponentKind[component_data["kind"]]
+            )
             for attr in component_class.SERIALIZABLE_BY_ID:
                 if component_data[attr]:
                     attr_value = component_data[attr]
-                    self.set_component_data(component_data['id'], attr, self.get_component(attr_value))
+                    self.set_component_data(
+                        component_data["id"], attr, self.get_component(attr_value)
+                    )
 
             for attr in component_class.SERIALIZABLE_BY_ID_LIST:
                 if component_data[attr]:
                     attr_value = component_data[attr]
-                    self.set_component_data(component_data['id'], attr, [self.get_component(id) for id in attr_value])
-
+                    self.set_component_data(
+                        component_data["id"],
+                        attr,
+                        [self.get_component(id) for id in attr_value],
+                    )
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(event, self.timeline.KIND, self.timeline.id, component_id, *args, **kwargs)

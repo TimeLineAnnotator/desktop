@@ -40,4 +40,3 @@ def marker(marker_tlui):
 @pytest.fixture
 def marker_ui(marker_tlui, marker):
     return marker_tlui.get_element(marker.id)
-

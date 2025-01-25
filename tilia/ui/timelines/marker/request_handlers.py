@@ -37,10 +37,11 @@ class MarkerUIRequestHandler(ElementRequestHandler):
         return True
 
     def on_add(self, *_, **__):
-        component, _ = self.timeline.create_component(ComponentKind.MARKER, get(Get.SELECTED_TIME))
+        component, _ = self.timeline.create_component(
+            ComponentKind.MARKER, get(Get.SELECTED_TIME)
+        )
         return False if component is None else True
 
     def on_delete(self, elements, *_, **__):
         self.timeline.delete_components(self.elements_to_components(elements))
         return True
-

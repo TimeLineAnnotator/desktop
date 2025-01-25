@@ -6,7 +6,10 @@ from typing import Any
 
 from tilia.settings import settings
 from .common import update_component_genealogy
-from tilia.timelines.base.component.segmentlike import scale_segmentlike, crop_segmentlike
+from tilia.timelines.base.component.segmentlike import (
+    scale_segmentlike,
+    crop_segmentlike,
+)
 from ..base.timeline import Timeline, TimelineComponentManager
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.requests import post, Post, get, Get
@@ -191,7 +194,10 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     for u in [u for u in self.timeline if u.level == grouping_level]
                 ]
             ):
-                return False, "Grouping component would overlap with component in same level."
+                return (
+                    False,
+                    "Grouping component would overlap with component in same level.",
+                )
             return True, ""
 
         def _get_previous_common_parent(

@@ -26,7 +26,7 @@ def handle_expection(type, value, tb):
         # The app state should be dumped to a file
         # for debugging purposes.
         pass
-    exc_message = ''.join(traceback.format_exception(type, value, tb))
+    exc_message = "".join(traceback.format_exception(type, value, tb))
     if ui:
         # Additonally. the exception info should
         # also be dumped to a file.

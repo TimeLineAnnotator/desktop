@@ -104,7 +104,9 @@ class HarmonyTimelineUI(TimelineUI):
         self.update_level_labels()
 
     def update_level_labels(self):
-        self.harmony_level_label.set_position(get(Get.LEFT_MARGIN_X) - 5, self.get_y(1) - 5)
+        self.harmony_level_label.set_position(
+            get(Get.LEFT_MARGIN_X) - 5, self.get_y(1) - 5
+        )
         self.key_level_label.setVisible(self.get_data("visible_level_count") == 2)
 
     def get_y(self, level: int):
@@ -138,7 +140,10 @@ class HarmonyTimelineUI(TimelineUI):
         )
 
         first_selected_element = self.selected_elements[0]
-        if first_selected_element.kind == paste_data[0]["support_by_component_value"]['KIND']:
+        if (
+            first_selected_element.kind
+            == paste_data[0]["support_by_component_value"]["KIND"]
+        ):
             self.deselect_element(self.selected_elements[0])
             paste_into_element(first_selected_element, paste_data[0])
             self.select_element(first_selected_element)

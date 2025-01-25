@@ -15,10 +15,15 @@ class TestImport:
 
         prev_state = marker_tl.get_state()
 
-        with patch("tilia.ui.qtui.QtUI._get_by_time_or_by_measure_from_user", return_value="time"):
-            with patch("builtins.open", mock_open(read_data='nonsense')):
+        with patch(
+            "tilia.ui.qtui.QtUI._get_by_time_or_by_measure_from_user",
+            return_value="time",
+        ):
+            with patch("builtins.open", mock_open(read_data="nonsense")):
                 with Serve(Get.FROM_USER_FILE_PATH, (True, "")):
-                    with Serve(Get.FROM_USER_YES_OR_NO, True):  # confirm overwriting components
+                    with Serve(
+                        Get.FROM_USER_YES_OR_NO, True
+                    ):  # confirm overwriting components
                         post(Post.MARKER_IMPORT_FROM_CSV)
 
         assert marker_tl.get_state() == prev_state

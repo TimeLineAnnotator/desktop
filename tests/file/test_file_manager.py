@@ -16,7 +16,7 @@ def get_empty_save_params():
         k: v
         for k, v in TiliaFile().__dict__.items()
         if k in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION
-    } | {'timelines_hash': ''}
+    } | {"timelines_hash": ""}
 
 
 class TestUserActions:
@@ -82,8 +82,10 @@ class TestFileManager:
         tilia.file_manager.update_file(params)
         assert not tilia.file_manager.is_file_modified(params)
 
-    def test_is_file_modified_when_modified_timelines(self, tilia, marker_tlui, tmp_path):
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, tmp_path / 'temp.tla')):
+    def test_is_file_modified_when_modified_timelines(
+        self, tilia, marker_tlui, tmp_path
+    ):
+        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, tmp_path / "temp.tla")):
             post(Post.FILE_SAVE)
         post(Post.MARKER_ADD)
         assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))

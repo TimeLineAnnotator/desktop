@@ -336,7 +336,10 @@ class SvgViewer(ViewDockWidget):
             return
         for item in to_edit:
             success, annotation = get(
-                Get.FROM_USER_STRING, "Score Annotation", "Edit Annotation", text=item.text()
+                Get.FROM_USER_STRING,
+                "Score Annotation",
+                "Edit Annotation",
+                text=item.text(),
             )
             if not success:
                 continue
@@ -657,9 +660,9 @@ class SvgGraphicsView(QGraphicsView):
             end_time = (
                 end_ts[e_idx]
                 if (e_idx := bisect(end_ts, start_time)) != len(end_ts)
-                else get(Get.MEDIA_DURATION)
-                if start_time != 0 and end_ts[0] != 0
-                else 0
+                else (
+                    get(Get.MEDIA_DURATION) if start_time != 0 and end_ts[0] != 0 else 0
+                )
             )
             self.update_measure_tracker(start_time, end_time)
 

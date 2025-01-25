@@ -4,13 +4,13 @@ from tilia.timelines.component_kinds import ComponentKind
 
 
 class BarLine(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ['time']
-    ORDERING_ATTRS = ('time',)
+    SERIALIZABLE_BY_VALUE = ["time"]
+    ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.BAR_LINE
 
     def __init__(self, timeline, id, time, **_):
-        self.validators |= {'time': validate_time}
+        self.validators |= {"time": validate_time}
 
         self.time = time
 
