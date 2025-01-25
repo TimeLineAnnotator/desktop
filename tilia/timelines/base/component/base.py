@@ -3,7 +3,6 @@ from __future__ import annotations
 from abc import ABC
 from typing import Any, Callable
 
-from tilia.timelines.hash_timelines import hash_function
 from tilia.exceptions import SetComponentDataError, GetComponentDataError
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.base.validators import validate_read_only

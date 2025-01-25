@@ -22,7 +22,7 @@ def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
     except FileNotFoundError:
         tilia.errors.display(tilia.errors.OPEN_FILE_NOT_FOUND, file_path)
         return False, None
-    except json.decoder.JSONDecodeError as err:
+    except json.decoder.JSONDecodeError:
         tilia.errors.display(
             tilia.errors.OPEN_FILE_INVALID_TLA,
             file_path,
@@ -78,8 +78,8 @@ class FileManager:
             (Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"]),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
         for request, callback in SERVES:
             serve(self, request, callback)

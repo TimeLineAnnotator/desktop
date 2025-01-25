@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QPointF, QLineF
 from PyQt6.QtGui import QPen, QColor
@@ -14,9 +13,6 @@ from ...consts import TINT_FACTOR_ON_SELECTION
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
-
-if TYPE_CHECKING:
-    from .timeline import AudioWaveTimelineUI
 
 
 class AmplitudeBarUI(TimelineUIElement):

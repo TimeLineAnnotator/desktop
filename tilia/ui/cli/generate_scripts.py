@@ -28,7 +28,7 @@ def generate(namespace: argparse.Namespace, parse_and_run: Callable[[str], bool]
     confirm = io.ask_yes_or_no("Would you like to run the generated scripts?")
     if confirm:
         for path in script_paths:
-            io.output(f"Running script:")
+            io.output("Running script:")
             parse_and_run(f'script "{path}"')
             post(Post.APP_CLEAR)
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import tilia.requests.post
 from tilia.requests import Post, listen, post
 from tilia.utils import get_tilia_class_string
 
@@ -23,8 +22,8 @@ class UndoManager:
             (Post.UNDO_MANAGER_SET_IS_RECORDING, self.set_is_recording),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
     @property
     def is_cleared(self):

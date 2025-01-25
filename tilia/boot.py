@@ -12,7 +12,6 @@ from tilia.clipboard import Clipboard
 from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
 from tilia.media.player import QtAudioPlayer
-from tilia.ui.actions import setup_actions
 from tilia.ui.cli.ui import CLI
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.undo_manager import UndoManager

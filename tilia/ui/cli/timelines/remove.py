@@ -1,5 +1,4 @@
-from tilia.requests import get, Get, Post, post
-from tilia.ui.cli.server import ServeTimelineUIFromCLI
+from tilia.requests import get, Get
 
 
 def setup_parser(subparser):

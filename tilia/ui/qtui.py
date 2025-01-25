@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import sys
 from functools import partial
 from pathlib import Path
 
@@ -191,8 +190,8 @@ class QtUI:
             (Get.MAIN_WINDOW, lambda: self.main_window),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
         for request, callback in SERVES:
             serve(self, request, callback)

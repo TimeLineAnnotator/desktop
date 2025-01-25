@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import tilia.errors
 from tilia.requests import Post, get, Get, post
-from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 from tilia.ui.request_handler import RequestHandler

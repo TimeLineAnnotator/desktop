@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tilia.requests import get, Get, Post, listen, stop_listening_to_all
+from tilia.requests import get, Get, Post, listen
 from tilia.timelines.hierarchy.common import (
     update_component_genealogy,
 )

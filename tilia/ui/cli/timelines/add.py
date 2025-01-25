@@ -2,7 +2,7 @@ import argparse
 
 import tilia.errors
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.requests import post, Post, get, Get
+from tilia.requests import get, Get
 from tilia.ui.cli.io import output
 
 

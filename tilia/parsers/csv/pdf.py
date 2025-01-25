@@ -34,7 +34,7 @@ def _parse_page_number(timeline: PdfTimeline, value: str):
     value = int(value)  # parse will fail if this raises a ValueError
 
     if not _validate_page_number(timeline, value):
-        raise ValueError(f"APPEND:The PDF has no page with that number.")
+        raise ValueError("APPEND:The PDF has no page with that number.")
 
     return value
 

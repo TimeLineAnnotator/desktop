@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import tilia.errors
-from tilia.timelines.hash_timelines import hash_function
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent

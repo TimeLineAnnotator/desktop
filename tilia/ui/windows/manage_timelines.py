@@ -160,8 +160,8 @@ class TimelinesListWidget(QListWidget):
             (Post.TIMELINE_CREATE_DONE, self.update_current_selection),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
     def item(self, row: int) -> typing.Optional[TimelineListItem]:
         return super().item(row)

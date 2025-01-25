@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-import typing
-
 import music21
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QFont, QColor
@@ -17,9 +13,6 @@ from tilia.ui.timelines.harmony.constants import (
 )
 from tilia.ui.timelines.harmony.context_menu import ModeContextMenu
 from tilia.ui.timelines.harmony.elements import mode_attrs
-
-if typing.TYPE_CHECKING:
-    from tilia.ui.timelines.harmony import HarmonyTimelineUI
 
 
 class ModeUI(TimelineUIElement):

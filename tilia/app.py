@@ -74,8 +74,8 @@ class App:
             (Get.MEDIA_DURATION, lambda: self.duration),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
         for request, callback in SERVES:
             serve(self, request, callback)

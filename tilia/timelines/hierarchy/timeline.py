@@ -179,7 +179,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 ):
                     return (
                         False,
-                        f"Grouping component would overlap with existing component.",
+                        "Grouping component would overlap with existing component.",
                     )
             return True, ""
 

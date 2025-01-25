@@ -4,9 +4,6 @@ from typing import TYPE_CHECKING
 
 from tilia.requests import Post, get, Get
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.color import get_tinted_color
-from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.timelines.base.request_handlers import ElementRequestHandler
 
 if TYPE_CHECKING:

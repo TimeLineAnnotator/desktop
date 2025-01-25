@@ -97,9 +97,6 @@ class Timelines:
 
         return kind
 
-    def has_timeline_of_kind(self, kind: TlKind):
-        return kind in self.timeline_kinds
-
     def create_timeline(
         self,
         kind: TlKind | str,
@@ -253,7 +250,7 @@ class Timelines:
         return [tl.id for tl in self]
 
     def has_timeline_of_kind(self, kind: TlKind):
-        return any([tl.KIND == kind for tl in self])
+        return kind in self.timeline_kinds
 
     def _scale_or_crop_timelines(self, new_duration, prev_duration):
         scale_prompt = "Would you like to scale existing timelines to new media length?"

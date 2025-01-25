@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QPolygonF, QPen, QColor, QFont
@@ -21,9 +20,6 @@ from ...coords import time_x_converter
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
 from ...windows.inspect import InspectRowKind
-
-if TYPE_CHECKING:
-    from .timeline import MarkerTimelineUI
 
 
 class MarkerUI(TimelineUIElement):

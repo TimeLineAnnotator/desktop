@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import (
 
 from tilia.requests import Post, post
 from tilia.timelines.score.components.note import pitch
-from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.score import attrs
 from tilia.ui.color import get_tinted_color
 from tilia.ui.format import format_media_time

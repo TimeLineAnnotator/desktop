@@ -145,4 +145,4 @@ def on_ask_yes_or_no(title: str, prompt: str) -> bool:
 
 
 def on_ask_should_save_changes() -> tuple[bool, bool]:
-    return True, ask_yes_or_no(f"Save changes to current file?")
+    return True, ask_yes_or_no("Save changes to current file?")

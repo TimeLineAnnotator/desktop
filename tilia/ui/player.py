@@ -1,13 +1,10 @@
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QLabel,
     QSlider,
     QToolBar,
 )
-
 from PyQt6.QtGui import QIcon, QAction, QPixmap
-
 from PyQt6.QtCore import Qt
 
 from tilia.ui import actions
@@ -46,8 +43,8 @@ class PlayerToolbar(QToolBar):
             (Post.PLAYER_UI_UPDATE, self.on_ui_update_silent),
         }
 
-        for post, callback in LISTENS:
-            listen(self, post, callback)
+        for post_, callback in LISTENS:
+            listen(self, post_, callback)
 
     def _setup_controls(self):
         self.tooltipped_widgets = {}

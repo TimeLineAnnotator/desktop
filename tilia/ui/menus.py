@@ -196,7 +196,7 @@ class ViewMenu(QMenu):
         if not self.windows:
             self.addSeparator()
 
-        if not window_id in self.windows:
+        if window_id not in self.windows:
             self._get_action(window_id)
 
         match window_state:

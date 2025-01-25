@@ -7,7 +7,7 @@ from tilia.requests import Post, get, Get, post
 from tilia.ui.enums import PasteCardinality
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.request_handler import RequestHandler
-from tilia.ui.timelines.copy_paste import get_copy_data_from_element, CopyAttributes
+from tilia.ui.timelines.copy_paste import get_copy_data_from_element
 
 
 class TimelineRequestHandler(RequestHandler):

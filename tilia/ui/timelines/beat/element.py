@@ -1,7 +1,3 @@
-"""
-Defines the ui corresponding to a Beat object.
-"""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Any
 
@@ -21,7 +17,6 @@ from ...windows.inspect import InspectRowKind
 
 if TYPE_CHECKING:
     from .timeline import BeatTimelineUI
-    from tilia.ui.timelines.scene import TimelineScene
 
 
 class BeatUI(TimelineUIElement):

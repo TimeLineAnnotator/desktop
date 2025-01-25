@@ -1,12 +1,5 @@
-from __future__ import annotations
-from typing import TYPE_CHECKING
-
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.windows.svg_viewer import SvgViewer
-
-
-if TYPE_CHECKING:
-    from ..timeline import ScoreTimelineUI
 
 
 class ScoreAnnotationUI(TimelineUIElement):

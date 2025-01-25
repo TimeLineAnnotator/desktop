@@ -1,7 +1,5 @@
-from typing import Optional
-
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QColorDialog, QInputDialog, QMessageBox, QFileDialog
+from PyQt6.QtWidgets import QColorDialog, QInputDialog, QMessageBox
 
 
 def ask_for_color(
