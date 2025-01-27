@@ -383,6 +383,7 @@ class QtUI:
         for kind, window in self._windows.items():
             if window is not None:
                 window.close()
+        self.main_window.setFocus()
 
     def _get_by_time_or_by_measure_from_user(self):
         dialog = ByTimeOrByMeasure(self.main_window)
