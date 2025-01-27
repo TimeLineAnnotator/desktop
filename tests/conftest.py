@@ -1,4 +1,5 @@
 import functools
+import os
 import sys
 from pathlib import Path
 from typing import Literal
@@ -28,6 +29,8 @@ from tilia.ui.cli.ui import CLI
 from tilia.ui.windows import WindowKind
 from tilia.requests.get import reset as reset_get
 from tilia.requests.post import reset as reset_post
+
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 pytest_plugins = [
     "tests.timelines.hierarchy.fixtures",
