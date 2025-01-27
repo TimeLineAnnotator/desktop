@@ -36,4 +36,5 @@ def click_timeline_ui(
 
 
 def drag_mouse_in_timeline_view(x, y):
+    # assumes timeline view has already been clicked
     post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, int(x), int(y))
