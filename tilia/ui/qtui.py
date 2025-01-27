@@ -92,6 +92,10 @@ class TiliaMainWindow(QMainWindow):
                 QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return),
                 TiliaAction.TIMELINE_ELEMENT_INSPECT,
             ),
+            (
+                QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Enter),
+                TiliaAction.TIMELINE_ELEMENT_INSPECT,
+            ),
         ]
 
         for comb, taction in key_comb_to_taction:

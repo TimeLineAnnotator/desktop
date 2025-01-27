@@ -93,6 +93,7 @@ class Inspect(QDockWidget):
 
     def keyPressEvent(self, a0):
         if a0.keyCombination() not in {
+            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Enter),
             QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return),
             QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Escape),
         }:
