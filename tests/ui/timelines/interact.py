@@ -1,10 +1,21 @@
+from typing import Literal
+
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QGraphicsView, QGraphicsItem, QApplication
 
 from tilia.requests import Post, post
 from tilia.ui.coords import time_x_converter
 
 
-def click_timeline_ui_view(view, button, x, y, item, modifier, double):
+def click_timeline_ui_view(
+    view: QGraphicsView,
+    button: Literal["left", "right", "middle"],
+    x: float,
+    y: float,
+    item: QGraphicsItem | None = None,
+    modifier: Literal["shift", "control"] | None = None,
+    double: bool = False,
+):
     request = {
         "left": Post.TIMELINE_VIEW_LEFT_CLICK,
         "right": Post.TIMELINE_VIEW_RIGHT_CLICK,
