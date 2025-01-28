@@ -275,17 +275,17 @@ class App:
         media_path = file.media_path
         media_duration = file.media_metadata.get("media length", None)
 
-        try:
-            if file.media_path or media_duration:
-                self._setup_file_media(media_path, media_duration)
+        # try:
+        if file.media_path or media_duration:
+            self._setup_file_media(media_path, media_duration)
 
-            self.timelines.deserialize_timelines(file.timelines)
-            self.setup_file()
-        except Exception as exc:
-            tilia.errors.display(tilia.errors.LOAD_FILE_ERROR, file.file_path, exc)
-            return False
+        self.timelines.deserialize_timelines(file.timelines)
+        self.setup_file()
+        # except Exception as exc:
+        #     tilia.errors.display(tilia.errors.LOAD_FILE_ERROR, file.file_path, exc)
+        #     return False
 
-        return True
+        # return True
 
     def on_clear(self) -> None:
         self.timelines.clear()

@@ -46,6 +46,7 @@ class UndoManager:
         object. The App call should to be triggered by posting
         Post.REQUEST_RECORD_STATE *after* 'action' has been done.
         """
+        print(repeat_identifier)
         if not self.is_recording:
             return
 

@@ -243,9 +243,9 @@ class Timeline(ABC, Generic[TC]):
             kind.name for kind in self.component_manager.component_kinds
         ]
         result["components"] = {name: [] for name in result["component_kinds"]}
-        result["component_attributes"] = (
-            self.component_manager.get_component_attributes()
-        )
+        result[
+            "component_attributes"
+        ] = self.component_manager.get_component_attributes()
         for kind in self.component_manager.component_kinds:
             components = self.component_manager.get_components_by_condition(
                 lambda _: True, kind
@@ -342,14 +342,14 @@ class TimelineComponentManager(Generic[T, TC]):
         cmp_set = self._get_component_set_by_kind(kind)
         return self._get_components_from_set_by_attribute(cmp_set, attr_name, value)
 
+    def get_components(self) -> list[TC]:
+        return list(self._components)
+
     def get_components_by_condition(
         self, condition: Callable[[TC], bool], kind: ComponentKind
     ) -> list:
         cmp_set = self._get_component_set_by_kind(kind)
         return [c for c in cmp_set if condition(c)]
-
-    def get_components(self) -> list[TC]:
-        return list(self._components)
 
     def get_component(self, id: int) -> TC:
         return self.id_to_component[id]

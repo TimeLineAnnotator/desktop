@@ -57,8 +57,12 @@ from tilia.requests import Post, listen, post, serve, Get, get
 
 
 class TiliaMainWindow(QMainWindow):
+    # FOR TESTING ONLY. DO NOT USE.
+    instance = None
+
     def __init__(self):
         super().__init__()
+        TiliaMainWindow.instance = self
         self.setWindowTitle(tilia.constants.APP_NAME)
         self.setWindowIcon(QIcon(str(tilia.constants.APP_ICON_PATH)))
         self.setStatusTip("Main window")
@@ -109,6 +113,7 @@ class TiliaMainWindow(QMainWindow):
 
     def on_close(self):
         super().closeEvent(None)
+        TiliaMainWindow.instance = None
 
 
 class QtUI:

@@ -1,6 +1,9 @@
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
+
+from tilia.requests import get, Get, Post, post
 
 
 def get_blank_file_data():
@@ -68,3 +71,14 @@ def get_method_patch_target(method: Callable) -> str:
     is defined.
     """
     return method.__module__ + "." + method.__qualname__
+
+
+@contextmanager
+def undoable():
+    state_before = get(Get.APP_STATE)
+    yield
+    state_after = get(Get.APP_STATE)
+    post(Post.EDIT_UNDO)
+    assert get(Get.APP_STATE) == state_before
+    post(Post.EDIT_REDO)
+    assert get(Get.APP_STATE) == state_after
