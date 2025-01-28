@@ -253,7 +253,7 @@ class Inspect(QDockWidget):
             self.inspect_layout.removeRow(0)
 
     def on_line_edit_changed(self, field_name, value):
-        post(Post.INSPECTOR_FIELD_EDITED, field_name, value, self.element_id)
+        post(Post.INSPECTOR_FIELD_EDITED, field_name, value, self.element_id, id(self))
 
     def on_text_edit_changed(self, field_name, text_edit):
         post(
@@ -261,6 +261,7 @@ class Inspect(QDockWidget):
             field_name,
             text_edit.toPlainText(),
             self.element_id,
+            id(self),
         )
 
     def on_spin_box_changed(self, field_name, spin_box):
@@ -269,6 +270,7 @@ class Inspect(QDockWidget):
             field_name,
             spin_box.value(),
             self.element_id,
+            id(self),
         )
 
     def on_combo_box_changed(self, field_name, combo_box):
@@ -277,6 +279,7 @@ class Inspect(QDockWidget):
             field_name,
             combo_box.currentData(),
             self.element_id,
+            id(self),
         )
 
     def _get_widget_for_row(self, kind: InspectRowKind, name: str, kwargs):

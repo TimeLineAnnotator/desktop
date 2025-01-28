@@ -409,8 +409,9 @@ class TimelineUI(ABC):
             element.id,
         )
 
+    @staticmethod
     def on_inspector_field_edited(
-        self, element: T, field_name: str, value: str, inspected_id: int
+        element: T, field_name: str, value: str, inspected_id: int, inspector_id: int
     ) -> None:
         if not inspected_id == element.id:
             return
@@ -426,7 +427,7 @@ class TimelineUI(ABC):
             Post.APP_RECORD_STATE,
             "attribute edit via inspect",
             no_repeat=True,
-            repeat_identifier=f"{attr}_{element.id}",
+            repeat_identifier=f"{attr}_{element.id}_{inspector_id}",
         )
 
     def delete_element(self, element: T):
