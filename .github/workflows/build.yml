@@ -1,0 +1,87 @@
+name: Build test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build with pyinstaller
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            CMD_BUILD: pyinstaller tilia.spec
+            OUT_FILE_OS: win
+            OUT_FILE_EXTENSION: .exe
+            ASSET_MIME: application/vnd.microsoft.portable-executable
+
+          - os: macos-13
+            CMD_BUILD: >
+              pyinstaller tilia.spec &&
+              cd dist &&
+              mv tilia-$APP_VERSION-mac.app tilia-$APP_VERSION-mac-intel.app &&
+              zip -r9 tilia-$APP_VERSION-mac-intel.zip tilia-$APP_VERSION-mac-intel.app
+            OUT_FILE_OS: mac-intel
+            OUT_FILE_EXTENSION: .zip
+            ASSET_MIME: application/zip
+
+          - os: macos-14
+            CMD_BUILD: >
+              pyinstaller tilia.spec &&
+              cd dist &&
+              mv tilia-$APP_VERSION-mac.app tilia-$APP_VERSION-mac-silicon.app &&
+              zip -r9 tilia-$APP_VERSION-mac-silicon.zip tilia-$APP_VERSION-mac-silicon.app
+            OUT_FILE_OS: mac-silicon
+            OUT_FILE_EXTENSION: .zip
+            ASSET_MIME: application/zip
+
+          - os: ubuntu-latest
+            CMD_BUILD: >
+              pyinstaller tilia.spec
+            OUT_FILE_OS: linux
+            OUT_FILE_EXTENSION:
+            ASSET_MIME: application/octet-stream
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract package version
+        id: extract_version
+        shell: pwsh
+        run: |
+          $version = (Select-String '^version =' setup.cfg).Line -split ' = ' | Select-Object -Last 1
+          echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Set output file name
+        shell: pwsh
+        run: |
+          $out_file_name = "tilia-${{env.APP_VERSION}}-${{matrix.OUT_FILE_OS}}${{matrix.OUT_FILE_EXTENSION}}"
+          echo "OUT_FILE_NAME=$out_file_name" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e .
+          pip install pyinstaller
+
+      - name: Build executable
+        shell: bash
+        run: ${{matrix.CMD_BUILD}}
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{env.OUT_FILE_NAME}}
+          path: dist/${{env.OUT_FILE_NAME}}

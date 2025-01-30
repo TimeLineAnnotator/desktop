@@ -1,15 +1,25 @@
 # -*- mode: python ; coding: utf-8 -*-
 import argparse
+import platform
 
 from pathlib import Path
 
-import tilia.constants
+from tilia.constants import APP_NAME, VERSION
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", action="store_true")
 options = parser.parse_args()
 
 options = parser.parse_args()
+
+if platform.system() == 'Windows':
+    platform_suffix = 'win'
+elif platform.system() == 'Darwin':
+    platform_suffix = 'mac'
+elif platform.system() == 'Linux':  # catch all other nix platforms
+    platform_suffix = 'linux'  # this must be after the Mac Darwin check, b/c Darwin is also posix
+else:
+    platform_suffix = platform.system()
 
 a = Analysis(
     ["./tilia/main.py"],
@@ -35,7 +45,7 @@ if options.debug:
     exe = EXE(
         pyz,
         a.scripts,
-        name="tilia-" + tilia.constants.VERSION,
+        name=f"{APP_NAME.lower()}-{VERSION}-{platform_suffix}",
         console=True,
         embed_manifest=True,
         exclude_binaries=True,
@@ -49,16 +59,16 @@ else:
         a.scripts,
         a.datas,
         a.binaries,
-        name="tilia-" + tilia.constants.VERSION,
+        name=f"{APP_NAME.lower()}-{VERSION}-{platform_suffix}",
 	    console=False,
         embed_manifest=True,
         icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
     )
     app = BUNDLE(
         exe,
-        name='TiLiA.app',
+        name=f"{APP_NAME.lower()}-{VERSION}-{platform_suffix}.app",
         icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
-        version=tilia.constants.VERSION,
+        version=VERSION,
         info_plist={
             'NSPrincipalClass': 'NSApplication',
             'NSAppleScriptEnabled': False,
@@ -72,6 +82,3 @@ else:
                 ]
             },
     )
-
-
-

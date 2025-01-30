@@ -1,9 +1,13 @@
+import configparser
 from pathlib import Path
 
+setupcfg = configparser.ConfigParser()
+setupcfg.read("setup.cfg")
+
 APP_NAME = "TiLiA"
+VERSION = setupcfg["metadata"]["version"]
 APP_ICON_PATH = Path("ui", "img", "main_icon.png")
 FILE_EXTENSION = "tla"
-VERSION = "0.5.0"
-GITHUB_URL = "https://github.com/FelipeDefensor/TiLiA"
-WEBSITE_URL = "https://tilia-ad98d.web.app/"
+GITHUB_URL = "https://github.com/TimeLineAnnotator/desktop"
+WEBSITE_URL = "https://tilia-app.com/"
 YOUTUBE_URL_REGEX = r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"
