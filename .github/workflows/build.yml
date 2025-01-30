@@ -1,4 +1,4 @@
-name: Build test
+name: Build with pyinstaller
 
 on:
   workflow_dispatch:
