@@ -134,6 +134,8 @@ class BeatTLComponentManager(TimelineComponentManager):
         measure_numbers = self.timeline.measure_numbers.copy()
         measures_to_force_display = self.timeline.measures_to_force_display.copy()
 
+        self.compute_is_first_in_measure = False
+
         # This call will change the attributes above.
         super().deserialize_components(serialized_components)
 
@@ -141,6 +143,8 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline.set_data("measure_numbers", measure_numbers)
         self.timeline.set_data("beats_in_measure", beats_in_measure)
         self.timeline.set_data("measures_to_force_display", measures_to_force_display)
+
+        self.compute_is_first_in_measure = True
 
         self.timeline.recalculate_measures()
         post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
