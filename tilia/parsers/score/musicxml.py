@@ -142,9 +142,13 @@ def notes_from_musicXML(
             ):
                 match prev_note.tag:
                     case "backup":
-                        cur_div -= int(prev_note.find("duration").text)
+                        if not prev_note.find("duration") is None:
+                            # grace notes have no duration
+                            cur_div -= int(prev_note.find("duration").text)
                     case _:
-                        cur_div += int(prev_note.find("duration").text)
+                        if not prev_note.find("duration") is None:
+                            # grace notes have no duration
+                            cur_div += int(prev_note.find("duration").text)
 
                 prev_divs = max(prev_divs, cur_div)
             if prev_divs > 0:
