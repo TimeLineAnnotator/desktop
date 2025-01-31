@@ -17,28 +17,53 @@ def get_displayed_measure_number(beat_ui):
         return ""
 
 
-def test_measure_numbers_are_loaded_from_file(beat_tl, tluis, tmp_path):
-    beat_tl.beat_pattern = [1]
+class TestLoadFromFile:
+    def test_measure_numbers_are_loaded(self, beat_tl, tluis, tmp_path):
+        beat_tl.beat_pattern = [1]
 
-    beat_tl.create_beat(0)
-    beat_tl.create_beat(1)
-    beat_tl.create_beat(2)
-    beat_tl.create_beat(3)
+        beat_tl.create_beat(0)
+        beat_tl.create_beat(1)
+        beat_tl.create_beat(2)
+        beat_tl.create_beat(3)
 
-    beat_tl.recalculate_measures()
+        beat_tl.recalculate_measures()
 
-    beat_tl.set_measure_number(0, 1)
-    beat_tl.set_measure_number(1, 3)
-    beat_tl.set_measure_number(2, 5)
-    beat_tl.set_measure_number(3, 7)
+        beat_tl.set_measure_number(0, 1)
+        beat_tl.set_measure_number(1, 3)
+        beat_tl.set_measure_number(2, 5)
+        beat_tl.set_measure_number(3, 7)
 
-    tmp_file = tmp_path / "test.tla"
+        tmp_file = tmp_path / "test.tla"
 
-    post(Post.REQUEST_SAVE_TO_PATH, tmp_file)
+        post(Post.REQUEST_SAVE_TO_PATH, tmp_file)
 
-    post(Post.FILE_OPEN, tmp_file)
+        post(Post.FILE_OPEN, tmp_file)
 
-    assert [x.label.toPlainText() for x in tluis[0]] == ["1", "3", "5", "7"]
+        assert [x.label.toPlainText() for x in tluis[0]] == ["1", "3", "5", "7"]
+
+    def test_file_with_measures_to_force_display(self, beat_tlui, tluis, tmp_path):
+        beat_tlui.timeline.beat_pattern = [1]
+        for i in range(8):
+            beat_tlui.create_beat(i)
+
+        beat_tlui.timeline.measures_to_force_display = [1, 3, 5, 7]
+
+        tmp_file = tmp_path / "test.tla"
+
+        post(Post.REQUEST_SAVE_TO_PATH, tmp_file)
+
+        post(Post.FILE_OPEN, tmp_file)
+
+        assert [x.label.toPlainText() for x in tluis[0]] == [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+        ]
 
 
 class TestCreateDeleteBeat:

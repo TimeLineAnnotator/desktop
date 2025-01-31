@@ -461,7 +461,10 @@ class BeatTimeline(Timeline):
             return
         self.measure_numbers = self.measure_numbers[:-extra_measure_count]
         if self.measures_to_force_display:
-            while self.measures_to_force_display[-1] >= self.measure_count:
+            while (
+                self.measures_to_force_display
+                and self.measures_to_force_display[-1] >= self.measure_count
+            ):
                 self.measures_to_force_display.pop(-1)
 
     def update_beats_that_start_measures(self):
