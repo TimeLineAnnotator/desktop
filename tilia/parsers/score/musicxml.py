@@ -129,6 +129,11 @@ def notes_from_musicXML(
         metric_pos_to_attr = {attr_type: {} for attr_type in attr_types}
 
         for attributes in part.iter("attributes"):
+            if attributes.getparent().get("implicit") == "yes":
+                if attributes.getparent().get("number") != "0":
+                    # if number is 0, this is a pickup measure,
+                    # and we want to parse it
+                    continue
             measure_number = float(attributes.getparent().get("number"))
             prev_divs = 0
             cur_div = 0
@@ -405,6 +410,11 @@ def notes_from_musicXML(
     def _parse_part(part: etree._Element, part_id: str):
         _parse_attributes(part, part_id)
         for measure in part.findall("measure"):
+            if measure.get("implicit") == "yes":
+                if measure.get("number") != "0":
+                    # if number is 0, this is a pickup measure,
+                    # and we want to parse it
+                    continue
             metric_division.update_measure_number(int(measure.attrib["number"]))
             elements_to_create = []
             for element in measure:
