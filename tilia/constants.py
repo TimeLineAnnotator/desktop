@@ -5,7 +5,10 @@ setupcfg = configparser.ConfigParser()
 setupcfg.read("setup.cfg")
 
 APP_NAME = "TiLiA"
-VERSION = setupcfg["metadata"]["version"]
+try:
+    VERSION = setupcfg["metadata"]["version"]
+except KeyError:
+    VERSION = "test"
 APP_ICON_PATH = Path("ui", "img", "main_icon.png")
 FILE_EXTENSION = "tla"
 GITHUB_URL = "https://github.com/TimeLineAnnotator/desktop"
