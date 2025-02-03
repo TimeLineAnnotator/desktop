@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Sequence
 
 from PyQt6 import QtCore
@@ -36,43 +37,35 @@ def ask_for_file_to_open(title: str, name_filters: Sequence[str]):
     dialog.setWindowTitle(title)
     dialog.setFilter(QDir.Filter.Files)
     dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-    dialog.setNameFilters(name_filters)
+    dialog.setNameFilter(name_filters)
     return _get_return_from_file_dialog(dialog)
 
 
-def ask_for_path_to_save_tilia_file(initial_filename: str) -> tuple[str, str]:
-    return (
-        bool(
-            path := QFileDialog().getSaveFileName(
-                caption="Save as", directory=initial_filename, filter=APP_FILE_FILTER
-            )[0]
-        ),
-        path,
+def ask_for_path_to_save(
+    title: str, filter: str, initial_filename: str
+) -> tuple[bool, str]:
+    dialog = QFileDialog()
+    dir = (
+        Path(dialog.directory().path(), initial_filename)
+        .resolve()
+        .__str__()
+        .replace("\\", "/")
     )
+    path = dialog.getSaveFileName(caption=title, filter=filter, directory=dir)[0]
+
+    return bool(path), path
 
 
-def ask_for_path_to_save_ogg_file(title: str, initial_name: str) -> tuple[str, str]:
-    return (
-        bool(
-            path := QFileDialog().getSaveFileName(
-                caption=title, directory=initial_name, filter="OGG files (*.ogg)"
-            )[0]
-        ),
-        path,
-    )
+def ask_for_path_to_save_tilia_file(initial_filename: str) -> tuple[bool, str]:
+    return ask_for_path_to_save("Save as", APP_FILE_FILTER, initial_filename)
 
 
-def ask_for_path_to_export(initial_name: str) -> tuple[str, str]:
-    return (
-        bool(
-            path := QFileDialog().getSaveFileName(
-                caption="Export to",
-                directory=initial_name,
-                filter="JSON files (*.json)",
-            )[0]
-        ),
-        path,
-    )
+def ask_for_path_to_save_ogg_file(title: str, initial_name: str) -> tuple[bool, str]:
+    return ask_for_path_to_save(title, "OGG files (*.ogg)", initial_name)
+
+
+def ask_for_path_to_export(initial_name: str) -> tuple[bool, str]:
+    return ask_for_path_to_save("Export", "JSON files (*.json)", initial_name)
 
 
 def ask_for_pdf_file():
