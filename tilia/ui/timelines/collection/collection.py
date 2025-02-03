@@ -158,8 +158,14 @@ class TimelineUIs:
             (Post.SLIDER_DRAG_END, lambda: self.set_is_dragging(False)),
             (Post.SLIDER_DRAG_START, lambda: self.set_is_dragging(True)),
             (Post.PLAYER_CURRENT_TIME_CHANGED, self.on_media_time_change),
-            (Post.VIEW_ZOOM_IN, self.on_zoom_in),
-            (Post.VIEW_ZOOM_OUT, self.on_zoom_out),
+            (
+                Post.VIEW_ZOOM_IN,
+                functools.partial(self.on_zoom, TimelineUIs.ZOOM_FACTOR),
+            ),
+            (
+                Post.VIEW_ZOOM_OUT,
+                functools.partial(self.on_zoom, -TimelineUIs.ZOOM_FACTOR),
+            ),
             (Post.SELECTION_BOX_SELECT_ITEM, self.on_selection_box_select_item),
             (Post.SELECTION_BOX_DESELECT_ITEM, self.on_selection_box_deselect_item),
             (Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done),
@@ -1049,17 +1055,21 @@ class TimelineUIs:
         except KeyError:
             raise NotImplementedError(f"Can't select with {selector=}")
 
-    def on_zoom_in(self):
-        post(
-            Post.PLAYBACK_AREA_SET_WIDTH,
-            get(Get.PLAYBACK_AREA_WIDTH) * (1 + self.ZOOM_FACTOR),
-        )
+    def on_zoom(self, zoom_factor: float):
+        prev_smooth_scroll = settings.get("general", "smooth-scroll")
+        if prev_smooth_scroll:
+            settings.set("general", "smooth-scroll", False)
 
-    def on_zoom_out(self):
+        self.view.setUpdatesEnabled(False)
         post(
             Post.PLAYBACK_AREA_SET_WIDTH,
-            get(Get.PLAYBACK_AREA_WIDTH) * (1 - self.ZOOM_FACTOR),
+            get(Get.PLAYBACK_AREA_WIDTH) * (1 + zoom_factor),
         )
+        self.center_on_time(self.selected_time)
+        self.view.setUpdatesEnabled(True)
+
+        if prev_smooth_scroll:
+            settings.set("general", "smooth-scroll", True)
 
     def _should_auto_scroll(self, media_time_change_reason) -> bool:
         return all(
