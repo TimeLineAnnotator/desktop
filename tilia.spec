@@ -16,8 +16,8 @@ if platform.system() == 'Windows':
     platform_suffix = 'win'
 elif platform.system() == 'Darwin':
     platform_suffix = 'mac'
-elif platform.system() == 'Linux':  # catch all other nix platforms
-    platform_suffix = 'linux'  # this must be after the Mac Darwin check, b/c Darwin is also posix
+elif platform.system() == 'Linux':
+    platform_suffix = 'linux'
 else:
     platform_suffix = platform.system()
 
