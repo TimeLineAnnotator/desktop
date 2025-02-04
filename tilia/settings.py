@@ -136,12 +136,13 @@ class SettingsManager(QObject):
             self._settings.setValue(key, value)
 
         # QSettings saves all settings as strings; check typing before parsing
-        if value == "true":
-            return True
-        elif value == "false":
-            return False
-        elif isinstance(value, str) and value.isnumeric():
-            return int(value)
+        if isinstance(value, str):
+            if value.lower() == "true":
+                return True
+            elif value.lower() == "false":
+                return False
+            elif value.isnumeric():
+                return int(value)
 
         return value
 
