@@ -1056,9 +1056,9 @@ class TimelineUIs:
             raise NotImplementedError(f"Can't select with {selector=}")
 
     def on_zoom(self, zoom_factor: float):
-        prev_smooth_scroll = settings.get("general", "smooth-scroll")
-        if prev_smooth_scroll:
-            settings.set("general", "smooth-scroll", False)
+        prev_smooth_scroll = settings.get("general", "prioritise_performance")
+        if not prev_smooth_scroll:
+            settings.set("general", "prioritise_performance", True)
 
         self.view.setUpdatesEnabled(False)
         post(
@@ -1068,8 +1068,8 @@ class TimelineUIs:
         self.center_on_time(self.selected_time)
         self.view.setUpdatesEnabled(True)
 
-        if prev_smooth_scroll:
-            settings.set("general", "smooth-scroll", True)
+        if not prev_smooth_scroll:
+            settings.set("general", "prioritise_performance", False)
 
     def _should_auto_scroll(self, media_time_change_reason) -> bool:
         return all(
