@@ -53,7 +53,7 @@ from ...actions import TiliaAction
 
 
 class TimelineUIs:
-    ZOOM_FACTOR = 0.1
+    ZOOM_FACTOR = 1.1
     UPDATE_TRIGGERS = ["height", "level_count", "visible_level_count"]
 
     def __init__(
@@ -160,11 +160,11 @@ class TimelineUIs:
             (Post.PLAYER_CURRENT_TIME_CHANGED, self.on_media_time_change),
             (
                 Post.VIEW_ZOOM_IN,
-                functools.partial(self.on_zoom, TimelineUIs.ZOOM_FACTOR),
+                functools.partial(self.on_zoom, True),
             ),
             (
                 Post.VIEW_ZOOM_OUT,
-                functools.partial(self.on_zoom, -TimelineUIs.ZOOM_FACTOR),
+                functools.partial(self.on_zoom, False),
             ),
             (Post.SELECTION_BOX_SELECT_ITEM, self.on_selection_box_select_item),
             (Post.SELECTION_BOX_DESELECT_ITEM, self.on_selection_box_deselect_item),
@@ -1055,7 +1055,7 @@ class TimelineUIs:
         except KeyError:
             raise NotImplementedError(f"Can't select with {selector=}")
 
-    def on_zoom(self, zoom_factor: float):
+    def on_zoom(self, is_zoom_in: bool):
         prev_smooth_scroll = settings.get("general", "prioritise_performance")
         if not prev_smooth_scroll:
             settings.set("general", "prioritise_performance", True)
@@ -1063,7 +1063,8 @@ class TimelineUIs:
         self.view.setUpdatesEnabled(False)
         post(
             Post.PLAYBACK_AREA_SET_WIDTH,
-            get(Get.PLAYBACK_AREA_WIDTH) * (1 + zoom_factor),
+            get(Get.PLAYBACK_AREA_WIDTH)
+            * (self.ZOOM_FACTOR if is_zoom_in else 1 / self.ZOOM_FACTOR),
         )
         self.center_on_time(self.selected_time)
         self.view.setUpdatesEnabled(True)
