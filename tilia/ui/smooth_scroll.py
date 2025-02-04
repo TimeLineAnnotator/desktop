@@ -25,7 +25,7 @@ def smooth(self: Any, args_getter: Callable[[], tuple[Any]]):
 
     `args_getter` and `args_setter` must refer to the same variables in `args_setpoint` in the same order.
     """
-    fps = 500
+    fps = 100
     smoothing_duration = 150
     steps_total = fps * smoothing_duration / 1000
     is_ints = [isinstance(o, int) for o in args_getter()]
