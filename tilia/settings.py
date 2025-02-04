@@ -14,7 +14,7 @@ class SettingsManager(QObject):
             "window_y": 10,
             "timeline_background_color": "#EEE",
             "loop_box_shade": "#78c0c0c0",
-            "smooth-scroll": "true",
+            "prioritise_performance": "true",
         },
         "auto-save": {"max_stored_files": 100, "interval_(seconds)": 300},
         "media_metadata": {
