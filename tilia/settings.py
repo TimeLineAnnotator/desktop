@@ -88,9 +88,7 @@ class SettingsManager(QObject):
     }
 
     def __init__(self):
-        self._settings = QSettings(
-            tilia.constants.APP_NAME, f"Desktop-v.{tilia.constants.VERSION}"
-        )
+        self._settings = QSettings(tilia.constants.APP_NAME, f"Desktop Settings")
         self._files_updated_callbacks = set()
         self._cache = {}
         self._check_all_default_settings_present()
