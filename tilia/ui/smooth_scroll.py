@@ -31,7 +31,7 @@ def smooth(self: Any, args_getter: Callable[[], tuple[Any]]):
     is_ints = [isinstance(o, int) for o in args_getter()]
 
     def wrapper(args_setter: Callable[[tuple[Any]], None]) -> Callable:
-        if settings.get("general", "smooth-scroll") is False:
+        if settings.get("general", "prioritise_performance") is True:
             return args_setter
 
         def wrapped_setter(*args_setpoint: tuple[Any]) -> None:
