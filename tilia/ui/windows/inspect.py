@@ -50,7 +50,6 @@ class Inspect(QDockWidget):
     def __init__(self, main_window) -> None:
         super().__init__(main_window)
         self.setWindowTitle("Inspector")
-        self.setFixedWidth(300)
         self.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetClosable
@@ -72,6 +71,9 @@ class Inspect(QDockWidget):
         self.empty_label = QLabel("<h2> No element selected.</h2>")
         self.empty_label.setStyleSheet("color:grey;padding:10px")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+        )
 
         self.stack_widget.addWidget(self.inspect_widget)
         self.stack_widget.addWidget(self.empty_label)
@@ -331,7 +333,7 @@ class Inspect(QDockWidget):
             )
 
             right_widget.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+                QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Maximum
             )
             right_widget.setMaximumHeight(50)
             self.inspect_layout.addRow(left_widget, right_widget)
