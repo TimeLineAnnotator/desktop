@@ -232,7 +232,6 @@ class TestSeek:
         click_timeline_ui(slider_tlui, 0, y=y)
         target_x = time_x_converter.get_x_by_time(60)
         drag_mouse_in_timeline_view(target_x, y)
-        tilia_state.current_time = 75
         assert marker_tlui.playback_line.line().x1() == target_x
 
     @pytest.mark.parametrize(
@@ -271,7 +270,6 @@ class TestSeek:
         y = slider_tlui.trough.pos().y()
         click_timeline_ui(slider_tlui, 0, y=y)
         drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(50), y)
-        tilia_state.current_time = 75
         if request_to_serve:
             with Serve(*request_to_serve):
                 user_actions.trigger(add_request)
