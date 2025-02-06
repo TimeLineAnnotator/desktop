@@ -3,6 +3,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
 
+from PyQt6.QtWidgets import QMenu
+
 from tilia.requests import get, Get, Post, post
 
 
@@ -91,3 +93,29 @@ def undoable():
     assert get(Get.APP_STATE) == state_before
     post(Post.EDIT_REDO)
     assert get(Get.APP_STATE) == state_after
+
+
+def get_action(menu, name):
+    for action in menu.actions():
+        if action.text().replace("&", "") == name:
+            return action
+    return None
+
+
+def get_submenu(menu, name):
+    for action in menu.actions():
+        if action.text().replace("&", "") == name:
+            return action.menu()
+    return None
+
+
+def get_main_window_menu(qtui, name):
+    menu_names = [
+        x.text().replace("&", "") for x in qtui.main_window.menuBar().actions()
+    ]
+    menu_idx = menu_names.index(name)
+    return qtui.main_window.menuBar().actions()[menu_idx].menu()
+
+
+def get_actions_in_menu(menu: QMenu):
+    return [action for action in menu.actions() if not action.isSeparator()]
