@@ -1,9 +1,12 @@
 Thank you for considering contributing to TiLiA! I really believe that, with the help of an active community, this software might significantly change the way we study, understand and write about music, cinema and other topics related to audio and video.
 
 # Where to contribute
-In this early stage, the contributing process is not really structured, and help is needed is almost every front. Feel free to make PR or to contact me to discuss contributing.
+Help is appreciated is every front. Feel free to make PR or to contact me to discuss contributing.
 
 Apart from coding proper, contributions would be appreciated in:
+
+## Automated testing
+Testing guidelines can be found [here](./TESTING.md).
 
 ## Tutorials/guides:
 The program should be fairly intuitive for the users, but tutorials and guides will need to be done at some point, as they will significantly facilitate the adoption by new users. They can be either written or in video form, ideally both. [This video](https://vimeo.com/767282249) serves as rough general quickstart guide, for now.

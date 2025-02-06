@@ -57,8 +57,12 @@ from tilia.requests import Post, listen, post, serve, Get, get
 
 
 class TiliaMainWindow(QMainWindow):
+    # FOR TESTING ONLY. DO NOT USE IN PRODUCTION.
+    instance = None
+
     def __init__(self):
         super().__init__()
+        TiliaMainWindow.instance = self
         self.setWindowTitle(tilia.constants.APP_NAME)
         self.setWindowIcon(QIcon(str(tilia.constants.APP_ICON_PATH)))
         self.setStatusTip("Main window")
@@ -109,6 +113,7 @@ class TiliaMainWindow(QMainWindow):
 
     def on_close(self):
         super().closeEvent(None)
+        TiliaMainWindow.instance = None
 
 
 class QtUI:
@@ -486,14 +491,18 @@ class QtUI:
 
         timeline.clear()
 
-        if time_or_measure == "time":
-            success, errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
-        elif time_or_measure == "measure":
-            success, errors = tlkind_to_funcs[tlkind]["measure"](
-                timeline, beat_tl, path
-            )
-        else:
-            raise ValueError("Invalid time_or_measure value '{time_or_measure}'")
+        try:
+            if time_or_measure == "time":
+                success, errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
+            elif time_or_measure == "measure":
+                success, errors = tlkind_to_funcs[tlkind]["measure"](
+                    timeline, beat_tl, path
+                )
+            else:
+                raise ValueError("Invalid time_or_measure value '{time_or_measure}'")
+        except UnicodeDecodeError:
+            tilia.errors.display(tilia.errors.INVALID_CSV_ERROR, path)
+            return
 
         if not success:
             post(Post.APP_STATE_RESTORE, prev_state)

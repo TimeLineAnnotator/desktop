@@ -1,5 +1,7 @@
+import functools
 import os
 from pathlib import Path
+from typing import Literal
 from unittest.mock import patch, mock_open
 
 from tests.parsers.csv.common import assert_in_errors
@@ -8,6 +10,21 @@ from tilia.parsers.csv.marker import (
     import_by_measure,
 )
 from tilia.ui.format import format_media_time
+
+
+def patch_import(by: Literal["time", "measure"], tl, data, beat_tl=None):
+    func = import_by_time if by == "time" else import_by_measure
+    if by == "time":
+        func = import_by_time
+    elif by == "measure":
+        func = functools.partial(import_by_measure, beat_tl=beat_tl)
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        success, errors = func(
+            timeline=tl,
+            path=Path(),
+        )
+    return success, errors
 
 
 def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
@@ -21,22 +38,13 @@ def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
 
     beat_tl.recalculate_measures()
 
-    os.chdir(Path(Path(__file__).absolute().parents[1]))
-
     data = "measure,fraction,label,comments\n1,0,first,a\n2,0.5,second,b\n3,1,third,c"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_measure(
-            marker_tl,
-            beat_tl,
-            Path("parsers", "test_markers_by_measure_from_csv.csv").resolve(),
-        )
+    patch_import("measure", marker_tl, data, beat_tl)
 
-    markers = sorted(marker_tl)
-
-    assert markers[0].time == 1
-    assert markers[1].time == 2.5
-    assert markers[2].time == 4
+    assert marker_tl[0].time == 1
+    assert marker_tl[1].time == 2.5
+    assert marker_tl[2].time == 4
 
 
 def test_markers_by_measure_from_csv_multiple_measures_with_number(
@@ -55,14 +63,11 @@ def test_markers_by_measure_from_csv_multiple_measures_with_number(
 
     data = "measure\n1"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_measure(marker_tl, beat_tl, Path())
+    patch_import("measure", marker_tl, data, beat_tl)
 
-    markers = sorted(marker_tl)
-
-    assert markers[0].time == 1
-    assert markers[1].time == 2
-    assert markers[2].time == 3
+    assert marker_tl[0].time == 1
+    assert marker_tl[1].time == 2
+    assert marker_tl[2].time == 3
 
 
 def test_markers_by_measure_from_csv_fails_if_no_measure_column(beat_tlui, marker_tlui):
@@ -70,12 +75,7 @@ def test_markers_by_measure_from_csv_fails_if_no_measure_column(beat_tlui, marke
 
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_measure(
-            beat_tlui.timeline,
-            marker_tlui.timeline,
-            Path("parsers", "test_markers_from_csv_raises_error.csv").resolve(),
-        )
+    patch_import("measure", marker_tlui.timeline, data, beat_tlui.timeline)
 
     assert marker_tlui.is_empty
 
@@ -84,26 +84,20 @@ def test_markers_by_time_from_csv(marker_tlui):
     os.chdir(Path(Path(__file__).absolute().parents[1]))
 
     data = "time,label,comments\n1,first,a\n5,second,b\n10,third,c"
+    marker_tl = marker_tlui.timeline
+    patch_import("time", marker_tl, data)
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_time(
-            marker_tlui.timeline,
-            Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
-        )
+    assert marker_tl[0].time == 1
+    assert marker_tl[0].label == "first"
+    assert marker_tl[0].comments == "a"
 
-    markers = sorted(marker_tlui.timeline)
+    assert marker_tl[1].time == 5
+    assert marker_tl[1].label == "second"
+    assert marker_tl[1].comments == "b"
 
-    assert markers[0].time == 1
-    assert markers[0].label == "first"
-    assert markers[0].comments == "a"
-
-    assert markers[1].time == 5
-    assert markers[1].label == "second"
-    assert markers[1].comments == "b"
-
-    assert markers[2].time == 10
-    assert markers[2].label == "third"
-    assert markers[2].comments == "c"
+    assert marker_tl[2].time == 10
+    assert marker_tl[2].label == "third"
+    assert marker_tl[2].comments == "c"
 
 
 def test_markers_by_time_from_csv_fails_if_no_time_column(marker_tlui):
@@ -111,21 +105,18 @@ def test_markers_by_time_from_csv_fails_if_no_time_column(marker_tlui):
 
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_time(
-            marker_tlui.timeline,
-            Path(),
-        )
+    patch_import("time", marker_tlui.timeline, data)
 
     assert marker_tlui.is_empty
 
 
 def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(marker_tlui):
     data = "time\nnonsense"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_time(marker_tlui.timeline, Path())
 
-    assert "nonsense" in errors[0]
+    success, errors = patch_import("time", marker_tlui.timeline, data)
+
+    assert success
+    assert_in_errors("nonsense", errors)
 
 
 def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
@@ -133,9 +124,10 @@ def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
 ):
     tilia_state.duration = 100
     data = "time\n999"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_time(marker_tlui.timeline, Path())
 
+    success, errors = patch_import("time", marker_tlui.timeline, data)
+
+    assert success
     assert format_media_time(999) in errors[0]
 
 
@@ -143,12 +135,10 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
     marker_tlui, beat_tlui
 ):
     data = "measure\nnonsense"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            marker_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = patch_import("measure", marker_tlui.timeline, data)
 
-    assert "nonsense" in errors[0]
+    assert success
+    assert_in_errors("nonsense", errors)
 
 
 def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
@@ -161,14 +151,12 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
     beat_tlui.create_beat(time=2)
 
     data = "measure,fraction\n1,nonsense"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            marker_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = patch_import("measure", marker_tl, data, beat_tl)
 
-    assert "nonsense" in errors[0]
+    assert success
+    assert_in_errors("nonsense", errors)
 
-    assert sorted(marker_tl)[0].time == 1
+    assert marker_tl[0].time == 1
 
 
 def test_component_creation_fail_reason_gets_into_errors(
@@ -178,10 +166,6 @@ def test_component_creation_fail_reason_gets_into_errors(
     tilia_state.duration = 100
     data = "time\n101"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_time(
-            marker_tl,
-            Path(),
-        )
+    success, errors = patch_import("time", marker_tl, data)
 
     assert_in_errors(format_media_time(101), errors)

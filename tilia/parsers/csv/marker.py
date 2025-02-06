@@ -66,7 +66,7 @@ def import_by_time(
 
 
 def import_by_measure(
-    marker_tl: MarkerTimeline,
+    timeline: MarkerTimeline,
     beat_tl: BeatTimeline,
     path: Path,
     file_kwargs: Optional[dict[str, Any]] = None,
@@ -130,7 +130,7 @@ def import_by_measure(
                     constructor_kwargs[param] = parser(row[index])
 
             for time in times:
-                marker, fail_reason = marker_tl.create_component(
+                marker, fail_reason = timeline.create_component(
                     ComponentKind.MARKER, time=time, **constructor_kwargs
                 )
                 if not marker:
