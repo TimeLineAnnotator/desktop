@@ -32,12 +32,14 @@ def ask_for_tilia_file_to_open():
     return _get_return_from_file_dialog(dialog)
 
 
-def ask_for_file_to_open(title: str, name_filters: Sequence[str]):
+def ask_for_file_to_open(title: str, name_filters: str | Sequence[str]):
     dialog = QFileDialog()
     dialog.setWindowTitle(title)
     dialog.setFilter(QDir.Filter.Files)
     dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-    dialog.setNameFilter(name_filters)
+    if isinstance(name_filters, str):
+        name_filters = [name_filters]
+    dialog.setNameFilters(name_filters)
     return _get_return_from_file_dialog(dialog)
 
 
