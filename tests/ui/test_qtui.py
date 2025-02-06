@@ -3,8 +3,10 @@ from unittest.mock import patch, mock_open
 from tests.conftest import parametrize_tlui
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve
+from tests.utils import get_main_window_menu, get_actions_in_menu
 from tilia.requests import Post, post, Get
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.actions import get_qaction, TiliaAction
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 
@@ -130,3 +132,19 @@ class TestTimelineToolbars:
         tls.set_timeline_data(marker_tl.id, "is_visible", True)
 
         assert is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
+
+
+class TestMenus:
+    def test_edit_menu_has_right_actions(self, qtui):
+        menu = get_main_window_menu(qtui, "Edit")
+        actions = get_actions_in_menu(menu)
+        expected = [
+            TiliaAction.EDIT_UNDO,
+            TiliaAction.EDIT_REDO,
+            TiliaAction.TIMELINE_ELEMENT_COPY,
+            TiliaAction.TIMELINE_ELEMENT_PASTE,
+            TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE,
+            TiliaAction.SETTINGS_WINDOW_OPEN,
+        ]
+        expected = [get_qaction(action) for action in expected]
+        assert set(actions) == set(expected)
