@@ -32,6 +32,8 @@ a = Analysis(
         ("./tilia/ui/fonts", "./tilia/ui/fonts/"),
         ("./tilia/media/player/youtube.html", "./tilia/media/player/"),
         ("./tilia/media/player/youtube.css", "./tilia/media/player/"),
+        ("./tilia/parsers/score/svg_maker.html", "./tilia/parsers/score/"),
+        ("./tilia/parsers/score/timewise_to_partwise.xsl", "./tilia/parsers/score/"),
     ],
     hiddenimports=[],
     hookspath=None,
