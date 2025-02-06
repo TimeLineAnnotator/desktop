@@ -2,9 +2,11 @@ from typing import Literal
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsItem, QApplication
+from PyQt6.QtTest import QTest
 
 from tilia.requests import Post, post
 from tilia.ui.coords import time_x_converter
+from tilia.ui.qtui import TiliaMainWindow
 
 
 def click_timeline_ui_view(
@@ -50,3 +52,25 @@ def drag_mouse_in_timeline_view(x, y):
     # assumes timeline view has already been clicked
     post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, int(x), int(y))
     post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+
+
+def get_focused_widget():
+    TiliaMainWindow.instance.show()
+    QApplication.processEvents()
+    return QApplication.focusWidget()
+
+
+def press_key(key: str, modifier: Qt.KeyboardModifier | None = None):
+    if len(key) > 1:
+        try:
+            key = getattr(Qt.Key, f"Key_{key}")
+        except AttributeError:
+            raise ValueError(f"Unknown key: {key}")
+
+    QTest.keyClick(
+        get_focused_widget(), key, modifier=modifier or Qt.KeyboardModifier.NoModifier
+    )
+
+
+def press_keys(text: str):
+    QTest.keyClicks(get_focused_widget(), text)
