@@ -208,7 +208,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 return u.level <= max_group_level
 
             return (
-                has_same_parent() and is_inside_grouping() and has_same_level_or_lower()
+                is_inside_grouping() and has_same_level_or_lower() and has_same_parent()
             )
 
         success, reason = _validate_at_least_two_selected(hierarchies)
