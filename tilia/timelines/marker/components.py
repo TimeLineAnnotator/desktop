@@ -20,9 +20,7 @@ from tilia.timelines.base.component import PointLikeTimelineComponent
 
 
 class Marker(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["time", "comments", "label", "color"]
-    SERIALIZABLE_BY_ID = []
-    SERIALIZABLE_BY_ID_LIST = []
+    SERIALIZABLE = ["time", "comments", "label", "color"]
     ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.MARKER

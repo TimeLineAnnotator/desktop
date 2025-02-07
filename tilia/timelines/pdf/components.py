@@ -15,9 +15,7 @@ from tilia.timelines.base.component import PointLikeTimelineComponent
 
 
 class PdfMarker(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["time", "page_number"]
-    SERIALIZABLE_BY_ID = []
-    SERIALIZABLE_BY_ID_LIST = []
+    SERIALIZABLE = ["time", "page_number"]
     ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.PDF_MARKER

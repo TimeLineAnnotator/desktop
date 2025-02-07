@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class Clef(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = [
+    SERIALIZABLE = [
         "staff_index",
         "time",
         "line_number",

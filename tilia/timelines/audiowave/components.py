@@ -16,7 +16,7 @@ from tilia.timelines.base.component import SegmentLikeTimelineComponent
 
 
 class AmplitudeBar(SegmentLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["start", "end", "amplitude"]
+    SERIALIZABLE = ["start", "end", "amplitude"]
     ORDERING_ATTRS = ("start",)
 
     KIND = ComponentKind.AUDIOWAVE

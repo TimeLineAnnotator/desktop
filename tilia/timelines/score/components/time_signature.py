@@ -4,7 +4,7 @@ from tilia.timelines.component_kinds import ComponentKind
 
 
 class TimeSignature(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["staff_index", "time", "numerator", "denominator"]
+    SERIALIZABLE = ["staff_index", "time", "numerator", "denominator"]
     ORDERING_ATTRS = ("time", "staff_index")
 
     KIND = ComponentKind.TIME_SIGNATURE

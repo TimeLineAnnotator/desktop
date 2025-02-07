@@ -39,7 +39,7 @@ class ScoreTLComponentManager(TimelineComponentManager):
 
 class ScoreTimeline(Timeline):
     KIND = TimelineKind.SCORE_TIMELINE
-    SERIALIZABLE_BY_VALUE = [
+    SERIALIZABLE = [
         "height",
         "is_visible",
         "name",

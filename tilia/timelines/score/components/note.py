@@ -23,7 +23,7 @@ def octave_to_pc(octave: int) -> int:
 
 
 class Note(SegmentLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = [
+    SERIALIZABLE = [
         "start",
         "end",
         "step",
@@ -34,8 +34,6 @@ class Note(SegmentLikeTimelineComponent):
         "comments",
         "display_accidental",
     ]
-    SERIALIZABLE_BY_ID = []
-    SERIALIZABLE_BY_ID_LIST = []
     ORDERING_ATTRS = ("start", "end", "pitch", "staff_index")
 
     KIND = ComponentKind.NOTE

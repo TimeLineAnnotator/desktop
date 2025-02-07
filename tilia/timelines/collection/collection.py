@@ -243,7 +243,7 @@ class Timelines:
             timeline.component_manager.restore_state(state["components"])
 
         if timeline.get_state()["hash"] != state["hash"]:
-            for attr in timeline.SERIALIZABLE_BY_VALUE:
+            for attr in timeline.SERIALIZABLE:
                 self.set_timeline_data(timeline.id, attr, state[attr])
 
     def get_timeline_ids(self):

@@ -34,7 +34,7 @@ T = TypeVar("T", bound="Timeline")
 
 
 class Timeline(ABC, Generic[TC]):
-    SERIALIZABLE_BY_VALUE = ["name", "height", "is_visible", "ordinal"]
+    SERIALIZABLE = ["name", "height", "is_visible", "ordinal"]
     KIND: TimelineKind | None = None
     FLAGS = []
     COMPONENT_MANAGER_CLASS = None
@@ -92,7 +92,7 @@ class Timeline(ABC, Generic[TC]):
     def __eq__(self, other):
         if self.KIND != other.KIND:
             return False
-        for attr in self.SERIALIZABLE_BY_VALUE:
+        for attr in self.SERIALIZABLE:
             if self.get_data(attr) != other.get_data(attr):
                 return False
         return True
@@ -217,7 +217,7 @@ class Timeline(ABC, Generic[TC]):
 
         string_to_hash = self.KIND.name + "|"
 
-        for attr in self.SERIALIZABLE_BY_VALUE:
+        for attr in self.SERIALIZABLE:
             if isinstance(value := getattr(self, attr), list):
                 value = value.copy()
             state[attr] = value
@@ -243,9 +243,9 @@ class Timeline(ABC, Generic[TC]):
             kind.name for kind in self.component_manager.component_kinds
         ]
         result["components"] = {name: [] for name in result["component_kinds"]}
-        result["component_attributes"] = (
-            self.component_manager.get_component_attributes()
-        )
+        result[
+            "component_attributes"
+        ] = self.component_manager.get_component_attributes()
         for kind in self.component_manager.component_kinds:
             components = self.component_manager.get_components_by_condition(
                 lambda _: True, kind
@@ -485,39 +485,7 @@ class TimelineComponentManager(Generic[T, TC]):
             kind = ComponentKind[component_data.pop("kind")]
             id = component_data.pop("id")
 
-            component_class = get_component_class_by_kind(kind)
-            for attr in (
-                component_class.SERIALIZABLE_BY_ID_LIST
-                + component_class.SERIALIZABLE_BY_ID
-            ):
-                # These ids will be substitued by object references later,
-                # when all the components have been created. Doing that
-                # now would run the risk of trying to reference a component
-                # that has not been restored yet.
-                if attr in component_data:
-                    component_data.pop(attr)
-
             self.timeline.create_component(kind, id=id, **component_data)
-
-        for component_data in components_to_create:
-            component_class = get_component_class_by_kind(
-                ComponentKind[component_data["kind"]]
-            )
-            for attr in component_class.SERIALIZABLE_BY_ID:
-                if component_data[attr]:
-                    attr_value = component_data[attr]
-                    self.set_component_data(
-                        component_data["id"], attr, self.get_component(attr_value)
-                    )
-
-            for attr in component_class.SERIALIZABLE_BY_ID_LIST:
-                if component_data[attr]:
-                    attr_value = component_data[attr]
-                    self.set_component_data(
-                        component_data["id"],
-                        attr,
-                        [self.get_component(id) for id in attr_value],
-                    )
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(event, self.timeline.KIND, self.timeline.id, component_id, *args, **kwargs)

@@ -14,13 +14,8 @@ from tilia.timelines.base.component import PointLikeTimelineComponent
 
 
 class Beat(PointLikeTimelineComponent):
-    # serializer attributes
-    SERIALIZABLE_BY_VALUE = ["time"]
-
-    SERIALIZABLE_BY_ID = []
-    SERIALIZABLE_BY_ID_LIST = []
+    SERIALIZABLE = ["time"]
     ORDERING_ATTRS = ("time",)
-
     KIND = ComponentKind.BEAT
 
     validators = {"time": validate_time, "is_first_in_measure": validate_bool}

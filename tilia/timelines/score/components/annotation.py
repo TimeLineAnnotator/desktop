@@ -9,7 +9,7 @@ from tilia.timelines.score.timeline import ScoreTimeline
 
 
 class ScoreAnnotation(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["x", "y", "viewer_id", "text", "font_size"]
+    SERIALIZABLE = ["x", "y", "viewer_id", "text", "font_size"]
 
     KIND = ComponentKind.SCORE_ANNOTATION
 

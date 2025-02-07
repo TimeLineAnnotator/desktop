@@ -24,8 +24,7 @@ class HierarchyLoadError(Exception):
 
 
 class Hierarchy(SegmentLikeTimelineComponent):
-    # serializer attributes
-    SERIALIZABLE_BY_VALUE = [
+    SERIALIZABLE = [
         "start",
         "pre_start",
         "end",
@@ -37,9 +36,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
         "formal_function",
         "comments",
     ]
-
-    SERIALIZABLE_BY_ID = []
-    SERIALIZABLE_BY_ID_LIST = []
 
     validators = {
         "timeline": validate_read_only,
