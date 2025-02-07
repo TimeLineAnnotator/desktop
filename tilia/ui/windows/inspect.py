@@ -50,6 +50,7 @@ class Inspect(QDockWidget):
     def __init__(self, main_window) -> None:
         super().__init__(main_window)
         self.setWindowTitle("Inspector")
+        self.setMinimumWidth(250)
         self.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetClosable
