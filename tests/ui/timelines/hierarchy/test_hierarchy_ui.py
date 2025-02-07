@@ -43,9 +43,6 @@ class TestHierarchyUI:
         parent = tlui.timeline[1]
         grandparent = tlui.timeline[2]
 
-        tlui.relate_hierarchies(parent, [child])
-        tlui.relate_hierarchies(grandparent, [parent])
-
         sep = HierarchyUI.FULL_NAME_SEPARATOR
 
         tlui.set_data("name", "tl")

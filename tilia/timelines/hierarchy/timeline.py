@@ -5,7 +5,6 @@ import itertools
 from typing import Any
 
 from tilia.settings import settings
-from .common import update_component_genealogy
 from tilia.timelines.base.component.segmentlike import (
     scale_segmentlike,
     crop_segmentlike,
@@ -37,40 +36,34 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         super().deserialize_components(components)
 
-    def _update_genealogy(self, parent: Hierarchy, children: list[Hierarchy]):
-        """
-        Calls genealogy update on timeline and timeline UI
-        """
+    def get_parent(self, child):
+        candidates = {
+            h
+            for h in self
+            if h.start <= child.start and h.end >= child.end and h.level > child.level
+        }
+        if not candidates:
+            return None
+        return sorted(candidates, key=lambda h: h.level)[0]
 
-        update_component_genealogy(parent, children)
-        self.post_component_event(
-            Post.HIERARCHY_GENEALOGY_CHANGED, parent.id, [c.id for c in children]
-        )
+    def get_children(self, parent):
+        def get_hierarchies_below(above, hierarchy_iter):
+            return {
+                h
+                for h in hierarchy_iter
+                if above.start <= h.start
+                and above.end >= h.end
+                and above.level > h.level
+            }
 
-    def do_genealogy(self):
-        """
-        Sets parent and children attributes of all components based on their
-        position and level. Previous parent/child relations are ignored.
-        Assumes child and parent attributes are empty for all hierarchies involved.
-        Very inefficient, but should be good enough for now.
-        """
+        remaining_candidates = get_hierarchies_below(parent, self).copy()
+        for lvl in reversed([h.level for h in remaining_candidates]):
+            for h in {h for h in remaining_candidates if h.level == lvl}:
+                remaining_candidates = remaining_candidates.difference(
+                    get_hierarchies_below(h, remaining_candidates)
+                )
 
-        for hrc in self:
-            hrc.parent = None
-            hrc.children = []
-
-        for lvl in sorted(list({hrc.level for hrc in self._components})):
-            for child in [hrc for hrc in self._components if hrc.level == lvl]:
-                for hrc in self:
-                    if (
-                        not child.parent
-                        and child.start >= hrc.start
-                        and child.end <= hrc.end
-                        and child.level < hrc.level
-                    ):
-                        child.parent = hrc
-                        hrc.children += [child]
-                        break
+        return sorted(list(remaining_candidates))
 
     def get_boundary_conflicts(self) -> list[tuple[Hierarchy, Hierarchy]]:
         """
@@ -108,9 +101,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         return conflicts
 
     def create_child(self, hierarchy: Hierarchy):
-        """Create child unit one level below with same start and end.
-        Returns parent/child relation between unit and unit created below.
-        """
+        """Create unit one level below with same start and end."""
 
         def _validate_create_unit_below(h: Hierarchy):
             if h.level == 1:
@@ -136,12 +127,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if not created_unit:
             return False, f"Could not create component below: {reason}"
 
-        if hierarchy.children:
-            # Making former children child to unit created below {self}
-            self._update_genealogy(created_unit, hierarchy.children)
-
-        # make parent/child relation between unit and create unit
-        self._update_genealogy(hierarchy, [created_unit])
         return True, ""
 
     def group(self, hierarchies: list[Hierarchy]):
@@ -264,25 +249,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if not grouping_unit:
             return False, fail_reason
 
-        # find out who is supposed to be a children of grouping unit
-        previous_common_parent = _get_previous_common_parent(hierarchies)
-        grouping_unit_children = [
-            unit
-            for unit in hierarchies
-            if not unit.parent or unit.parent == previous_common_parent
-        ]
-
-        # make parent/child relations between grouping unit,
-        # children units and previous common parent (if existing)
-        self._update_genealogy(grouping_unit, grouping_unit_children)
-
-        if previous_common_parent:
-            previous_parent_new_children = [
-                c for c in previous_common_parent.children if c not in hierarchies
-            ] + [grouping_unit]
-
-            self._update_genealogy(previous_common_parent, previous_parent_new_children)
-
         return True, ""
 
     def get_unit_to_split(self, time: float) -> Hierarchy | None:
@@ -309,16 +275,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     f"Time '{format_media_time(time)}' is outside component.",
                 )
             return True, ""
-
-        def _get_new_children_for_unit_to_split_parent(
-            hierarchy_to_split_, left_unit_, right_unit_
-        ):
-            new_children = hierarchy_to_split_.parent.children.copy() + [
-                left_unit_,
-                right_unit_,
-            ]
-
-            return new_children
 
         def pass_on_attributes():
             both_inherit = ["label", "color", "comments"]
@@ -369,31 +325,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         if not right_unit:
             return False, fail_reason
-
-        # pass previous parent to new units
-        if unit_to_split.parent:
-            self._update_genealogy(
-                unit_to_split.parent,
-                _get_new_children_for_unit_to_split_parent(
-                    unit_to_split, left_unit, right_unit
-                ),
-            )
-
-        # pass previous children to new units
-        if unit_to_split.children:
-            self._update_genealogy(
-                left_unit,
-                [child for child in unit_to_split.children if child.start < split_time],
-            )
-
-            self._update_genealogy(
-                right_unit,
-                [
-                    child
-                    for child in unit_to_split.children
-                    if child.start >= split_time
-                ],
-            )
 
         pass_on_attributes()
 
@@ -482,20 +413,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if not merger_unit:
             return False, fail_reason
 
-        previous_parent = hierarchies[0].parent
-
-        if previous_parent:
-            self._update_genealogy(
-                previous_parent, previous_parent.children + [merger_unit]
-            )
-
-        # get merged_unit children
-        merger_children: list[Hierarchy] = []
-        for unit in hierarchies:
-            merger_children += unit.children
-
-        self._update_genealogy(merger_unit, merger_children)
-
         post(
             Post.HIERARCHY_MERGE_SPLIT_DONE,
             [(merger_unit.timeline.id, merger_unit.id)],
@@ -506,27 +423,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
     def delete_component(self, component: Hierarchy, **kwargs) -> None:
         super().delete_component(component, **kwargs)
-
-        self._update_genealogy_after_deletion(component)
-
-    def _update_genealogy_after_deletion(self, component: Hierarchy) -> None:
-        if not component.parent:
-            for child in component.children:
-                child.parent = None
-            return
-
-        component_parent_new_children = [
-            h for h in component.parent.children if h != component
-        ]
-
-        if component.children:
-            component_parent_new_children += component.children
-
-        self._update_genealogy(component.parent, component_parent_new_children)
-
-    def restore_state(self, prev_state: dict):
-        super().restore_state(prev_state)
-        self.do_genealogy()
 
 
 class HierarchyTimeline(Timeline):
@@ -614,9 +510,6 @@ class HierarchyTimeline(Timeline):
         if not success:
             tilia.errors.display(tilia.errors.HIERARCHY_MERGE_FAILED, reason)
         return success
-
-    def do_genealogy(self):
-        self.component_manager.do_genealogy()
 
     def get_boundary_conflicts(self):
         return self.component_manager.get_boundary_conflicts()
