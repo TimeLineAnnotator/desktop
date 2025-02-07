@@ -54,8 +54,6 @@ class TestHierarchyTimelineComponentManager:
         parent, _ = hierarchy_tl.create_hierarchy(start=0, end=1, level=3)
         child, _ = hierarchy_tl.create_hierarchy(start=0, end=1, level=1)
 
-        hierarchy_tl.component_manager._update_genealogy(parent, [child])
-
         hierarchy_tl.component_manager.create_child(parent)
 
         assert child.parent in parent.children
@@ -111,10 +109,8 @@ class TestHierarchyTimelineComponentManager:
     def test_merge_two_units_with_children(self, hierarchy_tl):
         hrc1, _ = hierarchy_tl.create_hierarchy(start=0.0, end=0.5, level=1)
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.0, end=0.5, level=2)
-        hierarchy_tl.component_manager._update_genealogy(hrc2, [hrc1])
         hrc3, _ = hierarchy_tl.create_hierarchy(start=0.5, end=1.0, level=1)
         hrc4, _ = hierarchy_tl.create_hierarchy(start=0.5, end=1.0, level=2)
-        hierarchy_tl.component_manager._update_genealogy(hrc4, [hrc3])
 
         hierarchy_tl.component_manager.merge([hrc2, hrc4])
 
@@ -124,8 +120,6 @@ class TestHierarchyTimelineComponentManager:
         hrc1, _ = hierarchy_tl.create_hierarchy(start=0.0, end=0.5, level=1)
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.5, end=1, level=1)
         hrc3, _ = hierarchy_tl.create_hierarchy(start=0.0, end=1, level=2)
-
-        hierarchy_tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
 
         hierarchy_tl.component_manager.merge([hrc1, hrc2])
 
@@ -137,7 +131,6 @@ class TestHierarchyTimelineComponentManager:
         hrc1, _ = hierarchy_tl.create_hierarchy(start=0.0, end=0.1, level=2)
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.1, end=0.2, level=2)
         hrc3, _ = hierarchy_tl.create_hierarchy(start=0.1, end=0.2, level=1)
-        hierarchy_tl.component_manager._update_genealogy(hrc2, [hrc3])
         hrc4, _ = hierarchy_tl.create_hierarchy(start=0.2, end=0.3, level=2)
 
         hierarchy_tl.component_manager.merge([hrc1, hrc4])
@@ -214,8 +207,6 @@ class TestHierarchyTimelineComponentManager:
         hrc2, _ = hierarchy_tl.create_hierarchy(start=1, end=2, level=2)
         hrc3, _ = hierarchy_tl.create_hierarchy(start=0, end=2, level=3)
 
-        hierarchy_tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
-
         serialized_components = hierarchy_tl.component_manager.serialize_components()
 
         hierarchy_tl.clear()
@@ -286,64 +277,49 @@ class TestHierarchyTimelineComponentManager:
         hierarchy_tl.alter_levels([hrc], -10)
         assert hrc.level == 1
 
-    def test_do_genealogy_empty_timeline(self, hierarchy_tl):
-        hierarchy_tl.do_genealogy()
-
-    def test_do_genealogy_single_hierarchy(self, hierarchy_tl):
+    def test_genealogy_single_hierarchy(self, hierarchy_tl):
         hrc, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
-
-        hierarchy_tl.do_genealogy()
 
         assert not hrc.parent
         assert not hrc.children
 
-    def test_do_genealogy_unrelated_hierarchies(self, hierarchy_tl):
+    def test_genealogy_unrelated_hierarchies(self, hierarchy_tl):
         first, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
         second, _ = hierarchy_tl.create_hierarchy(1, 2, 1)
-
-        hierarchy_tl.do_genealogy()
 
         assert not first.parent
         assert not second.parent
         assert not first.children
         assert not second.children
 
-    def test_do_genealogy_simple_parent_child(self, hierarchy_tl):
+    def test_genealogy_simple_parent_child(self, hierarchy_tl):
         parent, _ = hierarchy_tl.create_hierarchy(0, 1, 2)
         child, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
 
-        hierarchy_tl.do_genealogy()
-
         assert set(parent.children) == {child}
         assert child.parent == parent
         assert child.children == []
 
-    def test_do_genealogy_empty_space_after_child(self, hierarchy_tl):
+    def test_genealogy_empty_space_after_child(self, hierarchy_tl):
         parent, _ = hierarchy_tl.create_hierarchy(0, 2, 2)
         child, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
 
-        hierarchy_tl.do_genealogy()
-
         assert set(parent.children) == {child}
         assert child.parent == parent
         assert child.children == []
 
-    def test_do_genealogy_parent_two_levels_up(self, hierarchy_tl):
+    def test_genealogy_parent_two_levels_up(self, hierarchy_tl):
         parent, _ = hierarchy_tl.create_hierarchy(0, 1, 3)
         child, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
 
-        hierarchy_tl.do_genealogy()
-
         assert set(parent.children) == {child}
         assert child.parent == parent
         assert child.children == []
 
-    def test_do_genealogy_two_children(self, hierarchy_tl):
+    def test_genealogy_two_children(self, hierarchy_tl):
         parent, _ = hierarchy_tl.create_hierarchy(0, 2, 2)
         child1, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
         child2, _ = hierarchy_tl.create_hierarchy(1, 2, 1)
-
-        hierarchy_tl.do_genealogy()
 
         assert set(parent.children) == {child1, child2}
         assert child1.parent == parent
@@ -351,12 +327,17 @@ class TestHierarchyTimelineComponentManager:
         assert child1.children == []
         assert child2.children == []
 
-    def test_do_genealogy_nested_single_children(self, hierarchy_tl):
+    def test_genealogy_nested_single_children(self, hierarchy_tl):
+        """
+        top
+         |
+        mid
+         |
+        bot
+        """
         top, _ = hierarchy_tl.create_hierarchy(0, 1, 3)
         mid, _ = hierarchy_tl.create_hierarchy(0, 1, 2)
         bot, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
-
-        hierarchy_tl.do_genealogy()
 
         assert bot.parent == mid
         assert mid.parent == top
@@ -364,7 +345,7 @@ class TestHierarchyTimelineComponentManager:
         assert set(mid.children) == {bot}
         assert bot.children == []
 
-    def test_do_genealogy_nested_two_sets_of_children(self, hierarchy_tl):
+    def test_genealogy_nested_two_sets_of_children(self, hierarchy_tl):
         """
                 top
                /   \
@@ -378,8 +359,6 @@ class TestHierarchyTimelineComponentManager:
         mid2, _ = hierarchy_tl.create_hierarchy(1, 2, 2)
         bot2, _ = hierarchy_tl.create_hierarchy(1, 2, 1)
 
-        hierarchy_tl.do_genealogy()
-
         assert bot1.parent == mid1
         assert bot2.parent == mid2
         assert mid1.parent == top
@@ -390,13 +369,11 @@ class TestHierarchyTimelineComponentManager:
         assert bot1.children == []
         assert bot2.children == []
 
-    def test_do_genealogy_parent_child_pairs_with_no_common_parent(self, hierarchy_tl):
+    def test_genealogy_parent_child_pairs_with_no_common_parent(self, hierarchy_tl):
         parent1, _ = hierarchy_tl.create_hierarchy(0, 1, 2)
         parent2, _ = hierarchy_tl.create_hierarchy(1, 2, 2)
         child1, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
         child2, _ = hierarchy_tl.create_hierarchy(1, 2, 1)
-
-        hierarchy_tl.do_genealogy()
 
         assert parent1.children == [child1]
         assert parent1.parent is None
@@ -540,8 +517,6 @@ class TestSplit:
         hrc1, _ = hierarchy_tl.create_hierarchy(start=0.0, end=1, level=1)
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.0, end=1, level=2)
 
-        hierarchy_tl.component_manager._update_genealogy(hrc2, [hrc1])
-
         hierarchy_tl.component_manager.split(hrc1, 0.5)
 
         assert hrc1 not in hierarchy_tl.component_manager._components
@@ -591,8 +566,6 @@ class TestSplit:
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.5, end=1, level=1)
         hrc3, _ = hierarchy_tl.create_hierarchy(start=0, end=1, level=2)
 
-        hierarchy_tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
-
         hierarchy_tl.component_manager.split(hrc3, 0.5)
 
         assert len(hierarchy_tl) == 4
@@ -635,7 +608,6 @@ class TestGroup:
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.1, end=0.2, level=1)
         hrc3, _ = hierarchy_tl.create_hierarchy(start=0.2, end=0.3, level=1)
         hrc4, _ = hierarchy_tl.create_hierarchy(start=0.1, end=0.3, level=2)
-        hierarchy_tl.component_manager._update_genealogy(hrc4, [hrc2, hrc3])
         hrc5, _ = hierarchy_tl.create_hierarchy(start=0.3, end=0.4, level=2)
 
         hierarchy_tl.component_manager.group([hrc1, hrc5])
@@ -658,8 +630,6 @@ class TestGroup:
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.1, end=0.2, level=1)
         hrc3, _ = hierarchy_tl.create_hierarchy(start=0.0, end=0.2, level=3)
 
-        hierarchy_tl.component_manager._update_genealogy(hrc3, [hrc1, hrc2])
-
         hierarchy_tl.component_manager.group([hrc1, hrc2])
 
         assert hrc1.parent == hrc2.parent
@@ -673,10 +643,6 @@ class TestGroup:
         hrc4, _ = hierarchy_tl.create_hierarchy(start=0.1, end=0.2, level=1)
         hrc5, _ = hierarchy_tl.create_hierarchy(start=0.2, end=0.3, level=1)
         hrc6, _ = hierarchy_tl.create_hierarchy(start=0.3, end=0.4, level=1)
-
-        hierarchy_tl.component_manager._update_genealogy(hrc1, [hrc2])
-
-        hierarchy_tl.component_manager._update_genealogy(hrc2, [hrc3, hrc4, hrc5, hrc6])
 
         hierarchy_tl.component_manager.group([hrc3, hrc4])
 

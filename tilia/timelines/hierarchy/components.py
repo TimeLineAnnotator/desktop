@@ -38,8 +38,8 @@ class Hierarchy(SegmentLikeTimelineComponent):
         "comments",
     ]
 
-    SERIALIZABLE_BY_ID = ["parent"]
-    SERIALIZABLE_BY_ID_LIST = ["children"]
+    SERIALIZABLE_BY_ID = []
+    SERIALIZABLE_BY_ID_LIST = []
 
     validators = {
         "timeline": validate_read_only,
@@ -67,8 +67,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
         end: float,
         level: int,
         label: str = "",
-        parent=None,
-        children=None,
         comments="",
         pre_start=None,
         post_end=None,
@@ -77,10 +75,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
         formal_function="",
         **_,
     ):
-        self.validators |= {
-            "parent": functools.partial(validate_is_instance, Hierarchy),
-            "children": functools.partial(validate_is_instance, Hierarchy),
-        }
 
         self._start = start
         self._end = end
@@ -92,13 +86,18 @@ class Hierarchy(SegmentLikeTimelineComponent):
         self.formal_type = formal_type
         self.formal_function = formal_function
 
-        self.parent = parent
-
-        self.children = children or []
         self.pre_start = pre_start if pre_start is not None else self.start
         self.post_end = post_end if post_end is not None else self.end
 
         super().__init__(timeline, id)
+
+    @property
+    def parent(self):
+        return self.timeline.component_manager.get_parent(self)
+
+    @property
+    def children(self):
+        return self.timeline.component_manager.get_children(self)
 
     @property
     def start(self):

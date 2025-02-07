@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 from tilia.requests import get, Get, Post, listen
-from tilia.timelines.hierarchy.common import (
-    update_component_genealogy,
-)
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
@@ -175,8 +172,6 @@ class HierarchyTimelineUI(TimelineUI):
                     )
 
                 children_of_element.append(child_component)
-
-            update_component_genealogy(element.tl_component, children_of_element)
 
     def paste_with_children_into_elements(
         self, elements: list[HierarchyUI], data: list[dict]

@@ -226,8 +226,6 @@ class TestCopyPaste:
         set_dummy_copy_attributes(hrc1)
         set_dummy_copy_attributes(hrc2)
 
-        tlui.relate_hierarchies(parent=hrc3, children=[hrc1, hrc2])
-
         tlui.select_element(tlui[2])
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         tlui.deselect_all_elements()
@@ -268,8 +266,6 @@ class TestCopyPaste:
         set_dummy_copy_attributes(hrc1)
         set_dummy_copy_attributes(hrc2)
 
-        tlui.relate_hierarchies(parent=hrc3, children=[hrc1, hrc2])
-
         tlui.select_element(tlui[2])
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         tlui.deselect_all_elements()
@@ -302,8 +298,6 @@ class TestCopyPaste:
         tlui.create_hierarchy(2.75, 3, 2)  # child
         source, _ = tlui.create_hierarchy(2, 3, 3)  # parent
 
-        tlui.timeline.do_genealogy()
-
         tlui.select_element(tlui.get_element(source.id))
         post(Post.TIMELINE_ELEMENT_COPY)
         tlui.deselect_all_elements()
@@ -326,8 +320,6 @@ class TestCopyPaste:
 
         set_dummy_copy_attributes(tlui.timeline[0])
         set_dummy_copy_attributes(tlui.timeline[1])
-
-        tlui.timeline.do_genealogy()
 
         tlui.select_element(tlui[4])
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
@@ -356,8 +348,6 @@ class TestCopyPaste:
         hrc1 = tlui.timeline[0]
         hrc2 = tlui.timeline[1]
         hrc3 = tlui.timeline[2]
-
-        tlui.relate_hierarchies(parent=hrc3, children=[hrc1, hrc2])
 
         tlui.select_element(tlui[2])
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
@@ -482,8 +472,6 @@ class TestUndoRedo:
         tlui.create_hierarchy(0, 1, 1)
         tlui.create_hierarchy(0, 1, 2)
 
-        tlui.timeline.do_genealogy()
-
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
 
@@ -541,7 +529,6 @@ class TestUndoRedo:
         tlui.create_hierarchy(0, 2, 2)
         tlui.create_hierarchy(2, 3, 2)
 
-        tlui.relate_hierarchies(tlui.timeline[2], [tlui.timeline[0], tlui.timeline[1]])
         tlui.select_element(tlui[2])
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         tlui.deselect_element(tlui[2])
@@ -602,8 +589,6 @@ class TestCreateChild:
         def test_with_parent(self, tlui, user_actions):
             tlui.create_hierarchy(0, 1, 1)
             tlui.create_hierarchy(0, 1, 2)
-
-            tlui.relate_hierarchies(tlui.timeline[1], [tlui.timeline[0]])
 
             tlui.select_element(tlui[0])
 

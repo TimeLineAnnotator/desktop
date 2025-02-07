@@ -72,7 +72,6 @@ def import_by_time(
             if not component:
                 errors.append(fail_reason)
 
-        timeline.do_genealogy()
         return True, errors
 
 
@@ -212,7 +211,5 @@ def import_by_measure(
                     continue
                 while len(end_times) and start_times[0] > end_times[0]:
                     end_times.pop(0)
-
-            hierarchy_tl.do_genealogy()
 
         return True, errors
