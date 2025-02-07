@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 class SliderTimeline(Timeline):
-    SERIALIZABLE_BY_VALUE = ["is_visible", "ordinal", "height"]
+    SERIALIZABLE = ["is_visible", "ordinal", "height"]
     KIND = TimelineKind.SLIDER_TIMELINE
     FLAGS = [
         TimelineFlag.NOT_CLEARABLE,
@@ -32,7 +32,7 @@ class SliderTimeline(Timeline):
     def get_state(self) -> dict:
         result = {}
 
-        for attr in self.SERIALIZABLE_BY_VALUE:
+        for attr in self.SERIALIZABLE:
             result[attr] = getattr(self, attr)
 
         result["kind"] = self.KIND.name

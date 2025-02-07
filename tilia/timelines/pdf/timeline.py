@@ -26,7 +26,7 @@ class PdfTLComponentManager(TimelineComponentManager):
 
 class PdfTimeline(Timeline):
     KIND = TimelineKind.PDF_TIMELINE
-    SERIALIZABLE_BY_VALUE = ["height", "is_visible", "name", "ordinal", "path"]
+    SERIALIZABLE = ["height", "is_visible", "name", "ordinal", "path"]
     COMPONENT_MANAGER_CLASS = PdfTLComponentManager
 
     def __init__(self, path: str, name: str = "", height: int | None = None, **kwargs):

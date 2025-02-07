@@ -11,9 +11,7 @@ from tilia.utils import get_tilia_class_string
 
 
 class TimelineComponent(ABC):
-    SERIALIZABLE_BY_VALUE = []
-    SERIALIZABLE_BY_ID = []
-    SERIALIZABLE_BY_ID_LIST = []
+    SERIALIZABLE = []
     ORDERING_ATTRS = tuple()
 
     validators = {
@@ -42,7 +40,7 @@ class TimelineComponent(ABC):
 
     def to_hash(self):
         string_to_hash = ""
-        for attr in self.SERIALIZABLE_BY_VALUE:
+        for attr in self.SERIALIZABLE:
             string_to_hash += "|" + str(getattr(self, attr))
         return hash_function(string_to_hash)
 

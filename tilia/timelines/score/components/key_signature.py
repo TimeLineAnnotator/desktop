@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 class KeySignature(PointLikeTimelineComponent):
     KIND = ComponentKind.KEY_SIGNATURE
-    SERIALIZABLE_BY_VALUE = ["staff_index", "time", "fifths"]
+    SERIALIZABLE = ["staff_index", "time", "fifths"]
 
     def __init__(
         self,

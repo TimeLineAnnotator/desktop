@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 class Harmony(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = [
+    SERIALIZABLE = [
         "time",
         "comments",
         "step",
@@ -44,8 +44,6 @@ class Harmony(PointLikeTimelineComponent):
         "custom_text",
         "custom_text_font_type",
     ]
-    SERIALIZABLE_BY_ID = []
-    SERIALIZABLE_BY_ID_LIST = []
     ORDERING_ATTRS = ("level", "time")
 
     KIND = ComponentKind.HARMONY

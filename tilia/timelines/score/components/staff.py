@@ -5,7 +5,7 @@ from tilia.timelines.score.timeline import ScoreTimeline
 
 
 class Staff(TimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["line_count", "index"]
+    SERIALIZABLE = ["line_count", "index"]
     ORDERING_ATTRS = ("index",)
 
     KIND = ComponentKind.STAFF

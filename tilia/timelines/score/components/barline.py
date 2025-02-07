@@ -4,7 +4,7 @@ from tilia.timelines.component_kinds import ComponentKind
 
 
 class BarLine(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["time"]
+    SERIALIZABLE = ["time"]
     ORDERING_ATTRS = ("time",)
 
     KIND = ComponentKind.BAR_LINE

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 def get_base_export_attributes(cls: type[TimelineComponent]) -> list[str]:
     ui_attributes = ["color"]
 
-    return [x for x in cls.SERIALIZABLE_BY_VALUE if x not in ui_attributes]
+    return [x for x in cls.SERIALIZABLE if x not in ui_attributes]
 
 
 def get_export_attributes_point_like(cls: type[TimelineComponent]) -> list[str]:

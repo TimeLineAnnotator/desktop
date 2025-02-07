@@ -24,9 +24,7 @@ if TYPE_CHECKING:
 
 
 class Mode(PointLikeTimelineComponent):
-    SERIALIZABLE_BY_VALUE = ["time", "step", "accidental", "type", "comments", "level"]
-    SERIALIZABLE_BY_ID = []
-    SERIALIZABLE_BY_ID_LIST = []
+    SERIALIZABLE = ["time", "step", "accidental", "type", "comments", "level"]
     ORDERING_ATTRS = ("level", "time")
     KIND = ComponentKind.MODE
 

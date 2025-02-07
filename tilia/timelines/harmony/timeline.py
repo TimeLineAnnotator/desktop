@@ -133,7 +133,7 @@ class HarmonyTLComponentManager(TimelineComponentManager):
 class HarmonyTimeline(Timeline):
     KIND = TimelineKind.HARMONY_TIMELINE
     DEFAULT_LEVEL_HEIGHT = 35
-    SERIALIZABLE_BY_VALUE = [
+    SERIALIZABLE = [
         "level_count",
         "level_height",
         "is_visible",
