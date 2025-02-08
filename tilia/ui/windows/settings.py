@@ -221,6 +221,15 @@ def select_color_button(value, text=None):
     return button
 
 
+def combobox(options: list, current_value: str):
+    combobox = QComboBox()
+    for option in options:
+        combobox.addItem(option.title(), option)
+    combobox.setCurrentText(current_value.title())
+    combobox.setObjectName("combobox")
+    return combobox
+
+
 def get_widget_for_value(value, text=None) -> QWidget:
     match value:
         case bool():
@@ -254,16 +263,12 @@ def get_widget_for_value(value, text=None) -> QWidget:
             return widget
 
         case str():
-            if len(value) and value[0] == "#":
-                return select_color_button(value, text)
+            if len(value):
+                if value[0] == "#":
+                    return select_color_button(value, text)
 
-            if len(value) and value in HARMONY_DISPLAY_MODES:
-                combobox = QComboBox()
-                for mode in HARMONY_DISPLAY_MODES:
-                    combobox.addItem(mode.title(), mode)
-                combobox.setCurrentText(value.title())
-                combobox.setObjectName("combobox")
-                return combobox
+                if value in HARMONY_DISPLAY_MODES:
+                    return combobox(HARMONY_DISPLAY_MODES, value)
 
             line_edit = QLineEdit(str(value).title())
             line_edit.setObjectName("str")
