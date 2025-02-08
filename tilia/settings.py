@@ -118,7 +118,7 @@ class SettingsManager(QObject):
     def _get(self, group_name: str, setting: str, in_default=True):
         key = self._get_key(group_name, setting, in_default)
         value = self._settings.value(key, None)
-        if not value:
+        if not value or type(value) != type(self.DEFAULT_SETTINGS[group_name][setting]):
             try:
                 value = self.DEFAULT_SETTINGS[group_name][setting]
             except KeyError:
