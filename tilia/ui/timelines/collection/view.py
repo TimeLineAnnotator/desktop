@@ -10,6 +10,7 @@ class TimelineUIsView(QGraphicsView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._update_scroll_margins()
         setup_smooth(self)
 
     def is_hscrollbar_pressed(self):
@@ -25,6 +26,16 @@ class TimelineUIsView(QGraphicsView):
             self.centerOn(x, y)
 
         __set_x(x)
+
+    @property
+    def current_viewport_x(self):
+        viewport = self.mapToScene(self.viewport().geometry()).boundingRect()
+        return {0: viewport.left(), 1: viewport.right()}
+
+    def _update_scroll_margins(self):
+        viewport = self.current_viewport_x
+        self.scroll_margin = (viewport[1] - viewport[0]) / 10
+        self.scroll_offset = self.scroll_margin * 4
 
     def wheelEvent(self, event) -> None:
         if Qt.KeyboardModifier.ShiftModifier in event.modifiers():
@@ -63,3 +74,7 @@ class TimelineUIsView(QGraphicsView):
                 self.verticalScrollBar().triggerAction(
                     QAbstractSlider.SliderAction.SliderSingleStepSub
                 )
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_scroll_margins()

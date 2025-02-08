@@ -1,13 +1,14 @@
 from PyQt6.QtCore import QSettings, QObject
 
 import tilia.constants
+from tilia.ui.enums import ScrollType
 
 
 class SettingsManager(QObject):
 
     DEFAULT_SETTINGS = {
         "general": {
-            "auto-scroll": "false",
+            "auto-scroll": ScrollType.OFF,
             "window_width": 800,
             "window_height": 400,
             "window_x": 20,

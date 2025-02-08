@@ -126,8 +126,7 @@ class Post(Enum):
     SLIDER_DRAG = auto()
     SLIDER_DRAG_END = auto()
     SLIDER_DRAG_START = auto()
-    TIMELINES_AUTO_SCROLL_DISABLE = auto()
-    TIMELINES_AUTO_SCROLL_ENABLE = auto()
+    TIMELINES_AUTO_SCROLL_UPDATE = auto()
     TIMELINES_CLEAR = auto()
     TIMELINES_CROP_DONE = auto()
     TIMELINE_ADD = auto()
@@ -194,9 +193,9 @@ class Post(Enum):
 _posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary(
     {post: {} for post in Post}
 )
-_listeners_to_posts: weakref.WeakKeyDictionary[Any, list[Post]] = (
-    weakref.WeakKeyDictionary()
-)
+_listeners_to_posts: weakref.WeakKeyDictionary[
+    Any, list[Post]
+] = weakref.WeakKeyDictionary()
 
 
 def _get_posts_excluded_from_log() -> list[Post]:

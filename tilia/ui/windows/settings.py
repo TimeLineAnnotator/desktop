@@ -23,6 +23,7 @@ from tilia.ui.windows import WindowKind
 from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
+from tilia.ui.enums import ScrollType
 
 
 class SettingsWindow(QDialog):
@@ -274,6 +275,11 @@ def get_widget_for_value(value, text=None) -> QWidget:
             line_edit.setObjectName("str")
             return line_edit
 
+        case ScrollType():
+            return combobox(
+                ScrollType.get_option_list(), ScrollType.get_str_from_enum(value)
+            )
+
         case _:
             raise NotImplementedError
 
@@ -301,7 +307,10 @@ def get_value_for_widget(widget: QWidget):
             return widget.styleSheet().lstrip("background-color: ").split(";")[0]
 
         case "combobox":
-            return widget.currentText().lower()
+            text = widget.currentText().lower()
+            if text in ScrollType.get_option_list():
+                return ScrollType.get_enum_from_str(text)
+            return text
 
         case "str":
             return widget.text().lower()
