@@ -27,7 +27,7 @@ class TestImport:
                     with Serve(
                         Get.FROM_USER_YES_OR_NO, True
                     ):  # confirm overwriting components
-                        post(Post.IMPORT_CSV_MARKER_TIMELINE)
+                        post(Post.IMPORT_CSV, TimelineKind.MARKER_TIMELINE)
 
         assert marker_tl.get_state() == prev_state
 
@@ -44,7 +44,7 @@ class TestImport:
                 (True, (resources / EXAMPLE_MEDIA_PATH).resolve().__str__()),
             ),
         ):
-            post(Post.IMPORT_CSV_MARKER_TIMELINE)
+            post(Post.IMPORT_CSV, TimelineKind.MARKER_TIMELINE)
 
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_title("Import")
