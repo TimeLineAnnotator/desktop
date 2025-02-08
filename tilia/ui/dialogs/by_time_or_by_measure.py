@@ -9,8 +9,8 @@ from PyQt6.QtWidgets import (
 
 
 class ByTimeOrByMeasure(QDialog):
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self):
+        super().__init__()
         self.setFixedSize(300, 110)
         layout = QVBoxLayout()
         self.setLayout(layout)

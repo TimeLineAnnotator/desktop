@@ -19,7 +19,7 @@ class TestImport:
         prev_state = marker_tl.get_state()
 
         with patch(
-            "tilia.ui.qtui.QtUI._get_by_time_or_by_measure_from_user",
+            "tilia.ui.ui_import._get_by_time_or_by_measure_from_user",
             return_value="time",
         ):
             with patch("builtins.open", mock_open(read_data="nonsense")):
@@ -36,7 +36,7 @@ class TestImport:
     ):
         with (
             patch(
-                "tilia.ui.qtui.QtUI._get_by_time_or_by_measure_from_user",
+                "tilia.ui.ui_import._get_by_time_or_by_measure_from_user",
                 return_value="time",
             ),
             Serve(
