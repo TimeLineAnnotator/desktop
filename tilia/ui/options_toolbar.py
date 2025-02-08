@@ -1,9 +1,9 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QToolBar, QCheckBox
+from PyQt6.QtWidgets import QToolBar, QComboBox, QLabel
 
 from tilia.settings import settings
-from tilia.ui import actions
-from tilia.ui.actions import TiliaAction
+from tilia.ui.enums import ScrollType
+from tilia.requests import listen, Post, post
 
 
 class OptionsToolbar(QToolBar):
@@ -11,13 +11,30 @@ class OptionsToolbar(QToolBar):
         super().__init__()
         self.setObjectName("options_toolbar")
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
-        self.check_box = QCheckBox("Auto-scroll")
-        self.check_box.setChecked(settings.get("general", "auto-scroll"))
-        self.check_box.stateChanged.connect(self.on_state_changed)
-        self.addWidget(self.check_box)
+        self.addWidget(QLabel("Auto-scroll"))
+        self.combobox = QComboBox()
+        for option in ScrollType.get_option_list():
+            self.combobox.addItem(option.title())
+        self.combobox.setCurrentText(
+            ScrollType.get_str_from_enum(settings.get("general", "auto-scroll"))
+        )
+        self.combobox.currentTextChanged.connect(self.on_state_changed)
+        self.addWidget(self.combobox)
+        listen(
+            self,
+            Post.SETTINGS_UPDATED,
+            lambda updated_settings: self.on_settings_updated(updated_settings),
+        )
 
-    def on_state_changed(self):
-        if self.check_box.isChecked():
-            actions.trigger(TiliaAction.TIMELINES_AUTO_SCROLL_ENABLE)
-        else:
-            actions.trigger(TiliaAction.TIMELINES_AUTO_SCROLL_DISABLE)
+    def on_state_changed(self, option):
+        scroll_type = ScrollType.get_enum_from_str(option)
+        settings.set("general", "auto-scroll", scroll_type)
+        post(Post.TIMELINES_AUTO_SCROLL_UPDATE, scroll_type)
+
+    def on_settings_updated(self, updated_settings):
+        if "general" in updated_settings:
+            scroll_type = settings.get("general", "auto-scroll")
+            self.combobox.blockSignals(True)
+            self.combobox.setCurrentText(ScrollType.get_str_from_enum(scroll_type))
+            post(Post.TIMELINES_AUTO_SCROLL_UPDATE, scroll_type)
+            self.combobox.blockSignals(False)

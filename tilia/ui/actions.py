@@ -64,8 +64,6 @@ class TiliaAction(Enum):
     SCORE_ANNOTATION_FONT_DEC = auto()
     SCORE_ANNOTATION_FONT_INC = auto()
     SETTINGS_WINDOW_OPEN = auto()
-    TIMELINES_AUTO_SCROLL_ENABLE = auto()
-    TIMELINES_AUTO_SCROLL_DISABLE = auto()
     TIMELINES_CLEAR = auto()
     TIMELINES_ADD_BEAT_TIMELINE = auto()
     TIMELINES_ADD_HIERARCHY_TIMELINE = auto()
@@ -297,12 +295,6 @@ taction_to_params = {
     ),
     TiliaAction.TIMELINES_CLEAR: ActionParams(
         Post.TIMELINES_CLEAR, "Clear all", "", ""
-    ),
-    TiliaAction.TIMELINES_AUTO_SCROLL_ENABLE: ActionParams(
-        Post.TIMELINES_AUTO_SCROLL_ENABLE, "Enable auto-scroll", "", ""
-    ),
-    TiliaAction.TIMELINES_AUTO_SCROLL_DISABLE: ActionParams(
-        Post.TIMELINES_AUTO_SCROLL_DISABLE, "Disable auto-scroll", "", ""
     ),
     TiliaAction.TIMELINE_ELEMENT_INSPECT: ActionParams(
         Post.TIMELINE_ELEMENT_INSPECT, "Inspect", "", ""

@@ -32,6 +32,7 @@ from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
 from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
+from tilia.ui.enums import ScrollType
 from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.player import PlayerToolbarElement
 from tilia.ui.smooth_scroll import setup_smooth, smooth
@@ -107,7 +108,7 @@ class TimelineUIs:
         self.hscrollbar_is_being_dragged = False
 
     def _setup_auto_scroll(self):
-        self.auto_scroll_is_enabled = settings.get("general", "auto-scroll")
+        self.auto_scroll_option = settings.get("general", "auto-scroll")
 
     def _setup_widgets(self, main_window: QMainWindow):
         self.scene = TimelineUIsScene()
@@ -131,14 +132,7 @@ class TimelineUIs:
             (Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, self._on_timeline_ui_left_drag),
             (Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_timeline_ui_left_released),
             (Post.TIMELINE_VIEW_RIGHT_CLICK, self._on_timeline_ui_right_click),
-            (
-                Post.TIMELINES_AUTO_SCROLL_ENABLE,
-                functools.partial(self.set_auto_scroll, True),
-            ),
-            (
-                Post.TIMELINES_AUTO_SCROLL_DISABLE,
-                functools.partial(self.set_auto_scroll, False),
-            ),
+            (Post.TIMELINES_AUTO_SCROLL_UPDATE, self.set_auto_scroll),
             (
                 Post.TIMELINE_KEY_PRESS_DOWN,
                 functools.partial(self.on_arrow_press, "down"),
@@ -1072,15 +1066,30 @@ class TimelineUIs:
         if not prev_smooth_scroll:
             settings.set("general", "prioritise_performance", False)
 
-    def _should_auto_scroll(self, media_time_change_reason) -> bool:
-        return all(
+    def _auto_scroll(self, media_time_change_reason, time) -> None:
+        if not all(
             [
                 not self.is_dragging,
-                self.auto_scroll_is_enabled,
+                self.auto_scroll_option != ScrollType.OFF,
                 media_time_change_reason != MediaTimeChangeReason.SEEK,
                 not self.view.is_hscrollbar_pressed(),
             ]
-        )
+        ):
+            return
+
+        if self.auto_scroll_option is ScrollType.CONTINUOUS:
+            self.center_on_time(time)
+            return
+
+        viewport = self.view.current_viewport_x
+        x = time_x_converter.get_x_by_time(time)
+        if (
+            (viewport[0] + self.view.scroll_margin)
+            < x
+            < (viewport[1] - self.view.scroll_margin)
+        ):
+            return
+        self.view.move_to_x(x + self.view.scroll_offset)
 
     def on_media_time_change(self, time: float, reason: MediaTimeChangeReason) -> None:
         def __get_time():
@@ -1091,8 +1100,7 @@ class TimelineUIs:
             self.set_playback_lines_position(time)
             self.selected_time = time
 
-        if self._should_auto_scroll(reason):
-            self.center_on_time(time)
+        self._auto_scroll(reason, time)
 
         if not self.is_dragging:
             __set_time(time)
@@ -1108,10 +1116,9 @@ class TimelineUIs:
         self.selected_time = time
         self.set_playback_lines_position(time)
 
-    def set_auto_scroll(self, value: bool):
-        settings.set("general", "auto-scroll", value)
+    def set_auto_scroll(self, value: ScrollType):
         # noinspection PyAttributeOutsideInit
-        self.auto_scroll_is_enabled = value
+        self.auto_scroll_option = value
 
     def center_on_time(self, time: float):
         self.view.move_to_x(time_x_converter.get_x_by_time(time))
