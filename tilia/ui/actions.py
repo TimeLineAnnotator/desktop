@@ -295,9 +295,6 @@ taction_to_params = {
     TiliaAction.TIMELINES_ADD_SCORE_TIMELINE: ActionParams(
         Post.TIMELINE_ADD, "&Score", "", "", (TimelineKind.SCORE_TIMELINE,)
     ),
-    TiliaAction.IMPORT_CSV_HARMONY_TIMELINE: ActionParams(
-        Post.IMPORT_CSV_HARMONY_TIMELINE, "&Import from CSV file", "", ""
-    ),
     TiliaAction.TIMELINES_CLEAR: ActionParams(
         Post.TIMELINES_CLEAR, "Clear all", "", ""
     ),
@@ -345,17 +342,32 @@ taction_to_params = {
     TiliaAction.PDF_MARKER_ADD: ActionParams(
         Post.PDF_MARKER_ADD, "Add PDF marker", "pdf_add", "p"
     ),
+    TiliaAction.IMPORT_CSV_HARMONY_TIMELINE: ActionParams(
+        Post.IMPORT_CSV,
+        "&Import from CSV file",
+        "",
+        "",
+        (TimelineKind.HARMONY_TIMELINE,),
+    ),
     TiliaAction.IMPORT_CSV_PDF_TIMELINE: ActionParams(
-        Post.IMPORT_CSV_PDF_TIMELINE, "&Import from CSV file", "", ""
+        Post.IMPORT_CSV, "&Import from CSV file", "", "", (TimelineKind.PDF_TIMELINE,)
     ),
     TiliaAction.IMPORT_CSV_HIERARCHY_TIMELINE: ActionParams(
-        Post.IMPORT_CSV_HIERARCHY_TIMELINE, "&Import from CSV file", "", ""
+        Post.IMPORT_CSV,
+        "&Import from CSV file",
+        "",
+        "",
+        (TimelineKind.HIERARCHY_TIMELINE,),
     ),
     TiliaAction.IMPORT_CSV_MARKER_TIMELINE: ActionParams(
-        Post.IMPORT_CSV_MARKER_TIMELINE, "&Import from CSV file", "", ""
+        Post.IMPORT_CSV,
+        "&Import from CSV file",
+        "",
+        "",
+        (TimelineKind.MARKER_TIMELINE,),
     ),
     TiliaAction.IMPORT_CSV_BEAT_TIMELINE: ActionParams(
-        Post.IMPORT_CSV_BEAT_TIMELINE, "&Import from CSV file", "", ""
+        Post.IMPORT_CSV, "&Import from CSV file", "", "", (TimelineKind.BEAT_TIMELINE,)
     ),
     TiliaAction.IMPORT_MUSICXML: ActionParams(
         Post.IMPORT_MUSICXML, "&Import from musicxml file", "", ""

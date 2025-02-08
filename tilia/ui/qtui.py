@@ -152,26 +152,7 @@ class QtUI:
             (Post.REQUEST_CLEAR_UI, self.on_clear_ui),
             (Post.TIMELINE_KIND_INSTANCED, self.on_timeline_kind_change),
             (Post.TIMELINE_KIND_NOT_INSTANCED, self.on_timeline_kind_change),
-            (
-                Post.IMPORT_CSV_MARKER_TIMELINE,
-                partial(self.on_import_from_csv, TlKind.MARKER_TIMELINE),
-            ),
-            (
-                Post.IMPORT_CSV_HIERARCHY_TIMELINE,
-                partial(self.on_import_from_csv, TlKind.HIERARCHY_TIMELINE),
-            ),
-            (
-                Post.IMPORT_CSV_BEAT_TIMELINE,
-                partial(self.on_import_from_csv, TlKind.BEAT_TIMELINE),
-            ),
-            (
-                Post.IMPORT_CSV_HARMONY_TIMELINE,
-                partial(self.on_import_from_csv, TlKind.HARMONY_TIMELINE),
-            ),
-            (
-                Post.IMPORT_CSV_PDF_TIMELINE,
-                partial(self.on_import_from_csv, TlKind.PDF_TIMELINE),
-            ),
+            (Post.IMPORT_CSV, self.on_import_from_csv),
             (
                 Post.IMPORT_MUSICXML,
                 partial(self.on_import_from_csv, TlKind.SCORE_TIMELINE),
