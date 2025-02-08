@@ -133,35 +133,35 @@ class AddTimelinesMenu(TiliaMenu):
 
 class HierarchyMenu(TiliaMenu):
     title = "&Hierarchy"
-    items = [(MenuItemKind.ACTION, TiliaAction.HIERARCHY_IMPORT_FROM_CSV)]
+    items = [(MenuItemKind.ACTION, TiliaAction.IMPORT_CSV_HIERARCHY_TIMELINE)]
 
 
 class MarkerMenu(TiliaMenu):
     title = "&Marker"
-    items = [(MenuItemKind.ACTION, TiliaAction.MARKER_IMPORT_FROM_CSV)]
+    items = [(MenuItemKind.ACTION, TiliaAction.IMPORT_CSV_MARKER_TIMELINE)]
 
 
 class BeatMenu(TiliaMenu):
     title = "&Beat"
     items = [
-        (MenuItemKind.ACTION, TiliaAction.BEAT_IMPORT_FROM_CSV),
+        (MenuItemKind.ACTION, TiliaAction.IMPORT_CSV_BEAT_TIMELINE),
         (MenuItemKind.ACTION, TiliaAction.BEAT_TIMELINE_FILL),
     ]
 
 
 class HarmonyMenu(TiliaMenu):
     title = "Ha&rmony"
-    items = [(MenuItemKind.ACTION, TiliaAction.HARMONY_IMPORT_FROM_CSV)]
+    items = [(MenuItemKind.ACTION, TiliaAction.IMPORT_CSV_HARMONY_TIMELINE)]
 
 
 class PdfMenu(TiliaMenu):
     title = "&PDF"
-    items = [(MenuItemKind.ACTION, TiliaAction.PDF_IMPORT_FROM_CSV)]
+    items = [(MenuItemKind.ACTION, TiliaAction.IMPORT_CSV_PDF_TIMELINE)]
 
 
 class ScoreMenu(TiliaMenu):
     title = "&Score"
-    items = [(MenuItemKind.ACTION, TiliaAction.SCORE_IMPORT_FROM_MUSICXML)]
+    items = [(MenuItemKind.ACTION, TiliaAction.IMPORT_MUSICXML)]
 
 
 class TimelinesMenu(TiliaMenu):
