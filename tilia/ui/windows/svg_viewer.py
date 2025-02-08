@@ -80,6 +80,7 @@ class SvgViewer(ViewDockWidget):
         self.view = SvgGraphicsView(
             get_times=self._get_time_from_scene_x,
             update_measure_tracker=self.update_measure_tracker,
+            update_scroll_margins=self._update_scroll_margins,
             parent=self,
         )
         self.scene = QGraphicsScene(self.view)
@@ -104,6 +105,7 @@ class SvgViewer(ViewDockWidget):
         self.visible_times = [0, 0]
         self.beat_x_position = {}
         self.cur_t_x = 0.0
+        self._update_scroll_margins()
 
     def _get_toolbar(self) -> QVBoxLayout:
         def get_button(qaction, callback):
@@ -494,10 +496,13 @@ class SvgViewer(ViewDockWidget):
             self.view.scroll_to_x(self.cur_t_x)
             return
         cur_viewport = self.view.current_viewport_x
-        margin = (width := (cur_viewport[1] - cur_viewport[0])) / 10
-        if (cur_viewport[0] + margin) < self.cur_t_x < (cur_viewport[1] - margin):
+        if (
+            (cur_viewport[0] + self.scroll_margin)
+            < self.cur_t_x
+            < (cur_viewport[1] - self.scroll_margin)
+        ):
             return
-        self.view.scroll_to_x(self.cur_t_x + width / 2 - margin)
+        self.view.scroll_to_x(self.cur_t_x + self.scroll_offset)
 
     def _update_playback_line(self):
         self.view.blockSignals(True)
@@ -505,10 +510,19 @@ class SvgViewer(ViewDockWidget):
         self.playback_line.setLine(self.cur_t_x, sr.top(), self.cur_t_x, sr.bottom())
         self.view.blockSignals(False)
 
+    def _update_scroll_margins(self):
+        cur_viewport = self.view.current_viewport_x
+        self.scroll_margin = (cur_viewport[1] - cur_viewport[0]) / 10
+        self.scroll_offset = self.scroll_margin * 4
+
     def deleteLater(self):
         super().deleteLater()
         stop_serving_all(self)
         stop_listening_to_all(self)
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        self._update_scroll_margins()
 
     def hideEvent(self, a0) -> None:
         try:
@@ -557,6 +571,7 @@ class SvgGraphicsView(QGraphicsView):
         self,
         get_times: Callable[[dict[int, float]], dict[int, list[float]]],
         update_measure_tracker: Callable[[float, float], None],
+        update_scroll_margins: Callable[..., None],
         *args,
         **kwargs,
     ) -> None:
@@ -571,6 +586,7 @@ class SvgGraphicsView(QGraphicsView):
         self.current_viewport_x_center = 0.0
         self._viewport_updated()
         self.update_measure_tracker = update_measure_tracker
+        self.update_scroll_margins = update_scroll_margins
         setup_smooth(self)
 
     def _viewport_updated(self) -> bool:
@@ -647,6 +663,7 @@ class SvgGraphicsView(QGraphicsView):
         else:
             self.setTransform(self.transform().scale(1 / 1.1, 1 / 1.1))
         self.setTransformationAnchor(old_anchor)
+        self.update_scroll_margins()
         self._check_scene_bounding_rect()
 
     def paintEvent(self, event) -> None:
