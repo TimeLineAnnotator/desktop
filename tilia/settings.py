@@ -105,14 +105,6 @@ class SettingsManager(QObject):
         self._settings.beginGroup("editable")
         self._settings.remove("")
         self._check_all_default_settings_present()
-        for group_name, settings in self.DEFAULT_SETTINGS.items():
-            self._settings.beginGroup(group_name)
-            for key, value in settings.items():
-                self._settings.setValue(key, value)
-                if group_name not in self._cache.keys():
-                    self._cache[group_name] = {}
-                self._cache[group_name][key] = value
-            self._settings.endGroup()
         self._settings.endGroup()
 
     def _clear_recent_files(self):
