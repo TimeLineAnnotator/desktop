@@ -13,12 +13,12 @@ from tilia.ui.windows import WindowKind
 
 
 class TiliaAction(Enum):
-    SCORE_IMPORT_FROM_MUSICXML = auto()
-    PDF_IMPORT_FROM_CSV = auto()
+    IMPORT_MUSICXML = auto()
+    IMPORT_CSV_PDF_TIMELINE = auto()
     PDF_MARKER_ADD = auto()
     AUTOSAVES_FOLDER_OPEN = auto()
     APP_CLOSE = auto()
-    HARMONY_IMPORT_FROM_CSV = auto()
+    IMPORT_CSV_HARMONY_TIMELINE = auto()
     MODE_ADD = auto()
     HARMONY_TIMELINE_HIDE_KEYS = auto()
     HARMONY_TIMELINE_SHOW_KEYS = auto()
@@ -28,9 +28,9 @@ class TiliaAction(Enum):
     TIMELINES_ADD_HARMONY_TIMELINE = auto()
     HARMONY_ADD = auto()
     MEDIA_LOAD_YOUTUBE = auto()
-    HIERARCHY_IMPORT_FROM_CSV = auto()
-    MARKER_IMPORT_FROM_CSV = auto()
-    BEAT_IMPORT_FROM_CSV = auto()
+    IMPORT_CSV_HIERARCHY_TIMELINE = auto()
+    IMPORT_CSV_MARKER_TIMELINE = auto()
+    IMPORT_CSV_BEAT_TIMELINE = auto()
     HIERARCHY_ADD_POST_END = auto()
     HIERARCHY_ADD_PRE_START = auto()
     ABOUT_WINDOW_OPEN = auto()
@@ -183,8 +183,8 @@ taction_to_params = {
     TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE: ActionParams(
         Post.BEAT_SET_AMOUNT_IN_MEASURE, "Set beat amount in measure", "", ""
     ),
-    TiliaAction.BEAT_IMPORT_FROM_CSV: ActionParams(
-        Post.BEAT_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
+    TiliaAction.IMPORT_CSV_BEAT_TIMELINE: ActionParams(
+        Post.IMPORT_CSV_BEAT_TIMELINE, "&Import from CSV file", "", ""
     ),
     TiliaAction.BEAT_TIMELINE_FILL: ActionParams(
         Post.BEAT_TIMELINE_FILL, "Fill timeline with beats", "", ""
@@ -192,8 +192,8 @@ taction_to_params = {
     TiliaAction.MARKER_ADD: ActionParams(
         Post.MARKER_ADD, "Add marker at current position", "add_marker30", "m"
     ),
-    TiliaAction.MARKER_IMPORT_FROM_CSV: ActionParams(
-        Post.MARKER_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
+    TiliaAction.IMPORT_CSV_MARKER_TIMELINE: ActionParams(
+        Post.IMPORT_CSV_MARKER_TIMELINE, "&Import from CSV file", "", ""
     ),
     TiliaAction.TIMELINE_ELEMENT_COLOR_SET: ActionParams(
         Post.TIMELINE_ELEMENT_COLOR_SET, "Change color", "", ""
@@ -231,8 +231,8 @@ taction_to_params = {
         "paste_with_data30",
         "Ctrl+Shift+V",
     ),
-    TiliaAction.HIERARCHY_IMPORT_FROM_CSV: ActionParams(
-        Post.HIERARCHY_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
+    TiliaAction.IMPORT_CSV_HIERARCHY_TIMELINE: ActionParams(
+        Post.IMPORT_CSV_HIERARCHY_TIMELINE, "&Import from CSV file", "", ""
     ),
     TiliaAction.HARMONY_ADD: ActionParams(
         Post.HARMONY_ADD, "Add harmony", "harmony_add", "h"
@@ -304,8 +304,8 @@ taction_to_params = {
     TiliaAction.TIMELINES_ADD_SCORE_TIMELINE: ActionParams(
         Post.TIMELINE_ADD, "&Score", "", "", (TimelineKind.SCORE_TIMELINE,)
     ),
-    TiliaAction.HARMONY_IMPORT_FROM_CSV: ActionParams(
-        Post.HARMONY_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
+    TiliaAction.IMPORT_CSV_HARMONY_TIMELINE: ActionParams(
+        Post.IMPORT_CSV_HARMONY_TIMELINE, "&Import from CSV file", "", ""
     ),
     TiliaAction.TIMELINES_CLEAR: ActionParams(
         Post.TIMELINES_CLEAR, "Clear all", "", ""
@@ -354,11 +354,11 @@ taction_to_params = {
     TiliaAction.PDF_MARKER_ADD: ActionParams(
         Post.PDF_MARKER_ADD, "Add PDF marker", "pdf_add", "p"
     ),
-    TiliaAction.PDF_IMPORT_FROM_CSV: ActionParams(
-        Post.PDF_IMPORT_FROM_CSV, "&Import from CSV file", "", ""
+    TiliaAction.IMPORT_CSV_PDF_TIMELINE: ActionParams(
+        Post.IMPORT_CSV_PDF_TIMELINE, "&Import from CSV file", "", ""
     ),
-    TiliaAction.SCORE_IMPORT_FROM_MUSICXML: ActionParams(
-        Post.SCORE_IMPORT_FROM_MUSICXML, "&Import from musicxml file", "", ""
+    TiliaAction.IMPORT_MUSICXML: ActionParams(
+        Post.IMPORT_MUSICXML, "&Import from musicxml file", "", ""
     ),
     TiliaAction.SCORE_ANNOTATION_ADD: ActionParams(
         None, "Add Annotation (Return)", "annotation_add", "", "", ""

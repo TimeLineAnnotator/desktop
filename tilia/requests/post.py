@@ -6,7 +6,7 @@ from tilia.settings import settings
 
 
 class Post(Enum):
-    PDF_IMPORT_FROM_CSV = auto()
+    IMPORT_CSV_PDF_TIMELINE = auto()
     PDF_MARKER_ADD = auto()
     AUTOSAVES_FOLDER_OPEN = auto()
     UI_EXIT = auto()
@@ -19,7 +19,7 @@ class Post(Enum):
     APP_STATE_RESTORE = auto()
     BEAT_ADD = auto()
     BEAT_DISTRIBUTE = auto()
-    BEAT_IMPORT_FROM_CSV = auto()
+    IMPORT_CSV_BEAT_TIMELINE = auto()
     BEAT_RESET_MEASURE_NUMBER = auto()
     BEAT_SET_AMOUNT_IN_MEASURE = auto()
     BEAT_SET_MEASURE_NUMBER = auto()
@@ -47,7 +47,7 @@ class Post(Enum):
     HARMONY_ADD = auto()
     HARMONY_DISPLAY_AS_CHORD_SYMBOL = auto()
     HARMONY_DISPLAY_AS_ROMAN_NUMERAL = auto()
-    HARMONY_IMPORT_FROM_CSV = auto()
+    IMPORT_CSV_HARMONY_TIMELINE = auto()
     HARMONY_TIMELINE_HIDE_KEYS = auto()
     HARMONY_TIMELINE_SHOW_KEYS = auto()
     HARMONY_TIMELINE_COMPONENTS_DESERIALIZED = auto()
@@ -60,7 +60,7 @@ class Post(Enum):
     HIERARCHY_DESELECTED = auto()
     HIERARCHY_GENEALOGY_CHANGED = auto()
     HIERARCHY_GROUP = auto()
-    HIERARCHY_IMPORT_FROM_CSV = auto()
+    IMPORT_CSV_HIERARCHY_TIMELINE = auto()
     HIERARCHY_INCREASE_LEVEL = auto()
     HIERARCHY_LEVEL_CHANGED = auto()
     HIERARCHY_MERGE = auto()
@@ -80,7 +80,7 @@ class Post(Enum):
     LEFT_BUTTON_CLICK = auto()
     LOOP_IGNORE_COMPONENT = auto()
     MARKER_ADD = auto()
-    MARKER_IMPORT_FROM_CSV = auto()
+    IMPORT_CSV_MARKER_TIMELINE = auto()
     MEDIA_METADATA_FIELD_SET = auto()
     MERGE_RANGE_BUTTON = auto()
     METADATA_UPDATE_FIELDS = auto()
@@ -117,7 +117,7 @@ class Post(Enum):
     REQUEST_FILE_NEW = auto()
     REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH = auto()
     REQUEST_SAVE_TO_PATH = auto()
-    SCORE_IMPORT_FROM_MUSICXML = auto()
+    IMPORT_MUSICXML = auto()
     SCORE_TIMELINE_CLEAR_DONE = auto()
     SCORE_TIMELINE_COMPONENTS_DESERIALIZED = auto()
     SELECTION_BOX_DESELECT_ITEM = auto()
@@ -194,9 +194,9 @@ class Post(Enum):
 _posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary(
     {post: {} for post in Post}
 )
-_listeners_to_posts: weakref.WeakKeyDictionary[Any, list[Post]] = (
-    weakref.WeakKeyDictionary()
-)
+_listeners_to_posts: weakref.WeakKeyDictionary[
+    Any, list[Post]
+] = weakref.WeakKeyDictionary()
 
 
 def _get_posts_excluded_from_log() -> list[Post]:
