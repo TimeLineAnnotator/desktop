@@ -4,7 +4,7 @@ import re
 from functools import partial
 from pathlib import Path
 
-from typing import Optional, Callable
+from typing import Optional
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl, QtMsgType
@@ -26,7 +26,6 @@ from . import actions
 from .actions import TiliaAction
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
-from .dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 from .dialogs.crash import CrashDialog
 from .menubar import TiliaMenuBar
 from tilia.ui.timelines.collection.collection import TimelineUIs
@@ -41,6 +40,7 @@ from .menus import (
 )
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
+from .ui_import import on_import_from_csv
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
@@ -48,7 +48,6 @@ from .windows.inspect import Inspect
 from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
 from ..media.player import QtVideoPlayer, QtAudioPlayer, YouTubePlayer
-from ..parsers.csv.beat import beats_from_csv
 from tilia import constants
 from tilia.settings import settings
 from tilia.utils import get_tilia_class_string
@@ -370,173 +369,11 @@ class QtUI:
                 window.close()
         self.main_window.setFocus()
 
-    def _get_by_time_or_by_measure_from_user(self):
-        dialog = ByTimeOrByMeasure(self.main_window)
-        if not dialog.exec():
-            return
-        return dialog.get_option()
-
     def on_website_help_open(self):
         QDesktopServices.openUrl(QUrl(f"{constants.WEBSITE_URL}/help/introduction"))
 
-    def on_import_from_csv(self, tlkind: TlKind) -> None:
-        if not self._validate_timeline_kind_on_import_from_csv(tlkind):
-            return
-
-        tls_of_kind = self.timeline_uis.get_timeline_uis_by_attr(
-            "TIMELINE_KIND", tlkind
-        )
-        if len(tls_of_kind) == 1:
-            timeline_ui = tls_of_kind[0]
-        else:
-            timeline_ui = self.timeline_uis.ask_choose_timeline(
-                "Import components from CSV",
-                "Choose timeline where components will be created",
-                tlkind,
-            )
-
-        if not timeline_ui:
-            return
-
-        timeline = get(Get.TIMELINE, timeline_ui.id)
-        if (
-            timeline.components
-            and not self._confirm_timeline_overwrite_on_import_from_csv()
-        ):
-            return
-
-        if tlkind == TlKind.SCORE_TIMELINE:
-            time_or_measure = "measure"
-            beat_tlui = self._get_beat_timeline_ui_for_import_from_csv()
-            if not beat_tlui:
-                return
-
-            beat_tl = get(Get.TIMELINE, beat_tlui.id)
-            success, path = get(
-                Get.FROM_USER_FILE_PATH,
-                "Import components",
-                ["musicXML files (*.musicxml; *.mxl)"],
-            )
-
-        else:
-            if tlkind == TlKind.BEAT_TIMELINE:
-                time_or_measure = "time"
-            else:
-                time_or_measure = self._get_by_time_or_by_measure_from_user()
-
-            if time_or_measure == "measure":
-                beat_tlui = self._get_beat_timeline_ui_for_import_from_csv()
-                if not beat_tlui:
-                    return
-
-                beat_tl = get(Get.TIMELINE, beat_tlui.id)
-            else:
-                beat_tl = None
-
-            success, path = get(
-                Get.FROM_USER_FILE_PATH, "Import components", ["CSV files (*.csv)"]
-            )
-
-        if not success:
-            return
-
-        tlkind_to_funcs: dict[TlKind, dict[str, Callable]] = {
-            TlKind.MARKER_TIMELINE: {
-                "time": tilia.parsers.csv.marker.import_by_time,
-                "measure": tilia.parsers.csv.marker.import_by_measure,
-            },
-            TlKind.HIERARCHY_TIMELINE: {
-                "time": tilia.parsers.csv.hierarchy.import_by_time,
-                "measure": tilia.parsers.csv.hierarchy.import_by_measure,
-            },
-            TlKind.BEAT_TIMELINE: {"time": beats_from_csv},
-            TlKind.HARMONY_TIMELINE: {
-                "time": tilia.parsers.csv.harmony.import_by_time,
-                "measure": tilia.parsers.csv.harmony.import_by_measure,
-            },
-            TlKind.PDF_TIMELINE: {
-                "time": tilia.parsers.csv.pdf.import_by_time,
-                "measure": tilia.parsers.csv.pdf.import_by_measure,
-            },
-            TlKind.SCORE_TIMELINE: {
-                "measure": tilia.parsers.score.musicxml.notes_from_musicXML,
-            },
-        }
-
-        prev_state = get(Get.APP_STATE)
-
-        timeline.clear()
-
-        try:
-            if time_or_measure == "time":
-                success, errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
-            elif time_or_measure == "measure":
-                success, errors = tlkind_to_funcs[tlkind]["measure"](
-                    timeline, beat_tl, path
-                )
-            else:
-                raise ValueError("Invalid time_or_measure value '{time_or_measure}'")
-        except UnicodeDecodeError:
-            tilia.errors.display(tilia.errors.INVALID_CSV_ERROR, path)
-            return
-
-        if not success:
-            post(Post.APP_STATE_RESTORE, prev_state)
-            if errors:
-                self._display_import_from_csv_errors(success, errors)
-            return
-
-        if errors:
-            self._display_import_from_csv_errors(success, errors)
-
-        if tlkind == TlKind.SCORE_TIMELINE:
-            post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, timeline.id)
-
-        post(Post.APP_RECORD_STATE, "Import from csv file")
-
-    def _validate_timeline_kind_on_import_from_csv(self, tlkind: TlKind):
-        if not self.timeline_uis.get_timeline_uis_by_attr("TIMELINE_KIND", tlkind):
-            tilia.errors.display(
-                tilia.errors.CSV_IMPORT_FAILED,
-                f"No timelines of type '{tlkind}' found.",
-            )
-            return False
-        return True
-
-    @staticmethod
-    def _confirm_timeline_overwrite_on_import_from_csv():
-        return get(
-            Get.FROM_USER_YES_OR_NO,
-            "Import from CSV",
-            "Selected timeline is not empty. Existing components will be deleted when importing. Are you sure you want to continue?",
-        )
-
-    def _get_beat_timeline_ui_for_import_from_csv(self):
-        beat_tls = self.timeline_uis.get_timeline_uis_by_attr(
-            "TIMELINE_KIND", TlKind.BEAT_TIMELINE
-        )
-        if not beat_tls:
-            tilia.errors.display(
-                tilia.errors.CSV_IMPORT_FAILED,
-                "No beat timelines found. Must have a beat timeline if importing by measure.",
-            )
-            return
-        elif len(beat_tls) == 1:
-            return beat_tls[0]
-        else:
-            return self.timeline_uis.ask_choose_timeline(
-                "Import components from CSV",
-                "Choose timeline with measures to be used when importing",
-                TlKind.BEAT_TIMELINE,
-            )
-
-    @staticmethod
-    def _display_import_from_csv_errors(success: bool, errors: list[str]):
-        errors_str = "\n".join(errors)
-        if success:
-            tilia.errors.display(tilia.errors.CSV_IMPORT_SUCCESS_ERRORS, errors_str)
-        else:
-            tilia.errors.display(tilia.errors.CSV_IMPORT_FAILED, errors_str)
+    def on_import_from_csv(self, tl_kind: TlKind):
+        return on_import_from_csv(self.timeline_uis, tl_kind)
 
     @staticmethod
     def show_crash_dialog(exception_info):
