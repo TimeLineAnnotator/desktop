@@ -117,7 +117,7 @@ class TestTimelineUICreation:
             user_actions.trigger(action)
         assert tluis.is_empty
 
-    def test_delete(self, tls, user_actions):
+    def test_delete(self, tls, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
             user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
 
