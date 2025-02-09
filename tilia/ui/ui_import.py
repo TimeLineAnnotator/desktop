@@ -1,19 +1,19 @@
-from __future__ import annotations
-
-from typing import Callable
+from typing import Literal
 
 import tilia.errors
 import tilia.parsers
-from tilia.parsers.csv.beat import beats_from_csv
-from tilia.requests import get, Get, post, Post
+from tilia.requests import get, Get
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 from tilia.ui.timelines.collection.collection import TimelineUIs
+from tilia.parsers import get_import_function
 
 
-def on_import_from_csv(timeline_uis: TimelineUIs, tlkind: TlKind) -> None:
+def on_import_from_csv(
+    timeline_uis: TimelineUIs, tlkind: TlKind
+) -> tuple[Literal["success", "failure", "cancelled"], list[str]]:
     if not _validate_timeline_kind_on_import_from_csv(timeline_uis, tlkind):
-        return
+        return "failure", [f"No timeline of kind {tlkind} found."]
 
     tls_of_kind = timeline_uis.get_timeline_uis_by_attr("TIMELINE_KIND", tlkind)
     if len(tls_of_kind) == 1:
@@ -26,17 +26,17 @@ def on_import_from_csv(timeline_uis: TimelineUIs, tlkind: TlKind) -> None:
         )
 
     if not timeline_ui:
-        return
+        return "cancelled", ["User cancelled when choosing timeline."]
 
     timeline = get(Get.TIMELINE, timeline_ui.id)
     if timeline.components and not _confirm_timeline_overwrite_on_import_from_csv():
-        return
+        return "cancelled", ["User rejected components overwrite."]
 
     if tlkind == TlKind.SCORE_TIMELINE:
         time_or_measure = "measure"
         beat_tlui = _get_beat_timeline_ui_for_import_from_csv(timeline_uis)
         if not beat_tlui:
-            return
+            return "failure", ["No beat timeline found for importing score timeline."]
 
         beat_tl = get(Get.TIMELINE, beat_tlui.id)
         success, path = get(
@@ -54,7 +54,7 @@ def on_import_from_csv(timeline_uis: TimelineUIs, tlkind: TlKind) -> None:
         if time_or_measure == "measure":
             beat_tlui = _get_beat_timeline_ui_for_import_from_csv(timeline_uis)
             if not beat_tlui:
-                return
+                return "failure", ["No beat timeline found for importing by measure."]
 
             beat_tl = get(Get.TIMELINE, beat_tlui.id)
         else:
@@ -65,61 +65,25 @@ def on_import_from_csv(timeline_uis: TimelineUIs, tlkind: TlKind) -> None:
         )
 
     if not success:
-        return
-
-    tlkind_to_funcs: dict[TlKind, dict[str, Callable]] = {
-        TlKind.MARKER_TIMELINE: {
-            "time": tilia.parsers.csv.marker.import_by_time,
-            "measure": tilia.parsers.csv.marker.import_by_measure,
-        },
-        TlKind.HIERARCHY_TIMELINE: {
-            "time": tilia.parsers.csv.hierarchy.import_by_time,
-            "measure": tilia.parsers.csv.hierarchy.import_by_measure,
-        },
-        TlKind.BEAT_TIMELINE: {"time": beats_from_csv},
-        TlKind.HARMONY_TIMELINE: {
-            "time": tilia.parsers.csv.harmony.import_by_time,
-            "measure": tilia.parsers.csv.harmony.import_by_measure,
-        },
-        TlKind.PDF_TIMELINE: {
-            "time": tilia.parsers.csv.pdf.import_by_time,
-            "measure": tilia.parsers.csv.pdf.import_by_measure,
-        },
-        TlKind.SCORE_TIMELINE: {
-            "measure": tilia.parsers.score.musicxml.notes_from_musicXML,
-        },
-    }
-
-    prev_state = get(Get.APP_STATE)
+        return "cancelled", ["User cancelled when choosing file to import."]
 
     timeline.clear()
 
+    func = get_import_function(tlkind, time_or_measure)
+    if time_or_measure == "time":
+        args = (timeline, path)
+    elif time_or_measure == "measure":
+        args = (timeline, beat_tl, path)
+    else:
+        raise ValueError("Invalid time_or_measure value.")  # pragma: no cover
+
     try:
-        if time_or_measure == "time":
-            success, errors = tlkind_to_funcs[tlkind]["time"](timeline, path)
-        elif time_or_measure == "measure":
-            success, errors = tlkind_to_funcs[tlkind]["measure"](
-                timeline, beat_tl, path
-            )
-        else:
-            raise ValueError("Invalid time_or_measure value '{time_or_measure}'")
+        success, errors = func(*args)
     except UnicodeDecodeError:
         tilia.errors.display(tilia.errors.INVALID_CSV_ERROR, path)
-        return
+        return "failure", ["Invalid CSV file."]
 
-    if not success:
-        post(Post.APP_STATE_RESTORE, prev_state)
-        if errors:
-            _display_import_from_csv_errors(success, errors)
-        return
-
-    if errors:
-        _display_import_from_csv_errors(success, errors)
-
-    if tlkind == TlKind.SCORE_TIMELINE:
-        post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, timeline.id)
-
-    post(Post.APP_RECORD_STATE, "Import from csv file")
+    return ("success" if success else "failure"), errors
 
 
 def _get_by_time_or_by_measure_from_user():
