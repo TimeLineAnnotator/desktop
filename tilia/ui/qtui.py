@@ -373,7 +373,18 @@ class QtUI:
         QDesktopServices.openUrl(QUrl(f"{constants.WEBSITE_URL}/help/introduction"))
 
     def on_import_from_csv(self, tl_kind: TlKind):
-        return on_import_from_csv(self.timeline_uis, tl_kind)
+        prev_state = get(Get.APP_STATE)
+        status, errors = on_import_from_csv(self.timeline_uis, tl_kind)
+
+        if status == "failure":
+            post(Post.APP_STATE_RESTORE, prev_state)
+            if errors:
+                tilia.errors.display(tilia.errors.CSV_IMPORT_FAILED, "\n".join(errors))
+        elif status == "success" and errors:
+            tilia.errors.display(
+                tilia.errors.CSV_IMPORT_SUCCESS_ERRORS, "\n".join(errors)
+            )
+            post(Post.APP_RECORD_STATE, "Import from csv file")
 
     @staticmethod
     def show_crash_dialog(exception_info):
