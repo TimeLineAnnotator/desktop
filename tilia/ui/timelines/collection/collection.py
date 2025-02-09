@@ -1210,7 +1210,7 @@ class TimelineUIs:
         success = dialog.exec()
 
         if not success:
-            return
+            return None
 
         return dialog.get_option()
 
