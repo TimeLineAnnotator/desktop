@@ -625,7 +625,7 @@ class SvgGraphicsView(QGraphicsView):
 
     def scroll_to_x(self, x: float):
         def __get_x():
-            return [self.current_viewport_x_center]
+            return self.current_viewport_x_center
 
         @smooth(self, __get_x)
         def __set_x(x):
