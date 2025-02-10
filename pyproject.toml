@@ -4,3 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 env = ['QT_QPA_PLATFORM=offscreen']
+
+[tool.coverage.run]
+source = ["tilia"]
+omit = ["tilia/dev/*"]
