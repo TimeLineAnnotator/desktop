@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from typing import Callable, Any, Iterable
 
-from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QPixmap, QColor
 from PyQt6.QtWidgets import QGraphicsRectItem
 
@@ -489,13 +489,13 @@ class ScoreTimelineUI(TimelineUI):
     def update_measure_tracker_position(
         self, start: float | None = None, end: float | None = None
     ) -> None:
-        def __get_tracker_position() -> list[float]:
-            return [self.tracker_start, self.tracker_end]
+        def __get_tracker_position() -> QPointF:
+            return QPointF(self.tracker_start, self.tracker_end)
 
         @smooth(self, __get_tracker_position)
-        def __set_tracker_position(start, end):
-            self.tracker_start = start
-            self.tracker_end = end
+        def __set_tracker_position(point: QPointF):
+            self.tracker_start = point.x()
+            self.tracker_end = point.y()
             __update_position()
 
         def __update_position():
@@ -508,7 +508,7 @@ class ScoreTimelineUI(TimelineUI):
         if not (start or end):
             __update_position()
         else:
-            __set_tracker_position(start, end)
+            __set_tracker_position(QPointF(start, end))
 
     def on_timeline_width_set_done(self, _: float) -> None:
         if self.svg_view and self.svg_view.is_svg_loaded:

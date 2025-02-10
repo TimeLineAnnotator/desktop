@@ -1093,7 +1093,7 @@ class TimelineUIs:
 
     def on_media_time_change(self, time: float, reason: MediaTimeChangeReason) -> None:
         def __get_time():
-            return [self.selected_time]
+            return self.selected_time
 
         @smooth(self, __get_time)
         def __set_time(time):

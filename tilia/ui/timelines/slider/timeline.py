@@ -165,7 +165,7 @@ class SliderTimelineUI(TimelineUI):
 
     def on_audio_time_change(self, time: float, _: MediaTimeChangeReason) -> None:
         def __get_x():
-            return [self.x]
+            return self.x
 
         @smooth(self, __get_x)
         def __set_x(x):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QGraphicsView, QAbstractSlider
-from tilia.requests import post, Post, listen
+from tilia.requests import post, Post
 from tilia.ui.smooth_scroll import setup_smooth, smooth
 
 
@@ -18,7 +18,7 @@ class TimelineUIsView(QGraphicsView):
 
     def move_to_x(self, x: float):
         def __get_x():
-            return [self.mapToScene(self.viewport().rect().center()).x()]
+            return self.mapToScene(self.viewport().rect().center()).x()
 
         @smooth(self, __get_x)
         def __set_x(x):
