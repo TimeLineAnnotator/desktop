@@ -4,9 +4,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsItem, QApplication
 from PyQt6.QtTest import QTest
 
-from tilia.requests import Post, post
+from tilia.requests import Post, post, get, Get
 from tilia.ui.coords import time_x_converter
-from tilia.ui.qtui import TiliaMainWindow
 
 
 def click_timeline_ui_view(
@@ -55,7 +54,7 @@ def drag_mouse_in_timeline_view(x, y):
 
 
 def get_focused_widget():
-    TiliaMainWindow.instance.show()
+    get(Get.MAIN_WINDOW).show()
     QApplication.processEvents()
     return QApplication.focusWidget()
 
