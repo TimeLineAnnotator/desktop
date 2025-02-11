@@ -71,5 +71,5 @@ def press_key(key: str, modifier: Qt.KeyboardModifier | None = None):
     )
 
 
-def press_keys(text: str):
+def type_string(text: str):
     QTest.keyClicks(get_focused_widget(), text)
