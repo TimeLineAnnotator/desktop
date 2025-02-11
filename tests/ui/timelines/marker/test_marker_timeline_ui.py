@@ -11,7 +11,7 @@ from tests.ui.timelines.interact import (
     click_timeline_ui,
     drag_mouse_in_timeline_view,
     press_key,
-    press_keys,
+    type_string,
 )
 from tests.ui.timelines.marker.interact import click_marker_ui, get_marker_ui_center
 from tests.utils import undoable, get_action, get_submenu, get_main_window_menu
@@ -150,7 +150,7 @@ class TestCopyPaste:
 
         click_marker_ui(marker_tlui[0])
         press_key("Enter")
-        press_keys("copy me")
+        type_string("copy me")
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_marker_ui(marker_tlui[1])
 
@@ -161,12 +161,12 @@ class TestCopyPaste:
             assert marker_tlui[1].get_data("label") == "copy me"
 
     def test_paste_multiple_into_timeline(self, marker_tlui, tilia_state, user_actions):
-        for time, lable in [(0, "first"), (10, "second"), (20, "third")]:
+        for time, label in [(0, "first"), (10, "second"), (20, "third")]:
             tilia_state.current_time = time
             user_actions.trigger(TiliaAction.MARKER_ADD)
             click_marker_ui(marker_tlui[-1])
             user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_INSPECT)
-            press_keys(lable)
+            type_string(label)
 
         click_marker_ui(marker_tlui[0])
         click_marker_ui(marker_tlui[1], modifier="shift")
@@ -191,12 +191,12 @@ class TestCopyPaste:
     def test_paste_multiple_into_selected_element(
         self, marker_tlui, user_actions, tilia_state
     ):
-        for time, lable in [(0, "first"), (10, "second"), (20, "third")]:
+        for time, label in [(0, "first"), (10, "second"), (20, "third")]:
             tilia_state.current_time = time
             user_actions.trigger(TiliaAction.MARKER_ADD)
             click_marker_ui(marker_tlui[-1])
             user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_INSPECT)
-            press_keys(lable)
+            type_string(label)
 
         click_marker_ui(marker_tlui[0])
         click_marker_ui(marker_tlui[1], modifier="shift")
@@ -400,7 +400,7 @@ class TestInspect:
 
         press_key("Enter")
         with undoable():
-            press_keys("hello tilia")
+            type_string("hello tilia")
             assert marker_tlui[0].get_data("label") == "hello tilia"
 
     def test_set_label_to_empty_string(self, marker_tlui, tluis, user_actions):
@@ -409,7 +409,7 @@ class TestInspect:
         click_marker_ui(marker_tlui[0])
 
         press_key("Enter")
-        press_keys("hello tilia")
+        type_string("hello tilia")
         press_key("Escape")
         press_key("Enter")
         with undoable():
@@ -424,7 +424,7 @@ class TestInspect:
         press_key("Enter")
         press_key("Tab")
         with undoable():
-            press_keys("some comments")
+            type_string("some comments")
             assert marker_tlui[0].get_data("comments") == "some comments"
 
     def test_set_comments_to_empty_string(self, marker_tlui, tluis, user_actions):
@@ -434,7 +434,7 @@ class TestInspect:
 
         press_key("Enter")
         press_key("Tab")
-        press_keys("some comments")
+        type_string("some comments")
         press_key("Escape")
         press_key("Enter")
         press_key("Tab")
@@ -458,7 +458,7 @@ class TestInspect:
         assert marker_tlui[1].is_selected()
 
         press_key("Enter")
-        press_keys("new label")
+        type_string("new label")
         assert marker_tlui[0].get_data("label") == ""
         assert marker_tlui[1].get_data("label") == "new label"
 
