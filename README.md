@@ -3,29 +3,30 @@
     <img src="docs/img/logo.png" alt="drawing" width="100" align="center" >
   </a>
 </p>
-TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotations over video and audio files. It is a full-featured but easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PyQt library for its GUI.
+TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotations with video and audio files. It is a full-featured but easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PyQt library for its GUI.
 
-TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are four types of timelines (hierarchy, marker, beat and harmony) but many more are planned.
+TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are six types of timelines, but many more are planned.
 
-Some examples of what TiLiA visualizations look like:
+
+Here are some examples TiLiA visualizations:
 
 - Formal analysis of the Piano Sonata in C Major, K.284:
-  - [First movement](https://www.timelineannotator.com/examples/mozart-k284-i)
-  - [Second movement](https://www.timelineannotator.com/examples/mozart-k284-ii)
-  - [Third movement](https://www.timelineannotator.com/examples/mozart-k284-iii)
+  - [First movement](https://tilia-app.com/viewer/1/)
+  - [Second movement](https://tilia-app.com/viewer/2/)
+  - [Third movement](https://tilia-app.com/viewer/3/)
 
 ## How to use
 Instructions can be found [at the website](https://tilia-app.com/help/introduction/).
 
 ## Current features
  - 6 kinds of timelines
-   - AudioWave: visualise audio files through bars that represent changes in amplitude
+   - AudioWave: visualize audio files through bars that represent changes in amplitude
    - Beat: beat and measure markers with support to numbering
    - Harmony: Roman numeral and chord symbol labels using a specialized font, including proper display of inversion numerals, quality symbols and applied chords
-   - Hierarchy: nested and levelled units organized in arbitrally complex hierarchical structures
-   - Marker: simple labelled markers to indicate discrete events
+   - Hierarchy: nested and leveled units organized in arbitrally complex hierarchical structures
+   - Marker: simple, labeled markers to indicate discrete events
    - PDF: visualize PDF files synced to playback
-   - Score: visualize music scores in a custom, to-scale notation or in conventional engraving
+   - Score: visualize music scores in custom, to-scale notation or conventional engraving
  - Controlling playback by clicking on timeline units
  - Multiple attributes linked to each timeline unit
  - Local audio and video support
@@ -39,25 +40,27 @@ Instructions can be found [at the website](https://tilia-app.com/help/introducti
 
 ## Planned features
 
-There are many more features that I would like to implement than can be listed here. Some of the more interesting ones are listed below.
+There are many more features that we would like to implement than can be listed here, including:
 - New kinds of timelines
-  - Range: displays units with an extension, but not tied to hierarchical structures
-  - Musical score: displays audio-aligned musical scores
-- TiLiA explorer: allows filtered searches through timeline components in multiple TiLiA files
-- Font and GUI colors customization
-- Video segments exporting
-- Automatic cut detection for video
+- Range: displays units with an extension but not tied to hierarchical structures
+- TiLiA explorer: allows filtered searches through timeline components across multiple TiLiA files
+- Font and GUI color customization
+- Video segments export
 - Automatic beat detection for audio
 
 ## Online platform
 
 The TiLiA desktop app is supported by an [online platform](https://tilia-app.com) that allows `.tla` files to be stored, visualized, shared and queried.
 
+## Download
+
+Visit [TiLiA's download page](https://tilia-app.com/downloads) for the latest release.
+
 ## Build from source
 
 ### Prerequisites
 
-Before you start, you'll need to have Python 3.11 or later installed on your system. If you don't have it, download the installer from the [official Python website](https://www.python.org/downloads/) and follow their instructions.
+Before you start, you will need to have Python 3.11 or later installed on your system. To install Python, download the installer from the [official Python website](https://www.python.org/downloads/) and follow their instructions.
 
 ### How to build
 #### Install PyInstaller
@@ -85,17 +88,29 @@ pyinstaller tilia.spec
 
 #### After Building
 
-You'll find your executable application files within a newly created 'dist' folder inside the TiLiA directory.
+You will find your executable application files within a newly created 'dist' folder inside the TiLiA directory.
+
+## Run from the command line
+
+### Prerequisites
+
+Before you start, you will need to have Python 3.11 or later installed on your system. To install Python, download the installer from the [official Python website](https://www.python.org/downloads/) and follow their instructions.
+
+### To run
+[Clone the TiLiA repository](#clone-the-tilia-repository), then in the cloned folder run:
+```
+python -m tilia.main
+```
+Alternatively, include the flag ```-i cli``` to run TiLiA in the command line.
 
 ## How to contribute
 
-Read the CONTRIBUTING.md file in the root directory.
+See [Contributing](./CONTRIBUTING.md).
 
 ## License
 
-TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The complete license can be found in the LICENSE file in this directory.
+TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The complete license can be found [here](./LICENSE).
 
 ## Acknowledgments
 
-The TiLiA interface was greatly influenced by Brent Yorgason's Audio Timeliner, which can be found at https://www.singanewsong.org/audiotimeliner/. I thank the author for the development and free distribution of his software.
-
+The TiLiA interface was greatly influenced by [Brent Yorgason's Audio Timeliner](https://www.singanewsong.org/audiotimeliner/). We thank the author for the development and free distribution of his software.
