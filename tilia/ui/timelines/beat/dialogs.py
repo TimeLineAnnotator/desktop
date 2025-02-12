@@ -6,10 +6,7 @@ def ask_for_beat_pattern():
     def validate_result():
         if not result:
             return False
-        if not all([x.isnumeric() for x in result]):
-            return False
-        else:
-            return True
+        return all([x.isnumeric() for x in result])
 
     result, accept = AskBeatPattern().ask()
 
