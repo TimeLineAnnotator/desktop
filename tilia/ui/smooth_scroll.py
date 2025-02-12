@@ -28,7 +28,8 @@ def smooth(self: Any, args_getter: Callable[[], QVariant]):
 
     def wrapper(args_setter: Callable[[QVariant], None]) -> Callable:
         def wrapped_setter(args_setpoint: QVariant) -> None:
-            self.animation.pause()
+            if self.animation.state() is QVariantAnimation.State.Running:
+                self.animation.pause()
             self.animation.setStartValue(args_getter())
             self.animation.setEndValue(args_setpoint)
             self.animation.start()
