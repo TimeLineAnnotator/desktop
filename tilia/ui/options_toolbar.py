@@ -23,7 +23,7 @@ class OptionsToolbar(QToolBar):
         listen(
             self,
             Post.SETTINGS_UPDATED,
-            lambda updated_settings: self.on_settings_updated(updated_settings),
+            self.on_settings_updated,
         )
 
     def on_state_changed(self, option):
@@ -31,7 +31,7 @@ class OptionsToolbar(QToolBar):
         settings.set("general", "auto-scroll", scroll_type)
         post(Post.TIMELINES_AUTO_SCROLL_UPDATE, scroll_type)
 
-    def on_settings_updated(self, updated_settings):
+    def on_settings_updated(self, updated_settings: list[str]):
         if "general" in updated_settings:
             scroll_type = settings.get("general", "auto-scroll")
             self.combobox.blockSignals(True)
