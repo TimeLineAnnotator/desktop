@@ -9,6 +9,7 @@ from tests.utils import get_method_patch_target
 from tilia.file.common import are_tilia_data_equal
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post, get, Get
+from tilia.settings import settings
 from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     TimelineKind,
@@ -180,36 +181,74 @@ class TestServe:
 
 
 class TestAutoScroll:
-    def test_is_triggered_when_playing(self, tluis):
-        mock = Mock()
-        tluis.center_on_time = mock
-        tluis.auto_scroll_option = ScrollType.CONTINUOUS
-        post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
-        mock.assert_called()
+    @staticmethod
+    def _set_auto_scroll(type: ScrollType):
+        settings.set("general", "auto-scroll", type)
+        post(Post.SETTINGS_UPDATED, ["general"])
 
-    def test_is_not_triggered_when_seeking(self, tluis):
-        mock = Mock()
-        tluis.center_on_time = mock
-        tluis.auto_scroll_option = ScrollType.CONTINUOUS
-        post(Post.PLAYER_SEEK, 50)
-        mock.assert_not_called()
+    def test_continuous_is_triggered_when_playing(self, tluis):
+        self._set_auto_scroll(ScrollType.CONTINUOUS)
+        with patch.object(tluis, "center_on_time") as center_on_time_mock:
+            post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
+        center_on_time_mock.assert_called()
 
-    def test_is_not_triggered_when_scrollbar_is_pressed(self, tluis):
-        center_on_time_mock = Mock()
-        tluis.center_on_time = center_on_time_mock
-        tluis.auto_scroll_option = ScrollType.CONTINUOUS
-        tluis.view.is_hscrollbar_pressed = Mock(return_value=True)
-        post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
+    @pytest.mark.parametrize("scroll_type", [ScrollType.CONTINUOUS, ScrollType.BY_PAGE])
+    def test_is_not_triggered_when_seeking(self, scroll_type, tluis):
+        self._set_auto_scroll(scroll_type)
+        with patch.object(tluis, "center_on_time") as center_on_time_mock:
+            post(Post.PLAYER_SEEK, 50)
         center_on_time_mock.assert_not_called()
 
+    @pytest.mark.parametrize("scroll_type", [ScrollType.CONTINUOUS, ScrollType.BY_PAGE])
+    def test_is_not_triggered_when_scrollbar_is_pressed(self, scroll_type, tluis):
+        self._set_auto_scroll(ScrollType.CONTINUOUS)
+        with (
+            patch.object(tluis.view, "is_hscrollbar_pressed", return_value=True),
+            patch.object(tluis, "center_on_time") as center_on_time_mock,
+        ):
+            post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
+        center_on_time_mock.assert_not_called()
 
-def test_set_timeline_height_updates_playback_line_height(self, tls, tluis):
+    @pytest.mark.parametrize("scroll_type", [ScrollType.CONTINUOUS, ScrollType.BY_PAGE])
+    def test_is_not_triggered_when_scroll_type_is_off(self, scroll_type, tluis):
+        self._set_auto_scroll(ScrollType.OFF)
+        with patch.object(tluis, "center_on_time") as center_on_time_mock:
+            post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
+        center_on_time_mock.assert_not_called()
+
+    @pytest.mark.parametrize("scroll_type", [ScrollType.CONTINUOUS, ScrollType.BY_PAGE])
+    def test_is_not_triggered_when_dragging(self, scroll_type, tluis):
+        self._set_auto_scroll(ScrollType.CONTINUOUS)
+        post(Post.SLIDER_DRAG_START)
+        with patch.object(tluis, "center_on_time") as center_on_time_mock:
+            post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
+        post(Post.SLIDER_DRAG_END)
+        center_on_time_mock.assert_not_called()
+
+    def test_by_page_is_triggered(self, tluis):
+        self._set_auto_scroll(ScrollType.BY_PAGE)
+        with (
+            patch.object(tluis, "center_on_time") as center_on_time_mock,
+            patch.object(tluis.view, "move_to_x") as move_to_x_mock,
+        ):
+            post(Post.PLAYER_CURRENT_TIME_CHANGED, 100, MediaTimeChangeReason.PLAYBACK)
+        move_to_x_mock.assert_called()
+        center_on_time_mock.assert_not_called()
+
+    def test_by_page_is_not_triggered_when_not_over_treshold(self, tluis):
+        self._set_auto_scroll(ScrollType.BY_PAGE)
+        with patch.object(tluis.view, "move_to_x") as move_to_x_mock:
+            post(Post.PLAYER_CURRENT_TIME_CHANGED, 10, MediaTimeChangeReason.PLAYBACK)
+        move_to_x_mock.assert_not_called()
+
+
+def test_set_timeline_height_updates_playback_line_height(tls, tluis):
     tls.create_timeline(TimelineKind.MARKER_TIMELINE)
     tls.set_timeline_data(tls[0].id, "height", 100)
     assert tluis[0].scene.playback_line.line().dy() == 100
 
 
-def test_zooming_updates_playback_line_position(self, tls, tluis):
+def test_zooming_updates_playback_line_position(tls, tluis):
     tls.create_timeline(TimelineKind.MARKER_TIMELINE)
     post(Post.PLAYER_SEEK, 50)
     post(Post.VIEW_ZOOM_IN)
