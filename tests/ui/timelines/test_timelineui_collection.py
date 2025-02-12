@@ -180,21 +180,21 @@ class TestServe:
 
 
 class TestAutoScroll:
-    def test_auto_scroll_is_triggered_when_playing(self, tluis):
+    def test_is_triggered_when_playing(self, tluis):
         mock = Mock()
         tluis.center_on_time = mock
         tluis.auto_scroll_option = ScrollType.CONTINUOUS
         post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
         mock.assert_called()
 
-    def test_auto_scroll_is_not_triggered_when_seeking(self, tluis):
+    def test_is_not_triggered_when_seeking(self, tluis):
         mock = Mock()
         tluis.center_on_time = mock
         tluis.auto_scroll_option = ScrollType.CONTINUOUS
         post(Post.PLAYER_SEEK, 50)
         mock.assert_not_called()
 
-    def test_auto_scroll_is_not_triggered_when_scrollbar_is_pressed(self, tluis):
+    def test_is_not_triggered_when_scrollbar_is_pressed(self, tluis):
         center_on_time_mock = Mock()
         tluis.center_on_time = center_on_time_mock
         tluis.auto_scroll_option = ScrollType.CONTINUOUS
