@@ -15,6 +15,7 @@ from tilia.timelines.timeline_kinds import (
 )
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
+from tilia.ui.enums import ScrollType
 from tilia.ui.timelines.base.request_handlers import TimelineRequestHandler
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.request_handler import TimelineUIsRequestHandler
@@ -182,21 +183,21 @@ class TestAutoScroll:
     def test_auto_scroll_is_triggered_when_playing(self, tluis):
         mock = Mock()
         tluis.center_on_time = mock
-        tluis.auto_scroll_is_enabled = True
+        tluis.auto_scroll_option = ScrollType.CONTINUOUS
         post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
         mock.assert_called()
 
     def test_auto_scroll_is_not_triggered_when_seeking(self, tluis):
         mock = Mock()
         tluis.center_on_time = mock
-        tluis.auto_scroll_is_enabled = True
+        tluis.auto_scroll_option = ScrollType.CONTINUOUS
         post(Post.PLAYER_SEEK, 50)
         mock.assert_not_called()
 
     def test_auto_scroll_is_not_triggered_when_scrollbar_is_pressed(self, tluis):
         center_on_time_mock = Mock()
         tluis.center_on_time = center_on_time_mock
-        tluis.auto_scroll_is_enabled = True
+        tluis.auto_scroll_option = ScrollType.CONTINUOUS
         tluis.view.is_hscrollbar_pressed = Mock(return_value=True)
         post(Post.PLAYER_CURRENT_TIME_CHANGED, 50, MediaTimeChangeReason.PLAYBACK)
         center_on_time_mock.assert_not_called()
