@@ -495,11 +495,11 @@ class SvgViewer(ViewDockWidget):
         if is_centered:
             self.view.scroll_to_x(self.cur_t_x)
             return
-        cur_viewport = self.view.current_viewport_x
+        cur_viewport_x = self.view.current_viewport_x
         if (
-            (cur_viewport[0] + self.scroll_margin)
+            (cur_viewport_x[0] + self.scroll_margin)
             < self.cur_t_x
-            < (cur_viewport[1] - self.scroll_margin)
+            < (cur_viewport_x[1] - self.scroll_margin)
         ):
             return
         self.view.scroll_to_x(self.cur_t_x + self.scroll_offset)
@@ -511,8 +511,8 @@ class SvgViewer(ViewDockWidget):
         self.view.blockSignals(False)
 
     def _update_scroll_margins(self):
-        cur_viewport = self.view.current_viewport_x
-        self.scroll_margin = (cur_viewport[1] - cur_viewport[0]) / 10
+        cur_viewport_x = self.view.current_viewport_x
+        self.scroll_margin = (cur_viewport_x[1] - cur_viewport_x[0]) / 10
         self.scroll_offset = self.scroll_margin * 4
 
     def deleteLater(self):
