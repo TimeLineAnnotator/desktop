@@ -6,7 +6,7 @@ Help is appreciated is every front. Feel free to make PR or to get in touch to d
 Apart from coding proper, contributions would be appreciated in:
 
 ## Automated testing
-Testing guidelines can be found [here](docs/TESTING.md).
+Testing guidelines can be found [here](./TESTING.md).
 
 ## Tutorials/guides:
 The program should be fairly intuitive for users, but comprehensive tutorials and guides will need to be done at some point, as they will significantly facilitate the adoption of this program by new users. They can be either written or in video form, ideally both. [This video](https://vimeo.com/767282249) serves as rough general quickstart guide, for now.
