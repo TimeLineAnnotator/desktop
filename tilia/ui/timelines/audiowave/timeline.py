@@ -27,7 +27,7 @@ class AudioWaveTimelineUI(TimelineUI):
         listen(
             self,
             Post.SETTINGS_UPDATED,
-            lambda updated_settings: self.on_settings_updated(updated_settings),
+            self.on_settings_updated,
         )
 
     def on_settings_updated(self, updated_settings):

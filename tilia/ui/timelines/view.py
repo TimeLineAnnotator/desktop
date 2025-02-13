@@ -35,7 +35,7 @@ class TimelineView(QGraphicsView):
         listen(
             self,
             Post.SETTINGS_UPDATED,
-            lambda updated_settings: self.on_settings_updated(updated_settings),
+            self.on_settings_updated,
         )
 
         self.dragging = False

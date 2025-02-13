@@ -35,7 +35,7 @@ class BeatTimelineUI(TimelineUI):
         listen(
             self,
             Post.SETTINGS_UPDATED,
-            lambda updated_settings: self.on_settings_updated(updated_settings),
+            self.on_settings_updated,
         )
 
     def on_timeline_components_deserialized(self):
