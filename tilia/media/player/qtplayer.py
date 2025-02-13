@@ -16,9 +16,12 @@ class QtPlayer(Player):
 
     def __init__(self):
         super().__init__()
+        self.audio_output = QAudioOutput()
+        self._init_player()
+
+    def _init_player(self):
         self.player = QMediaPlayer()
         self.player.durationChanged.connect(self.on_media_duration_available)
-        self.audio_output = QAudioOutput()
         self.player.setAudioOutput(self.audio_output)
 
     def on_media_load_done(self, path, start, end):
@@ -56,7 +59,8 @@ class QtPlayer(Player):
         )  # Avoids freeze if about to change to YT player. Reason unknown.
 
     def _engine_unload_media(self):
-        self.player.setSource(QUrl(None))
+        self.player.deleteLater()
+        self._init_player()
 
     def _engine_get_media_duration(self) -> float:
         return self.player.duration() / 1000
