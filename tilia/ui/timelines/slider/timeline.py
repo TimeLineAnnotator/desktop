@@ -56,7 +56,7 @@ class SliderTimelineUI(TimelineUI):
         listen(
             self,
             Post.SETTINGS_UPDATED,
-            lambda updated_settings: self.on_settings_updated(updated_settings),
+            self.on_settings_updated,
         )
 
         self.x = get(Get.LEFT_MARGIN_X)

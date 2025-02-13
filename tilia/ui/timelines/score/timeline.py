@@ -65,7 +65,7 @@ class ScoreTimelineUI(TimelineUI):
         listen(
             self,
             Post.SETTINGS_UPDATED,
-            lambda updated_settings: self.on_settings_updated(updated_settings),
+            self.on_settings_updated,
         )
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_audio_time_change)
         listen(self, Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done)

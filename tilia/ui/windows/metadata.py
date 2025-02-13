@@ -40,7 +40,7 @@ class MediaMetadataWindow(QDialog):
         listen(
             self,
             Post.SETTINGS_UPDATED,
-            lambda updated_settings: self.on_settings_updated(updated_settings),
+            self.on_settings_updated,
         )
         self.setLayout(QVBoxLayout())
         self.setup_layout()

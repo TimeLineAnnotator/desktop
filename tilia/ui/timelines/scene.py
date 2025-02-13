@@ -27,7 +27,7 @@ class TimelineScene(QGraphicsScene):
         listen(
             self,
             Post.SETTINGS_UPDATED,
-            lambda updated_settings: self.on_settings_updated(updated_settings),
+            self.on_settings_updated,
         )
 
     def _setup_text(self, text: str):
