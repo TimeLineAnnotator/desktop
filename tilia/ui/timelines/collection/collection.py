@@ -915,7 +915,7 @@ class TimelineUIs:
 
         self.validate_request_return_value(request, result)
 
-        if any([r is True for r in result]):
+        if any(result):
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
     def on_timeline_ui_request(
@@ -1070,8 +1070,8 @@ class TimelineUIs:
         if any(
             [
                 self.is_dragging,
-                self.auto_scroll_option == ScrollType.OFF,
-                media_time_change_reason == MediaTimeChangeReason.SEEK,
+                self.auto_scroll_option is ScrollType.OFF,
+                media_time_change_reason is MediaTimeChangeReason.SEEK,
                 self.view.is_hscrollbar_pressed(),
             ]
         ):
