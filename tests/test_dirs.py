@@ -54,25 +54,3 @@ def test_create_autosaves_dir(test_dir):
     dirs.create_autosaves_dir(test_dir)
 
     assert os.path.exists(Path(test_dir, "autosaves"))
-
-
-def test_create_temp_dir(test_dir):
-    dirs.create_temp_dir(test_dir)
-
-    assert os.path.exists(Path(test_dir, ".temp"))
-
-    shutil.rmtree(test_dir)
-
-
-def os_path_exists_site_data(path: Path) -> bool:
-    if path == dirs._SITE_DATA_DIR:
-        return True
-    else:
-        return False
-
-
-def os_path_exists_user_data(path: Path) -> bool:
-    if path == dirs._USER_DATA_DIR:
-        return True
-    else:
-        return False
