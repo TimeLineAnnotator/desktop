@@ -14,7 +14,6 @@ def open_with_os(path: Path) -> None:
         raise FileNotFoundError(f"File not found: {path}")
 
     if sys.platform == "win32":
-        print(path.resolve())
         subprocess.Popen(["start", path.resolve()], shell=True)
     elif sys.platform == "linux":
         subprocess.Popen(["xdg-open", str(path)])  # shell=True breaks command on linux
