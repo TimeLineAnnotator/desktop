@@ -23,11 +23,13 @@ ui = None
 
 def handle_expection(type, value, tb):
     exc_message = "".join(traceback.format_exception(type, value, tb))
+    if ui:
+        ui.show_crash_dialog(exc_message)
+
     logger.critical(exc_message)
     if app:
         logger.debug(app.get_app_state())
     if ui:
-        ui.show_crash_dialog(exc_message)
         ui.exit(1)
 
 
