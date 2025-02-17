@@ -184,6 +184,15 @@ class SettingsManager(QObject):
         state = self._settings.value(f"private/recent_files/{path}/state", None)
         return geometry, state
 
+    def get_user(self) -> tuple[str, str]:
+        email = self._settings.value("private/user/email", "")
+        name = self._settings.value("private/user/name", "")
+        return email, name
+
+    def set_user(self, email: str, name: str):
+        self._settings.setValue("private/user/email", email)
+        self._settings.setValue("private/user/name", name)
+
     def get_dict(self) -> dict:
         return self._cache
 

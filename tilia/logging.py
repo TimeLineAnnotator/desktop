@@ -32,6 +32,7 @@ class TiliaLogger(logging.Logger):
         self.setLevel(logging.DEBUG)
         self.setup_console_log()
         self.setup_sentry()
+        self.log_file_name = None
 
     def _get_console_level(self) -> int:
         return logging.INFO if settings.get("dev", "log_requests") else logging.ERROR
@@ -73,8 +74,12 @@ class TiliaLogger(logging.Logger):
 
         make_room_for_new_log()
         file_formatter = logging.Formatter("{asctime} {levelname} {message}", style="{")
-        log_fname = Path(dirs.logs_path, "{:%Y%m%d%H%M%S}.log".format(datetime.now()))
-        file_handler = logging.FileHandler(log_fname, mode="a", encoding="utf-8")
+        self.log_file_name = Path(
+            dirs.logs_path, "{:%Y%m%d%H%M%S}.log".format(datetime.now())
+        )
+        file_handler = logging.FileHandler(
+            self.log_file_name, mode="a", encoding="utf-8"
+        )
         file_handler.setFormatter(file_formatter)
         self.addHandler(file_handler)
         sentry_sdk.get_global_scope().add_attachment(
@@ -85,6 +90,9 @@ class TiliaLogger(logging.Logger):
 
     def on_settings_updated(self):
         self.console_handler.setLevel(self._get_console_level())
+
+    def on_user_set(self, email: str, name: str):
+        sentry_sdk.set_user({"email": email, "name": name})
 
 
 logger = TiliaLogger()
