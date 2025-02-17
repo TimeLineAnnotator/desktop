@@ -1,6 +1,6 @@
 #define MyAppName "TiLiA"
 #define MyAppVersion "$VERSION$"
-#define MyAppURL "https://tilia-ad98d.web.app"
+#define MyAppURL "https://tilia-app.com"
 #define MyAppSourcePath "$SOURCE_PATH$"
 #define MyAppExeName "tilia.exe"
 #define MyAppAssocName MyAppName + " File"
@@ -10,7 +10,7 @@
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId={{AE59AA29-2E75-4C12-8D8A-DBE3C8EBF527}
+AppId={AE59AA29-2E75-4C12-8D8A-DBE3C8EBF527}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 ;AppVerName={#MyAppName} {#MyAppVersion}
