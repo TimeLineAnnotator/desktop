@@ -49,6 +49,7 @@ from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
 from ..media.player import QtVideoPlayer, QtAudioPlayer, YouTubePlayer
 from tilia import constants
+from tilia.logging import logger
 from tilia.settings import settings
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
@@ -68,7 +69,7 @@ class TiliaMainWindow(QMainWindow):
         if type == QtMsgType.QtFatalMsg:
             raise Exception(f"{type.name}: {msg}")
         else:
-            print(f"{type.name}: {msg}")
+            logger.error(f"{type.name}: {msg}")
 
     def keyPressEvent(self, event: Optional[QtGui.QKeyEvent]) -> None:
         if event is None:

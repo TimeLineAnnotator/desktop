@@ -85,7 +85,7 @@ class SettingsManager(QObject):
             "default_height": 30,
         },
         "harmony_timeline": {"default_harmony_display_mode": "roman"},
-        "dev": {"log_requests": "false"},
+        "dev": {"log_requests": "false", "max_stored_logs": 100},
     }
 
     def __init__(self):
