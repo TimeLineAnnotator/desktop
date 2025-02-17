@@ -76,7 +76,7 @@ class PlayerTracker(QObject):
 class UrlRequestInterceptor(QWebEngineUrlRequestInterceptor):
     def interceptRequest(self, info):
         name = QByteArray("Referer".encode())
-        value = QByteArray("https://tilia-ad99d.web.app/".encode())
+        value = QByteArray("https://tilia-app.com/".encode())
         info.setHttpHeader(name, value)
 
 
