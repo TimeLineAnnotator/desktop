@@ -8,6 +8,7 @@ import tilia.constants
 from tilia.utils import open_with_os
 
 autosaves_path = Path()
+logs_path = Path()
 _SITE_DATA_DIR = Path(platformdirs.site_data_dir(tilia.constants.APP_NAME))
 _USER_DATA_DIR = Path(
     platformdirs.user_data_dir(tilia.constants.APP_NAME, roaming=True)
@@ -32,15 +33,23 @@ def setup_autosaves_path(data_dir):
         create_autosaves_dir(data_dir)
 
 
+def setup_logs_path(data_dir):
+    if not os.path.exists(logs_path):
+        create_logs_dir(data_dir)
+
+
 def setup_dirs() -> None:
     os.chdir(os.path.dirname(__file__))
 
     data_dir = setup_data_dir()
 
-    global autosaves_path
+    global autosaves_path, logs_path
 
     autosaves_path = Path(data_dir, "autosaves")
     setup_autosaves_path(data_dir)
+
+    logs_path = Path(data_dir, "logs")
+    setup_logs_path(data_dir)
 
 
 def create_data_dir() -> Path:
@@ -56,6 +65,10 @@ def create_data_dir() -> Path:
 
 def create_autosaves_dir(data_dir: Path):
     os.mkdir(Path(data_dir, "autosaves"))
+
+
+def create_logs_dir(data_dir: Path):
+    os.mkdir(Path(data_dir, "logs"))
 
 
 def open_autosaves_dir():

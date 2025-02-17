@@ -7,6 +7,7 @@ from typing import Callable
 
 import tilia.constants
 from tilia import dirs
+from tilia.logging import logger
 from tilia.settings import settings
 from .common import are_tilia_data_equal, write_tilia_file_to_disk
 from .tilia_file import TiliaFile
@@ -52,7 +53,9 @@ def _raise_save_loop_exception(excp: Exception):
 
 def autosave(data: dict):
     make_room_for_new_autosave()
-    write_tilia_file_to_disk(TiliaFile(**data), get_autosave_path())
+    autosave_path = get_autosave_path()
+    write_tilia_file_to_disk(TiliaFile(**data), autosave_path)
+    logger.debug(f"Autosave: {autosave_path}")
 
 
 def get_autosave_path():

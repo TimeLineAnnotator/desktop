@@ -26,6 +26,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from .scene import TimelineUIsScene
 from .validators import validate
 from tilia.exceptions import UserCancelledDialog
+from tilia.logging import logger
 from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
 from tilia.timelines.base.timeline import Timeline
@@ -871,7 +872,7 @@ class TimelineUIs:
             valid = isinstance(success, bool)
 
         if not valid:
-            print(
+            logger.error(
                 f"Request {request} returned an invalid value: {success}.\n"
                 f"Return value should be a bool or a list of bools."
             )
@@ -910,7 +911,6 @@ class TimelineUIs:
         except Exception:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
-            traceback.print_exc()
             return
 
         self.validate_request_return_value(request, result)
@@ -940,7 +940,6 @@ class TimelineUIs:
         except Exception:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
-            traceback.print_exc()
             return
 
         self.validate_request_return_value(request, success)
@@ -979,7 +978,6 @@ class TimelineUIs:
         except Exception:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
-            traceback.print_exc()
             return
 
         self.validate_request_return_value(request, result)

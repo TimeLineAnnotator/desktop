@@ -2,7 +2,7 @@ import os
 import weakref
 from enum import Enum, auto
 from typing import Callable, Any
-from tilia.settings import settings
+from tilia.logging import logger
 
 
 class Post(Enum):
@@ -202,10 +202,15 @@ def _get_posts_excluded_from_log() -> list[Post]:
 
 
 def _log_post(post, *args, **kwargs):
-    if settings.get("dev", "log_requests"):
-        print(
-            f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners[post])}"
-        )
+    log_message = (
+        f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners[post])}"
+    )
+    if post is Post.DISPLAY_ERROR:
+        logger.warning(log_message)
+        return
+    logger.info(log_message)
+    if post is Post.SETTINGS_UPDATED and "dev" in args[0][0]:
+        logger.on_settings_updated()
 
 
 def post(post: Post, *args, **kwargs) -> None:
