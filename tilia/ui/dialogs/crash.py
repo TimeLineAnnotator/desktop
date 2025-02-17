@@ -1,5 +1,20 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QFrame, QScrollArea
+from PyQt6.QtCore import Qt, QRegularExpression
+from PyQt6.QtGui import QRegularExpressionValidator
+from PyQt6.QtWidgets import (
+    QDialog,
+    QFormLayout,
+    QVBoxLayout,
+    QDialogButtonBox,
+    QScrollArea,
+    QCheckBox,
+    QFrame,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+)
+from tilia.logging import logger
+from tilia.settings import settings
+from tilia.utils import open_with_os
 
 
 class CrashDialog(QDialog):
@@ -40,8 +55,78 @@ class CrashDialog(QDialog):
         )
         unsaved_changes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        help_button = QPushButton("Contact Support")
+        help_button.clicked.connect(self.get_help)
+
         layout.addWidget(sorry_label)
         layout.addWidget(exc_info_scroll)
         layout.addWidget(unsaved_changes_label)
+        layout.addWidget(help_button)
 
         layout.setSpacing(5)
+
+    def get_help(self):
+        CrashSupportDialog(self).open()
+
+
+class CrashSupportDialog(QDialog):
+    def __init__(self, parent) -> None:
+        super().__init__(parent=parent)
+        self.setWindowTitle("Contact Support")
+        self._setup_widgets()
+
+    def _setup_widgets(self):
+        self.setLayout(QFormLayout())
+
+        self.layout().addRow(
+            QLabel("Submit your contact details and we'll be in touch!")
+        )
+        email, name = settings.get_user()
+
+        self.name_field = QLineEdit(name)
+        self.name_field.setMaximumHeight(50)
+        self.layout().addRow("Name", self.name_field)
+
+        self.email_field = QLineEdit(email)
+        validator = QRegularExpressionValidator(
+            QRegularExpression(
+                r"\A[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z"
+            )
+        )
+        self.email_field.textChanged.connect(self.__validate_email)
+        self.email_field.setValidator(validator)
+        self.email_field.setMaximumHeight(50)
+        self.layout().addRow("Email", self.email_field)
+
+        self.remember = QCheckBox()
+        self.remember.setChecked(bool(name or email))
+        self.layout().addRow("Remember me", self.remember)
+
+        file = QLabel(f'<a href="{logger.log_file_name}">{logger.log_file_name}</a>')
+        file.linkActivated.connect(
+            lambda: open_with_os(logger.log_file_name.resolve().parents[0])
+        )
+        self.layout().addRow("Attached log", file)
+
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.submit_form)
+        button_box.rejected.connect(self.reject)
+        self.layout().addRow(button_box)
+
+    def __validate_email(self):
+        if self.email_field.hasAcceptableInput():
+            self.email_field.setStyleSheet("")
+        else:
+            self.email_field.setStyleSheet("QLineEdit {border: 2px solid red;}")
+
+    def submit_form(self):
+        name = self.name_field.text()
+        email = self.email_field.text() if self.email_field.hasAcceptableInput() else ""
+        if name or email:
+            if self.remember.isChecked():
+                settings.set_user(email, name)
+            logger.on_user_set(email, name)
+            return self.accept()
+        self.reject()
