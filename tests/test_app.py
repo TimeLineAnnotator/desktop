@@ -1,4 +1,5 @@
 import json
+import tilia.logging
 from pathlib import Path
 from typing import Literal
 from unittest.mock import patch
@@ -15,6 +16,16 @@ from tilia.requests import Get, Post, post, get
 from tilia.ui.actions import TiliaAction
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.windows import WindowKind
+
+
+class TestLogger:
+    def test_sentry_not_logging(self):
+        # TODO: make this test run first in batch testing.
+        # enabling sentry during tests will fill inbox up unneccesarily
+        assert (
+            "tilia.logging"
+            in tilia.logging.sentry_sdk.integrations.logging._IGNORED_LOGGERS
+        )
 
 
 class TestSaveFileOnClose:
