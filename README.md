@@ -60,49 +60,49 @@ Visit [TiLiA's download page](https://tilia-app.com/downloads) for the latest re
 
 ### Prerequisites
 
-Before you start, you will need to have Python 3.11 or later installed on your system. To install Python, download the installer from the [official Python website](https://www.python.org/downloads/) and follow their instructions.
+Before you start, you will need:
+- Python 3.11 or later. You can get it at the [Python website](https://www.python.org/downloads/).
+- `pip` to install dependencies.
+- Git to clone the TiLiA repository. You can get it at the [Git website](https://git-scm.com/).
 
 ### How to build
-#### Install PyInstaller
-In your terminal or command prompt, type the following command and press Enter:
+
+Go to the desired directory and clone TiLiA with:
+
+```
+git clone https://github.com/TimeLineAnnotator/desktop.git tilia-desktop
+```
+
+Change directory to the cloned repository:
+```
+cd tilia-desktop
+```
+Note: We recommend using a [virtual environment](https://docs.python.org/3/library/venv.html) for the next steps.
+
+Install the dependencies using pip:
+```
+pip install -e .
+```
+Install `PyInstaller` with:
 ```
 pip install pyinstaller
 ```
-
-#### Clone the TiLiA Repository
-Open a terminal or command prompt and navigate to the directory where you want to save the project.
-Execute the following command:
-```
-git clone https://github.com/TimeLineAnnotator/desktop.git
-```
-
-#### Build with PyInstaller
-Navigate into the newly downloaded TiLiA project directory:
-```
-cd TiLiA
-```
-Run PyInstaller using the provided spec file:
+Run PyInstaller using the settings in `tilia.spec`:
 ```
 pyinstaller tilia.spec
 ```
+The executable will be created in the 'dist' folder inside the project directory.
 
-#### After Building
+## Run TiLiA CLI
 
-You will find your executable application files within a newly created 'dist' folder inside the TiLiA directory.
+### Clone repository and install dependencies
+You can follow the instructions in the previous sections to clone the repository and install dependencies.
 
-## Run from the command line
-
-### Prerequisites
-
-Before you start, you will need to have Python 3.11 or later installed on your system. To install Python, download the installer from the [official Python website](https://www.python.org/downloads/) and follow their instructions.
-
-### To run
-[Clone the TiLiA repository](#clone-the-tilia-repository), then in the cloned folder run:
+### Run TiLiA
+Use this command to run TiLiA in CLI mode:
 ```
-python -m tilia.main
+python -m tilia.main --interface cli
 ```
-Alternatively, include the flag ```-i cli``` to run TiLiA in the command line.
-
 ## How to contribute
 
 See [Contributing](./CONTRIBUTING.md).
