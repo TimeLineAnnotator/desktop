@@ -6,10 +6,9 @@ import traceback
 import dotenv
 from PyQt6.QtWidgets import QApplication
 
-from tilia import dirs
 from tilia.app import App
 from tilia.clipboard import Clipboard
-from tilia.dirs import PROJECT_ROOT
+from tilia.dirs import PROJECT_ROOT, setup_dirs
 from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
 from tilia.media.player import QtAudioPlayer
@@ -64,10 +63,6 @@ def setup_parser():
     parser.add_argument("file", nargs="?", default="")
     parser.add_argument("--user-interface", "-i", choices=["qt", "cli"], default="qt")
     return parser.parse_args()
-
-
-def setup_dirs():
-    dirs.setup_dirs()
 
 
 def setup_logic(autosaver=True):
