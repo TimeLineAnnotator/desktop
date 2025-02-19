@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication
 from tilia import dirs
 from tilia.app import App
 from tilia.clipboard import Clipboard
+from tilia.dirs import PROJECT_ROOT
 from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
 from tilia.media.player import QtAudioPlayer
@@ -38,7 +39,10 @@ def handle_expection(type, value, tb):
 
 def boot():
     sys.excepthook = handle_expection
-    dotenv.load_dotenv()
+    dotenv_path = PROJECT_ROOT / ".env"
+    success = dotenv.load_dotenv(dotenv_path)
+    if not success:
+        raise FileNotFoundError(f"No .env file found at {dotenv_path.resolve()}")
     args = setup_parser()
     setup_dirs()
     q_application = QApplication(sys.argv)

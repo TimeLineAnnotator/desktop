@@ -28,6 +28,7 @@ a = Analysis(
     datas=[
         ("./README.md", "."),
         ("./LICENSE", "."),
+        ("./.env", "."),
         ("./tilia/ui/img", "./tilia/ui/img/"),
         ("./tilia/ui/fonts", "./tilia/ui/fonts/"),
         ("./tilia/media/player/youtube.html", "./tilia/media/player/"),
