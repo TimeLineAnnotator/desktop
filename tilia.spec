@@ -6,12 +6,14 @@ from pathlib import Path
 
 from tilia.constants import APP_NAME, VERSION
 
+# Parse build options
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", action="store_true")
 options = parser.parse_args()
 
 options = parser.parse_args()
 
+# Set platform suffix
 if platform.system() == 'Windows':
     platform_suffix = 'win'
 elif platform.system() == 'Darwin':
@@ -44,15 +46,18 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
+icon_path = Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__()
+executable_basename = f"{APP_NAME.lower()}-{VERSION}-{platform_suffix}"
+
 if options.debug:
     exe = EXE(
         pyz,
         a.scripts,
-        name=f"{APP_NAME.lower()}-{VERSION}-{platform_suffix}",
+        name=executable_basename,
         console=True,
         embed_manifest=True,
         exclude_binaries=True,
-        icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
+        icon=icon_path,
     )
 
     coll = COLLECT(exe, a.datas, a.binaries, name="TiLiA")
@@ -62,15 +67,15 @@ else:
         a.scripts,
         a.datas,
         a.binaries,
-        name=f"{APP_NAME.lower()}-{VERSION}-{platform_suffix}",
+        name=executable_basename,
 	    console=False,
         embed_manifest=True,
-        icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
+        icon=icon_path,
     )
     app = BUNDLE(
         exe,
-        name=f"{APP_NAME.lower()}-{VERSION}-{platform_suffix}.app",
-        icon=Path("tilia", "ui", "img", "main_icon.ico").resolve().__str__(),
+        name=f"{executable_basename}.app",
+        icon=icon_path,
         version=VERSION,
         info_plist={
             'NSPrincipalClass': 'NSApplication',
