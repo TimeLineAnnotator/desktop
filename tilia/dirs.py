@@ -19,6 +19,7 @@ _USER_DATA_DIR = Path(
     platformdirs.user_data_dir(tilia.constants.APP_NAME, roaming=True)
 )
 data_path = _SITE_DATA_DIR
+PROJECT_ROOT = Path(tilia.__file__).parents[1]
 
 
 def get_parent_path() -> Path:
