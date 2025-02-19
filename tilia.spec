@@ -97,4 +97,4 @@ else:
     )
 
 # Reset enviroment
-dotenv.set_key(".env", "ENVIRONMENT", "development")
+dotenv.set_key(".env", "ENVIRONMENT", "dev")
