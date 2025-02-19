@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import argparse
 import platform
+import dotenv
 
 from pathlib import Path
 
@@ -23,6 +24,10 @@ elif platform.system() == 'Linux':
 else:
     platform_suffix = platform.system()
 
+# Set enviroment to production
+dotenv.set_key(".env", "ENVIRONMENT", "prod")
+
+# Build executable
 a = Analysis(
     ["./tilia/main.py"],
     pathex=[],
@@ -90,3 +95,6 @@ else:
                 ]
             },
     )
+
+# Reset enviroment
+dotenv.set_key(".env", "ENVIRONMENT", "development")
