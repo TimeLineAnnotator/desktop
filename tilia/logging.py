@@ -1,12 +1,13 @@
 import logging
-import sentry_sdk
-from pathlib import Path
+import os
 from datetime import datetime
+from json import dumps
+from itertools import count
+from pathlib import Path
+from typing import Any
 
-import sentry_sdk.integrations
 import sentry_sdk.integrations.logging
 import sentry_sdk.profiler
-import sentry_sdk.session
 from tilia import dirs
 from tilia.constants import APP_NAME, VERSION
 from tilia.settings import settings
@@ -27,12 +28,29 @@ class TiliaLogger(logging.Logger):
     CRITICAL    |Crash messages
     """
 
+    DSN = {
+        "dev": None,
+        "prod": "https://8234ef0e41b165cff5fe3d096787d928@o4508813009289216.ingest.us.sentry.io/4508837138399232",
+        "test": None,
+    }
+
     def __init__(self):
         super().__init__(__name__)
         self.setLevel(logging.DEBUG)
-        self.setup_console_log()
-        self.setup_sentry()
-        self.log_file_name = None
+        self._dump_count = count()
+
+    def setup(self):
+        match (env := os.environ.get("ENVIRONMENT", "prod")):
+            case "dev":
+                self.setup_sentry(env)
+                self.setup_console_log()
+                self.setup_file_log()
+            case "prod":
+                self.setup_sentry(env)
+                self.setup_file_log()
+            case "test":
+                self.disabled = True
+                self.setup_sentry(env)
 
     def _get_console_level(self) -> int:
         return logging.INFO if settings.get("dev", "log_requests") else logging.ERROR
@@ -44,9 +62,9 @@ class TiliaLogger(logging.Logger):
         self.console_handler.setLevel(self._get_console_level())
         self.addHandler(self.console_handler)
 
-    def setup_sentry(self):
+    def setup_sentry(self, env: str):
         sentry_sdk.init(
-            dsn="https://8234ef0e41b165cff5fe3d096787d928@o4508813009289216.ingest.us.sentry.io/4508837138399232",
+            dsn=TiliaLogger.DSN[env],
             release=f"{APP_NAME}@{VERSION}",
             integrations=[
                 sentry_sdk.integrations.logging.LoggingIntegration(
@@ -56,6 +74,7 @@ class TiliaLogger(logging.Logger):
             ],
             send_default_pii=True,
             traces_sample_rate=1.0,
+            environment=env,
         )
         sentry_sdk.profiler.start_profiler()
 
@@ -93,6 +112,14 @@ class TiliaLogger(logging.Logger):
 
     def on_user_set(self, email: str, name: str):
         sentry_sdk.set_user({"email": email, "name": name})
+
+    def file_dump(self, app_state: dict[str, Any]):
+        sentry_sdk.get_global_scope().add_attachment(
+            filename=f"dump_{next(self._dump_count)}.tla",
+            bytes=dumps(app_state).encode("utf-8"),
+            content_type="text/json",
+            add_to_transactions=True,
+        )
 
 
 logger = TiliaLogger()

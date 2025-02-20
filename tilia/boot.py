@@ -25,10 +25,10 @@ def handle_expection(type, value, tb):
     exc_message = "".join(traceback.format_exception(type, value, tb))
     if ui:
         ui.show_crash_dialog(exc_message)
+    if app:
+        logger.file_dump(app.get_app_state())
 
     logger.critical(exc_message)
-    if app:
-        logger.debug(app.get_app_state())
     if ui:
         ui.exit(1)
 
@@ -41,7 +41,7 @@ def boot():
         raise FileNotFoundError(f"No .env file found at {dotenv_path.resolve()}")
     args = setup_parser()
     setup_dirs()
-    logger.setup_file_log()
+    logger.setup()
     q_application = QApplication(sys.argv)
     global app, ui
     app = setup_logic()
