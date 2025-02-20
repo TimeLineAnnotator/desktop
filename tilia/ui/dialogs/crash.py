@@ -55,18 +55,25 @@ class CrashDialog(QDialog):
         )
         unsaved_changes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        help_button = QPushButton("Contact Support")
-        help_button.clicked.connect(self.get_help)
+        self.help_button = QPushButton("Contact Support")
+        self.help_button.clicked.connect(self.get_help)
 
         layout.addWidget(sorry_label)
         layout.addWidget(exc_info_scroll)
         layout.addWidget(unsaved_changes_label)
-        layout.addWidget(help_button)
+        layout.addWidget(self.help_button)
 
         layout.setSpacing(5)
 
     def get_help(self):
-        CrashSupportDialog(self).open()
+        def update_text(submitted: bool):
+            if submitted:
+                self.help_button.setText("✅ Details submitted")
+                self.help_button.setDisabled(True)
+
+        support_dialog = CrashSupportDialog(self)
+        support_dialog.show()
+        support_dialog.finished.connect(update_text)
 
 
 class CrashSupportDialog(QDialog):
@@ -78,9 +85,12 @@ class CrashSupportDialog(QDialog):
     def _setup_widgets(self):
         self.setLayout(QFormLayout())
 
-        self.layout().addRow(
-            QLabel("Submit your contact details and we'll be in touch!")
+        header = QLabel(
+            "We are sorry about the crash.\n Submit your contact details and we'll be in touch."
         )
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.layout().addRow(header)
+
         email, name = settings.get_user()
 
         self.name_field = QLineEdit(name)
