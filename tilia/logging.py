@@ -41,16 +41,13 @@ class TiliaLogger(logging.Logger):
 
     def setup(self):
         match (env := os.environ.get("ENVIRONMENT", "prod")):
-            case "dev":
-                self.setup_sentry(env)
-                self.setup_console_log()
-                self.setup_file_log()
-            case "prod":
-                self.setup_sentry(env)
-                self.setup_file_log()
             case "test":
                 self.disabled = True
                 self.setup_sentry(env)
+            case _:
+                self.setup_sentry(env)
+                self.setup_console_log()
+                self.setup_file_log()
 
     def _get_console_level(self) -> int:
         return logging.INFO if settings.get("dev", "log_requests") else logging.ERROR
