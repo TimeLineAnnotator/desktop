@@ -35,6 +35,7 @@ class TestGetSetupParser:
     def test_setup_parser_custom_values(self):
         sys.argv = [
             "script.py",
+            "--file",
             "input.txt",
             "--user-interface",
             "cli",

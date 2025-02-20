@@ -49,7 +49,7 @@ def boot():
     logger.debug("INITIALISED")
     # has to be done after ui has been created, so timelines will get displayed
     if file := get_initial_file(args.file):
-        app.file_manager.open(file)
+        app.on_open(file)
     else:
         app.setup_file()
 
@@ -58,7 +58,7 @@ def boot():
 
 def setup_parser():
     parser = argparse.ArgumentParser(exit_on_error=False)
-    parser.add_argument("file", nargs="?", default="")
+    parser.add_argument("--file", nargs="?", default="")
     parser.add_argument("--user-interface", "-i", choices=["qt", "cli"], default="qt")
     return parser.parse_args()
 
