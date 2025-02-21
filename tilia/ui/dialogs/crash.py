@@ -118,12 +118,12 @@ class CrashSupportDialog(QDialog):
         )
         self.layout().addRow("Attached log", file)
 
-        button_box = QDialogButtonBox(
+        self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        button_box.accepted.connect(self.submit_form)
-        button_box.rejected.connect(self.reject)
-        self.layout().addRow(button_box)
+        self.button_box.accepted.connect(self.submit_form)
+        self.button_box.rejected.connect(self.reject)
+        self.layout().addRow(self.button_box)
 
     def __validate_email(self):
         if self.email_field.hasAcceptableInput():

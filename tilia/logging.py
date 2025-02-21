@@ -37,6 +37,7 @@ class TiliaLogger(logging.Logger):
     def __init__(self):
         super().__init__(__name__)
         self.setLevel(logging.DEBUG)
+        self.log_file_name = ""
         self._dump_count = count()
 
     def setup(self):
