@@ -26,7 +26,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from .scene import TimelineUIsScene
 from .validators import validate
 from tilia.exceptions import UserCancelledDialog
-from tilia.logging import logger
+from tilia.log import logger
 from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
 from tilia.timelines.base.timeline import Timeline

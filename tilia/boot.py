@@ -11,7 +11,7 @@ from tilia.clipboard import Clipboard
 from tilia.dirs import PROJECT_ROOT, setup_dirs
 from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
-from tilia.logging import logger
+from tilia.log import logger
 from tilia.media.player import QtAudioPlayer
 from tilia.ui.cli.ui import CLI
 from tilia.ui.qtui import QtUI, TiliaMainWindow
