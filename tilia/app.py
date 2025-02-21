@@ -179,7 +179,7 @@ class App:
     def _restore_app_state(self, state: dict) -> None:
         with PauseUndoManager():
             self.restore_player_state(
-                state["media_path"], state["media_metadata"]["media length"]
+                state["media_path"], state["media_metadata"].get("media length", 0)
             )
             self.file_manager.set_media_metadata(state["media_metadata"])
             self.timelines.restore_state(state["timelines"])
