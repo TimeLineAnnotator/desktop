@@ -65,8 +65,8 @@ class PdfTimelineUI(TimelineUI):
 
     def _handle_invalid_pdf(self):
         tilia.errors.display(tilia.errors.INVALID_PDF, self.get_data("path"))
-        _, value = get(Get.FROM_USER_RETRY_PDF_PATH)
-        if value:
+        confirm = get(Get.FROM_USER_RETRY_PDF_PATH)
+        if confirm:
             success, path = get(Get.FROM_USER_PDF_PATH)
             if success:
                 self.timeline.set_data("path", path)
