@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
 )
-from tilia.logging import logger
+from tilia.log import logger
 from tilia.settings import settings
 from tilia.utils import open_with_os
 

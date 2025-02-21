@@ -49,7 +49,7 @@ from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
 from ..media.player import QtVideoPlayer, QtAudioPlayer, YouTubePlayer
 from tilia import constants
-from tilia.logging import logger
+from tilia.log import logger
 from tilia.settings import settings
 from tilia.utils import get_tilia_class_string
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind

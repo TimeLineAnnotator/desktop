@@ -1,5 +1,5 @@
 import json
-import tilia.logging
+import tilia.log
 from pathlib import Path
 from typing import Literal
 from unittest.mock import patch
@@ -22,10 +22,7 @@ class TestLogger:
     def test_sentry_not_logging(self):
         # TODO: make this test run first in batch testing.
         # enabling sentry during tests will fill inbox up unneccesarily
-        assert (
-            "tilia.logging"
-            in tilia.logging.sentry_sdk.integrations.logging._IGNORED_LOGGERS
-        )
+        assert "tilia.log" in tilia.log.sentry_sdk.integrations.logging._IGNORED_LOGGERS
 
 
 class TestSaveFileOnClose:

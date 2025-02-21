@@ -2,7 +2,7 @@ import os
 import weakref
 from enum import Enum, auto
 from typing import Callable, Any
-from tilia.logging import logger
+from tilia.log import logger
 
 
 class Post(Enum):

@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication
 from colorama import Fore, Style
 
 import tilia.constants as constants_module
-import tilia.logging as logging_module
+import tilia.log as logging_module
 import tilia.settings as settings_module
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.ui import actions as tilia_actions_module
