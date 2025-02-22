@@ -264,6 +264,11 @@ class App:
         if duration:
             self.set_file_media_duration(duration)
 
+        if not path:
+            # if no path is provided, we don't want to display an error
+            # as user has set the duration manually
+            return
+
         if not self._check_if_media_exists(path):
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
             confirm = get(Get.FROM_USER_RETRY_MEDIA_PATH)
