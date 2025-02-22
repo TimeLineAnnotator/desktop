@@ -79,6 +79,12 @@ def ask_for_pdf_file():
     return _get_return_from_file_dialog(dialog)
 
 
+def ask_retry_media_file():
+    return tilia.ui.dialogs.basic.ask_yes_or_no(
+        "Invalid media path", "Would you like to load another media file?"
+    )
+
+
 def ask_retry_pdf_file():
     return tilia.ui.dialogs.basic.ask_yes_or_no(
         "Invalid PDF", "Would you like to load another PDF file?"

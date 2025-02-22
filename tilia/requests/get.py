@@ -23,6 +23,7 @@ class Get(Enum):
     FROM_USER_INT = auto()
     FROM_USER_MEDIA_PATH = auto()
     FROM_USER_PDF_PATH = auto()
+    FROM_USER_RETRY_MEDIA_PATH = auto()
     FROM_USER_RETRY_PDF_PATH = auto()
     FROM_USER_MODE_PARAMS = auto()
     FROM_USER_SAVE_PATH_OGG = auto()
