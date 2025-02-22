@@ -46,6 +46,8 @@ class App:
         self._setup_timelines()
         self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
         self._setup_requests()
+        self.old_file_path = None
+        self.cur_file_path = None
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -72,6 +74,7 @@ class App:
             (Get.ID, self.get_id),
             (Get.APP_STATE, self.get_app_state),
             (Get.MEDIA_DURATION, lambda: self.duration),
+            (Get.VERIFIED_PATH, self._verify_path_exists),
         }
 
         for post_, callback in LISTENS:
@@ -112,10 +115,13 @@ class App:
         prev_state = self.get_app_state()
         self.on_clear()
 
-        success, file = open_tla(path)
+        success, file, old_path = open_tla(path)
         if not success:
             self.on_restore_state(prev_state)
             return
+
+        self.old_file_path = old_path
+        self.cur_file_path = Path(file.file_path)
 
         success = self.on_file_load(file)
         if not success:
@@ -254,11 +260,13 @@ class App:
         )
         return get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
 
-    @staticmethod
-    def _check_if_media_exists(path: str) -> bool:
-        return path and (
-            re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists()
-        )
+    def _check_if_media_exists(self, path: str) -> tuple[bool, str]:
+        if path:
+            if re.match(tilia.constants.YOUTUBE_URL_REGEX, path):
+                return True, path
+            if checked_path := self._verify_path_exists(path):
+                return True, checked_path
+        return False, ""
 
     def _setup_file_media(self, path: str, duration: float | None):
         if duration:
@@ -269,19 +277,20 @@ class App:
             # as user has set the duration manually
             return
 
-        if not self._check_if_media_exists(path):
+        success, new_path = self._check_if_media_exists(path)
+        if not success:
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
             confirm = get(Get.FROM_USER_RETRY_MEDIA_PATH)
             if confirm:
-                success, path = get(Get.FROM_USER_MEDIA_PATH)
+                success, new_path = get(Get.FROM_USER_MEDIA_PATH)
                 if success:
-                    self.load_media(path, initial_duration=duration)
+                    self.load_media(new_path, initial_duration=duration)
                     return
 
             post(Post.PLAYER_URL_CHANGED, "")
             return
 
-        self.load_media(path, initial_duration=duration)
+        self.load_media(new_path, initial_duration=duration)
 
     def on_file_load(self, file: TiliaFile) -> bool:
         media_path = file.media_path
@@ -300,6 +309,56 @@ class App:
             return False
 
         return True
+
+    def _verify_path_exists(self, path: str) -> str:
+        """
+        Checks that a path exists and attempt to find the new path based on the old file path if it doesn't.
+        For relocating a path when moving pdf/media linked to the current tla file.
+        Returns a path as str if found, else "".
+        """
+        if not path or (old_path := Path(path)).exists():
+            return path
+        if not (self.old_file_path and self.cur_file_path):
+            return ""
+
+        # check to make sure both paths exist and are different
+        if (
+            not (self.old_file_path and self.cur_file_path)
+            or self.old_file_path == self.cur_file_path
+        ):
+            return ""
+
+        old_file_parts = self.old_file_path.parts
+        cur_file_parts = self.cur_file_path.parts
+
+        # get matching path parts from the BACK of the tla file path to get the current directory
+        pop_count = -1
+        for old, cur in zip(reversed(old_file_parts), reversed(cur_file_parts)):
+            if old == cur:
+                pop_count += 1
+                continue
+            break
+        if pop_count < 0 or pop_count >= len(list(self.cur_file_path.parents)):
+            return ""
+        start_path = list(self.cur_file_path.parents)[pop_count]
+
+        # get matching path parts from the FRONT of the input path and the old tla file path
+        to_append = []
+        for file_part, path_part in zip(
+            reversed(old_file_parts), reversed(old_path.parts)
+        ):
+            to_append.insert(0, path_part)
+            if file_part != path_part:
+                continue
+            break
+
+        # combine parts and check if guessed path exists
+        if (p := start_path.joinpath(*to_append)).exists():
+            return str(p)
+        if (p := start_path.joinpath(*to_append[1:])).exists():
+            return str(p)
+
+        return ""
 
     def on_clear(self) -> None:
         self.timelines.clear()
