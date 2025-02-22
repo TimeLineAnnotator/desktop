@@ -63,18 +63,19 @@ class Get(Enum):
     TIMELINE_UI_ELEMENT = auto()
     TIMELINE_WIDTH = auto()
     TIMELINES_FROM_CLI = auto()
+    VERIFIED_PATH = auto()
     WINDOW_GEOMETRY = auto()
     WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT = auto()
     WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE = auto()
     WINDOW_STATE = auto()
 
 
-_requests_to_callbacks: weakref.WeakKeyDictionary[Get, Callable] = (
-    weakref.WeakKeyDictionary()
-)
-_servers_to_requests: weakref.WeakKeyDictionary[Any, set[Get]] = (
-    weakref.WeakKeyDictionary()
-)
+_requests_to_callbacks: weakref.WeakKeyDictionary[
+    Get, Callable
+] = weakref.WeakKeyDictionary()
+_servers_to_requests: weakref.WeakKeyDictionary[
+    Any, set[Get]
+] = weakref.WeakKeyDictionary()
 
 
 def get(request: Get, *args, **kwargs) -> Any:

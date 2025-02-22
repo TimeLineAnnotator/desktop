@@ -15,30 +15,32 @@ import tilia.errors
 from tilia.settings import settings
 
 
-def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None]:
+def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None, Path | None]:
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         tilia.errors.display(tilia.errors.OPEN_FILE_NOT_FOUND, file_path)
-        return False, None
+        return False, None, None
     except json.decoder.JSONDecodeError:
         tilia.errors.display(
             tilia.errors.OPEN_FILE_INVALID_TLA,
             file_path,
             "File is not valid JSON.",
         )
-        return False, None
+        return False, None, None
 
     valid, reason = validate_tla_data(data)
     if not valid:
         tilia.errors.display(tilia.errors.OPEN_FILE_INVALID_TLA, file_path, reason)
-        return False, None
+        return False, None, None
+
+    old_path = Path(data["file_path"])
 
     data["file_path"] = (
         file_path if isinstance(file_path, str) else str(file_path.resolve())
     )
-    return True, TiliaFile(**data)
+    return True, TiliaFile(**data), old_path
 
 
 class FileManager:
