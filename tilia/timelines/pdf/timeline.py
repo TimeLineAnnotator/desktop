@@ -4,6 +4,7 @@ import functools
 
 import pypdf
 
+from tilia.requests import get, Get
 from tilia.settings import settings
 from tilia.timelines.base.component.pointlike import scale_pointlike, crop_pointlike
 from tilia.timelines.base.validators import validate_string
@@ -50,12 +51,15 @@ class PdfTimeline(Timeline):
     @path.setter
     def path(self, value):
         self._path = value
-        try:
-            self.page_total = len(pypdf.PdfReader(value).pages)
-            self.is_pdf_valid = True
-        except FileNotFoundError:
-            self.page_total = 0
-            self.is_pdf_valid = False
+        self.page_total = 0
+        self.is_pdf_valid = False
+        if checked_path := get(Get.RELATIVE_PATH, value):
+            try:
+                self.page_total = len(pypdf.PdfReader(checked_path).pages)
+                self.is_pdf_valid = True
+                self._path = checked_path
+            except FileNotFoundError:
+                return
 
     def setup_blank_timeline(self):
         self.create_component(ComponentKind.PDF_MARKER, time=0, page_number=1)

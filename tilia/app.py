@@ -46,6 +46,8 @@ class App:
         self._setup_timelines()
         self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
         self._setup_requests()
+        self.old_file_path = Path()
+        self.cur_file_path = Path()
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -72,6 +74,7 @@ class App:
             (Get.ID, self.get_id),
             (Get.APP_STATE, self.get_app_state),
             (Get.MEDIA_DURATION, lambda: self.duration),
+            (Get.RELATIVE_PATH, self._get_path),
         }
 
         for post_, callback in LISTENS:
@@ -112,10 +115,13 @@ class App:
         prev_state = self.get_app_state()
         self.on_clear()
 
-        success, file = open_tla(path)
+        success, file, old_path = open_tla(path)
         if not success:
             self.on_restore_state(prev_state)
             return
+
+        self.old_file_path = old_path
+        self.cur_file_path = Path(file.file_path)
 
         success = self.on_file_load(file)
         if not success:
@@ -254,29 +260,32 @@ class App:
         )
         return get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
 
-    @staticmethod
-    def _check_if_media_exists(path: str) -> bool:
-        return path and (
-            re.match(tilia.constants.YOUTUBE_URL_REGEX, path) or Path(path).exists()
-        )
+    def _check_if_media_exists(self, path: str) -> tuple[bool, str]:
+        if path:
+            if re.match(tilia.constants.YOUTUBE_URL_REGEX, path):
+                return True, path
+            if checked_path := self._get_path(path):
+                return True, checked_path
+        return False, ""
 
     def _setup_file_media(self, path: str, duration: float | None):
         if duration:
             self.set_file_media_duration(duration)
 
-        if not self._check_if_media_exists(path):
+        success, new_path = self._check_if_media_exists(path)
+        if not success:
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
             confirm = get(Get.FROM_USER_RETRY_MEDIA_PATH)
             if confirm:
-                success, path = get(Get.FROM_USER_MEDIA_PATH)
+                success, new_path = get(Get.FROM_USER_MEDIA_PATH)
                 if success:
-                    self.load_media(path, initial_duration=duration)
+                    self.load_media(new_path, initial_duration=duration)
                     return
 
             post(Post.PLAYER_URL_CHANGED, "")
             return
 
-        self.load_media(path, initial_duration=duration)
+        self.load_media(new_path, initial_duration=duration)
 
     def on_file_load(self, file: TiliaFile) -> bool:
         media_path = file.media_path
@@ -293,6 +302,34 @@ class App:
             return False
 
         return True
+
+    def _get_path(self, path: str) -> str:
+        if (old_path := Path(path)).exists():
+            return path
+
+        old_file_parts = self.old_file_path.parts
+        cur_file_parts = self.cur_file_path.parts
+
+        pop_count = -2
+        for old, cur in zip(reversed(old_file_parts), reversed(cur_file_parts)):
+            if old == cur:
+                pop_count += 1
+                continue
+            break
+        start_path = list(self.cur_file_path.parents)[
+            pop_count if pop_count >= 0 else 0
+        ]
+
+        pop_count = 0
+        for file_part, path_part in zip(old_file_parts, old_path.parts):
+            if file_part == path_part:
+                pop_count += 1
+                continue
+            break
+        if (p := start_path.joinpath(*old_path.parts[pop_count:])).exists():
+            return str(p)
+
+        return ""
 
     def on_clear(self) -> None:
         self.timelines.clear()

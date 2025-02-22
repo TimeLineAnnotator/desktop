@@ -46,6 +46,7 @@ class Get(Enum):
     METRIC_POSITION = auto()
     PLAYBACK_AREA_WIDTH = auto()
     PLAYER_CLASS = auto()
+    RELATIVE_PATH = auto()
     RIGHT_MARGIN_X = auto()
     SELECTED_TIME = auto()
     SCORE_VIEWER = auto()
@@ -69,12 +70,12 @@ class Get(Enum):
     WINDOW_STATE = auto()
 
 
-_requests_to_callbacks: weakref.WeakKeyDictionary[Get, Callable] = (
-    weakref.WeakKeyDictionary()
-)
-_servers_to_requests: weakref.WeakKeyDictionary[Any, set[Get]] = (
-    weakref.WeakKeyDictionary()
-)
+_requests_to_callbacks: weakref.WeakKeyDictionary[
+    Get, Callable
+] = weakref.WeakKeyDictionary()
+_servers_to_requests: weakref.WeakKeyDictionary[
+    Any, set[Get]
+] = weakref.WeakKeyDictionary()
 
 
 def get(request: Get, *args, **kwargs) -> Any:
