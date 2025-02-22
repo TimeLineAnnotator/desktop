@@ -266,6 +266,13 @@ class App:
 
         if not self._check_if_media_exists(path):
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
+            confirm = get(Get.FROM_USER_RETRY_MEDIA_PATH)
+            if confirm:
+                success, path = get(Get.FROM_USER_MEDIA_PATH)
+                if success:
+                    self.load_media(path, initial_duration=duration)
+                    return
+
             post(Post.PLAYER_URL_CHANGED, "")
             return
 
