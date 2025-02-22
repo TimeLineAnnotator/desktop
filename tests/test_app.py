@@ -584,3 +584,57 @@ class TestFileNew:
         # it checks if app._windows[kind] is None.
         # Those should be equivalent, if everything is working as it should
         assert not any(qtui.is_window_open(k) for k in WindowKind)
+
+
+class TestRelativePaths:
+    def test_path_exists(self, tmp_path):
+        existing_path = tmp_path / "previous.file"
+        existing_path.mkdir()
+        assert get(Get.RELATIVE_PATH, str(existing_path)) == str(existing_path)
+
+    def test_path_nonexistent(self, tilia, tmp_path):
+        tilia.old_file_path = Path()
+        tilia.cur_file_path = tmp_path
+        not_a_path = tmp_path / "nonexistent.file"
+        assert get(Get.RELATIVE_PATH, str(not_a_path)) == ""
+
+    def test_same_file_name(self, tilia, tmp_path):
+        old_starting_folder = Path(":Drive/user/some/folder")
+
+        tilia.old_file_path = old_starting_folder / "tilia.tla"
+        tilia.cur_file_path = tmp_path / "tilia.tla"
+
+        old_media_path = old_starting_folder / "music.mp4"
+        new_media_path = tmp_path / "music.mp4"
+        new_media_path.mkdir()
+
+        assert get(Get.RELATIVE_PATH, str(old_media_path)) == str(new_media_path)
+
+    def test_same_folder_and_file_name(self, tilia, tmp_path):
+        old_file_dir = Path(":Drive/user/some/folder_name")
+        tilia.old_file_path = old_file_dir / "tilia.tla"
+        old_media_path = old_file_dir / "music.mp4"
+
+        cur_file_dir = tmp_path / "folder_name"
+        cur_file_dir.mkdir()
+        tilia.cur_file_path = cur_file_dir / "tilia.tla"
+
+        new_media_path = cur_file_dir / "music.mp4"
+        new_media_path.mkdir()
+
+        assert get(Get.RELATIVE_PATH, str(old_media_path)) == str(new_media_path)
+
+    def test_same_folder_structure_and_file_name(self, tilia, tmp_path):
+        old_file_dir = Path(":Drive/user/some/folder_name")
+        tilia.old_file_path = old_file_dir / "files/tilia.tla"
+        old_media_path = old_file_dir / "music/music.mp4"
+
+        cur_file_dir = tmp_path / "folder_name"
+        cur_file_dir.mkdir()
+        tilia.cur_file_path = cur_file_dir / "files/tilia.tla"
+
+        new_media_path = cur_file_dir / "music/music.mp4"
+        (cur_file_dir / "music").mkdir()
+        new_media_path.mkdir()
+
+        assert get(Get.RELATIVE_PATH, str(old_media_path)) == str(new_media_path)
