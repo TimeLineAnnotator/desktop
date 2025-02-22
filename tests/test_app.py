@@ -598,3 +598,56 @@ class TestFileNew:
         # it checks if app._windows[kind] is None.
         # Those should be equivalent, if everything is working as it should
         assert not any(qtui.is_window_open(k) for k in WindowKind)
+
+
+class TestRelativePaths:
+    def test_path_exists(self, tmp_path):
+        existing_path = tmp_path / "previous.file"
+        existing_path.mkdir()
+        assert get(Get.VERIFIED_PATH, str(existing_path)) == str(existing_path)
+
+    def test_path_nonexistent(self, tilia, tmp_path):
+        tilia.old_file_path = Path()
+        tilia.cur_file_path = tmp_path
+        not_a_path = tmp_path / "nonexistent.file"
+        assert get(Get.VERIFIED_PATH, str(not_a_path)) == ""
+
+    @pytest.mark.parametrize(
+        "tla,media",
+        [
+            ("tilia.tla", "music.mp3"),
+            ("folderName/tilia.tla", "folderName/music.mp3"),
+            ("folderName/files/tilia.tla", "folderName/media/music.mp3"),
+        ],
+    )
+    def test_moving_files(self, tla, media, tilia, qtui, tmp_path, user_actions):
+        # create tla and media in old folder
+        old_folder = tmp_path / "old" / "folder"
+        old_tla = old_folder / tla
+        old_tla.parent.mkdir(parents=True, exist_ok=True)
+        old_media = old_folder / media
+        old_media.parent.mkdir(parents=True, exist_ok=True)
+        old_media.write_bytes(
+            Path(EXAMPLE_MEDIA_PATH).read_bytes()
+        )  # copy example media
+
+        # load media
+        with patch_file_dialog(True, [str(old_media.resolve())]):
+            user_actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
+
+        # save tla
+        with patch_file_dialog(True, [str(old_tla.resolve())]):
+            user_actions.trigger(TiliaAction.FILE_SAVE_AS)
+
+        # move tla and media to new folder
+        new_folder = tmp_path / "the" / "new" / "one"
+        (new_folder / tla).parent.mkdir(parents=True, exist_ok=True)
+        (new_folder / media).parent.mkdir(parents=True, exist_ok=True)
+        new_tla = old_tla.rename(new_folder / tla)
+        new_media = old_media.rename(new_folder / media)
+
+        # open file at new folder
+        with (patch_file_dialog(True, [str(new_tla)])):
+            user_actions.trigger(TiliaAction.FILE_OPEN)
+
+        assert tilia.player.media_path == str(new_media)
