@@ -54,6 +54,7 @@ class TimeXConverter:
             except ZeroDivisionError:
                 return self.left_margin_x
         except ZeroDivisionError:
+            self.setup()
             return self.left_margin_x
 
 
