@@ -47,15 +47,18 @@ def ask_for_path_to_save(
     title: str, filter: str, initial_filename: str
 ) -> tuple[bool, str]:
     dialog = QFileDialog()
-    dir = (
+    dialog.setWindowTitle(title)
+    dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+    dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+    dialog.setNameFilter(filter)
+    dialog.setDirectory(
         Path(dialog.directory().path(), initial_filename)
         .resolve()
         .__str__()
         .replace("\\", "/")
     )
-    path = dialog.getSaveFileName(caption=title, filter=filter, directory=dir)[0]
 
-    return bool(path), path
+    return _get_return_from_file_dialog(dialog)
 
 
 def ask_for_path_to_save_tilia_file(initial_filename: str) -> tuple[bool, str]:
