@@ -95,7 +95,7 @@ OPEN_FILE_NOT_FOUND = Error("File not found", "File '{}' not found.")
 OPEN_FILE_INVALID_TLA = Error(
     "Invalid file type", "File '{}' is not a valid .tla file. {}"
 )
-LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. {}")
+LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. \n{}")
 UNDO_FAILED = Error(
     "Undo failed",
     "Undo failed. TiLiA encountered an error while undoing the last action.\n{}",
