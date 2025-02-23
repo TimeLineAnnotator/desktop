@@ -484,16 +484,14 @@ def notes_from_musicXML(
         and (0 not in beat_tl.measure_numbers)
         and (1 in beat_tl.measure_numbers)
     ):
-        if not get(
+        if get(
             Get.FROM_USER_YES_OR_NO,
             INSERT_MEASURE_ZERO_TITLE,
             INSERT_MEASURE_ZERO_PROMPT,
         ):
-            return False, []
-
-        success, reason = _insert_measure_zero(tree, beat_tl)
-        if not success:
-            return False, [INSERT_MEASURE_ZERO_FAILED.format(reason)]
+            success, reason = _insert_measure_zero(tree, beat_tl)
+            if not success:
+                return False, [INSERT_MEASURE_ZERO_FAILED.format(reason)]
 
     part_id_to_staves = _parse_staves(tree)
     for part in tree.findall("part"):
