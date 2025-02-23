@@ -65,7 +65,7 @@ def notes_from_musicXML(
     path: str,
     file_kwargs: dict[str, Any] | None = None,
     reader_kwargs: dict[str, Any] | None = None,
-) -> list[str]:
+) -> tuple[bool, list[str]]:
     """
     Create notes in a timeline from data extracted from a .musicXML(uncompressed) or .mxl(compressed) file.
     Returns a boolean indicating if the process was successful and
