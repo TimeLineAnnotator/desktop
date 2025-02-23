@@ -1,5 +1,8 @@
+from contextlib import contextmanager
 from typing import Any, Sequence
 from unittest.mock import patch, Mock
+
+from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from tilia.requests import Get, Post, serve, server, stop_serving
 from tilia.requests import get as get_original
@@ -126,3 +129,48 @@ class PatchPost:
             self.mock(request, *args, **kwargs)
         else:
             post_original(request, *args, **kwargs)
+
+
+@contextmanager
+def patch_file_dialog(
+    success: bool | list[bool], selected_files: list[str] | list[list[str]]
+):
+    """Patches the file dialog to return the specified success values and selected files.
+
+    Args:
+        success: Whether the dialog was successful. If a list, the success value for each iteration.
+        selected_files: Files chose by user. If a list of lists, the files for each iteration.
+    """
+
+    if not isinstance(selected_files, list):
+        raise ValueError("selected_files must be a list.")
+
+    with (
+        patch.object(QFileDialog, "exec", return_value=success),
+        patch.object(QFileDialog, "selectedFiles", return_value=selected_files),
+    ):
+        yield
+
+
+@contextmanager
+def patch_yes_or_no_dialog(success: bool | list[bool]):
+    """Patches the yes/no dialog to return the specified success values.
+
+    Args:
+        success: Whether the dialog was successful. If a list, the success value for each iteration.
+    """
+
+    def get_button_from_bool(success: bool):
+        return (
+            QMessageBox.StandardButton.Yes if success else QMessageBox.StandardButton.No
+        )
+
+    if isinstance(success, bool):
+        success = get_button_from_bool(success)
+    elif isinstance(success, list):
+        success = [get_button_from_bool(s) for s in success]
+    else:
+        raise ValueError("success must be a bool or a list of bools.")
+
+    with patch.object(QMessageBox, "question", return_value=success):
+        yield

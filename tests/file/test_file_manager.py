@@ -1,6 +1,6 @@
 import json
 from unittest.mock import mock_open
-from tests.mock import PatchPost, Serve
+from tests.mock import PatchPost, Serve, patch_file_dialog, patch_yes_or_no_dialog
 from tilia.file.media_metadata import MediaMetadata
 
 from tilia.requests import Post, post, Get, get
@@ -23,16 +23,17 @@ class TestUserActions:
     def test_save(self, tls, marker_tlui, tmp_path, user_actions):
         marker_tlui.create_marker(0)
         tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, tmp_file_path)):
+        with patch_file_dialog(True, [tmp_file_path]):
             user_actions.trigger(TiliaAction.FILE_SAVE_AS)
         marker_tlui.create_marker(1)
         user_actions.trigger(TiliaAction.FILE_SAVE)
-        with Serve(Get.FROM_USER_YES_OR_NO, True):
+
+        with patch_yes_or_no_dialog(True):
             user_actions.trigger(TiliaAction.TIMELINES_CLEAR)
         assert marker_tlui.is_empty
         with (
-            Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file_path)),
-            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+            patch_file_dialog(True, [tmp_file_path]),
+            patch_yes_or_no_dialog(False),  # do not save changes
         ):
             user_actions.trigger(TiliaAction.FILE_OPEN)
         assert len(tls[0]) == 2

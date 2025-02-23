@@ -8,7 +8,7 @@ import pytest
 
 import tests.utils
 from tests.constants import EXAMPLE_MEDIA_PATH
-from tests.mock import Serve, PatchPost
+from tests.mock import Serve, PatchPost, patch_file_dialog, patch_yes_or_no_dialog
 from tilia.media.player import YouTubePlayer, QtAudioPlayer
 from tilia.settings import settings
 
@@ -110,14 +110,25 @@ class TestSaveFileOnClose:
 
 class TestFileLoad:
     def test_media_path_does_not_exist_and_media_length_available(
-        self, tilia_state, tmp_path, user_actions
+        self, tilia_state, qtui, tmp_path, user_actions
     ):
-        file_data = tests.utils.get_blank_file_data()
-        file_data["media_metadata"]["media length"] = 101
-        file_data["media_path"] = "invalid.tla"
-        tmp_file = tmp_path / "test_file_load.tla"
-        tmp_file.write_text(json.dumps(file_data))
-        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
+        tilia_state.duration = 101
+
+        # set media path to a non-existing file
+        nonexisting_media = tmp_path / "nothere.mp3"
+        with patch_file_dialog(True, [str(nonexisting_media)]):
+            user_actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
+
+        # save tilia file
+        tla_path = tmp_path / "test.tla"
+        with patch_file_dialog(True, [str(tla_path)]):
+            user_actions.trigger(TiliaAction.FILE_SAVE_AS)
+
+        # open tilia file
+        with (
+            patch_file_dialog(True, [str(tla_path)]),
+            patch_yes_or_no_dialog(False),
+        ):
             user_actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
@@ -125,14 +136,17 @@ class TestFileLoad:
         assert tilia_state.duration == 101
 
     def test_media_path_does_not_exist_and_media_length_not_available(
-        self, tilia_state, tmp_path, user_actions
+        self, qtui, tilia_state, tmp_path, user_actions
     ):
         tilia_state.duration = 0
         file_data = tests.utils.get_blank_file_data()
         file_data["media_path"] = "invalid.tla"
         tmp_file = tmp_path / "test_file_load.tla"
         tmp_file.write_text(json.dumps(file_data))
-        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
+        with (
+            patch_file_dialog(True, [str(tmp_file)]),
+            patch_yes_or_no_dialog(False),  # do no try to load another media
+        ):
             user_actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
