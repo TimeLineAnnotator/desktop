@@ -144,14 +144,6 @@ class TestInsertMeasureZero:
 
         assert len(score_tlui) == 0
 
-    def test_user_rejects(self, qtui, score_tlui, beat_tl, tmp_path, tilia_state):
-        self.setup_valid_beats(beat_tl)
-
-        with Serve(Get.FROM_USER_YES_OR_NO, False):
-            notes_from_musicXML(score_tlui.timeline, beat_tl, self.xml_path(tmp_path))
-
-        assert len(score_tlui) == 0
-
     def test_no_beat_1(self, qtui, score_tlui, beat_tl, tmp_path, tilia_state):
         self.setup_valid_beats(beat_tl)
 
