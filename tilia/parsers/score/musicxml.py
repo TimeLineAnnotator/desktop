@@ -7,7 +7,7 @@ from bisect import bisect
 
 from lxml import etree
 
-from tilia.requests import Get, get
+from tilia.requests import Get, get, Post, post
 from tilia.parsers.score.musicxml_to_svg import musicxml_to_svg
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.score.components import Note
@@ -496,7 +496,7 @@ def notes_from_musicXML(
     part_id_to_staves = _parse_staves(tree)
     for part in tree.findall("part"):
         _parse_part(part, part.get("id"))
-
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tl.id)
     svg_converter.to_svg(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
 
     return True, errors
