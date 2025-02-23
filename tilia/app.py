@@ -293,8 +293,10 @@ class App:
 
             self.timelines.deserialize_timelines(file.timelines)
             self.setup_file()
-        except Exception as exc:
-            tilia.errors.display(tilia.errors.LOAD_FILE_ERROR, file.file_path, exc)
+        except Exception:
+            tilia.errors.display(
+                tilia.errors.LOAD_FILE_ERROR, file.file_path, traceback.format_exc()
+            )
             return False
 
         return True
