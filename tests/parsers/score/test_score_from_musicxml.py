@@ -1,6 +1,11 @@
+from unittest.mock import patch
+
+from PyQt6.QtWidgets import QMessageBox
+
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
+from tilia.timelines.score.timeline import ScoreTimeline
 
 
 def _import_with_patch(score_tl, beat_tl, data, tmp_path):
@@ -8,6 +13,12 @@ def _import_with_patch(score_tl, beat_tl, data, tmp_path):
     tmp_file.write_text(data)
     errors = notes_from_musicXML(score_tl, beat_tl, str(tmp_file.resolve()))
     return errors
+
+
+def _get_components_by_kind(
+    score_tl: ScoreTimeline, kind: ComponentKind
+) -> list[ComponentKind]:
+    return list(sorted(score_tl.component_manager._get_component_set_by_kind(kind)))
 
 
 def test_example(score_tl, beat_tl, tmp_path):
@@ -280,3 +291,102 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
         )
         assert ts.numerator == time_sig[0]
         assert ts.denominator == time_sig[1]
+
+
+class TestMeasureZeroNotInTimeline:
+    xml = """<score-partwise version="4.0">
+            <part-list>
+                <score-part id="P1">
+                <part-name>Flute</part-name>
+                </score-part>
+                </part-list>
+            <part id="P1">
+                <measure number="0" implicit="yes">
+                <attributes>
+                    <divisions>2</divisions>
+                    <key>
+                    <fifths>0</fifths>
+                    </key>
+                    <time>
+                    <beats>4</beats>
+                    <beat-type>4</beat-type>
+                    </time>
+                    <clef>
+                    <sign>G</sign>
+                    <line>2</line>
+                    </clef>
+                    </attributes>
+                <note>
+                    <pitch>
+                    <step>C</step>
+                    <octave>4</octave>
+                    </pitch>
+                    <duration>2</duration>
+                    <tie type="start"/>
+                    <voice>1</voice>
+                    <type>quarter</type>
+                    <stem>up</stem>
+                    <notations>
+                    <tied type="start"/>
+                    </notations>
+                    </note>
+                </measure>
+                <measure number="1">
+                <note>
+                    <pitch>
+                    <step>C</step>
+                    <octave>4</octave>
+                    </pitch>
+                    <duration>8</duration>
+                    <tie type="stop"/>
+                    <tie type="start"/>
+                    <voice>1</voice>
+                    <type>whole</type>
+                    <notations>
+                    <tied type="stop"/>
+                    <tied type="start"/>
+                    </notations>
+                    </note>
+                </measure>
+                </part>
+            </score-partwise>"""
+
+    def test_user_accepts_measure_zero_import(self, qtui, beat_tl, score_tl, tmp_path):
+
+        beat_tl.set_data("beat_pattern", [1])
+        beat_tl.create_beat(1)
+        beat_tl.create_beat(2)
+        beat_tl.recalculate_measures()
+
+        with patch.object(
+            QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes
+        ):
+            _import_with_patch(score_tl, beat_tl, self.xml, tmp_path)
+
+        notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+        assert len(notes) == 2
+        assert notes[0].start_measure == 0
+        assert notes[1].start_measure == 1
+        clefs = _get_components_by_kind(score_tl, ComponentKind.CLEF)
+        assert len(clefs) == 1
+        assert clefs[0].measure == 0
+
+    def test_user_refuses_measure_zero_import(self, qtui, beat_tl, score_tl, tmp_path):
+        beat_tl.set_data("beat_pattern", [1])
+        beat_tl.create_beat(1)
+        beat_tl.create_beat(2)
+        beat_tl.recalculate_measures()
+
+        with patch.object(
+            QMessageBox, "question", return_value=QMessageBox.StandardButton.No
+        ):
+            _import_with_patch(score_tl, beat_tl, self.xml, tmp_path)
+
+        notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+        assert len(notes) == 1
+        assert notes[0].start_measure == 1
+        # clef gets "pushed" to first measure
+        clefs = _get_components_by_kind(score_tl, ComponentKind.CLEF)
+        assert len(clefs) == 1
+        assert clefs[0].measure == 1
+        assert clefs[0].beat == 1
