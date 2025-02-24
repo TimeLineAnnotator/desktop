@@ -180,9 +180,9 @@ class FileManager:
         return list(MediaMetadata.REQUIRED_FIELDS)  # REQUIRED_FIELDS is a dict
 
     def save(self, data: dict, path: Path | str):
-        write_tilia_file_to_disk(TiliaFile(**data), str(path))
         data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
         self.file = TiliaFile(**data)
+        write_tilia_file_to_disk(TiliaFile(**data), str(path))
 
         try:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
