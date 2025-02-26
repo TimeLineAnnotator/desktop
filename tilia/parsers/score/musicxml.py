@@ -85,7 +85,7 @@ def notes_from_musicXML(
             return None
         return component.id
 
-    def _create_elements(elements: dict) -> None:
+    def _create_elements(elements: list[dict]) -> None:
         for elem in elements:
             if not elem:
                 continue
@@ -350,57 +350,67 @@ def notes_from_musicXML(
     def _parse_staff(element: etree._Element, part_id: str):
         return part_id_to_staves[part_id][element.find("staff").text]
 
-    def _parse_note(element: etree._Element, part_id: str) -> dict[str, Any]:
+    def _parse_note(element: etree._Element, part_id: str) -> list[dict[str, Any]]:
         if element.find("grace") is not None:
             # We do not support grace notes yet.
-            return dict()
+            return []
         elif element.find("cue") is not None:
             # We do not support cue notes yet.
-            return dict()
+            return []
 
         duration = int(element.find("duration").text)
-        constructor_kwargs = dict()
+        constructor_kwargs = []
 
         if element.find("rest") is not None:
             metric_division.update_measure_position(duration)
-            return {
-                "div_pos": metric_division.div_position[1],
-                "element": element,
-                "to_annotate": True,
-            }
+            return [
+                {
+                    "div_pos": metric_division.div_position[1],
+                    "element": element,
+                    "to_annotate": True,
+                }
+            ]
 
         if element.find("pitch") is not None:
-            constructor_kwargs = _parse_pitch(element)
+            constructor_kwargs = [_parse_pitch(element)]
 
         if element.find("unpitched") is not None:
-            constructor_kwargs = _parse_unpitched(element)
+            constructor_kwargs = [_parse_unpitched(element)]
 
         if not constructor_kwargs.keys():
             return dict()
 
-        constructor_kwargs["tie_type"] = _parse_note_tie(element)
+        if not constructor_kwargs:
+            return []
 
-        if element.find("staff") is not None:
-            constructor_kwargs["staff_index"] = _parse_staff(element, part_id)
-        else:
-            constructor_kwargs["staff_index"] = part_id_to_staves[part_id]["1"]
+        for obj_kwargs in constructor_kwargs:
+            obj_kwargs["tie_type"] = _parse_note_tie(element)
+
+            if element.find("staff") is not None:
+                obj_kwargs["staff_index"] = _parse_staff(element, part_id)
+            else:
+                obj_kwargs["staff_index"] = part_id_to_staves[part_id]["1"]
 
         is_chord = element.find("chord") is not None
 
-        output = {
-            "div_pos": metric_division.div_position[0 if is_chord else 1],
-            "duration": duration,
-            "element": element,
-            "kwargs": constructor_kwargs,
-            "to_annotate": not is_chord,
-        }
+        output = []
+        for obj_kwargs in constructor_kwargs:
+            output.append(
+                {
+                    "div_pos": metric_division.div_position[0 if is_chord else 1],
+                    "duration": duration / len(constructor_kwargs),
+                    "element": element,
+                    "kwargs": obj_kwargs,
+                    "to_annotate": not is_chord,
+                }
+            )
 
         if not is_chord:
             metric_division.update_measure_position(duration)
 
         return output
 
-    def _parse_element(element: etree._Element, part_id: str) -> dict[str, Any]:
+    def _parse_element(element: etree._Element, part_id: str) -> list[dict[str, Any]]:
         match element.tag:
             case "note":
                 return _parse_note(element, part_id)
@@ -412,7 +422,7 @@ def notes_from_musicXML(
                 metric_division.update_measure_position(duration)
             case _:
                 pass
-        return dict()
+        return []
 
     def _parse_part(part: etree._Element, part_id: str):
         _parse_attributes(part, part_id)
@@ -425,7 +435,7 @@ def notes_from_musicXML(
             metric_division.update_measure_number(int(measure.attrib["number"]))
             elements_to_create = []
             for element in measure:
-                elements_to_create.append(_parse_element(element, part_id))
+                elements_to_create += _parse_element(element, part_id)
             _create_elements(elements_to_create)
 
             times = _metric_to_time(
