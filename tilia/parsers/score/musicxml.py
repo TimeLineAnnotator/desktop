@@ -76,6 +76,7 @@ def notes_from_musicXML(
 
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
     sign_to_line = {"C": 0, "F": 1, "G": -1}
+    cur_time_denominator = None
 
     def _create_component(component_kind: ComponentKind, kwargs: dict) -> int | None:
         component, fail_reason = score_tl.create_component(component_kind, **kwargs)
@@ -249,6 +250,8 @@ def notes_from_musicXML(
                 case "time":
                     ts_numerator = int(attribute.find("beats").text)
                     ts_denominator = int(attribute.find("beat-type").text)
+                    nonlocal cur_time_denominator
+                    cur_time_denominator = ts_denominator
                     constructor_kwargs = {
                         "numerator": ts_numerator,
                         "denominator": ts_denominator,
