@@ -485,7 +485,8 @@ def notes_from_musicXML(
 
     svg_converter = musicxml_to_svg(score_tl.id)
     with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
-        tree = etree.parse(file, **reader_kwargs).getroot()
+        parser = etree.XMLParser(remove_blank_text=True)
+        tree = etree.parse(file, parser=parser, **reader_kwargs).getroot()
 
     if tree.tag == "score-timewise":
         tree = _convert_to_partwise(tree)
@@ -565,3 +566,7 @@ def _insert_measure_zero(
         [int(d.text) for d in measure_one.findall("note//duration")]
     )
     return beat_tl.add_measure_zero(measure_zero_divisions / measure_one_divisions)
+
+
+def _pretty_str_from_xml_element(element: etree.Element):
+    return etree.tostring(element, pretty_print=True).decode("utf-8")
