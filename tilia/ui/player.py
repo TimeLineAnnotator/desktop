@@ -7,14 +7,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIcon, QAction, QPixmap
 from PyQt6.QtCore import Qt
 
+from tilia.dirs import IMG_DIR
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
 from tilia.ui.format import format_media_time
 from tilia.requests import Post, post, listen, stop_listening_to_all, get, Get
 
 import tilia.errors
-
-from pathlib import Path
 
 from enum import Enum, auto
 
@@ -153,12 +152,12 @@ class PlayerToolbar(QToolBar):
 
         play_toggle_icon = QIcon()
         play_toggle_icon.addPixmap(
-            QPixmap(str(Path("ui", "img", "play15.png"))),
+            QPixmap(str(IMG_DIR / "play15.png")),
             QIcon.Mode.Normal,
             QIcon.State.Off,
         )
         play_toggle_icon.addPixmap(
-            QPixmap(str(Path("ui", "img", "pause15.png"))),
+            QPixmap(str(IMG_DIR / "pause15.png")),
             QIcon.Mode.Normal,
             QIcon.State.On,
         )
@@ -184,12 +183,12 @@ class PlayerToolbar(QToolBar):
 
         loop_toggle_icon = QIcon()
         loop_toggle_icon.addPixmap(
-            QPixmap(str(Path("ui", "img", "loop15.png"))),
+            QPixmap(str(IMG_DIR / "loop15.png")),
             QIcon.Mode.Normal,
             QIcon.State.On,
         )
         loop_toggle_icon.addPixmap(
-            QPixmap(str(Path("ui", "img", "no_loop15.png"))),
+            QPixmap(str(IMG_DIR / "no_loop15.png")),
             QIcon.Mode.Normal,
             QIcon.State.Off,
         )
@@ -215,12 +214,12 @@ class PlayerToolbar(QToolBar):
 
         volume_toggle_icon = QIcon()
         volume_toggle_icon.addPixmap(
-            QPixmap(str(Path("ui", "img", "mute15.png"))),
+            QPixmap(str(IMG_DIR / "mute15.png")),
             QIcon.Mode.Normal,
             QIcon.State.On,
         )
         volume_toggle_icon.addPixmap(
-            QPixmap(str(Path("ui", "img", "unmute15.png"))),
+            QPixmap(str(IMG_DIR / "unmute15.png")),
             QIcon.Mode.Normal,
             QIcon.State.Off,
         )

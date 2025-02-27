@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
+from tilia.dirs import IMG_DIR
 from tilia.timelines.score.components import Clef
 from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,
@@ -35,7 +34,7 @@ class KeySignatureUI(TimelineUIElementWithCollision):
     def icon_path(self) -> str:
         fifths = self.get_data("fifths")
         if fifths == 0:
-            return str(Path("ui", "img", "key-signature-no-accidentals.svg").resolve())
+            return str((IMG_DIR / "key-signature-no-accidentals.svg").resolve())
         accidental_count = abs(fifths)
         accidental_type = "flats" if fifths < 0 else "sharps"
         clef = self.timeline_ui.get_clef_by_time(
@@ -45,10 +44,9 @@ class KeySignatureUI(TimelineUIElementWithCollision):
             clef_string = "treble"
         else:
             clef_string = self._clef_shorthand_to_icon_path_string(clef.shorthand())
-        path = Path(
-            "ui",
-            "img",
-            f"key-signature-{clef_string}-{accidental_count}-{accidental_type}.svg",
+        path = (
+            IMG_DIR
+            / f"key-signature-{clef_string}-{accidental_count}-{accidental_type}.svg"
         )
         return str(path.resolve())
 

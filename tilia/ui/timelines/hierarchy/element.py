@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pathlib import Path
-
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QColor, QPen, QFont, QFontMetrics, QPixmap
 from PyQt6.QtWidgets import (
@@ -16,6 +14,7 @@ from PyQt6.QtWidgets import (
     QGraphicsTextItem,
 )
 
+from tilia.dirs import IMG_DIR
 from .context_menu import HierarchyContextMenu
 from .drag import start_drag
 from .extremity import Extremity
@@ -758,7 +757,7 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
 
 
 class HierarchyLoopIcon(QGraphicsPixmapItem):
-    ICON = str(Path("ui", "img", "loop15.png"))
+    ICON = str(IMG_DIR / "loop15.png")
     TOP_MARGIN = 1
     LEFT_MARGIN = 3
 
