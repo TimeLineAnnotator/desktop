@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum, auto
-from pathlib import Path
 from typing import Any, Optional
 
+from tilia.dirs import IMG_DIR
 from tilia.requests.post import post, Post
 
 from PyQt6.QtWidgets import QMainWindow
@@ -115,7 +115,7 @@ def setup_action(action: TiliaAction, parent: QMainWindow):
 
 
 def get_img_path(basename: str):
-    return Path("ui", "img", f"{basename}.png")
+    return IMG_DIR / f"{basename}.png"
 
 
 def set_request(

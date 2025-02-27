@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import math
-from pathlib import Path
 from typing import Callable, Any, Iterable
 
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QPixmap, QColor
 from PyQt6.QtWidgets import QGraphicsRectItem
 
+from tilia.dirs import IMG_DIR
 from tilia.exceptions import GetComponentDataError, NoReplyToRequest
 from tilia.requests import Get, get, listen, Post, post
 from tilia.timelines.component_kinds import ComponentKind
@@ -106,7 +106,7 @@ class ScoreTimelineUI(TimelineUI):
 
     @staticmethod
     def get_time_signature_pixmap_path(n: int) -> str:
-        return Path("ui", "img", f"time-signature-{n}.svg").resolve().__str__()
+        return str((IMG_DIR / f"time-signature-{n}.svg").resolve())
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:

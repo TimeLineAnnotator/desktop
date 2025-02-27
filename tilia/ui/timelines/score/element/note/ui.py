@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QGraphicsItem,
 )
 
+from tilia.dirs import IMG_DIR
 from tilia.requests import Post, post
 from tilia.timelines.score.components.note import pitch
 from tilia.ui.timelines.score import attrs
@@ -206,7 +207,7 @@ class NoteUI(TimelineUIElement):
             1: "sharp",
             2: "double-sharp",
         }[accidental]
-        return Path("ui", "img", f"accidental-{file_name}.svg")
+        return IMG_DIR / f"accidental-{file_name}.svg"
 
     def get_accidental_position(
         self, accidental: int, scale_factor: float
@@ -328,8 +329,8 @@ class NoteUI(TimelineUIElement):
         )
         if start := self.get_data("start_metric_position"):
             end = self.get_data("end_metric_position")
-            inspector["Start / end (metric)"] = (
-                f"{start.measure}.{start.beat} / {end.measure}.{end.beat}"
-            )
+            inspector[
+                "Start / end (metric)"
+            ] = f"{start.measure}.{start.beat} / {end.measure}.{end.beat}"
 
         return inspector
