@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import (
     QPen,
@@ -17,6 +15,7 @@ from PyQt6.QtWidgets import (
     QGraphicsRectItem,
 )
 
+from tilia.dirs import IMG_DIR
 from tilia.requests import Post, post, get, Get
 from .context_menu import PdfMarkerContextMenu
 from ..copy_paste import CopyAttributes
@@ -147,7 +146,7 @@ class PdfMarkerUI(TimelineUIElement):
 
 class PdfMarkerBody(CursorMixIn, QGraphicsPixmapItem):
     # Icon by Freepik. Available at: https://www.flaticon.com/free-icon/page-blank_16120
-    ICON_PATH = Path("ui", "img", "pdf_page.png")
+    ICON_PATH = IMG_DIR / "pdf_page.png"
     WIDTH = 20
     TOP_MARGIN = 5
     SELECTION_BOX_MARGIN = 2

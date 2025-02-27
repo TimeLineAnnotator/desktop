@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-import tilia
 import platformdirs
 
 import tilia.constants
@@ -15,6 +14,8 @@ _USER_DATA_DIR = Path(
 )
 data_path = _SITE_DATA_DIR
 PROJECT_ROOT = Path(tilia.__file__).parents[1]
+TILIA_DIR = Path(tilia.__file__).parent
+IMG_DIR = Path(TILIA_DIR, "ui", "img")
 
 
 def setup_data_dir() -> Path:

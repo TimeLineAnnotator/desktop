@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
+from tilia.dirs import IMG_DIR
 from tilia.timelines.score.components import Clef
 from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,
@@ -18,8 +19,8 @@ class ClefUI(TimelineUIElementWithCollision):
     @property
     def icon_path(self):
         if not self.get_data("icon"):
-            return Path("ui", "img", "clef-unknown.svg")
-        return Path("ui", "img", self.get_data("icon"))
+            return IMG_DIR / "clef-unknown.svg"
+        return IMG_DIR / self.get_data("icon")
 
     def _setup_body(self):
         self.body = ClefBody(
