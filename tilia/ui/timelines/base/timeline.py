@@ -343,9 +343,9 @@ class TimelineUI(ABC):
             self.select_element(element_to_select)
 
     def select_element(self, element):
-        self.element_manager.select_element(element)
+        success = self.element_manager.select_element(element)
 
-        if hasattr(element, "INSPECTOR_FIELDS"):
+        if hasattr(element, "INSPECTOR_FIELDS") and success:
             self.post_inspectable_selected_event(element)
 
             listen(
@@ -354,17 +354,21 @@ class TimelineUI(ABC):
                 functools.partial(self.on_inspector_field_edited, element),
             )
 
+        return success
+
     def select_all_elements(self):
         for element in self:
             self.select_element(element)
 
     def deselect_element(self, element):
-        self.element_manager.deselect_element(element)
+        success = self.element_manager.deselect_element(element)
 
-        if hasattr(element, "INSPECTOR_FIELDS"):
+        if hasattr(element, "INSPECTOR_FIELDS") and success:
             stop_listening(element, Post.INSPECTOR_FIELD_EDITED)
 
             post(Post.INSPECTABLE_ELEMENT_DESELECTED, element.id)
+
+        return success
 
     def deselect_all_elements(self, excluding: Optional[list[T]] = None):
         if excluding is None:
