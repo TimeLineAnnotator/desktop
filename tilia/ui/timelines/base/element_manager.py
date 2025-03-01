@@ -145,15 +145,19 @@ class ElementManager(Generic[TE]):
     ) -> list[TE]:
         return [e for e in cmp_list if getattr(e, attr_name) == value]
 
-    def select_element(self, element: TE) -> None:
+    def select_element(self, element: TE) -> bool:
         if element not in self._selected_elements:
             self._add_to_selected_elements_set(element)
             element.on_select()
+            return True
+        return False
 
-    def deselect_element(self, element: TE) -> None:
+    def deselect_element(self, element: TE) -> bool:
         if element in self._selected_elements:
             self._remove_from_selected_elements_set(element)
             element.on_deselect()
+            return True
+        return False
 
     def _deselect_if_selected(self, element: TE):
         if element in self._selected_elements:
