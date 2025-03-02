@@ -247,15 +247,36 @@ class TimelineUI(ABC):
         for elm in elements:  # clicked item might be owned by more than on element
             elm.on_right_click(x, y, item)
 
+    @staticmethod
+    def should_select(element: TimelineUIElement, item: QGraphicsItem) -> bool:
+        return item in element.selection_triggers() and hasattr(element, "on_select")
+
     def on_left_click(
         self, item: QGraphicsItem, modifier: ModifierEnum, double: bool, x: int, y: int
     ) -> None:
-        clicked_elements = self.get_item_owner(item)
+        """Handles element selection and triggers left click side effects."""
+        elements_with_side_effects = self.get_item_owner(item)
 
+        # do not deselect if control or shift are pressed
         if modifier == Qt.KeyboardModifier.NoModifier:
-            self.deselect_all_elements(excluding=clicked_elements)
+            self.deselect_all_elements()
 
-        for elm in clicked_elements:  # clicked item might be in multiple elements
+        if not elements_with_side_effects:
+            return
+
+        clicked_element = elements_with_side_effects[
+            0
+        ]  # other elements are only relevant for side effects
+        should_select = self.should_select(clicked_element, item)
+
+        if modifier == Qt.KeyboardModifier.NoModifier and should_select:
+            self.select_element(clicked_element)
+        elif modifier == Qt.KeyboardModifier.ControlModifier and should_select:
+            self.toggle_element_selection(clicked_element)
+
+        # clicked item might trigger side effects in multiple elements
+        # e.g. hierarchy frame handles trigger drag in branch
+        for elm in elements_with_side_effects:
             if not double:
                 self._trigger_left_click_side_effects(elm, item)
             else:
@@ -279,10 +300,8 @@ class TimelineUI(ABC):
         if hasattr(element, "on_left_click") and item in element.left_click_triggers():
             element.on_left_click(item)
 
-    def _on_element_double_left_click(
-        self, element: T, item: QGraphicsItem
-    ) -> None | bool:
-        self.select_element_if_selectable(element, item)
+    @staticmethod
+    def _on_element_double_left_click(element: T, item: QGraphicsItem) -> None | bool:
         if (
             hasattr(element, "on_double_left_click")
             and item in element.double_left_click_triggers()
@@ -368,6 +387,12 @@ class TimelineUI(ABC):
             if element in excluding:
                 continue
             self.deselect_element(element)
+
+    def toggle_element_selection(self, element: TimelineUIElement) -> None:
+        if element in self.selected_elements:
+            self.deselect_element(element)
+        else:
+            self.select_element(element)
 
     def get_next_element(self, element: T) -> T | None:
         return self.element_manager.get_next_element(element)

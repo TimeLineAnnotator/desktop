@@ -55,7 +55,7 @@ class TestCreateDelete:
         user_actions.trigger(TiliaAction.MARKER_ADD)
 
         click_marker_ui(marker_tlui[0])
-        click_marker_ui(marker_tlui[1], modifier="shift")
+        click_marker_ui(marker_tlui[1], modifier="ctrl")
 
         with undoable():
             user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
@@ -169,8 +169,8 @@ class TestCopyPaste:
             type_string(label)
 
         click_marker_ui(marker_tlui[0])
-        click_marker_ui(marker_tlui[1], modifier="shift")
-        click_marker_ui(marker_tlui[2], modifier="shift")
+        click_marker_ui(marker_tlui[1], modifier="ctrl")
+        click_marker_ui(marker_tlui[2], modifier="ctrl")
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         click_timeline_ui(marker_tlui, 100)  # deselect markers
@@ -199,8 +199,8 @@ class TestCopyPaste:
             type_string(label)
 
         click_marker_ui(marker_tlui[0])
-        click_marker_ui(marker_tlui[1], modifier="shift")
-        click_marker_ui(marker_tlui[2], modifier="shift")
+        click_marker_ui(marker_tlui[1], modifier="ctrl")
+        click_marker_ui(marker_tlui[2], modifier="ctrl")
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         click_marker_ui(marker_tlui[2])
@@ -466,7 +466,7 @@ class TestInspect:
         user_actions.trigger(TiliaAction.MARKER_ADD)
 
         click_marker_ui(marker_tlui[0])
-        click_marker_ui(marker_tlui[1], modifier="shift")
+        click_marker_ui(marker_tlui[1], modifier="ctrl")
 
         assert marker_tlui[0].is_selected()
         assert marker_tlui[1].is_selected()

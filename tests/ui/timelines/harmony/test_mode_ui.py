@@ -40,8 +40,8 @@ class TestCopyPaste:
         tlui.create_mode(10)
         tlui.create_mode(20)
         click_mode_ui(tlui[0])
-        click_mode_ui(tlui[1], modifier="shift")
-        click_mode_ui(tlui[2], modifier="shift")
+        click_mode_ui(tlui[1], modifier="ctrl")
+        click_mode_ui(tlui[2], modifier="ctrl")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_timeline_ui(tlui, 90)
         tilia_state.current_time = 50
@@ -96,7 +96,7 @@ class TestCopyPaste:
         target_mui = tlui[3]
 
         for mui in copied_muis:
-            click_mode_ui(mui, modifier="shift")
+            click_mode_ui(mui, modifier="ctrl")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_timeline_ui(tlui, 90)
         click_mode_ui(target_mui)
