@@ -245,6 +245,20 @@ class TestSelect:
         assert marker_tlui[0] in marker_tlui.selected_elements
         assert marker_tlui[1] in marker_tlui.selected_elements
 
+    def test_box_deselection(self, marker_tlui, tluis, user_actions):
+        marker_tlui.create_marker(10)
+        marker_tlui.create_marker(20)
+        marker_tlui.create_marker(30)
+
+        click_timeline_ui(marker_tlui, 5, button="left")
+
+        drag_mouse_in_timeline_view(
+            *get_marker_ui_center(marker_tlui[2]), release=False
+        )
+        drag_mouse_in_timeline_view(0, 0)
+
+        assert not marker_tlui.selected_elements
+
 
 class TestDrag:
     def test_drag(self, marker_tlui, tluis, user_actions, tilia_state):
