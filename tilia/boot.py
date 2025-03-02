@@ -47,6 +47,10 @@ def boot():
     app = setup_logic()
     ui = setup_ui(q_application, args.user_interface)
     logger.debug("INITIALISED")
+    if os.environ.get("ENVIRONMENT") == "dev":
+        import icecream
+
+        icecream.install()
     # has to be done after ui has been created, so timelines will get displayed
     if file := get_initial_file(args.file):
         app.on_open(file)
