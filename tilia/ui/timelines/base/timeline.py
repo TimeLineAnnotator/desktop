@@ -247,21 +247,42 @@ class TimelineUI(ABC):
         for elm in elements:  # clicked item might be owned by more than on element
             elm.on_right_click(x, y, item)
 
+    @staticmethod
+    def should_select(element: TimelineUIElement, item: QGraphicsItem) -> bool:
+        return item in element.selection_triggers() and hasattr(element, "on_select")
+
     def on_left_click(
         self, item: QGraphicsItem, modifier: ModifierEnum, double: bool, x: int, y: int
     ) -> None:
-        clicked_elements = self.get_item_owner(item)
+        """Handles element selection and triggers left click side effects."""
+        elements_with_side_effects = self.get_item_owner(item)
 
+        # do not deselect if control or shift are pressed
         if modifier == Qt.KeyboardModifier.NoModifier:
-            self.deselect_all_elements(excluding=clicked_elements)
+            self.deselect_all_elements()
 
-        for elm in clicked_elements:  # clicked item might be in multiple elements
+        if not elements_with_side_effects:
+            return
+
+        clicked_element = elements_with_side_effects[
+            0
+        ]  # other elements are only relevant for side effects
+        should_select = self.should_select(clicked_element, item)
+
+        if modifier == Qt.KeyboardModifier.NoModifier and should_select:
+            self.select_element(clicked_element)
+        elif modifier == Qt.KeyboardModifier.ControlModifier and should_select:
+            self.toggle_element_selection(clicked_element)
+
+        # clicked item might trigger side effects in multiple elements
+        # e.g. hierarchy frame handles trigger drag in branch
+        for elm in elements_with_side_effects:
             if not double:
-                self.on_element_left_click(elm, item)
+                self._trigger_left_click_side_effects(elm, item)
             else:
                 double_clicked = self._on_element_double_left_click(elm, item)
                 if not double_clicked:  # consider as single click
-                    self.on_element_left_click(elm, item)
+                    self._trigger_left_click_side_effects(elm, item)
 
     def get_item_owner(self, item: QGraphicsItem) -> list[T]:
         """Returns the element that owns the item with the given id"""
@@ -271,28 +292,16 @@ class TimelineUI(ABC):
 
         return clicked_elements
 
-    def select_element_if_selectable(
-        self, element: T, scene_item: QGraphicsItem
-    ) -> bool:
-        if hasattr(element, "on_select") and scene_item in element.selection_triggers():
-            self.select_element(element)
-            return True
-        else:
-            return False
-
-    def on_element_left_click(self, element: T, item: QGraphicsItem) -> None:
-        selected = self.select_element_if_selectable(element, item)
-
-        if selected and hasattr(element, "seek_time"):
+    @staticmethod
+    def _trigger_left_click_side_effects(element: T, item: QGraphicsItem) -> None:
+        if hasattr(element, "seek_time"):
             post(Post.PLAYER_SEEK_IF_NOT_PLAYING, element.seek_time)
 
         if hasattr(element, "on_left_click") and item in element.left_click_triggers():
             element.on_left_click(item)
 
-    def _on_element_double_left_click(
-        self, element: T, item: QGraphicsItem
-    ) -> None | bool:
-        self.select_element_if_selectable(element, item)
+    @staticmethod
+    def _on_element_double_left_click(element: T, item: QGraphicsItem) -> None | bool:
         if (
             hasattr(element, "on_double_left_click")
             and item in element.double_left_click_triggers()
@@ -343,9 +352,9 @@ class TimelineUI(ABC):
             self.select_element(element_to_select)
 
     def select_element(self, element):
-        self.element_manager.select_element(element)
+        success = self.element_manager.select_element(element)
 
-        if hasattr(element, "INSPECTOR_FIELDS"):
+        if hasattr(element, "INSPECTOR_FIELDS") and success:
             self.post_inspectable_selected_event(element)
 
             listen(
@@ -354,17 +363,21 @@ class TimelineUI(ABC):
                 functools.partial(self.on_inspector_field_edited, element),
             )
 
+        return success
+
     def select_all_elements(self):
         for element in self:
             self.select_element(element)
 
     def deselect_element(self, element):
-        self.element_manager.deselect_element(element)
+        success = self.element_manager.deselect_element(element)
 
-        if hasattr(element, "INSPECTOR_FIELDS"):
+        if hasattr(element, "INSPECTOR_FIELDS") and success:
             stop_listening(element, Post.INSPECTOR_FIELD_EDITED)
 
             post(Post.INSPECTABLE_ELEMENT_DESELECTED, element.id)
+
+        return success
 
     def deselect_all_elements(self, excluding: Optional[list[T]] = None):
         if excluding is None:
@@ -374,6 +387,12 @@ class TimelineUI(ABC):
             if element in excluding:
                 continue
             self.deselect_element(element)
+
+    def toggle_element_selection(self, element: TimelineUIElement) -> None:
+        if element in self.selected_elements:
+            self.deselect_element(element)
+        else:
+            self.select_element(element)
 
     def get_next_element(self, element: T) -> T | None:
         return self.element_manager.get_next_element(element)

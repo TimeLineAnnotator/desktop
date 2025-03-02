@@ -55,7 +55,7 @@ class TestCreateDelete:
         user_actions.trigger(TiliaAction.MARKER_ADD)
 
         click_marker_ui(marker_tlui[0])
-        click_marker_ui(marker_tlui[1], modifier="shift")
+        click_marker_ui(marker_tlui[1], modifier="ctrl")
 
         with undoable():
             user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
@@ -169,8 +169,8 @@ class TestCopyPaste:
             type_string(label)
 
         click_marker_ui(marker_tlui[0])
-        click_marker_ui(marker_tlui[1], modifier="shift")
-        click_marker_ui(marker_tlui[2], modifier="shift")
+        click_marker_ui(marker_tlui[1], modifier="ctrl")
+        click_marker_ui(marker_tlui[2], modifier="ctrl")
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         click_timeline_ui(marker_tlui, 100)  # deselect markers
@@ -199,8 +199,8 @@ class TestCopyPaste:
             type_string(label)
 
         click_marker_ui(marker_tlui[0])
-        click_marker_ui(marker_tlui[1], modifier="shift")
-        click_marker_ui(marker_tlui[2], modifier="shift")
+        click_marker_ui(marker_tlui[1], modifier="ctrl")
+        click_marker_ui(marker_tlui[2], modifier="ctrl")
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         click_marker_ui(marker_tlui[2])
@@ -244,6 +244,20 @@ class TestSelect:
         assert len(marker_tlui.selected_elements) == 2
         assert marker_tlui[0] in marker_tlui.selected_elements
         assert marker_tlui[1] in marker_tlui.selected_elements
+
+    def test_box_deselection(self, marker_tlui, tluis, user_actions):
+        marker_tlui.create_marker(10)
+        marker_tlui.create_marker(20)
+        marker_tlui.create_marker(30)
+
+        click_timeline_ui(marker_tlui, 5, button="left")
+
+        drag_mouse_in_timeline_view(
+            *get_marker_ui_center(marker_tlui[2]), release=False
+        )
+        drag_mouse_in_timeline_view(0, 0)
+
+        assert not marker_tlui.selected_elements
 
 
 class TestDrag:
@@ -452,7 +466,7 @@ class TestInspect:
         user_actions.trigger(TiliaAction.MARKER_ADD)
 
         click_marker_ui(marker_tlui[0])
-        click_marker_ui(marker_tlui[1], modifier="shift")
+        click_marker_ui(marker_tlui[1], modifier="ctrl")
 
         assert marker_tlui[0].is_selected()
         assert marker_tlui[1].is_selected()

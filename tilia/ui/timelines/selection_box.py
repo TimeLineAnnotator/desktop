@@ -36,7 +36,7 @@ class SelectionBoxQt(QGraphicsRectItem):
                         scene=self.scene(),
                         item=item,
                     )
-            else:  # if an object was removed
+            if self.overlap - new_overlap:  # if an object was removed
                 for item in (self.overlap - new_overlap).copy():
                     post(
                         Post.SELECTION_BOX_DESELECT_ITEM,

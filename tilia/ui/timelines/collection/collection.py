@@ -612,10 +612,11 @@ class TimelineUIs:
         except IndexError:
             return
 
-        was_selected = timeline_ui.select_element_if_selectable(element, item)
+        if should_select := timeline_ui.should_select(element, item):
+            timeline_ui.select_element(element)
 
         # keep track of selection triggers under selection box
-        if was_selected:
+        if should_select:
             if element in self.sb_items_to_selected_items:
                 self.sb_items_to_selected_items[element].add(item)
             else:
