@@ -25,6 +25,8 @@ def click_timeline_ui_view(
     modifier = {
         None: Qt.KeyboardModifier.NoModifier,
         "shift": Qt.KeyboardModifier.ShiftModifier,
+        "control": Qt.KeyboardModifier.ControlModifier,
+        "ctrl": Qt.KeyboardModifier.ControlModifier,
     }[modifier]
 
     post(
