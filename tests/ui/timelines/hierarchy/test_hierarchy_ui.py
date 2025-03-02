@@ -58,7 +58,7 @@ class TestHierarchyUI:
 
     def test_drag_start_handle(self, tlui, hierarchy_tlui, tilia_state):
         hierarchy_tlui.create_hierarchy(0, tilia_state.duration, 1)
-        hierarchy_tlui.on_element_left_click(
+        hierarchy_tlui._trigger_left_click_side_effects(
             hierarchy_tlui[0], hierarchy_tlui[0].start_handle
         )
         time_to_drag = tilia_state.duration / 2
@@ -69,7 +69,7 @@ class TestHierarchyUI:
 
     def test_drag_end_handle(self, tlui, hierarchy_tlui, tilia_state):
         hierarchy_tlui.create_hierarchy(0, tilia_state.duration, 1)
-        hierarchy_tlui.on_element_left_click(
+        hierarchy_tlui._trigger_left_click_side_effects(
             hierarchy_tlui[0], hierarchy_tlui[0].end_handle
         )
         time_to_drag = tilia_state.duration / 2
