@@ -612,14 +612,15 @@ class TimelineUIs:
         except IndexError:
             return
 
-        was_selected = timeline_ui.select_element_if_selectable(element, item)
+        if not timeline_ui.should_select(element, item):
+            return
 
+        timeline_ui.select_element(element)
         # keep track of selection triggers under selection box
-        if was_selected:
-            if element in self.sb_items_to_selected_items:
-                self.sb_items_to_selected_items[element].add(item)
-            else:
-                self.sb_items_to_selected_items[element] = {item}
+        if element in self.sb_items_to_selected_items:
+            self.sb_items_to_selected_items[element].add(item)
+        else:
+            self.sb_items_to_selected_items[element] = {item}
 
     def on_selection_box_deselect_item(self, scene: QGraphicsScene, item: int) -> None:
         timeline_ui = self._get_timeline_ui_by_scene(scene)
