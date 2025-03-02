@@ -257,11 +257,11 @@ class TimelineUI(ABC):
 
         for elm in clicked_elements:  # clicked item might be in multiple elements
             if not double:
-                self.on_element_left_click(elm, item)
+                self._trigger_left_click_side_effects(elm, item)
             else:
                 double_clicked = self._on_element_double_left_click(elm, item)
                 if not double_clicked:  # consider as single click
-                    self.on_element_left_click(elm, item)
+                    self._trigger_left_click_side_effects(elm, item)
 
     def get_item_owner(self, item: QGraphicsItem) -> list[T]:
         """Returns the element that owns the item with the given id"""
@@ -271,19 +271,9 @@ class TimelineUI(ABC):
 
         return clicked_elements
 
-    def select_element_if_selectable(
-        self, element: T, scene_item: QGraphicsItem
-    ) -> bool:
-        if hasattr(element, "on_select") and scene_item in element.selection_triggers():
-            self.select_element(element)
-            return True
-        else:
-            return False
-
-    def on_element_left_click(self, element: T, item: QGraphicsItem) -> None:
-        selected = self.select_element_if_selectable(element, item)
-
-        if selected and hasattr(element, "seek_time"):
+    @staticmethod
+    def _trigger_left_click_side_effects(element: T, item: QGraphicsItem) -> None:
+        if hasattr(element, "seek_time"):
             post(Post.PLAYER_SEEK_IF_NOT_PLAYING, element.seek_time)
 
         if hasattr(element, "on_left_click") and item in element.left_click_triggers():
