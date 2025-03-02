@@ -135,7 +135,7 @@ class TestCopyPaste:
         add_harmony()
 
         click_harmony_ui(harmony_tlui.modes()[0])
-        click_harmony_ui(harmony_tlui.harmonies()[1], modifier="shift")
+        click_harmony_ui(harmony_tlui.harmonies()[1], modifier="ctrl")
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
 
         click_harmony_ui(harmony_tlui.harmonies()[1])

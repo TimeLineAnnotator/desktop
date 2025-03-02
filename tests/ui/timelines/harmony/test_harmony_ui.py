@@ -40,8 +40,8 @@ class TestCopyPaste:
         _, hui2 = tlui.create_harmony(10)
         _, hui3 = tlui.create_harmony(20)
         click_harmony_ui(tlui[0])
-        click_harmony_ui(tlui[1], modifier="shift")
-        click_harmony_ui(tlui[2], modifier="shift")
+        click_harmony_ui(tlui[1], modifier="ctrl")
+        click_harmony_ui(tlui[2], modifier="ctrl")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_timeline_ui(tlui, 10)
         tilia_state.current_time = 50
@@ -112,7 +112,7 @@ class TestCopyPaste:
         target_hui = tlui[3]
 
         for hui in copied_huis:
-            click_harmony_ui(hui, modifier="shift")
+            click_harmony_ui(hui, modifier="ctrl")
         actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
         click_timeline_ui(tlui, 90)
         click_harmony_ui(target_hui)
