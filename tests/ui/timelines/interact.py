@@ -47,10 +47,11 @@ def click_timeline_ui(
     click_timeline_ui_view(timeline_ui.view, button, x, y, item, modifier, double)
 
 
-def drag_mouse_in_timeline_view(x, y):
+def drag_mouse_in_timeline_view(x, y, release=True):
     # assumes timeline view has already been clicked
     post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, int(x), int(y))
-    post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+    if release:
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
 
 
 def get_focused_widget():
