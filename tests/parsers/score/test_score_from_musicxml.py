@@ -1,10 +1,11 @@
 from unittest.mock import patch
 
+import pytest
 from PyQt6.QtWidgets import QMessageBox
 
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.score.components import Clef
+from tilia.timelines.score.components import Clef, Note
 from tilia.timelines.score.timeline import ScoreTimeline
 
 
@@ -390,3 +391,186 @@ class TestMeasureZeroNotInTimeline:
         assert len(clefs) == 1
         assert clefs[0].measure == 1
         assert clefs[0].beat == 1
+
+
+class TestTremolo:
+    def test_two_note_tremolo(self, qtui, beat_tl, score_tl, tmp_path):
+        xml = """<score-partwise version="4.0">
+                <part-list>
+                    <score-part id="P1">
+                    <part-name>Flute</part-name>
+                    </score-part>
+                    </part-list>
+                <part id="P1">
+                    <measure number="1">
+                    <attributes>
+                        <divisions>2</divisions>
+                        <key>
+                            <fifths>0</fifths>
+                            </key>
+                        <time>
+                            <beats>4</beats>
+                            <beat-type>4</beat-type>
+                            </time>
+                        <clef>
+                            <sign>G</sign>
+                            <line>2</line>
+                            </clef>
+                        </attributes>
+                    <note>
+                        <pitch>
+                            <step>C</step>
+                            <octave>4</octave>
+                        </pitch>
+                        <duration>4</duration>
+                        <voice>1</voice>
+                        <type>quarter</type>
+                        <time-modification>
+                            <actual-notes>2</actual-notes>
+                            <normal-notes>1</normal-notes>
+                            </time-modification>
+                        <stem>up</stem>
+                        <notations>
+                            <ornaments>
+                                <tremolo type="start">2</tremolo>
+                                </ornaments>
+                            </notations>
+                        </note>
+                    <direction>
+                        <direction-type>
+                            <direction-type-name>continue</direction-type-name>
+                            </direction-type>
+                        </direction>
+                    <note>
+                        <pitch>
+                          <step>F</step>
+                          <alter>1</alter>
+                          <octave>4</octave>
+                          </pitch>
+                        <duration>6</duration>
+                        <type>quarter</type>
+                        <time-modification>
+                          <actual-notes>2</actual-notes>
+                          <normal-notes>1</normal-notes>
+                          </time-modification>
+                        <stem>up</stem>
+                        <notations>
+                          <ornaments>
+                            <tremolo type="stop">2</tremolo>
+                            </ornaments>
+                          </notations>
+                        </note>
+                        </measure>
+                    </part>
+                </score-partwise>"""
+        # <direction> is added to ensure we are not assuming that the next element is a note
+
+        beat_tl.set_data("beat_pattern", [1])
+        beat_tl.create_beat(1)
+        beat_tl.create_beat(2)
+        beat_tl.recalculate_measures()
+
+        _import_with_patch(score_tl, beat_tl, xml, tmp_path)
+
+        notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+        assert len(notes) == 4
+        assert [n.start for n in notes] == [1, 1.25, 1.5, 1.75]
+        assert [n.end for n in notes] == [1.25, 1.5, 1.75, 2]
+        assert [n.step for n in notes] == [0, 3, 0, 3]
+        assert [n.octave for n in notes] == [4, 4, 4, 4]
+        assert [n.staff_index for n in notes] == [0, 0, 0, 0]
+
+        # do not parse one note tromlos like this
+        # test cases where denominator is not 4
+        # test cases where denominator is not 4
+
+    @pytest.mark.parametrize("flag_count", [1, 2, 3])
+    @pytest.mark.parametrize("time_sig_denominator", [2, 4, 8])
+    @pytest.mark.parametrize("note_duration", [4, 8, 16])
+    @pytest.mark.parametrize("divisions", [4])
+    def test_one_note_tremolo(
+        self,
+        flag_count,
+        time_sig_denominator,
+        note_duration,
+        divisions,
+        qtui,
+        beat_tl,
+        score_tl,
+        tmp_path,
+    ):
+        ic(flag_count, time_sig_denominator, note_duration, divisions)
+        if (flag_count, time_sig_denominator) == (1, 2):
+            pytest.skip("Tremolos larger than a measure do not exist.")
+        note_xml = f"""<note>
+                        <pitch>
+                            <step>C</step>
+                            <octave>4</octave>
+                        </pitch>
+                        <duration>{note_duration}</duration>
+                        <type>quarter</type>
+                        <notations>
+                            <ornaments>
+                                <tremolo type="single">{flag_count}</tremolo>
+                                </ornaments>
+                            </notations>
+                        </note>"""
+        quarters_per_measure = 4 * 4 // time_sig_denominator
+        note_per_quarter = note_duration // divisions
+        xml = f"""<score-partwise version="4.0">
+                        <part-list>
+                            <score-part id="P1">
+                            <part-name>Flute</part-name>
+                            </score-part>
+                            </part-list>
+                        <part id="P1">
+                            <measure number="1">
+                            <attributes>
+                                <divisions>{divisions}</divisions>
+                                <key>
+                                    <fifths>0</fifths>
+                                    </key>
+                                <time>
+                                    <beats>4</beats>
+                                    <beat-type>{time_sig_denominator}</beat-type>
+                                    </time>
+                                <clef>
+                                    <sign>G</sign>
+                                    <line>2</line>
+                                    </clef>
+                                </attributes>
+                                {note_xml*quarters_per_measure*note_per_quarter}
+                                </measure>
+                            </part>
+                        </score-partwise>"""
+
+        beat_tl.set_data("beat_pattern", [4])
+        measure_seconds = 4
+        for i in range(measure_seconds + 1):
+            beat_tl.create_beat(i)
+        beat_tl.recalculate_measures()
+
+        _import_with_patch(score_tl, beat_tl, xml, tmp_path)
+
+        beats_per_quarter = time_sig_denominator / 4
+        beats_per_full_tremolo = beats_per_quarter * note_duration / divisions
+        beat_duration = 1 / beats_per_quarter * divisions
+        full_tremolo_duration = beats_per_full_tremolo * beat_duration
+        full_tremolo_per_beat = 1 / beats_per_full_tremolo
+        beats_per_seconds = measure_seconds / 4
+        full_tremolo_seconds = beats_per_seconds * full_tremolo_per_beat
+
+        note_count = int((2**flag_count) * full_tremolo_duration / divisions)
+
+        notes: list[Note] = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+        assert len(notes) == note_count * quarters_per_measure * note_duration / 4
+        # assert [n.start for n in notes] == [
+        #     i / note_count * full_tremolo_seconds for i in range(note_count)
+        # ]
+        # assert [n.end for n in notes] == [
+        #     (i + 1) / note_count * full_tremolo_seconds for i in range(note_count)
+        # ]
+        #
+        # assert all([n.step == 0 for n in notes])
+        # assert all([n.octave == 4 for n in notes])
+        # assert all([n.staff_index == 0 for n in notes])

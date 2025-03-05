@@ -76,7 +76,8 @@ def notes_from_musicXML(
 
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
     sign_to_line = {"C": 0, "F": 1, "G": -1}
-    cur_time_denominator = None
+    timesig_denominator: int | None = None
+    divisions_per_quarter: int | None = None
 
     def _create_component(component_kind: ComponentKind, kwargs: dict) -> int | None:
         component, fail_reason = score_tl.create_component(component_kind, **kwargs)
@@ -247,11 +248,15 @@ def notes_from_musicXML(
                     }
                     staff_numbers = list(part_id_to_staves[part_id].keys())
                     component_kind = ComponentKind.KEY_SIGNATURE
+                case "divisions":
+                    nonlocal divisions_per_quarter
+                    divisions_per_quarter = int(attribute.text)
+                    continue
                 case "time":
                     ts_numerator = int(attribute.find("beats").text)
                     ts_denominator = int(attribute.find("beat-type").text)
-                    nonlocal cur_time_denominator
-                    cur_time_denominator = ts_denominator
+                    nonlocal timesig_denominator
+                    timesig_denominator = ts_denominator
                     constructor_kwargs = {
                         "numerator": ts_numerator,
                         "denominator": ts_denominator,
@@ -350,6 +355,50 @@ def notes_from_musicXML(
     def _parse_staff(element: etree._Element, part_id: str):
         return part_id_to_staves[part_id][element.find("staff").text]
 
+    def _parse_tremolo(
+        element: etree._Element,
+        parsed_kwargs: list[dict[str, Any]],
+        cur_time_denominator: int,
+        duration: int,
+        disivions_per_quarter: int,
+    ):
+        tremolo = element.find("notations/ornaments/tremolo")
+        if tremolo.get("type") is "stop":
+            return []
+        first_pitch_kwargs = parsed_kwargs.pop()
+
+        # quarters_per_beat = timesig_denominator // 4
+        tremolo_parts_per_quarter = 2 ** int(tremolo.text)
+        # tremolo_piches_duration = quarters_per_beat / tremolo_parts_per_quarter
+
+        match tremolo.get("type"):
+            case "start":
+                next_element = element.getnext()
+                while next_element.tag != "note":
+                    if next_element is None:
+                        errors.append(
+                            "Can't parse two-note tremolo: next note not found."
+                        )
+                    next_element = next_element.getnext()
+                second_pitch_kwargs = _parse_pitch(next_element)
+                tremolo_pitches_amount = (
+                    duration / cur_time_denominator * tremolo_parts_per_quarter
+                )
+                for _ in range(int(tremolo_pitches_amount) // 2):
+                    parsed_kwargs.append(first_pitch_kwargs)
+                    parsed_kwargs.append(second_pitch_kwargs)
+            case "single":
+                tremolo_pitches_amount = (
+                    duration / divisions_per_quarter * tremolo_parts_per_quarter
+                )
+                for _ in range(int(tremolo_pitches_amount)):
+                    parsed_kwargs.append(first_pitch_kwargs)
+            case _:
+                # invalid type
+                return []
+
+        return parsed_kwargs
+
     def _parse_note(element: etree._Element, part_id: str) -> list[dict[str, Any]]:
         if element.find("grace") is not None:
             # We do not support grace notes yet.
@@ -377,8 +426,16 @@ def notes_from_musicXML(
         if element.find("unpitched") is not None:
             constructor_kwargs = [_parse_unpitched(element)]
 
-        if not constructor_kwargs.keys():
-            return dict()
+        if element.find("notations/ornaments/tremolo") is not None:
+            if timesig_denominator is None:
+                errors.append("Can't parse tremolo: no time signature available.")
+            constructor_kwargs = _parse_tremolo(
+                element,
+                constructor_kwargs,
+                timesig_denominator,
+                duration,
+                divisions_per_quarter,
+            )
 
         if not constructor_kwargs:
             return []
@@ -395,18 +452,19 @@ def notes_from_musicXML(
 
         output = []
         for obj_kwargs in constructor_kwargs:
+            obj_duration = duration / len(constructor_kwargs)
             output.append(
                 {
                     "div_pos": metric_division.div_position[0 if is_chord else 1],
-                    "duration": duration / len(constructor_kwargs),
+                    "duration": obj_duration,
                     "element": element,
                     "kwargs": obj_kwargs,
                     "to_annotate": not is_chord,
                 }
             )
 
-        if not is_chord:
-            metric_division.update_measure_position(duration)
+            if not is_chord:
+                metric_division.update_measure_position(obj_duration)
 
         return output
 
