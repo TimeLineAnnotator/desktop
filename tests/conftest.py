@@ -7,6 +7,7 @@ import pytest
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication
 from colorama import Fore, Style
+import icecream
 
 import tilia.constants as constants_module
 import tilia.log as logging_module
@@ -29,6 +30,8 @@ from tilia.ui.cli.ui import CLI
 from tilia.ui.windows import WindowKind
 from tilia.requests.get import reset as reset_get
 from tilia.requests.post import reset as reset_post
+
+icecream.install()
 
 pytest_plugins = [
     "tests.timelines.hierarchy.fixtures",
