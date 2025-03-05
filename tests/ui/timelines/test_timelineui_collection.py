@@ -437,13 +437,14 @@ class TestRequests:
         self, tilia, qtui, user_actions, marker_tlui, tilia_errors
     ):
         healthy_state = tilia.get_app_state()
+        original_marker_add_func = MarkerUIRequestHandler.on_add
 
         def on_add_patch(*args, **kwargs):
             # It's important that we let the operation happen
             # so a marker is actually created before the exception is raised.
             # In this way, there is actually a change in a app state
             # that will need to be reverted.
-            MarkerUIRequestHandler.on_add(*args, **kwargs)
+            original_marker_add_func(*args, **kwargs)
             raise Exception
 
         with patch(
@@ -456,10 +457,11 @@ class TestRequests:
 
     def test_timeline_uis_request_fails(self, tilia, qtui, user_actions, tilia_errors):
         healthy_state = tilia.get_app_state()
+        original_timeline_add_func = TimelineUIsRequestHandler.on_timeline_add
 
         def on_timeline_add_patch(*args, **kwargs):
             # see comment in previous test
-            TimelineUIsRequestHandler.on_timeline_add(*args, **kwargs)
+            original_timeline_add_func(*args, **kwargs)
             raise Exception
 
         with patch(
@@ -474,10 +476,11 @@ class TestRequests:
         self, tilia, qtui, user_actions, tilia_errors, marker_tlui
     ):
         healthy_state = tilia.get_app_state()
+        original_timeline_add_func = TimelineRequestHandler.on_timeline_data_set
 
         def on_timeline_data_set_patch(*args, **kwargs):
             # see comment in previous test
-            TimelineRequestHandler.on_timeline_data_set(*args, **kwargs)
+            original_timeline_add_func(*args, **kwargs)
             raise Exception
 
         with patch(
