@@ -239,21 +239,14 @@ class Timeline(ABC, Generic[TC]):
     def get_export_data(self) -> dict[str, Any]:
         result = self._get_base_state()
 
-        result["component_kinds"] = [
-            kind.name for kind in self.component_manager.component_kinds
-        ]
-        result["components"] = {name: [] for name in result["component_kinds"]}
-        result[
-            "component_attributes"
-        ] = self.component_manager.get_component_attributes()
-        for kind in self.component_manager.component_kinds:
-            components = self.component_manager.get_components_by_condition(
-                lambda _: True, kind
-            )
-            result["components"][kind.name] = [
-                [getattr(comp, attr) for attr in comp.get_export_attributes()]
-                for comp in components
-            ]
+        result["components"] = []
+        for component in self.component_manager:
+            data = {
+                attr: getattr(component, attr)
+                for attr in component.get_export_attributes()
+            }
+            data["kind"] = component.KIND.name
+            result["components"].append(data)
 
         return result
 
@@ -495,12 +488,6 @@ class TimelineComponentManager(Generic[T, TC]):
 
     def scale(self, length: float) -> None:
         raise NotImplementedError
-
-    def get_component_attributes(self) -> dict[str, list[str]]:
-        return {
-            kind.name: self._get_component_class_by_kind(kind).get_export_attributes()
-            for kind in self.component_kinds
-        }
 
 
 class TimelineFlag(Enum):
