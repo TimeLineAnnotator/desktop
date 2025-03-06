@@ -1,98 +1,11 @@
 from tests.mock import Serve
+from tests.constants import EXAMPLE_MUSICXML_PATH
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get
 from tilia.timelines.component_kinds import ComponentKind
 
 
 class TestInsertMeasureZero:
-    XML = """<?xml version="1.0" encoding="UTF-8"?>
-<score-partwise version="4.0">
-	<part-list>
-		<score-part id="P1">
-			<part-name>Violine</part-name>
-		</score-part>
-	</part-list>
-	<part id="P1">
-		<measure number="0" implicit="yes" width="153.12">
-			<attributes>
-				<divisions>4</divisions>
-				<key>
-					<fifths>0</fifths>
-				</key>
-				<time>
-					<beats>3</beats>
-					<beat-type>8</beat-type>
-				</time>
-				<clef>
-					<sign>G</sign>
-					<line>2</line>
-				</clef>
-			</attributes>
-			<note default-x="94.57" default-y="-5">
-				<pitch>
-					<step>E</step>
-					<octave>5</octave>
-				</pitch>
-				<duration>1</duration>
-				<voice>1</voice>
-				<type>16th</type>
-				<stem>down</stem>
-				<beam number="1">begin</beam>
-				<beam number="2">begin</beam>
-			</note>
-			<note default-x="123.32" default-y="-10">
-				<pitch>
-					<step>D</step>
-					<alter>1</alter>
-					<octave>5</octave>
-				</pitch>
-				<duration>1</duration>
-				<voice>1</voice>
-				<type>16th</type>
-				<accidental>sharp</accidental>
-				<stem>down</stem>
-				<beam number="1">end</beam>
-				<beam number="2">end</beam>
-			</note>
-		</measure>
-		<measure number="1" width="80">
-			<note default-x="12.5" default-y="-5">
-				<pitch>
-					<step>E</step>
-					<octave>5</octave>
-				</pitch>
-				<duration>6</duration>
-				<voice>1</voice>
-				<type>quarter</type>
-				<dot default-x="30.49" default-y="-5"/>
-				<stem>down</stem>
-			</note>
-		</measure>
-		<measure number="2" width="80">
-			<note default-x="12.5" default-y="-5">
-				<pitch>
-					<step>E</step>
-					<octave>5</octave>
-				</pitch>
-				<duration>6</duration>
-				<voice>1</voice>
-				<type>quarter</type>
-				<dot default-x="30.49" default-y="-5"/>
-				<stem>down</stem>
-			</note>
-			<barline location="right">
-				<bar-style>light-heavy</bar-style>
-			</barline>
-		</measure>
-	</part>
-</score-partwise>
-"""
-
-    def xml_path(self, tmp_path):
-        tmp_file = tmp_path / "test.musicxml"
-        tmp_file.write_text(self.XML)
-        return str(tmp_file.resolve())
-
     def setup_valid_beats(self, beat_tl):
         beat_tl.beat_pattern = [3]
 
@@ -105,7 +18,7 @@ class TestInsertMeasureZero:
         self.setup_valid_beats(beat_tl)
 
         with Serve(Get.FROM_USER_YES_OR_NO, True):
-            notes_from_musicXML(score_tlui.timeline, beat_tl, self.xml_path(tmp_path))
+            notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
         clefs = score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.CLEF)
         assert len(clefs) == 1
@@ -127,7 +40,7 @@ class TestInsertMeasureZero:
         beat_tl.fill_with_beats(beat_tl.FillMethod.BY_AMOUNT, 10)
 
         with Serve(Get.FROM_USER_YES_OR_NO, True):
-            notes_from_musicXML(score_tlui.timeline, beat_tl, self.xml_path(tmp_path))
+            notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
         assert len(score_tlui) == 0
 
@@ -140,7 +53,7 @@ class TestInsertMeasureZero:
         beat_tl.recalculate_measures()
 
         with Serve(Get.FROM_USER_YES_OR_NO, True):
-            notes_from_musicXML(score_tlui.timeline, beat_tl, self.xml_path(tmp_path))
+            notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
         assert len(score_tlui) == 0
 
@@ -149,7 +62,7 @@ class TestInsertMeasureZero:
 
         beat_tl.set_measure_number(0, 2)
 
-        notes_from_musicXML(score_tlui.timeline, beat_tl, self.xml_path(tmp_path))
+        notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
         # no prompt for measure 0 as there is no measure 1
         # and measure 2 should have been imported

@@ -257,7 +257,11 @@ def notes_from_musicXML(
                     component_kind = ComponentKind.TIME_SIGNATURE
                 case "clef":
                     sign = attribute.find("sign").text
-                    line = int(l.text) - 3 if (l := attribute.find("line")) else 0
+                    line = (
+                        int(attr_line.text) - 3
+                        if (attr_line := attribute.find("line"))
+                        else 0
+                    )
                     octave_change = (
                         int(o.text)
                         if (o := attribute.find("clef-octave-change"))

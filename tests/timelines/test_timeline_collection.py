@@ -2,7 +2,6 @@ import pytest
 
 from tests.mock import PatchPost, Serve, ServeSequence
 from tilia.requests import Post, Get
-from tilia.timelines import hash_timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 
 

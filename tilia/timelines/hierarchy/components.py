@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 from typing import TYPE_CHECKING
 
 from tilia.requests import get, Get
@@ -10,7 +9,6 @@ from tilia.timelines.base.validators import (
     validate_color,
     validate_read_only,
     validate_pre_validated,
-    validate_is_instance,
 )
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.base.component import SegmentLikeTimelineComponent

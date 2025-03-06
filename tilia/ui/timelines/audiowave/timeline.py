@@ -68,7 +68,7 @@ class AudioWaveTimelineUI(TimelineUI):
 
         try:
             amplitude = f"{self.timeline.get_dB(start_time, end_time): .3f} dB"
-        except:  # audio not available, but timeline elements exist
+        except Exception:  # audio not available, but timeline elements exist
             amplitude = 0
             for element in self.selected_elements:
                 amplitude += element.get_data("amplitude")

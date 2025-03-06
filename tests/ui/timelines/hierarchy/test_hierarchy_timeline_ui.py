@@ -220,7 +220,7 @@ class TestCopyPaste:
         # order will change with paste
         hrc1 = tlui.timeline[0]
         hrc2 = tlui.timeline[1]
-        hrc3 = tlui.timeline[2]
+        _ = tlui.timeline[2]
         hrc4 = tlui.timeline[3]
 
         set_dummy_copy_attributes(hrc1)
@@ -260,7 +260,7 @@ class TestCopyPaste:
         # order will change with paste
         hrc1 = tlui.timeline[0]
         hrc2 = tlui.timeline[1]
-        hrc3 = tlui.timeline[2]
+        _ = tlui.timeline[2]
         hrc4 = tlui.timeline[3]
 
         set_dummy_copy_attributes(hrc1)
@@ -343,11 +343,6 @@ class TestCopyPaste:
         tlui.create_hierarchy(0.5, 1, 1)
         tlui.create_hierarchy(0, 1, 2)
         tlui.create_hierarchy(1, 1.5, 3)
-
-        # order will change with paste
-        hrc1 = tlui.timeline[0]
-        hrc2 = tlui.timeline[1]
-        hrc3 = tlui.timeline[2]
 
         tlui.select_element(tlui[2])
         user_actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)

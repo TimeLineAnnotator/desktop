@@ -11,7 +11,7 @@ from PyQt6.QtCore import (
     QKeyCombination,
     QPointF,
 )
-from PyQt6.QtGui import QColor, QFont, QPen
+from PyQt6.QtGui import QFont
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtWidgets import (
     QFrame,

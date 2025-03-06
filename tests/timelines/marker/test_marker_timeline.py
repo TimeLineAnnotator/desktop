@@ -1,10 +1,3 @@
-from tilia.timelines.marker.timeline import (
-    MarkerTimeline,
-)
-from tilia.timelines.serialize import serialize_component, _deserialize_component
-from tilia.timelines.timeline_kinds import TimelineKind
-
-
 class TestMarkerTimeline:
     # TEST CREATE
     def test_create_marker(self, marker_tl):
