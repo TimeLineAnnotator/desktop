@@ -27,7 +27,7 @@ def setup_parser(subparsers):
 
 
 def load_media(namespace):
-    path = Path(namespace.path)
+    path = Path(namespace.path.replace("\\", "/"))
     if not path.exists():
         tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
         return
