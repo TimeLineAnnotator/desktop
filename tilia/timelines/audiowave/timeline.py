@@ -35,7 +35,7 @@ class AudioWaveTimeline(Timeline):
         path = get(Get.MEDIA_PATH)
         try:
             return pydub.AudioSegment.from_file(path)
-        except:
+        except Exception:
             tilia.errors.display(tilia.errors.AUDIOWAVE_INVALID_FILE)
             return None
 

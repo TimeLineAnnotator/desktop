@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Literal
 import tilia.errors
 import tilia.constants
 import tilia.dirs
-from tilia.exceptions import NoReplyToRequest
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import load_media
 from tilia.utils import get_tilia_class_string

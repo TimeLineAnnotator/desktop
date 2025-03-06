@@ -9,7 +9,6 @@ from tests.constants import (
     EXAMPLE_MEDIA_SCALE_FACTOR,
 )
 from tilia.requests import get, Get
-from tilia.ui.actions import TiliaAction
 
 
 def test_load_media(cli, tilia_state):

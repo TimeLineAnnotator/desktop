@@ -19,7 +19,7 @@ def test_open(cli, tls, tmp_path):
 
 def test_open_file_does_not_exist(cli, tmp_path, tilia_errors):
     with patch("builtins.input", return_value=str(tmp_path)):
-        cli.parse_and_run(f'open "whatever"')
+        cli.parse_and_run('open "whatever"')
 
     tilia_errors.assert_error()
 

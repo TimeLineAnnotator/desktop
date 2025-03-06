@@ -1,10 +1,8 @@
 import pytest
 
-from tilia.timelines.beat.components import Beat
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.timelines.beat import BeatTimelineUI, BeatUI
 
 
 @pytest.fixture

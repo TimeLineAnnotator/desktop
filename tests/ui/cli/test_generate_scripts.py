@@ -63,7 +63,7 @@ def test_get_script_for_folder(tmpdir):
     assert f'load-media "{tmpdir.join("some_media_file.mp3")}"' in output_script
     assert f"metadata set-media-length {duration}" in output_script
     assert f'metadata import "{tmpdir.join("metadata.json")}"' in output_script
-    assert f'timelines add beat --name "tlName"' in output_script
+    assert 'timelines add beat --name "tlName"' in output_script
     assert (
         f'timelines import csv beat --target-name "tlName" --file "{tmpdir.join("beat_tlName.csv")}"'
         in output_script
@@ -73,7 +73,7 @@ def test_get_script_for_folder(tmpdir):
 
 def test_get_script_for_folder_returns_none_on_no_media(tmpdir):
     filenames = ["beat_tlName.csv", "metadata.json"]
-    assert _get_script_for_folder(tmpdir.strpath, filenames) == None
+    assert _get_script_for_folder(tmpdir.strpath, filenames) is None
 
 
 def test_get_script_for_folder_required_beat_file(tmpdir):
@@ -83,7 +83,7 @@ def test_get_script_for_folder_required_beat_file(tmpdir):
         "metadata.json",
         "marker_tlName2_by-time.csv",
     ]
-    assert _get_script_for_folder(tmpdir.strpath, filenames) != None
+    assert _get_script_for_folder(tmpdir.strpath, filenames) is not None
     assert "by-time" in tmpdir.join("script.txt").read()
 
     filenames = [
@@ -92,9 +92,9 @@ def test_get_script_for_folder_required_beat_file(tmpdir):
         "metadata.json",
         "marker_tlName2_by-measure.csv",
     ]
-    assert _get_script_for_folder(tmpdir.strpath, filenames) != None
+    assert _get_script_for_folder(tmpdir.strpath, filenames) is not None
     assert "by-measure" in tmpdir.join("script.txt").read()
     assert "--reference-tl-name" in tmpdir.join("script.txt").read()
 
     filenames = ["some_media.mp4", "metadata.json", "marker_tlName2_by-measure.csv"]
-    assert _get_script_for_folder(tmpdir.strpath, filenames) == None
+    assert _get_script_for_folder(tmpdir.strpath, filenames) is None

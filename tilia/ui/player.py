@@ -136,7 +136,7 @@ class PlayerToolbar(QToolBar):
                 element.setChecked(value)
             else:
                 element.setValue(value)
-        except:
+        except Exception:
             tilia.errors.display(
                 tilia.errors.PLAYER_TOOLBAR_ERROR,
                 f"Unable to set {element_to_set} with value {value} of type {type(value)}.",

@@ -73,7 +73,7 @@ class TestCreateTimeline:
 
 
 def get_toolbars_of_class(qtui, toolbar_class):
-    return [x for x in qtui.main_window.children() if type(x) == toolbar_class]
+    return [x for x in qtui.main_window.children() if isinstance(x, toolbar_class)]
 
 
 def is_toolbar_visible(qtui, toolbar_class):

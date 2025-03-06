@@ -76,7 +76,7 @@ class ServeSequence:
     def _callback(self, *_, **__):
         try:
             return_value = self.return_values[self.return_count]
-        except IndexError as exc:
+        except IndexError:
             raise IndexError("Not enough return values to serve")
 
         self.return_count += 1

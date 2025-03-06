@@ -1,7 +1,7 @@
 import pytest
 
 from tests.mock import Serve
-from tilia.requests import Post, post, Get, get
+from tilia.requests import Post, post, Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.actions import TiliaAction

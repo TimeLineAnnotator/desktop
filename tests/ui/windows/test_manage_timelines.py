@@ -1,10 +1,9 @@
 import pytest
 
 from tests.mock import Serve
-from tilia.requests import post, Post, Get, get
+from tilia.requests import Get, get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.collection.collection import Timelines
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.actions import TiliaAction
 from tilia.ui.windows.manage_timelines import ManageTimelines
 

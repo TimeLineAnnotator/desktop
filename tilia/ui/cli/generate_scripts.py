@@ -166,7 +166,7 @@ def _get_script_for_folder(
                     reference_beat = args.ref_name
                 elif reference_beat and args.ref_name:
                     print(
-                        f'{"Multiple beat timelines found. Using " + reference_beat + " as reference instead of " + args.ref_name +".":<100}{os.path.join(folder_name, file):>20}'
+                        f'{"Multiple beat timelines found. Using " + reference_beat + " as reference instead of " + args.ref_name + ".":<100}{os.path.join(folder_name, file):>20}'
                     )
 
             except ValueError as e:

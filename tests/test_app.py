@@ -512,9 +512,6 @@ class TestOpen:
         with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)):
             post(Post.FILE_OPEN, tmp_file)
 
-        with open(previous_path, "r", encoding="utf-8") as f:
-            contents = json.load(f)  # read contents
-
         assert len(tls) == 1  # assert file wasn't opened
         assert tilia.get_app_state() == prev_state
 

@@ -38,17 +38,12 @@ class TestHierarchyUI:
         tlui.create_hierarchy(0, 1, 2, label="parent")
         tlui.create_hierarchy(0, 1, 3, label="grandparent")
 
-        child = tlui.timeline[0]
-        child_ui = tlui[0]
-        parent = tlui.timeline[1]
-        grandparent = tlui.timeline[2]
-
         sep = HierarchyUI.FULL_NAME_SEPARATOR
 
         tlui.set_data("name", "tl")
 
         assert (
-            child_ui.full_name
+            tlui[0].full_name
             == "tl" + sep + "grandparent" + sep + "parent" + sep + "child"
         )
 

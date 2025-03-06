@@ -1,6 +1,6 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
-from tests.mock import PatchGet, Serve
+from tests.mock import Serve
 from tilia.requests import Post, post
 from tilia.enums import Side
 from tilia.requests import Get
