@@ -27,9 +27,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Setup xvfb (Linux)
       if: runner.os == 'Linux'
       run: |
@@ -37,32 +38,34 @@ jobs:
         sudo apt-get install -y xvfb libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 libxcb-xfixes0 libxcb-shape0 libglib2.0-0 libgl1-mesa-dev libpulse-dev
         sudo apt-get install '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
         sudo /usr/bin/Xvfb $DISPLAY -screen 0 1280x1024x24 &
+
     - uses: actions/cache@v4
       with:
         path: ${{ matrix.path }}
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
          ${{ runner.os }}-pip-
+
     - name: Install Python dependencies
       run: |
-        # prerequisites
         python -m pip install --upgrade pip wheel
-        python -m pip install coverage flake8 pytest-cov coverage-badge~=1.1.0
-    - name: Install package
-      run: |
-        pip install -r requirements.txt
         pip install -e .
+        pip install -e .[testing,ci-tests]
+
     - name: List installed packages
       run: |
         pip freeze
+
     - name: Test with pytest
       run: |
           coverage run -m pytest -v -s
       continue-on-error: true
+
     - name: Lint with flake8
       run: |
         flake8
       continue-on-error: true
+
     - name: Generate Coverage Report
       run: |
           coverage report -m
