@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - dev
+  pull_request:
+    types: [opened, reopened, synchronize]
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
