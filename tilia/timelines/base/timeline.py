@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 import bisect
 from abc import ABC
-from enum import StrEnum, auto
+from enum import Enum, auto
 from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
 
 from tilia.timelines import serialize
@@ -503,7 +503,7 @@ class TimelineComponentManager(Generic[T, TC]):
         }
 
 
-class TimelineFlag(StrEnum):
+class TimelineFlag(Enum):
     NOT_CLEARABLE = auto()
     NOT_DELETABLE = auto()
     NOT_EXPORTABLE = auto()
