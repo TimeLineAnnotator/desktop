@@ -1,8 +1,6 @@
 import json
 from unittest.mock import patch
 
-from tilia.timelines.marker.components import Marker
-
 
 def test_export(tilia_state, cli, marker_tl, tmp_path):
     marker_tl.set_data("name", "test")
@@ -19,7 +17,7 @@ def test_export(tilia_state, cli, marker_tl, tmp_path):
     tl_data = data["timelines"][0]
 
     assert tl_data["name"] == "test"
-    assert len(tl_data["components"][Marker.KIND.name]) == 3
+    assert len(tl_data["components"]) == 3
 
 
 def test_export_file_exists_do_not_overwrite(tilia_state, cli, marker_tl, tmp_path):
@@ -55,7 +53,7 @@ def test_export_file_exists_overwrite(tilia_state, cli, marker_tl, tmp_path):
 
     tl_data = data["timelines"][0]
     assert tl_data["name"] == "test"
-    assert len(tl_data["components"][Marker.KIND.name]) == 3
+    assert len(tl_data["components"]) == 3
 
 
 def test_export_file_exists_overwrite_with_flag(tilia_state, cli, marker_tl, tmp_path):
