@@ -41,7 +41,11 @@ class TestLoadFromFile:
 
         assert [x.label.toPlainText() for x in tluis[0]] == ["1", "3", "5", "7"]
 
-    def test_file_with_measures_to_force_display(self, beat_tlui, tluis, tmp_path):
+    def test_file_with_measures_to_force_display(
+        self, beat_tlui, tluis, tmp_path, use_test_settings
+    ):
+        settings.set("beat_timeline", "display_measure_periodicity", 2)
+
         beat_tlui.timeline.beat_pattern = [1]
         for i in range(8):
             beat_tlui.create_beat(i)
