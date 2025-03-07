@@ -153,21 +153,21 @@ class TestFileLoad:
         assert tilia_state.media_path == ""
         assert tilia_state.duration == 0
 
-    def test_media_path_exists(self, tilia, tilia_state, tmp_path, tls, user_actions):
-        file_data = tests.utils.get_blank_file_data()
+    def test_media_path_exists(
+        self, tilia, qtui, tilia_state, tmp_path, tls, user_actions
+    ):
         tmp_file = tmp_path / "test_file_load.tla"
-        media_path = str(
-            (Path(__file__).parent / "resources" / "example.ogg").resolve()
-        )
-        file_data["media_path"] = media_path
-        file_data["media_metadata"]["media length"] = 101
-        tmp_file.write_text(json.dumps(file_data))
+        with patch_file_dialog(True, [EXAMPLE_MEDIA_PATH]):
+            user_actions.trigger(TiliaAction.MEDIA_LOAD_LOCAL)
+
+        with patch_file_dialog(True, [str(tmp_file)]):
+            user_actions.trigger(TiliaAction.FILE_SAVE_AS)
         with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             user_actions.trigger(TiliaAction.FILE_OPEN)
 
         assert tilia_state.is_undo_manager_cleared
-        assert tilia_state.media_path == media_path
-        assert tilia_state.duration == 101
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.duration == EXAMPLE_OGG_DURATION
 
     def test_media_path_is_youtube_url(self, tilia_state, tmp_path, user_actions):
         file_data = tests.utils.get_blank_file_data()
