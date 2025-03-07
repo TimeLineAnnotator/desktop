@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 import tests.utils
-from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_OGG_DURATION
+from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_MEDIA_DURATION
 from tests.mock import Serve, PatchPost, patch_file_dialog, patch_yes_or_no_dialog
 from tilia.media.player import YouTubePlayer, QtAudioPlayer
 from tilia.settings import settings
@@ -167,7 +167,7 @@ class TestFileLoad:
 
         assert tilia_state.is_undo_manager_cleared
         assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
-        assert tilia_state.duration == EXAMPLE_OGG_DURATION
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
 
     def test_media_path_is_youtube_url(self, tilia_state, tmp_path, user_actions):
         file_data = tests.utils.get_blank_file_data()
@@ -188,31 +188,26 @@ class TestFileLoad:
 
 
 class TestMediaLoad:
-    EXAMPLE_PATH_OGG = str(
-        (Path(__file__).parent / "resources" / "example.ogg").resolve()
-    ).replace("\\", "/")
-    EXAMPLE_OGG_DURATION = 9.952
-
     @staticmethod
     def _load_media(path, scale_timelines: Literal["yes", "no", "prompt"] = "prompt"):
         with Serve(Get.PLAYER_CLASS, QtAudioPlayer):
             post(Post.APP_MEDIA_LOAD, path, scale_timelines=scale_timelines)
 
     def test_load_local(self, tilia_state):
-        self._load_media(self.EXAMPLE_PATH_OGG)
-        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
-        assert tilia_state.duration == self.EXAMPLE_OGG_DURATION
+        self._load_media(EXAMPLE_MEDIA_PATH)
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
 
     def test_undo(self, tilia_state, user_actions):
-        self._load_media(self.EXAMPLE_PATH_OGG)
+        self._load_media(EXAMPLE_MEDIA_PATH)
         user_actions.trigger(TiliaAction.EDIT_UNDO)
         assert not tilia_state.media_path
 
     def test_redo(self, tilia_state, user_actions):
-        self._load_media(self.EXAMPLE_PATH_OGG)
+        self._load_media(EXAMPLE_MEDIA_PATH)
         user_actions.trigger(TiliaAction.EDIT_UNDO)
         user_actions.trigger(TiliaAction.EDIT_REDO)
-        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
 
     def test_load_invalid_extension(self, tilia_state, tilia_errors):
         self._load_media("invalid.xyz")
@@ -221,31 +216,30 @@ class TestMediaLoad:
         assert not tilia_state.media_path
 
     def test_load_invalid_extension_with_media_loaded(self, tilia_state, tilia_errors):
-        self._load_media(self.EXAMPLE_PATH_OGG)
+        self._load_media(EXAMPLE_MEDIA_PATH)
         self._load_media("invalid.xyz")
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("xyz")
-        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
 
     def test_load_media_after_loading_media_with_invalid_extension(self, tilia_state):
         self._load_media("invalid.xyz")
-        self._load_media(self.EXAMPLE_PATH_OGG)
-        assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+        self._load_media(EXAMPLE_MEDIA_PATH)
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
 
     def test_scale_timelines_is_no(self, marker_tl):
         marker_tl.create_marker(5)
         marker_tl.create_marker(10)
-        self._load_media(self.EXAMPLE_PATH_OGG, "no")
+        self._load_media(EXAMPLE_MEDIA_PATH, "no")
         assert len(marker_tl) == 1
         assert marker_tl[0].get_data("time") == 5
 
     def test_scale_timelines_is_yes(self, tilia_state, marker_tl):
         prev_duration = tilia_state.duration
         marker_tl.create_marker(50)
-        self._load_media(self.EXAMPLE_PATH_OGG, "yes")
+        self._load_media(EXAMPLE_MEDIA_PATH, "yes")
         assert (
-            marker_tl[0].get_data("time")
-            == 50 * self.EXAMPLE_OGG_DURATION / prev_duration
+            marker_tl[0].get_data("time") == 50 * EXAMPLE_MEDIA_DURATION / prev_duration
         )
 
 
