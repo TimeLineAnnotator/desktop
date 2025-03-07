@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 import tests.utils
-from tests.constants import EXAMPLE_MEDIA_PATH
+from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_OGG_DURATION
 from tests.mock import Serve, PatchPost, patch_file_dialog, patch_yes_or_no_dialog
 from tilia.media.player import YouTubePlayer, QtAudioPlayer
 from tilia.settings import settings
@@ -201,6 +201,7 @@ class TestMediaLoad:
     def test_load_local(self, tilia_state):
         self._load_media(self.EXAMPLE_PATH_OGG)
         assert tilia_state.media_path == self.EXAMPLE_PATH_OGG
+        assert tilia_state.duration == self.EXAMPLE_OGG_DURATION
 
     def test_undo(self, tilia_state, user_actions):
         self._load_media(self.EXAMPLE_PATH_OGG)
