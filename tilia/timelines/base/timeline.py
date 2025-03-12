@@ -35,6 +35,7 @@ T = TypeVar("T", bound="Timeline")
 
 class Timeline(ABC, Generic[TC]):
     SERIALIZABLE = ["name", "height", "is_visible", "ordinal"]
+    NOT_EXPORTABLE_ATTRS = []
     KIND: TimelineKind | None = None
     FLAGS = []
     COMPONENT_MANAGER_CLASS = None
@@ -238,6 +239,9 @@ class Timeline(ABC, Generic[TC]):
 
     def get_export_data(self) -> dict[str, Any]:
         result = self._get_base_state()
+        result.pop("hash")
+        for attr in self.NOT_EXPORTABLE_ATTRS:
+            result.pop(attr)
 
         result["components"] = []
         for component in self.component_manager:
