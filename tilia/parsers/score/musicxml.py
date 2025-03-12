@@ -245,7 +245,11 @@ def notes_from_musicXML(
                     constructor_kwargs = {
                         "fifths": int(attribute.find("fifths").text),
                     }
-                    staff_numbers = list(part_id_to_staves[part_id].keys())
+                    staff_numbers = (
+                        [attribute.get("number")]
+                        if attribute.get("number") is not None
+                        else list(part_id_to_staves[part_id].keys())
+                    )
                     component_kind = ComponentKind.KEY_SIGNATURE
                 case "time":
                     ts_numerator = int(attribute.find("beats").text)
@@ -254,7 +258,11 @@ def notes_from_musicXML(
                         "numerator": ts_numerator,
                         "denominator": ts_denominator,
                     }
-                    staff_numbers = list(part_id_to_staves[part_id].keys())
+                    staff_numbers = (
+                        [attribute.get("number")]
+                        if attribute.get("number") is not None
+                        else list(part_id_to_staves[part_id].keys())
+                    )
                     component_kind = ComponentKind.TIME_SIGNATURE
                 case "clef":
                     sign = attribute.find("sign").text
