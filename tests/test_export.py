@@ -37,7 +37,7 @@ def test_timelines_attributes_are_exported(
     assert "hash" not in timeline_data
     assert timeline_data["ordinal"] == 1
     assert timeline_data["name"] == tl_name
-    assert timeline_data["is_visible"] == True
+    assert timeline_data["is_visible"] is True
     assert timeline_data["height"] == settings.get("marker_timeline", "default_height")
     assert timeline_data["kind"] == TimelineKind.MARKER_TIMELINE.name
     assert timeline_data["components"] == []
