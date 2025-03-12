@@ -126,14 +126,12 @@ def notes_from_musicXML(
             "key": ComponentKind.KEY_SIGNATURE,
             "time": ComponentKind.TIME_SIGNATURE,
         }
-        metric_pos_to_attr = {attr_type: {} for attr_type in attr_types}
+        metric_pos_to_attr = {
+            staff_no: {attr_type: {} for attr_type in attr_types}
+            for staff_no in part_id_to_staves[part_id].keys()
+        }
 
         for attributes in part.iter("attributes"):
-            if attributes.getparent().get("implicit") == "yes":
-                if attributes.getparent().get("number") != "0":
-                    # if number is 0, this is a pickup measure,
-                    # and we want to parse it
-                    continue
             measure_number = float(attributes.getparent().get("number"))
             prev_divs = 0
             cur_div = 0
@@ -165,45 +163,48 @@ def notes_from_musicXML(
                     next_divs = max(next_divs, cur_div)
                 measure_number += prev_divs / (prev_divs + next_divs)
             attrs = _get_attributes(attributes, part_id, measure_number)
-            for attr_type in attrs:
-                metric_pos_to_attr[attr_type][measure_number] = attrs[attr_type]
+            for staff_no, attr in attrs.items():
+                for attr_type, attr_value in attr.items():
+                    metric_pos_to_attr[staff_no][attr_type][measure_number] = attr_value
 
-        metric_pos_to_attr = {
-            attr_type: {
-                k: metric_pos_to_attr[attr_type][k]
-                for k in sorted(metric_pos_to_attr[attr_type].keys())
-            }
-            for attr_type in attr_types
-        }
+        for staff_no, attrs in metric_pos_to_attr.items():
+            for attr_type in attrs:
+                metric_pos_to_attr[staff_no][attr_type] = {
+                    k: metric_pos_to_attr[staff_no][attr_type][k]
+                    for k in sorted(metric_pos_to_attr[staff_no][attr_type].keys())
+                }
 
         def set_attributes_for_measure(index: int, check_previous: bool = True):
-            to_create = {}
+            to_create = {staff_no: {} for staff_no in part_id_to_staves[part_id].keys()}
             measure = beat_tl.measure_numbers[index]
-            for attr_type in attr_types:
-                measure_nums = list(metric_pos_to_attr[attr_type].keys())
-                current_mp_index = bisect(measure_nums, measure)
-                if current_mp_index == 0:
-                    errors.append(
-                        f"Cannot create {attr_type} for measure {measure}. {measure} is smaller than the smallest measure found in the provided file {measure_nums[0]}."
-                    )
-                    continue
-                if measure_nums[current_mp_index - 1] == measure:
-                    continue
-                if check_previous:
-                    previous_mp_index = bisect(
-                        measure_nums, beat_tl.measure_numbers[index - 1]
-                    )
-                    if (
-                        metric_pos_to_attr[attr_type][
-                            measure_nums[current_mp_index - 1]
-                        ]
-                        == metric_pos_to_attr[attr_type][
-                            measure_nums[previous_mp_index - 1]
-                        ]
-                    ):
+            for staff_no in metric_pos_to_attr:
+                for attr_type in attr_types:
+                    measure_nums = list(metric_pos_to_attr[staff_no][attr_type].keys())
+                    current_mp_index = bisect(measure_nums, measure)
+                    if current_mp_index == 0:
+                        errors.append(
+                            f"Cannot create {attr_type} for measure {measure}. {measure} is smaller than the smallest measure found in the provided file {measure_nums[0]}."
+                        )
+                        continue
+                    if measure_nums[current_mp_index - 1] == measure:
                         continue
 
-                to_create[attr_type] = measure_nums[current_mp_index - 1]
+                    # if the given measure is not the first measure, check the previous measure to make sure that the attributes are different and need to be updated.
+                    if check_previous:
+                        previous_mp_index = bisect(
+                            measure_nums, beat_tl.measure_numbers[index - 1]
+                        )
+                        if (
+                            metric_pos_to_attr[staff_no][attr_type][
+                                measure_nums[current_mp_index - 1]
+                            ]
+                            == metric_pos_to_attr[staff_no][attr_type][
+                                measure_nums[previous_mp_index - 1]
+                            ]
+                        ):
+                            continue
+
+                    to_create[staff_no][attr_type] = measure_nums[current_mp_index - 1]
 
             if not to_create:
                 return
@@ -213,16 +214,13 @@ def notes_from_musicXML(
                 i for i, v in enumerate(beat_tl.measure_numbers) if v == measure
             ].index(index)
 
-            for attr, attr_measure in to_create.items():
-                for staff_number in metric_pos_to_attr[attr][attr_measure][
-                    "staff_nums"
-                ]:
+            for staff_no, attr in to_create.items():
+                for attr_type, attr_measure in attr.items():
                     _create_component(
-                        attr_types[attr],
-                        metric_pos_to_attr[attr][attr_measure]["kwargs"]
+                        attr_types[attr_type],
+                        metric_pos_to_attr[staff_no][attr_type][attr_measure]
                         | {
                             "time": times[position],
-                            "staff_index": part_id_to_staves[part_id][staff_number],
                         },
                     )
 
@@ -235,9 +233,12 @@ def notes_from_musicXML(
         attributes: etree._Element,
         part_id: str,
         metric_pos: float,
-    ) -> dict[str, dict[str, list[str] | dict[str, int | str]]]:
+    ) -> dict[str, dict[str, dict[str, list[str] | dict[str, int | str]]]]:
         times = beat_tl.get_time_by_measure(metric_pos // 1, metric_pos % 1)
-        attributes_found = {}
+        attributes_found = {
+            staff_no: {} for staff_no in part_id_to_staves[part_id].keys()
+        }
+
         for attribute in attributes:
             match attribute.tag:
                 case "key":
@@ -287,10 +288,10 @@ def notes_from_musicXML(
                 case _:
                     continue
 
-            attributes_found[attribute.tag] = {
-                "staff_nums": staff_numbers,
-                "kwargs": constructor_kwargs,
-            }
+            for staff_number in staff_numbers:
+                attributes_found[staff_number][attribute.tag] = {
+                    "staff_index": part_id_to_staves[part_id][staff_number]
+                } | constructor_kwargs
             for time in times:
                 for staff_number in staff_numbers:
                     _create_component(
