@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from typing import Any, Sequence
 from unittest.mock import patch, Mock
 
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 
 from tilia.requests import Get, Post, serve, server, stop_serving
 from tilia.requests import get as get_original
@@ -173,4 +173,25 @@ def patch_yes_or_no_dialog(success: bool | list[bool]):
         raise ValueError("success must be a bool or a list of bools.")
 
     with patch.object(QMessageBox, "question", side_effect=success):
+        yield
+
+
+@contextmanager
+def patch_ask_for_string_dialog(success: bool | list[bool], string: str | list[str]):
+    """Patches the QInputDialog to return the specified success values and strings.
+
+    Args:
+        success: Whether the dialog was successful. If a list, the success value for each iteration.
+        string: String input by user. If list of string, the input values for each iteration.
+    """
+
+    if not isinstance(success, list):
+        success = [success]
+        if not isinstance(string, list):
+            string = [string]
+        else:
+            raise ValueError("input must be a string if success is a bool.")
+
+    return_values = list(zip(string, success))
+    with (patch.object(QInputDialog, "getText", side_effect=return_values),):
         yield
