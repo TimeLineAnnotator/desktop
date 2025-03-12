@@ -1,8 +1,6 @@
 import json
 from unittest.mock import patch
 
-from tilia.timelines.marker.components import Marker
-
 
 def test_export(tilia_state, cli, marker_tl, tmp_path):
     marker_tl.set_data("name", "test")
