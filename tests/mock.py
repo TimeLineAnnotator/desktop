@@ -172,5 +172,5 @@ def patch_yes_or_no_dialog(success: bool | list[bool]):
     else:
         raise ValueError("success must be a bool or a list of bools.")
 
-    with patch.object(QMessageBox, "question", return_value=success):
+    with patch.object(QMessageBox, "question", side_effect=success):
         yield
