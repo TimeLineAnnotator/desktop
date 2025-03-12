@@ -12,6 +12,11 @@ def _trigger_export_action(user_actions, path):
     with Serve(Get.FROM_USER_EXPORT_PATH, (True, path)):
         user_actions.trigger(TiliaAction.FILE_EXPORT)
 
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    return data
+
 
 def test_export_timelines(
     tilia, marker_tlui, harmony_tlui, user_actions, tilia_state, tmp_path
@@ -25,10 +30,7 @@ def test_export_timelines(
 
     tmp_file = tmp_path / "test.json"
 
-    _trigger_export_action(user_actions, tmp_file)
-
-    with open(tmp_file, encoding="utf-8") as f:
-        data = json.load(f)
+    data = _trigger_export_action(user_actions, tmp_file)
 
     assert len(data["timelines"]) == 2
     assert data["timelines"][0]["kind"] == "MARKER_TIMELINE"
@@ -52,10 +54,7 @@ def test_export_has_media_path(tilia, user_actions, tmp_path):
 
     tmp_file = tmp_path / "test.json"
 
-    _trigger_export_action(user_actions, tmp_file)
-
-    with open(tmp_file, encoding="utf-8") as f:
-        data = json.load(f)
+    data = _trigger_export_action(user_actions, tmp_file)
 
     assert data["media_path"] == EXAMPLE_MEDIA_PATH
 
@@ -65,10 +64,7 @@ def test_export_has_media_metadata(tilia, user_actions, tmp_path):
 
     tmp_file = tmp_path / "test.json"
 
-    _trigger_export_action(user_actions, tmp_file)
-
-    with open(tmp_file, encoding="utf-8") as f:
-        data = json.load(f)
+    data = _trigger_export_action(user_actions, tmp_file)
 
     assert data["media_metadata"]["title"] == "Test Title"
 
@@ -92,10 +88,7 @@ def test_exported_component_attributes_values_are_correct(
 
     tmp_file = tmp_path / "test.json"
 
-    _trigger_export_action(user_actions, tmp_file)
-
-    with open(tmp_file, encoding="utf-8") as f:
-        data = json.load(f)
+    data = _trigger_export_action(user_actions, tmp_file)
 
     exported_component = data["timelines"][0]["components"][0]
 
