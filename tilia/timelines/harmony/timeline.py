@@ -141,6 +141,7 @@ class HarmonyTimeline(Timeline):
         "ordinal",
         "visible_level_count",
     ]
+    NOT_EXPORTABLE_ATTRS = ["level_count", "level_height"]
     COMPONENT_MANAGER_CLASS = HarmonyTLComponentManager
 
     def __init__(
