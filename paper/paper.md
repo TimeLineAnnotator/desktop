@@ -17,7 +17,6 @@ authors:
     affiliation: 2
   - name: Mark R. H. Gotham
     orcid: 0000-0003-0722-3074
-    corresponding: This is how to denote the corresponding author)
     equal-contrib: true
     affiliation: 3
 affiliations:
