@@ -8,7 +8,6 @@ from PyQt6.QtCore import QPoint
 
 from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 from tilia.ui.coords import time_x_converter
-from tilia.utils import get_tilia_class_string
 
 from PyQt6.QtWidgets import QGraphicsScene
 
@@ -38,7 +37,7 @@ class TimelineUIElement(ABC):
         self.set_data = set_data
 
     def __repr__(self):
-        return get_tilia_class_string(self)
+        return self.__class__.__name__ + ": " + self.tl_component.__str__()
 
     def __lt__(self, other):
         return self.get_data("ordinal") < other.get_data("ordinal")
