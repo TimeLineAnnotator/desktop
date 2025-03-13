@@ -259,7 +259,7 @@ def notes_from_musicXML(
                     sign = attribute.find("sign").text
                     line = (
                         int(attr_line.text) - 3
-                        if (attr_line := attribute.find("line"))
+                        if (attr_line := attribute.find("line")) is not None
                         else 0
                     )
                     octave_change = (
