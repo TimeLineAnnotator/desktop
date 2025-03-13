@@ -119,7 +119,7 @@ files, enabling programmatic conversion from various data formats to TiLiA files
 
 ## Online platform
 
-The TiLiA desktop application is supported by an [online platform](tilia-app.com) that lets users store, share,
+The TiLiA desktop application is supported by an [online platform](https://tilia-app.com/) that lets users store, share,
 visualise and even query existing analyses. Registration is free and is only required for uploading content.
 This reflects a goal of TiLiA to support not only the modernised creation and
 storage of analyses, but also to support the
