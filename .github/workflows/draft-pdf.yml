@@ -6,6 +6,9 @@ on:
 
 jobs:
   paper:
+    permissions:
+      actions: write
+      contents: write
     runs-on: ubuntu-latest
     name: Paper Draft
     steps:
