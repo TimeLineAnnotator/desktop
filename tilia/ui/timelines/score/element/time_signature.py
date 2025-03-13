@@ -22,7 +22,12 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
         return time_x_converter.get_x_by_time(self.get_data("time"))
 
     def body_y(self):
-        return self.MARGIN_Y * self.timeline_ui.get_scale_for_symbols_above_staff()
+        return (
+            self.MARGIN_Y * self.timeline_ui.get_scale_for_symbols_above_staff()
+            + self.timeline_ui.get_y_for_symbols_above_staff(
+                self.get_data("staff_index")
+            )
+        )
 
     def _setup_body(self):
         self.body = TimeSignatureBody(
@@ -53,12 +58,9 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
             self.x
             + self.x_offset
             + (self.margin_x if self.x_offset is not None else 0),
-            self.timeline_ui.get_y_for_symbols_above_staff(
-                self.get_data("staff_index")
-            ),
+            self.body_y(),
         )
         self.body.set_height(self.get_body_digit_height())
-        self.body.setY(self.body_y())
 
     def on_components_deserialized(self):
         self.body.set_height(self.get_body_digit_height())
@@ -143,4 +145,5 @@ class TimeSignatureBody(QGraphicsItem):
             bounding_rect = bounding_rect.united(item.boundingRect())
         return bounding_rect
 
-    def paint(self, painter, option, widget): ...
+    def paint(self, painter, option, widget):
+        ...
