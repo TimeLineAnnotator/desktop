@@ -184,7 +184,7 @@ class ScoreTimelineUI(TimelineUI):
             return self.STAFF_MIN_HEIGHT * staff_index
 
         cumulative_height = 0
-        for j, value in self.staff_heights.items():
+        for j, value in sorted(self.staff_heights.items(), key=lambda x: x[0]):
             if j == staff_index:
                 return cumulative_height
             else:
