@@ -8,16 +8,15 @@ tags:
   - data science
 authors:
   - name: Felipe D. Martins
-    orcid: https://orcid.org/0000-0002-9965-042X
+    orcid: 0000-0002-9965-042X
     equal-contrib: true
     affiliation: 1
   - name: Anne R. E. Foo
-    orcid: https://orcid.org/0009-0003-9839-473X
+    orcid: 0009-0003-9839-473X
     equal-contrib: true
     affiliation: 2
   - name: Mark R. H. Gotham
-    orcid: https://orcid.org/0000-0003-0722-3074
-    corresponding: true # (This is how to denote the corresponding author)
+    orcid: 0000-0003-0722-3074
     equal-contrib: true
     affiliation: 3
 affiliations:
