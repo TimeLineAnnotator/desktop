@@ -118,4 +118,4 @@ class Clef(PointLikeTimelineComponent):
                 return None
 
     def __str__(self):
-        return f"Clef({self.time}, {self.line_number}, {self.step}, {self.octave}, {self.icon})"
+        return f"Clef({self.time}, {self.staff_index}, {self.line_number}, {self.step}, {self.octave}, {self.icon})"
