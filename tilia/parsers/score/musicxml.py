@@ -75,7 +75,7 @@ def notes_from_musicXML(
     metric_division = MetricDivision()
 
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
-    sign_to_line = {"C": 0, "F": 1, "G": -1}
+    sign_to_line = {"C": 3, "F": 4, "G": 2}
 
     def _create_component(component_kind: ComponentKind, kwargs: dict) -> int | None:
         component, fail_reason = score_tl.create_component(component_kind, **kwargs)
@@ -266,23 +266,22 @@ def notes_from_musicXML(
                     component_kind = ComponentKind.TIME_SIGNATURE
                 case "clef":
                     sign = attribute.find("sign").text
+                    if sign not in {"C", "F", "G"}:
+                        errors.append(f"<{attribute.tag}> - {sign} not implemented")
+                        continue
+
                     line = (
-                        int(attr_line.text) - 3
+                        int(attr_line.text)
                         if (attr_line := attribute.find("line")) is not None
-                        else 0
-                    )
+                        else sign_to_line[sign]
+                    ) - 3
                     octave_change = (
                         int(o.text)
                         if (o := attribute.find("clef-octave-change"))
                         else 0
                     )
-
-                    if sign not in {"C", "F", "G"}:
-                        errors.append(f"<{attribute.tag}> - {sign} not implemented")
-                        continue
-
                     constructor_kwargs = {
-                        "line_number": sign_to_line[sign] - line,
+                        "line_number": line,
                         "icon": Clef.ICON.get(sign),
                         "step": NOTE_NAME_TO_INT[sign],
                         "octave": sign_to_octave[sign] + octave_change,
