@@ -166,7 +166,7 @@ def patch_yes_or_no_dialog(success: bool | list[bool]):
         )
 
     if isinstance(success, bool):
-        success = get_button_from_bool(success)
+        success = [get_button_from_bool(success)]
     elif isinstance(success, list):
         success = [get_button_from_bool(s) for s in success]
     else:
