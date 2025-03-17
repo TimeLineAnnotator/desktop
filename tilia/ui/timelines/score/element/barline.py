@@ -10,13 +10,16 @@ class BarLineUI(TimelineUIElement):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._setup_body()
+        self.body = None
 
     def x(self):
         return time_x_converter.get_x_by_time(self.get_data("time"))
 
     def child_items(self):
-        return self.body.lines
+        try:
+            return self.body.lines
+        except AttributeError:
+            return []
 
     def get_body_args(self):
         return (
@@ -33,7 +36,7 @@ class BarLineUI(TimelineUIElement):
         self.body.set_position(*self.get_body_args())
 
     def on_components_deserialized(self):
-        self.update_position()
+        self._setup_body()
 
     def selection_triggers(self):
         return []
