@@ -1,5 +1,14 @@
+from pathlib import Path
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QMainWindow, QDialog
+from PyQt6.QtWidgets import (
+    QDialog,
+    QFrame,
+    QLabel,
+    QMainWindow,
+    QScrollArea,
+    QVBoxLayout,
+)
+from re import sub
 
 import tilia.constants
 
@@ -27,8 +36,11 @@ class About(QDialog):
         gh_label.setOpenExternalLinks(True)
         gh_label.setTextFormat(Qt.TextFormat.RichText)
         gh_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        license_label = QLabel("License: CC BY-SA 4.0")
+        license_label = QLabel(
+            f'<a href="#license">{tilia.constants.APP_NAME} Copyright © 2025 {tilia.constants.AUTHOR}</a>'
+        )
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        license_label.linkActivated.connect(self.open_link)
 
         layout.addWidget(name_label)
         layout.addWidget(version_label)
@@ -40,6 +52,47 @@ class About(QDialog):
 
         post(Post.WINDOW_OPEN_DONE, WindowKind.ABOUT)
 
+    def open_link(self, link):
+        match link:
+            case "#license":
+                License(self).show()
+
     def closeEvent(self, event):
         post(Post.WINDOW_CLOSE_DONE, WindowKind.ABOUT)
         return super().closeEvent(event)
+
+
+class License(QDialog):
+    def __init__(self, parent):
+        super().__init__(parent=parent)
+        self.setWindowTitle("License")
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        with open(
+            Path(__file__).parent.parent.parent.parent / "LICENSE", encoding="utf-8"
+        ) as license_file:
+            text = f"<pre style='white-space: pre-wrap;'>{license_file.read()}</pre>"
+        text = sub(
+            "<https:([^>]+)>",
+            lambda y: f'<a href="{y[0][1:-1]}">{y[0][1:-1]}</a>',
+            text,
+        )
+
+        license_text = QLabel(text)
+        license_text.setTextFormat(Qt.TextFormat.RichText)
+        license_text.setOpenExternalLinks(True)
+        license_text.setContentsMargins(5, 5, 5, 5)
+
+        license_scroll = QScrollArea()
+        license_scroll.setWidget(license_text)
+        license_scroll.setAutoFillBackground(False)
+        license_scroll.setSizeAdjustPolicy(
+            QScrollArea.SizeAdjustPolicy.AdjustToContents
+        )
+        license_scroll.setWidgetResizable(True)
+        license_scroll.setFrameShadow(QFrame.Shadow.Sunken)
+        license_scroll.setFrameShape(QFrame.Shape.Panel)
+
+        layout.addWidget(license_scroll)
+        layout.setSpacing(5)

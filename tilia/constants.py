@@ -1,13 +1,19 @@
 import configparser
+from pathlib import Path
 
 setupcfg = configparser.ConfigParser()
-setupcfg.read("setup.cfg")
+setupcfg.read(Path(__file__).parent.parent / "setup.cfg")
 
-APP_NAME = "TiLiA"
-try:
+if setupcfg.has_section("metadata"):
+    APP_NAME = setupcfg["metadata"]["name"]
+    AUTHOR = setupcfg["metadata"]["author"]
     VERSION = setupcfg["metadata"]["version"]
-except KeyError:
-    VERSION = "test"
+
+else:
+    APP_NAME = "TiLiA"
+    AUTHOR = ""
+    VERSION = "beta"
+
 FILE_EXTENSION = "tla"
 GITHUB_URL = "https://github.com/TimeLineAnnotator/desktop"
 WEBSITE_URL = "https://tilia-app.com/"
