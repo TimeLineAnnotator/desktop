@@ -36,6 +36,7 @@ a = Analysis(
         ("./README.md", "."),
         ("./LICENSE", "."),
         ("./.env", "."),
+        ("./setup.cfg", "."),
         ("./tilia/ui/img", "./tilia/ui/img/"),
         ("./tilia/ui/fonts", "./tilia/ui/fonts/"),
         ("./tilia/media/player/youtube.html", "./tilia/media/player/"),
