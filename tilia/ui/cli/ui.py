@@ -5,6 +5,7 @@ import traceback
 
 import argparse
 
+import tilia.constants
 from tilia.exceptions import TiliaExit
 from tilia.media.player.qtplayer import QtPlayer
 from tilia.requests import Get, serve
@@ -85,6 +86,7 @@ class CLI:
         Launches the CLI.
         """
         print(f"--- TiLiA v{VERSION} CLI ---")
+        print(tilia.constants.NOTICE)
         while True:
             cmd = input(">>> ")
             self.parse_and_run(cmd)
