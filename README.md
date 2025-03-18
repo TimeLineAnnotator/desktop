@@ -101,7 +101,7 @@ You can follow the instructions in the previous sections to clone the repository
 ### Run TiLiA
 Use this command to run TiLiA in CLI mode:
 ```
-python -m tilia.main --interface cli
+python -m tilia.main --user-interface cli
 ```
 ## How to contribute
 
