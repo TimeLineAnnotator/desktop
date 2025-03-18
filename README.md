@@ -109,7 +109,7 @@ See [Contributing](./CONTRIBUTING.md).
 
 ## License
 
-TiLiA is licensed under the Creative Commons Attribution-ShareAlike 4.0. The complete license can be found [here](./LICENSE).
+TiLiA is licensed under the GNU General Public License (version 3). The complete license can be found [here](./LICENSE).
 
 ## Acknowledgments
 
