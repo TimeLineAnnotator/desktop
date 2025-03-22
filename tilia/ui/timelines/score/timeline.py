@@ -156,16 +156,16 @@ class ScoreTimelineUI(TimelineUI):
                 cumulative_height += value
 
     def get_scale_for_symbols_above_staff(self) -> float:
-        visibility_treshold = 10
-        max_size_treshold = 280
+        visibility_threshold = 10
+        max_size_threshold = 280
         min_scale = 0.4
         average_measure_width = self.average_measure_width()
         if not average_measure_width:
             return 1.0
-        if average_measure_width < visibility_treshold:
+        if average_measure_width < visibility_threshold:
             return 0
         return min(
-            1.0, min_scale + (average_measure_width / max_size_treshold * min_scale)
+            1.0, min_scale + (average_measure_width / max_size_threshold * min_scale)
         )
 
     def get_height_for_symbols_above_staff(self) -> int:
