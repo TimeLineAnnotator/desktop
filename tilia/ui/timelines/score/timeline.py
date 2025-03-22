@@ -131,11 +131,6 @@ class ScoreTimelineUI(TimelineUI):
             for index, staff in self.staff_cache.items()
         }
 
-    def get_staves_y_coordinates(self):
-        if not self.staff_y_cache:
-            self.staff_y_cache = self.get_staff_y_cache()
-        return [(top, bottom) for top, bottom in self.staff_y_cache.values()]
-
     def get_staff_top_y(self, index: int) -> float:
         staff = self.staff_cache.get(index)
         return staff.top_y() if staff else 0

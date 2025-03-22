@@ -24,7 +24,7 @@ class BarLineUI(TimelineUIElement):
     def get_body_args(self):
         return (
             self.x(),
-            self.timeline_ui.get_staves_y_coordinates(),
+            self.timeline_ui.staff_y_cache.values(),
         )
 
     def _setup_body(self):
