@@ -1,4 +1,5 @@
 from PyQt6.QtCore import QSettings, QObject
+from pathlib import Path
 
 import tilia.constants
 from tilia.ui.enums import ScrollType
@@ -158,6 +159,7 @@ class SettingsManager(QObject):
 
     def update_recent_files(self, path, geometry, state):
         recent_files = self._settings.value("private/recent_files", [])
+        path = Path(path).as_posix()
         if path in recent_files:
             recent_files.remove(path)
         recent_files.insert(0, path)
@@ -168,6 +170,7 @@ class SettingsManager(QObject):
 
     def remove_from_recent_files(self, path):
         recent_files = self._settings.value("private/recent_files", [])
+        path = Path(path).as_posix()
         if path in recent_files:
             recent_files.remove(path)
         self._settings.setValue("private/recent_files", recent_files)
@@ -181,6 +184,7 @@ class SettingsManager(QObject):
         return self._settings.value("private/recent_files", [])[:10]
 
     def get_geometry_and_state_from_path(self, path):
+        path = Path(path).as_posix()
         geometry = self._settings.value(f"private/recent_files/{path}/geometry", None)
         state = self._settings.value(f"private/recent_files/{path}/state", None)
         return geometry, state
