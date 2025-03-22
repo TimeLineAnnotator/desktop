@@ -390,7 +390,6 @@ class ScoreTimelineUI(TimelineUI):
     def set_width(self, width):
         super().set_width(width)
         self.update_overlapping_elements_offsets()
-        # self.update_measure_tracker_position()
 
     def _reset_caches(self):
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
