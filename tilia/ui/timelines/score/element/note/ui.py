@@ -175,6 +175,9 @@ class NoteUI(TimelineUIElement):
             else get_tinted_color(base_color, TINT_FACTOR_ON_SELECTION)
         )
 
+    def clear_cached_top_y(self):
+        self._top_y = None
+
     def get_ledger_line_args(
         self, direction: NoteLedgerLines.Direction, line_count: int, staff_index: int
     ):
