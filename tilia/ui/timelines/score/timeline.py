@@ -148,12 +148,8 @@ class ScoreTimelineUI(TimelineUI):
         if not self.staff_heights:
             return index * self.STAFF_MIN_HEIGHT + self.STAFF_MIN_HEIGHT / 2
 
-        cumulative_height = 0
-        for j, value in sorted(self.staff_heights.items(), key=lambda x: x[0]):
-            if j == index:
-                return cumulative_height + value / 2
-            else:
-                cumulative_height += value
+        cumulative_height = sum([self.staff_heights[i] for i in range(index)])
+        return cumulative_height + self.staff_heights[index] / 2
 
     def get_scale_for_symbols_above_staff(self) -> float:
         visibility_threshold = 10
@@ -183,12 +179,7 @@ class ScoreTimelineUI(TimelineUI):
         if not self.staff_heights:
             return self.STAFF_MIN_HEIGHT * staff_index
 
-        cumulative_height = 0
-        for j, value in sorted(self.staff_heights.items(), key=lambda x: x[0]):
-            if j == staff_index:
-                return cumulative_height
-            else:
-                cumulative_height += value
+        return sum([self.staff_heights[i] for i in range(staff_index)])
 
     def on_timeline_component_created(
         self,
