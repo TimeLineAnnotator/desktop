@@ -63,7 +63,7 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
         self.body.set_height(self.get_body_digit_height())
 
     def on_components_deserialized(self):
-        self.body.set_height(self.get_body_digit_height())
+        self.update_position()
 
     def selection_triggers(self):
         return []
