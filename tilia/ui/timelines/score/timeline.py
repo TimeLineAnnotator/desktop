@@ -347,9 +347,10 @@ class ScoreTimelineUI(TimelineUI):
         The earliest staff before time + 0.01 will be used. Returns None if there is no such staff.
         """
         staff = self.staff_cache.get(staff_index)
-        clef = self.get_clef_by_time(time, staff_index)
         if not staff:
             return None
+
+        clef = self.get_clef_by_time(time, staff_index)
         line_count = staff.get_data("line_count")
         clef_step = clef.get_data("step")
         clef_octave = clef.get_data("octave")
