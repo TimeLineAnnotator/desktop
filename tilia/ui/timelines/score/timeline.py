@@ -187,6 +187,9 @@ class ScoreTimelineUI(TimelineUI):
         if kind == ComponentKind.STAFF:
             self.update_height()
             self.staff_cache[element.get_data("index")] = element
+            if (index := element.get_data("index")) not in self.staff_extreme_notes:
+                self.staff_extreme_notes[index] = {"low": None, "high": None}
+
             return
         elif kind == ComponentKind.BAR_LINE:
             self._measure_count += 1
@@ -218,9 +221,12 @@ class ScoreTimelineUI(TimelineUI):
         pitch = note.get_data("pitch")
         if staff_index not in self.staff_extreme_notes:
             self.staff_extreme_notes[staff_index] = {"low": note, "high": note}
-        elif pitch < self.staff_extreme_notes[staff_index]["low"].get_data("pitch"):
+            return
+        lowest_note = self.staff_extreme_notes[staff_index]["low"]
+        highest_note = self.staff_extreme_notes[staff_index]["high"]
+        if not lowest_note or pitch < lowest_note.get_data("pitch"):
             self.staff_extreme_notes[staff_index]["low"] = note
-        elif pitch > self.staff_extreme_notes[staff_index]["high"].get_data("pitch"):
+        if not highest_note or pitch > highest_note.get_data("pitch"):
             self.staff_extreme_notes[staff_index]["high"] = note
 
     def _update_staff_heights(self) -> None:
@@ -228,14 +234,23 @@ class ScoreTimelineUI(TimelineUI):
         min_margin_bottom = 30
         staff_heights = {}
         for i, notes in self.staff_extreme_notes.items():
-            bottom = (
-                max(
-                    notes["low"].top_y + notes["low"].note_height(),
-                    self.get_staff_bottom_y(i),
+            if notes["low"]:
+                bottom = (
+                    max(
+                        notes["low"].top_y + notes["low"].note_height(),
+                        self.get_staff_bottom_y(i),
+                    )
+                    + min_margin_bottom
                 )
-                + min_margin_bottom
-            )
-            top = min(notes["high"].top_y, self.get_staff_top_y(i)) - min_margin_top
+                notes["low"].clear_cached_top_y()
+            else:
+                bottom = self.get_staff_bottom_y(i)
+
+            if notes["high"]:
+                top = min(notes["high"].top_y, self.get_staff_top_y(i)) - min_margin_top
+                notes["high"].clear_cached_top_y()
+            else:
+                top = self.get_staff_top_y(i)
 
             staff_heights[i] = int(bottom - top)
 
@@ -380,11 +395,11 @@ class ScoreTimelineUI(TimelineUI):
     def _reset_caches(self):
         self.clef_time_cache: dict[int, dict[tuple[int, int], ClefUI]] = {}
         self.staff_cache: dict[int, StaffUI] = {}
-        self.staff_y_cache: dict[int, tuple[int, int]] = {}
+        self.staff_y_cache: dict[int, tuple[float, float]] = {}
+        self.staff_heights: dict[int, int] = {}
+        self.staff_extreme_notes: dict[int, dict[str, NoteUI | None]] = {}
         self.first_bar_line: BarLineUI | None = None
         self.last_bar_line: BarLineUI | None = None
-        self.staff_extreme_notes: dict[int, dict[str, NoteUI]] = {}
-        self.staff_heights: dict[int, float] = {}
         self._measure_count = 0  # assumes measures can't be deleted
         self.overlapping_elements = set()
 
