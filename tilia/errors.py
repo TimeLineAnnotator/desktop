@@ -103,7 +103,7 @@ UNDO_FAILED = Error(
 COMMAND_FAILED = Error(
     "Command failed", "Something went wrong when executing the last command. \n{}"
 )
-SCORE_SVG_CREATE_ERROR = Error("Error creating SVG", {})
+SCORE_SVG_CREATE_ERROR = Error("Error creating SVG", "{}")
 INVALID_CSV_ERROR = Error("Import error", "'{}' is not a valid UTF-8 encoded CSV file.")
 
 
