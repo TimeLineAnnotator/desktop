@@ -6,6 +6,8 @@ from typing import Callable
 from PyQt6.QtWidgets import QMenu
 
 from tilia.requests import get, Get, Post, post
+from tilia.ui.actions import TiliaAction
+from tests.mock import Serve
 
 
 def get_blank_file_data():
@@ -93,6 +95,20 @@ def undoable():
     assert get(Get.APP_STATE) == state_before
     post(Post.EDIT_REDO)
     assert get(Get.APP_STATE) == state_after
+
+
+def reloadable(save_path, user_actions):
+    def check_and_reload(checks):
+        checks()
+
+        with (Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, save_path))):
+            user_actions.trigger(TiliaAction.FILE_SAVE)
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, save_path)):
+            user_actions.trigger(TiliaAction.FILE_OPEN)
+
+        checks()
+
+    return check_and_reload
 
 
 def get_action(menu, name):
