@@ -8,4 +8,7 @@ EXAMPLE_MEDIA_SCALE_FACTOR = EXAMPLE_MEDIA_DURATION / 100
 EXAMPLE_MUSICXML_PATH = str(
     (Path(__file__).parent / "resources" / "example.musicxml").resolve()
 ).replace("\\", "/")
+EXAMPLE_MULTISTAFF_MUSICXML_PATH = str(
+    (Path(__file__).parent / "resources" / "example_multistaff.musicxml").resolve()
+).replace("\\", "/")
 EXAMPLE_YT_URL = "https://youtu.be/6TtjniGQqAc?si=KDINcHVRsl4cH8Rn"
