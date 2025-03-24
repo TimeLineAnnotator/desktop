@@ -98,6 +98,16 @@ def undoable():
 
 
 def reloadable(save_path, user_actions):
+    """
+    Ensures the file loads similarly after saving and loading.
+    Use this as a decorator for a function that checks for the correct values.
+    E.g. (See tests.ui.timelines.score.test_score_timeline_ui.test_attribute_positions)
+    ```
+    @reloadable(save_path, user_actions)
+    def check_values(): ...
+    ```
+    """
+
     def check_and_reload(checks):
         checks()
 
