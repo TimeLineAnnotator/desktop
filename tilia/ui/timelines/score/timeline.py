@@ -8,6 +8,7 @@ from PyQt6.QtGui import QPixmap, QColor
 from PyQt6.QtWidgets import QGraphicsRectItem
 
 from tilia.dirs import IMG_DIR
+import tilia.errors
 from tilia.exceptions import GetComponentDataError, NoReplyToRequest
 from tilia.requests import Get, get, listen, Post, post
 from tilia.timelines.component_kinds import ComponentKind
@@ -186,10 +187,11 @@ class ScoreTimelineUI(TimelineUI):
         element = super().on_timeline_component_created(kind, id, get_data, set_data)
         if kind == ComponentKind.STAFF:
             self.update_height()
-            self.staff_cache[element.get_data("index")] = element
-            if (index := element.get_data("index")) not in self.staff_extreme_notes:
+            index = element.get_data("index")
+            self.staff_cache[index] = element
+            if index not in self.staff_extreme_notes:
                 self.staff_extreme_notes[index] = {"low": None, "high": None}
-
+            self.staff_numbers.append(index)
             return
         elif kind == ComponentKind.BAR_LINE:
             self._measure_count += 1
@@ -401,6 +403,7 @@ class ScoreTimelineUI(TimelineUI):
         self.last_bar_line: BarLineUI | None = None
         self._measure_count = 0  # assumes measures can't be deleted
         self.overlapping_elements = set()
+        self.staff_numbers = []
 
     def on_score_timeline_clear_done(self, id: int):
         if id != self.id:
@@ -411,6 +414,8 @@ class ScoreTimelineUI(TimelineUI):
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
             return
+
+        self._validate_staff_numbers()
 
         self._update_staff_heights()
 
@@ -429,6 +434,13 @@ class ScoreTimelineUI(TimelineUI):
 
         self.update_height()
         self.collection.update_timeline_uis_position()
+
+    def _validate_staff_numbers(self):
+        self.staff_numbers = sorted(self.staff_numbers)
+        if [*set(self.staff_numbers)] != self.staff_numbers or sorted(
+            self.staff_extreme_notes
+        ) != self.staff_numbers:
+            tilia.errors.display(tilia.errors.SCORE_STAFF_ID_ERROR, self.staff_numbers)
 
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
