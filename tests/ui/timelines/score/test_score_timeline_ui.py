@@ -100,3 +100,20 @@ def test_attribute_positions_without_measure_zero(
         notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
 
     _check_attrs(tmp_path, user_actions)
+
+
+def test_correct_clef_to_staff(qtui, score_tl, beat_tl):
+    beat_tl.beat_pattern = [1]
+    for i in range(1, 3):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [1, 2]
+    beat_tl.recalculate_measures()
+
+    with Serve(Get.FROM_USER_YES_OR_NO, False):
+        notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
+
+    clefs = score_tl.get_components_by_attr("KIND", ComponentKind.CLEF)
+    staff_no_to_clef = {clef.staff_index: clef.icon for clef in clefs}
+    assert "alto" in staff_no_to_clef[0]
+    assert "treble" in staff_no_to_clef[1]
+    assert "bass" in staff_no_to_clef[2]
