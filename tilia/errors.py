@@ -107,7 +107,7 @@ SCORE_SVG_CREATE_ERROR = Error("Error creating SVG", "{}")
 INVALID_CSV_ERROR = Error("Import error", "'{}' is not a valid UTF-8 encoded CSV file.")
 SCORE_STAFF_ID_ERROR = Error(
     "Error creating score timeline",
-    "Duplicate or missing staff numbers. Staff numbers found: {}.\nDisplayed score may contain errors.",
+    "Duplicate or missing staff numbers. Staff numbers found: {}.\nDeleting timeline.",
 )
 
 
