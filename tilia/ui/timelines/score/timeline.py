@@ -204,6 +204,8 @@ class ScoreTimelineUI(TimelineUI):
                 self.last_bar_line = element
         elif kind == ComponentKind.NOTE:
             self._update_staff_extreme_notes(element.get_data("staff_index"), element)
+        else:  # ComponentKind.CLEF, ComponentKind.KEY_SIGNATURE ComponentKind.TIME_SIGNATURE
+            self.staffs_with_symbol.add(element.get_data("staff_index"))
 
         try:
             time = element.get_data("time")
@@ -403,7 +405,8 @@ class ScoreTimelineUI(TimelineUI):
         self.last_bar_line: BarLineUI | None = None
         self._measure_count = 0  # assumes measures can't be deleted
         self.overlapping_elements = set()
-        self.staff_numbers = []
+        self.staff_numbers: list[int] = []
+        self.staffs_with_symbol = set()
 
     def on_score_timeline_clear_done(self, id: int):
         if id != self.id:
@@ -415,7 +418,11 @@ class ScoreTimelineUI(TimelineUI):
         if id != self.id:
             return
 
-        self._validate_staff_numbers()
+        success = self._validate_staff_numbers()
+        if not success:
+            tilia.errors.display(tilia.errors.SCORE_STAFF_ID_ERROR, self.staff_numbers)
+            get(Get.TIMELINE_COLLECTION).delete_timeline(self.timeline)
+            return
 
         self._update_staff_heights()
 
@@ -435,12 +442,13 @@ class ScoreTimelineUI(TimelineUI):
         self.update_height()
         self.collection.update_timeline_uis_position()
 
-    def _validate_staff_numbers(self):
+    def _validate_staff_numbers(self) -> bool:
         self.staff_numbers = sorted(self.staff_numbers)
-        if [*set(self.staff_numbers)] != self.staff_numbers or sorted(
-            self.staff_extreme_notes
-        ) != self.staff_numbers:
-            tilia.errors.display(tilia.errors.SCORE_STAFF_ID_ERROR, self.staff_numbers)
+        return (
+            [*set(self.staff_numbers)] == self.staff_numbers
+            and set(self.staff_extreme_notes).issubset(self.staff_numbers)
+            and set(self.staffs_with_symbol).issubset(self.staff_numbers)
+        )
 
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
