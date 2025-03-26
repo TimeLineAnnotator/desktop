@@ -1,8 +1,10 @@
 import pytest
+import json
 
 from tests.constants import EXAMPLE_MULTISTAFF_MUSICXML_PATH
-from tests.mock import Serve
-from tests.utils import reloadable
+from tests.mock import Serve, patch_file_dialog
+from tests.utils import reloadable, get_blank_file_data
+from tilia.errors import SCORE_STAFF_ID_ERROR
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, get
 from tilia.timelines.component_kinds import ComponentKind
@@ -117,3 +119,88 @@ def test_correct_clef_to_staff(qtui, score_tl, beat_tl):
     assert "alto" in staff_no_to_clef[0]
     assert "treble" in staff_no_to_clef[1]
     assert "bass" in staff_no_to_clef[2]
+
+
+def test_missing_staff_deletes_timeline(
+    qtui, tls, tilia_errors, tmp_path, user_actions
+):
+    file_data = get_blank_file_data()
+    file_data["timelines"] = {
+        0: {
+            "kind": "SCORE_TIMELINE",
+            "height": 1,
+            "is_visible": True,
+            "name": "",
+            "ordinal": 1,
+            "svg_data": "",
+            "viewer_beat_x": {},
+            "hash": "",
+            "components": {
+                2: {
+                    "staff_index": 0,
+                    "time": 0,
+                    "line_number": -1,
+                    "step": 4,
+                    "octave": 4,
+                    "icon": "clef-treble.svg",
+                    "kind": "CLEF",
+                    "hash": "",
+                },
+                3: {
+                    "start": 0,
+                    "end": 0,
+                    "step": 0,
+                    "accidental": 0,
+                    "octave": 3,
+                    "staff_index": 0,
+                    "color": None,
+                    "comments": "",
+                    "" "display_accidental": False,
+                    "kind": "NOTE",
+                    "hash": "",
+                },
+            },
+            "components_hash": "",
+        }
+    }
+
+    tmp_file = tmp_path / "test.tla"
+    tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
+
+    with patch_file_dialog(True, [tmp_file]):
+        user_actions.trigger(TiliaAction.FILE_OPEN)
+
+    tilia_errors.assert_in_error_title(SCORE_STAFF_ID_ERROR.title)
+    assert tls.get_timeline_by_attr("KIND", TimelineKind.SCORE_TIMELINE) is None
+
+
+def test_duplicate_staff_deletes_timeline(
+    qtui, tls, tilia_errors, tmp_path, user_actions
+):
+    file_data = get_blank_file_data()
+    file_data["timelines"] = {
+        0: {
+            "kind": "SCORE_TIMELINE",
+            "height": 1,
+            "is_visible": True,
+            "name": "",
+            "ordinal": 1,
+            "svg_data": "",
+            "viewer_beat_x": {},
+            "hash": "",
+            "components": {
+                1: {"line_count": 5, "index": 0, "kind": "STAFF", "hash": ""},
+                2: {"line_count": 5, "index": 0, "kind": "STAFF", "hash": ""},
+            },
+            "components_hash": "",
+        }
+    }
+
+    tmp_file = tmp_path / "test.tla"
+    tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
+
+    with patch_file_dialog(True, [tmp_file]):
+        user_actions.trigger(TiliaAction.FILE_OPEN)
+
+    tilia_errors.assert_in_error_title(SCORE_STAFF_ID_ERROR.title)
+    assert tls.get_timeline_by_attr("KIND", TimelineKind.SCORE_TIMELINE) is None
