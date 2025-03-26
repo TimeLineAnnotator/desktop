@@ -49,7 +49,7 @@ def test_create_key_signature(score_tlui, fifths):
     assert score_tlui[0]
 
 
-def _check_attrs(tmp_path, user_actions):
+def _check_attrs(tmp_path, user_actions, items_per_attr):
     @reloadable(tmp_path / "file.tla", user_actions)
     def check_attrs() -> None:
         score = get(
@@ -68,7 +68,7 @@ def _check_attrs(tmp_path, user_actions):
             sorted_y = [
                 k for k, _ in sorted(staff_no_to_y.items(), key=lambda item: item[1])
             ]
-            assert len(sorted_y) == 3
+            assert len(sorted_y) == items_per_attr
             for i in range(len(sorted_y)):
                 assert i == sorted_y[i]
 
@@ -84,7 +84,7 @@ def test_attribute_positions(qtui, score_tl, beat_tl, tmp_path, user_actions):
 
     notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
 
-    _check_attrs(tmp_path, user_actions)
+    _check_attrs(tmp_path, user_actions, items_per_attr=3)
 
 
 def test_attribute_positions_without_measure_zero(
@@ -99,7 +99,7 @@ def test_attribute_positions_without_measure_zero(
     with Serve(Get.FROM_USER_YES_OR_NO, False):
         notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
 
-    _check_attrs(tmp_path, user_actions)
+    _check_attrs(tmp_path, user_actions, items_per_attr=3)
 
 
 def test_correct_clef_to_staff(qtui, score_tl, beat_tl):
