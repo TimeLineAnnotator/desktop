@@ -204,7 +204,8 @@ class ScoreTimelineUI(TimelineUI):
                 self.last_bar_line = element
         elif kind == ComponentKind.NOTE:
             self._update_staff_extreme_notes(element.get_data("staff_index"), element)
-        else:  # ComponentKind.CLEF, ComponentKind.KEY_SIGNATURE ComponentKind.TIME_SIGNATURE
+        elif kind != ComponentKind.SCORE_ANNOTATION:
+            # ComponentKind.CLEF, ComponentKind.KEY_SIGNATURE ComponentKind.TIME_SIGNATURE
             self.staffs_with_symbol.add(element.get_data("staff_index"))
 
         try:
