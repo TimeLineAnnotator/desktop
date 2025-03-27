@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QMenu
 
 from tilia.requests import get, Get, Post, post
 from tilia.ui.actions import TiliaAction
-from tests.mock import Serve
+from tests.mock import patch_file_dialog
 
 
 def get_blank_file_data():
@@ -111,9 +111,8 @@ def reloadable(save_path, user_actions):
     def check_and_reload(checks):
         checks()
 
-        with (Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, save_path))):
+        with patch_file_dialog(True, [save_path, save_path]):
             user_actions.trigger(TiliaAction.FILE_SAVE)
-        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, save_path)):
             user_actions.trigger(TiliaAction.FILE_OPEN)
 
         checks()
