@@ -98,7 +98,7 @@ def test_attribute_positions_without_measure_zero(
     beat_tl.measure_numbers = [1, 2]
     beat_tl.recalculate_measures()
 
-    with Serve(Get.FROM_USER_YES_OR_NO, False):
+    with patch_yes_or_no_dialog(False):
         notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
 
     _check_attrs(tmp_path, user_actions, items_per_attr=3)
@@ -111,7 +111,7 @@ def test_correct_clef_to_staff(qtui, score_tl, beat_tl):
     beat_tl.measure_numbers = [1, 2]
     beat_tl.recalculate_measures()
 
-    with Serve(Get.FROM_USER_YES_OR_NO, False):
+    with patch_yes_or_no_dialog(False):
         notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
 
     clefs = score_tl.get_components_by_attr("KIND", ComponentKind.CLEF)
