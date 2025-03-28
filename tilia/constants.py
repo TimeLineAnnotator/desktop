@@ -16,8 +16,9 @@ else:
 
 YEAR = "2022-2025"
 FILE_EXTENSION = "tla"
+EMAIL_URL = "mailto:tilia@tilia-app.com"
 GITHUB_URL = "https://github.com/TimeLineAnnotator/desktop"
-WEBSITE_URL = "https://tilia-app.com/"
+WEBSITE_URL = "https://tilia-app.com"
 YOUTUBE_URL_REGEX = r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"
 NOTICE = f"""
 {APP_NAME}, {setupcfg["metadata"]["description"] if AUTHOR else ""}
