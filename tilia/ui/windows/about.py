@@ -28,14 +28,25 @@ class About(QDialog):
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_label = QLabel("v" + tilia.constants.VERSION)
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        site_label = QLabel(f'<a href="{tilia.constants.WEBSITE_URL}">Website</a>')
-        site_label.setOpenExternalLinks(True)
-        site_label.setTextFormat(Qt.TextFormat.RichText)
-        site_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        gh_label = QLabel(f'<a href="{tilia.constants.GITHUB_URL}">GitHub</a>')
-        gh_label.setOpenExternalLinks(True)
-        gh_label.setTextFormat(Qt.TextFormat.RichText)
-        gh_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        contact_fields = {
+            "Website": tilia.constants.WEBSITE_URL,
+            "GitHub": tilia.constants.GITHUB_URL,
+            "Contact us": tilia.constants.EMAIL_URL,
+        }
+        contact_label = QLabel(
+            " | ".join(
+                [
+                    f"<a href={link}>{label}</a>"
+                    for label, link in contact_fields.items()
+                ]
+            )
+        )
+        contact_label.setOpenExternalLinks(True)
+        contact_label.setTextFormat(Qt.TextFormat.RichText)
+        contact_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
         license_label = QLabel(
             f'<a href="#license">{tilia.constants.APP_NAME} Copyright © {tilia.constants.YEAR} {tilia.constants.AUTHOR}</a>'
         )
@@ -44,8 +55,9 @@ class About(QDialog):
 
         layout.addWidget(name_label)
         layout.addWidget(version_label)
-        layout.addWidget(site_label)
-        layout.addWidget(gh_label)
+        layout.addWidget(contact_label)
+        layout.addSpacing(25)
+        layout.addWidget(line)
         layout.addWidget(license_label)
 
         self.show()
