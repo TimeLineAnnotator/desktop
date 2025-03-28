@@ -365,19 +365,19 @@ taction_to_params = {
         Post.IMPORT_MUSICXML, "&Import from musicxml file", "", ""
     ),
     TiliaAction.SCORE_ANNOTATION_ADD: ActionParams(
-        None, "Add Annotation (Return)", "annotation_add", "", "", ""
+        None, "Add Annotation (Return)", "annotation_add", ""
     ),
     TiliaAction.SCORE_ANNOTATION_DELETE: ActionParams(
-        None, "Delete Annotation (Delete)", "annotation_delete", "", "", ""
+        None, "Delete Annotation (Delete)", "annotation_delete", ""
     ),
     TiliaAction.SCORE_ANNOTATION_EDIT: ActionParams(
-        None, "Edit Annotation", "annotation_edit", "Shift+Return", "", ""
+        None, "Edit Annotation", "annotation_edit", "Shift+Return"
     ),
     TiliaAction.SCORE_ANNOTATION_FONT_DEC: ActionParams(
-        None, "Decrease Annotation Font", "annotation_font_dec", "Shift+Down", "", ""
+        None, "Decrease Annotation Font", "annotation_font_dec", "Shift+Down"
     ),
     TiliaAction.SCORE_ANNOTATION_FONT_INC: ActionParams(
-        None, "Increase Annotation Font", "annotation_font_inc", "Shift+Up", "", ""
+        None, "Increase Annotation Font", "annotation_font_inc", "Shift+Up"
     ),
 }
 
