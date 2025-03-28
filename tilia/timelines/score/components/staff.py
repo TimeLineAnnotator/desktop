@@ -28,3 +28,7 @@ class Staff(TimelineComponent):
 
     def __str__(self):
         return f"Staff({self.line_count, self.index})"
+
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        return cls.SERIALIZABLE
