@@ -1,14 +1,18 @@
 import json
+import pytest
+from PIL import Image
 
 from tests.conftest import parametrize_component
 from tests.constants import EXAMPLE_MEDIA_PATH
-from tests.mock import Serve, patch_ask_for_string_dialog
-from tilia.requests import post, Post, Get
+from tests.mock import Serve, patch_ask_for_string_dialog, patch_file_dialog
+from tests.utils import get_tmp_file_with_dummy_timeline
+from tilia.requests import post, Post, Get, get
 from tilia.settings import settings
 from tilia.timelines.base.timeline import TimelineFlag
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.actions import TiliaAction
+from tilia.ui.dialogs.resize_rect import ResizeRect
 
 
 class TestExportJSON:
@@ -139,3 +143,48 @@ class TestExportJSON:
             if isinstance(comp_value, tuple):
                 comp_value = list(comp_value)  # JSON converts tuples to lists
             assert comp_value == exported_component[attr]
+
+
+class TestExportImage:
+    def _get_sample_file(self, tmp_path):
+        return get_tmp_file_with_dummy_timeline(tmp_path).__str__()
+
+    @pytest.mark.parametrize("scale_factor", [1.0, 0.5, 2.0])
+    def test_image_export(
+        self, qtui, monkeypatch, tmp_path, user_actions, scale_factor
+    ):
+        image_path = tmp_path / "tl_image.jpg"
+        with patch_file_dialog(True, [self._get_sample_file(tmp_path)]):
+            user_actions.trigger(TiliaAction.FILE_OPEN)
+
+        scene = get(Get.MAIN_WINDOW).centralWidget().scene()
+        original_width = scene.sceneRect().width()
+        original_height = scene.sceneRect().height()
+
+        new_width = original_width * scale_factor
+
+        monkeypatch.setattr(ResizeRect, "new_size", lambda *_: [True, new_width])
+
+        with Serve(Get.FROM_USER_EXPORT_PATH, (True, image_path)):
+            user_actions.trigger(TiliaAction.FILE_EXPORT_IMG)
+
+        with Image.open(image_path) as img:
+            assert img.size[0] == new_width
+            assert img.size[1] == original_height
+
+        assert scene.sceneRect().width() == original_width
+        assert scene.sceneRect().height() == original_height
+
+    def test_image_export_resize_rejected(
+        self, qtui, user_actions, monkeypatch, tmp_path
+    ):
+        image_path = tmp_path / "tl_image.jpg"
+        with patch_file_dialog(True, [self._get_sample_file(tmp_path)]):
+            user_actions.trigger(TiliaAction.FILE_OPEN)
+
+        monkeypatch.setattr(ResizeRect, "new_size", lambda *_: [False, None])
+
+        with Serve(Get.FROM_USER_EXPORT_PATH, (True, image_path)):
+            user_actions.trigger(TiliaAction.FILE_EXPORT_IMG)
+
+        assert not image_path.exists()
