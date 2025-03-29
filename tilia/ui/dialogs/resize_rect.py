@@ -3,7 +3,6 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
-    QLabel,
 )
 from tilia.requests import get, Get
 
@@ -17,20 +16,17 @@ class ResizeRect(QDialog):
         self.setWindowTitle("Set Image Output Size")
         self.setLayout(QFormLayout())
 
-        original_dim = QLabel(f"Original: {old_width} x {old_height}")
-        self.layout().addRow(original_dim)
-
         self.new_width = QDoubleSpinBox()
         self.new_width.setRange(1, 16777215)
         self.new_width.setValue(old_width)
         self.new_width.valueChanged.connect(self.update_height)
-        self.layout().addRow("New Width", self.new_width)
+        self.layout().addRow("Width", self.new_width)
 
         self.new_height = QDoubleSpinBox()
         self.new_height.setRange(1, 16777215)
         self.new_height.setValue(old_height)
         self.new_height.valueChanged.connect(self.update_width)
-        self.layout().addRow("New Height", self.new_height)
+        self.layout().addRow("Height", self.new_height)
 
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Reset
