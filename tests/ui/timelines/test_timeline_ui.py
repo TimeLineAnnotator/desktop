@@ -8,19 +8,111 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.actions import TiliaAction
 
 
+class TestAltControlSelect:
+    # ideally we would test this on every kind of element
+    # but I didn't find an abstract way to click on all of them
+
+    def test_single(self, marker_tlui, tilia_state):
+        tilia_state.duration = 100
+        marker_tlui.create_marker(50)
+
+        for i in range(10):
+            click_timeline_ui(
+                marker_tlui, marker_tlui[0].get_data("time"), modifier=["alt", "ctrl"]
+            )
+            if i % 2 == 0:
+                assert marker_tlui[0].is_selected()
+            else:
+                assert not marker_tlui[0].is_selected()
+
+        # assert we have not seeked
+        assert tilia_state.current_time == 0
+
+    def test_multiple(self, marker_tlui, tilia_state):
+        marker_tlui.create_marker(0)
+        marker_tlui.create_marker(10)
+
+        click_timeline_ui(marker_tlui, 0, modifier=["alt", "ctrl"])
+        assert marker_tlui[0].is_selected()
+        assert not marker_tlui[1].is_selected()
+        assert tilia_state.current_time == 0
+
+        click_timeline_ui(marker_tlui, 10, modifier=["alt", "ctrl"])
+        assert marker_tlui[0].is_selected()
+        assert marker_tlui[1].is_selected()
+        assert tilia_state.current_time == 0
+
+        click_timeline_ui(marker_tlui, 0, modifier=["alt", "ctrl"])
+        assert not marker_tlui[0].is_selected()
+        assert marker_tlui[1].is_selected()
+        assert tilia_state.current_time == 0
+
+        click_timeline_ui(marker_tlui, 10, modifier=["alt", "ctrl"])
+        assert not marker_tlui[0].is_selected()
+        assert not marker_tlui[1].is_selected()
+        assert tilia_state.current_time == 0
+
+
+class TestAltSelect:
+    # ideally we would test this on every kind of element
+    # but I didn't find an abstract way to click on all of them
+
+    def test_single(self, marker_tlui, tilia_state):
+        tilia_state.duration = 100
+        marker_tlui.create_marker(50)
+
+        for i in range(10):
+            click_timeline_ui(
+                marker_tlui, marker_tlui[0].get_data("time"), modifier="alt"
+            )
+            assert marker_tlui[0].is_selected()
+
+        # assert we have not seeked
+        assert tilia_state.current_time == 0
+
+    def test_multiple(self, marker_tlui, tilia_state):
+        marker_tlui.create_marker(0)
+        marker_tlui.create_marker(10)
+
+        click_timeline_ui(marker_tlui, 0, modifier="alt")
+        assert marker_tlui[0].is_selected()
+        assert not marker_tlui[1].is_selected()
+        assert tilia_state.current_time == 0
+
+        click_timeline_ui(marker_tlui, 10, modifier="alt")
+        assert not marker_tlui[0].is_selected()
+        assert marker_tlui[1].is_selected()
+        assert tilia_state.current_time == 0
+
+        click_timeline_ui(marker_tlui, 0, modifier="alt")
+        assert marker_tlui[0].is_selected()
+        assert not marker_tlui[1].is_selected()
+        assert tilia_state.current_time == 0
+
+        click_timeline_ui(marker_tlui, 10, modifier="alt")
+        assert not marker_tlui[0].is_selected()
+        assert marker_tlui[1].is_selected()
+        assert tilia_state.current_time == 0
+
+
 class TestControlSelect:
     # ideally we would test this on every kind of element
     # but I didn't find an abstract way to click on all of them
 
-    def test_single(self, marker_ui):
+    def test_single(self, marker_tlui, tilia_state):
+        tilia_state.duration = 100
+        marker_tlui.create_marker(50)
         for i in range(10):  # nothing special about 10, just clicking a few times
             click_timeline_ui(
-                marker_ui.timeline_ui, marker_ui.get_data("time"), modifier="ctrl"
+                marker_tlui, marker_tlui[0].get_data("time"), modifier="ctrl"
             )
             if i % 2 == 0:
-                assert marker_ui.is_selected()
+                assert marker_tlui[0].is_selected()
             else:
-                assert not marker_ui.is_selected()
+                assert not marker_tlui[0].is_selected()
+
+        # assert we have not seeked
+        assert tilia_state.current_time == 50
 
     def test_multiple(self, marker_tlui):
         marker_tlui.create_marker(0)

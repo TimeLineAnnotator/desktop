@@ -258,7 +258,10 @@ class TimelineUI(ABC):
         elements_with_side_effects = self.get_item_owner(item)
 
         # do not deselect if control or shift are pressed
-        if modifier == Qt.KeyboardModifier.NoModifier:
+        if (
+            Qt.KeyboardModifier.ControlModifier not in modifier
+            and Qt.KeyboardModifier.ShiftModifier not in modifier
+        ):
             self.deselect_all_elements()
 
         if not elements_with_side_effects:
@@ -269,10 +272,14 @@ class TimelineUI(ABC):
         ]  # other elements are only relevant for side effects
         should_select = self.should_select(clicked_element, item)
 
-        if modifier == Qt.KeyboardModifier.NoModifier and should_select:
-            self.select_element(clicked_element)
-        elif modifier == Qt.KeyboardModifier.ControlModifier and should_select:
-            self.toggle_element_selection(clicked_element)
+        if should_select:
+            if Qt.KeyboardModifier.ControlModifier in modifier:
+                self.toggle_element_selection(clicked_element)
+            else:
+                self.select_element(clicked_element)
+
+        if Qt.KeyboardModifier.AltModifier not in modifier:
+            self._seek_to_element(clicked_element)
 
         # clicked item might trigger side effects in multiple elements
         # e.g. hierarchy frame handles trigger drag in branch
@@ -280,8 +287,8 @@ class TimelineUI(ABC):
             if not double:
                 self._trigger_left_click_side_effects(elm, item)
             else:
-                double_clicked = self._on_element_double_left_click(elm, item)
-                if not double_clicked:  # consider as single click
+                was_double_clicked = self._on_element_double_left_click(elm, item)
+                if not was_double_clicked:  # consider as single click
                     self._trigger_left_click_side_effects(elm, item)
 
     def get_item_owner(self, item: QGraphicsItem) -> list[T]:
@@ -293,10 +300,12 @@ class TimelineUI(ABC):
         return clicked_elements
 
     @staticmethod
-    def _trigger_left_click_side_effects(element: T, item: QGraphicsItem) -> None:
+    def _seek_to_element(element: T) -> None:
         if hasattr(element, "seek_time"):
             post(Post.PLAYER_SEEK_IF_NOT_PLAYING, element.seek_time)
 
+    @staticmethod
+    def _trigger_left_click_side_effects(element: T, item: QGraphicsItem) -> None:
         if hasattr(element, "on_left_click") and item in element.left_click_triggers():
             element.on_left_click(item)
 
