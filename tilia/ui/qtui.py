@@ -8,8 +8,15 @@ from typing import Optional
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl, QtMsgType
-from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices
-from PyQt6.QtWidgets import QMainWindow, QApplication, QToolBar, QDialog, QDockWidget
+from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices, QPainter, QPixmap
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QApplication,
+    QToolBar,
+    QDialog,
+    QDockWidget,
+    QGraphicsScene,
+)
 
 import tilia.constants
 import tilia.errors
@@ -27,6 +34,7 @@ from .actions import TiliaAction
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
 from .dialogs.crash import CrashDialog
+from .dialogs.resize_rect import ResizeRect
 from .menubar import TiliaMenuBar
 from tilia.ui.timelines.collection.collection import TimelineUIs
 from .menus import (
@@ -110,6 +118,30 @@ class TiliaMainWindow(QMainWindow):
 
     def on_close(self):
         super().closeEvent(None)
+
+    def on_export(self, save_path: str):
+        widget: QGraphicsScene = self.centralWidget().scene()
+        success, result = ResizeRect.new_size(
+            widget.sceneRect().width(), widget.sceneRect().height()
+        )
+        if not success:
+            return
+
+        if result[0] != widget.sceneRect().width():
+            zoom_level = result[0] / widget.sceneRect().width()
+            post(Post.VIEW_ZOOM_IN, zoom_level)
+        else:
+            zoom_level = 1.0
+
+        image = QPixmap(widget.sceneRect().size().toSize())
+        painter = QPainter(image)
+        widget.render(painter)
+        image.save(save_path)
+        del painter
+        del image
+
+        if zoom_level != 1.0:
+            post(Post.VIEW_ZOOM_OUT, zoom_level)
 
 
 class QtUI:

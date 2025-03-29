@@ -49,13 +49,15 @@ def ask_for_file_to_open(
 
 
 def ask_for_path_to_save(
-    title: str, filter: str, initial_filename: str
+    title: str, filter: str | list[str], initial_filename: str
 ) -> tuple[bool, str | None]:
     dialog = QFileDialog()
     dialog.setWindowTitle(title)
     dialog.setFileMode(QFileDialog.FileMode.AnyFile)
     dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-    dialog.setNameFilter(filter)
+    if not isinstance(filter, list):
+        filter = [filter]
+    dialog.setNameFilters(filter)
     dialog.setDirectory(
         Path(dialog.directory().path(), initial_filename)
         .resolve()
@@ -76,8 +78,25 @@ def ask_for_path_to_save_ogg_file(
     return ask_for_path_to_save(title, "OGG files (*.ogg)", initial_name)
 
 
-def ask_for_path_to_export(initial_name: str) -> tuple[bool, str]:
-    return ask_for_path_to_save("Export", "JSON files (*.json)", initial_name)
+def ask_for_path_to_export(
+    initial_name: str, file_type: str
+) -> tuple[bool, str | None]:
+    match file_type:
+        case "json":
+            filter = "JSON files (*.json)"
+        case "img":
+            filter = [
+                "Windows Bitmap (*.bmp)",
+                "JPEG (*.jpg *.jpeg)",
+                "PNG (*.png)",
+                "Portable Pixmap (*.ppm)",
+                "X11 Bitmap (*.xbm)",
+                "X11 Pixmap (*.xpm)",
+            ]
+        case _:
+            return False, None
+
+    return ask_for_path_to_save("Export", filter, initial_name)
 
 
 def ask_for_pdf_file() -> tuple[bool, str | None]:
