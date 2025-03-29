@@ -5,11 +5,12 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLabel,
 )
+from tilia.requests import get, Get
 
 
 class ResizeRect(QDialog):
     def __init__(self, old_width: float, old_height: float):
-        super().__init__()
+        super().__init__(get(Get.MAIN_WINDOW))
         self.old_width = old_width
         self.old_height = old_height
         self.old_ratio = old_width / old_height
