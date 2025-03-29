@@ -59,11 +59,9 @@ def ask_for_path_to_save(
         filter = [filter]
     dialog.setNameFilters(filter)
     dialog.setDirectory(
-        Path(dialog.directory().path(), initial_filename)
-        .resolve()
-        .__str__()
-        .replace("\\", "/")
+        Path(dialog.directory().path()).resolve().__str__().replace("\\", "/")
     )
+    dialog.selectFile(initial_filename)
 
     return _get_return_from_file_dialog(dialog)
 
