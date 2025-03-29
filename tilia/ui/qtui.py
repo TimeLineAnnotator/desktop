@@ -127,9 +127,9 @@ class TiliaMainWindow(QMainWindow):
         if not success:
             return
 
-        if result[0] != widget.sceneRect().width():
+        if result != widget.sceneRect().width():
             margins = 2 * get(Get.LEFT_MARGIN_X)
-            zoom_level = (result[0] - margins) / (widget.sceneRect().width() - margins)
+            zoom_level = (result - margins) / (widget.sceneRect().width() - margins)
             post(Post.VIEW_ZOOM_IN, zoom_level)
         else:
             zoom_level = 1.0
