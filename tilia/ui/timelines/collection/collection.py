@@ -374,13 +374,8 @@ class TimelineUIs:
             toolbar.show() if kind in visible_tl_kinds else toolbar.hide()
 
     def get_scene_height(self):
-        return (
-            sum(
-                tlui.get_height()
-                for tlui in sorted(self)
-                if tlui.get_data("is_visible")
-            )
-            + 20
+        return sum(
+            tlui.get_height() for tlui in sorted(self) if tlui.get_data("is_visible")
         )
 
     def on_timeline_width_set_done(self, width):
