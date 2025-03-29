@@ -14,7 +14,7 @@ class ResizeRect(QDialog):
         self.old_width = old_width
         self.old_height = old_height
         self.old_ratio = old_width / old_height
-        self.setWindowTitle("Resize Timelines")
+        self.setWindowTitle("Set Image Output Size")
         self.setLayout(QFormLayout())
 
         original_dim = QLabel(f"Original: {old_width} x {old_height}")
