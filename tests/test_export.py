@@ -13,7 +13,7 @@ from tilia.ui.actions import TiliaAction
 
 def _trigger_export_action(user_actions, path):
     with Serve(Get.FROM_USER_EXPORT_PATH, (True, path)):
-        user_actions.trigger(TiliaAction.FILE_EXPORT)
+        user_actions.trigger(TiliaAction.FILE_EXPORT_JSON)
 
     with open(path, encoding="utf-8") as f:
         data = json.load(f)

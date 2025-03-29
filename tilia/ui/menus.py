@@ -88,6 +88,14 @@ class RecentFilesMenu(QMenu):
         self.add_items()
 
 
+class ExportMenu(TiliaMenu):
+    menu_title = "&Export..."
+    items = [
+        (MenuItemKind.ACTION, TiliaAction.FILE_EXPORT_JSON),
+        (MenuItemKind.ACTION, TiliaAction.FILE_EXPORT_IMG),
+    ]
+
+
 class FileMenu(TiliaMenu):
     menu_title = "&File"
     items = [
@@ -96,7 +104,7 @@ class FileMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, RecentFilesMenu),
         (MenuItemKind.ACTION, TiliaAction.FILE_SAVE),
         (MenuItemKind.ACTION, TiliaAction.FILE_SAVE_AS),
-        (MenuItemKind.ACTION, TiliaAction.FILE_EXPORT),
+        (MenuItemKind.SUBMENU, ExportMenu),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.SUBMENU, LoadMediaMenu),
         (MenuItemKind.ACTION, TiliaAction.METADATA_WINDOW_OPEN),
