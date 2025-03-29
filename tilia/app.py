@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal
 import tilia.errors
 import tilia.constants
 import tilia.dirs
+from tilia.exceptions import NoReplyToRequest
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import load_media
 from tilia.utils import get_tilia_class_string
@@ -140,17 +141,30 @@ class App:
             self.file_manager.get_file_path(), geometry, window_state
         )
 
-    def on_export(self, path: Path | str | None = None) -> None:
+    def on_export(
+        self,
+        path: Path | str | None = None,
+        export_type: Literal["json", "img"] = "json",
+    ) -> None:
         if isinstance(path, str):
             path = Path(path)
 
         if not path:
-            success, path = get(Get.FROM_USER_EXPORT_PATH, get(Get.MEDIA_TITLE))
+            success, path = get(
+                Get.FROM_USER_EXPORT_PATH, get(Get.MEDIA_TITLE), export_type
+            )
             if not success:
                 return
 
-        with open(path, "w") as f:
-            json.dump(self.get_export_data(), f, indent=2)
+        match export_type:
+            case "json":
+                with open(path.__str__(), "w") as f:
+                    json.dump(self.get_export_data(), f, indent=2)
+            case "img":
+                try:
+                    get(Get.MAIN_WINDOW).on_export(path.__str__())
+                except NoReplyToRequest:
+                    return
 
     def on_close(self) -> None:
         success, confirm_save = self.file_manager.ask_save_changes_if_modified()

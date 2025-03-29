@@ -1047,7 +1047,7 @@ class TimelineUIs:
         except KeyError:
             raise NotImplementedError(f"Can't select with {selector=}")
 
-    def on_zoom(self, is_zoom_in: bool):
+    def on_zoom(self, is_zoom_in: bool, zoom_factor: float = ZOOM_FACTOR):
         prev_smooth_scroll = settings.get("general", "prioritise_performance")
         if not prev_smooth_scroll:
             settings.set("general", "prioritise_performance", True)
@@ -1056,7 +1056,7 @@ class TimelineUIs:
         post(
             Post.PLAYBACK_AREA_SET_WIDTH,
             get(Get.PLAYBACK_AREA_WIDTH)
-            * (self.ZOOM_FACTOR if is_zoom_in else 1 / self.ZOOM_FACTOR),
+            * (zoom_factor if is_zoom_in else 1 / zoom_factor),
         )
         self.center_on_time(self.selected_time)
         self.view.setUpdatesEnabled(True)

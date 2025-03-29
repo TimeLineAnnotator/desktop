@@ -36,7 +36,8 @@ class TiliaAction(Enum):
     BEAT_TIMELINE_FILL = auto()
     EDIT_REDO = auto()
     EDIT_UNDO = auto()
-    FILE_EXPORT = auto()
+    FILE_EXPORT_JSON = auto()
+    FILE_EXPORT_IMG = auto()
     FILE_NEW = auto()
     FILE_OPEN = auto()
     FILE_SAVE = auto()
@@ -88,7 +89,7 @@ class TiliaAction(Enum):
 
 @dataclass
 class ActionParams:
-    request: Post
+    request: Optional[Post]
     text: str
     icon: str
     shortcut: str
@@ -251,7 +252,12 @@ taction_to_params = {
     TiliaAction.FILE_SAVE_AS: ActionParams(
         Post.FILE_SAVE_AS, "Save &As...", "", "Ctrl+Shift+S"
     ),
-    TiliaAction.FILE_EXPORT: ActionParams(Post.FILE_EXPORT, "&Export...", "", ""),
+    TiliaAction.FILE_EXPORT_JSON: ActionParams(
+        Post.FILE_EXPORT, "&JSON", "", "", (None, "json")
+    ),
+    TiliaAction.FILE_EXPORT_IMG: ActionParams(
+        Post.FILE_EXPORT, "&Image", "", "", (None, "img")
+    ),
     TiliaAction.MEDIA_LOAD_LOCAL: ActionParams(
         Post.UI_MEDIA_LOAD_LOCAL, "&Local...", "", "Ctrl+Shift+L"
     ),
