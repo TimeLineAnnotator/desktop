@@ -86,10 +86,10 @@ def ask_for_path_to_export(
             filter = "JSON files (*.json)"
         case "img":
             filter = [
-                "Windows Bitmap (*.bmp)",
                 "JPEG (*.jpg *.jpeg)",
                 "PNG (*.png)",
                 "Portable Pixmap (*.ppm)",
+                "Windows Bitmap (*.bmp)",
                 "X11 Bitmap (*.xbm)",
                 "X11 Pixmap (*.xpm)",
             ]
