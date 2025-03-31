@@ -14,7 +14,7 @@ def click_timeline_ui_view(
     x: float,
     y: float,
     item: QGraphicsItem | None = None,
-    modifier: Literal["shift", "control"] | None = None,
+    modifier: Literal["shift", "ctrl"] | None = None,
     double: bool = False,
 ):
     request = {
@@ -25,7 +25,6 @@ def click_timeline_ui_view(
     modifier = {
         None: Qt.KeyboardModifier.NoModifier,
         "shift": Qt.KeyboardModifier.ShiftModifier,
-        "control": Qt.KeyboardModifier.ControlModifier,
         "ctrl": Qt.KeyboardModifier.ControlModifier,
     }[modifier]
 
