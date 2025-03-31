@@ -134,3 +134,33 @@ class TestFileManager:
             post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "nonexistent.json")
 
             post_mock.assert_called()
+
+    def test_save_without_set_title_and_different_file_name(
+        self, qtui, tilia, tmp_path, user_actions
+    ):
+        tla_path = tmp_path / "Some Title.tla"
+        with patch_file_dialog(True, [str(tla_path)]):
+            user_actions.trigger(TiliaAction.FILE_SAVE)
+
+        assert tilia.file_manager.file.media_metadata["title"] == "Some Title"
+
+    def test_save_with_title_set_and_different_file_name(
+        self, qtui, tilia, tmp_path, user_actions
+    ):
+        tilia.file_manager.file.media_metadata["title"] = "Title Already Set"
+        tla_path = tmp_path / "Some Title.tla"
+        with patch_file_dialog(True, [str(tla_path)]):
+            user_actions.trigger(TiliaAction.FILE_SAVE)
+
+        assert tilia.file_manager.file.media_metadata["title"] == "Title Already Set"
+
+    def test_save_fail_reverts_to_original_name(
+        self, qtui, tilia, tmp_path, user_actions
+    ):
+        tla_path = tmp_path / "Non-existent Path" / "Some Other Title.tla"
+        with patch_file_dialog(True, [str(tla_path)]):
+            user_actions.trigger(TiliaAction.FILE_SAVE)
+
+        assert tilia.file_manager.file.media_metadata[
+            "title"
+        ] == MediaMetadata.REQUIRED_FIELDS.get("title")
