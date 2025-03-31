@@ -15,7 +15,7 @@ class TestControlSelect:
     def test_single(self, marker_ui):
         for i in range(10):  # nothing special about 10, just clicking a few times
             click_timeline_ui(
-                marker_ui.timeline_ui, marker_ui.get_data("time"), modifier="control"
+                marker_ui.timeline_ui, marker_ui.get_data("time"), modifier="ctrl"
             )
             if i % 2 == 0:
                 assert marker_ui.is_selected()
@@ -26,27 +26,27 @@ class TestControlSelect:
         marker_tlui.create_marker(0)
         marker_tlui.create_marker(10)
 
-        click_timeline_ui(marker_tlui, 0, modifier="control")
+        click_timeline_ui(marker_tlui, 0, modifier="ctrl")
         assert marker_tlui[0].is_selected()
         assert not marker_tlui[1].is_selected()
 
-        click_timeline_ui(marker_tlui, 10, modifier="control")
+        click_timeline_ui(marker_tlui, 10, modifier="ctrl")
         assert marker_tlui[0].is_selected()
         assert marker_tlui[1].is_selected()
 
-        click_timeline_ui(marker_tlui, 0, modifier="control")
+        click_timeline_ui(marker_tlui, 0, modifier="ctrl")
         assert not marker_tlui[0].is_selected()
         assert marker_tlui[1].is_selected()
 
-        click_timeline_ui(marker_tlui, 10, modifier="control")
+        click_timeline_ui(marker_tlui, 10, modifier="ctrl")
         assert not marker_tlui[0].is_selected()
         assert not marker_tlui[1].is_selected()
 
     def test_does_not_deselect_if_nothing_clicked(self, marker_tlui):
         marker_tlui.create_marker(0)
 
-        click_timeline_ui(marker_tlui, 0, modifier="control")
-        click_timeline_ui(marker_tlui, 50, modifier="control")
+        click_timeline_ui(marker_tlui, 0, modifier="ctrl")
+        click_timeline_ui(marker_tlui, 50, modifier="ctrl")
         assert marker_tlui[0].is_selected()
 
 
