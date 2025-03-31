@@ -102,17 +102,23 @@ class FileManager:
 
     def on_save_as_request(self):
         """Prompts user for a path, and saves tilia file to it."""
-        accepted, path = get(
-            Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla"
-        )
+        old_title = get(Get.MEDIA_TITLE)
+        accepted, path = get(Get.FROM_USER_SAVE_PATH_TILIA, old_title + ".tla")
         if not accepted:
             return False
 
+        save_title = Path(path).stem
         try:
+            if old_title == MediaMetadata.REQUIRED_FIELDS.get("title"):
+                self.on_set_media_metadata_field("title", save_title)
+
             self.save(get(Get.APP_STATE), path)
 
         except Exception as exc:
             tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
+
+            if save_title != old_title:
+                self.on_set_media_metadata_field("title", old_title)
 
         return True
 
