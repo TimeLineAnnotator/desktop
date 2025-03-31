@@ -29,10 +29,6 @@ class NoCallbackAttached(TiliaException):
     pass
 
 
-class TiliaFileWriteError(TiliaException):
-    pass
-
-
 class MediaMetadataFieldNotFound(TiliaException):
     pass
 
