@@ -2,10 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
-from tilia.exceptions import (
-    TiliaFileWriteError,
-    MediaMetadataFieldNotFound,
-)
+from tilia.exceptions import MediaMetadataFieldNotFound
 import tilia.exceptions
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
@@ -113,8 +110,9 @@ class FileManager:
 
         try:
             self.save(get(Get.APP_STATE), path)
-        except TiliaFileWriteError:
-            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, "Write Error.")
+
+        except Exception as exc:
+            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
 
         return True
 
@@ -122,8 +120,8 @@ class FileManager:
         """Saves tilia file to specified path."""
         try:
             self.save(get(Get.APP_STATE), path)
-        except TiliaFileWriteError:
-            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, "Write Error")
+        except Exception as exc:
+            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
 
     def on_close_modified_file(self):
         success, should_save = self.ask_save_changes_if_modified()
