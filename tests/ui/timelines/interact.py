@@ -14,7 +14,7 @@ def click_timeline_ui_view(
     x: float,
     y: float,
     item: QGraphicsItem | None = None,
-    modifier: Literal["shift", "ctrl"] | None = None,
+    modifier: Literal["shift", "ctrl"] | list[Literal["shift", "ctrl"]] | None = None,
     double: bool = False,
 ):
     request = {
@@ -22,12 +22,19 @@ def click_timeline_ui_view(
         "right": Post.TIMELINE_VIEW_RIGHT_CLICK,
     }[button]
 
-    modifier = {
+    if not isinstance(modifier, list):
+        modifier = [modifier]
+
+    modifier_map = {
         None: Qt.KeyboardModifier.NoModifier,
         "shift": Qt.KeyboardModifier.ShiftModifier,
         "ctrl": Qt.KeyboardModifier.ControlModifier,
         "alt": Qt.KeyboardModifier.AltModifier,
-    }[modifier]
+    }
+
+    modifiers = modifier_map[modifier[0]]
+    for m in modifier[1:]:
+        modifiers |= modifier_map[m]
 
     post(
         request,
@@ -35,7 +42,7 @@ def click_timeline_ui_view(
         x,
         y,
         item,
-        modifier,
+        modifiers,
         double=double,
     )
 
