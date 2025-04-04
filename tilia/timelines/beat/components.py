@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.validators import validate_time, validate_bool
@@ -30,6 +30,7 @@ class Beat(PointLikeTimelineComponent):
         self.time = time
         self.comments = comments
         self.is_first_in_measure = False
+        self._cached_metric_position = None
 
         super().__init__(timeline, id)
 
@@ -39,17 +40,25 @@ class Beat(PointLikeTimelineComponent):
     def __repr__(self):
         return f"Beat({self.time})"
 
+    def clear_cached_metric_position(self):
+        self._cached_metric_position = None
+
     @property
     def metric_position(self) -> MetricPosition:
-        self.timeline: BeatTimeline
-        beat_index = self.timeline.get_beat_index(self)
-        measure_index, index_in_measure = self.timeline.get_measure_index(beat_index)
+        if self._cached_metric_position is None:
+            self.timeline: BeatTimeline
+            beat_index = self.timeline.get_beat_index(self)
+            measure_index, index_in_measure = self.timeline.get_measure_index(
+                beat_index
+            )
 
-        return MetricPosition(
-            self.timeline.measure_numbers[measure_index],
-            index_in_measure + 1,
-            self.timeline.beats_in_measure[measure_index],
-        )
+            self._cached_metric_position = MetricPosition(
+                self.timeline.measure_numbers[measure_index],
+                index_in_measure + 1,
+                self.timeline.beats_in_measure[measure_index],
+            )
+
+        return self._cached_metric_position
 
     @property
     def measure_number(self):
@@ -60,7 +69,10 @@ class Beat(PointLikeTimelineComponent):
         return self.metric_position.beat
 
     def set_data(self, attr, value):
+        from tilia.timelines.beat.timeline import BeatTimeline
+
         value, success = super().set_data(attr, value)
         if success:
+            self.timeline = cast(BeatTimeline, self.timeline)
             self.timeline.update_metric_fraction_dicts()
         return value, success
