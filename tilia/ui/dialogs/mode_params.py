@@ -67,7 +67,7 @@ class SelectModeParams(QDialog):
 def ask_for_mode_params():
     dialog = SelectModeParams()
     accept = dialog.exec()
-    return (accept,), dialog.result()
+    return accept, dialog.result()
 
 
 def ask_for_harmony_params():
@@ -77,7 +77,7 @@ def ask_for_harmony_params():
     current_key = timeline_ui.get_key_by_time(get(Get.MEDIA_CURRENT_TIME))
     dialog = SelectHarmonyParams(current_key)
     accept = dialog.exec()
-    return (accept,), dialog.result()
+    return accept, dialog.result()
 
 
 def ask_beat_timeline_fill_method() -> (
