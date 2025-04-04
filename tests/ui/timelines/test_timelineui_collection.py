@@ -136,13 +136,11 @@ class TestTimelineUICreation:
 
         assert tluis._select_order[0] == tlui2
 
-        with patch("tilia.ui.timelines.selection_box.SelectionBoxQt", lambda *_: None):
-            post(Post.TIMELINE_VIEW_LEFT_CLICK, tlui1.view, 0, 0, 0, None, double=False)
+        click_timeline_ui(tlui1, 0)
 
         assert tluis._select_order[0] == tlui1
 
-        with patch("tilia.ui.timelines.selection_box.SelectionBoxQt", lambda *_: None):
-            post(Post.TIMELINE_VIEW_LEFT_CLICK, tlui2.view, 0, 0, 0, None, double=False)
+        click_timeline_ui(tlui2, 0)
 
         assert tluis._select_order[0] == tlui2
 
