@@ -42,7 +42,7 @@ def on_import_from_csv(
         success, path = get(
             Get.FROM_USER_FILE_PATH,
             "Import components",
-            ["musicXML files (*.musicxml; *.mxl)"],
+            ["musicXML files (*.musicxml *.mxl)"],
         )
 
     else:
