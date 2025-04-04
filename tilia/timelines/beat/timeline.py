@@ -6,7 +6,7 @@ import math
 from enum import Enum
 from bisect import bisect
 from math import isclose
-from typing import Optional
+from typing import Optional, cast
 
 import tilia.errors
 from tilia.requests import post, Post, get, Get
@@ -22,6 +22,7 @@ from tilia.timelines.beat.components import Beat
 class BeatTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: BeatTimeline):
         super().__init__(timeline, [ComponentKind.BEAT])
+        self.timeline = cast(BeatTimeline, self.timeline)
         self.scale = functools.partial(scale_pointlike, self)
         self.crop = functools.partial(crop_pointlike, self)
         self.compute_is_first_in_measure = True
@@ -150,6 +151,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def restore_state(self, prev_state: dict):
+        self.timeline.clear_cached_metric_positions()
         self.compute_is_first_in_measure = False
         super().restore_state(prev_state)
         self.compute_is_first_in_measure = True
@@ -337,6 +339,10 @@ class BeatTimeline(Timeline):
     def is_first_in_measure(self, beat):
         return self.components.index(beat) in self.beats_that_start_measures_set
 
+    def clear_cached_metric_positions(self):
+        for beat in self:
+            beat.clear_cached_metric_position()
+
     def recalculate_measures(self):
         beat_delta = (len(self)) - sum(self.beats_in_measure)
         if beat_delta > 0:
@@ -346,6 +352,7 @@ class BeatTimeline(Timeline):
             self.reduce_beats_in_measure(-beat_delta)
             self.reduce_measure_numbers()
 
+        self.clear_cached_metric_positions()
         self.update_beats_that_start_measures()
 
     @staticmethod
@@ -547,6 +554,7 @@ class BeatTimeline(Timeline):
                 )
 
     def set_measure_number(self, measure_index: int, number: int) -> None:
+        self.clear_cached_metric_positions()
         self.measure_numbers[measure_index] = number
         self.propagate_measure_number_change(measure_index)
         if not number == 0:
@@ -555,6 +563,7 @@ class BeatTimeline(Timeline):
         self.update_metric_fraction_dicts()
 
     def reset_measure_number(self, measure_index: int) -> None:
+        self.clear_cached_metric_positions()
         if measure_index == 0:
             self.measure_numbers[0] = 1
         else:
@@ -570,13 +579,16 @@ class BeatTimeline(Timeline):
             pass
 
     def force_display_measure_number(self, measure_index: int) -> None:
+        self.clear_cached_metric_positions()
         self.measures_to_force_display.append(measure_index)
 
     def unforce_display_measure_number(self, measure_index: int) -> None:
+        self.clear_cached_metric_positions()
         self.measures_to_force_display.remove(measure_index)
         post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, measure_index)
 
     def set_beat_amount_in_measure(self, measure_index: int, beat_amount: int) -> None:
+        self.clear_cached_metric_positions()
         new_beats_in_measure = self.beats_in_measure.copy()
         new_beats_in_measure[measure_index] = beat_amount
         self.set_data("beats_in_measure", new_beats_in_measure)
@@ -587,6 +599,8 @@ class BeatTimeline(Timeline):
 
     def delete_components(self, components: list[TC]) -> None:
         self._validate_delete_components(components)
+
+        self.clear_cached_metric_positions()
 
         for component in list(reversed(components)):
             self.component_manager.delete_component(
