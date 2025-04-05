@@ -323,6 +323,7 @@ class TimelineComponentManager(Generic[T, TC]):
                 attr,
                 value,
             )
+        return value, success
 
     def get_component_data(self, id: int, attr: str):
         return self.get_component(id).get_data(attr)
