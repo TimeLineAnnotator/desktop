@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.validators import validate_time, validate_bool
@@ -67,12 +67,3 @@ class Beat(PointLikeTimelineComponent):
     @property
     def beat_number(self):
         return self.metric_position.beat
-
-    def set_data(self, attr, value):
-        from tilia.timelines.beat.timeline import BeatTimeline
-
-        value, success = super().set_data(attr, value)
-        if success:
-            self.timeline = cast(BeatTimeline, self.timeline)
-            self.timeline.update_metric_fraction_dicts()
-        return value, success
