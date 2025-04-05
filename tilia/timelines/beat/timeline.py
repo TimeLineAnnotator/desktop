@@ -6,7 +6,7 @@ import math
 from enum import Enum
 from bisect import bisect
 from math import isclose
-from typing import Optional, cast
+from typing import Optional, cast, Any
 
 import tilia.errors
 from tilia.requests import post, Post, get, Get
@@ -26,12 +26,14 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.scale = functools.partial(scale_pointlike, self)
         self.crop = functools.partial(crop_pointlike, self)
         self.compute_is_first_in_measure = True
+        self.compute_metric_fraction_dict = True
 
     @property
     def beat_times(self):
         return {b.time for b in self._components}
 
     def update_is_first_in_measure_of_subsequent_beats(self, start_index):
+        self.compute_metric_fraction_dict = False
         beats_that_start_measure = set(self.timeline.beats_that_start_measures)
         for i, beat in enumerate(self.timeline[start_index:]):
             is_first_in_measure = start_index + i in beats_that_start_measure
@@ -41,6 +43,9 @@ class BeatTLComponentManager(TimelineComponentManager):
                     "is_first_in_measure",
                     is_first_in_measure,
                 )
+
+        self.compute_metric_fraction_dict = True
+        self.timeline.update_metric_fraction_dicts()
 
     def create_component(
         self, kind: ComponentKind, timeline, id, *args, **kwargs
@@ -78,6 +83,12 @@ class BeatTLComponentManager(TimelineComponentManager):
         super().delete_component(component)
         if update_is_first_in_measure:
             self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
+
+    def set_component_data(self, id: int, attr: str, value: Any):
+        value, success = super().set_component_data(id, attr, value)
+        if success and self.compute_metric_fraction_dict:
+            self.timeline.update_metric_fraction_dicts()
+        return value, success
 
     def update_component_order(self, component: TC):
         super().update_component_order(component)
