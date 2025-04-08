@@ -17,6 +17,10 @@ MEDIA_METADATA_SET_DATA_FAILED = Error(
     "Set media metadata",
     "Cannot set media metadata to {}. Media length must be a positive number.",
 )
+METADATA_FIELD_INVALID = Error(
+    "Invalid metadata field",
+    "The following fields contain non-alphanumeric characters and will not be added:\n{}",
+)
 CSV_IMPORT_FAILED = Error("CSV import failed", "Import failed:\n{}")
 CSV_IMPORT_SUCCESS_ERRORS = Error(
     "CSV import",
