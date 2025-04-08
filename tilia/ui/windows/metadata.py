@@ -122,7 +122,7 @@ class MediaMetadataWindow(QDialog):
         dialog = EditNotesDialog()
         accepted = dialog.exec()
         if accepted:
-            post(Post.MEDIA_METADATA_FIELD_SET, "notes", dialog.result())
+            post(Post.MEDIA_METADATA_FIELD_SET, "notes", dialog.get_result())
 
     def on_edit_metadata_fields_button(self):
         edited_fields = self._get_edits()
@@ -136,7 +136,7 @@ class MediaMetadataWindow(QDialog):
         dialog = EditMetadataFieldsDialog()
         accepted = dialog.exec()
         if accepted:
-            valid_fields, invalid_fields = dialog.result()
+            valid_fields, invalid_fields = dialog.get_result()
             if invalid_fields:
                 self.display_invalid_field_error(invalid_fields)
 

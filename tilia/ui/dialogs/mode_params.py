@@ -6,16 +6,11 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
 )
 
-from tilia.requests import get, Get
-from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.harmony.constants import MODE_TYPES
-from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
 from tilia.ui.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,
 )
-from tilia.ui.windows.fill_beat_timeline import FillBeatTimeline
 
 
 class SelectModeParams(QDialog):
@@ -55,7 +50,7 @@ class SelectModeParams(QDialog):
 
         self.show()
 
-    def result(self):
+    def get_result(self):
         return {
             "step": self.step_combobox.currentData(),
             "accidental": self.accidental_combobox.currentData(),
@@ -63,24 +58,15 @@ class SelectModeParams(QDialog):
             "level": 2,
         }
 
-
-def ask_for_mode_params():
-    dialog = SelectModeParams()
-    accept = dialog.exec()
-    return accept, dialog.result()
-
-
-def ask_for_harmony_params():
-    timeline_ui = get(
-        Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, TimelineKind.HARMONY_TIMELINE
-    )
-    current_key = timeline_ui.get_key_by_time(get(Get.MEDIA_CURRENT_TIME))
-    dialog = SelectHarmonyParams(current_key)
-    accept = dialog.exec()
-    return accept, dialog.result()
+    @classmethod
+    def select(cls) -> tuple[bool, None | dict[str, str | int]]:
+        instance = cls()
+        return (
+            (True, instance.get_result())
+            if instance.exec() == QDialog.DialogCode.Accepted
+            else (False, None)
+        )
 
 
-def ask_beat_timeline_fill_method() -> (
-    tuple[bool, None | tuple[BeatTimeline, BeatTimeline.FillMethod, float]]
-):
-    return FillBeatTimeline.select()
+def ask_for_mode_params() -> tuple[bool, None | dict[str, str | int]]:
+    return SelectModeParams.select()
