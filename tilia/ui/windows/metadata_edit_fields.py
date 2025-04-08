@@ -51,5 +51,5 @@ class EditMetadataFieldsDialog(QDialog):
 
         return valid, invalid
 
-    def result(self):
+    def get_result(self):
         return self.split_fields_by_validness()

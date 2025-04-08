@@ -24,5 +24,5 @@ class EditNotesDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
 
-    def result(self):
+    def get_result(self):
         return self.text_edit.toPlainText()

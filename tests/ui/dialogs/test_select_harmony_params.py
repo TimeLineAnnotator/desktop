@@ -10,7 +10,7 @@ from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX
 def parse_text(text):
     dialog = SelectHarmonyParams()
     dialog.line_edit.insert(text)
-    return dialog.result()
+    return dialog.get_result()
 
 
 class TestChordSymbolParsing:

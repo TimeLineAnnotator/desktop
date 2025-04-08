@@ -20,12 +20,12 @@ from tilia.ui.dialogs.basic import (
     ask_for_color,
     ask_yes_or_no,
 )
-from tilia.ui.dialogs.mode_params import (
-    ask_for_mode_params,
-    ask_for_harmony_params,
+from tilia.ui.dialogs.harmony_params import ask_for_harmony_params
+from tilia.ui.dialogs.mode_params import ask_for_mode_params
+from tilia.ui.timelines.beat.dialogs import (
+    ask_for_beat_pattern,
     ask_beat_timeline_fill_method,
 )
-from tilia.ui.timelines.beat.dialogs import ask_for_beat_pattern
 
 
 class DialogManager:

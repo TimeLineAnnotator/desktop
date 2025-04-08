@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
 )
 
+from tilia.requests import get, Get
 from tilia.settings import settings
 from tilia.timelines.harmony.constants import (
     HARMONY_DISPLAY_MODES,
@@ -23,6 +24,7 @@ from tilia.ui.timelines.harmony.constants import (
 from tilia.ui.timelines.harmony.utils import (
     INT_TO_APPLIED_TO_SUFFIX,
 )
+from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class SelectHarmonyParams(QDialog):
@@ -105,7 +107,7 @@ class SelectHarmonyParams(QDialog):
 
         self.show()
 
-    def result(self) -> dict[str, int | str]:
+    def get_result(self) -> dict[str, int | str]:
         return {
             "step": self.step_combobox.currentData(),
             "accidental": self.accidental_combobox.currentData(),
@@ -177,3 +179,20 @@ class SelectHarmonyParams(QDialog):
 
         self._populate_widgets(params)
         return True
+
+    @classmethod
+    def select(cls) -> tuple[bool, None | dict[str, str | int]]:
+        timeline_ui = get(
+            Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, TimelineKind.HARMONY_TIMELINE
+        )
+        current_key = timeline_ui.get_key_by_time(get(Get.MEDIA_CURRENT_TIME))
+        instance = SelectHarmonyParams(current_key)
+        return (
+            (True, instance.get_result())
+            if instance.exec() == QDialog.DialogCode.Accepted
+            else (False, None)
+        )
+
+
+def ask_for_harmony_params() -> tuple[bool, None | dict[str, str | int]]:
+    return SelectHarmonyParams.select()
