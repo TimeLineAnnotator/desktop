@@ -246,14 +246,23 @@ def tls(tilia):
     _tls.clear()  # deletes created timelines
 
 
-@pytest.fixture(params=["marker", "harmony", "beat", "hierarchy", "audiowave"])
-def tlui(request, marker_tlui, harmony_tlui, beat_tlui, hierarchy_tlui, audiowave_tlui):
+@pytest.fixture(params=["marker", "harmony", "beat", "hierarchy", "audiowave", "score"])
+def tlui(
+    request,
+    marker_tlui,
+    harmony_tlui,
+    beat_tlui,
+    hierarchy_tlui,
+    audiowave_tlui,
+    score_tlui,
+):
     return {
         "marker": marker_tlui,
         "harmony": harmony_tlui,
         "beat": beat_tlui,
         "hierarchy": hierarchy_tlui,
         "audiowave": audiowave_tlui,
+        "score": score_tlui,
     }[request.param]
 
 
@@ -315,6 +324,7 @@ def parametrize_tl(func):
             "hierarchy_tl",
             "marker_tl",
             "pdf_tl",
+            "score_tl",
             "slider_tl",
         ],
     )
@@ -339,6 +349,7 @@ def parametrize_tlui(func):
             "hierarchy_tlui",
             "marker_tlui",
             "pdf_tlui",
+            "score_tlui",
             "slider_tlui",
         ],
     )
