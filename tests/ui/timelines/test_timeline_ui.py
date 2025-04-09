@@ -8,132 +8,130 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.actions import TiliaAction
 
 
-class TestAltControlSelect:
-    # ideally we would test this on every kind of element
-    # but I didn't find an abstract way to click on all of them
+def get_time_shifted_args(args: dict[str, int], d_time) -> dict[str, int]:
+    if "time" in args:
+        args["time"] += d_time
+    else:
+        args["start"] += d_time
+        args["end"] += d_time
+    return args
 
-    def test_single(self, marker_tlui, tilia_state):
-        tilia_state.duration = 100
-        marker_tlui.create_marker(50)
+
+@pytest.mark.parametrize(
+    "tlui, args",
+    [
+        (
+            "audiowave_tlui",
+            {"kind": ComponentKind.AUDIOWAVE, "start": 50, "end": 55, "amplitude": 10},
+        ),
+        ("beat_tlui", {"kind": ComponentKind.BEAT, "time": 50}),
+        ("harmony_tlui", {"kind": ComponentKind.HARMONY, "time": 50}),
+        ("harmony_tlui", {"kind": ComponentKind.MODE, "time": 50}),
+        (
+            "hierarchy_tlui",
+            {"kind": ComponentKind.HIERARCHY, "start": 50, "end": 55, "level": 2},
+        ),
+        ("marker_tlui", {"kind": ComponentKind.MARKER, "time": 50}),
+        ("pdf_tlui", {"kind": ComponentKind.PDF_MARKER, "time": 50, "page_number": 1}),
+        # "score_tlui", setup is a little too complicated
+        # "slider_tlui", not clickable
+    ],
+)
+class TestModifierSelect:
+    @pytest.mark.parametrize(
+        "modifiers,changes_time,select_value",
+        [
+            (["alt", "ctrl"], False, [True, False]),
+            (["alt"], False, [True, True]),
+            (["ctrl"], True, [True, False]),
+        ],
+        ids=["alt+ctrl", "alt", "ctrl"],
+    )
+    def test_single(
+        self,
+        qtui,
+        tlui,
+        args,
+        tilia_state,
+        request,
+        modifiers,
+        changes_time,
+        select_value,
+    ):
+        tlui = request.getfixturevalue(tlui)
+        tlui.create_component(**args)
+
+        if "time" in args:
+            click_time = tlui[0].get_data("time")
+        else:
+            click_time = tlui[0].get_data("start")
 
         for i in range(10):
-            click_timeline_ui(
-                marker_tlui, marker_tlui[0].get_data("time"), modifier=["alt", "ctrl"]
-            )
-            if i % 2 == 0:
-                assert marker_tlui[0].is_selected()
-            else:
-                assert not marker_tlui[0].is_selected()
+            click_timeline_ui(tlui, click_time, modifier=modifiers)
+            assert tlui[0].is_selected() == select_value[i % 2]
+            assert tilia_state.current_time == (click_time if changes_time else 0)
 
-        # assert we have not seeked
-        assert tilia_state.current_time == 0
+    @pytest.mark.parametrize(
+        "modifiers,changes_time,select_value",
+        [
+            (
+                ["alt", "ctrl"],
+                False,
+                [(True, False), (True, True), (False, True), (False, False)],
+            ),
+            (
+                ["alt"],
+                False,
+                [(True, False), (False, True), (True, False), (False, True)],
+            ),
+            (
+                [
+                    "ctrl",
+                    True,
+                    [(True, False), (True, True), (False, True), (False, False)],
+                ]
+            ),
+        ],
+        ids=["alt+ctrl", "alt", "ctrl"],
+    )
+    def test_multiple(
+        self,
+        qtui,
+        tlui,
+        args,
+        tilia_state,
+        request,
+        modifiers,
+        changes_time,
+        select_value,
+    ):
+        tlui = request.getfixturevalue(tlui)
+        tlui.create_component(**args)
+        tlui.create_component(**get_time_shifted_args(args, 10))
 
-    def test_multiple(self, marker_tlui, tilia_state):
-        marker_tlui.create_marker(0)
-        marker_tlui.create_marker(10)
+        if "time" in args:
+            click_time = [tlui[0].get_data("time"), tlui[1].get_data("time")]
+        else:
+            click_time = [tlui[0].get_data("start"), tlui[1].get_data("start")]
 
-        click_timeline_ui(marker_tlui, 0, modifier=["alt", "ctrl"])
-        assert marker_tlui[0].is_selected()
-        assert not marker_tlui[1].is_selected()
-        assert tilia_state.current_time == 0
+        click_timeline_ui(tlui, click_time[0], modifier=modifiers)
+        assert ((tlui[0].is_selected(), tlui[1].is_selected())) == select_value[0]
+        assert tilia_state.current_time == (click_time[0] if changes_time else 0)
 
-        click_timeline_ui(marker_tlui, 10, modifier=["alt", "ctrl"])
-        assert marker_tlui[0].is_selected()
-        assert marker_tlui[1].is_selected()
-        assert tilia_state.current_time == 0
+        click_timeline_ui(tlui, click_time[1], modifier=modifiers)
+        assert (tlui[0].is_selected(), tlui[1].is_selected()) == select_value[1]
+        assert tilia_state.current_time == (click_time[1] if changes_time else 0)
 
-        click_timeline_ui(marker_tlui, 0, modifier=["alt", "ctrl"])
-        assert not marker_tlui[0].is_selected()
-        assert marker_tlui[1].is_selected()
-        assert tilia_state.current_time == 0
+        click_timeline_ui(tlui, click_time[0], modifier=modifiers)
+        assert (tlui[0].is_selected(), tlui[1].is_selected()) == select_value[2]
+        assert tilia_state.current_time == (click_time[0] if changes_time else 0)
 
-        click_timeline_ui(marker_tlui, 10, modifier=["alt", "ctrl"])
-        assert not marker_tlui[0].is_selected()
-        assert not marker_tlui[1].is_selected()
-        assert tilia_state.current_time == 0
-
-
-class TestAltSelect:
-    # ideally we would test this on every kind of element
-    # but I didn't find an abstract way to click on all of them
-
-    def test_single(self, marker_tlui, tilia_state):
-        tilia_state.duration = 100
-        marker_tlui.create_marker(50)
-
-        for i in range(10):
-            click_timeline_ui(
-                marker_tlui, marker_tlui[0].get_data("time"), modifier="alt"
-            )
-            assert marker_tlui[0].is_selected()
-
-        # assert we have not seeked
-        assert tilia_state.current_time == 0
-
-    def test_multiple(self, marker_tlui, tilia_state):
-        marker_tlui.create_marker(0)
-        marker_tlui.create_marker(10)
-
-        click_timeline_ui(marker_tlui, 0, modifier="alt")
-        assert marker_tlui[0].is_selected()
-        assert not marker_tlui[1].is_selected()
-        assert tilia_state.current_time == 0
-
-        click_timeline_ui(marker_tlui, 10, modifier="alt")
-        assert not marker_tlui[0].is_selected()
-        assert marker_tlui[1].is_selected()
-        assert tilia_state.current_time == 0
-
-        click_timeline_ui(marker_tlui, 0, modifier="alt")
-        assert marker_tlui[0].is_selected()
-        assert not marker_tlui[1].is_selected()
-        assert tilia_state.current_time == 0
-
-        click_timeline_ui(marker_tlui, 10, modifier="alt")
-        assert not marker_tlui[0].is_selected()
-        assert marker_tlui[1].is_selected()
-        assert tilia_state.current_time == 0
+        click_timeline_ui(tlui, click_time[1], modifier=modifiers)
+        assert (tlui[0].is_selected(), tlui[1].is_selected()) == select_value[3]
+        assert tilia_state.current_time == (click_time[1] if changes_time else 0)
 
 
 class TestControlSelect:
-    # ideally we would test this on every kind of element
-    # but I didn't find an abstract way to click on all of them
-
-    def test_single(self, marker_tlui, tilia_state):
-        tilia_state.duration = 100
-        marker_tlui.create_marker(50)
-        for i in range(10):  # nothing special about 10, just clicking a few times
-            click_timeline_ui(
-                marker_tlui, marker_tlui[0].get_data("time"), modifier="ctrl"
-            )
-            if i % 2 == 0:
-                assert marker_tlui[0].is_selected()
-            else:
-                assert not marker_tlui[0].is_selected()
-
-        # assert we have not seeked
-        assert tilia_state.current_time == 50
-
-    def test_multiple(self, marker_tlui):
-        marker_tlui.create_marker(0)
-        marker_tlui.create_marker(10)
-
-        click_timeline_ui(marker_tlui, 0, modifier="ctrl")
-        assert marker_tlui[0].is_selected()
-        assert not marker_tlui[1].is_selected()
-
-        click_timeline_ui(marker_tlui, 10, modifier="ctrl")
-        assert marker_tlui[0].is_selected()
-        assert marker_tlui[1].is_selected()
-
-        click_timeline_ui(marker_tlui, 0, modifier="ctrl")
-        assert not marker_tlui[0].is_selected()
-        assert marker_tlui[1].is_selected()
-
-        click_timeline_ui(marker_tlui, 10, modifier="ctrl")
-        assert not marker_tlui[0].is_selected()
-        assert not marker_tlui[1].is_selected()
-
     def test_does_not_deselect_if_nothing_clicked(self, marker_tlui):
         marker_tlui.create_marker(0)
 
