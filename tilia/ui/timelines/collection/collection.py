@@ -34,7 +34,6 @@ from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
 from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.enums import ScrollType
-from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.player import PlayerToolbarElement
 from tilia.ui.smooth_scroll import setup_smooth, smooth
 from tilia.ui.timelines.base.element_manager import ElementManager
@@ -457,7 +456,7 @@ class TimelineUIs:
         x: int,
         y: int,
         item: Optional[QGraphicsItem],
-        modifier: ModifierEnum,
+        modifier: Qt.KeyboardModifier,
         **_,  # ignores the double argument
     ) -> None:
         timeline_ui = self._get_timeline_ui_by_view(view)
