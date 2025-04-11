@@ -257,6 +257,6 @@ def stop_listening_to_all(listener: Any) -> None:
 
 
 def reset() -> None:
-    global _posts_to_listeners, _listeners_to_posts
+    global _posts_to_listeners
     _posts_to_listeners = weakref.WeakKeyDictionary({post: {} for post in Post})
     _listeners_to_posts.clear()
