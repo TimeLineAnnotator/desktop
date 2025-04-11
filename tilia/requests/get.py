@@ -137,7 +137,5 @@ def stop_serving_all(replier: Any) -> None:
 
 
 def reset() -> None:
-    global _requests_to_callbacks, _servers_to_requests
-
     _requests_to_callbacks.clear()
     _servers_to_requests.clear()
