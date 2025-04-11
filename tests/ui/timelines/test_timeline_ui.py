@@ -1,7 +1,10 @@
 import pytest
 
 from tests.mock import Serve
-from tests.ui.timelines.interact import click_timeline_ui
+from tests.ui.timelines.interact import (
+    click_timeline_ui_element_body,
+    click_timeline_ui,
+)
 from tilia.requests import Post, post, Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -67,7 +70,7 @@ class TestModifierSelect:
             click_time = tlui[0].get_data("start")
 
         for i in range(10):
-            click_timeline_ui(tlui, click_time, modifier=modifiers)
+            click_timeline_ui_element_body(tlui[0], modifier=modifiers)
             assert tlui[0].is_selected() == select_value[i % 2]
             assert tilia_state.current_time == (click_time if changes_time else 0)
 
@@ -114,19 +117,19 @@ class TestModifierSelect:
         else:
             click_time = [tlui[0].get_data("start"), tlui[1].get_data("start")]
 
-        click_timeline_ui(tlui, click_time[0], modifier=modifiers)
+        click_timeline_ui_element_body(tlui[0], modifier=modifiers)
         assert ((tlui[0].is_selected(), tlui[1].is_selected())) == select_value[0]
         assert tilia_state.current_time == (click_time[0] if changes_time else 0)
 
-        click_timeline_ui(tlui, click_time[1], modifier=modifiers)
+        click_timeline_ui_element_body(tlui[1], modifier=modifiers)
         assert (tlui[0].is_selected(), tlui[1].is_selected()) == select_value[1]
         assert tilia_state.current_time == (click_time[1] if changes_time else 0)
 
-        click_timeline_ui(tlui, click_time[0], modifier=modifiers)
+        click_timeline_ui_element_body(tlui[0], modifier=modifiers)
         assert (tlui[0].is_selected(), tlui[1].is_selected()) == select_value[2]
         assert tilia_state.current_time == (click_time[0] if changes_time else 0)
 
-        click_timeline_ui(tlui, click_time[1], modifier=modifiers)
+        click_timeline_ui_element_body(tlui[1], modifier=modifiers)
         assert (tlui[0].is_selected(), tlui[1].is_selected()) == select_value[3]
         assert tilia_state.current_time == (click_time[1] if changes_time else 0)
 
