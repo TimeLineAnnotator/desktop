@@ -6,6 +6,7 @@ from PyQt6.QtTest import QTest
 
 from tilia.requests import Post, post, get, Get
 from tilia.ui.coords import time_x_converter
+from tilia.ui.timelines.base.element import TimelineUIElement
 
 
 def click_timeline_ui_view(
@@ -56,6 +57,22 @@ def click_timeline_ui(
     y = int(y or timeline_ui.get_data("height") / 2)
     item = timeline_ui.view.itemAt(x, y)
     click_timeline_ui_view(timeline_ui.view, button, x, y, item, modifier, double)
+
+
+def click_timeline_ui_element_body(
+    item: TimelineUIElement,
+    button: Literal["left", "right", "middle"] = "left",
+    modifier: Literal["alt", "ctrl", "shift"]
+    | list[Literal["alt", "ctrl", "shift"]]
+    | None = None,
+    double: bool = False,
+):
+    to_click = item.body
+    x = to_click.pos().x()
+    y = to_click.pos().y()
+    click_timeline_ui_view(
+        item.timeline_ui.view, button, x, y, to_click, modifier, double
+    )
 
 
 def drag_mouse_in_timeline_view(x, y, release=True):
