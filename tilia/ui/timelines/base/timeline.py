@@ -17,7 +17,6 @@ from tilia.requests import Post, stop_listening, stop_listening_to_all, listen, 
 from tilia.utils import get_tilia_class_string
 from tilia.requests import get, Get
 from tilia.timelines.base.component import TimelineComponent
-from tilia.ui.modifier_enum import ModifierEnum
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.scene import TimelineScene
@@ -219,7 +218,7 @@ class TimelineUI(ABC):
         self,
         elements: list[T],
         item: QGraphicsItem,
-        modifier: ModifierEnum,
+        modifier: Qt.KeyboardModifier,
     ):
         if (
             modifier == Qt.KeyboardModifier.NoModifier
@@ -235,7 +234,7 @@ class TimelineUI(ABC):
         x: int,
         y: int,
         item: QGraphicsItem,
-        modifier: ModifierEnum,
+        modifier: Qt.KeyboardModifier,
     ) -> None:
         elements = self.get_item_owner(item)
 
@@ -252,7 +251,12 @@ class TimelineUI(ABC):
         return item in element.selection_triggers() and hasattr(element, "on_select")
 
     def on_left_click(
-        self, item: QGraphicsItem, modifier: ModifierEnum, double: bool, x: int, y: int
+        self,
+        item: QGraphicsItem,
+        modifier: Qt.KeyboardModifier,
+        double: bool,
+        x: int,
+        y: int,
     ) -> None:
         """Handles element selection and triggers left click side effects."""
         elements_with_side_effects = self.get_item_owner(item)

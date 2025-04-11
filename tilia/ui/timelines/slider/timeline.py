@@ -13,7 +13,6 @@ from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import get, Get, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.modifier_enum import ModifierEnum
 from tilia.settings import settings
 from tilia.requests import Post, listen
 from tilia.timelines.base.component import TimelineComponent
@@ -125,9 +124,7 @@ class SliderTimelineUI(TimelineUI):
         self.view.setFixedWidth(int(width))
         self.update_items_position()
 
-    def on_left_click(
-        self, item_id: int, modifier: ModifierEnum, double: bool, x: int, y: int
-    ) -> None:
+    def on_left_click(self, item_id: int, double: bool, x: int, *_, **__) -> None:
         if item_id == self.line:
             time = time_x_converter.get_time_by_x(x)
             if double:
