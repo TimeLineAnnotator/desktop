@@ -405,7 +405,7 @@ class QtUI:
         self.main_window.setFocus()
 
     def on_website_help_open(self):
-        QDesktopServices.openUrl(QUrl(f"{constants.WEBSITE_URL}/help/introduction"))
+        QDesktopServices.openUrl(QUrl(f"{constants.WEBSITE_URL}/help"))
 
     def on_import_from_csv(self, tl_kind: TlKind):
         prev_state = get(Get.APP_STATE)
