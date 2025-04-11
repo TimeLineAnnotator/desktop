@@ -14,7 +14,9 @@ def click_timeline_ui_view(
     x: float,
     y: float,
     item: QGraphicsItem | None = None,
-    modifier: Literal["shift", "ctrl"] | list[Literal["shift", "ctrl"]] | None = None,
+    modifier: Literal["alt", "ctrl", "shift"]
+    | list[Literal["alt", "ctrl", "shift"]]
+    | None = None,
     double: bool = False,
 ):
     request = {
