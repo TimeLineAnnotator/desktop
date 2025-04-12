@@ -6,11 +6,13 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QDialogButtonBox,
 )
+from tilia.requests import get, Get
 
 
 class ByTimeOrByMeasure(QDialog):
     def __init__(self):
-        super().__init__()
+        super().__init__(get(Get.MAIN_WINDOW))
+        self.setWindowTitle("Import by time or measure")
         self.setFixedSize(300, 110)
         layout = QVBoxLayout()
         self.setLayout(layout)
