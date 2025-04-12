@@ -20,7 +20,7 @@ class TestImport:
 
         with patch(
             "tilia.ui.ui_import._get_by_time_or_by_measure_from_user",
-            return_value="time",
+            return_value=(True, "time"),
         ):
             with patch("builtins.open", mock_open(read_data="nonsense")):
                 with Serve(Get.FROM_USER_FILE_PATH, (True, "")):
@@ -37,7 +37,7 @@ class TestImport:
         with (
             patch(
                 "tilia.ui.ui_import._get_by_time_or_by_measure_from_user",
-                return_value="time",
+                return_value=(True, "time"),
             ),
             Serve(
                 Get.FROM_USER_FILE_PATH,

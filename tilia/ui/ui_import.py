@@ -49,7 +49,11 @@ def on_import_from_csv(
         if tlkind == TlKind.BEAT_TIMELINE:
             time_or_measure = "time"
         else:
-            time_or_measure = _get_by_time_or_by_measure_from_user()
+            success, time_or_measure = _get_by_time_or_by_measure_from_user()
+            if not success:
+                return "cancelled", [
+                    "User cancelled when choosing by time or by measure."
+                ]
 
         if time_or_measure == "measure":
             beat_tlui = _get_beat_timeline_ui_for_import_from_csv(timeline_uis)
@@ -88,9 +92,7 @@ def on_import_from_csv(
 
 def _get_by_time_or_by_measure_from_user():
     dialog = ByTimeOrByMeasure()
-    if not dialog.exec():
-        return
-    return dialog.get_option()
+    return (True, dialog.get_option()) if dialog.exec() else (False, None)
 
 
 def _validate_timeline_kind_on_import_from_csv(

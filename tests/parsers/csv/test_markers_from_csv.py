@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import QFileDialog
 from tests.parsers.csv.common import assert_in_errors
 from tilia.ui import actions
 from tilia.ui.actions import TiliaAction
-from tilia.ui.dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 from tilia.ui.format import format_media_time
 from tilia.ui.ui_import import on_import_from_csv
 
@@ -23,8 +22,10 @@ def patch_import(by: Literal["time", "measure"], tl, data) -> tuple[str, list[st
         return status, errors
 
     with (
-        patch.object(ByTimeOrByMeasure, "exec", return_value=True),
-        patch.object(ByTimeOrByMeasure, "get_option", return_value=by),
+        patch(
+            "tilia.ui.ui_import._get_by_time_or_by_measure_from_user",
+            return_value=(True, by),
+        ),
         patch.object(QFileDialog, "exec", return_value=True),
         patch.object(QFileDialog, "selectedFiles", return_value=[Path()]),
         patch("tilia.ui.qtui.on_import_from_csv", side_effect=mock_import),
