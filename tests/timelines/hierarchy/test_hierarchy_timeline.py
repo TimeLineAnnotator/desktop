@@ -570,7 +570,17 @@ class TestSplit:
 
 
 class TestGroup:
-    # TEST GROUP
+    def test_single_unit(self, hierarchy_tl):
+        hrc1, _ = hierarchy_tl.create_hierarchy(start=0, end=0.1, level=1)
+        success, _ = hierarchy_tl.component_manager.group([hrc1])
+        hrc2 = hierarchy_tl[1]
+
+        assert success
+        assert len(hierarchy_tl) == 2
+        assert hrc2.level == 2
+        assert hrc1.parent == hrc2
+        assert hrc2.children == [hrc1]
+
     def test_group_two_units(self, hierarchy_tl):
         hrc1, _ = hierarchy_tl.create_hierarchy(start=0, end=0.1, level=1)
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.1, end=0.2, level=1)
@@ -656,11 +666,6 @@ class TestGroup:
         hrc4, _ = hierarchy_tl.create_hierarchy(start=0.3, end=0.4, level=1)
 
         success, _ = hierarchy_tl.component_manager.group([hrc1, hrc4])
-        assert not success
-
-    def test_single_unit_fails(self, hierarchy_tl):
-        hrc1, _ = hierarchy_tl.create_hierarchy(start=0, end=0.1, level=1)
-        success, _ = hierarchy_tl.component_manager.group([hrc1])
         assert not success
 
     def test_empty_list_fails(self, hierarchy_tl):

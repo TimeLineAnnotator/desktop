@@ -130,11 +130,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         return True, ""
 
     def group(self, hierarchies: list[Hierarchy]):
-        def _validate_at_least_two_selected(units_to_group):
-            if len(units_to_group) <= 1:
-                return False, "At least two components must be selected."
-            return True, ""
-
         def _validate_no_boundary_crossing(start: float, end: float, group_level: int):
             units_to_check = [
                 unit for unit in self._components if unit not in hierarchies
@@ -211,9 +206,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 is_inside_grouping() and has_same_level_or_lower() and has_same_parent()
             )
 
-        success, reason = _validate_at_least_two_selected(hierarchies)
-        if not success:
-            return success, reason
+        if not hierarchies:
+            return False, "No units to group."
 
         earliest_unit = sorted(hierarchies, key=lambda u: u.start)[0]
         latest_unit = sorted(hierarchies, key=lambda u: u.end)[-1]
