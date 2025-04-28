@@ -161,6 +161,16 @@ class TestActions:
 
         assert len(tlui) == 3
 
+    def test_group_no_units_selected_does_nothing(
+        self, tlui, user_actions, tilia_errors
+    ):
+        tlui.create_hierarchy(0, 1, 1)
+
+        user_actions.trigger(TiliaAction.HIERARCHY_GROUP)
+
+        assert len(tlui) == 1
+        tilia_errors.assert_no_error()
+
     def test_delete_elements(self, tlui, user_actions):
         tlui.create_hierarchy(0, 1, 1)
 
