@@ -75,6 +75,7 @@ class App:
             (Get.APP_STATE, self.get_app_state),
             (Get.MEDIA_DURATION, lambda: self.duration),
             (Get.VERIFIED_PATH, self._verify_path_exists),
+            (Get.IS_FILE_MODIFIED, self.is_file_modified),
         }
 
         for post_, callback in LISTENS:
@@ -96,11 +97,14 @@ class App:
         self.on_media_duration_changed(duration)
         post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
 
+    def is_file_modified(self) -> bool:
+        return self.file_manager.is_file_modified(self.get_app_state())
+
     def on_open(self, path: Path | str | None = None) -> None:
         if isinstance(path, str):
             path = Path(path)
 
-        if self.file_manager.is_file_modified(self.get_app_state()):
+        if self.is_file_modified():
             success, should_save = get(Get.FROM_USER_SHOULD_SAVE_CHANGES)
             if not success:
                 return
