@@ -12,7 +12,7 @@ def setup_parser(subparsers, parse_and_run_func: Callable[[str], bool]):
 
 def run(parse_and_run_func, namespace):
     with open(namespace.path, "r") as file:
-        commands = [line for line in file.read().splitlines() if line.strip()]
+        commands = [line.strip() for line in file.read().splitlines() if line.strip()]
 
     if not commands:
         tilia.errors.display(tilia.errors.EMPTY_CLI_SCRIPT, namespace.path)
