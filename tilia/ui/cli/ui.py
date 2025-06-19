@@ -5,6 +5,8 @@ import traceback
 
 import argparse
 
+from colorama import Fore
+
 import tilia.constants
 from tilia.exceptions import TiliaExit
 from tilia.media.player.qtplayer import QtPlayer
@@ -121,7 +123,7 @@ class CLI:
             sys.exit(0)
         except Exception as err:
             self.exception = err
-            traceback.print_exc()
+            io.output(traceback.format_exc(), color=Fore.RED)
             return True
 
     @staticmethod
