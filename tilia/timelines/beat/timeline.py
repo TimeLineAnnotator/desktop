@@ -261,7 +261,8 @@ class BeatTimeline(Timeline):
             raise ValueError("No beats in timeline. Can't get time.")
 
         if not (0 <= fraction <= 1.0):
-            raise ValueError("Fraction must be between 0 and 1 inclusive.")
+            tilia.errors.display(tilia.errors.INVALID_MEASURE_FRACTION, fraction)
+            return []
 
         metric_fraction = round(number + fraction, 3)
         keys = list(self.metric_fraction_to_beat_dict.keys())
