@@ -1,7 +1,10 @@
 from functools import partial
 from typing import Callable
 
+from colorama import Fore
+
 import tilia.errors
+from tilia.ui.cli import io
 
 
 def setup_parser(subparsers, parse_and_run_func: Callable[[str], bool]):
@@ -19,5 +22,7 @@ def run(parse_and_run_func, namespace):
         return
 
     for cmd in commands:
-        print(cmd)
-        parse_and_run_func(cmd)
+        io.output(cmd, Fore.GREEN)
+        error = parse_and_run_func(cmd)
+        if error:
+            return
