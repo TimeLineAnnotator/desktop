@@ -18,11 +18,7 @@ def setup_parser(subparsers):
     import_parser = subparsers.add_parser(
         "import", help="Import data from a file into a " "timeline"
     )
-    import_parser.add_argument(
-        "format",
-        choices=["csv"],
-        help="Input file format (only csv is currently supported)",
-    )
+
     import_parser.set_defaults(func=import_timeline)
 
     import_subparsers = import_parser.add_subparsers(dest="tl_kind")
@@ -147,8 +143,12 @@ def import_timeline(namespace):
 
     tl_kind = namespace.tl_kind
 
-    if tl_kind in {"beat", "score"}:
+    if tl_kind == "beat":
         measure_or_time = None
+    elif tl_kind == "score":
+        # must set to get a beat timeline
+        # from get_timelines_for_import
+        measure_or_time = "by-measure"
     else:
         measure_or_time = namespace.measure_or_time
 
@@ -193,7 +193,9 @@ def import_timeline(namespace):
 
     elif tl_kind == "score":
         tl: ScoreTimeline
-        success, errors = score.musicxml.notes_from_musicXML(tl, ref_tl, file)
+        success, errors = score.musicxml.notes_from_musicXML(
+            tl, ref_tl, str(file.resolve())
+        )
     else:
         raise ValueError(f"Unknown timeline kind: {tl_kind}")
 
