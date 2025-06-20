@@ -305,8 +305,22 @@ class BeatTimeline(Timeline):
                         + (mp.measure - start_measure)
                     )
                 )
-            else:
-                continue
+            elif start == self.components[-1]:
+                # If time for the last components, there is no next component with which to interpolate.
+                # So, we interpolate with a projected next measure,
+                # assuming it to have the same duration as the last.
+                prev_measure_number = start.metric_position.measure - 1
+                prev_measure_starts = self.get_time_by_measure(prev_measure_number)
+                if not prev_measure_starts:
+                    continue
+                else:
+                    prev_measure_start = prev_measure_starts[0]
+                cur_measure_start = self.get_time_by_measure(
+                    start.metric_position.measure
+                )[0]
+                prev_measure_duration = cur_measure_start - prev_measure_start
+                end_time = cur_measure_start + prev_measure_duration
+                end_metric_fraction = 0
 
             metric_fraction_diff = (end_metric_fraction - start_metric_fraction) % 1
 
