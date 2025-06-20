@@ -5,6 +5,8 @@ import traceback
 
 import argparse
 
+from colorama import Fore
+
 import tilia.constants
 from tilia.exceptions import TiliaExit
 from tilia.media.player.qtplayer import QtPlayer
@@ -22,6 +24,7 @@ from tilia.ui.cli import (
     generate_scripts,
     open,
     export,
+    clear,
 )
 from tilia.ui.cli.io import ask_yes_or_no
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
@@ -54,6 +57,7 @@ class CLI:
         script.setup_parser(self.subparsers, self.parse_and_run)
         open.setup_parser(self.subparsers)
         export.setup_parser(self.subparsers)
+        clear.setup_parser(self.subparsers)
 
     @staticmethod
     def parse_command(arg_string):
@@ -121,7 +125,7 @@ class CLI:
             sys.exit(0)
         except Exception as err:
             self.exception = err
-            traceback.print_exc()
+            io.output(traceback.format_exc(), color=Fore.RED)
             return True
 
     @staticmethod

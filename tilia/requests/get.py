@@ -33,6 +33,7 @@ class Get(Enum):
     FROM_USER_TILIA_FILE_PATH = auto()
     FROM_USER_YES_OR_NO = auto()
     ID = auto()
+    IS_FILE_MODIFIED = auto()
     LEFT_MARGIN_X = auto()
     LOOP_TIME = auto()
     MAIN_WINDOW = auto()

@@ -30,7 +30,7 @@ class TestImportTimeline:
         csv_path = tmp_csv(tmp_path, data)
 
         cli.parse_and_run(
-            f"timelines import csv marker by-measure --target-ordinal 1 --reference-tl-ordinal 2 --file {str(csv_path.resolve())}"
+            f"timelines import marker by-measure --target-ordinal 1 --reference-tl-ordinal 2 --file {str(csv_path.resolve())}"
         )
         for i in range(5):
             assert marker_tl[i].get_data("time") == i
@@ -40,7 +40,7 @@ class TestImportTimeline:
         csv_path = tmp_csv(tmp_path, data)
 
         cli.parse_and_run(
-            f"timeline import csv marker by-time --file {str(csv_path.resolve())} --target-ordinal 1"
+            f"timeline import marker by-time --file {str(csv_path.resolve())} --target-ordinal 1"
         )
         assert len(marker_tl) == 5
         for i in range(5):
@@ -55,7 +55,7 @@ class TestImportTimeline:
         csv_path = tmp_csv(tmp_path, data)
 
         cli.parse_and_run(
-            f"timelines import csv hierarchy by-measure --target-ordinal 1 --reference-tl-ordinal 2 --file {str(csv_path.resolve())}"
+            f"timelines import hierarchy by-measure --target-ordinal 1 --reference-tl-ordinal 2 --file {str(csv_path.resolve())}"
         )
 
         for i in range(5):
@@ -67,7 +67,7 @@ class TestImportTimeline:
         csv_path = tmp_csv(tmp_path, data)
 
         cli.parse_and_run(
-            f"timeline import csv hierarchy by-time --file {str(csv_path.resolve())} --target-ordinal 1"
+            f"timeline import hierarchy by-time --file {str(csv_path.resolve())} --target-ordinal 1"
         )
         for i in range(5):
             assert hierarchy_tl[i].get_data("start") == i + 1
@@ -78,7 +78,7 @@ class TestImportTimeline:
         csv_path = tmp_csv(tmp_path, data)
 
         cli.parse_and_run(
-            f"timeline import csv beat --file {str(csv_path.resolve())} --target-ordinal 1"
+            f"timeline import beat --file {str(csv_path.resolve())} --target-ordinal 1"
         )
         assert len(beat_tl) == 5
         for i in range(5):

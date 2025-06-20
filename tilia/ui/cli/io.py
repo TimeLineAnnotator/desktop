@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import prettytable
+from colorama import Fore
 
 
-def output(message: str) -> None:
+def output(message: str, color: Fore = None) -> None:
     """
     Prints message to user.
     """
-    print(message)
+    if color is not None:
+        message = color + message
+    print(message + Fore.RESET)
 
 
 def tabulate(headers: list[str], data: list[tuple[str, ...]]) -> None:

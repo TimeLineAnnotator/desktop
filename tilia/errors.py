@@ -108,6 +108,10 @@ COMMAND_FAILED = Error(
     "Command failed", "Something went wrong when executing the last command. \n{}"
 )
 SCORE_SVG_CREATE_ERROR = Error("Error creating SVG", "{}")
+INVALID_MEASURE_FRACTION = Error(
+    "Invalid measure fraction",
+    "Measure fraction '{}' is not valid. Using closest valid value.",
+)
 INVALID_CSV_ERROR = Error("Import error", "'{}' is not a valid UTF-8 encoded CSV file.")
 SCORE_STAFF_ID_ERROR = Error(
     "Error creating score timeline",
