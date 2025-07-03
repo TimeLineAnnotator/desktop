@@ -9,7 +9,12 @@ from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX
 
 def parse_text(text):
     dialog = SelectHarmonyParams()
-    dialog.line_edit.insert(text)
+    # insert one character at a time
+    # to ensure no errors will be raised
+    # while the user is typing
+    for i in range(len(text)):
+        dialog.line_edit.clear()
+        dialog.line_edit.insert(text[: i + 1])
     return dialog.get_result()
 
 
@@ -79,3 +84,13 @@ class TestChordSymbolParsing:
         params = parse_text("G/A")
         assert params["step"] == 4
         assert params["inversion"] == 0  # fourth inversion is not currently supported
+
+    @pytest.mark.parametrize(
+        "extension",
+        ["7#9", "7#11", "m713", "7b9", "11", "7(b13)", "7(b9,#11)", "(b9,#13)"],
+    )
+    def test_parse_with_extensions_does_not_crash(self, extension, qtui):
+        # This only tests that it doesn't crash
+        # extensions are not currently supported
+        params = parse_text("C" + extension)
+        assert params["step"] == 0
