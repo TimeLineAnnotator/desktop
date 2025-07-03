@@ -168,7 +168,9 @@ def _get_music21_object_from_text(
     if text.startswith(tuple(NOTE_NAME_TO_INT)) and not prefixed_accidental:
         try:
             return music21.harmony.ChordSymbol(text), "chord"
-        except ValueError:
+        # This is a bare expect because I don't know
+        # exactly what exceptions music21 can throw.
+        except:  # noqa
             pass
     elif text.startswith(("I", "i", "V", "v")):
         try:
