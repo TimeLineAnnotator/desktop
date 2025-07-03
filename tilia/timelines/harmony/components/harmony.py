@@ -132,7 +132,7 @@ class Harmony(PointLikeTimelineComponent):
         self._inversion = value
 
 
-def get_params_from_text(text, key):
+def get_params_from_text(text: str, key: str):
     music21_object, object_type = _get_music21_object_from_text(text, key)
     if not object_type:
         return False, None
@@ -157,7 +157,11 @@ def _replace_special_abbreviations(text):
     return text
 
 
-def _get_music21_object_from_text(text, key):
+def _get_music21_object_from_text(
+    text: str, key: str
+) -> tuple[music21.harmony.ChordSymbol | music21.roman.RomanNumeral, str] | tuple[
+    None, None
+]:
     text, prefixed_accidental = _extract_prefixed_accidental(text)
     text = _format_postfix_accidental(text)
     text = _replace_special_abbreviations(text)
@@ -178,7 +182,9 @@ def _get_music21_object_from_text(text, key):
     return None, None
 
 
-def _get_params_from_music21_object(obj, kind):
+def _get_params_from_music21_object(
+    obj: music21.harmony.ChordSymbol | music21.roman.RomanNumeral, kind: str
+) -> dict:
     step = NOTE_NAME_TO_INT[obj.root().step]
     accidental = int(obj.root().alter)
     inversion = obj.inversion() if obj.inversion() else 0
