@@ -78,6 +78,7 @@ class Post(Enum):
     LEFT_BUTTON_CLICK = auto()
     LOOP_IGNORE_COMPONENT = auto()
     MARKER_ADD = auto()
+    MEDIA_METADATA_FIELD_ADD = auto()
     MEDIA_METADATA_FIELD_SET = auto()
     MERGE_RANGE_BUTTON = auto()
     METADATA_UPDATE_FIELDS = auto()
