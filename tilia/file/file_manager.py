@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
-from tilia.exceptions import MediaMetadataFieldNotFound
+from tilia.exceptions import MediaMetadataFieldNotFound, MediaMetadataFieldAlreadyExists
 import tilia.exceptions
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
@@ -65,6 +65,7 @@ class FileManager:
                 self.on_import_media_metadata_request,
             ),
             (Post.MEDIA_METADATA_FIELD_SET, self.on_set_media_metadata_field),
+            (Post.MEDIA_METADATA_FIELD_ADD, self.on_add_media_metadata_field),
             (Post.METADATA_UPDATE_FIELDS, self.on_update_media_metadata_fields),
         }
 
@@ -153,6 +154,12 @@ class FileManager:
             raise MediaMetadataFieldNotFound(f"Field {field_name} not found.")
 
         self.file.media_metadata[field_name] = value
+
+    def on_add_media_metadata_field(self, field_name: str) -> None:
+        """Adds a new media metadata field."""
+        if field_name in self.file.media_metadata:
+            raise MediaMetadataFieldAlreadyExists(f"Field {field_name} already exists.")
+        self.file.media_metadata[field_name] = ""
 
     def on_update_media_metadata_fields(self, fields: list) -> None:
         new_metadata = {}

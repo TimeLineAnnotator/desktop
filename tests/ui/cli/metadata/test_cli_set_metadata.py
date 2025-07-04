@@ -32,4 +32,4 @@ def test_set_field_with_spaces(cli, tilia_state):
 def test_set_inexistent_field(cli, tilia_state, tilia_errors):
     cli.parse_and_run("metadata set inexistent value")
 
-    tilia_errors.assert_error()
+    assert tilia_state.metadata["inexistent"] == "value"

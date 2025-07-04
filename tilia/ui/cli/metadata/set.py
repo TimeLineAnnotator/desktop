@@ -22,4 +22,5 @@ def set_metadata(namespace: argparse.Namespace):
     try:
         post(Post.MEDIA_METADATA_FIELD_SET, namespace.field, namespace.value)
     except MediaMetadataFieldNotFound:
-        tilia.errors.display(tilia.errors.METADATA_FIELD_NOT_FOUND, namespace.field)
+        post(Post.MEDIA_METADATA_FIELD_ADD, namespace.field)
+        post(Post.MEDIA_METADATA_FIELD_SET, namespace.field, namespace.value)

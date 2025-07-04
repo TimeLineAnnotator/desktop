@@ -33,6 +33,10 @@ class MediaMetadataFieldNotFound(TiliaException):
     pass
 
 
+class MediaMetadataFieldAlreadyExists(TiliaException):
+    pass
+
+
 class TimelineValidationError(TiliaException):
     pass
 
