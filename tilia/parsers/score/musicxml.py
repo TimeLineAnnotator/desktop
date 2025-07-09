@@ -132,7 +132,15 @@ def notes_from_musicXML(
         }
 
         for attributes in part.iter("attributes"):
-            measure_number = float(attributes.getparent().get("number"))
+            parent = attributes.getparent()
+            number = parent.get("number")
+            try:
+                measure_number = float(number)
+            except ValueError:
+                # implicit measures are not yet implemented
+                # so we don't parse attributes in them
+                if parent.tag == "measure" and parent.get("implicit") == "yes":
+                    continue
             prev_divs = 0
             cur_div = 0
             for prev_note in attributes.itersiblings(
