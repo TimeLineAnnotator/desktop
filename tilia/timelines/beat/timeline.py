@@ -311,7 +311,9 @@ class BeatTimeline(Timeline):
 
             # interpolate between beats to get new time
             new_time = start.time + (metric_fraction - keys[idx - 1]) / (
-                metric_fraction_diff if metric_fraction_diff != 0 else 1
+                metric_fraction_diff
+                if not isclose(metric_fraction_diff, 0, abs_tol=0.001)
+                else 1
             ) * (end_time - start.time)
 
             index = bisect(times, new_time)
