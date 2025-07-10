@@ -4,6 +4,10 @@ import functools
 from typing import Any
 
 from tilia.requests import post, Post
+from tilia.timelines.base.component import (
+    PointLikeTimelineComponent,
+    SegmentLikeTimelineComponent,
+)
 from tilia.timelines.base.component.mixed import scale_mixed, crop_mixed
 from tilia.timelines.base.validators import validate_string, validate_pre_validated
 from tilia.timelines.component_kinds import ComponentKind
@@ -27,6 +31,21 @@ class ScoreTLComponentManager(TimelineComponentManager):
         )
         self.scale = functools.partial(scale_mixed, self)
         self.crop = functools.partial(crop_mixed, self)
+
+    def _validate_component_creation(self, kind, *args, **kwargs):
+        match kind:
+            # Validation of score components is much more complex than this.
+            # Here we just check that the time is in bounds.
+            # Proper validation on a class-by-class basis should be implemented at some point.
+            case ComponentKind.NOTE:
+                start = kwargs["start"] if "start" in kwargs else args[0]
+                end = kwargs["end"] if "end" in kwargs else args[1]
+                return SegmentLikeTimelineComponent.validate_times(start, end)
+            case ComponentKind.CLEF | ComponentKind.BAR_LINE | ComponentKind.TIME_SIGNATURE | ComponentKind.KEY_SIGNATURE | ComponentKind.SCORE_ANNOTATION:
+                time = kwargs["time"] if "time" in kwargs else args[0]
+                return PointLikeTimelineComponent.validate_time_is_inbounds(time)
+            case _:
+                return True, ""
 
     def restore_state(self, prev_state: dict):
         super().restore_state(prev_state)

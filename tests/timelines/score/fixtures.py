@@ -26,7 +26,7 @@ def score_tl(tls):
 def note(score_tl):
     score_tl.create_component(ComponentKind.STAFF, 0, 5)
     score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)
-    return score_tl.create_component(ComponentKind.NOTE, 0, 0, 0, 0, 3, 0)[0]
+    return score_tl.create_component(ComponentKind.NOTE, 0, 1, 0, 0, 3, 0)[0]
 
 
 @pytest.fixture
