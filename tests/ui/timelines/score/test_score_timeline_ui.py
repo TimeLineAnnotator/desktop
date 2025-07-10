@@ -148,7 +148,7 @@ def test_missing_staff_deletes_timeline(
                 },
                 3: {
                     "start": 0,
-                    "end": 0,
+                    "end": 1,
                     "step": 0,
                     "accidental": 0,
                     "octave": 3,
@@ -163,6 +163,7 @@ def test_missing_staff_deletes_timeline(
             "components_hash": "",
         }
     }
+    file_data["media_metadata"]["media length"] = 1
 
     tmp_file = tmp_path / "test.tla"
     tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
