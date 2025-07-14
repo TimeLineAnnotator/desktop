@@ -10,11 +10,12 @@ from tilia.ui.cli import io
 def setup_parser(subparsers, parse_and_run_func: Callable[[str], bool]):
     script = subparsers.add_parser("script", exit_on_error=False)
     script.add_argument("path", type=str)
+    script.add_argument("--encoding", "-e", type=str, nargs="?", default="utf-8")
     script.set_defaults(func=partial(run, parse_and_run_func))
 
 
 def run(parse_and_run_func, namespace):
-    with open(namespace.path, "r") as file:
+    with open(namespace.path, "r", encoding=namespace.encoding) as file:
         commands = [line for line in file.read().splitlines() if line.strip()]
 
     if not commands:
