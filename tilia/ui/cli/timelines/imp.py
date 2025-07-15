@@ -10,7 +10,6 @@ from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.cli import io
 
 
 def setup_parser(subparsers):
@@ -200,7 +199,7 @@ def import_timeline(namespace):
         raise ValueError(f"Unknown timeline kind: {tl_kind}")
 
     if errors:
-        io.output(f"Errors: {errors}")
+        post(Post.DISPLAY_ERROR, f"Errors: {errors}")
 
     if not success:
         post(Post.APP_STATE_RESTORE, prev_state)
