@@ -1,15 +1,12 @@
 import pytest
 
-from unittest.mock import patch
-
 
 class TestCLI:
-    def test_wrong_argument(self, cli):
-        with patch("builtins.print") as mock_print:
-            cli.parse_and_run("nonsense")
-            mock_print.assert_called_once()
-            assert "nonsense" in mock_print.call_args[0][0]
-            assert "invalid choice" in mock_print.call_args[0][0]
+    def test_wrong_argument(self, cli, tilia_errors):
+        cli.parse_and_run("nonsense")
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("nonsense")
 
     PARSE_COMMAND_CASES = [
         ("spaced args", ["spaced", "args"]),
