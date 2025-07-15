@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import sys
-import traceback
 
 import argparse
+import traceback
 
 from colorama import Fore
 
@@ -99,7 +99,11 @@ class CLI:
         """Returns True if command was unsuccessful, False otherwise"""
         args = self.parse_command(cmd)
         if args is None:
-            post(Post.DISPLAY_ERROR, "Parse error: Invalid quoted arguments")
+            post(
+                Post.DISPLAY_ERROR,
+                "Parse error",
+                "Parse error: Invalid quoted arguments",
+            )
             return True
         return self.run(args)
 
@@ -115,7 +119,7 @@ class CLI:
                 namespace.func(namespace)
             return False
         except argparse.ArgumentError as err:
-            io.output(str(err))
+            post(Post.DISPLAY_ERROR, "Argument error", str(err))
             self.exception = err
             return True
         except SystemExit as err:
@@ -125,13 +129,13 @@ class CLI:
             sys.exit(0)
         except Exception as err:
             self.exception = err
-            io.output(traceback.format_exc(), color=Fore.RED)
+            post(Post.DISPLAY_ERROR, "CLI error", traceback.format_exc())
             return True
 
     @staticmethod
     def on_request_to_display_error(_, message: str) -> None:
         """Ignores title and prints error message to output"""
-        io.output(message)
+        io.output(message, color=Fore.RED)
 
     @staticmethod
     def get_player_class(media_type: str):
@@ -143,7 +147,7 @@ class CLI:
 
     @staticmethod
     def show_crash_dialog(exc_message) -> None:
-        io.output(exc_message)
+        post(Post.DISPLAY_ERROR, "CLI has crashed", "Error: " + exc_message)
 
 
 def on_ask_yes_or_no(title: str, prompt: str) -> bool:
