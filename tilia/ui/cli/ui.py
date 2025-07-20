@@ -50,7 +50,7 @@ class CLI:
         timelines.setup_parser(self.subparsers)
         quit.setup_parser(self.subparsers)
         save.setup_parser(self.subparsers)
-        load_media.setup_parser(self.subparsers)
+        load_media.setup_parser(self.subparsers, self.parse_and_run)
         components.setup_parser(self.subparsers)
         metadata.setup_parser(self.subparsers)
         generate_scripts.setup_parser(self.subparsers, self.parse_and_run)
