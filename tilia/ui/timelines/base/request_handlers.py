@@ -17,9 +17,7 @@ class TimelineRequestHandler(RequestHandler):
             Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES: self.on_timeline_delete,
             Post.TIMELINE_DELETE_FROM_CONTEXT_MENU: self.on_timeline_delete,
             Post.TIMELINE_DELETE_FROM_CLI: self.on_timeline_delete,
-            Post.TIMELINE_NAME_SET: functools.partial(
-                self.on_timeline_data_set, "name"
-            ),
+            Post.TIMELINE_NAME_SET: self.on_timeline_name_set,
             Post.TIMELINE_HEIGHT_SET: functools.partial(
                 self.on_timeline_data_set, "height"
             ),
@@ -35,6 +33,18 @@ class TimelineRequestHandler(RequestHandler):
     @property
     def timeline(self):
         return get(Get.TIMELINE, self.timeline_ui.id)
+
+    def on_timeline_name_set(self):
+        accepted, name = get(
+            Get.FROM_USER_STRING,
+            "Change timeline name",
+            "Choose new name",
+            text=get(Get.TIMELINE, self.timeline_ui.id).name,
+        )
+        if not accepted:
+            return False
+
+        return self.on_timeline_data_set("name", name)
 
     def on_timeline_data_set(self, attr, value, **_):
         return get(Get.TIMELINE_COLLECTION).set_timeline_data(

@@ -12,19 +12,6 @@ def _get_args_for_timeline_element_color_set(_):
     return (color,), {}
 
 
-def _get_args_for_timeline_name_set(timeline_uis):
-    timeline_ui = timeline_uis[0]
-    accepted, name = get(
-        Get.FROM_USER_STRING,
-        "Change timeline name",
-        "Choose new name",
-        text=get(Get.TIMELINE, timeline_ui.id).name,
-    )
-    if not accepted:
-        raise UserCancelledDialog
-    return (name,), {}
-
-
 def _get_args_for_timeline_height_set(timeline_uis):
     timeline_ui = timeline_uis[0]
     accepted, height = get(
