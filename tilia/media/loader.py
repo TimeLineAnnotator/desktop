@@ -28,11 +28,7 @@ def load_media(
 
 def _change_player_type(player, media_type):
     player.destroy()
-    return get_player_class(media_type)()
-
-
-def get_player_class(media_type: str):
-    return get(Get.PLAYER_CLASS, media_type)
+    return get(Get.PLAYER_CLASS, media_type)()
 
 
 def get_media_type_from_path(path: str):
