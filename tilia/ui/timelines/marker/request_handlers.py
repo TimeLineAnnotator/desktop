@@ -25,8 +25,12 @@ class MarkerUIRequestHandler(ElementRequestHandler):
             },
         )
 
-    def on_color_set(self, elements, value, **_):
-        self.timeline_ui.set_elements_attr(elements, "color", value.name())
+    def on_color_set(self, elements, **_):
+        success, color = get(Get.FROM_USER_COLOR)
+        if not success or not color.isValid():
+            return False
+
+        self.timeline_ui.set_elements_attr(elements, "color", color.name())
         return True
 
     def on_color_reset(self, elements, *_, **__):

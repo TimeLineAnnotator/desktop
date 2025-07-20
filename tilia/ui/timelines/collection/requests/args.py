@@ -1,16 +1,9 @@
 import sys
 
-from tilia.exceptions import UserCancelledDialog
-from tilia.requests import get, Get, Post
+from tilia.requests import Post
 from tilia.ui.timelines.base.timeline import TimelineUI
 
-
-def _get_args_for_timeline_element_color_set(_):
-    success, color = get(Get.FROM_USER_COLOR)
-    if not success or not color.isValid():
-        raise UserCancelledDialog
-    return (color,), {}
-
+FINALLY YOU CAN DELETE THIS MODULE!!!!
 
 def get_args_for_request(request: Post, timeline_uis: list[TimelineUI], *_, **__):
     try:
