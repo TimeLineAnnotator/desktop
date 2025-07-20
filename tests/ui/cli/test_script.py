@@ -31,3 +31,14 @@ def test_load_media(cli, tmp_path, tilia_state):
     run_script(cli, path)
 
     assert Path(tilia_state.media_path) == media_path
+
+
+def test_comments(cli, tls, tmp_path, tilia_errors):
+    script = "# this is a comment"
+    script += "\ntimelines add hierarchy"
+    script += "\n# this is another comment"
+    path = write_script(tmp_path, script)
+
+    run_script(cli, path)
+    tilia_errors.assert_no_error()
+    assert len(tls) == 1
