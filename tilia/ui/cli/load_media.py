@@ -1,12 +1,16 @@
-import time
+import argparse
+import re
+from functools import partial
 from pathlib import Path
+from typing import Callable
 
+import tilia.constants
 import tilia.errors
 from tilia.requests import Post, post, get, Get
 from tilia.ui.cli import io
 
 
-def setup_parser(subparsers):
+def setup_parser(subparsers, parse_and_run: Callable[[str], bool]):
     parser = subparsers.add_parser("load-media", exit_on_error=False)
 
     parser.add_argument(
@@ -23,26 +27,46 @@ def setup_parser(subparsers):
         default="prompt",
         help="Automatically scale the media timeline.",
     )
-    parser.set_defaults(func=load_media)
+
+    parser.add_argument(
+        "--duration-if-error",
+        type=float,
+        default=None,
+        help="Duration to use if media could not be loaded.",
+    )
+
+    parser.set_defaults(func=partial(load_media, parse_and_run))
 
 
-def load_media(namespace):
-    path = Path(namespace.path.replace("\\", "/"))
-    if not path.exists():
-        tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
-        return
+def load_media(parse_and_run: Callable[[str], bool], namespace: argparse.Namespace):
+    if re.match(tilia.constants.YOUTUBE_URL_REGEX, namespace.path):
+        path = namespace.path
+    else:
+        path = Path(namespace.path.replace("\\", "/"))
+        if not path.exists():
+            tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
+            return
+        path = str(path.resolve()).replace("\\", "/")
 
-    post(
+    success = post(
         Post.APP_MEDIA_LOAD,
-        str(path.resolve()).replace("\\", "/"),
+        path,
         scale_timelines=namespace.scale_timelines,
     )
 
-    time.sleep(0.1)  # conservative estimate for QMediaPlayer to load the file
-    duration = get(Get.MEDIA_DURATION)
-    if duration:
+    if success:
+        duration = get(Get.MEDIA_DURATION)
         io.output(f"Media loaded, duration is {duration}.")
+    elif namespace.duration_if_error is not None:
+        post(
+            Post.DISPLAY_ERROR,
+            "Load media warning",
+            f"Loading media failed. Setting duration manually to {namespace.duration_if_error}.",
+        )
+        parse_and_run(f"metadata set-media-length {namespace.duration_if_error}")
     else:
-        io.output(
-            "No media duration available, loading may have failed. You can set a duration manually with 'metadata set-media-length'"
+        post(
+            Post.DISPLAY_ERROR,
+            "Load media warning",
+            "Loading media has failed.",
         )

@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from typing import Literal
 
+import dotenv
 import pytest
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication
@@ -12,6 +13,7 @@ import icecream
 import tilia.constants as constants_module
 import tilia.log as logging_module
 import tilia.settings as settings_module
+from tilia.dirs import PROJECT_ROOT
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.ui import actions as tilia_actions_module
 from tilia.app import App
@@ -43,6 +45,11 @@ pytest_plugins = [
     "tests.timelines.pdf.fixtures",
     "tests.timelines.score.fixtures",
 ]
+
+dotenv_path = PROJECT_ROOT / ".env"
+success = dotenv.load_dotenv(dotenv_path)
+if not success:
+    raise FileNotFoundError(f"No .env file found at {dotenv_path.resolve()}")
 
 
 class TiliaErrors:
