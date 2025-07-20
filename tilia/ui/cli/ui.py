@@ -61,6 +61,7 @@ class CLI:
 
     @staticmethod
     def parse_command(arg_string):
+        arg_string = arg_string.strip()
         args = []
         quoted_string = ""
         in_quotes = False
