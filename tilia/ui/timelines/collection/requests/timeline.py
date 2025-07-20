@@ -21,9 +21,6 @@ request_to_scope: dict[Post, TlRequestSelector] = {
     ),
     Post.TIMELINE_NAME_SET: TlRequestSelector(NOT_SLIDER, TimelineSelector.FIRST),
     Post.TIMELINE_HEIGHT_SET: TlRequestSelector(NOT_SLIDER, TimelineSelector.FIRST),
-    Post.TIMELINE_IS_VISIBLE_SET_FROM_MANAGE_TIMELINES: TlRequestSelector(
-        ALL, TimelineSelector.FROM_MANAGE_TIMELINES_CURRENT
-    ),
     Post.HARMONY_TIMELINE_SHOW_KEYS: TlRequestSelector(
         [TlKind.HARMONY_TIMELINE], TimelineSelector.FIRST
     ),

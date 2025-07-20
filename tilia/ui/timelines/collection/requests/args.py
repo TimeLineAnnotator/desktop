@@ -12,13 +12,6 @@ def _get_args_for_timeline_element_color_set(_):
     return (color,), {}
 
 
-def _get_args_for_timeline_is_visible_set_from_manage_timelines(_):
-    is_visible = not (
-        get(Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT).get_data("is_visible")
-    )
-    return (is_visible,), {}
-
-
 def _get_args_for_timelines_clear(_):
     confirmed = get(
         Get.FROM_USER_YES_OR_NO,

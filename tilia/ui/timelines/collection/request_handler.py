@@ -47,6 +47,7 @@ class TimelineUIsRequestHandler(RequestHandler):
                 Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU: partial(
                     self.on_timeline_ordinal_permute, "context_menu"
                 ),
+                Post.TIMELINE_IS_VISIBLE_SET_FROM_MANAGE_TIMELINES: self.on_timeline_is_visible_set,
             }
         )
         self.timeline_uis = timeline_uis
@@ -54,6 +55,12 @@ class TimelineUIsRequestHandler(RequestHandler):
 
     def on_timeline_data_set(self, id, attr, value):
         return get(Get.TIMELINE_COLLECTION).set_timeline_data(id, attr, value)
+
+    def on_timeline_is_visible_set(self, id, value):
+        is_visible = get(Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT).get_data(
+            "is_visible"
+        )
+        return self.on_timeline_data_set(id, "is_visible", not is_visible)
 
     def on_timeline_ordinal_permute(self, ui_component: str):
         if ui_component == "manage_timelines":
