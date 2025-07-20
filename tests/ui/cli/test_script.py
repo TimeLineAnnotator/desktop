@@ -5,9 +5,9 @@ def run_script(cli, path):
     cli.parse_and_run(f'script "{str(path.resolve())}"')
 
 
-def write_script(tmp_path, contents):
+def write_script(tmp_path, contents, encoding="utf-8"):
     path = tmp_path / "script.txt"
-    path.write_text(contents)
+    path.write_text(contents, encoding=encoding)
     return path
 
 
@@ -40,5 +40,15 @@ def test_comments(cli, tls, tmp_path, tilia_errors):
     path = write_script(tmp_path, script)
 
     run_script(cli, path)
+    tilia_errors.assert_no_error()
+    assert len(tls) == 1
+
+
+def test_different_encoding(cli, tls, tmp_path, tilia_errors):
+    path = write_script(
+        tmp_path, "timelines add hierarchy --name Válido?", encoding="latin-1"
+    )
+    cli.parse_and_run(f'script "{str(path.resolve())}" --encoding latin-1')
+
     tilia_errors.assert_no_error()
     assert len(tls) == 1
