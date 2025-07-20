@@ -41,10 +41,6 @@ class TimelineValidationError(TiliaException):
     pass
 
 
-class WrongTimelineForImport(TiliaException):
-    pass
-
-
 class SetComponentDataError(TiliaException):
     pass
 

@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Optional, Tuple, Literal
 
 from tilia.parsers import csv, score
-from tilia.exceptions import WrongTimelineForImport
 from tilia.requests import get, Get, post, Post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
@@ -117,21 +116,32 @@ def validate_timelines_for_import(
     ref_tl: Optional[Timeline],
     kind_str: Literal["marker", "hierarchy"],
     by: Literal["by-measure", "by-time"],
-) -> None:
+) -> Tuple[bool, str]:
+    success = True
+    error_message = ""
+
     if kind_str == "marker" and tl.KIND != TimelineKind.MARKER_TIMELINE:
-        raise WrongTimelineForImport(f"{tl} is not a marker timeline")
+        error_message = f"{tl} is not a marker timeline"
+        success = False
     elif kind_str == "hierarchy" and tl.KIND != TimelineKind.HIERARCHY_TIMELINE:
-        raise WrongTimelineForImport(f"{tl} is not a hierarchy timeline")
+        error_message = f"{tl} is not a hierarchy timeline"
+        success = False
     elif kind_str == "beat" and tl.KIND != TimelineKind.BEAT_TIMELINE:
-        raise WrongTimelineForImport(f"{tl} is not a beat timeline")
+        error_message = f"{tl} is not a beat timeline"
+        success = False
     elif kind_str == "score" and tl.KIND != TimelineKind.SCORE_TIMELINE:
-        raise WrongTimelineForImport(f"{tl} is not a score timeline")
+        error_message = f"{tl} is not a score timeline"
+        success = False
 
     if ref_tl and ref_tl.KIND != TimelineKind.BEAT_TIMELINE:
-        raise WrongTimelineForImport(f"{ref_tl} is not a beat timeline")
+        error_message = f"{ref_tl} is not a beat timeline"
+        success = False
 
     if by == "by-measure" and not ref_tl:
-        raise ValueError("Reference beat timeline is required for importing by measure")
+        error_message = "Reference beat timeline is required for importing by measure"
+        success = False
+
+    return success, error_message
 
 
 def import_timeline(namespace):
@@ -161,7 +171,15 @@ def import_timeline(namespace):
 
     file = Path(namespace.file)
 
-    validate_timelines_for_import(tl, ref_tl, tl_kind, measure_or_time)
+    success, error_message = validate_timelines_for_import(
+        tl, ref_tl, tl_kind, measure_or_time
+    )
+    if not success:
+        post(
+            Post.DISPLAY_ERROR, "Import error", "Timeline type error: " + error_message
+        )
+        return
+
     ref_tl: BeatTimeline | None
 
     if measure_or_time and measure_or_time not in ["by-measure", "by-time"]:
@@ -199,7 +217,7 @@ def import_timeline(namespace):
         raise ValueError(f"Unknown timeline kind: {tl_kind}")
 
     if errors:
-        post(Post.DISPLAY_ERROR, f"Errors: {errors}")
+        post(Post.DISPLAY_ERROR, "Import error", f"Errors: {errors}")
 
     if not success:
         post(Post.APP_STATE_RESTORE, prev_state)

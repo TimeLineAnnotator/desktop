@@ -2,7 +2,6 @@ import pytest
 
 from tests.mock import Serve
 
-from tilia.exceptions import WrongTimelineForImport
 from tilia.requests import Get
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli.timelines.imp import (
@@ -297,20 +296,20 @@ class TestGetTimelinesForImport:
 class TestValidateTimelinesForImport:
     def test_tl_of_wrong_type_when_importing_marker_tl_raises_error(self, tls):
         tl = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
-        with pytest.raises(WrongTimelineForImport):
-            validate_timelines_for_import(tl, None, "marker", "by-time")
+        success, _ = validate_timelines_for_import(tl, None, "marker", "by-time")
+        assert not success
 
     def test_tl_of_wrong_type_when_importing_hierarchy_tl_raises_error(self, tls):
         tl = tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        with pytest.raises(WrongTimelineForImport):
-            validate_timelines_for_import(tl, None, "hierarchy", "by-time")
+        success, _ = validate_timelines_for_import(tl, None, "hierarchy", "by-time")
+        assert not success
 
     def test_ref_tl_of_wrong_type_raises_error(self, tls):
         tl = tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        with pytest.raises(WrongTimelineForImport):
-            validate_timelines_for_import(tl, tl, "marker", "by-time")
+        success, _ = validate_timelines_for_import(tl, tl, "marker", "by-time")
+        assert not success
 
     def test_no_ref_tl_when_importing_by_measure_raises_error(self, tls):
         tl = tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        with pytest.raises(ValueError):
-            validate_timelines_for_import(tl, None, "marker", "by-measure")
+        success, _ = validate_timelines_for_import(tl, None, "marker", "by-measure")
+        assert not success
