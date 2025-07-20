@@ -1,8 +1,10 @@
 import pytest
 
+from tests.constants import EXAMPLE_MUSICXML_PATH
 from tests.mock import Serve
 
 from tilia.requests import Get
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.cli.timelines.imp import (
     get_timelines_for_import,
@@ -82,6 +84,25 @@ class TestImportTimeline:
         assert len(beat_tl) == 5
         for i in range(5):
             assert beat_tl[i].get_data("time") == i + 1
+
+    def test_score(self, cli, beat_tl, score_tl, tmp_path, tilia_errors):
+        beat_tl.beat_pattern = [1]
+        beat_tl.create_beat(1)
+        beat_tl.create_beat(2)
+        beat_tl.create_beat(3)
+        beat_tl.create_beat(4)
+
+        # A 0th measure is necessary to import the pickup measure
+        beat_tl.measure_numbers = [0, 1, 2, 3]
+        beat_tl.recalculate_measures()
+
+        cli.parse_and_run(
+            f"timeline import score --file {EXAMPLE_MUSICXML_PATH} --target-ordinal 2 --reference-tl-ordinal 1"
+        )
+
+        tilia_errors.assert_no_error()
+        notes = score_tl.get_components_by_attr("KIND", ComponentKind.NOTE)
+        assert len(notes) == 4
 
 
 class ImportTestCase:
