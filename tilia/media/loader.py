@@ -10,20 +10,20 @@ from tilia.requests import get, Get
 
 def load_media(
     player: Player, path: str, initial_duration: float = 0.0
-) -> Player | None:
+) -> tuple[bool, Player]:
     extension, media_type = get_media_type_from_path(path)
 
     if media_type == "unsupported":
         tilia.errors.display(tilia.errors.UNSUPPORTED_MEDIA_FORMAT, extension)
-        return None
+        return False, player
 
     # change player to audio or video if needed
     if player.MEDIA_TYPE != media_type:
         player = _change_player_type(player, media_type)
 
-    player.load_media(path, initial_duration=initial_duration)
+    success = player.load_media(path, initial_duration=initial_duration)
 
-    return player
+    return success, player
 
 
 def _change_player_type(player, media_type):
