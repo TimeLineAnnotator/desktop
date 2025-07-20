@@ -16,7 +16,11 @@ def setup_parser(subparsers, parse_and_run_func: Callable[[str], bool]):
 
 def run(parse_and_run_func, namespace):
     with open(namespace.path, "r", encoding=namespace.encoding) as file:
-        commands = [line for line in file.read().splitlines() if line.strip()]
+        commands = [
+            line
+            for line in file.read().splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
 
     if not commands:
         tilia.errors.display(tilia.errors.EMPTY_CLI_SCRIPT, namespace.path)
