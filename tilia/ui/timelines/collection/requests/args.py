@@ -39,68 +39,11 @@ def _get_args_for_timeline_height_set(timeline_uis):
     return (height,), {}
 
 
-def _get_args_for_timeline_ordinal_increase_from_context_menu(timelines):
-    return _get_args_for_timeline_ordinal_permute_from_context_menu(timelines, 1)
-
-
-def _get_args_for_timeline_ordinal_decrease_from_context_menu(timelines):
-    return _get_args_for_timeline_ordinal_permute_from_context_menu(timelines, -1)
-
-
-def _get_args_for_timeline_ordinal_permute_from_context_menu(*_):
-    tlui1, tlui2 = get(Get.CONTEXT_MENU_TIMELINE_UIS_TO_PERMUTE)
-    return (
-        {tlui1.id: tlui2.get_data("ordinal"), tlui2.id: tlui1.get_data("ordinal")},
-    ), {}
-
-
 def _get_args_for_timeline_is_visible_set_from_manage_timelines(_):
     is_visible = not (
         get(Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT).get_data("is_visible")
     )
     return (is_visible,), {}
-
-
-def _get_args_for_timeline_ordinal_increase_from_manage_timelines(timelines):
-    return _get_args_for_timeline_ordinal_permute_from_manage_timelines(timelines, 1)
-
-
-def _get_args_for_timeline_ordinal_decrease_from_manage_timelines(timelines):
-    return _get_args_for_timeline_ordinal_permute_from_manage_timelines(timelines, -1)
-
-
-def _get_args_for_timeline_ordinal_permute_from_manage_timelines(*_):
-    tlui1, tlui2 = get(Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE)
-    return (
-        {tlui1.id: tlui2.get_data("ordinal"), tlui2.id: tlui1.get_data("ordinal")},
-    ), {}
-
-
-def _confirm_delete_timeline():
-    return get(
-        Get.FROM_USER_YES_OR_NO,
-        "Delete timeline",
-        "Are you sure you want to delete the selected timeline? This can be undone later.",
-    )
-
-
-def _get_args_for_timeline_delete_from_manage_timelines(_):
-    confirmed = _confirm_delete_timeline()
-    return (confirmed,), {}
-
-
-def _get_args_for_timeline_delete_from_context_menu(_):
-    confirmed = _confirm_delete_timeline()
-    return (confirmed,), {}
-
-
-def _get_args_for_timeline_clear_from_manage_timelines(_):
-    confirmed = get(
-        Get.FROM_USER_YES_OR_NO,
-        "Clear timeline",
-        "Are you sure you want to clear the selected timeline? This can be undone later.",
-    )
-    return (confirmed,), {}
 
 
 def _get_args_for_timelines_clear(_):

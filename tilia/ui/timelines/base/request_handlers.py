@@ -13,11 +13,10 @@ from tilia.ui.timelines.copy_paste import get_copy_data_from_element
 class TimelineRequestHandler(RequestHandler):
     def __init__(self, timeline_ui, request_to_callback: dict[Post, Callable]):
         base_request_to_callback = {
-            Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES: self.on_timeline_delete,
             Post.TIMELINE_CLEAR_FROM_MANAGE_TIMELINES: self.on_timeline_clear,
-            Post.TIMELINE_DELETE_FROM_CLI: functools.partial(
-                self.on_timeline_delete, True
-            ),
+            Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES: self.on_timeline_delete,
+            Post.TIMELINE_DELETE_FROM_CONTEXT_MENU: self.on_timeline_delete,
+            Post.TIMELINE_DELETE_FROM_CLI: self.on_timeline_delete,
             Post.TIMELINE_NAME_SET: functools.partial(
                 self.on_timeline_data_set, "name"
             ),
@@ -27,11 +26,6 @@ class TimelineRequestHandler(RequestHandler):
             Post.TIMELINE_IS_VISIBLE_SET_FROM_MANAGE_TIMELINES: functools.partial(
                 self.on_timeline_data_set, "is_visible"
             ),
-            Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES: self.on_timeline_ordinal_permute_from_manage_timelines,
-            Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES: self.on_timeline_ordinal_permute_from_manage_timelines,
-            Post.TIMELINE_DELETE_FROM_CONTEXT_MENU: self.on_timeline_delete,
-            Post.TIMELINE_ORDINAL_DECREASE_FROM_CONTEXT_MENU: self.on_timeline_ordinal_permute_from_context_menu,
-            Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU: self.on_timeline_ordinal_permute_from_context_menu,
         }
         super().__init__(
             request_to_callback=request_to_callback | base_request_to_callback
@@ -47,19 +41,24 @@ class TimelineRequestHandler(RequestHandler):
             self.timeline_ui.id, attr, value
         )
 
-    def on_timeline_ordinal_permute_from_manage_timelines(self, id_to_ordinal):
-        return self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
+    def on_timeline_delete(self):
+        confirmed = get(
+            Get.FROM_USER_YES_OR_NO,
+            "Delete timeline",
+            "Are you sure you want to delete the selected timeline? This can be undone later.",
+        )
 
-    def on_timeline_ordinal_permute_from_context_menu(self, id_to_ordinal):
-        return self.on_timeline_data_set("ordinal", id_to_ordinal[self.timeline_ui.id])
-
-    def on_timeline_delete(self, confirmed):
         if not confirmed:
             return False
         get(Get.TIMELINE_COLLECTION).delete_timeline(self.timeline_ui.timeline)
         return True
 
-    def on_timeline_clear(self, confirmed):
+    def on_timeline_clear(self):
+        confirmed = get(
+            Get.FROM_USER_YES_OR_NO,
+            "Clear timeline",
+            "Are you sure you want to clear the selected timeline? This can be undone later.",
+        )
         if not confirmed:
             return False
         get(Get.TIMELINE_COLLECTION).clear_timeline(self.timeline_ui.timeline)

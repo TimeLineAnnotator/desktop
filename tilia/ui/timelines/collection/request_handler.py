@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import partial
+
 from tilia.requests import Post, get, Get, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
@@ -33,10 +35,39 @@ class TimelineUIsRequestHandler(RequestHandler):
                 Post.TIMELINE_ADD: self.on_timeline_add,
                 Post.TIMELINES_CLEAR: self.on_timelines_clear,
                 Post.BEAT_TIMELINE_FILL: self.on_beat_timeline_fill,
+                Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES: partial(
+                    self.on_timeline_ordinal_permute, "manage_timelines"
+                ),
+                Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES: partial(
+                    self.on_timeline_ordinal_permute, "manage_timelines"
+                ),
+                Post.TIMELINE_ORDINAL_DECREASE_FROM_CONTEXT_MENU: partial(
+                    self.on_timeline_ordinal_permute, "context_menu"
+                ),
+                Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU: partial(
+                    self.on_timeline_ordinal_permute, "context_menu"
+                ),
             }
         )
         self.timeline_uis = timeline_uis
         self.timelines = get(Get.TIMELINE_COLLECTION)
+
+    def on_timeline_data_set(self, id, attr, value):
+        return get(Get.TIMELINE_COLLECTION).set_timeline_data(id, attr, value)
+
+    def on_timeline_ordinal_permute(self, ui_component: str):
+        if ui_component == "manage_timelines":
+            tlui1, tlui2 = get(Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_TO_PERMUTE)
+        elif ui_component == "context_menu":
+            tlui1, tlui2 = get(Get.CONTEXT_MENU_TIMELINE_UIS_TO_PERMUTE)
+
+        id_to_ordinal = {
+            tlui1.id: tlui2.get_data("ordinal"),
+            tlui2.id: tlui1.get_data("ordinal"),
+        }
+        for id, ordinal in id_to_ordinal.items():
+            self.on_timeline_data_set(id, attr="ordinal", value=ordinal)
+        return True
 
     @staticmethod
     def _handle_media_not_loaded() -> bool:
