@@ -186,18 +186,27 @@ class App:
         record: bool = True,
         scale_timelines: Literal["yes", "no", "prompt"] = "prompt",
         initial_duration: float | None = None,
-    ) -> None:
+    ) -> bool:
+        """
+        Returns True if the media was loaded successfully, False otherwise.
+        """
         self.should_scale_timelines = scale_timelines
         if not path:
             self.player.unload_media()
             self.set_file_media_duration(0.0)
-            return
+            return True
 
-        player = load_media(self.player, path, initial_duration=initial_duration)
-        if player and record:
-            self.player = player
+        success, player = load_media(
+            self.player, path, initial_duration=initial_duration
+        )
+
+        self.player = player
+
+        if success and record:
             post(Post.PLAYER_CANCEL_LOOP)
             post(Post.APP_RECORD_STATE, "media load")
+
+        return success
 
     def _restore_app_state(self, state: dict) -> None:
         with PauseUndoManager():
