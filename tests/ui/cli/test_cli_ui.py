@@ -25,6 +25,8 @@ class TestCLI:
         ('notstarted" and more', None),
         ('this has notstarted"', None),
         ('"onestring"', ["onestring"]),
+        ("trailing space ", ["trailing", "space"]),
+        ("trailing spaces     ", ["trailing", "spaces"]),
     ]
 
     @pytest.mark.parametrize("command,result", PARSE_COMMAND_CASES)
