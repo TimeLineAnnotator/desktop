@@ -217,8 +217,14 @@ def _log_post(post, *args, **kwargs):
 def post(post: Post, *args, **kwargs) -> None:
     if os.environ.get("LOG_REQUESTS", 0) and post not in _get_posts_excluded_from_log():
         _log_post(post, args, kwargs)
+    # Returning a result is an experimental feature.
+    # This can be very useful to check if the request was successful.
+    # Should be used only when a single listener is expected.
+    # If there are multiple listeners, the result of the last listener is returned.
+    result = None
     for listener, callback in _posts_to_listeners[post].copy().items():
-        callback(*args, **kwargs)
+        result = callback(*args, **kwargs)
+    return result
 
 
 def listen(listener: Any, post: Post, callback: Callable) -> None:
