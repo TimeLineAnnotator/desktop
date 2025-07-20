@@ -390,3 +390,81 @@ class TestMeasureZeroNotInTimeline:
         assert len(clefs) == 1
         assert clefs[0].measure == 1
         assert clefs[0].beat == 1
+
+
+def test_import_in_last_measure(qtui, beat_tl, score_tl, tmp_path):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+    <part-list>
+        <score-part id="P1">
+            <part-name>Violine</part-name>
+        </score-part>
+    </part-list>
+    <part id="P1">
+        <measure number="1" width="80">
+        <attributes>
+                <divisions>4</divisions>
+                <key>
+                    <fifths>0</fifths>
+                </key>
+                <time>
+                    <beats>3</beats>
+                    <beat-type>8</beat-type>
+                </time>
+                <clef>
+                    <sign>G</sign>
+                    <line>2</line>
+                </clef>
+        </attributes>
+            <note default-x="12.5" default-y="-5">
+                <pitch>
+                    <step>E</step>
+                    <octave>5</octave>
+                </pitch>
+                <duration>6</duration>
+                <voice>1</voice>
+                <type>quarter</type>
+                <dot default-x="30.49" default-y="-5"/>
+                <stem>down</stem>
+            </note>
+        </measure>
+        <measure number="2" width="80">
+            <note default-x="12.5" default-y="-5">
+                <pitch>
+                    <step>E</step>
+                    <octave>5</octave>
+                </pitch>
+                <duration>3</duration>
+                <voice>1</voice>
+                <type>quarter</type>
+                <dot default-x="30.49" default-y="-5"/>
+                <stem>down</stem>
+            </note>
+            <note default-x="12.5" default-y="-5">
+                <pitch>
+                    <step>E</step>
+                    <octave>5</octave>
+                </pitch>
+                <duration>3</duration>
+                <voice>1</voice>
+                <type>quarter</type>
+                <dot default-x="30.49" default-y="-5"/>
+                <stem>down</stem>
+            </note>
+            <barline location="right">
+                <bar-style>light-heavy</bar-style>
+            </barline>
+        </measure>
+    </part>
+</score-partwise>
+    """
+
+    beat_tl.set_data("beat_pattern", [1])
+    beat_tl.create_beat(1)
+    beat_tl.create_beat(2)
+    beat_tl.recalculate_measures()
+
+    _import_with_patch(score_tl, beat_tl, xml, tmp_path)
+
+    notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+    assert len(notes) == 3
