@@ -123,7 +123,13 @@ class TimelineUIsRequestHandler(RequestHandler):
 
         return True
 
-    def on_timelines_clear(self, confirmed):
+    def on_timelines_clear(self):
+        confirmed = get(
+            Get.FROM_USER_YES_OR_NO,
+            "Clear timelines",
+            "Are you sure you want to clear ALL timelines? This can be undone later.",
+        )
+
         if confirmed:
             self.timelines.clear_timelines()
             return True

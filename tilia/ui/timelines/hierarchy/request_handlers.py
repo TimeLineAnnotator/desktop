@@ -80,11 +80,19 @@ class HierarchyUIRequestHandler(ElementRequestHandler):
 
         return self.timeline.create_children(self.elements_to_components(elements))
 
-    def on_add_pre_start(self, elements, value, *_, **__):
+    def on_add_pre_start(self, elements, *_, **__):
+        accept, value = get(Get.FROM_USER_FLOAT, "Add pre-start", "Pre-start length")
+        if not accept:
+            return False
+
         self.on_add_frame(elements, value, Extremity.PRE_START)
         return True
 
-    def on_add_post_end(self, elements, value, *_, **__):
+    def on_add_post_end(self, elements, *_, **__):
+        accept, value = get(Get.FROM_USER_FLOAT, "Add post-end", "Post-end length")
+        if not accept:
+            return False
+
         self.on_add_frame(elements, value, Extremity.POST_END)
         return True
 
