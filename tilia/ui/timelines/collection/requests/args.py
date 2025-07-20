@@ -12,20 +12,6 @@ def _get_args_for_timeline_element_color_set(_):
     return (color,), {}
 
 
-def _get_args_for_timeline_height_set(timeline_uis):
-    timeline_ui = timeline_uis[0]
-    accepted, height = get(
-        Get.FROM_USER_INT,
-        "Change timeline height",
-        "Insert new timeline height",
-        value=timeline_ui.get_data("height"),
-        min=10,
-    )
-    if not accepted:
-        raise UserCancelledDialog
-    return (height,), {}
-
-
 def _get_args_for_timeline_is_visible_set_from_manage_timelines(_):
     is_visible = not (
         get(Get.WINDOW_MANAGE_TIMELINES_TIMELINE_UIS_CURRENT).get_data("is_visible")

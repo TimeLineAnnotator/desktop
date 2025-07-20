@@ -18,9 +18,7 @@ class TimelineRequestHandler(RequestHandler):
             Post.TIMELINE_DELETE_FROM_CONTEXT_MENU: self.on_timeline_delete,
             Post.TIMELINE_DELETE_FROM_CLI: self.on_timeline_delete,
             Post.TIMELINE_NAME_SET: self.on_timeline_name_set,
-            Post.TIMELINE_HEIGHT_SET: functools.partial(
-                self.on_timeline_data_set, "height"
-            ),
+            Post.TIMELINE_HEIGHT_SET: self.on_timeline_height_set,
             Post.TIMELINE_IS_VISIBLE_SET_FROM_MANAGE_TIMELINES: functools.partial(
                 self.on_timeline_data_set, "is_visible"
             ),
@@ -45,6 +43,19 @@ class TimelineRequestHandler(RequestHandler):
             return False
 
         return self.on_timeline_data_set("name", name)
+
+    def on_timeline_height_set(self):
+        accepted, height = get(
+            Get.FROM_USER_INT,
+            "Change timeline height",
+            "Insert new timeline height",
+            value=self.timeline_ui.get_data("height"),
+            min=10,
+        )
+        if not accepted:
+            return False
+
+        return self.on_timeline_data_set("height", height)
 
     def on_timeline_data_set(self, attr, value, **_):
         return get(Get.TIMELINE_COLLECTION).set_timeline_data(
