@@ -12,6 +12,7 @@ python-dotenv>=1.0.1
 pypdf~=4.2.0
 httpx~=0.28.1
 isodate~=0.7.2
+colorama~=0.4.6
 
 pytest>=8.0.0
 pytest-env>=1.1.5
