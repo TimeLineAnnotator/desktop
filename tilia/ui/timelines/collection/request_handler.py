@@ -35,16 +35,10 @@ class TimelineUIsRequestHandler(RequestHandler):
                 Post.TIMELINE_ADD: self.on_timeline_add,
                 Post.TIMELINES_CLEAR: self.on_timelines_clear,
                 Post.BEAT_TIMELINE_FILL: self.on_beat_timeline_fill,
-                Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES: partial(
+                Post.TIMELINE_ORDINAL_PERMUTE_FROM_MANAGE_TIMELINES: partial(
                     self.on_timeline_ordinal_permute, "manage_timelines"
                 ),
-                Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES: partial(
-                    self.on_timeline_ordinal_permute, "manage_timelines"
-                ),
-                Post.TIMELINE_ORDINAL_DECREASE_FROM_CONTEXT_MENU: partial(
-                    self.on_timeline_ordinal_permute, "context_menu"
-                ),
-                Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU: partial(
+                Post.TIMELINE_ORDINAL_PERMUTE_FROM_CONTEXT_MENU: partial(
                     self.on_timeline_ordinal_permute, "context_menu"
                 ),
                 Post.TIMELINE_IS_VISIBLE_SET_FROM_MANAGE_TIMELINES: self.on_timeline_is_visible_set,

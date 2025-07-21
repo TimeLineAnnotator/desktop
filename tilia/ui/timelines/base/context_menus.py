@@ -49,7 +49,7 @@ class TimelineUIContextMenu(TiliaMenu):
                 self.timeline_ui,
                 indices_to_timelines[current_index - 1],
             )
-            post(Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU)
+            post(Post.TIMELINE_ORDINAL_PERMUTE_FROM_CONTEXT_MENU)
 
         current_index = self.timeline_ui.get_data("ordinal")
         indices_to_timelines = {
@@ -66,7 +66,7 @@ class TimelineUIContextMenu(TiliaMenu):
                 self.timeline_ui,
                 indices_to_timelines[current_index + 1],
             )
-            post(Post.TIMELINE_ORDINAL_DECREASE_FROM_CONTEXT_MENU)
+            post(Post.TIMELINE_ORDINAL_PERMUTE_FROM_CONTEXT_MENU)
 
         current_index = self.timeline_ui.get_data("ordinal")
         indices_to_timelines = {

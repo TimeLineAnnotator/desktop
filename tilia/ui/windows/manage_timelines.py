@@ -205,7 +205,7 @@ class TimelinesListWidget(QListWidget):
         previous = self.item(index - 1)
         if previous:
             self.timeline_uis_to_permute = (selected.timeline_ui, previous.timeline_ui)
-            post(Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES)
+            post(Post.TIMELINE_ORDINAL_PERMUTE_FROM_MANAGE_TIMELINES)
             self.timeline_uis_to_permute = None
 
     def on_down_button(self):
@@ -216,7 +216,7 @@ class TimelinesListWidget(QListWidget):
         next_item = self.item(index + 1)
         if next_item:
             self.timeline_uis_to_permute = (selected.timeline_ui, next_item.timeline_ui)
-            post(Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES)
+            post(Post.TIMELINE_ORDINAL_PERMUTE_FROM_MANAGE_TIMELINES)
             self.timeline_uis_to_permute = None
 
     @staticmethod
