@@ -16,7 +16,6 @@ import tilia
 import tilia.errors
 import tilia.ui.timelines.collection.request_handler
 import tilia.ui.timelines.collection.requests.timeline_uis
-import tilia.ui.timelines.collection.requests.args
 import tilia.ui.timelines.collection.requests.enums
 from tilia.ui import actions
 from tilia.settings import settings
@@ -24,8 +23,6 @@ from tilia.media.player.base import MediaTimeChangeReason
 from tilia.timelines import timeline_kinds
 from tilia.timelines.component_kinds import ComponentKind
 from .scene import TimelineUIsScene
-from .validators import validate
-from tilia.exceptions import UserCancelledDialog
 from tilia.log import logger
 from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
@@ -830,34 +827,12 @@ class TimelineUIs:
 
     def pre_process_timeline_request(
         self,
-        request: Post,
         kinds: list[TlKind],
         selector: tilia.ui.timelines.collection.requests.timeline.TimelineSelector,
     ):
         timeline_uis = self.get_timelines_uis_for_request(kinds, selector)
 
-        try:
-            (
-                args,
-                kwargs,
-            ) = tilia.ui.timelines.collection.requests.args.get_args_for_request(
-                request, timeline_uis
-            )
-        except UserCancelledDialog:
-            return None, None, None, False
-
-        if not validate(request, timeline_uis, *args, **kwargs):
-            return None, None, None, False
-
-        return timeline_uis, args, kwargs, True
-
-    @staticmethod
-    def pre_process_timeline_uis_request(request, *args, **kwargs):
-        args, kwargs = tilia.ui.timelines.collection.requests.args.get_args_for_request(
-            request, [], *args, **kwargs
-        )
-
-        return args, kwargs, True
+        return timeline_uis, True
 
     @staticmethod
     def validate_request_return_value(request: Post, success: Any):
@@ -881,18 +856,11 @@ class TimelineUIs:
     ) -> None:
         (
             timeline_uis,
-            more_args,
-            more_kwargs,
             success,
-        ) = self.pre_process_timeline_request(
-            request, selector.tl_kind, selector.timeline
-        )
+        ) = self.pre_process_timeline_request(selector.tl_kind, selector.timeline)
 
         if not success:
             return
-
-        args += more_args
-        kwargs |= more_kwargs
 
         state_backup = get(Get.APP_STATE)
         result = []
@@ -916,14 +884,6 @@ class TimelineUIs:
     def on_timeline_ui_request(
         self, request: Post, *args: tuple[Any], **kwargs: dict[str, Any]
     ):
-        more_args, more_kwargs, success = self.pre_process_timeline_uis_request(
-            request, *args, **kwargs
-        )
-        args += more_args
-        kwargs |= more_kwargs
-
-        if not success:
-            return
 
         state_backup = get(Get.APP_STATE)
         try:
@@ -949,18 +909,10 @@ class TimelineUIs:
         *args: tuple[Any],
         **kwargs: dict[str, Any],
     ):
-        (
-            timeline_uis,
-            more_args,
-            more_kwargs,
-            success,
-        ) = self.pre_process_timeline_request(
-            request,
+        (timeline_uis, success,) = self.pre_process_timeline_request(
             selector.tl_kind,
             selector.timeline,
         )
-        args += more_args
-        kwargs |= more_kwargs
 
         if not success:
             return

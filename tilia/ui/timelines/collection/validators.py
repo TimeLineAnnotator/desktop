@@ -6,7 +6,7 @@ def has_validator(request: Post):
     return request in request_to_validator
 
 
-def validate_timeline_element_copy(timeline_uis, *_, **__):
+def validate_timeline_element_copy(timeline_uis):
     if len(timeline_uis) == 0:
         # Can't copy: there are no selected elements.
         return False
@@ -19,11 +19,11 @@ def validate_timeline_element_copy(timeline_uis, *_, **__):
     return True
 
 
-def validate(request, timeline_uis, *args, **kwargs):
+def validate(request, timeline_uis):
     if not has_validator(request):
         return True
 
-    return request_to_validator[request](timeline_uis, *args, **kwargs)
+    return request_to_validator[request](timeline_uis)
 
 
 request_to_validator = {Post.TIMELINE_ELEMENT_COPY: validate_timeline_element_copy}
