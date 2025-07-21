@@ -854,6 +854,7 @@ class TimelineUIs:
         *args: tuple[Any],
         **kwargs: dict[str, Any],
     ) -> None:
+
         (
             timeline_uis,
             success,
@@ -861,6 +862,17 @@ class TimelineUIs:
 
         if not success:
             return
+
+        if request == Post.TIMELINE_ELEMENT_COPY:
+            if len(timeline_uis) == 0:
+                # Can't copy: there are no selected elements.
+                return
+            elif len(get(Get.TIMELINE_UIS_BY_ATTR, "has_selected_elements", True)) > 1:
+                tilia.errors.display(
+                    tilia.errors.COMPONENTS_COPY_ERROR,
+                    "Cannot copy components from more than one timeline.",
+                )
+                return
 
         state_backup = get(Get.APP_STATE)
         result = []
