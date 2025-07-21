@@ -15,8 +15,6 @@ from PyQt6.QtWidgets import (
 import tilia
 import tilia.errors
 import tilia.ui.timelines.collection.request_handler
-import tilia.ui.timelines.collection.requests.timeline_uis
-import tilia.ui.timelines.collection.requests.enums
 from tilia.ui import actions
 from tilia.settings import settings
 from tilia.media.player.base import MediaTimeChangeReason
@@ -38,16 +36,17 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.scene import TimelineScene
 from tilia.ui.timelines.toolbar import TimelineToolbar
 from tilia.ui.timelines.view import TimelineView
-from tilia.ui.timelines.collection.requests.timeline import (
+from tilia.ui.timelines.collection.requests.element import (
+    TlElmRequestSelector,
     TimelineSelector,
     TlRequestSelector,
 )
-from tilia.ui.timelines.collection.requests.element import TlElmRequestSelector
 from .view import TimelineUIsView
 from ..beat import BeatTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...actions import TiliaAction
+from .request_handler import TimelineUIsRequestHandler
 
 
 class TimelineUIs:
@@ -204,7 +203,16 @@ class TimelineUIs:
         for request, callback in SERVES:
             serve(self, request, callback)
 
-        for request in tilia.ui.timelines.collection.requests.timeline_uis.requests:
+        for request in [
+            Post.TIMELINES_CLEAR,
+            Post.TIMELINE_ADD,
+            Post.BEAT_TIMELINE_FILL,
+            Post.TIMELINE_ORDINAL_INCREASE_FROM_MANAGE_TIMELINES,
+            Post.TIMELINE_ORDINAL_DECREASE_FROM_MANAGE_TIMELINES,
+            Post.TIMELINE_ORDINAL_DECREASE_FROM_CONTEXT_MENU,
+            Post.TIMELINE_ORDINAL_INCREASE_FROM_CONTEXT_MENU,
+            Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES,
+        ]:
             listen(
                 self, request, functools.partial(self.on_timeline_ui_request, request)
             )
@@ -216,17 +224,7 @@ class TimelineUIs:
             listen(
                 self,
                 request,
-                functools.partial(self.on_timeline_element_request, request, selector),
-            )
-
-        for (
-            request,
-            selector,
-        ) in tilia.ui.timelines.collection.requests.timeline.request_to_scope.items():
-            listen(
-                self,
-                request,
-                functools.partial(self.on_timeline_request, request, selector),
+                functools.partial(self.on_request, request, selector),
             )
 
     def create_timeline_ui(self, kind: TlKind, id: int) -> TimelineUI:
@@ -825,15 +823,6 @@ class TimelineUIs:
         if not is_looping:
             self.loop_elements.clear()
 
-    def pre_process_timeline_request(
-        self,
-        kinds: list[TlKind],
-        selector: tilia.ui.timelines.collection.requests.timeline.TimelineSelector,
-    ):
-        timeline_uis = self.get_timelines_uis_for_request(kinds, selector)
-
-        return timeline_uis, True
-
     @staticmethod
     def validate_request_return_value(request: Post, success: Any):
         if isinstance(success, list) and all(isinstance(s, bool) for s in success):
@@ -855,13 +844,9 @@ class TimelineUIs:
         **kwargs: dict[str, Any],
     ) -> None:
 
-        (
-            timeline_uis,
-            success,
-        ) = self.pre_process_timeline_request(selector.tl_kind, selector.timeline)
-
-        if not success:
-            return
+        timeline_uis = self.get_timelines_uis_for_request(
+            selector.tl_kind, selector.timeline
+        )
 
         if request == Post.TIMELINE_ELEMENT_COPY:
             if len(timeline_uis) == 0:
@@ -893,17 +878,26 @@ class TimelineUIs:
         if any(result):
             post(Post.APP_RECORD_STATE, f"timeline element request: {request.name}")
 
+    def on_request(
+        self, request: Post, selector, *args: tuple[Any], **kwargs: dict[str, Any]
+    ):
+        if isinstance(selector, TlRequestSelector):
+            return self.on_timeline_request(request, selector, *args, **kwargs)
+        elif isinstance(selector, TlElmRequestSelector):
+            return self.on_timeline_element_request(request, selector, *args, **kwargs)
+        print(request)
+        raise NotImplementedError
+
     def on_timeline_ui_request(
         self, request: Post, *args: tuple[Any], **kwargs: dict[str, Any]
     ):
 
         state_backup = get(Get.APP_STATE)
         try:
-            success = (
-                tilia.ui.timelines.collection.request_handler.TimelineUIsRequestHandler(
-                    self
-                ).on_request(request, *args, **kwargs)
+            success = TimelineUIsRequestHandler(self).on_request(
+                request, *args, **kwargs
             )
+
         except Exception:
             post(Post.APP_STATE_RECOVER, state_backup)
             tilia.errors.display(tilia.errors.COMMAND_FAILED, traceback.format_exc())
@@ -921,13 +915,9 @@ class TimelineUIs:
         *args: tuple[Any],
         **kwargs: dict[str, Any],
     ):
-        (timeline_uis, success,) = self.pre_process_timeline_request(
-            selector.tl_kind,
-            selector.timeline,
+        timeline_uis = self.get_timelines_uis_for_request(
+            selector.tl_kind, selector.timeline
         )
-
-        if not success:
-            return
 
         state_backup = get(Get.APP_STATE)
         result = []

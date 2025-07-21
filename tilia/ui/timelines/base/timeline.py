@@ -25,7 +25,7 @@ from tilia.ui.timelines.copy_paste import (
     get_copy_data_from_elements,
 )
 from .request_handlers import TimelineRequestHandler
-from ..collection.requests.enums import ElementSelector
+from ..collection.requests.element import ElementSelector
 from ..view import TimelineView
 from ...coords import time_x_converter
 from ...windows import WindowKind

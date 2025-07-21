@@ -4,10 +4,10 @@ from tilia.enums import Side
 from tilia.requests import Post, Get, get, listen
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.timeline import TimelineUI
-from tilia.ui.timelines.collection.requests.enums import ElementSelector
 
 from tilia.ui.timelines.audiowave.element import AmplitudeBarUI
 from tilia.ui.timelines.audiowave.request_handlers import AudioWaveUIRequestHandler
+from ..collection.requests.element import ElementSelector
 
 from ...format import format_media_time
 

@@ -9,7 +9,6 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
-from tilia.ui.timelines.collection.requests.enums import ElementSelector
 from tilia.ui.timelines.harmony.context_menu import HarmonyTimelineUIContextMenu
 from tilia.ui.timelines.harmony import HarmonyUI, ModeUI
 from tilia.ui.timelines.harmony.request_handlers import (
@@ -21,6 +20,7 @@ from tilia.ui.timelines.harmony.toolbar import HarmonyTimelineToolbar
 from tilia.ui.timelines.copy_paste import (
     paste_into_element,
 )
+from ..collection.requests.element import ElementSelector
 
 
 class HarmonyTimelineUI(TimelineUI):

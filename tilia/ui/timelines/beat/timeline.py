@@ -10,7 +10,7 @@ from tilia.ui.timelines.beat.context_menu import BeatTimelineUIContextMenu
 from tilia.ui.timelines.beat.element import BeatUI
 from tilia.ui.timelines.beat.request_handlers import BeatUIRequestHandler
 from tilia.ui.timelines.beat.toolbar import BeatTimelineToolbar
-from tilia.ui.timelines.collection.requests.enums import ElementSelector
+from tilia.ui.timelines.collection.requests.element import ElementSelector
 from tilia.ui.timelines.copy_paste import (
     get_copy_data_from_element,
 )

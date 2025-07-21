@@ -19,7 +19,7 @@ from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
 from tilia.ui.smooth_scroll import setup_smooth, smooth
 from tilia.ui.timelines.base.timeline import TimelineUI
-from tilia.ui.timelines.collection.requests.enums import ElementSelector
+from tilia.ui.timelines.collection.requests.element import ElementSelector
 from tilia.ui.timelines.cursors import CursorMixIn
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.score.context_menu import ScoreTimelineUIContextMenu

@@ -5,11 +5,30 @@ from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     NOT_SLIDER,
     COLORED_COMPONENTS,
+    ALL,
 )
-from tilia.ui.timelines.collection.requests.enums import (
-    TimelineSelector,
-    ElementSelector,
-)
+
+from enum import Enum, auto
+
+
+class TimelineSelector(Enum):
+    ANY = auto()
+    FROM_CLI = auto()
+    FROM_MANAGE_TIMELINES_CURRENT = auto()
+    FROM_MANAGE_TIMELINES_TO_PERMUTE = auto()
+    FROM_CONTEXT_MENU = auto()
+    FROM_CONTEXT_MENU_TO_PERMUTE = auto()
+    EXPLICIT = auto()
+    SELECTED = auto()
+    ALL = auto()
+    FIRST = auto()
+    PASTE = auto()
+
+
+class ElementSelector(Enum):
+    SELECTED = auto()
+    ALL = auto()
+    NONE = auto()
 
 
 @dataclass
@@ -17,6 +36,12 @@ class TlElmRequestSelector:
     tl_kind: list[TlKind]
     timeline: TimelineSelector
     element: ElementSelector
+
+
+@dataclass
+class TlRequestSelector:
+    tl_kind: list[TlKind]
+    timeline: TimelineSelector
 
 
 request_to_scope: dict[Post, TlElmRequestSelector] = {
@@ -50,9 +75,6 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     ),
     Post.MARKER_ADD: TlElmRequestSelector(
         [TlKind.MARKER_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
-    ),
-    Post.TIMELINE_NAME_SET: TlElmRequestSelector(
-        NOT_SLIDER, TimelineSelector.FIRST, ElementSelector.NONE
     ),
     Post.BEAT_ADD: TlElmRequestSelector(
         [TlKind.BEAT_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
@@ -116,5 +138,23 @@ request_to_scope: dict[Post, TlElmRequestSelector] = {
     ),
     Post.PDF_MARKER_ADD: TlElmRequestSelector(
         [TlKind.PDF_TIMELINE], TimelineSelector.FIRST, ElementSelector.NONE
+    ),
+    Post.TIMELINE_DELETE_FROM_MANAGE_TIMELINES: TlRequestSelector(
+        ALL, TimelineSelector.FROM_MANAGE_TIMELINES_CURRENT
+    ),
+    Post.TIMELINE_DELETE_FROM_CLI: TlRequestSelector(ALL, TimelineSelector.FROM_CLI),
+    Post.TIMELINE_CLEAR_FROM_MANAGE_TIMELINES: TlRequestSelector(
+        ALL, TimelineSelector.FROM_MANAGE_TIMELINES_CURRENT
+    ),
+    Post.TIMELINE_NAME_SET: TlRequestSelector(NOT_SLIDER, TimelineSelector.FIRST),
+    Post.TIMELINE_HEIGHT_SET: TlRequestSelector(NOT_SLIDER, TimelineSelector.FIRST),
+    Post.HARMONY_TIMELINE_SHOW_KEYS: TlRequestSelector(
+        [TlKind.HARMONY_TIMELINE], TimelineSelector.FIRST
+    ),
+    Post.HARMONY_TIMELINE_HIDE_KEYS: TlRequestSelector(
+        [TlKind.HARMONY_TIMELINE], TimelineSelector.FIRST
+    ),
+    Post.TIMELINE_DELETE_FROM_CONTEXT_MENU: TlRequestSelector(
+        ALL, TimelineSelector.FROM_CONTEXT_MENU
     ),
 }

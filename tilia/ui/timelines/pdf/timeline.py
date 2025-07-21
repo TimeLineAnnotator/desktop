@@ -17,7 +17,7 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
-from tilia.ui.timelines.collection.requests.enums import ElementSelector
+from tilia.ui.timelines.collection.requests.element import ElementSelector
 
 from tilia.ui.timelines.copy_paste import (
     paste_into_element,

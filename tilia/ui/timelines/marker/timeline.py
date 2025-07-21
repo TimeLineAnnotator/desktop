@@ -10,7 +10,7 @@ from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
-from tilia.ui.timelines.collection.requests.enums import ElementSelector
+from tilia.ui.timelines.collection.requests.element import ElementSelector
 from tilia.ui.timelines.marker.context_menu import MarkerTimelineUIContextMenu
 from tilia.ui.timelines.marker.element import MarkerUI
 from tilia.ui.timelines.marker.request_handlers import MarkerUIRequestHandler

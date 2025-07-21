@@ -4,7 +4,7 @@ from tilia.requests import get, Get, Post, listen
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
-from tilia.ui.timelines.collection.requests.enums import ElementSelector
+from tilia.ui.timelines.collection.requests.element import ElementSelector
 from tilia.ui.timelines.hierarchy import HierarchyTimelineToolbar, HierarchyUI
 from tilia.ui.timelines.copy_paste import get_copy_data_from_element
 import tilia.ui.timelines.copy_paste
