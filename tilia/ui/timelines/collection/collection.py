@@ -45,7 +45,6 @@ from .view import TimelineUIsView
 from ..beat import BeatTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
-from ...actions import TiliaAction
 from .request_handler import TimelineUIsRequestHandler
 
 
@@ -647,9 +646,7 @@ class TimelineUIs:
 
     @staticmethod
     def on_hierarchy_selected():
-        actions.get_qaction(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE).setVisible(
-            True
-        )
+        actions.get_qaction("timeline_element_paste_complete").setVisible(True)
 
     def on_hierarchy_deselected(self):
         selected_hierarchies = []
@@ -657,9 +654,7 @@ class TimelineUIs:
             if tlui.TIMELINE_KIND == TlKind.HIERARCHY_TIMELINE:
                 selected_hierarchies += tlui.selected_elements
         if not selected_hierarchies:
-            actions.get_qaction(TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE).setVisible(
-                False
-            )
+            actions.get_qaction("timeline_element_paste_complete").setVisible(False)
 
     def on_hierarchy_merge_split(self, new_units: list, old_units: list):
         if (

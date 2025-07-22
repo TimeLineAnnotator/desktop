@@ -4,7 +4,6 @@ from tests.mock import Serve
 
 from tilia.requests import Get
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.actions import TiliaAction
 
 
 class TestTimelineList:
@@ -53,7 +52,7 @@ class TestTimelineRemove:
 
     def test_by_name_one_timeline(self, cli, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "test")):
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+            user_actions.trigger("timelines_add_hierarchy_timeline")
 
         cli.parse_and_run("timeline remove name test")
 
@@ -73,7 +72,7 @@ class TestTimelineRemove:
 
     def test_remove_by_name_not_found(self, cli, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "test")):
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE)
+            user_actions.trigger("timelines_add_hierarchy_timeline")
 
         with patch("builtins.print") as mock_print:
             cli.parse_and_run("timeline remove name othername")

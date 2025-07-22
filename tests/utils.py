@@ -6,7 +6,6 @@ from typing import Callable
 from PyQt6.QtWidgets import QMenu
 
 from tilia.requests import get, Get, Post, post
-from tilia.ui.actions import TiliaAction
 from tests.mock import patch_file_dialog
 
 
@@ -85,7 +84,7 @@ def undoable():
     E.g.
     ```
     with undoable():
-        user_actions.trigger(TiliaAction.MARKER_ADD)
+        user_actions.trigger("marker_add")
     ```
     """
     state_before = get(Get.APP_STATE)
@@ -112,8 +111,8 @@ def reloadable(save_path, user_actions):
         checks()
 
         with patch_file_dialog(True, [save_path, save_path]):
-            user_actions.trigger(TiliaAction.FILE_SAVE)
-            user_actions.trigger(TiliaAction.FILE_OPEN)
+            user_actions.trigger("file_save")
+            user_actions.trigger("file_open")
 
         checks()
 

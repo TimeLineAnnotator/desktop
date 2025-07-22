@@ -6,7 +6,7 @@ from tests.mock import Serve
 from tests.utils import get_main_window_menu, get_actions_in_menu
 from tilia.requests import Post, post, Get
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.actions import get_qaction, TiliaAction
+from tilia.ui.actions import get_qaction
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 
@@ -139,12 +139,12 @@ class TestMenus:
         menu = get_main_window_menu(qtui, "Edit")
         actions = get_actions_in_menu(menu)
         expected = [
-            TiliaAction.EDIT_UNDO,
-            TiliaAction.EDIT_REDO,
-            TiliaAction.TIMELINE_ELEMENT_COPY,
-            TiliaAction.TIMELINE_ELEMENT_PASTE,
-            TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE,
-            TiliaAction.SETTINGS_WINDOW_OPEN,
+            "edit_undo",
+            "edit_redo",
+            "timeline_element_copy",
+            "timeline_element_paste",
+            "timeline_element_paste_complete",
+            "settings_window_open",
         ]
         expected = [get_qaction(action) for action in expected]
         assert set(actions) == set(expected)

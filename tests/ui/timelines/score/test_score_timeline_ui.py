@@ -10,12 +10,11 @@ from tilia.requests import Get, get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.actions import TiliaAction
 
 
 def test_create(tluis, user_actions):
     with Serve(Get.FROM_USER_STRING, (True, "")):
-        user_actions.trigger(TiliaAction.TIMELINES_ADD_SCORE_TIMELINE)
+        user_actions.trigger("timelines_add_score_timeline")
 
     assert len(tluis) == 1
 
@@ -169,7 +168,7 @@ def test_missing_staff_deletes_timeline(
     tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
 
     with patch_file_dialog(True, [tmp_file]):
-        user_actions.trigger(TiliaAction.FILE_OPEN)
+        user_actions.trigger("file_open")
 
     tilia_errors.assert_in_error_title(SCORE_STAFF_ID_ERROR.title)
     assert tls.get_timeline_by_attr("KIND", TimelineKind.SCORE_TIMELINE) is None
@@ -201,7 +200,7 @@ def test_duplicate_staff_deletes_timeline(
     tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
 
     with patch_file_dialog(True, [tmp_file]):
-        user_actions.trigger(TiliaAction.FILE_OPEN)
+        user_actions.trigger("file_open")
 
     tilia_errors.assert_in_error_title(SCORE_STAFF_ID_ERROR.title)
     assert tls.get_timeline_by_attr("KIND", TimelineKind.SCORE_TIMELINE) is None
@@ -242,7 +241,7 @@ def test_symbol_staff_collision(qtui, tmp_path, user_actions):
     )
 
     with (patch_file_dialog(True, [tmp_file_with_symbols])):
-        user_actions.trigger(TiliaAction.FILE_OPEN)
+        user_actions.trigger("file_open")
 
     score = get(Get.TIMELINE_UI_BY_ATTR, "TIMELINE_KIND", TimelineKind.SCORE_TIMELINE)
     clef = score.timeline.get_component_by_attr("KIND", ComponentKind.CLEF)
@@ -281,7 +280,7 @@ def test_symbol_staff_collision(qtui, tmp_path, user_actions):
         patch_file_dialog(True, [tmp_file_sans_symbols]),
         patch_yes_or_no_dialog(False),  # do not save changes
     ):
-        user_actions.trigger(TiliaAction.FILE_OPEN)
+        user_actions.trigger("file_open")
 
     score = get(Get.TIMELINE_UI_BY_ATTR, "TIMELINE_KIND", TimelineKind.SCORE_TIMELINE)
     staff = score.timeline.get_component_by_attr("KIND", ComponentKind.STAFF)

@@ -8,8 +8,6 @@ from tilia.file.tilia_file import TiliaFile
 from tilia.file.file_manager import FileManager
 from unittest.mock import patch
 
-from tilia.ui.actions import TiliaAction
-
 
 def get_empty_save_params():
     return {
@@ -19,23 +17,23 @@ def get_empty_save_params():
     } | {"timelines_hash": ""}
 
 
-class TestUserActions:
+class Tests:
     def test_save(self, tls, marker_tlui, tmp_path, user_actions):
         marker_tlui.create_marker(0)
         tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
         with patch_file_dialog(True, [tmp_file_path]):
-            user_actions.trigger(TiliaAction.FILE_SAVE_AS)
+            user_actions.trigger("file_save_as")
         marker_tlui.create_marker(1)
-        user_actions.trigger(TiliaAction.FILE_SAVE)
+        user_actions.trigger("file_save")
 
         with patch_yes_or_no_dialog(True):
-            user_actions.trigger(TiliaAction.TIMELINES_CLEAR)
+            user_actions.trigger("timelines_clear")
         assert marker_tlui.is_empty
         with (
             patch_file_dialog(True, [tmp_file_path]),
             patch_yes_or_no_dialog(False),  # do not save changes
         ):
-            user_actions.trigger(TiliaAction.FILE_OPEN)
+            user_actions.trigger("file_open")
         assert len(tls[0]) == 2
 
 
@@ -140,7 +138,7 @@ class TestFileManager:
     ):
         tla_path = tmp_path / "Some Title.tla"
         with patch_file_dialog(True, [str(tla_path)]):
-            user_actions.trigger(TiliaAction.FILE_SAVE)
+            user_actions.trigger("file_save")
 
         assert tilia.file_manager.file.media_metadata["title"] == "Some Title"
 
@@ -150,7 +148,7 @@ class TestFileManager:
         tilia.file_manager.file.media_metadata["title"] = "Title Already Set"
         tla_path = tmp_path / "Some Title.tla"
         with patch_file_dialog(True, [str(tla_path)]):
-            user_actions.trigger(TiliaAction.FILE_SAVE)
+            user_actions.trigger("file_save")
 
         assert tilia.file_manager.file.media_metadata["title"] == "Title Already Set"
 
@@ -159,7 +157,7 @@ class TestFileManager:
     ):
         tla_path = tmp_path / "Non-existent Path" / "Some Other Title.tla"
         with patch_file_dialog(True, [str(tla_path)]):
-            user_actions.trigger(TiliaAction.FILE_SAVE)
+            user_actions.trigger("file_save")
 
         assert tilia.file_manager.file.media_metadata[
             "title"

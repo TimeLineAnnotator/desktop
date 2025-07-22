@@ -1,13 +1,12 @@
-from tilia.ui.actions import TiliaAction
 from tilia.ui.timelines.toolbar import TimelineToolbar
 
 
 class HierarchyTimelineToolbar(TimelineToolbar):
     ACTIONS = [
-        TiliaAction.HIERARCHY_SPLIT,
-        TiliaAction.HIERARCHY_MERGE,
-        TiliaAction.HIERARCHY_GROUP,
-        TiliaAction.HIERARCHY_INCREASE_LEVEL,
-        TiliaAction.HIERARCHY_DECREASE_LEVEL,
-        TiliaAction.HIERARCHY_CREATE_CHILD,
+        "hierarchy_split",
+        "hierarchy_merge",
+        "hierarchy_group",
+        "hierarchy_increase_level",
+        "hierarchy_decrease_level",
+        "hierarchy_create_child",
     ]

@@ -4,7 +4,6 @@ from tests.mock import Serve
 from tilia.requests import Get, get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.collection.collection import Timelines
-from tilia.ui.actions import TiliaAction
 from tilia.ui.windows.manage_timelines import ManageTimelines
 
 
@@ -37,9 +36,9 @@ class TestChangeTimelineOrder:
     @pytest.fixture(autouse=True)
     def setup_timelines(self, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines_add_marker_timeline")
         return list(tls)
 
     def test_increase_ordinal(self, tls, manage_timelines, setup_timelines):
@@ -57,7 +56,7 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
-        user_actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger("edit_undo")
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
@@ -68,8 +67,8 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
-        user_actions.trigger(TiliaAction.EDIT_UNDO)
-        user_actions.trigger(TiliaAction.EDIT_REDO)
+        user_actions.trigger("edit_undo")
+        user_actions.trigger("edit_redo")
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
@@ -98,7 +97,7 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
-        user_actions.trigger(TiliaAction.EDIT_UNDO)
+        user_actions.trigger("edit_undo")
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
@@ -109,8 +108,8 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
-        user_actions.trigger(TiliaAction.EDIT_UNDO)
-        user_actions.trigger(TiliaAction.EDIT_REDO)
+        user_actions.trigger("edit_undo")
+        user_actions.trigger("edit_redo")
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 

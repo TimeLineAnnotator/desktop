@@ -1,5 +1,4 @@
 from PyQt6.QtGui import QAction
-from tilia.ui.actions import TiliaAction
 from tilia.ui.menus import MenuItemKind, TiliaMenu
 from tilia.requests import get, Get, serve, post, Post
 
@@ -7,8 +6,8 @@ from tilia.requests import get, Get, serve, post, Post
 class TimelineUIContextMenu(TiliaMenu):
     title = "Timeline"
     items = [
-        (MenuItemKind.ACTION, TiliaAction.TIMELINE_NAME_SET),
-        (MenuItemKind.ACTION, TiliaAction.TIMELINE_HEIGHT_SET),
+        (MenuItemKind.ACTION, "timeline_name_set"),
+        (MenuItemKind.ACTION, "timeline_height_set"),
     ]
 
     def __init__(self, timeline_ui):

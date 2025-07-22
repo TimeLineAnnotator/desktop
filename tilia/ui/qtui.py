@@ -30,7 +30,6 @@ import tilia.parsers.csv.beat
 import tilia.parsers.csv.marker
 import tilia.parsers.score.musicxml
 from . import actions
-from .actions import TiliaAction
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
 from .dialogs.crash import CrashDialog
@@ -87,23 +86,23 @@ class TiliaMainWindow(QMainWindow):
         key_comb_to_taction = [
             (
                 QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_C),
-                TiliaAction.TIMELINE_ELEMENT_COPY,
+                "timeline_element_copy",
             ),
             (
                 QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_V),
-                TiliaAction.TIMELINE_ELEMENT_PASTE,
+                "timeline_element_paste",
             ),
             (
                 QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Delete),
-                TiliaAction.TIMELINE_ELEMENT_DELETE,
+                "timeline_element_delete",
             ),
             (
                 QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return),
-                TiliaAction.TIMELINE_ELEMENT_INSPECT,
+                "timeline_element_inspect",
             ),
             (
                 QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Enter),
-                TiliaAction.TIMELINE_ELEMENT_INSPECT,
+                "timeline_element_inspect",
             ),
         ]
 
@@ -113,7 +112,7 @@ class TiliaMainWindow(QMainWindow):
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
-        actions.trigger(TiliaAction.APP_CLOSE)
+        actions.trigger("app_close")
         event.ignore()
 
     def on_close(self):

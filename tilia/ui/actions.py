@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import Any, Optional
 
 from tilia.dirs import IMG_DIR
@@ -12,81 +11,6 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.windows import WindowKind
 
 
-class TiliaAction(Enum):
-    PDF_MARKER_ADD = auto()
-    AUTOSAVES_FOLDER_OPEN = auto()
-    APP_CLOSE = auto()
-    MODE_ADD = auto()
-    HARMONY_TIMELINE_HIDE_KEYS = auto()
-    HARMONY_TIMELINE_SHOW_KEYS = auto()
-    HARMONY_DISPLAY_AS_ROMAN_NUMERAL = auto()
-    HARMONY_DISPLAY_AS_CHORD_SYMBOL = auto()
-    TIMELINE_ELEMENT_EDIT = auto()
-    TIMELINES_ADD_HARMONY_TIMELINE = auto()
-    HARMONY_ADD = auto()
-    MEDIA_LOAD_YOUTUBE = auto()
-    HIERARCHY_ADD_POST_END = auto()
-    HIERARCHY_ADD_PRE_START = auto()
-    ABOUT_WINDOW_OPEN = auto()
-    BEAT_ADD = auto()
-    BEAT_DISTRIBUTE = auto()
-    BEAT_RESET_MEASURE_NUMBER = auto()
-    BEAT_SET_AMOUNT_IN_MEASURE = auto()
-    BEAT_SET_MEASURE_NUMBER = auto()
-    BEAT_TIMELINE_FILL = auto()
-    EDIT_REDO = auto()
-    EDIT_UNDO = auto()
-    FILE_EXPORT_JSON = auto()
-    FILE_EXPORT_IMG = auto()
-    FILE_NEW = auto()
-    FILE_OPEN = auto()
-    FILE_SAVE = auto()
-    FILE_SAVE_AS = auto()
-    HIERARCHY_CREATE_CHILD = auto()
-    HIERARCHY_DECREASE_LEVEL = auto()
-    HIERARCHY_GROUP = auto()
-    HIERARCHY_INCREASE_LEVEL = auto()
-    HIERARCHY_MERGE = auto()
-    IMPORT_MUSICXML = auto()
-    IMPORT_CSV_PDF_TIMELINE = auto()
-    IMPORT_CSV_HARMONY_TIMELINE = auto()
-    IMPORT_CSV_HIERARCHY_TIMELINE = auto()
-    IMPORT_CSV_MARKER_TIMELINE = auto()
-    IMPORT_CSV_BEAT_TIMELINE = auto()
-    TIMELINE_ELEMENT_PASTE_COMPLETE = auto()
-    HIERARCHY_SPLIT = auto()
-    MARKER_ADD = auto()
-    MEDIA_LOAD_LOCAL = auto()
-    MEDIA_STOP = auto()
-    METADATA_WINDOW_OPEN = auto()
-    SCORE_ANNOTATION_ADD = auto()
-    SCORE_ANNOTATION_DELETE = auto()
-    SCORE_ANNOTATION_EDIT = auto()
-    SCORE_ANNOTATION_FONT_DEC = auto()
-    SCORE_ANNOTATION_FONT_INC = auto()
-    SETTINGS_WINDOW_OPEN = auto()
-    TIMELINES_CLEAR = auto()
-    TIMELINES_ADD_BEAT_TIMELINE = auto()
-    TIMELINES_ADD_HIERARCHY_TIMELINE = auto()
-    TIMELINES_ADD_MARKER_TIMELINE = auto()
-    TIMELINES_ADD_PDF_TIMELINE = auto()
-    TIMELINES_ADD_AUDIOWAVE_TIMELINE = auto()
-    TIMELINES_ADD_SCORE_TIMELINE = auto()
-    TIMELINE_ELEMENT_COLOR_SET = auto()
-    TIMELINE_ELEMENT_COLOR_RESET = auto()
-    TIMELINE_ELEMENT_COPY = auto()
-    TIMELINE_ELEMENT_DELETE = auto()
-    TIMELINE_ELEMENT_INSPECT = auto()
-    TIMELINE_ELEMENT_PASTE = auto()
-    TIMELINE_ELEMENT_EXPORT_AUDIO = auto()
-    TIMELINE_HEIGHT_SET = auto()
-    TIMELINE_NAME_SET = auto()
-    VIEW_ZOOM_IN = auto()
-    VIEW_ZOOM_OUT = auto()
-    WEBSITE_HELP_OPEN = auto()
-    WINDOW_MANAGE_TIMELINES_OPEN = auto()
-
-
 @dataclass
 class ActionParams:
     request: Optional[Post]
@@ -95,24 +19,6 @@ class ActionParams:
     shortcut: str
     args: Optional[Any] = None
     kwargs: Optional[dict[str, Any]] = None
-
-
-def setup_actions(parent: QMainWindow):
-    for action in TiliaAction:
-        qaction = setup_action(action, parent)
-        _taction_to_qaction[action] = qaction
-
-
-def setup_action(action: TiliaAction, parent: QMainWindow):
-    params = taction_to_params[action]
-    qaction = QAction(parent)
-    set_text(qaction, params.text)
-    set_request(qaction, params.request, params.args, params.kwargs)
-    set_action_icon(qaction, params.icon)
-    qaction.setIconVisibleInMenu(False)
-    set_shortcut(qaction, params.shortcut)
-    set_tooltip(qaction, params.text, params.shortcut)
-    return qaction
 
 
 def get_img_path(basename: str):
@@ -161,256 +67,371 @@ def set_text(action: QAction, text: str):
     action.setText(text)
 
 
-def set_tooltip(action: QAction, text: str, shortcut: str):
+_name_to_action = {}
+
+
+def register_action(
+    parent, name, request, text, shortcut, icon, args=None, kwargs=None
+):
+    action = QAction(parent)
+    action.setText(text)
     action.setToolTip(f"{text} ({shortcut})" if shortcut else text)
+    set_shortcut(action, shortcut)
+    set_action_icon(action, icon)
+    action.setIconVisibleInMenu(False)
+    args = args or []
+    kwargs = kwargs or {}
+    action.triggered.connect(_get_request_callback(request, args, kwargs))
+    _name_to_action[name] = action
 
 
-taction_to_params = {
-    TiliaAction.APP_CLOSE: ActionParams(Post.APP_CLOSE, "Close tilia", "Close", ""),
-    TiliaAction.BEAT_ADD: ActionParams(
-        Post.BEAT_ADD, "Add beat at current position", "beat_add", "b"
+def get_qaction(name):
+    try:
+        return _name_to_action[name]
+    except KeyError:
+        raise ValueError(f"Unknown action: {name}")
+
+
+def setup_actions(parent: QMainWindow):
+    for action_params in default_actions:
+        register_action(parent, *action_params)
+
+
+# def setup_action(action: TiliaAction, parent: QMainWindow):
+#     params = taction_to_params[action]
+#     qaction = QAction(parent)
+#     set_text(qaction, params.text)
+#     set_request(qaction, params.request, params.args, params.kwargs)
+#     set_action_icon(qaction, params.icon)
+#     qaction.setIconVisibleInMenu(False)
+#     set_shortcut(qaction, params.shortcut)
+#     set_tooltip(qaction, params.text, params.shortcut)
+#     return qaction
+
+default_actions = [
+    ("app_close", Post.APP_CLOSE, "Close tilia", "", "Close"),
+    ("beat_add", Post.BEAT_ADD, "Add beat at current position", "b", "beat_add"),
+    ("beat_distribute", Post.BEAT_DISTRIBUTE, "Distribute", "", "beat_distribute"),
+    (
+        "beat_set_measure_number",
+        Post.BEAT_SET_MEASURE_NUMBER,
+        "Set measure number",
+        "",
+        "beat_set_number",
     ),
-    TiliaAction.BEAT_DISTRIBUTE: ActionParams(
-        Post.BEAT_DISTRIBUTE, "Distribute", "beat_distribute", ""
+    (
+        "beat_reset_measure_number",
+        Post.BEAT_RESET_MEASURE_NUMBER,
+        "Reset measure number",
+        "",
+        "beat_reset_number",
     ),
-    TiliaAction.BEAT_SET_MEASURE_NUMBER: ActionParams(
-        Post.BEAT_SET_MEASURE_NUMBER, "Set measure number", "beat_set_number", ""
+    (
+        "beat_set_amount_in_measure",
+        Post.BEAT_SET_AMOUNT_IN_MEASURE,
+        "Set beat amount in measure",
+        "",
+        "",
     ),
-    TiliaAction.BEAT_RESET_MEASURE_NUMBER: ActionParams(
-        Post.BEAT_RESET_MEASURE_NUMBER, "Reset measure number", "beat_reset_number", ""
+    ("beat_timeline_fill", Post.BEAT_TIMELINE_FILL, "Fill timeline with beats", "", ""),
+    (
+        "marker_add",
+        Post.MARKER_ADD,
+        "Add marker at current position",
+        "m",
+        "add_marker30",
     ),
-    TiliaAction.BEAT_SET_AMOUNT_IN_MEASURE: ActionParams(
-        Post.BEAT_SET_AMOUNT_IN_MEASURE, "Set beat amount in measure", "", ""
+    (
+        "timeline_element_color_set",
+        Post.TIMELINE_ELEMENT_COLOR_SET,
+        "Change color",
+        "",
+        "",
     ),
-    TiliaAction.BEAT_TIMELINE_FILL: ActionParams(
-        Post.BEAT_TIMELINE_FILL, "Fill timeline with beats", "", ""
+    (
+        "timeline_element_color_reset",
+        Post.TIMELINE_ELEMENT_COLOR_RESET,
+        "Reset color",
+        "",
+        "",
     ),
-    TiliaAction.MARKER_ADD: ActionParams(
-        Post.MARKER_ADD, "Add marker at current position", "add_marker30", "m"
+    (
+        "hierarchy_split",
+        Post.HIERARCHY_SPLIT,
+        "Split at current position",
+        "s",
+        "split30",
     ),
-    TiliaAction.TIMELINE_ELEMENT_COLOR_SET: ActionParams(
-        Post.TIMELINE_ELEMENT_COLOR_SET, "Change color", "", ""
+    ("hierarchy_merge", Post.HIERARCHY_MERGE, "Merge", "e", "merge30"),
+    ("hierarchy_group", Post.HIERARCHY_GROUP, "Group", "g", "group30"),
+    (
+        "hierarchy_increase_level",
+        Post.HIERARCHY_INCREASE_LEVEL,
+        "Move up a level",
+        "Ctrl+Up",
+        "lvlup30",
     ),
-    TiliaAction.TIMELINE_ELEMENT_COLOR_RESET: ActionParams(
-        Post.TIMELINE_ELEMENT_COLOR_RESET, "Reset color", "", ""
+    (
+        "hierarchy_decrease_level",
+        Post.HIERARCHY_DECREASE_LEVEL,
+        "Move down a level",
+        "Ctrl+Down",
+        "lvldwn30",
     ),
-    TiliaAction.HIERARCHY_SPLIT: ActionParams(
-        Post.HIERARCHY_SPLIT, "Split at current position", "split30", "s"
+    (
+        "hierarchy_create_child",
+        Post.HIERARCHY_CREATE_CHILD,
+        "Create child",
+        "",
+        "below30",
     ),
-    TiliaAction.HIERARCHY_MERGE: ActionParams(
-        Post.HIERARCHY_MERGE, "Merge", "merge30", "e"
-    ),
-    TiliaAction.HIERARCHY_GROUP: ActionParams(
-        Post.HIERARCHY_GROUP, "Group", "group30", "g"
-    ),
-    TiliaAction.HIERARCHY_INCREASE_LEVEL: ActionParams(
-        Post.HIERARCHY_INCREASE_LEVEL, "Move up a level", "lvlup30", "Ctrl+Up"
-    ),
-    TiliaAction.HIERARCHY_DECREASE_LEVEL: ActionParams(
-        Post.HIERARCHY_DECREASE_LEVEL, "Move down a level", "lvldwn30", "Ctrl+Down"
-    ),
-    TiliaAction.HIERARCHY_CREATE_CHILD: ActionParams(
-        Post.HIERARCHY_CREATE_CHILD, "Create child", "below30", ""
-    ),
-    TiliaAction.HIERARCHY_ADD_PRE_START: ActionParams(
-        Post.HIERARCHY_ADD_PRE_START, "Add pre-start", "", ""
-    ),
-    TiliaAction.HIERARCHY_ADD_POST_END: ActionParams(
-        Post.HIERARCHY_ADD_POST_END, "Add post-end", "", ""
-    ),
-    TiliaAction.TIMELINE_ELEMENT_PASTE_COMPLETE: ActionParams(
+    ("hierarchy_add_pre_start", Post.HIERARCHY_ADD_PRE_START, "Add pre-start", "", ""),
+    ("hierarchy_add_post_end", Post.HIERARCHY_ADD_POST_END, "Add post-end", "", ""),
+    (
+        "timeline_element_paste_complete",
         Post.TIMELINE_ELEMENT_PASTE_COMPLETE,
         "Pas&te complete",
-        "paste_with_data30",
         "Ctrl+Shift+V",
+        "paste_with_data30",
     ),
-    TiliaAction.HARMONY_ADD: ActionParams(
-        Post.HARMONY_ADD, "Add harmony", "harmony_add", "h"
-    ),
-    TiliaAction.MODE_ADD: ActionParams(Post.MODE_ADD, "Add mode", "mode_add", ""),
-    TiliaAction.HARMONY_DISPLAY_AS_ROMAN_NUMERAL: ActionParams(
+    ("harmony_add", Post.HARMONY_ADD, "Add harmony", "h", "harmony_add"),
+    ("mode_add", Post.MODE_ADD, "Add mode", "", "mode_add"),
+    (
+        "harmony_display_as_roman_numeral",
         Post.HARMONY_DISPLAY_AS_ROMAN_NUMERAL,
         "Display as roman numeral",
-        "harmony_display_roman",
         "",
+        "harmony_display_roman",
     ),
-    TiliaAction.HARMONY_DISPLAY_AS_CHORD_SYMBOL: ActionParams(
+    (
+        "harmony_display_as_chord_symbol",
         Post.HARMONY_DISPLAY_AS_CHORD_SYMBOL,
         "Display as chord symbol",
+        "",
         "harmony_display_chord",
+    ),
+    (
+        "harmony_timeline_show_keys",
+        Post.HARMONY_TIMELINE_SHOW_KEYS,
+        "Show keys",
+        "",
         "",
     ),
-    TiliaAction.HARMONY_TIMELINE_SHOW_KEYS: ActionParams(
-        Post.HARMONY_TIMELINE_SHOW_KEYS, "Show keys", "", ""
+    (
+        "harmony_timeline_hide_keys",
+        Post.HARMONY_TIMELINE_HIDE_KEYS,
+        "Hide keys",
+        "",
+        "",
     ),
-    TiliaAction.HARMONY_TIMELINE_HIDE_KEYS: ActionParams(
-        Post.HARMONY_TIMELINE_HIDE_KEYS, "Hide keys", "", ""
+    ("file_new", Post.REQUEST_FILE_NEW, "&New...", "Ctrl+N", ""),
+    ("file_open", Post.FILE_OPEN, "&Open...", "Ctrl+O", ""),
+    ("file_save", Post.FILE_SAVE, "&Save", "Ctrl+S", ""),
+    ("file_save_as", Post.FILE_SAVE_AS, "Save &As...", "Ctrl+Shift+S", ""),
+    ("file_export_json", Post.FILE_EXPORT, "&JSON", "", ""),
+    ("file_export_img", Post.FILE_EXPORT, "&Image", "", ""),
+    ("media_load_local", Post.UI_MEDIA_LOAD_LOCAL, "&Local...", "Ctrl+Shift+L", ""),
+    ("media_load_youtube", Post.UI_MEDIA_LOAD_YOUTUBE, "&YouTube...", "", ""),
+    ("metadata_window_open", Post.WINDOW_OPEN, "Edit &Metadata...", "", ""),
+    ("settings_window_open", Post.WINDOW_OPEN, "&Settings...", "", ""),
+    (
+        "autosaves_folder_open",
+        Post.AUTOSAVES_FOLDER_OPEN,
+        "Open autosa&ves folder...",
+        "",
+        "",
     ),
-    TiliaAction.FILE_NEW: ActionParams(Post.REQUEST_FILE_NEW, "&New...", "", "Ctrl+N"),
-    TiliaAction.FILE_OPEN: ActionParams(Post.FILE_OPEN, "&Open...", "", "Ctrl+O"),
-    TiliaAction.FILE_SAVE: ActionParams(Post.FILE_SAVE, "&Save", "", "Ctrl+S"),
-    TiliaAction.FILE_SAVE_AS: ActionParams(
-        Post.FILE_SAVE_AS, "Save &As...", "", "Ctrl+Shift+S"
+    ("edit_redo", Post.EDIT_REDO, "&Redo", "Ctrl+Shift+Z", ""),
+    ("edit_undo", Post.EDIT_UNDO, "&Undo", "Ctrl+Z", ""),
+    ("window_manage_timelines_open", Post.WINDOW_OPEN, "&Manage...", "", ""),
+    ("timelines_add_hierarchy_timeline", Post.TIMELINE_ADD, "&Hierarchy", "", ""),
+    ("timelines_add_marker_timeline", Post.TIMELINE_ADD, "&Marker", "", ""),
+    ("timelines_add_beat_timeline", Post.TIMELINE_ADD, "&Beat", "", ""),
+    ("timelines_add_harmony_timeline", Post.TIMELINE_ADD, "Ha&rmony", "", ""),
+    ("timelines_add_pdf_timeline", Post.TIMELINE_ADD, "&PDF", "", ""),
+    ("timelines_add_audiowave_timeline", Post.TIMELINE_ADD, "&AudioWave", "", ""),
+    ("timelines_add_score_timeline", Post.TIMELINE_ADD, "&Score", "", ""),
+    ("timelines_clear", Post.TIMELINES_CLEAR, "Clear all", "", ""),
+    ("timeline_element_inspect", Post.TIMELINE_ELEMENT_INSPECT, "Inspect", "", ""),
+    ("timeline_element_edit", Post.TIMELINE_ELEMENT_INSPECT, "&Edit", "", ""),
+    ("timeline_element_copy", Post.TIMELINE_ELEMENT_COPY, "&Copy", "Ctrl+C", ""),
+    ("timeline_element_paste", Post.TIMELINE_ELEMENT_PASTE, "&Paste", "Ctrl+V", ""),
+    (
+        "timeline_element_export_audio",
+        Post.TIMELINE_ELEMENT_EXPORT_AUDIO,
+        "Export to audio",
+        "",
+        "",
     ),
-    TiliaAction.FILE_EXPORT_JSON: ActionParams(
-        Post.FILE_EXPORT, "&JSON", "", "", (None, "json")
+    ("timeline_element_delete", Post.TIMELINE_ELEMENT_DELETE, "Delete", "Delete", ""),
+    ("timeline_name_set", Post.TIMELINE_NAME_SET, "Change name", "", ""),
+    ("timeline_height_set", Post.TIMELINE_HEIGHT_SET, "Change height", "", ""),
+    ("view_zoom_in", Post.VIEW_ZOOM_IN, "Zoom &In", "Ctrl++", ""),
+    ("view_zoom_out", Post.VIEW_ZOOM_OUT, "Zoom &Out", "Ctrl+-", ""),
+    ("about_window_open", Post.WINDOW_OPEN, "&About...", "", ""),
+    ("media_stop", Post.PLAYER_STOP, "Stop", "", "stop15"),
+    ("website_help_open", Post.WEBSITE_HELP_OPEN, "&Help...", "", ""),
+    ("pdf_marker_add", Post.PDF_MARKER_ADD, "Add PDF marker", "p", "pdf_add"),
+    ("import_csv_harmony_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
+    ("import_csv_pdf_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
+    ("import_csv_hierarchy_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
+    ("import_csv_marker_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
+    ("import_csv_beat_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
+    ("import_musicxml", Post.IMPORT_MUSICXML, "&Import from musicxml file", "", ""),
+    ("score_annotation_add", None, "Add Annotation (Return)", "", "annotation_add"),
+    (
+        "score_annotation_delete",
+        None,
+        "Delete Annotation (Delete)",
+        "",
+        "annotation_delete",
     ),
-    TiliaAction.FILE_EXPORT_IMG: ActionParams(
-        Post.FILE_EXPORT, "&Image", "", "", (None, "img")
+    (
+        "score_annotation_edit",
+        None,
+        "Edit Annotation",
+        "Shift+Return",
+        "annotation_edit",
     ),
-    TiliaAction.MEDIA_LOAD_LOCAL: ActionParams(
-        Post.UI_MEDIA_LOAD_LOCAL, "&Local...", "", "Ctrl+Shift+L"
+    (
+        "score_annotation_font_dec",
+        None,
+        "Decrease Annotation Font",
+        "Shift+Down",
+        "annotation_font_dec",
     ),
-    TiliaAction.MEDIA_LOAD_YOUTUBE: ActionParams(
-        Post.UI_MEDIA_LOAD_YOUTUBE, "&YouTube...", "", ""
+    (
+        "score_annotation_font_inc",
+        None,
+        "Increase Annotation Font",
+        "Shift+Up",
+        "annotation_font_inc",
     ),
-    TiliaAction.METADATA_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_OPEN, "Edit &Metadata...", "", "", (WindowKind.MEDIA_METADATA,)
+    ("file_export_json", Post.FILE_EXPORT, "&JSON", "", "", (None, "json")),
+    ("file_export_img", Post.FILE_EXPORT, "&Image", "", "", (None, "img")),
+    (
+        "metadata_window_open",
+        Post.WINDOW_OPEN,
+        "Edit &Metadata...",
+        "",
+        "",
+        (WindowKind.MEDIA_METADATA,),
     ),
-    TiliaAction.SETTINGS_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_OPEN, "&Settings...", "", "", (WindowKind.SETTINGS,)
+    (
+        "settings_window_open",
+        Post.WINDOW_OPEN,
+        "&Settings...",
+        "",
+        "",
+        (WindowKind.SETTINGS,),
     ),
-    TiliaAction.AUTOSAVES_FOLDER_OPEN: ActionParams(
-        Post.AUTOSAVES_FOLDER_OPEN, "Open autosa&ves folder...", "", ""
+    (
+        "window_manage_timelines_open",
+        Post.WINDOW_OPEN,
+        "&Manage...",
+        "",
+        "",
+        (WindowKind.MANAGE_TIMELINES,),
     ),
-    TiliaAction.EDIT_REDO: ActionParams(Post.EDIT_REDO, "&Redo", "", "Ctrl+Shift+Z"),
-    TiliaAction.EDIT_UNDO: ActionParams(Post.EDIT_UNDO, "&Undo", "", "Ctrl+Z"),
-    TiliaAction.WINDOW_MANAGE_TIMELINES_OPEN: ActionParams(
-        Post.WINDOW_OPEN, "&Manage...", "", "", (WindowKind.MANAGE_TIMELINES,)
+    (
+        "timelines_add_hierarchy_timeline",
+        Post.TIMELINE_ADD,
+        "&Hierarchy",
+        "",
+        "",
+        (TimelineKind.HIERARCHY_TIMELINE,),
     ),
-    TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "&Hierarchy", "", "", (TimelineKind.HIERARCHY_TIMELINE,)
+    (
+        "timelines_add_marker_timeline",
+        Post.TIMELINE_ADD,
+        "&Marker",
+        "",
+        "",
+        (TimelineKind.MARKER_TIMELINE,),
     ),
-    TiliaAction.TIMELINES_ADD_MARKER_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "&Marker", "", "", (TimelineKind.MARKER_TIMELINE,)
+    (
+        "timelines_add_beat_timeline",
+        Post.TIMELINE_ADD,
+        "&Beat",
+        "",
+        "",
+        (TimelineKind.BEAT_TIMELINE,),
     ),
-    TiliaAction.TIMELINES_ADD_BEAT_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "&Beat", "", "", (TimelineKind.BEAT_TIMELINE,)
+    (
+        "timelines_add_harmony_timeline",
+        Post.TIMELINE_ADD,
+        "Ha&rmony",
+        "",
+        "",
+        (TimelineKind.HARMONY_TIMELINE,),
     ),
-    TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "Ha&rmony", "", "", (TimelineKind.HARMONY_TIMELINE,)
+    (
+        "timelines_add_pdf_timeline",
+        Post.TIMELINE_ADD,
+        "&PDF",
+        "",
+        "",
+        (TimelineKind.PDF_TIMELINE,),
     ),
-    TiliaAction.TIMELINES_ADD_PDF_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "&PDF", "", "", (TimelineKind.PDF_TIMELINE,)
+    (
+        "timelines_add_audiowave_timeline",
+        Post.TIMELINE_ADD,
+        "&AudioWave",
+        "",
+        "",
+        (TimelineKind.AUDIOWAVE_TIMELINE,),
     ),
-    TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "&AudioWave", "", "", (TimelineKind.AUDIOWAVE_TIMELINE,)
+    (
+        "timelines_add_score_timeline",
+        Post.TIMELINE_ADD,
+        "&Score",
+        "",
+        "",
+        (TimelineKind.SCORE_TIMELINE,),
     ),
-    TiliaAction.TIMELINES_ADD_SCORE_TIMELINE: ActionParams(
-        Post.TIMELINE_ADD, "&Score", "", "", (TimelineKind.SCORE_TIMELINE,)
-    ),
-    TiliaAction.TIMELINES_CLEAR: ActionParams(
-        Post.TIMELINES_CLEAR, "Clear all", "", ""
-    ),
-    TiliaAction.TIMELINE_ELEMENT_INSPECT: ActionParams(
-        Post.TIMELINE_ELEMENT_INSPECT, "Inspect", "", ""
-    ),
-    TiliaAction.TIMELINE_ELEMENT_EDIT: ActionParams(
-        Post.TIMELINE_ELEMENT_INSPECT, "&Edit", "", ""
-    ),
-    TiliaAction.TIMELINE_ELEMENT_COPY: ActionParams(
-        Post.TIMELINE_ELEMENT_COPY, "&Copy", "", "Ctrl+C"
-    ),
-    TiliaAction.TIMELINE_ELEMENT_PASTE: ActionParams(
-        Post.TIMELINE_ELEMENT_PASTE, "&Paste", "", "Ctrl+V"
-    ),
-    TiliaAction.TIMELINE_ELEMENT_EXPORT_AUDIO: ActionParams(
-        Post.TIMELINE_ELEMENT_EXPORT_AUDIO, "Export to audio", "", ""
-    ),
-    TiliaAction.TIMELINE_ELEMENT_DELETE: ActionParams(
-        Post.TIMELINE_ELEMENT_DELETE, "Delete", "", "Delete"
-    ),
-    TiliaAction.TIMELINE_NAME_SET: ActionParams(
-        Post.TIMELINE_NAME_SET, "Change name", "", ""
-    ),
-    TiliaAction.TIMELINE_HEIGHT_SET: ActionParams(
-        Post.TIMELINE_HEIGHT_SET, "Change height", "", ""
-    ),
-    TiliaAction.VIEW_ZOOM_IN: ActionParams(Post.VIEW_ZOOM_IN, "Zoom &In", "", "Ctrl++"),
-    TiliaAction.VIEW_ZOOM_OUT: ActionParams(
-        Post.VIEW_ZOOM_OUT, "Zoom &Out", "", "Ctrl+-"
-    ),
-    TiliaAction.ABOUT_WINDOW_OPEN: ActionParams(
-        Post.WINDOW_OPEN, "&About...", "", "", (WindowKind.ABOUT,)
-    ),
-    TiliaAction.MEDIA_STOP: ActionParams(Post.PLAYER_STOP, "Stop", "stop15", ""),
-    TiliaAction.WEBSITE_HELP_OPEN: ActionParams(
-        Post.WEBSITE_HELP_OPEN, "&Help...", "", ""
-    ),
-    TiliaAction.PDF_MARKER_ADD: ActionParams(
-        Post.PDF_MARKER_ADD, "Add PDF marker", "pdf_add", "p"
-    ),
-    TiliaAction.IMPORT_CSV_HARMONY_TIMELINE: ActionParams(
+    ("about_window_open", Post.WINDOW_OPEN, "&About...", "", "", (WindowKind.ABOUT,)),
+    (
+        "import_csv_harmony_timeline",
         Post.IMPORT_CSV,
         "&Import from CSV file",
         "",
         "",
         (TimelineKind.HARMONY_TIMELINE,),
     ),
-    TiliaAction.IMPORT_CSV_PDF_TIMELINE: ActionParams(
-        Post.IMPORT_CSV, "&Import from CSV file", "", "", (TimelineKind.PDF_TIMELINE,)
+    (
+        "import_csv_pdf_timeline",
+        Post.IMPORT_CSV,
+        "&Import from CSV file",
+        "",
+        "",
+        (TimelineKind.PDF_TIMELINE,),
     ),
-    TiliaAction.IMPORT_CSV_HIERARCHY_TIMELINE: ActionParams(
+    (
+        "import_csv_hierarchy_timeline",
         Post.IMPORT_CSV,
         "&Import from CSV file",
         "",
         "",
         (TimelineKind.HIERARCHY_TIMELINE,),
     ),
-    TiliaAction.IMPORT_CSV_MARKER_TIMELINE: ActionParams(
+    (
+        "import_csv_marker_timeline",
         Post.IMPORT_CSV,
         "&Import from CSV file",
         "",
         "",
         (TimelineKind.MARKER_TIMELINE,),
     ),
-    TiliaAction.IMPORT_CSV_BEAT_TIMELINE: ActionParams(
-        Post.IMPORT_CSV, "&Import from CSV file", "", "", (TimelineKind.BEAT_TIMELINE,)
+    (
+        "import_csv_beat_timeline",
+        Post.IMPORT_CSV,
+        "&Import from CSV file",
+        "",
+        "",
+        (TimelineKind.BEAT_TIMELINE,),
     ),
-    TiliaAction.IMPORT_MUSICXML: ActionParams(
-        Post.IMPORT_MUSICXML, "&Import from musicxml file", "", ""
-    ),
-    TiliaAction.SCORE_ANNOTATION_ADD: ActionParams(
-        None, "Add Annotation (Return)", "annotation_add", ""
-    ),
-    TiliaAction.SCORE_ANNOTATION_DELETE: ActionParams(
-        None, "Delete Annotation (Delete)", "annotation_delete", ""
-    ),
-    TiliaAction.SCORE_ANNOTATION_EDIT: ActionParams(
-        None, "Edit Annotation", "annotation_edit", "Shift+Return"
-    ),
-    TiliaAction.SCORE_ANNOTATION_FONT_DEC: ActionParams(
-        None, "Decrease Annotation Font", "annotation_font_dec", "Shift+Down"
-    ),
-    TiliaAction.SCORE_ANNOTATION_FONT_INC: ActionParams(
-        None, "Increase Annotation Font", "annotation_font_inc", "Shift+Up"
-    ),
-}
-
-_taction_to_qaction: dict[TiliaAction, QAction] = {}  # will be populated on startup
+]
 
 
-class Command:
-    def __init__(self, name: str, target_type: str, selector: str, args: list[Any], kwargs: dict[str, Any], description: str, shortcut: str):
-        self.name = name
-        self.selector = selector
-        self.target = Any
-        self.args = args or []
-        self.kwargs = kwargs or {}
-        self.description = description
-        self.shortcut = shortcut
-        self.qaction = QAction()
-        self.qaction.setText(description)
-        if shortcut:
-            self.qaction.setShortcut(QKeySequence(shortcut))
-
-Command.from_name("score annotation edit")
-
-
-
-def get_qaction(tilia_action: TiliaAction):
-    return _taction_to_qaction[tilia_action]
-
-
-def trigger(tilia_action: TiliaAction):
-    _taction_to_qaction[tilia_action].trigger()
+def trigger(name: str):
+    _name_to_action[name].trigger()

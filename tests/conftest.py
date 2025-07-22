@@ -26,7 +26,7 @@ from tilia.requests import (
     get,
     listen,
 )
-from tilia.ui.actions import TiliaAction, setup_actions
+from tilia.ui.actions import setup_actions
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.ui.cli.ui import CLI
 from tilia.ui.windows import WindowKind
@@ -280,13 +280,14 @@ class UserActionManager:
 
     def __init__(self):
         self.action_to_trigger_count = {}
-        for action in tilia_actions_module.TiliaAction:
+        for action_params in tilia_actions_module.default_actions:
+            action = action_params[0]
             qaction = tilia_actions_module.get_qaction(action)
             qaction.triggered.connect(
                 functools.partial(self._increment_trigger_count, action)
             )
 
-    def trigger(self, action: TiliaAction):
+    def trigger(self, action: str):
         tilia_actions_module.trigger(action)
         self._increment_trigger_count(action)
 

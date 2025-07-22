@@ -15,7 +15,6 @@ from tilia.timelines.timeline_kinds import (
     TimelineKind,
 )
 from tilia.ui import actions
-from tilia.ui.actions import TiliaAction
 from tilia.ui.enums import ScrollType
 from tilia.ui.timelines.base.request_handlers import TimelineRequestHandler
 from tilia.ui.timelines.base.timeline import TimelineUI
@@ -25,11 +24,11 @@ from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 
 ADD_TIMELINE_ACTIONS = [
-    TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
-    TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
-    TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
-    TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
-    TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE,
+    "timelines_add_hierarchy_timeline",
+    "timelines_add_beat_timeline",
+    "timelines_add_harmony_timeline",
+    "timelines_add_marker_timeline",
+    "timelines_add_audiowave_timeline",
 ]
 
 
@@ -45,11 +44,11 @@ class TestTimelineUICreation:
 
     def test_create_multiple(self, tilia_state, tluis, user_actions):
         create_actions = [
-            TiliaAction.TIMELINES_ADD_HARMONY_TIMELINE,
-            TiliaAction.TIMELINES_ADD_MARKER_TIMELINE,
-            TiliaAction.TIMELINES_ADD_BEAT_TIMELINE,
-            TiliaAction.TIMELINES_ADD_HIERARCHY_TIMELINE,
-            TiliaAction.TIMELINES_ADD_AUDIOWAVE_TIMELINE,
+            "timelines_add_harmony_timeline",
+            "timelines_add_marker_timeline",
+            "timelines_add_beat_timeline",
+            "timelines_add_hierarchy_timeline",
+            "timelines_add_audiowave_timeline",
         ]
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
@@ -69,7 +68,7 @@ class TestTimelineUICreation:
         ):
             with Serve(Get.FROM_USER_FLOAT, (True, 10)):
                 with Serve(Get.FROM_USER_STRING, (True, "")):
-                    user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+                    user_actions.trigger("timelines_add_marker_timeline")
         assert tilia_state.duration == 10
         assert len(tluis) == 1
 
@@ -83,7 +82,7 @@ class TestTimelineUICreation:
         ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
                 with Serve(Get.FROM_USER_STRING, (True, "")):
-                    user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+                    user_actions.trigger("timelines_add_marker_timeline")
         assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
         assert len(tluis) == 1
 
@@ -96,7 +95,7 @@ class TestTimelineUICreation:
             (True, AddTimelineWithoutMedia.Result.SET_DURATION),
         ):
             with Serve(Get.FROM_USER_FLOAT, (False, 10)):
-                user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+                user_actions.trigger("timelines_add_marker_timeline")
         assert tilia_state.duration == 0
         assert len(tluis) == 0
 
@@ -109,7 +108,7 @@ class TestTimelineUICreation:
             (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA),
         ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (False, EXAMPLE_MEDIA_PATH)):
-                user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+                user_actions.trigger("timelines_add_marker_timeline")
         assert tilia_state.duration == 0
         assert len(tluis) == 0
 
@@ -121,7 +120,7 @@ class TestTimelineUICreation:
 
     def test_delete(self, tls, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+            user_actions.trigger("timelines_add_marker_timeline")
 
         tls.delete_timeline(tls[0])  # this should be an user action
         assert tls.is_empty
@@ -277,14 +276,14 @@ class TestSeek:
     @pytest.mark.parametrize(
         "tlui,request_to_serve, add_request",
         [
-            ("marker", None, TiliaAction.MARKER_ADD),
+            ("marker", None, "marker_add"),
             (
                 "harmony",
                 (
                     Get.FROM_USER_MODE_PARAMS,
                     (True, {"step": 0, "accidental": 0, "type": "major"}),
                 ),
-                TiliaAction.MODE_ADD,
+                "mode_add",
             ),
             (
                 "harmony",
@@ -292,9 +291,9 @@ class TestSeek:
                     Get.FROM_USER_HARMONY_PARAMS,
                     (True, {"step": 0, "accidental": 0, "quality": "major"}),
                 ),
-                TiliaAction.HARMONY_ADD,
+                "harmony_add",
             ),
-            ("beat", None, TiliaAction.BEAT_ADD),
+            ("beat", None, "beat_add"),
         ],
         indirect=["tlui"],
     )
@@ -361,7 +360,7 @@ class TestLoop:
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 50)
 
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+        actions.trigger("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_neighbouring_passes(self):
@@ -389,7 +388,7 @@ class TestLoop:
 
         self.tlui.deselect_all_elements()
         self.tlui.select_element(self.tlui[0])
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+        actions.trigger("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (50, 100)
 
     def test_loop_hierarchy_delete_middle_cancels(self):
@@ -402,7 +401,7 @@ class TestLoop:
 
         self.tlui.deselect_all_elements()
         self.tlui.select_element(self.tlui[1])
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_DELETE)
+        actions.trigger("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_merge_split(self):
@@ -412,12 +411,12 @@ class TestLoop:
         assert get(Get.LOOP_TIME) == (10, 20)
 
         with Serve(Get.MEDIA_CURRENT_TIME, 15):
-            actions.trigger(TiliaAction.HIERARCHY_SPLIT)
+            actions.trigger("hierarchy_split")
         assert get(Get.LOOP_TIME) == (10, 20)
 
         self.tlui.deselect_all_elements()
         self.tlui.select_all_elements()
-        actions.trigger(TiliaAction.HIERARCHY_MERGE)
+        actions.trigger("hierarchy_merge")
         assert get(Get.LOOP_TIME) == (10, 20)
 
     def test_loop_undo_manager_cancels(self):
@@ -449,7 +448,7 @@ class TestRequests:
             get_method_patch_target(MarkerUIRequestHandler.on_add),
             side_effect=on_add_patch,
         ):
-            user_actions.trigger(TiliaAction.MARKER_ADD)
+            user_actions.trigger("marker_add")
 
         assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)
 
@@ -466,7 +465,7 @@ class TestRequests:
             get_method_patch_target(TimelineUIsRequestHandler.on_timeline_add),
             side_effect=on_timeline_add_patch,
         ):
-            user_actions.trigger(TiliaAction.TIMELINES_ADD_MARKER_TIMELINE)
+            user_actions.trigger("timelines_add_marker_timeline")
 
         assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)
 
@@ -486,6 +485,6 @@ class TestRequests:
             side_effect=on_timeline_data_set_patch,
         ):
             with Serve(Get.FROM_USER_STRING, ("new name", True)):
-                user_actions.trigger(TiliaAction.TIMELINE_NAME_SET)
+                user_actions.trigger("timeline_name_set")
 
         assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)

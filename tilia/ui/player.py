@@ -9,7 +9,6 @@ from PyQt6.QtCore import Qt
 
 from tilia.dirs import IMG_DIR
 from tilia.ui import actions
-from tilia.ui.actions import TiliaAction
 from tilia.ui.format import format_media_time
 from tilia.requests import Post, post, listen, stop_listening_to_all, get, Get
 
@@ -173,7 +172,7 @@ class PlayerToolbar(QToolBar):
         self.addAction(self.play_toggle_action)
 
     def add_stop_button(self):
-        self.stop_action = actions.get_qaction(TiliaAction.MEDIA_STOP)
+        self.stop_action = actions.get_qaction("media_stop")
         self.tooltipped_widgets[self.stop_action] = "Stop"
         self.addAction(self.stop_action)
 

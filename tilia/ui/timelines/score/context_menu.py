@@ -1,4 +1,3 @@
-from tilia.ui.actions import TiliaAction
 from tilia.ui.menus import MenuItemKind
 from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 
@@ -6,13 +5,13 @@ from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 class NoteContextMenu(TimelineUIElementContextMenu):
     name = "Note"
     items = [
-        (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_INSPECT),
+        (MenuItemKind.ACTION, "timeline_element_inspect"),
         (MenuItemKind.SEPARATOR, None),
-        (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_COLOR_SET),
-        (MenuItemKind.ACTION, TiliaAction.TIMELINE_ELEMENT_COLOR_RESET),
+        (MenuItemKind.ACTION, "timeline_element_color_set"),
+        (MenuItemKind.ACTION, "timeline_element_color_reset"),
     ]
 
 
 class ScoreTimelineUIContextMenu(TimelineUIElementContextMenu):
     name = "Beat timeline"
-    items = [(MenuItemKind, TiliaAction.TIMELINE_NAME_SET)]
+    items = [(MenuItemKind, "timeline_name_set")]

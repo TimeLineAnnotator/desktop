@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtSvg import QSvgRenderer
 
-from tilia.ui.actions import TiliaAction, get_qaction
+from tilia.ui.actions import get_qaction
 
 from tilia.ui.smooth_scroll import smooth, setup_smooth
 from tilia.ui.windows.view_window import ViewDockWidget
@@ -105,11 +105,11 @@ class SvgViewer(ViewDockWidget):
             return button
 
         actions = [
-            (TiliaAction.SCORE_ANNOTATION_ADD, self.annotation_add),
-            (TiliaAction.SCORE_ANNOTATION_EDIT, self.annotation_edit),
-            (TiliaAction.SCORE_ANNOTATION_DELETE, self.annotation_delete),
-            (TiliaAction.SCORE_ANNOTATION_FONT_INC, self.annotation_font_inc),
-            (TiliaAction.SCORE_ANNOTATION_FONT_DEC, self.annotation_font_dec),
+            ("score_annotation_add", self.annotation_add),
+            ("score_annotation_edit", self.annotation_edit),
+            ("score_annotation_delete", self.annotation_delete),
+            ("score_annotation_font_inc", self.annotation_font_inc),
+            ("score_annotation_font_dec", self.annotation_font_dec),
         ]
 
         v_toolbar = QVBoxLayout()

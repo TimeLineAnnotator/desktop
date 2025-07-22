@@ -5,7 +5,6 @@ import pytest
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tests.ui.timelines.interact import click_timeline_ui
 from tilia.ui import actions
-from tilia.ui.actions import TiliaAction
 
 
 @pytest.fixture
@@ -28,10 +27,10 @@ class TestCopyPaste:
     def test_paste_single_into_timeline(self, tlui, tilia_state):
         _, hui = tlui.create_harmony(0)
         click_harmony_ui(tlui[0])
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        actions.trigger("timeline_element_copy")
         click_timeline_ui(tlui, 10)
         tilia_state.current_time = 50
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        actions.trigger("timeline_element_paste")
         assert len(tlui) == 2
         assert tlui[1].get_data("time") == 50
 
@@ -42,10 +41,10 @@ class TestCopyPaste:
         click_harmony_ui(tlui[0])
         click_harmony_ui(tlui[1], modifier="ctrl")
         click_harmony_ui(tlui[2], modifier="ctrl")
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        actions.trigger("timeline_element_copy")
         click_timeline_ui(tlui, 10)
         tilia_state.current_time = 50
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        actions.trigger("timeline_element_paste")
         assert len(tlui) == 6
         assert tlui[3].get_data("time") == 50
         assert tlui[4].get_data("time") == 60
@@ -76,9 +75,9 @@ class TestCopyPaste:
         )
 
         click_harmony_ui(tlui[0])
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        actions.trigger("timeline_element_copy")
         click_harmony_ui(tlui[1])
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        actions.trigger("timeline_element_paste")
         assert len(tlui) == 2
         for attr, value in attributes_to_copy.items():
             assert tlui[1].get_data(attr) == attributes_to_copy[attr]
@@ -113,10 +112,10 @@ class TestCopyPaste:
 
         for hui in copied_huis:
             click_harmony_ui(hui, modifier="ctrl")
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_COPY)
+        actions.trigger("timeline_element_copy")
         click_timeline_ui(tlui, 90)
         click_harmony_ui(target_hui)
-        actions.trigger(TiliaAction.TIMELINE_ELEMENT_PASTE)
+        actions.trigger("timeline_element_paste")
         assert len(tlui) == 6
         for attr, value in attributes_to_copy.items():
             assert target_hui.get_data(attr) == attributes_to_copy[attr]
