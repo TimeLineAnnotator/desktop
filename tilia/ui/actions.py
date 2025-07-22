@@ -390,6 +390,24 @@ taction_to_params = {
 _taction_to_qaction: dict[TiliaAction, QAction] = {}  # will be populated on startup
 
 
+class Command:
+    def __init__(self, name: str, target_type: str, selector: str, args: list[Any], kwargs: dict[str, Any], description: str, shortcut: str):
+        self.name = name
+        self.selector = selector
+        self.target = Any
+        self.args = args or []
+        self.kwargs = kwargs or {}
+        self.description = description
+        self.shortcut = shortcut
+        self.qaction = QAction()
+        self.qaction.setText(description)
+        if shortcut:
+            self.qaction.setShortcut(QKeySequence(shortcut))
+
+Command.from_name("score annotation edit")
+
+
+
 def get_qaction(tilia_action: TiliaAction):
     return _taction_to_qaction[tilia_action]
 

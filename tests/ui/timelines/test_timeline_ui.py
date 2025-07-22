@@ -237,6 +237,7 @@ class TestArrowSelection:
         assert not tlui[1].is_selected()
 
 
+
 class TestSetTimelineName:
     def test_set(self, tls, tluis, user_actions):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE, name="change me")
