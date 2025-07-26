@@ -342,8 +342,8 @@ class TestTimelineUIContextMenu:
 
     def test_has_no_move_down_action_when_last(self, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger("timelines_add_marker_timeline")
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
+            user_actions.trigger("timelines.add.marker")
 
         context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1])
 
@@ -353,8 +353,8 @@ class TestTimelineUIContextMenu:
 
     def test_has_no_move_up_action_when_first(self, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger("timelines_add_marker_timeline")
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
+            user_actions.trigger("timelines.add.marker")
 
         context_menu = tluis[0].CONTEXT_MENU_CLASS(tluis[0])
 
@@ -478,7 +478,7 @@ class TestInspect:
 class TestSetTimelineName:
     def test_set(self, user_actions, tluis):
         with Serve(Get.FROM_USER_STRING, (True, "initial name")):
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
 
         with undoable():
             with patch.object(QInputDialog, "getText", return_value=("new name", True)):
@@ -488,7 +488,7 @@ class TestSetTimelineName:
 
     def test_set_to_empty_string(self, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "initial name")):
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
 
         with undoable():
             with patch.object(QInputDialog, "getText", return_value=("", True)):
@@ -514,7 +514,7 @@ class TestMoveInTimelineOrder:
     def test_move_up(self, tluis, user_actions):
         for name in ["1", "2", "3"]:
             with Serve(Get.FROM_USER_STRING, (True, name)):
-                user_actions.trigger("timelines_add_marker_timeline")
+                user_actions.trigger("timelines.add.marker")
 
         context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1])
         action = get_action(context_menu, "Move up")
@@ -530,7 +530,7 @@ class TestMoveInTimelineOrder:
     def test_move_down(self, tluis, user_actions):
         for name in ["1", "2", "3"]:
             with Serve(Get.FROM_USER_STRING, (True, name)):
-                user_actions.trigger("timelines_add_marker_timeline")
+                user_actions.trigger("timelines.add.marker")
 
         context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1])
         action = get_action(context_menu, "Move down")

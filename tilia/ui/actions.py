@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from tilia.dirs import IMG_DIR
 from tilia.requests.post import post, Post
@@ -11,32 +10,8 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.windows import WindowKind
 
 
-@dataclass
-class ActionParams:
-    request: Optional[Post]
-    text: str
-    icon: str
-    shortcut: str
-    args: Optional[Any] = None
-    kwargs: Optional[dict[str, Any]] = None
-
-
 def get_img_path(basename: str):
     return IMG_DIR / f"{basename}.png"
-
-
-def set_request(
-    action: QAction,
-    request: Post | None,
-    args: Optional[Any],
-    kwargs: Optional[dict[str, Any]],
-):
-    if not request:
-        return
-    args = args or []
-    kwargs = kwargs or {}
-    callback = _get_request_callback(request, args, kwargs)
-    action.triggered.connect(callback)
 
 
 def _get_request_callback(request: Post, args: tuple[Any], kwargs: dict[str, Any]):
@@ -53,35 +28,27 @@ def _get_request_callback(request: Post, args: tuple[Any], kwargs: dict[str, Any
     return callback
 
 
-def set_action_icon(action: QAction, icon: str | None):
-    if icon:
-        action.setIcon(QIcon(str(get_img_path(icon))))
+def register_action(
+    parent, name, request, text, shortcut, icon, args=None, kwargs=None, callback=None
+):
+    action = QAction(parent)
 
+    action.setText(text)
+    action.setToolTip(f"{text} ({shortcut})" if shortcut else text)
 
-def set_shortcut(action: QAction, shortcut: str | None):
     if shortcut:
         action.setShortcut(QKeySequence(shortcut))
 
-
-def set_text(action: QAction, text: str):
-    action.setText(text)
-
-
-_name_to_action = {}
-
-
-def register_action(
-    parent, name, request, text, shortcut, icon, args=None, kwargs=None
-):
-    action = QAction(parent)
-    action.setText(text)
-    action.setToolTip(f"{text} ({shortcut})" if shortcut else text)
-    set_shortcut(action, shortcut)
-    set_action_icon(action, icon)
+    if icon:
+        action.setIcon(QIcon(str(get_img_path(icon))))
     action.setIconVisibleInMenu(False)
+
     args = args or []
     kwargs = kwargs or {}
-    action.triggered.connect(_get_request_callback(request, args, kwargs))
+    if not callback:
+        action.triggered.connect(_get_request_callback(request, args, kwargs))
+    else:
+        action.triggered.connect(callback)
     _name_to_action[name] = action
 
 
@@ -97,17 +64,11 @@ def setup_actions(parent: QMainWindow):
         register_action(parent, *action_params)
 
 
-# def setup_action(action: TiliaAction, parent: QMainWindow):
-#     params = taction_to_params[action]
-#     qaction = QAction(parent)
-#     set_text(qaction, params.text)
-#     set_request(qaction, params.request, params.args, params.kwargs)
-#     set_action_icon(qaction, params.icon)
-#     qaction.setIconVisibleInMenu(False)
-#     set_shortcut(qaction, params.shortcut)
-#     set_tooltip(qaction, params.text, params.shortcut)
-#     return qaction
+def trigger(name: str):
+    _name_to_action[name].trigger()
 
+
+_name_to_action = {}
 default_actions = [
     ("app_close", Post.APP_CLOSE, "Close tilia", "", "Close"),
     ("beat_add", Post.BEAT_ADD, "Add beat at current position", "b", "beat_add"),
@@ -244,13 +205,6 @@ default_actions = [
     ("edit_redo", Post.EDIT_REDO, "&Redo", "Ctrl+Shift+Z", ""),
     ("edit_undo", Post.EDIT_UNDO, "&Undo", "Ctrl+Z", ""),
     ("window_manage_timelines_open", Post.WINDOW_OPEN, "&Manage...", "", ""),
-    ("timelines_add_hierarchy_timeline", Post.TIMELINE_ADD, "&Hierarchy", "", ""),
-    ("timelines_add_marker_timeline", Post.TIMELINE_ADD, "&Marker", "", ""),
-    ("timelines_add_beat_timeline", Post.TIMELINE_ADD, "&Beat", "", ""),
-    ("timelines_add_harmony_timeline", Post.TIMELINE_ADD, "Ha&rmony", "", ""),
-    ("timelines_add_pdf_timeline", Post.TIMELINE_ADD, "&PDF", "", ""),
-    ("timelines_add_audiowave_timeline", Post.TIMELINE_ADD, "&AudioWave", "", ""),
-    ("timelines_add_score_timeline", Post.TIMELINE_ADD, "&Score", "", ""),
     ("timelines_clear", Post.TIMELINES_CLEAR, "Clear all", "", ""),
     ("timeline_element_inspect", Post.TIMELINE_ELEMENT_INSPECT, "Inspect", "", ""),
     ("timeline_element_edit", Post.TIMELINE_ELEMENT_INSPECT, "&Edit", "", ""),
@@ -333,62 +287,6 @@ default_actions = [
         "",
         (WindowKind.MANAGE_TIMELINES,),
     ),
-    (
-        "timelines_add_hierarchy_timeline",
-        Post.TIMELINE_ADD,
-        "&Hierarchy",
-        "",
-        "",
-        (TimelineKind.HIERARCHY_TIMELINE,),
-    ),
-    (
-        "timelines_add_marker_timeline",
-        Post.TIMELINE_ADD,
-        "&Marker",
-        "",
-        "",
-        (TimelineKind.MARKER_TIMELINE,),
-    ),
-    (
-        "timelines_add_beat_timeline",
-        Post.TIMELINE_ADD,
-        "&Beat",
-        "",
-        "",
-        (TimelineKind.BEAT_TIMELINE,),
-    ),
-    (
-        "timelines_add_harmony_timeline",
-        Post.TIMELINE_ADD,
-        "Ha&rmony",
-        "",
-        "",
-        (TimelineKind.HARMONY_TIMELINE,),
-    ),
-    (
-        "timelines_add_pdf_timeline",
-        Post.TIMELINE_ADD,
-        "&PDF",
-        "",
-        "",
-        (TimelineKind.PDF_TIMELINE,),
-    ),
-    (
-        "timelines_add_audiowave_timeline",
-        Post.TIMELINE_ADD,
-        "&AudioWave",
-        "",
-        "",
-        (TimelineKind.AUDIOWAVE_TIMELINE,),
-    ),
-    (
-        "timelines_add_score_timeline",
-        Post.TIMELINE_ADD,
-        "&Score",
-        "",
-        "",
-        (TimelineKind.SCORE_TIMELINE,),
-    ),
     ("about_window_open", Post.WINDOW_OPEN, "&About...", "", "", (WindowKind.ABOUT,)),
     (
         "import_csv_harmony_timeline",
@@ -431,7 +329,3 @@ default_actions = [
         (TimelineKind.BEAT_TIMELINE,),
     ),
 ]
-
-
-def trigger(name: str):
-    _name_to_action[name].trigger()

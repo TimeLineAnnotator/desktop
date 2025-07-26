@@ -32,6 +32,18 @@ def get_timeline_kind_from_string(string):
     return TimelineKind(string)
 
 
+def get_timeline_name(kind: TimelineKind) -> str:
+    return kind.name.replace("_TIMELINE", "").lower()
+
+
+def get_timeline_frontend_name(kind: TimelineKind) -> str:
+    name = get_timeline_name(kind)
+    if kind == TimelineKind.PDF_TIMELINE:
+        name = name.upper()
+
+    return name
+
+
 def get_timeline_class_from_kind(kind: TimelineKind) -> type[Timeline]:
     from tilia.timelines.marker.timeline import MarkerTimeline
     from tilia.timelines.beat.timeline import BeatTimeline

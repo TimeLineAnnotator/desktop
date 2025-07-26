@@ -14,7 +14,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 def test_create(tluis, user_actions):
     with Serve(Get.FROM_USER_STRING, (True, "")):
-        user_actions.trigger("timelines_add_score_timeline")
+        user_actions.trigger("timelines.add.score")
 
     assert len(tluis) == 1
 

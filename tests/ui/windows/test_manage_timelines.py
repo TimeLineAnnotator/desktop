@@ -36,9 +36,9 @@ class TestChangeTimelineOrder:
     @pytest.fixture(autouse=True)
     def setup_timelines(self, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger("timelines_add_marker_timeline")
-            user_actions.trigger("timelines_add_marker_timeline")
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
+            user_actions.trigger("timelines.add.marker")
+            user_actions.trigger("timelines.add.marker")
         return list(tls)
 
     def test_increase_ordinal(self, tls, manage_timelines, setup_timelines):

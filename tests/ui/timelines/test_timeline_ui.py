@@ -247,7 +247,7 @@ class TestSetTimelineName:
 
     def test_set_undo(self, tls, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "pure")):
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
         with Serve(Get.FROM_USER_STRING, (True, "tainted")):
             user_actions.trigger("timeline_name_set")
 
@@ -258,7 +258,7 @@ class TestSetTimelineName:
 
     def test_set_redo(self, tls, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "pure")):
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
         with Serve(Get.FROM_USER_STRING, (True, "tainted")):
             user_actions.trigger("timeline_name_set")
 

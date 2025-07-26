@@ -6,6 +6,8 @@ from enum import Enum, auto
 from PyQt6.QtWidgets import QMenu
 from PyQt6.QtGui import QAction
 
+from tilia.timelines import timeline_kinds
+from tilia.timelines.timeline_kinds import get_timeline_name
 from tilia.ui.actions import get_qaction
 from tilia.settings import settings
 from tilia.requests.post import post, Post, listen
@@ -129,15 +131,14 @@ class EditMenu(TiliaMenu):
 
 class AddTimelinesMenu(TiliaMenu):
     menu_title = "&Add"
-    items = [
-        (MenuItemKind.ACTION, "timelines_add_audiowave_timeline"),
-        (MenuItemKind.ACTION, "timelines_add_beat_timeline"),
-        (MenuItemKind.ACTION, "timelines_add_harmony_timeline"),
-        (MenuItemKind.ACTION, "timelines_add_hierarchy_timeline"),
-        (MenuItemKind.ACTION, "timelines_add_marker_timeline"),
-        (MenuItemKind.ACTION, "timelines_add_pdf_timeline"),
-        (MenuItemKind.ACTION, "timelines_add_score_timeline"),
-    ]
+
+    def __init__(self):
+        commands = [
+            f"timelines.add.{get_timeline_name(kind)}"
+            for kind in timeline_kinds.NOT_SLIDER
+        ]
+        self.items = [(MenuItemKind.ACTION, command) for command in commands]
+        super().__init__()
 
 
 class HierarchyMenu(TiliaMenu):

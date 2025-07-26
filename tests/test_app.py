@@ -521,7 +521,7 @@ class TestUndoRedo:
         self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors
     ):
         with Serve(Get.FROM_USER_STRING, (True, "test")):
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
 
         # this will record an invalid state that will raise an exception when
         # we try to restore it
@@ -546,7 +546,7 @@ class TestUndoRedo:
         self, tilia, qtui, user_actions, tluis, tilia_state, tilia_errors
     ):
         with Serve(Get.FROM_USER_STRING, (True, "test")):
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
 
         # this will record an invalid state that will raise an exception when
         # we try to restore it

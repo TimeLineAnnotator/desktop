@@ -25,7 +25,11 @@ from tilia.log import logger
 from tilia.requests import get, Get, serve
 from tilia.requests import listen, Post, post
 from tilia.timelines.base.timeline import Timeline
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind, TimelineKind
+from tilia.timelines.timeline_kinds import (
+    TimelineKind as TlKind,
+    TimelineKind,
+    get_timeline_name,
+)
 from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.enums import ScrollType
@@ -46,6 +50,18 @@ from ..beat import BeatTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from .request_handler import TimelineUIsRequestHandler
+from ...actions import register_action
+from ...dialogs.add_timeline_without_media import AddTimelineWithoutMedia
+
+
+def command_callback(func, *args, **kwargs):
+    def wrapper(*args, **kwargs):
+        success = func(*args, **kwargs)
+
+        if success:
+            post(Post.APP_RECORD_STATE, f"timelines command: {func.__name__}")
+
+    return wrapper
 
 
 class TimelineUIs:
@@ -67,6 +83,7 @@ class TimelineUIs:
 
         self._setup_widgets(main_window)
         self._setup_requests()
+        self._setup_commands()
 
         self._setup_selection_box()
         self._setup_drag_tracking_vars()
@@ -110,6 +127,89 @@ class TimelineUIs:
         self.view = TimelineUIsView()
         self.view.setScene(self.scene)
         main_window.setCentralWidget(self.view)
+
+    def _setup_commands(self):
+        for kind in timeline_kinds.NOT_SLIDER:
+            name = get_timeline_name(kind)
+            if kind == TlKind.HARMONY_TIMELINE:
+                text = name[0].upper() + "&" + name[1:]
+            elif kind == TlKind.PDF_TIMELINE:
+                text = "&" + name.upper()
+            else:
+                text = "&" + name.capitalize()
+
+            register_action(
+                None,
+                f"timelines.add.{name}",
+                None,
+                text,
+                "",
+                "",
+                callback=functools.partial(self.on_timeline_add, kind),
+            )
+
+    def on_timeline_add(self, kind: TimelineKind):
+        def _get_media_is_loaded():
+            if get(Get.MEDIA_DURATION) == 0:
+                return False
+            return True
+
+        def _get_timeline_name():
+            accepted, name = get(
+                Get.FROM_USER_STRING,
+                title="New timeline",
+                prompt="Choose name for new timeline",
+            )
+
+            return accepted, name
+
+        if not _get_media_is_loaded() and not self._handle_media_not_loaded():
+            return False
+        accepted, name = _get_timeline_name()
+        kwargs = dict()
+        if not accepted:
+            return False
+        cls = self.get_timeline_ui_class(kind)
+        if hasattr(cls, "get_additional_args_for_creation"):
+            success, additional_args = cls.get_additional_args_for_creation()
+            if not success:
+                return False
+            kwargs |= additional_args
+
+        get(Get.TIMELINE_COLLECTION).create_timeline(
+            kind=kind, components=None, name=name, **kwargs
+        )
+
+        post(Post.APP_RECORD_STATE, f"timelines command: timeline add {name}")
+
+    @staticmethod
+    def _handle_media_not_loaded() -> bool:
+        accept, action_to_take = get(Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA)
+        if not accept:
+            return False
+
+        if action_to_take == AddTimelineWithoutMedia.Result.SET_DURATION:
+            success, duration = get(
+                Get.FROM_USER_FLOAT,
+                "Set duration",
+                "Insert duration (s)",
+                value=60,
+                min=1,
+            )
+            if not success:
+                return False
+            post(Post.PLAYER_DURATION_AVAILABLE, duration)
+        elif action_to_take == AddTimelineWithoutMedia.Result.LOAD_MEDIA:
+            success, path = get(Get.FROM_USER_MEDIA_PATH)
+            if not success:
+                return False
+            post(Post.APP_MEDIA_LOAD, path)
+        else:
+            raise ValueError(
+                f"Unknown action to take '{action_to_take}' for timeline without media."
+            )
+
+        return True
 
     def _setup_requests(self):
         LISTENS = {
@@ -204,7 +304,6 @@ class TimelineUIs:
 
         for request in [
             Post.TIMELINES_CLEAR,
-            Post.TIMELINE_ADD,
             Post.BEAT_TIMELINE_FILL,
             Post.TIMELINE_ORDINAL_PERMUTE_FROM_MANAGE_TIMELINES,
             Post.TIMELINE_ORDINAL_PERMUTE_FROM_MANAGE_TIMELINES,

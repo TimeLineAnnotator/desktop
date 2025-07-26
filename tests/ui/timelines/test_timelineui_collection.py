@@ -18,17 +18,17 @@ from tilia.ui import actions
 from tilia.ui.enums import ScrollType
 from tilia.ui.timelines.base.request_handlers import TimelineRequestHandler
 from tilia.ui.timelines.base.timeline import TimelineUI
-from tilia.ui.timelines.collection.request_handler import TimelineUIsRequestHandler
+from tilia.ui.timelines.collection.collection import TimelineUIs
 from tilia.ui.timelines.marker.request_handlers import MarkerUIRequestHandler
 from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 
 ADD_TIMELINE_ACTIONS = [
-    "timelines_add_hierarchy_timeline",
-    "timelines_add_beat_timeline",
-    "timelines_add_harmony_timeline",
-    "timelines_add_marker_timeline",
-    "timelines_add_audiowave_timeline",
+    "timelines.add.hierarchy",
+    "timelines.add.beat",
+    "timelines.add.harmony",
+    "timelines.add.marker",
+    "timelines.add.audiowave",
 ]
 
 
@@ -44,11 +44,11 @@ class TestTimelineUICreation:
 
     def test_create_multiple(self, tilia_state, tluis, user_actions):
         create_actions = [
-            "timelines_add_harmony_timeline",
-            "timelines_add_marker_timeline",
-            "timelines_add_beat_timeline",
-            "timelines_add_hierarchy_timeline",
-            "timelines_add_audiowave_timeline",
+            "timelines.add.harmony",
+            "timelines.add.marker",
+            "timelines.add.beat",
+            "timelines.add.hierarchy",
+            "timelines.add.audiowave",
         ]
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
@@ -68,7 +68,7 @@ class TestTimelineUICreation:
         ):
             with Serve(Get.FROM_USER_FLOAT, (True, 10)):
                 with Serve(Get.FROM_USER_STRING, (True, "")):
-                    user_actions.trigger("timelines_add_marker_timeline")
+                    user_actions.trigger("timelines.add.marker")
         assert tilia_state.duration == 10
         assert len(tluis) == 1
 
@@ -82,7 +82,7 @@ class TestTimelineUICreation:
         ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
                 with Serve(Get.FROM_USER_STRING, (True, "")):
-                    user_actions.trigger("timelines_add_marker_timeline")
+                    user_actions.trigger("timelines.add.marker")
         assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
         assert len(tluis) == 1
 
@@ -95,7 +95,7 @@ class TestTimelineUICreation:
             (True, AddTimelineWithoutMedia.Result.SET_DURATION),
         ):
             with Serve(Get.FROM_USER_FLOAT, (False, 10)):
-                user_actions.trigger("timelines_add_marker_timeline")
+                user_actions.trigger("timelines.add.marker")
         assert tilia_state.duration == 0
         assert len(tluis) == 0
 
@@ -108,7 +108,7 @@ class TestTimelineUICreation:
             (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA),
         ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (False, EXAMPLE_MEDIA_PATH)):
-                user_actions.trigger("timelines_add_marker_timeline")
+                user_actions.trigger("timelines.add.marker")
         assert tilia_state.duration == 0
         assert len(tluis) == 0
 
@@ -120,7 +120,7 @@ class TestTimelineUICreation:
 
     def test_delete(self, tls, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger("timelines_add_marker_timeline")
+            user_actions.trigger("timelines.add.marker")
 
         tls.delete_timeline(tls[0])  # this should be an user action
         assert tls.is_empty
@@ -454,7 +454,7 @@ class TestRequests:
 
     def test_timeline_uis_request_fails(self, tilia, qtui, user_actions, tilia_errors):
         healthy_state = tilia.get_app_state()
-        original_timeline_add_func = TimelineUIsRequestHandler.on_timeline_add
+        original_timeline_add_func = TimelineUIs.on_timeline_add
 
         def on_timeline_add_patch(*args, **kwargs):
             # see comment in previous test
@@ -462,10 +462,11 @@ class TestRequests:
             raise Exception
 
         with patch(
-            get_method_patch_target(TimelineUIsRequestHandler.on_timeline_add),
+            get_method_patch_target(TimelineUIs.on_timeline_add),
             side_effect=on_timeline_add_patch,
         ):
-            user_actions.trigger("timelines_add_marker_timeline")
+            with Serve(Get.FROM_USER_STRING, (True, "new name")):
+                user_actions.trigger("timelines.add.marker")
 
         assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)
 
