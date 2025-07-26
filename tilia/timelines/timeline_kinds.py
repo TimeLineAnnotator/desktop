@@ -20,15 +20,7 @@ COLORED_COMPONENTS = [
     TimelineKind.SCORE_TIMELINE,
 ]
 
-NOT_SLIDER = [
-    TimelineKind.HIERARCHY_TIMELINE,
-    TimelineKind.MARKER_TIMELINE,
-    TimelineKind.BEAT_TIMELINE,
-    TimelineKind.HARMONY_TIMELINE,
-    TimelineKind.PDF_TIMELINE,
-    TimelineKind.AUDIOWAVE_TIMELINE,
-    TimelineKind.SCORE_TIMELINE,
-]
+NOT_SLIDER = [kind for kind in TimelineKind if kind != TimelineKind.SLIDER_TIMELINE]
 ALL = list(TimelineKind)
 
 
