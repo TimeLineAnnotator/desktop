@@ -145,22 +145,20 @@ class TimelineUIs:
                 register_action(
                     None,
                     f"timelines.add.{name}",
-                    None,
+                    functools.partial(self.on_timeline_add, kind),
                     text,
                     "",
                     "",
-                    callback=functools.partial(self.on_timeline_add, kind),
                 )
 
             if kind in IMPORTABLE:
                 register_action(
                     None,
                     f"timelines.import.{name}",
-                    None,
+                    functools.partial(self.on_import_from_csv, kind),
                     "&Import from CSV file",
                     "",
                     "",
-                    callback=functools.partial(self.on_import_from_csv, kind),
                 )
 
     def on_timeline_add(self, kind: TimelineKind):

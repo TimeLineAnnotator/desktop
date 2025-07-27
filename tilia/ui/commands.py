@@ -1,12 +1,11 @@
-from typing import Any
+import functools
+from typing import Any, Callable
 
 from tilia.dirs import IMG_DIR
 from tilia.requests.post import post, Post
 
 from PyQt6.QtWidgets import QMainWindow
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
-
-from tilia.ui.windows import WindowKind
 
 
 def get_img_path(basename: str):
@@ -27,9 +26,7 @@ def _get_request_callback(request: Post, args: tuple[Any], kwargs: dict[str, Any
     return callback
 
 
-def register_action(
-    parent, name, request, text, shortcut, icon, args=None, kwargs=None, callback=None
-):
+def register_action(parent, name, callback: Callable | Post, text, shortcut, icon):
     action = QAction(parent)
 
     action.setText(text)
@@ -42,12 +39,13 @@ def register_action(
         action.setIcon(QIcon(str(get_img_path(icon))))
     action.setIconVisibleInMenu(False)
 
-    args = args or []
-    kwargs = kwargs or {}
-    if not callback:
-        callback = _get_request_callback(request, args, kwargs)
+    if isinstance(callback, Post):
+        callback = functools.partial(post, callback)
 
-    action.triggered.connect(callback)
+    if callback:
+        # Qt sometimes activates signals with additional parameters,
+        # so we need to make sure that we call the callback without them
+        action.triggered.connect(lambda *_: callback())
 
     _name_to_callback[name] = callback
     _name_to_action[name] = action
@@ -192,8 +190,20 @@ default_actions = [
     ("file_open", Post.FILE_OPEN, "&Open...", "Ctrl+O", ""),
     ("file_save", Post.FILE_SAVE, "&Save", "Ctrl+S", ""),
     ("file_save_as", Post.FILE_SAVE_AS, "Save &As...", "Ctrl+Shift+S", ""),
-    ("file_export_json", Post.FILE_EXPORT, "&JSON", "", ""),
-    ("file_export_img", Post.FILE_EXPORT, "&Image", "", ""),
+    (
+        "file_export_json",
+        functools.partial(post, Post.FILE_EXPORT, None, "json"),
+        "&JSON",
+        "",
+        "",
+    ),
+    (
+        "file_export_img",
+        functools.partial(post, Post.FILE_EXPORT, None, "img"),
+        "&Image",
+        "",
+        "",
+    ),
     ("media_load_local", Post.UI_MEDIA_LOAD_LOCAL, "&Local...", "Ctrl+Shift+L", ""),
     ("media_load_youtube", Post.UI_MEDIA_LOAD_YOUTUBE, "&YouTube...", "", ""),
     ("metadata_window_open", Post.WINDOW_OPEN, "Edit &Metadata...", "", ""),
@@ -258,31 +268,32 @@ default_actions = [
         "Shift+Up",
         "annotation_font_inc",
     ),
-    ("file_export_json", Post.FILE_EXPORT, "&JSON", "", "", (None, "json")),
-    ("file_export_img", Post.FILE_EXPORT, "&Image", "", "", (None, "img")),
     (
         "metadata_window_open",
-        Post.WINDOW_OPEN,
+        functools.partial(post, Post.WINDOW_OPEN),
         "Edit &Metadata...",
         "",
         "",
-        (WindowKind.MEDIA_METADATA,),
     ),
     (
         "settings_window_open",
-        Post.WINDOW_OPEN,
+        functools.partial(post, Post.WINDOW_OPEN),
         "&Settings...",
         "",
         "",
-        (WindowKind.SETTINGS,),
     ),
     (
         "window_manage_timelines_open",
-        Post.WINDOW_OPEN,
+        functools.partial(post, Post.WINDOW_OPEN),
         "&Manage...",
         "",
         "",
-        (WindowKind.MANAGE_TIMELINES,),
     ),
-    ("about_window_open", Post.WINDOW_OPEN, "&About...", "", "", (WindowKind.ABOUT,)),
+    (
+        "about_window_open",
+        functools.partial(post, Post.WINDOW_OPEN),
+        "&About...",
+        "",
+        "",
+    ),
 ]
