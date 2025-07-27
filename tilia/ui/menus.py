@@ -143,35 +143,35 @@ class AddTimelinesMenu(TiliaMenu):
 
 class HierarchyMenu(TiliaMenu):
     menu_title = "&Hierarchy"
-    items = [(MenuItemKind.ACTION, "import_csv_hierarchy_timeline")]
+    items = [(MenuItemKind.ACTION, "timelines.import.hierarchy")]
 
 
 class MarkerMenu(TiliaMenu):
     menu_title = "&Marker"
-    items = [(MenuItemKind.ACTION, "import_csv_marker_timeline")]
+    items = [(MenuItemKind.ACTION, "timelines.import.marker")]
 
 
 class BeatMenu(TiliaMenu):
     menu_title = "&Beat"
     items = [
-        (MenuItemKind.ACTION, "import_csv_beat_timeline"),
+        (MenuItemKind.ACTION, "timelines.import.beat"),
         (MenuItemKind.ACTION, "beat_timeline_fill"),
     ]
 
 
 class HarmonyMenu(TiliaMenu):
     menu_title = "Ha&rmony"
-    items = [(MenuItemKind.ACTION, "import_csv_harmony_timeline")]
+    items = [(MenuItemKind.ACTION, "timelines.import.harmony")]
 
 
 class PdfMenu(TiliaMenu):
     menu_title = "&PDF"
-    items = [(MenuItemKind.ACTION, "import_csv_pdf_timeline")]
+    items = [(MenuItemKind.ACTION, "timelines.import.pdf")]
 
 
 class ScoreMenu(TiliaMenu):
     menu_title = "&Score"
-    items = [(MenuItemKind.ACTION, "import_musicxml")]
+    items = [(MenuItemKind.ACTION, "timelines.import.score")]
 
 
 class TimelinesMenu(TiliaMenu):

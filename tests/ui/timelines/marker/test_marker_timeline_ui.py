@@ -547,7 +547,7 @@ class TestMoveInTimelineOrder:
 def test_timeline_menu_has_right_actions(
     tluis, qtui, marker_tlui, tilia_state, user_actions
 ):
-    expected_actions = ["import_csv_marker_timeline"]
+    expected_actions = ["timelines.import.marker"]
     menu = get_main_window_menu(qtui, "Timelines")
     marker_submenu = get_submenu(menu, "Marker")
     assert marker_submenu

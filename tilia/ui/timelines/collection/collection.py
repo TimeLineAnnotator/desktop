@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 import tilia
 import tilia.errors
 import tilia.ui.timelines.collection.request_handler
+import tilia.ui.ui_import
 from tilia.ui import commands
 from tilia.settings import settings
 from tilia.media.player.base import MediaTimeChangeReason
@@ -29,6 +30,8 @@ from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     TimelineKind,
     get_timeline_name,
+    IMPORTABLE,
+    NOT_SLIDER,
 )
 from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
@@ -129,24 +132,36 @@ class TimelineUIs:
         main_window.setCentralWidget(self.view)
 
     def _setup_commands(self):
-        for kind in timeline_kinds.NOT_SLIDER:
+        for kind in TimelineKind:
             name = get_timeline_name(kind)
-            if kind == TlKind.HARMONY_TIMELINE:
-                text = name[0].upper() + "&" + name[1:]
-            elif kind == TlKind.PDF_TIMELINE:
-                text = "&" + name.upper()
-            else:
-                text = "&" + name.capitalize()
+            if kind in NOT_SLIDER:
+                if kind == TlKind.HARMONY_TIMELINE:
+                    text = name[0].upper() + "&" + name[1:]
+                elif kind == TlKind.PDF_TIMELINE:
+                    text = "&" + name.upper()
+                else:
+                    text = "&" + name.capitalize()
 
-            register_action(
-                None,
-                f"timelines.add.{name}",
-                None,
-                text,
-                "",
-                "",
-                callback=functools.partial(self.on_timeline_add, kind),
-            )
+                register_action(
+                    None,
+                    f"timelines.add.{name}",
+                    None,
+                    text,
+                    "",
+                    "",
+                    callback=functools.partial(self.on_timeline_add, kind),
+                )
+
+            if kind in IMPORTABLE:
+                register_action(
+                    None,
+                    f"timelines.import.{name}",
+                    None,
+                    "&Import from CSV file",
+                    "",
+                    "",
+                    callback=functools.partial(self.on_import_from_csv, kind),
+                )
 
     def on_timeline_add(self, kind: TimelineKind):
         def _get_media_is_loaded():
@@ -278,6 +293,11 @@ class TimelineUIs:
             (
                 Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED,
                 self.on_beat_timeline_components_deserialized,
+            ),
+            (Post.IMPORT_CSV, self.on_import_from_csv),
+            (
+                Post.IMPORT_MUSICXML,
+                functools.partial(self.on_import_from_csv, TlKind.SCORE_TIMELINE),
             ),
         }
 
@@ -1291,3 +1311,19 @@ class TimelineUIs:
 
     def on_timeline_deleted(self, id: int):
         self.delete_timeline_ui(self.get_timeline_ui(id))
+
+    def on_import_from_csv(self, tl_kind: TlKind):
+        prev_state = get(Get.APP_STATE)
+        status, errors = tilia.ui.ui_import.on_import_from_csv(self, tl_kind)
+
+        if status == "failure":
+            post(Post.APP_STATE_RESTORE, prev_state)
+            if errors:
+                tilia.errors.display(tilia.errors.CSV_IMPORT_FAILED, "\n".join(errors))
+        elif status == "success" and errors:
+            tilia.errors.display(
+                tilia.errors.CSV_IMPORT_SUCCESS_ERRORS, "\n".join(errors)
+            )
+            post(Post.APP_RECORD_STATE, "Import from csv file")
+
+        return status, errors

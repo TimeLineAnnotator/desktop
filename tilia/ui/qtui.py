@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from functools import partial
 from pathlib import Path
 
 from typing import Optional
@@ -47,7 +46,6 @@ from .menus import (
 )
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
-from .ui_import import on_import_from_csv
 from .windows.manage_timelines import ManageTimelines
 from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
@@ -185,11 +183,6 @@ class QtUI:
             (Post.REQUEST_CLEAR_UI, self.on_clear_ui),
             (Post.TIMELINE_KIND_INSTANCED, self.on_timeline_kind_change),
             (Post.TIMELINE_KIND_NOT_INSTANCED, self.on_timeline_kind_change),
-            (Post.IMPORT_CSV, self.on_import_from_csv),
-            (
-                Post.IMPORT_MUSICXML,
-                partial(self.on_import_from_csv, TlKind.SCORE_TIMELINE),
-            ),
             (Post.DISPLAY_ERROR, display_error),
             (Post.UI_EXIT, self.exit),
         }
@@ -405,20 +398,6 @@ class QtUI:
 
     def on_website_help_open(self):
         QDesktopServices.openUrl(QUrl(f"{constants.WEBSITE_URL}/help"))
-
-    def on_import_from_csv(self, tl_kind: TlKind):
-        prev_state = get(Get.APP_STATE)
-        status, errors = on_import_from_csv(self.timeline_uis, tl_kind)
-
-        if status == "failure":
-            post(Post.APP_STATE_RESTORE, prev_state)
-            if errors:
-                tilia.errors.display(tilia.errors.CSV_IMPORT_FAILED, "\n".join(errors))
-        elif status == "success" and errors:
-            tilia.errors.display(
-                tilia.errors.CSV_IMPORT_SUCCESS_ERRORS, "\n".join(errors)
-            )
-            post(Post.APP_RECORD_STATE, "Import from csv file")
 
     @staticmethod
     def show_crash_dialog(exception_info):

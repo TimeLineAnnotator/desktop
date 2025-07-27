@@ -21,6 +21,11 @@ COLORED_COMPONENTS = [
 ]
 
 NOT_SLIDER = [kind for kind in TimelineKind if kind != TimelineKind.SLIDER_TIMELINE]
+IMPORTABLE = [
+    kind
+    for kind in TimelineKind
+    if kind not in [TimelineKind.SLIDER_TIMELINE, TimelineKind.AUDIOWAVE_TIMELINE]
+]
 ALL = list(TimelineKind)
 
 

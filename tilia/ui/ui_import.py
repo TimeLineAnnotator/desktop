@@ -1,12 +1,16 @@
-from typing import Literal
+from __future__ import annotations
+
+from typing import Literal, TYPE_CHECKING
 
 import tilia.errors
 import tilia.parsers
 from tilia.requests import get, Get
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.dialogs.by_time_or_by_measure import ByTimeOrByMeasure
-from tilia.ui.timelines.collection.collection import TimelineUIs
 from tilia.parsers import get_import_function
+
+if TYPE_CHECKING:
+    from tilia.ui.timelines.collection.collection import TimelineUIs
 
 
 def on_import_from_csv(

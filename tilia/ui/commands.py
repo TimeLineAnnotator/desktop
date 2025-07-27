@@ -6,7 +6,6 @@ from tilia.requests.post import post, Post
 from PyQt6.QtWidgets import QMainWindow
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.windows import WindowKind
 
 
@@ -230,12 +229,6 @@ default_actions = [
     ("media_stop", Post.PLAYER_STOP, "Stop", "", "stop15"),
     ("website_help_open", Post.WEBSITE_HELP_OPEN, "&Help...", "", ""),
     ("pdf_marker_add", Post.PDF_MARKER_ADD, "Add PDF marker", "p", "pdf_add"),
-    ("import_csv_harmony_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
-    ("import_csv_pdf_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
-    ("import_csv_hierarchy_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
-    ("import_csv_marker_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
-    ("import_csv_beat_timeline", Post.IMPORT_CSV, "&Import from CSV file", "", ""),
-    ("import_musicxml", Post.IMPORT_MUSICXML, "&Import from musicxml file", "", ""),
     ("score_annotation_add", None, "Add Annotation (Return)", "", "annotation_add"),
     (
         "score_annotation_delete",
@@ -292,44 +285,4 @@ default_actions = [
         (WindowKind.MANAGE_TIMELINES,),
     ),
     ("about_window_open", Post.WINDOW_OPEN, "&About...", "", "", (WindowKind.ABOUT,)),
-    (
-        "import_csv_harmony_timeline",
-        Post.IMPORT_CSV,
-        "&Import from CSV file",
-        "",
-        "",
-        (TimelineKind.HARMONY_TIMELINE,),
-    ),
-    (
-        "import_csv_pdf_timeline",
-        Post.IMPORT_CSV,
-        "&Import from CSV file",
-        "",
-        "",
-        (TimelineKind.PDF_TIMELINE,),
-    ),
-    (
-        "import_csv_hierarchy_timeline",
-        Post.IMPORT_CSV,
-        "&Import from CSV file",
-        "",
-        "",
-        (TimelineKind.HIERARCHY_TIMELINE,),
-    ),
-    (
-        "import_csv_marker_timeline",
-        Post.IMPORT_CSV,
-        "&Import from CSV file",
-        "",
-        "",
-        (TimelineKind.MARKER_TIMELINE,),
-    ),
-    (
-        "import_csv_beat_timeline",
-        Post.IMPORT_CSV,
-        "&Import from CSV file",
-        "",
-        "",
-        (TimelineKind.BEAT_TIMELINE,),
-    ),
 ]
