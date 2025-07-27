@@ -29,7 +29,7 @@ import tilia.parsers.csv.hierarchy
 import tilia.parsers.csv.beat
 import tilia.parsers.csv.marker
 import tilia.parsers.score.musicxml
-from . import actions
+from . import commands
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
 from .dialogs.crash import CrashDialog
@@ -108,11 +108,11 @@ class TiliaMainWindow(QMainWindow):
 
         for comb, taction in key_comb_to_taction:
             if event.keyCombination() == comb:
-                actions.get_qaction(taction).trigger()
+                commands.get_qaction(taction).trigger()
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
-        actions.trigger("app_close")
+        commands.trigger("app_close")
         event.ignore()
 
     def on_close(self):
@@ -317,7 +317,7 @@ class QtUI:
         self.main_window.addToolBar(self.options_toolbar)
 
     def _setup_actions(self):
-        actions.setup_actions(self.main_window)
+        commands.setup_actions(self.main_window)
 
     def on_window_open(self, kind: WindowKind):
         """Open a window of 'kind', if there is no window of that kind open.

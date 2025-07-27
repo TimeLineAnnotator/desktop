@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtSvg import QSvgRenderer
 
-from tilia.ui.actions import get_qaction
+from tilia.ui.commands import get_qaction
 
 from tilia.ui.smooth_scroll import smooth, setup_smooth
 from tilia.ui.windows.view_window import ViewDockWidget

@@ -1,4 +1,4 @@
-from tilia.ui import actions
+from tilia.ui import commands
 from tilia.ui.menus import MenuItemKind
 from tilia.ui.timelines.base.context_menus import (
     TimelineUIContextMenu,
@@ -43,8 +43,8 @@ class HarmonyTimelineUIContextMenu(TimelineUIContextMenu):
     ]
 
     def __init__(self, timeline_ui):
-        hide_keys_action = actions.get_qaction("harmony_timeline_hide_keys")
-        show_keys_action = actions.get_qaction("harmony_timeline_show_keys")
+        hide_keys_action = commands.get_qaction("harmony_timeline_hide_keys")
+        show_keys_action = commands.get_qaction("harmony_timeline_show_keys")
         if timeline_ui.get_data("visible_level_count") == 1:
             hide_keys_action.setVisible(False)
             show_keys_action.setVisible(True)

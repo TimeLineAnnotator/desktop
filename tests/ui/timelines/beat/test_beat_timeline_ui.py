@@ -6,6 +6,7 @@ from tilia.enums import Side
 from tilia.requests import Get
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.settings import settings
+from tilia.ui import commands
 from tilia.ui.windows import WindowKind
 
 
@@ -354,7 +355,7 @@ class TestSetMeasureNumber:
     def _set_measure_number(beat_tlui, actions, number=DUMMY_MEASURE_NUMBER):
         """Assumes there a beat in the measure is selected"""
         with Serve(Get.FROM_USER_INT, (True, number)):
-            actions.trigger("beat_set_measure_number")
+            commands.trigger("beat_set_measure_number")
 
     def test_set_measure_number_single_measure(self, beat_tlui, user_actions):
         beat_tlui.create_beat(0)

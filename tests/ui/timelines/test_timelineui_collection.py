@@ -14,7 +14,7 @@ from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
     TimelineKind,
 )
-from tilia.ui import actions
+from tilia.ui import commands
 from tilia.ui.enums import ScrollType
 from tilia.ui.timelines.base.request_handlers import TimelineRequestHandler
 from tilia.ui.timelines.base.timeline import TimelineUI
@@ -360,7 +360,7 @@ class TestLoop:
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 50)
 
-        actions.trigger("timeline_element_delete")
+        commands.trigger("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_neighbouring_passes(self):
@@ -388,7 +388,7 @@ class TestLoop:
 
         self.tlui.deselect_all_elements()
         self.tlui.select_element(self.tlui[0])
-        actions.trigger("timeline_element_delete")
+        commands.trigger("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (50, 100)
 
     def test_loop_hierarchy_delete_middle_cancels(self):
@@ -401,7 +401,7 @@ class TestLoop:
 
         self.tlui.deselect_all_elements()
         self.tlui.select_element(self.tlui[1])
-        actions.trigger("timeline_element_delete")
+        commands.trigger("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_merge_split(self):
@@ -411,12 +411,12 @@ class TestLoop:
         assert get(Get.LOOP_TIME) == (10, 20)
 
         with Serve(Get.MEDIA_CURRENT_TIME, 15):
-            actions.trigger("hierarchy_split")
+            commands.trigger("hierarchy_split")
         assert get(Get.LOOP_TIME) == (10, 20)
 
         self.tlui.deselect_all_elements()
         self.tlui.select_all_elements()
-        actions.trigger("hierarchy_merge")
+        commands.trigger("hierarchy_merge")
         assert get(Get.LOOP_TIME) == (10, 20)
 
     def test_loop_undo_manager_cancels(self):

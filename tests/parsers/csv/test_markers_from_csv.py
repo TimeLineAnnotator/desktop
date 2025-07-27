@@ -6,7 +6,7 @@ from unittest.mock import patch, mock_open
 from PyQt6.QtWidgets import QFileDialog
 
 from tests.parsers.csv.common import assert_in_errors
-from tilia.ui import actions
+from tilia.ui import commands
 from tilia.ui.format import format_media_time
 from tilia.ui.ui_import import on_import_from_csv
 
@@ -30,7 +30,7 @@ def patch_import(by: Literal["time", "measure"], tl, data) -> tuple[str, list[st
         patch("tilia.ui.qtui.on_import_from_csv", side_effect=mock_import),
         patch("builtins.open", mock_open(read_data=data)),
     ):
-        actions.trigger("import_csv_marker_timeline")
+        commands.trigger("import_csv_marker_timeline")
     return status, errors
 
 

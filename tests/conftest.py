@@ -15,7 +15,7 @@ import tilia.log as logging_module
 import tilia.settings as settings_module
 from tilia.dirs import PROJECT_ROOT
 from tilia.media.player.base import MediaTimeChangeReason
-from tilia.ui import actions as tilia_actions_module
+from tilia.ui import commands as tilia_actions_module
 from tilia.app import App
 from tilia.boot import setup_logic
 from tilia.requests import (
@@ -26,7 +26,7 @@ from tilia.requests import (
     get,
     listen,
 )
-from tilia.ui.actions import setup_actions
+from tilia.ui.commands import setup_actions
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.ui.cli.ui import CLI
 from tilia.ui.windows import WindowKind

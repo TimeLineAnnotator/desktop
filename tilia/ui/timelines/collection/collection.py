@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 import tilia
 import tilia.errors
 import tilia.ui.timelines.collection.request_handler
-from tilia.ui import actions
+from tilia.ui import commands
 from tilia.settings import settings
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.timelines import timeline_kinds
@@ -50,7 +50,7 @@ from ..beat import BeatTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from .request_handler import TimelineUIsRequestHandler
-from ...actions import register_action
+from ...commands import register_action
 from ...dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 
 
@@ -745,7 +745,7 @@ class TimelineUIs:
 
     @staticmethod
     def on_hierarchy_selected():
-        actions.get_qaction("timeline_element_paste_complete").setVisible(True)
+        commands.get_qaction("timeline_element_paste_complete").setVisible(True)
 
     def on_hierarchy_deselected(self):
         selected_hierarchies = []
@@ -753,7 +753,7 @@ class TimelineUIs:
             if tlui.TIMELINE_KIND == TlKind.HIERARCHY_TIMELINE:
                 selected_hierarchies += tlui.selected_elements
         if not selected_hierarchies:
-            actions.get_qaction("timeline_element_paste_complete").setVisible(False)
+            commands.get_qaction("timeline_element_paste_complete").setVisible(False)
 
     def on_hierarchy_merge_split(self, new_units: list, old_units: list):
         if (

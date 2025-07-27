@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QToolBar
 
-from tilia.ui import actions
+from tilia.ui import commands
 
 
 class TimelineToolbar(QToolBar):
@@ -14,4 +14,4 @@ class TimelineToolbar(QToolBar):
         self.visible = False
         self._visible_timelines_count = 0
         for action in self.ACTIONS:
-            self.addAction(actions.get_qaction(action))
+            self.addAction(commands.get_qaction(action))

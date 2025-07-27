@@ -50,10 +50,8 @@ class TestTimelineRemove:
 
         assert not tls.is_empty
 
-    def test_by_name_one_timeline(self, cli, tls, user_actions):
-        with Serve(Get.FROM_USER_STRING, (True, "test")):
-            user_actions.trigger("timelines.add.hierarchy")
-
+    def test_by_name_one_timeline(self, cli, tls):
+        cli.parse_and_run("timeline add hierarchy --name test")
         cli.parse_and_run("timeline remove name test")
 
         assert tls.is_empty

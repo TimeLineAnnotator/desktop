@@ -8,7 +8,7 @@ from PyQt6.QtGui import QAction
 
 from tilia.timelines import timeline_kinds
 from tilia.timelines.timeline_kinds import get_timeline_name
-from tilia.ui.actions import get_qaction
+from tilia.ui.commands import get_qaction
 from tilia.settings import settings
 from tilia.requests.post import post, Post, listen
 from tilia.ui.enums import WindowState

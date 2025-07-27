@@ -1,6 +1,6 @@
 import pytest
 
-import tilia.ui.actions
+import tilia.ui.commands
 from tests.mock import Serve
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tilia.requests import Get
@@ -21,7 +21,7 @@ def add_harmony(**kwargs):
     }
     default_params.update(kwargs)
     with Serve(Get.FROM_USER_HARMONY_PARAMS, (True, default_params)):
-        tilia.ui.actions.trigger("harmony_add")
+        tilia.ui.commands.trigger("harmony_add")
 
 
 def add_mode(**kwargs):
@@ -33,7 +33,7 @@ def add_mode(**kwargs):
     }
     default_params.update(kwargs)
     with Serve(Get.FROM_USER_MODE_PARAMS, (True, default_params)):
-        tilia.ui.actions.trigger("mode_add")
+        tilia.ui.commands.trigger("mode_add")
 
 
 class TestRomanNumeralDisplay:

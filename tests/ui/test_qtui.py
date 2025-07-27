@@ -6,7 +6,7 @@ from tests.mock import Serve
 from tests.utils import get_main_window_menu, get_actions_in_menu
 from tilia.requests import Post, post, Get
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.actions import get_qaction
+from tilia.ui.commands import get_qaction
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 

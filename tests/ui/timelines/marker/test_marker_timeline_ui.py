@@ -16,7 +16,7 @@ from tests.ui.timelines.interact import (
 from tests.ui.timelines.marker.interact import click_marker_ui, get_marker_ui_center
 from tests.utils import undoable, get_action, get_submenu, get_main_window_menu
 from tilia.requests import Post, Get, post
-from tilia.ui.actions import get_qaction
+from tilia.ui.commands import get_qaction
 from tilia.ui.coords import time_x_converter
 
 from tilia.ui.timelines.marker import MarkerTimelineToolbar
@@ -65,11 +65,11 @@ class TestCreateDelete:
 class TestSetResetColor:
     TEST_COLOR = "#000000"
 
-    def set_color_on_all_markers(self, marker_tlui, actions):
+    def set_color_on_all_markers(self, marker_tlui, user_actions):
         """Assumes there is a single marker on timeline"""
         marker_tlui.select_all_elements()
         with Serve(Get.FROM_USER_COLOR, (True, QColor(self.TEST_COLOR))):
-            actions.trigger("timeline_element_color_set")
+            user_actions.trigger("timeline_element_color_set")
 
     def test_set_color(self, marker_tlui, user_actions):
         user_actions.trigger("marker_add")
@@ -363,7 +363,7 @@ class TestTimelineUIContextMenu:
         assert "Move down" in action_names
 
     @pytest.mark.xfail(
-        reason="Waiting for refactor of timeline clear and delete actions."
+        reason="Waiting for refactor of timeline clear and delete commands."
     )
     def test_has_the_right_actions(self, marker_tlui, tluis, user_actions, tilia_state):
         context_menu = marker_tlui.CONTEXT_MENU_CLASS(marker_tlui)
@@ -556,7 +556,7 @@ def test_timeline_menu_has_right_actions(
         assert get_qaction(a) in marker_submenu.actions()
 
 
-@pytest.mark.xfail(reason="Waiting for refactor of timeline clear actions.")
+@pytest.mark.xfail(reason="Waiting for refactor of timeline clear commands.")
 def test_clear(tluis, qtui, marker_tlui, tilia_state, user_actions):
     # TODO
     # needs refactoring of timeline clear actions
@@ -569,7 +569,7 @@ def test_clear(tluis, qtui, marker_tlui, tilia_state, user_actions):
     assert len(marker_tlui) == 0
 
 
-@pytest.mark.xfail(reason="Waiting for refactor of timeline delete actions.")
+@pytest.mark.xfail(reason="Waiting for refactor of timeline delete commands.")
 def test_delete(tluis, qtui, marker_tlui, tilia_state, user_actions):
     # TODO
     # needs refactoring of timeline delete actions
