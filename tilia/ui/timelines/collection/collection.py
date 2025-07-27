@@ -53,7 +53,7 @@ from ..beat import BeatTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from .request_handler import TimelineUIsRequestHandler
-from ...commands import register_action
+from ...commands import register_command
 from ...dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 
 
@@ -142,7 +142,7 @@ class TimelineUIs:
                 else:
                     text = "&" + name.capitalize()
 
-                register_action(
+                register_command(
                     None,
                     f"timelines.add.{name}",
                     functools.partial(self.on_timeline_add, kind),
@@ -152,7 +152,7 @@ class TimelineUIs:
                 )
 
             if kind in IMPORTABLE:
-                register_action(
+                register_command(
                     None,
                     f"timelines.import.{name}",
                     functools.partial(self.on_import_from_csv, kind),

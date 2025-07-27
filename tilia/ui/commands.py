@@ -26,7 +26,7 @@ def _get_request_callback(request: Post, args: tuple[Any], kwargs: dict[str, Any
     return callback
 
 
-def register_action(parent, name, callback: Callable | Post, text, shortcut, icon):
+def register_command(parent, name, callback: Callable | Post, text, shortcut, icon):
     action = QAction(parent)
 
     action.setText(text)
@@ -60,7 +60,7 @@ def get_qaction(name):
 
 def setup_actions(parent: QMainWindow):
     for action_params in default_actions:
-        register_action(parent, *action_params)
+        register_command(parent, *action_params)
 
 
 def execute(name: str):
