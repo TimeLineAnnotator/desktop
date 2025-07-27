@@ -18,12 +18,12 @@ def _get_request_callback(request: Post, args: tuple[Any], kwargs: dict[str, Any
     if args or kwargs:
 
         def callback():
-            post(request, *args, **kwargs)
+            return post(request, *args, **kwargs)
 
     else:
 
         def callback():
-            post(request)
+            return post(request)
 
     return callback
 
@@ -46,9 +46,11 @@ def register_action(
     args = args or []
     kwargs = kwargs or {}
     if not callback:
-        action.triggered.connect(_get_request_callback(request, args, kwargs))
-    else:
-        action.triggered.connect(callback)
+        callback = _get_request_callback(request, args, kwargs)
+
+    action.triggered.connect(callback)
+
+    _name_to_callback[name] = callback
     _name_to_action[name] = action
 
 
@@ -65,10 +67,12 @@ def setup_actions(parent: QMainWindow):
 
 
 def execute(name: str):
-    _name_to_action[name].trigger()
+    return _name_to_callback[name]()
 
 
 _name_to_action = {}
+_name_to_callback = {}
+
 default_actions = [
     ("app_close", Post.APP_CLOSE, "Close tilia", "", "Close"),
     ("beat_add", Post.BEAT_ADD, "Add beat at current position", "b", "beat_add"),
