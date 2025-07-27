@@ -10,11 +10,13 @@ from tilia.ui.timelines.harmony import HarmonyTimelineUI, HarmonyUI, ModeUI
 class TestHarmonyTimelineUI(HarmonyTimelineUI):
     def create_harmony(
         self, time=0, step=0, accidental=0, quality="major", **kwargs
-    ) -> tuple[Harmony, HarmonyUI]: ...
+    ) -> tuple[Harmony, HarmonyUI]:
+        ...
 
     def create_mode(
         self, time=0, step=0, accidental=0, type="major", **kwargs
-    ) -> tuple[Mode, ModeUI]: ...
+    ) -> tuple[Mode, ModeUI]:
+        ...
 
 
 @pytest.fixture
