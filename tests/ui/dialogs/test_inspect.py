@@ -7,7 +7,7 @@ def test_inspect_elements(tluis, element, user_actions, request):
     element = request.getfixturevalue(element)
     element.timeline_ui.select_element(element)
 
-    user_actions.trigger("timeline_element_inspect")
+    user_actions.execute("timeline_element_inspect")
 
 
 @parametrize_ui_element
@@ -20,4 +20,4 @@ def test_inspect_elements_with_beat_timeline(element, beat_tlui, user_actions, r
 
     element.timeline_ui.select_element(element)
 
-    user_actions.trigger("timeline_element_inspect")
+    user_actions.execute("timeline_element_inspect")

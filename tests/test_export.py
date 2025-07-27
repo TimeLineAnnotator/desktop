@@ -17,7 +17,7 @@ from tilia.ui.dialogs.resize_rect import ResizeRect
 class TestExportJSON:
     def _trigger_export_action(self, user_actions, path):
         with Serve(Get.FROM_USER_EXPORT_PATH, (True, path)):
-            user_actions.trigger("file_export_json")
+            user_actions.execute("file_export_json")
 
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -30,7 +30,7 @@ class TestExportJSON:
         # Marker timeline is chosen as an example. Ideally this should be parametrized for all timelines kinds.
         tl_name = "my name"
         with patch_ask_for_string_dialog(True, tl_name):
-            user_actions.trigger("timeline_name_set")
+            user_actions.execute("timeline_name_set")
 
         tmp_file = tmp_path / "test.json"
 
@@ -72,7 +72,7 @@ class TestExportJSON:
     ):
         for i in range(5):
             tilia_state.current_time = i
-            user_actions.trigger("marker_add")
+            user_actions.execute("marker_add")
 
         harmony_tlui.create_harmony(0)
         harmony_tlui.create_mode(0)
@@ -154,7 +154,7 @@ class TestExportImage:
     ):
         image_path = tmp_path / "tl_image.jpg"
         with patch_file_dialog(True, [self._get_sample_file(tmp_path)]):
-            user_actions.trigger("file_open")
+            user_actions.execute("file_open")
 
         scene = get(Get.MAIN_WINDOW).centralWidget().scene()
         original_width = scene.sceneRect().width()
@@ -165,7 +165,7 @@ class TestExportImage:
         monkeypatch.setattr(ResizeRect, "new_size", lambda *_: [True, new_width])
 
         with Serve(Get.FROM_USER_EXPORT_PATH, (True, image_path)):
-            user_actions.trigger("file_export_img")
+            user_actions.execute("file_export_img")
 
         with Image.open(image_path) as img:
             assert img.size[0] == new_width
@@ -179,11 +179,11 @@ class TestExportImage:
     ):
         image_path = tmp_path / "tl_image.jpg"
         with patch_file_dialog(True, [self._get_sample_file(tmp_path)]):
-            user_actions.trigger("file_open")
+            user_actions.execute("file_open")
 
         monkeypatch.setattr(ResizeRect, "new_size", lambda *_: [False, None])
 
         with Serve(Get.FROM_USER_EXPORT_PATH, (True, image_path)):
-            user_actions.trigger("file_export_img")
+            user_actions.execute("file_export_img")
 
         assert not image_path.exists()

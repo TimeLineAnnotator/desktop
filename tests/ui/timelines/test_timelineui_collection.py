@@ -39,7 +39,7 @@ class TestTimelineUICreation:
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, [1])),
             Serve(Get.FROM_USER_STRING, (True, "")),
         ):
-            user_actions.trigger(action)
+            user_actions.execute(action)
         assert len(tluis) == 1
 
     def test_create_multiple(self, tilia_state, tluis, user_actions):
@@ -55,7 +55,7 @@ class TestTimelineUICreation:
             Serve(Get.FROM_USER_STRING, (True, "")),
         ):
             for action in create_actions:
-                user_actions.trigger(action)
+                user_actions.execute(action)
         assert len(tluis) == len(create_actions)
 
     def test_with_no_media_loaded_set_media_duration(
@@ -68,7 +68,7 @@ class TestTimelineUICreation:
         ):
             with Serve(Get.FROM_USER_FLOAT, (True, 10)):
                 with Serve(Get.FROM_USER_STRING, (True, "")):
-                    user_actions.trigger("timelines.add.marker")
+                    user_actions.execute("timelines.add.marker")
         assert tilia_state.duration == 10
         assert len(tluis) == 1
 
@@ -82,7 +82,7 @@ class TestTimelineUICreation:
         ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
                 with Serve(Get.FROM_USER_STRING, (True, "")):
-                    user_actions.trigger("timelines.add.marker")
+                    user_actions.execute("timelines.add.marker")
         assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
         assert len(tluis) == 1
 
@@ -95,7 +95,7 @@ class TestTimelineUICreation:
             (True, AddTimelineWithoutMedia.Result.SET_DURATION),
         ):
             with Serve(Get.FROM_USER_FLOAT, (False, 10)):
-                user_actions.trigger("timelines.add.marker")
+                user_actions.execute("timelines.add.marker")
         assert tilia_state.duration == 0
         assert len(tluis) == 0
 
@@ -108,19 +108,19 @@ class TestTimelineUICreation:
             (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA),
         ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (False, EXAMPLE_MEDIA_PATH)):
-                user_actions.trigger("timelines.add.marker")
+                user_actions.execute("timelines.add.marker")
         assert tilia_state.duration == 0
         assert len(tluis) == 0
 
     @pytest.mark.parametrize("action", ADD_TIMELINE_ACTIONS)
     def test_user_cancels_creation(self, action, tilia_state, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (False, "")):
-            user_actions.trigger(action)
+            user_actions.execute(action)
         assert tluis.is_empty
 
     def test_delete(self, tls, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger("timelines.add.marker")
+            user_actions.execute("timelines.add.marker")
 
         tls.delete_timeline(tls[0])  # this should be an user action
         assert tls.is_empty
@@ -311,9 +311,9 @@ class TestSeek:
         drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(50), y)
         if request_to_serve:
             with Serve(*request_to_serve):
-                user_actions.trigger(add_request)
+                user_actions.execute(add_request)
         else:
-            user_actions.trigger(add_request)
+            user_actions.execute(add_request)
         assert tlui[0].get_data("time") == pytest.approx(50)
 
 
@@ -360,7 +360,7 @@ class TestLoop:
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 50)
 
-        commands.trigger("timeline_element_delete")
+        commands.execute("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_neighbouring_passes(self):
@@ -388,7 +388,7 @@ class TestLoop:
 
         self.tlui.deselect_all_elements()
         self.tlui.select_element(self.tlui[0])
-        commands.trigger("timeline_element_delete")
+        commands.execute("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (50, 100)
 
     def test_loop_hierarchy_delete_middle_cancels(self):
@@ -401,7 +401,7 @@ class TestLoop:
 
         self.tlui.deselect_all_elements()
         self.tlui.select_element(self.tlui[1])
-        commands.trigger("timeline_element_delete")
+        commands.execute("timeline_element_delete")
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_merge_split(self):
@@ -411,12 +411,12 @@ class TestLoop:
         assert get(Get.LOOP_TIME) == (10, 20)
 
         with Serve(Get.MEDIA_CURRENT_TIME, 15):
-            commands.trigger("hierarchy_split")
+            commands.execute("hierarchy_split")
         assert get(Get.LOOP_TIME) == (10, 20)
 
         self.tlui.deselect_all_elements()
         self.tlui.select_all_elements()
-        commands.trigger("hierarchy_merge")
+        commands.execute("hierarchy_merge")
         assert get(Get.LOOP_TIME) == (10, 20)
 
     def test_loop_undo_manager_cancels(self):
@@ -448,7 +448,7 @@ class TestRequests:
             get_method_patch_target(MarkerUIRequestHandler.on_add),
             side_effect=on_add_patch,
         ):
-            user_actions.trigger("marker_add")
+            user_actions.execute("marker_add")
 
         assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)
 
@@ -466,7 +466,7 @@ class TestRequests:
             side_effect=on_timeline_add_patch,
         ):
             with Serve(Get.FROM_USER_STRING, (True, "new name")):
-                user_actions.trigger("timelines.add.marker")
+                user_actions.execute("timelines.add.marker")
 
         assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)
 
@@ -486,6 +486,6 @@ class TestRequests:
             side_effect=on_timeline_data_set_patch,
         ):
             with Serve(Get.FROM_USER_STRING, ("new name", True)):
-                user_actions.trigger("timeline_name_set")
+                user_actions.execute("timeline_name_set")
 
         assert are_tilia_data_equal(tilia.get_app_state(), healthy_state)

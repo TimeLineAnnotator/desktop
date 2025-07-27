@@ -42,7 +42,7 @@ class TestActions:
         tlui.create_hierarchy(3, 4, 1)
 
         tlui.select_element(tlui[0])
-        user_actions.trigger("hierarchy_increase_level")
+        user_actions.execute("hierarchy_increase_level")
 
         assert tlui[2].get_data("level") == 2
         assert tlui[2].get_data("start") == 0
@@ -58,7 +58,7 @@ class TestActions:
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
         tlui.select_element(tlui[2])
-        user_actions.trigger("hierarchy_increase_level")
+        user_actions.execute("hierarchy_increase_level")
 
         assert tlui[0].get_data("level") == 2
         assert tlui[1].get_data("level") == 2
@@ -70,7 +70,7 @@ class TestActions:
         tlui.create_hierarchy(3, 4, 2)
 
         tlui.select_element(tlui[0])
-        user_actions.trigger("hierarchy_decrease_level")
+        user_actions.execute("hierarchy_decrease_level")
 
         assert tlui[0].get_data("level") == 1
         assert tlui[1].get_data("level") == 2
@@ -84,7 +84,7 @@ class TestActions:
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
         tlui.select_element(tlui[2])
-        user_actions.trigger("hierarchy_decrease_level")
+        user_actions.execute("hierarchy_decrease_level")
 
         assert tlui[0].get_data("level") == 1
         assert tlui[1].get_data("level") == 1
@@ -95,7 +95,7 @@ class TestActions:
         tlui.select_element(tlui[0])
 
         with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
-            user_actions.trigger("timeline_element_color_set")
+            user_actions.execute("timeline_element_color_set")
 
         assert tlui[0].get_data("color") == "#000000"
 
@@ -104,9 +104,9 @@ class TestActions:
         tlui.select_element(tlui[0])
 
         with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
-            user_actions.trigger("timeline_element_color_set")
+            user_actions.execute("timeline_element_color_set")
 
-        user_actions.trigger("timeline_element_color_reset")
+        user_actions.execute("timeline_element_color_reset")
 
         assert tlui[0].get_data("color") is None
 
@@ -115,7 +115,7 @@ class TestActions:
         tlui.select_element(tlui[0])
 
         with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
-            user_actions.trigger("hierarchy_add_pre_start")
+            user_actions.execute("hierarchy_add_pre_start")
 
         assert tlui[0].get_data("pre_start") != tlui[0].get_data("start")
         assert tlui[0].pre_start_handle
@@ -125,7 +125,7 @@ class TestActions:
         tlui.select_element(tlui[0])
 
         with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
-            user_actions.trigger("hierarchy_add_post_end")
+            user_actions.execute("hierarchy_add_post_end")
 
         assert tlui[0].get_data("post_end") != tlui[0].get_data("end")
         assert tlui[0].post_end_handle
@@ -134,7 +134,7 @@ class TestActions:
         tlui.create_hierarchy(0, 1, 1)
         assert len(tlui) == 1
         tilia_state.current_time = 0.5
-        user_actions.trigger("hierarchy_split")
+        user_actions.execute("hierarchy_split")
 
         assert len(tlui) == 2
 
@@ -145,7 +145,7 @@ class TestActions:
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
 
-        user_actions.trigger("hierarchy_merge")
+        user_actions.execute("hierarchy_merge")
 
         assert len(tlui) == 1
 
@@ -156,7 +156,7 @@ class TestActions:
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
 
-        user_actions.trigger("hierarchy_group")
+        user_actions.execute("hierarchy_group")
 
         assert len(tlui) == 3
 
@@ -165,7 +165,7 @@ class TestActions:
     ):
         tlui.create_hierarchy(0, 1, 1)
 
-        user_actions.trigger("hierarchy_group")
+        user_actions.execute("hierarchy_group")
 
         assert len(tlui) == 1
         tilia_errors.assert_no_error()
@@ -175,7 +175,7 @@ class TestActions:
 
         tlui.select_element(tlui[0])
 
-        user_actions.trigger("timeline_element_delete")
+        user_actions.execute("timeline_element_delete")
 
         assert len(tlui) == 0
 
@@ -184,7 +184,7 @@ class TestActions:
 
         tlui.select_element(tlui[0])
 
-        user_actions.trigger("hierarchy_create_child")
+        user_actions.execute("hierarchy_create_child")
 
         assert len(tlui) == 2
 
@@ -195,11 +195,11 @@ class TestCopyPaste:
         tlui.create_hierarchy(0, 1, 2)
 
         tlui.select_element(tlui[0])
-        user_actions.trigger("timeline_element_copy")
+        user_actions.execute("timeline_element_copy")
         tlui.deselect_element(tlui[0])
 
         tlui.select_element(tlui[1])
-        user_actions.trigger("timeline_element_paste")
+        user_actions.execute("timeline_element_paste")
 
         assert tlui[1].get_data("label") == "paste test"
 
@@ -236,11 +236,11 @@ class TestCopyPaste:
         set_dummy_copy_attributes(hrc2)
 
         tlui.select_element(tlui[2])
-        user_actions.trigger("timeline_element_copy")
+        user_actions.execute("timeline_element_copy")
         tlui.deselect_all_elements()
 
         tlui.select_element(tlui[3])
-        user_actions.trigger("timeline_element_paste_complete")
+        user_actions.execute("timeline_element_paste_complete")
 
         assert len(tlui.elements) == 6
         assert len(hrc4.children) == 2
@@ -276,11 +276,11 @@ class TestCopyPaste:
         set_dummy_copy_attributes(hrc2)
 
         tlui.select_element(tlui[2])
-        user_actions.trigger("timeline_element_copy")
+        user_actions.execute("timeline_element_copy")
         tlui.deselect_all_elements()
 
         tlui.select_element(tlui[3])
-        user_actions.trigger("timeline_element_paste_complete")
+        user_actions.execute("timeline_element_paste_complete")
 
         copied_children_1, copied_children_2 = sorted(hrc4.children)
 
@@ -331,11 +331,11 @@ class TestCopyPaste:
         set_dummy_copy_attributes(tlui.timeline[1])
 
         tlui.select_element(tlui[4])
-        user_actions.trigger("timeline_element_copy")
+        user_actions.execute("timeline_element_copy")
         tlui.deselect_all_elements()
 
         tlui.select_element(tlui[5])
-        user_actions.trigger("timeline_element_paste_complete")
+        user_actions.execute("timeline_element_paste_complete")
 
         copied_children_1, copied_children_2 = sorted(hrc6.children)
 
@@ -354,12 +354,12 @@ class TestCopyPaste:
         tlui.create_hierarchy(1, 1.5, 3)
 
         tlui.select_element(tlui[2])
-        user_actions.trigger("timeline_element_copy")
+        user_actions.execute("timeline_element_copy")
         tlui.deselect_all_elements()
 
         tlui.select_element(tlui[1])
         component_state1 = tlui.timeline.components
-        user_actions.trigger("timeline_element_paste_complete")
+        user_actions.execute("timeline_element_paste_complete")
         component_state2 = tlui.timeline.components
 
         assert component_state1 == component_state2
@@ -387,7 +387,7 @@ class TestUndoRedo:
         with PatchGet(
             "tilia.ui.timelines.hierarchy.request_handlers", Get.SELECTED_TIME, 0.5
         ):
-            user_actions.trigger("hierarchy_split")
+            user_actions.execute("hierarchy_split")
 
         post(Post.EDIT_UNDO)
         assert len(tlui) == 1
@@ -404,7 +404,7 @@ class TestUndoRedo:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        user_actions.trigger("hierarchy_merge")
+        user_actions.execute("hierarchy_merge")
 
         post(Post.EDIT_UNDO)
         assert len(tlui) == 2
@@ -418,7 +418,7 @@ class TestUndoRedo:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        user_actions.trigger("hierarchy_increase_level")
+        user_actions.execute("hierarchy_increase_level")
 
         post(Post.EDIT_UNDO)
         assert tlui.elements[0].get_data("level") == 1
@@ -432,7 +432,7 @@ class TestUndoRedo:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        user_actions.trigger("hierarchy_decrease_level")
+        user_actions.execute("hierarchy_decrease_level")
 
         post(Post.EDIT_UNDO)
         assert tlui.elements[0].get_data("level") == 2
@@ -449,7 +449,7 @@ class TestUndoRedo:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        user_actions.trigger("hierarchy_group")
+        user_actions.execute("hierarchy_group")
 
         post(Post.EDIT_UNDO)
         assert len(tlui) == 2
@@ -464,7 +464,7 @@ class TestUndoRedo:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        user_actions.trigger("timeline_element_delete")
+        user_actions.execute("timeline_element_delete")
 
         post(Post.EDIT_UNDO)
         assert len(tlui) == 1
@@ -481,7 +481,7 @@ class TestUndoRedo:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        user_actions.trigger("timeline_element_delete")
+        user_actions.execute("timeline_element_delete")
 
         post(Post.EDIT_UNDO)
         assert len(tlui) == 2
@@ -496,7 +496,7 @@ class TestUndoRedo:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        user_actions.trigger("hierarchy_create_child")
+        user_actions.execute("hierarchy_create_child")
 
         post(Post.EDIT_UNDO)
         assert len(tlui) == 1
@@ -510,18 +510,18 @@ class TestUndoRedo:
         post(Post.APP_RECORD_STATE, "test state")
 
         tlui.select_element(tlui[0])
-        user_actions.trigger("timeline_element_copy")
+        user_actions.execute("timeline_element_copy")
         tlui.deselect_element(tlui[0])
 
         tlui.select_element(tlui[1])
-        user_actions.trigger("timeline_element_paste")
+        user_actions.execute("timeline_element_paste")
 
         assert tlui[1].get_data("label") == "paste test"
 
-        user_actions.trigger("edit_undo")
+        user_actions.execute("edit_undo")
         assert tlui[1].get_data("label") == ""
 
-        user_actions.trigger("edit_redo")
+        user_actions.execute("edit_redo")
         assert tlui[1].get_data("label") == "paste test"
 
     @pytest.mark.skip(
@@ -534,12 +534,12 @@ class TestUndoRedo:
         tlui.create_hierarchy(2, 3, 2)
 
         tlui.select_element(tlui[2])
-        user_actions.trigger("timeline_element_copy")
+        user_actions.execute("timeline_element_copy")
         tlui.deselect_element(tlui[2])
 
         tlui.select_element(tlui[3])
 
-        user_actions.trigger("timeline_element_paste_complete")
+        user_actions.execute("timeline_element_paste_complete")
 
         post(Post.EDIT_UNDO)
         assert len(tlui) == 4
@@ -556,7 +556,7 @@ class TestCreateChild:
 
         post(Post.APP_RECORD_STATE, "test state")
 
-        user_actions.trigger("hierarchy_create_child")
+        user_actions.execute("hierarchy_create_child")
 
         post(Post.EDIT_UNDO)
         assert len(tlui) == 1
@@ -571,7 +571,7 @@ class TestCreateChild:
 
         settings.set("hierarchy_timeline", "prompt_create_level_below", True)
         with Serve(Get.FROM_USER_YES_OR_NO, False):
-            user_actions.trigger("hierarchy_create_child")
+            user_actions.execute("hierarchy_create_child")
 
         assert len(tlui) == 1
         assert tlui[0].get_data("level") == 1
@@ -584,7 +584,7 @@ class TestCreateChild:
 
             settings.set("hierarchy_timeline", "prompt_create_level_below", True)
             with Serve(Get.FROM_USER_YES_OR_NO, True):
-                user_actions.trigger("hierarchy_create_child")
+                user_actions.execute("hierarchy_create_child")
 
             assert len(tlui) == 2
             assert tlui[0].get_data("level") == 1
@@ -598,7 +598,7 @@ class TestCreateChild:
 
             settings.set("hierarchy_timeline", "prompt_create_level_below", True)
             with Serve(Get.FROM_USER_YES_OR_NO, True):
-                user_actions.trigger("hierarchy_create_child")
+                user_actions.execute("hierarchy_create_child")
 
             assert len(tlui) == 3
             assert tlui[0].get_data("level") == 1
@@ -614,7 +614,7 @@ class TestCreateChild:
 
             settings.set("hierarchy_timeline", "prompt_create_level_below", True)
             with Serve(Get.FROM_USER_YES_OR_NO, True):
-                user_actions.trigger("hierarchy_create_child")
+                user_actions.execute("hierarchy_create_child")
 
             assert len(tlui) == 4
             assert tlui[0].get_data("level") == 1
@@ -628,6 +628,6 @@ class TestCreateChild:
             tlui.select_element(tlui[0])
 
             settings.set("hierarchy_timeline", "prompt_create_level_below", False)
-            user_actions.trigger("hierarchy_create_child")
+            user_actions.execute("hierarchy_create_child")
 
             assert len(tlui) == 2

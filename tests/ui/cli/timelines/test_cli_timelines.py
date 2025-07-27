@@ -70,7 +70,7 @@ class TestTimelineRemove:
 
     def test_remove_by_name_not_found(self, cli, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "test")):
-            user_actions.trigger("timelines.add.hierarchy")
+            user_actions.execute("timelines.add.hierarchy")
 
         with patch("builtins.print") as mock_print:
             cli.parse_and_run("timeline remove name othername")

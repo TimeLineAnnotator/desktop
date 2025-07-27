@@ -111,8 +111,8 @@ def reloadable(save_path, user_actions):
         checks()
 
         with patch_file_dialog(True, [save_path, save_path]):
-            user_actions.trigger("file_save")
-            user_actions.trigger("file_open")
+            user_actions.execute("file_save")
+            user_actions.execute("file_open")
 
         checks()
 

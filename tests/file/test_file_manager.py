@@ -22,18 +22,18 @@ class Tests:
         marker_tlui.create_marker(0)
         tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
         with patch_file_dialog(True, [tmp_file_path]):
-            user_actions.trigger("file_save_as")
+            user_actions.execute("file_save_as")
         marker_tlui.create_marker(1)
-        user_actions.trigger("file_save")
+        user_actions.execute("file_save")
 
         with patch_yes_or_no_dialog(True):
-            user_actions.trigger("timelines_clear")
+            user_actions.execute("timelines_clear")
         assert marker_tlui.is_empty
         with (
             patch_file_dialog(True, [tmp_file_path]),
             patch_yes_or_no_dialog(False),  # do not save changes
         ):
-            user_actions.trigger("file_open")
+            user_actions.execute("file_open")
         assert len(tls[0]) == 2
 
 
@@ -138,7 +138,7 @@ class TestFileManager:
     ):
         tla_path = tmp_path / "Some Title.tla"
         with patch_file_dialog(True, [str(tla_path)]):
-            user_actions.trigger("file_save")
+            user_actions.execute("file_save")
 
         assert tilia.file_manager.file.media_metadata["title"] == "Some Title"
 
@@ -148,7 +148,7 @@ class TestFileManager:
         tilia.file_manager.file.media_metadata["title"] = "Title Already Set"
         tla_path = tmp_path / "Some Title.tla"
         with patch_file_dialog(True, [str(tla_path)]):
-            user_actions.trigger("file_save")
+            user_actions.execute("file_save")
 
         assert tilia.file_manager.file.media_metadata["title"] == "Title Already Set"
 
@@ -157,7 +157,7 @@ class TestFileManager:
     ):
         tla_path = tmp_path / "Non-existent Path" / "Some Other Title.tla"
         with patch_file_dialog(True, [str(tla_path)]):
-            user_actions.trigger("file_save")
+            user_actions.execute("file_save")
 
         assert tilia.file_manager.file.media_metadata[
             "title"

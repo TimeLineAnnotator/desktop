@@ -64,7 +64,7 @@ def setup_actions(parent: QMainWindow):
         register_action(parent, *action_params)
 
 
-def trigger(name: str):
+def execute(name: str):
     _name_to_action[name].trigger()
 
 

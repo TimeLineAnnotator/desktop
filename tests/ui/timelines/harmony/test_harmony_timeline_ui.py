@@ -21,7 +21,7 @@ def add_harmony(**kwargs):
     }
     default_params.update(kwargs)
     with Serve(Get.FROM_USER_HARMONY_PARAMS, (True, default_params)):
-        tilia.ui.commands.trigger("harmony_add")
+        tilia.ui.commands.execute("harmony_add")
 
 
 def add_mode(**kwargs):
@@ -33,7 +33,7 @@ def add_mode(**kwargs):
     }
     default_params.update(kwargs)
     with Serve(Get.FROM_USER_MODE_PARAMS, (True, default_params)):
-        tilia.ui.commands.trigger("mode_add")
+        tilia.ui.commands.execute("mode_add")
 
 
 class TestRomanNumeralDisplay:
@@ -135,9 +135,9 @@ class TestCopyPaste:
 
         click_harmony_ui(harmony_tlui.modes()[0])
         click_harmony_ui(harmony_tlui.harmonies()[1], modifier="ctrl")
-        user_actions.trigger("timeline_element_copy")
+        user_actions.execute("timeline_element_copy")
 
         click_harmony_ui(harmony_tlui.harmonies()[1])
-        user_actions.trigger("timeline_element_paste")
+        user_actions.execute("timeline_element_paste")
 
         assert len(harmony_tlui) == 5

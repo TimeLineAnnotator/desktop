@@ -287,8 +287,8 @@ class UserActionManager:
                 functools.partial(self._increment_trigger_count, action)
             )
 
-    def trigger(self, action: str):
-        tilia_actions_module.trigger(action)
+    def execute(self, action: str):
+        tilia_actions_module.execute(action)
         self._increment_trigger_count(action)
 
     def _increment_trigger_count(self, action):

@@ -36,9 +36,9 @@ class TestChangeTimelineOrder:
     @pytest.fixture(autouse=True)
     def setup_timelines(self, tls, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger("timelines.add.marker")
-            user_actions.trigger("timelines.add.marker")
-            user_actions.trigger("timelines.add.marker")
+            user_actions.execute("timelines.add.marker")
+            user_actions.execute("timelines.add.marker")
+            user_actions.execute("timelines.add.marker")
         return list(tls)
 
     def test_increase_ordinal(self, tls, manage_timelines, setup_timelines):
@@ -56,7 +56,7 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
-        user_actions.trigger("edit_undo")
+        user_actions.execute("edit_undo")
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
@@ -67,8 +67,8 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(1)
         manage_timelines.up_button.click()
 
-        user_actions.trigger("edit_undo")
-        user_actions.trigger("edit_redo")
+        user_actions.execute("edit_undo")
+        user_actions.execute("edit_redo")
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 
@@ -97,7 +97,7 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
-        user_actions.trigger("edit_undo")
+        user_actions.execute("edit_undo")
 
         assert_order_is_correct(tls, manage_timelines, [tl0, tl1, tl2])
 
@@ -108,8 +108,8 @@ class TestChangeTimelineOrder:
         manage_timelines.list_widget.setCurrentRow(0)
         manage_timelines.down_button.click()
 
-        user_actions.trigger("edit_undo")
-        user_actions.trigger("edit_redo")
+        user_actions.execute("edit_undo")
+        user_actions.execute("edit_redo")
 
         assert_order_is_correct(tls, manage_timelines, [tl1, tl0, tl2])
 

@@ -240,30 +240,30 @@ class TestSetTimelineName:
     def test_set(self, tls, tluis, user_actions):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE, name="change me")
         with Serve(Get.FROM_USER_STRING, (True, "this")):
-            user_actions.trigger("timeline_name_set")
+            user_actions.execute("timeline_name_set")
 
         assert tls[0].get_data("name") == "this"
         assert tluis[0].displayed_name == "this"
 
     def test_set_undo(self, tls, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "pure")):
-            user_actions.trigger("timelines.add.marker")
+            user_actions.execute("timelines.add.marker")
         with Serve(Get.FROM_USER_STRING, (True, "tainted")):
-            user_actions.trigger("timeline_name_set")
+            user_actions.execute("timeline_name_set")
 
-        user_actions.trigger("edit_undo")
+        user_actions.execute("edit_undo")
 
         assert tls[0].get_data("name") == "pure"
         assert tluis[0].displayed_name == "pure"
 
     def test_set_redo(self, tls, tluis, user_actions):
         with Serve(Get.FROM_USER_STRING, (True, "pure")):
-            user_actions.trigger("timelines.add.marker")
+            user_actions.execute("timelines.add.marker")
         with Serve(Get.FROM_USER_STRING, (True, "tainted")):
-            user_actions.trigger("timeline_name_set")
+            user_actions.execute("timeline_name_set")
 
-        user_actions.trigger("edit_undo")
-        user_actions.trigger("edit_redo")
+        user_actions.execute("edit_undo")
+        user_actions.execute("edit_redo")
 
         assert tls[0].get_data("name") == "tainted"
         assert tluis[0].displayed_name == "tainted"
@@ -271,7 +271,7 @@ class TestSetTimelineName:
     def test_set_empty_string(self, tls, tluis, user_actions):
         tls.create_timeline(TimelineKind.MARKER_TIMELINE, name="change me")
         with Serve(Get.FROM_USER_STRING, (True, "")):
-            user_actions.trigger("timeline_name_set")
+            user_actions.execute("timeline_name_set")
 
         assert tls[0].get_data("name") == ""
         assert tluis[0].displayed_name == ""

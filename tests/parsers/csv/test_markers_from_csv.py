@@ -30,7 +30,7 @@ def patch_import(by: Literal["time", "measure"], tl, data) -> tuple[str, list[st
         patch("tilia.ui.qtui.on_import_from_csv", side_effect=mock_import),
         patch("builtins.open", mock_open(read_data=data)),
     ):
-        commands.trigger("import_csv_marker_timeline")
+        commands.execute("import_csv_marker_timeline")
     return status, errors
 
 

@@ -27,10 +27,10 @@ class TestCopyPaste:
     def test_paste_single_into_timeline(self, tlui, tilia_state):
         tlui.create_mode(0)
         click_mode_ui(tlui[0])
-        commands.trigger("timeline_element_copy")
+        commands.execute("timeline_element_copy")
         click_timeline_ui(tlui, 10)
         tilia_state.current_time = 50
-        commands.trigger("timeline_element_paste")
+        commands.execute("timeline_element_paste")
         assert len(tlui) == 2
         assert tlui[1].get_data("time") == 50
 
@@ -41,10 +41,10 @@ class TestCopyPaste:
         click_mode_ui(tlui[0])
         click_mode_ui(tlui[1], modifier="ctrl")
         click_mode_ui(tlui[2], modifier="ctrl")
-        commands.trigger("timeline_element_copy")
+        commands.execute("timeline_element_copy")
         click_timeline_ui(tlui, 90)
         tilia_state.current_time = 50
-        commands.trigger("timeline_element_paste")
+        commands.execute("timeline_element_paste")
         assert len(tlui) == 6
         assert tlui[3].get_data("time") == 50
         assert tlui[4].get_data("time") == 60
@@ -67,9 +67,9 @@ class TestCopyPaste:
         )
 
         click_mode_ui(tlui[0])
-        commands.trigger("timeline_element_copy")
+        commands.execute("timeline_element_copy")
         click_mode_ui(tlui[1])
-        commands.trigger("timeline_element_paste")
+        commands.execute("timeline_element_paste")
         assert len(tlui) == 2
         for attr, value in attributes_to_copy.items():
             assert tlui[1].get_data(attr) == attributes_to_copy[attr]
@@ -96,10 +96,10 @@ class TestCopyPaste:
 
         for mui in copied_muis:
             click_mode_ui(mui, modifier="ctrl")
-        commands.trigger("timeline_element_copy")
+        commands.execute("timeline_element_copy")
         click_timeline_ui(tlui, 90)
         click_mode_ui(target_mui)
-        commands.trigger("timeline_element_paste")
+        commands.execute("timeline_element_paste")
         assert len(tlui) == 6
         for attr, value in attributes_to_copy.items():
             assert target_mui.get_data(attr) == attributes_to_copy[attr]

@@ -8,9 +8,10 @@ The test suite is written in pytest. Below are some things to keep in my mind wh
 Unfortunately, we can't simulate input to modal dialogs, as they block execution. To work around that, we can:
 - Mock methods of the modal dialogs (e.g. `QInputDialog.getInt`). There are utility functions that do that in some cases (e.g. `tests.utils.patch_file_dialog`)
 - If the dialog is called in response to a `Get` request, the `Serve` context manager can be used to mock the return value of the request. E.g.:
+
 ```python
 with Serve(Get.FROM_USER_INT, (True, 150)):
-    user_actions.trigger("timeline_height_set")
+    user_actions.execute("timeline_height_set")
 ```
 
 We should prefer the first option as it makes the test cover more code, but the second is more resilient to changes in implementation details.
@@ -31,10 +32,11 @@ def test_me(tlui, marker_tlui):
 ```
 
 can be rewritten as:
+
 ```python
 def test_me(marker_tlui, user_actions, tilia_state):
     tilia_state.current_time = 0
-    user_action.trigger("marker_add")
+    user_action.execute("marker_add")
     assert not len(marker_tlui) == 1
 ```
 You will find many examples of the former in the test suite, though. Refactors are welcome.

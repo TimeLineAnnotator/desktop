@@ -112,7 +112,7 @@ class TiliaMainWindow(QMainWindow):
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
-        commands.trigger("app_close")
+        commands.execute("app_close")
         event.ignore()
 
     def on_close(self):
