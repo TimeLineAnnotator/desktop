@@ -144,7 +144,7 @@ class TestMenus:
             "timeline_element_copy",
             "timeline_element_paste",
             "timeline_element_paste_complete",
-            "settings_window_open",
+            "window.open.settings",
         ]
         expected = [get_qaction(action) for action in expected]
         assert set(actions) == set(expected)

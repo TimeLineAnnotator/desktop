@@ -109,7 +109,7 @@ class FileMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, ExportMenu),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.SUBMENU, LoadMediaMenu),
-        (MenuItemKind.ACTION, "metadata_window_open"),
+        (MenuItemKind.ACTION, "window.open.metadata"),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.ACTION, "autosaves_folder_open"),
     ]
@@ -125,7 +125,7 @@ class EditMenu(TiliaMenu):
         (MenuItemKind.ACTION, "timeline_element_paste"),
         (MenuItemKind.ACTION, "timeline_element_paste_complete"),
         (MenuItemKind.SEPARATOR, None),
-        (MenuItemKind.ACTION, "settings_window_open"),
+        (MenuItemKind.ACTION, "window.open.settings"),
     ]
 
 
@@ -178,7 +178,7 @@ class TimelinesMenu(TiliaMenu):
     menu_title = "&Timelines"
     items = [
         (MenuItemKind.SUBMENU, AddTimelinesMenu),
-        (MenuItemKind.ACTION, "window_manage_timelines_open"),
+        (MenuItemKind.ACTION, "window.open.manage_timelines"),
         (MenuItemKind.ACTION, "timelines_clear"),
         (MenuItemKind.SUBMENU, HierarchyMenu),
         (MenuItemKind.SUBMENU, MarkerMenu),
@@ -238,6 +238,6 @@ class ViewMenu(QMenu):
 class HelpMenu(TiliaMenu):
     menu_title = "&Help"
     items = [
-        (MenuItemKind.ACTION, "about_window_open"),
+        (MenuItemKind.ACTION, "window.open.about"),
         (MenuItemKind.ACTION, "website_help_open"),
     ]

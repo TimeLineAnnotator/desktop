@@ -26,7 +26,9 @@ def _get_request_callback(request: Post, args: tuple[Any], kwargs: dict[str, Any
     return callback
 
 
-def register_command(parent, name, callback: Callable | Post, text, shortcut, icon):
+def register_command(
+    parent, name, callback: Callable | Post, text, shortcut="", icon_filename=""
+):
     action = QAction(parent)
 
     action.setText(text)
@@ -35,8 +37,8 @@ def register_command(parent, name, callback: Callable | Post, text, shortcut, ic
     if shortcut:
         action.setShortcut(QKeySequence(shortcut))
 
-    if icon:
-        action.setIcon(QIcon(str(get_img_path(icon))))
+    if icon_filename:
+        action.setIcon(QIcon(str(get_img_path(icon_filename))))
     action.setIconVisibleInMenu(False)
 
     if isinstance(callback, Post):
@@ -206,8 +208,6 @@ default_actions = [
     ),
     ("media_load_local", Post.UI_MEDIA_LOAD_LOCAL, "&Local...", "Ctrl+Shift+L", ""),
     ("media_load_youtube", Post.UI_MEDIA_LOAD_YOUTUBE, "&YouTube...", "", ""),
-    ("metadata_window_open", Post.WINDOW_OPEN, "Edit &Metadata...", "", ""),
-    ("settings_window_open", Post.WINDOW_OPEN, "&Settings...", "", ""),
     (
         "autosaves_folder_open",
         Post.AUTOSAVES_FOLDER_OPEN,
@@ -217,7 +217,6 @@ default_actions = [
     ),
     ("edit_redo", Post.EDIT_REDO, "&Redo", "Ctrl+Shift+Z", ""),
     ("edit_undo", Post.EDIT_UNDO, "&Undo", "Ctrl+Z", ""),
-    ("window_manage_timelines_open", Post.WINDOW_OPEN, "&Manage...", "", ""),
     ("timelines_clear", Post.TIMELINES_CLEAR, "Clear all", "", ""),
     ("timeline_element_inspect", Post.TIMELINE_ELEMENT_INSPECT, "Inspect", "", ""),
     ("timeline_element_edit", Post.TIMELINE_ELEMENT_INSPECT, "&Edit", "", ""),
@@ -235,8 +234,6 @@ default_actions = [
     ("timeline_height_set", Post.TIMELINE_HEIGHT_SET, "Change height", "", ""),
     ("view_zoom_in", Post.VIEW_ZOOM_IN, "Zoom &In", "Ctrl++", ""),
     ("view_zoom_out", Post.VIEW_ZOOM_OUT, "Zoom &Out", "Ctrl+-", ""),
-    ("about_window_open", Post.WINDOW_OPEN, "&About...", "", ""),
-    ("media_stop", Post.PLAYER_STOP, "Stop", "", "stop15"),
     ("website_help_open", Post.WEBSITE_HELP_OPEN, "&Help...", "", ""),
     ("pdf_marker_add", Post.PDF_MARKER_ADD, "Add PDF marker", "p", "pdf_add"),
     ("score_annotation_add", None, "Add Annotation (Return)", "", "annotation_add"),
@@ -267,33 +264,5 @@ default_actions = [
         "Increase Annotation Font",
         "Shift+Up",
         "annotation_font_inc",
-    ),
-    (
-        "metadata_window_open",
-        functools.partial(post, Post.WINDOW_OPEN),
-        "Edit &Metadata...",
-        "",
-        "",
-    ),
-    (
-        "settings_window_open",
-        functools.partial(post, Post.WINDOW_OPEN),
-        "&Settings...",
-        "",
-        "",
-    ),
-    (
-        "window_manage_timelines_open",
-        functools.partial(post, Post.WINDOW_OPEN),
-        "&Manage...",
-        "",
-        "",
-    ),
-    (
-        "about_window_open",
-        functools.partial(post, Post.WINDOW_OPEN),
-        "&About...",
-        "",
-        "",
     ),
 ]

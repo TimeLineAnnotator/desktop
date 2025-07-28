@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import re
 from pathlib import Path
 
@@ -206,6 +207,31 @@ class QtUI:
 
         for request, callback in SERVES:
             serve(self, request, callback)
+
+    def _setup_commands(self):
+        window_commands = [
+            ("window.open.metadata",
+             ("window.open.settings",
+              ("window.open.manage_timelines",
+               ("window.open.about",
+        ]
+        for command, kind, text in
+        commands.register_command(
+            "window.open.metadata",
+            functools.partial(self.on_window_open, WindowKind.MEDIA_METADATA),
+        )
+        commands.register_command(
+            "window.open.settings",
+            functools.partial(self.on_window_open, WindowKind.SETTINGS),
+        )
+        commands.register_command(
+            "window.open.manage_timelines",
+            functools.partial(self.on_window_open, WindowKind.MANAGE_TIMELINES),
+        )
+        commands.register_command(
+            "window.open.about",
+            functools.partial(self.on_window_open, WindowKind.ABOUT),
+        )
 
     def _setup_main_window(self, mw: TiliaMainWindow):
         self.main_window = mw
