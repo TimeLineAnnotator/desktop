@@ -48,8 +48,6 @@ pytest_plugins = [
 
 dotenv_path = PROJECT_ROOT / ".env"
 success = dotenv.load_dotenv(dotenv_path)
-if not success:
-    raise FileNotFoundError(f"No .env file found at {dotenv_path.resolve()}")
 
 
 class TiliaErrors:
