@@ -52,13 +52,13 @@ class AudioWaveTimeline(Timeline):
         amplitude = [chunk.rms for chunk in chunks]
         return dt, [amp / max(amplitude) for amp in amplitude]
 
-    def _create_components(self, duration: float, amplitudes: float):
-        for i in range(len(amplitudes)):
+    def _create_components(self, duration: float, amplitudes: list[float]):
+        for i, amplitude in enumerate(amplitudes):
             self.create_component(
                 kind=ComponentKind.AUDIOWAVE,
                 start=i * duration,
                 end=(i + 1) * duration,
-                amplitude=amplitudes[i],
+                amplitude=amplitude,
             )
 
     def refresh(self):
