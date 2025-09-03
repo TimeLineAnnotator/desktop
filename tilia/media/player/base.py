@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import sys
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from pathlib import Path
@@ -222,17 +221,11 @@ class Player(ABC):
             )
             return
 
-        if sys.platform == "darwin":
-            tilia.errors.display(
-                tilia.errors.EXPORT_AUDIO_FAILED,
-                "Exporting audio is not available on macOS.",
-            )
-            return
-
         success, path = get(
-            Get.FROM_USER_SAVE_PATH_OGG,
-            "Export audio",
-            f"{get(Get.MEDIA_TITLE)}_{segment_name}",
+            Get.FROM_USER_SAVE_PATH,
+            title="Export audio",
+            initial_filename=f"{get(Get.MEDIA_TITLE)}_{segment_name}",
+            filter="WAV file (*.wav)",
         )
 
         if not success:

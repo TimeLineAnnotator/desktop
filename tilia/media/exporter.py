@@ -1,14 +1,20 @@
-import pydub
 from pathlib import Path
+
+import soundfile
 
 
 def export_audio(
-    source_path: Path,
+    source_path: Path | str,
     destination_path: Path,
     start_time: float,
     end_time: float,
 ) -> None:
-    segment = pydub.AudioSegment.from_file(source_path)
-    requested_section = segment[start_time * 1000 : end_time * 1000]
+    if isinstance(source_path, Path):
+        source_path = source_path.resolve()
 
-    requested_section.export(destination_path, format="ogg")
+    array, sample_rate = soundfile.read(source_path)
+    requested_section = array[
+        int(start_time * sample_rate) : int(end_time * sample_rate)
+    ]
+
+    soundfile.write(destination_path, requested_section, sample_rate)

@@ -70,12 +70,6 @@ def ask_for_path_to_save_tilia_file(initial_filename: str) -> tuple[bool, str | 
     return ask_for_path_to_save("Save as", APP_FILE_FILTER, initial_filename)
 
 
-def ask_for_path_to_save_ogg_file(
-    title: str, initial_name: str
-) -> tuple[bool, str | None]:
-    return ask_for_path_to_save(title, "OGG files (*.ogg)", initial_name)
-
-
 def ask_for_path_to_export(
     initial_name: str, file_type: str
 ) -> tuple[bool, str | None]:

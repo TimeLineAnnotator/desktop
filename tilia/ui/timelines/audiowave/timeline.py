@@ -66,16 +66,7 @@ class AudioWaveTimelineUI(TimelineUI):
         start_time = self.selected_elements[0].get_data("start")
         end_time = self.selected_elements[-1].get_data("end")
 
-        try:
-            amplitude = f"{self.timeline.get_dB(start_time, end_time): .3f} dB"
-        except Exception:  # audio not available, but timeline elements exist
-            amplitude = 0
-            for element in self.selected_elements:
-                amplitude += element.get_data("amplitude")
-            amplitude = f"{amplitude / len(self.selected_elements): .3f} (rms)"
-
         return {
             "Start / End": f"{format_media_time(start_time)} /"
             + f"{format_media_time(end_time)}",
-            "Amplitude": amplitude,
         }

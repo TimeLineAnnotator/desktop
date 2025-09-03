@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import pydub
-import pydub.exceptions
-import pydub.utils
+import numpy as np
+import soundfile
 
 from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
@@ -34,7 +33,7 @@ class AudioWaveTimeline(Timeline):
     def _get_audio(self):
         path = get(Get.MEDIA_PATH)
         try:
-            return pydub.AudioSegment.from_file(path)
+            return soundfile.SoundFile(path)
         except Exception:
             tilia.errors.display(tilia.errors.AUDIOWAVE_INVALID_FILE)
             return None
@@ -44,12 +43,14 @@ class AudioWaveTimeline(Timeline):
             [
                 get(Get.PLAYBACK_AREA_WIDTH),
                 settings.get("audiowave_timeline", "max_divisions"),
-                self.audio.frame_count(),
+                self.audio.frames,
             ]
         )
-        dt = self.audio.duration_seconds / divisions
-        chunks = pydub.utils.make_chunks(self.audio, dt * 1000)
-        amplitude = [chunk.rms for chunk in chunks]
+        dt = self.audio.frames / self.audio.samplerate / divisions
+        amplitude = [
+            np.sqrt(np.mean(chunk**2))
+            for chunk in self.audio.blocks(self.audio.frames // divisions)
+        ]
         return dt, [amp / max(amplitude) for amp in amplitude]
 
     def _create_components(self, duration: float, amplitudes: list[float]):
@@ -74,9 +75,6 @@ class AudioWaveTimeline(Timeline):
         if self.get_data("is_visible") != is_visible:
             self.set_data("is_visible", is_visible)
             post(Post.TIMELINE_SET_DATA_DONE, self.id, "is_visible", is_visible)
-
-    def get_dB(self, start_time, end_time):
-        return self.audio[start_time * 1000 : end_time * 1000].dBFS
 
     def scale(self, factor: float) -> None:
         # refresh will be called when new media is loaded

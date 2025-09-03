@@ -6,7 +6,7 @@ from tilia.ui.dialogs.file import (
     ask_for_path_to_save_tilia_file,
     ask_for_tilia_file_to_open,
     ask_for_media_file,
-    ask_for_path_to_save_ogg_file,
+    ask_for_path_to_save,
     ask_for_pdf_file,
     ask_retry_media_file,
     ask_retry_pdf_file,
@@ -33,7 +33,7 @@ class DialogManager:
         SERVES = {
             (Get.FROM_USER_SHOULD_SAVE_CHANGES, ask_should_save_changes),
             (Get.FROM_USER_SAVE_PATH_TILIA, ask_for_path_to_save_tilia_file),
-            (Get.FROM_USER_SAVE_PATH_OGG, ask_for_path_to_save_ogg_file),
+            (Get.FROM_USER_SAVE_PATH, ask_for_path_to_save),
             (Get.FROM_USER_EXPORT_PATH, ask_for_path_to_export),
             (Get.FROM_USER_TILIA_FILE_PATH, ask_for_tilia_file_to_open),
             (Get.FROM_USER_FILE_PATH, ask_for_file_to_open),
