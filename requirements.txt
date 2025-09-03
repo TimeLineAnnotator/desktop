@@ -9,7 +9,7 @@ PyQt6-sip==13.6.0
 PyQt6-WebEngine==6.6.0
 PyQt6-WebEngine-Qt6==6.6.0
 python-dotenv>=1.0.1
-pypdf~=4.2.0
+pypdf>=6.0.0
 httpx~=0.28.1
 isodate~=0.7.2
 soundfile~=0.13.1
