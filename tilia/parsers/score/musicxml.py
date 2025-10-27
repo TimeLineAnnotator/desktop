@@ -51,7 +51,7 @@ class TiliaMXLReader:
         if ".mxl" in self.path:
             self.file = self._get_mxl_data()
         else:
-            self.file = open(self.path, **self.file_kwargs)
+            self.file = open(self.path, **self.file_kwargs, encoding="utf-8")
 
         return self.file
 
