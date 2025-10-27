@@ -9,10 +9,10 @@ from tilia.ui.timelines.collection.collection import TimelineUIs
 from tilia.parsers import get_import_function
 
 
-def on_import_from_csv(
+def on_import_to_timeline(
     timeline_uis: TimelineUIs, tlkind: TlKind
 ) -> tuple[Literal["success", "failure", "cancelled"], list[str]]:
-    if not _validate_timeline_kind_on_import_from_csv(timeline_uis, tlkind):
+    if not _validate_timeline_kind_on_import(timeline_uis, tlkind):
         return "failure", [f"No timeline of kind {tlkind} found."]
 
     tls_of_kind = timeline_uis.get_timeline_uis_by_attr("TIMELINE_KIND", tlkind)
@@ -29,7 +29,7 @@ def on_import_from_csv(
         return "cancelled", ["User cancelled when choosing timeline."]
 
     timeline = get(Get.TIMELINE, timeline_ui.id)
-    if timeline.components and not _confirm_timeline_overwrite_on_import_from_csv():
+    if timeline.components and not _confirm_timeline_overwrite_on_import():
         return "cancelled", ["User rejected components overwrite."]
 
     if tlkind == TlKind.SCORE_TIMELINE:
@@ -95,9 +95,7 @@ def _get_by_time_or_by_measure_from_user():
     return (True, dialog.get_option()) if dialog.exec() else (False, None)
 
 
-def _validate_timeline_kind_on_import_from_csv(
-    timeline_uis: TimelineUIs, tlkind: TlKind
-):
+def _validate_timeline_kind_on_import(timeline_uis: TimelineUIs, tlkind: TlKind):
     if not timeline_uis.get_timeline_uis_by_attr("TIMELINE_KIND", tlkind):
         tilia.errors.display(
             tilia.errors.CSV_IMPORT_FAILED,
@@ -107,7 +105,7 @@ def _validate_timeline_kind_on_import_from_csv(
     return True
 
 
-def _confirm_timeline_overwrite_on_import_from_csv():
+def _confirm_timeline_overwrite_on_import():
     return get(
         Get.FROM_USER_YES_OR_NO,
         "Import from CSV",
