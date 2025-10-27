@@ -5,6 +5,7 @@ import tilia.parsers
 from tilia.requests import get, Get
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.dialogs.by_time_or_by_measure import ByTimeOrByMeasure
+from tilia.ui.strings import UTF8_DECODE_FAILED
 from tilia.ui.timelines.collection.collection import TimelineUIs
 from tilia.parsers import get_import_function
 
@@ -84,8 +85,8 @@ def on_import_to_timeline(
     try:
         success, errors = func(*args)
     except UnicodeDecodeError:
-        tilia.errors.display(tilia.errors.INVALID_CSV_ERROR, path)
-        return "failure", ["Invalid CSV file."]
+        file_type = "musicXML" if tlkind == TlKind.SCORE_TIMELINE else "CSV"
+        return "failure", [UTF8_DECODE_FAILED.format(path, file_type)]
 
     return ("success" if success else "failure"), errors
 

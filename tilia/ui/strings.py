@@ -32,3 +32,4 @@ BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT = (
 INSERT_MEASURE_ZERO_TITLE = "Insert measure zero"
 INSERT_MEASURE_ZERO_PROMPT = "The selected score has a measure numbered 0, but there is no such measure at the selected beat timeline. Attempt to insert it? Measure 0 is usually a pickup measure."
 INSERT_MEASURE_ZERO_FAILED = "Unable to insert measure at the start of the timeline. {}"
+UTF8_DECODE_FAILED = "'{}' is not a valid UTF-8 encoded {} file."
