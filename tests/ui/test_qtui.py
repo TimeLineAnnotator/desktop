@@ -41,14 +41,33 @@ class TestImport:
             ),
             Serve(
                 Get.FROM_USER_FILE_PATH,
-                (True, (resources / EXAMPLE_MEDIA_PATH).resolve().__str__()),
+                (
+                    True,
+                    (resources / EXAMPLE_MEDIA_PATH).resolve().__str__(),
+                ),  # we use a media file as garbage
             ),
         ):
             post(Post.IMPORT_CSV, TimelineKind.MARKER_TIMELINE)
 
         tilia_errors.assert_error()
-        tilia_errors.assert_in_error_title("Import")
+        tilia_errors.assert_in_error_title("import")
         tilia_errors.assert_in_error_message("CSV")
+
+    def test_raises_error_if_invalid_musicXML(
+        self, qtui, score_tlui, beat_tlui, tilia_errors, resources
+    ):
+        with Serve(
+            Get.FROM_USER_FILE_PATH,
+            (
+                True,
+                (resources / EXAMPLE_MEDIA_PATH).resolve().__str__(),
+            ),  # we use a media file as garbage
+        ):
+            post(Post.IMPORT_MUSICXML)
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_title("import")
+        tilia_errors.assert_in_error_message("musicXML")
 
 
 class TestCreateTimeline:
