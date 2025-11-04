@@ -38,7 +38,7 @@ def boot():
     dotenv_path = PROJECT_ROOT / ".env"
     success = dotenv.load_dotenv(dotenv_path)
     if not success:
-        print(f"Could not load environment variables from {dotenv_path}")
+        raise FileNotFoundError(f"No .env file found at {dotenv_path.resolve()}")
     args = setup_parser()
     setup_dirs()
     logger.setup()
