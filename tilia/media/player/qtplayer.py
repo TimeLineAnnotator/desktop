@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import time
-
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QUrl, QEventLoop, SignalInstance, QTimer
 from PySide6.QtMultimedia import (
     QMediaPlayer,
     QAudioOutput,
@@ -15,6 +13,33 @@ from .base import Player
 
 from tilia.requests import Post, post
 from tilia.ui.player import PlayerStatus
+
+
+def wait_for_signal(signal: SignalInstance, value):
+    def signal_wrapper(func):
+        timer = QTimer(singleShot=True, interval=100)
+        loop = QEventLoop()
+        success = False
+
+        def value_checker(signal_value):
+            if signal_value == value:
+                global success
+                success = True
+                loop.quit()
+
+        def check_signal(*args, **kwargs):
+            global success  # noqa: F824
+            if not func(*args, **kwargs):
+                return False
+            signal.connect(value_checker)
+            timer.timeout.connect(loop.quit)
+            timer.start()
+            loop.exec()
+            return timer.isActive() and success
+
+        return check_signal
+
+    return signal_wrapper
 
 
 class QtPlayer(Player):
@@ -48,9 +73,15 @@ class QtPlayer(Player):
         self.audio_output.setDevice(QAudioDevice())
 
     def _engine_load_media(self, media_path: str) -> bool:
-        self._engine_stop()  # Must be _engine_stop() instead of player.stop() to avoid freeze.
-        self.player.setSource(QUrl.fromLocalFile(media_path))
-        return True
+        @wait_for_signal(
+            self.player.mediaStatusChanged, QMediaPlayer.MediaStatus.LoadedMedia
+        )
+        def load_media(media_path):
+            self._engine_stop()  # Must be _engine_stop() instead of player.stop() to avoid freeze.
+            self.player.setSource(QUrl.fromLocalFile(media_path))
+            return True
+
+        return load_media(media_path)
 
     def _engine_get_current_time(self):
         return self.player.position() / 1000
@@ -68,12 +99,14 @@ class QtPlayer(Player):
         self.player.play()
 
     def _engine_stop(self):
-        self.player.stop()
-        # Sleeping avoids freeze if about to change player URL. Not sure why the freeze happens.
-        # Waiting for self.player.mediaStatus() == MediaPlayer.MediaStatus.Stopped also does not work.
-        # I have tested different sleep times and 0.01 seems to prevent freezes reliably
-        # while still having no perceptible impact on test performance.
-        time.sleep(0.01)
+        @wait_for_signal(
+            self.player.playbackStateChanged, QMediaPlayer.PlaybackState.StoppedState
+        )
+        def stop():
+            self.player.stop()
+            return True
+
+        return stop()
 
     def _engine_unload_media(self):
         self._engine_stop()  # Must be _engine_stop() instead of player.stop() to avoid freeze.
