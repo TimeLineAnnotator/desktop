@@ -1,7 +1,7 @@
 import music21
-from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PySide6.QtCore import QPointF
+from PySide6.QtGui import QFont, QColor
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import get, Get, post, Post
 from tilia.ui.coords import time_x_converter

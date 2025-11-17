@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPen
-from PyQt6.QtWidgets import QGraphicsRectItem
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPen
+from PySide6.QtWidgets import QGraphicsRectItem
 
 from tilia.timelines.score.components import Note
 from tilia.ui.color import get_tinted_color, get_untinted_color

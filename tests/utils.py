@@ -5,7 +5,7 @@ from pathlib import Path
 from pprint import pformat
 from typing import Callable
 
-from PyQt6.QtWidgets import QMenu
+from PySide6.QtWidgets import QMenu
 
 from tilia.requests import get, Get, Post, post
 from tests.mock import patch_file_dialog

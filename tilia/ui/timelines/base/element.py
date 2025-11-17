@@ -4,12 +4,12 @@ from abc import ABC, abstractmethod
 
 from typing import Optional, Any, Callable
 
-from PyQt6.QtCore import QPoint
+from PySide6.QtCore import QPoint
 
 from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 from tilia.ui.coords import time_x_converter
 
-from PyQt6.QtWidgets import QGraphicsScene
+from PySide6.QtWidgets import QGraphicsScene
 
 from tilia.requests import stop_listening_to_all
 

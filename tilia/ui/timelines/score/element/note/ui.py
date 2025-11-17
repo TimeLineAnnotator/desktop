@@ -1,7 +1,7 @@
 import math
 from pathlib import Path
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QGraphicsItem,
 )
 

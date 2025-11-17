@@ -3,9 +3,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-from PyQt6.QtCore import Qt, QRectF, QPointF
-from PyQt6.QtGui import QColor, QPen, QFont, QFontMetrics, QPixmap
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QRectF, QPointF
+from PySide6.QtGui import QColor, QPen, QFont, QFontMetrics, QPixmap
+from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsTextItem,

@@ -1,9 +1,9 @@
 from typing import Optional
 
 import typing
-from PyQt6 import QtGui
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from PySide6 import QtGui
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QVBoxLayout,

@@ -4,14 +4,14 @@ from html import escape, unescape
 from pathlib import Path
 from re import sub
 
-from PyQt6.QtCore import (
-    pyqtSlot,
+from PySide6.QtCore import (
+    Slot,
     QObject,
     QUrl,
 )
-from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtWebEngineCore import QWebEngineSettings
-from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEngineSettings
+from PySide6.QtWebEngineWidgets import QWebEngineView
 from tilia.requests import (
     get,
     Get,
@@ -26,11 +26,11 @@ class SvgWebEngineTracker(QObject):
         self.on_svg_loaded = on_svg_loaded
         self.display_error = display_error
 
-    @pyqtSlot(str)
+    @Slot(str)
     def set_svg(self, svg: str) -> None:
         self.on_svg_loaded(svg)
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_error(self, message: str) -> None:
         self.display_error(message)
 

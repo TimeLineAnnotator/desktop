@@ -6,14 +6,14 @@ from lxml import etree
 from bisect import bisect
 from typing import Callable
 
-from PyQt6.QtCore import (
+from PySide6.QtCore import (
     Qt,
     QKeyCombination,
     QPointF,
 )
-from PyQt6.QtGui import QFont
-from PyQt6.QtSvgWidgets import QGraphicsSvgItem
-from PyQt6.QtWidgets import (
+from PySide6.QtGui import QFont
+from PySide6.QtSvgWidgets import QGraphicsSvgItem
+from PySide6.QtWidgets import (
     QFrame,
     QGraphicsView,
     QGraphicsItem,
@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtSvg import QSvgRenderer
+from PySide6.QtSvg import QSvgRenderer
 
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction

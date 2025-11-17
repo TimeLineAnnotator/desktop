@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow
 
 from tilia.ui.menus import FileMenu, EditMenu, TimelinesMenu, ViewMenu, HelpMenu
 

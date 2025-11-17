@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Sequence
 
-from PyQt6 import QtCore
-from PyQt6.QtCore import QDir
-from PyQt6.QtWidgets import QFileDialog
+from PySide6 import QtCore
+from PySide6.QtCore import QDir
+from PySide6.QtWidgets import QFileDialog
 
 from tilia.media import constants as media_constants
 from tilia.constants import APP_NAME, FILE_EXTENSION

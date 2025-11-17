@@ -1,11 +1,11 @@
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QLabel,
     QSlider,
     QToolBar,
 )
-from PyQt6.QtGui import QIcon, QAction, QPixmap
-from PyQt6.QtCore import Qt
+from PySide6.QtGui import QIcon, QAction, QPixmap
+from PySide6.QtCore import Qt
 
 from tilia.dirs import IMG_DIR
 from tilia.ui import commands

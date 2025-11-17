@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QGraphicsScene
+from PySide6.QtWidgets import QGraphicsScene
 
 
 class TimelineUIsScene(QGraphicsScene):

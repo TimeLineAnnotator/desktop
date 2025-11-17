@@ -1,14 +1,14 @@
 from typing import Optional
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import (
     QPainter,
     QMouseEvent,
     QGuiApplication,
     QColor,
     QBrush,
 )
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QSizePolicy, QFrame
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QSizePolicy, QFrame
 
 from tilia.settings import settings
 from tilia.requests import post, Post, Get, get, listen

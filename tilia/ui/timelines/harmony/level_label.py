@@ -1,6 +1,6 @@
-from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtWidgets import QGraphicsTextItem
+from PySide6.QtCore import QPointF
+from PySide6.QtGui import QFont, QColor
+from PySide6.QtWidgets import QGraphicsTextItem
 
 
 class LevelLabel(QGraphicsTextItem):

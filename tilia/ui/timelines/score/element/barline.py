@@ -1,5 +1,5 @@
-from PyQt6.QtGui import QPen, QColor
-from PyQt6.QtWidgets import QGraphicsLineItem
+from PySide6.QtGui import QPen, QColor
+from PySide6.QtWidgets import QGraphicsLineItem
 
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement

@@ -1,6 +1,6 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsRectItem
-from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QFontMetrics
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsRectItem
+from PySide6.QtGui import QColor, QPen, QBrush, QFont, QFontMetrics
 
 from tilia.settings import settings
 from tilia.requests import Get, get, listen, Post

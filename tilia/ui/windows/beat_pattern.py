@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QInputDialog
+from PySide6.QtWidgets import QInputDialog
 
 import tilia.ui.strings
 

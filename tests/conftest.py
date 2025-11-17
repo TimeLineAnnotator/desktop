@@ -5,8 +5,8 @@ from typing import Literal
 
 import dotenv
 import pytest
-from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QApplication
 from colorama import Fore, Style
 
 import tilia.constants as constants_module

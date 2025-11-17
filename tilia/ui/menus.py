@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TypeAlias
 from enum import Enum, auto
 
-from PyQt6.QtWidgets import QMenu
-from PyQt6.QtGui import QAction
+from PySide6.QtWidgets import QMenu
+from PySide6.QtGui import QAction
 
 from tilia.timelines.timeline_kinds import get_timeline_name, TimelineKind
 from tilia.ui import commands

@@ -6,10 +6,10 @@ from pathlib import Path
 
 from typing import Optional
 
-from PyQt6 import QtGui
-from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl, QtMsgType
-from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices, QPainter, QPixmap
-from PyQt6.QtWidgets import (
+from PySide6 import QtGui
+from PySide6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl, QtMsgType
+from PySide6.QtGui import QIcon, QFontDatabase, QDesktopServices, QPainter, QPixmap
+from PySide6.QtWidgets import (
     QMainWindow,
     QApplication,
     QToolBar,

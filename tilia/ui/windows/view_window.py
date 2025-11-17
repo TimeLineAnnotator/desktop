@@ -1,7 +1,7 @@
 from typing import TypeVar, Generic
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDockWidget, QDialog, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDockWidget, QDialog, QWidget
 
 from tilia.requests import get, Get, post, Post, listen
 from tilia.ui.enums import WindowState

@@ -3,9 +3,9 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QPointF
-from PyQt6.QtPdf import QPdfDocument
-from PyQt6.QtPdfWidgets import QPdfView
+from PySide6.QtCore import QPointF
+from PySide6.QtPdf import QPdfDocument
+from PySide6.QtPdfWidgets import QPdfView
 
 import tilia.errors
 from tilia.media.player.base import MediaTimeChangeReason

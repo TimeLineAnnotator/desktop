@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer
+from PySide6.QtCore import QTimer
 
 import tilia.errors
 from tilia.media import exporter

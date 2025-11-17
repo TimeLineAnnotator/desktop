@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Any
 
-from PyQt6.QtCore import Qt, QLineF, QPointF
-from PyQt6.QtGui import QPen, QColor, QFont
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsLineItem, QGraphicsTextItem
+from PySide6.QtCore import Qt, QLineF, QPointF
+from PySide6.QtGui import QPen, QColor, QFont
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsLineItem, QGraphicsTextItem
 
 from tilia.requests import Post, post, Get, get
 from .context_menu import BeatContextMenu
@@ -42,7 +42,8 @@ class BeatUI(TimelineUIElement):
 
     FIELD_NAMES_TO_ATTRIBUTES: dict[
         str, str
-    ] = {}  # only needed if attrs will be set by Inspect
+    ] = {}
+    # only needed if attrs will be set by Inspect
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         by_element_value=[],

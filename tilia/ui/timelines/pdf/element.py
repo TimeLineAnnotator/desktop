@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QPointF, Qt
-from PyQt6.QtGui import (
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import (
     QPen,
     QColor,
     QFont,
     QPixmap,
     QFontMetrics,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsTextItem,
     QGraphicsPixmapItem,

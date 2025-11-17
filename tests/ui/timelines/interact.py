@@ -1,8 +1,8 @@
 from typing import Literal
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsItem, QApplication
-from PyQt6.QtTest import QTest
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGraphicsView, QGraphicsItem, QApplication
+from PySide6.QtTest import QTest
 
 from tilia.requests import Post, post, get, Get
 from tilia.ui.coords import time_x_converter

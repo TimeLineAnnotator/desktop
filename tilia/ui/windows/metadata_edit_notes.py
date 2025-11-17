@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
 
 from tilia.requests import Get, get
 

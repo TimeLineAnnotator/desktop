@@ -5,7 +5,7 @@ from enum import Enum, auto
 
 from typing import Any, Callable, cast
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QDockWidget,
     QFormLayout,
     QLabel,
@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QFrame,
 )
 
-from PyQt6.QtCore import Qt, QKeyCombination
+from PySide6.QtCore import Qt, QKeyCombination
 
 from tilia.requests import Post, listen, stop_listening_to_all, post, Get, get
 from tilia.utils import get_tilia_class_string

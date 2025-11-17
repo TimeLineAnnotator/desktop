@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import music21
-from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PySide6.QtCore import QPointF
+from PySide6.QtGui import QFont, QColor
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 from music21.roman import RomanNumeral
 
 from . import harmony_attrs

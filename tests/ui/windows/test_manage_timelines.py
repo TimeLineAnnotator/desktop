@@ -1,8 +1,8 @@
 from typing import Literal
 
 import pytest
-from PyQt6.QtCore import Qt
-from PyQt6.QtTest import QTest
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 
 from tests.mock import Serve
 from tilia.requests import Get, get

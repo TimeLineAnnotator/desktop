@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import time
 
-from PyQt6.QtCore import QUrl
-from PyQt6.QtMultimedia import (
+from PySide6.QtCore import QUrl
+from PySide6.QtMultimedia import (
     QMediaPlayer,
     QAudioOutput,
     QAudio,

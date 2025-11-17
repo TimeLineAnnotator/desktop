@@ -1,5 +1,5 @@
 import pytest
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tilia.requests import Post, Get, post

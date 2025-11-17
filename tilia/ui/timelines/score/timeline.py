@@ -3,9 +3,9 @@ from __future__ import annotations
 import math
 from typing import Callable, Any, Iterable
 
-from PyQt6.QtCore import Qt, QRectF, QPointF
-from PyQt6.QtGui import QPixmap, QColor
-from PyQt6.QtWidgets import QGraphicsRectItem
+from PySide6.QtCore import Qt, QRectF, QPointF
+from PySide6.QtGui import QPixmap, QColor
+from PySide6.QtWidgets import QGraphicsRectItem
 
 from tilia.dirs import IMG_DIR
 import tilia.errors

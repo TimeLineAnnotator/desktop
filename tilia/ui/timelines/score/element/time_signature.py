@@ -1,6 +1,6 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.score.element.with_collision import (

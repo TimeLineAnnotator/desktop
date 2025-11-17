@@ -37,8 +37,8 @@ from typing import Callable
 import tilia.errors
 from tilia.dirs import IMG_DIR
 
-from PyQt6.QtWidgets import QMainWindow, QWidget
-from PyQt6.QtGui import QAction, QKeySequence, QIcon
+from PySide6.QtWidgets import QMainWindow, QWidget
+from PySide6.QtGui import QAction, QKeySequence, QIcon
 
 
 class CommandQAction(QAction):

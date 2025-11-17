@@ -1,7 +1,7 @@
 import math
 from typing import Any
 
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 
 def validate_time(value):

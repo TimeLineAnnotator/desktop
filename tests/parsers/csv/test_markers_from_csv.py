@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Literal
 from unittest.mock import patch, mock_open
 
-from PyQt6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog
 
 from tests.utils import undoable
 from tilia.requests import Post, post

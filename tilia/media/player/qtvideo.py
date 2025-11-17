@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtWidgets import QSizePolicy
+from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtWidgets import QSizePolicy
 
 from .qtplayer import QtPlayer
 from tilia.ui.windows.view_window import ViewWindow

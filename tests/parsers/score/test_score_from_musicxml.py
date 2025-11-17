@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from PyQt6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.timelines.component_kinds import ComponentKind

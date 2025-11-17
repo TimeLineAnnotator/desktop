@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 from tilia.settings import settings
 from tilia.requests import post, Post

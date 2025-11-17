@@ -1,5 +1,5 @@
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QColorDialog, QInputDialog, QMessageBox
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QColorDialog, QInputDialog, QMessageBox
 
 
 def ask_for_color(

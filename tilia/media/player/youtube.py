@@ -2,16 +2,16 @@ import re
 from enum import Enum
 from pathlib import Path
 
-from PyQt6.QtCore import QUrl, pyqtSlot, QObject, QTimer, QByteArray
-from PyQt6.QtWebChannel import QWebChannel
+from PySide6.QtCore import QUrl, Slot, QObject, QTimer, QByteArray
+from PySide6.QtWebChannel import QWebChannel
 
 import tilia.constants
 import tilia.errors
 
 from tilia.media.player import Player
 
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor
 
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post
@@ -38,11 +38,11 @@ class PlayerTracker(QObject):
         self.player_toolbar_enabled = False
         self.display_error = display_error
 
-    @pyqtSlot("float")
+    @Slot("float")
     def on_new_time(self, time):
         self.set_current_time(time)
 
-    @pyqtSlot("int")
+    @Slot("int")
     def on_player_state_change(self, state):
         if state == self.State.UNSTARTED.value:
             post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.WAITING_FOR_YOUTUBE)
@@ -56,11 +56,11 @@ class PlayerTracker(QObject):
         else:
             self.set_is_playing(False)
 
-    @pyqtSlot("float")
+    @Slot("float")
     def on_set_playback_rate(self, playback_rate: float):
         self.set_playback_rate(playback_rate)
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_error(self, message: str) -> None:
         self.display_error(message)
 

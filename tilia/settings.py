@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QSettings, QObject
+from PySide6.QtCore import QSettings, QObject
 from pathlib import Path
 
 import tilia.constants

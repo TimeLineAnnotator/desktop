@@ -1,7 +1,7 @@
 from unittest.mock import patch, Mock
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 
 from tests.mock import PatchPost
 from tilia.requests import Post

@@ -1,5 +1,5 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QToolBar, QComboBox, QLabel
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QToolBar, QComboBox, QLabel
 
 from tilia.settings import settings
 from tilia.ui.enums import ScrollType

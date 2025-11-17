@@ -1,6 +1,6 @@
-from PyQt6.QtCore import QLineF
-from PyQt6.QtGui import QColor, QPen
-from PyQt6.QtWidgets import QGraphicsLineItem
+from PySide6.QtCore import QLineF
+from PySide6.QtGui import QColor, QPen
+from PySide6.QtWidgets import QGraphicsLineItem
 
 from tilia.requests import get, Get
 from tilia.timelines.component_kinds import ComponentKind

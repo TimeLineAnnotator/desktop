@@ -3,7 +3,7 @@ from __future__ import annotations
 import bisect
 from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Iterable
 
-from PyQt6.QtWidgets import QGraphicsItem
+from PySide6.QtWidgets import QGraphicsItem
 
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui.timelines.element_kinds import get_element_class_by_kind

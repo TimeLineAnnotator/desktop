@@ -1,6 +1,6 @@
-from PyQt6.QtCore import Qt, QRegularExpression
-from PyQt6.QtGui import QRegularExpressionValidator
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QRegularExpression
+from PySide6.QtGui import QRegularExpressionValidator
+from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
     QVBoxLayout,
