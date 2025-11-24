@@ -116,7 +116,7 @@ class BeatTimelineUI(TimelineUI):
             Get.FROM_USER_INT,
             "Change measure number",
             "Insert measure number",
-            min=0,
+            minValue=0,
         )
         if not accepted:
             return False
@@ -143,7 +143,7 @@ class BeatTimelineUI(TimelineUI):
             Get.FROM_USER_INT,
             "Change beats in measure",
             "Insert amount of beats in measure",
-            min=1,
+            minValue=1,
         )
         if not accepted:
             return False

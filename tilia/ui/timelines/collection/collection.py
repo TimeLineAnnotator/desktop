@@ -386,7 +386,7 @@ class TimelineUIs:
                 "Set duration",
                 "Insert duration (s)",
                 value=60,
-                min=1,
+                minValue=1,
             )
             if not success:
                 return False
@@ -1195,7 +1195,7 @@ class TimelineUIs:
                 "Change timeline height",
                 "Insert new timeline height",
                 value=timeline_ui.get_data("height"),
-                min=10,
+                minValue=10,
             )
             if not accepted:
                 return False
