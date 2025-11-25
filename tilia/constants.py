@@ -1,8 +1,11 @@
-import tomllib
+try:
+    from tomllib import load
+except ModuleNotFoundError:
+    from tomli import load
 from pathlib import Path
 
 with open(Path(__file__).parent.parent / "pyproject.toml", "rb") as f:
-    setupcfg = tomllib.load(f).get("project", {})
+    setupcfg = load(f).get("project", {})
 
 APP_NAME = setupcfg.get("name", "")
 AUTHOR = setupcfg.get("authors", [{"name": ""}])[0]["name"]
