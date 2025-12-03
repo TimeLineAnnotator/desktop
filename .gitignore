@@ -6,9 +6,7 @@
 /.pytest_cache/
 /build/
 /dist/
-/tilia/installers/win/tilia*
 /tilia.egg-info/
 /venv/
 __pycache__/
-pytest.ini
 tilia/dev/
