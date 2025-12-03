@@ -87,12 +87,12 @@ sudo apt install libnss3 libasound libxkbfile1 libpulse0
 
 To run TiLiA from source, use:
 ```
-python -m tilia.main
+python -m tilia
 ```
 
 TiLiA also offers a CLI mode, which can be run with:
 ```
-python -m tilia.main --user-interface cli
+python -m tilia --user-interface cli
 ```
 
 ### Building from source
