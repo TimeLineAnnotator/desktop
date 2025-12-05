@@ -13,8 +13,6 @@ from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
 from tilia.log import logger
 from tilia.media.player import QtAudioPlayer
-from tilia.ui.cli.ui import CLI
-from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.undo_manager import UndoManager
 
 app = None
@@ -94,9 +92,14 @@ def setup_logic(autosaver=True):
 
 def setup_ui(q_application: QApplication, interface: str):
     if interface == "qt":
+        from tilia.ui.qtui import QtUI, TiliaMainWindow
+
         mw = TiliaMainWindow()
         return QtUI(q_application, mw)
+
     elif interface == "cli":
+        from tilia.ui.cli.ui import CLI
+
         return CLI()
 
 
