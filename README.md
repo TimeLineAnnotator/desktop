@@ -20,12 +20,12 @@ Here are some examples TiLiA visualizations:
 
 
 ## Current features
-- 6 kinds of timelines
+- 7 kinds of timelines
     - AudioWave: visualize audio files through bars that represent changes in amplitude
     - Beat: beat and measure markers with support to numbering
     - Harmony: Roman numeral and chord symbol labels using a specialized font, including proper display of inversion numerals, quality symbols and applied chords
-    - Hierarchy: nested and leveled units organized in arbitrally complex hierarchical structures
-    - Marker: simple, labeled markers to indicate discrete events
+    - Hierarchy: nested and levelled units organized in arbitrarily complex hierarchical structures
+    - Marker: simple, labelled markers to indicate discrete events
     - PDF: visualize PDF files synced to playback
     - Score: visualize music scores in custom, to-scale notation or conventional engraving
 - Controlling playback by clicking on timeline units
@@ -41,9 +41,9 @@ Here are some examples TiLiA visualizations:
 - Command-line interface (see the CLI [help page](docs/cli-tutorial.md) for more information)
 
 ## How to install and use
-TiLiA has releases for Windows, macOS and Linux. Instructions to download and run are [at the website](https://tilia-app.com/help/introduction/).
+TiLiA has releases for Windows, macOS and Linux. Instructions to download and run are [on our website](https://tilia-app.com/help/introduction/).
 
-Tutorials on how to use TiLiA can be found at the [website](https://tilia-app.com/help/) or in video [here](https://www.youtube.com/@tilia-app).
+Tutorials on how to use TiLiA can be found on our [website](https://tilia-app.com/help/) or in these [videos](https://www.youtube.com/@tilia-app).
 
 ## Build or run from source
 
