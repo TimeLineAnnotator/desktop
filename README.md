@@ -52,8 +52,15 @@ TiLiA can be also run and build from source.
 ### Prerequisites
 
 Before you start, you will need:
-- Python 3.11 or later. You can get it at the [Python website](https://www.python.org/downloads/).
-- `pip` to install dependencies.
+- Python 3.10 - 3.12. Download from the [Python website](https://www.python.org/downloads/). (Support for Python 3.13 is variable due to the dependencies used.)
+- <details>
+  <summary>Other pre-requisites</summary>
+
+    | Package | Installation | Notes |
+    | --- | --- | --- |
+    | `pip` | `python -m ensurepip --upgrade` |  `pip` should come with your Python installation |
+    | `git` | Download [here](https://git-scm.com/install) | Not necessary for a direct download from this repository |
+  </details>
 
 ### Note for Linux users
 Users have reported dependency issues when running TiLiA on Linux (see [#370](https://github.com/TimeLineAnnotator/desktop/issues/370) and [#371](https://github.com/TimeLineAnnotator/desktop/issues/371)).
@@ -76,7 +83,7 @@ cd tilia-desktop
 Note: We recommend using a clean [virtual environment](https://docs.python.org/3/library/venv.html) for the next steps.
 Failure to do so is likely to cause issues with dependencies.
 
-Install python dependencies with:
+Install TiLiA and its dependencies with:
 ```
 pip install -e .
 ```
@@ -84,10 +91,11 @@ On Linux, some additional Qt dependencies are required:
 ```
 sudo apt install libnss3 libasound libxkbfile1 libpulse0
 ```
+| n.b.: the specific names of these packages varies based on your Linux distribution.
 
-To run TiLiA from source, use:
+To run TiLiA from source, run:
 ```
-python -m tilia
+tilia-desktop
 ```
 
 TiLiA also offers a CLI mode, which can be run with:
