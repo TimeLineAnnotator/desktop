@@ -118,7 +118,7 @@ class YouTubePlayer(Player):
         initial_duration: float = 0.0,
     ):
         """
-        Returns True if media loading has *started* succesfully, False otherwise.
+        Returns True if media loading has *started* successfully, False otherwise.
         Loading is asynchronous, and self.on_media_load_done will be called
          when it is completed.
         If initial_duration is provided, it will be available when returning.

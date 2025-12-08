@@ -24,7 +24,7 @@ METADATA_FIELD_INVALID = Error(
 CSV_IMPORT_FAILED = Error("CSV import failed", "Import failed:\n{}")
 CSV_IMPORT_SUCCESS_ERRORS = Error(
     "CSV import",
-    "Import was successful, but some components may not have been imported.\nThe following errors occured:\n{}",
+    "Import was successful, but some components may not have been imported.\nThe following errors occurred:\n{}",
 )
 CREATE_TIMELINE_WITHOUT_MEDIA = Error(
     "Create timeline error", "Cannot create timeline with no media loaded."
@@ -75,7 +75,7 @@ HIERARCHY_SPLIT_FAILED = Error("Split hierarchy", "Split failed: {}")
 COMPONENTS_COPY_ERROR = Error("Copy components error", "{}")
 COMPONENTS_LOAD_ERROR = Error(
     "Load components error",
-    "Some components were not loaded. The following errors occured:\n{}",
+    "Some components were not loaded. The following errors occurred:\n{}",
 )
 COMPONENTS_PASTE_ERROR = Error("Paste components error", "{}")
 FILE_NOT_FOUND = Error(

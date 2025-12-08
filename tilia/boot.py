@@ -18,7 +18,7 @@ app = None
 ui = None
 
 
-def handle_expection(type, value, tb):
+def handle_exception(type, value, tb):
     exc_message = "".join(traceback.format_exception(type, value, tb))
     if ui:
         ui.show_crash_dialog(exc_message)
@@ -31,7 +31,7 @@ def handle_expection(type, value, tb):
 
 
 def boot():
-    sys.excepthook = handle_expection
+    sys.excepthook = handle_exception
 
     args = setup_parser()
     setup_dirs()

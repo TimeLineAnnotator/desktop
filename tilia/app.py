@@ -257,7 +257,7 @@ class App:
 
     def recover_to_state(self, state: dict) -> None:
         """
-        Clears the app and attemps to restore the given state.
+        Clears the app and attempts to restore the given state.
         Unlike `on_restore_state` this will crash if an error occurs during
         the restoration.
         This is meant to be used after an exception occurred, so if the

@@ -2,8 +2,11 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
-from tilia.exceptions import MediaMetadataFieldNotFound, MediaMetadataFieldAlreadyExists
-import tilia.exceptions
+from tilia.exceptions import (
+    MediaMetadataFieldAlreadyExists,
+    MediaMetadataFieldNotFound,
+    NoReplyToRequest,
+)
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.requests import listen, Post, Get, serve, get, post
 from tilia.file.tilia_file import TiliaFile, validate_tla_data
@@ -219,7 +222,7 @@ class FileManager:
 
         try:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
-        except tilia.exceptions.NoReplyToRequest:
+        except NoReplyToRequest:
             geometry, window_state = None, None
         settings.update_recent_files(path, geometry, window_state)
 
