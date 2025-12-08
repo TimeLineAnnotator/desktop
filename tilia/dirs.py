@@ -12,10 +12,7 @@ _SITE_DATA_DIR = Path(platformdirs.site_data_dir(tilia.constants.APP_NAME))
 _USER_DATA_DIR = Path(
     platformdirs.user_data_dir(tilia.constants.APP_NAME, roaming=True)
 )
-data_path = _SITE_DATA_DIR
-PROJECT_ROOT = Path(tilia.__file__).parents[1]
-TILIA_DIR = Path(tilia.__file__).parent
-IMG_DIR = Path(TILIA_DIR, "ui", "img")
+IMG_DIR = Path(__file__).parent / "ui" / "img"
 
 
 def setup_data_dir() -> Path:

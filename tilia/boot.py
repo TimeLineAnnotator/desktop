@@ -3,12 +3,11 @@ import os
 import sys
 import traceback
 
-import dotenv
 from PySide6.QtWidgets import QApplication
 
 from tilia.app import App
 from tilia.clipboard import Clipboard
-from tilia.dirs import PROJECT_ROOT, setup_dirs
+from tilia.dirs import setup_dirs
 from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
 from tilia.log import logger
@@ -33,10 +32,7 @@ def handle_expection(type, value, tb):
 
 def boot():
     sys.excepthook = handle_expection
-    dotenv_path = PROJECT_ROOT / ".env"
-    success = dotenv.load_dotenv(dotenv_path)
-    if not success:
-        raise FileNotFoundError(f"No .env file found at {dotenv_path.resolve()}")
+
     args = setup_parser()
     setup_dirs()
     logger.setup()

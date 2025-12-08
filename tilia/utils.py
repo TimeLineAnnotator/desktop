@@ -21,3 +21,25 @@ def open_with_os(path: Path) -> None:
         subprocess.Popen(["open", path.resolve()], shell=True)
     else:
         raise OSError(f"Unsupported platform: {sys.platform}")
+
+
+def load_dotenv() -> None:
+    dotenv_path = Path(__file__).parents[1] / ".env"
+    if os.path.exists(dotenv_path):
+        import dotenv
+
+        success = dotenv.load_dotenv(dotenv_path)
+        if not success:
+            raise FileNotFoundError(
+                f"Error loading .env file from {dotenv_path.resolve()}"
+            )
+    else:  # setup some basic values
+        os.environ["LOG_REQUESTS"] = "1"
+        os.environ[
+            "EXCLUDE_FROM_LOG"
+        ] = "TIMELINE_VIEW_LEFT_BUTTON_DRAG;PLAYER_CURRENT_TIME_CHANGED;APP_RECORD_STATE"
+    if not os.environ.get("ENVIRONMENT"):
+        os.environ["ENVIRONMENT"] = "dev"
+
+
+load_dotenv()
