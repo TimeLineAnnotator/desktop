@@ -104,11 +104,10 @@ _listeners_to_posts: weakref.WeakKeyDictionary[
 ] = weakref.WeakKeyDictionary()
 
 
-def _get_posts_excluded_from_log() -> list[Post]:
-    result = []
-    for name in os.environ.get("EXCLUDE_FROM_LOG", "").split(";"):
-        result.append(Post[name])
-    return result
+EXCLUDED_POSTS = [
+    Post[post] for post in os.environ.get("EXCLUDE_FROM_LOG", "").split(";")
+]
+LOG_REQUESTS = os.environ.get("LOG_REQUESTS", 0)
 
 
 def _log_post(post, *args, **kwargs):
@@ -124,7 +123,7 @@ def _log_post(post, *args, **kwargs):
 
 
 def post(post: Post, *args, **kwargs) -> None:
-    if os.environ.get("LOG_REQUESTS", 0) and post not in _get_posts_excluded_from_log():
+    if LOG_REQUESTS and post not in EXCLUDED_POSTS:
         _log_post(post, args, kwargs)
     # Returning a result is an experimental feature.
     # This can be very useful to check if the request was successful.
