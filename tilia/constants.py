@@ -1,19 +1,38 @@
-try:
-    from tomllib import load
-except ModuleNotFoundError:
-    from tomli import load
+from importlib import metadata
 from pathlib import Path
+import re
 
-with open(Path(__file__).parent.parent / "pyproject.toml", "rb") as f:
-    setupcfg = load(f).get("project", {})
+if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
+    from sys import version_info
+
+    if version_info >= (3, 11):
+        from tomllib import load
+    else:
+        from tomli import load
+
+    with open(toml, "rb") as f:
+        setupcfg = load(f).get("project", {})
+    AUTHOR = setupcfg.get("authors", [{"name": ""}])[0]["name"]
+    EMAIL = setupcfg.get("authors", [{"email": ""}])[0]["email"]
+
+else:
+    setupcfg = metadata.metadata("TiLiA").json.copy()
+
+    AUTHOR = re.search(r'"(.*?)"', setupcfg.get("author_email", "")).group(1)
+    EMAIL = re.search(r"<(.*?)>", setupcfg.get("author_email", "")).group(1)
+    if "urls" not in setupcfg:
+        setupcfg["urls"] = {}
+    for url in setupcfg.get("project_url", {}):
+        k, _, v = url.partition(", ")
+        setupcfg["urls"][k] = v
+    setupcfg["description"] = setupcfg.get("summary", "")
 
 APP_NAME = setupcfg.get("name", "")
-AUTHOR = setupcfg.get("authors", [{"name": ""}])[0]["name"]
-VERSION = setupcfg.get("version", "beta")
+VERSION = setupcfg.get("version", "0.0.0")
 
 YEAR = "2022-2025"
 FILE_EXTENSION = "tla"
-EMAIL_URL = "mailto:" + setupcfg.get("authors", [{"email": ""}])[0]["email"]
+EMAIL_URL = "mailto:" + EMAIL
 
 GITHUB_URL = setupcfg.get("urls", {}).get("Repository", "")
 WEBSITE_URL = setupcfg.get("urls", {}).get("Homepage", "")
