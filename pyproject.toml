@@ -29,7 +29,8 @@ dependencies = [
     "PySide6_Essentials>=6.8.0",
     "sentry-sdk>=2.21.0",
     "soundfile~=0.13.1",
-    "TiLiA"
+    "TiLiA",
+    "tomli; python_version < '3.11'"
 ]
 
 [[project.authors]]
