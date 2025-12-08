@@ -61,7 +61,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip wheel
-        pip install -e .[testing,ci-tests]
+        pip install -e . --group testing --group ci-tests
 
     - name: List installed packages
       run: |

@@ -44,7 +44,7 @@ tilia = "tilia.main:main"
 Homepage = "https://tilia-app.com"
 Repository = "https://github.com/TimeLineAnnotator/desktop"
 
-[project.optional-dependencies]
+[dependency-groups]
 ci-tests = [
     "coverage>=7.0.0",
     "coverage-badge>=1.0.0",
