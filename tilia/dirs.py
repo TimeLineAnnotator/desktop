@@ -37,8 +37,6 @@ def setup_logs_path(data_dir):
 
 
 def setup_dirs() -> None:
-    os.chdir(os.path.dirname(__file__))
-
     data_dir = setup_data_dir()
 
     global autosaves_path, logs_path
