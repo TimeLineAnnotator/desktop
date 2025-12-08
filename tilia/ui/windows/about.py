@@ -1,4 +1,3 @@
-from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -8,7 +7,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QVBoxLayout,
 )
-from re import split, sub
+from re import sub
 
 import tilia.constants
 
@@ -84,14 +83,9 @@ class License(QDialog):
         notice = QLabel(tilia.constants.NOTICE)
         notice.setWordWrap(True)
 
-        with open(
-            Path(__file__).parent.parent.parent.parent / "LICENSE", encoding="utf-8"
-        ) as license_file:
-            license_text = split(
-                "How to Apply These Terms to Your New Programs", license_file.read()
-            )[0]
-
-        formatted_text = f'<pre style="white-space: pre-wrap;">{license_text}</pre>'
+        formatted_text = (
+            f'<pre style="white-space: pre-wrap;">{tilia.constants.LICENSE}</pre>'
+        )
         text_with_links = sub(
             "<https:([^>]+)>",
             lambda y: f'<a href="{y[0][1:-1]}">{y[0][1:-1]}</a>',
