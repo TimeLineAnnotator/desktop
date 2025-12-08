@@ -41,7 +41,7 @@ class TiliaLogger(logging.Logger):
         self._dump_count = count()
 
     def setup(self):
-        match (env := os.environ.get("ENVIRONMENT", "prod")):
+        match (env := os.environ.get("ENVIRONMENT")):
             case "test":
                 self.disabled = True
                 self.setup_sentry(env)
