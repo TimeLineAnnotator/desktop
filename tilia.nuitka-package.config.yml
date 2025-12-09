@@ -1,0 +1,50 @@
+# yamllint disable rule:line-length
+# yamllint disable rule:indentation
+# yamllint disable rule:comments-indentation
+# yamllint disable rule:comments
+# too many spelling things, spell-checker: disable
+---
+- module-name: "music21"
+  anti-bloat:
+    - description: "remove tests"
+      replacements_plain:
+        "'mainTest',": ""
+        "'test',": ""
+        "from music21.test.testRunner import mainTest": ""
+        "from music21 import test": ""
+    - description: "remove module tests"
+      global_replacements_re:
+        '(?m)class Test([^(]*)\(unittest.TestCase\):[\d\D]*?(?=^if|^# -|^class|^_[A-Z]|\Z)': ""
+        "if __name__ == '__main__':([\\d|\\D]*)": ""
+        "from music21.(.*) import test(.*)": ""
+      global_replacements_plain:
+        "import unittest": ""
+
+- module-name: "executing._pytest_utils"
+  anti-bloat:
+    - description: "remove pytest reference"
+      change_function:
+        "is_pytest_compatible": "'(lambda : False)'"
+      when: "not use_pytest"
+
+- module-name: "sentry_sdk.integrations"
+  implicit-imports:
+    - depends:
+        - "sentry_sdk.integrations.argv"
+        - "sentry_sdk.integrations.atexit"
+        - "sentry_sdk.integrations.dedupe"
+        - "sentry_sdk.integrations.excepthook"
+        - "sentry_sdk.integrations.logging"
+        - "sentry_sdk.integrations.modules"
+        - "sentry_sdk.integrations.stdlib"
+        - "sentry_sdk.integrations.threading"
+  anti-bloat:
+    - description: "fix import of unused integrations"
+      replacements_plain:
+        "auto_enabling_integrations=_AUTO_ENABLING_INTEGRATIONS,": "auto_enabling_integrations=[],"
+
+- module-name: "tilia.utils"
+  anti-bloat:
+    - description: "slightly hacky way of forcing prod if env file is not found"
+      replacements_plain:
+        'os.environ["ENVIRONMENT"] = "dev"': 'os.environ["ENVIRONMENT"] = "prod"'

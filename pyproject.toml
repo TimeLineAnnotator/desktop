@@ -1,16 +1,14 @@
 [build-system]
 requires = [
-    "setuptools>=78.1.1",
-    "wheel",
+    "Nuitka",
+    "setuptools",
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "TiLiA"
-version = "0.5.15"
+version = "0.5.15.0"
 description = "A GUI for creating and visualizing annotations over audio and video files."
-license = "GPL-3.0"
-license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
@@ -38,20 +36,33 @@ name = "Felipe Defensor et al."
 email = "tilia@tilia-app.com"
 
 [project.gui-scripts]
-tilia = "tilia.main:main"
+tilia-desktop = "tilia.__main__:boot"
 
 [project.urls]
 Homepage = "https://tilia-app.com"
 Repository = "https://github.com/TimeLineAnnotator/desktop"
 
 [dependency-groups]
+build = [
+    "build",
+    "ImageIO; sys_platform == 'darwin'",
+    "Nuitka >= 4.0",
+    "ordered-set==4.1.0",
+    "pyyaml",
+    "setuptools; python_version >= '3.12'",
+    "wheel==0.38.4",
+    "zstandard==0.20.0"
+]
 ci-tests = [
     "coverage>=7.0.0",
     "coverage-badge>=1.0.0",
     "flake8>=7.0.0",
     "pytest-cov>=6.0.0",
 ]
-dev = ["icecream>=2.1.0"]
+dev = [
+    "icecream>=2.1.0",
+    "pre-commit",
+]
 testing = [
     "pytest>=8.0.0",
     "pytest-env>=1.1.5",
@@ -61,8 +72,45 @@ testing = [
 source = ["tilia"]
 omit = ["tilia/dev/*"]
 
+[tool.nuitka]
+assume-yes-for-downloads = true
+enable-plugins = ["pyside6"]
+include-qt-plugins = ["multimedia"]
+nofollow-import-to = ["*.tests", "*.test"]
+noinclude-qt-translations = true
+onefile-tempdir-spec = "{CACHE_DIR}/{PRODUCT}/v{VERSION}"
+remove-output = true
+report = "compilation-report.xml"
+user-package-configuration-file = "tilia.nuitka-package.config.yml"
+deployment = true
+
 [tool.pytest.ini_options]
 env = [
     "ENVIRONMENT=test",
     "QT_QPA_PLATFORM=offscreen",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = [
+    "build", "build.*",
+    "dist",
+    "docs", "docs.*",
+    "paper", "paper.*",
+    "scripts",
+    "tests", "tests.*",
+    "venv.*", "venv"
+]
+
+[tool.setuptools.package-data]
+tilia = [
+    "../.tilia.env",
+    "../tilia.nuitka-package.config.yml", # because we build from sdist
+    "../LICENSE",
+    "ui/img/*",
+    "ui/fonts/*",
+    "media/player/youtube.html",
+    "media/player/youtube.css",
+    "parsers/score/svg_maker.html",
+    "parsers/score/timewise_to_partwise.xsl",
 ]

@@ -1,85 +1,138 @@
-name: Build with pyinstaller
+name: Build TiLiA
 
 on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build:
-    name: Build with pyinstaller
+    name: Build with Nuitka
+    continue-on-error: true
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    outputs:
+      linux-build: ${{ steps.set-path.outputs.path }}
     strategy:
       matrix:
-        include:
-          - os: windows-latest
-            CMD_BUILD: pyinstaller tilia.spec
-            OUT_FILE_OS: win
-            OUT_FILE_EXTENSION: .exe
-            ASSET_MIME: application/vnd.microsoft.portable-executable
-
-          - os: macos-13
-            CMD_BUILD: >
-              pyinstaller tilia.spec &&
-              cd dist &&
-              mv tilia-$APP_VERSION-mac.app tilia-$APP_VERSION-mac-intel.app &&
-              zip -r9 tilia-$APP_VERSION-mac-intel.zip tilia-$APP_VERSION-mac-intel.app
-            OUT_FILE_OS: mac-intel
-            OUT_FILE_EXTENSION: .zip
-            ASSET_MIME: application/zip
-
-          - os: macos-14
-            CMD_BUILD: >
-              pyinstaller tilia.spec &&
-              cd dist &&
-              mv tilia-$APP_VERSION-mac.app tilia-$APP_VERSION-mac-silicon.app &&
-              zip -r9 tilia-$APP_VERSION-mac-silicon.zip tilia-$APP_VERSION-mac-silicon.app
-            OUT_FILE_OS: mac-silicon
-            OUT_FILE_EXTENSION: .zip
-            ASSET_MIME: application/zip
-
-          - os: ubuntu-latest
-            CMD_BUILD: >
-              pyinstaller tilia.spec
-            OUT_FILE_OS: linux
-            OUT_FILE_EXTENSION:
-            ASSET_MIME: application/octet-stream
+        os: [
+          macos-latest,
+          macos-15-intel,
+          ubuntu-22.04,
+          windows-latest
+          ]
+    env:
+      QT_DEBUG_PLUGINS: 1
+      QT_QPA_PLATFORM: offscreen
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Extract package version
-        id: extract_version
-        shell: pwsh
-        run: |
-          $version = (Select-String '^version =' setup.cfg).Line -split ' = ' | Select-Object -Last 1
-          echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Set output file name
-        shell: pwsh
-        run: |
-          $out_file_name = "tilia-${{env.APP_VERSION}}-${{matrix.OUT_FILE_OS}}${{matrix.OUT_FILE_EXTENSION}}"
-          echo "OUT_FILE_NAME=$out_file_name" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: 3.11
-          cache: 'pip'
+          cache: "pip"
+
+      - name: Setup additional Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          chmod +x ./scripts/linux-setup.sh
+          ./scripts/linux-setup.sh
+
+      - name: Remove problematic brew libs (see Nuitka/Nuitka#2853)
+        if: runner.os == 'macOS' && runner.arch != 'ARM64'
+        run: |
+          brew remove --force --ignore-dependencies openssl@3
+          brew cleanup openssl@3
+          brew install coreutils
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install -e .
-          pip install pyinstaller
+          python -m pip install --upgrade pip
+          pip install -e . --group build
 
       - name: Build executable
+        id: build-exe
         shell: bash
-        run: ${{matrix.CMD_BUILD}}
+        run: |
+          echo "python scripts/deploy.py ${{github.ref_name}} ${{matrix.os}}" | bash
+
+      - name: Test executable [mac]
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          echo "Checking dependencies"
+          echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+
+      - name: Test executable [Windows]
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "Checking dependencies"
+          echo "timeout 30 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+
+      - name: Test executable [Linux]
+        id: set-path
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "path=${{ steps.build-exe.outputs.out-filename }}" >> "$GITHUB_OUTPUT"
+          echo "Checking dependencies"
+          echo "timeout 30 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.OUT_FILE_NAME}}
-          path: dist/${{env.OUT_FILE_NAME}}
+          name: ${{ steps.build-exe.outputs.out-filename }}
+          path: build/*/exe
+          retention-days: 1
+
+  deploy:
+    name: Create release
+    continue-on-error: true
+    needs: build
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: write
+    env:
+      QT_DEBUG_PLUGINS: 1
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download executable
+        uses: actions/download-artifact@v4
+        with:
+          path: build/
+          pattern: 'TiLiA-v*'
+          merge-multiple: true
+
+      - name: Test Linux still works in a clean environment
+        continue-on-error: true
+        id: test-linux
+        run: |
+          if [ -e build/ubuntu/exe/${{ needs.build.outputs.linux-build }} ];
+            then
+              chmod ugo+x build/ubuntu/exe/${{ needs.build.outputs.linux-build }};
+              if echo "timeout 30 build/ubuntu/exe/${{ needs.build.outputs.linux-build }}" | bash;
+                then
+                  echo "Linux works in a clean environment!";
+              else
+                echo "Linux didn't work... Check libraries with previous step?";
+              fi;
+          else
+            echo "file not found!";
+          fi
+          ls build -ltraR |egrep -v '\.$|\.\.|\.:|\.\/|total|^d' | sed '/^$/d' || true
+
+      - name: Upload
+        uses: "softprops/action-gh-release@v2"
+        with:
+          tag_name: ${{github.ref_name}}
+          make_latest: ${{github.event_name == 'push'}}
+          generate_release_notes: true
+          files: |
+            build/*/exe/TiLiA-v*

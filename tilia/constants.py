@@ -46,6 +46,6 @@ This program is free software: you can redistribute it and/or modify it under th
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 """
 
-with open(Path(__file__).parent.parent / "LICENSE", encoding="utf-8") as f:
+with open(Path(__file__).parents[1] / "LICENSE", encoding="utf-8") as f:
     LICENSE_TEXT = f.read()
 LICENSE = re.split("How to Apply These Terms to Your New Programs", LICENSE_TEXT)[0]

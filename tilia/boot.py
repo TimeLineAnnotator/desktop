@@ -5,6 +5,10 @@ import traceback
 
 from PySide6.QtWidgets import QApplication
 
+from tilia.utils import load_dotenv
+
+load_dotenv()
+
 from tilia.app import App
 from tilia.clipboard import Clipboard
 from tilia.dirs import setup_dirs

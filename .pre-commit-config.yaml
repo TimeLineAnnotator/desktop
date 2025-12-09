@@ -21,7 +21,7 @@ repos:
         args:
           [
             "--max-line-length=88",
-            "--per-file-ignores=__init__.py:F401",
+            "--per-file-ignores=__init__.py:F401,tilia/__main__.py:E402,tilia/boot.py:E402,tests/conftest.py:E402",
             "--extend-ignore=E203,E501",
             "--exclude=tilia/dev",
           ]
