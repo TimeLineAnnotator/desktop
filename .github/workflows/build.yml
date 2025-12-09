@@ -32,11 +32,11 @@ jobs:
       - name: Build executable
         shell: bash
         run: |
-          $out_filename="TiLiA-${{github.ref_name}}-${{matrix.os}}"
-          python scripts/deploy.py $out_filename
+          out_filename='TiLiA-${{github.ref_name}}-${{matrix.os}}'
+          echo "python scripts/deploy.py $out_filename" | bash
           export QT_DEBUG_PLUGINS = 1
           echo "Checking dependencies"
-          timeout 10 build/$out_filename
+          echo "timeout 10 build/$out_filename" | bash
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
