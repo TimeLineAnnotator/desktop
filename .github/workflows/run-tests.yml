@@ -79,3 +79,9 @@ jobs:
     - name: Generate Coverage Report
       run: |
           coverage report -m
+
+    - name: Check Program
+      shell: python
+      run: |
+        import subprocess
+        subprocess.run(["tilia-desktop", "exit"])
