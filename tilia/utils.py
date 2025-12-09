@@ -24,15 +24,16 @@ def open_with_os(path: Path) -> None:
 
 
 def load_dotenv() -> None:
-    dotenv_path = Path(__file__).parents[1] / ".env"
-    if os.path.exists(dotenv_path):
+    dotenv_paths = [
+        fn for fn in os.listdir(Path(__file__).parents[1]) if fn.endswith(".env")
+    ]
+
+    if dotenv_paths:
         import dotenv
 
-        success = dotenv.load_dotenv(dotenv_path)
-        if not success:
-            raise FileNotFoundError(
-                f"Error loading .env file from {dotenv_path.resolve()}"
-            )
+        for p in dotenv_paths:
+            dotenv.load_dotenv(p)
+
     else:  # setup some basic values
         os.environ["LOG_REQUESTS"] = "1"
         os.environ[
