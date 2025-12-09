@@ -32,7 +32,7 @@ jobs:
       - name: Build executable
         shell: bash
         run: |
-          $out_filename="TiLiA-${{github.ref_name}}-${{matrix.os}}
+          $out_filename="TiLiA-${{github.ref_name}}-${{matrix.os}}"
           python scripts/deploy.py $out_filename
           export QT_DEBUG_PLUGINS = 1
           echo "Checking dependencies"
