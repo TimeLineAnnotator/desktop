@@ -46,17 +46,16 @@ Repository = "https://github.com/TimeLineAnnotator/desktop"
 
 [dependency-groups]
 build = [
-    "build"
+    "build",
+    "Nuitka<2.8",
+    "toml",
+    "wheel"
 ]
 ci-tests = [
     "coverage>=7.0.0",
     "coverage-badge>=1.0.0",
     "flake8>=7.0.0",
     "pytest-cov>=6.0.0",
-]
-deploy = [
-    "Nuitka<2.8",
-    "toml"
 ]
 dev = [
     "icecream>=2.1.0",
