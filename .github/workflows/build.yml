@@ -34,7 +34,7 @@ jobs:
         run: |
           out_filename='TiLiA-${{github.ref_name}}-${{matrix.os}}'
           echo "python scripts/deploy.py $out_filename" | bash
-          export QT_DEBUG_PLUGINS = 1
+          export QT_DEBUG_PLUGINS=1
           echo "Checking dependencies"
           echo "timeout 10 build/$out_filename" | bash
 
