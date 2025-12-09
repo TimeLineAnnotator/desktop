@@ -10,7 +10,6 @@ build-backend = "setuptools.build_meta"
 name = "TiLiA"
 version = "0.5.15.1"
 description = "A GUI for creating and visualizing annotations over audio and video files."
-license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
@@ -48,6 +47,7 @@ Repository = "https://github.com/TimeLineAnnotator/desktop"
 build = [
     "build",
     "Nuitka<2.8",
+    "pyyaml",
     "toml",
     "wheel"
 ]
