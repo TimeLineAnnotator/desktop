@@ -5,7 +5,7 @@ from nuitka.distutils.DistutilCommands import build as n_build
 import os
 from pathlib import Path
 from subprocess import CalledProcessError, Popen, PIPE, STDOUT
-from sys import argv, executable, version_info
+from sys import argv, version_info
 import tarfile
 import traceback
 
@@ -89,7 +89,7 @@ def _get_exe_cmd() -> list[str]:
     _set_out_filename(name, version)
     icon_path = Path(__file__).parents[1] / "tilia" / "ui" / "img" / "main_icon.ico"
     exe_args = [
-        executable,
+        "python",
         "-m",
         "nuitka",
         f"--output-dir={outdir}",
@@ -200,7 +200,7 @@ def _update_yml():
 
 def _build_sdist():
     sdist_cmd = [
-        executable,
+        "python",
         "-m",
         "build",
         "--no-isolation",
