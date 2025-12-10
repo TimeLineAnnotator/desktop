@@ -48,8 +48,7 @@ build = [
     "build",
     "ImageIO; sys_platform == 'darwin'",
     "Nuitka<2.8",
-    "pyyaml",
-    "toml",
+    "pyyaml; sys_platform == 'linux'",
     "wheel"
 ]
 ci-tests = [
