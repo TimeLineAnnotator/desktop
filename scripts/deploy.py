@@ -86,7 +86,6 @@ def _get_exe_cmd() -> list[str]:
         f"--file-version={version}",
         f"--output-filename={out_filename}",
         "--onefile-tempdir-spec={CACHE_DIR}/{PRODUCT}/{VERSION}",
-        "--mode=onefile",
     ]
     if "mac" in build_os:
         exe_args.extend(
@@ -94,6 +93,7 @@ def _get_exe_cmd() -> list[str]:
                 f"--macos-app-icon={icon_path}",
                 "--macos-app-mode=gui",
                 f"--macos-app-version={version}",
+                "--mode=app",
             ]
         )
     elif "windows" in build_os:
@@ -101,10 +101,16 @@ def _get_exe_cmd() -> list[str]:
             [
                 "--windows-console-mode=attach",
                 f"--windows-icon-from-ico={icon_path}",
+                "--mode=onefile",
             ]
         )
     else:
-        exe_args.extend([f"--linux-icon={icon_path}"])
+        exe_args.extend(
+            [
+                f"--linux-icon={icon_path}",
+                "--mode=onefile",
+            ]
+        )
 
     return exe_args
 
@@ -230,7 +236,7 @@ def build():
         _build_exe()
         os.chdir(old_dir)
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            f.write(f"out_filename={out_filename}\n")
+            f.write(f"out_filename={(outdir / out_filename).__str__()}\n")
     except Exception as e:
         _print(["Build failed!", e.__str__()], P.ERROR)
         _print([traceback.format_exc()])
