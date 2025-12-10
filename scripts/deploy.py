@@ -4,8 +4,8 @@ from enum import Enum
 from nuitka.distutils.DistutilCommands import build as n_build
 import os
 from pathlib import Path
-from subprocess import CalledProcessError, Popen, PIPE, STDOUT
-from sys import argv, version_info
+from subprocess import check_call
+from sys import argv, executable, version_info
 import tarfile
 import traceback
 
@@ -36,23 +36,10 @@ class P(Enum):
 
 
 def _print(text: list[str | list[str]], p_type: P | None = None):
-    if len(text) == 0 or (len(text) == 1 and not text[0]):
-        return
     if p_type:
-        print(
-            "echo " + p_type.value + "\n".join([t.__str__() for t in text]) + Fore.RESET
-        )
+        print(p_type.value + "\n".join([t.__str__() for t in text]) + Fore.RESET)
     else:
-        print("echo ", *text)
-
-
-def _run_command(cmd: list[str]):
-    with Popen(cmd, stdout=PIPE, stderr=STDOUT, bufsize=1, text=True) as p:
-        for line in p.stdout:
-            _print([line.rstrip("\n")])
-
-    if p.returncode != 0:
-        raise CalledProcessError(p.returncode, p.args)
+        print(*text, sep="\n")
 
 
 def _handle_inputs():
@@ -89,7 +76,7 @@ def _get_exe_cmd() -> list[str]:
     _set_out_filename(name, version)
     icon_path = Path(__file__).parents[1] / "tilia" / "ui" / "img" / "main_icon.ico"
     exe_args = [
-        "python",
+        executable,
         "-m",
         "nuitka",
         f"--output-dir={outdir}",
@@ -200,7 +187,7 @@ def _update_yml():
 
 def _build_sdist():
     sdist_cmd = [
-        "python",
+        executable,
         "-m",
         "build",
         "--no-isolation",
@@ -210,7 +197,7 @@ def _build_sdist():
     ]
 
     _print(["Building sdist with command:", sdist_cmd], P.CMD)
-    _run_command(sdist_cmd)
+    check_call(sdist_cmd)
 
 
 def _build_exe():
@@ -220,7 +207,7 @@ def _build_exe():
     exe_cmd.append(main_file)
 
     _print(["Building exe with command:", exe_cmd], P.CMD)
-    _run_command(exe_cmd)
+    check_call(exe_cmd)
 
 
 def build():
@@ -242,7 +229,8 @@ def build():
         _build_sdist()
         _build_exe()
         os.chdir(old_dir)
-        print(f'export out_filename="{out_filename}"')
+        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write(f"out_filename={out_filename}\n")
     except Exception as e:
         _print(["Build failed!", e.__str__()], P.ERROR)
         _print([traceback.format_exc()])

@@ -30,13 +30,18 @@ jobs:
           pip install -e . --group build
 
       - name: Build executable
+        id: buildexe
         shell: bash
         run: |
-          eval "$(python scripts/deploy.py ${{github.ref_name}} ${{matrix.os}} "$@")"
+          echo "python scripts/deploy.py ${{github.ref_name}} ${{matrix.os}}" | bash
+
+      - name: Test executable
+        shell: bash
+        run: |
           export QT_DEBUG_PLUGINS=1
           echo "Checking dependencies"
-          echo "timeout 10 $out_filename" | bash || true
-          echo "ldd $out_filename" | bash
+          echo "timeout 10 ${{ steps.buildexe.outputs.out_filename }}" | bash || true
+          echo "ldd ${{ steps.buildexe.outputs.out_filename }}" | bash
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
