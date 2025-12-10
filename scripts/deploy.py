@@ -4,16 +4,19 @@ from enum import Enum
 from nuitka.distutils.DistutilCommands import build as n_build
 import os
 from pathlib import Path
-from subprocess import check_call
+from subprocess import CalledProcessError, Popen, PIPE, STDOUT
 from sys import argv, executable, version_info
 import tarfile
 import traceback
 
 
-outdir = Path(__file__).parent.parent / "build"
-toml_file = Path(__file__).parent.parent / "pyproject.toml"
+ref_name = ""
+build_os = ""
+buildlib = Path(__file__).parents[1] / "build"
+toml_file = Path(__file__).parents[1] / "pyproject.toml"
 pkg_cfg = "tilia.nuitka-package.config.yml"
-out_filename = None
+outdir = ""
+out_filename = ""
 
 if not toml_file.exists():
     options = {}
@@ -33,16 +36,33 @@ class P(Enum):
 
 
 def _print(text: list[str | list[str]], p_type: P | None = None):
+    if len(text) == 0 or (len(text) == 1 and not text[0]):
+        return
     if p_type:
-        print(p_type.value + "\t".join([t.__str__() for t in text]) + Fore.RESET)
+        print(
+            "echo " + p_type.value + "\n".join([t.__str__() for t in text]) + Fore.RESET
+        )
     else:
-        print(*text)
+        print("echo ", *text)
 
 
-def _get_out_filename():
-    assert len(argv) == 2, "Incorrect number of inputs"
-    global out_filename
-    out_filename = argv[1]
+def _run_command(cmd: list[str]):
+    with Popen(cmd, stdout=PIPE, stderr=STDOUT, bufsize=1, text=True) as p:
+        for line in p.stdout:
+            _print([line.rstrip("\n")])
+
+    if p.returncode != 0:
+        raise CalledProcessError(p.returncode, p.args)
+
+
+def _handle_inputs():
+    assert len(argv) == 3, "Incorrect number of inputs"
+    global ref_name, build_os, outdir
+    ref_name = argv[1]
+    build_os = "-".join(
+        [x for x in argv[2].split("-") if not x.isdigit() and x != "latest"]
+    )
+    outdir = buildlib / build_os
 
 
 def _get_nuitka_toml() -> list[str]:
@@ -52,9 +72,21 @@ def _get_nuitka_toml() -> list[str]:
     return toml_cmds
 
 
+def _set_out_filename(name: str, version: str):
+    def _clean_version(v: str) -> tuple[str]:
+        return v.strip("v ").split(".")
+
+    global out_filename
+    if _clean_version(version) == _clean_version(ref_name):
+        out_filename = f"{name}-v{version}-{build_os}"
+    else:
+        out_filename = f"{name}-v{version}[{ref_name}]-{build_os}"
+
+
 def _get_exe_cmd() -> list[str]:
     name = options.get("project", {}).get("name", "TiLiA")
     version = options.get("project", {}).get("version", "0")
+    _set_out_filename(name, version)
     icon_path = Path(__file__).parents[1] / "tilia" / "ui" / "img" / "main_icon.ico"
     exe_args = [
         executable,
@@ -65,13 +97,11 @@ def _get_exe_cmd() -> list[str]:
         "--assume-yes-for-downloads",
         f"--product-name={name}",
         f"--file-version={version}",
-        "--onefile-tempdir-spec=%CACHE_DIR%/%PRODUCT%/%VERSION%",
-        "--mode=onefile",
         f"--output-filename={out_filename}",
-        f"--product-name={name}",
-        f"--file-version={version}",
+        "--onefile-tempdir-spec={CACHE_DIR}/{PRODUCT}/{VERSION}",
+        "--mode=onefile",
     ]
-    if "mac" in out_filename:
+    if "mac" in build_os:
         exe_args.extend(
             [
                 f"--macos-app-icon={icon_path}",
@@ -79,10 +109,10 @@ def _get_exe_cmd() -> list[str]:
                 f"--macos-app-version={version}",
             ]
         )
-    elif "windows" in out_filename:
+    elif "windows" in build_os:
         exe_args.extend(
             [
-                "--windows-console-mode=disable",
+                "--windows-console-mode=attach",
                 f"--windows-icon-from-ico={icon_path}",
             ]
         )
@@ -126,7 +156,9 @@ def _create_lib() -> tuple[Path, str, str]:
         f.extractall(
             lib,
             filter=lambda x, _: x
-            if x.name.startswith(tilia) or x.name in ext_data
+            if x.name.startswith(tilia)
+            or x.name.startswith("TiLiA.egg-info")
+            or x.name in ext_data
             else None,
         )
 
@@ -178,7 +210,7 @@ def _build_sdist():
     ]
 
     _print(["Building sdist with command:", sdist_cmd], P.CMD)
-    check_call(sdist_cmd)
+    _run_command(sdist_cmd)
 
 
 def _build_exe():
@@ -188,32 +220,34 @@ def _build_exe():
     exe_cmd.append(main_file)
 
     _print(["Building exe with command:", exe_cmd], P.CMD)
-    check_call(exe_cmd)
+    _run_command(exe_cmd)
 
 
 def build():
-    _get_out_filename()
+    _handle_inputs()
     dotenv.set_key("tilia.env", "ENVIRONMENT", "prod")
-    if outdir.exists():
+    if buildlib.exists():
         _print(["Cleaning build folder..."], P.ERROR)
-        for root, dirs, files in os.walk(outdir, False):
+        for root, dirs, files in os.walk(buildlib, False):
             r = Path(root)
-            print("\t~", r)
+            _print(["\t~", r])
             for f in files:
                 os.unlink(r / f)
             for d in dirs:
                 os.rmdir(r / d)
-        os.rmdir(outdir)
+        os.rmdir(buildlib)
 
     old_dir = os.getcwd()
     try:
         _build_sdist()
         _build_exe()
-    except Exception as e:
-        _print(["Build failed!", *e.args], P.ERROR)
-        traceback.print_exc()
-    finally:
         os.chdir(old_dir)
+        print(f'export out_filename="{out_filename}"')
+    except Exception as e:
+        _print(["Build failed!", e.__str__()], P.ERROR)
+        _print([traceback.format_exc()])
+        os.chdir(old_dir)
+        exit(1)
 
 
 if __name__ == "__main__":

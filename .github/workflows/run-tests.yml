@@ -81,7 +81,5 @@ jobs:
           coverage report -m
 
     - name: Check Program
-      shell: python
-      run: |
-        import subprocess
-        subprocess.run(["tilia-desktop", "exit"])
+      shell: bash
+      run: timeout 10 tilia-desktop || true

@@ -24,15 +24,15 @@ def open_with_os(path: Path) -> None:
 
 
 def load_dotenv() -> None:
-    dotenv_paths = [
-        fn for fn in os.listdir(Path(__file__).parents[1]) if fn.endswith(".env")
-    ]
+    root = Path(__file__).parents[1]
+    dotenv_paths = [root / fn for fn in os.listdir(root) if fn.endswith(".env")]
 
     if dotenv_paths:
         import dotenv
 
         for p in dotenv_paths:
-            dotenv.load_dotenv(p)
+            with open(p) as f:
+                dotenv.load_dotenv(stream=f)
 
     else:  # setup some basic values
         os.environ["LOG_REQUESTS"] = "1"
@@ -41,6 +41,3 @@ def load_dotenv() -> None:
         ] = "TIMELINE_VIEW_LEFT_BUTTON_DRAG;PLAYER_CURRENT_TIME_CHANGED;APP_RECORD_STATE"
     if not os.environ.get("ENVIRONMENT"):
         os.environ["ENVIRONMENT"] = "dev"
-
-
-load_dotenv()

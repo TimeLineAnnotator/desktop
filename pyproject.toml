@@ -46,6 +46,7 @@ Repository = "https://github.com/TimeLineAnnotator/desktop"
 [dependency-groups]
 build = [
     "build",
+    "ImageIO; sys_platform == 'darwin'",
     "Nuitka<2.8",
     "pyyaml",
     "toml",
