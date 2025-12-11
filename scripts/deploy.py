@@ -51,7 +51,7 @@ def _handle_inputs():
     build_os = "-".join(
         [x for x in sys.argv[2].split("-") if not x.isdigit() and x != "latest"]
     )
-    outdir = (buildlib / build_os).as_posix()
+    outdir = buildlib / build_os
 
 
 def _get_nuitka_toml() -> list[str]:
@@ -201,7 +201,7 @@ def _build_sdist():
         "--no-isolation",
         "--verbose",
         "--sdist",
-        f"--outdir={outdir}",
+        f"--outdir={outdir.as_posix()}",
     ]
 
     _print(["Building sdist with command:", sdist_cmd], P.CMD)
@@ -212,7 +212,7 @@ def _build_exe():
     main_file = _get_main_file()
     exe_cmd = _get_exe_cmd()
     exe_cmd.extend(_get_nuitka_toml())
-    exe_cmd.append(main_file)
+    exe_cmd.append(main_file.as_posix())
 
     _print(["Building exe with command:", exe_cmd], P.CMD)
     check_call(exe_cmd)
@@ -225,7 +225,7 @@ def build():
         _print(["Cleaning build folder..."], P.ERROR)
         for root, dirs, files in os.walk(buildlib, False):
             r = Path(root)
-            _print(["\t~", r])
+            _print([f"\t~{r}"])
             for f in files:
                 os.unlink(r / f)
             for d in dirs:
