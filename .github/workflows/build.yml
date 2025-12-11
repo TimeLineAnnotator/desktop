@@ -30,7 +30,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfontconfig1-dev libfreetype-dev libgtk-3-dev libx11-dev libx11-xcb-dev '^libxcb.*-dev' libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libxrender-dev
+          sudo apt-get install -y libfontconfig1-dev libfreetype-dev libgtk-3-dev libx11-dev libx11-xcb-dev '^libxcb.*-dev' libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libxrender-dev libpulse-dev
+
+      - name: Remove problematic brew libs (see Nuitka/Nuitka#2853)
+        if: runner.os == 'macOS' && runner.arch != 'ARM64'
+        run: |
+          brew remove --force --ignore-dependencies openssl@3
+          brew cleanup openssl@3
 
       - name: Install dependencies
         run: |
@@ -70,7 +76,7 @@ jobs:
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
-          name: Executables
+          name: exe-${{ matrix.os }}
           path: build
           retention-days: 1
 
@@ -82,17 +88,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download executable
-        uses: actions/download-artfact@v4
+        uses: actions/download-artifact@v4
         with:
-          name: Executables
           path: build
+          pattern: exe-*
+          merge-multiple: true
 
       - name: Test Linux still works in a clean environment
         run: |
           if ((${#${{ needs.build.outputs.linux-build }}[@]})); then
           if echo "timeout 10 ${{ needs.build.outputs.linux-build }}" | bash;
-          then echo 'Linux works in a clean environment!';
-          else echo 'Linux didn't work...\n Check libraries with previous step?' && echo "ldd ${{ steps.build-exe.outputs.out-filename }}" | bash;
+          then echo -e '\033[1;92mLinux works in a clean environment!\033[0m';
+          else echo -e '\033[1;91mLinux didn't work...\n\tCheck libraries with previous step?\033[0m' && echo "ldd ${{ steps.build-exe.outputs.out-filename }}" | bash;
           fi;
           fi
 
