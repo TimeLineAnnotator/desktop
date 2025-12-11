@@ -11,6 +11,8 @@ jobs:
     name: Build with Nuitka
     continue-on-error: true
     runs-on: ${{ matrix.os }}
+    outputs:
+      linux-build: ${{ steps.set-path.outputs.path }}
     strategy:
       matrix:
         os: [macos-latest, macos-15-intel, ubuntu-latest, windows-latest]
@@ -24,24 +26,46 @@ jobs:
           python-version: 3.11
           cache: "pip"
 
+      - name: Setup additional Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype-dev libgtk-3-dev libx11-dev libx11-xcb-dev '^libxcb.*-dev'libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libxrender-dev
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e . --group build
 
       - name: Build executable
-        id: buildexe
+        id: build-exe
         shell: bash
         run: |
           echo "python scripts/deploy.py ${{github.ref_name}} ${{matrix.os}}" | bash
 
       - name: Test executable
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install coreutils
+          export QT_DEBUG_PLUGINS=1
+          echo "Checking dependencies"
+          echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filename }}" | bash || true
+
+      - name: Test executable
+        id: test-exe
+        if: runner.os != 'macOS'
         shell: bash
         run: |
           export QT_DEBUG_PLUGINS=1
           echo "Checking dependencies"
-          echo "timeout 10 ${{ steps.buildexe.outputs.out_filename }}" | bash || true
-          echo "ldd ${{ steps.buildexe.outputs.out_filename }}" | bash
+          echo "timeout 10 ${{ steps.build-exe.outputs.out-filename }}" | bash || true
+          echo "ldd ${{ steps.build-exe.outputs.out-filename }}" | bash
+
+      - id: set-path
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo "path=${{ steps.build-exe.outputs.out-filename }}" >> "$GITHUB_OUTPUT"
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
@@ -52,7 +76,7 @@ jobs:
 
   deploy:
     name: Create release
-    needs: [build]
+    needs: build
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +86,15 @@ jobs:
         with:
           name: Executables
           path: build
+
+      - name: Test Linux still works in a clean environment
+        run: |
+          if ((${#${{ needs.build.outputs.linux-build }}[@]})); then
+          if echo "timeout 10 ${{ needs.build.outputs.linux-build }}" | bash;
+          then echo 'Linux works in a clean environment!';
+          else echo 'Linux didn't work...\n Check libraries with previous step?' && echo "ldd ${{ steps.build-exe.outputs.out-filename }}" | bash;
+          fi;
+          fi
 
       - name: Upload
         uses: "softprops/action-gh-release@v2"

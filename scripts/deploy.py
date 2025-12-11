@@ -5,7 +5,7 @@ from nuitka.distutils.DistutilCommands import build as n_build
 import os
 from pathlib import Path
 from subprocess import check_call
-from sys import argv, executable, version_info
+import sys
 import tarfile
 import traceback
 
@@ -21,7 +21,7 @@ out_filename = ""
 if not toml_file.exists():
     options = {}
 else:
-    if version_info >= (3, 11):
+    if sys.version_info >= (3, 11):
         from tomllib import load
     else:
         from tomli import load
@@ -36,18 +36,20 @@ class P(Enum):
 
 
 def _print(text: list[str | list[str]], p_type: P | None = None):
+    if not text:
+        return
     if p_type:
-        print(p_type.value + "\n".join([t.__str__() for t in text]) + Fore.RESET)
-    else:
-        print(*text, sep="\n")
+        text[0] = p_type.value + text[0]
+        text[-1] += Fore.RESET
+    sys.stdout.write("\n".join([t.__str__() for t in text]))
 
 
 def _handle_inputs():
-    assert len(argv) == 3, "Incorrect number of inputs"
+    assert len(sys.argv) == 3, "Incorrect number of inputs"
     global ref_name, build_os, outdir
-    ref_name = argv[1]
+    ref_name = sys.argv[1]
     build_os = "-".join(
-        [x for x in argv[2].split("-") if not x.isdigit() and x != "latest"]
+        [x for x in sys.argv[2].split("-") if not x.isdigit() and x != "latest"]
     )
     outdir = buildlib / build_os
 
@@ -76,7 +78,7 @@ def _get_exe_cmd() -> list[str]:
     _set_out_filename(name, version)
     icon_path = Path(__file__).parents[1] / "tilia" / "ui" / "img" / "main_icon.ico"
     exe_args = [
-        executable,
+        sys.executable,
         "-m",
         "nuitka",
         f"--output-dir={outdir}",
@@ -193,7 +195,7 @@ def _update_yml():
 
 def _build_sdist():
     sdist_cmd = [
-        executable,
+        sys.executable,
         "-m",
         "build",
         "--no-isolation",
@@ -236,7 +238,7 @@ def build():
         _build_exe()
         os.chdir(old_dir)
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            f.write(f"out_filename={(outdir / out_filename).__str__()}\n")
+            f.write(f"out-filename={(outdir / out_filename).as_posix()}\n")
     except Exception as e:
         _print(["Build failed!", e.__str__()], P.ERROR)
         _print([traceback.format_exc()])
