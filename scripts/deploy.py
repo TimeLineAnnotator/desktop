@@ -38,10 +38,10 @@ class P(Enum):
 def _print(text: list[str | list[str]], p_type: P | None = None):
     if not text:
         return
+    formatted_text = "\n".join([t.__str__() for t in text])
     if p_type:
-        text[0] = p_type.value + text[0]
-        text[-1] += Fore.RESET
-    sys.stdout.write("\n".join([t.__str__() for t in text]))
+        formatted_text = p_type.value + formatted_text + Fore.RESET
+    sys.stdout.write(formatted_text + "\n")
 
 
 def _handle_inputs():
@@ -51,7 +51,7 @@ def _handle_inputs():
     build_os = "-".join(
         [x for x in sys.argv[2].split("-") if not x.isdigit() and x != "latest"]
     )
-    outdir = buildlib / build_os
+    outdir = (buildlib / build_os).as_posix()
 
 
 def _get_nuitka_toml() -> list[str]:
