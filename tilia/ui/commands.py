@@ -28,7 +28,7 @@ Usage:
     # Execute a command
     commands.execute('example.command', arg1, arg2, kwarg1=value1)
 """
-
+import functools
 import inspect
 import os
 import traceback
@@ -124,11 +124,21 @@ def _execute_dev(command_name: str, *args, **kwargs):
     except Exception as e:
         callback = _name_to_callback[command_name]
         sig = inspect.signature(callback)
-        raise Exception(
-            f"Error executing command '{command_name}'. \n"
-            f"Callback: {callback.__module__}.{callback.__name__}{sig}\n"
-            f"Called with args: {args}, kwargs: {kwargs}"
-        ) from e
+        if isinstance(callback, functools.partial):
+            partial_message = (
+                "Callback is a partial.\n"
+                + f"Partial args: {callback.args}\n"
+                + f"Partial kwargs: {callback.keywords}\n"
+            )
+            callback = callback.func
+        else:
+            partial_message = ""
+
+        message = f"Error executing command '{command_name}'. \n"
+        message += f"Callback: {callback.__module__}.{callback.__name__}{sig}\n"
+        message += partial_message
+        message += f"Called with args: {args}, kwargs: {kwargs}"
+        raise Exception(message) from e
 
 
 def _execute_prod(command_name: str, *args, **kwargs):
