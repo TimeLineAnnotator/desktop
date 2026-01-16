@@ -1,6 +1,7 @@
 from PyQt6.QtGui import QAction
 
 from tilia.ui import commands
+from tilia.ui.commands import get_qaction
 from tilia.ui.menus import MenuItemKind, TiliaMenu
 from tilia.requests import get, Get
 
@@ -26,6 +27,12 @@ class TimelineUIContextMenu(TiliaMenu):
 
     def get_timeline_ui_for_selector(self):
         return [self.timeline_ui]
+
+    def add_action(self, name: str):
+        action = get_qaction(name)
+        action.triggered.disconnect()
+        action.triggered.connect(lambda: commands.execute(name, self.timeline_ui))
+        self.addAction(action)
 
     def check_move_up(self):
         def on_move_up():
