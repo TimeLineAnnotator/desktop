@@ -8,7 +8,13 @@ from typing import Optional
 
 from PyQt6 import QtGui
 from PyQt6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl, QtMsgType
-from PyQt6.QtGui import QIcon, QFontDatabase, QDesktopServices, QPainter, QPixmap
+from PyQt6.QtGui import (
+    QIcon,
+    QFontDatabase,
+    QDesktopServices,
+    QPainter,
+    QPixmap,
+)
 from PyQt6.QtWidgets import (
     QMainWindow,
     QApplication,
@@ -44,6 +50,7 @@ from .menus import (
     HarmonyMenu,
     PdfMenu,
     ScoreMenu,
+    TiliaMenu,
 )
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
@@ -235,6 +242,8 @@ class QtUI:
 
         commands.register("open_website_help", self.on_open_website_help, "&Help...")
 
+        commands.register("ui.add_menu", self.on_add_menu)
+
     def _setup_main_window(self, mw: TiliaMainWindow):
         self.main_window = mw
 
@@ -373,6 +382,9 @@ class QtUI:
     @staticmethod
     def open_media_metadata_window():
         return MediaMetadataWindow()
+
+    def on_add_menu(self, menu_class: type[TiliaMenu]):
+        self.menu_bar.add_menu(menu_class)
 
     @staticmethod
     def open_settings_window():

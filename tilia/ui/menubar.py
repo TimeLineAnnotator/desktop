@@ -1,6 +1,13 @@
 from PyQt6.QtWidgets import QMainWindow
 
-from tilia.ui.menus import FileMenu, EditMenu, TimelinesMenu, ViewMenu, HelpMenu
+from tilia.ui.menus import (
+    FileMenu,
+    EditMenu,
+    TimelinesMenu,
+    ViewMenu,
+    HelpMenu,
+    TiliaMenu,
+)
 
 
 class TiliaMenuBar:
@@ -13,9 +20,12 @@ class TiliaMenuBar:
 
     def _setup_menus(self):
         for cls in self.menu_classes:
-            menu = cls()
-            self.menu_bar.addMenu(menu)
-            self.class_to_menu[cls] = menu
+            self.add_menu(cls)
 
     def get_menu(self, cls):
         return self.class_to_menu[cls]
+
+    def add_menu(self, cls: type[TiliaMenu]):
+        menu = cls()
+        self.menu_bar.addMenu(menu)
+        self.class_to_menu[cls] = menu
