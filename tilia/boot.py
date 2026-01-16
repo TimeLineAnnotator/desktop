@@ -13,6 +13,7 @@ from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
 from tilia.log import logger
 from tilia.media.player import QtAudioPlayer
+from tilia.plugins.lcma import LCMAPlugin
 from tilia.ui.cli.ui import CLI
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.undo_manager import UndoManager
@@ -62,6 +63,9 @@ def boot():
         app.on_open(file)
     else:
         app.setup_file()
+
+    # init LCMA plugin
+    LCMAPlugin()
 
     ui.launch()
 
