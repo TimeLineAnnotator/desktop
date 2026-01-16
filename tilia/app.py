@@ -75,6 +75,7 @@ class App:
             (Get.MEDIA_DURATION, lambda: self.duration),
             (Get.VERIFIED_PATH, self._verify_path_exists),
             (Get.IS_FILE_MODIFIED, self.is_file_modified),
+            (Get.FILE_PATH, self.file_path),
         }
 
         for post_, callback in LISTENS:
@@ -130,6 +131,9 @@ class App:
 
     def is_file_modified(self) -> bool:
         return self.file_manager.is_file_modified(self.get_app_state())
+
+    def file_path(self) -> Path:
+        return self.file_manager.get_file_path()
 
     def on_open(self, path: Path | str | None = None) -> None:
         if isinstance(path, str):
