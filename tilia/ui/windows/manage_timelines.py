@@ -96,7 +96,7 @@ class ManageTimelines(QDialog):
             return
         timeline_ui = item.timeline_ui
         if timeline_ui.get_data("is_visible") != bool(state):
-            post(Post.TIMELINE_IS_VISIBLE_SET_FROM_MANAGE_TIMELINES)
+            commands.execute("timeline.set_is_visible", timeline_ui, bool(state))
 
     def get_timeline_uis_to_permute(self):
         return self.list_widget.timeline_uis_to_permute

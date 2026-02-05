@@ -685,7 +685,17 @@ class SvgGraphicsView(QGraphicsView):
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
         if self._viewport_updated():
-            start_ts, end_ts = self.get_times(self.current_viewport_x).values()
+            times = self.get_times(self.current_viewport_x).values()
+            if not times:
+                # Beat timeline has been deleted?
+                # This means the svg viewer won't scroll?
+                return
+            else:
+                # This relies on the order dictionary entries,
+                # which is undefined.
+                # We should use another data structure if we care about order.
+                start_ts, end_ts = list(times)
+
             current_time = get(Get.SELECTED_TIME)
             start_time = start_ts[
                 s_idx - 1 if (s_idx := bisect(start_ts, current_time)) != 0 else s_idx

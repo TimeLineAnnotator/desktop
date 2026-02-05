@@ -33,7 +33,9 @@ def test_create_data_dir_site():
     Path.rmdir(Path("site_dir"))
 
 
-def makedirs_mock_raise_permissionerror_if_sitedirs(dir_path: str) -> None:
+def makedirs_mock_raise_permissionerror_if_sitedirs(
+    dir_path: str, exist_ok: bool = True
+) -> None:
     if dir_path == dirs._SITE_DATA_DIR:
         raise PermissionError
     else:

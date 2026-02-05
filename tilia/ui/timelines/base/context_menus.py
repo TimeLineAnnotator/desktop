@@ -1,7 +1,5 @@
-from PyQt6.QtGui import QAction
-
 from tilia.ui import commands
-from tilia.ui.commands import get_qaction
+from tilia.ui.commands import get_qaction, CommandQAction
 from tilia.ui.menus import MenuItemKind, TiliaMenu
 from tilia.requests import get, Get
 
@@ -47,7 +45,8 @@ class TimelineUIContextMenu(TiliaMenu):
             tlui.get_data("ordinal"): tlui for tlui in get(Get.TIMELINE_UIS)
         }
         if indices_to_timelines.get(current_index - 1, False):
-            move_up = QAction("Move up", self)
+            move_up = CommandQAction("timeline.move_up", self)
+            move_up.setText("Move up")
             move_up.triggered.connect(on_move_up)
             self.addAction(move_up)
 
@@ -64,7 +63,8 @@ class TimelineUIContextMenu(TiliaMenu):
             tlui.get_data("ordinal"): tlui for tlui in get(Get.TIMELINE_UIS)
         }
         if indices_to_timelines.get(current_index + 1, False):
-            move_down = QAction("Move down", self)
+            move_down = CommandQAction("timeline.move_down", self)
+            move_down.setText("Move down")
             move_down.triggered.connect(on_move_down)
             self.addAction(move_down)
 
@@ -79,11 +79,13 @@ class TimelineUIContextMenu(TiliaMenu):
 
         self.addSeparator()
 
-        delete_timeline = QAction("Delete", self)
+        delete_timeline = CommandQAction("timeline.delete", self)
+        delete_timeline.setText("Delete")
         delete_timeline.triggered.connect(on_delete_timeline)
         self.addAction(delete_timeline)
 
-        clear_timeline = QAction("Clear", self)
+        clear_timeline = CommandQAction("timeline.clear", self)
+        clear_timeline.setText("Clear")
         clear_timeline.triggered.connect(on_clear_timeline)
         self.addAction(clear_timeline)
 

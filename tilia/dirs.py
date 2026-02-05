@@ -55,10 +55,10 @@ def setup_dirs() -> None:
 
 def create_data_dir() -> Path:
     try:
-        os.makedirs(_SITE_DATA_DIR)
+        os.makedirs(_SITE_DATA_DIR, exist_ok=True)
         _data_path = _SITE_DATA_DIR
     except PermissionError:
-        os.makedirs(_USER_DATA_DIR)
+        os.makedirs(_USER_DATA_DIR, exist_ok=True)
         _data_path = _USER_DATA_DIR
 
     return _data_path

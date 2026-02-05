@@ -1,6 +1,8 @@
+import importlib.util
 import json
 from contextlib import contextmanager
 from pathlib import Path
+from pprint import pformat
 from typing import Callable
 
 from PyQt6.QtWidgets import QMenu
@@ -8,6 +10,7 @@ from PyQt6.QtWidgets import QMenu
 from tilia.requests import get, Get
 from tests.mock import patch_file_dialog
 from tilia.ui import commands
+from tilia.ui.commands import CommandQAction
 
 
 def get_blank_file_data():
@@ -92,13 +95,33 @@ def undoable():
     yield
     state_after = get(Get.APP_STATE)
     commands.execute("edit.undo")
-    assert get(Get.APP_STATE) == state_before
+
+    try:
+        assert get(Get.APP_STATE) == state_before
+    except AssertionError as e:
+        if importlib.util.find_spec("deepdiff") is None:
+            state_diff = (
+                "Consider installing `deepdiff` library for debugging app states."
+            )
+        else:
+            import deepdiff
+
+            state_diff = pformat(deepdiff.DeepDiff(get(Get.APP_STATE), state_before))
+        raise AssertionError("Undoing did not preserve state.\n" + state_diff) from e
+
     commands.execute("edit.redo")
-    assert get(Get.APP_STATE) == state_after
-    # Debug tip: use the deepdiff library to compare states
-    # import deepdiff
-    # from pprint import pprint
-    # pprint(deepdiff.DeepDiff(get(Get.APP_STATE), state_before))
+    try:
+        assert get(Get.APP_STATE) == state_after
+    except AssertionError as e:
+        if importlib.util.find_spec("deepdiff") is None:
+            state_diff = (
+                "Consider installing `deepdiff` library for debugging app states."
+            )
+        else:
+            import deepdiff
+
+            state_diff = pformat(deepdiff.DeepDiff(get(Get.APP_STATE), state_after))
+        raise AssertionError("Redoing did not preserve state.\n" + state_diff) from e
 
 
 def reloadable(save_path):
@@ -124,11 +147,19 @@ def reloadable(save_path):
     return check_and_reload
 
 
-def get_action(menu, name):
+def get_command_action(menu: QMenu, command_name: str) -> CommandQAction | None:
     for action in menu.actions():
-        if action.text().replace("&", "") == name:
+        if isinstance(action, CommandQAction) and action.command_name == command_name:
             return action
     return None
+
+
+def get_command_names(menu: QMenu) -> list[str]:
+    command_names = []
+    for action in menu.actions():
+        if isinstance(action, CommandQAction):
+            command_names.append(action.command_name)
+    return command_names
 
 
 def get_submenu(menu, name):

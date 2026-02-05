@@ -4,7 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QColorDialog, QInputDialog
 
-from tests.mock import Serve
+from tests.mock import Serve, patch_ask_for_string_dialog, patch_yes_or_no_dialog
 from tests.ui.test_qtui import get_toolbars_of_class
 from tests.ui.timelines.interact import (
     click_timeline_ui,
@@ -13,7 +13,13 @@ from tests.ui.timelines.interact import (
     type_string,
 )
 from tests.ui.timelines.marker.interact import click_marker_ui, get_marker_ui_center
-from tests.utils import undoable, get_action, get_submenu, get_main_window_menu
+from tests.utils import (
+    undoable,
+    get_command_action,
+    get_submenu,
+    get_main_window_menu,
+    get_command_names,
+)
 from tilia.requests import Post, Get, post
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
@@ -322,6 +328,10 @@ class TestElementContextMenu:
 
 
 class TestTimelineUIContextMenu:
+    @staticmethod
+    def get_context_menu(tluis, tl_index=0):
+        return tluis[tl_index].CONTEXT_MENU_CLASS(tluis[tl_index])
+
     def test_is_shown_on_right_click(self, marker_tlui, tluis, tilia_state):
         with patch.object(MarkerTimelineUIContextMenu, "exec") as mock:
             click_timeline_ui(marker_tlui, 50, button="right")
@@ -329,7 +339,7 @@ class TestTimelineUIContextMenu:
         mock.assert_called_once()
 
     def test_has_no_height_set_action(self, marker_tlui, tluis, tilia_state):
-        context_menu = marker_tlui.CONTEXT_MENU_CLASS(marker_tlui)
+        context_menu = self.get_context_menu(tluis)
 
         assert get_qaction("timeline.set_height") not in context_menu.actions()
 
@@ -338,25 +348,25 @@ class TestTimelineUIContextMenu:
             commands.execute("timelines.add.marker")
             commands.execute("timelines.add.marker")
 
-        context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1])
+        context_menu = self.get_context_menu(tluis, 1)
 
-        action_names = [a.text().replace("&", "") for a in context_menu.actions()]
-        assert "Move up" in action_names
-        assert "Move down" not in action_names
+        action_commands = get_command_names(context_menu)
+        assert "timeline.move_up" in action_commands
+        assert "timeline.move_down" not in action_commands
 
     def test_has_no_move_up_action_when_first(self, tluis):
         with Serve(Get.FROM_USER_STRING, (True, "")):
             commands.execute("timelines.add.marker")
             commands.execute("timelines.add.marker")
 
-        context_menu = tluis[0].CONTEXT_MENU_CLASS(tluis[0])
+        context_menu = self.get_context_menu(tluis)
 
-        action_names = [a.text().replace("&", "") for a in context_menu.actions()]
-        assert "Move up" not in action_names
-        assert "Move down" in action_names
+        action_commands = get_command_names(context_menu)
+        assert "timeline.move_up" not in action_commands
+        assert "timeline.move_down" in action_commands
 
     def test_has_the_right_actions(self, marker_tlui, tluis, tilia_state):
-        context_menu = marker_tlui.CONTEXT_MENU_CLASS(marker_tlui)
+        context_menu = self.get_context_menu(tluis)
 
         # As each context menu creates its own QActions,
         # we can't get them with commands.get_action().
@@ -365,6 +375,62 @@ class TestTimelineUIContextMenu:
 
         for name in expected:
             assert name in [a.text() for a in context_menu.actions()]
+
+    def test_set_name_via_context_menu(self, marker_tlui, tluis):
+        context_menu = self.get_context_menu(tluis)
+        marker_tlui.get_data("name")
+        set_name_action = get_command_action(context_menu, "timeline.set_name")
+
+        with patch_ask_for_string_dialog(True, "new name"):
+            with undoable():
+                set_name_action.trigger()
+        assert marker_tlui.get_data("name") == "new name"
+
+    def test_move_up_via_context_menu(self, tluis):
+        commands.execute("timelines.add.marker", name="")
+        commands.execute("timelines.add.marker", name="Move me up")
+
+        context_menu = self.get_context_menu(tluis, 1)
+        move_up_action = get_command_action(context_menu, "timeline.move_up")
+        with undoable():
+            move_up_action.trigger()
+
+        assert tluis[0].get_data("name") == "Move me up"
+
+    def test_move_down_via_context_menu(self, tluis):
+        commands.execute("timelines.add.marker", name="Move me down")
+        commands.execute("timelines.add.marker", name="")
+
+        context_menu = self.get_context_menu(tluis)
+        move_down_action = get_command_action(context_menu, "timeline.move_down")
+
+        with undoable():
+            move_down_action.trigger()
+
+        assert tluis[1].get_data("name") == "Move me down"
+
+    def test_delete_via_context_menu(self, marker_tlui, tluis):
+        context_menu = self.get_context_menu(tluis)
+        delete_action = get_command_action(context_menu, "timeline.delete")
+        with patch_yes_or_no_dialog(True):
+            with undoable():
+                delete_action.trigger()
+
+        assert tluis.is_empty
+
+    def test_clear_via_context_menu(self, marker_tlui, tluis):
+        commands.execute("timeline.marker.add")
+        commands.execute("timeline.marker.add", time=1)
+        commands.execute("timeline.marker.add", time=2)
+        # post(Post.APP_STATE_RECORD, "test setup")
+
+        context_menu = self.get_context_menu(tluis)
+        delete_action = get_command_action(context_menu, "timeline.clear")
+        with patch_yes_or_no_dialog(True):
+            with undoable():
+                delete_action.trigger()
+
+        assert marker_tlui.is_empty
 
 
 class TestInspect:
@@ -506,8 +572,7 @@ class TestMoveInTimelineOrder:
                 commands.execute("timelines.add.marker")
 
         context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1])
-        action = get_action(context_menu, "Move up")
-        assert action
+        action = get_command_action(context_menu, "timeline.move_up")
         with undoable():
             action.trigger()
         assert [tlui.get_data("name") for tlui in tluis.get_timeline_uis()] == [
@@ -522,7 +587,7 @@ class TestMoveInTimelineOrder:
                 commands.execute("timelines.add.marker")
 
         context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1])
-        action = get_action(context_menu, "Move down")
+        action = get_command_action(context_menu, "timeline.move_down")
         assert action
         with undoable():
             action.trigger()

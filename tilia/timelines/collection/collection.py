@@ -211,11 +211,11 @@ class Timelines:
     def deserialize_timelines(self, data: dict) -> None:
         data_copy = copy.deepcopy(data)  # so pop does not modify original data
 
-        for tl_data in data_copy.values():
+        for id, tl_data in data_copy.items():
             if "display_position" in tl_data:
                 tl_data["ordinal"] = tl_data.pop("display_position") + 1
             kind = TimelineKind(tl_data.pop("kind"))
-            self.create_timeline(kind, **tl_data)
+            self.create_timeline(kind, id=id, **tl_data)
 
     def restore_state(self, timeline_states: dict[str, dict]) -> None:
         id_to_timelines = {tl.id: tl for tl in self}
@@ -233,7 +233,7 @@ class Timelines:
         for id in list(set(timeline_states) - set(shared_tl_ids)):
             params = timeline_states[id].copy()
             kind = TimelineKind(params.pop("kind"))
-            self.create_timeline(kind, **params)
+            self.create_timeline(kind, id=id, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
         if (

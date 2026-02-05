@@ -41,6 +41,18 @@ from PyQt6.QtWidgets import QMainWindow, QWidget
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
 
 
+class CommandQAction(QAction):
+    """
+    Wrapper around QAction adding a `command_name` property.
+    The property can be used to retrieve actions from menu by command name,
+    which is very useful for testing.
+    """
+
+    def __init__(self, command_name: str, parent: QMainWindow | QWidget | None):
+        super().__init__(parent)
+        self.command_name = command_name
+
+
 def get_img_path(basename: str):
     return IMG_DIR / f"{basename}.png"
 
@@ -60,7 +72,7 @@ def register(
     Also creates a QAction with the given text, shortcut and icon.
      The action can be retrieved with commands.get_qaction(name) and used in the Qt interface.
     """
-    action = QAction(parent)
+    action = CommandQAction(name, parent)
 
     action.setText(text)
     action.setToolTip(f"{text} ({shortcut})" if shortcut else text)
@@ -105,7 +117,7 @@ def _execute_dev(command_name: str, *args, **kwargs):
     if command_name not in _name_to_callback:
         for key in _name_to_callback:
             print(key)
-        raise ValueError(f"Unregistered command: {command_name}.")
+        raise ValueError(f"Unregistered command: {command_name}")
 
     try:
         return _name_to_callback[command_name](*args, **kwargs)

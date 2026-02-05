@@ -72,10 +72,11 @@ class Timeline(ABC, Generic[TC]):
         name: str = "",
         height: int = 0,
         is_visible: bool = True,
-        ordinal: int = None,
+        ordinal: int | None = None,
+        id: int | None = None,
         **kwargs,  # ignores components_hash
     ):
-        self.id = get(Get.ID)
+        self.id = id if id is not None else get(Get.ID)
 
         self.name = name
         self.is_visible = is_visible

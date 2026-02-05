@@ -33,6 +33,34 @@ def manage_timelines(qtui):
     mt.close()
 
 
+class TestChangeTimelineVisibility:
+    def set_is_visible(self, manage_timelines, row: int, is_visible: bool):
+        manage_timelines.list_widget.setCurrentRow(row)
+        manage_timelines.checkbox.setChecked(is_visible)
+
+    def test_hide(self, marker_tl, manage_timelines):
+        marker_tl.set_data("is_visible", True)
+        self.set_is_visible(manage_timelines, 0, False)
+        assert marker_tl.get_data("is_visible") is False
+
+    def test_show(self, marker_tl, manage_timelines):
+        marker_tl.set_data("is_visible", False)
+        self.set_is_visible(manage_timelines, 0, True)
+        assert marker_tl.get_data("is_visible") is True
+
+    def test_hide_then_show(self, marker_tl, manage_timelines):
+        marker_tl.set_data("is_visible", True)
+        self.set_is_visible(manage_timelines, 0, False)
+        self.set_is_visible(manage_timelines, 0, True)
+        assert marker_tl.get_data("is_visible") is True
+
+    def test_show_then_hide(self, marker_tl, manage_timelines):
+        marker_tl.set_data("is_visible", False)
+        self.set_is_visible(manage_timelines, 0, True)
+        self.set_is_visible(manage_timelines, 0, False)
+        assert marker_tl.get_data("is_visible") is False
+
+
 class TestChangeTimelineOrder:
     @pytest.fixture(autouse=True)
     def setup_timelines(self, tls):
