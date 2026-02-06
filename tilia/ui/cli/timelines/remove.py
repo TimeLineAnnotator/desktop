@@ -1,4 +1,8 @@
+from colorama import Fore
+
 from tilia.requests import get, Get
+from tilia.ui.cli import io
+from tilia.ui.cli.timelines.utils import get_timeline_by_name, get_timeline_by_ordinal
 
 
 def setup_parser(subparser):
@@ -6,35 +10,29 @@ def setup_parser(subparser):
     remove_subcommands = remove_subp.add_subparsers(dest="type", required=True)
 
     # 'remove by name' subcommand
-    remove_by_name_subc = remove_subcommands.add_parser("name", exit_on_error=False)
-    remove_by_name_subc.add_argument("name")
-    remove_by_name_subc.set_defaults(func=remove_by_name)
+    by_name_subcommand = remove_subcommands.add_parser("name", exit_on_error=False)
+    by_name_subcommand.add_argument("name")
+    by_name_subcommand.set_defaults(func=remove_timeline, by="name")
 
     # 'remove by ordinal' subcommand
-    remove_by_ordinal_subc = remove_subcommands.add_parser(
+    by_ordinal_subcommand = remove_subcommands.add_parser(
         "ordinal", exit_on_error=False
     )
-    remove_by_ordinal_subc.add_argument("ordinal", type=int)
-    remove_by_ordinal_subc.set_defaults(func=remove_by_ordinal)
+    by_ordinal_subcommand.add_argument("ordinal", type=int)
+    by_ordinal_subcommand.set_defaults(func=remove_timeline, by="ordinal")
 
 
-def remove_by_name(namespace):
-    tl = get(Get.TIMELINE_BY_ATTR, "name", namespace.name)
+def remove_timeline(namespace):
+    attr_value = getattr(namespace, namespace.by)
 
-    if not tl:
-        raise ValueError(f"No timeline found with name={namespace.name}")
+    if namespace.by == "name":
+        success, tl = get_timeline_by_name(attr_value)
+    else:  # ordinal
+        success, tl = get_timeline_by_ordinal(attr_value)
 
-    print(f"Removing timeline {tl=}")
-
-    get(Get.TIMELINE_COLLECTION).delete_timeline(tl)
-
-
-def remove_by_ordinal(namespace):
-    tl = get(Get.TIMELINE_BY_ATTR, "ordinal", namespace.ordinal)
-
-    if not tl:
-        raise ValueError(f"No timeline found with ordinal={namespace.ordinal}")
-
-    print(f"Removing timeline {tl=}")
+    if not success:
+        return
+    else:
+        io.output(f"Removing timeline {tl=}", Fore.GREEN)
 
     get(Get.TIMELINE_COLLECTION).delete_timeline(tl)
