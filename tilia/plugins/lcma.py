@@ -7,7 +7,11 @@ class LCMAPlugin:
     def __init__(self):
         self._register_commands()
 
-        commands.execute("ui.add_menu", LCMAMenu)
+        try:
+            commands.execute("ui.add_menu", LCMAMenu)
+        except ValueError:
+            # We are probably in cli mode
+            pass
 
     def _register_commands(self):
         commands.register(
