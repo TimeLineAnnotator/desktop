@@ -27,6 +27,10 @@ def warn(message: str) -> None:
     output(message, Fore.YELLOW)
 
 
+def error(message: str) -> None:
+    output(message, Fore.RED)
+
+
 def ask_for_string(prompt: str) -> str:
     """
     Prompts the user for a string
