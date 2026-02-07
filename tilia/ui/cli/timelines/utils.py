@@ -8,13 +8,16 @@ from tilia.ui.cli import io
 
 
 def get_timeline_by_name(name: str):
-    tl = get(Get.TIMELINE_BY_ATTR, "name", name)
+    tls = get(Get.TIMELINES_BY_ATTR, "name", name)
 
-    if not tl:
+    if not tls:
         io.output(f"No timeline found with name={name}", Fore.RED)
         return False, None
-    else:
-        return True, tl
+    if len(tls) == 1:
+        return True, tls[0]
+    else:  # len(tls) > 1
+        io.warn(f"There is more than one timeline with name '{name}'")
+        return True, tls[0]
 
 
 def get_timeline_by_ordinal(ordinal: int):
