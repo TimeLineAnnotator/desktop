@@ -177,6 +177,20 @@ class Timelines:
                 if TimelineFlag.NOT_CLEARABLE not in timeline.FLAGS:
                     timeline.clear()
 
+    def permute_ordinal(self, tl1: Timeline, tl2: Timeline):
+        id_to_ordinal = {
+            tl1.id: tl2.get_data("ordinal"),
+            tl2.id: tl1.get_data("ordinal"),
+        }
+
+        success = True
+        for id, ordinal in id_to_ordinal.items():
+            success = success and self.set_timeline_data(
+                id, attr="ordinal", value=ordinal
+            )
+
+        return success
+
     def _add_to_timelines(self, timeline: Timeline) -> None:
         self._timelines.append(timeline)
         # we don't have to update ordinal of any timeline because

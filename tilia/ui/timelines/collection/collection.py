@@ -1127,16 +1127,7 @@ class TimelineUIs:
 
     @command_callback
     def on_timeline_ordinal_permute(self, tlui1: TimelineUI, tlui2: TimelineUI):
-        id_to_ordinal = {
-            tlui1.id: tlui2.get_data("ordinal"),
-            tlui2.id: tlui1.get_data("ordinal"),
-        }
-        for id, ordinal in id_to_ordinal.items():
-            get(Get.TIMELINE_COLLECTION).set_timeline_data(
-                id, attr="ordinal", value=ordinal
-            )
-
-        return True
+        return get(Get.TIMELINE_COLLECTION).permute_ordinal(tlui1, tlui2)
 
     @staticmethod
     @command_callback
