@@ -23,6 +23,10 @@ def tabulate(headers: list[str], data: list[tuple[str, ...]]) -> None:
     output(str(table))
 
 
+def warn(message: str) -> None:
+    output(message, Fore.YELLOW)
+
+
 def ask_for_string(prompt: str) -> str:
     """
     Prompts the user for a string
