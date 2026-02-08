@@ -136,12 +136,12 @@ def _get_script_for_folder(
 
     if not (media_data or "set_media_length.txt" in filenames):
         print(
-            f'{"No suitable media found in " + folder_name + ".":<100}{"Folder skipped.":>14}'
+            f"{'No suitable media found in ' + folder_name + '.':<100}{'Folder skipped.':>14}"
         )
         return
     if len(media_data) > 1:
         print(
-            f'{"Multiple media files found in " + folder_name + ".":<100}{"Folder skipped.":>14}'
+            f"{'Multiple media files found in ' + folder_name + '.':<100}{'Folder skipped.':>14}"
         )
         return
 
@@ -151,7 +151,7 @@ def _get_script_for_folder(
 
     if "set_media_length.txt" in filenames:
         to_write.append(
-            f'metadata set-media-length {open(os.path.join(folder_name, "set_media_length.txt"), "r").read()}\n'
+            f"metadata set-media-length {open(os.path.join(folder_name, 'set_media_length.txt'), 'r').read()}\n"
         )
         filenames.remove("set_media_length.txt")
 
@@ -173,7 +173,7 @@ def _get_script_for_folder(
                     reference_beat = args.ref_name
                 elif reference_beat and args.ref_name:
                     print(
-                        f'{"Multiple beat timelines found. Using " + reference_beat + " as reference instead of " + args.ref_name + ".":<100}{os.path.join(folder_name, file):>20}'
+                        f"{'Multiple beat timelines found. Using ' + reference_beat + ' as reference instead of ' + args.ref_name + '.':<100}{os.path.join(folder_name, file):>20}"
                     )
 
             except ValueError as e:

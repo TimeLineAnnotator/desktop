@@ -6,7 +6,6 @@ from tilia.ui.enums import ScrollType
 
 
 class SettingsManager(QObject):
-
     DEFAULT_SETTINGS = {
         "general": {
             "auto-scroll": ScrollType.OFF,

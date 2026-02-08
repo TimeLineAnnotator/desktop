@@ -408,9 +408,8 @@ class SvgViewer(ViewDockWidget):
     def _get_time_from_scene_x(self, xs: dict[int, float]) -> dict[int, list[float]]:
         output = {}
         beat_pos = {}
-        beats, x_pos = list(self.beat_x_position.keys()), list(
-            self.beat_x_position.values()
-        )
+        beats = list(self.beat_x_position.keys())
+        x_pos = list(self.beat_x_position.values())
         for key, x in xs.items():
             x = round(x, 3)
             if x in x_pos:
@@ -476,9 +475,8 @@ class SvgViewer(ViewDockWidget):
         beat = beat_tl.get_metric_fraction_by_time(time)
         if x := self.beat_x_position.get(beat):
             return x
-        beats, x_pos = list(self.beat_x_position.keys()), list(
-            self.beat_x_position.values()
-        )
+        beats = list(self.beat_x_position.keys())
+        x_pos = list(self.beat_x_position.values())
         idx = bisect(beats, beat)
         if idx == 0:
             return x_pos[0]

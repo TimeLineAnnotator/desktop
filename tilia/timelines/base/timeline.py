@@ -272,7 +272,7 @@ class Timeline(ABC, Generic[TC]):
             string_to_hash += str(value) + "|"
 
             string_to_hash += str(value) + "|"
-        state["hash"] = hash_function(f'{state["kind"]}|{string_to_hash}')
+        state["hash"] = hash_function(f"{state['kind']}|{string_to_hash}")
 
         return state
 
@@ -329,7 +329,7 @@ class TimelineComponentManager(Generic[T, TC]):
 
     @staticmethod
     def _compose_validators(
-        validators: list[Callable[[], tuple[bool, str]]]
+        validators: list[Callable[[], tuple[bool, str]]],
     ) -> tuple[bool, str]:
         """Calls validators in order and returns (False, reason) if any fails."""
         for validator in validators:

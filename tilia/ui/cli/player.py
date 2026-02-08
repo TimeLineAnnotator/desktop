@@ -162,7 +162,6 @@ class CLIYoutubePlayer(Player):
             return False, self.DECODE_ERROR_MESSAGE
 
         try:
-
             duration = response_json["items"][0]["contentDetails"]["duration"]
         except IndexError:
             return False, self.VIDEO_NOT_FOUND_MESSAGE.format(id)

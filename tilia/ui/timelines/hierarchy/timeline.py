@@ -230,10 +230,12 @@ class HierarchyTimelineUI(TimelineUI):
         self, elements: list[HierarchyUI], data: list[dict]
     ):
         def get_descendants(parent: HierarchyUI):
-            is_in_branch = (
-                lambda e: e.tl_component.start >= parent.tl_component.start
-                and e.tl_component.end <= parent.tl_component.end
-            )
+            def is_in_branch(e):
+                return (
+                    e.tl_component.start >= parent.tl_component.start
+                    and e.tl_component.end <= parent.tl_component.end
+                )
+
             elements_in_branch = self.element_manager.get_elements_by_condition(
                 is_in_branch
             )

@@ -14,7 +14,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 def setup_parser(subparsers):
     # Import command
     import_parser = subparsers.add_parser(
-        "import", help="Import data from a file into a " "timeline"
+        "import", help="Import data from a file into a timeline"
     )
 
     import_parser.set_defaults(func=import_timeline)

@@ -21,7 +21,7 @@ def ask_for_beat_pattern():
         return True, list(map(int, result))
 
 
-def ask_beat_timeline_fill_method() -> (
-    tuple[bool, None | tuple[BeatTimeline, BeatTimeline.FillMethod, float]]
-):
+def ask_beat_timeline_fill_method() -> tuple[
+    bool, None | tuple[BeatTimeline, BeatTimeline.FillMethod, float]
+]:
     return FillBeatTimeline.select()

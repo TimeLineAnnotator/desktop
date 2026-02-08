@@ -148,11 +148,11 @@ def notes_from_musicXML(
             ):
                 match prev_note.tag:
                     case "backup":
-                        if not prev_note.find("duration") is None:
+                        if prev_note.find("duration") is not None:
                             # grace notes have no duration
                             cur_div -= int(prev_note.find("duration").text)
                     case _:
-                        if not prev_note.find("duration") is None:
+                        if prev_note.find("duration") is not None:
                             # grace notes have no duration
                             cur_div += int(prev_note.find("duration").text)
 

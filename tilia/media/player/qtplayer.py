@@ -19,7 +19,7 @@ def wait_for_signal(signal: SignalInstance, value):
     def signal_wrapper(func):
         timer = QTimer(singleShot=True, interval=100)
         loop = QEventLoop()
-        success = False
+        success = False  # noqa: F841
 
         def value_checker(signal_value):
             if signal_value == value:
@@ -28,7 +28,7 @@ def wait_for_signal(signal: SignalInstance, value):
                 loop.quit()
 
         def check_signal(*args, **kwargs):
-            global success  # noqa: F824
+            global success
             if not func(*args, **kwargs):
                 return False
             signal.connect(value_checker)

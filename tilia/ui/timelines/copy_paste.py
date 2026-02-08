@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 
 def get_copy_data_from_elements(
-    elements: list[tuple[TimelineUIElement, CopyAttributes]]
+    elements: list[tuple[TimelineUIElement, CopyAttributes]],
 ) -> list[dict]:
     copy_data = []
     for element, kind, copy_attrs in elements:

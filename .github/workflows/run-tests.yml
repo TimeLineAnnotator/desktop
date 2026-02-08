@@ -67,9 +67,9 @@ jobs:
       run: |
         pip freeze
 
-    - name: Lint with flake8
+    - name: Lint with ruff
       run: |
-        flake8
+        ruff check
       continue-on-error: true
 
     - name: Test with pytest

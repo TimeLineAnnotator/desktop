@@ -41,10 +41,12 @@ class HierarchyTimelineUIKeyPressManager:
 
     def on_horizontal_arrow_press(self, side: str):
         def _get_next_element_in_same_level(elm):
-            is_later_at_same_level = (
-                lambda h: h.tl_component.start > elm.tl_component.start
-                and h.tl_component.level == elm.tl_component.level
-            )
+            def is_later_at_same_level(h):
+                return (
+                    h.tl_component.start > elm.tl_component.start
+                    and h.tl_component.level == elm.tl_component.level
+                )
+
             later_elements = self.element_manager.get_elements_by_condition(
                 is_later_at_same_level
             )
@@ -54,10 +56,12 @@ class HierarchyTimelineUIKeyPressManager:
                 return None
 
         def _get_previous_element_in_same_level(elm):
-            is_earlier_at_same_level = (
-                lambda h: h.tl_component.start < elm.tl_component.start
-                and h.tl_component.level == elm.tl_component.level
-            )
+            def is_earlier_at_same_level(h):
+                return (
+                    h.tl_component.start < elm.tl_component.start
+                    and h.tl_component.level == elm.tl_component.level
+                )
+
             earlier_elements = self.element_manager.get_elements_by_condition(
                 is_earlier_at_same_level
             )

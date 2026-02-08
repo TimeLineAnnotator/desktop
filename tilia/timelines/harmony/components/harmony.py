@@ -159,9 +159,10 @@ def _replace_special_abbreviations(text):
 
 def _get_music21_object_from_text(
     text: str, key: str
-) -> tuple[music21.harmony.ChordSymbol | music21.roman.RomanNumeral, str] | tuple[
-    None, None
-]:
+) -> (
+    tuple[music21.harmony.ChordSymbol | music21.roman.RomanNumeral, str]
+    | tuple[None, None]
+):
     text, prefixed_accidental = _extract_prefixed_accidental(text)
     text = _format_postfix_accidental(text)
     text = _replace_special_abbreviations(text)

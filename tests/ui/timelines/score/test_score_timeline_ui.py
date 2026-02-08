@@ -151,7 +151,7 @@ def test_missing_staff_deletes_timeline(qtui, tls, tilia_errors, tmp_path):
                     "staff_index": 0,
                     "color": None,
                     "comments": "",
-                    "" "display_accidental": False,
+                    "display_accidental": False,
                     "kind": "NOTE",
                     "hash": "",
                 },
@@ -235,7 +235,7 @@ def test_symbol_staff_collision(qtui, tmp_path):
         json.dumps(file_data_with_symbols), encoding="utf-8"
     )
 
-    with (patch_file_dialog(True, [tmp_file_with_symbols])):
+    with patch_file_dialog(True, [tmp_file_with_symbols]):
         commands.execute("file.open")
 
     score = get(Get.TIMELINE_UI_BY_ATTR, "TIMELINE_KIND", TimelineKind.SCORE_TIMELINE)
