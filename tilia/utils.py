@@ -41,3 +41,6 @@ def load_dotenv() -> None:
         ] = "TIMELINE_VIEW_LEFT_BUTTON_DRAG;PLAYER_CURRENT_TIME_CHANGED;APP_RECORD_STATE"
     if not os.environ.get("ENVIRONMENT"):
         os.environ["ENVIRONMENT"] = "dev"
+
+
+load_dotenv()

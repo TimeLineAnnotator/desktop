@@ -8,9 +8,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 from colorama import Fore, Style
 
-from tilia.utils import load_dotenv
-
-load_dotenv()
+import tilia.utils  # noqa: F401
 
 import tilia.constants as constants_module
 import tilia.log as logging_module
