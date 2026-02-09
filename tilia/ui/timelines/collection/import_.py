@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import tilia.errors
-import tilia.parsers
 from tilia.requests import get, Get
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.dialogs.by_time_or_by_measure import ByTimeOrByMeasure
@@ -47,7 +46,7 @@ def _on_import_to_timeline(
         success, path = get(
             Get.FROM_USER_FILE_PATH,
             "Import components",
-            ["musicXML files (*.musicxml *.mxl, *.xml)"],
+            ["musicXML files (*.musicxml *.mxl *.xml)"],
         )
 
     else:
