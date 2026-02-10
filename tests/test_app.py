@@ -8,7 +8,13 @@ import pytest
 
 import tests.utils
 from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_MEDIA_DURATION
-from tests.mock import Serve, PatchPost, patch_file_dialog, patch_yes_or_no_dialog
+from tests.mock import (
+    Serve,
+    PatchPost,
+    patch_file_dialog,
+    patch_yes_or_no_dialog,
+    patch_ask_for_string_dialog,
+)
 from tilia.media.player import YouTubePlayer, QtAudioPlayer
 from tilia.settings import settings
 
@@ -642,3 +648,23 @@ class TestRelativePaths:
             commands.execute("file.open")
 
         assert tilia.player.media_path == str(new_media)
+
+
+class TestSave:
+    def test_youtube_url_is_preserved(self, tilia_state, qtui, tmp_path):
+        url = "https://www.youtube.com/watch?v=wBfVsucRe1w"
+        with patch_ask_for_string_dialog(True, url):
+            commands.execute("media.load.youtube")
+
+        assert get(Get.MEDIA_PATH) == url
+
+        save_path = tmp_path / "test.tla"
+        with patch_file_dialog(True, [str(save_path.resolve())]):
+            commands.execute("file.save_as")
+
+        with open(save_path) as f:
+            contents = json.load(f)
+
+        assert contents["media_path"] == url
+
+    # TODO: add tests for saving paths as Posix paths

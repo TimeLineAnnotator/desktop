@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 
+import tilia.constants
 from tilia.file.tilia_file import TiliaFile
 
 JSON_CONFIG = {"indent": 2}
@@ -28,7 +30,8 @@ def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
 
 def write_tilia_file_to_disk(file: TiliaFile, path: str | Path):
     file.file_path = Path(file.file_path).as_posix()
-    file.media_path = Path(file.media_path).as_posix()
+    if not re.match(tilia.constants.YOUTUBE_URL_REGEX, file.media_path):
+        file.media_path = Path(file.media_path).as_posix()
     with open(path, "w", encoding="utf-8") as f:
         json.dump(file.__dict__, f, **JSON_CONFIG)
 
