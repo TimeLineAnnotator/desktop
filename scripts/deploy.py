@@ -50,13 +50,16 @@ def _handle_inputs():
     assert len(sys.argv) == 3, "Incorrect number of inputs"
     global ref_name, build_os, outdir
     ref_name = sys.argv[1]
-    build_os = "-".join(
-        [
-            x
-            for x in sys.argv[2].split("-")
-            if not x.replace(".", "", 1).isdigit() and x != "latest"
-        ]
-    )
+    if "macos" in sys.argv[2] and "intel" not in sys.argv[2]:
+        build_os = "macos-silicon"
+    else:
+        build_os = "-".join(
+            [
+                x
+                for x in sys.argv[2].split("-")
+                if not x.replace(".", "", 1).isdigit() and x != "latest"
+            ]
+        )
     outdir = buildlib / build_os
 
 
@@ -91,7 +94,6 @@ def _get_exe_cmd() -> list[str]:
         f"--product-name={name}",
         f"--file-version={version}",
         f"--output-filename={out_filename}",
-        # "--onefile-tempdir-spec={CACHE_DIR}/{PRODUCT}/{VERSION}",
         f"--macos-app-icon={icon_path}",
         "--macos-app-mode=gui",
         f"--macos-app-version={version}",
@@ -242,11 +244,16 @@ def build():
         _build_exe()
         if os.environ.get("GITHUB_OUTPUT"):
             if "mac" in build_os:
-                global outdir
-                outdir = outdir / "tilia.app" / "Contents" / "MacOS"
+                out_filepath = outdir / "exe" / "tilia.app"
+            else:
+                out_filepath = outdir / "exe" / out_filename
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                f.write(f"out-filepath={(outdir / 'exe' / out_filename).as_posix()}\n")
+                f.write(f"out-filepath={out_filepath.as_posix()}\n")
                 f.write(f"out-filename={out_filename}\n")
+                if "mac" in build_os:
+                    f.write(
+                        f"zip-filepath={outdir.as_posix()}/exe/{out_filename}.zip\n"
+                    )
         os.chdir(old_dir)
         dotenv.set_key(".tilia.env", "ENVIRONMENT", old_env_var)
     except Exception as e:

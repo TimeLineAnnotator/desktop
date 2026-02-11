@@ -47,7 +47,6 @@ jobs:
         run: |
           brew remove --force --ignore-dependencies openssl@3
           brew cleanup openssl@3
-          brew install coreutils
 
       - name: Install dependencies
         run: |
@@ -64,8 +63,11 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
+          brew install coreutils
           echo "Checking dependencies"
-          echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+          echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }}" | bash || true
+          zip -r9 ${{ steps.build-exe.outputs.zip-filepath }} ${{ steps.build-exe.outputs.out-filepath }} || true
+          rm -rf ${{ steps.build-exe.outputs.out-filepath }}
 
       - name: Test executable [Windows]
         if: runner.os == 'Windows'
