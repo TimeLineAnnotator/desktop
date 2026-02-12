@@ -51,6 +51,12 @@ class StaffUI(TimelineUIElement):
     def selection_triggers(self):
         return []
 
+    def on_deselect(self):
+        return
+
+    def on_select(self):
+        return
+
 
 class StaffLines:
     COLOR = "gray"

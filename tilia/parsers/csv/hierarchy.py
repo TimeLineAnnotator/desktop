@@ -41,7 +41,7 @@ def import_by_time(
             "formal_type",
             "formal_function",
         ]
-        parsers = [float, float, int, float, float, str, str, str]
+        parsers = [float, float, int, float, float, str, str, str, str, str]
         params_to_indices = get_params_indices(params, next(reader))
 
         for attr in ["start", "end", "level"]:
@@ -61,7 +61,7 @@ def import_by_time(
                     errors.append(f"'{value}' is not a valid {attr.replace('_', ' ')}")
                     continue
 
-            for param, parser in zip(params, parsers):
+            for param, parser in zip(params, parsers, strict=True):
                 if param in params_to_indices:
                     index = params_to_indices[param]
                     constructor_args[param] = parser(row[index])

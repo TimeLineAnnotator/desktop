@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC
 from typing import Any, Callable
 
 from tilia.exceptions import SetComponentDataError, GetComponentDataError
@@ -10,7 +9,7 @@ from tilia.timelines.hash_timelines import hash_function
 from tilia.utils import get_tilia_class_string
 
 
-class TimelineComponent(ABC):
+class TimelineComponent:
     SERIALIZABLE = []
     ORDERING_ATTRS = tuple()
 
@@ -54,10 +53,10 @@ class TimelineComponent(ABC):
             )
         try:
             return self.validators[attr](value)
-        except KeyError:
+        except KeyError as e:
             raise KeyError(
                 f"{self} has no validator for attribute {attr}. Can't set to '{value}'."
-            )
+            ) from e
 
     def set_data(self, attr: str, value: Any):
         if not self.validate_set_data(attr, value):
@@ -71,11 +70,11 @@ class TimelineComponent(ABC):
     def get_data(self, attr: str):
         try:
             return getattr(self, attr)
-        except AttributeError:
+        except AttributeError as e:
             raise GetComponentDataError(
                 "AttributeError while getting data from component."
                 f"Does {type(self)} have a {attr} attribute?"
-            )
+            ) from e
 
     @classmethod
     def validate_creation(cls, *args, **kwargs) -> tuple[bool, str]:

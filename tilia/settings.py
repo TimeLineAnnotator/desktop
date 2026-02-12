@@ -89,7 +89,7 @@ class SettingsManager(QObject):
     }
 
     def __init__(self):
-        self._settings = QSettings(tilia.constants.APP_NAME, "Desktop Settings")
+        self._settings = QSettings(tilia.constants.APP_NAME, "Desktop Settings", None)
         self._files_updated_callbacks = set()
         self._cache = {}
         self._check_all_default_settings_present()
@@ -150,8 +150,8 @@ class SettingsManager(QObject):
         try:
             self._cache[group_name][setting] = value
             self._set(group_name, setting, value)
-        except AttributeError:
-            raise AttributeError(f"{group_name}.{setting} not found in cache.")
+        except AttributeError as e:
+            raise AttributeError(f"{group_name}.{setting} not found in cache.") from e
 
     @staticmethod
     def _get_key(group_name: str, setting: str, in_default: bool) -> str:

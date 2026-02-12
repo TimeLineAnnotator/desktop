@@ -61,6 +61,12 @@ class ClefUI(TimelineUIElementWithCollision):
     def shorthand(self) -> Clef.Shorthand | None:
         return self.tl_component.shorthand()
 
+    def on_deselect(self):
+        return
+
+    def on_select(self):
+        return
+
 
 class ClefBody(QGraphicsPixmapItem):
     def __init__(self, x: float, y: float, height: float, path: Path):

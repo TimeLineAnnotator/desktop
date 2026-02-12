@@ -50,7 +50,7 @@ def import_by_time(
             parsers = [float, str, str]
             constructor_kwargs = {}
 
-            for param, parser in zip(params, parsers):
+            for param, parser in zip(params, parsers, strict=True):
                 if param in params_to_indices:
                     index = params_to_indices[param]
                     constructor_kwargs[param] = parser(row[index])
@@ -124,7 +124,7 @@ def import_by_measure(
             parsers = [str, str]
             constructor_kwargs = {}
 
-            for param, parser in zip(params, parsers):
+            for param, parser in zip(params, parsers, strict=True):
                 if param in params_to_indices:
                     index = params_to_indices[param]
                     constructor_kwargs[param] = parser(row[index])

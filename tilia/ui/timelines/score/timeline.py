@@ -448,8 +448,8 @@ class ScoreTimelineUI(TimelineUI):
     def average_measure_width(self) -> float:
         if self._measure_count == 0:
             return 0
-        x0 = self.first_bar_line.x()
-        x1 = self.last_bar_line.x()
+        x0 = self.first_bar_line.x
+        x1 = self.last_bar_line.x
         return (x1 - x0) / self._measure_count
 
     def on_audio_time_change(self, time: float, _) -> None:

@@ -70,10 +70,10 @@ class ElementManager(Generic[TE]):
         try:
             self._elements.remove(element)
             del self.id_to_element[element.id]
-        except ValueError:
+        except ValueError as e:
             raise ValueError(
                 f"Can't remove element '{element}' from {self}: not in self._elements."
-            )
+            ) from e
 
     def get_element(self, id: int) -> TE:
         return self.id_to_element[id]
@@ -173,11 +173,11 @@ class ElementManager(Generic[TE]):
     def _remove_from_selected_elements_set(self, element: TE) -> None:
         try:
             self._selected_elements.remove(element)
-        except ValueError:
+        except ValueError as e:
             raise ValueError(
                 f"Can't remove element '{element}' from selected objects of {self}: not"
                 " in self._selected_elements."
-            )
+            ) from e
 
     def get_selected_elements(self) -> list[TE]:
         return self._selected_elements

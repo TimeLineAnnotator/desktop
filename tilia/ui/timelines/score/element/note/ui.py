@@ -242,20 +242,20 @@ class NoteUI(TimelineUIElement):
     def get_accidental_scale_factor(self):
         """
         Scales accidental according to amw = average measure width.
-        If amw < visibility_treshold, returns 0, indicating accidentals should be hidden.
-        If visibility_treshold < amw < max_size_treshold, scales proportionally with min_scale as a minimum.
-        If amw > max_size_treshold, returns 1, indicating accidentals should be fully visible.
+        If amw < visibility_threshold, returns 0, indicating accidentals should be hidden.
+        If visibility_threshold < amw < max_size_threshold, scales proportionally with min_scale as a minimum.
+        If amw > max_size_threshold, returns 1, indicating accidentals should be fully visible.
         """
-        visibility_treshold = 30
-        max_size_treshold = 180
+        visibility_threshold = 30
+        max_size_threshold = 180
         min_scale = 0.5
         average_measure_width = self.timeline_ui.average_measure_width()
         if not average_measure_width:
             return 1
-        if average_measure_width < visibility_treshold:
+        if average_measure_width < visibility_threshold:
             return 0
         return min(
-            1, min_scale + (average_measure_width / max_size_treshold * min_scale)
+            1, min_scale + (average_measure_width / max_size_threshold * min_scale)
         )
 
     def update_color(self):

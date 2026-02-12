@@ -4,7 +4,7 @@ from tilia.ui.cli.io import tabulate
 
 
 def pprint_tlkind(kind: TlKind) -> str:
-    return kind.value.strip("_TIMELINE").capitalize()
+    return kind.value.replace("_TIMELINE", "").capitalize()
 
 
 def setup_parser(subparser):

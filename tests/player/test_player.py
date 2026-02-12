@@ -11,7 +11,7 @@ def conservative_player_stop(tilia):
     """
     Increases player.SLEEP_AFTER_STOP to 5 seconds if on CI.
     Avoids freezes when setting URL after stop. Workaround for running tests on CI.
-    Proper hadling of player status changes would be a more robust solution.
+    Proper handling of player status changes would be a more robust solution.
     """
 
     original_sleep_after_stop = tilia.player.SLEEP_AFTER_STOP

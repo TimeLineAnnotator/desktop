@@ -73,8 +73,8 @@ def _get_attr_data(
 def _parse_measure_fraction(value: str):
     try:
         value = float(value)
-    except ValueError:
-        raise ValueError("APPEND:Must be a number between 0 and 1.")
+    except ValueError as e:
+        raise ValueError("APPEND:Must be a number between 0 and 1.") from e
 
     if not 0 <= value <= 1:
         raise ValueError("APPEND:Must be a number between 0 and 1.")

@@ -86,10 +86,10 @@ class Timelines:
         if isinstance(kind, str):
             try:
                 kind = TlKind(kind)
-            except ValueError:
+            except ValueError as e:
                 raise TimelineValidationError(
                     f"Can't create timeline: invalid timeline kind '{kind}'"
-                )
+                ) from e
         if not isinstance(kind, TlKind):
             raise TimelineValidationError(
                 f"Can't create timeline: invalid timeline kind '{kind}'"
@@ -204,11 +204,11 @@ class Timelines:
             for tl in self:
                 if tl.ordinal > timeline.ordinal:
                     tl.ordinal -= 1
-        except ValueError:
+        except ValueError as e:
             raise ValueError(
                 f"Can't remove timeline '{timeline}' from {self}: not in"
                 " self._timelines."
-            )
+            ) from e
 
     def get_export_data(self):
         return [

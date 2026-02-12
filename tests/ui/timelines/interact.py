@@ -92,8 +92,8 @@ def press_key(key: str, modifier: Qt.KeyboardModifier | None = None):
     if len(key) > 1:
         try:
             key = getattr(Qt.Key, f"Key_{key}")
-        except AttributeError:
-            raise ValueError(f"Unknown key: {key}")
+        except AttributeError as e:
+            raise ValueError(f"Unknown key: {key}") from e
 
     QTest.keyClick(
         get_focused_widget(), key, modifier=modifier or Qt.KeyboardModifier.NoModifier

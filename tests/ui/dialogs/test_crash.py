@@ -40,7 +40,7 @@ class TestCrashDialog:
 
         set_user.assert_not_called()
 
-    def test_crash_support_remmeber(self):
+    def test_crash_support_remember(self):
         crash_support_dialog = CrashSupportDialog(None)
         crash_support_dialog.email_field.setText("an invalid email")
         crash_support_dialog.name_field.setText("John Doe")
@@ -51,7 +51,7 @@ class TestCrashDialog:
 
         set_user.assert_called_once_with("", "John Doe")
 
-    def test_crash_support_not_remmeber(self):
+    def test_crash_support_not_remember(self):
         crash_support_dialog = CrashSupportDialog(None)
         crash_support_dialog.email_field.setText("an invalid email")
         crash_support_dialog.name_field.setText("John Doe")

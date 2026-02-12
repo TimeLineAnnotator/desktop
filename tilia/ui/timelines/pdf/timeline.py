@@ -99,7 +99,7 @@ class PdfTimelineUI(TimelineUI):
             # prevents it from capping the
             # number at a value that might be lower than
             # the page total in a PDF loaded in the future.
-            # Can't use math.inf because PyQt requires an int.
+            # Can't use math.inf because pyside requires an int.
             return 99999999
         return self.timeline.get_data("page_total")
 

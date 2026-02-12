@@ -164,10 +164,10 @@ class Timeline(ABC, Generic[TC]):
             )
         try:
             return self.validators[attr](value)
-        except KeyError:
+        except KeyError as e:
             raise KeyError(
                 f"{self} has no validator for attribute {attr}. Can't set to '{value}'."
-            )
+            ) from e
 
     def set_data(self, attr: str, value: Any):
         if not self.validate_set_data(attr, value):
@@ -470,11 +470,11 @@ class TimelineComponentManager(Generic[T, TC]):
         try:
             self._components.remove(component)
             self.id_to_component.pop(component.id)
-        except KeyError:
+        except KeyError as e:
             raise KeyError(
                 f"Can't remove component '{component}' from {self}: not in"
                 " self.components."
-            )
+            ) from e
 
     def update_component_order(self, component: TC):
         self._components.remove(component)

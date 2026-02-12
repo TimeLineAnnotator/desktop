@@ -82,7 +82,7 @@ class TestByTime:
         success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors(required_attr, errors)
 
-    def test_returns_error_for_invalid_rows_and_processess_valid_rows(self, harmony_tl):
+    def test_returns_error_for_invalid_rows_and_processes_valid_rows(self, harmony_tl):
         data = "\n".join(
             [
                 "time,harmony_or_key,symbol",

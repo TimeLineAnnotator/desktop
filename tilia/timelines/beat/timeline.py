@@ -577,7 +577,7 @@ class BeatTimeline(Timeline):
         return self.components.index(beat)
 
     def propagate_measure_number_change(self, start_index: int):
-        for j, measure in enumerate(self.measure_numbers[start_index + 1 :]):
+        for j in range(len(self.measure_numbers[start_index + 1 :])):
             propagate_index = j + start_index + 1
             if propagate_index in self.measures_to_force_display:
                 break

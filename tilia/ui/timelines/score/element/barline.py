@@ -12,6 +12,7 @@ class BarLineUI(TimelineUIElement):
         super().__init__(*args, **kwargs)
         self.body = None
 
+    @property
     def x(self):
         return time_x_converter.get_x_by_time(self.get_data("time"))
 
@@ -23,7 +24,7 @@ class BarLineUI(TimelineUIElement):
 
     def get_body_args(self):
         return (
-            self.x(),
+            self.x,
             self.timeline_ui.staff_y_cache.values(),
         )
 
@@ -41,6 +42,12 @@ class BarLineUI(TimelineUIElement):
     def selection_triggers(self):
         return []
 
+    def on_deselect(self):
+        return
+
+    def on_select(self):
+        return
+
 
 class BarLineBody:
     def __init__(self, x, ys: list[tuple[float, float]]):
@@ -56,5 +63,5 @@ class BarLineBody:
         self.set_position(x, ys)
 
     def set_position(self, x: float, ys: list[tuple[float, float]]):
-        for line, (y0, y1) in zip(self.lines, ys):
+        for line, (y0, y1) in zip(self.lines, ys, strict=True):
             line.setLine(x, y0, x, y1)

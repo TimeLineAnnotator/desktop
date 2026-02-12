@@ -68,6 +68,12 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
     def selection_triggers(self):
         return []
 
+    def on_deselect(self):
+        return
+
+    def on_select(self):
+        return
+
 
 class TimeSignatureBody(QGraphicsItem):
     def __init__(
@@ -96,7 +102,7 @@ class TimeSignatureBody(QGraphicsItem):
     def set_numerator_items(self, numerator: int, height: int):
         self.numerator_items = []
         for i, digit in enumerate(str(numerator)):
-            item = QGraphicsPixmapItem(self.get_scaled_pixmap(digit, height), self)
+            item = NumberPixmap(self.get_scaled_pixmap(digit, height), self)
             item.digit = int(digit)
             item.setPos(i * item.pixmap().width(), 0)
             self.numerator_items.append(item)
@@ -104,7 +110,7 @@ class TimeSignatureBody(QGraphicsItem):
     def set_denominator_items(self, denominator: int, height: int):
         self.denominator_items = []
         for i, digit in enumerate(str(denominator)):
-            item = QGraphicsPixmapItem(self.get_scaled_pixmap(digit, height), self)
+            item = NumberPixmap(self.get_scaled_pixmap(digit, height), self)
             item.digit = int(digit)
             item.setPos(i * item.pixmap().width(), item.pixmap().height())
             self.denominator_items.append(item)
@@ -145,5 +151,6 @@ class TimeSignatureBody(QGraphicsItem):
             bounding_rect = bounding_rect.united(item.boundingRect())
         return bounding_rect
 
-    def paint(self, painter, option, widget):
-        ...
+
+class NumberPixmap(QGraphicsPixmapItem):
+    digit = 0

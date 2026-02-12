@@ -111,7 +111,7 @@ class CLI:
     def run(self, cmd: str) -> bool:
         """
         Parses the commands entered by the user.
-        Return True if an uncaught exception ocurred.
+        Return True if an uncaught exception occurred.
         The exception is stored in self.exception.
         """
         try:
@@ -149,6 +149,10 @@ class CLI:
     @staticmethod
     def show_crash_dialog(exc_message) -> None:
         post(Post.DISPLAY_ERROR, "CLI has crashed", "Error: " + exc_message)
+
+    @staticmethod
+    def exit(code: int):
+        raise SystemExit(code)
 
 
 def on_ask_yes_or_no(title: str, prompt: str) -> bool:

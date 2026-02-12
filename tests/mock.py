@@ -51,8 +51,8 @@ class ServeSequence:
     def _callback(self, *_, **__):
         try:
             return_value = self.return_values[self.return_count]
-        except IndexError:
-            raise IndexError("Not enough return values to serve")
+        except IndexError as e:
+            raise IndexError("Not enough return values to serve") from e
 
         self.return_count += 1
         return return_value
@@ -142,6 +142,6 @@ def patch_ask_for_string_dialog(success: bool | list[bool], string: str | list[s
         else:
             raise ValueError("input must be a string if success is a bool.")
 
-    return_values = list(zip(string, success))
-    with (patch.object(QInputDialog, "getText", side_effect=return_values),):
+    return_values = list(zip(string, success, strict=True))
+    with patch.object(QInputDialog, "getText", side_effect=return_values):
         yield

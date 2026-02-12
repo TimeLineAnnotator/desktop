@@ -313,7 +313,7 @@ class QtUI:
         return self.q_application.exec()
 
     def exit(self, code: int):
-        # Code = 0 means a succesful run, code = 1 means an unhandled exception.
+        # Code = 0 means a successful run, code = 1 means an unhandled exception.
         self.q_application.exit(code)
 
     def get_window_geometry(self):
@@ -416,7 +416,7 @@ class QtUI:
 
     def on_clear_ui(self):
         """Closes all UI windows."""
-        for kind, window in self._windows.items():
+        for window in self._windows.values():
             if window is not None:
                 window.close()
         self.main_window.setFocus()

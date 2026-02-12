@@ -196,7 +196,7 @@ def resources() -> Path:
 @pytest.fixture(scope="module")
 def use_test_settings(qapplication):
     settings_module.settings._settings = QSettings(
-        constants_module.APP_NAME, "DesktopTests"
+        constants_module.APP_NAME, "DesktopTests", None
     )
     settings_module.settings._check_all_default_settings_present()
     settings_module.settings.set("general", "prioritise_performance", True)

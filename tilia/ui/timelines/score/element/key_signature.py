@@ -19,7 +19,7 @@ class KeySignatureUI(TimelineUIElementWithCollision):
     @staticmethod
     def _clef_shorthand_to_icon_path_string(shorthand: Clef.Shorthand | None) -> str:
         if not shorthand:
-            # Key signature not implmemented
+            # Key signature not implemented
             # for custom clefs. Using "treble"
             # just to prevent a crash
             return "treble"
@@ -83,6 +83,12 @@ class KeySignatureUI(TimelineUIElementWithCollision):
     def on_components_deserialized(self):
         self.scene.removeItem(self.body)
         self._setup_body()
+
+    def on_deselect(self):
+        return
+
+    def on_select(self):
+        return
 
 
 class KeySignatureBody(QGraphicsPixmapItem):

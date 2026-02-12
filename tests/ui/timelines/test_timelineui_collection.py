@@ -222,7 +222,7 @@ class TestAutoScroll:
         move_to_x_mock.assert_called()
         center_on_time_mock.assert_not_called()
 
-    def test_by_page_is_not_triggered_when_not_over_treshold(self, tluis):
+    def test_by_page_is_not_triggered_when_not_over_threshold(self, tluis):
         self._set_auto_scroll(ScrollType.BY_PAGE)
         with patch.object(tluis.view, "move_to_x") as move_to_x_mock:
             post(Post.PLAYER_CURRENT_TIME_CHANGED, 10, MediaTimeChangeReason.PLAYBACK)

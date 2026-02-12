@@ -95,7 +95,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                 and hrc1.end == hrc2.end
                 and hrc1.level == hrc2.level
             ):
-                # if hierachies have same times and level, there's a conflict
+                # if hierarchies have same times and level, there's a conflict
                 conflicts.append((hrc1, hrc2))
 
         return conflicts

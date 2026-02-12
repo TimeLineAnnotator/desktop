@@ -3,9 +3,9 @@ from pathlib import Path
 import re
 
 if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
-    from sys import version_info
+    import sys
 
-    if version_info >= (3, 11):
+    if sys.version_info >= (3, 11):
         from tomllib import load
     else:
         from tomli import load

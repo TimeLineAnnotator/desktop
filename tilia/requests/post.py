@@ -130,7 +130,7 @@ def post(post: Post, *args, **kwargs) -> None:
     # Should be used only when a single listener is expected.
     # If there are multiple listeners, the result of the last listener is returned.
     result = None
-    for listener, callback in _posts_to_listeners[post].copy().items():
+    for callback in _posts_to_listeners[post].copy().values():
         result = callback(*args, **kwargs)
     return result
 

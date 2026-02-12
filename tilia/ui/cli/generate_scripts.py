@@ -218,7 +218,7 @@ def get_scripts(directory: str | Path) -> list[Path]:
         List of paths to individual scripts (str): The absolute path to each script.
     """
     saved_scripts = []
-    for folder_name, sub_folders, filenames in os.walk(directory):
+    for folder_name, _, filenames in os.walk(directory):
         saved_scripts += filter(None, [_get_script_for_folder(folder_name, filenames)])
 
     return saved_scripts

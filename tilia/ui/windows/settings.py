@@ -195,7 +195,7 @@ def pretty_label(input_string: str):
     )
 
 
-def select_color_button(value, text=None):
+def select_color_button(value, text=""):
     def select_color(old_color):
         new_color = QColorDialog.getColor(
             QColor(old_color),
@@ -212,7 +212,7 @@ def select_color_button(value, text=None):
         )
 
     def get_value():
-        return button.styleSheet().lstrip("background-color: ").split(";")[0]
+        return button.styleSheet().replace("background-color: ", "").split(";")[0]
 
     button = QPushButton()
     button.setText(text)
@@ -231,7 +231,7 @@ def combobox(options: list, current_value: str):
     return combobox
 
 
-def get_widget_for_value(value, text=None) -> QWidget:
+def get_widget_for_value(value, text="") -> QWidget:
     match value:
         case bool():
             checkbox = QCheckBox()
@@ -284,7 +284,15 @@ def get_widget_for_value(value, text=None) -> QWidget:
             raise NotImplementedError
 
 
-def get_value_for_widget(widget: QWidget):
+def get_value_for_widget(
+    widget: QSpinBox
+    | QTextEdit
+    | QWidget
+    | QCheckBox
+    | QPushButton
+    | QComboBox
+    | QLineEdit,
+):
     match widget.objectName():
         case "int":
             return widget.value()
@@ -304,7 +312,7 @@ def get_value_for_widget(widget: QWidget):
             return widget.isChecked()
 
         case "color":
-            return widget.styleSheet().lstrip("background-color: ").split(";")[0]
+            return widget.styleSheet().replace("background-color: ", "").split(";")[0]
 
         case "combobox":
             text = widget.currentText().lower()

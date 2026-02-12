@@ -28,7 +28,7 @@ from tilia.ui.windows import WindowKind
 class TestLogger:
     def test_sentry_not_logging(self):
         # TODO: make this test run first in batch testing.
-        # enabling sentry during tests will fill inbox up unneccesarily
+        # enabling sentry during tests will fill inbox up unnecessarily
         assert "tilia.log" in tilia.log.sentry_sdk.integrations.logging._IGNORED_LOGGERS
 
 
@@ -493,7 +493,7 @@ class TestOpen:
         assert len(tls) == 2  # assert load was successful
         assert len(list(contents["timelines"][str(prev_tl_id)]["components"])) == 0
 
-    def test_open_canceling_should_save_changes_dialog(
+    def test_open_cancelling_should_save_changes_dialog(
         self, tilia, tls, marker_tlui, tmp_path
     ):
         previous_path = tmp_path / "previous.tla"
@@ -584,7 +584,7 @@ class TestFileNew:
         with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
             commands.execute("file.new")
 
-        # this doesn't actaully check if windows are closed
+        # this doesn't actually check if windows are closed
         # it checks if app._windows[kind] is None.
         # Those should be equivalent, if everything is working as it should
         assert not any(qtui.is_window_open(k) for k in WindowKind)

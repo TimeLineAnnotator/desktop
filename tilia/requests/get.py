@@ -80,8 +80,8 @@ def get(request: Get, *args, **kwargs) -> Any:
 
     try:
         return _requests_to_callbacks[request](*args, **kwargs)
-    except KeyError:
-        raise NoReplyToRequest(f"{request} has no repliers attached.")
+    except KeyError as e:
+        raise NoReplyToRequest(f"{request} has no repliers attached.") from e
     except Exception as exc:
         raise Exception(
             f"Exception when processing {request} with {args=}, {kwargs=}"
@@ -110,12 +110,12 @@ def server(request: Get) -> tuple[Any | None, Callable | None]:
 
 def stop_serving(replier: Any, request: Get) -> None:
     """
-    Detaches a calback from a request.
+    Detaches a callback from a request.
     """
     try:
         _requests_to_callbacks.pop(request)
-    except KeyError:
-        raise NoCallbackAttached()
+    except KeyError as e:
+        raise NoCallbackAttached() from e
 
     _servers_to_requests[replier].remove(request)
     if not _servers_to_requests[replier]:

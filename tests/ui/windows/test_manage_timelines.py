@@ -14,8 +14,8 @@ from tilia.ui.windows.manage_timelines import ManageTimelines
 
 def assert_order_is_correct(tls: Timelines, expected: list[Timeline]):
     # assert timeline order
-    for tl, expected in zip(sorted(tls), expected):
-        assert tl == expected
+    for tl, e in zip(sorted(tls), expected, strict=True):
+        assert tl == e
 
     # assert list widget order
     for i, tl in enumerate(expected):

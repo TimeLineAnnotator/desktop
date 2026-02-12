@@ -76,7 +76,7 @@ class HierarchyUI(TimelineUIElement):
         support_by_component_value=["start", "pre_start", "end", "level"],
     )
 
-    NAME_WHEN_UNLABELED = "Unnamed"
+    NAME_WHEN_UNLABELLED = "Unnamed"
     FULL_NAME_SEPARATOR = "-"
 
     UPDATE_TRIGGERS = [
@@ -188,12 +188,12 @@ class HierarchyUI(TimelineUIElement):
 
     @property
     def full_name(self) -> str:
-        partial_name = self.get_data("label") or self.NAME_WHEN_UNLABELED
+        partial_name = self.get_data("label") or self.NAME_WHEN_UNLABELLED
 
         next_parent = self.get_data("parent")
 
         while next_parent:
-            parent_name = next_parent.get_data("label") or self.NAME_WHEN_UNLABELED
+            parent_name = next_parent.get_data("label") or self.NAME_WHEN_UNLABELLED
             partial_name = parent_name + self.FULL_NAME_SEPARATOR + partial_name
             next_parent = next_parent.parent
 
@@ -454,8 +454,8 @@ class HierarchyUI(TimelineUIElement):
                 HierarchyUI.Extremity.PRE_START: self.pre_start_handle,
                 HierarchyUI.Extremity.POST_END: self.post_end_handle,
             }[extremity]
-        except KeyError:
-            raise ValueError("Unrecognized extremity")
+        except KeyError as e:
+            raise ValueError("Unrecognized extremity") from e
 
     @staticmethod
     def frame_to_body_extremity(
@@ -468,8 +468,8 @@ class HierarchyUI(TimelineUIElement):
                 HierarchyUI.Extremity.PRE_START: HierarchyUI.Extremity.START,
                 HierarchyUI.Extremity.POST_END: HierarchyUI.Extremity.END,
             }[extremity]
-        except KeyError:
-            raise ValueError("Unrecognized extremity")
+        except KeyError as e:
+            raise ValueError("Unrecognized extremity") from e
 
     def handle_to_extremity(self, handle: HierarchyBodyHandle | HierarchyFrameHandle):
         try:
@@ -479,8 +479,8 @@ class HierarchyUI(TimelineUIElement):
                 self.pre_start_handle: HierarchyUI.Extremity.PRE_START,
                 self.post_end_handle: HierarchyUI.Extremity.POST_END,
             }[handle]
-        except KeyError:
-            raise ValueError(f"{handle} if not a handle of {self}")
+        except KeyError as e:
+            raise ValueError(f"{handle} if not a handle of {self}") from e
 
     @staticmethod
     def extremity_to_x(extremity: HierarchyUI.Extremity, start_x, end_x):
@@ -501,7 +501,7 @@ class HierarchyUI(TimelineUIElement):
         )
 
     def selection_triggers(self):
-        return self.body, self.label, self.comments_icon
+        return [self.body, self.label, self.comments_icon]
 
     def left_click_triggers(self):
         triggers = [
@@ -531,7 +531,7 @@ class HierarchyUI(TimelineUIElement):
         post(Post.PLAYER_SEEK, self.seek_time)
 
     def right_click_triggers(self):
-        return self.body, self.label, self.comments_icon
+        return [self.body, self.label, self.comments_icon]
 
     def on_select(self) -> None:
         self.body.on_select()
@@ -554,7 +554,7 @@ class HierarchyUI(TimelineUIElement):
 
     def selected_ascendants(self) -> list[HierarchyUI]:
         """Returns hierarchies in the same branch that
-        are both selected and higher-leveled than self"""
+        are both selected and higher-levelled than self"""
         uis_at_start = self.timeline_ui.get_elements_by_attr("start_x", self.start_x)
         selected_uis = self.timeline_ui.selected_elements
 
@@ -566,7 +566,7 @@ class HierarchyUI(TimelineUIElement):
 
     def selected_descendants(self) -> list[HierarchyUI]:
         """Returns hierarchies in the same branch that are both
-        selected and lower-leveled than self"""
+        selected and lower-levelled than self"""
         uis_at_start = self.timeline_ui.get_elements_by_attr("start_x", self.start_x)
         selected_uis = self.timeline_ui.selected_elements
 

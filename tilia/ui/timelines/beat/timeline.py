@@ -275,7 +275,7 @@ class BeatTimelineUI(TimelineUI):
                 # State is being restored and
                 # beats in measure has not been
                 # updated yet. This is a dangerous
-                # workaroung, as it might conceal
+                # workaround, as it might conceal
                 # other exceptions. Let's fix this ASAP.
                 continue
 

@@ -52,7 +52,7 @@
 
   <!--
     If we have a partwise score, we really shouldn't be
-    applying this stylesheet. Copy everthing as-is without
+    applying this stylesheet. Copy everything as-is without
     triggering templates.
   -->
   <xsl:template match="score-partwise">

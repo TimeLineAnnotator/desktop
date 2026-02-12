@@ -13,7 +13,7 @@ class TestInsertMeasureZero:
 
         beat_tl.recalculate_measures()
 
-    def test_user_accpets(self, qtui, score_tlui, beat_tl, tmp_path, tilia_state):
+    def test_user_accepts(self, qtui, score_tlui, beat_tl, tmp_path, tilia_state):
         self.setup_valid_beats(beat_tl)
 
         with patch_yes_or_no_dialog(True):

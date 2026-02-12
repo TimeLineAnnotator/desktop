@@ -169,7 +169,7 @@ class App:
     def update_recent_files(self):
         try:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
-        except tilia.exceptions.NoReplyToRequest:
+        except NoReplyToRequest:
             geometry, window_state = None, None
 
         settings.update_recent_files(

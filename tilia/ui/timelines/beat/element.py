@@ -115,7 +115,7 @@ class BeatUI(TimelineUIElement):
         return self.time
 
     def child_items(self):
-        return self.body, self.label
+        return [self.body, self.label]
 
     def update_time(self):
         self.update_position()
@@ -133,16 +133,16 @@ class BeatUI(TimelineUIElement):
         self.label.set_position(self.x, self.label_y)
 
     def selection_triggers(self):
-        return self.body, self.label
+        return [self.body, self.label]
 
     def left_click_triggers(self):
-        return (self.body,)
+        return [self.body]
 
     def on_left_click(self, _) -> None:
         self.setup_drag()
 
     def double_left_click_triggers(self):
-        return self.body, self.label
+        return [self.body, self.label]
 
     def on_double_left_click(self, _) -> None:
         if self.drag_manager:
@@ -150,9 +150,8 @@ class BeatUI(TimelineUIElement):
             self.drag_manager = None
         post(Post.PLAYER_SEEK, self.seek_time)
 
-    @property
     def right_click_triggers(self):
-        return self.body, self.label
+        return [self.body, self.label]
 
     def setup_drag(self):
         self.drag_manager = DragManager(
@@ -266,7 +265,7 @@ class BeatLabel(QGraphicsTextItem):
 
     def set_text(self, value: str):
         if not value:
-            # Settting plain text to empty string
+            # Setting plain text to empty string
             # keeps the graphics item interactable,
             # so we need to hide it, instead.
             self.setVisible(False)

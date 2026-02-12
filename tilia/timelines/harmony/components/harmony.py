@@ -103,9 +103,11 @@ class Harmony(PointLikeTimelineComponent):
 
     @classmethod
     def from_string(
-        cls, time: float, string: str, key: music21.key.Key = music21.key.Key("C")
+        cls, time: float, string: str, key: music21.key.Key | str = "C major"
     ):
-        music21_object, object_type = _get_music21_object_from_text(string, key)
+        music21_object, object_type = _get_music21_object_from_text(
+            string, key.__str__()
+        )
 
         if not string:
             return None

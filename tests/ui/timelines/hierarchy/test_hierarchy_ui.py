@@ -30,7 +30,7 @@ class TestHierarchyUI:
 
         assert (
             tlui[0].full_name
-            == "tl" + HierarchyUI.FULL_NAME_SEPARATOR + HierarchyUI.NAME_WHEN_UNLABELED
+            == "tl" + HierarchyUI.FULL_NAME_SEPARATOR + HierarchyUI.NAME_WHEN_UNLABELLED
         )
 
     def test_full_name_with_parent(self, tlui):

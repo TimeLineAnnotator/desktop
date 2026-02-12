@@ -55,7 +55,7 @@ def beats_from_csv(
             measures_to_force_display = []
 
             def check_params() -> bool:
-                for param, parser in zip(params, parsers):
+                for param, parser in zip(params, parsers, strict=True):
                     if param in params_to_indices:
                         try:
                             index = params_to_indices[param]

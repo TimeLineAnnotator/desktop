@@ -538,7 +538,7 @@ class TimelineUI(ABC):
         self.element_manager.delete_element(element)
 
     def validate_copy(self, elements: list[T]) -> None:
-        """Can be overwritten by subclsses"""
+        """Can be overwritten by subclasses"""
 
     def validate_paste(
         self, paste_data: dict, elements_to_receive_paste: list[T]

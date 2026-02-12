@@ -64,7 +64,7 @@ class TimelineUIElement(ABC):
         return self in self.timeline_ui.selected_elements
 
     @abstractmethod
-    def child_items(self):
+    def child_items(self) -> list[Any]:
         ...
 
     def selection_triggers(self):
@@ -86,10 +86,16 @@ class TimelineUIElement(ABC):
         menu = self.CONTEXT_MENU_CLASS(self)
         menu.exec(QPoint(x, y))
 
+    @abstractmethod
     def on_select(self):
         ...
 
+    @abstractmethod
     def on_deselect(self):
+        ...
+
+    @abstractmethod
+    def update_position(self):
         ...
 
     def delete(self):
