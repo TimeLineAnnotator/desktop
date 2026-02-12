@@ -8,9 +8,13 @@ from tilia.ui.cli import io
 
 
 def setup_parser(subparsers, parse_and_run_func: Callable[[str], bool]):
-    script = subparsers.add_parser("script", exit_on_error=False)
-    script.add_argument("path", type=str)
-    script.add_argument("--encoding", "-e", type=str, nargs="?", default="utf-8")
+    script = subparsers.add_parser(
+        "script", exit_on_error=False, help="Run a CLI script from a text file"
+    )
+    script.add_argument("path", type=str, help="Path to the script file")
+    script.add_argument(
+        "--encoding", "-e", type=str, nargs="?", default="utf-8", help="File encoding"
+    )
     script.set_defaults(func=partial(run, parse_and_run_func))
 
 

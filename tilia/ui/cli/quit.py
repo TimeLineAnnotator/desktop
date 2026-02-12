@@ -3,7 +3,9 @@ from tilia.ui.cli import io
 
 
 def setup_parser(subparsers):
-    _quit = subparsers.add_parser("quit", aliases=["exit", "q"])
+    _quit = subparsers.add_parser(
+        "quit", aliases=["exit", "q"], help="Quit the application"
+    )
     _quit.set_defaults(func=quit)
 
 

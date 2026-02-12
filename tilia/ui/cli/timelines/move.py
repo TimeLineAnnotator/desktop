@@ -1,3 +1,4 @@
+import argparse
 from tilia.requests import get, Get
 from tilia.timelines.base.timeline import Timeline
 from tilia.ui.cli import io
@@ -5,19 +6,43 @@ from tilia.ui.cli.timelines.utils import get_timeline_by_name, get_timeline_by_o
 
 
 def setup_parser(subparser):
-    move_subp = subparser.add_parser("move", exit_on_error=False, aliases=["mv"])
+    move_subp = subparser.add_parser(
+        "move",
+        exit_on_error=False,
+        aliases=["mv"],
+        help="Move a timeline to a new ordinal position. 1 is the top-most timeline.",
+        epilog="""
+Examples:
+  # Move timeline named "Measure" to first position (top-most)
+  timelines move name "Measure" 1
+
+  # Move timeline at 3rd position to 1st position
+  timelines move ordinal 3 1
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     move_subcommands = move_subp.add_subparsers(dest="type", required=True)
 
     # 'move by name' subcommand
-    by_name_subcommand = move_subcommands.add_parser("name", exit_on_error=False)
-    by_name_subcommand.add_argument("name")
-    by_name_subcommand.add_argument("new_ordinal", type=int)
+    by_name_subcommand = move_subcommands.add_parser(
+        "name", exit_on_error=False, help="Move timeline by name"
+    )
+    by_name_subcommand.add_argument("name", help="Name of the timeline to move")
+    by_name_subcommand.add_argument(
+        "new_ordinal", type=int, help="New ordinal position"
+    )
     by_name_subcommand.set_defaults(func=move_timeline, by="name")
 
     # 'move by ordinal' subcommand
-    by_ordinal_subcommand = move_subcommands.add_parser("ordinal", exit_on_error=False)
-    by_ordinal_subcommand.add_argument("ordinal", type=int)
-    by_ordinal_subcommand.add_argument("new_ordinal", type=int)
+    by_ordinal_subcommand = move_subcommands.add_parser(
+        "ordinal", exit_on_error=False, help="Move timeline by ordinal"
+    )
+    by_ordinal_subcommand.add_argument(
+        "ordinal", type=int, help="Current ordinal of the timeline"
+    )
+    by_ordinal_subcommand.add_argument(
+        "new_ordinal", type=int, help="New ordinal position"
+    )
     by_ordinal_subcommand.set_defaults(func=move_timeline, by="ordinal")
 
 

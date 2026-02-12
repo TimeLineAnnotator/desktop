@@ -5,9 +5,11 @@ from tilia.ui.path import ensure_tla_extension
 
 
 def setup_parser(subparsers):
-    parser = subparsers.add_parser("open", exit_on_error=False)
+    parser = subparsers.add_parser(
+        "open", exit_on_error=False, help="Open a TiLiA file"
+    )
 
-    parser.add_argument("path", help="Path to TiLiA file.", type=str)
+    parser.add_argument("path", help="Path to TiLiA file", type=str)
 
     parser.set_defaults(func=open)
 

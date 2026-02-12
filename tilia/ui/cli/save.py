@@ -9,11 +9,23 @@ from tilia.ui.path import ensure_tla_extension
 
 
 def setup_parser(subparsers):
-    parser = subparsers.add_parser("save", exit_on_error=False)
+    parser = subparsers.add_parser(
+        "save",
+        exit_on_error=False,
+        help="Save the current project",
+        epilog="""
+Examples:
+  # Save (prompts for overwrite if file exists)
+  save /path/to/file.tla
 
-    parser.add_argument("path", help="Path to save file to.")
+  # Save (overwrites without prompting)
+  save /path/to/file.tla --overwrite
+""",
+    )
+
+    parser.add_argument("path", help="Path to save the file")
     parser.add_argument(
-        "--overwrite", action="store_true", help="Overwrite existing file."
+        "--overwrite", action="store_true", help="Overwrite existing file"
     )
 
     parser.set_defaults(func=save)

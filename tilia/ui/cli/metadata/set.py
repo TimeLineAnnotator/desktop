@@ -8,9 +8,18 @@ from tilia.requests import post, Post
 
 def setup_parser(subparsers):
 
-    parser = subparsers.add_parser("set", help="Set media metadata.")
-    parser.add_argument("field", type=str, help="Field name.")
-    parser.add_argument("value", type=str, help="Field value.")
+    parser = subparsers.add_parser(
+        "set",
+        help="Set a specific metadata field.",
+        epilog="""
+Examples:
+  metadata set title "Bohemian Rhapsody"
+  metadata set composer "Chico Buarque"
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("field", type=str, help="Field name to set.")
+    parser.add_argument("value", type=str, help="Value to set for the field.")
 
     parser.set_defaults(func=set_metadata)
 
