@@ -46,7 +46,7 @@ Missing libraries:
     raise RuntimeError("Install the necessary dependencies then restart.") from exc
 
 
-if __name__ == "__main__":
+def main():
     try:
         from tilia.boot import boot  # noqa: E402
 
@@ -55,3 +55,7 @@ if __name__ == "__main__":
         if sys.platform != "linux":
             raise exc
         deps_debug(exc)
+
+
+if __name__ == "__main__":
+    main()
