@@ -7,14 +7,37 @@ from tilia.ui.cli.io import output
 
 
 def setup_parser(subparser):
-    add_subp = subparser.add_parser("add", exit_on_error=False)
+    add_subp = subparser.add_parser(
+        "add",
+        exit_on_error=False,
+        help="Add a new timeline",
+        epilog="""
+Examples:
+  timelines add beat --name "Measures" --beat-pattern 4
+  timelines add hierarchy --name "Form"
+  timelines add marker --name "Cadences"
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     add_subp.add_argument(
         "kind",
         choices=["hierarchy", "hrc", "marker", "mrk", "beat", "bea", "score", "sco"],
+        help="Kind of timeline to add",
     )
-    add_subp.add_argument("--name", "-n", type=str, default="")
-    add_subp.add_argument("--height", "-e", type=int, default=None)
-    add_subp.add_argument("--beat-pattern", "-b", type=int, nargs="+", default=[4])
+    add_subp.add_argument(
+        "--name", "-n", type=str, default="", help="Name of the new timeline"
+    )
+    add_subp.add_argument(
+        "--height", "-e", type=int, default=None, help="Height of the timeline"
+    )
+    add_subp.add_argument(
+        "--beat-pattern",
+        "-b",
+        type=int,
+        nargs="+",
+        default=[4],
+        help="Pattern as space-separated integers indicating beat count in a measure. Pattern will be repeated. Pattern '3 4', for instance, will alternate measures of 3 and 4 beats.",
+    )
     add_subp.set_defaults(func=add)
 
 

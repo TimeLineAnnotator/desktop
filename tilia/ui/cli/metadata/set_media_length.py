@@ -5,9 +5,9 @@ import tilia.errors
 
 def setup_parser(subparsers):
     parser = subparsers.add_parser(
-        "set-media-length", help="Import metadata from JSON file."
+        "set-media-length", help="Set the media length manually."
     )
-    parser.add_argument("value", type=float, help="Media length value.")
+    parser.add_argument("value", type=float, help="Media length value in seconds.")
 
     parser.set_defaults(func=set_media_length)
 

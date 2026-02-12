@@ -21,11 +21,31 @@ COMPONENT_KIND_TO_PARAMS = {
 
 
 def setup_parser(subparser):
-    subp = subparser.add_parser("beat", exit_on_error=False)
+    subp = subparser.add_parser(
+        "beat",
+        exit_on_error=False,
+        help="Add a beat component to a timeline",
+        epilog="""
+Examples:
+  components beat --tl-name "Measures" --time 10.5
+  components beat --tl-ordinal 1 --time 20.0
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     tl_group = subp.add_mutually_exclusive_group(required=True)
-    tl_group.add_argument("--tl-ordinal", "-o", type=int, default=None)
-    tl_group.add_argument("--tl-name", "-n", type=str, default=None)
-    subp.add_argument("--time", "-t", type=float, required=True)
+    tl_group.add_argument(
+        "--tl-ordinal",
+        "-o",
+        type=int,
+        default=None,
+        help="Ordinal of the target timeline",
+    )
+    tl_group.add_argument(
+        "--tl-name", "-n", type=str, default=None, help="Name of the target timeline"
+    )
+    subp.add_argument(
+        "--time", "-t", type=float, required=True, help="Time position for the beat"
+    )
     subp.set_defaults(func=partial(add, TlKind.BEAT_TIMELINE))
 
 

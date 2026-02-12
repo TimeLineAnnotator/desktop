@@ -5,7 +5,7 @@ from tilia.ui.cli import io
 
 
 def setup_parser(subparsers):
-    parser = subparsers.add_parser("show", help="Import metadata from JSON file.")
+    parser = subparsers.add_parser("show", help="Show current media metadata.")
     parser.set_defaults(func=show)
 
 

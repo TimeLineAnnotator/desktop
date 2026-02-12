@@ -11,12 +11,22 @@ from tilia.ui.cli import io
 
 
 def setup_parser(subparsers, parse_and_run: Callable[[str], bool]):
-    parser = subparsers.add_parser("load-media", exit_on_error=False)
+    parser = subparsers.add_parser(
+        "load-media",
+        exit_on_error=False,
+        help="Load a media file",
+        epilog="""
+Examples:
+  load-media "C:/path/to/media.mp3"
+  load-media "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     parser.add_argument(
         "path",
         type=str,
-        help="Path to media.",
+        help="Path to media",
     )
 
     parser.add_argument(
@@ -25,14 +35,14 @@ def setup_parser(subparsers, parse_and_run: Callable[[str], bool]):
         type=str,
         choices=["yes", "no", "prompt"],
         default="prompt",
-        help="Automatically scale the media timeline.",
+        help="Automatically scale the media timeline",
     )
 
     parser.add_argument(
         "--duration-if-error",
         type=float,
         default=None,
-        help="Duration to use if media could not be loaded.",
+        help="Duration to use if media could not be loaded",
     )
 
     parser.set_defaults(func=partial(load_media, parse_and_run))

@@ -8,7 +8,9 @@ def pprint_tlkind(kind: TlKind) -> str:
 
 
 def setup_parser(subparser):
-    list_subp = subparser.add_parser("list", exit_on_error=False, aliases=["ls"])
+    list_subp = subparser.add_parser(
+        "list", exit_on_error=False, aliases=["ls"], help="List all timelines"
+    )
     list_subp.set_defaults(func=list)
 
 

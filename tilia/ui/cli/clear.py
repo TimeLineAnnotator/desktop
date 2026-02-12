@@ -3,10 +3,14 @@ from tilia.ui.cli import io
 
 
 def setup_parser(subparsers):
-    parser = subparsers.add_parser("clear", exit_on_error=False)
+    parser = subparsers.add_parser(
+        "clear",
+        exit_on_error=False,
+        help="Clear current file. Deletes all timelines, metadata and unloads media.",
+    )
 
     parser.add_argument(
-        "--force", action="store_true", help="Do not ask for confirmation."
+        "--force", action="store_true", help="Do not ask for confirmation"
     )
 
     parser.set_defaults(func=save)

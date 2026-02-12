@@ -5,11 +5,25 @@ from tilia.ui.cli import io
 
 
 def setup_parser(subparsers):
-    parser = subparsers.add_parser("export", exit_on_error=False)
+    parser = subparsers.add_parser(
+        "export",
+        exit_on_error=False,
+        help="Export to JSON",
+        epilog="""
+JSON format is described in https://tilia-app.com/help/export#json-format
 
-    parser.add_argument("path", help="Path to save file to.")
+Examples:
+  # Export to JSON
+  export /path/to/file.json
+
+  # Export to JSON with overwrite
+  export /path/to/file.json --overwrite
+""",
+    )
+
+    parser.add_argument("path", help="Path to export the file")
     parser.add_argument(
-        "--overwrite", action="store_true", help="Overwrite existing file."
+        "--overwrite", action="store_true", help="Overwrite existing file"
     )
 
     parser.set_defaults(func=export)
