@@ -1,4 +1,6 @@
 The test suite is written in pytest. Below are some things to keep in my mind when writing tests. For examples of good and thorough tests, see `tests\ui\timelines\test_marker_timeline_ui.py`.  Older modules should be refactored at some point to follow the guidelines below.
+## Pre-requisites
+`pip install --group testing`
 ## How to simulate interaction with the UI?
 - The `user_actions` fixture can be used to trigger actions on the UI. This is equivalent to pressing buttons on the UI. We should also check that the actions are available in the UI where we expect them.
 - The `tilia_state` fixture can be used to make certain changes to state simulating user input (e.g. `tilia_state.current_time = 10`).

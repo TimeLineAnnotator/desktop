@@ -62,10 +62,9 @@ Before you start, you will need:
     | `git` | Download [here](https://git-scm.com/install) | Not necessary for a direct download from this repository |
   </details>
 
-### Note for Linux users
+### Note to Linux users
 Users have reported dependency issues when running TiLiA on Linux (see [#370](https://github.com/TimeLineAnnotator/desktop/issues/370) and [#371](https://github.com/TimeLineAnnotator/desktop/issues/371)).
-That is probably due to `PyInstaller` not being completely compatible with `PyQt`.
-We are working to fix that with with a new build process using `pyside6-deploy` instead.
+Due to system variations between Linux distributions, some additional system dependencies may be required. Visit our [help page](https://tilia-app.com/help/installation#troubleshooting-linux) for more information.
 
 ### Running from source
 
@@ -81,17 +80,12 @@ Change directory to the cloned repository:
 cd tilia-desktop
 ```
 Note: We recommend using a clean [virtual environment](https://docs.python.org/3/library/venv.html) for the next steps.
-Failure to do so is likely to cause issues with dependencies.
+Failure to do so may cause issues with dependencies.
 
 Install TiLiA and its dependencies with:
 ```
 pip install -e .
 ```
-On Linux, some additional Qt dependencies are required:
-```
-sudo apt install libnss3 libasound libxkbfile1 libpulse0
-```
-| n.b.: the specific names of these packages varies based on your Linux distribution.
 
 To run TiLiA from source, run:
 ```
@@ -104,18 +98,20 @@ python -m tilia --user-interface cli
 ```
 
 ### Building from source
-TiLiA uses [PyInstaller](https://pyinstaller.org/en/stable/) to build binaries.
-Note that the binaries will be for the platform you are building on, as `PyInstaller` supports no cross-compilation.
+TiLiA uses [Nuitka](https://nuitka.net/) to build binaries.
+Note that the binaries will be for the platform you are building on, as `Nuitka` supports no cross-compilation.
 
-After cloning tilia and installing the dependencies (see above), install `PyInstaller` with:
+After cloning TiLiA, install TiLiA's run and build dependencies with:
 ```
-pip install pyinstaller
+pip install -e . --group build
 ```
-To build a stand-alone executable, run PyInstaller with the settings in `tilia.spec`:
+To build a stand-alone executable, run the script:
 ```
-pyinstaller tilia.spec
+python scripts/deploy.py [ref_name] [os_type]
 ```
-The executable will be created in `dist` folder inside the project directory.
+(*n.b.: `ref_name` and `os_type` are arbitrary strings that do not affect the build outcome.)
+
+The executable will be found in the `build/[os_type]/exe` folder in the project directory.
 
 ## Planned features
 
