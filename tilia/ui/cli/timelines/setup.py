@@ -2,6 +2,7 @@ from .imp import setup_parser as setup_import_parser
 from .add import setup_parser as setup_add_parser
 from .list import setup_parser as setup_list_parser
 from .remove import setup_parser as setup_remove_parser
+from .move import setup_parser as setup_move_parser
 
 
 def setup_parser(subparsers):
@@ -14,3 +15,4 @@ def setup_parser(subparsers):
     setup_list_parser(tl_subparser)
     setup_remove_parser(tl_subparser)
     setup_import_parser(tl_subparser)
+    setup_move_parser(tl_subparser)
