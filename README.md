@@ -38,6 +38,8 @@ Here are some examples TiLiA visualizations:
 - Toggling of timeline visibility
 - Export of audio segments based on analysis
 - Import timeline data from CSV files
+- Command-line interface
+
 ## How to install and use
 TiLiA has releases for Windows, macOS and Linux. Instructions to download and run are [at the website](https://tilia-app.com/help/introduction/).
 
