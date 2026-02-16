@@ -65,7 +65,14 @@ jobs:
         run: |
           brew install coreutils
           echo "Checking dependencies"
+          # test build starts up - should see the output of qt_debug_plugins. the command will kill itself in 10s if everything works. something went wrong if time taken for this command is less than 10s.
+          # then zip everything up and delete the original non-zipped file.
+          start=$(date +%s)
           echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }}" | bash || true
+          if (($(date +%s) - $start < 10)); then
+            echo "::error::Process terminated early! Potential errors in build."
+            exit 1
+          fi
           zip -r9 ${{ steps.build-exe.outputs.zip-filepath }} ${{ steps.build-exe.outputs.out-filepath }} || true
           rm -rf ${{ steps.build-exe.outputs.out-filepath }}
 
@@ -74,7 +81,13 @@ jobs:
         shell: bash
         run: |
           echo "Checking dependencies"
-          echo "timeout 30 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+          # test build starts up - should see the output of qt_debug_plugins. the command will kill itself in 10s if everything works. something went wrong if time taken for this command is not 10s.
+          start=$(date +%s)
+          echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+          if (($(date +%s) - $start < 10)); then
+            echo "::error::Process terminated early! Potential errors in build."
+            exit 1
+          fi
 
       - name: Test executable [Linux]
         id: set-path
@@ -83,7 +96,13 @@ jobs:
         run: |
           echo "path=${{ steps.build-exe.outputs.out-filename }}" >> "$GITHUB_OUTPUT"
           echo "Checking dependencies"
-          echo "timeout 30 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+          # test build starts up - should see the output of qt_debug_plugins. the command will kill itself in 10s if everything works. something went wrong if time taken for this command is not 10s.
+          start=$(date +%s)
+          echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+          if (($(date +%s) - $start < 10)); then
+            echo "::error::Process terminated early! Potential errors in build."
+            exit 1
+          fi
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
