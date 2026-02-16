@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import traceback
+import ImaginaryModule  # noqa: F401
 
 from PySide6.QtWidgets import QApplication
 
