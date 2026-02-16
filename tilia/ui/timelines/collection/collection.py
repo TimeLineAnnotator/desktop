@@ -7,7 +7,6 @@ from typing import Any, Optional, Callable, cast
 
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtWidgets import (
-    QGraphicsView,
     QMainWindow,
     QGraphicsItem,
     QGraphicsScene,
@@ -42,6 +41,8 @@ from tilia.ui.timelines.toolbar import TimelineToolbar
 from tilia.ui.timelines.view import TimelineView
 from .view import TimelineUIsView
 from ..base.element import TimelineUIElement
+from ..beat import BeatTimelineUI
+from ..harmony import HarmonyTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...dialogs.add_timeline_without_media import AddTimelineWithoutMedia
@@ -74,7 +75,7 @@ class TimelineUIs:
             kind: None for kind in TimelineKind if kind != TlKind.SLIDER_TIMELINE
         }
 
-        self._timeline_uis = set()
+        self._timeline_uis: set[TimelineUI] = set()
         self._select_order = []
         self._timeline_uis_to_playback_line_ids = {}
         self.sb_items_to_selected_items = {}
@@ -591,7 +592,8 @@ class TimelineUIs:
         self._select_order.remove(tl_ui)
         self._select_order.insert(0, tl_ui)
 
-    def add_timeline_view_to_scene(self, view: QGraphicsView, ordinal: int) -> None:
+    def add_timeline_view_to_scene(self, view: TimelineView, ordinal: int) -> None:
+        view.proxy = self.scene.addWidget(view)
         self.scene.addWidget(view)
         y = sum(tlui.get_data("height") for tlui in sorted(self)[: ordinal - 1])
         view.move(0, y)
@@ -646,7 +648,7 @@ class TimelineUIs:
     @staticmethod
     def update_timeline_times(tlui: TimelineUI):
         if tlui.TIMELINE_KIND == TlKind.SLIDER_TIMELINE:
-            tlui: SliderTimelineUI
+            tlui = cast(SliderTimelineUI, tlui)
             tlui.update_items_position()
         else:
             tlui.element_manager.update_time_on_elements()
@@ -693,7 +695,7 @@ class TimelineUIs:
 
     def _on_timeline_ui_right_click(
         self,
-        view: QGraphicsView,
+        view: TimelineView,
         x: int,
         y: int,
         item: Optional[QGraphicsItem],
@@ -718,7 +720,7 @@ class TimelineUIs:
 
     def _on_timeline_ui_left_click(
         self,
-        view: QGraphicsView,
+        view: TimelineView,
         x: int,
         y: int,
         item: Optional[QGraphicsItem],
@@ -915,7 +917,8 @@ class TimelineUIs:
             self._update_loop_elements()
 
     def on_harmony_timeline_components_deserialized(self, id):
-        self.get_timeline_ui(id).on_timeline_components_deserialized()  # noqa
+        timeline_ui = cast(HarmonyTimelineUI, self.get_timeline_ui(id))
+        timeline_ui.on_timeline_components_deserialized()
 
     def on_beat_timeline_components_deserialized(self, id: int):
         from tilia.ui.timelines.beat import BeatTimelineUI

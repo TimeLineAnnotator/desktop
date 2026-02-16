@@ -8,7 +8,13 @@ from PySide6.QtGui import (
     QColor,
     QBrush,
 )
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QSizePolicy, QFrame
+from PySide6.QtWidgets import (
+    QFrame,
+    QGraphicsProxyWidget,
+    QGraphicsScene,
+    QGraphicsView,
+    QSizePolicy,
+)
 
 from tilia.settings import settings
 from tilia.requests import post, Post, Get, get, listen
@@ -39,7 +45,7 @@ class TimelineView(QGraphicsView):
         )
 
         self.dragging = False
-        self.proxy = None  # will be set by TimelineUIs
+        self.proxy = QGraphicsProxyWidget()  # will be set by TimelineUIs
 
     def on_settings_updated(self, updated_settings):
         if "general" in updated_settings:
