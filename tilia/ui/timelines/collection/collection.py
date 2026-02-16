@@ -594,7 +594,6 @@ class TimelineUIs:
 
     def add_timeline_view_to_scene(self, view: TimelineView, ordinal: int) -> None:
         view.proxy = self.scene.addWidget(view)
-        self.scene.addWidget(view)
         y = sum(tlui.get_data("height") for tlui in sorted(self)[: ordinal - 1])
         view.move(0, y)
         self.update_height()
