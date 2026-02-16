@@ -50,8 +50,11 @@ def _handle_inputs():
     assert len(sys.argv) == 3, "Incorrect number of inputs"
     global ref_name, build_os, outdir
     ref_name = sys.argv[1]
+    # in a git action runner, sys.argv[2] could look like someOS-latest, someOS-22.02, etc, where someOS is probably macos, ubuntu or windows.
+    # we save build_os as the runner os stripped of "latest" and any digits: just someOS.
     if "macos" in sys.argv[2] and "intel" not in sys.argv[2]:
         build_os = "macos-silicon"
+        # to identify the difference between macos-silicon and macos-intel. currently uses the images macos-latest and macos-15-intel (which are silicon and intel respectively.)
     else:
         build_os = "-".join(
             [
