@@ -67,12 +67,16 @@ jobs:
           echo "Checking dependencies"
           # test build starts up - should see the output of qt_debug_plugins. the command will kill itself in 10s if everything works. something went wrong if time taken for this command is less than 10s.
           # then zip everything up and delete the original non-zipped file.
+          echo "Starting GUI..."
           start=$(date +%s)
           echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }}" | bash || true
           if (($(date +%s) - $start < 10)); then
             echo "::error::Process terminated early! Potential errors in build."
             exit 1
           fi
+          echo "\n\nStarting CLI..."
+          echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }} --user-interface=cli" | bash || true
+
           zip -r9 ${{ steps.build-exe.outputs.zip-filepath }} ${{ steps.build-exe.outputs.out-filepath }} || true
           rm -rf ${{ steps.build-exe.outputs.out-filepath }}
 
@@ -82,12 +86,15 @@ jobs:
         run: |
           echo "Checking dependencies"
           # test build starts up - should see the output of qt_debug_plugins. the command will kill itself in 10s if everything works. something went wrong if time taken for this command is not 10s.
+          echo "Starting GUI..."
           start=$(date +%s)
           echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
           if (($(date +%s) - $start < 10)); then
             echo "::error::Process terminated early! Potential errors in build."
             exit 1
           fi
+          echo "\n\nStarting CLI..."
+          echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }} --user-interface=cli" | bash || true
 
       - name: Test executable [Linux]
         id: set-path
@@ -97,12 +104,15 @@ jobs:
           echo "path=${{ steps.build-exe.outputs.out-filename }}" >> "$GITHUB_OUTPUT"
           echo "Checking dependencies"
           # test build starts up - should see the output of qt_debug_plugins. the command will kill itself in 10s if everything works. something went wrong if time taken for this command is not 10s.
+          echo "Starting GUI..."
           start=$(date +%s)
           echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
           if (($(date +%s) - $start < 10)); then
             echo "::error::Process terminated early! Potential errors in build."
             exit 1
           fi
+          echo "\n\nStarting CLI..."
+          echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }} --user-interface=cli" | bash || true
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
@@ -137,13 +147,18 @@ jobs:
         run: |
           if [ -e build/ubuntu/exe/${{ needs.build.outputs.linux-build }} ];
             then
-              chmod ugo+x build/ubuntu/exe/${{ needs.build.outputs.linux-build }};
-              if echo "timeout 30 build/ubuntu/exe/${{ needs.build.outputs.linux-build }}" | bash;
+              chmod ugo+x build/ubuntu/exe/${{ needs.build.outputs.linux-build }}
+              echo "Starting GUI..."
+              start=$(date +%s)
+              echo "timeout 10 build/ubuntu/exe/${{ needs.build.outputs.linux-build }}" | bash || true
+              if (($(date +%s) - $start < 10));
                 then
-                  echo "Linux works in a clean environment!";
+                  echo "Linux started in a clean environment!";
               else
                 echo "Linux didn't work... Check libraries with previous step?";
               fi;
+              echo "Starting CLI..."
+              echo "timeout 10 build/ubuntu/exe/${{ needs.build.outputs.linux-build }} --user-interface=cli" | bash || true
           else
             echo "file not found!";
           fi
