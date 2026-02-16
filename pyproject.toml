@@ -35,7 +35,7 @@ dependencies = [
 name = "Felipe Defensor et al."
 email = "tilia@tilia-app.com"
 
-[project.gui-scripts]
+[project.scripts]
 tilia-desktop = "tilia.__main__:main"
 
 [project.urls]
