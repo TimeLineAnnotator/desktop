@@ -16,19 +16,28 @@ from tilia.ui.player import PlayerStatus
 
 
 def wait_for_signal(signal: SignalInstance, value):
+    """
+    Many Qt functions run on threads, and this wrapper makes sure that after starting a process, the right signal is emitted before continuing the TiLiA process.
+    See _engine_stop of QtPlayer for an example implementation.
+
+    :param signal: The signal to watch.
+    :type signal: SignalInstance
+    :param value: The "right" output value that signal should emit before continuing. (eg. on stopping player, playbackStateChanged emits StoppedState when player has been successfully stopped. Only then can we continue the rest of the update process.)
+    """
+
     def signal_wrapper(func):
         timer = QTimer(singleShot=True, interval=100)
         loop = QEventLoop()
-        success = False  # noqa: F841
+        success = False
 
         def value_checker(signal_value):
             if signal_value == value:
-                global success
+                nonlocal success
                 success = True
                 loop.quit()
 
         def check_signal(*args, **kwargs):
-            global success
+            nonlocal success
             if not func(*args, **kwargs):
                 return False
             signal.connect(value_checker)
