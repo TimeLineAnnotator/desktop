@@ -36,7 +36,7 @@ name = "Felipe Defensor et al."
 email = "tilia@tilia-app.com"
 
 [project.scripts]
-tilia-desktop = "tilia.__main__:main"
+tilia = "tilia.__main__:main"
 
 [project.urls]
 Homepage = "https://tilia-app.com"

@@ -89,12 +89,12 @@ pip install -e .
 
 To run TiLiA from source, run:
 ```
-tilia-desktop
+tilia
 ```
 
 TiLiA also offers a CLI mode, which can be run with:
 ```
-python -m tilia --user-interface cli
+tilia --user-interface cli
 ```
 
 ### Building from source
