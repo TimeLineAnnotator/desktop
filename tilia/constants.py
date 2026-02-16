@@ -30,7 +30,7 @@ else:
 APP_NAME = setupcfg.get("name", "")
 VERSION = setupcfg.get("version", "0.0.0")
 
-YEAR = "2022-2025"
+YEAR = "2022-2026"
 FILE_EXTENSION = "tla"
 EMAIL_URL = "mailto:" + EMAIL
 
