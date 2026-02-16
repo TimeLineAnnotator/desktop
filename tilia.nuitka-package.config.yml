@@ -1,10 +1,11 @@
+# see https://nuitka.net/user-documentation/nuitka-package-config.html for help on this file.
 # yamllint disable rule:line-length
 # yamllint disable rule:indentation
 # yamllint disable rule:comments-indentation
 # yamllint disable rule:comments
 # too many spelling things, spell-checker: disable
 ---
-- module-name: "music21"
+- module-name: "music21" # mostly regex matching entire refrences to tests and deleting.
   anti-bloat:
     - description: "remove tests"
       replacements_plain:
