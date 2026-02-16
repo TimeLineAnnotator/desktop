@@ -1,3 +1,15 @@
+"""
+Script to build TiLiA with Nuitka.
+(a more flexible alternative to building with only pyside-deploy or Nuitka)
+pyside-deploy has very limited Nuitka-specific options and Nuitka requires a specific file structure to build.
+Hence this pyside-deploy-inspired script.
+
+- Run `python scripts/deploy.py [ref_name] [os_type]`
+- Creates sdist to create metadata file from information in pyproject and filter out unnecessary files
+- Then builds executable, which will be found in:
+    build/exe/[os_type]/TiLiA-[tilia version in pyproject](-[ref_name, if not the same as tilia version])-[os_type]
+"""
+
 from colorama import Fore
 import dotenv
 from enum import Enum
