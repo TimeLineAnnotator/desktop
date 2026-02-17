@@ -1,11 +1,11 @@
 import argparse
 from functools import partial
-from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.component_kinds import ComponentKind
 
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.ui.cli import io
 from tilia.ui.cli.io import output
-from tilia.ui.cli.timelines.getters import get_timeline_by_name, get_timeline_by_ordinal
+from tilia.ui.cli.timelines.utils import get_timeline_by_ordinal, get_timeline_by_name
 
 TL_KIND_TO_COMPONENT_KIND = {
     TlKind.BEAT_TIMELINE: ComponentKind.BEAT,
@@ -49,17 +49,6 @@ Examples:
     subp.set_defaults(func=partial(add, TlKind.BEAT_TIMELINE))
 
 
-def validate_timeline(namespace: argparse.Namespace, tl_kind: TlKind, tl: Timeline):
-    if not tl:
-        if namespace.tl_ordinal is not None:
-            raise ValueError(f"No timeline found with ordinal={namespace.tl_ordinal}")
-        else:
-            raise ValueError(f"No timeline found with name={namespace.tl_name}")
-
-    if tl.KIND != tl_kind:
-        raise ValueError(f"Timeline {tl} is of wrong kind. Expected {tl_kind}")
-
-
 def get_component_params(cmp_kind: ComponentKind, namespace: argparse.Namespace):
     params = {}
     for attr in COMPONENT_KIND_TO_PARAMS[cmp_kind]:
@@ -72,11 +61,16 @@ def add(tl_kind: TlKind, namespace: argparse.Namespace):
     name = namespace.tl_name
 
     if ordinal is not None:
-        tl = get_timeline_by_ordinal(ordinal)
+        success, tl = get_timeline_by_ordinal(ordinal)
     else:
-        tl = get_timeline_by_name(name)
+        success, tl = get_timeline_by_name(name)
 
-    validate_timeline(namespace, tl_kind, tl)
+    if not success:
+        return
+
+    if tl.KIND != tl_kind:
+        io.error(f"Timeline {tl} is of wrong kind. Expected {tl_kind}")
+        return
 
     cmp_kind = TL_KIND_TO_COMPONENT_KIND[tl_kind]
     params = get_component_params(cmp_kind, namespace)
