@@ -1,53 +1,37 @@
-import argparse
-
-import pytest
-from tests.mock import Serve
-from tilia.requests.get import Get
-from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.cli.components.add import add
+from tilia.ui.cli.timelines.utils import assert_error
 
 
 class TestAddBeat:
     def test_wrong_timeline_kind_raises_error(self, cli, tls):
-        tls.create_timeline(kind=TimelineKind.HIERARCHY_TIMELINE)
+        cli.parse_and_run("timeline add hierarchy")
 
-        namespace = argparse.Namespace(tl_ordinal=1, tl_name="")
-        with pytest.raises(ValueError):
-            add(TimelineKind.BEAT_TIMELINE, namespace)
+        with assert_error():
+            cli.parse_and_run("component beat --tl-ordinal 1 --time 0")
 
     def test_bad_ordinal_raises_error(self, cli, tls):
-        with Serve(Get.FROM_USER_BEAT_PATTERN, (True, [4])):
-            tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
+        cli.parse_and_run("timeline add beat --beat-pattern 4")
 
-        namespace = argparse.Namespace(tl_ordinal=0, tl_name="")
-        with pytest.raises(ValueError):
-            add(TimelineKind.BEAT_TIMELINE, namespace)
+        with assert_error():
+            cli.parse_and_run("component beat --tl-ordinal 0 --time 0")
 
     def test_bad_name_raises_error(self, cli, tls):
-        with Serve(Get.FROM_USER_BEAT_PATTERN, (True, [4])):
-            tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE, name="this")
+        cli.parse_and_run("timeline add beat --beat-pattern 4 --name this")
 
-        namespace = argparse.Namespace(tl_ordinal=None, tl_name="other")
-        with pytest.raises(ValueError):
-            add(TimelineKind.BEAT_TIMELINE, namespace)
+        with assert_error():
+            cli.parse_and_run("component beat --tl-name other --time 0")
 
     def test_add_single(self, cli, tls):
-        with Serve(Get.FROM_USER_BEAT_PATTERN, (True, [4])):
-            tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
-
-        namespace = argparse.Namespace(tl_ordinal=1, tl_name=None, time=1)
-        add(TimelineKind.BEAT_TIMELINE, namespace)
+        cli.parse_and_run("timeline add beat --beat-pattern 4")
+        cli.parse_and_run("component beat --tl-ordinal 1 --time 1")
 
         assert tls[0].components[0].time == 1
 
     def test_add_multiple(self, cli, tls):
-        with Serve(Get.FROM_USER_BEAT_PATTERN, (True, [4])):
-            tls.create_timeline(kind=TimelineKind.BEAT_TIMELINE)
+        cli.parse_and_run("timeline add beat --beat-pattern 4")
 
         for i in range(10):
-            namespace = argparse.Namespace(tl_ordinal=1, tl_name=None, time=i)
-            add(TimelineKind.BEAT_TIMELINE, namespace)
+            cli.parse_and_run(f"component beat --tl-ordinal 1 --time {i}")
 
         assert len(tls[0].components) == 10
         for i in range(10):
-            assert i in tls[0].component_manager.beat_times
+            assert tls[0][i].get_data("time") == i
