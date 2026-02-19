@@ -69,47 +69,48 @@ Due to system variations between Linux distributions, some additional system dep
 ### Running from source
 
 
-Clone TiLiA with:
+- Clone TiLiA with:
 
 ```
 git clone https://github.com/TimeLineAnnotator/desktop.git tilia-desktop
 ```
 
-Change directory to the cloned repository:
+- Change directory to the cloned repository:
 ```
 cd tilia-desktop
 ```
 Note: We recommend using a clean [virtual environment](https://docs.python.org/3/library/venv.html) for the next steps.
 Failure to do so may cause issues with dependencies.
 
-Install TiLiA and its dependencies with:
+- Install TiLiA and its dependencies with:
 ```
 pip install -e .
 ```
 
-To run TiLiA from source, run:
+- To run TiLiA from source, run:
 ```
 tilia
 ```
 
-TiLiA also offers a CLI mode, which can be run with:
+- TiLiA also offers a CLI mode, which can be run with:
 ```
 tilia --user-interface cli
 ```
+Note: The CLI is currently only available when run from source, and not in the compiled executable.
 
 ### Building from source
 TiLiA uses [Nuitka](https://nuitka.net/) to build binaries.
 Note that the binaries will be for the platform you are building on, as `Nuitka` supports no cross-compilation.
 
-After cloning TiLiA, install TiLiA's run and build dependencies with:
+- After cloning TiLiA, install TiLiA's run and build dependencies with:
 ```
 pip install -e . --group build
 ```
-To build a stand-alone executable, run the script:
+- To build a stand-alone executable, run the script:
 ```
 python scripts/deploy.py [ref_name] [os_type]
 ```
-(*n.b.: `ref_name` and `os_type` are arbitrary strings that do not affect the build outcome.)
+Note: `ref_name` and `os_type` are arbitrary strings that do not affect the build outcome.
 
 The executable will be found in the `build/[os_type]/exe` folder in the project directory.
 
