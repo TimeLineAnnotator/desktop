@@ -49,3 +49,11 @@
     - description: "slightly hacky way of forcing prod if env file is not found"
       replacements_plain:
         'os.environ["ENVIRONMENT"] = "dev"': 'os.environ["ENVIRONMENT"] = "prod"'
+
+- module-name: "tilia.boot"
+  anti-bloat:
+    - description: "CLI doesn't currently work in the executable"
+      replacements_re:
+        'elif interface == "cli":(\n|.)*?return CLI\(\)': ''
+      replacements_plain:
+        'choices=["qt", "cli"]': 'choices=["qt"], help="CLI option is currently not available in the exe. Run from source instead."'
