@@ -89,7 +89,9 @@ class SettingsManager(QObject):
     }
 
     def __init__(self):
-        self._settings = QSettings(tilia.constants.APP_NAME, "Desktop Settings", None)
+        self._settings = QSettings(
+            tilia.constants.APP_NAME, application="Desktop Settings", parent=None
+        )
         self._files_updated_callbacks = set()
         self._cache = {}
         self._check_all_default_settings_present()
@@ -118,7 +120,10 @@ class SettingsManager(QObject):
 
     def _get(self, group_name: str, setting: str, in_default=True):
         key = self._get_key(group_name, setting, in_default)
-        value = self._settings.value(key, None)
+        try:
+            value = self._settings.value(key, None)
+        except EOFError:
+            value = None
         if not value or not isinstance(
             value, type(self.DEFAULT_SETTINGS[group_name][setting])
         ):
