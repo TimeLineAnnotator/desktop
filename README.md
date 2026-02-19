@@ -3,7 +3,7 @@
     <img src="docs/img/logo.png" alt="drawing" width="100" >
   </a>
 </p>
-TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotations with video and audio files. It is a full-featured but easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PySide library for its GUI.
+TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotations with video and audio files. It is a full-featured, easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PySide library for its GUI.
 
 TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are six types of timelines, but many more are planned.
 
@@ -11,7 +11,7 @@ TiLiA allows users to annotate media files primarily through timelines of variou
   <img src="docs/img/tilia-desktop.png" width="600" alt="TiLiA desktop interface" >
 </p>
 
-Here are some examples TiLiA visualizations:
+Here are some examples of TiLiA visualizations:
 
 - Formal analysis of the Piano Sonata in D Major, K.284:
   - [First movement](https://tilia-app.com/viewer/135/)
@@ -22,7 +22,7 @@ Here are some examples TiLiA visualizations:
 ## Current features
 - 7 kinds of timelines
     - AudioWave: visualize audio files through bars that represent changes in amplitude
-    - Beat: beat and measure markers with support to numbering
+    - Beat: beat and measure markers with support for numbering
     - Harmony: Roman numeral and chord symbol labels using a specialized font, including proper display of inversion numerals, quality symbols and applied chords
     - Hierarchy: nested and levelled units organized in arbitrarily complex hierarchical structures
     - Marker: simple, labelled markers to indicate discrete events
@@ -47,7 +47,7 @@ Tutorials on how to use TiLiA can be found on our [website](https://tilia-app.co
 
 ## Build or run from source
 
-TiLiA can be also run and build from source.
+TiLiA can also be run and built from source.
 
 ### Prerequisites
 
@@ -79,8 +79,8 @@ git clone https://github.com/TimeLineAnnotator/desktop.git tilia-desktop
 ```
 cd tilia-desktop
 ```
-Note: We recommend using a clean [virtual environment](https://docs.python.org/3/library/venv.html) for the next steps.
-Failure to do so may cause issues with dependencies.
+> Note: We recommend using a clean [virtual environment](https://docs.python.org/3/library/venv.html) for the next steps.
+Failure to do so may cause dependency issues.
 
 - Install TiLiA and its dependencies with:
 ```
@@ -96,7 +96,7 @@ tilia
 ```
 tilia --user-interface cli
 ```
-Note: The CLI is currently only available when run from source, and not in the compiled executable.
+> Note: The CLI is currently only available when run from source, and not in the compiled executable.
 
 ### Building from source
 TiLiA uses [Nuitka](https://nuitka.net/) to build binaries.
@@ -110,7 +110,7 @@ pip install -e . --group build
 ```
 python scripts/deploy.py [ref_name] [os_type]
 ```
-Note: `ref_name` and `os_type` are arbitrary strings that do not affect the build outcome.
+> Note: `ref_name` and `os_type` are arbitrary strings that do not affect the build outcome.
 
 The executable will be found in the `build/[os_type]/exe` folder in the project directory.
 
