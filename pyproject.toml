@@ -83,6 +83,7 @@ remove-output = true
 report = "compilation-report.xml"
 user-package-configuration-file = "tilia.nuitka-package.config.yml"
 deployment = true
+mode = "app"
 
 [tool.pytest.ini_options]
 env = [
