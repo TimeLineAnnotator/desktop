@@ -38,7 +38,7 @@ jobs:
             python-version: '3.13' # no pyside support
     timeout-minutes: 30
     env:
-      QT_SELECT: "qt6"
+      QT_QPA_PLATFORM: offscreen
 
     steps:
     - uses: actions/checkout@v3
@@ -47,12 +47,15 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Setup xvfb (Linux)
+    - name: Setup additional Linux dependencies
       if: runner.os == 'Linux'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y xvfb libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 libxcb-xfixes0 libxcb-shape0 libglib2.0-0 libgl1-mesa-dev libpulse-dev
-        sudo apt-get install '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
+        chmod +x ./scripts/linux-setup.sh
+        ./scripts/linux-setup.sh
+
+    - name: Install timeout
+      if: runner.os == 'macOS'
+      run: brew install coreutils
 
     - uses: actions/cache@v4
       with:
@@ -86,7 +89,8 @@ jobs:
     - name: Check Program
       shell: bash
       run: |
+        export QT_DEBUG_PLUGINS=1
         echo "Starting GUI..."
         timeout 10 tilia || true
         echo "Starting CLI..."
-        timeout 10 tilia -i=cli|| true
+        timeout 10 tilia -i=cli || true
