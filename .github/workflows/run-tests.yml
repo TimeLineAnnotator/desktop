@@ -87,6 +87,6 @@ jobs:
       shell: bash
       run: |
         echo "Starting GUI..."
-        timeout 10 tilia-desktop || true
+        timeout 10 tilia || true
         echo "Starting CLI..."
-        timeout 10 tilia-desktop -i=cli|| true
+        timeout 10 tilia -i=cli|| true
