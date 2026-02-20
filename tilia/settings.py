@@ -122,7 +122,7 @@ class SettingsManager(QObject):
         key = self._get_key(group_name, setting, in_default)
         try:
             value = self._settings.value(key, None)
-        except EOFError:
+        except EOFError:  #  happens when the group in self._settings is not initiated, but setting a value solves this.
             value = None
         if not value or not isinstance(
             value, type(self.DEFAULT_SETTINGS[group_name][setting])

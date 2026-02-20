@@ -49,7 +49,7 @@ build = [
     "Nuitka >= 4.0",
     "ordered-set==4.1.0",
     "pyyaml",
-    "setuptools<82.0.0; python_version >= '3.12'",
+    "setuptools<82.0.0; python_version >= '3.12'", #  setuptools>82.0.0 no longer provides pkg_resources
     "wheel==0.38.4",
     "zstandard==0.20.0"
 ]
