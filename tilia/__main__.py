@@ -9,41 +9,52 @@ sys.path[0] = Path(__file__).parents[1].__str__()
 
 
 def deps_debug(exc: ImportError):
+    from tilia.constants import EMAIL, GITHUB_URL, WEBSITE_URL  # noqa: E402
+
+    def _raise_deps_error(exc: ImportError, message: list[str]):
+        raise RuntimeError("\n".join(message)) from exc
+
+    distro = platform.freedesktop_os_release().get("ID_LIKE", "").split()[0]
+    link = f"{WEBSITE_URL}/help/installation?distro={distro}#troubleshooting-linux"
     root_path = Path(
         [*traceback.walk_tb(exc.__traceback__)][0][0].f_code.co_filename
     ).parent
     lib_path = root_path / "PySide6/qt-plugins/platforms/libqxcb.so"
-    if not lib_path.exists():
-        print(
-            "Could not find libqxcb.so file.\nDumping all files in tree for debug...\n",
-            subprocess.getoutput(f"ls {root_path.as_posix()} -ltraR"),
-        )
-        raise RuntimeError(
-            "Could not locate the necessary libraries to run TiLiA."
-        ) from exc
 
-    _, result = subprocess.getstatusoutput(f"ldd {lib_path.as_posix()}")
-    if "=> not found" in result:
+    if not lib_path.exists():
+        if "__compiled__" not in globals():
+            msg = [
+                "Could not locate the necessary libraries to run TiLiA. libqxcb.so file not found.",
+                "Did you forget to install python dependencies?",
+            ]
+        else:
+            msg = [
+                "Could not locate the necessary libraries to run TiLiA. libqxcb.so file not found.",
+                f"Open an issue on our repo at <{GITHUB_URL}> or contact us at <{EMAIL}> for help.\n"
+                "Dumping all files in tree for debug...",
+                subprocess.getoutput(f"ls {root_path.as_posix()} -ltraR"),
+            ]
+        _raise_deps_error(exc, msg)
+
+    deps = subprocess.getoutput(f"ldd {lib_path.as_posix()}")
+    if "=> not found" in deps:
         missing_deps = []
-        for line in result.splitlines():
+        for line in deps.splitlines():
             if "=> not found" in line:
                 dep = line.strip().rstrip(" => not found")
                 missing_deps.append(dep)
 
-        from tilia.constants import WEBSITE_URL  # noqa: E402
-
-        distro = platform.freedesktop_os_release().get("ID_LIKE", "").split()[0]
-        link = f"{WEBSITE_URL}/help/installation?distro={distro}#troubleshooting-linux"
         if missing_deps:
-            print(
-                f"""TiLiA could not start due to missing system dependencies.
-Visit <{link}> for help on installation.
-Missing libraries:
-{missing_deps}"""
-            )
-            webbrowser.open(link)
+            deps = f"Missing libraries:\n{missing_deps}"
 
-    raise RuntimeError("Install the necessary dependencies then restart.") from exc
+    msg = [
+        "TiLiA could not start due to missing system dependencies.",
+        f"Visit <{link}> for help on installation.",
+        "Install the necessary dependencies then restart.\n",
+        deps,
+    ]
+    webbrowser.open(link)
+    _raise_deps_error(exc, msg)
 
 
 def main():
