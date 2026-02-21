@@ -155,14 +155,14 @@ class App:
     def is_file_modified(self) -> bool:
         return self.file_manager.is_file_modified(self.get_app_state())
 
-    def on_open(self, path: Path | str | None = None) -> None:
+    def on_open(self, path: Path | str | None = None) -> bool:
         if isinstance(path, str):
             path = Path(path)
 
         if self.is_file_modified():
             success, should_save = get(Get.FROM_USER_SHOULD_SAVE_CHANGES)
             if not success:
-                return
+                return False
 
             if should_save:
                 commands.execute("file.save")
@@ -170,14 +170,14 @@ class App:
         if not path:
             success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
             if not success:
-                return
+                return False
         prev_state = self.get_app_state()
         self.on_clear()
 
         success, file, old_path = open_tla(path)
         if not success:
             self.on_restore_state(prev_state)
-            return
+            return False
 
         self.old_file_path = old_path
         self.cur_file_path = Path(file.file_path)
@@ -187,7 +187,7 @@ class App:
         success = self.on_file_load(file)
         if not success:
             self.on_restore_state(prev_state)
-            return
+            return False
 
         file.timelines, file.timelines_hash = self.get_timelines_state()
 
@@ -203,6 +203,8 @@ class App:
         self.file_manager.file = file
         post(Post.APP_FILE_LOADED, file)
         self.update_recent_files()
+
+        return True
 
     def update_recent_files(self):
         try:
