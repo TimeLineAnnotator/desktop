@@ -1,5 +1,8 @@
 from tilia.ui.menus import MenuItemKind
-from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
+from tilia.ui.timelines.base.context_menus import (
+    TimelineUIElementContextMenu,
+    TimelineUIContextMenu,
+)
 
 
 class NoteContextMenu(TimelineUIElementContextMenu):
@@ -12,6 +15,6 @@ class NoteContextMenu(TimelineUIElementContextMenu):
     ]
 
 
-class ScoreTimelineUIContextMenu(TimelineUIElementContextMenu):
-    name = "Beat timeline"
-    items = [(MenuItemKind, "timeline.set_name")]
+class ScoreTimelineUIContextMenu(TimelineUIContextMenu):
+    name = "Score timeline"
+    items = [(MenuItemKind.COMMAND, "timeline.set_name")]
