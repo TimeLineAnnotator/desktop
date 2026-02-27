@@ -42,7 +42,7 @@ class HarmonyTimelineUIContextMenu(TimelineUIContextMenu):
         (MenuItemKind.COMMAND, "timeline.harmony.hide_keys"),
     ]
 
-    def __init__(self, timeline_ui):
+    def __init__(self, timeline_ui, x: int, y: int):
         hide_keys_action = commands.get_qaction("timeline.harmony.hide_keys")
         show_keys_action = commands.get_qaction("timeline.harmony.show_keys")
         if timeline_ui.get_data("visible_level_count") == 1:
@@ -51,4 +51,4 @@ class HarmonyTimelineUIContextMenu(TimelineUIContextMenu):
         else:
             hide_keys_action.setVisible(True)
             show_keys_action.setVisible(False)
-        super().__init__(timeline_ui)
+        super().__init__(timeline_ui, x, y)

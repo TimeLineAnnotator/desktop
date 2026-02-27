@@ -1,7 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from tilia.requests import Get, get
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction, get_qaction
 from tilia.ui.menus import MenuItemKind, TiliaMenu
+
+if TYPE_CHECKING:
+    from tilia.ui.timelines.base.timeline import TimelineUI
 
 
 class TimelineUIContextMenu(TiliaMenu):
@@ -11,7 +18,7 @@ class TimelineUIContextMenu(TiliaMenu):
         (MenuItemKind.COMMAND, "timeline.set_height"),
     ]
 
-    def __init__(self, timeline_ui):
+    def __init__(self, timeline_ui: TimelineUI, x: int, y: int):
         super().__init__()
         self.timeline_ui = timeline_ui
         self._add_timeline_actions()
