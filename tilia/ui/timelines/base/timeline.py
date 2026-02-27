@@ -483,7 +483,7 @@ class TimelineUI(ABC):  # noqa: B024
     def display_timeline_context_menu(self, x: int, y: int):
         if not self.CONTEXT_MENU_CLASS:
             return
-        self.CONTEXT_MENU_CLASS(self).exec(QPoint(x, y))
+        self.CONTEXT_MENU_CLASS(self, x, y).exec(QPoint(x, y))
 
     def on_window_open_done(self, kind: WindowKind):
         if kind != WindowKind.INSPECT:

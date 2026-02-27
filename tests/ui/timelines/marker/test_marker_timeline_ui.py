@@ -355,7 +355,7 @@ class TestElementContextMenu:
 class TestTimelineUIContextMenu:
     @staticmethod
     def get_context_menu(tluis, tl_index=0):
-        return tluis[tl_index].CONTEXT_MENU_CLASS(tluis[tl_index])
+        return tluis[tl_index].CONTEXT_MENU_CLASS(tluis[tl_index], 0, 0)
 
     def test_is_shown_on_right_click(self, tluis, marker_tlui):
         with patch.object(MarkerTimelineUIContextMenu, "exec") as mock:
@@ -615,7 +615,7 @@ class TestMoveInTimelineOrder:
             with Serve(Get.FROM_USER_STRING, (True, name)):
                 commands.execute("timelines.add.marker")
 
-        context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1])
+        context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1], 0, 0)
         action = get_command_action(context_menu, "timeline.move_up")
         with undoable():
             action.trigger()
@@ -630,7 +630,7 @@ class TestMoveInTimelineOrder:
             with Serve(Get.FROM_USER_STRING, (True, name)):
                 commands.execute("timelines.add.marker")
 
-        context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1])
+        context_menu = tluis[1].CONTEXT_MENU_CLASS(tluis[1], 0, 0)
         action = get_command_action(context_menu, "timeline.move_down")
         assert action
         with undoable():
