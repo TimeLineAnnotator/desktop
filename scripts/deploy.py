@@ -156,7 +156,7 @@ def _create_lib() -> Path:
             filter=lambda x, _: (
                 x
                 if x.name.startswith(tilia)
-                or x.name.startswith("TiLiA.egg-info")
+                or x.name.startswith(f"{base}/TiLiA.egg-info")
                 or x.name in ext_data
                 else None
             ),
