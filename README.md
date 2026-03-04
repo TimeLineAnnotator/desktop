@@ -5,7 +5,7 @@
 </p>
 TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotations with video and audio files. It is a full-featured, easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PySide library for its GUI.
 
-TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are six types of timelines, but many more are planned.
+TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are seven types of timelines, but many more are planned.
 
 <p align="center">
   <img src="docs/img/tilia-desktop.png" width="600" alt="TiLiA desktop interface" >
