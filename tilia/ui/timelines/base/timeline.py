@@ -562,7 +562,7 @@ class TimelineUI(ABC):  # noqa: B024
     def __str__(self):
         return (
             f"{self.get_data('name') if self.timeline else '<unavailable>'} |"
-            f" {self.timeline_class.type_name}"
+            f" {self.timeline_class.type_name()} timeline"
         )
 
     def update_element_order(self, element: T):
