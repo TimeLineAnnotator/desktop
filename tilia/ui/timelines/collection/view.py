@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractSlider, QGraphicsView
 
+from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.smooth_scroll import setup_smooth, smooth
 
@@ -79,3 +80,7 @@ class TimelineUIsView(QGraphicsView):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._update_scroll_margins()
+
+    def focusOutEvent(self, event):
+        post(Post.TIMELINE_UIS_VIEW_FOCUS_OUT)
+        return super().focusOutEvent(event)

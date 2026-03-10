@@ -467,6 +467,7 @@ class TimelineUIs:
                 Post.IMPORT_MUSICXML,
                 functools.partial(self.on_import_to_timeline, TlKind.SCORE_TIMELINE),
             ),
+            (Post.TIMELINE_UIS_VIEW_FOCUS_OUT, self.clear_selection_boxes),
         }
 
         SERVES = {
