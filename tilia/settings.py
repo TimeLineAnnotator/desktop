@@ -68,6 +68,7 @@ class SettingsManager(QObject):
             "level_height_diff": 25,
             "divider_height": 10,
             "prompt_create_level_below": "true",
+            "merge_separator": "|",
         },
         "marker_timeline": {
             "default_height": 30,

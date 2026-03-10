@@ -393,6 +393,18 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if not success:
             return success, reason
 
+        # preseves label and comments from merged unitst l
+        attr_to_new_value = {}
+        for attr in ["label", "comments"]:
+            new_value = hierarchies[0].get_data(attr)
+            for unit in hierarchies[1:]:
+                if unit.get_data(attr):
+                    if new_value:
+                        new_value += self.timeline.merge_separator
+                    new_value += unit.get_data(attr)
+            if new_value:
+                attr_to_new_value[attr] = new_value
+
         for unit in hierarchies:
             post(Post.LOOP_IGNORE_COMPONENT, self.timeline.id, unit.id)
             self.delete_component(unit)
@@ -402,6 +414,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             start=hierarchies[0].start,
             end=hierarchies[-1].end,
             level=hierarchies[0].level,
+            **attr_to_new_value,
         )
 
         if not merger_unit:
@@ -450,6 +463,11 @@ class HierarchyTimeline(Timeline):
                 ]
             )
         return False
+
+    @property
+    def merge_separator(self):
+        """Separator to be placed between non-empty label and comments of merged units."""
+        return settings.get("hierarchy_timeline", "merge_separator")
 
     def setup_blank_timeline(self):
         """Create unit of level 1 encompassing whole timeline"""

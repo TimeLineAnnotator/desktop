@@ -2,6 +2,7 @@ import pytest
 import itertools
 
 from tilia.exceptions import InvalidComponentKindError
+from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
 )
@@ -697,3 +698,85 @@ class TestGroup:
 
         success, _ = hierarchy_tl.component_manager.group([hrc1, hrc2])
         assert not success
+
+
+class TestMerge:
+    ATTRS = ("label", "comments")
+
+    @staticmethod
+    def create_units_to_merge(hierarchy_tl, count: int = 2) -> list[Hierarchy]:
+        hierarchies = []
+        for i in range(count):
+            hrc, _ = hierarchy_tl.create_hierarchy(start=i, end=i + 1, level=1)
+            hierarchies.append(hrc)
+
+        return hierarchies
+
+    @staticmethod
+    def set_attr(hierarchy: Hierarchy, attr_name: str, value: str) -> None:
+        hierarchy.set_data(attr_name, value)
+
+    @staticmethod
+    def get_attr(hierarchy: Hierarchy, attr_name: str) -> str | None:
+        return hierarchy.get_data(attr_name)
+
+    @pytest.mark.parametrize("attr_name", ATTRS)
+    def test_preserves_left_when_right_is_empty(self, hierarchy_tl, attr_name):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 2)
+        self.set_attr(hrcs[0], attr_name, "left")
+
+        hierarchy_tl.merge(hrcs)
+
+        assert self.get_attr(hierarchy_tl[0], attr_name) == "left"
+
+    @pytest.mark.parametrize("attr_name", ATTRS)
+    def test_preserves_right_when_left_is_empty(self, hierarchy_tl, attr_name):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 2)
+        self.set_attr(hrcs[1], attr_name, "right")
+
+        hierarchy_tl.merge(hrcs)
+
+        assert self.get_attr(hierarchy_tl[0], attr_name) == "right"
+
+    @pytest.mark.parametrize("attr_name", ATTRS)
+    def test_preserves_middle_when_neighbours_are_empty(self, hierarchy_tl, attr_name):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 3)
+        self.set_attr(hrcs[1], attr_name, "middle")
+
+        hierarchy_tl.merge(hrcs)
+
+        assert self.get_attr(hierarchy_tl[0], attr_name) == "middle"
+
+    @pytest.mark.parametrize("attr_name", ATTRS)
+    def test_concatenates_when_both_units_have_it(self, hierarchy_tl, attr_name):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 2)
+        self.set_attr(hrcs[0], attr_name, "left")
+        self.set_attr(hrcs[1], attr_name, "right")
+
+        hierarchy_tl.merge(hrcs)
+
+        new_value = self.get_attr(hierarchy_tl[0], attr_name)
+        assert new_value == "left" + hierarchy_tl.merge_separator + "right"
+
+    @pytest.mark.parametrize("attr_name", ATTRS)
+    def test_concatenates_more_than_two(self, hierarchy_tl, attr_name):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 4)
+        values = ["one", "two", "three", "four"]
+        for i, value in enumerate(values):
+            self.set_attr(hrcs[i], attr_name, value)
+
+        hierarchy_tl.merge(hrcs)
+
+        new_value = self.get_attr(hierarchy_tl[0], attr_name)
+        assert new_value == hierarchy_tl.merge_separator.join(values)
+
+    @pytest.mark.parametrize("attr_name", ATTRS)
+    def test_ignores_empty_when_concatenating(self, hierarchy_tl, attr_name):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 5)
+        self.set_attr(hrcs[1], attr_name, "first")
+        self.set_attr(hrcs[3], attr_name, "second")
+
+        hierarchy_tl.merge(hrcs)
+
+        new_value = self.get_attr(hierarchy_tl[0], attr_name)
+        assert new_value == "first" + hierarchy_tl.merge_separator + "second"
