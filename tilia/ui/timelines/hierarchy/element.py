@@ -242,7 +242,7 @@ class HierarchyUI(TimelineUIElement):
         self.body.set_fill(self.ui_color)
 
     def update_comments(self):
-        self.comments_icon.setVisible(bool(self.get_data("comments")))
+        self.update_comments_icon_visibility()
 
     def update_label(self, start_x=None, end_x=None, level=None, height=None):
         # if called from update_position,
@@ -311,8 +311,18 @@ class HierarchyUI(TimelineUIElement):
             height,
         )
 
+    def update_comments_icon_visibility(self):
+        width = QFontMetrics(QFont("Arial", 10)).horizontalAdvance(
+            self.comments_icon.toPlainText()
+        )
+        visible = bool(self.get_data("comments")) and (
+            width < self.end_x - self.start_x
+        )
+        self.comments_icon.setVisible(visible)
+
     def update_comments_icon_position(self, level, height, end_x):
         self.comments_icon.set_position(end_x, level, height)
+        self.update_comments_icon_visibility()
 
     def update_loop_icon_position(self, level, height, start_x):
         self.loop_icon.set_position(start_x, height, level)
@@ -396,10 +406,12 @@ class HierarchyUI(TimelineUIElement):
 
     def _setup_comments_icon(self):
         self.comments_icon = HierarchyCommentsIcon(
-            self.end_x, self.timeline_ui.get_data("height"), self.get_data("level")
+            self.end_x,
+            self.get_data("level"),
+            self.timeline_ui.get_data("height"),
         )
         self.scene.addItem(self.comments_icon)
-        self.comments_icon.setVisible(bool(self.get_data("comments")))
+        self.update_comments_icon_visibility()
 
     def _setup_loop_icon(self):
         self.loop_icon = HierarchyLoopIcon(
@@ -740,20 +752,20 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
     def __init__(
         self,
         end_x: float,
-        tl_height: int,
         level: int,
+        tl_height: int,
     ):
         super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
         self.setup_font()
         self.setPlainText(self.ICON)
-        self.set_position(end_x, tl_height, level)
+        self.set_position(end_x, level, tl_height)
 
     def setup_font(self):
         font = QFont("Arial", 6)
         self.setFont(font)
         self.setDefaultTextColor(QColor("black"))
 
-    def get_point(self, end_x: float, tl_height, level):
+    def get_point(self, end_x: float, level, tl_height):
         x = end_x + self.LEFT_MARGIN
         y = (
             tl_height
@@ -766,8 +778,8 @@ class HierarchyCommentsIcon(CursorMixIn, QGraphicsTextItem):
         )
         return QPointF(x, y)
 
-    def set_position(self, end_x, tl_height, level):
-        self.setPos(self.get_point(end_x, tl_height, level))
+    def set_position(self, end_x, level, tl_height):
+        self.setPos(self.get_point(end_x, level, tl_height))
         self.setZValue(level + 1)
 
 

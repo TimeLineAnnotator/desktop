@@ -264,6 +264,53 @@ class TestPostEndIndicator:
         assert tlui[0].post_end_handle.isVisible() is False
 
 
+class TestCommentsIndicator:
+    @staticmethod
+    def create_hierarchy_ui(
+        tlui, start: float = 0, end: float = 100, level: float = 1, **kwargs
+    ):
+        # We use a large "end" to ensure comments icon will fit.
+        tlui.create_hierarchy(start, end, level, **kwargs)
+        hui: HierarchyUI = tlui[0]
+        return hui
+
+    def test_is_hidden_when_instantiated_without_comments(self, tlui):
+        hui = self.create_hierarchy_ui(tlui)
+        assert not hui.comments_icon.isVisible()
+
+    def test_is_visible_when_instantiated_with_comments(self, tlui):
+        hui = self.create_hierarchy_ui(tlui, comments="something")
+        assert hui.comments_icon.isVisible()
+
+    def test_is_displayed_when_comments_are_set(self, tlui):
+        hui = self.create_hierarchy_ui(tlui)
+        hui.set_data("comments", "something")
+
+        assert hui.comments_icon.isVisible()
+
+    def test_is_hidden_when_comments_are_deleted(self, tlui):
+        hui = self.create_hierarchy_ui(tlui, comments="something")
+        hui.set_data("comments", "")
+        assert not hui.comments_icon.isVisible()
+
+    def test_still_visible_when_hierarchy_is_moved(self, tlui):
+        hui = self.create_hierarchy_ui(tlui, 0, 10, comments="something")
+        for i in range(10):
+            hui.set_data("start", i)
+            assert hui.comments_icon.isVisible()
+            hui.set_data("end", i + 10)
+            assert hui.comments_icon.isVisible()
+
+    def test_is_hidden_when_hierarchy_is_too_small(self, tlui):
+        hui = self.create_hierarchy_ui(tlui, 0, 0.000001, comments="something")
+        assert not hui.comments_icon.isVisible()
+
+    def test_is_shown_when_hierarchy_gets_big_enough(self, tlui):
+        hui = self.create_hierarchy_ui(tlui, 0, 0.000001, comments="something")
+        hui.set_data("end", 100)
+        assert hui.comments_icon.isVisible()
+
+
 class TestDoubleClick:
     def test_posts_seek(self, tlui):
         tlui.create_hierarchy(10, 15, 1)
