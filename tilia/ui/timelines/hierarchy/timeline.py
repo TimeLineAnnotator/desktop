@@ -49,7 +49,7 @@ class HierarchyTimelineUI(TimelineUI):
             (
                 "create_child",
                 "Create child",
-                "",
+                "c",
                 "below30",
             ),
             (
