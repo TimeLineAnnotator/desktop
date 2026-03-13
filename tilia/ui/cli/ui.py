@@ -47,17 +47,17 @@ class CLI:
         serve(self, Get.FROM_USER_SHOULD_SAVE_CHANGES, on_ask_should_save_changes)
 
     def setup_parsers(self):
-        timelines.setup_parser(self.subparsers)
+        clear.setup_parser(self.subparsers)
+        components.setup_parser(self.subparsers)
+        export.setup_parser(self.subparsers)
+        generate_scripts.setup_parser(self.subparsers, self.parse_and_run)
+        load_media.setup_parser(self.subparsers, self.parse_and_run)
+        metadata.setup_parser(self.subparsers)
+        open.setup_parser(self.subparsers)
         quit.setup_parser(self.subparsers)
         save.setup_parser(self.subparsers)
-        load_media.setup_parser(self.subparsers, self.parse_and_run)
-        components.setup_parser(self.subparsers)
-        metadata.setup_parser(self.subparsers)
-        generate_scripts.setup_parser(self.subparsers, self.parse_and_run)
         script.setup_parser(self.subparsers, self.parse_and_run)
-        open.setup_parser(self.subparsers)
-        export.setup_parser(self.subparsers)
-        clear.setup_parser(self.subparsers)
+        timelines.setup_parser(self.subparsers)
 
     @staticmethod
     def parse_command(arg_string):
