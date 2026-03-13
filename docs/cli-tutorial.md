@@ -12,7 +12,7 @@ See [README.md](README.md) detailed installation instructions.
 
 The CLI can be run from source code as follows:
 ```bash
-python tilia/main.py --interface cli
+python -m tilia.main --user-interface cli
 ```
 
 You can also run it from a TiLiA binary:
