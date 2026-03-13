@@ -10,6 +10,6 @@ def setup_parser(subparsers):
     metadata_subp = parser.add_subparsers(dest="timeline_command")
 
     setup_import_parser(metadata_subp)
-    setup_show_parser(metadata_subp)
-    setup_set_media_length_parser(metadata_subp)
     setup_set_parser(metadata_subp)
+    setup_set_media_length_parser(metadata_subp)
+    setup_show_parser(metadata_subp)

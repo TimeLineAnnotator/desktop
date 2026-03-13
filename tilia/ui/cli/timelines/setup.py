@@ -15,7 +15,7 @@ def setup_parser(subparsers):
     tl_subparser = tl.add_subparsers(dest="timeline_command")
 
     setup_add_parser(tl_subparser)
-    setup_list_parser(tl_subparser)
-    setup_remove_parser(tl_subparser)
     setup_import_parser(tl_subparser)
+    setup_list_parser(tl_subparser)
     setup_move_parser(tl_subparser)
+    setup_remove_parser(tl_subparser)
