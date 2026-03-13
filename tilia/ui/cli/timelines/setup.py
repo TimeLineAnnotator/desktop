@@ -7,7 +7,10 @@ from .move import setup_parser as setup_move_parser
 
 def setup_parser(subparsers):
     tl = subparsers.add_parser(
-        "timelines", exit_on_error=False, aliases=["tl", "timeline"]
+        "timelines",
+        exit_on_error=False,
+        aliases=["tl", "timeline"],
+        help="Timeline operations. See `timelines -h` for more info.",
     )
     tl_subparser = tl.add_subparsers(dest="timeline_command")
 
