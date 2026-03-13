@@ -12,7 +12,14 @@ from tilia.requests import post, Post
 
 
 def setup_parser(subparser, parse_and_run: Callable[[str], bool]):
-    generate_subp = subparser.add_parser("generate_scripts", exit_on_error=False)
+    generate_subp = subparser.add_parser(
+        "generate_scripts",
+        exit_on_error=False,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Function to generate scripts. See `generate_scripts -h` for more info.",
+        description=f"""Using input directory path, runs get_scripts to generate scripts, then asks to run.
+get_scripts:{get_scripts.__doc__}""",
+    )
     generate_subp.add_argument("path", type=str, nargs="+")
     generate_subp.set_defaults(func=partial(generate, parse_and_run))
 
