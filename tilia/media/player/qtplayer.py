@@ -3,7 +3,13 @@ from __future__ import annotations
 import time
 
 from PyQt6.QtCore import QUrl
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput, QAudio
+from PyQt6.QtMultimedia import (
+    QMediaPlayer,
+    QAudioOutput,
+    QAudio,
+    QAudioDevice,
+    QMediaDevices,
+)
 
 from .base import Player
 
@@ -17,6 +23,9 @@ class QtPlayer(Player):
     def __init__(self):
         super().__init__()
         self.audio_output = QAudioOutput()
+        self.audio_output.setDevice(QAudioDevice())
+        self.media_devices = QMediaDevices()
+        self.media_devices.audioOutputsChanged.connect(self.on_audio_outputs_changed)
         self._init_player()
 
     def _init_player(self):
@@ -30,6 +39,13 @@ class QtPlayer(Player):
 
     def on_media_duration_available(self, duration):
         super().on_media_duration_available(duration / 1000)
+
+    def on_audio_outputs_changed(self) -> None:
+        """
+        Connected to QMediaDevices.audioOutputsChanged.
+        Sets the audio output to the default output device.
+        """
+        self.audio_output.setDevice(QAudioDevice())
 
     def _engine_load_media(self, media_path: str) -> bool:
         self._engine_stop()  # Must be _engine_stop() instead of player.stop() to avoid freeze.
