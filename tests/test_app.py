@@ -20,6 +20,7 @@ from tests.utils import (
     load_local_media,
     load_youtube_media,
     save_and_reopen,
+    save_tilia_to_tmp_path,
 )
 from tilia.media.player import QtAudioPlayer, YouTubePlayer
 from tilia.requests import Get, Post, get, post
@@ -781,3 +782,76 @@ class TestIDs:
             marker_tl.create_component(ComponentKind.MARKER, time=1, id=id)
         error.assert_called()
         assert marker_tl.components[0].id == "1"
+
+
+class TestWindowTitle:
+    @staticmethod
+    def assert_window_title(qtui, title: str):
+        assert qtui.window_title == f"{title} - {tilia.constants.APP_NAME}"
+
+    @staticmethod
+    def assert_window_title_is_default(qtui):
+        assert qtui.window_title == qtui.DEFAULT_WINDOW_TITLE
+
+    @staticmethod
+    def set_media_title(value: str):
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", value)
+
+    def test_is_default_by_default(self, qtui):
+        self.assert_window_title_is_default(qtui)
+
+    def test_is_file_title_after_file_save_if_title(self, qtui, tmp_path, tilia_state):
+        file_title = "My Test Song"
+        self.set_media_title(file_title)
+        save_tilia_to_tmp_path(tmp_path, "test_window_title.tla")
+        self.assert_window_title(qtui, file_title)
+
+    def test_is_title_after_title_is_set(self, qtui, tilia_state):
+        file_title = "My Title"
+        self.set_media_title(file_title)
+        self.assert_window_title(qtui, file_title)
+
+    def test_reverts_to_default_if_tile_becomes_empty(self, qtui, tilia_state):
+        file_title = "Temporary Title"
+        self.set_media_title(file_title)
+        self.assert_window_title(qtui, file_title)
+
+        self.set_media_title("")
+        self.assert_window_title_is_default(qtui)
+
+    def test_is_filename_after_file_save_if_no_title(self, qtui, tmp_path):
+        save_tilia_to_tmp_path(tmp_path, "test_window_title.tla")
+        self.assert_window_title(qtui, "test_window_title.tla")
+
+    def test_is_title_after_file_save_if_title(self, qtui, tmp_path):
+        file_title = "Should Be This"
+        self.set_media_title(file_title)
+        save_tilia_to_tmp_path(tmp_path, "Should Not Be This.tla")
+        self.assert_window_title(qtui, file_title)
+
+    def test_is_default_after_new_file(self, qtui, tmp_path):
+        save_tilia_to_tmp_path(tmp_path, "test_window_title.tla")
+        commands.execute("file.new")
+        self.assert_window_title_is_default(qtui)
+
+    def test_is_filename_after_file_load_if_no_title(self, qtui, tmp_path):
+        save_tilia_to_tmp_path(tmp_path, "test_window_title.tla")
+        self.assert_window_title(qtui, "test_window_title.tla")
+
+    def test_is__title_after_load_if_title(self, qtui, tmp_path, tilia_state):
+        file_title = "Loaded Song Title"
+        self.set_media_title(file_title)
+        save_tilia_to_tmp_path(tmp_path)
+        self.assert_window_title(qtui, file_title)
+
+    def test_is_filename_if_title_is_set_to_empty_but_file_has_been_saved(
+        self, qtui, tmp_path
+    ):
+        file_title = "Yet Another Title"
+        file_name = "should_revert_to_this.tla"
+
+        self.set_media_title(file_title)
+        save_tilia_to_tmp_path(tmp_path, file_name)
+
+        self.set_media_title("")
+        self.assert_window_title(qtui, file_name)

@@ -78,7 +78,8 @@ class FileManager:
                 Get.MEDIA_METADATA_REQUIRED_FIELDS,
                 self.get_media_metadata_required_fields,
             ),
-            (Get.MEDIA_TITLE, lambda: self.file.media_metadata["title"]),
+            (Get.MEDIA_TITLE, lambda: self.file.media_metadata.get("title", "")),
+            (Get.FILE_PATH, lambda: self.file.file_path),
         }
 
         for post_, callback in LISTENS:
@@ -116,15 +117,24 @@ class FileManager:
     def on_save_request(self):
         """Saves tilia file to current file path."""
         app_state = get(Get.APP_STATE)
-        if not app_state["file_path"]:
+        if not app_state.get("file_path"):
             # in case file has not been saved before
             return self.on_save_as_request()
 
+        path = app_state.get("file_path")
+        if not path:
+            tilia.errors.display(
+                tilia.errors.FILE_SAVE_FAILED, "Could not get file path."
+            )
+            return False
+
         try:
-            self.save(app_state, app_state["file_path"])
+            self.save(app_state, path)
         except Exception as exc:
             tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
+            return False
 
+        post(Post.FILE_SAVED, path)
         return True
 
     def on_save_as_request(self):
@@ -147,6 +157,7 @@ class FileManager:
             if save_title != old_title:
                 self.on_set_media_metadata_field("title", old_title)
 
+        post(Post.FILE_SAVED, path)
         return True
 
     def on_save_to_path_request(self, path: Path):
@@ -155,6 +166,8 @@ class FileManager:
             self.save(get(Get.APP_STATE), path)
         except Exception as exc:
             tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
+
+        post(Post.FILE_SAVED, path)
 
     def on_close_modified_file(self):
         success, should_save = self.ask_save_changes_if_modified()
@@ -180,6 +193,8 @@ class FileManager:
             raise MediaMetadataFieldNotFound(f"Field {field_name} not found.")
 
         self.file.media_metadata[field_name] = value
+        if field_name == "title":
+            post(Post.MEDIA_METADATA_TITLE_UPDATED, value)
 
     def on_add_media_metadata_field(self, field_name: str) -> None:
         """Adds a new media metadata field."""
