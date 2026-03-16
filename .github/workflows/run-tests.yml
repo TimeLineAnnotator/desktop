@@ -41,9 +41,9 @@ jobs:
       QT_QPA_PLATFORM: offscreen
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -57,7 +57,7 @@ jobs:
       if: runner.os == 'macOS'
       run: brew install coreutils
 
-    - uses: actions/cache@v4
+    - uses: actions/cache@v5
       with:
         path: ${{ matrix.path }}
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
