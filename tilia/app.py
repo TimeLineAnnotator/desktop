@@ -291,10 +291,11 @@ class App:
         existing_ids = timeline_ids.union(component_ids)
 
         next_id = next(self._id_counter)
-        # Increments counter until a unique id is found.
-        # Could easily be optimised.
-        while str(next_id) in existing_ids:
-            next_id = next(self._id_counter)
+        # Find the highest existing ID and increment until counter is higher
+        if existing_ids:
+            highest_id = max(int(id_str) for id_str in existing_ids)
+            while next_id <= highest_id:
+                next_id = next(self._id_counter)
         return str(next_id)
 
     def reset_id_generator(self):
