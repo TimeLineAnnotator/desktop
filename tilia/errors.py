@@ -108,6 +108,10 @@ COMMAND_FAILED = Error(
     "Command failed",
     "Something went wrong when executing the last command.\nCommand={}\n\n{}",
 )
+INVALID_RETURN_VALUES_FOR_COMMAND = Error(
+    "Invalid return values for command",
+    "Invalid return values for command: {}\nValues: {}",
+)
 SCORE_SVG_CREATE_ERROR = Error("Error creating SVG", "{}")
 INVALID_MEASURE_FRACTION = Error(
     "Invalid measure fraction",

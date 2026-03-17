@@ -293,17 +293,25 @@ def test_set_is_visible(tls, marker_tlui):
 
 
 class TestOnTimelineCommand:
+    @staticmethod
+    def call_on_timeline_command(tluis, callback):
+        tluis.on_timeline_command(
+            [TimelineKind.MARKER_TIMELINE], callback, TimelineSelector.ALL
+        )
+
+    @staticmethod
+    def add_timeline(count=1):
+        for _ in range(count):
+            commands.execute("timelines.add.marker", name="")
+
     def test_command_callback_error_is_displayed_if_callback_is_function(
         self, tls, tluis, tilia_errors
     ):
-        def fail(tlui, *args, **kwargs):
+        def fail(*args, **kwargs):
             raise ValueError
 
-        commands.execute("timelines.add.marker", name="")
-
-        tluis.on_timeline_command(
-            [TimelineKind.MARKER_TIMELINE], fail, TimelineSelector.FIRST
-        )
+        self.add_timeline()
+        self.call_on_timeline_command(tluis, fail)
 
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message(fail.__name__)
@@ -312,15 +320,12 @@ class TestOnTimelineCommand:
         self, tls, tluis, tilia_errors
     ):
         class Dummy:
-            def fail(self, tlui, *args, **kwargs):
+            def fail(self, *args, **kwargs):
                 raise ValueError
 
         dummy = Dummy()
-        commands.execute("timelines.add.marker", name="")
-
-        tluis.on_timeline_command(
-            [TimelineKind.MARKER_TIMELINE], dummy.fail, TimelineSelector.FIRST
-        )
+        self.add_timeline()
+        self.call_on_timeline_command(tluis, dummy.fail)
 
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message(dummy.fail.__name__)
@@ -328,11 +333,72 @@ class TestOnTimelineCommand:
     def test_command_callback_error_is_displayed_if_callback_is_something_else(
         self, tls, tluis, tilia_errors
     ):
-        commands.execute("timelines.add.marker", name="")
-
-        tluis.on_timeline_command(
-            [TimelineKind.MARKER_TIMELINE], "not a function", TimelineSelector.FIRST
-        )
+        self.add_timeline()
+        self.call_on_timeline_command(tluis, "not a function")
 
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("not a function")
+
+    def test_command_callback_return_invalid_value_single_timeline(
+        self, tluis, tilia_errors
+    ):
+        self.add_timeline()
+
+        def return_invalid_value(*args, **kwargs):
+            return "not a boolean"
+
+        self.call_on_timeline_command(tluis, return_invalid_value)
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("not a boolean")
+
+    def test_command_callback_return_invalid_value_multiple_timelines(
+        self, tluis, tilia_errors
+    ):
+        self.add_timeline(count=3)
+
+        def value_generator():
+            yield True
+            yield True
+            yield "not a boolean"
+
+        gen = value_generator()
+
+        self.call_on_timeline_command(tluis, lambda *args, **kwargs: next(gen))
+
+        tilia_errors.assert_error()
+
+    @pytest.mark.parametrize("return_value", [True, False])
+    def test_command_callback_return_valid_value_single_timeline(
+        self, return_value, tluis, tilia_errors
+    ):
+        self.add_timeline()
+
+        self.call_on_timeline_command(tluis, lambda *args, **kwargs: return_value)
+
+        tilia_errors.assert_no_error()
+
+    @pytest.mark.parametrize(
+        "return_values",
+        (
+            [True, True, True],
+            [True, True, False],
+            [True, False, True],
+            [False, True, True],
+            [False, False, False],
+        ),
+    )
+    def test_command_callback_return_valid_value_list(
+        self, return_values, tluis, tilia_errors
+    ):
+        self.add_timeline(count=3)
+
+        def value_generator():
+            yield return_values[0]
+            yield return_values[1]
+            yield return_values[2]
+
+        gen = value_generator()
+        self.call_on_timeline_command(tluis, lambda *args, **kwargs: next(gen))
+
+        tilia_errors.assert_no_error()

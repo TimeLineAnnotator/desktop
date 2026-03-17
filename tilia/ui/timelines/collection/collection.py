@@ -290,9 +290,16 @@ class TimelineUIs:
             post(Post.APP_STATE_RECOVER, state_backup)
             return
 
-        success = self.validate_command_return_value(
+        if not self.validate_command_return_value(
             method_name or callback.__name__, result
-        )
+        ):
+            tilia.errors.display(
+                tilia.errors.INVALID_RETURN_VALUES_FOR_COMMAND,
+                method_name or callback.__name__,
+                result,
+            )
+
+        success = all(result)
 
         if success:
             post(
