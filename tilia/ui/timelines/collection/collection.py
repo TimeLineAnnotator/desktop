@@ -257,7 +257,9 @@ class TimelineUIs:
         **kwargs,
     ):
         """
-        To be used as a wrapper for a timeline command.
+        To be used as part of the callback of commands that are used by for multiple timelines
+        (e.g. timeline.component.delete, timeline.component.set_color).
+        Gets the timelines to apply the command to based on `selector` and calls `callback` passing them as arguments.
         Displays errors to the user and attempts to recover from them.
         Records state so the user can undo/redo the command.
         """
