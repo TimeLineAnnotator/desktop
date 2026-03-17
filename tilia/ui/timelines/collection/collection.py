@@ -284,7 +284,7 @@ class TimelineUIs:
         except Exception:
             tilia.errors.display(
                 tilia.errors.COMMAND_FAILED,
-                f"Timeline command callback '{callback.__name__}'",
+                f"Timeline command callback '{callback.__name__ if hasattr(callback, '__name__') else callback}'",
                 traceback.format_exc(),
             )
             post(Post.APP_STATE_RECOVER, state_backup)

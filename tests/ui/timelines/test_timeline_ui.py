@@ -9,6 +9,7 @@ from tests.utils import undoable
 from tilia.requests import Post, post, Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.timelines.collection.collection import TimelineSelector
 from tilia.ui import commands
 
 
@@ -289,3 +290,49 @@ def test_set_is_visible(tls, marker_tlui):
         commands.execute("timeline.set_is_visible", marker_tlui, True)
 
     assert marker_tlui.view.isVisible()
+
+
+class TestOnTimelineCommand:
+    def test_command_callback_error_is_displayed_if_callback_is_function(
+        self, tls, tluis, tilia_errors
+    ):
+        def fail(tlui, *args, **kwargs):
+            raise ValueError
+
+        commands.execute("timelines.add.marker", name="")
+
+        tluis.on_timeline_command(
+            [TimelineKind.MARKER_TIMELINE], fail, TimelineSelector.FIRST
+        )
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message(fail.__name__)
+
+    def test_command_callback_error_is_displayed_if_callback_is_method(
+        self, tls, tluis, tilia_errors
+    ):
+        class Dummy:
+            def fail(self, tlui, *args, **kwargs):
+                raise ValueError
+
+        dummy = Dummy()
+        commands.execute("timelines.add.marker", name="")
+
+        tluis.on_timeline_command(
+            [TimelineKind.MARKER_TIMELINE], dummy.fail, TimelineSelector.FIRST
+        )
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message(dummy.fail.__name__)
+
+    def test_command_callback_error_is_displayed_if_callback_is_something_else(
+        self, tls, tluis, tilia_errors
+    ):
+        commands.execute("timelines.add.marker", name="")
+
+        tluis.on_timeline_command(
+            [TimelineKind.MARKER_TIMELINE], "not a function", TimelineSelector.FIRST
+        )
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("not a function")
