@@ -115,9 +115,9 @@ def execute(command_name: str, *args, **kwargs):
 
 def _execute_dev(command_name: str, *args, **kwargs):
     if command_name not in _name_to_callback:
-        for key in _name_to_callback:
-            print(key)
-        raise ValueError(f"Unregistered command: {command_name}")
+        raise ValueError(
+            f"Unregistered command: {command_name}.\nRegistered commands:\n{list(_name_to_callback.keys())}"
+        )
 
     try:
         return _name_to_callback[command_name](*args, **kwargs)
