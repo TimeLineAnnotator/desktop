@@ -35,21 +35,21 @@ class TestChangeTimelineVisibility:
     def test_hide(self, marker_tlui):
         commands.execute("timeline.set_is_visible", marker_tlui, True)
         self.toggle_timeline_is_visible()
-        assert marker_tlui.get_data("is_visible") is False
+        assert not marker_tlui.get_data("is_visible")
 
     def test_show(self, marker_tlui):
         commands.execute("timeline.set_is_visible", marker_tlui, False)
         self.toggle_timeline_is_visible()
-        assert marker_tlui.get_data("is_visible") is True
+        assert marker_tlui.get_data("is_visible")
 
     def test_toggle_visibility_multiple_times(self, marker_tlui):
         commands.execute("timeline.set_is_visible", marker_tlui, True)
         for i in range(10):
             self.toggle_timeline_is_visible()
             if i % 2 == 1:
-                assert marker_tlui.get_data("is_visible") is True
+                assert marker_tlui.get_data("is_visible")
             else:
-                assert marker_tlui.get_data("is_visible") is False
+                assert not marker_tlui.get_data("is_visible")
 
 
 class TestChangeTimelineOrder:

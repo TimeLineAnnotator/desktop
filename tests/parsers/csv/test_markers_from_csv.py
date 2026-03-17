@@ -120,7 +120,7 @@ def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(
 
     success = patch_import("time", marker_tlui.timeline, data)
 
-    assert success is True
+    assert success
     tilia_errors.assert_in_error_message("nonsense")
 
 
@@ -132,7 +132,7 @@ def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
 
     success = patch_import("time", marker_tlui.timeline, data)
 
-    assert success is True
+    assert success
     tilia_errors.assert_in_error_message(format_media_time(999))
 
 
@@ -142,7 +142,7 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
     data = "measure\nnonsense"
     success = patch_import("measure", marker_tlui.timeline, data)
 
-    assert success is True
+    assert success
     tilia_errors.assert_in_error_message("nonsense")
 
 
@@ -158,7 +158,7 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
     data = "measure,fraction\n1,nonsense"
     success = patch_import("measure", marker_tl, data)
 
-    assert success is True
+    assert success
     tilia_errors.assert_in_error_message("nonsense")
 
     assert marker_tl[0].time == 1
