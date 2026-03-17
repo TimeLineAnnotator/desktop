@@ -77,9 +77,6 @@ jobs:
           echo "\n\nStarting CLI..."
           echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }} --user-interface=cli" | bash || true
 
-          zip -r9 ${{ steps.build-exe.outputs.zip-filepath }} ${{ steps.build-exe.outputs.out-filepath }} || true
-          rm -rf ${{ steps.build-exe.outputs.out-filepath }}
-
       - name: Test executable [Windows]
         if: runner.os == 'Windows'
         shell: bash
