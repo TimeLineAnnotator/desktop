@@ -811,7 +811,7 @@ class TestWindowTitle:
         self.set_media_title(file_title)
         self.assert_window_title(qtui, file_title)
 
-    def test_reverts_to_default_if_tile_becomes_empty(self, qtui, tilia_state):
+    def test_reverts_to_default_if_title_becomes_empty(self, qtui, tilia_state):
         file_title = "Temporary Title"
         self.set_media_title(file_title)
         self.assert_window_title(qtui, file_title)
