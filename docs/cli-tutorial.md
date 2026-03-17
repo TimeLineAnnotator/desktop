@@ -2,23 +2,15 @@
 
 This tutorial shows how the TiLiA CLI can be used to perform some common tasks.
 
-## Setup
+### Setup
 
-### Installation
-
-See [README.md](README.md) detailed installation instructions.
+See [README.md](README.md) for instructions on how to clone the repository and install the dependencies.
 
 ### Running the CLI
 
-The CLI can be run from source code as follows:
+The CLI can be run from the source code with:
 ```bash
 python -m tilia.main --user-interface cli
-```
-
-You can also run it from a TiLiA binary:
-```bash
-cd "C:/Program Files/TiLiA"
-./tilia --interface cli
 ```
 
 TiLiA CLI is an interactive shell. You'll see ``>>>`` when it's ready for your input.
