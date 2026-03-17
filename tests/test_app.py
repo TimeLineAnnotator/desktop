@@ -20,6 +20,7 @@ from tilia.media.player import YouTubePlayer, QtAudioPlayer
 from tilia.settings import settings
 
 from tilia.requests import Get, Post, post, get
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import commands
 from tilia.ui.windows import WindowKind
@@ -724,3 +725,17 @@ class TestIDs:
         self.assert_ids_are_unique(
             tls, 61
         )  # 10 marker timelines + 1 slider timeline + 50 components
+
+    def test_create_component_with_higher_id_before_lower_id(self, marker_tl):
+        marker_tl.create_component(ComponentKind.MARKER, time=0, id=10)
+        marker_tl.create_component(ComponentKind.MARKER, time=1, id=1)
+        marker_tl.create_component(ComponentKind.MARKER, time=2)
+
+        assert [c.id for c in marker_tl.components] == ["10", "1", "11"]
+
+    def test_create_component_with_duplicate_ids(self, marker_tl):
+        marker_tl.create_component(ComponentKind.MARKER, time=0)  # id=1; tl has id=0
+        marker_tl.create_component(ComponentKind.MARKER, time=1, id=1)
+        marker_tl.create_component(ComponentKind.MARKER, time=2, id=1)
+
+        assert [c.id for c in marker_tl.components] == ["1", "2", "3"]

@@ -71,7 +71,7 @@ class Timeline(ABC, Generic[TC]):
         id: int | None = None,
         **kwargs,  # ignores components_hash
     ):
-        self.id = id if id is not None else get(Get.ID)
+        self.id = get(Get.ID, id)
 
         self.name = name
         self.is_visible = is_visible
@@ -189,7 +189,7 @@ class Timeline(ABC, Generic[TC]):
     def create_component(
         self, kind: ComponentKind, *args, id=None, **kwargs
     ) -> tuple[TC | None, str | None]:
-        component_id = id or get(Get.ID)
+        component_id = get(Get.ID, id)
         success, component, reason = self.component_manager.create_component(
             kind, self, component_id, *args, **kwargs
         )

@@ -275,28 +275,32 @@ class App:
             repeat_identifier=repeat_identifier,
         )
 
-    def get_id(self) -> str:
+    def get_id(self, id: str | None = None) -> str:
         """
         Returns an ID string.
-        IDs are unique accross timeline component and timelines.
+        IDs are unique across timeline component and timelines.
         Other IDs might contain duplicates.
         """
-        timeline_ids = {c.id for c in self.timelines}
+        if id is None:
+            return str(next(self._id_counter))
+
+        int_id = int(id)
+        timeline_ids = {int(c.id) for c in self.timelines}
         component_lists = [
             tl.components for tl in self.timelines if tl.components is not None
         ]
-        component_ids = set()
-        for component_list in component_lists:
-            component_ids = component_ids.union({c.id for c in component_list})
+        component_ids = {
+            int(c.id) for component_list in component_lists for c in component_list
+        }
         existing_ids = timeline_ids.union(component_ids)
 
-        next_id = next(self._id_counter)
-        # Find the highest existing ID and increment until counter is higher
-        if existing_ids:
-            highest_id = max(int(id_str) for id_str in existing_ids)
-            while next_id <= highest_id:
-                next_id = next(self._id_counter)
-        return str(next_id)
+        if int_id in existing_ids:
+            return str(next(self._id_counter))
+
+        if not existing_ids or int_id > max(existing_ids):
+            self._id_counter = itertools.count(int_id + 1)
+
+        return str(int_id)
 
     def reset_id_generator(self):
         self._id_counter = itertools.count()
