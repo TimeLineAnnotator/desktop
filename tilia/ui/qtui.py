@@ -13,7 +13,14 @@ from PySide6.QtCore import (
     Qt,
     QUrl,
 )
-from PySide6.QtGui import QDesktopServices, QFontDatabase, QIcon, QPainter, QPixmap
+from PySide6.QtGui import (
+    QDesktopServices,
+    QFontDatabase,
+    QIcon,
+    QPainter,
+    QPixmap,
+    qt_set_sequence_auto_mnemonic,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -211,6 +218,10 @@ class QtUI:
         self._setup_dialog_manager()
         self._setup_menus()
         self._setup_windows()
+
+        # Enable mnemonics in Mac
+        # See: https://doc.qt.io/qt-6/qkeysequence.html#qt_set_sequence_auto_mnemonic
+        qt_set_sequence_auto_mnemonic(True)
 
         self.is_error = False
 
