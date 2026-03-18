@@ -51,10 +51,7 @@ class Timeline(ABC, Generic[TC]):
     SERIALIZABLE = ["name", "height", "is_visible", "ordinal"]
     NOT_EXPORTABLE_ATTRS = []
     KIND: TimelineKind | None = None
-    FLAGS = [
-        TimelineFlag.COMPONENTS_COPYABLE,
-        TimelineFlag.COMPONENTS_IMPORTABLE,
-    ]
+    FLAGS = []
     COMPONENT_MANAGER_CLASS = None
 
     validators = {

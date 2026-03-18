@@ -422,7 +422,11 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 class HierarchyTimeline(Timeline):
     KIND = TimelineKind.HIERARCHY_TIMELINE
     COMPONENT_MANAGER_CLASS = HierarchyTLComponentManager
-    FLAGS = Timeline.FLAGS + [TimelineFlag.COMPONENTS_COLORED]
+    FLAGS = [
+        TimelineFlag.COMPONENTS_COLORED,
+        TimelineFlag.COMPONENTS_COPYABLE,
+        TimelineFlag.COMPONENTS_IMPORTABLE,
+    ]
 
     @property
     def default_height(self):
