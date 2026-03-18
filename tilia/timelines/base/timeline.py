@@ -40,7 +40,6 @@ class TimelineFlag(Enum):
     COMPONENTS_COLORED = auto()
     COMPONENTS_IMPORTABLE = auto()
     COMPONENTS_COPYABLE = auto()
-    HAS_COMPONENTS = auto()
     COMPONENTS_NOT_DELETABLE = auto()
     COMPONENTS_NOT_EDITABLE = auto()
     NOT_CLEARABLE = auto()
@@ -53,7 +52,6 @@ class Timeline(ABC, Generic[TC]):
     NOT_EXPORTABLE_ATTRS = []
     KIND: TimelineKind | None = None
     FLAGS = [
-        TimelineFlag.HAS_COMPONENTS,
         TimelineFlag.COMPONENTS_COPYABLE,
         TimelineFlag.COMPONENTS_IMPORTABLE,
     ]
