@@ -259,7 +259,9 @@ def build():
                     outdir / "exe" / "tilia.app",
                     outdir / "exe" / (out_filename + ".app"),
                 )
-            out_filepath = outdir / "exe" / out_filename
+                out_filepath = outdir / "exe" / (out_filename + ".app")
+            else:
+                out_filepath = outdir / "exe" / out_filename
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                 f.write(f"out-filepath={out_filepath.as_posix()}\n")
                 f.write(f"out-filename={out_filename}\n")
