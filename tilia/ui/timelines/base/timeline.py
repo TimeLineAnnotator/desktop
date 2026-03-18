@@ -108,9 +108,12 @@ class TimelineUI(ABC):
     def __lt__(self, other):
         return self.get_data("ordinal") < other.get_data("ordinal")
 
+    SUBCLASSES_ARE_LOADED = False
+
     @classmethod
     def subclasses(cls):
-        cls.ensure_subclasses_are_available()
+        if not cls.SUBCLASSES_ARE_LOADED:
+            cls.ensure_subclasses_are_available()
         return cls.__subclasses__()
 
     @classmethod
@@ -123,6 +126,8 @@ class TimelineUI(ABC):
         ]
         for pkg in packages:
             importlib.import_module(pkg)
+
+        cls.SUBCLASSES_ARE_LOADED = True
 
     @property
     def is_empty(self):

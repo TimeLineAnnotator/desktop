@@ -132,9 +132,12 @@ class Timeline(ABC, Generic[TC]):
     def default_height(self):
         return None
 
+    SUBCLASSES_ARE_LOADED = False
+
     @classmethod
     def subclasses(cls):
-        cls.ensure_subclasses_are_available()
+        if not cls.SUBCLASSES_ARE_LOADED:
+            cls.ensure_subclasses_are_available()
         return cls.__subclasses__()
 
     @classmethod
@@ -150,6 +153,8 @@ class Timeline(ABC, Generic[TC]):
                 importlib.import_module(pkg)
             except ModuleNotFoundError:
                 print(f"Could not find timeline class in {pkg}.")
+
+        cls.SUBCLASSES_ARE_LOADED = True
 
     @classmethod
     def get_kinds_by_flag(cls, flag: TimelineFlag | list[TimelineFlag]):

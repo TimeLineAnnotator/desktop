@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from tests.mock import Serve
@@ -9,6 +11,7 @@ from tests.utils import undoable
 from tilia.requests import Post, post, Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.collection import TimelineSelector
 from tilia.ui import commands
 
@@ -402,3 +405,20 @@ class TestOnTimelineCommand:
         self.call_on_timeline_command(tluis, lambda *args, **kwargs: next(gen))
 
         tilia_errors.assert_no_error()
+
+
+def test_timeline_ui_subclasses():
+    assert len(TimelineUI.subclasses()) == len(TimelineKind)
+
+
+def test_ensure_timeline_ui_subclasses_is_only_called_once():
+    # Subclasses were already loaded in previous tests, so we reset the flag
+    TimelineUI.SUBCLASSES_ARE_LOADED = False
+    with patch.object(
+        TimelineUI,
+        "ensure_subclasses_are_available",
+        wraps=TimelineUI.ensure_subclasses_are_available,
+    ) as wrapped:
+        for _ in range(50):
+            TimelineUI.subclasses()
+        assert wrapped.call_count == 1
