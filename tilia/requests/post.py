@@ -111,9 +111,7 @@ LOG_REQUESTS = os.environ.get("LOG_REQUESTS", 0)
 
 
 def _log_post(post, *args, **kwargs):
-    log_message = (
-        f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners[post])}"
-    )
+    log_message = f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners.get(post, ''))}"
     if post is Post.DISPLAY_ERROR:
         logger.warning(log_message)
         return
