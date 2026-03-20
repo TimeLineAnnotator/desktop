@@ -1132,14 +1132,12 @@ class TimelineUIs:
 
     @staticmethod
     @command_callback
-    def on_timeline_delete(timeline_ui: TimelineUI):
-        confirmed = get(
+    def on_timeline_delete(timeline_ui: TimelineUI, confirm: bool = True) -> bool:
+        if confirm and not get(
             Get.FROM_USER_YES_OR_NO,
             "Delete timeline",
             "Are you sure you want to delete the selected timeline? This can be undone later.",
-        )
-
-        if not confirmed:
+        ):
             return False
 
         get(Get.TIMELINE_COLLECTION).delete_timeline(timeline_ui.timeline)

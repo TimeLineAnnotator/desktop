@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Literal
 
 import pytest
@@ -20,8 +21,17 @@ def assert_order_is_correct(tls: Timelines, expected: list[Timeline]):
     # assert list widget order
     for i, tl in enumerate(expected):
         tlui = get(Get.TIMELINE_UI, tl.id)
-        mt = ManageTimelines()
-        assert mt.list_widget.item(i).timeline_ui == tlui
+        with manage_timelines() as mt:
+            assert mt.list_widget.item(i).timeline_ui == tlui
+
+
+@contextmanager
+def manage_timelines():
+    """Context manager for the ManageTimelines window."""
+    mt = ManageTimelines()
+    try:
+        yield mt
+    finally:
         mt.close()
 
 
@@ -29,10 +39,9 @@ class TestChangeTimelineVisibility:
     @staticmethod
     def toggle_timeline_is_visible(row: int = 0):
         """Toggles timeline visibility using the Manage Timelines window."""
-        mt = ManageTimelines()
-        mt.list_widget.setCurrentRow(row)
-        QTest.mouseClick(mt.checkbox, Qt.MouseButton.LeftButton)
-        mt.close()
+        with manage_timelines() as mt:
+            mt.list_widget.setCurrentRow(row)
+            QTest.mouseClick(mt.checkbox, Qt.MouseButton.LeftButton)
 
     def test_hide(self, marker_tlui):
         commands.execute("timeline.set_is_visible", marker_tlui, True)
@@ -66,17 +75,16 @@ class TestChangeTimelineOrder:
     @staticmethod
     def click_set_ordinal_button(button: Literal["up", "down"], row: int):
         """Toggles timeline visibility using the ManageTimelines window."""
-        mt = ManageTimelines()
-        mt.list_widget.setCurrentRow(row)
-        if button == "up":
-            button = mt.up_button
-        elif button == "down":
-            button = mt.down_button
-        else:
-            assert False, "Invalid button value."
+        with manage_timelines() as mt:
+            mt.list_widget.setCurrentRow(row)
+            if button == "up":
+                button = mt.up_button
+            elif button == "down":
+                button = mt.down_button
+            else:
+                assert False, "Invalid button value."
 
-        QTest.mouseClick(button, Qt.MouseButton.LeftButton)
-        mt.close()
+            QTest.mouseClick(button, Qt.MouseButton.LeftButton)
 
     def test_increase_ordinal(self, tls, setup_timelines):
         tl0, tl1, tl2 = setup_timelines
@@ -143,3 +151,13 @@ class TestChangeTimelineOrder:
         self.click_set_ordinal_button("down", 2)
 
         assert_order_is_correct(tls, [tl0, tl1, tl2])
+
+
+class TesttimelinesChangeWhileOpen:
+    def test_timeline_is_deleted(self, tluis):
+        commands.execute("timelines.add.marker", name="")
+        with manage_timelines() as mt:
+            mt.list_widget.setCurrentRow(0)
+            commands.execute("timeline.delete", tluis[0], confirm=False)
+
+    # Much more could be tested here.
