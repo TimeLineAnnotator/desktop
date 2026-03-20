@@ -16,16 +16,21 @@ if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
     EMAIL = setupcfg.get("authors", [{"email": ""}])[0]["email"]
 
 else:
-    setupcfg = metadata.metadata("TiLiA").json.copy()
+    try:
+        setupcfg = metadata.metadata("TiLiA").json.copy()
 
-    AUTHOR = re.search(r'"(.*?)"', setupcfg.get("author_email", "")).group(1)
-    EMAIL = re.search(r"<(.*?)>", setupcfg.get("author_email", "")).group(1)
-    if "urls" not in setupcfg:
-        setupcfg["urls"] = {}
-    for url in setupcfg.get("project_url", {}):
-        k, _, v = url.partition(", ")
-        setupcfg["urls"][k] = v
-    setupcfg["description"] = setupcfg.get("summary", "")
+        AUTHOR = re.search(r'"(.*?)"', setupcfg.get("author_email", "")).group(1)
+        EMAIL = re.search(r"<(.*?)>", setupcfg.get("author_email", "")).group(1)
+        if "urls" not in setupcfg:
+            setupcfg["urls"] = {}
+        for url in setupcfg.get("project_url", {}):
+            k, _, v = url.partition(", ")
+            setupcfg["urls"][k] = v
+        setupcfg["description"] = setupcfg.get("summary", "")
+    except metadata.PackageNotFoundError:
+        setupcfg = {}
+        AUTHOR = ""
+        EMAIL = ""
 
 APP_NAME = setupcfg.get("name", "")
 VERSION = setupcfg.get("version", "0.0.0")
