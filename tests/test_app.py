@@ -739,3 +739,10 @@ class TestIDs:
         marker_tl.create_component(ComponentKind.MARKER, time=2, id=1)
 
         assert [c.id for c in marker_tl.components] == ["1", "2", "3"]
+
+    @pytest.mark.parametrize("id", ["not an int", 3.1415, False])
+    def test_invalid_id(self, marker_tl, id):
+        with PatchPost("tilia.errors", Post.DISPLAY_ERROR) as error:
+            marker_tl.create_component(ComponentKind.MARKER, time=1, id=id)
+        error.assert_called()
+        assert marker_tl.components[0].id == "1"

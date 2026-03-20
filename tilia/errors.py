@@ -121,6 +121,9 @@ SCORE_STAFF_ID_ERROR = Error(
     "Error creating score timeline",
     "Duplicate or missing staff numbers. Staff numbers found: {}.\nDeleting timeline.",
 )
+INVALID_ID = Error(
+    "Error parsing id", "'{}' is not parsable as a valid id. Using generated id."
+)
 
 
 def display(error: Error, *args):

@@ -281,10 +281,22 @@ class App:
         IDs are unique across timeline component and timelines.
         Other IDs might contain duplicates.
         """
+
+        def invalid_id(id):
+            tilia.errors.display(tilia.errors.INVALID_ID, id)
+            return str(next(self._id_counter))
+
         if id is None:
             return str(next(self._id_counter))
 
-        int_id = int(id)
+        if type(id) not in [int, str]:
+            return invalid_id(id)
+
+        try:
+            int_id = int(id)
+        except ValueError:
+            return invalid_id(id)
+
         timeline_ids = {int(c.id) for c in self.timelines}
         component_lists = [
             tl.components for tl in self.timelines if tl.components is not None
