@@ -20,7 +20,9 @@ def assert_order_is_correct(tls: Timelines, expected: list[Timeline]):
     # assert list widget order
     for i, tl in enumerate(expected):
         tlui = get(Get.TIMELINE_UI, tl.id)
-        assert ManageTimelines().list_widget.item(i).timeline_ui == tlui
+        mt = ManageTimelines()
+        assert mt.list_widget.item(i).timeline_ui == tlui
+        mt.close()
 
 
 class TestChangeTimelineVisibility:
