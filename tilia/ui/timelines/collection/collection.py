@@ -41,8 +41,6 @@ from tilia.ui.timelines.toolbar import TimelineToolbar
 from tilia.ui.timelines.view import TimelineView
 from .view import TimelineUIsView
 from ..base.element import TimelineUIElement
-from ..beat import BeatTimelineUI
-from ..harmony import HarmonyTimelineUI
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from ...dialogs.add_timeline_without_media import AddTimelineWithoutMedia
@@ -916,6 +914,8 @@ class TimelineUIs:
             self._update_loop_elements()
 
     def on_harmony_timeline_components_deserialized(self, id):
+        from ..harmony import HarmonyTimelineUI
+
         timeline_ui = cast(HarmonyTimelineUI, self.get_timeline_ui(id))
         timeline_ui.on_timeline_components_deserialized()
 
