@@ -2,8 +2,7 @@ import functools
 
 import pytest
 
-from tests.mock import Serve
-from tilia.requests import Get, post, Post
+from tilia.requests import post, Post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.pdf.components import PdfMarker
 from tilia.timelines.pdf.timeline import PdfTimeline
@@ -32,9 +31,10 @@ def pdf_tlui(pdf_tl, tluis):
 
 
 @pytest.fixture
-def pdf_tl(tls):
-    with Serve(Get.FROM_USER_RETRY_PDF_PATH, (False)):
-        tl: PdfTimeline = tls.create_timeline(TlKind.PDF_TIMELINE, path="")
+def pdf_tl(tls, resources):
+    tl: PdfTimeline = tls.create_timeline(
+        TlKind.PDF_TIMELINE, path=(resources / "example.pdf").resolve().__str__()
+    )
     tl.clear()  # delete initial pdf marker
     tl.create_pdf_marker = functools.partial(
         tl.create_component, ComponentKind.PDF_MARKER

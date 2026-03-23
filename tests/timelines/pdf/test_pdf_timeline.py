@@ -10,6 +10,7 @@ class TestValidateComponentCreation:
 
 class TestPageTotal:
     def test_page_total_is_zero_with_invalid_pdf(self, pdf_tl):
+        pdf_tl.path = "invalid_path"
         assert pdf_tl.get_data("page_total") == 0
 
 
