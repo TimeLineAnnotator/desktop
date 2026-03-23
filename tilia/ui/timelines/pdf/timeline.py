@@ -115,16 +115,22 @@ class PdfTimelineUI(TimelineUI):
             icon="pdf_add",
         )
 
-    def on_add(self, time: float | None = None):
+    def on_add(self, time: float | None = None, page_number: int | None = None):
         if time is None:
             time = get(Get.SELECTED_TIME)
 
-        page_number = min(
-            self.timeline.get_previous_page_number(time) + 1, self.timeline.page_total
+        # If no page number is provided, use next available page number
+        requested_page_number = (
+            page_number
+            if page_number is not None
+            else self.timeline.get_previous_page_number(time) + 1
         )
 
+        # Limit page number to total number of pages in PDF
+        page_number = min(requested_page_number, self.timeline.page_total)
+
         pdf_marker, reason = self.timeline.create_component(
-            ComponentKind.PDF_MARKER, get(Get.SELECTED_TIME), page_number
+            ComponentKind.PDF_MARKER, time, page_number
         )
         if not pdf_marker:
             tilia.errors.display(tilia.errors.ADD_PDF_MARKER_FAILED, reason)
