@@ -22,9 +22,9 @@ dependencies = [
     "prettytable>=3.7.0",
     "python-dotenv>=1.0.1",
     "pypdf>=6.0.0",
-    "PySide6>=6.8.0",
-    "PySide6_Addons>=6.8.0",
-    "PySide6_Essentials>=6.8.0",
+    "PySide6==6.9.3",  # PySide 6.10.2 has a problem displaying scores (see issue #411)
+    "PySide6_Addons==6.9.3",
+    "PySide6_Essentials==6.9.3",
     "sentry-sdk>=2.21.0",
     "soundfile~=0.13.1",
     "TiLiA",
