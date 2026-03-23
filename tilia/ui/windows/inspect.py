@@ -268,11 +268,11 @@ class Inspect(QDockWidget):
             id(self),
         )
 
-    def on_spin_box_changed(self, field_name, spin_box):
+    def on_spin_box_changed(self, field_name: str, spin_box: QSpinBox, value: int):
         post(
             Post.INSPECTOR_FIELD_EDITED,
             field_name,
-            spin_box.value(),
+            value,
             self.element_id,
             id(self),
         )
