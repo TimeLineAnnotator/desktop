@@ -268,7 +268,7 @@ class Inspect(QDockWidget):
             id(self),
         )
 
-    def on_spin_box_changed(self, field_name: str, spin_box: QSpinBox, value: int):
+    def on_spin_box_changed(self, field_name: str, value: int):
         post(
             Post.INSPECTOR_FIELD_EDITED,
             field_name,
@@ -277,11 +277,11 @@ class Inspect(QDockWidget):
             id(self),
         )
 
-    def on_combo_box_changed(self, field_name, combo_box):
+    def on_combo_box_changed(self, field_name: str, value: int):
         post(
             Post.INSPECTOR_FIELD_EDITED,
             field_name,
-            combo_box.currentData(),
+            value,
             self.element_id,
             id(self),
         )
@@ -309,14 +309,14 @@ class Inspect(QDockWidget):
                 widget.setMinimum(kwargs["min"])
                 widget.setMaximum(kwargs["max"])
                 widget.valueChanged.connect(
-                    functools.partial(self.on_spin_box_changed, name, widget)
+                    functools.partial(self.on_spin_box_changed, name)
                 )
             case InspectRowKind.COMBO_BOX:
                 widget = QComboBox()
                 for value, data in kwargs["items"]:
                     widget.addItem(str(value), data)
                 widget.currentIndexChanged.connect(
-                    functools.partial(self.on_combo_box_changed, name, widget)
+                    functools.partial(self.on_combo_box_changed, name)
                 )
             case _:
                 widget = None
