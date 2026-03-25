@@ -191,7 +191,6 @@ def import_timeline(namespace):
 
     tl.clear()
 
-    errors = None
     if tl_kind == "marker":
         tl: MarkerTimeline
         if measure_or_time == "by-measure":
