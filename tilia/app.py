@@ -282,7 +282,7 @@ class App:
         Other IDs might contain duplicates.
         """
 
-        def invalid_id(id):
+        def handle_invalid_id(id):
             tilia.errors.display(tilia.errors.INVALID_ID, id)
             return str(next(self._id_counter))
 
@@ -290,12 +290,12 @@ class App:
             return str(next(self._id_counter))
 
         if type(id) not in [int, str]:
-            return invalid_id(id)
+            return handle_invalid_id(id)
 
         try:
             int_id = int(id)
         except ValueError:
-            return invalid_id(id)
+            return handle_invalid_id(id)
 
         timeline_ids = {int(c.id) for c in self.timelines}
         component_lists = [
