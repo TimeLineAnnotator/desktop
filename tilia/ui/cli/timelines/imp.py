@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Tuple, Literal, cast
+from typing import Tuple, Literal, cast
 
 from tilia.parsers.csv import marker, hierarchy, beat
 from tilia.parsers.score import musicxml
@@ -114,9 +114,9 @@ def setup_import_file_and_target_args(subparser):
 
 def validate_timelines_for_import(
     tl: Timeline,
-    ref_tl: Optional[Timeline],
+    ref_tl: Timeline | None,
     kind_str: Literal["beat", "hierarchy", "marker", "score"],
-    by: Optional[Literal["by-measure", "by-time"]],
+    by: Literal["by-measure", "by-time"] | None,
 ) -> Tuple[bool, str]:
     success = True
     error_message = ""
@@ -224,10 +224,10 @@ def import_timeline(namespace):
 def get_timelines_for_import(
     target_ordinal: int,
     target_name: str,
-    reference_ordinal: Optional[int],
-    reference_name: Optional[str],
-    measure_or_time: Optional[Literal["by-measure", "by-time"]],
-) -> Tuple[Timeline, Optional[BeatTimeline]]:
+    reference_ordinal: int | None,
+    reference_name: str | None,
+    measure_or_time: Literal["by-measure", "by-time"] | None,
+) -> Tuple[Timeline, BeatTimeline | None]:
     target_tl = get_timeline_for_import(target_ordinal, target_name)
 
     if measure_or_time == "by-measure":
@@ -239,7 +239,7 @@ def get_timelines_for_import(
         return target_tl, None
 
 
-def get_timeline_for_import(ordinal: Optional[int], name: Optional[str]) -> Timeline:
+def get_timeline_for_import(ordinal: int | None, name: str | None) -> Timeline:
     if ordinal is not None:
         tl = get(Get.TIMELINE_BY_ATTR, "ordinal", ordinal)
         if not tl:

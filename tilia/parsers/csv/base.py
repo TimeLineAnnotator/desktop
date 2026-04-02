@@ -1,15 +1,15 @@
 from pathlib import Path
 
 import csv
-from typing import Any, Optional, Callable
+from typing import Any, Callable
 
 
 class TiliaCSVReader:
     def __init__(
         self,
         path: Path,
-        file_kwargs: Optional[dict[str, Any]] = None,
-        reader_kwargs: Optional[dict[str, Any]] = None,
+        file_kwargs: dict[str, Any] | None = None,
+        reader_kwargs: dict[str, Any] | None = None,
     ):
         self.path = path
         self.file_kwargs = file_kwargs or {}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from typing import Optional, Any, Callable
+from typing import Any, Callable
 
 from PySide6.QtCore import QPoint
 
@@ -16,7 +16,7 @@ from tilia.requests import stop_listening_to_all
 
 class TimelineUIElement(ABC):
     UPDATE_TRIGGERS = []
-    CONTEXT_MENU_CLASS: Optional[type[TimelineUIElementContextMenu]] = None
+    CONTEXT_MENU_CLASS: type[TimelineUIElementContextMenu] | None = None
     FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = {}
 
     def __init__(

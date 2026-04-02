@@ -1,5 +1,3 @@
-from typing import Optional
-
 from PySide6.QtCore import Qt
 from PySide6.QtGui import (
     QPainter,
@@ -53,7 +51,7 @@ class TimelineView(QGraphicsView):
                 QBrush(QColor(settings.get("general", "timeline_background_color")))
             )
 
-    def mousePressEvent(self, event: Optional[QMouseEvent]) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         def handle_left_click():
             self.dragging = True
             post(
@@ -96,13 +94,13 @@ class TimelineView(QGraphicsView):
                 double=True,
             )
 
-    def mouseReleaseEvent(self, event: Optional[QMouseEvent]) -> None:
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if self.dragging:
             self.dragging = False
             post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
         super().mouseReleaseEvent(event)
 
-    def mouseMoveEvent(self, event: Optional[QMouseEvent]) -> None:
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, event.pos().x(), event.pos().y())
 
         super().mouseMoveEvent(event)

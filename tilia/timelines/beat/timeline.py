@@ -6,7 +6,7 @@ import math
 from enum import Enum
 from bisect import bisect
 from math import isclose
-from typing import Optional, cast, Any
+from typing import cast, Any
 
 import tilia.errors
 from tilia.requests import post, Post, get, Get
@@ -195,10 +195,10 @@ class BeatTimeline(Timeline):
         self,
         beat_pattern: list[int] = None,
         name: str = "",
-        height: Optional[int] = None,
-        beats_in_measure: Optional[list[int]] = None,
-        measure_numbers: Optional[list[int]] = None,
-        measures_to_force_display: Optional[list[int]] = None,
+        height: int | None = None,
+        beats_in_measure: list[int] | None = None,
+        measure_numbers: list[int] | None = None,
+        measures_to_force_display: list[int] | None = None,
         **kwargs,
     ):
         super().__init__(

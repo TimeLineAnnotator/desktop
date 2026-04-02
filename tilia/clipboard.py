@@ -1,4 +1,4 @@
-from typing import TypedDict, Optional
+from typing import TypedDict
 
 from tilia.requests import Post, listen, serve, Get
 from tilia.utils import get_tilia_class_string
@@ -7,7 +7,7 @@ from tilia.timelines.timeline_kinds import TimelineKind
 
 class ClipboardContents(TypedDict):
     components: dict[str, dict]
-    timeline_kind: Optional[TimelineKind]
+    timeline_kind: TimelineKind | None
 
 
 class Clipboard:

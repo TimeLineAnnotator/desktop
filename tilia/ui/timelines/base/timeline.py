@@ -4,10 +4,9 @@ import importlib
 from abc import ABC
 from typing import (
     Any,
+    Callable,
     TYPE_CHECKING,
     TypeVar,
-    Optional,
-    Callable,
 )
 
 from PySide6.QtCore import Qt, QPoint
@@ -451,7 +450,7 @@ class TimelineUI(ABC):
 
         return success
 
-    def deselect_all_elements(self, excluding: Optional[list[T]] = None):
+    def deselect_all_elements(self, excluding: list[T] | None = None):
         if excluding is None:
             excluding = []
 

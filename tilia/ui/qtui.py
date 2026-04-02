@@ -4,7 +4,6 @@ import functools
 import re
 from pathlib import Path
 
-from typing import Optional
 
 from PySide6 import QtGui
 from PySide6.QtCore import QKeyCombination, Qt, qInstallMessageHandler, QUrl, QtMsgType
@@ -78,7 +77,7 @@ class TiliaMainWindow(QMainWindow):
         else:
             logger.error(f"{type.name}: {msg}")
 
-    def keyPressEvent(self, event: Optional[QtGui.QKeyEvent]) -> None:
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event is None:
             return
         # these shortcuts have to be 'captured' manually. I don't know why.

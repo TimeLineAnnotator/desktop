@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 import traceback
 from enum import Enum, auto
-from typing import Any, Optional, Callable, cast
+from typing import Any, Callable, cast
 
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtWidgets import (
@@ -695,7 +695,7 @@ class TimelineUIs:
         view: TimelineView,
         x: int,
         y: int,
-        item: Optional[QGraphicsItem],
+        item: QGraphicsItem | None,
         modifier: Qt.KeyboardModifier,
         **_,  # ignores the double argument
     ) -> None:
@@ -720,7 +720,7 @@ class TimelineUIs:
         view: TimelineView,
         x: int,
         y: int,
-        item: Optional[QGraphicsItem],
+        item: QGraphicsItem | None,
         modifier: Qt.KeyboardModifier,
         double: bool,
     ) -> None:
@@ -1466,7 +1466,7 @@ class TimelineUIs:
         title: str,
         prompt: str,
         kind: TlKind | list[TlKind] | None = None,
-    ) -> Optional[Timeline] | None:
+    ) -> Timeline | None:
         """
         Opens a dialog where the user may choose an existing timeline.
         Choices are restricted to the kinds in 'kind'. If no kind is passed,
