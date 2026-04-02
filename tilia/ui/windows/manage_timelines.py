@@ -1,6 +1,3 @@
-from typing import Optional
-
-import typing
 from PySide6 import QtGui
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -101,7 +98,7 @@ class ManageTimelines(QDialog):
     def get_current_timeline_ui(self):
         return self.list_widget.currentItem().timeline_ui
 
-    def closeEvent(self, a0: Optional[QtGui.QCloseEvent]) -> None:
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)
         stop_listening_to_all(self)
         stop_listening_to_all(self.list_widget)
@@ -142,15 +139,6 @@ class TimelinesListWidget(QListWidget):
 
         for post_, callback in LISTENS:
             listen(self, post_, callback)
-
-    def item(self, row: int) -> typing.Optional[TimelineListItem]:
-        return super().item(row)
-
-    def currentItem(self) -> typing.Optional[TimelineListItem]:
-        return super().currentItem()
-
-    def selectedItems(self) -> list[TimelineListItem]:
-        return super().selectedItems()
 
     def _setup_items(self):
         for tl in get(Get.TIMELINE_UIS):
