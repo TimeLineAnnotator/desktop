@@ -98,12 +98,12 @@ class HarmonyTimelineUI(TimelineUI):
         else:
             needs_recalculation = False
 
-        success = self.timeline.delete_components(self.elements_to_components(elements))
+        self.timeline.delete_components(self.elements_to_components(elements))
 
         if needs_recalculation:
             self.on_mode_delete_done()
 
-        return success
+        return True
 
     def on_mode_add_done(self):
         self.update_harmony_labels()
