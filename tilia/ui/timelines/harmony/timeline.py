@@ -294,7 +294,7 @@ class HarmonyTimelineUI(TimelineUI):
             "timeline_kind": TimelineKind.HARMONY_TIMELINE,
         }
 
-    def on_show_keys(self):
+    def on_show_keys(self, _):
         get(Get.TIMELINE_COLLECTION).set_timeline_data(
             self.id,
             "visible_level_count",
@@ -302,7 +302,7 @@ class HarmonyTimelineUI(TimelineUI):
         )
         return True
 
-    def on_hide_keys(self):
+    def on_hide_keys(self, _):
         get(Get.TIMELINE_COLLECTION).set_timeline_data(
             self.id,
             "visible_level_count",
