@@ -26,7 +26,7 @@ def wait_for_signal(signal: SignalInstance, value):
     """
 
     def signal_wrapper(func):
-        timer = QTimer(singleShot=True, interval=100)
+        timer = QTimer(singleShot=True, interval=200)
         loop = QEventLoop()
         success = False
 
