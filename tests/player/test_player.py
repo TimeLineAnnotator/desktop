@@ -3,7 +3,7 @@ import os
 import pytest
 
 from tests.constants import EXAMPLE_MEDIA_PATH
-from tilia.requests import post, Post
+from tilia.requests import Post, post
 
 
 @pytest.fixture

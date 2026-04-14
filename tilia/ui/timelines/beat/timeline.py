@@ -1,24 +1,24 @@
 import copy
 
-from tilia.requests import get, Get, Post, listen
+from tilia.requests import Get, Post, get, listen
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import commands
 from tilia.ui.strings import (
-    BEAT_TIMELINE_FILL_TITLE,
     BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT,
+    BEAT_TIMELINE_FILL_TITLE,
 )
 from tilia.ui.timelines.base.timeline import TimelineUI, with_elements
 from tilia.ui.timelines.beat.context_menu import BeatTimelineUIContextMenu
 from tilia.ui.timelines.beat.element import BeatUI
 from tilia.ui.timelines.beat.toolbar import BeatTimelineToolbar
+from tilia.ui.timelines.collection.collection import (
+    TimelineSelector,
+    TimelineUIs,
+    command_callback,
+)
 from tilia.ui.timelines.copy_paste import (
     get_copy_data_from_element,
-)
-from tilia.ui.timelines.collection.collection import (
-    TimelineUIs,
-    TimelineSelector,
-    command_callback,
 )
 
 

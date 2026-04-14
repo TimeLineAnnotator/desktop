@@ -34,10 +34,10 @@ import os
 import traceback
 from typing import Callable
 
-import tilia.errors
-
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import QMainWindow, QWidget
-from PySide6.QtGui import QAction, QKeySequence, QIcon
+
+import tilia.errors
 
 
 class CommandQAction(QAction):
@@ -96,8 +96,8 @@ def register(
 def get_qaction(name):
     try:
         return _name_to_action[name]
-    except KeyError:
-        raise ValueError(f"Unknown command: {name}")
+    except KeyError as e:
+        raise ValueError(f"Unknown command: {name}") from e
 
 
 def execute(command_name: str, *args, **kwargs):

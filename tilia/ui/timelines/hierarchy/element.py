@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-from PySide6.QtCore import Qt, QRectF, QPointF
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPen
 from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
@@ -11,25 +11,23 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem,
 )
 
-from .context_menu import HierarchyContextMenu
-from .handles import HierarchyBodyHandle, HierarchyFrameHandle
-from ..cursors import CursorMixIn
-from ...color import get_tinted_color, get_untinted_color
-from ...consts import TINT_FACTOR_ON_SELECTION
-from ...coords import time_x_converter
-from ...windows.inspect import HIDE_FIELD, InspectRowKind
-
 import tilia.ui.format
-
 from tilia.requests import (
     Post,
     post,
     stop_listening_to_all,
 )
-from tilia.ui.timelines.copy_paste import CopyAttributes
 from tilia.settings import settings
-
 from tilia.ui.timelines.base.element import TimelineUIElement
+from tilia.ui.timelines.copy_paste import CopyAttributes
+
+from ...color import get_tinted_color, get_untinted_color
+from ...consts import TINT_FACTOR_ON_SELECTION
+from ...coords import time_x_converter
+from ...windows.inspect import HIDE_FIELD, InspectRowKind
+from ..cursors import CursorMixIn
+from .context_menu import HierarchyContextMenu
+from .handles import HierarchyBodyHandle, HierarchyFrameHandle
 
 
 class HierarchyUI(TimelineUIElement):

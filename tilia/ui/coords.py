@@ -1,4 +1,4 @@
-from tilia.requests import get, Get, listen, Post
+from tilia.requests import Get, Post, get, listen
 
 
 class TimeXConverter:

@@ -1,4 +1,5 @@
 import argparse
+
 from tilia.file.media_metadata import MediaMetadata
 from tilia.requests.get import Get, get
 from tilia.ui.cli import io

@@ -1,10 +1,10 @@
 from typing import Literal
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGraphicsView, QGraphicsItem, QApplication
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsView
 
-from tilia.requests import Post, post, get, Get
+from tilia.requests import Get, Post, get, post
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 

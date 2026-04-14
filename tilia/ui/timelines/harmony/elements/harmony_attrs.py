@@ -1,8 +1,8 @@
 from tilia.timelines.harmony.constants import (
+    FONT_TYPES,
+    HARMONY_DISPLAY_MODES,
     HARMONY_INVERSIONS,
     HARMONY_QUALITIES,
-    HARMONY_DISPLAY_MODES,
-    FONT_TYPES,
 )
 from tilia.ui.format import format_media_time
 from tilia.ui.timelines.copy_paste import CopyAttributes

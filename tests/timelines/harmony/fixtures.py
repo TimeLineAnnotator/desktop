@@ -1,6 +1,6 @@
 import pytest
 
-from tilia.requests import post, Post
+from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.timeline import HarmonyTimeline

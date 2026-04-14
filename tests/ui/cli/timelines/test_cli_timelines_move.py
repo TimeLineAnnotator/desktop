@@ -1,4 +1,4 @@
-from tilia.ui.cli.timelines.utils import patch_warn, assert_warn
+from tilia.ui.cli.timelines.utils import assert_warn, patch_warn
 
 
 def _setup_two_timelines(cli):

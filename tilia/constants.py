@@ -1,6 +1,6 @@
+import re
 from importlib import metadata
 from pathlib import Path
-import re
 
 if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
     import sys

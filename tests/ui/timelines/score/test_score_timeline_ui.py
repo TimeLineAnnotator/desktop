@@ -1,9 +1,10 @@
-import pytest
 import json
+
+import pytest
 
 from tests.constants import EXAMPLE_MULTISTAFF_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
-from tests.utils import reloadable, get_blank_file_data
+from tests.utils import get_blank_file_data, reloadable
 from tilia.errors import SCORE_STAFF_ID_ERROR
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, get

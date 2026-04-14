@@ -1,8 +1,8 @@
-from PySide6.QtCore import QRectF, QPointF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import QGraphicsRectItem
 
-from tilia.requests import Post, stop_listening_to_all, post
+from tilia.requests import Post, post, stop_listening_to_all
 
 
 class SelectionBoxQt(QGraphicsRectItem):

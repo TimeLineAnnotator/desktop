@@ -1,4 +1,4 @@
-from tilia.timelines.base.metric_position import MetricPosition, MetricInterval
+from tilia.timelines.base.metric_position import MetricInterval, MetricPosition
 
 
 def test_same_beat_same_beat_count():

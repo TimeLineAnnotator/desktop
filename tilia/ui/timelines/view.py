@@ -1,10 +1,10 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import (
-    QPainter,
-    QMouseEvent,
-    QGuiApplication,
-    QColor,
     QBrush,
+    QColor,
+    QGuiApplication,
+    QMouseEvent,
+    QPainter,
 )
 from PySide6.QtWidgets import (
     QFrame,
@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 
+from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
-from tilia.requests import post, Post, Get, get, listen
 
 
 class TimelineView(QGraphicsView):

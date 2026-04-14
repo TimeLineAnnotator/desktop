@@ -1,9 +1,9 @@
-import sys
-from pathlib import Path
 import platform
 import subprocess
+import sys
 import traceback
 import webbrowser
+from pathlib import Path
 
 sys.path[0] = Path(__file__).parents[1].__str__()
 
@@ -41,7 +41,7 @@ def deps_debug(exc: ImportError):
         missing_deps = []
         for line in deps.splitlines():
             if "=> not found" in line:
-                dep = line.strip().rstrip(" => not found")
+                dep = line.strip().removesuffix(" => not found")
                 missing_deps.append(dep)
 
         if missing_deps:

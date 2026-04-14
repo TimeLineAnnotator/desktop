@@ -2,12 +2,12 @@ from enum import Enum
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QRadioButton,
     QButtonGroup,
+    QDialog,
     QDialogButtonBox,
     QLabel,
+    QRadioButton,
+    QVBoxLayout,
 )
 
 import tilia.ui.strings

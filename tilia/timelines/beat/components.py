@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from tilia.timelines.base.metric_position import MetricPosition
-from tilia.timelines.base.validators import validate_time, validate_bool
+from tilia.timelines.base.validators import validate_bool, validate_time
 from tilia.timelines.component_kinds import ComponentKind
 
 if TYPE_CHECKING:

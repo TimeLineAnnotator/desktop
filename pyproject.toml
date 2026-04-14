@@ -99,7 +99,8 @@ timeout = 10
 exclude = ["tilia/dev"]
 line-length = 88
 lint.ignore = ["E203","E501"]
-lint.per-file-ignores = {"__init__.py"=["F401"]}
+lint.per-file-ignores = {"__init__.py"=["F401", "I001"]}
+lint.extend-select = ["B","I"]
 target-version = "py310"
 
 [tool.setuptools.packages.find]

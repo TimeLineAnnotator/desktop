@@ -1,7 +1,7 @@
 import pytest
 
-from tests.mock import PatchPost, ServeSequence, patch_yes_or_no_dialog, Serve
-from tilia.requests import Post, Get
+from tests.mock import PatchPost, Serve, ServeSequence, patch_yes_or_no_dialog
+from tilia.requests import Get, Post
 from tilia.timelines.timeline_kinds import TimelineKind
 
 

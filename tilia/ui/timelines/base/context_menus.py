@@ -1,7 +1,7 @@
+from tilia.requests import Get, get
 from tilia.ui import commands
-from tilia.ui.commands import get_qaction, CommandQAction
+from tilia.ui.commands import CommandQAction, get_qaction
 from tilia.ui.menus import MenuItemKind, TiliaMenu
-from tilia.requests import get, Get
 
 
 class TimelineUIContextMenu(TiliaMenu):

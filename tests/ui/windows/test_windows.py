@@ -1,6 +1,6 @@
 import pytest
 
-from tilia.requests import post, Post, listen
+from tilia.requests import Post, listen, post
 from tilia.ui.windows import WindowKind
 
 

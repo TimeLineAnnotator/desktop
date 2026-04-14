@@ -1,6 +1,7 @@
 import argparse
-from tilia.requests import post, Post
+
 import tilia.errors
+from tilia.requests import Post, post
 
 
 def setup_parser(subparsers):

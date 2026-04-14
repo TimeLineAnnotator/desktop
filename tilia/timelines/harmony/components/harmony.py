@@ -1,28 +1,28 @@
 from __future__ import annotations
 
-from typing import Literal, TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Literal
 
 import music21
-import re
 
 import tilia.errors
 from tilia.timelines.base.component import PointLikeTimelineComponent
-from tilia.timelines.base.validators import validate_time, validate_string
+from tilia.timelines.base.validators import validate_string, validate_time
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.constants import get_inversion_amount
 from tilia.timelines.harmony.validators import (
-    validate_step,
     validate_accidental,
-    validate_quality,
-    validate_inversion,
     validate_applied_to,
-    validate_level,
-    validate_display_mode,
     validate_custom_text_font_type,
+    validate_display_mode,
+    validate_inversion,
+    validate_level,
+    validate_quality,
+    validate_step,
 )
 from tilia.ui.timelines.harmony.constants import (
-    NOTE_NAME_TO_INT,
     CHORD_COMMON_NAME_TO_TYPE,
+    NOTE_NAME_TO_INT,
     ROMAN_TO_INT,
 )
 

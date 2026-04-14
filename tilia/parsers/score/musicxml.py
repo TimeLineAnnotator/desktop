@@ -1,23 +1,23 @@
 import itertools
-from pathlib import Path
-from zipfile import ZipFile
-from typing import Any
-from dataclasses import dataclass
 from bisect import bisect
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from zipfile import ZipFile
 
 from lxml import etree
 
-from tilia.requests import Get, get, Post, post
 from tilia.parsers.score.musicxml_to_svg import musicxml_to_svg
+from tilia.requests import Get, Post, get, post
 from tilia.timelines.beat.timeline import BeatTimeline
-from tilia.timelines.score.components import Note
-from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.score.components import Note
 from tilia.timelines.score.components.clef import Clef
+from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui.strings import (
-    INSERT_MEASURE_ZERO_TITLE,
-    INSERT_MEASURE_ZERO_PROMPT,
     INSERT_MEASURE_ZERO_FAILED,
+    INSERT_MEASURE_ZERO_PROMPT,
+    INSERT_MEASURE_ZERO_TITLE,
 )
 from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
 

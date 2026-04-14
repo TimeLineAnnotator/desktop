@@ -4,68 +4,68 @@ import functools
 import re
 from pathlib import Path
 
-
 from PySide6 import QtGui
 from PySide6.QtCore import (
     QEvent,
     QKeyCombination,
-    QUrl,
     Qt,
     QtMsgType,
+    QUrl,
     qInstallMessageHandler,
 )
-from PySide6.QtGui import QIcon, QFontDatabase, QDesktopServices, QPainter, QPixmap
+from PySide6.QtGui import QDesktopServices, QFontDatabase, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QMainWindow,
     QApplication,
-    QToolBar,
     QDialog,
     QDockWidget,
     QGraphicsScene,
+    QMainWindow,
+    QToolBar,
 )
 
 import tilia.constants
 import tilia.errors
-from tilia.file.tilia_file import TiliaFile
-import tilia.ui.dialogs.file
-import tilia.ui.timelines.constants
-import tilia.parsers.csv.pdf
+import tilia.parsers.csv.beat
 import tilia.parsers.csv.harmony
 import tilia.parsers.csv.hierarchy
-import tilia.parsers.csv.beat
 import tilia.parsers.csv.marker
+import tilia.parsers.csv.pdf
 import tilia.parsers.score.musicxml
+import tilia.ui.dialogs.file
+import tilia.ui.timelines.constants
+from tilia import constants
+from tilia.file.tilia_file import TiliaFile
+from tilia.log import logger
+from tilia.requests import Get, Post, get, listen, post, serve
+from tilia.settings import settings
+from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui import commands
+from tilia.ui.timelines.collection.collection import TimelineUIs
+from tilia.utils import get_tilia_class_string
+
+from ..media.player import QtAudioPlayer, QtVideoPlayer, YouTubePlayer
 from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
 from .dialogs.crash import CrashDialog
 from .dialogs.resize_rect import ResizeRect
 from .menubar import TiliaMenuBar
-from tilia.ui.timelines.collection.collection import TimelineUIs
 from .menus import (
-    TimelinesMenu,
-    HierarchyMenu,
-    MarkerMenu,
     BeatMenu,
     HarmonyMenu,
+    HierarchyMenu,
+    MarkerMenu,
     PdfMenu,
     ScoreMenu,
+    TimelinesMenu,
 )
 from .options_toolbar import OptionsToolbar
 from .player import PlayerToolbar
-from .windows.manage_timelines import ManageTimelines
-from .windows.metadata import MediaMetadataWindow
 from .windows.about import About
 from .windows.inspect import Inspect
-from .windows.settings import SettingsWindow
 from .windows.kinds import WindowKind
-from ..media.player import QtVideoPlayer, QtAudioPlayer, YouTubePlayer
-from tilia import constants
-from tilia.log import logger
-from tilia.settings import settings
-from tilia.utils import get_tilia_class_string
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.requests import Post, listen, post, serve, Get, get
+from .windows.manage_timelines import ManageTimelines
+from .windows.metadata import MediaMetadataWindow
+from .windows.settings import SettingsWindow
 
 
 class TiliaMainWindow(QMainWindow):

@@ -1,7 +1,7 @@
 import functools
 import math
 
-from tilia.requests import get, Get, post, Post
+from tilia.requests import Get, Post, get, post
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.hierarchy import HierarchyUI

@@ -1,9 +1,9 @@
 import music21
 
 from tilia.ui.timelines.harmony.constants import (
+    INT_TO_NOTE_NAME,
     INT_TO_ROMAN,
     NOTE_NAME_TO_INT,
-    INT_TO_NOTE_NAME,
     Accidental,
 )
 

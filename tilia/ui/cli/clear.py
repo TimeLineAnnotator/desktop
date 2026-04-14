@@ -1,4 +1,4 @@
-from tilia.requests import post, Post, Get, get
+from tilia.requests import Get, Post, get, post
 from tilia.ui.cli import io
 
 

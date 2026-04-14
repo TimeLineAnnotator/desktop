@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Tuple, Literal, cast
+from typing import Literal, Tuple, cast
 
-from tilia.parsers.csv import marker, hierarchy, beat
+from tilia.parsers.csv import beat, hierarchy, marker
 from tilia.parsers.score import musicxml
-from tilia.requests import get, Get, post, Post
+from tilia.requests import Get, Post, get, post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline

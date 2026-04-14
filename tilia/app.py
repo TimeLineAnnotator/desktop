@@ -9,25 +9,25 @@ import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-import tilia.errors
 import tilia.constants
 import tilia.dirs
+import tilia.errors
 from tilia.exceptions import NoReplyToRequest
+from tilia.file.file_manager import open_tla
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import load_media
-from tilia.ui import commands
-from tilia.utils import get_tilia_class_string
-from tilia.requests import get, post, serve, listen, Get, Post
+from tilia.requests import Get, Post, get, listen, post, serve
+from tilia.settings import settings
 from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui import commands
 from tilia.undo_manager import PauseUndoManager
-from tilia.file.file_manager import open_tla
-from tilia.settings import settings
+from tilia.utils import get_tilia_class_string
 
 if TYPE_CHECKING:
-    from tilia.media.player import Player
-    from tilia.file.file_manager import FileManager
     from tilia.clipboard import Clipboard
+    from tilia.file.file_manager import FileManager
+    from tilia.media.player import Player
     from tilia.undo_manager import UndoManager
 
 

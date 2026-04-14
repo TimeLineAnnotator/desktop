@@ -1,4 +1,5 @@
 from PySide6.QtGui import QColor
+
 from tilia.timelines.base.validators import validate_color
 
 

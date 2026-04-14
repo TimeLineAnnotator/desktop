@@ -3,8 +3,8 @@ from typing import Any
 
 from tilia.parsers.csv.base import (
     TiliaCSVReader,
-    get_params_indices,
     get_column_not_found_error_message,
+    get_params_indices,
 )
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind

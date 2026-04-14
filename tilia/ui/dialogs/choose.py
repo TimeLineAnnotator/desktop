@@ -1,12 +1,12 @@
 from typing import Any
 
 from PySide6.QtWidgets import (
-    QDialog,
-    QMainWindow,
-    QLabel,
     QComboBox,
-    QVBoxLayout,
+    QDialog,
     QDialogButtonBox,
+    QLabel,
+    QMainWindow,
+    QVBoxLayout,
 )
 
 

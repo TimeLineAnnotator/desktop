@@ -4,18 +4,19 @@ import functools
 import itertools
 from typing import Any
 
+import tilia.errors
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.component.segmentlike import (
-    scale_segmentlike,
     crop_segmentlike,
+    scale_segmentlike,
 )
-from ..base.timeline import Timeline, TimelineComponentManager, TimelineFlag
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.requests import post, Post, get, Get
 from tilia.timelines.timeline_kinds import TimelineKind
-from .components import Hierarchy
-import tilia.errors
+
 from ...ui.format import format_media_time
+from ..base.timeline import Timeline, TimelineComponentManager, TimelineFlag
+from .components import Hierarchy
 
 
 class HierarchyTLComponentManager(TimelineComponentManager):

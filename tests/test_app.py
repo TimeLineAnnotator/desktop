@@ -1,5 +1,4 @@
 import json
-import tilia.log
 from pathlib import Path
 from typing import Literal
 from unittest.mock import patch
@@ -7,19 +6,19 @@ from unittest.mock import patch
 import pytest
 
 import tests.utils
-from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_MEDIA_DURATION
+import tilia.log
+from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import (
-    Serve,
     PatchPost,
+    Serve,
+    patch_ask_for_string_dialog,
     patch_file_dialog,
     patch_yes_or_no_dialog,
-    patch_ask_for_string_dialog,
 )
 from tests.utils import save_and_reopen
-from tilia.media.player import YouTubePlayer, QtAudioPlayer
+from tilia.media.player import QtAudioPlayer, YouTubePlayer
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
-
-from tilia.requests import Get, Post, post, get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import commands
@@ -686,7 +685,7 @@ class TestIDs:
     @staticmethod
     def create_timelines_and_components(timeline_count: int, component_count: int):
         """Helper function to create timelines and components in loops."""
-        for i in range(timeline_count):
+        for _ in range(timeline_count):
             commands.execute("timelines.add.marker", name="")
             for j in range(component_count):
                 commands.execute("timeline.marker.add", time=j)

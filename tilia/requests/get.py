@@ -1,8 +1,8 @@
 import weakref
 from enum import Enum, auto
-from typing import Callable, Any
+from typing import Any, Callable
 
-from tilia.exceptions import NoReplyToRequest, NoCallbackAttached
+from tilia.exceptions import NoCallbackAttached, NoReplyToRequest
 
 
 class Get(Enum):

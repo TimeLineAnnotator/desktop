@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-
 from typing import Any, Callable
 
 from PySide6.QtCore import QPoint
-
-from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
-from tilia.ui.coords import time_x_converter
-
 from PySide6.QtWidgets import QGraphicsScene
 
 from tilia.requests import stop_listening_to_all
+from tilia.ui.coords import time_x_converter
+from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 
 
 class TimelineUIElement(ABC):

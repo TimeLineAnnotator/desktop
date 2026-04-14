@@ -3,21 +3,19 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING
 
+from tilia.requests import Get, Post, get, listen
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.requests import Get, get, listen, Post
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
 from tilia.ui.timelines.collection.collection import TimelineSelector
-from tilia.ui.timelines.marker.context_menu import MarkerTimelineUIContextMenu
-from tilia.ui.timelines.marker.element import MarkerUI
-from tilia.ui.timelines.marker.toolbar import MarkerTimelineToolbar
-
 from tilia.ui.timelines.copy_paste import (
     paste_into_element,
 )
+from tilia.ui.timelines.marker.context_menu import MarkerTimelineUIContextMenu
+from tilia.ui.timelines.marker.element import MarkerUI
+from tilia.ui.timelines.marker.toolbar import MarkerTimelineToolbar
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.base.timeline import TimelineUIs
@@ -72,9 +70,6 @@ class MarkerTimelineUI(TimelineUI):
         if len(self.selected_elements) > 1:
             for element in self.selected_elements[:-1]:
                 self.element_manager.deselect_element(element)
-
-    def validate_copy(self, elements: list[TimelineUIElement]) -> None:
-        pass
 
     def paste_single_into_selected_elements(self, paste_data: list[dict] | dict):
         selected_elements = self.element_manager.get_selected_elements()

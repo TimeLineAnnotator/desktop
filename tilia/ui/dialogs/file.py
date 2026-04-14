@@ -5,9 +5,9 @@ from PySide6 import QtCore
 from PySide6.QtCore import QDir
 from PySide6.QtWidgets import QFileDialog
 
-from tilia.media import constants as media_constants
-from tilia.constants import APP_NAME, FILE_EXTENSION
 import tilia.ui.dialogs.basic
+from tilia.constants import APP_NAME, FILE_EXTENSION
+from tilia.media import constants as media_constants
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 
 APP_FILE_FILTER = f"{APP_NAME} files (*.{FILE_EXTENSION})"

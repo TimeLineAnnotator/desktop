@@ -4,8 +4,8 @@ from unittest.mock import mock_open, patch
 
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.hierarchy import (
-    import_by_time,
     import_by_measure,
+    import_by_time,
 )
 
 

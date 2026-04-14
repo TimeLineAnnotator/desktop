@@ -2,7 +2,6 @@ import pytest
 
 from tests.constants import EXAMPLE_MUSICXML_PATH
 from tests.mock import Serve
-
 from tilia.requests import Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind

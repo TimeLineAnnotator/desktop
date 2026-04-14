@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.beat import beats_from_csv

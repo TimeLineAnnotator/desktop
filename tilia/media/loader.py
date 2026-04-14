@@ -1,11 +1,11 @@
 import re
 from pathlib import Path
 
-import tilia.errors
 import tilia.constants
+import tilia.errors
 import tilia.media.constants
 from tilia.media.player import Player
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 
 
 def load_media(

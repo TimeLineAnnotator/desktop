@@ -4,19 +4,19 @@ import functools
 
 import pypdf
 
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 from tilia.settings import settings
-from tilia.timelines.base.component.pointlike import scale_pointlike, crop_pointlike
-from tilia.timelines.base.validators import validate_string
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.pdf.components import PdfMarker
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component.pointlike import crop_pointlike, scale_pointlike
 from tilia.timelines.base.timeline import (
     Timeline,
     TimelineComponentManager,
     TimelineFlag,
 )
+from tilia.timelines.base.validators import validate_string
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.pdf.components import PdfMarker
+from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class PdfTLComponentManager(TimelineComponentManager):

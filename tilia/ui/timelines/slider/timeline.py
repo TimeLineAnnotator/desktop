@@ -1,32 +1,33 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QRectF, QLineF, Qt
-from PySide6.QtGui import QPen, QColor, QBrush
+from PySide6.QtCore import QLineF, QRectF, Qt
+from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtWidgets import (
+    QGraphicsDropShadowEffect,
     QGraphicsEllipseItem,
     QGraphicsLineItem,
-    QGraphicsDropShadowEffect,
 )
 
 from tilia.media.player.base import MediaTimeChangeReason
-from tilia.requests import get, Get, post
+from tilia.requests import Get, Post, get, listen, post
+from tilia.settings import settings
+from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.settings import settings
-from tilia.requests import Post, listen
-from tilia.timelines.base.component import TimelineComponent
+from tilia.ui.coords import time_x_converter
 from tilia.ui.smooth_scroll import setup_smooth, smooth
-from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.base.element_manager import ElementManager
+from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.view import TimelineView
-from tilia.ui.coords import time_x_converter
+
 from ..cursors import CursorMixIn
 
 if TYPE_CHECKING:
-    from tilia.ui.timelines.scene import TimelineScene
     from tilia.ui.timelines.collection.collection import TimelineUIs
+    from tilia.ui.timelines.scene import TimelineScene
 
 
 class SliderTimelineUI(TimelineUI):

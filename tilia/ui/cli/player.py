@@ -7,7 +7,7 @@ import isodate
 
 from tilia.media.player import Player
 from tilia.media.player.qtplayer import QtPlayer
-from tilia.requests import post, Post
+from tilia.requests import Post, post
 
 
 class CLIVideoPlayer(QtPlayer):

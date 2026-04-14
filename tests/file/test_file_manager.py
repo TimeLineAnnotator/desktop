@@ -1,19 +1,16 @@
 import json
 import sys
-from pathlib import WindowsPath, Path
-from unittest.mock import mock_open
+from pathlib import Path, WindowsPath
+from unittest.mock import mock_open, patch
 
 import pytest
 
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import PatchPost, Serve, patch_file_dialog, patch_yes_or_no_dialog
-from tilia.file.media_metadata import MediaMetadata
-
-from tilia.requests import Post, post, Get, get
-from tilia.file.tilia_file import TiliaFile
 from tilia.file.file_manager import FileManager
-from unittest.mock import patch
-
+from tilia.file.media_metadata import MediaMetadata
+from tilia.file.tilia_file import TiliaFile
+from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 
 

@@ -1,6 +1,6 @@
-from tilia.ui.windows.beat_pattern import AskBeatPattern
-from tilia.ui.windows.fill_beat_timeline import FillBeatTimeline, BeatTimeline
 import tilia.errors
+from tilia.ui.windows.beat_pattern import AskBeatPattern
+from tilia.ui.windows.fill_beat_timeline import BeatTimeline, FillBeatTimeline
 
 
 def ask_for_beat_pattern():

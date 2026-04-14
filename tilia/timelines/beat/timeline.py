@@ -3,25 +3,25 @@ from __future__ import annotations
 import functools
 import itertools
 import math
-from enum import Enum
 from bisect import bisect
+from enum import Enum
 from math import isclose
-from typing import cast, Any
+from typing import Any, cast
 
 import tilia.errors
-from tilia.requests import post, Post, get, Get
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
-from tilia.timelines.beat.validators import validate_integer_list
-from tilia.timelines.base.component.pointlike import scale_pointlike, crop_pointlike
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.base.component.pointlike import crop_pointlike, scale_pointlike
 from tilia.timelines.base.timeline import (
+    TC,
     Timeline,
     TimelineComponentManager,
-    TC,
     TimelineFlag,
 )
 from tilia.timelines.beat.components import Beat
+from tilia.timelines.beat.validators import validate_integer_list
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class BeatTLComponentManager(TimelineComponentManager):

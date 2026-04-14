@@ -1,21 +1,21 @@
 from PySide6 import QtGui
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QHBoxLayout,
-    QVBoxLayout,
-    QPushButton,
     QListWidget,
     QListWidgetItem,
-    QCheckBox,
+    QPushButton,
+    QVBoxLayout,
 )
 
 from tilia.requests import (
-    Post,
-    post,
     Get,
+    Post,
     get,
     listen,
+    post,
     stop_listening_to_all,
     stop_serving_all,
 )

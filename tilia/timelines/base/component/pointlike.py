@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 from typing import Iterable
 
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.metric_position import MetricPosition

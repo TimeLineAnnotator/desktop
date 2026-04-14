@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 from tilia.timelines.base.component import PointLikeTimelineComponent
-from tilia.timelines.base.validators import validate_time, validate_integer
+from tilia.timelines.base.validators import validate_integer, validate_time
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components.validators import validate_step
 

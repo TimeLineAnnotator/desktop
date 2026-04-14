@@ -1,5 +1,6 @@
-from PySide6.QtCore import QSettings, QObject
 from pathlib import Path
+
+from PySide6.QtCore import QObject, QSettings
 
 import tilia.constants
 from tilia.ui.enums import ScrollType

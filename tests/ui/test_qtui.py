@@ -1,10 +1,10 @@
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 from tests.conftest import parametrize_tlui
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve
-from tests.utils import get_main_window_menu, get_actions_in_menu
-from tilia.requests import Post, post, Get
+from tests.utils import get_actions_in_menu, get_main_window_menu
+from tilia.requests import Get, Post, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.commands import get_qaction
 from tilia.ui.timelines.marker import MarkerTimelineUI

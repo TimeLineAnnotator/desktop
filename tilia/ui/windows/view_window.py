@@ -1,11 +1,10 @@
-from typing import TypeVar, Generic
+from typing import Generic, TypeVar
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDockWidget, QDialog, QWidget
+from PySide6.QtWidgets import QDialog, QDockWidget, QWidget
 
-from tilia.requests import get, Get, post, Post, listen
+from tilia.requests import Get, Post, get, listen, post
 from tilia.ui.enums import WindowState
-
 
 T = TypeVar("T", QDialog, QDockWidget)
 

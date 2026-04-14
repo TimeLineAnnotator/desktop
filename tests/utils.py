@@ -7,8 +7,8 @@ from typing import Callable
 
 from PySide6.QtWidgets import QMenu
 
-from tilia.requests import get, Get, Post, post
 from tests.mock import patch_file_dialog
+from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
 

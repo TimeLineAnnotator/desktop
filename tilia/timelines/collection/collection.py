@@ -1,22 +1,24 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Any
 from bisect import bisect
+from typing import TYPE_CHECKING, Any
 
 from tilia.exceptions import TimelineValidationError
-from tilia.requests import Post, post, serve, Get, get
+from tilia.requests import Get, Post, get, post, serve
 from tilia.timelines.base.metric_position import MetricPosition
+from tilia.timelines.base.timeline import Timeline, TimelineFlag
 from tilia.timelines.hash_timelines import hash_function
-from tilia.utils import get_tilia_class_string
+from tilia.timelines.timeline_kinds import (
+    TimelineKind,
+    get_timeline_class_from_kind,
+    get_timeline_kind_from_string,
+)
 from tilia.timelines.timeline_kinds import (
     TimelineKind as TlKind,
-    TimelineKind,
-    get_timeline_kind_from_string,
-    get_timeline_class_from_kind,
 )
-from tilia.timelines.base.timeline import Timeline, TimelineFlag
 from tilia.undo_manager import PauseUndoManager
+from tilia.utils import get_tilia_class_string
 
 if TYPE_CHECKING:
     from tilia.app import App

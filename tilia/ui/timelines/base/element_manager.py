@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import bisect
-from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Generic, Iterable, TypeVar
 
 from PySide6.QtWidgets import QGraphicsItem
 
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.ui.timelines.element_kinds import get_element_class_by_kind
-from tilia.utils import get_tilia_class_string
-from tilia.ui.timelines.scene import TimelineScene
-
 from tilia.ui.timelines.base.element import TimelineUIElement
+from tilia.ui.timelines.element_kinds import get_element_class_by_kind
+from tilia.ui.timelines.scene import TimelineScene
+from tilia.utils import get_tilia_class_string
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.base.timeline import TimelineUI

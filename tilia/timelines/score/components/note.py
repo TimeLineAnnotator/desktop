@@ -2,15 +2,15 @@ from enum import Enum, auto
 
 from tilia.timelines.base.component import SegmentLikeTimelineComponent
 from tilia.timelines.base.validators import (
-    validate_time,
     validate_color,
-    validate_string,
     validate_integer,
+    validate_string,
+    validate_time,
 )
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components.validators import (
-    validate_step,
     validate_accidental,
+    validate_step,
     validate_tie_type,
 )
 from tilia.timelines.score.timeline import ScoreTimeline

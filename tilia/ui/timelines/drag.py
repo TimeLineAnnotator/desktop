@@ -1,6 +1,6 @@
 from typing import Callable
 
-from tilia.requests import listen, Post, stop_listening
+from tilia.requests import Post, listen, stop_listening
 
 
 def noop(*_, **__):

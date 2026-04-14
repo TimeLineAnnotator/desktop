@@ -6,7 +6,7 @@ from typing import Callable
 
 import tilia.constants
 import tilia.errors
-from tilia.requests import Post, post, get, Get
+from tilia.requests import Get, Post, get, post
 from tilia.ui.cli import io
 
 

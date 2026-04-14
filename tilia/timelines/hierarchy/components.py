@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tilia.requests import get, Get
+from tilia.requests import Get, get
+from tilia.timelines.base.component import SegmentLikeTimelineComponent
 from tilia.timelines.base.validators import (
-    validate_time,
-    validate_string,
     validate_color,
-    validate_read_only,
     validate_pre_validated,
+    validate_read_only,
+    validate_string,
+    validate_time,
 )
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.base.component import SegmentLikeTimelineComponent
 
 if TYPE_CHECKING:
     from tilia.timelines.hierarchy.timeline import HierarchyTimeline

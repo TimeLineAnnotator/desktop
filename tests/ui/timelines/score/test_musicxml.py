@@ -1,5 +1,5 @@
-from tests.mock import patch_yes_or_no_dialog
 from tests.constants import EXAMPLE_MUSICXML_PATH
+from tests.mock import patch_yes_or_no_dialog
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.timelines.component_kinds import ComponentKind
 

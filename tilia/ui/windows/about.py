@@ -1,3 +1,5 @@
+from re import sub
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -7,10 +9,8 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QVBoxLayout,
 )
-from re import sub
 
 import tilia.constants
-
 from tilia.requests import Post, post
 from tilia.ui.windows import WindowKind
 

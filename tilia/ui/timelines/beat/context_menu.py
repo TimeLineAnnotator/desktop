@@ -1,7 +1,7 @@
 from tilia.ui.menus import MenuItemKind
 from tilia.ui.timelines.base.context_menus import (
-    TimelineUIElementContextMenu,
     TimelineUIContextMenu,
+    TimelineUIElementContextMenu,
 )
 
 

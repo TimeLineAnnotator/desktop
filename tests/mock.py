@@ -1,8 +1,8 @@
 from contextlib import contextmanager
 from typing import Any, Sequence
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from tilia.requests import Get, Post, serve, server, stop_serving
 from tilia.requests import post as post_original

@@ -21,8 +21,8 @@ def get_inspect_widget(qtui: QtUI, field_name: str) -> None:
 
     try:
         return window.field_name_to_widgets[field_name][1]
-    except KeyError:
-        raise KeyError("Field name not found in inspect window.")
+    except KeyError as e:
+        raise KeyError("Field name not found in inspect window.") from e
 
 
 class TestInspect:

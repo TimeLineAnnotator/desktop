@@ -1,25 +1,26 @@
 from __future__ import annotations
 
 import music21
-from PySide6.QtCore import QPointF
-from PySide6.QtGui import QFont, QColor
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 from music21.roman import RomanNumeral
+from PySide6.QtCore import QPointF
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
-from . import harmony_attrs
-from tilia.requests import get, Get, post, Post
+from tilia.requests import Get, Post, get, post
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
-    QUALITY_TO_ABBREVIATION,
     INT_TO_ROMAN,
     INVERSION_TO_INTERVAL,
+    QUALITY_TO_ABBREVIATION,
     Accidental,
 )
 from tilia.ui.timelines.harmony.context_menu import HarmonyContextMenu
 from tilia.ui.timelines.harmony.utils import to_roman_numeral
+
+from . import harmony_attrs
 
 
 class HarmonyUI(TimelineUIElement):

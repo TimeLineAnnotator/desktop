@@ -4,13 +4,13 @@ from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 
 
 def get_import_function(tl_kind: TlKind, by=Literal["time", "measure"]):
-    from .csv.marker import import_by_measure as marker_by_measure
-    from .csv.marker import import_by_time as marker_by_time
-    from .csv.hierarchy import import_by_measure as hierarchy_by_measure
-    from .csv.hierarchy import import_by_time as hierarchy_by_time
     from .csv.beat import beats_from_csv
     from .csv.harmony import import_by_measure as harmony_by_measure
     from .csv.harmony import import_by_time as harmony_by_time
+    from .csv.hierarchy import import_by_measure as hierarchy_by_measure
+    from .csv.hierarchy import import_by_time as hierarchy_by_time
+    from .csv.marker import import_by_measure as marker_by_measure
+    from .csv.marker import import_by_time as marker_by_time
     from .csv.pdf import import_by_measure as pdf_by_measure
     from .csv.pdf import import_by_time as pdf_by_time
     from .score.musicxml import notes_from_musicXML as score_from_musicxml

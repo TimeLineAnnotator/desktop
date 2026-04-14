@@ -4,10 +4,9 @@ import pytest
 
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.utils import undoable
-from tilia.requests import Post, post
-from tilia.requests import Get
-from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.requests import Get, Post, post
 from tilia.settings import settings
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
 from tilia.ui.windows import WindowKind
 

@@ -1,9 +1,9 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QToolBar, QComboBox, QLabel
+from PySide6.QtWidgets import QComboBox, QLabel, QToolBar
 
+from tilia.requests import Post, listen, post
 from tilia.settings import settings
 from tilia.ui.enums import ScrollType
-from tilia.requests import listen, Post, post
 
 
 class OptionsToolbar(QToolBar):

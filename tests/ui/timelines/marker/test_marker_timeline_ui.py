@@ -14,17 +14,16 @@ from tests.ui.timelines.interact import (
 )
 from tests.ui.timelines.marker.interact import click_marker_ui, get_marker_ui_center
 from tests.utils import (
-    undoable,
     get_command_action,
-    get_submenu,
-    get_main_window_menu,
     get_command_names,
+    get_main_window_menu,
+    get_submenu,
+    undoable,
 )
-from tilia.requests import Post, Get, post
+from tilia.requests import Get, Post, post
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.coords import time_x_converter
-
 from tilia.ui.timelines.marker import MarkerTimelineToolbar
 from tilia.ui.timelines.marker.context_menu import (
     MarkerContextMenu,

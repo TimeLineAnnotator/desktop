@@ -1,15 +1,15 @@
 from PySide6.QtWidgets import (
-    QDialog,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QGridLayout,
     QLabel,
-    QDialogButtonBox,
 )
 
 from tilia.timelines.harmony.constants import MODE_TYPES
 from tilia.ui.timelines.harmony.constants import (
-    NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,
+    NOTE_NAME_TO_INT,
 )
 
 

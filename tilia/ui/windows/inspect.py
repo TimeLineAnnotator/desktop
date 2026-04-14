@@ -2,29 +2,27 @@ from __future__ import annotations
 
 import functools
 from enum import Enum, auto
-
 from typing import Any, Callable, cast
 
+from PySide6.QtCore import QKeyCombination, Qt
 from PySide6.QtWidgets import (
+    QComboBox,
     QDockWidget,
     QFormLayout,
+    QFrame,
     QLabel,
     QLineEdit,
-    QTextEdit,
-    QWidget,
     QSizePolicy,
     QSpinBox,
-    QComboBox,
     QStackedWidget,
-    QFrame,
+    QTextEdit,
+    QWidget,
 )
 
-from PySide6.QtCore import Qt, QKeyCombination
-
-from tilia.requests import Post, listen, stop_listening_to_all, post, Get, get
-from tilia.utils import get_tilia_class_string
+from tilia.requests import Get, Post, get, listen, post, stop_listening_to_all
 from tilia.timelines.base.component import TimelineComponent
 from tilia.ui.windows.kinds import WindowKind
+from tilia.utils import get_tilia_class_string
 
 PADX = 5
 PADY = 5

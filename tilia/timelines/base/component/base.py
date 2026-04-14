@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from tilia.exceptions import SetComponentDataError, GetComponentDataError
+from tilia.exceptions import GetComponentDataError, SetComponentDataError
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.base.validators import validate_read_only
 from tilia.timelines.hash_timelines import hash_function

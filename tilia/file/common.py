@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import re
+from pathlib import Path
 
 import tilia.constants
 from tilia.file.tilia_file import TiliaFile

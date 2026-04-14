@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import os
+
 import prettytable
 from colorama import Fore
-import os
 
 
 def output(message: str, color: Fore = None) -> None:

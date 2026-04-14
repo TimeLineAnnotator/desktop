@@ -1,8 +1,8 @@
 from typing import TypedDict
 
-from tilia.requests import Post, listen, serve, Get
-from tilia.utils import get_tilia_class_string
+from tilia.requests import Get, Post, listen, serve
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.utils import get_tilia_class_string
 
 
 class ClipboardContents(TypedDict):

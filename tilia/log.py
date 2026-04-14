@@ -1,13 +1,14 @@
 import logging
 import os
 from datetime import datetime
-from json import dumps
 from itertools import count
+from json import dumps
 from pathlib import Path
 from typing import Any
 
 import sentry_sdk.integrations.logging
 import sentry_sdk.profiler
+
 from tilia import dirs
 from tilia.constants import APP_NAME, VERSION
 from tilia.settings import settings

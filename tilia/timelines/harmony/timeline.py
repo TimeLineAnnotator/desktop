@@ -7,20 +7,20 @@ from typing import Any
 
 import music21
 
-from tilia.requests import post, Post
-from tilia.timelines.base.component.pointlike import scale_pointlike, crop_pointlike
-from tilia.timelines.base.validators import validate_positive_integer
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.harmony.components import Mode, Harmony
-from tilia.timelines.harmony.validators import validate_level_count
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.requests import Post, post
 from tilia.timelines.base.component import TimelineComponent
+from tilia.timelines.base.component.pointlike import crop_pointlike, scale_pointlike
 from tilia.timelines.base.timeline import (
+    TC,
     Timeline,
     TimelineComponentManager,
-    TC,
     TimelineFlag,
 )
+from tilia.timelines.base.validators import validate_positive_integer
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.harmony.components import Harmony, Mode
+from tilia.timelines.harmony.validators import validate_level_count
+from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class HarmonyTLComponentManager(TimelineComponentManager):

@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QUrl, QEventLoop, SignalInstance, QTimer
+from PySide6.QtCore import QEventLoop, QTimer, QUrl, SignalInstance
 from PySide6.QtMultimedia import (
-    QMediaPlayer,
-    QAudioOutput,
     QAudio,
     QAudioDevice,
+    QAudioOutput,
     QMediaDevices,
+    QMediaPlayer,
 )
-
-from .base import Player
 
 from tilia.requests import Post, post
 from tilia.ui.player import PlayerStatus
+
+from .base import Player
 
 
 def wait_for_signal(signal: SignalInstance, value):

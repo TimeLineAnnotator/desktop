@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGraphicsView, QAbstractSlider
+from PySide6.QtWidgets import QAbstractSlider, QGraphicsView
+
 from tilia.ui import commands
 from tilia.ui.smooth_scroll import setup_smooth, smooth
 

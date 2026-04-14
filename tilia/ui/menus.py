@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import TypeAlias
 from enum import Enum, auto
+from typing import TypeAlias
 
-from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMenu
 
-from tilia.timelines.timeline_kinds import get_timeline_name, TimelineKind
+from tilia.requests.post import Post, listen, post
+from tilia.settings import settings
+from tilia.timelines.timeline_kinds import TimelineKind, get_timeline_name
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
-from tilia.settings import settings
-from tilia.requests.post import post, Post, listen
 from tilia.ui.enums import WindowState
 
 

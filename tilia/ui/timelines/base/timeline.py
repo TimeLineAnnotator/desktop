@@ -1,39 +1,47 @@
 from __future__ import annotations
+
 import functools
 import importlib
 from abc import ABC
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
-    TYPE_CHECKING,
     TypeVar,
 )
 
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QGraphicsItem
 
-from tilia.timelines.component_kinds import ComponentKind
-from .context_menus import TimelineUIContextMenu
-from tilia.requests import Post, stop_listening, stop_listening_to_all, listen, post
-from tilia.utils import get_tilia_class_string
-from tilia.requests import get, Get
+from tilia.requests import (
+    Get,
+    Post,
+    get,
+    listen,
+    post,
+    stop_listening,
+    stop_listening_to_all,
+)
 from tilia.timelines.base.component import TimelineComponent
-from tilia.ui.timelines.base.element_manager import ElementManager
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.ui import commands
 from tilia.ui.timelines.base.element import TimelineUIElement
-from tilia.ui.timelines.scene import TimelineScene
+from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.copy_paste import (
     CopyAttributes,
-    get_copy_data_from_elements,
     get_copy_data_from_element,
+    get_copy_data_from_elements,
 )
-from tilia.ui import commands
-from tilia.utils import get_sibling_packages
-from ..view import TimelineView
+from tilia.ui.timelines.scene import TimelineScene
+from tilia.utils import get_sibling_packages, get_tilia_class_string
+
 from ...coords import time_x_converter
 from ...windows import WindowKind
+from ..view import TimelineView
+from .context_menus import TimelineUIContextMenu
 
 if TYPE_CHECKING:
-    from tilia.ui.timelines.collection.collection import TimelineUIs, TimelineSelector
+    from tilia.ui.timelines.collection.collection import TimelineSelector, TimelineUIs
 
 T = TypeVar("T", bound="TimelineUIElement")
 
@@ -58,7 +66,7 @@ def with_elements(func: Callable) -> Callable:
     return wrapper
 
 
-class TimelineUI(ABC):
+class TimelineUI(ABC):  # noqa: B024
     TIMELINE_KIND = None
     TOOLBAR_CLASS = None
     COPY_PASTE_MANGER_CLASS = None
@@ -183,7 +191,7 @@ class TimelineUI(ABC):
             **kwargs,
         )
 
-    @classmethod
+    @classmethod  # noqa: B027
     def register_commands(cls, collection: TimelineUIs):
         """
         Override to register commands for this timeline kind.
@@ -530,10 +538,10 @@ class TimelineUI(ABC):
 
         self.element_manager.delete_element(element)
 
-    def validate_copy(self, elements: list[T]) -> None:
+    def validate_copy(self, elements: list[T]) -> None:  # noqa: B027
         """Can be overwritten by subclasses"""
 
-    def validate_paste(
+    def validate_paste(  # noqa: B027
         self, paste_data: dict, elements_to_receive_paste: list[T]
     ) -> None:
         """Can be overwritten by subclasses"""

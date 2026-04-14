@@ -4,31 +4,30 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
+from colorama import Fore, Style
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
-from colorama import Fore, Style
-
-import tilia.utils  # noqa: F401
 
 import tilia.constants as constants_module
 import tilia.log as logging_module
 import tilia.settings as settings_module
-from tilia.media.player.base import MediaTimeChangeReason
+import tilia.utils  # noqa: F401
 from tilia.app import App
 from tilia.boot import setup_logic
+from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import (
-    Post,
-    stop_listening,
-    post,
     Get,
+    Post,
     get,
     listen,
+    post,
+    stop_listening,
 )
-from tilia.ui.qtui import QtUI, TiliaMainWindow
-from tilia.ui.cli.ui import CLI
-from tilia.ui.windows import WindowKind
 from tilia.requests.get import reset as reset_get
 from tilia.requests.post import reset as reset_post
+from tilia.ui.cli.ui import CLI
+from tilia.ui.qtui import QtUI, TiliaMainWindow
+from tilia.ui.windows import WindowKind
 
 try:
     # icecream is a replacement for print()

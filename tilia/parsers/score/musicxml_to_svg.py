@@ -5,18 +5,19 @@ from pathlib import Path
 from re import sub
 
 from PySide6.QtCore import (
-    Slot,
     QObject,
     QUrl,
+    Slot,
 )
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from tilia.requests import (
-    get,
-    Get,
-)
+
 import tilia.errors
+from tilia.requests import (
+    Get,
+    get,
+)
 
 
 class SvgWebEngineTracker(QObject):

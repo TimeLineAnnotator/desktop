@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import auto, Enum
+from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,20 +25,20 @@ class ComponentKind(Enum):
 
 
 def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
-    from tilia.timelines.hierarchy.components import Hierarchy
-    from tilia.timelines.marker.components import Marker
+    from tilia.timelines.audiowave.components import AmplitudeBar
     from tilia.timelines.beat.components import Beat
     from tilia.timelines.harmony.components import Harmony, Mode
+    from tilia.timelines.hierarchy.components import Hierarchy
+    from tilia.timelines.marker.components import Marker
     from tilia.timelines.pdf.components import PdfMarker
-    from tilia.timelines.audiowave.components import AmplitudeBar
     from tilia.timelines.score.components import (
-        Note,
-        Staff,
-        Clef,
         BarLine,
-        TimeSignature,
+        Clef,
         KeySignature,
+        Note,
         ScoreAnnotation,
+        Staff,
+        TimeSignature,
     )
 
     kind_to_class_dict = {

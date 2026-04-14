@@ -5,7 +5,8 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLabel,
 )
-from tilia.requests import get, Get
+
+from tilia.requests import Get, get
 
 
 class ResizeRect(QDialog):

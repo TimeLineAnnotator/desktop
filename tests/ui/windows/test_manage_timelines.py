@@ -82,7 +82,7 @@ class TestChangeTimelineOrder:
             elif button == "down":
                 button = mt.down_button
             else:
-                assert False, "Invalid button value."
+                raise AssertionError("Invalid button value.")
 
             QTest.mouseClick(button, Qt.MouseButton.LeftButton)
 

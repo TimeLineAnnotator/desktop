@@ -1,7 +1,8 @@
 import os
 import weakref
 from enum import Enum, auto
-from typing import Callable, Any
+from typing import Any, Callable
+
 from tilia.log import logger
 
 

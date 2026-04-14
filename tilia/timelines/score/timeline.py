@@ -3,20 +3,20 @@ from __future__ import annotations
 import functools
 from typing import Any
 
-from tilia.requests import post, Post
+from tilia.requests import Post, post
 from tilia.timelines.base.component import (
     PointLikeTimelineComponent,
     SegmentLikeTimelineComponent,
 )
-from tilia.timelines.base.component.mixed import scale_mixed, crop_mixed
-from tilia.timelines.base.validators import validate_string, validate_pre_validated
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.base.component.mixed import crop_mixed, scale_mixed
 from tilia.timelines.base.timeline import (
     Timeline,
     TimelineComponentManager,
     TimelineFlag,
 )
+from tilia.timelines.base.validators import validate_pre_validated, validate_string
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
@@ -108,7 +108,7 @@ class ScoreTimeline(Timeline):
         return self._viewer_beat_x
 
     @viewer_beat_x.setter
-    def viewer_beat_x(self, x_pos: dict[float, float] = {}):
+    def viewer_beat_x(self, x_pos: dict[float, float] | None = None):
         if x_pos:
             self._viewer_beat_x = x_pos
 

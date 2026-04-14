@@ -1,4 +1,4 @@
-from PySide6.QtGui import QPen, QColor
+from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import QGraphicsLineItem
 
 from tilia.ui.coords import time_x_converter

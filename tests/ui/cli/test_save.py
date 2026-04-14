@@ -1,8 +1,8 @@
 import os
+from io import StringIO
+from pathlib import Path
 
 import pytest
-from pathlib import Path
-from io import StringIO
 
 from tilia.ui.path import ensure_tla_extension
 

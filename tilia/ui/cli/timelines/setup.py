@@ -1,8 +1,8 @@
-from .imp import setup_parser as setup_import_parser
 from .add import setup_parser as setup_add_parser
+from .imp import setup_parser as setup_import_parser
 from .list import setup_parser as setup_list_parser
-from .remove import setup_parser as setup_remove_parser
 from .move import setup_parser as setup_move_parser
+from .remove import setup_parser as setup_remove_parser
 
 
 def setup_parser(subparsers):

@@ -5,30 +5,29 @@ import traceback
 from enum import Enum, auto
 from typing import Any, Callable, cast
 
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
-    QMainWindow,
     QGraphicsItem,
     QGraphicsScene,
+    QMainWindow,
 )
 
 import tilia
 import tilia.errors
-from tilia.ui.timelines.collection.import_ import _on_import_to_timeline
-from tilia.ui import commands
-from tilia.settings import settings
-from tilia.media.player.base import MediaTimeChangeReason
-from tilia.timelines.component_kinds import ComponentKind
-from .scene import TimelineUIsScene
 from tilia.log import logger
-from tilia.requests import get, Get, serve
-from tilia.requests import listen, Post, post
+from tilia.media.player.base import MediaTimeChangeReason
+from tilia.requests import Get, Post, get, listen, post, serve
+from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import (
-    TimelineKind as TlKind,
     TimelineKind,
     get_timeline_name,
 )
+from tilia.timelines.timeline_kinds import (
+    TimelineKind as TlKind,
+)
+from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.enums import ScrollType
@@ -36,14 +35,17 @@ from tilia.ui.player import PlayerToolbarElement
 from tilia.ui.smooth_scroll import setup_smooth, smooth
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.timeline import TimelineUI, with_elements
+from tilia.ui.timelines.collection.import_ import _on_import_to_timeline
 from tilia.ui.timelines.scene import TimelineScene
 from tilia.ui.timelines.toolbar import TimelineToolbar
 from tilia.ui.timelines.view import TimelineView
-from .view import TimelineUIsView
+
+from ...dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 from ..base.element import TimelineUIElement
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
-from ...dialogs.add_timeline_without_media import AddTimelineWithoutMedia
+from .scene import TimelineUIsScene
+from .view import TimelineUIsView
 
 
 def command_callback(func, *args, **kwargs):
@@ -155,8 +157,8 @@ class TimelineUIs:
                     text,
                 )
 
-            if hasattr(cls, "register_commands"):
-                cls.register_commands(self)
+            if register_commands := cls.register_commands:
+                register_commands(self)
 
         # Commands for individual timelines
         commands.register(

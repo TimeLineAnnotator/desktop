@@ -4,16 +4,16 @@ import pytest
 
 from tests.mock import Serve
 from tests.ui.timelines.interact import (
-    click_timeline_ui_element_body,
     click_timeline_ui,
+    click_timeline_ui_element_body,
 )
 from tests.utils import undoable
-from tilia.requests import Post, post, Get
+from tilia.requests import Get, Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.ui import commands
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.collection import TimelineSelector
-from tilia.ui import commands
 
 
 def get_time_shifted_args(args: dict[str, int], d_time) -> dict[str, int]:

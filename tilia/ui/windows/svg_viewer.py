@@ -1,47 +1,45 @@
 # TODO: QThreads
 from __future__ import annotations
 
-from lxml import etree
-
 from bisect import bisect
 from typing import Callable
 
+from lxml import etree
 from PySide6.QtCore import (
-    Qt,
     QKeyCombination,
     QPointF,
+    Qt,
 )
 from PySide6.QtGui import QColor, QFont
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtSvgWidgets import QGraphicsSvgItem
 from PySide6.QtWidgets import (
     QFrame,
-    QGraphicsView,
     QGraphicsItem,
     QGraphicsScene,
     QGraphicsSimpleTextItem,
+    QGraphicsView,
     QHBoxLayout,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtSvg import QSvgRenderer
 
-from tilia.ui import commands
-from tilia.ui.commands import get_qaction
-
-from tilia.ui.smooth_scroll import smooth, setup_smooth
-from tilia.ui.windows.view_window import ViewDockWidget
-from tilia.timelines.component_kinds import ComponentKind
+import tilia.errors
 from tilia.requests import (
-    get,
     Get,
-    post,
     Post,
+    get,
+    post,
     serve,
     stop_listening_to_all,
     stop_serving_all,
 )
-import tilia.errors
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.ui import commands
+from tilia.ui.commands import get_qaction
+from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.windows.view_window import ViewDockWidget
 
 
 class SvgViewer(ViewDockWidget):

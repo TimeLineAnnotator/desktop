@@ -2,12 +2,12 @@ import functools
 
 import pytest
 
-from tilia.requests import post, Post
+from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.pdf.components import PdfMarker
 from tilia.timelines.pdf.timeline import PdfTimeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.timelines.pdf import PdfTimelineUI, PdfMarkerUI
+from tilia.ui.timelines.pdf import PdfMarkerUI, PdfTimelineUI
 
 
 class TestPdfTimelineUI(PdfTimelineUI):

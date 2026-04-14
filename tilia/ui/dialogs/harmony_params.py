@@ -1,30 +1,30 @@
 import music21
 from PySide6.QtWidgets import (
-    QDialog,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QGridLayout,
     QLabel,
-    QDialogButtonBox,
     QLineEdit,
 )
 
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 from tilia.settings import settings
+from tilia.timelines.harmony.components.harmony import (
+    get_params_from_text as get_harmony_params_from_text,
+)
 from tilia.timelines.harmony.constants import (
     HARMONY_DISPLAY_MODES,
     get_inversion_amount,
 )
-from tilia.timelines.harmony.components.harmony import (
-    get_params_from_text as get_harmony_params_from_text,
-)
+from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.harmony.constants import (
-    NOTE_NAME_TO_INT,
     ACCIDENTAL_TO_INT,
+    NOTE_NAME_TO_INT,
 )
 from tilia.ui.timelines.harmony.utils import (
     INT_TO_APPLIED_TO_SUFFIX,
 )
-from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class SelectHarmonyParams(QDialog):

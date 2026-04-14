@@ -1,19 +1,18 @@
+from enum import Enum, auto
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QLabel,
     QSlider,
     QToolBar,
 )
-from PySide6.QtGui import QIcon, QAction
-from PySide6.QtCore import Qt
-
-from tilia.ui import commands
-from tilia.ui.format import format_media_time
-from tilia.requests import Post, post, listen, stop_listening_to_all, get, Get
 
 import tilia.errors
-
-from enum import Enum, auto
+from tilia.requests import Get, Post, get, listen, post, stop_listening_to_all
+from tilia.ui import commands
+from tilia.ui.format import format_media_time
 
 
 class PlayerToolbar(QToolBar):

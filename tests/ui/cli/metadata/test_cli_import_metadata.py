@@ -1,7 +1,7 @@
 import argparse
+
 from tests.mock import PatchPost
 from tilia.requests.post import Post
-
 from tilia.ui.cli.metadata.imp import import_metadata
 
 

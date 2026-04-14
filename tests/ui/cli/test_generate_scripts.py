@@ -1,8 +1,9 @@
+import pytest
+
 from tilia.ui.cli.generate_scripts import (
     _get_args_from_filename,
     _get_script_for_folder,
 )
-import pytest
 
 
 @pytest.mark.parametrize(

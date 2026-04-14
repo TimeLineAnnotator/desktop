@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import math
-from typing import Callable, Any, Iterable
+from typing import Any, Callable, Iterable
 
-from PySide6.QtCore import Qt, QRectF, QPointF
-from PySide6.QtGui import QIcon, QColor
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QGraphicsRectItem
 
 import tilia.errors
 from tilia.exceptions import GetComponentDataError, NoReplyToRequest
-from tilia.requests import Get, get, listen, Post, post
+from tilia.requests import Get, Post, get, listen, post
+from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.settings import settings
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
@@ -22,12 +22,12 @@ from tilia.ui.timelines.cursors import CursorMixIn
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.score.context_menu import ScoreTimelineUIContextMenu
 from tilia.ui.timelines.score.element import (
+    BarLineUI,
+    ClefUI,
+    KeySignatureUI,
     NoteUI,
     StaffUI,
-    ClefUI,
-    BarLineUI,
     TimeSignatureUI,
-    KeySignatureUI,
 )
 from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,

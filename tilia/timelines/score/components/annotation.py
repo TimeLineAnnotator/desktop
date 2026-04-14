@@ -1,7 +1,7 @@
 from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import (
-    validate_pre_validated,
     validate_positive_integer,
+    validate_pre_validated,
     validate_string,
 )
 from tilia.timelines.component_kinds import ComponentKind

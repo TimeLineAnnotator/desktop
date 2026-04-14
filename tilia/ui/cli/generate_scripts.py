@@ -1,14 +1,13 @@
 import argparse
 import os
+from collections import namedtuple
 from functools import partial
 from pathlib import Path
 from typing import Callable
 
 from tilia.media.constants import ALL_SUPPORTED_MEDIA_FORMATS
-from collections import namedtuple
-
+from tilia.requests import Post, post
 from tilia.ui.cli import io
-from tilia.requests import post, Post
 
 
 def setup_parser(subparser, parse_and_run: Callable[[str], bool]):

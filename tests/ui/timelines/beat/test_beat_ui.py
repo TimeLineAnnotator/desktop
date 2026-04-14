@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from tests.ui.timelines.beat.interact import click_beat_ui
 from tests.ui.timelines.interact import drag_mouse_in_timeline_view
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 from tilia.ui.coords import time_x_converter
 
 

@@ -1,4 +1,4 @@
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor

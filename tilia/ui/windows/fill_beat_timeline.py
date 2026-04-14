@@ -1,18 +1,19 @@
 import sys
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QGridLayout,
-    QRadioButton,
-    QLabel,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
-    QComboBox,
-    QSpinBox,
     QDoubleSpinBox,
+    QGridLayout,
+    QLabel,
+    QRadioButton,
+    QSpinBox,
 )
 
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.strings import (

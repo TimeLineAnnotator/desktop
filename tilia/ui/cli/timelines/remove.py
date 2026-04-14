@@ -1,7 +1,8 @@
 import argparse
+
 from colorama import Fore
 
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 from tilia.ui.cli import io
 from tilia.ui.cli.timelines.utils import get_timeline_by_name, get_timeline_by_ordinal
 

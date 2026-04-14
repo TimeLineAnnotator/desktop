@@ -1,19 +1,21 @@
-from tilia.requests import get, Get, Post, listen, post
+import tilia.ui.strings
+import tilia.ui.timelines.copy_paste
+from tilia.requests import Get, Post, get, listen, post
+from tilia.settings import settings
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
     with_elements,
 )
+from tilia.ui.timelines.collection.collection import TimelineSelector, TimelineUIs
+from tilia.ui.timelines.copy_paste import get_copy_data_from_element, paste_into_element
 from tilia.ui.timelines.hierarchy import HierarchyTimelineToolbar, HierarchyUI
-from tilia.ui.timelines.copy_paste import get_copy_data_from_element
-import tilia.ui.timelines.copy_paste
-from tilia.ui.timelines.copy_paste import paste_into_element
-from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.hierarchy.copy_paste import (
-    _validate_copy_cardinality,
     _display_copy_error,
-    _validate_paste_complete_cardinality,
     _display_paste_complete_error,
+    _validate_copy_cardinality,
+    _validate_paste_complete_cardinality,
     _validate_paste_complete_level,
 )
 from tilia.ui.timelines.hierarchy.handles import HierarchyBodyHandle
@@ -21,9 +23,6 @@ from tilia.ui.timelines.hierarchy.key_press_manager import (
     HierarchyTimelineUIKeyPressManager,
 )
 from tilia.undo_manager import PauseUndoManager
-from tilia.settings import settings
-import tilia.ui.strings
-from tilia.ui.timelines.collection.collection import TimelineUIs, TimelineSelector
 
 
 class HierarchyTimelineUI(TimelineUI):

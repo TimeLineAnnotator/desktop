@@ -1,5 +1,6 @@
-import pytest
 import itertools
+
+import pytest
 
 from tilia.exceptions import InvalidComponentKindError
 from tilia.timelines.hierarchy.components import Hierarchy

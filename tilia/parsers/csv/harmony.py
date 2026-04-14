@@ -4,23 +4,23 @@ from typing import Any, Literal
 import music21
 
 import tilia.timelines.harmony.constants
-from tilia.parsers.csv.common import (
-    _get_attrs_indices,
-    _validate_required_attrs,
-    _parse_attr_data,
-    _get_attr_data,
-    _parse_measure_fraction,
-)
 from tilia.parsers.csv.base import TiliaCSVReader
+from tilia.parsers.csv.common import (
+    _get_attr_data,
+    _get_attrs_indices,
+    _parse_attr_data,
+    _parse_measure_fraction,
+    _validate_required_attrs,
+)
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.harmony.components.harmony import (
     get_params_from_text as get_harmony_params_from_text,
 )
 from tilia.timelines.harmony.components.mode import (
     get_params_from_text as get_mode_params_from_text,
 )
+from tilia.timelines.harmony.timeline import HarmonyTimeline
 
 
 def _parse_display_mode(value: str):

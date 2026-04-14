@@ -1,9 +1,9 @@
 import music21
 from PySide6.QtCore import QPointF
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
-from tilia.requests import get, Get, post, Post
+from tilia.requests import Get, Post, get, post
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager

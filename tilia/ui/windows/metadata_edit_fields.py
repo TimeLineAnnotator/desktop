@@ -1,6 +1,6 @@
 import functools
 
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextEdit, QVBoxLayout
 
 from tilia.requests import Get, get
 

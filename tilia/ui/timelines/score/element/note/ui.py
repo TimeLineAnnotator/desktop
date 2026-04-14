@@ -5,15 +5,15 @@ from PySide6.QtWidgets import (
 )
 
 from tilia.requests import Post, post
+from tilia.settings import settings
 from tilia.timelines.score.components.note import pitch
-from tilia.ui.timelines.score import attrs
 from tilia.ui.color import get_tinted_color
-from tilia.ui.format import format_media_time
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
-from tilia.settings import settings
+from tilia.ui.format import format_media_time
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.harmony.constants import Accidental
+from tilia.ui.timelines.score import attrs
 from tilia.ui.timelines.score.context_menu import NoteContextMenu
 from tilia.ui.timelines.score.element.note.accidental import NoteAccidental
 from tilia.ui.timelines.score.element.note.body import NoteBody

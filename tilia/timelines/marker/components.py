@@ -7,9 +7,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from tilia.timelines.base.validators import (
-    validate_time,
     validate_color,
     validate_string,
+    validate_time,
 )
 from tilia.timelines.component_kinds import ComponentKind
 

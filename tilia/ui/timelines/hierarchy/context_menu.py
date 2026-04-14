@@ -3,7 +3,6 @@ from __future__ import annotations
 from tilia.ui.menus import MenuItemKind
 from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 
-
 DEFAULT_ITEMS = [
     (MenuItemKind.COMMAND, "timeline.element.inspect"),
     (MenuItemKind.SEPARATOR, None),

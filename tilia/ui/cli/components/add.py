@@ -1,11 +1,11 @@
 import argparse
 from functools import partial
-from tilia.timelines.component_kinds import ComponentKind
 
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.cli import io
 from tilia.ui.cli.io import output
-from tilia.ui.cli.timelines.utils import get_timeline_by_ordinal, get_timeline_by_name
+from tilia.ui.cli.timelines.utils import get_timeline_by_name, get_timeline_by_ordinal
 
 TL_KIND_TO_COMPONENT_KIND = {
     TlKind.BEAT_TIMELINE: ComponentKind.BEAT,

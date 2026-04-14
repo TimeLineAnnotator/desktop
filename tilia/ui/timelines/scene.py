@@ -1,9 +1,9 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsRectItem
-from PySide6.QtGui import QColor, QPen, QBrush, QFontMetrics
+from PySide6.QtGui import QBrush, QColor, QFontMetrics, QPen
+from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsScene
 
+from tilia.requests import Get, Post, get, listen
 from tilia.settings import settings
-from tilia.requests import Get, get, listen, Post
 
 
 class TimelineScene(QGraphicsScene):

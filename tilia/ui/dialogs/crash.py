@@ -1,17 +1,18 @@
-from PySide6.QtCore import Qt, QRegularExpression
+from PySide6.QtCore import QRegularExpression, Qt
 from PySide6.QtGui import QRegularExpressionValidator
 from PySide6.QtWidgets import (
-    QDialog,
-    QFormLayout,
-    QVBoxLayout,
-    QDialogButtonBox,
-    QScrollArea,
     QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
     QFrame,
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
+    QVBoxLayout,
 )
+
 from tilia.log import logger
 from tilia.settings import settings
 from tilia.utils import open_with_os

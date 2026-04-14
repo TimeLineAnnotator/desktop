@@ -2,20 +2,17 @@ import re
 from enum import Enum
 from pathlib import Path
 
-from PySide6.QtCore import QUrl, Slot, QObject, QTimer, QByteArray
+from PySide6.QtCore import QByteArray, QObject, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor
+from PySide6.QtWebEngineWidgets import QWebEngineView
 
 import tilia.constants
 import tilia.errors
-
 from tilia.media.player import Player
-
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor
-
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Post, post
-from tilia.ui.player import PlayerToolbarElement, PlayerStatus
+from tilia.ui.player import PlayerStatus, PlayerToolbarElement
 from tilia.ui.windows.view_window import ViewWindow
 
 

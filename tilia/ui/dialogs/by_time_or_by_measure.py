@@ -1,12 +1,13 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
+    QDialogButtonBox,
     QLabel,
     QRadioButton,
     QVBoxLayout,
-    QDialogButtonBox,
 )
-from tilia.requests import get, Get
+
+from tilia.requests import Get, get
 
 
 class ByTimeOrByMeasure(QDialog):

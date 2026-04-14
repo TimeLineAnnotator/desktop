@@ -9,18 +9,18 @@ from PySide6.QtCore import QTimer
 
 import tilia.errors
 from tilia.media import exporter
-from tilia.ui import commands
-from tilia.utils import get_tilia_class_string
 from tilia.requests import (
-    listen,
-    Post,
-    serve,
     Get,
-    post,
-    stop_listening_to_all,
+    Post,
     get,
+    listen,
+    post,
+    serve,
+    stop_listening_to_all,
     stop_serving_all,
 )
+from tilia.ui import commands
+from tilia.utils import get_tilia_class_string
 
 
 class MediaTimeChangeReason(Enum):

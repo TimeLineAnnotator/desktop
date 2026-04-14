@@ -1,24 +1,24 @@
 import music21
 
 from tilia import errors
-from tilia.timelines.component_kinds import ComponentKind
-from . import level_label
 from tilia.requests import Get, get
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
     with_elements,
 )
-from tilia.ui.timelines.harmony.context_menu import HarmonyTimelineUIContextMenu
+from tilia.ui.timelines.collection.collection import TimelineSelector, TimelineUIs
+from tilia.ui.timelines.copy_paste import (
+    get_copy_data_from_element,
+    paste_into_element,
+)
 from tilia.ui.timelines.harmony import HarmonyUI, ModeUI
+from tilia.ui.timelines.harmony.context_menu import HarmonyTimelineUIContextMenu
 from tilia.ui.timelines.harmony.toolbar import HarmonyTimelineToolbar
 
-from tilia.ui.timelines.copy_paste import (
-    paste_into_element,
-    get_copy_data_from_element,
-)
-from tilia.ui.timelines.collection.collection import TimelineUIs, TimelineSelector
+from . import level_label
 
 
 class HarmonyTimelineUI(TimelineUI):
@@ -150,9 +150,6 @@ class HarmonyTimelineUI(TimelineUI):
 
     def get_key_by_time(self, time: float) -> music21.key.Key:
         return self.timeline.get_key_by_time(time)
-
-    def validate_copy(self, elements: list[TimelineUIElement]) -> None:
-        pass
 
     def paste_single_into_selected_elements(self, paste_data: list[dict] | dict):
         selected_elements = self.element_manager.get_selected_elements()

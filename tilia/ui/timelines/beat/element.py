@@ -1,19 +1,21 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, Any
 
-from PySide6.QtCore import Qt, QLineF, QPointF
-from PySide6.QtGui import QPen, QColor, QFont
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsLineItem, QGraphicsTextItem
+from typing import TYPE_CHECKING, Any, Callable
 
-from tilia.requests import Post, post, Get, get
-from .context_menu import BeatContextMenu
+from PySide6.QtCore import QLineF, QPointF, Qt
+from PySide6.QtGui import QColor, QFont, QPen
+from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsScene, QGraphicsTextItem
+
+from tilia.requests import Get, Post, get, post
+from tilia.ui.timelines.base.element import TimelineUIElement
+
+from ...coords import time_x_converter
+from ...format import format_media_time
+from ...windows.inspect import InspectRowKind
 from ..copy_paste import CopyAttributes
 from ..cursors import CursorMixIn
 from ..drag import DragManager
-from ...format import format_media_time
-from ...coords import time_x_converter
-from tilia.ui.timelines.base.element import TimelineUIElement
-from ...windows.inspect import InspectRowKind
+from .context_menu import BeatContextMenu
 
 if TYPE_CHECKING:
     from .timeline import BeatTimelineUI
@@ -40,9 +42,7 @@ class BeatUI(TimelineUIElement):
         ("Beat", InspectRowKind.LABEL, None),
     ]
 
-    FIELD_NAMES_TO_ATTRIBUTES: dict[
-        str, str
-    ] = {}
+    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = {}
     # only needed if attrs will be set by Inspect
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(

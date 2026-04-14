@@ -1,5 +1,6 @@
 import argparse
-from tilia.requests import get, Get
+
+from tilia.requests import Get, get
 from tilia.timelines.base.timeline import Timeline
 from tilia.ui.cli import io
 from tilia.ui.cli.timelines.utils import get_timeline_by_name, get_timeline_by_ordinal

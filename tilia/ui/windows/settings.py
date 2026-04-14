@@ -1,3 +1,4 @@
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -15,15 +16,14 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtGui import QColor
 
+from tilia.requests import Post, post
 from tilia.settings import settings
-from tilia.requests import post, Post
-from tilia.ui.windows import WindowKind
 from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.enums import ScrollType
+from tilia.ui.windows import WindowKind
 
 
 class SettingsWindow(QDialog):

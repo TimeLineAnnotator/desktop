@@ -3,6 +3,7 @@
 # - apply smoothing curve to input - currently linear
 
 from typing import Any, Callable
+
 from PySide6.QtCore import QVariantAnimation
 
 from tilia.settings import settings

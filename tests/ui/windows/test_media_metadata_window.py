@@ -1,7 +1,7 @@
 import pytest
 
 from tests.mock import patch_yes_or_no_dialog
-from tilia.requests import post, Post
+from tilia.requests import Post, post
 from tilia.ui.windows import WindowKind
 
 

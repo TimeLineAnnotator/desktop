@@ -62,7 +62,7 @@ def test_remove_by_ordinal_one_timeline(cli, tls, hierarchy_tl):
 
 
 def test_remove_by_ordinal_multiple_timelines(cli, tls):
-    for i in range(3):
+    for _ in range(3):
         cli.parse_and_run('timeline add hrc --name ""')
 
     cli.parse_and_run("timeline remove ordinal 1")

@@ -3,22 +3,24 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_MEDIA_DURATION
-from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
+from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
+from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
 from tilia.file.common import are_tilia_data_equal
 from tilia.media.player.base import MediaTimeChangeReason
-from tilia.requests import Post, post, get, Get
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.timeline_kinds import (
-    TimelineKind as TlKind,
     TimelineKind,
 )
+from tilia.timelines.timeline_kinds import (
+    TimelineKind as TlKind,
+)
 from tilia.ui import commands
-from tilia.ui.enums import ScrollType
-from tilia.ui.timelines.collection.collection import TimelineSelector
 from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
+from tilia.ui.enums import ScrollType
+from tilia.ui.timelines.collection.collection import TimelineSelector
 from tilia.ui.timelines.marker import MarkerTimelineUI
 
 ADD_TIMELINE_ACTIONS = [

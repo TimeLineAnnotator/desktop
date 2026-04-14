@@ -1,29 +1,30 @@
 from __future__ import annotations
 
-import functools
 import bisect
+import functools
 import importlib
 from abc import ABC
 from enum import Enum, auto
-from typing import Any, Callable, TYPE_CHECKING, TypeVar, Generic, Set
+from typing import TYPE_CHECKING, Any, Callable, Generic, Set, TypeVar
 
-from tilia.timelines import serialize
-from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
 from tilia.exceptions import (
+    GetTimelineDataError,
     InvalidComponentKindError,
     SetTimelineDataError,
-    GetTimelineDataError,
 )
+from tilia.timelines import serialize
+from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
 from tilia.utils import get_sibling_packages
-from .validators import (
-    validate_string,
-    validate_read_only,
-    validate_bounded_integer,
-    validate_boolean,
-    validate_positive_integer,
-)
+
+from ...requests import Get, Post, get, post, stop_listening_to_all
 from ..hash_timelines import hash_function
-from ...requests import get, Get, post, Post, stop_listening_to_all
+from .validators import (
+    validate_boolean,
+    validate_bounded_integer,
+    validate_positive_integer,
+    validate_read_only,
+    validate_string,
+)
 
 if TYPE_CHECKING:
     from tilia.timelines.timeline_kinds import TimelineKind

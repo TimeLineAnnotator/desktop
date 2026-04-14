@@ -1,5 +1,5 @@
 from PySide6.QtCore import QPointF
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QGraphicsTextItem
 
 

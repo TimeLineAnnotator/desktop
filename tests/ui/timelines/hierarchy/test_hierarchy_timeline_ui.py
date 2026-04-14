@@ -2,7 +2,7 @@ import pytest
 from PySide6.QtGui import QColor
 
 from tests.mock import Serve, patch_yes_or_no_dialog
-from tilia.requests import Post, Get, post
+from tilia.requests import Get, Post, post
 from tilia.settings import settings
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.ui import commands

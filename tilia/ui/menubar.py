@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QMainWindow
 
-from tilia.ui.menus import FileMenu, EditMenu, TimelinesMenu, ViewMenu, HelpMenu
+from tilia.ui.menus import EditMenu, FileMenu, HelpMenu, TimelinesMenu, ViewMenu
 
 
 class TiliaMenuBar:

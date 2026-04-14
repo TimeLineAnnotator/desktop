@@ -1,17 +1,18 @@
 from __future__ import annotations
-from pathlib import Path
-import json
 
+import json
+from pathlib import Path
+
+import tilia.errors
 from tilia.exceptions import (
     MediaMetadataFieldAlreadyExists,
     MediaMetadataFieldNotFound,
     NoReplyToRequest,
 )
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
-from tilia.requests import listen, Post, Get, serve, get, post
-from tilia.file.tilia_file import TiliaFile, validate_tla_data
 from tilia.file.media_metadata import MediaMetadata
-import tilia.errors
+from tilia.file.tilia_file import TiliaFile, validate_tla_data
+from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
 from tilia.ui import commands
 

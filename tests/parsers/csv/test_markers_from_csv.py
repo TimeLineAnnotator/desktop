@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from typing import Literal
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 from PySide6.QtWidgets import QFileDialog
 

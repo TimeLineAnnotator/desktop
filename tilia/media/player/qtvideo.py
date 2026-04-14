@@ -3,8 +3,9 @@ from __future__ import annotations
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import QSizePolicy
 
-from .qtplayer import QtPlayer
 from tilia.ui.windows.view_window import ViewWindow
+
+from .qtplayer import QtPlayer
 
 
 class QtVideoPlayer(QtPlayer):

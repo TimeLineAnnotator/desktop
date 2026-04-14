@@ -10,18 +10,18 @@ Hence this pyside-deploy-inspired script.
     build/exe/[os_type]/TiLiA-[tilia version in pyproject](-[ref_name, if not the same as tilia version])-[os_type]
 """
 
-from colorama import Fore
-import dotenv
-from enum import Enum
-from lxml import etree
-from nuitka.distutils.DistutilsCommands import build as n_build
 import os
-from pathlib import Path
-from subprocess import check_call
 import sys
 import tarfile
 import traceback
+from enum import Enum
+from pathlib import Path
+from subprocess import check_call
 
+import dotenv
+from colorama import Fore
+from lxml import etree
+from nuitka.distutils.DistutilsCommands import build as n_build
 
 ref_name = ""
 build_os = ""

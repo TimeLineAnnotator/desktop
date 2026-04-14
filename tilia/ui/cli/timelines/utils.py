@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from unittest.mock import patch
 
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 from tilia.ui.cli import io
 
 

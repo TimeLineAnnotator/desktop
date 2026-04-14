@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QRectF, QPointF, QLineF
+from PySide6.QtCore import QLineF, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPen
-from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsLineItem, QGraphicsItemGroup
+from PySide6.QtWidgets import QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem
 
 from tilia.ui.timelines.cursors import CursorMixIn
 

@@ -1,4 +1,5 @@
 import json
+
 import pytest
 from PIL import Image
 
@@ -6,7 +7,7 @@ from tests.conftest import parametrize_component
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_ask_for_string_dialog, patch_file_dialog
 from tests.utils import get_tmp_file_with_dummy_timeline
-from tilia.requests import post, Post, Get, get
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.timeline import TimelineFlag
 from tilia.timelines.harmony.timeline import HarmonyTimeline

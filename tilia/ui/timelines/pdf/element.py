@@ -4,20 +4,21 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPen
 from PySide6.QtWidgets import (
     QGraphicsItem,
-    QGraphicsTextItem,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
+    QGraphicsTextItem,
 )
 
-from tilia.requests import Post, post, get, Get
-from .context_menu import PdfMarkerContextMenu
+from tilia.requests import Get, Post, get, post
+from tilia.ui.timelines.base.element import TimelineUIElement
+
+from ...coords import time_x_converter
+from ...format import format_media_time
+from ...windows.inspect import InspectRowKind
 from ..copy_paste import CopyAttributes
 from ..cursors import CursorMixIn
 from ..drag import DragManager
-from ...format import format_media_time
-from ...coords import time_x_converter
-from tilia.ui.timelines.base.element import TimelineUIElement
-from ...windows.inspect import InspectRowKind
+from .context_menu import PdfMarkerContextMenu
 
 
 class PdfMarkerUI(TimelineUIElement):

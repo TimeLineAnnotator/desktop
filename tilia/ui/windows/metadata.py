@@ -2,23 +2,23 @@ import functools
 
 from PySide6.QtWidgets import (
     QDialog,
+    QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QLabel,
     QLineEdit,
     QPushButton,
-    QFrame,
     QVBoxLayout,
     QWidget,
-    QDialogButtonBox,
 )
 
-from tilia.settings import settings
-from tilia.requests import get, Get, post, Post, listen
-from tilia.ui.windows import WindowKind
-from tilia.ui.format import format_media_time
-from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
-from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
 import tilia.errors
+from tilia.requests import Get, Post, get, listen, post
+from tilia.settings import settings
+from tilia.ui.format import format_media_time
+from tilia.ui.windows import WindowKind
+from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
+from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
 
 
 class MediaMetadataWindow(QDialog):

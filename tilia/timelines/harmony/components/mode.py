@@ -5,17 +5,17 @@ from typing import TYPE_CHECKING
 import music21
 
 from tilia.timelines.base.component import PointLikeTimelineComponent
-from tilia.timelines.base.validators import validate_time, validate_string
+from tilia.timelines.base.validators import validate_string, validate_time
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.validators import (
-    validate_step,
     validate_accidental,
-    validate_mode_type,
     validate_level,
+    validate_mode_type,
+    validate_step,
 )
 from tilia.ui.timelines.harmony.constants import (
-    NOTE_NAME_TO_INT,
     INT_TO_NOTE_NAME,
+    NOTE_NAME_TO_INT,
     Accidental,
 )
 

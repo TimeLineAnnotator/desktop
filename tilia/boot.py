@@ -9,8 +9,8 @@ import tilia.utils  # noqa: F401
 from tilia.app import App
 from tilia.clipboard import Clipboard
 from tilia.dirs import setup_dirs
-from tilia.file.file_manager import FileManager
 from tilia.file.autosave import AutoSaver
+from tilia.file.file_manager import FileManager
 from tilia.log import logger
 from tilia.media.player import QtAudioPlayer
 from tilia.undo_manager import UndoManager

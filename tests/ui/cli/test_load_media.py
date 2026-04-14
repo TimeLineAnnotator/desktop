@@ -1,16 +1,16 @@
 import os
-from unittest.mock import patch
 import shutil
+from unittest.mock import patch
 
-import pytest
 import httpx
+import pytest
 
 from tests.constants import (
-    EXAMPLE_MEDIA_PATH,
     EXAMPLE_MEDIA_DURATION,
+    EXAMPLE_MEDIA_PATH,
     EXAMPLE_MEDIA_SCALE_FACTOR,
 )
-from tilia.requests import get, Get
+from tilia.requests import Get, get
 from tilia.ui.cli.player import CLIYoutubePlayer
 
 
@@ -92,9 +92,7 @@ def test_with_timelines_scale_not_provided_answer_yes_but_dont_confirm_crop(
     assert marker_tl[0].get_data("time") == 50 * EXAMPLE_MEDIA_SCALE_FACTOR
 
 
-def test_with_timelines_scale_not_provided_answer_crop(
-    cli, tilia_state, marker_tl
-):
+def test_with_timelines_scale_not_provided_answer_crop(cli, tilia_state, marker_tl):
     for time in [5, 50]:
         marker_tl.create_marker(time)
 

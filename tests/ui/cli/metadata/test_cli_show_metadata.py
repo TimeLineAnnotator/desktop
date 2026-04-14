@@ -1,8 +1,8 @@
 from unittest.mock import patch
+
 from tests.mock import Serve
 from tilia.file.media_metadata import MediaMetadata
 from tilia.requests.get import Get
-
 from tilia.ui.cli.metadata.show import show
 
 

@@ -1,25 +1,26 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QPolygonF, QPen, QColor, QFont
+from PySide6.QtGui import QColor, QFont, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPolygonItem,
     QGraphicsTextItem,
 )
 
-from tilia.requests import Post, post, get, Get
-from .context_menu import MarkerContextMenu
+from tilia.requests import Get, Post, get, post
+from tilia.settings import settings
+from tilia.ui.timelines.base.element import TimelineUIElement
+
+from ...color import get_tinted_color
+from ...consts import TINT_FACTOR_ON_SELECTION
+from ...coords import time_x_converter
+from ...format import format_media_time
+from ...windows.inspect import InspectRowKind
 from ..copy_paste import CopyAttributes
 from ..cursors import CursorMixIn
 from ..drag import DragManager
-from ...color import get_tinted_color
-from ...format import format_media_time
-from ...consts import TINT_FACTOR_ON_SELECTION
-from ...coords import time_x_converter
-from tilia.settings import settings
-from tilia.ui.timelines.base.element import TimelineUIElement
-from ...windows.inspect import InspectRowKind
+from .context_menu import MarkerContextMenu
 
 
 class MarkerUI(TimelineUIElement):

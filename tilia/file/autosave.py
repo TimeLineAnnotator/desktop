@@ -8,10 +8,11 @@ from typing import Callable
 import tilia.constants
 from tilia import dirs
 from tilia.log import logger
+from tilia.requests import Get, get
 from tilia.settings import settings
+
 from .common import are_tilia_data_equal, write_tilia_file_to_disk
 from .tilia_file import TiliaFile
-from tilia.requests import get, Get
 
 
 class AutoSaver:

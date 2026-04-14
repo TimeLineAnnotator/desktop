@@ -2,7 +2,7 @@ import functools
 
 import pytest
 
-from tilia.requests import post, Post
+from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind

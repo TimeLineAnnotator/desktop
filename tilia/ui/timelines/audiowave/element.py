@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QPointF, QLineF
-from PySide6.QtGui import QPen, QColor
+from PySide6.QtCore import QLineF, QPointF, Qt
+from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import QGraphicsLineItem
 
-from tilia.requests import Post, post, get, Get
-from ..cursors import CursorMixIn
-from ..drag import DragManager
-from ...coords import time_x_converter
-from ...color import get_tinted_color
-from ...consts import TINT_FACTOR_ON_SELECTION
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.ui.timelines.base.element import TimelineUIElement
+
+from ...color import get_tinted_color
+from ...consts import TINT_FACTOR_ON_SELECTION
+from ...coords import time_x_converter
 from ...windows.inspect import InspectRowKind
+from ..cursors import CursorMixIn
+from ..drag import DragManager
 
 
 class AmplitudeBarUI(TimelineUIElement):

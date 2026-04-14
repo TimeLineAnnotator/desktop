@@ -3,7 +3,7 @@ import argparse
 import tilia
 import tilia.errors
 from tilia.exceptions import MediaMetadataFieldNotFound
-from tilia.requests import post, Post
+from tilia.requests import Post, post
 
 
 def setup_parser(subparsers):

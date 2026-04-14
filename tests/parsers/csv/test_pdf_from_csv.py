@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 import tilia.parsers.csv.pdf
 from tilia.timelines.beat.timeline import BeatTimeline
