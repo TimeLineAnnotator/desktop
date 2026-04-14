@@ -218,8 +218,6 @@ class BeatTimelineUI(TimelineUI):
             beat_ui.update_label()
 
     def get_copy_data_from_selected_elements(self):
-        self.validate_copy(self.selected_elements)
-
         return self.get_copy_data_from_beat_uis(self.selected_elements)
 
     def get_copy_data_from_beat_uis(self, beat_uis: list[BeatUI]):

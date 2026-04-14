@@ -152,10 +152,6 @@ class HarmonyTimelineUI(TimelineUI):
         return self.timeline.get_key_by_time(time)
 
     def paste_single_into_selected_elements(self, paste_data: list[dict] | dict):
-        selected_elements = self.element_manager.get_selected_elements()
-
-        self.validate_paste(paste_data, selected_elements)
-
         for element in self.element_manager.get_selected_elements():
             self.deselect_element(element)
             paste_into_element(element, paste_data[0])
@@ -164,8 +160,6 @@ class HarmonyTimelineUI(TimelineUI):
         self.update_harmony_labels()
 
     def paste_multiple_into_selected_elements(self, paste_data: list[dict] | dict):
-        self.validate_paste(paste_data, self.selected_elements)
-
         paste_data = sorted(
             paste_data, key=lambda md: md["support_by_component_value"]["time"]
         )

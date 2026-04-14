@@ -538,17 +538,7 @@ class TimelineUI(ABC):  # noqa: B024
 
         self.element_manager.delete_element(element)
 
-    def validate_copy(self, elements: list[T]) -> None:  # noqa: B027
-        """Can be overwritten by subclasses"""
-
-    def validate_paste(  # noqa: B027
-        self, paste_data: dict, elements_to_receive_paste: list[T]
-    ) -> None:
-        """Can be overwritten by subclasses"""
-
     def get_copy_data_from_selected_elements(self) -> list[dict]:
-        self.validate_copy(self.selected_elements)
-
         return get_copy_data_from_elements(
             [
                 (el, el.DEFAULT_COPY_ATTRIBUTES)
