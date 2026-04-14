@@ -41,7 +41,8 @@ class FillBeatTimeline(QDialog):
             )
 
         super().__init__(
-            None, Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint
+            get(Get.MAIN_WINDOW),
+            Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint,
         )
         self.setWindowTitle(BEAT_TIMELINE_FILL_TITLE)
 

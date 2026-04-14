@@ -31,7 +31,7 @@ class MediaMetadataWindow(QDialog):
     }
 
     def __init__(self):
-        super().__init__()
+        super().__init__(get(Get.MAIN_WINDOW))
         self.setWindowTitle("Metadata")
         self.metadata = {}
         self.metadata_original = {}
@@ -119,7 +119,7 @@ class MediaMetadataWindow(QDialog):
         self.form_layout.addRow(edit_fields_button)
 
     def on_edit_notes_button(self):
-        dialog = EditNotesDialog()
+        dialog = EditNotesDialog(self)
         accepted = dialog.exec()
         if accepted:
             post(Post.MEDIA_METADATA_FIELD_SET, "notes", dialog.get_result())
@@ -133,7 +133,7 @@ class MediaMetadataWindow(QDialog):
         ):
             return
         self._save_edits(edited_fields)
-        dialog = EditMetadataFieldsDialog()
+        dialog = EditMetadataFieldsDialog(self)
         accepted = dialog.exec()
         if accepted:
             valid_fields, invalid_fields = dialog.get_result()

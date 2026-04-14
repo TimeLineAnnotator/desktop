@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from tilia.requests import Post, post
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
 from tilia.ui.color import get_tinted_color
@@ -30,7 +30,7 @@ class SettingsWindow(QDialog):
     KIND = WindowKind.SETTINGS
 
     def __init__(self):
-        super().__init__()
+        super().__init__(get(Get.MAIN_WINDOW))
         self.setWindowTitle("Settings")
         self.setFixedSize(400, 400)
         self.settings = {}
@@ -99,7 +99,7 @@ class SettingsWindow(QDialog):
             for name, value in self.settings_original[group_name].items():
                 if group_name == "beat_timeline" and name == "default_height":
                     continue
-                widget = get_widget_for_value(value)
+                widget = get_widget_for_value(self, value)
                 if (
                     "timeline" in group_name
                     and name == "default_height"
@@ -195,11 +195,11 @@ def pretty_label(input_string: str):
     )
 
 
-def select_color_button(value, text=""):
+def select_color_button(parent, value, text=""):
     def select_color(old_color):
         new_color = QColorDialog.getColor(
             QColor(old_color),
-            None,
+            parent,
             "Choose Color",
             QColorDialog.ColorDialogOption.ShowAlphaChannel,
         )
@@ -231,7 +231,7 @@ def combobox(options: list, current_value: str):
     return combobox
 
 
-def get_widget_for_value(value, text="") -> QWidget:
+def get_widget_for_value(parent, value, text="") -> QWidget:
     match value:
         case bool():
             checkbox = QCheckBox()
@@ -266,7 +266,7 @@ def get_widget_for_value(value, text="") -> QWidget:
         case str():
             if len(value):
                 if value[0] == "#":
-                    return select_color_button(value, text)
+                    return select_color_button(parent, value, text)
 
                 if value in HARMONY_DISPLAY_MODES:
                     return combobox(HARMONY_DISPLAY_MODES, value)

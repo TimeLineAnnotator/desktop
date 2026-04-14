@@ -29,7 +29,7 @@ from tilia.ui.timelines.harmony.utils import (
 
 class SelectHarmonyParams(QDialog):
     def __init__(self, current_key: str | None = None):
-        super().__init__()
+        super().__init__(get(Get.MAIN_WINDOW))
         self.setWindowTitle("Add harmony")
         layout = QGridLayout()
         self.setLayout(layout)

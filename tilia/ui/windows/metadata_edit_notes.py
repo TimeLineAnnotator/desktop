@@ -4,8 +4,8 @@ from tilia.requests import Get, get
 
 
 class EditNotesDialog(QDialog):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent):
+        super().__init__(parent=parent)
         self.setWindowTitle("Notes")
         self._setup_widgets()
 

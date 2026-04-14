@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 import tilia.ui.strings
+from tilia.requests import Get, get
 
 
 class AddTimelineWithoutMedia(QDialog):
@@ -20,7 +21,8 @@ class AddTimelineWithoutMedia(QDialog):
 
     def __init__(self):
         super().__init__(
-            None, Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint
+            get(Get.MAIN_WINDOW),
+            Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint,
         )
         self.setWindowTitle(
             tilia.ui.strings.ASK_ADD_TIMELINE_WITHOUT_MEDIA_DIALOG_TITLE

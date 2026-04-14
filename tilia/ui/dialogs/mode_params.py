@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QLabel,
 )
 
+from tilia.requests import Get, get
 from tilia.timelines.harmony.constants import MODE_TYPES
 from tilia.ui.timelines.harmony.constants import (
     ACCIDENTAL_TO_INT,
@@ -15,7 +16,7 @@ from tilia.ui.timelines.harmony.constants import (
 
 class SelectModeParams(QDialog):
     def __init__(self):
-        super().__init__()
+        super().__init__(get(Get.MAIN_WINDOW))
         self.setWindowTitle("Add key")
         layout = QGridLayout()
         self.setLayout(layout)

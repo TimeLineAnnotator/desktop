@@ -1,11 +1,12 @@
 from PySide6.QtWidgets import QInputDialog
 
 import tilia.ui.strings
+from tilia.requests import Get, get
 
 
 class AskBeatPattern(QInputDialog):
     def __init__(self):
-        super().__init__()
+        super().__init__(get(Get.MAIN_WINDOW))
         self.setOption(QInputDialog.InputDialogOption.UsePlainTextEditForTextInput)
 
     def ask(self):
