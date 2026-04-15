@@ -33,16 +33,15 @@ def ask_for_float(title: str, prompt: str, **kwargs) -> tuple[bool, float]:
 
 
 def ask_yes_no_or_cancel(title: str, prompt: str) -> tuple[bool, bool]:
-    result = QMessageBox.question(
-        get(Get.MAIN_WINDOW),
+    result = QMessageBox(
+        QMessageBox.Icon.Question,
         title,
         prompt,
-        buttons=QMessageBox.StandardButton(
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.No
-            | QMessageBox.StandardButton.Cancel
-        ),
-    )
+        QMessageBox.StandardButton.Yes
+        | QMessageBox.StandardButton.No
+        | QMessageBox.StandardButton.Cancel,
+        get(Get.MAIN_WINDOW),
+    ).exec()
 
     return (
         result != QMessageBox.StandardButton.Cancel,  # success
