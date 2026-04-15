@@ -8,6 +8,7 @@ from PySide6 import QtGui
 from PySide6.QtCore import (
     QEvent,
     QKeyCombination,
+    QObject,
     Qt,
     QtMsgType,
     QUrl,
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
 
 import tilia.constants
 import tilia.errors
+import tilia.media.constants
 import tilia.parsers.csv.beat
 import tilia.parsers.csv.harmony
 import tilia.parsers.csv.hierarchy
@@ -76,6 +78,9 @@ class TiliaMainWindow(QMainWindow):
         self.setWindowIcon(QIcon.fromTheme("tilia"))
         self.setStatusTip("Main window")
         qInstallMessageHandler(self.handle_qt_log_message)
+        self.setAcceptDrops(True)
+        self._drop_filter = FileDropEventFilter()
+        QApplication.instance().installEventFilter(self._drop_filter)
 
     def changeEvent(self, event: QEvent) -> None:
         if event.type() == event.Type.ThemeChange:
@@ -162,6 +167,48 @@ class TiliaMainWindow(QMainWindow):
 
         if zoom_level != 1.0:
             commands.execute("view.zoom.out", zoom_level)
+
+
+class FileDropEventFilter(QObject):
+    """Routes file drag/drop events from any widget to the main window.
+
+    Qt only delivers drag/drop events to widgets with setAcceptDrops(True),
+    and child widgets cover most of TiliaMainWindow, so an app-level filter
+    is needed to catch drops anywhere in the window.
+    """
+
+    _DRAG_EVENT_TYPES = (
+        QEvent.Type.DragEnter,
+        QEvent.Type.DragMove,
+        QEvent.Type.Drop,
+    )
+
+    @staticmethod
+    def _is_file_droppable(urls: list[QUrl]):
+        if len(urls) != 1 or not urls[0].isLocalFile():
+            return False
+        ext = Path(urls[0].toLocalFile()).suffix[1:].lower()
+        return ext in {tilia.constants.FILE_EXTENSION}.union(
+            tilia.media.constants.ALL_SUPPORTED_MEDIA_FORMATS
+        )
+
+    @staticmethod
+    def _dispatch_dropped_path(path: str) -> None:
+        if Path(path).suffix[1:].lower() == tilia.constants.FILE_EXTENSION:
+            commands.execute("file.open", path)
+        else:
+            post(Post.APP_MEDIA_LOAD, path)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() not in self._DRAG_EVENT_TYPES:
+            return False
+        if not self._is_file_droppable(event.mimeData().urls()):
+            return False
+        if event.type() == QEvent.Type.Drop:
+            path = event.mimeData().urls()[0].toLocalFile()
+            self._dispatch_dropped_path(path)
+        event.acceptProposedAction()
+        return True
 
 
 class QtUI:
