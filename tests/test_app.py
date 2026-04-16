@@ -13,6 +13,7 @@ from tests.mock import (
     Serve,
     patch_ask_for_string_dialog,
     patch_file_dialog,
+    patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
 )
 from tests.utils import save_and_reopen
@@ -132,7 +133,7 @@ class TestFileLoad:
         # open tilia file
         with (
             patch_file_dialog(True, [str(tla_path)]),
-            patch_yes_or_no_dialog(False),
+            patch_yes_no_or_cancel_mb(False),
         ):
             commands.execute("file.open")
 

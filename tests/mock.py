@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from tilia.requests import Get, Post, serve, server, stop_serving
 from tilia.requests import post as post_original
+from tilia.ui.dialogs.basic import yes_no_or_cancel
 
 
 class Serve:
@@ -123,6 +124,27 @@ def patch_yes_or_no_dialog(success: bool | list[bool]):
         raise ValueError("success must be a bool or a list of bools.")
 
     with patch.object(QMessageBox, "question", side_effect=success):
+        yield
+
+
+@contextmanager
+def patch_yes_no_or_cancel_mb(yes: bool, cancel: bool = False):
+    """Patches the yes/no/cancel dialog to return the specified success values.
+
+    Args:
+        yes: Whether yes was pressed
+        cancel: Whether the dialog was cancelled
+    """
+
+    def get_button_from_bool(yes: bool):
+        return QMessageBox.StandardButton.Yes if yes else QMessageBox.StandardButton.No
+
+    if not (isinstance(yes, bool) and isinstance(cancel, bool)):
+        raise ValueError("success must be a bool.")
+
+    ans = QMessageBox.StandardButton.Cancel if cancel else get_button_from_bool(yes)
+
+    with patch.object(yes_no_or_cancel, "exec", side_effect=[ans]):
         yield
 
 

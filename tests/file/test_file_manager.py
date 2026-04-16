@@ -6,7 +6,13 @@ from unittest.mock import mock_open, patch
 import pytest
 
 from tests.constants import EXAMPLE_MEDIA_PATH
-from tests.mock import PatchPost, Serve, patch_file_dialog, patch_yes_or_no_dialog
+from tests.mock import (
+    PatchPost,
+    Serve,
+    patch_file_dialog,
+    patch_yes_no_or_cancel_mb,
+    patch_yes_or_no_dialog,
+)
 from tilia.file.file_manager import FileManager
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
@@ -36,7 +42,7 @@ class Tests:
         assert marker_tlui.is_empty
         with (
             patch_file_dialog(True, [tmp_file_path]),
-            patch_yes_or_no_dialog(False),  # do not save changes
+            patch_yes_no_or_cancel_mb(False),  # do not save changes
         ):
             commands.execute("file.open")
         assert len(tls[0]) == 2
