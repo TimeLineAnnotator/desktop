@@ -1,7 +1,4 @@
-from unittest.mock import patch
-
-from PySide6.QtWidgets import QMessageBox
-
+from tests.mock import patch_yes_or_no_dialog
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
@@ -358,9 +355,7 @@ class TestMeasureZeroNotInTimeline:
         beat_tl.create_beat(2)
         beat_tl.recalculate_measures()
 
-        with patch.object(
-            QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes
-        ):
+        with patch_yes_or_no_dialog(True):
             _import_with_patch(score_tl, beat_tl, self.xml, tmp_path)
 
         notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
@@ -377,9 +372,7 @@ class TestMeasureZeroNotInTimeline:
         beat_tl.create_beat(2)
         beat_tl.recalculate_measures()
 
-        with patch.object(
-            QMessageBox, "question", return_value=QMessageBox.StandardButton.No
-        ):
+        with patch_yes_or_no_dialog(False):
             _import_with_patch(score_tl, beat_tl, self.xml, tmp_path)
 
         notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
