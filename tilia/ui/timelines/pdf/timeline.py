@@ -72,7 +72,10 @@ class PdfTimelineUI(TimelineUI):
     def _load_pdf_file(self):
         if not self.timeline.get_data("is_pdf_valid"):
             self._handle_invalid_pdf()
-        self.pdf_document.load(self.get_data("path"))
+        if self.timeline.get_data("is_local"):
+            self.pdf_document.load(self.get_data("path"))
+        else:
+            self.pdf_document.load(self.get_data("tmp_path"))
         self.pdf_view.update_window(
             int(self.pdf_document.pagePointSize(0).height()),
             int(self.pdf_document.pagePointSize(0).width()),

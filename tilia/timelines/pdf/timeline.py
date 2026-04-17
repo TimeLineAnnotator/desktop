@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import functools
 
+import httpx
 import pypdf
+from pathlib import Path
+from urllib import parse
 
+
+import tilia.dirs
+from tilia.errors import display, LOAD_FILE_ERROR
 from tilia.requests import get, Get
 from tilia.settings import settings
 from tilia.timelines.base.component.pointlike import scale_pointlike, crop_pointlike
@@ -54,17 +60,39 @@ class PdfTimeline(Timeline):
         return self._path
 
     @path.setter
-    def path(self, value):
+    def path(self, value: str):
         self._path = value
-        self.page_total = 0
+        self.is_local = True
         self.is_pdf_valid = False
-        if checked_path := get(Get.VERIFIED_PATH, value):
+        self.page_total = 0
+        if parse.urlparse(value).scheme in ("http", "https"):
+            path = tilia.dirs.tmp_path / value.partition("://")[2]
+            if not path.exists() and not self._download_pdf(path, value):
+                return
+            self.is_local = False
+            self.page_total = len(pypdf.PdfReader(path).pages)
+            self.is_pdf_valid = True
+            self.tmp_path = path.as_posix()
+
+        elif checked_path := get(Get.VERIFIED_PATH, value):
             try:
-                self.page_total = len(pypdf.PdfReader(checked_path).pages)
+                self._path = Path(checked_path).as_posix()
+                self.is_local = True
                 self.is_pdf_valid = True
-                self._path = checked_path
+                self.page_total = len(pypdf.PdfReader(checked_path).pages)
+
             except FileNotFoundError:
                 return
+
+    def _download_pdf(self, path, url):
+        if not (response := httpx.get(url)).is_success:
+            display(LOAD_FILE_ERROR, url, response)
+            return False
+        path = tilia.dirs.tmp_path / url.partition("://")[2]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(response.content)
+        return True
 
     def setup_blank_timeline(self):
         self.create_component(ComponentKind.PDF_MARKER, time=0, page_number=1)

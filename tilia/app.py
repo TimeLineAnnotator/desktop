@@ -210,6 +210,8 @@ class App:
                 return
 
         post(Post.UI_EXIT, 0)
+        if settings.get("general", "clear_cache_on_exit"):
+            tilia.dirs.clear_tmp_path()
 
     def load_media(
         self,

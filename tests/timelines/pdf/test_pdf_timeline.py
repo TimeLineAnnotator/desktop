@@ -1,4 +1,8 @@
+from pathlib import Path
+from tilia.dirs import clear_tmp_path
 from tilia.ui import commands
+from tilia.timelines.timeline_kinds import TimelineKind
+from unittest.mock import patch
 
 
 class TestValidateComponentCreation:
@@ -75,3 +79,33 @@ class TestPageNumber:
         tilia_state.current_time = 30
         commands.execute("timeline.pdf.add")
         assert pdf_tl[-1].get_data("page_number") == 2
+
+
+class TestLoadPdf:
+    @patch("tilia.dirs.tmp_path", Path("tmp_path"))
+    def test_online_pdf(self, tls):
+        tls.create_timeline(
+            TimelineKind.PDF_TIMELINE,
+            path="https://s9.imslp.org/files/imglnks/usimg/0/04/IMSLP228371-WIMA.53e2-W.A.Moz.Ah_vous_dirai-je-Maman.pdf",
+        )
+
+        assert tls[0].is_pdf_valid
+        assert tls[0].page_total == 19
+        assert not tls[0].is_local
+
+        clear_tmp_path()
+
+    def test_local_pdf(self, tls, resources):
+        tls.create_timeline(
+            TimelineKind.PDF_TIMELINE,
+            path=(resources / "example_multistaff.pdf").as_posix(),
+        )
+
+        assert tls[0].is_pdf_valid
+        assert tls[0].page_total == 1
+        assert tls[0].is_local
+
+    def test_non_pdf(self, tls, resources):
+        tls.create_timeline(TimelineKind.PDF_TIMELINE, path="nonexistent.pdf")
+
+        assert not tls[0].is_pdf_valid
