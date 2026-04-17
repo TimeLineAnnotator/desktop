@@ -5,7 +5,7 @@ from tests.constants import EXAMPLE_MULTISTAFF_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
 from tests.utils import reloadable, get_blank_file_data
 from tilia.errors import SCORE_STAFF_ID_ERROR
-from tilia.parsers.score.musicxml import notes_from_musicXML
+from tilia.parsers.score.musicxml import score
 from tilia.requests import Get, get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
@@ -84,7 +84,7 @@ def test_attribute_positions(qtui, score_tl, beat_tl, tmp_path):
     beat_tl.measure_numbers = [0, 1, 2]
     beat_tl.recalculate_measures()
 
-    notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
+    score(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
 
     _check_attrs(tmp_path, items_per_attr=3)
 
@@ -97,7 +97,7 @@ def test_attribute_positions_without_measure_zero(qtui, score_tl, beat_tl, tmp_p
     beat_tl.recalculate_measures()
 
     with patch_yes_or_no_dialog(False):
-        notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
+        score(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
 
     _check_attrs(tmp_path, items_per_attr=3)
 
@@ -110,7 +110,7 @@ def test_correct_clef_to_staff(qtui, score_tl, beat_tl):
     beat_tl.recalculate_measures()
 
     with patch_yes_or_no_dialog(False):
-        notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
+        score(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
 
     clefs = score_tl.get_components_by_attr("KIND", ComponentKind.CLEF)
     staff_no_to_clef = {clef.staff_index: clef.icon for clef in clefs}

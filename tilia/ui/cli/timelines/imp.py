@@ -209,7 +209,7 @@ def import_timeline(namespace):
 
     elif tl_kind == "score":
         tl = cast(ScoreTimeline, tl)
-        success, errors = musicxml.notes_from_musicXML(tl, ref_tl, str(file.resolve()))
+        success, errors = musicxml.score(tl, ref_tl, str(file.resolve()))
     else:
         raise ValueError(f"Unknown timeline kind: {tl_kind}")
 

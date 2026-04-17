@@ -46,7 +46,10 @@ def _on_import_to_timeline(
         success, path = get(
             Get.FROM_USER_FILE_PATH,
             "Import components",
-            ["musicXML files (*.musicxml *.mxl *.xml)"],
+            [
+                "musicXML files (*.musicxml *.mxl *.xml)",
+                "Other convertable file types (*.abc *.braille *.capella *.clercqtemperley *.cttxt *.har *.humdrum *.ipython *.jupyter *.lily *.lilypond *.mei *.midi *.musedata *.noteworthy *.noteworthytext *.rntext *.romantext *.scala *.t *.text *.textline *.tinynotation *.txt *.vexflow *.volpiano *.xml)",
+            ],
         )
 
     else:

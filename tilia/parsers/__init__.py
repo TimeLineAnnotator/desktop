@@ -13,12 +13,12 @@ def get_import_function(tl_kind: TlKind, by=Literal["time", "measure"]):
     from .csv.harmony import import_by_time as harmony_by_time
     from .csv.pdf import import_by_measure as pdf_by_measure
     from .csv.pdf import import_by_time as pdf_by_time
-    from .score.musicxml import notes_from_musicXML as score_from_musicxml
+    from .score.musicxml import score
 
     if tl_kind == TlKind.BEAT_TIMELINE:
         return beats_from_csv
     elif tl_kind == TlKind.SCORE_TIMELINE:
-        return score_from_musicxml
+        return score
     elif by == "time":
         return {
             TlKind.MARKER_TIMELINE: marker_by_time,

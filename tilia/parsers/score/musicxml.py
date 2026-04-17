@@ -59,12 +59,10 @@ class TiliaMXLReader:
         self.file.close()
 
 
-def notes_from_musicXML(
+def _score_from_musicXML_tree(
     score_tl: ScoreTimeline,
     beat_tl: BeatTimeline,
-    path: str,
-    file_kwargs: dict[str, Any] | None = None,
-    reader_kwargs: dict[str, Any] | None = None,
+    tree: etree._Element,
 ) -> tuple[bool, list[str]]:
     """
     Create notes in a timeline from data extracted from a .musicXML(uncompressed) or .mxl(compressed) file.
@@ -190,9 +188,14 @@ def notes_from_musicXML(
                     measure_nums = list(metric_pos_to_attr[staff_no][attr_type].keys())
                     current_mp_index = bisect(measure_nums, measure)
                     if current_mp_index == 0:
-                        errors.append(
-                            f"Cannot create {attr_type} for measure {measure}. {measure} is smaller than the smallest measure found in the provided file {measure_nums[0]}."
-                        )
+                        if len(measure_nums):
+                            errors.append(
+                                f"Cannot create {attr_type} for measure {measure}. {measure} is smaller than the smallest measure found in the provided file {measure_nums[0]}."
+                            )
+                        else:
+                            errors.append(
+                                f"No {attr_type} found for measure {measure} of staff {staff_no} of part {part_id}."
+                            )
                         continue
                     if measure_nums[current_mp_index - 1] == measure:
                         continue
@@ -488,17 +491,12 @@ def notes_from_musicXML(
 
         return part_id_to_staves
 
-    reader_kwargs = reader_kwargs or {}
-
     svg_converter = musicxml_to_svg(score_tl.id)
-    with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
-        parser = etree.XMLParser(remove_blank_text=True)
-        tree = etree.parse(file, parser=parser, **reader_kwargs).getroot()
 
     if tree.tag == "score-timewise":
         tree = _convert_to_partwise(tree)
     elif tree.tag != "score-partwise":
-        return False, [f"File `{path}` is not valid musicxml."]
+        return False, ["File is not valid musicxml."]
 
     if (
         tree.find('.//measure[@number="0"]') is not None
@@ -521,6 +519,35 @@ def notes_from_musicXML(
     svg_converter.to_svg(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
 
     return True, errors
+
+
+def score(
+    score_tl: ScoreTimeline,
+    beat_tl: BeatTimeline,
+    path: str,
+    file_kwargs: dict[str, Any] | None = None,
+    reader_kwargs: dict[str, Any] | None = None,
+) -> tuple[bool, list[str]]:
+
+    reader_kwargs = reader_kwargs or {}
+    if Path(path).suffix not in [".musicxml", ".mxl", ".xml"]:
+        from music21 import converter
+        from music21.musicxml.m21ToXml import GeneralObjectExporter
+
+        try:
+            out = GeneralObjectExporter(converter.parseFile(path)).parse()
+        except converter.ConverterFileException:
+            return False, [
+                f"Could not convert file of type {Path(path).suffix} to musicXML."
+            ]
+        tree = etree.XML(out, **reader_kwargs)
+
+    else:
+        with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
+            parser = etree.XMLParser(remove_blank_text=True)
+            tree = etree.parse(file, parser=parser, **reader_kwargs).getroot()
+
+    return _score_from_musicXML_tree(score_tl, beat_tl, tree)
 
 
 @dataclass

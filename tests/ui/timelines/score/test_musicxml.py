@@ -1,6 +1,6 @@
 from tests.mock import patch_yes_or_no_dialog
 from tests.constants import EXAMPLE_MUSICXML_PATH
-from tilia.parsers.score.musicxml import notes_from_musicXML
+from tilia.parsers.score.musicxml import score
 from tilia.timelines.component_kinds import ComponentKind
 
 
@@ -17,7 +17,7 @@ class TestInsertMeasureZero:
         self.setup_valid_beats(beat_tl)
 
         with patch_yes_or_no_dialog(True):
-            notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
+            score(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
         clefs = score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.CLEF)
         assert len(clefs) == 1
@@ -39,7 +39,7 @@ class TestInsertMeasureZero:
         beat_tl.fill_with_beats(beat_tl.FillMethod.BY_AMOUNT, 10)
 
         with patch_yes_or_no_dialog(True):
-            notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
+            score(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
         assert len(score_tlui) == 0
 
@@ -52,7 +52,7 @@ class TestInsertMeasureZero:
         beat_tl.recalculate_measures()
 
         with patch_yes_or_no_dialog(True):
-            notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
+            score(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
         assert len(score_tlui) == 0
 
@@ -61,7 +61,7 @@ class TestInsertMeasureZero:
 
         beat_tl.set_measure_number(0, 2)
 
-        notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
+        score(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
         # no prompt for measure 0 as there is no measure 1
         # and measure 2 should have been imported

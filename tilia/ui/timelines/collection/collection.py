@@ -145,7 +145,7 @@ class TimelineUIs:
 
             if kind in Timeline.get_kinds_by_flag(TimelineFlag.COMPONENTS_IMPORTABLE):
                 if kind == TimelineKind.SCORE_TIMELINE:
-                    text = "&Import from MusicXML"
+                    text = "&Import"
                 else:
                     text = "&Import from CSV file"
 

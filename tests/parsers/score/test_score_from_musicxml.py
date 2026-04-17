@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QMessageBox
 
-from tilia.parsers.score.musicxml import notes_from_musicXML
+from tilia.parsers.score.musicxml import score
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -11,7 +11,7 @@ from tilia.timelines.score.timeline import ScoreTimeline
 def _import_with_patch(score_tl, beat_tl, data, tmp_path):
     tmp_file = tmp_path / "test.musicxml"
     tmp_file.write_text(data)
-    errors = notes_from_musicXML(score_tl, beat_tl, str(tmp_file.resolve()))
+    errors = score(score_tl, beat_tl, str(tmp_file.resolve()))
     return errors
 
 
