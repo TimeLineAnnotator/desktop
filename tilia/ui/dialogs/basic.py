@@ -1,3 +1,4 @@
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QColorDialog, QInputDialog, QMessageBox
 
@@ -43,6 +44,7 @@ class yes_no_or_cancel(QMessageBox):
             | QMessageBox.StandardButton.Cancel,
             get(Get.MAIN_WINDOW),
         )
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
 
 def ask_yes_no_or_cancel(title: str, prompt: str) -> tuple[bool, bool]:
@@ -69,10 +71,12 @@ def _truncate_error_message(message: str):
 
 def display_error(title: str, message: str):
     message = _truncate_error_message(message)
-    QMessageBox(
+    box = QMessageBox(
         QMessageBox.Icon.Critical,
         title,
         message,
         QMessageBox.StandardButton.Close,
         get(Get.MAIN_WINDOW),
-    ).exec()
+    )
+    box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    box.exec()
