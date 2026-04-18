@@ -1,6 +1,7 @@
 import json
 import sys
 from pathlib import Path, WindowsPath
+from random import randint
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -50,15 +51,21 @@ class Tests:
 
 class TestFileManager:
     def test_metadata_edit_fields(self, tilia):
+        num_required_fields = len(
+            tilia.file_manager.file.media_metadata.REQUIRED_FIELDS
+        )
         original = list(tilia.file_manager.file.media_metadata)
+        idx = randint(
+            num_required_fields, len(original) - 1
+        )  # insert at some random index after the required fields
         fields = list(tilia.file_manager.file.media_metadata)
-        fields.insert(2, "newfield")
+        fields.insert(idx, "newfield")
         post(Post.METADATA_UPDATE_FIELDS, fields)
-        assert list(tilia.file_manager.file.media_metadata)[2] == "newfield"
+        assert list(tilia.file_manager.file.media_metadata)[idx] == "newfield"
 
-        fields.pop(2)
+        fields.pop(idx)
         post(Post.METADATA_UPDATE_FIELDS, fields)
-        assert list(tilia.file_manager.file.media_metadata)[2] != "newfield"
+        assert list(tilia.file_manager.file.media_metadata)[idx] != "newfield"
         assert list(tilia.file_manager.file.media_metadata) == original
 
     def test_metadata_not_duplicated_required_fields(self, tilia):
