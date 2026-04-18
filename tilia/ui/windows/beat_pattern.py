@@ -6,12 +6,12 @@ from tilia.requests import Get, get
 
 class AskBeatPattern(QInputDialog):
     def __init__(self):
-        super().__init__(get(Get.MAIN_WINDOW))
+        super().__init__()
         self.setOption(QInputDialog.InputDialogOption.UsePlainTextEditForTextInput)
 
     def ask(self):
         result, accept = self.getMultiLineText(
-            None,
+            get(Get.MAIN_WINDOW),
             tilia.ui.strings.BEAT_PATTERN_DIALOG_TITLE,
             tilia.ui.strings.BEAT_PATTERN_DIALOG_PROMPT,
         )
