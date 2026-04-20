@@ -64,15 +64,11 @@ class QtPlayer(Player):
 
     def _init_player(self):
         self.player = QMediaPlayer()
-        self.player.durationChanged.connect(self.on_media_duration_available)
         self.player.setAudioOutput(self.audio_output)
 
     def on_media_load_done(self, path, start, end):
         super().on_media_load_done(path, start, end)
         post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.PLAYER_ENABLED)
-
-    def on_media_duration_available(self, duration):
-        super().on_media_duration_available(duration / 1000)
 
     def on_audio_outputs_changed(self) -> None:
         """
@@ -90,7 +86,11 @@ class QtPlayer(Player):
             self.player.setSource(QUrl.fromLocalFile(media_path))
             return True
 
-        return load_media(media_path)
+        success = load_media(media_path)
+        if success:
+            # Divides by 1000 as durations is expected to be in miliseconds
+            self.on_media_duration_available(self.player.duration() / 1000)
+        return success
 
     def _engine_get_current_time(self):
         return self.player.position() / 1000
