@@ -1,15 +1,8 @@
-from tilia.exceptions import TiliaExit
-from tilia.ui.cli import io
+from functools import partial
 
 
-def setup_parser(subparsers):
+def setup_parser(subparsers, exit):
     _quit = subparsers.add_parser(
         "quit", aliases=["exit", "q"], help="Quit the application"
     )
-    _quit.set_defaults(func=quit)
-
-
-# noinspection PyShadowingBuiltins
-def quit(_):
-    io.output("Quitting...")
-    raise TiliaExit
+    _quit.set_defaults(func=partial(exit, 0))

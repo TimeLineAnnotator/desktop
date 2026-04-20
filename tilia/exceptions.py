@@ -5,10 +5,6 @@ class TiliaException(Exception):
     pass
 
 
-class TiliaExit(TiliaException):
-    pass
-
-
 class InvalidComponentKindError(TiliaException):
     pass
 
