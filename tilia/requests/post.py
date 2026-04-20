@@ -124,9 +124,10 @@ def _log_post(post, *args, **kwargs):
     if post is Post.DISPLAY_ERROR:
         logger.warning(log_message)
         return
-    logger.info(log_message)
     if post is Post.SETTINGS_UPDATED and "dev" in args[0][0]:
         logger.on_settings_updated()
+    else:
+        logger.info(log_message)
 
 
 def post(post: Post, *args, **kwargs) -> None:
