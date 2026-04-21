@@ -112,7 +112,15 @@ LOG_REQUESTS = os.environ.get("LOG_REQUESTS", 0)
 
 
 def _log_post(post, *args, **kwargs):
-    log_message = f"{post.name:<40} {str((args, kwargs)):<100} {list(_posts_to_listeners.get(post, ''))}"
+    try:
+        listeners = list(_posts_to_listeners.get(post, ""))
+        log_message = f"{post.name:<40} {str((args, kwargs)):<100} {listeners}"
+    except RuntimeError as e:
+        # Protects from the Internal C++ object already deleted,
+        # which happens when C++ listeners leak.
+        logger.warning(f"RuntimeError when creating log message for {post}: {e}")
+        return
+
     if post is Post.DISPLAY_ERROR:
         logger.warning(log_message)
         return
@@ -123,7 +131,12 @@ def _log_post(post, *args, **kwargs):
 
 def post(post: Post, *args, **kwargs) -> None:
     if LOG_REQUESTS and post not in EXCLUDED_POSTS:
-        _log_post(post, args, kwargs)
+        try:
+            _log_post(post, args, kwargs)
+        except Exception as e:
+            # Errors in logging should never cause crashes,
+            # so catch them and print a warning.
+            logger.warning(f"Exception when creating log message for {post}: {e}")
     # Returning a result is an experimental feature.
     # This can be very useful to check if the request was successful.
     # Should be used only when a single listener is expected.
