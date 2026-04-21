@@ -156,9 +156,12 @@ class TimelinesListWidget(QListWidget):
                 break
 
     def update_current_selection(self, *_):
-        prev_index = self.currentIndex()
+        prev_index = self.currentIndex().row()
         self.update_items()
-        self.setCurrentRow(prev_index.row())
+        if prev_index < self.model().rowCount():
+            self.setCurrentRow(prev_index)
+        else:  # rows are 0-indexed; if prev_index is more than the number of rows, use the last row.
+            self.setCurrentRow(max(0, self.model().rowCount() - 1))
 
     def update_items(self):
         self.clear()
