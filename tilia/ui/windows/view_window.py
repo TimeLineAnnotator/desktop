@@ -3,7 +3,7 @@ from typing import Generic, TypeVar
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QDockWidget, QWidget
 
-from tilia.requests import Get, Post, get, listen, post
+from tilia.requests import Get, Post, get, listen, post, stop_listening_to_all
 from tilia.ui.enums import WindowState
 
 T = TypeVar("T", QDialog, QDockWidget)
@@ -42,6 +42,7 @@ class ViewWidget(Generic[T]):
     def deleteLater(self):
         if self.is_registered:
             post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.DELETED)
+        stop_listening_to_all(self)
         super().deleteLater()
 
     def update_title(self, title: str):
