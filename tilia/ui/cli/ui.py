@@ -115,7 +115,7 @@ class CLI:
                 cmd = input(">>> ")
                 self.parse_and_run(cmd)
             except EOFError:
-                self.exit(1)
+                self.exit(1, "EOFError")
 
     def parse_and_run(self, cmd):
         """Returns True if command was unsuccessful, False otherwise"""
@@ -169,11 +169,10 @@ class CLI:
     def show_crash_dialog(exc_message) -> None:
         post(Post.DISPLAY_ERROR, "CLI has crashed", "Error: " + exc_message)
 
-    def exit(self, code: int | argparse.Namespace):
+    def exit(self, code: int, cause: str | None = None):
         _set_verbosity(self._initial_verbosity)
         self._is_running = False
-        exit_code = code if type(code) is int else 0
-        self.parser.exit(exit_code, "Quitting...")
+        self.parser.exit(code, ". ".join(filter(None, [cause, "Quitting..."])))
 
 
 def about(_):

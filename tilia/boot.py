@@ -21,7 +21,7 @@ ui = None
 
 def handle_exception(type, value, tb):
     if type in (EOFError, KeyboardInterrupt) and ui:
-        ui.exit(1)
+        ui.exit(1, type.__name__)
 
     exc_message = "".join(traceback.format_exception(type, value, tb))
     if ui:
