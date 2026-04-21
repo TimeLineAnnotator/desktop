@@ -7,10 +7,28 @@ from typing import Callable
 
 from PySide6.QtWidgets import QMenu
 
-from tests.mock import patch_file_dialog
+from tests.mock import patch_ask_for_string_dialog, patch_file_dialog
 from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
+
+
+EXAMPLE_VIDEO_FILENAME = "example.mp4"
+EXAMPLE_YOUTUBE_URL = "https://www.youtube.com/watch?v=wBfVsucRe1w"
+
+
+def load_local_media(path: str | Path):
+    """Run the `media.load.local` command with the file dialog patched to
+    return `path`."""
+    with patch_file_dialog(True, [str(path)]):
+        commands.execute("media.load.local")
+
+
+def load_youtube_media(url: str = EXAMPLE_YOUTUBE_URL):
+    """Run the `media.load.youtube` command with the URL prompt patched to
+    return `url`."""
+    with patch_ask_for_string_dialog(True, url):
+        commands.execute("media.load.youtube")
 
 
 def get_blank_file_data():

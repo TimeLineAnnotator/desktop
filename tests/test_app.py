@@ -11,14 +11,18 @@ from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import (
     PatchPost,
     Serve,
-    patch_ask_for_string_dialog,
     patch_file_dialog,
     patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
 )
-from tests.utils import save_and_reopen
+from tests.utils import (
+    EXAMPLE_YOUTUBE_URL,
+    load_local_media,
+    load_youtube_media,
+    save_and_reopen,
+)
 from tilia.media.player import QtAudioPlayer, YouTubePlayer
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Get, Post, post, get
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
@@ -122,8 +126,7 @@ class TestFileLoad:
 
         # set media path to a non-existing file
         nonexisting_media = tmp_path / "nothere.mp3"
-        with patch_file_dialog(True, [str(nonexisting_media)]):
-            commands.execute("media.load.local")
+        load_local_media(nonexisting_media)
 
         # save tilia file
         tla_path = tmp_path / "test.tla"
@@ -161,8 +164,7 @@ class TestFileLoad:
 
     def test_media_path_exists(self, tilia, qtui, tilia_state, tmp_path, tls):
         tmp_file = tmp_path / "test_file_load.tla"
-        with patch_file_dialog(True, [EXAMPLE_MEDIA_PATH]):
-            commands.execute("media.load.local")
+        load_local_media(EXAMPLE_MEDIA_PATH)
 
         with patch_file_dialog(True, [str(tmp_file)]):
             commands.execute("file.save_as")
@@ -629,8 +631,7 @@ class TestRelativePaths:
         )  # copy example media
 
         # load media
-        with patch_file_dialog(True, [str(old_media.resolve())]):
-            commands.execute("media.load.local")
+        load_local_media(old_media.resolve())
 
         # save tla
         with patch_file_dialog(True, [str(old_tla.resolve())]):
@@ -654,9 +655,8 @@ class TestRelativePaths:
 
 class TestSave:
     def test_youtube_url_is_preserved(self, tilia_state, qtui, tmp_path):
-        url = "https://www.youtube.com/watch?v=wBfVsucRe1w"
-        with patch_ask_for_string_dialog(True, url):
-            commands.execute("media.load.youtube")
+        url = EXAMPLE_YOUTUBE_URL
+        load_youtube_media(url)
 
         assert get(Get.MEDIA_PATH) == url
 

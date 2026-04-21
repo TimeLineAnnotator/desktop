@@ -14,6 +14,7 @@ from tests.mock import (
     patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
 )
+from tests.utils import load_local_media
 from tilia.file.file_manager import FileManager
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
@@ -156,8 +157,7 @@ class TestFileManager:
     )
     def test_is_saved_with_posix_paths(self, qtui, tilia, tmp_path):
         file_path = tmp_path / "test.tla"
-        with patch_file_dialog(True, [str(EXAMPLE_MEDIA_PATH)]):
-            commands.execute("media.load.local")
+        load_local_media(EXAMPLE_MEDIA_PATH)
 
         with patch_file_dialog(True, [str(WindowsPath(file_path))]):
             commands.execute("file.save")
