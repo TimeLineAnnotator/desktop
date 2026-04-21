@@ -272,25 +272,25 @@ class TestScaleCropTimeline:
                 displacement_factor *= factor
         assert marker_tlui[0].get_data("time") == marker_time * displacement_factor
 
-    def test_scale_then_crop(self, marker_tl, tilia_state):
+    def test_scale_then_crop(self, marker_tlui, tilia_state):
         tilia_state.current_time = 10
         commands.execute("timeline.marker.add")
         tilia_state.current_time = 50
         commands.execute("timeline.marker.add")
         tilia_state.set_duration(200, scale_timelines="yes")
         tilia_state.set_duration(50, scale_timelines="no")
-        assert len(marker_tl) == 1
-        assert marker_tl[0].get_data("time") == 20
+        assert len(marker_tlui) == 1
+        assert marker_tlui[0].get_data("time") == 20
 
-    def test_crop_then_scale(self, marker_tl, tilia_state):
+    def test_crop_then_scale(self, marker_tlui, tilia_state):
         tilia_state.current_time = 10
         commands.execute("timeline.marker.add")
         tilia_state.current_time = 50
         commands.execute("timeline.marker.add")
         tilia_state.set_duration(40, scale_timelines="no")
         tilia_state.set_duration(80, scale_timelines="yes")
-        assert len(marker_tl) == 1
-        assert marker_tl[0].get_data("time") == 20
+        assert len(marker_tlui) == 1
+        assert marker_tlui[0].get_data("time") == 20
 
     def test_crop_twice(self, marker_tlui, tilia_state):
         tilia_state.current_time = 10
