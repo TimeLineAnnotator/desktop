@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 import traceback
 
 from colorama import Fore
@@ -39,6 +38,7 @@ class CLI:
         self.setup_parsers()
         self.exception = None
         self._save_verbosity()
+        self._is_running = False
         listen(
             self, Post.DISPLAY_ERROR, self.on_request_to_display_error
         )  # ignores error title
@@ -109,7 +109,8 @@ class CLI:
             align="l",
             border=False,
         )
-        while True:
+        self._is_running = True
+        while self._is_running:
             try:
                 cmd = input(">>> ")
                 self.parse_and_run(cmd)
@@ -168,10 +169,11 @@ class CLI:
     def show_crash_dialog(exc_message) -> None:
         post(Post.DISPLAY_ERROR, "CLI has crashed", "Error: " + exc_message)
 
-    def exit(self, code: int, *_):
+    def exit(self, code: int | argparse.Namespace):
         _set_verbosity(self._initial_verbosity)
-        io.output("Quitting...")
-        sys.exit(code)
+        self._is_running = False
+        exit_code = code if type(code) is int else 0
+        self.parser.exit(exit_code, "Quitting...")
 
 
 def about(_):
