@@ -137,25 +137,30 @@ class PlayerToolbar(QToolBar):
         super().destroy()
 
     def add_play_toggle(self):
-        def on_play_toggle(checked: bool) -> None:
-            self.play_toggle_action.setIcon(
-                QIcon.fromTheme(
-                    QIcon.ThemeIcon.MediaPlaybackPause
-                    if checked
-                    else QIcon.ThemeIcon.MediaPlaybackStart
-                )
-            )
-            post(Post.PLAYER_TOGGLE_PLAY_PAUSE, checked)
-
         self.play_toggle_action = QAction(self)
         self.play_toggle_action.setText("Play / Pause")
         self.play_toggle_action.triggered.connect(
-            lambda checked: on_play_toggle(checked)
+            lambda checked: post(Post.PLAYER_TOGGLE_PLAY_PAUSE, checked)
         )
         self.play_toggle_action.setCheckable(True)
-        self.play_toggle_action.setIcon(
-            QIcon.fromTheme(QIcon.ThemeIcon.MediaPlaybackStart)
+        play_icon = QIcon()
+        play_icon.addPixmap(
+            QIcon.fromTheme(QIcon.ThemeIcon.MediaPlaybackStart).pixmap(256, 256),
+            QIcon.Mode.Normal,
+            QIcon.State.Off,
         )
+        play_icon.addPixmap(
+            QIcon.fromTheme(QIcon.ThemeIcon.MediaPlaybackStart).pixmap(
+                256, 256, QIcon.Mode.Disabled
+            ),
+            QIcon.Mode.Disabled,
+        )
+        play_icon.addPixmap(
+            QIcon.fromTheme(QIcon.ThemeIcon.MediaPlaybackPause).pixmap(256, 256),
+            QIcon.Mode.Normal,
+            QIcon.State.On,
+        )
+        self.play_toggle_action.setIcon(play_icon)
         self.play_toggle_action.setShortcut("Space")
         self.tooltipped_widgets[self.play_toggle_action] = "Play / Pause (Space)"
         self.addAction(self.play_toggle_action)
