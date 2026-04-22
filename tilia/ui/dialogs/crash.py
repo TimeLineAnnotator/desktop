@@ -14,13 +14,18 @@ from PySide6.QtWidgets import (
 )
 
 from tilia.log import logger
+from tilia.requests.get import Get, get
 from tilia.settings import settings
 from tilia.utils import open_with_os
 
 
 class CrashDialog(QDialog):
     def __init__(self, exception_info):
-        super().__init__()
+        try:
+            super().__init__(get(Get.MAIN_WINDOW))
+        except Exception:
+            super().__init__()
+
         self.exception_info = exception_info
         self.setWindowTitle("Error")
         self._setup_widgets()
