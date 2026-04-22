@@ -314,7 +314,7 @@ class Inspect(QDockWidget):
                 for value, data in kwargs["items"]:
                     widget.addItem(str(value), data)
                 widget.currentIndexChanged.connect(
-                    functools.partial(self.on_combo_box_changed, name)
+                    lambda _: self.on_combo_box_changed(name, widget.currentData())
                 )
             case _:
                 widget = None
