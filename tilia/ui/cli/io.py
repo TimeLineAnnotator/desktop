@@ -48,4 +48,8 @@ def ask_yes_or_no(prompt: str) -> bool:
     """
     Prompts the user for a yes or no answer
     """
-    return input(prompt + " (y)es/(n)o: ").lower() in ["y", "yes"]
+    valid_answers = ("", "n", "no", "y", "yes")
+    falsy = ("n", "no")
+    while (ans := input(prompt + " [Y]es/[n]o: ").lower()) not in valid_answers:
+        pass
+    return ans not in falsy
