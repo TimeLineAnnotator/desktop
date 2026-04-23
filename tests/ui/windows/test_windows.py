@@ -2,9 +2,9 @@ import pytest
 import shiboken6
 
 from tests.utils import (
-    load_local_media,
     EXAMPLE_VIDEO_FILENAME,
     EXAMPLE_YOUTUBE_URL,
+    load_local_media,
     load_youtube_media,
 )
 from tilia.requests import Post, listen, post

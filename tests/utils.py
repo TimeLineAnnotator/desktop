@@ -12,7 +12,6 @@ from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
 
-
 EXAMPLE_VIDEO_FILENAME = "example.mp4"
 EXAMPLE_YOUTUBE_URL = "https://www.youtube.com/watch?v=wBfVsucRe1w"
 

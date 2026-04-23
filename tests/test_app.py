@@ -22,7 +22,7 @@ from tests.utils import (
     save_and_reopen,
 )
 from tilia.media.player import QtAudioPlayer, YouTubePlayer
-from tilia.requests import Get, Post, post, get
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.timeline_kinds import TimelineKind
