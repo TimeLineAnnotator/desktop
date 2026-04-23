@@ -2,7 +2,7 @@ import argparse
 
 from tilia.file.media_metadata import MediaMetadata
 from tilia.requests.get import Get, get
-from tilia.ui.cli import io
+from tilia.ui.cli.io import tabulate
 
 
 def setup_parser(subparsers):
@@ -11,8 +11,14 @@ def setup_parser(subparsers):
 
 
 def show(_: argparse.Namespace):
-    io.output(format_metadata(get(Get.MEDIA_METADATA)))
+    tabulate(
+        ["key", "value"],
+        format_metadata(get(Get.MEDIA_METADATA)),
+        header=False,
+        align="l",
+        hrules=1,
+    )
 
 
-def format_metadata(metadata: MediaMetadata):
-    return "\n".join([f"{k.capitalize()}: {v}" for k, v in metadata.items()])
+def format_metadata(metadata: MediaMetadata) -> list[tuple[str, str]]:
+    return [(k.capitalize(), v) for k, v in metadata.items()]
