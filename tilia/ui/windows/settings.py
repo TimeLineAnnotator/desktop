@@ -184,7 +184,7 @@ class SettingsWindow(QDialog):
         post(Post.SETTINGS_UPDATED, [*edited_settings])
 
 
-def pretty_label(input_string: str):
+def pretty_label(input_string: str) -> QLabel:
     return QLabel(
         " ".join(
             [
@@ -195,7 +195,7 @@ def pretty_label(input_string: str):
     )
 
 
-def select_color_button(parent, value, text=""):
+def select_color_button(parent, value, text="") -> QPushButton:
     def select_color(old_color):
         new_color = QColorDialog.getColor(
             QColor(old_color),
@@ -222,7 +222,7 @@ def select_color_button(parent, value, text=""):
     return button
 
 
-def combobox(options: list, current_value: str):
+def combobox(options: list, current_value: str) -> QComboBox:
     combobox = QComboBox()
     for option in options:
         combobox.addItem(option.title(), option)
@@ -253,7 +253,9 @@ def get_widget_for_value(parent, value, text="") -> QWidget:
                 widget.setObjectName("list")
                 layout = QVBoxLayout(widget)
                 for i in range(len(value)):
-                    sub_widget = get_widget_for_value(value[i], f"Level {i + 1}")
+                    sub_widget = get_widget_for_value(
+                        widget, value[i], f"Level {i + 1}"
+                    )
                     layout.addWidget(sub_widget)
 
             else:
