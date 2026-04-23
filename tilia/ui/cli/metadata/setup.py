@@ -5,7 +5,7 @@ from .show import setup_parser as setup_show_parser
 
 
 def setup_parser(subparsers):
-    parser = subparsers.add_parser("metadata", exit_on_error=False)
+    parser = subparsers.add_parser("metadata", exit_on_error=False, help="Metadata")
 
     metadata_subp = parser.add_subparsers(dest="timeline_command")
 
