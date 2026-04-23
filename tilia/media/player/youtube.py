@@ -165,8 +165,7 @@ class YouTubePlayer(Player):
             )
 
     def retry_get_duration(self):
-        timer = QTimer()
-        timer.singleShot(500, self._engine_get_media_duration)
+        QTimer.singleShot(500, self.view, self._engine_get_media_duration)
 
     def display_error(self, message: str):
         tilia.errors.display(
