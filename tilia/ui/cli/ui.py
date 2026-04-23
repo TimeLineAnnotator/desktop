@@ -43,9 +43,15 @@ class CLI:
             self, Post.DISPLAY_ERROR, self.on_request_to_display_error
         )  # ignores error title
 
-        serve(self, Get.PLAYER_CLASS, self.get_player_class)
-        serve(self, Get.FROM_USER_YES_OR_NO, on_ask_yes_or_no)
-        serve(self, Get.FROM_USER_SHOULD_SAVE_CHANGES, on_ask_should_save_changes)
+        SERVES = {
+            (Get.PLAYER_CLASS, self.get_player_class),
+            (Get.FROM_USER_YES_OR_NO, on_ask_yes_or_no),
+            (Get.FROM_USER_SHOULD_SAVE_CHANGES, on_ask_should_save_changes),
+            (Get.FROM_USER_RETRY_MEDIA_PATH, on_ask_retry_media_file),
+            (Get.FROM_USER_RETRY_PDF_PATH, on_ask_retry_pdf_file),
+        }
+        for request, callback in SERVES:
+            serve(self, request, callback)
 
     def _save_verbosity(self):
         self._initial_verbosity = settings.get("dev", "log_requests")
@@ -189,3 +195,13 @@ def on_ask_yes_or_no(title: str, prompt: str) -> bool:
 
 def on_ask_should_save_changes() -> tuple[bool, bool]:
     return True, ask_yes_or_no("Save changes to current file?")
+
+
+def on_ask_retry_media_file() -> bool:
+    return on_ask_yes_or_no(
+        "Invalid media path", "Would you like to load another media file?"
+    )
+
+
+def on_ask_retry_pdf_file() -> bool:
+    return on_ask_yes_or_no("Invalid PDF", "Would you like to load another PDF file?")
