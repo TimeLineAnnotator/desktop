@@ -22,7 +22,6 @@ from tilia.ui.timelines.hierarchy.handles import HierarchyBodyHandle
 from tilia.ui.timelines.hierarchy.key_press_manager import (
     HierarchyTimelineUIKeyPressManager,
 )
-from tilia.undo_manager import PauseUndoManager
 
 
 class HierarchyTimelineUI(TimelineUI):
@@ -223,35 +222,6 @@ class HierarchyTimelineUI(TimelineUI):
                     )
 
                 children_of_element.append(child_component)
-
-    def paste_with_children_into_elements(
-        self, elements: list[HierarchyUI], data: list[dict]
-    ):
-        def get_descendants(parent: HierarchyUI):
-            def is_in_branch(e):
-                return (
-                    e.tl_component.start >= parent.tl_component.start
-                    and e.tl_component.end <= parent.tl_component.end
-                )
-
-            elements_in_branch = self.element_manager.get_elements_by_condition(
-                is_in_branch
-            )
-            elements_in_branch.remove(parent)
-            return elements_in_branch
-
-        for elm in elements:
-            self.deselect_element(elm)
-            # delete previous descendants
-            descendants = get_descendants(elm)
-            for descendant in descendants:
-                with PauseUndoManager():
-                    self.timeline.delete_components([descendant.tl_component])
-
-            # create children according to paste data
-            self.paste_with_children_into_element(data[0], elm)
-
-        # TODO preserve selection
 
     def get_copy_data_from_hierarchy_ui(self, hierarchy_ui: HierarchyUI):
         ui_data = get_copy_data_from_element(
