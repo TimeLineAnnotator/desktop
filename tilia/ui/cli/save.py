@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 import tilia.errors
@@ -20,6 +21,7 @@ Examples:
   # Save (overwrites without prompting)
   save /path/to/file.tla --overwrite
 """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument("path", help="Path to save the file")

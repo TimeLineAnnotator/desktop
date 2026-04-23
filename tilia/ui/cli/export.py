@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 from tilia.ui import commands
@@ -19,6 +20,7 @@ Examples:
   # Export to JSON with overwrite
   export /path/to/file.json --overwrite
 """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument("path", help="Path to export the file")
