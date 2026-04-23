@@ -1195,7 +1195,7 @@ class TimelineUIs:
                 "Change timeline height",
                 "Insert new timeline height",
                 value=timeline_ui.get_data("height"),
-                minValue=10,
+                minValue=getattr(timeline_ui, "get_max_hierarchy_height", lambda: 10)(),
             )
             if not accepted:
                 return False
