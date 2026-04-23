@@ -20,7 +20,9 @@ class TimeXConverter:
 
         self.playback_area_width = width
 
-    def get_time_by_x(self, x):
+    def get_time_by_x(self, x: float) -> float:
+        if not isinstance(x, (float, int)):
+            return 0.0
         try:
             return (
                 (x - self.left_margin_x)
@@ -41,6 +43,8 @@ class TimeXConverter:
             return 0.0
 
     def get_x_by_time(self, time: float) -> int:
+        if not isinstance(time, (float, int)):
+            return self.left_margin_x
         try:
             return (
                 (time / self.media_duration) * self.playback_area_width
