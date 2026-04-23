@@ -20,26 +20,16 @@ def get_copy_data_from_elements(
 def get_copy_data_from_element(
     element: TimelineUIElement, copy_attrs: CopyAttributes
 ) -> dict:
-    by_element_value = {}
-    for attr in copy_attrs.by_element_value:
-        by_element_value[attr] = getattr(element, attr)
-
     by_component_value = {}
     for attr in copy_attrs.by_component_value:
         by_component_value[attr] = element.get_data(attr)
-
-    support_by_element_value = {}
-    for attr in copy_attrs.support_by_element_value:
-        support_by_element_value[attr] = getattr(element, attr)
 
     support_by_component_value = {}
     for attr in copy_attrs.support_by_component_value:
         support_by_component_value[attr] = getattr(element.tl_component, attr)
 
     copy_data = {
-        "by_element_value": by_element_value,
         "by_component_value": by_component_value,
-        "support_by_element_value": support_by_element_value,
         "support_by_component_value": support_by_component_value,
     }
 
@@ -47,9 +37,6 @@ def get_copy_data_from_element(
 
 
 def paste_into_element(element: TimelineUIElement, paste_data: dict[str, Any]):
-    for attr, value in paste_data["by_element_value"].items():
-        setattr(element, attr, value)
-
     for attr, value in paste_data["by_component_value"].items():
         if element is None:
             pass
@@ -58,7 +45,5 @@ def paste_into_element(element: TimelineUIElement, paste_data: dict[str, Any]):
 
 @dataclass
 class CopyAttributes:
-    by_element_value: list[str]
     by_component_value: list[str]
-    support_by_element_value: list[str]
     support_by_component_value: list[str]

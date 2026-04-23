@@ -70,7 +70,7 @@ class TimelineUI(ABC):  # noqa: B024
     TIMELINE_KIND = None
     TOOLBAR_CLASS = None
     COPY_PASTE_MANGER_CLASS = None
-    DEFAULT_COPY_ATTRIBUTES = CopyAttributes([], [], [], [])
+    DEFAULT_COPY_ATTRIBUTES = CopyAttributes([], [])
     ELEMENT_CLASS: type[TimelineUIElement] = TimelineUIElement
     UPDATE_TRIGGERS = ["name", "height", "is_visible", "ordinal"]
     CONTEXT_MENU_CLASS: type[TimelineUIContextMenu] = TimelineUIContextMenu

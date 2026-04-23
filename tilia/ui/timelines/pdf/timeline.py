@@ -197,9 +197,7 @@ class PdfTimelineUI(TimelineUI):
             self.timeline.create_component(
                 ComponentKind.PDF_MARKER,
                 target_time + (marker_time - reference_time),
-                **pdf_marker_data["by_element_value"],
                 **pdf_marker_data["by_component_value"],
-                **pdf_marker_data["support_by_element_value"],
                 **pdf_marker_data["support_by_component_value"],
             )
 

@@ -61,7 +61,6 @@ class HierarchyUI(TimelineUIElement):
     }
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_element_value=[],
         by_component_value=[
             "formal_type",
             "formal_function",
@@ -69,7 +68,6 @@ class HierarchyUI(TimelineUIElement):
             "label",
             "color",
         ],
-        support_by_element_value=[],
         support_by_component_value=["start", "pre_start", "end", "level"],
     )
 

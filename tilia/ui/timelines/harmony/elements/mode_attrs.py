@@ -31,14 +31,12 @@ FIELD_NAMES_TO_ATTRIBUTES = {
 }
 
 DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-    by_element_value=[],
     by_component_value=[
         "step",
         "accidental",
         "type",
         "comments",
     ],
-    support_by_element_value=[],
     support_by_component_value=["time", "KIND"],
 )
 

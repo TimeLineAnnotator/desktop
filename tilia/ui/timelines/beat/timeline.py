@@ -256,9 +256,7 @@ class BeatTimelineUI(TimelineUI):
             self.timeline.create_component(
                 ComponentKind.BEAT,
                 target_time + (beat_time - reference_time),
-                **beat_data["by_element_value"],
                 **beat_data["by_component_value"],
-                **beat_data["support_by_element_value"],
                 **beat_data["support_by_component_value"],
             )
 

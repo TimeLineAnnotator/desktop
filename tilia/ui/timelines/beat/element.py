@@ -46,9 +46,7 @@ class BeatUI(TimelineUIElement):
     # only needed if attrs will be set by Inspect
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_element_value=[],
         by_component_value=[],
-        support_by_element_value=[],
         support_by_component_value=["time"],
     )
 

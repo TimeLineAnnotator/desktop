@@ -35,9 +35,7 @@ class MarkerUI(TimelineUIElement):
     FIELD_NAMES_TO_ATTRIBUTES = {"Label": "label", "Comments": "comments"}
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_element_value=[],
         by_component_value=["comments", "label", "color"],
-        support_by_element_value=[],
         support_by_component_value=["time"],
     )
 

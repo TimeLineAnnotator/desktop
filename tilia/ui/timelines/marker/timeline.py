@@ -118,8 +118,6 @@ class MarkerTimelineUI(TimelineUI):
             self.timeline.create_component(
                 ComponentKind.MARKER,
                 target_time + (marker_time - reference_time),
-                **marker_data["by_element_value"],
                 **marker_data["by_component_value"],
-                **marker_data["support_by_element_value"],
                 **marker_data["support_by_component_value"],
             )

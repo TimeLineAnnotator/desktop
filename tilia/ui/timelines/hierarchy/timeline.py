@@ -199,7 +199,6 @@ class HierarchyTimelineUI(TimelineUI):
             start=new_child_start,
             end=new_child_end,
             level=child_pastedata_["support_by_component_value"]["level"],
-            **child_pastedata_["by_element_value"],
             **child_pastedata_["by_component_value"],
         )
 

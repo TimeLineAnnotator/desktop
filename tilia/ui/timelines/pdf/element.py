@@ -29,9 +29,7 @@ class PdfMarkerUI(TimelineUIElement):
     FIELD_NAMES_TO_ATTRIBUTES = {"Page number": "page_number"}
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_element_value=[],
         by_component_value=["page_number"],
-        support_by_element_value=[],
         support_by_component_value=["time"],
     )
 
