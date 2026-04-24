@@ -24,7 +24,15 @@
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
       var player;
-      function onYouTubeIframeAPIReady() {
+      var _funcQueue = [];
+
+      const _wrapFunction = (fn, ...params) => {
+        return () => player[fn](...params);
+      }
+
+      const isPlayerLoaded = () => {return (typeof player != "undefined")}
+
+      const _loadPlayer = () => {
         player = new YT.Player('yt-player-iframe', {
             events: {
               'onStateChange': onPlayerStateChange,
@@ -32,6 +40,17 @@
               'onError': onError,
             }
         });
+      }
+
+      function onYouTubeIframeAPIReady() {
+        _loadPlayer();
+        while (_funcQueue.length > 0) (_funcQueue.shift())();
+      }
+
+      const tryPlayerFunctionElseQueue = (fn, ...params) => {
+        const fullFn = _wrapFunction(fn, params)
+        if (isPlayerLoaded()) fullFn();
+        else _funcQueue.push(fullFn);
       }
 
       var playerUpdateLoop = 0
@@ -75,44 +94,44 @@
       }
 
       function loadVideo(id) {
-        player.loadPlaylist([id])
-        return true
+        tryPlayerFunctionElseQueue('loadPlaylist', [id])
       }
 
       function seekTo(time) {
-        player.seekTo(time, allowSeekAhead=true)
+        tryPlayerFunctionElseQueue('seekTo', time, true)
       }
 
       function getDuration() {
-        return player.getDuration()
+        if (isPlayerLoaded()) return player.getDuration();
+        return null
       }
 
       function play() {
-        return player.playVideo()
+        tryPlayerFunctionElseQueue('playVideo')
       }
 
       function pause() {
-        return player.pauseVideo()
+        tryPlayerFunctionElseQueue('pauseVideo')
       }
 
       function stop() {
-        return player.stopVideo()
+        tryPlayerFunctionElseQueue('stopVideo')
       }
 
       function setVolume(volume) {
-        player.setVolume(volume)
+        tryPlayerFunctionElseQueue('setVolume', volume)
       }
 
       function mute() {
-        player.mute()
+        tryPlayerFunctionElseQueue('mute')
       }
 
       function unMute() {
-        player.unMute()
+        tryPlayerFunctionElseQueue('unMute')
       }
 
       function tryPlaybackRate(playbackRate) {
-        player.setPlaybackRate(playbackRate)
+        tryPlayerFunctionElseQueue('setPlaybackRate', playbackRate)
       }
 
       function onPlaybackRateChange(event) {
@@ -120,7 +139,7 @@
       }
 
       function setLoop(isLooping) {
-        player.setLoop(isLooping)
+        tryPlayerFunctionElseQueue('setLoop', isLooping)
       }
 
 </script>
