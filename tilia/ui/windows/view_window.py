@@ -75,4 +75,6 @@ class ViewWindow(ViewWidget[QDialog]):
             | Qt.WindowType.WindowCloseButtonHint
             | Qt.WindowType.WindowMinMaxButtonsHint
         )
+
+        self.setWindowIcon(get(Get.MAIN_WINDOW).windowIcon())
         self.show()
