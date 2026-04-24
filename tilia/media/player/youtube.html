@@ -50,6 +50,9 @@
       function _loadPlayer() {
         player = new YT.Player("yt-player-iframe", {
           events: {
+            onReady: function () {
+              player.getIframe().allow = "autoplay";
+            },
             onError: onError,
             onPlaybackRateChange: onPlaybackRateChange,
             onStateChange: onPlayerStateChange,

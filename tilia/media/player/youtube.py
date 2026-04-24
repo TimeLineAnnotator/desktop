@@ -307,4 +307,7 @@ class QWebEngineWindow(ViewWindow, QWebEngineView):
         self.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
+        self.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False
+        )
         self.resize(800, 600)
