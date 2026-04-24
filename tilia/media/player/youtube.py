@@ -198,14 +198,7 @@ class YouTubePlayer(Player):
         return True
 
     def _play_loop(self) -> None:
-        def post_time_change_event(time):
-            post(
-                Post.PLAYER_CURRENT_TIME_CHANGED,
-                time,
-                MediaTimeChangeReason.PLAYBACK,
-            )
-
-        self.view.page().runJavaScript("getCurrentTime()", post_time_change_event)
+        pass
 
     def _engine_seek(self, time: float) -> None:
         if not self.is_media_loaded:
