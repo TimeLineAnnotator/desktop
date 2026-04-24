@@ -1,6 +1,6 @@
 from enum import Enum, auto
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
@@ -28,6 +28,11 @@ class PlayerToolbar(QToolBar):
         self.last_playback_rate = 1.0
 
         self._setup_controls()
+
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == event.Type.PaletteChange:
+            self._update_stylesheet()
+        return super().changeEvent(event)
 
     def _setup_requests(self):
         LISTENS = {
@@ -225,13 +230,16 @@ class PlayerToolbar(QToolBar):
         self.volume_slider.setValue(100)
         self.volume_slider.setMaximumWidth(70)
         self.volume_slider.valueChanged.connect(lambda value: on_volume_slide(value))
-        self.volume_slider.setStyleSheet(
-            "QSlider {margin-right: 4px;}"
-            "QSlider::groove:horizontal { height: 4px; background: black;}"
-            "QSlider::handle::horizontal { background: black; border: 2px solid black; width: 8px; margin: -4px 0; border-radius: 6px;}"
-        )
+        self._update_stylesheet()
         self.tooltipped_widgets[self.volume_slider] = "Volume"
         self.addWidget(self.volume_slider)
+
+    def _update_stylesheet(self):
+        self.volume_slider.setStyleSheet(
+            "QSlider {margin-right: 4px;}"
+            "QSlider::groove:horizontal { height: 4px; background: palette(text);}"
+            "QSlider::handle::horizontal { background: palette(text); border: 2px solid palette(text); width: 8px; margin: -4px 0; border-radius: 6px;}"
+        )
 
     def add_playback_rate_spinbox(self):
         def on_playback_rate_changed(rate: float) -> None:
