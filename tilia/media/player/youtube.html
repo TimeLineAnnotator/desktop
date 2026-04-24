@@ -1,155 +1,164 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <!DOCTYPE html>
-    <link rel="stylesheet" href="youtube.css">
-<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="youtube.css" />
+  </head>
   <body>
-    <iframe id="yt-player-iframe"
-        width="640" height="360"
-        src="https://www.youtube.com/embed?enablejsapi=1"
-    ></iframe>
+    <div
+      id="yt-player-iframe"
+      width="640"
+      height="360"
+      src="https://www.youtube.com/embed?enablejsapi=1"
+    ></div>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script type="text/javascript">
       var backend;
+      var player;
+      var playerUpdateLoop;
+      const _funcQueue = [];
+
       new QWebChannel(qt.webChannelTransport, function (channel) {
-            backend = channel.objects.backend;
+        backend = channel.objects.backend;
       });
 
-      var tag = document.createElement('script');
-      tag.id = 'iframe-temp';
-      tag.src = 'https://www.youtube.com/iframe_api';
-      var firstScriptTag = document.getElementsByTagName('script')[0];
+      const tag = document.createElement("script");
+      tag.id = "iframe-temp";
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName("script")[0];
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-      var player;
-      var _funcQueue = [];
-
-      const _wrapFunction = (fn, ...params) => {
+      function _wrapFunction(fn, ...params) {
         return () => player[fn](...params);
       }
 
-      const isPlayerLoaded = () => {return (typeof player != "undefined")}
+      function isPlayerLoaded() {
+        return player !== undefined;
+      }
 
-      const _loadPlayer = () => {
-        player = new YT.Player('yt-player-iframe', {
-            events: {
-              'onStateChange': onPlayerStateChange,
-              'onPlaybackRateChange': onPlaybackRateChange,
-              'onError': onError,
-            }
+      function _loadPlayer() {
+        player = new YT.Player("yt-player-iframe", {
+          events: {
+            onError: onError,
+            onPlaybackRateChange: onPlaybackRateChange,
+            onStateChange: onPlayerStateChange,
+          },
         });
       }
 
       function onYouTubeIframeAPIReady() {
         _loadPlayer();
-        while (_funcQueue.length > 0) (_funcQueue.shift())();
+        while (_funcQueue.length > 0) {
+          _funcQueue.shift()();
+        }
       }
 
-      const tryPlayerFunctionElseQueue = (fn, ...params) => {
-        const fullFn = _wrapFunction(fn, params)
-        if (isPlayerLoaded()) fullFn();
-        else _funcQueue.push(fullFn);
-      }
-
-      var playerUpdateLoop = 0
-      function onPlayerStateChange(event) {
-        const playerStatus = event.data
-        backend.on_player_state_change(playerStatus)
-
-        if (playerStatus == YT.PlayerState.PLAYING) {
-            playerUpdateLoop = setInterval(updateTime, 100)
+      function tryPlayerFunctionElseQueue(fn, ...params) {
+        const fullFn = _wrapFunction(fn, params);
+        if (isPlayerLoaded()) {
+          fullFn();
         } else {
-            clearInterval(playerUpdateLoop)
+          _funcQueue.push(fullFn);
+        }
+      }
+
+      function onPlayerStateChange(event) {
+        const playerStatus = event.data;
+        backend.on_player_state_change(playerStatus);
+
+        if (playerStatus === YT.PlayerState.PLAYING) {
+          playerUpdateLoop = setInterval(updateTime, 100);
+        } else {
+          clearInterval(playerUpdateLoop);
         }
       }
 
       function onError(event) {
-        switch(event.data) {
+        switch (event.data) {
           case 2:
-            backend.on_error("The request contains an invalid parameter value. For example, this error occurs if you specify a video ID that does not have 11 characters, or if the video ID contains invalid characters, such as exclamation points or asterisks.")
+            backend.on_error(
+              "The request contains an invalid parameter value. For example, this error occurs if you specify a video ID that does not have 11 characters, or if the video ID contains invalid characters, such as exclamation points or asterisks.",
+            );
             break;
 
           case 5:
-            backend.on_error("The requested content cannot be played in an HTML5 player or another error related to the HTML5 player has occurred.")
+            backend.on_error(
+              "The requested content cannot be played in an HTML5 player or another error related to the HTML5 player has occurred.",
+            );
             break;
 
           case 100:
-            backend.on_error("The video requested was not found. This error occurs when a video has been removed (for any reason) or has been marked as private.")
+            backend.on_error(
+              "The video requested was not found. This error occurs when a video has been removed (for any reason) or has been marked as private.",
+            );
             break;
 
           case 101:
           case 150:
-            backend.on_error("The owner of the requested video does not allow it to be played in embedded players.")
+            backend.on_error(
+              "The owner of the requested video does not allow it to be played in embedded players.",
+            );
             break;
 
           default:
-            backend.on_error("Error code: ${event.data}.")
+            backend.on_error("Error code: ${event.data}.");
         }
       }
 
       function updateTime() {
-        backend.on_new_time(player.getCurrentTime())
+        backend.on_new_time(player.getCurrentTime());
       }
 
       function loadVideo(id) {
-        tryPlayerFunctionElseQueue('loadPlaylist', [id])
+        tryPlayerFunctionElseQueue("loadPlaylist", [id]);
       }
 
       function seekTo(time) {
-        tryPlayerFunctionElseQueue('seekTo', time, true)
+        tryPlayerFunctionElseQueue("seekTo", time, true);
       }
 
       function getDuration() {
-        if (isPlayerLoaded()) return player.getDuration();
-        return null
+        if (isPlayerLoaded()) {
+          return player.getDuration();
+        }
+        return null;
       }
 
       function play() {
-        tryPlayerFunctionElseQueue('playVideo')
+        tryPlayerFunctionElseQueue("playVideo");
       }
 
       function pause() {
-        tryPlayerFunctionElseQueue('pauseVideo')
+        tryPlayerFunctionElseQueue("pauseVideo");
       }
 
       function stop() {
-        tryPlayerFunctionElseQueue('stopVideo')
+        tryPlayerFunctionElseQueue("stopVideo");
       }
 
       function setVolume(volume) {
-        tryPlayerFunctionElseQueue('setVolume', volume)
+        tryPlayerFunctionElseQueue("setVolume", volume);
       }
 
       function mute() {
-        tryPlayerFunctionElseQueue('mute')
+        tryPlayerFunctionElseQueue("mute");
       }
 
       function unMute() {
-        tryPlayerFunctionElseQueue('unMute')
+        tryPlayerFunctionElseQueue("unMute");
       }
 
       function tryPlaybackRate(playbackRate) {
-        tryPlayerFunctionElseQueue('setPlaybackRate', playbackRate)
+        tryPlayerFunctionElseQueue("setPlaybackRate", playbackRate);
       }
 
       function onPlaybackRateChange(event) {
-        backend.on_set_playback_rate(event.data)
+        backend.on_set_playback_rate(event.data);
       }
 
       function setLoop(isLooping) {
-        tryPlayerFunctionElseQueue('setLoop', isLooping)
+        tryPlayerFunctionElseQueue("setLoop", isLooping);
       }
-
-</script>
-
-
+    </script>
   </body>
-</html>
-</title>
-</head>
-<body>
-
-</body>
 </html>
