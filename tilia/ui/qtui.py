@@ -85,11 +85,12 @@ class TiliaMainWindow(QMainWindow):
         return super().changeEvent(event)
 
     @staticmethod
-    def handle_qt_log_message(type, _, msg):
+    def handle_qt_log_message(type, context, msg):
+        f_msg = f"[{type.name}] {context.file}:{context.line} - {msg}"
         if type == QtMsgType.QtFatalMsg:
-            raise Exception(f"{type.name}: {msg}")
+            raise Exception(f_msg)
         else:
-            logger.error(f"{type.name}: {msg}")
+            logger.error(f_msg)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event is None:
