@@ -428,3 +428,11 @@ class TestBeatTimeline:
 
         assert len(tilia.timelines[0]) == 1000
         assert tilia.timelines[0][-1].get_data("time") == 1998.0
+
+    @pytest.mark.timeout(5)
+    def test_crop_timeline_with_many_beats(self, resources, tilia, tilia_state):
+        commands.execute("file.open", path=resources / "tla" / "many_beats.tla")
+        tilia_state.set_duration(10, scale_timelines="no")
+
+        assert len(tilia.timelines[0]) == 11
+        assert tilia.timelines[0][-1].get_data("time") == 10
