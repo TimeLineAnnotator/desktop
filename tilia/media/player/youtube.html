@@ -17,6 +17,8 @@
       var player;
       var playerUpdateLoop;
       const _funcQueue = [];
+      var videoParams;
+      var isVideoLoaded = false;
 
       new QWebChannel(qt.webChannelTransport, function (channel) {
         backend = channel.objects.backend;
@@ -28,12 +30,29 @@
       const firstScriptTag = document.getElementsByTagName("script")[0];
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-      function _wrapFunction(fn, ...params) {
-        return () => player[fn](...params);
+      function _fnParams(fn, ...params) {
+        this.fn = fn;
+        this.params = params;
+      }
+
+      function _fnCall(fp) {
+        player[fp.fn](fp.params);
+      }
+
+      function _deQueue() {
+        while (_funcQueue.length > 0) {
+          _fnCall(_funcQueue.shift());
+        }
       }
 
       function isPlayerLoaded() {
         return player !== undefined;
+      }
+
+      function _loadVideo(fp) {
+        _fnCall(fp);
+        isVideoLoaded = true;
+        _deQueue();
       }
 
       function _loadPlayer() {
@@ -42,23 +61,33 @@
             onError: onError,
             onPlaybackRateChange: onPlaybackRateChange,
             onStateChange: onPlayerStateChange,
-          },
+          }
         });
       }
 
       function onYouTubeIframeAPIReady() {
         _loadPlayer();
-        while (_funcQueue.length > 0) {
-          _funcQueue.shift()();
+        if (videoParams !== undefined) {
+          _loadVideo(videoParams);
+        } else if (isVideoLoaded) {
+          _deQueue();
         }
       }
 
       function tryPlayerFunctionElseQueue(fn, ...params) {
-        const fullFn = _wrapFunction(fn, params);
-        if (isPlayerLoaded()) {
-          fullFn();
+        const fp = new _fnParams(fn, params);
+        if (fn === "loadPlaylist") {
+          if (isPlayerLoaded()) {
+            _loadVideo(fp);
+          } else {
+            videoParams = fp;
+          }
         } else {
-          _funcQueue.push(fullFn);
+          if (isPlayerLoaded() && isVideoLoaded) {
+            _fnCall(fp);
+          } else {
+            _funcQueue.push(fp);
+          }
         }
       }
 
