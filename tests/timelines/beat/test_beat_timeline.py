@@ -414,3 +414,9 @@ class TestBeatTimeline:
         assert not beat_tl[1].get_data("is_first_in_measure")
         assert beat_tl[2].get_data("is_first_in_measure")
         assert not beat_tl[3].get_data("is_first_in_measure")
+
+    @pytest.mark.timeout(5)
+    def test_open_file_with_many_beats(self, resources, tilia):
+        commands.execute("file.open", path=resources / "tla" / "many_beats.tla")
+
+        assert len(tilia.timelines[0]) == 1000

@@ -60,8 +60,8 @@ class BeatTLComponentManager(TimelineComponentManager):
         )
 
         if success:
-            self.timeline.recalculate_measures()
             if self.compute_is_first_in_measure:
+                self.timeline.recalculate_measures()
                 beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
                 beat_index = self.get_components().index(beat) + 1
                 self.update_is_first_in_measure_of_subsequent_beats(beat_index)
@@ -171,6 +171,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.compute_is_first_in_measure = False
         super().restore_state(prev_state)
         self.compute_is_first_in_measure = True
+        self.timeline.recalculate_measures()
         self.update_is_first_in_measure_of_subsequent_beats(0)
         post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.timeline.id, 0)
 
@@ -663,6 +664,7 @@ class BeatTimeline(Timeline):
                 self.create_component(ComponentKind.BEAT, i * value)
 
         self.component_manager.compute_is_first_in_measure = True
+        self.recalculate_measures()
         self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
 
     def add_measure_zero(self, fraction_of_measure_one: float) -> tuple[bool, str]:
