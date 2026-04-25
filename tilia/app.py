@@ -343,7 +343,8 @@ class App:
 
         self.duration = duration
 
-    def prompt_scale_timelines(self, prev_duration: float, new_duration: float) -> bool:
+    @staticmethod
+    def prompt_scale_timelines(prev_duration: float, new_duration: float) -> bool:
         return get(
             Get.FROM_USER_YES_OR_NO,
             "Scale timelines",
@@ -352,7 +353,8 @@ class App:
             ),
         )
 
-    def prompt_crop_timelines(self):
+    @staticmethod
+    def prompt_crop_timelines() -> bool:
         crop_prompt = (
             "New media is smaller, "
             "so components may get deleted or cropped. "
