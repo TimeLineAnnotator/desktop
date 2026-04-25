@@ -21,6 +21,8 @@ from tilia.settings import settings
 from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import commands
+from tilia.ui.format import format_media_time
+from tilia.ui.strings import SCALE_TIMELINE_PROMPT
 from tilia.undo_manager import PauseUndoManager
 from tilia.utils import get_tilia_class_string
 
@@ -321,7 +323,7 @@ class App:
         if not self.timelines.is_blank and duration != self.duration:
             crop_or_scale = ""
             if self.should_scale_timelines == "prompt":
-                if self.prompt_scale_timelines():
+                if self.prompt_scale_timelines(self.duration, duration):
                     crop_or_scale = "scale"
                 else:
                     if duration < self.duration:
@@ -341,9 +343,14 @@ class App:
 
         self.duration = duration
 
-    def prompt_scale_timelines(self):
-        scale_prompt = "Would you like to scale existing timelines to new media length?"
-        return get(Get.FROM_USER_YES_OR_NO, "Scale timelines", scale_prompt)
+    def prompt_scale_timelines(self, prev_duration: float, new_duration: float) -> bool:
+        return get(
+            Get.FROM_USER_YES_OR_NO,
+            "Scale timelines",
+            SCALE_TIMELINE_PROMPT.format(
+                format_media_time(prev_duration), format_media_time(new_duration)
+            ),
+        )
 
     def prompt_crop_timelines(self):
         crop_prompt = (
