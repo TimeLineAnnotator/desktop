@@ -11,7 +11,7 @@ from typing import Any, cast
 import tilia.errors
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
-from tilia.timelines.base.component.pointlike import crop_pointlike, scale_pointlike
+from tilia.timelines.base.component.pointlike import crop_pointlike
 from tilia.timelines.base.timeline import (
     TC,
     Timeline,
@@ -28,7 +28,6 @@ class BeatTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: BeatTimeline):
         super().__init__(timeline, [ComponentKind.BEAT])
         self.timeline = cast(BeatTimeline, self.timeline)
-        self.scale = functools.partial(scale_pointlike, self)
         self.crop = functools.partial(crop_pointlike, self)
         self.compute_is_first_in_measure = True
         self.compute_metric_fraction_dict = True
@@ -133,8 +132,14 @@ class BeatTLComponentManager(TimelineComponentManager):
             )
 
     def scale(self, factor: float) -> None:
+        # Order, indices, and metric positions are unaffected by uniform
+        # positive scaling, so the only stale state is the time-keyed
+        # metric_fraction dicts. Skip per-beat side-effects of calling
+        # set_component_data and rebuild once.
         for beat in self._components:
-            self.timeline.set_component_data(beat.id, "time", beat.time * factor)
+            beat.time *= factor
+            beat.update_hash()
+        self.timeline.update_metric_fraction_dicts()
 
     def crop(self, length: float) -> None:
         for beat in self._components.copy():
