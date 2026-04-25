@@ -4,7 +4,11 @@ from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QObject, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor
+from PySide6.QtWebEngineCore import (
+    QWebEngineFullScreenRequest,
+    QWebEngineSettings,
+    QWebEngineUrlRequestInterceptor,
+)
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 import tilia.constants
@@ -304,6 +308,10 @@ class YouTubePlayer(Player):
 class QWebEngineWindow(ViewWindow, QWebEngineView):
     def __init__(self):
         super().__init__("TiLiA Player", menu_title="YouTube Player")
+        self.page().fullScreenRequested.connect(self._toggle_full_screen)
+        self.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True
+        )
         self.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
@@ -311,3 +319,7 @@ class QWebEngineWindow(ViewWindow, QWebEngineView):
             QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False
         )
         self.resize(800, 600)
+
+    def _toggle_full_screen(self, request: QWebEngineFullScreenRequest) -> None:
+        request.accept()
+        self.showFullScreen() if request.toggleOn() else self.showNormal()
