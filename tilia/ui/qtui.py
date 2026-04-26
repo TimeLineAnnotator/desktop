@@ -325,7 +325,7 @@ class QtUI:
         self.main_window.show()
         return self.q_application.exec()
 
-    def exit(self, code: int, *_):
+    def exit(self, code: int, cause: str | None = None):
         # Code = 0 means a successful run, code = 1 means an unhandled exception.
         self.q_application.exit(code)
 
