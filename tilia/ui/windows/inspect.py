@@ -275,7 +275,7 @@ class Inspect(QDockWidget):
             id(self),
         )
 
-    def on_combo_box_changed(self, field_name: str, value: int):
+    def on_combo_box_changed(self, field_name: str, value: Any):
         post(
             Post.INSPECTOR_FIELD_EDITED,
             field_name,
