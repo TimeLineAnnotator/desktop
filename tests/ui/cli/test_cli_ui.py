@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 
 
@@ -33,3 +35,15 @@ class TestCLI:
     def test_parse_command(self, cli, command, result):
 
         assert cli.parse_command(command) == result
+
+    @pytest.mark.parametrize("command", ["quit", "exit", "q"])
+    def test_quit_command_stops_loop(self, cli, command):
+        cli._is_running = True
+        cli.parse_and_run(command)
+        assert not cli._is_running
+
+    def test_launch_eof_sets_is_running_false(self, cli):
+        with mock.patch("builtins.input", side_effect=EOFError):
+            with pytest.raises(SystemExit):
+                cli.launch()
+        assert not cli._is_running
