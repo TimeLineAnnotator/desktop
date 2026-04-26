@@ -172,7 +172,8 @@ class CLI:
     def exit(self, code: int, cause: str | None = None):
         _set_verbosity(self._initial_verbosity)
         self._is_running = False
-        self.parser.exit(code, ". ".join(filter(None, [cause, "Quitting..."])))
+        message = f"{cause}. Quitting..." if cause else "Quitting..."
+        self.parser.exit(code, message)
 
 
 def about(_):
