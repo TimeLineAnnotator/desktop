@@ -15,7 +15,7 @@ def tlui(hierarchy_tlui):
 
 
 def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:
-    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
+    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.values:
         if attr == "color":
             hierarchy.set_data(attr, "#FFFFFF")
         else:
@@ -23,7 +23,7 @@ def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:
 
 
 def assert_are_copies(hierarchy1: Hierarchy, hierarchy2: Hierarchy):
-    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.by_component_value:
+    for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.values:
         assert getattr(hierarchy1, attr) == getattr(hierarchy2, attr)
 
 

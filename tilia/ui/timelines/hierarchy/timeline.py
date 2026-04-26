@@ -178,17 +178,13 @@ class HierarchyTimelineUI(TimelineUI):
         prev_parent_length = prev_parent_end - prev_parent_start
         scale_factor = new_parent_length / prev_parent_length
 
-        relative_child_start = (
-            child_pastedata_["support_by_component_value"]["start"] - prev_parent_start
-        )
+        relative_child_start = child_pastedata_["context"]["start"] - prev_parent_start
 
         new_child_start = (
             relative_child_start * scale_factor
         ) + new_parent.tl_component.start
 
-        relative_child_end = (
-            child_pastedata_["support_by_component_value"]["end"] - prev_parent_end
-        )
+        relative_child_end = child_pastedata_["context"]["end"] - prev_parent_end
 
         new_child_end = (
             relative_child_end * scale_factor
@@ -198,8 +194,8 @@ class HierarchyTimelineUI(TimelineUI):
             kind=ComponentKind.HIERARCHY,
             start=new_child_start,
             end=new_child_end,
-            level=child_pastedata_["support_by_component_value"]["level"],
-            **child_pastedata_["by_component_value"],
+            level=child_pastedata_["context"]["level"],
+            **child_pastedata_["values"],
         )
 
         return component
@@ -212,8 +208,8 @@ class HierarchyTimelineUI(TimelineUI):
             for child_paste_data in paste_data["children"]:
                 child_component = self._create_child_from_paste_data(
                     element,
-                    paste_data["support_by_component_value"]["start"],
-                    paste_data["support_by_component_value"]["end"],
+                    paste_data["context"]["start"],
+                    paste_data["context"]["end"],
                     child_paste_data,
                 )
 

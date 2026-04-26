@@ -18,7 +18,7 @@ def _validate_paste_complete_cardinality(components):
 
 
 def _validate_paste_complete_level(target, data):
-    if target.get_data("level") != data["support_by_component_value"]["level"]:
+    if target.get_data("level") != data["context"]["level"]:
         return False, "Cannot paste complete into different level"
 
     return True, ""

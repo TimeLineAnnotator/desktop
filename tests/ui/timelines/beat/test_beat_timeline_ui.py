@@ -243,20 +243,20 @@ class TestCopyPaste:
 
         copy_data = beat_tlui.get_copy_data_from_selected_elements()
         beat0_data = {
-            "by_component_value": {},
-            "support_by_component_value": {"time": 0},
+            "values": {},
+            "context": {"time": 0},
         }
         beat1_data = {
-            "by_component_value": {},
-            "support_by_component_value": {"time": 0.1},
+            "values": {},
+            "context": {"time": 0.1},
         }
         beat2_data = {
-            "by_component_value": {},
-            "support_by_component_value": {"time": 0.2},
+            "values": {},
+            "context": {"time": 0.2},
         }
         beat3_data = {
-            "by_component_value": {},
-            "support_by_component_value": {"time": 0.3},
+            "values": {},
+            "context": {"time": 0.3},
         }
         assert beat0_data in copy_data
         assert beat1_data in copy_data

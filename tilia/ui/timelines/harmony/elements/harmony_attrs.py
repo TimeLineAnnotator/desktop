@@ -71,7 +71,7 @@ FIELD_NAMES_TO_ATTRIBUTES = get_field_names_to_attributes()
 
 
 DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-    by_component_value=[
+    values=[
         "step",
         "accidental",
         "quality",
@@ -82,7 +82,7 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         "custom_text",
         "custom_text_font_type",
     ],
-    support_by_component_value=["time", "KIND"],
+    context=["time", "KIND"],
 )
 
 

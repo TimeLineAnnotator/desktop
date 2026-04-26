@@ -160,28 +160,23 @@ class HarmonyTimelineUI(TimelineUI):
         self.update_harmony_labels()
 
     def paste_multiple_into_selected_elements(self, paste_data: list[dict] | dict):
-        paste_data = sorted(
-            paste_data, key=lambda md: md["support_by_component_value"]["time"]
-        )
+        paste_data = sorted(paste_data, key=lambda md: md["context"]["time"])
 
         first_selected_element = self.selected_elements[0]
-        if (
-            first_selected_element.kind
-            == paste_data[0]["support_by_component_value"]["KIND"]
-        ):
+        if first_selected_element.kind == paste_data[0]["context"]["KIND"]:
             self.deselect_element(self.selected_elements[0])
             paste_into_element(first_selected_element, paste_data[0])
             self.select_element(first_selected_element)
 
             self.create_pasted_components(
                 paste_data[1:],
-                paste_data[0]["support_by_component_value"]["time"],
+                paste_data[0]["context"]["time"],
                 self.selected_elements[0].get_data("time"),
             )
         else:
             self.create_pasted_components(
                 paste_data,
-                paste_data[0]["support_by_component_value"]["time"],
+                paste_data[0]["context"]["time"],
                 self.selected_elements[0].get_data("time"),
             )
 
@@ -191,9 +186,7 @@ class HarmonyTimelineUI(TimelineUI):
         return self.paste_multiple_into_timeline(paste_data)
 
     def paste_multiple_into_timeline(self, paste_data: list[dict] | dict):
-        reference_time = min(
-            md["support_by_component_value"]["time"] for md in paste_data
-        )
+        reference_time = min(md["context"]["time"] for md in paste_data)
 
         self.create_pasted_components(
             paste_data,
@@ -207,12 +200,12 @@ class HarmonyTimelineUI(TimelineUI):
         self, paste_data: list[dict], reference_time: float, target_time: float
     ) -> None:
         for harmony_data in paste_data:
-            harmony_time = harmony_data["support_by_component_value"]["time"]
+            harmony_time = harmony_data["context"]["time"]
 
             self.timeline.create_component(
-                harmony_data["support_by_component_value"]["KIND"],
+                harmony_data["context"]["KIND"],
                 target_time + (harmony_time - reference_time),
-                **harmony_data["by_component_value"],
+                **harmony_data["values"],
             )
 
     def on_add_mode(self, time: float | None = None):

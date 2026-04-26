@@ -46,8 +46,8 @@ class BeatUI(TimelineUIElement):
     # only needed if attrs will be set by Inspect
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_component_value=[],
-        support_by_component_value=["time"],
+        values=[],
+        context=["time"],
     )
 
     CONTEXT_MENU_CLASS = BeatContextMenu

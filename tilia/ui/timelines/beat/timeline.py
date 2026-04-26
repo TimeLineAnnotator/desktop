@@ -235,9 +235,7 @@ class BeatTimelineUI(TimelineUI):
         return self.paste_multiple_into_timeline(paste_data)
 
     def paste_multiple_into_timeline(self, paste_data: list[dict] | dict):
-        reference_time = min(
-            md["support_by_component_value"]["time"] for md in paste_data
-        )
+        reference_time = min(md["context"]["time"] for md in paste_data)
 
         self.create_pasted_beats(
             paste_data,
@@ -251,13 +249,13 @@ class BeatTimelineUI(TimelineUI):
         for beat_data in copy.deepcopy(
             paste_data
         ):  # deepcopying so popping won't affect original data
-            beat_time = beat_data["support_by_component_value"].pop("time")
+            beat_time = beat_data["context"].pop("time")
 
             self.timeline.create_component(
                 ComponentKind.BEAT,
                 target_time + (beat_time - reference_time),
-                **beat_data["by_component_value"],
-                **beat_data["support_by_component_value"],
+                **beat_data["values"],
+                **beat_data["context"],
             )
 
     def update_beat_pattern(self):

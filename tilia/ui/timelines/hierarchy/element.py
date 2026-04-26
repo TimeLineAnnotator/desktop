@@ -61,14 +61,14 @@ class HierarchyUI(TimelineUIElement):
     }
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_component_value=[
+        values=[
             "formal_type",
             "formal_function",
             "comments",
             "label",
             "color",
         ],
-        support_by_component_value=["start", "pre_start", "end", "level"],
+        context=["start", "pre_start", "end", "level"],
     )
 
     NAME_WHEN_UNLABELLED = "Unnamed"

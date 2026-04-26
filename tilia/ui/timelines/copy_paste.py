@@ -20,24 +20,24 @@ def get_copy_data_from_elements(
 def get_copy_data_from_element(
     element: TimelineUIElement, copy_attrs: CopyAttributes
 ) -> dict:
-    by_component_value = {}
-    for attr in copy_attrs.by_component_value:
-        by_component_value[attr] = element.get_data(attr)
+    values = {}
+    for attr in copy_attrs.values:
+        values[attr] = element.get_data(attr)
 
-    support_by_component_value = {}
-    for attr in copy_attrs.support_by_component_value:
-        support_by_component_value[attr] = getattr(element.tl_component, attr)
+    context = {}
+    for attr in copy_attrs.context:
+        context[attr] = getattr(element.tl_component, attr)
 
     copy_data = {
-        "by_component_value": by_component_value,
-        "support_by_component_value": support_by_component_value,
+        "values": values,
+        "context": context,
     }
 
     return copy_data
 
 
 def paste_into_element(element: TimelineUIElement, paste_data: dict[str, Any]):
-    for attr, value in paste_data["by_component_value"].items():
+    for attr, value in paste_data["values"].items():
         if element is None:
             pass
         element.set_data(attr, value)
@@ -45,5 +45,5 @@ def paste_into_element(element: TimelineUIElement, paste_data: dict[str, Any]):
 
 @dataclass
 class CopyAttributes:
-    by_component_value: list[str]
-    support_by_component_value: list[str]
+    values: list[str]
+    context: list[str]

@@ -29,8 +29,8 @@ class PdfMarkerUI(TimelineUIElement):
     FIELD_NAMES_TO_ATTRIBUTES = {"Page number": "page_number"}
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
-        by_component_value=["page_number"],
-        support_by_component_value=["time"],
+        values=["page_number"],
+        context=["time"],
     )
 
     UPDATE_TRIGGERS = ["time", "page_number"]

@@ -78,9 +78,7 @@ class MarkerTimelineUI(TimelineUI):
             self.select_element(element)
 
     def paste_multiple_into_selected_elements(self, paste_data: list[dict] | dict):
-        paste_data = sorted(
-            paste_data, key=lambda md: md["support_by_component_value"]["time"]
-        )
+        paste_data = sorted(paste_data, key=lambda md: md["context"]["time"])
 
         first_selected_element = self.selected_elements[0]
 
@@ -90,7 +88,7 @@ class MarkerTimelineUI(TimelineUI):
 
         self.create_pasted_markers(
             paste_data[1:],
-            paste_data[0]["support_by_component_value"]["time"],
+            paste_data[0]["context"]["time"],
             self.selected_elements[0].get_data("time"),
         )
 
@@ -98,9 +96,7 @@ class MarkerTimelineUI(TimelineUI):
         return self.paste_multiple_into_timeline(paste_data)
 
     def paste_multiple_into_timeline(self, paste_data: list[dict] | dict):
-        reference_time = min(
-            md["support_by_component_value"]["time"] for md in paste_data
-        )
+        reference_time = min(md["context"]["time"] for md in paste_data)
 
         self.create_pasted_markers(
             paste_data,
@@ -113,11 +109,11 @@ class MarkerTimelineUI(TimelineUI):
     ) -> None:
         for marker_data in copy.deepcopy(paste_data):
             # deepcopying so popping won't affect original data
-            marker_time = marker_data["support_by_component_value"].pop("time")
+            marker_time = marker_data["context"].pop("time")
 
             self.timeline.create_component(
                 ComponentKind.MARKER,
                 target_time + (marker_time - reference_time),
-                **marker_data["by_component_value"],
-                **marker_data["support_by_component_value"],
+                **marker_data["values"],
+                **marker_data["context"],
             )
