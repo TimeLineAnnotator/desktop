@@ -44,12 +44,16 @@ def ask_for_string(prompt: str) -> str:
     return input(prompt)
 
 
-def ask_yes_or_no(prompt: str) -> bool:
+def ask_yes_or_no(prompt: str, default: bool = True) -> bool:
     """
-    Prompts the user for a yes or no answer
+    Prompts the user for a yes or no answer.
+    Returns `default` if answer is an empty string.
     """
     valid_answers = ("", "n", "no", "y", "yes")
     falsy = ("n", "no")
     while (ans := input(prompt + " [Y]es/[n]o: ").lower()) not in valid_answers:
         pass
-    return ans not in falsy
+    if ans == "":
+        return default
+    else:
+        return ans not in falsy

@@ -19,10 +19,14 @@ class TestInput:
             ("no", False, 1),
             ("NO", False, 1),
             (["anything", "no"], False, 2),
-            ([""], True, 1),
         ],
     )
     def test_ask_yes_or_no(self, user_input, expected, count):
         with patch("builtins.input", side_effect=user_input) as q:
             assert ask_yes_or_no("Some prompt") == expected
         assert q.call_count == count
+
+    @pytest.mark.parametrize("kwargs", [{}, {"default": True}, {"default": False}])
+    def test_default_value(self, kwargs):
+        with patch("builtins.input", side_effect=""):
+            assert ask_yes_or_no("Some prompt", **kwargs) == kwargs.get("default", True)
