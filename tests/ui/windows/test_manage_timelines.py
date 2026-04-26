@@ -5,7 +5,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 
-from tests.mock import Serve
+from tests.mock import Serve, patch_yes_or_no_dialog
 from tilia.requests import Get, get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.collection.collection import Timelines
@@ -159,5 +159,42 @@ class TesttimelinesChangeWhileOpen:
         with manage_timelines() as mt:
             mt.list_widget.setCurrentRow(0)
             commands.execute("timeline.delete", tluis[0], confirm=False)
+            assert mt.list_widget.count() == 0
 
     # Much more could be tested here.
+
+
+class TestDeleteTimeline:
+    def delete_selected_timeline(self, mt):
+        with patch_yes_or_no_dialog(True):
+            mt.delete_button.click()
+
+    def test_deleting_last_timeline_does_not_crash(self, tluis):
+        commands.execute("timelines.add.marker", name="First")
+        commands.execute("timelines.add.marker", name="Second")
+        with manage_timelines() as mt:
+            mt.list_widget.setCurrentRow(1)
+            self.delete_selected_timeline(mt)
+
+            assert mt.list_widget.count() == 1
+        assert len(tluis) == 1
+        assert tluis[0].get_data("name") == "First"
+
+    def test_deleting_twice_in_a_row(self, tluis):
+        commands.execute("timelines.add.marker", name="")
+        commands.execute("timelines.add.marker", name="")
+        with manage_timelines() as mt:
+            mt.list_widget.setCurrentRow(0)
+            self.delete_selected_timeline(mt)
+            self.delete_selected_timeline(mt)
+            assert mt.list_widget.count() == 0
+        assert len(tluis) == 0
+
+    def test_deleting_non_last_row_preserves_row_index(self, tluis):
+        commands.execute("timelines.add.marker", name="")
+        commands.execute("timelines.add.marker", name="")
+        commands.execute("timelines.add.marker", name="")
+        with manage_timelines() as mt:
+            mt.list_widget.setCurrentRow(1)
+            self.delete_selected_timeline(mt)
+            assert mt.list_widget.currentRow() == 1
