@@ -1,6 +1,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
+from PySide6.QtWidgets import QGraphicsItemGroup, QGraphicsPixmapItem
 
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.score.element.with_collision import (
@@ -75,7 +75,7 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
         return
 
 
-class TimeSignatureBody(QGraphicsItem):
+class TimeSignatureBody(QGraphicsItemGroup):
     def __init__(
         self,
         x: float,
@@ -143,13 +143,6 @@ class TimeSignatureBody(QGraphicsItem):
 
     def canvas_items(self):
         return self.numerator_items + self.denominator_items
-
-    def boundingRect(self):
-        items = self.canvas_items()
-        bounding_rect = items[0].boundingRect()
-        for item in items[1:]:
-            bounding_rect = bounding_rect.united(item.boundingRect())
-        return bounding_rect
 
 
 class NumberPixmap(QGraphicsPixmapItem):
