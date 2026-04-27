@@ -181,7 +181,7 @@ def get_actions_in_menu(menu: QMenu):
     return [action for action in menu.actions() if not action.isSeparator()]
 
 
-def save_tilia_to_tmp_path(tmp_path, filename: str = "test") -> Path:
+def save_tilia_to_tmp_path(tmp_path, filename: str = "test") -> str:
     tmp_file_path = (tmp_path / (filename + ".tla")).resolve().__str__()
     with patch_file_dialog(True, [tmp_file_path]):
         commands.execute("file.save_as")
