@@ -297,16 +297,14 @@ class HierarchyTimelineUI(TimelineUI):
             get(Get.TIMELINE_COLLECTION).set_timeline_data(
                 self.id, "height", max_height + self.MIN_MARGIN
             )
-        return True
 
     @with_elements
     def on_increase_level(self, elements: list[HierarchyUI]) -> bool:
-        return (
-            self.timeline.alter_levels(
-                self.elements_to_components(list(reversed(elements))), 1
-            )
-            and self._adjust_timeline_height()
-        )
+        if success := self.timeline.alter_levels(
+            self.elements_to_components(list(reversed(elements))), 1
+        ):
+            self._adjust_timeline_height()
+        return success
 
     @with_elements
     def on_decrease_level(self, elements: list[HierarchyUI]):
@@ -314,10 +312,9 @@ class HierarchyTimelineUI(TimelineUI):
 
     @with_elements
     def on_group(self, elements: list[HierarchyUI]):
-        return (
-            self.timeline.group(self.elements_to_components(elements))
-            and self._adjust_timeline_height()
-        )
+        if success := self.timeline.group(self.elements_to_components(elements)):
+            self._adjust_timeline_height()
+        return success
 
     def on_split(self, time: float | None = None):
         if time is None:
