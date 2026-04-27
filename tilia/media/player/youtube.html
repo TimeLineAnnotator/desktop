@@ -30,13 +30,8 @@
       const firstScriptTag = document.getElementsByTagName("script")[0];
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-      function _fnParams(fn, ...params) {
-        this.fn = fn;
-        this.params = params;
-      }
-
       function _fnCall(fp) {
-        player[fp.fn](fp.params);
+        player[fp.fn](...fp.params);
       }
 
       function _deQueue() {
@@ -75,7 +70,7 @@
       }
 
       function tryPlayerFunctionElseQueue(fn, ...params) {
-        const fp = new _fnParams(fn, params);
+        const fp = { fn, params };
         if (fn === "loadPlaylist") {
           if (isPlayerLoaded()) {
             _loadVideo(fp);
