@@ -28,5 +28,5 @@ class TestInput:
 
     @pytest.mark.parametrize("kwargs", [{}, {"default": True}, {"default": False}])
     def test_default_value(self, kwargs):
-        with patch("builtins.input", side_effect=""):
+        with patch("builtins.input", return_value=""):
             assert ask_yes_or_no("Some prompt", **kwargs) == kwargs.get("default", True)
