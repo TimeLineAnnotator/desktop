@@ -27,10 +27,14 @@ class TestInput:
             assert ask_yes_or_no("Some prompt") == expected
         assert q.call_count == count
 
-    @pytest.mark.parametrize("kwargs", [{}, {"default": True}, {"default": False}])
-    def test_default_value(self, kwargs):
-        with patch("builtins.input", return_value=""):
+    @pytest.mark.parametrize(
+        "kwargs,option",
+        [({}, "Yes/no"), ({"default": True}, "Yes/no"), ({"default": False}, "yes/No")],
+    )
+    def test_default_value(self, kwargs, option):
+        with patch("builtins.input", return_value="") as p:
             assert ask_yes_or_no("Some prompt", **kwargs) == kwargs.get("default", True)
+        assert option in p.call_args.args[0]
 
 
 class TestRetryHandlers:
