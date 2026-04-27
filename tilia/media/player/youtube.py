@@ -1,3 +1,4 @@
+import logging
 import re
 from enum import Enum
 from pathlib import Path
@@ -18,6 +19,8 @@ from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Get, Post, get, post
 from tilia.ui.player import PlayerStatus, PlayerToolbarElement
 from tilia.ui.windows.view_window import ViewWindow
+
+logger = logging.getLogger(__name__)
 
 
 class PlayerTracker(QObject):
@@ -82,6 +85,10 @@ class PlayerTracker(QObject):
     @Slot(str)
     def on_recoverable_error(self, message: str) -> None:
         self.display_recoverable_error(message)
+
+    @Slot(str)
+    def _print(self, message: str) -> None:
+        logger.debug(message)
 
     class State(Enum):
         UNSTARTED = -1
