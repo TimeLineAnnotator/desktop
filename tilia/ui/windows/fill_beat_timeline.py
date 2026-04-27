@@ -1,5 +1,3 @@
-import sys
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -74,7 +72,7 @@ class FillBeatTimeline(QDialog):
         self._by_amount_edit.setRange(1, 2147483647)
         self._by_amount_edit.setSuffix(BEAT_TIMELINE_BY_AMOUNT_SUFFIX)
         self._by_amount_edit.setValue(1)
-        self._by_interval_edit.setRange(sys.float_info.min, 60)
+        self._by_interval_edit.setRange(0.01, 60)
         self._by_interval_edit.setSuffix(BEAT_TIMELINE_BY_INTERVAL_SUFFIX)
         self._by_interval_edit.setValue(1)
         self._by_interval_edit.setEnabled(False)
