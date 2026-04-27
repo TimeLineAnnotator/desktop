@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import traceback
 
@@ -26,7 +27,7 @@ from tilia.ui.cli import (
     script,
     timelines,
 )
-from tilia.ui.cli.io import ask_yes_or_no, tabulate
+from tilia.ui.cli.io import ask_yes_or_no, error, tabulate
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
 
 
@@ -49,6 +50,7 @@ class CLI:
             (Get.FROM_USER_SHOULD_SAVE_CHANGES, on_ask_should_save_changes),
             (Get.FROM_USER_RETRY_MEDIA_PATH, on_ask_retry_media_file),
             (Get.FROM_USER_RETRY_PDF_PATH, on_ask_retry_pdf_file),
+            (Get.FROM_USER_MEDIA_PATH, on_ask_media_path),
         }
         for request, callback in SERVES:
             serve(self, request, callback)
@@ -205,3 +207,13 @@ def on_ask_retry_media_file() -> bool:
 
 def on_ask_retry_pdf_file() -> bool:
     return on_ask_yes_or_no("Invalid PDF", "Would you like to load another PDF file?")
+
+
+def on_ask_media_path() -> tuple[bool, str]:
+    while True:
+        ans = input("Media file path [leave empty to cancel]: ").strip()
+        if not ans:
+            return False, ""
+        if os.path.exists(ans):
+            return True, ans
+        error(f"Path not found: {ans}")
