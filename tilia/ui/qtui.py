@@ -33,7 +33,6 @@ import tilia.parsers.csv.pdf
 import tilia.parsers.score.musicxml
 import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
-from tilia import constants
 from tilia.file.tilia_file import TiliaFile
 from tilia.log import logger
 from tilia.requests import Get, Post, get, listen, post, serve
@@ -448,7 +447,7 @@ class QtUI:
 
     @staticmethod
     def on_open_website_help():
-        QDesktopServices.openUrl(QUrl(f"{constants.WEBSITE_URL}/help"))
+        QDesktopServices.openUrl(QUrl(f"{tilia.constants.WEBSITE_URL}/help"))
 
     @staticmethod
     def show_crash_dialog(exception_info):
