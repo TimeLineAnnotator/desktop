@@ -18,7 +18,6 @@
       var playerUpdateLoop;
       const _funcQueue = [];
       var videoParams;
-      var isVideoLoaded = false;
 
       new QWebChannel(qt.webChannelTransport, function (channel) {
         backend = channel.objects.backend;
@@ -46,8 +45,6 @@
 
       function _loadVideo(fp) {
         _fnCall(fp);
-        isVideoLoaded = true;
-        _deQueue();
       }
 
       function _loadPlayer() {
@@ -64,8 +61,6 @@
         _loadPlayer();
         if (videoParams !== undefined) {
           _loadVideo(videoParams);
-        } else if (isVideoLoaded) {
-          _deQueue();
         }
       }
 
@@ -78,7 +73,7 @@
             videoParams = fp;
           }
         } else {
-          if (isPlayerLoaded() && isVideoLoaded) {
+          if (isPlayerLoaded() && player.getDuration() != 0) {
             _fnCall(fp);
           } else {
             _funcQueue.push(fp);
@@ -90,10 +85,16 @@
         const playerStatus = event.data;
         backend.on_player_state_change(playerStatus);
 
-        if (playerStatus === YT.PlayerState.PLAYING) {
-          playerUpdateLoop = setInterval(updateTime, 100);
-        } else {
-          clearInterval(playerUpdateLoop);
+        switch (playerStatus) {
+          case YT.PlayerState.PLAYING:
+            playerUpdateLoop = setInterval(updateTime, 100);
+            break;
+          case YT.PlayerState.UNSTARTED:
+            clearInterval(playerUpdateLoop);
+            _deQueue();
+            break;
+          default:
+            clearInterval(playerUpdateLoop);
         }
       }
 
