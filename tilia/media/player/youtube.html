@@ -187,6 +187,10 @@
       function setLoop(isLooping) {
         tryPlayerFunctionElseQueue("setLoop", isLooping);
       }
+
+      function _print(...message) {
+        backend._print(Array.from(message, (m) => JSON.stringify(m)).join(" "));
+      }
     </script>
   </body>
 </html>
