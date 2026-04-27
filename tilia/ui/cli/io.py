@@ -49,11 +49,14 @@ def ask_yes_or_no(prompt: str, default: bool = True) -> bool:
     Prompts the user for a yes or no answer.
     Returns `default` if answer is an empty string.
     """
-    valid_answers = ("", "n", "no", "y", "yes")
-    falsy = ("n", "no")
-    while (ans := input(prompt + " [Y]es/[n]o: ").lower()) not in valid_answers:
+    yes_no = {True: "yes", False: "no"}
+    valid_answers = {x for v in yes_no.values() for x in (v, v[0])}.union({""})
+    option = "/".join(
+        [v.capitalize() if k == default else v for k, v in yes_no.items()]
+    )
+    while (ans := input(f"{prompt} [{option}]: ").lower()) not in valid_answers:
         pass
     if ans == "":
         return default
     else:
-        return ans not in falsy
+        return [k for k, v in yes_no.items() if ans[0] == v[0]][0]
