@@ -66,6 +66,7 @@ class Inspect(QDockWidget):
 
         self.inspect_widget = QWidget(self.stack_widget)
         self.inspect_layout = QFormLayout(self.inspect_widget)
+        self.inspect_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.inspect_widget.setLayout(self.inspect_layout)
 
         self.empty_label = QLabel("<h2> No element selected.</h2>")
@@ -333,9 +334,9 @@ class Inspect(QDockWidget):
             )
 
             right_widget.setSizePolicy(
-                QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Maximum
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
             )
-            right_widget.setMaximumHeight(50)
+            right_widget.setMinimumWidth(100)
             self.inspect_layout.addRow(left_widget, right_widget)
 
             self.field_name_to_widgets[name] = (left_widget, right_widget)
