@@ -164,7 +164,7 @@ jobs:
           ls build -ltraR |egrep -v '\.$|\.\.|\.:|\.\/|total|^d' | sed '/^$/d' || true
 
       - name: Upload
-        uses: "softprops/action-gh-release@v2"
+        uses: "softprops/action-gh-release@v3"
         id: release
         with:
           tag_name: ${{github.ref_name}}
