@@ -59,6 +59,7 @@ class ScoreTLComponentManager(TimelineComponentManager):
         post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def clear(self):
+        self.timeline.save_svg_data("")
         super().clear()
         post(Post.SCORE_TIMELINE_CLEAR_DONE, self.timeline.id)
 
