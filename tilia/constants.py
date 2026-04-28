@@ -12,7 +12,8 @@ if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
 
     with open(toml, "rb") as f:
         setupcfg = load(f).get("project", {})
-    AUTHOR = setupcfg.get("authors", [{"name": ""}])[0]["name"]
+    AUTHORS = [a.get("name", "") for a in setupcfg.get("authors", [{"name": ""}])]
+    AUTHOR = ", ".join(a for a in AUTHORS if a)
     EMAIL = setupcfg.get("authors", [{"email": ""}])[0]["email"]
 
 else:
@@ -44,7 +45,7 @@ WEBSITE_URL = setupcfg.get("urls", {}).get("Homepage", "")
 YOUTUBE_URL_REGEX = r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"
 NOTICE = f"""
 {APP_NAME}, {setupcfg.get("description", "") if AUTHOR else ""}
-Copyright © {YEAR} {AUTHOR}
+GNU General Public License v3 — {YEAR} {AUTHOR}
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or any later version.
 

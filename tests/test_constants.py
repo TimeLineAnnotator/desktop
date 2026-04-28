@@ -22,3 +22,25 @@ def test_tilia_metadata_not_found():
         assert constants.YEAR == "2022-2026"
         assert constants.AUTHOR == ""
         assert constants.EMAIL == ""
+
+
+def _reload_constants():
+    if "tilia.constants" in sys.modules:
+        del sys.modules["tilia.constants"]
+    import tilia.constants as constants
+
+    return constants
+
+
+def test_authors_list_joined_into_author_string():
+    constants = _reload_constants()
+
+    assert len(constants.AUTHORS) >= 2
+    assert constants.AUTHOR == ", ".join(a for a in constants.AUTHORS if a)
+
+
+def test_notice_uses_license_name_instead_of_copyright_symbol():
+    constants = _reload_constants()
+
+    assert "GNU General Public License v3" in constants.NOTICE
+    assert "Copyright ©" not in constants.NOTICE

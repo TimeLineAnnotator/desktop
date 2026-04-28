@@ -33,8 +33,12 @@ dependencies = [
 ]
 
 [[project.authors]]
-name = "Felipe Defensor et al."
+name = "Felipe Defensor"
 email = "tilia@tilia-app.com"
+
+[[project.authors]]
+name = "Anne Foo"
+email = "45888544+azfoo@users.noreply.github.com"
 
 [project.scripts]
 tilia = "tilia.__main__:main"
