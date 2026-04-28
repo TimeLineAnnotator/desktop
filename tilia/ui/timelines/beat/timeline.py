@@ -112,16 +112,18 @@ class BeatTimelineUI(TimelineUI):
 
     @with_elements
     def on_set_measure_number(self, elements: list[BeatUI] | None = None):
+        measure_indices = self._get_measure_indices(elements)
         accepted, number = get(
             Get.FROM_USER_INT,
             "Change measure number",
             "Insert measure number",
+            value=self.timeline.measure_numbers[measure_indices[0]],
             minValue=0,
         )
         if not accepted:
             return False
 
-        for i in reversed(self._get_measure_indices(elements)):
+        for i in reversed(measure_indices):
             self.timeline.set_measure_number(i, number)
         return True
 
