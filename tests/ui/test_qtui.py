@@ -1,4 +1,8 @@
+from types import SimpleNamespace
 from unittest.mock import mock_open, patch
+
+import pytest
+from PySide6.QtCore import QtMsgType
 
 from tests.conftest import parametrize_tlui
 from tests.constants import EXAMPLE_MEDIA_PATH
@@ -7,6 +11,7 @@ from tests.utils import get_actions_in_menu, get_main_window_menu
 from tilia.requests import Get, Post, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.commands import get_qaction
+from tilia.ui.qtui import TiliaMainWindow
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 
@@ -171,3 +176,50 @@ class TestMenus:
         ]
         expected = [get_qaction(action) for action in expected]
         assert set(actions) == set(expected)
+
+
+class TestHandleQtLogMessage:
+    def _ctx(self, file="widget.cpp", line=42):
+        return SimpleNamespace(file=file, line=line)
+
+    def test_fatal_message_raises_exception(self):
+        with pytest.raises(Exception, match=r"\[QtFatalMsg\] widget\.cpp:42 - boom"):
+            TiliaMainWindow.handle_qt_log_message(
+                QtMsgType.QtFatalMsg, self._ctx(), "boom"
+            )
+
+    def test_fatal_exception_message_includes_file_and_line(self):
+        with pytest.raises(Exception) as exc_info:
+            TiliaMainWindow.handle_qt_log_message(
+                QtMsgType.QtFatalMsg, self._ctx(file="core.cpp", line=99), "fatal"
+            )
+        assert "core.cpp:99" in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "msg_type",
+        [
+            QtMsgType.QtDebugMsg,
+            QtMsgType.QtInfoMsg,
+            QtMsgType.QtWarningMsg,
+            QtMsgType.QtCriticalMsg,
+        ],
+    )
+    def test_non_fatal_message_calls_logger_error(self, msg_type):
+        ctx = self._ctx(file="view.cpp", line=7)
+        with patch("tilia.ui.qtui.logger") as mock_logger:
+            TiliaMainWindow.handle_qt_log_message(msg_type, ctx, "something happened")
+        mock_logger.error.assert_called_once_with(
+            f"[{msg_type.name}] view.cpp:7 - something happened"
+        )
+
+    def test_non_fatal_message_does_not_raise(self):
+        with patch("tilia.ui.qtui.logger"):
+            TiliaMainWindow.handle_qt_log_message(
+                QtMsgType.QtWarningMsg, self._ctx(), "non-fatal"
+            )
+
+    def test_context_file_none_does_not_raise(self):
+        with patch("tilia.ui.qtui.logger"):
+            TiliaMainWindow.handle_qt_log_message(
+                QtMsgType.QtWarningMsg, self._ctx(file=None, line=-1), "msg"
+            )
