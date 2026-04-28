@@ -10,6 +10,7 @@ from tilia.requests import Get, Post, get, post
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
+from tilia.timelines.harmony.constants import get_inversion_amount
 from tilia.ui.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
     INT_TO_ROMAN,
@@ -71,14 +72,16 @@ class HarmonyUI(TimelineUIElement):
 
     @property
     def letter_symbol(self):
+        quality = self.get_data("quality")
+        inversion = min(self.get_data("inversion"), get_inversion_amount(quality))
         symbol = music21.harmony.ChordSymbol(
             INT_TO_NOTE_NAME[self.get_data("step")]
             + Accidental.get_from_int(
                 "music21",
                 self.get_data("accidental"),
             )
-            + QUALITY_TO_ABBREVIATION[self.get_data("quality")],
-            inversion=self.get_data("inversion"),
+            + QUALITY_TO_ABBREVIATION[quality],
+            inversion=inversion,
         )
         applied_to = self.get_data("applied_to")
         if applied_to:
@@ -113,13 +116,14 @@ class HarmonyUI(TimelineUIElement):
 
     @property
     def roman_numeral_label(self):
+        quality = self.get_data("quality")
         return to_roman_numeral(
             self.get_data("step"),
             self.get_data("accidental"),
-            self.get_data("quality"),
+            quality,
             self.key,
             self.get_data("applied_to"),
-            self.get_data("inversion"),
+            min(self.get_data("inversion"), get_inversion_amount(quality)),
         )
 
     @property
