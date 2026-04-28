@@ -21,7 +21,20 @@ Examples:
     )
     add_subp.add_argument(
         "kind",
-        choices=["hierarchy", "hrc", "marker", "mrk", "beat", "bea", "score", "sco"],
+        choices=[
+            "hierarchy",
+            "hrc",
+            "marker",
+            "mrk",
+            "beat",
+            "bea",
+            "score",
+            "sco",
+            "harmony",
+            "har",
+            "audiowave",
+            "aud",
+        ],
         help="Kind of timeline to add",
     )
     add_subp.add_argument(
@@ -50,6 +63,10 @@ KIND_STR_TO_TLKIND = {
     "bea": TlKind.BEAT_TIMELINE,
     "score": TlKind.SCORE_TIMELINE,
     "sco": TlKind.SCORE_TIMELINE,
+    "harmony": TlKind.HARMONY_TIMELINE,
+    "har": TlKind.HARMONY_TIMELINE,
+    "audiowave": TlKind.AUDIOWAVE_TIMELINE,
+    "aud": TlKind.AUDIOWAVE_TIMELINE,
 }
 
 TLKIND_TO_KWARGS_NAMES = {
@@ -57,6 +74,8 @@ TLKIND_TO_KWARGS_NAMES = {
     TlKind.HIERARCHY_TIMELINE: ["name", "height"],
     TlKind.MARKER_TIMELINE: ["name", "height"],
     TlKind.SCORE_TIMELINE: ["name", "height"],
+    TlKind.HARMONY_TIMELINE: ["name"],
+    TlKind.AUDIOWAVE_TIMELINE: ["name"],
 }
 
 

@@ -59,3 +59,27 @@ class TestTimelineAdd:
 
         tl = tls.get_timelines()[0]
         assert tl.beat_pattern == [4]
+
+    def test_add_harmony_timeline(self, cli, tls):
+        cli.parse_and_run("timeline add har --name test")
+
+        tl = tls.get_timelines()[0]
+        assert tl.KIND == TimelineKind.HARMONY_TIMELINE
+        assert tl.name == "test"
+
+    def test_add_harmony_timeline_full_name(self, cli, tls):
+        cli.parse_and_run("timeline add harmony")
+
+        assert tls.get_timelines()[0].KIND == TimelineKind.HARMONY_TIMELINE
+
+    def test_add_audiowave_timeline(self, cli, tls):
+        cli.parse_and_run("timeline add aud --name test")
+
+        tl = tls.get_timelines()[0]
+        assert tl.KIND == TimelineKind.AUDIOWAVE_TIMELINE
+        assert tl.name == "test"
+
+    def test_add_audiowave_timeline_full_name(self, cli, tls):
+        cli.parse_and_run("timeline add audiowave")
+
+        assert tls.get_timelines()[0].KIND == TimelineKind.AUDIOWAVE_TIMELINE
