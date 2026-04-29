@@ -112,6 +112,7 @@ def _get_exe_cmd() -> list[str]:
         f"--output-filename={out_filename}",
         f"--macos-app-icon={icon_path.as_posix()}",
         "--macos-app-mode=gui",
+        f"--macos-app-name={name}",
         f"--macos-app-version={version}",
         "--windows-console-mode=attach",
         f"--windows-icon-from-ico={icon_path.as_posix()}",
