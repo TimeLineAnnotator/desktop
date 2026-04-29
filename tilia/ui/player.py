@@ -237,8 +237,10 @@ class PlayerToolbar(QToolBar):
     def _update_stylesheet(self):
         self.volume_slider.setStyleSheet(
             "QSlider {margin-right: 4px;}"
-            "QSlider::groove:horizontal { height: 4px; background: palette(text);}"
-            "QSlider::handle::horizontal { background: palette(text); border: 2px solid palette(text); width: 8px; margin: -4px 0; border-radius: 6px;}"
+            "QSlider::groove::horizontal { height: 4px;}"
+            "QSlider::groove::horizontal:enabled { background: palette(text); }"
+            "QSlider::handle::horizontal { width: 8px; margin: -4px 0; border-radius: 6px;}"
+            "QSlider::handle::horizontal:enabled { background: palette(text); border: 2px solid palette(text); }"
         )
 
     def add_playback_rate_spinbox(self):
