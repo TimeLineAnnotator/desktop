@@ -1,12 +1,21 @@
 .coverage
 .env
+.eggs
+.pytest_cache
+build
+dist
+tilia.egg-info
+venv
+.venv
+__pycache__
+tilia/dev
+
+# IDEs
 .vscode
-/.eggs/
-/.idea/
-/.pytest_cache/
-/build/
-/dist/
-/tilia.egg-info/
-/venv/
-__pycache__/
-tilia/dev/
+.idea
+
+# uv can be useful to create worktrees
+uv.lock
+
+# AI
+CLAUDE.md
