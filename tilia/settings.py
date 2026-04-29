@@ -165,6 +165,8 @@ class SettingsManager(QObject):
 
     def update_recent_files(self, path, geometry, state):
         recent_files = self._settings.value("private/recent_files", [])
+        if not isinstance(recent_files, list):
+            recent_files = [recent_files]
         path = Path(path).as_posix()
         if path in recent_files:
             recent_files.remove(path)
