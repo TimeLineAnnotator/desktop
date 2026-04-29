@@ -93,7 +93,8 @@ def _set_out_filename(name: str, version: str):
     if _clean_version(version) == _clean_version(ref_name):
         out_filename = f"{name}-v{version}-{build_os}"
     else:
-        out_filename = f"{name}-v{version}-{ref_name}-{build_os}"
+        safe_ref = ref_name.replace("/", "-")
+        out_filename = f"{name}-v{version}-{safe_ref}-{build_os}"
 
 
 def _get_exe_cmd() -> list[str]:
