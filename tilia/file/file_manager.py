@@ -244,12 +244,13 @@ class FileManager:
         post(Post.FILE_SAVED, path)
         return True
 
-    def on_save_as_request(self):
+    def on_save_as_request(self, path: str | None = None):
         """Prompts user for a path, and saves tilia file to it."""
         old_title = get(Get.MEDIA_TITLE)
-        accepted, path = get(Get.FROM_USER_SAVE_PATH_TILIA, old_title + ".tla")
-        if not accepted:
-            return False
+        if path is None:
+            accepted, path = get(Get.FROM_USER_SAVE_PATH_TILIA, old_title + ".tla")
+            if not accepted:
+                return False
 
         save_title = Path(path).stem
         try:
@@ -263,6 +264,7 @@ class FileManager:
 
             if save_title != old_title:
                 self.on_set_media_metadata_field("title", old_title)
+            return False
 
         post(Post.FILE_SAVED, path)
         return True
