@@ -65,12 +65,18 @@ class TimelineView(QGraphicsView):
             )
 
         def handle_right_click():
+            items = [
+                item
+                for item in self.items(event.pos())
+                if not getattr(item, "ignore_right_click", False)
+            ]
+            item = items[0] if items else None
             post(
                 Post.TIMELINE_VIEW_RIGHT_CLICK,
                 self,
                 self.mapToGlobal(event.pos()).x(),
                 self.mapToGlobal(event.pos()).y(),
-                self.itemAt(event.pos()),
+                item,
                 QGuiApplication.keyboardModifiers(),
                 double=False,
             )
