@@ -2,7 +2,7 @@ from tilia.timelines.component_kinds import ComponentKind
 
 
 def get_element_class_by_kind(kind: ComponentKind):
-    from tilia.ui.timelines.audiowave.element import AmplitudeBarUI
+    from tilia.ui.timelines.audiowave.element import WaveformElement
     from tilia.ui.timelines.beat.element import BeatUI
     from tilia.ui.timelines.harmony.elements import HarmonyUI, ModeUI
     from tilia.ui.timelines.hierarchy.element import HierarchyUI
@@ -23,7 +23,7 @@ def get_element_class_by_kind(kind: ComponentKind):
         ComponentKind.BEAT: BeatUI,
         ComponentKind.HARMONY: HarmonyUI,
         ComponentKind.MODE: ModeUI,
-        ComponentKind.AUDIOWAVE: AmplitudeBarUI,
+        ComponentKind.AUDIOWAVE: WaveformElement,
         ComponentKind.NOTE: NoteUI,
         ComponentKind.STAFF: StaffUI,
         ComponentKind.CLEF: ClefUI,

@@ -25,7 +25,7 @@ class ComponentKind(Enum):
 
 
 def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
-    from tilia.timelines.audiowave.components import AmplitudeBar
+    from tilia.timelines.audiowave.components import Waveform
     from tilia.timelines.beat.components import Beat
     from tilia.timelines.harmony.components import Harmony, Mode
     from tilia.timelines.hierarchy.components import Hierarchy
@@ -49,7 +49,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
         ComponentKind.NOTE: Note,
         ComponentKind.MODE: Mode,
         ComponentKind.PDF_MARKER: PdfMarker,
-        ComponentKind.AUDIOWAVE: AmplitudeBar,
+        ComponentKind.AUDIOWAVE: Waveform,
         ComponentKind.STAFF: Staff,
         ComponentKind.CLEF: Clef,
         ComponentKind.BAR_LINE: BarLine,

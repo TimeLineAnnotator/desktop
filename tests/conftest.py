@@ -326,7 +326,7 @@ def parametrize_component(func):
     run `request.getfixturevalue('comp')`"""
 
     @pytest.mark.parametrize(
-        "comp", ["amplitudebar", "beat", "harmony", "hierarchy", "marker", "pdf_marker"]
+        "comp", ["beat", "harmony", "hierarchy", "marker", "pdf_marker"]
     )
     @functools.wraps(func)  # Preserve original function metadata
     def wrapper(*args, **kwargs):
@@ -345,7 +345,6 @@ def parametrize_ui_element(func):
     @pytest.mark.parametrize(
         "element",
         [
-            "amplitudebar_ui",
             "beat_ui",
             "harmony_ui",
             "hierarchy_ui",

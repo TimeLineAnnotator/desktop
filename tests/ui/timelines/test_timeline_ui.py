@@ -28,10 +28,8 @@ def get_time_shifted_args(args: dict[str, int], d_time) -> dict[str, int]:
 @pytest.mark.parametrize(
     "tlui, args",
     [
-        (
-            "audiowave_tlui",
-            {"kind": ComponentKind.AUDIOWAVE, "start": 50, "end": 55, "amplitude": 10},
-        ),
+        # audiowave timeline is not selectable — click only seeks playback,
+        # so it doesn't participate in the modifier-select test matrix.
         ("beat_tlui", {"kind": ComponentKind.BEAT, "time": 50}),
         ("harmony_tlui", {"kind": ComponentKind.HARMONY, "time": 50}),
         ("harmony_tlui", {"kind": ComponentKind.MODE, "time": 50}),

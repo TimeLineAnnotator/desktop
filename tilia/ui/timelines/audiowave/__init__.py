@@ -1,2 +1,2 @@
-from .element import AmplitudeBarUI
+from .element import WaveformElement
 from .timeline import AudioWaveTimelineUI
