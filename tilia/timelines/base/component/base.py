@@ -72,7 +72,7 @@ class TimelineComponent:
             return getattr(self, attr)
         except AttributeError as e:
             raise GetComponentDataError(
-                "AttributeError while getting data from component."
+                "AttributeError while getting data from component. "
                 f"Does {type(self)} have a {attr} attribute?"
             ) from e
 
