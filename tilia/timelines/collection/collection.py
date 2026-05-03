@@ -154,10 +154,10 @@ class Timelines:
     def get_timelines_by_attr(self, attr: str, value: Any):
         return [tl for tl in self if getattr(tl, attr) == value]
 
-    def set_timeline_data(self, id: int, attr: str, value: Any):
+    def set_timeline_data(self, id: int, attr: str, value: Any) -> bool:
         timeline = self.get_timeline(id)
         if timeline.get_data(attr) == value:
-            return
+            return False
         value, success = self.get_timeline(id).set_data(attr, value)
         if success:
             post(Post.TIMELINE_SET_DATA_DONE, id, attr, value)
