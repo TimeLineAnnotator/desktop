@@ -243,16 +243,28 @@ class Inspect(QDockWidget):
 
     @staticmethod
     def set_widget_value(widget, value):
-        if isinstance(widget, (QLineEdit, QLabel)):
-            if widget.text() != value:
-                widget.setText(value)
-        elif isinstance(widget, QTextEdit):
-            if widget.toPlainText() != value:
-                widget.setText(value)
-        elif isinstance(widget, QComboBox):
-            widget.setCurrentIndex(widget.findData(value))
-        elif isinstance(widget, QSpinBox):
-            widget.setValue(value)
+        # Block signals while writing programmatically: setText / setValue
+        # / setCurrentIndex would otherwise fire textChanged etc., which the
+        # inspector connects to its on_*_changed handlers. Those handlers
+        # post INSPECTOR_FIELD_EDITED, which the still-selected element's
+        # listener interprets as a user edit and writes back to the
+        # component — clobbering data that was just set programmatically
+        # (e.g. merging ranges, deselect cascades that re-display a stale
+        # snapshot from inspected_objects_stack).
+        widget.blockSignals(True)
+        try:
+            if isinstance(widget, (QLineEdit, QLabel)):
+                if widget.text() != value:
+                    widget.setText(value)
+            elif isinstance(widget, QTextEdit):
+                if widget.toPlainText() != value:
+                    widget.setText(value)
+            elif isinstance(widget, QComboBox):
+                widget.setCurrentIndex(widget.findData(value))
+            elif isinstance(widget, QSpinBox):
+                widget.setValue(value)
+        finally:
+            widget.blockSignals(False)
 
     def hide_or_show_field(self, field_name, value):
         if value == HIDE_FIELD:
