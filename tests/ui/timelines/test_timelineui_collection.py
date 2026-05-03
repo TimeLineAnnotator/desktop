@@ -295,6 +295,30 @@ class TestSeek:
         drag_mouse_in_timeline_view(target_x, y)
         assert marker_tlui.playback_line.line().x1() == target_x
 
+    def test_slider_drag_release_seeks_media(
+        self, marker_tlui, slider_tlui, tilia_state
+    ):
+        # Regression: dragging the trough used to post Post.PLAYER_SEEK on
+        # release, which had no listeners, so the media position never
+        # actually moved (only the visual playback lines did, via
+        # SLIDER_DRAG). The fix routes the release through `media.seek`.
+        y = slider_tlui.trough.pos().y()
+        click_timeline_ui(slider_tlui, 0, y=y)
+        target_x = time_x_converter.get_x_by_time(60)
+        drag_mouse_in_timeline_view(target_x, y)
+        assert tilia_state.current_time == pytest.approx(60)
+
+    def test_slider_click_seeks_media(self, marker_tlui, slider_tlui, tilia_state):
+        # Companion to the drag-release regression: the click path used
+        # `commands.execute("media.seek", ...)` already and was never
+        # broken — pin it so a future refactor can't break both at once.
+        # Click the line itself (centre y of the view), not the trough's y.
+        line_y = slider_tlui.view.height() / 2
+        target_x = time_x_converter.get_x_by_time(40)
+        click_timeline_ui(slider_tlui, 40, y=line_y)
+        assert tilia_state.current_time == pytest.approx(40)
+        assert marker_tlui.playback_line.line().x1() == pytest.approx(target_x)
+
     @pytest.mark.parametrize(
         "tlui,request_to_serve, add_request",
         [
