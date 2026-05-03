@@ -24,8 +24,8 @@ class TimelineUIContextMenu(TiliaMenu):
         self._add_timeline_actions()
 
     def _add_timeline_actions(self):
-        self.addSeparator()
-
+        # Move up/down belong with the top "this timeline" actions
+        # (Set name, etc.) — they reorder the timeline as a whole.
         self.check_move_up()
         self.check_move_down()
         self.add_default_actions()
@@ -50,7 +50,7 @@ class TimelineUIContextMenu(TiliaMenu):
         }
         if indices_to_timelines.get(current_index - 1, False):
             move_up = CommandQAction("timeline.move_up", self)
-            move_up.setText("Move up")
+            move_up.setText("Move timeline up")
             move_up.triggered.connect(on_move_up)
             self.addAction(move_up)
 
@@ -68,7 +68,7 @@ class TimelineUIContextMenu(TiliaMenu):
         }
         if indices_to_timelines.get(current_index + 1, False):
             move_down = CommandQAction("timeline.move_down", self)
-            move_down.setText("Move down")
+            move_down.setText("Move timeline down")
             move_down.triggered.connect(on_move_down)
             self.addAction(move_down)
 
