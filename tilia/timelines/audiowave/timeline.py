@@ -12,7 +12,6 @@ from tilia.timelines.base.timeline import (
     TimelineFlag,
 )
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
@@ -21,7 +20,6 @@ class AudioWaveTLComponentManager(TimelineComponentManager):
 
 
 class AudioWaveTimeline(Timeline):
-    KIND = TimelineKind.AUDIOWAVE_TIMELINE
     COMPONENT_MANAGER_CLASS = AudioWaveTLComponentManager
     FLAGS = [
         TimelineFlag.NOT_CLEARABLE,

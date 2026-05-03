@@ -1,17 +1,13 @@
 import argparse
 from functools import partial
 
+from tilia.timelines.base.timeline import Timeline
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
-from tilia.ui.cli import io
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui.cli.io import output
 from tilia.ui.cli.timelines.utils import get_timeline_by_name, get_timeline_by_ordinal
-
-TL_KIND_TO_COMPONENT_KIND = {
-    TlKind.BEAT_TIMELINE: ComponentKind.BEAT,
-    TlKind.HIERARCHY_TIMELINE: ComponentKind.HIERARCHY,
-    TlKind.MARKER_TIMELINE: ComponentKind.MARKER,
-}
 
 COMPONENT_KIND_TO_PARAMS = {
     ComponentKind.BEAT: ["time"],
@@ -46,7 +42,20 @@ Examples:
     subp.add_argument(
         "--time", "-t", type=float, required=True, help="Time position for the beat"
     )
-    subp.set_defaults(func=partial(add, TlKind.BEAT_TIMELINE))
+    subp.set_defaults(func=partial(add, BeatTimeline))
+
+
+def validate_timeline(
+    namespace: argparse.Namespace, tl_type: type(Timeline), tl: Timeline
+):
+    if not tl:
+        if namespace.tl_ordinal is not None:
+            raise ValueError(f"No timeline found with ordinal={namespace.tl_ordinal}")
+        else:
+            raise ValueError(f"No timeline found with name={namespace.tl_name}")
+
+    if not isinstance(tl, tl_type):
+        raise ValueError(f"Timeline {tl} is of wrong kind. Expected {tl_type}")
 
 
 def get_component_params(cmp_kind: ComponentKind, namespace: argparse.Namespace):
@@ -56,7 +65,7 @@ def get_component_params(cmp_kind: ComponentKind, namespace: argparse.Namespace)
     return params
 
 
-def add(tl_kind: TlKind, namespace: argparse.Namespace):
+def add(tl_type: type(Timeline), namespace: argparse.Namespace):
     ordinal = namespace.tl_ordinal
     name = namespace.tl_name
 
@@ -65,14 +74,15 @@ def add(tl_kind: TlKind, namespace: argparse.Namespace):
     else:
         success, tl = get_timeline_by_name(name)
 
-    if not success:
-        return
+    validate_timeline(namespace, tl_type, tl)
 
-    if tl.KIND != tl_kind:
-        io.error(f"Timeline {tl} is of wrong kind. Expected {tl_kind}")
-        return
+    TL_TYPE_TO_COMPONENT_KIND = {
+        BeatTimeline: ComponentKind.BEAT,
+        HierarchyTimeline: ComponentKind.HIERARCHY,
+        MarkerTimeline: ComponentKind.MARKER,
+    }
 
-    cmp_kind = TL_KIND_TO_COMPONENT_KIND[tl_kind]
+    cmp_kind = TL_TYPE_TO_COMPONENT_KIND[tl_type]
     params = get_component_params(cmp_kind, namespace)
 
     tl.create_component(cmp_kind, **params)
