@@ -20,7 +20,7 @@ from tilia.requests import (
     stop_serving_all,
 )
 from tilia.timelines.base.timeline import TimelineFlag
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.windows import WindowKind
@@ -136,7 +136,7 @@ class TimelineListItem(QListWidgetItem):
 
     @staticmethod
     def get_timeline_ui_str(timeline_ui: TimelineUI):
-        if timeline_ui.TIMELINE_KIND == TimelineKind.SLIDER_TIMELINE:
+        if timeline_ui.timeline_class == SliderTimeline:
             return "Slider"
         return timeline_ui.get_data("name")
 

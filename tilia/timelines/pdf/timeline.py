@@ -16,7 +16,6 @@ from tilia.timelines.base.timeline import (
 from tilia.timelines.base.validators import validate_string
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.pdf.components import PdfMarker
-from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class PdfTLComponentManager(TimelineComponentManager):
@@ -30,7 +29,6 @@ class PdfTLComponentManager(TimelineComponentManager):
 
 
 class PdfTimeline(Timeline):
-    KIND = TimelineKind.PDF_TIMELINE
     SERIALIZABLE = ["height", "is_visible", "name", "ordinal", "path"]
     COMPONENT_MANAGER_CLASS = PdfTLComponentManager
     FLAGS = [TimelineFlag.COMPONENTS_COPYABLE, TimelineFlag.COMPONENTS_IMPORTABLE]

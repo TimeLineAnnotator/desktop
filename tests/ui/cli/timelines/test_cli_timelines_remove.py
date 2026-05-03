@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 
 
 def test_remove_type_not_provided(cli, hierarchy_tl, tls):
@@ -75,7 +75,7 @@ def test_remove_by_ordinal_multiple_timelines(cli, tls):
 
 
 def test_remove_by_ordinal_not_found(cli, tls):
-    tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
+    tls.create_timeline(HierarchyTimeline)
 
     with patch("builtins.print") as mock_print:
         cli.parse_and_run("timeline remove ordinal 3")

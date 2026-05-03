@@ -3,7 +3,7 @@ import music21
 from tilia import errors
 from tilia.requests import Get, get
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
@@ -18,6 +18,7 @@ from tilia.ui.timelines.harmony import HarmonyUI, ModeUI
 from tilia.ui.timelines.harmony.context_menu import HarmonyTimelineUIContextMenu
 from tilia.ui.timelines.harmony.toolbar import HarmonyTimelineToolbar
 
+from ...menus import HarmonyMenu
 from . import level_label
 
 
@@ -25,8 +26,9 @@ class HarmonyTimelineUI(TimelineUI):
     TOOLBAR_CLASS = HarmonyTimelineToolbar
     ELEMENT_CLASS = [HarmonyUI, ModeUI]
     CONTEXT_MENU_CLASS = HarmonyTimelineUIContextMenu
-    TIMELINE_KIND = TimelineKind.HARMONY_TIMELINE
     ACCEPTS_HORIZONTAL_ARROWS = True
+    timeline_class = HarmonyTimeline
+    menu_class = HarmonyMenu
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -275,7 +277,7 @@ class HarmonyTimelineUI(TimelineUI):
             "components": get_copy_data_from_element(
                 element, element.DEFAULT_COPY_ATTRIBUTES
             ),
-            "timeline_kind": TimelineKind.HARMONY_TIMELINE,
+            "timeline_type": HarmonyTimeline,
         }
 
     def on_show_keys(self, _):
