@@ -1,19 +1,19 @@
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 from tilia.requests import Get, Post, listen, serve
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.base.timeline import Timeline
 from tilia.utils import get_tilia_class_string
 
 
 class ClipboardContents(TypedDict):
     components: dict[str, dict]
-    timeline_kind: TimelineKind | None
+    timeline_type: Optional[type(Timeline)]
 
 
 class Clipboard:
     def __init__(self) -> None:
         self._setup_requests()
-        self._contents: ClipboardContents = {"components": {}, "timeline_kind": None}
+        self._contents: ClipboardContents = {"components": {}, "timeline_type": None}
 
     def __str__(self):
         return get_tilia_class_string(self)

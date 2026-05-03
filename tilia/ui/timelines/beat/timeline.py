@@ -1,9 +1,10 @@
 import copy
 
 from tilia.requests import Get, Post, get, listen
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import commands
+from tilia.ui.menus import BeatMenu
 from tilia.ui.strings import (
     BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT,
     BEAT_TIMELINE_FILL_TITLE,
@@ -27,7 +28,6 @@ class BeatTimelineUI(TimelineUI):
     TOOLBAR_CLASS = BeatTimelineToolbar
     ELEMENT_CLASS = BeatUI
     ACCEPTS_HORIZONTAL_ARROWS = True
-    TIMELINE_KIND = TimelineKind.BEAT_TIMELINE
     UPDATE_TRIGGERS = TimelineUI.UPDATE_TRIGGERS + [
         "beat_pattern",
         "measure_numbers",
@@ -35,6 +35,8 @@ class BeatTimelineUI(TimelineUI):
         "measures_to_force_display",
         "beats_in_measure",
     ]
+    timeline_class = BeatTimeline
+    menu_class = BeatMenu
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

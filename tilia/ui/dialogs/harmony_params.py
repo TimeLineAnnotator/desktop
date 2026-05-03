@@ -17,7 +17,7 @@ from tilia.timelines.harmony.constants import (
     HARMONY_DISPLAY_MODES,
     get_inversion_amount,
 )
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui.timelines.harmony.constants import (
     ACCIDENTAL_TO_INT,
     NOTE_NAME_TO_INT,
@@ -182,9 +182,7 @@ class SelectHarmonyParams(QDialog):
 
     @classmethod
     def select(cls) -> tuple[bool, None | dict[str, str | int]]:
-        timeline_ui = get(
-            Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, TimelineKind.HARMONY_TIMELINE
-        )
+        timeline_ui = get(Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, HarmonyTimeline)
         current_key = timeline_ui.get_key_by_time(get(Get.MEDIA_CURRENT_TIME))
         instance = SelectHarmonyParams(current_key)
         return (

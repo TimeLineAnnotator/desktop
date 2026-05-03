@@ -13,11 +13,6 @@ from tilia.timelines.harmony.validators import (
     validate_mode_type,
     validate_step,
 )
-from tilia.ui.timelines.harmony.constants import (
-    INT_TO_NOTE_NAME,
-    NOTE_NAME_TO_INT,
-    Accidental,
-)
 
 if TYPE_CHECKING:
     from tilia.timelines.harmony.timeline import HarmonyTimeline
@@ -68,6 +63,11 @@ class Mode(PointLikeTimelineComponent):
 
     @property
     def key(self):
+        # TODO: these are local imports only because the constants live in the
+        # UI folder and importing them at module level would cause a circular.
+        # Move the constants out of `tilia/ui/` so this can become a top-level import.
+        from tilia.ui.timelines.harmony.constants import INT_TO_NOTE_NAME, Accidental
+
         tonic = INT_TO_NOTE_NAME[self.step]
         tonic_symbol = tonic.lower() if self.get_data("type") == "minor" else tonic
         accidental_symbol = Accidental.get_from_int(
@@ -93,7 +93,13 @@ def get_params_from_text(text):
 
 
 def _get_music21_object_from_text(text):
+    # TODO: these are local imports only because the constants live in the
+    # UI folder and importing them at module level would cause a circular.
+    # Move the constants out of `tilia/ui/` so this can become a top-level import.
+    from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
+
     text = _format_postfix_accidental(text)
+
     valid_initial_chars = list(NOTE_NAME_TO_INT) + list(
         map(str.lower, NOTE_NAME_TO_INT)
     )
@@ -105,6 +111,11 @@ def _get_music21_object_from_text(text):
 
 
 def _get_params_from_music21_object(obj: music21.key.Key):
+    # TODO: these are local imports only because the constants live in the
+    # UI folder and importing them at module level would cause a circular.
+    # Move the constants out of `tilia/ui/` so this can become a top-level import.
+    from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
+
     return {
         "step": NOTE_NAME_TO_INT[obj.tonic.step],
         "accidental": int(obj.tonic.alter),

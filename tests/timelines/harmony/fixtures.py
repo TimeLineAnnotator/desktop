@@ -4,7 +4,6 @@ from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.timeline import HarmonyTimeline
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.timelines.harmony import HarmonyTimelineUI, HarmonyUI, ModeUI
 
 
@@ -34,7 +33,7 @@ def harmony_tlui(harmony_tl, tluis) -> TestHarmonyTimelineUI:
 
 @pytest.fixture
 def harmony_tl(tls):
-    tl: HarmonyTimeline = tls.create_timeline(TlKind.HARMONY_TIMELINE)
+    tl: HarmonyTimeline = tls.create_timeline(HarmonyTimeline)
     original_create_component = tl.create_component
 
     def create_harmony(time=0, step=0, accidental=0, quality="major", **kwargs):

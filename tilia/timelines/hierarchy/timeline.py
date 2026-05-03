@@ -12,7 +12,6 @@ from tilia.timelines.base.component.segmentlike import (
     scale_segmentlike,
 )
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
 
 from ...ui.format import format_media_time
 from ..base.timeline import Timeline, TimelineComponentManager, TimelineFlag
@@ -434,7 +433,6 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
 
 class HierarchyTimeline(Timeline):
-    KIND = TimelineKind.HIERARCHY_TIMELINE
     COMPONENT_MANAGER_CLASS = HierarchyTLComponentManager
     FLAGS = [
         TimelineFlag.COMPONENTS_COLORED,

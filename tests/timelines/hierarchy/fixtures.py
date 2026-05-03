@@ -6,7 +6,6 @@ from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 
 
@@ -29,7 +28,7 @@ def hierarchy_tlui(hierarchy_tl, tluis) -> TestHierarchyTimelineUI:
 
 @pytest.fixture
 def hierarchy_tl(tls):
-    tl: HierarchyTimeline = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)
+    tl: HierarchyTimeline = tls.create_timeline(HierarchyTimeline)
     tl.create_initial_hierarchy = lambda self: None
 
     # remove initial hierarchy

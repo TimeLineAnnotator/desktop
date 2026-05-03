@@ -10,7 +10,7 @@ from tests.ui.timelines.interact import (
 from tests.utils import undoable
 from tilia.requests import Get, Post, post
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui import commands
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.collection.collection import TimelineSelector
@@ -244,7 +244,7 @@ class TestArrowSelection:
 
 class TestSetTimelineName:
     def test_set(self, tls, tluis):
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE, name="change me")
+        tls.create_timeline(MarkerTimeline, name="change me")
         with Serve(Get.FROM_USER_STRING, (True, "this")):
             commands.execute("timeline.set_name", tluis[0])
 
@@ -275,7 +275,7 @@ class TestSetTimelineName:
         assert tluis[0].displayed_name == "tainted"
 
     def test_set_empty_string(self, tls, tluis):
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE, name="change me")
+        tls.create_timeline(MarkerTimeline, name="change me")
         with Serve(Get.FROM_USER_STRING, (True, "")):
             commands.execute("timeline.set_name", tluis[0])
 
@@ -298,9 +298,7 @@ def test_set_is_visible(tls, marker_tlui):
 class TestOnTimelineCommand:
     @staticmethod
     def call_on_timeline_command(tluis, callback):
-        tluis.on_timeline_command(
-            [TimelineKind.MARKER_TIMELINE], callback, TimelineSelector.ALL
-        )
+        tluis.on_timeline_command([MarkerTimeline], callback, TimelineSelector.ALL)
 
     @staticmethod
     def add_timeline(count=1):
@@ -405,10 +403,6 @@ class TestOnTimelineCommand:
         self.call_on_timeline_command(tluis, lambda *args, **kwargs: next(gen))
 
         tilia_errors.assert_no_error()
-
-
-def test_timeline_ui_subclasses():
-    assert len(TimelineUI.subclasses()) == len(TimelineKind)
 
 
 def test_ensure_timeline_ui_subclasses_is_only_called_once():

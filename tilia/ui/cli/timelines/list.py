@@ -1,10 +1,5 @@
 from tilia.requests import Get, get
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui.cli.io import tabulate
-
-
-def pprint_tlkind(kind: TlKind) -> str:
-    return kind.value.replace("_TIMELINE", "").capitalize()
 
 
 def setup_parser(subparser):
@@ -22,7 +17,7 @@ def list(_):
         (
             tl.ordinal,
             tl.name,
-            pprint_tlkind(tl.KIND),
+            tl.type_name(),
         )
         for tl in timelines
     ]

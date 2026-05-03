@@ -11,7 +11,6 @@ from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.timeline import TimelineFlag
 from tilia.timelines.harmony.timeline import HarmonyTimeline
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui import commands
 from tilia.ui.dialogs.resize_rect import ResizeRect
 
@@ -46,7 +45,7 @@ class TestExportJSON:
         assert timeline_data["height"] == settings.get(
             "marker_timeline", "default_height"
         )
-        assert timeline_data["kind"] == TimelineKind.MARKER_TIMELINE.name
+        assert timeline_data["kind"] == "Marker"
         assert timeline_data["components"] == []
 
     def test_timeline_not_exportable_attributes_are_not_exported(
@@ -81,8 +80,8 @@ class TestExportJSON:
         data = self._trigger_export_action(tmp_file)
 
         assert len(data["timelines"]) == 2
-        assert data["timelines"][0]["kind"] == "MARKER_TIMELINE"
-        assert data["timelines"][1]["kind"] == "HARMONY_TIMELINE"
+        assert data["timelines"][0]["kind"] == "Marker"
+        assert data["timelines"][1]["kind"] == "Harmony"
 
         # check marker timeline components
         components = data["timelines"][0]["components"]

@@ -15,7 +15,7 @@ from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.smooth_scroll import setup_smooth, smooth
@@ -34,8 +34,8 @@ if TYPE_CHECKING:
 class SliderTimelineUI(TimelineUI):
     TOOLBAR_CLASS = None
 
-    TIMELINE_KIND = TimelineKind.SLIDER_TIMELINE
     CONTEXT_MENU_CLASS = []
+    timeline_class = SliderTimeline
 
     def __init__(
         self,

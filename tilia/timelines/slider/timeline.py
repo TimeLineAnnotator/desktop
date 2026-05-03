@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
-from tilia.timelines.timeline_kinds import TimelineKind
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
@@ -12,7 +11,6 @@ if TYPE_CHECKING:
 
 class SliderTimeline(Timeline):
     SERIALIZABLE = ["is_visible", "ordinal", "height"]
-    KIND = TimelineKind.SLIDER_TIMELINE
     FLAGS = [
         TimelineFlag.COMPONENTS_NOT_EDITABLE,
         TimelineFlag.NOT_CLEARABLE,
@@ -41,7 +39,7 @@ class SliderTimeline(Timeline):
         for attr in self.SERIALIZABLE:
             result[attr] = getattr(self, attr)
 
-        result["kind"] = self.KIND.name
+        result["kind"] = self.type_name()
         result["components"] = {}
         result["components_hash"] = ""
         result["hash"] = ""

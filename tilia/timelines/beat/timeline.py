@@ -20,7 +20,6 @@ from tilia.timelines.base.timeline import (
 from tilia.timelines.beat.components import Beat
 from tilia.timelines.beat.validators import validate_integer_list
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class BeatTLComponentManager(TimelineComponentManager):
@@ -193,7 +192,6 @@ class BeatTimeline(Timeline):
         "ordinal",
     ]
 
-    KIND = TimelineKind.BEAT_TIMELINE
     COMPONENT_MANAGER_CLASS = BeatTLComponentManager
     FLAGS = [TimelineFlag.COMPONENTS_COPYABLE, TimelineFlag.COMPONENTS_IMPORTABLE]
 

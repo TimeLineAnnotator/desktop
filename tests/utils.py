@@ -55,7 +55,7 @@ def get_blank_file_data():
                 "is_visible": True,
                 "ordinal": 1,
                 "height": 40,
-                "kind": "SLIDER_TIMELINE",
+                "kind": "Slider",
                 "components": {},
             }
         },
@@ -71,7 +71,7 @@ def get_dummy_timeline_data(id: int = 1) -> dict[str, dict]:
             "is_visible": True,
             "ordinal": 1,
             "name": "test",
-            "kind": "HIERARCHY_TIMELINE",
+            "kind": "Hierarchy",
             "components_hash": "",
             "components": {},
         }

@@ -2,18 +2,18 @@ from io import StringIO
 
 import pytest
 
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.slider.timeline import SliderTimeline
 
 
 class TestClear:
     @pytest.fixture(autouse=True)
     def setup_timelines(self, tls):
-        tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
+        tls.create_timeline(SliderTimeline)
 
     @staticmethod
     def assert_cleared(tls):
         assert len(tls) == 1
-        assert tls[0].KIND == TimelineKind.SLIDER_TIMELINE
+        assert isinstance(tls[0], SliderTimeline)
 
     def test_clear(self, cli, tls, tilia_state):
         tilia_state.duration = 1

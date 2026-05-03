@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
 
 from tilia.requests import Get, get
 from tilia.timelines.beat.timeline import BeatTimeline
-from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.strings import (
     BEAT_TIMELINE_BY_AMOUNT_OPTION,
     BEAT_TIMELINE_BY_AMOUNT_SUFFIX,
@@ -78,9 +77,7 @@ class FillBeatTimeline(QDialog):
         self._by_interval_edit.setEnabled(False)
 
         # setup combobox
-        timelines = [
-            tl for tl in get(Get.TIMELINES) if tl.KIND == TimelineKind.BEAT_TIMELINE
-        ]
+        timelines = [tl for tl in get(Get.TIMELINES) if isinstance(tl, BeatTimeline)]
         self._prompt = QLabel(BEAT_TIMELINE_FILL_PROMPT)
         for tl in timelines:
             self._timeline_combobox.addItem(tl.name, tl)

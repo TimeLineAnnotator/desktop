@@ -5,7 +5,6 @@ import pytest
 from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.marker.timeline import MarkerTimeline
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 
 
 @pytest.fixture
@@ -21,7 +20,7 @@ def marker_tlui(marker_tl, tluis):
 
 @pytest.fixture
 def marker_tl(tls):
-    tl: MarkerTimeline = tls.create_timeline(TlKind.MARKER_TIMELINE)
+    tl: MarkerTimeline = tls.create_timeline(MarkerTimeline)
     tl.create_marker = functools.partial(tl.create_component, ComponentKind.MARKER)
 
     yield tl

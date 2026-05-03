@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 
 from tilia.requests import Get, Post, get, listen
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.ui.menus import MarkerMenu
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
 )
@@ -26,8 +27,8 @@ class MarkerTimelineUI(TimelineUI):
     ELEMENT_CLASS = MarkerUI
     ACCEPTS_HORIZONTAL_ARROWS = True
     CONTEXT_MENU_CLASS = MarkerTimelineUIContextMenu
-
-    TIMELINE_KIND = TimelineKind.MARKER_TIMELINE
+    timeline_class = MarkerTimeline
+    menu_class = MarkerMenu
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
