@@ -15,8 +15,9 @@ def get_import_function(tl_type: type(Timeline), by=Literal["time", "measure"]):
     from .csv.pdf import import_by_time as pdf_by_time
     from .score.musicxml import notes_from_musicXML as score_from_musicxml
 
-    # TODO: timelines should define their own importers!
-    # e.g. BeatTimelineUI.import_from_csv
+    # TODO(#507): timelines should define their own importers
+    # (e.g. BeatTimelineUI.import_from_csv) so this dispatch and the
+    # imports below can move into each timeline's module.
     from tilia.timelines.beat.timeline import BeatTimeline
     from tilia.timelines.harmony.timeline import HarmonyTimeline
     from tilia.timelines.hierarchy.timeline import HierarchyTimeline
