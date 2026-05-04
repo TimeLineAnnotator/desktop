@@ -90,7 +90,12 @@ class Timeline(ABC, Generic[TC]):
         return self.components[item]
 
     def __len__(self):
-        return self.component_manager.component_count
+        # SliderTimeline has no COMPONENT_MANAGER_CLASS, so component_manager
+        # is None there and len(slider_tl) would otherwise crash.
+        if self.component_manager:
+            return self.component_manager.component_count
+        else:
+            return 0
 
     def __bool__(self):
         """Prevents False form being returned when timeline is empty."""
