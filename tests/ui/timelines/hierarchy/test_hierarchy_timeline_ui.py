@@ -296,13 +296,19 @@ class TestCopyPaste:
         tlui.create_hierarchy(1.5, 2, 1)  # grandchild
         tlui.create_hierarchy(0, 1, 2)  # child
         tlui.create_hierarchy(1, 2, 2)  # child
-        destination, _ = tlui.create_hierarchy(0, 2, 3)  # grandparent
+        tlui.create_hierarchy(0, 2, 3)  # grandparent
+        destination = next(
+            c for c in tlui.timeline if c.start == 0 and c.end == 2 and c.level == 3
+        )
 
         tlui.create_hierarchy(2, 2.25, 2)  # child
         tlui.create_hierarchy(2.25, 2.5, 2)  # child
         tlui.create_hierarchy(2.5, 2.75, 2)  # child
         tlui.create_hierarchy(2.75, 3, 2)  # child
-        source, _ = tlui.create_hierarchy(2, 3, 3)  # parent
+        tlui.create_hierarchy(2, 3, 3)  # parent
+        source = next(
+            c for c in tlui.timeline if c.start == 2 and c.end == 3 and c.level == 3
+        )
 
         tlui.select_element(tlui.get_element(source.id))
         commands.execute("timeline.component.copy")
@@ -322,7 +328,10 @@ class TestCopyPaste:
         tlui.create_hierarchy(0, 0.5, 2)
         tlui.create_hierarchy(0.5, 1, 2)
         tlui.create_hierarchy(0, 1, 3)
-        hrc6, _ = tlui.create_hierarchy(1, 2, 3)
+        tlui.create_hierarchy(1, 2, 3)
+        hrc6 = next(
+            c for c in tlui.timeline if c.start == 1 and c.end == 2 and c.level == 3
+        )
 
         set_dummy_copy_attributes(tlui.timeline[0])
         set_dummy_copy_attributes(tlui.timeline[1])
@@ -373,6 +382,23 @@ class TestCreateHierarchy:
         tlui.create_hierarchy(0.1, 1, 1)
         tlui.create_hierarchy(0.2, 1, 1)
         assert len(tlui.elements) == 3
+
+    def test_add_command_creates_component(self, tlui):
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+
+        assert len(tlui.elements) == 1
+        component = tlui.timeline[0]
+        assert component.start == 0
+        assert component.end == 1
+        assert component.level == 2
+
+    def test_add_command_passes_kwargs(self, tlui):
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=1, label="my label"
+        )
+
+        component = tlui.timeline[0]
+        assert component.get_data("label") == "my label"
 
 
 class TestUndoRedo:
