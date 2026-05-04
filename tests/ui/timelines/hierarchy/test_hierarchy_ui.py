@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from tilia.requests import Post, post
+from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.hierarchy import HierarchyUI
 
@@ -14,17 +15,17 @@ def tlui(hierarchy_tlui):
 
 class TestHierarchyUI:
     def test_create(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         assert tlui[0]
 
     def test_full_name(self, tlui):
-        tlui.create_hierarchy(0, 1, 1, label="hui")
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1, label="hui")
         tlui.set_data("name", "tl")
 
         assert tlui[0].full_name == "tl" + HierarchyUI.FULL_NAME_SEPARATOR + "hui"
 
     def test_full_name_no_label(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.set_data("name", "tl")
 
         assert (
@@ -33,9 +34,15 @@ class TestHierarchyUI:
         )
 
     def test_full_name_with_parent(self, tlui):
-        tlui.create_hierarchy(0, 1, 1, label="child")
-        tlui.create_hierarchy(0, 1, 2, label="parent")
-        tlui.create_hierarchy(0, 1, 3, label="grandparent")
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=1, label="child"
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=2, label="parent"
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=3, label="grandparent"
+        )
 
         sep = HierarchyUI.FULL_NAME_SEPARATOR
 
@@ -47,7 +54,7 @@ class TestHierarchyUI:
         )
 
     def test_right_click(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         with patch(
             "tilia.ui.timelines.hierarchy.context_menu.HierarchyContextMenu.exec"
         ) as exec_mock:
@@ -56,7 +63,9 @@ class TestHierarchyUI:
         exec_mock.assert_called_once()
 
     def test_drag_start_handle(self, tlui, hierarchy_tlui, tilia_state):
-        hierarchy_tlui.create_hierarchy(0, tilia_state.duration, 1)
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=tilia_state.duration, level=1
+        )
         hierarchy_tlui._trigger_left_click_side_effects(
             hierarchy_tlui[0], hierarchy_tlui[0].start_handle
         )
@@ -67,7 +76,9 @@ class TestHierarchyUI:
         assert hierarchy_tlui[0].start_x == time_x_converter.get_x_by_time(time_to_drag)
 
     def test_drag_end_handle(self, tlui, hierarchy_tlui, tilia_state):
-        hierarchy_tlui.create_hierarchy(0, tilia_state.duration, 1)
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=tilia_state.duration, level=1
+        )
         hierarchy_tlui._trigger_left_click_side_effects(
             hierarchy_tlui[0], hierarchy_tlui[0].end_handle
         )
@@ -80,42 +91,58 @@ class TestHierarchyUI:
 
 class TestPreStartIndicator:
     def test_has_pre_start_when_element_has_pre_start(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
 
         assert tlui[0].has_pre_start
 
     def test_has_pre_start_when_element_has_no_pre_start(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
 
         assert not tlui[0].has_pre_start
 
     def test_update_position_preserves_undrawn_pre_start(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
 
         assert tlui[0].pre_start_handle.isVisible() is False
 
     def test_display_as_selected_no_ascendant_or_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
         tlui.select_element(tlui[0])
         assert tlui[0].pre_start_handle.isVisible() is True
 
     def test_display_as_selected_with_selected_ascendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
-        tlui.create_hierarchy(0.1, 1, 2, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, pre_start=0
+        )
         tlui.select_element(tlui[1])
 
         assert tlui[0].pre_start_handle.isVisible() is False
 
     def test_display_as_selected_with_deselected_ascendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
-        tlui.create_hierarchy(0.1, 1, 2, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, pre_start=0
+        )
         tlui.select_element(tlui[0])
 
         assert tlui[0].pre_start_handle.isVisible() is True
 
     def test_display_as_selected_with_selected_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 2, pre_start=0)
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, pre_start=0
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
 
         tlui.select_element(tlui[1])
 
@@ -123,8 +150,12 @@ class TestPreStartIndicator:
         assert tlui[1].pre_start_handle.isVisible() is True
 
     def test_display_as_selected_with_deselected_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
-        tlui.create_hierarchy(0.1, 1, 2, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, pre_start=0
+        )
 
         tlui.select_element(tlui[1])
         tlui.select_element(tlui[0])
@@ -134,8 +165,12 @@ class TestPreStartIndicator:
 
     @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_selected_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 2, pre_start=0)
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, pre_start=0
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -146,9 +181,15 @@ class TestPreStartIndicator:
 
     @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_two_selected_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 3, pre_start=0)
-        tlui.create_hierarchy(0.1, 1, 2, pre_start=0)
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=3, pre_start=0
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, pre_start=0
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
 
         child = tlui[1]
         grandchild = tlui[0]
@@ -163,7 +204,9 @@ class TestPreStartIndicator:
         assert grandchild.pre_start_handle.isVisible() is False
 
     def test_display_as_deselected_with_no_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, pre_start=0)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, pre_start=0
+        )
 
         tlui.select_element(tlui[0])
         tlui.deselect_element(tlui[0])
@@ -173,42 +216,58 @@ class TestPreStartIndicator:
 
 class TestPostEndIndicator:
     def test_has_pre_start_when_element_has_post_end(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.1)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.1
+        )
 
         assert tlui[0].has_post_end
 
     def test_has_post_end_when_element_has_no_post_end(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
 
         assert not tlui[0].has_post_end
 
     def test_update_position_preserves_undrawn_post_end(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
 
         assert tlui[0].post_end_handle.isVisible() is False
 
     def test_display_as_selected_no_ascendant_or_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.10
+        )
         tlui.select_element(tlui[0])
         assert tlui[0].post_end_handle.isVisible() is True
 
     def test_display_as_selected_with_selected_ascendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
-        tlui.create_hierarchy(0.1, 1, 2, post_end=1.10)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.10
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, post_end=1.10
+        )
         tlui.select_element(tlui[1])
 
         assert tlui[0].post_end_handle.isVisible() is False
 
     def test_display_as_selected_with_deselected_ascendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
-        tlui.create_hierarchy(0.1, 1, 2, post_end=1.10)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.10
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, post_end=1.10
+        )
         tlui.select_element(tlui[0])
 
         assert tlui[0].post_end_handle.isVisible() is True
 
     def test_display_as_selected_with_selected_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 2, post_end=1.10)
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, post_end=1.10
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.10
+        )
 
         tlui.select_element(tlui[1])
 
@@ -216,8 +275,12 @@ class TestPostEndIndicator:
         assert tlui[1].post_end_handle.isVisible() is True
 
     def test_display_as_selected_with_deselected_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 2, post_end=1.10)
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, post_end=1.10
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.10
+        )
 
         tlui.select_element(tlui[1])
         tlui.select_element(tlui[0])
@@ -227,8 +290,12 @@ class TestPostEndIndicator:
 
     @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_selected_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 2, post_end=1.10)
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, post_end=1.10
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.10
+        )
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -239,9 +306,15 @@ class TestPostEndIndicator:
 
     @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_two_selected_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 3, post_end=1.10)
-        tlui.create_hierarchy(0.1, 1, 2, post_end=1.10)
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=3, post_end=1.10
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=2, post_end=1.10
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.10
+        )
         child = tlui[1]
         grandchild = tlui[2]
 
@@ -255,7 +328,9 @@ class TestPostEndIndicator:
         assert grandchild.post_end_handle.isVisible() is False
 
     def test_display_as_deselected_with_no_descendant(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1, post_end=1.10)
+        commands.execute(
+            "timeline.hierarchy.add", start=0.1, end=1, level=1, post_end=1.10
+        )
 
         tlui.select_element(tlui[0])
         tlui.deselect_element(tlui[0])
@@ -269,7 +344,9 @@ class TestCommentsIndicator:
         tlui, start: float = 0, end: float = 100, level: float = 1, **kwargs
     ):
         # We use a large "end" to ensure comments icon will fit.
-        tlui.create_hierarchy(start, end, level, **kwargs)
+        commands.execute(
+            "timeline.hierarchy.add", start=start, end=end, level=level, **kwargs
+        )
         hui: HierarchyUI = tlui[0]
         return hui
 
@@ -320,13 +397,13 @@ class TestCommentsIndicator:
 
 class TestDoubleClick:
     def test_posts_seek(self, tlui, tilia_state):
-        tlui.create_hierarchy(10, 15, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=15, level=1)
         tlui[0].on_double_left_click(None)
 
         assert tilia_state.current_time == 10
 
     def test_does_not_trigger_drag(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         mock = Mock()
         tlui[0].setup_drag = mock
         tlui[0].on_double_left_click(None)

@@ -339,13 +339,13 @@ class TestLoop:
 
     def test_loop_with_hierarchy(self, tilia_state):
         tilia_state.duration = 100
-        self.tlui.create_hierarchy(10, 50, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
         self.tlui.select_element(self.tlui[0])
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 50)
 
     def test_loop_hierarchy_move_start_end(self):
-        self.tlui.create_hierarchy(10, 50, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
         hrc = self.tlui.timeline[0]
         hui = self.tlui[0]
         self.tlui.select_element(hui)
@@ -364,7 +364,7 @@ class TestLoop:
         assert get(Get.LOOP_TIME) == (0, 50)
 
     def test_loop_hierarchy_delete_all_cancels(self):
-        self.tlui.create_hierarchy(10, 50, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
         hui = self.tlui[0]
         self.tlui.select_element(hui)
         post(Post.PLAYER_TOGGLE_LOOP, True)
@@ -374,24 +374,24 @@ class TestLoop:
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_neighbouring_passes(self):
-        self.tlui.create_hierarchy(10, 20, 1)
-        self.tlui.create_hierarchy(20, 30, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
+        commands.execute("timeline.hierarchy.add", start=20, end=30, level=1)
         self.tlui.select_element(self.tlui[0])
         self.tlui.select_element(self.tlui[1])
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 30)
 
     def test_loop_hierarchy_disjunct_fails(self):
-        self.tlui.create_hierarchy(10, 20, 1)
-        self.tlui.create_hierarchy(25, 30, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
+        commands.execute("timeline.hierarchy.add", start=25, end=30, level=1)
         self.tlui.select_element(self.tlui[0])
         self.tlui.select_element(self.tlui[1])
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_delete_end_continues(self):
-        self.tlui.create_hierarchy(10, 50, 1)
-        self.tlui.create_hierarchy(50, 100, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        commands.execute("timeline.hierarchy.add", start=50, end=100, level=1)
         self.tlui.select_all_elements()
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 100)
@@ -402,9 +402,9 @@ class TestLoop:
         assert get(Get.LOOP_TIME) == (50, 100)
 
     def test_loop_hierarchy_delete_middle_cancels(self):
-        self.tlui.create_hierarchy(0, 10, 1)
-        self.tlui.create_hierarchy(10, 50, 1)
-        self.tlui.create_hierarchy(50, 100, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=10, level=1)
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        commands.execute("timeline.hierarchy.add", start=50, end=100, level=1)
         self.tlui.select_all_elements()
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (0, 100)
@@ -415,7 +415,7 @@ class TestLoop:
         assert get(Get.LOOP_TIME) == (0, 0)
 
     def test_loop_hierarchy_merge_split(self):
-        self.tlui.create_hierarchy(10, 20, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
         self.tlui.select_all_elements()
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 20)
@@ -430,7 +430,7 @@ class TestLoop:
         assert get(Get.LOOP_TIME) == (10, 20)
 
     def test_loop_undo_manager_cancels(self):
-        self.tlui.create_hierarchy(10, 20, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
         self.tlui.select_all_elements()
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 20)
