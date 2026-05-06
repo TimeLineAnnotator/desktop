@@ -41,7 +41,7 @@ Here are some examples of TiLiA visualizations:
 - Command-line interface (see the CLI [help page](docs/cli-tutorial.md) for more information)
 
 ## How to install and use
-TiLiA has releases for Windows, macOS and Linux. Instructions to download and run are [on our website](https://tilia-app.com/help/introduction/).
+TiLiA has releases for Windows, macOS and Linux. [Download them here](https://github.com/TimeLineAnnotator/desktop/releases/). Instructions to install are [on our website](https://tilia-app.com/help/introduction/).
 
 Tutorials on how to use TiLiA can be found on our [website](https://tilia-app.com/help/) or in these [videos](https://www.youtube.com/@tilia-app).
 
