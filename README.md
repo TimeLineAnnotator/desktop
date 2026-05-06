@@ -40,12 +40,12 @@ Here are some examples of TiLiA visualizations:
 - Import timeline data from CSV files
 - Command-line interface (see the CLI [help page](docs/cli-tutorial.md) for more information)
 
-## How to install and use
-TiLiA has releases for Windows, macOS and Linux. [Download them here](https://github.com/TimeLineAnnotator/desktop/releases/). Instructions to install are [on our website](https://tilia-app.com/help/introduction/).
+## TiLiA binaries
+TiLiA has built binaries for Windows, macOS and Linux. [Download the latest release](https://github.com/TimeLineAnnotator/desktop/releases/latest).
 
-Tutorials on how to use TiLiA can be found on our [website](https://tilia-app.com/help/) or in these [videos](https://www.youtube.com/@tilia-app).
+Tutorials on how to use TiLiA can be found on our [website](https://tilia-app.com/help/) and in these [videos](https://www.youtube.com/@tilia-app).
 
-## Build or run from source
+## TiLiA from source
 
 TiLiA can also be run and built from source.
 
