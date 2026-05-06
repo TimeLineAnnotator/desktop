@@ -3,7 +3,7 @@ from typing import Literal
 from tilia.timelines.base.timeline import Timeline
 
 
-def get_import_function(tl_type: type(Timeline), by=Literal["time", "measure"]):
+def get_import_function(tl_type: type[Timeline], by=Literal["time", "measure"]):
     from .csv.beat import beats_from_csv
     from .csv.harmony import import_by_measure as harmony_by_measure
     from .csv.harmony import import_by_time as harmony_by_time
@@ -13,6 +13,8 @@ def get_import_function(tl_type: type(Timeline), by=Literal["time", "measure"]):
     from .csv.marker import import_by_time as marker_by_time
     from .csv.pdf import import_by_measure as pdf_by_measure
     from .csv.pdf import import_by_time as pdf_by_time
+    from .csv.range import import_by_measure as range_by_measure
+    from .csv.range import import_by_time as range_by_time
     from .score.musicxml import notes_from_musicXML as score_from_musicxml
 
     # TODO(#507): timelines should define their own importers
@@ -23,6 +25,7 @@ def get_import_function(tl_type: type(Timeline), by=Literal["time", "measure"]):
     from tilia.timelines.hierarchy.timeline import HierarchyTimeline
     from tilia.timelines.marker.timeline import MarkerTimeline
     from tilia.timelines.pdf.timeline import PdfTimeline
+    from tilia.timelines.range.timeline import RangeTimeline
     from tilia.timelines.score.timeline import ScoreTimeline
 
     if tl_type == BeatTimeline:
@@ -35,6 +38,7 @@ def get_import_function(tl_type: type(Timeline), by=Literal["time", "measure"]):
             HierarchyTimeline: hierarchy_by_time,
             HarmonyTimeline: harmony_by_time,
             PdfTimeline: pdf_by_time,
+            RangeTimeline: range_by_time,
         }[tl_type]
     elif by == "measure":
         return {
@@ -42,6 +46,7 @@ def get_import_function(tl_type: type(Timeline), by=Literal["time", "measure"]):
             HierarchyTimeline: hierarchy_by_measure,
             HarmonyTimeline: harmony_by_measure,
             PdfTimeline: pdf_by_measure,
+            RangeTimeline: range_by_measure,
         }[tl_type]
     else:
         raise ValueError("'by' must be either 'time' or 'measure'")

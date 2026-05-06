@@ -7,6 +7,7 @@ from tilia.parsers import get_import_function
 from tilia.requests import Get, get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.range.timeline import RangeTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui.dialogs.by_time_or_by_measure import ByTimeOrByMeasure
 from tilia.ui.strings import UTF8_DECODE_FAILED
@@ -76,6 +77,11 @@ def _on_import_to_timeline(
         return False, ["User cancelled when choosing file to import."]
 
     timeline.clear()
+    if isinstance(timeline, RangeTimeline):
+        # Range rows are part of the timeline state. On import-with-replace,
+        # drop them too so the resulting state is fully derived from the
+        # imported file (no orphan rows from the previous state).
+        timeline.clear_rows()
 
     func = get_import_function(tl_type, time_or_measure)
     if time_or_measure == "time":
@@ -90,6 +96,11 @@ def _on_import_to_timeline(
     except UnicodeDecodeError:
         file_type = "musicXML" if tl_type == ScoreTimeline else "CSV"
         return False, [UTF8_DECODE_FAILED.format(path, file_type)]
+
+    if isinstance(timeline, RangeTimeline) and not timeline.rows:
+        # Restore the >=1-row invariant if the import yielded zero rows
+        # (e.g. every CSV row failed validation, or the file was empty).
+        timeline.setup_blank_timeline()
 
     return success, errors
 

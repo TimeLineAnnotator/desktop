@@ -171,6 +171,11 @@ class PdfMenu(TiliaMenu):
     items = [(MenuItemKind.COMMAND, "timelines.import.pdf")]
 
 
+class RangeMenu(TiliaMenu):
+    menu_title = "Ra&nge"
+    items = [(MenuItemKind.COMMAND, "timelines.import.range")]
+
+
 class ScoreMenu(TiliaMenu):
     menu_title = "&Score"
     items = [(MenuItemKind.COMMAND, "timelines.import.score")]
@@ -187,6 +192,7 @@ class TimelinesMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, BeatMenu),
         (MenuItemKind.SUBMENU, HarmonyMenu),
         (MenuItemKind.SUBMENU, PdfMenu),
+        (MenuItemKind.SUBMENU, RangeMenu),
         (MenuItemKind.SUBMENU, ScoreMenu),
     ]
 

@@ -7,6 +7,7 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.range.timeline import RangeTimeline
 from tilia.ui.cli.timelines.imp import (
     get_timelines_for_import,
     validate_timelines_for_import,
@@ -85,6 +86,86 @@ class TestImportTimeline:
         assert len(beat_tl) == 5
         for i in range(5):
             assert beat_tl[i].get_data("time") == i + 1
+
+    def test_ranges_by_time(self, cli, range_tl, tmp_path):
+        data = "start,end,row,label\n0,1,A,first\n1,2,B,second"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import range by-time --target-ordinal 1 "
+            f"--file {str(csv_path.resolve())}"
+        )
+
+        rows_by_name = {r.name: r.id for r in range_tl.rows}
+        ranges = sorted(range_tl)
+        assert ranges[0].get_data("label") == "first"
+        assert ranges[0].get_data("start") == 0
+        assert ranges[0].get_data("end") == 1
+        assert ranges[0].get_data("row_id") == rows_by_name["A"]
+        assert ranges[1].get_data("label") == "second"
+        assert ranges[1].get_data("start") == 1
+        assert ranges[1].get_data("end") == 2
+        assert ranges[1].get_data("row_id") == rows_by_name["B"]
+        assert set(rows_by_name) == {"A", "B"}
+
+    def test_ranges_by_measure(self, cli, range_tl, beat_tl, tmp_path):
+        beat_tl.beat_pattern = [1]
+        for i in range(1, 6):
+            beat_tl.create_beat(i)
+        beat_tl.recalculate_measures()
+
+        data = "start,end,row,label\n1,2,A,first\n3,4,B,second"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import range by-measure --target-ordinal 1 "
+            f"--reference-tl-ordinal 2 --file {str(csv_path.resolve())}"
+        )
+
+        rows_by_name = {r.name: r.id for r in range_tl.rows}
+        ranges = sorted(range_tl)
+        assert ranges[0].get_data("label") == "first"
+        assert ranges[0].get_data("start") == 1
+        assert ranges[0].get_data("end") == 2
+        assert ranges[0].get_data("row_id") == rows_by_name["A"]
+        assert ranges[1].get_data("label") == "second"
+        assert ranges[1].get_data("start") == 3
+        assert ranges[1].get_data("end") == 4
+        assert ranges[1].get_data("row_id") == rows_by_name["B"]
+
+    def test_ranges_replace_drops_pre_existing_rows(self, cli, range_tl, tmp_path):
+        # Pre-existing row + component should be wiped on import — the
+        # CLI must mirror the GUI's clear_rows() behaviour.
+        old_row = range_tl.add_row(name="OldRow")
+        range_tl.create_component(
+            ComponentKind.RANGE, start=0, end=1, row_id=old_row.id
+        )
+
+        data = "start,end,row\n0,1,Verses\n1,2,Choruses"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import range by-time --target-ordinal 1 "
+            f"--file {str(csv_path.resolve())}"
+        )
+
+        names = [r.name for r in range_tl.rows]
+        assert "OldRow" not in names
+        assert names == ["Verses", "Choruses"]
+
+    def test_ranges_empty_import_keeps_default_row(self, cli, range_tl, tmp_path):
+        # Every CSV row fails validation → zero imported rows. CLI must
+        # still leave the timeline with >=1 row (matches GUI).
+        data = "start,end,row\n0,1,\n1,2,"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import range by-time --target-ordinal 1 "
+            f"--file {str(csv_path.resolve())}"
+        )
+
+        assert len(range_tl.rows) == 1
+        assert range_tl.rows[0].name
 
     def test_score(self, cli, tls, beat_tl, score_tl, tmp_path, tilia_errors):
         beat_tl.beat_pattern = [1]
@@ -335,3 +416,13 @@ class TestValidateTimelinesForImport:
         tl = tls.create_timeline(MarkerTimeline)
         success, _ = validate_timelines_for_import(tl, None, "marker", "by-measure")
         assert not success
+
+    def test_tl_of_wrong_type_when_importing_range_tl_raises_error(self, tls):
+        tl = tls.create_timeline(MarkerTimeline)
+        success, _ = validate_timelines_for_import(tl, None, "range", "by-time")
+        assert not success
+
+    def test_range_tl_passes_validation(self, tls):
+        tl = tls.create_timeline(RangeTimeline)
+        success, _ = validate_timelines_for_import(tl, None, "range", "by-time")
+        assert success

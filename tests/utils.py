@@ -4,13 +4,17 @@ from contextlib import contextmanager
 from pathlib import Path
 from pprint import pformat
 from typing import Callable
+from unittest.mock import patch
 
-from PySide6.QtWidgets import QMenu
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMenu, QToolButton, QWidgetAction
 
 from tests.mock import patch_ask_for_string_dialog, patch_file_dialog
 from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
+from tilia.ui.timelines.base.context_menus import TimelineUIContextMenu
+from tilia.ui.timelines.base.timeline import TimelineUI
 
 EXAMPLE_VIDEO_FILENAME = "example.mp4"
 EXAMPLE_YOUTUBE_URL = "https://www.youtube.com/watch?v=wBfVsucRe1w"
@@ -98,6 +102,15 @@ def get_method_patch_target(method: Callable) -> str:
 
 
 @contextmanager
+def assert_timeline_ui_update(tlui: TimelineUI, attr: str):
+    method_name = f"update_{attr}"
+    method = getattr(tlui, method_name)
+    with patch.object(tlui, method_name, wraps=method) as spy:
+        yield spy
+    spy.assert_called()
+
+
+@contextmanager
 def undoable():
     """
     Asserts whether state is handled correctly when undoing/redoing.
@@ -164,11 +177,38 @@ def reloadable(save_path):
     return check_and_reload
 
 
+def get_action_by_object_name(menu: QMenu, name: str) -> QAction | None:
+    for action in menu.actions():
+        if action.objectName() == name:
+            return action
+    return None
+
+
 def get_command_action(menu: QMenu, command_name: str) -> CommandQAction | None:
     for action in menu.actions():
         if isinstance(action, CommandQAction) and action.command_name == command_name:
             return action
+        # Toolbars that group buttons inside container widgets (e.g. ribbon-style
+        # sections) expose those buttons via QWidgetAction; walk into their
+        # default widget to find the underlying CommandQAction.
+        if isinstance(action, QWidgetAction):
+            widget = action.defaultWidget()
+            if widget is None:
+                continue
+            for btn in widget.findChildren(QToolButton):
+                btn_action = btn.defaultAction()
+                if (
+                    isinstance(btn_action, CommandQAction)
+                    and btn_action.command_name == command_name
+                ):
+                    return btn_action
     return None
+
+
+def get_command_from_toolbar(
+    timeline_ui: TimelineUI, command_name: str
+) -> QAction | None:
+    return get_command_action(timeline_ui.TOOLBAR_CLASS(), command_name)
 
 
 def get_command_names(menu: QMenu) -> list[str]:
@@ -184,6 +224,12 @@ def get_submenu(menu, name):
         if action.text().replace("&", "") == name:
             return action.menu()
     return None
+
+
+def get_context_menu(
+    timeline_ui: TimelineUI, x: int = 0, y: int = 0
+) -> TimelineUIContextMenu:
+    return timeline_ui.CONTEXT_MENU_CLASS(timeline_ui, x, y)
 
 
 def get_main_window_menu(qtui, name):

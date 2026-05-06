@@ -23,6 +23,7 @@ from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.enums import ScrollType
+from tilia.ui.timelines.range.toolbar import VALID_LABEL_ALIGNMENTS
 from tilia.ui.windows import WindowKind
 
 
@@ -272,6 +273,9 @@ def get_widget_for_value(parent, value, text="") -> QWidget:
 
                 if value in HARMONY_DISPLAY_MODES:
                     return combobox(HARMONY_DISPLAY_MODES, value)
+
+                if value in VALID_LABEL_ALIGNMENTS:
+                    return combobox(list(VALID_LABEL_ALIGNMENTS), value)
 
             line_edit = QLineEdit(str(value).title())
             line_edit.setObjectName("str")

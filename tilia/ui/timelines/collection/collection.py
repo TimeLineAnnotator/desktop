@@ -451,6 +451,14 @@ class TimelineUIs:
                 Post.TIMELINE_KEY_PRESS_LEFT,
                 functools.partial(self.on_arrow_press, "left"),
             ),
+            (
+                Post.TIMELINE_KEY_PRESS_CTRL_UP,
+                functools.partial(self.on_ctrl_arrow_press, "up"),
+            ),
+            (
+                Post.TIMELINE_KEY_PRESS_CTRL_DOWN,
+                functools.partial(self.on_ctrl_arrow_press, "down"),
+            ),
             (Post.ELEMENT_DRAG_END, lambda: self.set_is_dragging(False)),
             (Post.ELEMENT_DRAG_START, lambda: self.set_is_dragging(True)),
             (Post.SLIDER_DRAG, self.on_slider_drag),
@@ -913,6 +921,21 @@ class TimelineUIs:
                 tlui.on_horizontal_arrow_press(arrow)
             if direction == "vertical" and tlui.ACCEPTS_VERTICAL_ARROWS:
                 tlui.on_vertical_arrow_press(arrow)
+
+    def on_ctrl_arrow_press(self, direction: str) -> None:
+        # Dispatch once per kind. Each kind's handler routes through
+        # commands.execute, which uses TimelineSelector.FIRST internally —
+        # firing again per timeline instance would just rerun the command
+        # against the same target.
+        seen_kinds: set[type] = set()
+        for tlui in self:
+            if not tlui.ACCEPTS_VERTICAL_ARROWS:
+                continue
+            kind = type(tlui)
+            if kind in seen_kinds:
+                continue
+            seen_kinds.add(kind)
+            tlui.on_ctrl_vertical_arrow_press(direction)
 
     def on_beat_timeline_measure_number_change_done(self, id: int, start_index: int):
         from tilia.ui.timelines.beat import BeatTimelineUI

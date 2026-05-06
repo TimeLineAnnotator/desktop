@@ -22,6 +22,7 @@ class ComponentKind(Enum):
     TIME_SIGNATURE = auto()
     KEY_SIGNATURE = auto()
     SCORE_ANNOTATION = auto()
+    RANGE = auto()
 
 
 def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
@@ -31,6 +32,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
     from tilia.timelines.hierarchy.components import Hierarchy
     from tilia.timelines.marker.components import Marker
     from tilia.timelines.pdf.components import PdfMarker
+    from tilia.timelines.range.components import Range
     from tilia.timelines.score.components import (
         BarLine,
         Clef,
@@ -56,6 +58,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
         ComponentKind.TIME_SIGNATURE: TimeSignature,
         ComponentKind.KEY_SIGNATURE: KeySignature,
         ComponentKind.SCORE_ANNOTATION: ScoreAnnotation,
+        ComponentKind.RANGE: Range,
     }
 
     return kind_to_class_dict[kind]
