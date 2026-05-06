@@ -50,6 +50,8 @@ Default pytest timeout is 10s (pytest-timeout). `ffmpeg` must be on PATH for aud
 
 Each timeline kind has **two parallel packages**: backend model under `tilia/timelines/<kind>/` and UI view under `tilia/ui/timelines/<kind>/`. Kinds are registered in `tilia/timelines/timeline_kinds.py` (`TimelineKind` enum: audiowave, beat, harmony, hierarchy, marker, pdf, score, slider; `range` is currently being added — see `.todo.md`). The UI side mirrors the backend structure closely; when adding or modifying a timeline, expect to touch both trees plus corresponding tests under `tests/timelines/<kind>/` and `tests/ui/timelines/<kind>/`.
 
+Frontend constants and visual settings — paddings, margins, alignment options, fonts, color defaults — live under `tilia/ui/` (in the relevant UI module or as keys in `settings.py`), never under `tilia/timelines/<kind>/`. The backend is presentation-agnostic.
+
 ### Two communication systems (do not confuse them)
 
 1. **Requests** (`tilia/requests/`): decoupled pub/sub between internal components. `Get` enum + `get()`/`serve()` for synchronous queries (including "ask the user" prompts via `Get.FROM_USER_*`); `Post` enum + `post()`/`listen()` for fire-and-forget events. Use this for component-to-component wiring.
@@ -69,6 +71,14 @@ Rule of thumb: anything a user could trigger is a command; anything only the cod
 ## Code style
 
 - **Type hints required** in production code (`tilia/`). Annotate all function/method parameters, return types, and instance attributes whose types aren't obvious from initialization. Tests (`tests/`) do not need type hints.
+- **Use `ORDERING_ATTRS` / natural `__lt__`** when sorting timeline components. Each `TimelineComponent` subclass declares `ORDERING_ATTRS` (e.g. `Range = ("start", "row_id")`); `sorted(components)` already orders correctly. Adding `key=lambda c: c.start` is at best redundant and at worst hides the secondary tiebreaker.
+- **Don't `raise` for stale-UI references or internal-invariant violations** on paths reachable in production. Use `tilia.log.logger.error(...)` + early return. The default console threshold is `ERROR`; `WARNING` only surfaces under `dev.log_requests=True`, so `error` is the level that actually reaches users.
+
+## Commit hygiene
+
+Split unrelated changes into their own commits, even if they were touched while building a feature: codebase-wide refactors (`type(Foo)` → `type[Foo]`), deprecation removals, mechanical fixes (block-signal patterns), `Post.*` additions consumed elsewhere, and doc/test-pattern updates that emerged from the work belong on their own commits with explanatory messages. Reviewers want to evaluate each rationale separately.
+
+When you discover a pre-existing bug in code unrelated to the feature you're working on, prompt for opening a separate PR off `main`/`dev` rather than burying the fix in the feature branch.
 
 ## Testing conventions
 
