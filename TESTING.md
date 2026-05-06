@@ -43,6 +43,26 @@ def test_me(marker_tlui):
 ```
 You will find many examples of the former in the test suite, though. Refactors are welcome.
 
+## Use helpers in `tests.utils`
+
+Prefer existing helpers in `tests/utils.py` over inlining the same setup or assertion patterns. If you find yourself repeating a sequence across tests, add a helper rather than copy-pasting.
+
+Commonly useful helpers:
+
+- **`save_and_reopen(tmp_path)`** — save the current state, clear, and reopen. Use for save/load round-trip tests instead of inlining `file.save_as` + `file.new` + `file.open`. `save_tilia_to_tmp_path(tmp_path)` returns the saved path without reopening.
+- **`undoable()`** (context manager) — wrap a `commands.execute(...)` call to assert undoing restores the prior state and redoing returns to the post-action state. Cover every state-changing command with at least one `undoable()` test.
+- **`reloadable(save_path)`** (decorator) — same idea applied to a `checks()` function: runs checks, saves, reopens, runs checks again.
+- **`load_local_media(path)`** / **`load_youtube_media(url)`** — patch the file dialog / URL prompt and run the corresponding `media.load.*` command.
+- **`assert_timeline_ui_update(tlui, attr)`** (context manager) — spy on `update_<attr>` and assert it ran during the wrapped block.
+- **Menu / command discovery:** `get_command_action(menu, command_name)`, `get_command_from_toolbar(tlui, command_name)`, `get_command_names(menu)`, `get_submenu(menu, name)`, `get_main_window_menu(qtui, name)`, `get_context_menu(tlui, x, y)`, `get_actions_in_menu(menu)`. `get_command_action` walks ribbon-style toolbars where commands are wrapped in `QWidgetAction` containers.
+- **Modal-dialog patches** (in `tests.mock`): `patch_file_dialog`, `patch_ask_for_string_dialog` — context managers that drive modals, as covered in the modal-dialogs section above.
+
+## Index timelines and UI elements directly
+
+Index `*_tlui` and timeline collections directly: `range_tlui[0]`, not `list(range_tlui)[0]`. Likewise `len(range_tlui)` over `len(list(range_tlui))`. UI elements are kept sorted by their components' `ORDERING_ATTRS`, so positional indexing is well-defined.
+
+Prefer UI-layer access over backend access in tests: `range_tlui[0].get_data("joined_right")` exercises the same path the user does. Drop into the backend (`.timeline`, `.rows`, `.components`) only when the data isn't reachable from the UI side.
+
 ## How to test the right actions are available in the UI?
 The `get_submenu`, `get_action` and `get_qaction` in the `tests.ui.utils` module should help.
 
