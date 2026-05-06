@@ -22,9 +22,8 @@ if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
 else:
     try:
         setupcfg = metadata.metadata("TiLiA").json.copy()
-
-        AUTHOR = re.search(r'"(.*?)"', setupcfg.get("author_email", "")).group(1)
-        EMAIL = re.search(r"<(.*?)>", setupcfg.get("author_email", "")).group(1)
+        AUTHOR = setupcfg.get("author", "")
+        EMAIL = setupcfg.get("author_email", "")
         if "urls" not in setupcfg:
             setupcfg["urls"] = {}
         for url in setupcfg.get("project_url", {}):
