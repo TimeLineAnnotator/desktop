@@ -66,3 +66,11 @@ class TestTimelineAdd:
 
         tl = tls.get_timelines()[0]
         assert tl.beat_pattern == [4]
+
+    def test_row_height_rejected_for_non_range_kind(self, cli, tls, tilia_errors):
+        cli.parse_and_run("timelines add marker --name M --row-height 50")
+
+        assert len(tls) == 0
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("--row-height")
+        tilia_errors.assert_in_error_message("marker")

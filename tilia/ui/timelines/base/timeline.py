@@ -230,7 +230,9 @@ class TimelineUI(ABC):  # noqa: B024
         height = self.get_data("height")
         self.scene.set_height(height)
         self.view.set_height(height)
-        self.element_manager.update_time_on_elements()
+        self.collection.update_height()
+        if self.element_manager:
+            self.element_manager.update_time_on_elements()
 
     def update_name(self):
         self.scene.set_text(self.get_data("name"))

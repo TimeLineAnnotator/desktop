@@ -50,6 +50,7 @@ pytest_plugins = [
     "tests.timelines.audiowave.fixtures",
     "tests.timelines.pdf.fixtures",
     "tests.timelines.score.fixtures",
+    "tests.timelines.range.fixtures",
 ]
 
 

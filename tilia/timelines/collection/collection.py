@@ -261,15 +261,17 @@ class Timelines:
             self.create_timeline(kind, id=id, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
+        # Attributes must be restored before components, as component validation
+        # may depend on them (e.g. RangeTimeline checks that row_id exists in rows).
+        if timeline.get_state()["hash"] != state["hash"]:
+            for attr in timeline.SERIALIZABLE:
+                self.set_timeline_data(timeline.id, attr, state[attr])
+
         if (
             timeline.component_manager is not None
             and timeline.component_manager.hash_components() != state["components_hash"]
         ):
             timeline.component_manager.restore_state(state["components"])
-
-        if timeline.get_state()["hash"] != state["hash"]:
-            for attr in timeline.SERIALIZABLE:
-                self.set_timeline_data(timeline.id, attr, state[attr])
 
     def get_timeline_ids(self):
         return [tl.id for tl in self]

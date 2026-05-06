@@ -274,10 +274,18 @@ class TestDynamicTimelinesSubmenus:
     def test_marker_submenu_hidden_when_no_marker_timeline(self, qtui):
         assert not self._submenu(qtui, "Marker").menuAction().isVisible()
 
+    def test_range_submenu_hidden_when_no_range_timeline(self, qtui):
+        # Regression: previously stayed visible because RangeTimelineUI had
+        # no menu_class, so the dynamic-menu plumbing skipped it.
+        assert not self._submenu(qtui, "Range").menuAction().isVisible()
+
     def test_marker_submenu_visible_when_marker_timeline_exists(
         self, qtui, marker_tlui
     ):
         assert self._submenu(qtui, "Marker").menuAction().isVisible()
+
+    def test_range_submenu_visible_when_range_timeline_exists(self, qtui, range_tlui):
+        assert self._submenu(qtui, "Range").menuAction().isVisible()
 
     def test_marker_submenu_stays_visible_after_other_kind_created(
         self, qtui, marker_tlui, tls

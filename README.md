@@ -5,7 +5,7 @@
 </p>
 TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotations with video and audio files. It is a full-featured, easy-to-use set of tools for researchers and enthusiasts to better analyze their media of interest without needing to rely on textual representations (like music scores). It is written in Python, using the PySide library for its GUI.
 
-TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are seven types of timelines, but many more are planned.
+TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are eight types of timelines, but many more are planned.
 
 <p align="center">
   <img src="docs/img/tilia-desktop.png" width="600" alt="TiLiA desktop interface" >
@@ -20,13 +20,14 @@ Here are some examples of TiLiA visualizations:
 
 
 ## Current features
-- 7 kinds of timelines
+- 8 kinds of timelines
     - AudioWave: visualize audio files through bars that represent changes in amplitude
     - Beat: beat and measure markers with support for numbering
     - Harmony: Roman numeral and letter symbol labels using a specialized font, including proper display of inversion numerals, quality symbols and applied chords
     - Hierarchy: nested and levelled units organized in arbitrarily complex hierarchical structures
     - Marker: simple, labelled markers to indicate discrete events
     - PDF: visualize PDF files synced to playback
+    - Range: labelled time-span bars for non-hierarchical annotations
     - Score: visualize music scores in custom, to-scale notation or conventional engraving
 - Controlling playback by clicking on timeline units
 - Multiple attributes linked to each timeline unit
@@ -117,7 +118,7 @@ The executable will be found in the `build/[os_type]/exe` folder in the project 
 ## Planned features
 
 There are many more features that we would like to implement than can be listed here, including:
-- New kinds of timelines, for instance a "range" timeline that displays units with an extension but not tied to hierarchical structures
+- New kinds of timelines, for instance a spectrogram timeline that visualizes audio frequency content over time
 - TiLiA explorer: allows filtered searches through timeline components across multiple TiLiA files
 - Font and GUI color customization
 - Video segments export
