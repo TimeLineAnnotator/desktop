@@ -29,21 +29,19 @@ def setup_import_beat_parser(subparser):
     parser = subparser.add_parser(
         "beat",
         help="Import beat timelines",
-        aliases=["b"],
     )
     setup_import_file_and_target_args(parser)
 
 
 def setup_import_marker_and_hierarchy_parser(subparser):
     component_info = [
-        ("marker", "markers", ["mrk"]),
-        ("hierarchy", "hierarchies", ["hrc"]),
+        ("marker", "markers"),
+        ("hierarchy", "hierarchies"),
     ]
-    for kind, plural, aliases in component_info:
+    for kind, plural in component_info:
         parser = subparser.add_parser(
             kind,
             help=f"Import {plural} data",
-            aliases=aliases,
         )
         subparsers = parser.add_subparsers(dest="measure_or_time")
         setup_import_by_time(subparsers)
@@ -51,9 +49,7 @@ def setup_import_marker_and_hierarchy_parser(subparser):
 
 
 def setup_import_score_parser(subparser):
-    parser = subparser.add_parser(
-        "score", help="Import score (.mxl, .musicxml) data", aliases=["sco"]
-    )
+    parser = subparser.add_parser("score", help="Import score (.mxl, .musicxml) data")
     named_args = setup_import_file_and_target_args(parser)
 
     ref_group = named_args.add_mutually_exclusive_group(required=True)
@@ -70,7 +66,6 @@ def setup_import_by_time(subparser):
     import_time_parser = subparser.add_parser(
         "by-time",
         help="Import components by time",
-        aliases=["t"],
     )
     setup_import_file_and_target_args(import_time_parser)
 
@@ -79,7 +74,6 @@ def setup_import_by_measure(subparser):
     parser = subparser.add_parser(
         "by-measure",
         help="Import components by measure and fraction",
-        aliases=["m"],
     )
     named_args = setup_import_file_and_target_args(parser)
 
