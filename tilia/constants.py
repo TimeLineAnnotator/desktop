@@ -46,9 +46,10 @@ EMAIL_URL = "mailto:" + EMAIL
 GITHUB_URL = setupcfg.get("urls", {}).get("Repository", "")
 WEBSITE_URL = setupcfg.get("urls", {}).get("Homepage", "")
 YOUTUBE_URL_REGEX = r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"
+COPYRIGHT = f"{APP_NAME} GNU General Public License v3 — {YEAR} {AUTHOR}"
 NOTICE = f"""
-{APP_NAME}, {setupcfg.get("description", "") if AUTHOR else ""}
-GNU General Public License v3 — {YEAR} {AUTHOR}
+{COPYRIGHT}
+{setupcfg.get("description", "") if AUTHOR else ""}
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or any later version.
 

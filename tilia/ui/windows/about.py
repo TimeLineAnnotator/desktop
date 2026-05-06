@@ -46,9 +46,7 @@ class About(QDialog):
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
-        license_label = QLabel(
-            f'<a href="#license">GNU General Public License v3 — {tilia.constants.YEAR} {tilia.constants.AUTHOR}</a>'
-        )
+        license_label = QLabel(f'<a href="#license">{tilia.constants.COPYRIGHT}</a>')
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         license_label.linkActivated.connect(self.open_link)
 
