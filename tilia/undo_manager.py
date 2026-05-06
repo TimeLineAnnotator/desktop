@@ -76,6 +76,7 @@ class UndoManager:
         post(Post.APP_STATE_RESTORE, next_state)
 
         self.current_state_index += 1
+        post(Post.APP_STATE_UNDO_OR_REDO_DONE)
 
     def discard_undone(self):
         """
