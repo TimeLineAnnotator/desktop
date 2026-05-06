@@ -7,10 +7,10 @@ from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import Get, Post, get, post
+from tilia.timelines.harmony.constants import get_inversion_amount
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
-from tilia.timelines.harmony.constants import get_inversion_amount
 from tilia.ui.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
     INT_TO_ROMAN,
@@ -71,17 +71,22 @@ class HarmonyUI(TimelineUIElement):
         return self.timeline_ui.get_key_by_time(self.get_data("time"))
 
     @property
+    def clamped_inversion(self):
+        return min(
+            self.get_data("inversion"),
+            get_inversion_amount(self.get_data("quality")),
+        )
+
+    @property
     def letter_symbol(self):
-        quality = self.get_data("quality")
-        inversion = min(self.get_data("inversion"), get_inversion_amount(quality))
         symbol = music21.harmony.ChordSymbol(
             INT_TO_NOTE_NAME[self.get_data("step")]
             + Accidental.get_from_int(
                 "music21",
                 self.get_data("accidental"),
             )
-            + QUALITY_TO_ABBREVIATION[quality],
-            inversion=inversion,
+            + QUALITY_TO_ABBREVIATION[self.get_data("quality")],
+            inversion=self.clamped_inversion,
         )
         applied_to = self.get_data("applied_to")
         if applied_to:
@@ -116,14 +121,13 @@ class HarmonyUI(TimelineUIElement):
 
     @property
     def roman_numeral_label(self):
-        quality = self.get_data("quality")
         return to_roman_numeral(
             self.get_data("step"),
             self.get_data("accidental"),
-            quality,
+            self.get_data("quality"),
             self.key,
             self.get_data("applied_to"),
-            min(self.get_data("inversion"), get_inversion_amount(quality)),
+            self.clamped_inversion,
         )
 
     @property
@@ -154,7 +158,7 @@ class HarmonyUI(TimelineUIElement):
             case 2:
                 figure = figure.replace("##", "`#`#")
 
-        if inversion := self.get_data("inversion"):
+        if inversion := self.clamped_inversion:
             # bass_step = harmony.calculate.bass_step(self.get_data('step'), inversion)
             # figure += '/' + INT_TO_NOTE_NAME[bass_step]  # TODO calculate bass note
             figure += "/&" + str(INVERSION_TO_INTERVAL[inversion])

@@ -23,6 +23,28 @@ class TestRightClick:
         exec_mock.assert_called_once()
 
 
+class TestInversionClamp:
+    def test_letter_symbol_does_not_crash_when_quality_loses_inversion(self, tlui):
+        harmony, _ = tlui.create_harmony(0, quality="dominant-seventh", inversion=3)
+        tlui.timeline.set_component_data(harmony.id, "quality", "major")
+        # Pre-fix: music21.chord.ChordException — no 3rd inversion on triad.
+        _ = tlui.get_element(harmony.id).letter_symbol
+
+    def test_roman_numeral_label_does_not_crash_when_quality_loses_inversion(
+        self, tlui
+    ):
+        harmony, _ = tlui.create_harmony(0, quality="dominant-seventh", inversion=3)
+        tlui.timeline.set_component_data(harmony.id, "quality", "major")
+        _ = tlui.get_element(harmony.id).roman_numeral_label
+
+    def test_letter_symbol_label_omits_dropped_inversion(self, tlui):
+        harmony, _ = tlui.create_harmony(0, quality="dominant-seventh", inversion=3)
+        tlui.timeline.set_component_data(harmony.id, "quality", "major")
+        # Major triad max inversion is 2, so the 3rd-inversion suffix
+        # (INVERSION_TO_INTERVAL[3] == 7) must not appear in the label.
+        assert "/&7" not in tlui.get_element(harmony.id).letter_symbol_label
+
+
 class TestCopyPaste:
     def test_paste_single_into_timeline(self, tlui, tilia_state):
         _, hui = tlui.create_harmony(0)
