@@ -63,6 +63,9 @@ Index `*_tlui` and timeline collections directly: `range_tlui[0]`, not `list(ran
 
 Prefer UI-layer access over backend access in tests: `range_tlui[0].get_data("joined_right")` exercises the same path the user does. Drop into the backend (`.timeline`, `.rows`, `.components`) only when the data isn't reachable from the UI side.
 
+## How to test code that depends on settings?
+The `use_test_settings` fixture (auto-applied via the `qtui` fixture) routes settings reads and writes to a dedicated test QSettings store, so production settings are never touched. Tests that depend on a specific value should set it explicitly with `settings.set("group", "name", value)` and not rely on the default — settings persist across tests within a module, so reading "the current value" before mutating gives you the value the previous test left behind, not the default.
+
 ## How to test the right actions are available in the UI?
 The `get_submenu`, `get_action` and `get_qaction` in the `tests.ui.utils` module should help.
 
