@@ -14,7 +14,10 @@ if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
         setupcfg = load(f).get("project", {})
     AUTHORS = [a.get("name", "") for a in setupcfg.get("authors", [{"name": ""}])]
     AUTHOR = ", ".join(a for a in AUTHORS if a)
-    EMAIL = setupcfg.get("authors", [{"email": ""}])[0]["email"]
+    EMAILS = (
+        e for a in setupcfg.get("authors", [{"email": ""}]) if (e := a.get("email", ""))
+    )
+    EMAIL = next(EMAILS, "")
 
 else:
     try:
