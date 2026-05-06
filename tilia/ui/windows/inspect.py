@@ -275,13 +275,21 @@ class Inspect(QDockWidget):
             self.field_name_to_widgets[field_name][1].show()
 
     def clear_widgets(self):
+        # Block signals while clearing programmatically — see set_widget_value
+        # for the full rationale. Without this, setText("") fires textChanged
+        # → INSPECTOR_FIELD_EDITED → state record. The phantom record
+        # discards the redo stack, so a later edit.redo finds nothing.
         for _, widget in self.field_name_to_widgets.values():
-            if isinstance(widget, (QLineEdit, QLabel, QTextEdit)):
-                widget.setText("")
-            elif isinstance(widget, QComboBox):
-                widget.setCurrentIndex(0)
-            elif isinstance(widget, QSpinBox):
-                widget.setValue(widget.minimum())
+            widget.blockSignals(True)
+            try:
+                if isinstance(widget, (QLineEdit, QLabel, QTextEdit)):
+                    widget.setText("")
+                elif isinstance(widget, QComboBox):
+                    widget.setCurrentIndex(0)
+                elif isinstance(widget, QSpinBox):
+                    widget.setValue(widget.minimum())
+            finally:
+                widget.blockSignals(False)
 
     def delete_all_rows(self):
         for _ in range(self.inspect_layout.rowCount()):
