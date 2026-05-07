@@ -1,17 +1,17 @@
 from types import SimpleNamespace
-from unittest.mock import mock_open, patch
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
-from PySide6.QtCore import QtMsgType
+from PySide6.QtCore import QEvent, QtMsgType, QUrl
 
 from tests.conftest import parametrize_tlui
 from tests.constants import EXAMPLE_MEDIA_PATH
-from tests.mock import Serve
+from tests.mock import PatchPost, Serve
 from tests.utils import get_actions_in_menu, get_main_window_menu
 from tilia.requests import Get, Post, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.commands import get_qaction
-from tilia.ui.qtui import TiliaMainWindow
+from tilia.ui.qtui import FileDropEventFilter, TiliaMainWindow
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 
@@ -160,6 +160,85 @@ class TestTimelineToolbars:
         tls.set_timeline_data(marker_tl.id, "is_visible", True)
 
         assert is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
+
+
+class TestDragAndDrop:
+    @staticmethod
+    def _local_url(path: str) -> QUrl:
+        return QUrl.fromLocalFile(path)
+
+    @staticmethod
+    def _drop_event(urls: list[QUrl]) -> Mock:
+        event = Mock()
+        event.mimeData.return_value.urls.return_value = urls
+        return event
+
+    def test_tla_file_is_droppable(self):
+        assert FileDropEventFilter._is_file_droppable([self._local_url("/x/file.tla")])
+
+    def test_media_file_is_droppable(self):
+        assert FileDropEventFilter._is_file_droppable([self._local_url("/x/audio.mp3")])
+
+    def test_uppercase_extension_is_droppable(self):
+        assert FileDropEventFilter._is_file_droppable([self._local_url("/x/file.TLA")])
+        assert FileDropEventFilter._is_file_droppable([self._local_url("/x/audio.MP3")])
+
+    def test_unsupported_extension_is_not_droppable(self):
+        assert not FileDropEventFilter._is_file_droppable(
+            [self._local_url("/x/file.xyz")]
+        )
+
+    def test_multiple_files_are_not_droppable(self):
+        urls = [self._local_url("/a.tla"), self._local_url("/b.tla")]
+        assert not FileDropEventFilter._is_file_droppable(urls)
+
+    def test_remote_url_is_not_droppable(self):
+        assert not FileDropEventFilter._is_file_droppable(
+            [QUrl("http://example.com/file.tla")]
+        )
+
+    @staticmethod
+    def _filter_event(urls: list[QUrl], event_type: QEvent.Type) -> Mock:
+        event = Mock()
+        event.type.return_value = event_type
+        event.mimeData.return_value.urls.return_value = urls
+        return event
+
+    def test_filter_dispatches_tla_drop(self, qtui):
+        url = self._local_url("/x/y.tla")
+        event = self._filter_event([url], QEvent.Type.Drop)
+        with patch("tilia.ui.qtui.commands.execute") as mock_execute:
+            consumed = qtui.main_window._drop_filter.eventFilter(Mock(), event)
+        assert consumed
+        event.acceptProposedAction.assert_called_once()
+        mock_execute.assert_called_once_with("file.open", url.toLocalFile())
+
+    def test_filter_dispatches_media_drop(self, qtui):
+        url = self._local_url("/x/y.mp3")
+        event = self._filter_event([url], QEvent.Type.Drop)
+        with PatchPost("tilia.ui.qtui", Post.APP_MEDIA_LOAD) as mock_post:
+            consumed = qtui.main_window._drop_filter.eventFilter(Mock(), event)
+        assert consumed
+        event.acceptProposedAction.assert_called_once()
+        mock_post.assert_called_once_with(Post.APP_MEDIA_LOAD, url.toLocalFile())
+
+    def test_filter_accepts_drag_enter_for_droppable(self, qtui):
+        event = self._filter_event([self._local_url("/x/y.tla")], QEvent.Type.DragEnter)
+        consumed = qtui.main_window._drop_filter.eventFilter(Mock(), event)
+        assert consumed
+        event.acceptProposedAction.assert_called_once()
+
+    def test_filter_ignores_non_droppable_drop(self, qtui):
+        event = self._filter_event([self._local_url("/x/y.xyz")], QEvent.Type.Drop)
+        consumed = qtui.main_window._drop_filter.eventFilter(Mock(), event)
+        assert not consumed
+
+    def test_filter_ignores_unrelated_event_types(self, qtui):
+        event = Mock()
+        event.type.return_value = QEvent.Type.MouseMove
+        consumed = qtui.main_window._drop_filter.eventFilter(Mock(), event)
+        assert not consumed
+        event.mimeData.assert_not_called()
 
 
 class TestMenus:
