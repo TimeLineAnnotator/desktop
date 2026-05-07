@@ -59,6 +59,7 @@ ci-tests = [
     "ruff>=0.15.0",
     "pytest-rerunfailures",
     "pytest-timeout",
+    {include-group = "testing"},
 ]
 dev = [
     "icecream>=2.1.0",
