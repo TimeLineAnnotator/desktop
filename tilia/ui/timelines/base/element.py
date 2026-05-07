@@ -96,6 +96,13 @@ class TimelineUIElement(ABC):
         ...
 
     def delete(self):
+        # If deleted mid-drag, the DragManager keeps listening and the
+        # next drag dispatches into a phantom element (#515).
+        drag_manager = getattr(self, "drag_manager", None)
+        if drag_manager is not None:
+            drag_manager.cleanup()
+            self.drag_manager = None
+
         for item in self.child_items():
             if item.parentItem():
                 continue  # item will be removed with parent
