@@ -80,7 +80,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        coverage run -m pytest -vs --reruns=2
+        coverage run -m pytest -vs --reruns=2 --timeout=10
 
 
     - name: Generate Coverage Report

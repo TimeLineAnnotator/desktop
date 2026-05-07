@@ -94,7 +94,6 @@ env = [
     "ENVIRONMENT=test",
     "QT_QPA_PLATFORM=offscreen",
 ]
-timeout = 10
 
 [tool.ruff]
 exclude = ["tilia/dev"]
