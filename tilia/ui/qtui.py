@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import os
 import re
 from pathlib import Path
 
@@ -80,7 +81,9 @@ class TiliaMainWindow(QMainWindow):
         qInstallMessageHandler(self.handle_qt_log_message)
         self.setAcceptDrops(True)
         self._drop_filter = FileDropEventFilter()
-        QApplication.instance().installEventFilter(self._drop_filter)
+
+    def setup_qapplication(self, q_application: QApplication):
+        q_application.installEventFilter(self._drop_filter)
 
     def changeEvent(self, event: QEvent) -> None:
         if event.type() == event.Type.ThemeChange:
@@ -308,6 +311,8 @@ class QtUI:
 
     def _setup_main_window(self, mw: TiliaMainWindow):
         self.main_window = mw
+        if os.environ.get("ENVIRONMENT") != "test":
+            self.main_window.setup_qapplication(self.q_application)
 
     @staticmethod
     def _setup_fonts():
