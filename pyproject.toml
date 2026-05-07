@@ -56,9 +56,7 @@ build = [
 ]
 ci-tests = [
     "coverage>=7.0.0",
-    "coverage-badge>=1.0.0",
     "ruff>=0.15.0",
-    "pytest-cov>=6.0.0",
     "pytest-rerunfailures",
     "pytest-timeout",
 ]
