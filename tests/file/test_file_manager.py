@@ -123,6 +123,26 @@ class TestFileManager:
         params["media_path"] = "modified path"
         assert tilia.file_manager.is_file_modified(params)
 
+    def test_is_file_modified_after_notes_edit(self, tilia):
+        # Regression test for #377: editing the "notes" metadata field
+        # (and any other field, including added custom fields) directly
+        # mutates self.file.media_metadata, so comparing the live state
+        # against itself never reported a change. The save-changes
+        # dialog never fired on close.
+        post(Post.MEDIA_METADATA_FIELD_SET, "notes", "user-typed notes")
+
+        assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))
+
+    def test_is_file_modified_after_title_edit(self, tilia):
+        # Same root cause as the notes case (#377), so guard the title
+        # path explicitly. The reporter mentioned existing automatic
+        # tests cover other fields, but only the test at line ~111
+        # actually catches it — it passes a custom params dict and so
+        # bypasses the live-vs-live comparison this test exercises.
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Renamed")
+
+        assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))
+
     def test_import_metadata(self, tilia):
         data = {
             "title": "test",

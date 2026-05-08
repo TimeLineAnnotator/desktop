@@ -145,9 +145,25 @@ class FileManager:
     ]
 
     def __init__(self):
+        # _saved_metadata is a snapshot of media_metadata at the last
+        # save/load. It is needed because self.file.media_metadata is
+        # mutated in place by on_set_media_metadata_field (#377), so
+        # comparing it to the current state — which is also the same
+        # mutated object — never reports any change. The snapshot is
+        # refreshed by the file setter below and by save().
+        self._saved_metadata: dict = {}
         self._setup_requests()
         self._setup_commands()
         self._setup_file()
+
+    @property
+    def file(self) -> TiliaFile:
+        return self._file
+
+    @file.setter
+    def file(self, value: TiliaFile) -> None:
+        self._file = value
+        self._saved_metadata = dict(value.media_metadata)
 
     def _setup_requests(self):
         LISTENS = {
@@ -324,6 +340,7 @@ class FileManager:
 
     def save(self, data: dict, path: Path | str):
         data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
+        # Going through the setter refreshes _saved_metadata.
         self.file = TiliaFile(**data, unknown_timelines=self.file.unknown_timelines)
         write_tilia_file_to_disk(self.file, str(path))
 
@@ -338,21 +355,29 @@ class FileManager:
         self._setup_file()
 
     def is_file_modified(self, current_data: dict) -> bool:
+        # are_tilia_data_equal can't detect media_metadata changes
+        # because the live and "saved" metadata are the same mutated
+        # object on self.file (#377). Use the snapshot taken on the
+        # last save/load instead.
+        if dict(current_data["media_metadata"]) != self._saved_metadata:
+            return True
         return not are_tilia_data_equal(current_data, self.file.__dict__)
-        # can't use dataclasses.asdict() here because
-        # it doesn't work with OrderedDict, which is media_metadata's type
 
     def on_player_url_changed(self, path: str | Path) -> None:
         self.file.media_path = str(path)
 
     def on_player_duration_changed(self, duration: float):
         self.file.media_metadata["media length"] = duration
+        # System-driven; keep the saved snapshot in sync so a media
+        # load doesn't get reported as a user modification.
+        self._saved_metadata["media length"] = duration
 
     def set_media_metadata(self, value: MediaMetadata):
         self.file.media_metadata = value
 
     def set_media_duration(self, value: float):
         self.file.media_metadata["media length"] = value
+        self._saved_metadata["media length"] = value
 
     def set_timelines(self, state: dict, hash: str):
         self.file.timelines = state
