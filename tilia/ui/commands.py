@@ -34,10 +34,12 @@ import os
 import traceback
 from typing import Callable
 
-from PySide6.QtGui import QAction, QIcon, QKeySequence
+from PySide6.QtCore import QKeyCombination, Qt
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMainWindow, QWidget
 
 import tilia.errors
+from tilia.requests import Post, post
 
 
 class CommandQAction(QAction):
@@ -72,8 +74,19 @@ def register(
     action.setText(text)
     action.setToolTip(f"{text} ({shortcut})" if shortcut else text)
 
+    # Re-registration of an existing name is allowed: callbacks and actions
+    # are replaced (dict assignment is idempotent), so shortcut tracking
+    # must be idempotent too. Otherwise the same command would appear
+    # multiple times under its shortcut after a re-register (e.g. the
+    # test suite, which rebuilds the QtUI per module in the same process),
+    # turning a unique key into a fake collision.
+    for cmds_list in _shortcut_to_commands.values():
+        if name in cmds_list:
+            cmds_list.remove(name)
+
     if shortcut:
         action.setShortcut(QKeySequence(shortcut))
+        _shortcut_to_commands.setdefault(_normalize_shortcut(shortcut), []).append(name)
 
     if icon:
         if QIcon.hasThemeIcon(icon):
@@ -150,10 +163,83 @@ def _execute_prod(command_name: str, *args, **kwargs):
         return False
 
 
+def _normalize_shortcut(shortcut: str | QKeySequence | QKeyCombination) -> str:
+    """Reduce any shortcut form to the same canonical PortableText string,
+    so dict lookups work regardless of how the caller specified the key."""
+    if isinstance(shortcut, QKeySequence):
+        seq = shortcut
+    else:
+        seq = QKeySequence(shortcut)
+    return seq.toString(QKeySequence.SequenceFormat.PortableText)
+
+
+def setup_shortcuts(main_window: QMainWindow) -> None:
+    """Resolve shared-shortcut conflicts and ensure every command's shortcut
+    fires regardless of where the action lives.
+
+    Call once after all commands are registered. Two things happen:
+    - Every QAction is parented to `main_window` (via addAction). Qt only
+      activates an action's shortcut if some widget containing the action is
+      in the active window's hierarchy; without this, actions that only
+      appear in a transient context menu (e.g. range move-to-row) would
+      have shortcuts that never fire.
+    - For shortcuts bound to more than one command (e.g. range and hierarchy
+      both map "e" to merge, "s" to split): strip the shortcut from every
+      QAction (Qt would emit "Ambiguous shortcut overload" otherwise) and
+      install one QShortcut on `main_window` that posts
+      Post.SHARED_SHORTCUT_FIRED with the bound names. Some listener (today:
+      TimelineUIs) is responsible for picking the winner. QShortcut is used
+      in preference to handling the key in `keyPressEvent` because
+      QGraphicsView's QAbstractScrollArea base eats some keys before they
+      reach the main window.
+
+    Safe to call again with a different `main_window` (the test suite
+    rebuilds the main window per test module): old QShortcuts are detached
+    and scheduled for deletion so the new main window's shortcuts don't
+    fight orphaned ApplicationShortcut bindings still alive on the old
+    one.
+    """
+    # If the previous main window was destroyed, its child QShortcuts
+    # have already been deleted on the C++ side; calling methods on them
+    # raises RuntimeError. If it's still alive (test fixtures hold an
+    # extra reference), explicitly tear the shortcut down so its
+    # ApplicationShortcut binding doesn't survive alongside the new
+    # main window's binding.
+    import shiboken6
+
+    for shortcut in _shared_qshortcuts:
+        if shiboken6.isValid(shortcut):
+            shortcut.setEnabled(False)
+            shortcut.setParent(None)
+            shortcut.deleteLater()
+    _shared_qshortcuts.clear()
+
+    for action in _name_to_action.values():
+        main_window.addAction(action)
+
+    for shortcut_str, names in _shortcut_to_commands.items():
+        if len(names) > 1:
+            for name in names:
+                _name_to_action[name].setShortcut(QKeySequence())
+            shortcut = QShortcut(QKeySequence(shortcut_str), main_window)
+            shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            # Hand the bound names to whichever listener owns the dispatch
+            # decision (today: TimelineUIs picks the most-recently-clicked
+            # timeline's command). commands.py stays domain-agnostic.
+            shortcut.activated.connect(
+                functools.partial(post, Post.SHARED_SHORTCUT_FIRED, tuple(names))
+            )
+            _shared_qshortcuts.append(shortcut)
+
+
 _name_to_action = {}
 _name_to_callback = {}
+_shortcut_to_commands: dict[str, list[str]] = {}
+_shared_qshortcuts: list[QShortcut] = []
 
 
 def reset() -> None:
     _name_to_action.clear()
     _name_to_callback.clear()
+    _shortcut_to_commands.clear()
+    _shared_qshortcuts.clear()
