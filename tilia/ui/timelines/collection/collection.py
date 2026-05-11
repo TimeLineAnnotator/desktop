@@ -437,6 +437,7 @@ class TimelineUIs:
             (Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, self._on_timeline_ui_left_drag),
             (Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE, self.on_timeline_ui_left_released),
             (Post.TIMELINE_VIEW_RIGHT_CLICK, self._on_timeline_ui_right_click),
+            (Post.SHARED_SHORTCUT_FIRED, self.on_shared_shortcut_fired),
             (Post.TIMELINES_AUTO_SCROLL_UPDATE, self.set_auto_scroll),
             (
                 Post.TIMELINE_KEY_PRESS_DOWN,
@@ -937,6 +938,30 @@ class TimelineUIs:
             seen_kinds.add(kind)
             tlui.on_ctrl_vertical_arrow_press(direction)
 
+    def on_shared_shortcut_fired(self, names: tuple[str, ...]) -> None:
+        """Pick the command bound to the most-recently-clicked timeline
+        kind; fire exactly that one. Walks `_select_order` (most-recent
+        first) and matches each tlui against the `timeline.{kind}.{action}`
+        naming convention enforced by `register_timeline_command`.
+
+        If no live timeline matches a bound name and at least one bound
+        name doesn't follow the `timeline.` prefix, surface as an
+        AMBIGUOUS_SHORTCUT error — collisions between non-timeline
+        commands are a configuration bug we want to notice.
+        """
+        for tlui in self._select_order:
+            prefix = f"timeline.{tlui.timeline_class.type_name().lower()}."
+            winner = next((n for n in names if n.startswith(prefix)), None)
+            if winner:
+                commands.execute(winner)
+                return
+
+        if any(not n.startswith("timeline.") for n in names):
+            tilia.errors.display(
+                tilia.errors.AMBIGUOUS_SHORTCUT,
+                f"Non-timeline collision among bound commands: {list(names)}.",
+            )
+
     def on_beat_timeline_measure_number_change_done(self, id: int, start_index: int):
         from tilia.ui.timelines.beat import BeatTimelineUI
 
@@ -1148,6 +1173,10 @@ class TimelineUIs:
             for tl_ui in self._select_order:
                 if tl_ui in timeline_uis:
                     return [tl_ui]
+            # No timeline of the requested kind in the select order — return
+            # empty rather than falling off the end (implicit None), so
+            # callers can iterate the result unconditionally.
+            return []
 
         def filter_for_pasting(_) -> list[TimelineUI]:
             clipboard_data = get(Get.CLIPBOARD_CONTENTS)

@@ -182,9 +182,10 @@ class TimelineUI(ABC):  # noqa: B024
         with TimelineUIs.on_timeline_command() as a wrapper for the callback.
         """
         kind_shortname = cls.timeline_class.type_name().lower()
+        full_name = f"timeline.{kind_shortname}.{name}"
 
         commands.register(
-            f"timeline.{kind_shortname}.{name}",
+            full_name,
             functools.partial(
                 collection.on_timeline_command, cls.timeline_class, callback, selector
             ),

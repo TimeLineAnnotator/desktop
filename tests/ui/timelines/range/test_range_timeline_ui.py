@@ -3711,3 +3711,132 @@ def test_timeline_menu_has_range_submenu(tluis, qtui, range_tlui, tilia_state):
 
     for a in expected_actions:
         assert get_qaction(a) in submenu.actions()
+
+
+class TestSharedShortcuts:
+    """`e` (merge) and `s` (split) are bound to both range and hierarchy
+    commands. The dispatcher in TimelineUIs picks exactly one command based
+    on whichever timeline was clicked most recently, then fires it; the
+    other bound command is not invoked. Regression coverage for Qt's
+    "Ambiguous shortcut overload" warning."""
+
+    def _seek(self, time: float) -> None:
+        commands.execute("media.seek", time)
+
+    def test_s_splits_only_range_when_range_clicked_last(
+        self, range_tlui, hierarchy_tlui, tluis, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.range.add_range", start=0, end=30)
+        hierarchy_tlui.create_hierarchy(0, 30, 1)
+        # Ctrl-click on empty space bumps range to the top of select order
+        # without disturbing the (empty) selection state.
+        click_timeline_ui(range_tlui, time=20, modifier="ctrl")
+        self._seek(15)
+
+        press_key("s")
+
+        assert len(range_tlui) == 2
+        assert len(hierarchy_tlui) == 1
+
+    def test_s_splits_only_hierarchy_when_hierarchy_clicked_last(
+        self, range_tlui, hierarchy_tlui, tluis, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.range.add_range", start=0, end=30)
+        hierarchy_tlui.create_hierarchy(0, 30, 1)
+        click_timeline_ui(hierarchy_tlui, time=20, modifier="ctrl")
+        self._seek(15)
+
+        press_key("s")
+
+        assert len(hierarchy_tlui) == 2
+        assert len(range_tlui) == 1
+
+    def test_e_merges_only_range_when_range_clicked_last(
+        self, range_tlui, hierarchy_tlui, tluis, tilia_state
+    ):
+        tilia_state.duration = 100
+        a = self._add_range(range_tlui, 0, 10)
+        b = self._add_range(range_tlui, 20, 30)
+        range_tlui.select_element(a)
+        range_tlui.select_element(b)
+
+        h1, _ = hierarchy_tlui.create_hierarchy(0, 10, 1)
+        h2, _ = hierarchy_tlui.create_hierarchy(10, 20, 1)
+        hierarchy_tlui.select_element(hierarchy_tlui.get_element(h1.id))
+        hierarchy_tlui.select_element(hierarchy_tlui.get_element(h2.id))
+
+        click_timeline_ui(range_tlui, time=15, modifier="ctrl")
+
+        press_key("e")
+
+        assert len(range_tlui) == 1
+        assert len(hierarchy_tlui) == 2
+
+    def test_e_merges_only_hierarchy_when_hierarchy_clicked_last(
+        self, range_tlui, hierarchy_tlui, tluis, tilia_state
+    ):
+        tilia_state.duration = 100
+        a = self._add_range(range_tlui, 0, 10)
+        b = self._add_range(range_tlui, 20, 30)
+        range_tlui.select_element(a)
+        range_tlui.select_element(b)
+
+        h1, _ = hierarchy_tlui.create_hierarchy(0, 10, 1)
+        h2, _ = hierarchy_tlui.create_hierarchy(10, 20, 1)
+        hierarchy_tlui.select_element(hierarchy_tlui.get_element(h1.id))
+        hierarchy_tlui.select_element(hierarchy_tlui.get_element(h2.id))
+
+        click_timeline_ui(hierarchy_tlui, time=25, modifier="ctrl")
+
+        press_key("e")
+
+        assert len(hierarchy_tlui) == 1
+        assert len(range_tlui) == 2
+
+    def test_no_ambiguous_shortcut_warning_when_both_timelines_visible(
+        self, range_tlui, hierarchy_tlui, tilia_state, tilia_errors
+    ):
+        tilia_state.duration = 100
+        self._add_range(range_tlui, 0, 10)
+        hierarchy_tlui.create_hierarchy(0, 10, 1)
+        self._seek(5)
+
+        press_key("s")
+        press_key("e")
+
+        # If Qt had warned, qtui would have surfaced it via
+        # tilia.errors.AMBIGUOUS_SHORTCUT.
+        for err in tilia_errors.errors:
+            assert "Ambiguous" not in err["title"]
+
+    def test_non_timeline_collision_surfaces_error(self, tluis, tilia_errors):
+        # If the bound commands don't follow the timeline.{kind}.{action}
+        # convention, the dispatcher can't pick a winner — surface as an
+        # error rather than dropping silently.
+        post(Post.SHARED_SHORTCUT_FIRED, ("file.open", "edit.undo"))
+        assert any("Ambiguous" in err["title"] for err in tilia_errors.errors)
+
+    def test_ambiguous_shortcut_warning_surfaces_to_user(self, qtui, tilia_errors):
+        from PySide6.QtCore import QtMsgType
+
+        # Mimic the Qt log call: handle_qt_log_message receives type, context,
+        # message. We construct a minimal context-like object with the two
+        # attributes the handler reads.
+        class _Ctx:
+            file = "test_file"
+            line = 0
+
+        qtui.main_window.handle_qt_log_message(
+            QtMsgType.QtWarningMsg,
+            _Ctx(),
+            "QAction::eventFilter: Ambiguous shortcut overload: S",
+        )
+
+        assert any("Ambiguous" in err["title"] for err in tilia_errors.errors)
+
+    @staticmethod
+    def _add_range(range_tlui, start, end):
+        commands.execute("timeline.range.add_range", start=start, end=end)
+        return range_tlui[len(range_tlui) - 1]

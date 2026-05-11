@@ -127,6 +127,11 @@ INVALID_ID = Error(
 RANGE_DRAG_INVALID_HANDLE = Error(
     "Range drag error", "Could not start drag: unrecognized handle item."
 )
+AMBIGUOUS_SHORTCUT = Error(
+    "Ambiguous keyboard shortcut",
+    "Two or more commands are bound to the same key combination. "
+    "Qt could not decide which to fire. Please report this:\n\n{}",
+)
 
 
 def display(error: Error, *args):

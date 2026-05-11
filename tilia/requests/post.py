@@ -101,6 +101,7 @@ class Post(Enum):
     SELECTION_BOX_DESELECT_ITEM = auto()
     SELECTION_BOX_SELECT_ITEM = auto()
     SETTINGS_UPDATED = auto()
+    SHARED_SHORTCUT_FIRED = auto()
     SLIDER_DRAG = auto()
     SLIDER_DRAG_END = auto()
     SLIDER_DRAG_START = auto()

@@ -208,6 +208,11 @@ class QtUI:
         self._setup_dialog_manager()
         self._setup_menus()
         self._setup_windows()
+        # Must run after every register() call: parents all QActions to the
+        # main window so their shortcuts can fire from context menus, and
+        # resolves shared shortcuts (e.g. range + hierarchy both bind "e"
+        # and "s") into one application-level QShortcut per chord.
+        commands.setup_shortcuts(self.main_window)
 
         self.is_error = False
 
