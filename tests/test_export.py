@@ -127,7 +127,12 @@ class TestExportJSON:
 
     @parametrize_component
     def test_exported_component_attributes_values_are_correct(
-        self, tilia, comp, tmp_path, request
+        self,
+        tilia,
+        comp,
+        tmp_path,
+        request,
+        tluis,  # tluis ensures qtui is listening before getfixturevalue triggers timeline creation
     ):
         comp = request.getfixturevalue(comp)
         if TimelineFlag.NOT_EXPORTABLE in comp.timeline.FLAGS:
