@@ -153,9 +153,9 @@ jobs:
               echo "timeout 10 build/ubuntu/exe/${{ needs.build.outputs.linux-build }}" | bash || true
               if (($(date +%s) - $start < 10));
                 then
-                  echo "Linux started in a clean environment!";
+                  echo "Linux didn't work... Check libraries with previous step?";
               else
-                echo "Linux didn't work... Check libraries with previous step?";
+                echo "Linux started in a clean environment!";
               fi;
               echo "Starting CLI..."
               echo "timeout 10 build/ubuntu/exe/${{ needs.build.outputs.linux-build }} --user-interface=cli" | bash || true
