@@ -132,8 +132,6 @@ jobs:
       QT_DEBUG_PLUGINS: 1
       QT_QPA_PLATFORM: offscreen
     steps:
-      - uses: actions/checkout@v6
-
       - name: Download executable
         uses: actions/download-artifact@v8
         with:
@@ -143,7 +141,6 @@ jobs:
 
       - name: Test Linux still works in a clean environment
         continue-on-error: true
-        id: test-linux
         run: |
           if [ -e build/ubuntu/exe/${{ needs.build.outputs.linux-build }} ];
             then
