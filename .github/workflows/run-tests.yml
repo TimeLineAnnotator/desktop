@@ -56,10 +56,6 @@ jobs:
         chmod +x ./scripts/linux-setup.sh
         ./scripts/linux-setup.sh
 
-    - name: Install timeout
-      if: runner.os == 'macOS'
-      run: brew install coreutils
-
     - uses: actions/cache@v5
       with:
         path: ${{ matrix.path }}
@@ -102,6 +98,6 @@ jobs:
       run: |
         export QT_DEBUG_PLUGINS=1
         echo "Starting GUI..."
-        timeout 10 tilia || true
+        tilia & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: GUI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
         echo "Starting CLI..."
-        timeout 10 tilia -i=cli || true
+        tilia -i=cli & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: CLI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
