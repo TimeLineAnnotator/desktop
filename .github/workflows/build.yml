@@ -63,23 +63,23 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          brew install coreutils
+          APP="${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }}"
           echo "Checking dependencies"
-          # test build starts up - should see the output of qt_debug_plugins. the command will kill itself in 10s if everything works. something went wrong if time taken for this command is less than 10s.
-          # then zip everything up and delete the original non-zipped file.
           echo "Starting GUI..."
-          start=$(date +%s)
-          echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }}" | bash || true
-          if (($(date +%s) - $start < 10)); then
+          "$APP" &
+          APP_PID=$!
+          sleep 10
+          if ! kill -0 $APP_PID 2>/dev/null; then
             echo "::error::Process terminated early! Potential errors in build."
             exit 1
           fi
-          echo "\n\nStarting CLI..."
-          echo "gtimeout 10 ${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }} --user-interface=cli" | bash || true
+          kill $APP_PID 2>/dev/null || true
+          wait $APP_PID 2>/dev/null || true
+          echo "Starting CLI..."
+          "$APP" --user-interface=cli & CLI_PID=$!; sleep 10; kill $CLI_PID 2>/dev/null || echo "WARNING: CLI exited before 10s"; wait $CLI_PID 2>/dev/null || true
 
           cd "$(dirname ${{ steps.build-exe.outputs.out-filepath }})"
           zip -ry9 "${{ steps.build-exe.outputs.out-filename }}.zip" tilia.app || true
-
 
       - name: Test executable [Windows]
         if: runner.os == 'Windows'
