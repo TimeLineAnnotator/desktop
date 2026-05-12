@@ -28,22 +28,6 @@
         "is_pytest_compatible": "'(lambda : False)'"
       when: "not use_pytest"
 
-- module-name: "sentry_sdk.integrations"
-  implicit-imports:
-    - depends:
-        - "sentry_sdk.integrations.argv"
-        - "sentry_sdk.integrations.atexit"
-        - "sentry_sdk.integrations.dedupe"
-        - "sentry_sdk.integrations.excepthook"
-        - "sentry_sdk.integrations.logging"
-        - "sentry_sdk.integrations.modules"
-        - "sentry_sdk.integrations.stdlib"
-        - "sentry_sdk.integrations.threading"
-  anti-bloat:
-    - description: "fix import of unused integrations"
-      replacements_plain:
-        "auto_enabling_integrations=_AUTO_ENABLING_INTEGRATIONS,": "auto_enabling_integrations=[],"
-
 - module-name: "tilia.utils"
   anti-bloat:
     - description: "slightly hacky way of forcing prod if env file is not found"

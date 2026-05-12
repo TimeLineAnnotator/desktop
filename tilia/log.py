@@ -71,6 +71,7 @@ class TiliaLogger(logging.Logger):
                     event_level=logging.CRITICAL,  # Send records as events
                 ),
             ],
+            default_integrations=False,
             send_default_pii=True,
             traces_sample_rate=1.0,
             environment=env,
