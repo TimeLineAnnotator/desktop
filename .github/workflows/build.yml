@@ -175,13 +175,14 @@ jobs:
             build/*/exe/TiLiA-v*
 
       - name: Check output
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "Counting assets released..."
-          if [ -n "${{ fromJSON(steps.release.outputs.assets)[3].id }}" ] && [ -z "${{ fromJSON(steps.release.outputs.assets)[4].id }}" ];
-            then
-              echo "4 assets found!"
-            else
-              echo "::error::Incorrect number of assets! Potential errors in build."
-              echo assets: ${{ steps.release.outputs.assets }}
-              exit 1;
-            fi;
+          ASSET_COUNT=$(gh release view ${{ github.ref_name }} --json assets --jq '.assets | length')
+          if [ "$ASSET_COUNT" -eq 4 ]; then
+            echo "4 assets found!"
+          else
+            echo "::error::Incorrect number of assets! Got $ASSET_COUNT. Potential errors in build."
+            exit 1
+          fi
