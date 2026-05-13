@@ -136,15 +136,16 @@ class RangeTLComponentManager(TimelineComponentManager):
         new_post_end = last.post_end
 
         separator = self.timeline.merge_separator
-        attr_to_new_value: dict[str, str] = {}
+        attr_to_new_value: dict[str, str | None] = {}
         for attr in ("label", "comments"):
-            new_value = survivor.get_data(attr)
-            for r in ranges[1:]:
-                value = r.get_data(attr)
-                if value:
-                    if new_value:
-                        new_value += separator
-                    new_value += value
+            values = [r.get_data(attr) for r in ranges]
+            non_empty = [v for v in values if v]
+            if not non_empty:
+                new_value = ""
+            elif len(set(non_empty)) == 1:
+                new_value = non_empty[0]
+            else:
+                new_value = separator.join(non_empty)
             if new_value != survivor.get_data(attr):
                 attr_to_new_value[attr] = new_value
 
