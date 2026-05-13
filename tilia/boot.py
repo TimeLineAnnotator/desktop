@@ -3,6 +3,7 @@ import os
 import sys
 import traceback
 
+from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication
 
 import tilia.utils  # noqa: F401
@@ -34,6 +35,24 @@ def handle_exception(type, value, tb):
         ui.exit(1)
 
 
+# Qt warnings emitted on every paint while the SVG score viewer is open.
+# They are harmless rendering-engine noise but flood the log loudly enough
+# to make the app unresponsive (see issue #513).
+QT_LOG_NOISE_PATTERNS = (
+    "QFont::setPixelSize: Pixel size <= 0",
+    "QWindowsFontEngineDirectWrite::addGlyphsToPath: GetGlyphRunOutline failed",
+)
+
+
+def handle_qt_log_message(type, context, msg):
+    f_msg = f"[{type.name}] {context.file}:{context.line} - {msg}"
+    if type == QtMsgType.QtFatalMsg:
+        raise Exception(f_msg)
+    if type == QtMsgType.QtWarningMsg and any(p in msg for p in QT_LOG_NOISE_PATTERNS):
+        return
+    logger.error(f_msg)
+
+
 def boot():
     sys.excepthook = handle_exception
 
@@ -41,6 +60,7 @@ def boot():
     setup_dirs()
     logger.setup()
     q_application = QApplication(sys.argv)
+    qInstallMessageHandler(handle_qt_log_message)
     global app, ui
     app = setup_logic()
     ui = setup_ui(q_application, args.user_interface)

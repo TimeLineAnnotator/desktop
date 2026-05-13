@@ -8,10 +8,11 @@ from tests.conftest import parametrize_tlui
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import PatchPost, Serve
 from tests.utils import get_actions_in_menu, get_main_window_menu
+from tilia.boot import handle_qt_log_message
 from tilia.requests import Get, Post, post
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.commands import get_qaction
-from tilia.ui.qtui import FileDropEventFilter, TiliaMainWindow
+from tilia.ui.qtui import FileDropEventFilter
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 
@@ -263,13 +264,11 @@ class TestHandleQtLogMessage:
 
     def test_fatal_message_raises_exception(self):
         with pytest.raises(Exception, match=r"\[QtFatalMsg\] widget\.cpp:42 - boom"):
-            TiliaMainWindow.handle_qt_log_message(
-                QtMsgType.QtFatalMsg, self._ctx(), "boom"
-            )
+            handle_qt_log_message(QtMsgType.QtFatalMsg, self._ctx(), "boom")
 
     def test_fatal_exception_message_includes_file_and_line(self):
         with pytest.raises(Exception) as exc_info:
-            TiliaMainWindow.handle_qt_log_message(
+            handle_qt_log_message(
                 QtMsgType.QtFatalMsg, self._ctx(file="core.cpp", line=99), "fatal"
             )
         assert "core.cpp:99" in str(exc_info.value)
@@ -285,21 +284,19 @@ class TestHandleQtLogMessage:
     )
     def test_non_fatal_message_calls_logger_error(self, msg_type):
         ctx = self._ctx(file="view.cpp", line=7)
-        with patch("tilia.ui.qtui.logger") as mock_logger:
-            TiliaMainWindow.handle_qt_log_message(msg_type, ctx, "something happened")
+        with patch("tilia.boot.logger") as mock_logger:
+            handle_qt_log_message(msg_type, ctx, "something happened")
         mock_logger.error.assert_called_once_with(
             f"[{msg_type.name}] view.cpp:7 - something happened"
         )
 
     def test_non_fatal_message_does_not_raise(self):
-        with patch("tilia.ui.qtui.logger"):
-            TiliaMainWindow.handle_qt_log_message(
-                QtMsgType.QtWarningMsg, self._ctx(), "non-fatal"
-            )
+        with patch("tilia.boot.logger"):
+            handle_qt_log_message(QtMsgType.QtWarningMsg, self._ctx(), "non-fatal")
 
     def test_context_file_none_does_not_raise(self):
-        with patch("tilia.ui.qtui.logger"):
-            TiliaMainWindow.handle_qt_log_message(
+        with patch("tilia.boot.logger"):
+            handle_qt_log_message(
                 QtMsgType.QtWarningMsg, self._ctx(file=None, line=-1), "msg"
             )
 
@@ -311,15 +308,13 @@ class TestHandleQtLogMessage:
         ],
     )
     def test_known_noise_warning_is_suppressed(self, noisy_msg):
-        with patch("tilia.ui.qtui.logger") as mock_logger:
-            TiliaMainWindow.handle_qt_log_message(
-                QtMsgType.QtWarningMsg, self._ctx(), noisy_msg
-            )
+        with patch("tilia.boot.logger") as mock_logger:
+            handle_qt_log_message(QtMsgType.QtWarningMsg, self._ctx(), noisy_msg)
         mock_logger.error.assert_not_called()
 
     def test_noise_pattern_match_is_substring(self):
-        with patch("tilia.ui.qtui.logger") as mock_logger:
-            TiliaMainWindow.handle_qt_log_message(
+        with patch("tilia.boot.logger") as mock_logger:
+            handle_qt_log_message(
                 QtMsgType.QtWarningMsg,
                 self._ctx(),
                 "prefix QFont::setPixelSize: Pixel size <= 0 (0) suffix",
@@ -327,8 +322,8 @@ class TestHandleQtLogMessage:
         mock_logger.error.assert_not_called()
 
     def test_unrelated_warning_is_still_logged(self):
-        with patch("tilia.ui.qtui.logger") as mock_logger:
-            TiliaMainWindow.handle_qt_log_message(
+        with patch("tilia.boot.logger") as mock_logger:
+            handle_qt_log_message(
                 QtMsgType.QtWarningMsg,
                 self._ctx(),
                 "some other warning",
@@ -336,8 +331,8 @@ class TestHandleQtLogMessage:
         mock_logger.error.assert_called_once()
 
     def test_noise_pattern_in_critical_message_is_still_logged(self):
-        with patch("tilia.ui.qtui.logger") as mock_logger:
-            TiliaMainWindow.handle_qt_log_message(
+        with patch("tilia.boot.logger") as mock_logger:
+            handle_qt_log_message(
                 QtMsgType.QtCriticalMsg,
                 self._ctx(),
                 "QFont::setPixelSize: Pixel size <= 0 (0)",
