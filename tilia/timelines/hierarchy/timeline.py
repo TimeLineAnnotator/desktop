@@ -394,17 +394,23 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         if not success:
             return success, reason
 
-        # preseves label and comments from merged unitst l
+        # Preserve label, comments, and color from merged units. When every
+        # non-empty value for a field matches, keep the single matching value
+        # instead of joining duplicates with the separator.
+        separator = self.timeline.merge_separator
         attr_to_new_value = {}
         for attr in ["label", "comments"]:
-            new_value = hierarchies[0].get_data(attr)
-            for unit in hierarchies[1:]:
-                if unit.get_data(attr):
-                    if new_value:
-                        new_value += self.timeline.merge_separator
-                    new_value += unit.get_data(attr)
-            if new_value:
-                attr_to_new_value[attr] = new_value
+            non_empty = [v for v in (h.get_data(attr) for h in hierarchies) if v]
+            if not non_empty:
+                continue
+            if len(set(non_empty)) == 1:
+                attr_to_new_value[attr] = non_empty[0]
+            else:
+                attr_to_new_value[attr] = separator.join(non_empty)
+
+        colors = [h.color for h in hierarchies]
+        if colors[0] and all(c == colors[0] for c in colors[1:]):
+            attr_to_new_value["color"] = colors[0]
 
         for unit in hierarchies:
             post(Post.LOOP_IGNORE_COMPONENT, self.timeline.id, unit.id)
