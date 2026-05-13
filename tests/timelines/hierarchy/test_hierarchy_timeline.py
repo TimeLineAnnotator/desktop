@@ -781,3 +781,43 @@ class TestMerge:
 
         new_value = self.get_attr(hierarchy_tl[0], attr_name)
         assert new_value == "first" + hierarchy_tl.merge_separator + "second"
+
+    @pytest.mark.parametrize("attr_name", ATTRS)
+    def test_identical_values_kept_without_separator(self, hierarchy_tl, attr_name):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 3)
+        for h in hrcs:
+            self.set_attr(h, attr_name, "same")
+
+        hierarchy_tl.merge(hrcs)
+
+        assert self.get_attr(hierarchy_tl[0], attr_name) == "same"
+
+    @pytest.mark.parametrize("attr_name", ATTRS)
+    def test_identical_values_with_empties_kept_without_separator(
+        self, hierarchy_tl, attr_name
+    ):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 4)
+        self.set_attr(hrcs[0], attr_name, "same")
+        self.set_attr(hrcs[2], attr_name, "same")
+
+        hierarchy_tl.merge(hrcs)
+
+        assert self.get_attr(hierarchy_tl[0], attr_name) == "same"
+
+    def test_identical_colors_kept(self, hierarchy_tl):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 3)
+        for h in hrcs:
+            h.set_data("color", "#aabbcc")
+
+        hierarchy_tl.merge(hrcs)
+
+        assert hierarchy_tl[0].get_data("color") == "#aabbcc"
+
+    def test_differing_colors_not_set(self, hierarchy_tl):
+        hrcs = self.create_units_to_merge(hierarchy_tl, 2)
+        hrcs[0].set_data("color", "#aabbcc")
+        hrcs[1].set_data("color", "#ddeeff")
+
+        hierarchy_tl.merge(hrcs)
+
+        assert hierarchy_tl[0].get_data("color") == ""
