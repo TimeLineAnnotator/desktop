@@ -2989,6 +2989,52 @@ class TestMergeRanges:
         assert survivor.get_data("label") == ""
         assert survivor.get_data("comments") == ""
 
+    def test_merge_identical_labels_kept_without_separator(self, range_tlui):
+        a = self._add(range_tlui, 0, 10)
+        b = self._add(range_tlui, 10, 20)
+        c = self._add(range_tlui, 20, 30)
+        for e in (a, b, c):
+            range_tlui.timeline.set_component_data(e.id, "label", "theme")
+        for e in (a, b, c):
+            range_tlui.select_element(e)
+        commands.execute("timeline.range.merge_ranges")
+        survivor = list(range_tlui)[0]
+        assert survivor.get_data("label") == "theme"
+
+    def test_merge_identical_comments_kept_without_separator(self, range_tlui):
+        a = self._add(range_tlui, 0, 10)
+        b = self._add(range_tlui, 10, 20)
+        for e in (a, b):
+            range_tlui.timeline.set_component_data(e.id, "comments", "same note")
+        for e in (a, b):
+            range_tlui.select_element(e)
+        commands.execute("timeline.range.merge_ranges")
+        survivor = list(range_tlui)[0]
+        assert survivor.get_data("comments") == "same note"
+
+    def test_merge_identical_labels_with_empties_mixed_not_joined(self, range_tlui):
+        a = self._add(range_tlui, 0, 10)
+        b = self._add(range_tlui, 10, 20)
+        c = self._add(range_tlui, 20, 30)
+        range_tlui.timeline.set_component_data(a.id, "label", "theme")
+        range_tlui.timeline.set_component_data(c.id, "label", "theme")
+        for e in (a, b, c):
+            range_tlui.select_element(e)
+        commands.execute("timeline.range.merge_ranges")
+        survivor = list(range_tlui)[0]
+        assert survivor.get_data("label") == "theme"
+
+    def test_merge_identical_colors_preserved(self, range_tlui):
+        a = self._add(range_tlui, 0, 10)
+        b = self._add(range_tlui, 10, 20)
+        for e in (a, b):
+            range_tlui.timeline.set_component_data(e.id, "color", "#aabbcc")
+        for e in (a, b):
+            range_tlui.select_element(e)
+        commands.execute("timeline.range.merge_ranges")
+        survivor = list(range_tlui)[0]
+        assert survivor.get_data("color") == "#aabbcc"
+
     def test_merge_separator_setting_is_respected(self, range_tlui):
         settings.set("range_timeline", "merge_separator", " / ")
         a = self._add(range_tlui, 0, 10)
