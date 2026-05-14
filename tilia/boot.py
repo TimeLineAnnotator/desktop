@@ -2,12 +2,15 @@ import argparse
 import os
 import sys
 import traceback
+from collections.abc import Callable
+from typing import NoReturn
 
 from PySide6.QtWidgets import QApplication
 
 import tilia.utils  # noqa: F401
 from tilia.app import App
 from tilia.clipboard import Clipboard
+from tilia.constants import FILE_EXTENSION
 from tilia.dirs import setup_dirs
 from tilia.file.autosave import AutoSaver
 from tilia.file.file_manager import FileManager
@@ -56,8 +59,8 @@ def boot():
         except ImportError:
             pass
     # has to be done after ui has been created, so timelines will get displayed
-    if file := get_initial_file(args.file):
-        app.on_open(file)
+    if args.file:
+        app.on_open(args.file)
     else:
         app.setup_file()
 
@@ -65,8 +68,11 @@ def boot():
 
 
 def setup_parser():
-    parser = argparse.ArgumentParser(exit_on_error=False)
-    parser.add_argument("--file", nargs="?", default="")
+    parser = argparse.ArgumentParser(
+        exit_on_error=False, usage="%(prog)s [--user-interface {qt,cli}] [tilia_file]"
+    )
+    parser.register("type", "tilia file", lambda f: get_initial_file(f, parser.error))
+    parser.add_argument("file", type="tilia file", nargs="?", default="")
     parser.add_argument("--user-interface", "-i", choices=["qt", "cli"], default="qt")
     return parser.parse_args()
 
@@ -103,12 +109,16 @@ def setup_ui(q_application: QApplication, interface: str):
         return CLI()
 
 
-def get_initial_file(file: str):
+def get_initial_file(file: str, error: Callable[[str], NoReturn]) -> str:
     """
     Checks if a file path was passed as an argument to process.
     If it was, returns its path. Else, returns the empty string.
     """
-    if file and os.path.isfile(file) and file.endswith(".tla"):
+    f_ext = "." + FILE_EXTENSION
+    if not file:
         return file
-    else:
-        return ""
+    if not os.path.isfile(file):
+        error(f"{file} is not a valid file.")
+    if not file.lower().endswith(f_ext.lower()):
+        error(f"{file} is not a {f_ext} file.")
+    return file
