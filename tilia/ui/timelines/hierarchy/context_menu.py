@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tilia.requests import Get, get
 from tilia.ui.menus import MenuItemKind
 from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 
@@ -25,12 +26,14 @@ class HierarchyContextMenu(TimelineUIElementContextMenu):
 
     def __init__(self, element):
         self.items = DEFAULT_ITEMS.copy()
-        if not element.has_pre_start:
+        if not element.has_pre_start and element.get_data("start") > 0:
             self.items.insert(
                 6, (MenuItemKind.COMMAND, "timeline.hierarchy.add_pre_start")
             )
 
-        if not element.has_post_end:
+        if not element.has_post_end and element.get_data("end") < get(
+            Get.MEDIA_DURATION
+        ):
             self.items.insert(
                 6, (MenuItemKind.COMMAND, "timeline.hierarchy.add_post_end")
             )

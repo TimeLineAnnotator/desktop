@@ -347,7 +347,6 @@ class HierarchyTimelineUI(TimelineUI):
 
     @with_elements
     def on_add_pre_start(self, elements: list[HierarchyUI]):
-        # TODO: Disable context menu option if start == 0
         accept, value = get(
             Get.FROM_USER_FLOAT,
             "Add pre-start",
@@ -363,7 +362,6 @@ class HierarchyTimelineUI(TimelineUI):
 
     @with_elements
     def on_add_post_end(self, elements: list[HierarchyUI]):
-        # TODO: Disable context menu option if end == media_duration
         accept, value = get(
             Get.FROM_USER_FLOAT,
             "Add post-end",
