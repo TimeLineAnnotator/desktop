@@ -143,6 +143,23 @@ class TestFileManager:
 
         assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))
 
+    @pytest.mark.xfail(strict=True)
+    def test_duration_change_does_not_mark_file_modified(self, tilia, tmp_path):
+        # Should setting a new media duration be counted as an edited file?
+        post(Post.PLAYER_DURATION_AVAILABLE, 120)
+        tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
+        tilia.file_manager.on_save_to_path_request([tmp_file_path])
+        post(Post.PLAYER_DURATION_AVAILABLE, 10)
+        assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))
+
+    @pytest.mark.xfail(strict=True)
+    def test_media_load_marks_file_modified(self, tilia):
+        # Loading a different media file is a user action and must be
+        # detected as a modification so the "save changes?" prompt fires.
+        if not post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH):
+            pytest.skip("media failed to load")
+        assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))
+
     def test_import_metadata(self, tilia):
         data = {
             "title": "test",
