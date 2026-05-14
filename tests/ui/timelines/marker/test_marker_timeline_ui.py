@@ -311,8 +311,6 @@ class TestDrag:
         click_marker_ui(marker_tlui[0])
         assert marker_tlui[0].drag_manager is not None  # arm precondition
 
-        commands.execute("timeline.component.delete")
-
         # Without the fix, this dispatches into the deleted element's
         # DragManager and raises KeyError on set_data("time", ...).
         post(
@@ -320,7 +318,11 @@ class TestDrag:
             int(time_x_converter.get_x_by_time(20)),
             0,
         )
+        commands.execute("timeline.component.delete")
+
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+
+        assert marker_tlui.is_empty
 
 
 class TestElementContextMenu:
