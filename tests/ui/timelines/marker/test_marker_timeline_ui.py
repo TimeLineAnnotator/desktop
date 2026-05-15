@@ -556,7 +556,10 @@ class TestInspect:
 
         assert marker_tlui[0].get_data("comments") == ""
 
-    def test_set_attribute_with_multiple_selected(self, marker_tlui, tluis):
+    def test_set_attribute_with_multiple_selected(
+        self, marker_tlui, tluis, tilia_state
+    ):
+        tilia_state.current_time = 0
         commands.execute("timeline.marker.add")
         commands.execute("media.seek", 10)
         commands.execute("timeline.marker.add")
