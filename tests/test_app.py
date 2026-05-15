@@ -834,6 +834,17 @@ class TestWindowTitle:
         commands.execute("file.new")
         self.assert_window_title_is_default(qtui)
 
+    def test_reopening_file_updates_title(self, qtui, tmp_path):
+        file_title = "A TiLiA File Title"
+        self.set_media_title(file_title)
+        path = save_tilia_to_tmp_path(tmp_path)
+
+        commands.execute("file.new")
+        self.assert_window_title_is_default(qtui)
+
+        commands.execute("file.open", path)
+        self.assert_window_title(qtui, file_title)
+
     def test_is_filename_after_file_load_if_no_title(self, qtui, tmp_path):
         save_tilia_to_tmp_path(tmp_path, "test_window_title.tla")
         self.assert_window_title(qtui, "test_window_title.tla")

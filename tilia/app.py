@@ -168,9 +168,9 @@ class App:
         if not success:
             self.on_restore_state(prev_state)
             return
-        post(Post.APP_FILE_LOADED, file)
 
         self.file_manager.file = file
+        post(Post.APP_FILE_LOADED, file)
         self.update_recent_files()
 
     def update_recent_files(self):

@@ -553,6 +553,7 @@ class QtUI:
             if window is not None:
                 window.close()
         self.main_window.setFocus()
+        self._reset_window_title()
 
     @staticmethod
     def on_open_website_help():
