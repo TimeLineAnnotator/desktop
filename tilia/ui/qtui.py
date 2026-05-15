@@ -36,6 +36,7 @@ import tilia.parsers.csv.pdf
 import tilia.parsers.score.musicxml
 import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
+from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
 from tilia.log import logger
 from tilia.requests import Get, Post, get, listen, post, serve
