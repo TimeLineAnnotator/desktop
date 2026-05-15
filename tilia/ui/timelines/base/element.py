@@ -6,7 +6,7 @@ from typing import Any, Callable
 from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QGraphicsScene
 
-from tilia.requests import stop_listening_to_all
+from tilia.requests import Post, post, stop_listening_to_all
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.context_menus import TimelineUIElementContextMenu
 
@@ -102,6 +102,7 @@ class TimelineUIElement(ABC):
         if drag_manager is not None:
             drag_manager.cleanup()
             self.drag_manager = None
+            post(Post.ELEMENT_DRAG_END)
 
         for item in self.child_items():
             if item.parentItem():
