@@ -40,6 +40,7 @@ from tilia.settings import settings
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
 from tilia.ui import commands
 from tilia.ui.timelines.collection.collection import TimelineUIs
+from tilia.ui.zoom_toolbar import ZoomToolbar
 from tilia.utils import get_tilia_class_string
 
 from ..media.player import QtAudioPlayer, QtVideoPlayer, YouTubePlayer
@@ -140,12 +141,13 @@ class TiliaMainWindow(QMainWindow):
         if not success:
             return
 
-        if result != widget.sceneRect().width():
+        original_zoom = get(Get.CURRENT_ZOOM)
+        needs_resize = result != widget.sceneRect().width()
+        if needs_resize:
             margins = 2 * get(Get.LEFT_MARGIN_X)
-            zoom_level = (result - margins) / (widget.sceneRect().width() - margins)
-            commands.execute("view.zoom.in", zoom_level)
-        else:
-            zoom_level = 1.0
+            commands.execute(
+                "view.zoom.set", (result - margins) / get(Get.ZOOM_REFERENCE_WIDTH)
+            )
 
         image = QPixmap(widget.sceneRect().size().toSize())
         painter = QPainter(image)
@@ -154,8 +156,8 @@ class TiliaMainWindow(QMainWindow):
         del painter
         del image
 
-        if zoom_level != 1.0:
-            commands.execute("view.zoom.out", zoom_level)
+        if needs_resize:
+            commands.execute("view.zoom.set", original_zoom)
 
 
 class FileDropEventFilter(QObject):
@@ -445,6 +447,11 @@ class QtUI:
         self.main_window.addToolBar(self.player_toolbar)
         self.main_window.addToolBar(self.options_toolbar)
 
+        self._zoom_toolbar = ZoomToolbar()
+        self.main_window.addToolBar(
+            Qt.ToolBarArea.BottomToolBarArea, self._zoom_toolbar
+        )
+
     def on_window_open(self, kind: WindowKind):
         """Open a window of 'kind', if there is no window of that kind open.
         Otherwise, focus window of that kind."""
@@ -529,6 +536,7 @@ class QtUI:
                 window.close()
         self.main_window.setFocus()
         self._reset_window_title()
+        commands.execute("view.zoom.set", 1.0)
 
     @staticmethod
     def on_open_website_help():
