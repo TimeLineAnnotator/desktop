@@ -238,9 +238,10 @@ class FileManager:
 
         try:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
+            zoom = get(Get.CURRENT_ZOOM)
         except NoReplyToRequest:
-            geometry, window_state = None, None
-        settings.update_recent_files(path, geometry, window_state)
+            geometry, window_state, zoom = None, None, None
+        settings.update_recent_files(path, geometry, window_state, zoom)
 
     def new(self):
         self._setup_file()
