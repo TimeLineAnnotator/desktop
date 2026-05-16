@@ -26,6 +26,7 @@ from tilia.requests import (
 from tilia.requests.get import reset as reset_get
 from tilia.requests.post import reset as reset_post
 from tilia.ui.cli.ui import CLI
+from tilia.ui.coords import time_x_converter
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.ui.windows import WindowKind
 
@@ -216,8 +217,16 @@ def use_test_logger(qapplication):
 
 @pytest.fixture(scope="module")
 def qtui(tilia, cleanup_requests, qapplication, use_test_settings, use_test_logger):
+    # Re-register time_x_converter listeners before creating QtUI so that
+    # time_x_converter receives PLAYBACK_AREA_SET_WIDTH before qtui's handler
+    # fires TIMELINE_WIDTH_SET_DONE (which calls set_width which calls
+    # time_x_converter.get_x_by_time). The singleton loses its Post listeners
+    # when reset_post() runs at the end of each module; without this, stale
+    # coordinate state from the previous module would corrupt coordinate math.
+    time_x_converter.__init__()
     mw = TiliaMainWindow()
     qtui_ = QtUI(qapplication, mw)
+    time_x_converter.setup()  # sync values now that qtui serves Get.PLAYBACK_AREA_WIDTH
     stop_listening(qtui_, Post.DISPLAY_ERROR)
     yield qtui_
 
