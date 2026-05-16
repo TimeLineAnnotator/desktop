@@ -607,6 +607,7 @@ class TimelineUIs:
 
     def update_height(self):
         self.update_timeline_uis_position()
+        self.scene.setSceneRect(0, 0, get(Get.TIMELINE_WIDTH), self.get_scene_height())
         self.set_playback_lines_position(get(Get.MEDIA_CURRENT_TIME))
         self.change_loop_box_position()
 
