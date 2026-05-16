@@ -216,18 +216,31 @@ class TestAutoScroll:
 
     def test_by_page_is_triggered(self, tluis):
         self._set_auto_scroll(ScrollType.BY_PAGE)
+        viewport = tluis.view.current_viewport_x
+        time_outside = time_x_converter.get_time_by_x(viewport[1] + 100)
         with (
             patch.object(tluis, "center_on_time") as center_on_time_mock,
             patch.object(tluis.view, "move_to_x") as move_to_x_mock,
         ):
-            post(Post.PLAYER_CURRENT_TIME_CHANGED, 100, MediaTimeChangeReason.PLAYBACK)
+            post(
+                Post.PLAYER_CURRENT_TIME_CHANGED,
+                time_outside,
+                MediaTimeChangeReason.PLAYBACK,
+            )
         move_to_x_mock.assert_called()
         center_on_time_mock.assert_not_called()
 
     def test_by_page_is_not_triggered_when_not_over_threshold(self, tluis):
         self._set_auto_scroll(ScrollType.BY_PAGE)
+        viewport = tluis.view.current_viewport_x
+        x_center = (viewport[0] + viewport[1]) / 2
+        time_inside = time_x_converter.get_time_by_x(x_center)
         with patch.object(tluis.view, "move_to_x") as move_to_x_mock:
-            post(Post.PLAYER_CURRENT_TIME_CHANGED, 10, MediaTimeChangeReason.PLAYBACK)
+            post(
+                Post.PLAYER_CURRENT_TIME_CHANGED,
+                time_inside,
+                MediaTimeChangeReason.PLAYBACK,
+            )
         move_to_x_mock.assert_not_called()
 
 
