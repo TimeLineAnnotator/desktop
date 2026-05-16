@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QGraphicsScene,
     QMainWindow,
-    QToolBar,
 )
 
 import tilia.constants
@@ -75,7 +74,6 @@ class TiliaMainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(tilia.constants.APP_NAME)
         self.setWindowIcon(QIcon.fromTheme("tilia"))
-        self.setStatusTip("Main window")
         self.setAcceptDrops(True)
         self._drop_filter = FileDropEventFilter()
 
@@ -440,7 +438,6 @@ class QtUI:
         self._set_window_title_from_metadata_title()
 
     def _setup_widgets(self):
-        self.timeline_toolbars = QToolBar()
         self.timeline_uis = TimelineUIs(self.main_window)
         self.player_toolbar = PlayerToolbar()
         self.options_toolbar = OptionsToolbar()
