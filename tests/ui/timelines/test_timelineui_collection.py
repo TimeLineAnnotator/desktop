@@ -6,6 +6,7 @@ import pytest
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
+from tests.utils import save_and_reopen, save_tilia_to_tmp_path
 from tilia.file.common import are_tilia_data_equal
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Get, Post, get, post
@@ -21,6 +22,11 @@ from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 from tilia.ui.enums import ScrollType
 from tilia.ui.timelines.collection.collection import TimelineSelector
+from tilia.ui.timelines.constants import (
+    MAX_PLAYBACK_WIDTH,
+    PLAYBACK_AREA_WIDTH,
+    ZOOM_MULTIPLIER,
+)
 from tilia.ui.timelines.marker import MarkerTimelineUI
 
 ADD_TIMELINE_ACTIONS = [
@@ -500,6 +506,76 @@ class TestClearAllTimelines:
             commands.execute("timelines.clear_all")
 
         assert all(tl.is_empty for tl in tluis[0])
+
+
+class TestZoom:
+    def test_zoom_in_multiplies_by_factor(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        commands.execute("view.zoom.set", 1.0)
+        commands.execute("view.zoom.in")
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(1.0 * ZOOM_MULTIPLIER)
+
+    def test_zoom_out_divides_by_factor(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        commands.execute("view.zoom.set", 1.0)
+        commands.execute("view.zoom.out")
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(1.0 / ZOOM_MULTIPLIER)
+
+    def test_zoom_in_rejected_at_physical_max(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        zoom_ref = get(Get.ZOOM_REFERENCE_WIDTH)
+        # largest ratio whose next step would exceed MAX_PLAYBACK_WIDTH
+        at_limit = MAX_PLAYBACK_WIDTH / zoom_ref / ZOOM_MULTIPLIER
+        commands.execute("view.zoom.set", at_limit)
+        commands.execute("view.zoom.in")
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(at_limit)
+
+    def test_zoom_out_rejected_at_physical_min(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        zoom_ref = get(Get.ZOOM_REFERENCE_WIDTH)
+        # ratio where new_width=1 (passes); next step gives new_width<1 (rejected)
+        at_limit = 1 / zoom_ref
+        commands.execute("view.zoom.set", at_limit)
+        commands.execute("view.zoom.out")
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(at_limit)
+
+    def test_zoom_set_changes_playback_area_width(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        zoom_ref = get(Get.ZOOM_REFERENCE_WIDTH)
+        commands.execute("view.zoom.set", 2.0)
+        assert get(Get.PLAYBACK_AREA_WIDTH) == pytest.approx(zoom_ref * 2.0)
+
+    def test_zoom_without_media_uses_default_reference(self, tilia_state, tluis):
+        tilia_state.duration = 0
+        commands.execute("view.zoom.set", 2.0)
+        assert get(Get.PLAYBACK_AREA_WIDTH) == pytest.approx(PLAYBACK_AREA_WIDTH * 2.0)
+
+    def test_zoom_resets_to_one_on_clear(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        commands.execute("view.zoom.set", 3.0)
+        post(Post.APP_CLEAR)
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(1.0)
+
+    def test_zoom_preserved_when_duration_changes(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        commands.execute("view.zoom.set", 2.0)
+        post(Post.PLAYER_DURATION_AVAILABLE, 200)
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(2.0)
+
+    def test_zoom_saved_and_restored_on_file_open(self, tilia_state, tluis, tmp_path):
+        duration = 123
+        tilia_state.duration = duration
+        commands.execute("view.zoom.set", 1.5)
+        original_width = get(Get.PLAYBACK_AREA_WIDTH)
+        file_path = save_tilia_to_tmp_path(tmp_path)
+        assert settings.get_file_zoom(file_path) == pytest.approx(1.5)
+        save_and_reopen(tmp_path)
+        # save_and_reopen opens the .tla file but doesn't load media, so
+        # PLAYER_DURATION_AVAILABLE never fires; post it manually to trigger
+        # _on_duration_available and apply the restored zoom to the timeline width
+        post(Post.PLAYER_DURATION_AVAILABLE, duration)
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(1.5)
+        assert get(Get.PLAYBACK_AREA_WIDTH) == pytest.approx(original_width)
 
 
 def test_timeline_command_fails(tilia, qtui, tluis, marker_tlui, tilia_errors):
