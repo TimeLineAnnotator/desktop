@@ -3,7 +3,10 @@ from __future__ import annotations
 import functools
 import traceback
 from enum import Enum, auto
-from typing import Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
+
+if TYPE_CHECKING:
+    from tilia.file.tilia_file import TiliaFile
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
@@ -472,6 +475,7 @@ class TimelineUIs:
             ),
             (Post.TIMELINE_UIS_VIEW_FOCUS_OUT, self.clear_selection_boxes),
             (Post.PLAYER_DURATION_AVAILABLE, self._on_duration_available),
+            (Post.APP_FILE_LOADED, self._on_file_loaded),
         }
 
         SERVES = {
@@ -1328,6 +1332,12 @@ class TimelineUIs:
         if not prev_smooth_scroll:
             settings.set("general", "prioritise_performance", False)
         return True
+
+    def _on_file_loaded(self, file: TiliaFile) -> None:
+        zoom = settings.get_file_zoom(file.file_path)
+        if zoom is not None:
+            self._zoom_level = zoom
+            post(Post.ZOOM_TOOLBAR_UPDATE, zoom)
 
     @command_callback
     def on_import_to_timeline(self, tl_kind: TlKind):
