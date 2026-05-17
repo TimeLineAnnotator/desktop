@@ -15,7 +15,7 @@ from tilia.exceptions import NoReplyToRequest
 from tilia.file.file_manager import open_tla
 from tilia.file.tilia_file import TiliaFile
 from tilia.media.loader import load_media
-from tilia.requests import Get, Post, get, listen, post, serve
+from tilia.requests import Get, Post, get, listen, long_operation, post, serve
 from tilia.settings import settings
 from tilia.timelines.collection.collection import Timelines
 from tilia.timelines.slider.timeline import SliderTimeline
@@ -173,7 +173,10 @@ class App:
                 return False
         prev_state = self.get_app_state()
         self.on_clear()
+        self._do_open(path, prev_state)
 
+    @long_operation("Loading file...")
+    def _do_open(self, path: Path, prev_state: dict) -> None:
         success, file, old_path = open_tla(path)
         if not success:
             self.on_restore_state(prev_state)
@@ -267,10 +270,18 @@ class App:
             self.set_file_media_duration(0.0)
             return True
 
+        return self._do_load_media(path, record, initial_duration)
+
+    @long_operation("Loading media...")
+    def _do_load_media(
+        self,
+        path: str,
+        record: bool,
+        initial_duration: float | None,
+    ) -> bool:
         success, player = load_media(
             self.player, path, initial_duration=initial_duration
         )
-
         self.player = player
 
         if success and record:

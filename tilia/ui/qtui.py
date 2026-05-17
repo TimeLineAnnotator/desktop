@@ -48,6 +48,7 @@ from .dialog_manager import DialogManager
 from .dialogs.basic import display_error
 from .dialogs.crash import CrashDialog
 from .dialogs.resize_rect import ResizeRect
+from .long_operation import LongOperationToolbar
 from .menubar import TiliaMenuBar
 from .menus import (
     TimelinesMenu,
@@ -70,6 +71,7 @@ class TiliaMainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(tilia.constants.APP_NAME)
         self.setWindowIcon(QIcon.fromTheme("tilia"))
+        self.setStyleSheet("QMainWindow::separator { height: 0px; width: 0px; }")
         self.setAcceptDrops(True)
         self._drop_filter = FileDropEventFilter()
 
@@ -426,6 +428,11 @@ class QtUI:
 
         self.main_window.addToolBar(self.player_toolbar)
         self.main_window.addToolBar(self.options_toolbar)
+
+        self._long_op_toolbar = LongOperationToolbar()
+        self.main_window.addToolBar(
+            Qt.ToolBarArea.BottomToolBarArea, self._long_op_toolbar
+        )
 
         self._zoom_toolbar = ZoomToolbar()
         self.main_window.addToolBar(
