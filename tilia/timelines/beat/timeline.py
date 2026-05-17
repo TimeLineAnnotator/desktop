@@ -8,7 +8,7 @@ from math import isclose
 from typing import Any, cast
 
 import tilia.errors
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Get, LongOperation, Post, get, long_operation, post
 from tilia.settings import settings
 from tilia.timelines.base.component.pointlike import crop_pointlike
 from tilia.timelines.base.timeline import (
@@ -654,17 +654,22 @@ class BeatTimeline(Timeline):
         BY_AMOUNT = 0
         BY_INTERVAL = 1
 
+    @long_operation("Creating beats...")
     def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
         duration = get(Get.MEDIA_DURATION)
         self.component_manager.compute_is_first_in_measure = False
         # only compute at end
 
         if method == BeatTimeline.FillMethod.BY_AMOUNT:
-            for i in range(value):
+            total = int(value)
+            for i in range(total):
                 self.create_component(ComponentKind.BEAT, i * duration / value)
+                post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, total)
         elif method == BeatTimeline.FillMethod.BY_INTERVAL:
-            for i in range(math.floor(duration / value)):
+            total = math.floor(duration / value)
+            for i in range(total):
                 self.create_component(ComponentKind.BEAT, i * value)
+                post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, total)
 
         self.component_manager.compute_is_first_in_measure = True
         self.recalculate_measures()

@@ -1,9 +1,52 @@
+import functools
 import os
 import weakref
 from enum import Enum, auto
 from typing import Any, Callable
 
 from tilia.log import logger
+
+
+class LongOperation(Enum):
+    STARTED = auto()  # args: (label: str)  — bar starts indeterminate
+    PROGRESS = auto()  # args: (value: int, maximum: int)  — promotes bar to determinate
+    DONE = auto()  # args: ()
+
+
+def long_operation(label: str):
+    """Decorator that wraps a function with LongOperation STARTED/DONE posts.
+
+    Indeterminate (duration unknown) — animated bar for the full duration:
+
+        @long_operation("Loading file...")
+        def load(path): ...
+
+    Determinate (total steps known) — bar transitions to a progress bar on
+    the first PROGRESS post:
+
+        @long_operation("Creating beats...")
+        def fill(items):
+            for i, item in enumerate(items):
+                process(item)
+                post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, len(items))
+
+    DONE is always posted in a finally block, even if the function raises.
+    Operations may nest: each call pushes onto a stack; the toolbar stays
+    visible until the stack empties.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            post(Post.LONG_OPERATION, LongOperation.STARTED, label)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                post(Post.LONG_OPERATION, LongOperation.DONE)
+
+        return wrapper
+
+    return decorator
 
 
 class Post(Enum):
@@ -32,6 +75,7 @@ class Post(Enum):
     INSPECTABLE_ELEMENT_DESELECTED = auto()
     INSPECTABLE_ELEMENT_SELECTED = auto()
     INSPECTOR_FIELD_EDITED = auto()
+    LONG_OPERATION = auto()
     LOOP_IGNORE_COMPONENT = auto()
     MEDIA_METADATA_FIELD_ADD = auto()
     MEDIA_METADATA_FIELD_SET = auto()
