@@ -27,17 +27,27 @@ def load_media(
 
 
 def _change_player_type(player, media_type):
-    player.destroy()
-    # Flush DeferredDelete events so the old widget's C++ object is actually
-    # destroyed before the new player is created. On macOS, QWebEngineView
-    # holds exclusive CoreAudio/AVFoundation resources; if the renderer process
-    # is still alive when QMediaPlayer initialises, they deadlock.
-    # processEvents() alone doesn't flush DeferredDelete (Qt requires a full
-    # event-loop cycle), but sendPostedEvents with DeferredDelete does.
-    from PySide6.QtCore import QCoreApplication, QEvent
+    if player.MEDIA_TYPE == "youtube":
+        # QWebEngineView holds exclusive CoreAudio/AVFoundation resources; if
+        # its renderer process is still alive when QMediaPlayer initialises,
+        # they deadlock on macOS. Destroy the old player and flush
+        # DeferredDelete events so its C++ object is actually gone before the
+        # new player is constructed. processEvents() alone doesn't flush
+        # DeferredDelete (Qt requires a full event-loop cycle), but
+        # sendPostedEvents with DeferredDelete does.
+        player.destroy()
 
-    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-    return get(Get.PLAYER_CLASS, media_type)()
+        from PySide6.QtCore import QCoreApplication, QEvent
+
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        return get(Get.PLAYER_CLASS, media_type)()
+
+    # Construct the new player before destroying the old one: if the
+    # constructor raises, app.player stays valid. Safe because serve() keeps
+    # _servers_to_requests consistent when ownership changes.
+    new_player = get(Get.PLAYER_CLASS, media_type)()
+    player.destroy()
+    return new_player
 
 
 def get_media_type_from_path(path: str):

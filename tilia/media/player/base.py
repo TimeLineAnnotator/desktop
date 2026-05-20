@@ -272,8 +272,6 @@ class Player(ABC):
         self.unload_media()
 
     def destroy(self):
-        self.stop()
-        self.unload_media()
         stop_listening_to_all(self)
         stop_serving_all(self)
         self._engine_exit()
