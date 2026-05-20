@@ -97,6 +97,15 @@ def serve(replier: Any, request: Get, callback: Callable) -> None:
     Attaches a callback to a request.
     """
 
+    # If a different server already owns this request, remove it from that
+    # server's tracking set so stop_serving_all(old_server) won't later pop
+    # the new server's callback.
+    old_replier, _ = server(request)
+    if old_replier is not None and old_replier is not replier:
+        _servers_to_requests[old_replier].discard(request)
+        if not _servers_to_requests[old_replier]:
+            _servers_to_requests.pop(old_replier)
+
     _requests_to_callbacks[request] = callback
     if replier not in _servers_to_requests.keys():
         _servers_to_requests[replier] = set()
