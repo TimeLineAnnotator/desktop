@@ -206,10 +206,7 @@ class TestFileLoad:
         file_data["media_path"] = media_path
         file_data["media_metadata"]["media length"] = 101
         tmp_file.write_text(json.dumps(file_data))
-        with (
-            Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)),
-            Serve(Get.PLAYER_CLASS, YouTubePlayer),
-        ):
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
             commands.execute("file.open")
 
         assert tilia_state.is_undo_manager_cleared
