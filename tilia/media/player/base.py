@@ -193,8 +193,8 @@ class Player(ABC):
     def on_playback_rate_try(self, playback_rate: float) -> None:
         self._engine_try_playback_rate(playback_rate)
 
-    def on_seek(self, time: float, if_playing: bool = True) -> None:
-        if not if_playing and self.is_playing:
+    def on_seek(self, time: float, seek_if_playing: bool = True) -> None:
+        if not seek_if_playing and self.is_playing:
             return
 
         if self.is_media_loaded:
