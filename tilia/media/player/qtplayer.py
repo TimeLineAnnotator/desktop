@@ -125,7 +125,10 @@ class QtPlayer(Player):
         return self.player.duration() / 1000
 
     def _engine_exit(self):
-        self.player = None
+        if self.player is not None:
+            self.player.stop()
+            self.player.setSource(QUrl())
+            self.player = None
         post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.NO_MEDIA)
 
     def _engine_set_volume(self, volume: int) -> None:
