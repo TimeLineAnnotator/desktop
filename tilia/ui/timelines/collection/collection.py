@@ -506,6 +506,7 @@ class TimelineUIs:
         h = get(Get.TIMELINE, id).get_data("height")
         scene = self.create_timeline_scene(id, w, h)
         view = self.create_timeline_view(scene)
+        view.proxy = self.scene.addWidget(view)
 
         element_manager = ElementManager(timeline_class.ELEMENT_CLASS)
 
@@ -603,7 +604,6 @@ class TimelineUIs:
         self._select_order.insert(0, tl_ui)
 
     def add_timeline_view_to_scene(self, view: TimelineView, ordinal: int) -> None:
-        view.proxy = self.scene.addWidget(view)
         y = sum(tlui.get_data("height") for tlui in sorted(self)[: ordinal - 1])
         view.move(0, y)
         self.update_height()
@@ -682,7 +682,7 @@ class TimelineUIs:
         )
 
     @staticmethod
-    def create_timeline_view(scene: TimelineScene):
+    def create_timeline_view(scene: TimelineScene) -> TimelineView:
         return TimelineView(scene)
 
     def setup_toolbar(self, tl_kind: TimelineKind):
