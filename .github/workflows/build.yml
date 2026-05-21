@@ -63,7 +63,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          APP="${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-filename }}"
+          APP="${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-binary-name }}"
           echo "Checking dependencies"
           echo "Starting GUI..."
           "$APP" &
@@ -83,7 +83,8 @@ jobs:
           wait $CLI_PID 2>/dev/null || true
 
           cd "$(dirname ${{ steps.build-exe.outputs.out-filepath }})"
-          zip -ry9 "${{ steps.build-exe.outputs.out-filename }}.zip" tilia.app || true
+          BUNDLE=$(basename "${{ steps.build-exe.outputs.out-filepath }}")
+          zip -ry9 "${{ steps.build-exe.outputs.out-filename }}.zip" "$BUNDLE" || true
 
       - name: Test executable [Windows]
         if: runner.os == 'Windows'

@@ -47,7 +47,6 @@ Repository = "https://github.com/TimeLineAnnotator/desktop"
 
 [dependency-groups]
 build = [
-    "build",
     "ImageIO; sys_platform == 'darwin'",
     "Nuitka >= 4.0",
     "ordered-set==4.1.0",
@@ -88,7 +87,6 @@ noinclude-qt-translations = true
 onefile-tempdir-spec = "{CACHE_DIR}/{PRODUCT}/v{VERSION}"
 remove-output = true
 report = "compilation-report.xml"
-user-package-configuration-file = "tilia.nuitka-package.config.yml"
 deployment = true
 mode = "app"
 
@@ -121,7 +119,6 @@ exclude = [
 [tool.setuptools.package-data]
 tilia = [
     "../.tilia.env",
-    "../tilia.nuitka-package.config.yml", # because we build from sdist
     "../LICENSE",
     "media/player/youtube.html",
     "media/player/youtube.css",

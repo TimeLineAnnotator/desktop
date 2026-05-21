@@ -5,14 +5,15 @@ pyside-deploy has very limited Nuitka-specific options and Nuitka requires a spe
 Hence this pyside-deploy-inspired script.
 
 - Run `python scripts/deploy.py [ref_name] [os_type]`
-- Creates sdist to create metadata file from information in pyproject and filter out unnecessary files
-- Then builds executable, which will be found in:
-    build/exe/[os_type]/TiLiA-[tilia version in pyproject](-[ref_name, if not the same as tilia version])-[os_type]
+- Builds the executable directly from the editable install (no sdist step).
+  Generates a Nuitka package config from the static YAML + dynamic
+  data-files / implicit-imports entries, then renames the output to the
+  versioned artifact name for GitHub upload:
+    build/[os_type]/exe/TiLiA-[tilia version](-[ref_name, if different])-[os_type]
 """
 
 import os
 import sys
-import tarfile
 import traceback
 from enum import Enum
 from pathlib import Path
@@ -23,11 +24,12 @@ from colorama import Fore
 from lxml import etree
 from nuitka.distutils.DistutilsCommands import build as n_build
 
+root = Path(__file__).parents[1]
 ref_name = ""
 build_os = ""
-buildlib = Path(__file__).parents[1] / "build"
-toml_file = Path(__file__).parents[1] / "pyproject.toml"
-pkg_cfg = "tilia.nuitka-package.config.yml"
+buildlib = root / "build"
+toml_file = root / "pyproject.toml"
+pkg_cfg = root / "tilia.nuitka-package.config.yml"
 outdir = Path()
 out_filename = ""
 
@@ -101,7 +103,7 @@ def _get_exe_cmd() -> list[str]:
     name = options.get("project", {}).get("name", "TiLiA")
     version = options.get("project", {}).get("version", "0")
     _set_out_filename(name, version)
-    icon_path = Path(__file__).parents[1] / "docs" / "img" / "main_icon.ico"
+    icon_path = root / "docs" / "img" / "main_icon.ico"
     exe_args = [
         sys.executable,
         "-m",
@@ -122,52 +124,6 @@ def _get_exe_cmd() -> list[str]:
     return exe_args
 
 
-def _get_sdist() -> Path:
-    for f in outdir.iterdir():
-        if "".join(f.suffixes[-2:]) == ".tar.gz":
-            return f
-    raise Exception(f"Could not find sdist in {outdir}:", [*outdir.iterdir()])
-
-
-def _get_main_file() -> Path:
-    main = _create_lib()
-    _update_yml()
-    return main
-
-
-def _create_lib() -> Path:
-    sdist = _get_sdist()
-    base = ".".join(sdist.name.split(".")[:-2])
-    tilia = f"{base}/tilia"
-    lib = outdir / "Lib"
-
-    ext_data = [
-        f"{base}/{e[3:]}"
-        for e in options.get("tool", {})
-        .get("setuptools", {})
-        .get("package-data", {})
-        .get("tilia", [])
-        if e.split("/")[0] == ".."
-    ]
-
-    with tarfile.open(sdist) as f:
-        main = f"{tilia}/__main__.py"
-        assert main in f.getnames(), f"Could not locate {main}"
-        f.extractall(
-            lib,
-            filter=lambda x, _: (
-                x
-                if x.name.startswith(tilia)
-                or x.name.startswith(f"{base}/TiLiA.egg-info")
-                or x.name in ext_data
-                else None
-            ),
-        )
-
-    os.chdir(lib / base)
-    return lib / tilia
-
-
 def _get_implicit_imports():
     from tilia.utils import get_sibling_packages
 
@@ -175,20 +131,17 @@ def _get_implicit_imports():
         tl + ".timeline"
         for tl in get_sibling_packages(
             "tilia.timelines.base.timeline",
-            (Path(__file__).parent.parent / "tilia/timelines/base/timeline").as_posix(),
+            (root / "tilia/timelines/base/timeline").as_posix(),
         )
     ]
     tluis = get_sibling_packages(
         "tilia.ui.timelines.base.timeline",
-        (Path(__file__).parent.parent / "tilia/ui/timelines/base/timeline").as_posix(),
+        (root / "tilia/ui/timelines/base/timeline").as_posix(),
     )
     return tls + tluis
 
 
-def _update_yml():
-    if not Path(pkg_cfg).exists():
-        return
-
+def _write_pkg_cfg() -> Path:
     import yaml
 
     with open(pkg_cfg) as f:
@@ -205,7 +158,6 @@ def _update_yml():
                         .get("setuptools", {})
                         .get("package-data", {})
                         .get("tilia", [])
-                        if pkg_cfg not in e
                     ]
                 },
                 {"include-metadata": ["TiLiA"]},
@@ -214,29 +166,36 @@ def _update_yml():
         }
     )
 
-    with open(pkg_cfg, "w") as f:
+    out_cfg = outdir / "tilia.nuitka-package.config.yml"
+    out_cfg.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_cfg, "w") as f:
         yaml.dump(yml, f)
 
+    return out_cfg
 
-def _build_sdist():
-    sdist_cmd = [
-        sys.executable,
-        "-m",
-        "build",
-        "--no-isolation",
-        "--verbose",
-        "--sdist",
-        f"--outdir={outdir.as_posix()}",
-    ]
 
-    _print(["Building sdist with command:", sdist_cmd], P.CMD)
-    check_call(sdist_cmd)
+def _macos_app_bundle() -> Path:
+    apps = list((outdir / "exe").glob("*.app"))
+    assert len(apps) == 1, f"Expected 1 .app bundle, found: {apps}"
+    return apps[0]
+
+
+def _macos_binary_name() -> str:
+    """Return CFBundleExecutable from the built .app bundle's Info.plist."""
+    import plistlib
+
+    plist_path = _macos_app_bundle() / "Contents" / "Info.plist"
+    with open(plist_path, "rb") as f:
+        return plistlib.load(f)["CFBundleExecutable"]
 
 
 def _build_exe():
-    main_file = _get_main_file()
+    cfg_path = _write_pkg_cfg()
+    main_file = root / "tilia" / "__main__.py"
+
     exe_cmd = _get_exe_cmd()
     exe_cmd.extend(_get_nuitka_toml())
+    exe_cmd.append(f"--user-package-configuration-file={cfg_path.as_posix()}")
     exe_cmd.append(main_file.as_posix())
 
     _print(["Building exe with command:", exe_cmd], P.CMD)
@@ -246,7 +205,7 @@ def _build_exe():
     _print(
         [
             etree.tostring(
-                etree.parse(main_file.parent / "compilation-report.xml"),
+                etree.parse(root / "compilation-report.xml"),
                 pretty_print=True,
                 encoding=str,
             )
@@ -256,38 +215,38 @@ def _build_exe():
 
 def build():
     _handle_inputs()
-    old_env_var = dotenv.dotenv_values(".tilia.env").get("ENVIRONMENT", "")
-    dotenv.set_key(".tilia.env", "ENVIRONMENT", "prod")
+    env_file = root / ".tilia.env"
+    old_env_var = dotenv.dotenv_values(env_file).get("ENVIRONMENT") or ""
+    dotenv.set_key(env_file, "ENVIRONMENT", "prod")
     if buildlib.exists():
         _print(["Cleaning build folder..."], P.ERROR)
-        for root, dirs, files in os.walk(buildlib, False):
-            r = Path(root)
-            _print([f"\t~{r}"])
+        for r, dirs, files in os.walk(buildlib, False):
+            p = Path(r)
+            _print([f"\t~{p}"])
             for f in files:
-                os.unlink(r / f)
+                os.unlink(p / f)
             for d in dirs:
-                os.rmdir(r / d)
+                os.rmdir(p / d)
         os.rmdir(buildlib)
 
-    old_dir = os.getcwd()
     try:
-        _build_sdist()
         _build_exe()
         if os.environ.get("GITHUB_OUTPUT"):
             if "mac" in build_os:
-                out_filepath = outdir / "exe" / "tilia.app"
+                out_filepath = _macos_app_bundle()
+                out_binary_name = _macos_binary_name()
             else:
                 out_filepath = outdir / "exe" / out_filename
+                out_binary_name = out_filename
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                 f.write(f"out-filepath={out_filepath.as_posix()}\n")
                 f.write(f"out-filename={out_filename}\n")
-        os.chdir(old_dir)
-        dotenv.set_key(".tilia.env", "ENVIRONMENT", old_env_var)
+                f.write(f"out-binary-name={out_binary_name}\n")
+        dotenv.set_key(env_file, "ENVIRONMENT", old_env_var)
     except Exception as e:
         _print(["Build failed!", e.__str__()], P.ERROR)
         _print([traceback.format_exc()])
-        os.chdir(old_dir)
-        dotenv.set_key(".tilia.env", "ENVIRONMENT", old_env_var)
+        dotenv.set_key(env_file, "ENVIRONMENT", old_env_var)
         raise SystemExit(1) from e
 
 
