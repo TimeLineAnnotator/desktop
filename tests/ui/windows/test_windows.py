@@ -77,18 +77,16 @@ class TestViewWindow:
     def test_swapping_player_type_does_not_crash_window_update_request(
         self, tilia, qtui, resources
     ):
-        # Reproduction of the leak described in
-        # https://github.com/TimeLineAnnotator/desktop/issues/436.
-        # Loading a different media type swaps the player and calls
-        # `deleteLater()` on the previous window. The Python wrapper
-        # survives, so the listener registered in `ViewWidget.__init__`
-        # for `Post.WINDOW_UPDATE_REQUEST` stays in the listener dict.
+        # Regression for issue #436: swapping player type calls deleteLater()
+        # on the old window. Before the fix, the WINDOW_UPDATE_REQUEST listener
+        # was not removed, so the next update request invoked on_update_request
+        # on a destroyed C++ object and crashed.
+        self.load_local_video(tilia, resources)
 
-        window1 = self.load_local_video(tilia, resources)
+        # Loading YouTube triggers _change_player_type → window1.deleteLater(),
+        # which calls stop_listening_to_all synchronously before scheduling
+        # the C++ deletion. The update request must not crash.
         window2 = self.load_youtube_video(tilia)
 
-        # In production the C++ object is destroyed asynchronously by the
-        # event loop; here we must force it with `shiboken6.delete`.
-        shiboken6.delete(window1)
-
         post(Post.WINDOW_UPDATE_REQUEST, window2.id, True)
+        assert window2.isVisible()
