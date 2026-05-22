@@ -100,4 +100,4 @@ jobs:
         echo "Starting GUI..."
         tilia & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: GUI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
         echo "Starting CLI..."
-        tilia -i=cli & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: CLI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
+        tilia -i=cli < /dev/null
