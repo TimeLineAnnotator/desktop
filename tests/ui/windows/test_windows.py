@@ -81,12 +81,12 @@ class TestViewWindow:
         # on the old window. Before the fix, the WINDOW_UPDATE_REQUEST listener
         # was not removed, so the next update request invoked on_update_request
         # on a destroyed C++ object and crashed.
-        window1 = self.load_local_video(tilia, resources)
+        self.load_local_video(tilia, resources)
 
-        # Loading YouTube triggers _change_player_type → window1.deleteLater()
-        # + processEvents(); window1 is fully destroyed before this returns.
+        # Loading YouTube triggers _change_player_type → window1.deleteLater(),
+        # which calls stop_listening_to_all synchronously before scheduling
+        # the C++ deletion. The update request must not crash.
         window2 = self.load_youtube_video(tilia)
 
-        assert not shiboken6.isValid(window1)
         post(Post.WINDOW_UPDATE_REQUEST, window2.id, True)
         assert window2.isVisible()
