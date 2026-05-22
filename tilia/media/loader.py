@@ -28,12 +28,15 @@ def load_media(
 
 def _change_player_type(player, media_type):
     player.destroy()
-    # Process deferred deletions (e.g. QWebEngineView.deleteLater) before
-    # creating the new player; on macOS the renderer process must be gone
-    # before QMediaPlayer initialises or they deadlock over shared resources.
-    from PySide6.QtWidgets import QApplication
+    # Flush DeferredDelete events so the old widget's C++ object is actually
+    # destroyed before the new player is created. On macOS, QWebEngineView
+    # holds exclusive CoreAudio/AVFoundation resources; if the renderer process
+    # is still alive when QMediaPlayer initialises, they deadlock.
+    # processEvents() alone doesn't flush DeferredDelete (Qt requires a full
+    # event-loop cycle), but sendPostedEvents with DeferredDelete does.
+    from PySide6.QtCore import QCoreApplication, QEvent
 
-    QApplication.processEvents()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     return get(Get.PLAYER_CLASS, media_type)()
 
 
