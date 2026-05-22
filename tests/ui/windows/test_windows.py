@@ -1,6 +1,5 @@
 import pytest
 import shiboken6
-from PySide6.QtWidgets import QDialog
 
 from tests.utils import (
     EXAMPLE_VIDEO_FILENAME,
@@ -8,16 +7,8 @@ from tests.utils import (
     load_local_media,
     load_youtube_media,
 )
-from tilia.requests import Post, listen, post, stop_listening_to_all
+from tilia.requests import Post, listen, post
 from tilia.ui.windows import WindowKind
-from tilia.ui.windows.view_window import ViewWindow
-
-
-class _SimpleViewWindow(ViewWindow, QDialog):
-    """Minimal ViewWindow for tests that need a ViewWidget without QWebEngineView."""
-
-    def __init__(self):
-        super().__init__("TiLiA Player", menu_title="YouTube Player")
 
 
 @pytest.mark.parametrize("window_kind", WindowKind)
@@ -84,29 +75,18 @@ class TestViewWindow:
         assert shiboken6.isValid(window)
 
     def test_swapping_player_type_does_not_crash_window_update_request(
-        self, tilia, qtui
+        self, tilia, qtui, resources
     ):
-        # Reproduction of the leak described in
-        # https://github.com/TimeLineAnnotator/desktop/issues/436.
-        # Loading a different media type swaps the player and calls
-        # `deleteLater()` on the previous window. The Python wrapper
-        # survives, so the listener registered in `ViewWidget.__init__`
-        # for `Post.WINDOW_UPDATE_REQUEST` stays in the listener dict.
-        #
-        # The stale-listener behaviour is independent of player type; plain
-        # ViewWindows (QDialog-based) avoid QVideoWidget / QWebEngineView,
-        # both of which block in macOS offscreen mode when force-deleted.
-        window1 = _SimpleViewWindow()
-        window2 = _SimpleViewWindow()
+        # Regression for issue #436: swapping player type calls deleteLater()
+        # on the old window. Before the fix, the WINDOW_UPDATE_REQUEST listener
+        # was not removed, so the next update request invoked on_update_request
+        # on a destroyed C++ object and crashed.
+        window1 = self.load_local_video(tilia, resources)
 
-        # Simulate the production leak: window1's listener stays registered
-        # without going through deleteLater (which would call stop_listening_to_all).
-        # We do not need to destroy the C++ object — the fix under test is the
-        # `window_id == self.id` guard in on_update_request, which is a pure
-        # Python check safe to exercise on a live object.
+        # Loading YouTube triggers _change_player_type → window1.deleteLater()
+        # + processEvents(); window1 is fully destroyed before this returns.
+        window2 = self.load_youtube_video(tilia)
+
+        assert not shiboken6.isValid(window1)
         post(Post.WINDOW_UPDATE_REQUEST, window2.id, True)
         assert window2.isVisible()
-
-        # Clean up both listeners so they do not pollute subsequent reruns.
-        stop_listening_to_all(window1)
-        stop_listening_to_all(window2)
