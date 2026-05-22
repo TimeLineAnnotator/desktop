@@ -96,8 +96,7 @@ jobs:
     - name: Check Program
       shell: bash
       run: |
-        export QT_DEBUG_PLUGINS=1
         echo "Starting GUI..."
-        tilia & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: GUI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
+        QT_DEBUG_PLUGINS=1 tilia & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: GUI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
         echo "Starting CLI..."
-        tilia -i=cli & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: CLI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
+        printf 'about\nquit\n' | tilia -i=cli || true

@@ -115,7 +115,7 @@ class CLI:
                 cmd = input(">>> ")
                 self.parse_and_run(cmd)
             except EOFError:
-                self.exit(1, "EOFError")
+                self.exit(0)
 
     def parse_and_run(self, cmd):
         """Returns True if command was unsuccessful, False otherwise"""
