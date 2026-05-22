@@ -28,6 +28,12 @@ def load_media(
 
 def _change_player_type(player, media_type):
     player.destroy()
+    # Process deferred deletions (e.g. QWebEngineView.deleteLater) before
+    # creating the new player; on macOS the renderer process must be gone
+    # before QMediaPlayer initialises or they deadlock over shared resources.
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.processEvents()
     return get(Get.PLAYER_CLASS, media_type)()
 
 
