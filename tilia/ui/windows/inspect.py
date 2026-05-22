@@ -66,7 +66,9 @@ class Inspect(QDockWidget):
 
         self.inspect_widget = QWidget(self.stack_widget)
         self.inspect_layout = QFormLayout(self.inspect_widget)
-        self.inspect_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.inspect_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        )
         self.inspect_widget.setLayout(self.inspect_layout)
 
         self.empty_label = QLabel("<h2> No element selected.</h2>")
