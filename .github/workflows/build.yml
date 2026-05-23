@@ -26,6 +26,7 @@ jobs:
     env:
       QT_DEBUG_PLUGINS: 1
       QT_QPA_PLATFORM: offscreen
+      GH_TOKEN: ${{ github.token }}
 
     steps:
       - uses: actions/checkout@v6
@@ -53,20 +54,42 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e . --group build
 
+      - name: Set up .NET 10 (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        continue-on-error: true
+        run: |
+          # brew is reliable on macOS runners; setup-dotnet fails on Intel. Force-link to
+          # overwrite any stale runner dotnet, then export DOTNET_ROOT from Homebrew's libexec.
+          brew install dotnet@10 2>/dev/null || true
+          brew link --overwrite dotnet 2>/dev/null || true
+          BREW_DOTNET="$(brew --prefix dotnet 2>/dev/null || echo '')"
+          if [ -n "$BREW_DOTNET" ] && [ -d "$BREW_DOTNET/libexec" ]; then
+            echo "DOTNET_ROOT=$BREW_DOTNET/libexec" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install vpk CLI
+        shell: bash
+        run: |
+          dotnet tool install -g vpk --prerelease
+          echo "=== vpk smoke-test ===" && vpk --help 2>&1 | head -3
+
       - name: Build executable
         id: build-exe
         shell: bash
         run: |
           echo "python scripts/deploy.py ${{github.ref_name}} ${{matrix.os}}" | bash
 
-      - name: Test executable [mac]
+      - name: Test installer [mac]
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          APP="${{ steps.build-exe.outputs.out-filepath }}/Contents/MacOS/${{ steps.build-exe.outputs.out-binary-name }}"
-          echo "Checking dependencies"
+          SETUP=$(find "${{ steps.build-exe.outputs.vpk-outdir }}" -name "*-Setup.pkg" | head -1)
+          sudo installer -pkg "$SETUP" -target /
+          APP=$(find /Applications -maxdepth 1 -name "TiLiA*.app" 2>/dev/null | head -1)
+          BINARY="$APP/Contents/MacOS/${{ steps.build-exe.outputs.out-binary-name }}"
           echo "Starting GUI..."
-          "$APP" &
+          "$BINARY" &
           APP_PID=$!
           sleep 10
           if ! kill -0 $APP_PID 2>/dev/null; then
@@ -76,53 +99,68 @@ jobs:
           kill $APP_PID 2>/dev/null || true
           wait $APP_PID 2>/dev/null || true
           echo "Starting CLI..."
-          "$APP" --user-interface=cli &
+          "$BINARY" --user-interface=cli &
           CLI_PID=$!
           sleep 10
           kill $CLI_PID 2>/dev/null || echo "WARNING: CLI exited before 10s"
           wait $CLI_PID 2>/dev/null || true
 
-          cd "$(dirname ${{ steps.build-exe.outputs.out-filepath }})"
-          BUNDLE=$(basename "${{ steps.build-exe.outputs.out-filepath }}")
-          zip -ry9 "${{ steps.build-exe.outputs.out-filename }}.zip" "$BUNDLE" || true
-
-      - name: Test executable [Windows]
+      - name: Test installer [Windows]
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          echo "Checking dependencies"
+          SETUP=$(find "${{ steps.build-exe.outputs.vpk-outdir }}" -name "*-Setup.exe" | head -1)
+          "$SETUP" --silent
+          INSTALL_DIR="$(cygpath "$LOCALAPPDATA")/TiLiA"
+          BINARY=$(find "$INSTALL_DIR/current" -maxdepth 1 -name "${{ steps.build-exe.outputs.stable-exe-name }}" 2>/dev/null | head -1)
+          if [ -z "$BINARY" ]; then
+            echo "::error::Installed binary not found in $INSTALL_DIR/current"
+            exit 1
+          fi
           echo "Starting GUI..."
           start=$(date +%s)
-          echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+          timeout 10 "$BINARY" || true
           if (($(date +%s) - $start < 10)); then
             echo "::error::Process terminated early! Potential errors in build."
             exit 1
           fi
           echo "Starting CLI..."
-          echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }} --user-interface=cli" | bash || true
+          timeout 10 "$BINARY" --user-interface=cli || true
 
-      - name: Test executable [Linux]
+      - name: Test portable [Linux]
         id: set-path
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          echo "path=${{ steps.build-exe.outputs.out-filename }}" >> "$GITHUB_OUTPUT"
-          echo "Checking dependencies"
+          VPK_DIR="${{ steps.build-exe.outputs.vpk-outdir }}"
+          APPIMAGE=$(find "$VPK_DIR" -name "*.AppImage" 2>/dev/null | head -1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "::error::No AppImage found in $VPK_DIR"; exit 1
+          fi
+          TMPDIR=$(mktemp -d)
+          cd "$TMPDIR" && "$APPIMAGE" --appimage-extract 2>/dev/null || true
+          BINARY=$(find "$TMPDIR/squashfs-root" -maxdepth 3 -name "${{ steps.build-exe.outputs.stable-exe-name }}" -type f | head -1)
+          chmod +x "$BINARY"
+          echo "path=$(basename $APPIMAGE)" >> "$GITHUB_OUTPUT"
           echo "Starting GUI..."
           start=$(date +%s)
-          echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }}" | bash || true
+          timeout 10 "$BINARY" || true
           if (($(date +%s) - $start < 10)); then
             echo "::error::Process terminated early! Potential errors in build."
             exit 1
           fi
           echo "Starting CLI..."
-          echo "timeout 10 ${{ steps.build-exe.outputs.out-filepath }} --user-interface=cli" | bash || true
+          timeout 10 "$BINARY" --user-interface=cli || true
 
-      - name: Upload executable
+      - name: Upload Velopack packages
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.build-exe.outputs.out-filename }}
-          path: build/*/exe
+          name: velopack-${{ steps.build-exe.outputs.out-filename }}
+          path: |
+            build/*/velopack/TiLiA-${{ steps.build-exe.outputs.pack-version }}-*.nupkg
+            build/*/velopack/*-Setup.pkg
+            build/*/velopack/*-Setup.exe
+            build/*/velopack/*.AppImage
           retention-days: 1
 
   deploy:
@@ -135,34 +173,44 @@ jobs:
       QT_DEBUG_PLUGINS: 1
       QT_QPA_PLATFORM: offscreen
     steps:
-      - name: Download executable
+      - name: Download Velopack packages
         uses: actions/download-artifact@v8
         with:
-          path: build/
-          pattern: 'TiLiA-v*'
+          path: build/velopack/
+          pattern: 'velopack-TiLiA-v*'
           merge-multiple: true
 
-      - name: Test Linux still works in a clean environment
+      - name: Test Linux portable in a clean environment
         continue-on-error: true
         run: |
-          if [ -e build/ubuntu/exe/${{ needs.build.outputs.linux-build }} ];
-            then
-              chmod ugo+x build/ubuntu/exe/${{ needs.build.outputs.linux-build }}
-              echo "Starting GUI..."
-              start=$(date +%s)
-              echo "timeout 10 build/ubuntu/exe/${{ needs.build.outputs.linux-build }}" | bash || true
-              if (($(date +%s) - $start < 10));
-                then
-                  echo "Linux didn't work... Check libraries with previous step?";
-              else
-                echo "Linux started in a clean environment!";
-              fi;
-              echo "Starting CLI..."
-              echo "timeout 10 build/ubuntu/exe/${{ needs.build.outputs.linux-build }} --user-interface=cli" | bash || true
+          PORTABLE_NAME="${{ needs.build.outputs.linux-build }}"
+          PORTABLE=$(find build/velopack -name "$PORTABLE_NAME" 2>/dev/null | head -1)
+          if [ -z "$PORTABLE" ]; then
+            echo "Portable not found: $PORTABLE_NAME"
+            ls build -ltraR |egrep -v '\.$|\.\.|\.:|\.\/|total|^d' | sed '/^$/d' || true
           else
-            echo "file not found!";
+            if [[ "$PORTABLE" == *.AppImage ]]; then
+              chmod +x "$PORTABLE"
+              APPIMAGE=$(realpath "$PORTABLE")
+              TMPDIR=$(mktemp -d)
+              cd "$TMPDIR" && "$APPIMAGE" --appimage-extract 2>/dev/null || true
+              EXE_NAME=$(basename "$APPIMAGE" | cut -d'-' -f1)
+              BINARY=$(find "$TMPDIR/squashfs-root" -maxdepth 3 -name "$EXE_NAME" -type f | head -1)
+            else
+              BINARY="$PORTABLE"
+            fi
+            chmod ugo+x "$BINARY"
+            echo "Starting GUI..."
+            start=$(date +%s)
+            timeout 10 "$BINARY" || true
+            if (($(date +%s) - $start < 10)); then
+              echo "Linux didn't work... Check libraries with previous step?";
+            else
+              echo "Linux started in a clean environment!";
+            fi
+            echo "Starting CLI..."
+            timeout 10 "$BINARY" --user-interface=cli || true
           fi
-          ls build -ltraR |egrep -v '\.$|\.\.|\.:|\.\/|total|^d' | sed '/^$/d' || true
 
       - name: Upload
         uses: "softprops/action-gh-release@v3"
@@ -171,19 +219,24 @@ jobs:
           tag_name: ${{github.ref_name}}
           make_latest: ${{github.event_name == 'push'}}
           generate_release_notes: true
-          files: |
-            build/*/exe/TiLiA-v*
+          files: build/velopack/**
 
       - name: Check output
         env:
-          RELEASE_ASSETS: ${{ steps.release.outputs.assets }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Counting assets released..."
-          ASSET_COUNT=$(jq 'length' <<< "$RELEASE_ASSETS")
-          if [ "$ASSET_COUNT" -eq 4 ]; then
-            echo "4 assets found!"
-          else
-            echo "::error::Incorrect number of assets! Got $ASSET_COUNT. Potential errors in build."
-            echo "assets: $RELEASE_ASSETS"
+          ASSETS=$(gh release view ${{ github.ref_name }} --repo ${{ github.repository }} --json assets --jq '[.assets[].name]')
+          FULL_PACKAGES=$(echo "$ASSETS" | jq -r '.[] | select(endswith("-full.nupkg"))')
+          DOWNLOADS=$(echo "$ASSETS" | jq -r '.[] | select(test("(Setup\\.(pkg|exe)|\\.AppImage)$"))')
+          DOWNLOAD_COUNT=$(echo "$DOWNLOADS" | grep -c . || true)
+          echo "Full packages:"; echo "$FULL_PACKAGES"
+          echo "User downloads ($DOWNLOAD_COUNT/4):"; echo "$DOWNLOADS"
+          MISSING_CHANNELS=()
+          for channel in macos-silicon macos-intel ubuntu windows; do
+            echo "$FULL_PACKAGES" | grep -q "${channel}-full\.nupkg$" || MISSING_CHANNELS+=("$channel")
+          done
+          if [ "${#MISSING_CHANNELS[@]}" -gt 0 ] || [ "$DOWNLOAD_COUNT" -ne 4 ]; then
+            [ "${#MISSING_CHANNELS[@]}" -gt 0 ] && echo "::error::Missing full.nupkg for channels: ${MISSING_CHANNELS[*]}"
+            [ "$DOWNLOAD_COUNT" -ne 4 ] && echo "::error::Expected 4 user downloads, got $DOWNLOAD_COUNT."
             exit 1
           fi

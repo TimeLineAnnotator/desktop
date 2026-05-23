@@ -29,7 +29,7 @@ dependencies = [
     "sentry-sdk>=2.21.0",
     "soundfile~=0.13.1",
     "TiLiA",
-    "tomli; python_version < '3.11'"
+    "tomli; python_version < '3.11'",
 ]
 
 authors = [
@@ -52,6 +52,7 @@ build = [
     "ordered-set==4.1.0",
     "pyyaml",
     "setuptools<82.0.0; python_version >= '3.12'", #  setuptools>82.0.0 no longer provides pkg_resources
+    "velopack",
     "wheel==0.38.4",
     "zstandard==0.20.0"
 ]
@@ -84,11 +85,9 @@ enable-plugins = ["pyside6"]
 include-qt-plugins = ["multimedia"]
 nofollow-import-to = ["*.tests", "*.test"]
 noinclude-qt-translations = true
-onefile-tempdir-spec = "{CACHE_DIR}/{PRODUCT}/v{VERSION}"
 remove-output = true
 report = "compilation-report.xml"
 deployment = true
-mode = "app"
 
 [tool.pytest.ini_options]
 env = [
