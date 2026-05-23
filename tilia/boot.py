@@ -71,6 +71,11 @@ def handle_qt_log_message(type, context, msg):
 def boot():
     sys.excepthook = handle_exception
 
+    if "__compiled__" in globals():
+        from tilia.lifecycle import init
+
+        init()
+
     args = setup_parser()
     setup_dirs()
     logger.setup()
