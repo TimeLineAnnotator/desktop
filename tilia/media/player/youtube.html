@@ -23,6 +23,14 @@
       const tag = document.createElement("script");
       tag.id = "iframe-temp";
       tag.src = "https://www.youtube.com/iframe_api";
+      tag.addEventListener("error", function () {
+        const msg = "Could not reach YouTube. Check your internet connection.";
+        const tryNotify = () => {
+          if (backend) backend.on_error(msg);
+          else setTimeout(tryNotify, 50);
+        };
+        tryNotify();
+      });
       const firstScriptTag = document.getElementsByTagName("script")[0];
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
@@ -129,7 +137,7 @@
             break;
 
           default:
-            backend.on_error("Error code: ${event.data}.");
+            backend.on_error(`Error code: ${event.data}.`);
         }
       }
 
