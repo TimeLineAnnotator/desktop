@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 import math
-from bisect import bisect
+from bisect import bisect, bisect_left
 from contextlib import contextmanager
 from enum import Enum
 from math import isclose
@@ -584,7 +584,9 @@ class BeatTimeline(Timeline):
             raise ValueError(f'No beat with index "{beat_index}" at {self}.')
 
     def get_beat_index(self, beat: Beat) -> int:
-        return self.components.index(beat)
+        return bisect_left(
+            self.component_manager._components, beat.time, key=lambda b: b.time
+        )
 
     def propagate_measure_number_change(self, start_index: int):
         for j in range(len(self.measure_numbers[start_index + 1 :])):
