@@ -44,26 +44,27 @@ class BeatTLComponentManager(TimelineComponentManager):
         return {b.time for b in self._components}
 
     def update_is_first_in_measure_of_subsequent_beats(self, start_index):
-        # metric_position depends on get_beat_index / get_measure_index /
-        # measure_numbers / beats_in_measure, none of which involve the
-        # is_first_in_measure flag. Mutating that flag therefore can't make
-        # metric_fraction_dicts stale, so no rebuild is needed here. Every
-        # caller of this method either rebuilt the dicts via
-        # recalculate_measures before invoking it (create_component,
-        # restore_state, CSV parser) or rebuilds them after, separately
-        # (delete_component's UI follow-up).
-        self.compute_metric_fraction_dict = False
-        beats_that_start_measure = set(self.timeline.beats_that_start_measures)
+        # Set is_first_in_measure directly instead of routing through
+        # set_component_data: at N=5000 a middle-insert flips ~N/2 beats,
+        # and each set_component_data fires Post.TIMELINE_COMPONENT_SET_DATA_DONE,
+        # which the UI translates into a per-beat
+        # `update_is_first_in_measure` cascade. Callers of this method
+        # already follow up with Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
+        # which drives a single bulk UI pass — so the per-set posts were
+        # pure duplicate work.
+        #
+        # Direct assignment is safe because:
+        # - `is_first_in_measure` isn't in `Beat.SERIALIZABLE`, so the
+        #   component hash doesn't depend on it.
+        # - `metric_position` doesn't read it, so the metric_fraction
+        #   dicts can't go stale.
+        # - The undo/redo snapshot doesn't capture it either; it's
+        #   recomputed via this same method on restore.
+        beats_that_start_measure = self.timeline.beats_that_start_measures_set
         for i, beat in enumerate(self.timeline[start_index:]):
             is_first_in_measure = start_index + i in beats_that_start_measure
             if is_first_in_measure != beat.is_first_in_measure:
-                self.timeline.set_component_data(
-                    beat.id,
-                    "is_first_in_measure",
-                    is_first_in_measure,
-                )
-
-        self.compute_metric_fraction_dict = True
+                beat.is_first_in_measure = is_first_in_measure
 
     def create_component(
         self, kind: ComponentKind, timeline, id, *args, **kwargs

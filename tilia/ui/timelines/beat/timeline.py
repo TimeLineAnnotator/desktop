@@ -215,8 +215,12 @@ class BeatTimelineUI(TimelineUI):
         return self.timeline.should_display_measure_number(measure_index)
 
     def on_measure_number_change_done(self, start_index: int):
+        # update_is_first_in_measure() covers both the body height (which
+        # depends on is_first_in_measure) and the label. Bulk callers no
+        # longer fire Post.TIMELINE_COMPONENT_SET_DATA_DONE per flipped
+        # beat, so this pass is the only path that refreshes those bodies.
         for beat_ui in self[start_index:]:
-            beat_ui.update_label()
+            beat_ui.update_is_first_in_measure()
 
     def get_copy_data_from_selected_elements(self):
         return self.get_copy_data_from_beat_uis(self.selected_elements)
