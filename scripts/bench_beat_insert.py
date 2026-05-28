@@ -35,6 +35,12 @@ def main():
     parser.add_argument("--profile", action="store_true", help="enable cProfile")
     parser.add_argument("--profile-top", type=int, default=30)
     parser.add_argument("--runs", type=int, default=3)
+    parser.add_argument(
+        "--position",
+        choices=["middle", "end"],
+        default="middle",
+        help="insert point: middle (worst case) or end (live-tap workload)",
+    )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
@@ -83,7 +89,10 @@ def run_bench(args):
     fill_elapsed = time.perf_counter() - fill_start
 
     spacing = 100.0 / args.n
-    seek_time = (args.n // 2) * spacing + spacing / 2
+    if args.position == "end":
+        seek_time = (args.n - 1) * spacing + spacing / 2
+    else:
+        seek_time = (args.n // 2) * spacing + spacing / 2
     commands.execute("media.seek", seek_time)
     q_app.processEvents()
 
