@@ -12,6 +12,7 @@ import tilia.errors
 from tilia.requests import Get, LongOperation, Post, get, long_operation, post
 from tilia.settings import settings
 from tilia.timelines.base.component.pointlike import crop_pointlike
+from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.timeline import (
     TC,
     Timeline,
@@ -537,26 +538,75 @@ class BeatTimeline(Timeline):
         self.update_metric_fraction_dicts()
 
     def update_metric_fraction_dicts(self):
-        self.metric_fraction_to_beat_dict = {}
-        self.metric_fraction_to_time = {}
-        self.time_to_metric_fraction = {}
-        for beat in self.components:
+        # Two-pointer pass over components: walk btsm in parallel with
+        # beat-index enumeration so we never need a bisect per beat. We also
+        # populate `_cached_metric_position` inline — `recalculate_measures`
+        # cleared the caches just before this call, so every beat would be a
+        # cache miss otherwise, and the values we compute here are exactly
+        # what `metric_position` would lazily produce.
+        metric_fraction_to_beat_dict: dict[float, list[Beat]] = {}
+        metric_fraction_to_time: dict[float, list[float]] = {}
+        time_to_metric_fraction: dict[float, float] = {}
+
+        components = self.components
+        if not components:
+            self.metric_fraction_to_beat_dict = metric_fraction_to_beat_dict
+            self.metric_fraction_to_time = metric_fraction_to_time
+            self.time_to_metric_fraction = time_to_metric_fraction
+            return
+
+        btsm = self.beats_that_start_measures
+        measure_numbers = self.measure_numbers
+        beats_in_measure = self.beats_in_measure
+        btsm_count = len(btsm)
+
+        measure_index = 0
+        next_measure_start = btsm[1] if btsm_count > 1 else math.inf
+
+        for beat_index, beat in enumerate(components):
+            while beat_index >= next_measure_start:
+                measure_index += 1
+                next_measure_start = (
+                    btsm[measure_index + 1]
+                    if measure_index + 1 < btsm_count
+                    else math.inf
+                )
+
+            beat_in_measure = beat_index - btsm[measure_index] + 1
+            beat_count_in_measure = beats_in_measure[measure_index]
+            measure_number = measure_numbers[measure_index]
+
+            beat._cached_metric_position = MetricPosition(
+                measure_number, beat_in_measure, beat_count_in_measure
+            )
+
             metric_fraction = round(
-                (mp := beat.metric_position).measure
-                + (mp.beat - 1) / mp.measure_beat_count,
+                measure_number + (beat_in_measure - 1) / beat_count_in_measure,
                 3,
             )
-            if mp := self.metric_fraction_to_beat_dict.get(metric_fraction):
-                mp.append(beat)
-                self.metric_fraction_to_time[metric_fraction].append(beat.time)
-                self.time_to_metric_fraction[beat.time] = metric_fraction
+            if metric_fraction in metric_fraction_to_beat_dict:
+                metric_fraction_to_beat_dict[metric_fraction].append(beat)
+                metric_fraction_to_time[metric_fraction].append(beat.time)
             else:
-                self.metric_fraction_to_beat_dict[metric_fraction] = [beat]
-                self.metric_fraction_to_time[metric_fraction] = [beat.time]
-                self.time_to_metric_fraction[beat.time] = metric_fraction
-        self.__sort_metric_to_beat()
-        self.__sort_metric_to_time()
-        self.__sort_time_to_metric()
+                metric_fraction_to_beat_dict[metric_fraction] = [beat]
+                metric_fraction_to_time[metric_fraction] = [beat.time]
+            time_to_metric_fraction[beat.time] = metric_fraction
+
+        # measure_numbers can be arbitrary (e.g. pickup measures number their
+        # entries non-monotonically), so the dicts may not be in sorted-key
+        # order even though we iterated beats in beat-index order. Reorder
+        # before publishing so downstream consumers (which rely on sorted-key
+        # iteration via list(...keys()) / bisect) see consistent state.
+        self.metric_fraction_to_beat_dict = {
+            k: metric_fraction_to_beat_dict[k]
+            for k in sorted(metric_fraction_to_beat_dict)
+        }
+        self.metric_fraction_to_time = {
+            k: metric_fraction_to_time[k] for k in sorted(metric_fraction_to_time)
+        }
+        self.time_to_metric_fraction = {
+            k: time_to_metric_fraction[k] for k in sorted(time_to_metric_fraction)
+        }
 
     def __sort_metric_to_beat(self) -> None:
         self.metric_fraction_to_beat_dict = {
