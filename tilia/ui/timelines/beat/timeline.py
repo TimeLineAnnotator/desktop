@@ -104,6 +104,7 @@ class BeatTimelineUI(TimelineUI):
             TimelineSelector.FIRST,
             text="Pause measure recalculation",
             shortcut="Ctrl+Shift+B",
+            icon="MediaPlaybackPause",
             checkable=True,
         )
 
@@ -171,7 +172,12 @@ class BeatTimelineUI(TimelineUI):
         component, _ = self.timeline.create_component(ComponentKind.BEAT, time)
         return False if component is None else True
 
-    def on_toggle_recalculate_measures(self):
+    def on_toggle_recalculate_measures(self, *_):
+        # *_ swallows the extra positional arg that
+        # TimelineUIContextMenu.add_action injects (the clicked timeline_ui).
+        # We already have `self` (picked by the FIRST selector) and don't need
+        # the menu-passed copy.
+        #
         # When the user is tapping many beats into a long timeline, the
         # per-beat recalc is the dominant cost. Pausing it skips the whole
         # `recalculate_measures` block inside `create_component` (gated on

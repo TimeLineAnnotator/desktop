@@ -679,3 +679,17 @@ class TestToggleRecalculateMeasures:
     def test_context_menu_includes_toggle(self, beat_tlui):
         menu = BeatTimelineUIContextMenu(beat_tlui, 0, 0)
         assert get_command_action(menu, TOGGLE_RECALC) is not None
+
+    def test_context_menu_trigger_does_not_error(self, beat_tlui):
+        # TimelineUIContextMenu.add_action rewires the action's triggered
+        # signal to pass the clicked timeline_ui as an extra positional arg
+        # to commands.execute. Make sure the toggle callback tolerates it
+        # (regression guard against the "takes 1 positional argument but 2
+        # were given" TypeError).
+        menu = BeatTimelineUIContextMenu(beat_tlui, 0, 0)
+        action = get_command_action(menu, TOGGLE_RECALC)
+        assert action is not None
+        action.trigger()
+
+        cm = beat_tlui.timeline.component_manager
+        assert cm.compute_is_first_in_measure is False

@@ -9,4 +9,5 @@ class BeatTimelineToolbar(TimelineToolbar):
         "timeline.beat.distribute",
         "timeline.beat.set_measure_number",
         "timeline.beat.reset_measure_number",
+        "timeline.beat.toggle_recalculate_measures",
     ]
