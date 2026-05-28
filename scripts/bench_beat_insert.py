@@ -41,6 +41,12 @@ def main():
         default="middle",
         help="insert point: middle (worst case) or end (live-tap workload)",
     )
+    parser.add_argument(
+        "--batch",
+        action="store_true",
+        help="pause measure recalculation before tapping; resume at end. "
+        "Reports per-tap timings and the final catch-up cost.",
+    )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
@@ -104,6 +110,10 @@ def run_bench(args):
         print(f"# fill_with_beats took {fill_elapsed*1000:.1f} ms")
         print(f"# seeked to t={seek_time:.4f} (spacing={spacing:.4f})")
 
+    if args.batch:
+        commands.execute("timeline.beat.toggle_recalculate_measures")
+        q_app.processEvents()
+
     timings = []
     profiler = cProfile.Profile() if args.profile else None
     prev_count = len(beat_tl.components)
@@ -129,12 +139,21 @@ def run_bench(args):
         commands.execute("media.seek", seek_time)
         q_app.processEvents()
 
+    catch_up_elapsed = None
+    if args.batch:
+        t0 = time.perf_counter()
+        commands.execute("timeline.beat.toggle_recalculate_measures")
+        q_app.processEvents()
+        catch_up_elapsed = time.perf_counter() - t0
+
     print()
     for i, t in enumerate(timings):
         print(f"run {i + 1}: {t * 1000:8.2f} ms")
     print(f"min   : {min(timings) * 1000:8.2f} ms")
     print(f"median: {sorted(timings)[len(timings) // 2] * 1000:8.2f} ms")
     print(f"max   : {max(timings) * 1000:8.2f} ms")
+    if catch_up_elapsed is not None:
+        print(f"catch-up resume: {catch_up_elapsed * 1000:.2f} ms")
 
     if profiler:
         s = io.StringIO()
