@@ -211,7 +211,7 @@ class BeatTimelineUI(TimelineUI):
 
     def should_display_measure_number(self, beat_ui):
         beat = self.timeline.get_component(beat_ui.id)
-        beat_index = self.timeline.components.index(beat)
+        beat_index = self.timeline.get_beat_index(beat)
         measure_index, _ = self.timeline.get_measure_index(beat_index)
         return self.timeline.should_display_measure_number(measure_index)
 

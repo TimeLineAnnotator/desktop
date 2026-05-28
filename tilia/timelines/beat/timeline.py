@@ -69,7 +69,7 @@ class BeatTLComponentManager(TimelineComponentManager):
             if self.compute_is_first_in_measure:
                 self.timeline.recalculate_measures()
                 beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
-                beat_index = self.get_components().index(beat) + 1
+                beat_index = self.timeline.get_beat_index(beat) + 1
                 self.update_is_first_in_measure_of_subsequent_beats(beat_index)
                 measure_index = self.timeline.get_measure_index(beat_index)[0]
                 post(
@@ -90,7 +90,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         return Beat.validate_creation(time, self.beat_times)
 
     def delete_component(self, component: TC) -> None:
-        component_idx = self.get_components().index(component)
+        component_idx = self.timeline.get_beat_index(component)
         super().delete_component(component)
         if self.compute_is_first_in_measure:
             self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
@@ -380,7 +380,7 @@ class BeatTimeline(Timeline):
         ) + metric_fraction[idx - 1]
 
     def is_first_in_measure(self, beat):
-        return self.components.index(beat) in self.beats_that_start_measures_set
+        return self.get_beat_index(beat) in self.beats_that_start_measures_set
 
     def clear_cached_metric_positions(self):
         for beat in self:
