@@ -159,7 +159,6 @@ class BeatTimelineUI(TimelineUI):
 
         self.timeline_ui: BeatTimelineUI
         component, _ = self.timeline.create_component(ComponentKind.BEAT, time)
-        self.timeline.recalculate_measures()
         return False if component is None else True
 
     @staticmethod
