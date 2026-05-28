@@ -44,6 +44,14 @@ class BeatTLComponentManager(TimelineComponentManager):
         return {b.time for b in self._components}
 
     def update_is_first_in_measure_of_subsequent_beats(self, start_index):
+        # metric_position depends on get_beat_index / get_measure_index /
+        # measure_numbers / beats_in_measure, none of which involve the
+        # is_first_in_measure flag. Mutating that flag therefore can't make
+        # metric_fraction_dicts stale, so no rebuild is needed here. Every
+        # caller of this method either rebuilt the dicts via
+        # recalculate_measures before invoking it (create_component,
+        # restore_state, CSV parser) or rebuilds them after, separately
+        # (delete_component's UI follow-up).
         self.compute_metric_fraction_dict = False
         beats_that_start_measure = set(self.timeline.beats_that_start_measures)
         for i, beat in enumerate(self.timeline[start_index:]):
@@ -56,7 +64,6 @@ class BeatTLComponentManager(TimelineComponentManager):
                 )
 
         self.compute_metric_fraction_dict = True
-        self.timeline.update_metric_fraction_dicts()
 
     def create_component(
         self, kind: ComponentKind, timeline, id, *args, **kwargs
