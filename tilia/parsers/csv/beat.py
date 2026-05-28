@@ -124,21 +124,22 @@ def beats_from_csv(
             timeline.set_data("measure_numbers", measure_numbers)
             timeline.set_data("measures_to_force_display", measures_to_force_display)
 
-    with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
-        next(reader)
-        for row in reader:
-            if not row:
-                continue
+    component_manager = timeline.component_manager
+    with component_manager.is_first_in_measure_computation_paused():
+        with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
+            next(reader)
+            for row in reader:
+                if not row:
+                    continue
 
-            constructor_kwargs = {}
-            index = params_to_indices["time"]
-            constructor_kwargs["time"] = float(row[index])
+                constructor_kwargs = {"time": float(row[params_to_indices["time"]])}
 
-            component, fail_reason = timeline.create_component(
-                ComponentKind.BEAT, **constructor_kwargs
-            )
-            if not component:
-                errors.append(fail_reason)
+                component, fail_reason = timeline.create_component(
+                    ComponentKind.BEAT, **constructor_kwargs
+                )
+                if not component:
+                    errors.append(fail_reason)
 
-            timeline.recalculate_measures()
-        return True, errors
+    timeline.recalculate_measures()
+    component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+    return True, errors
