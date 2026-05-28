@@ -570,18 +570,15 @@ class BeatTimeline(Timeline):
         }
 
     def get_measure_index(self, beat_index: int) -> tuple[int, int]:
-        prev_n = 0
-        for measure_index, n in enumerate(self.beats_that_start_measures):
-            if beat_index < n:
-                return measure_index - 1, beat_index - prev_n
-            elif beat_index == n:
-                return measure_index, 0
-            prev_n = n
-
-        if beat_index > n:
-            return measure_index, 1
-        else:
+        btsm = self.beats_that_start_measures
+        if not btsm:
             raise ValueError(f'No beat with index "{beat_index}" at {self}.')
+        idx = bisect(btsm, beat_index) - 1
+        if idx < 0:
+            raise ValueError(f'No beat with index "{beat_index}" at {self}.')
+        if beat_index > btsm[-1]:
+            return len(btsm) - 1, 1
+        return idx, beat_index - btsm[idx]
 
     def get_beat_index(self, beat: Beat) -> int:
         return bisect_left(
