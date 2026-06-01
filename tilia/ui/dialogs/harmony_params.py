@@ -20,7 +20,10 @@ from tilia.timelines.harmony.constants import (
 from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.timelines.harmony.constants import (
     ACCIDENTAL_TO_INT,
+    INT_TO_NOTE_NAME,
     NOTE_NAME_TO_INT,
+    QUALITY_TO_ABBREVIATION,
+    Accidental,
 )
 from tilia.ui.timelines.harmony.elements.harmony_attrs import _INV_TO_STRING
 from tilia.ui.timelines.harmony.utils import (
@@ -54,6 +57,7 @@ class SelectHarmonyParams(QDialog):
             quality_combobox.insertItem(0, kind.replace("-", " ").capitalize(), kind)
         quality_combobox.setCurrentIndex(0)
         quality_combobox.currentIndexChanged.connect(self.on_quality_combobox_changed)
+        quality_combobox.currentIndexChanged.connect(self.on_combobox_changed)
 
         applied_to_combobox = self.applied_to_combobox = QComboBox()
         for i, value in INT_TO_APPLIED_TO_SUFFIX.items():
@@ -66,8 +70,18 @@ class SelectHarmonyParams(QDialog):
             settings.get("harmony_timeline", "default_harmony_display_mode")
         )
 
+        for cb in (
+            step_combobox,
+            accidental_combobox,
+            inversion_combobox,
+            applied_to_combobox,
+        ):
+            cb.currentIndexChanged.connect(self.on_combobox_changed)
+
         line_edit = self.line_edit = QLineEdit()
         line_edit.textEdited.connect(self.on_text_edited)
+
+        self._populating = False
 
         self.current_key = current_key
         current_key_label = QLabel(
@@ -119,6 +133,16 @@ class SelectHarmonyParams(QDialog):
             "level": 1,
         }
 
+    def on_combobox_changed(self):
+        if self._populating:
+            return
+        step = self.step_combobox.currentData()
+        accidental = self.accidental_combobox.currentData()
+        quality = self.quality_combobox.currentData()
+        note = INT_TO_NOTE_NAME[step] + Accidental.get_from_int("music21", accidental)
+        self.line_edit.setText(note + QUALITY_TO_ABBREVIATION.get(quality, ""))
+        self.line_edit.setStyleSheet("")
+
     def on_text_edited(self):
         success = self.populate_from_text()
         if not success:
@@ -151,6 +175,7 @@ class SelectHarmonyParams(QDialog):
             result = combobox.findData(params[param])
             return result if result != -1 else 0
 
+        self._populating = True
         self.step_combobox.setCurrentIndex(self.step_combobox.findData(params["step"]))
         self.accidental_combobox.setCurrentIndex(
             get_index_by_param(self.accidental_combobox, "accidental")
@@ -167,6 +192,7 @@ class SelectHarmonyParams(QDialog):
                     INT_TO_APPLIED_TO_SUFFIX[params["applied_to"]]
                 )
             )
+        self._populating = False
 
     def populate_from_text(self):
         text = self.line_edit.text()
