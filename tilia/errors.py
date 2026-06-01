@@ -45,10 +45,6 @@ MEDIA_LOAD_FAILED = Error(
 )
 YOUTUBE_URL_INVALID = Error("Invalid YouTube URL", "{} is not a valid URL.")
 EXPORT_AUDIO_FAILED = Error("Export Audio", "{}")
-INVALID_HARMONY_INVERSION = Error(
-    "Invalid harmony inversion",
-    "Can't set inversion '{}' on a chord of type '{}'. Please select a valid inversion for this chord type.",
-)
 ADD_MODE_FAILED = Error("Add key failed", "Adding key failed: {}.")
 ADD_HARMONY_FAILED = Error("Add harmony failed", "{}")
 ADD_PDF_MARKER_FAILED = Error("Add page marker failed", "Can't add page marker: {}")

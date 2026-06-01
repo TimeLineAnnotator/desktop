@@ -2,9 +2,9 @@ from tilia.timelines.harmony.constants import (
     FONT_TYPES,
     HARMONY_ACCIDENTALS,
     HARMONY_DISPLAY_MODES,
-    HARMONY_INVERSIONS,
     HARMONY_QUALITIES,
     MODE_TYPES,
+    get_inversion_amount,
 )
 
 
@@ -12,8 +12,8 @@ def validate_quality(value):
     return value in HARMONY_QUALITIES
 
 
-def validate_inversion(value):
-    return value in HARMONY_INVERSIONS
+def validate_inversion(value: int, quality: str) -> bool:
+    return 0 <= value <= get_inversion_amount(quality)
 
 
 def validate_accidental(value):
