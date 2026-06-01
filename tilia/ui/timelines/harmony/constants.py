@@ -1,6 +1,5 @@
-import music21
-
-from tilia.timelines.harmony.constants import HARMONY_QUALITIES
+import music21.harmony
+import music21.pitch
 
 ROMAN_TO_INT = {
     "I": 0,
@@ -59,13 +58,15 @@ class Accidental:
 NOTE_NAME_TO_INT = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
 INT_TO_NOTE_NAME = {v: k for k, v in NOTE_NAME_TO_INT.items()}
 
-STEP_TO_PITCH_CLASS = {0: 0, 1: 2, 2: 4, 3: 5, 4: 7, 5: 9, 6: 11}
-
-QUALITY_TO_ABBREVIATION = {
-    qlt: music21.harmony.CHORD_TYPES[qlt][1][0] for qlt in HARMONY_QUALITIES
+STEP_TO_PITCH_CLASS = {
+    i: music21.pitch.Pitch(s).pitchClass
+    for i, s in enumerate(["C", "D", "E", "F", "G", "A", "B"])
 }
 
-INVERSION_TO_INTERVAL = {1: 3, 2: 5, 3: 7}
+QUALITY_TO_ABBREVIATION = {
+    qlt: data[1][0] for qlt, data in music21.harmony.CHORD_TYPES.items()
+}
+
 
 CHORD_COMMON_NAME_TO_TYPE = {
     "augmented seventh chord": "augmented-seventh",
