@@ -41,14 +41,17 @@ class ModeUI(TimelineUIElement):
 
     @property
     def label(self):
-        center = INT_TO_NOTE_NAME[self.get_data("step")] + Accidental.get_from_int(
+        tonic = INT_TO_NOTE_NAME[self.get_data("step")] + Accidental.get_from_int(
             "musanalysis",
             self.get_data("accidental"),
         )
-        result = center if self.get_data("type") == "major" else center.lower()
-        if result[0] == "b":
-            result = "@" + result
-        return result
+        mode_type = self.get_data("type")
+        if mode_type == "major":
+            return ("@" if tonic[0] == "b" else "") + tonic
+        if mode_type == "minor":
+            result = tonic.lower()
+            return ("@" if result[0] == "b" else "") + result
+        return tonic + " " + mode_type.capitalize()
 
     @property
     def key(self):
@@ -163,7 +166,16 @@ class ModeBody(QGraphicsTextItem):
         self.setPos(self.get_point(x, y))
 
     def set_text(self, value: str):
-        self.setPlainText(value)
+        if " " in value:
+            idx = value.index(" ")
+            tonic = value[:idx]
+            mode_name = value[idx + 1 :]
+            self.setHtml(
+                f"<span>{tonic}&nbsp;</span>"
+                f'<span style="font-family: Arial; font-size: 10pt;">{mode_name}</span>'
+            )
+        else:
+            self.setPlainText(value)
 
     def on_select(self):
         font = self.font()
