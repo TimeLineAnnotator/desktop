@@ -5,7 +5,9 @@ import pytest
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_harmony, add_mode
 from tests.ui.timelines.interact import click_timeline_ui
+from tilia.requests import Post, post
 from tilia.ui import commands
+from tilia.ui.windows.kinds import WindowKind
 
 
 @pytest.fixture
@@ -150,3 +152,56 @@ class TestDoubleClick:
         harmony_tlui[0].on_double_left_click(None)
 
         mock.assert_not_called()
+
+
+class TestInversionInspectorItems:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def open_inspector_for(self, harmony_ui, qtui):
+        click_harmony_ui(harmony_ui)
+        commands.execute("timeline.element.inspect")
+        return qtui._windows[WindowKind.INSPECT]
+
+    def test_major_triad_has_three_inversion_choices(self, qtui, harmony_tlui):
+        add_harmony(quality="major")
+        inspector = self.open_inspector_for(harmony_tlui.harmonies()[0], qtui)
+
+        inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
+        assert inversion_combo.count() == 3  # inversions 0, 1, 2
+
+    def test_ninth_chord_has_five_inversion_choices(self, qtui, harmony_tlui):
+        add_harmony(quality="dominant-ninth")
+        inspector = self.open_inspector_for(harmony_tlui.harmonies()[0], qtui)
+
+        inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
+        assert inversion_combo.count() == 5  # inversions 0, 1, 2, 3, 4
+
+    def test_inversion_choices_update_when_quality_changes(self, qtui, harmony_tlui):
+        add_harmony(quality="major")
+        inspector = self.open_inspector_for(harmony_tlui.harmonies()[0], qtui)
+
+        inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
+        quality_combo = inspector.field_name_to_widgets["Quality"][1]
+        assert inversion_combo.count() == 3  # major: inversions 0, 1, 2
+
+        quality_combo.setCurrentIndex(quality_combo.findData("dominant-ninth"))
+
+        assert inversion_combo.count() == 5  # dominant-ninth: inversions 0, 1, 2, 3, 4
+
+    def test_inversion_clamped_to_max_when_quality_reduces_range(
+        self, qtui, harmony_tlui
+    ):
+        add_harmony(quality="dominant-ninth", inversion=4)
+        inspector = self.open_inspector_for(harmony_tlui.harmonies()[0], qtui)
+
+        inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
+        quality_combo = inspector.field_name_to_widgets["Quality"][1]
+        assert inversion_combo.currentData() == 4
+
+        quality_combo.setCurrentIndex(quality_combo.findData("major"))
+
+        # inversion 4 is invalid for major; should clamp to max (2)
+        assert inversion_combo.currentData() == 2

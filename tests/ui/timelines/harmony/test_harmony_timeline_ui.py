@@ -131,6 +131,58 @@ class TestRomanNumeralDisplay:
 
         assert harmony_tlui[0].label.startswith(expected_start)
 
+    def test_roman_label_for_ninth_chord_high_inversion(self, harmony_tlui):
+        # inversion=4 places the 9th in the bass; label is dynamically computed
+        add_harmony(
+            display_mode="roman", quality="half-diminished-minor-ninth", inversion=4
+        )
+        label = harmony_tlui.harmonies()[0].label
+        assert label  # no crash, non-empty
+
+
+class TestLetterSymbolLabel:
+    def test_no_inversion_has_no_bass_note(self, harmony_tlui):
+        add_harmony(display_mode="letter", quality="major")
+        assert "/" not in harmony_tlui.harmonies()[0].letter_symbol_label
+
+    def test_first_inversion_shows_third(self, harmony_tlui):
+        add_harmony(display_mode="letter", quality="major", inversion=1)
+        assert harmony_tlui.harmonies()[0].letter_symbol_label.endswith("/E")
+
+    def test_second_inversion_shows_fifth(self, harmony_tlui):
+        add_harmony(display_mode="letter", quality="major", inversion=2)
+        assert harmony_tlui.harmonies()[0].letter_symbol_label.endswith("/G")
+
+    def test_seventh_chord_third_inversion_shows_flat_bass(self, harmony_tlui):
+        add_harmony(display_mode="letter", quality="dominant-seventh", inversion=3)
+        assert harmony_tlui.harmonies()[0].letter_symbol_label.endswith("/B`b")
+
+    def test_ninth_chord_fourth_inversion_shows_ninth(self, harmony_tlui):
+        add_harmony(display_mode="letter", quality="dominant-ninth", inversion=4)
+        assert harmony_tlui.harmonies()[0].letter_symbol_label.endswith("/D")
+
+
+class TestModeLabel:
+    def test_dorian_label(self, harmony_tlui):
+        add_mode(type="dorian")
+        assert harmony_tlui.modes()[0].label == "C Dorian"
+
+    def test_phrygian_label(self, harmony_tlui):
+        add_mode(type="phrygian")
+        assert harmony_tlui.modes()[0].label == "C Phrygian"
+
+    def test_major_still_gives_note_only(self, harmony_tlui):
+        add_mode(type="major")
+        assert harmony_tlui.modes()[0].label == "C"
+
+    def test_minor_still_gives_lowercase_note(self, harmony_tlui):
+        add_mode(type="minor")
+        assert harmony_tlui.modes()[0].label == "c"
+
+    def test_dorian_with_flat_tonic(self, harmony_tlui):
+        add_mode(step=6, accidental=-1, type="dorian")  # Bb dorian
+        assert harmony_tlui.modes()[0].label == "B`b Dorian"
+
 
 class TestCopyPaste:
     def test_paste_multiple_to_harmony_with_mode_as_first_copied(self, harmony_tlui):
