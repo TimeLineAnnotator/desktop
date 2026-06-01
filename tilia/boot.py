@@ -61,8 +61,7 @@ def boot():
     # has to be done after ui has been created, so timelines will get displayed
     if args.file:
         app.on_open(args.file)
-    else:
-        app.setup_file()
+    app.setup_file()
 
     ui.launch()
 
