@@ -12,8 +12,7 @@ from tilia.ui.windows.inspect import InspectRowKind
 
 
 def get_inversion_inspect_args():
-    inv_to_string = {0: "", 1: "1st", 2: "2nd", 3: "3rd"}
-    return {"items": [(inv_to_string[inv], inv) for inv in HARMONY_INVERSIONS]}
+    return {"items": []}
 
 
 def get_quality_inspect_args():
