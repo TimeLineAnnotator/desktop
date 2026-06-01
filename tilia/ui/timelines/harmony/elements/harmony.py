@@ -15,7 +15,6 @@ from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
     INT_TO_ROMAN,
-    INVERSION_TO_INTERVAL,
     QUALITY_TO_ABBREVIATION,
     Accidental,
 )
@@ -130,7 +129,8 @@ class HarmonyUI(TimelineUIElement):
 
     @property
     def letter_symbol_label(self):
-        figure = self.letter_symbol.figure
+        symbol = self.letter_symbol
+        figure = symbol.figure
         match self.get_data("quality"):
             case "Italian":
                 return "It6+"
@@ -148,18 +148,17 @@ class HarmonyUI(TimelineUIElement):
                 return figure.replace("pedal", "`p`e`d")
             case "seventh-flat-five":
                 return figure.replace("dom7dim5", "7((b5))")
-        match self.get_data("accidental"):
-            case -2:
-                figure = figure.replace("--", "`b`b")
-            case -1:
-                figure = figure.replace("-", "b")
-            case 2:
-                figure = figure.replace("##", "`#`#")
+        accidental = self.get_data("accidental")
+        if accidental:
+            figure = figure.replace(
+                Accidental.get_from_int("music21", accidental),
+                Accidental.get_from_int("musanalysis", accidental),
+            )
 
-        if inversion := self.get_data("inversion"):
-            # bass_step = harmony.calculate.bass_step(self.get_data('step'), inversion)
-            # figure += '/' + INT_TO_NOTE_NAME[bass_step]  # TODO calculate bass note
-            figure += "/&" + str(INVERSION_TO_INTERVAL[inversion])
+        if self.get_data("inversion"):
+            bass = symbol.bass()
+            bass_accidental = Accidental.get_from_int("musanalysis", int(bass.alter))
+            figure += "/" + bass.step + bass_accidental
 
         figure = figure.replace("M7", "^^7")
         figure = figure.replace("M9", "^^9")
