@@ -83,7 +83,9 @@ class TestChordSymbolParsing:
     def test_slash_chords_where_bass_is_not_in_chord_symbol(self):
         params = parse_text("G/A")
         assert params["step"] == 4
-        assert params["inversion"] == 0  # fourth inversion is not currently supported
+        assert (
+            params["inversion"] == 0
+        )  # bass-not-in-chord slash chords are not supported
 
     @pytest.mark.parametrize(
         "extension",
