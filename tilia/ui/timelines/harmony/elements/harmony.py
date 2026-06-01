@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import music21
+import music21.chord
 from music21.roman import RomanNumeral
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QFont
@@ -72,15 +73,19 @@ class HarmonyUI(TimelineUIElement):
 
     @property
     def letter_symbol(self):
-        symbol = music21.harmony.ChordSymbol(
+        note = (
             INT_TO_NOTE_NAME[self.get_data("step")]
-            + Accidental.get_from_int(
-                "music21",
-                self.get_data("accidental"),
-            )
-            + QUALITY_TO_ABBREVIATION[self.get_data("quality")],
-            inversion=self.get_data("inversion"),
+            + Accidental.get_from_int("music21", self.get_data("accidental"))
+            + QUALITY_TO_ABBREVIATION[self.get_data("quality")]
         )
+        try:
+            symbol = music21.harmony.ChordSymbol(
+                note, inversion=self.get_data("inversion")
+            )
+        except music21.chord.ChordException:
+            # Some qualities (e.g. minor-sixth) report more inversions than
+            # music21 can construct; fall back to root position (#376).
+            symbol = music21.harmony.ChordSymbol(note, inversion=0)
         applied_to = self.get_data("applied_to")
         if applied_to:
             symbol.romanNumeral = RomanNumeral(

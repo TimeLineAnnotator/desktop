@@ -213,6 +213,17 @@ class Inspect(QDockWidget):
 
     def update_values(self, field_values: dict[str, str], element_id: int):
         self.element_id = element_id
+        for field_name, items in field_values.pop("__items_update", {}).items():
+            widget = self.field_name_to_widgets[field_name][1]
+            if isinstance(widget, QComboBox):
+                current_data = widget.currentData()
+                widget.blockSignals(True)
+                widget.clear()
+                for label, data in items:
+                    widget.addItem(str(label), data)
+                idx = widget.findData(current_data)
+                widget.setCurrentIndex(idx if idx != -1 else widget.count() - 1)
+                widget.blockSignals(False)
         for field_name, value in field_values.items():
             widget = self.field_name_to_widgets[field_name][1]
 

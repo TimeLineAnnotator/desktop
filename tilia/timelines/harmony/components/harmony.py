@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import music21
 
-import tilia.errors
 from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_string, validate_time
 from tilia.timelines.component_kinds import ComponentKind
@@ -55,7 +54,6 @@ class Harmony(PointLikeTimelineComponent):
         "step": validate_step,
         "accidental": validate_accidental,
         "quality": validate_quality,
-        "inversion": validate_inversion,
         "applied_to": validate_applied_to,
         "level": validate_level,
         "display_mode": validate_display_mode,
@@ -85,7 +83,7 @@ class Harmony(PointLikeTimelineComponent):
         self.step = step
         self.accidental = accidental
         self.quality = quality
-        self._inversion = inversion
+        self.inversion = inversion
         self.applied_to = applied_to
         self.level = level
         self.display_mode = display_mode
@@ -120,18 +118,19 @@ class Harmony(PointLikeTimelineComponent):
         params = _get_params_from_music21_object(music21_object, object_type)
         return Harmony(*params)
 
-    @property
-    def inversion(self):
-        return self._inversion
+    def validate_set_data(self, attr: str, value: Any) -> bool:
+        if attr == "inversion":
+            return validate_inversion(value, self.quality)
+        return super().validate_set_data(attr, value)
 
-    @inversion.setter
-    def inversion(self, value):
-        if value > get_inversion_amount(self.get_data("quality")):
-            tilia.errors.display(
-                tilia.errors.INVALID_HARMONY_INVERSION, value, self.get_data("quality")
-            )
-            return
-        self._inversion = value
+    def set_data(self, attr: str, value: Any):
+        result = super().set_data(attr, value)
+        if attr == "quality" and result[1]:
+            max_inv = get_inversion_amount(value)
+            if self.inversion > max_inv:
+                self.inversion = max_inv
+                self.update_hash()
+        return result
 
 
 def get_params_from_text(text: str, key: str):

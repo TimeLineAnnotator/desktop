@@ -22,6 +22,7 @@ from tilia.ui.timelines.harmony.constants import (
     ACCIDENTAL_TO_INT,
     NOTE_NAME_TO_INT,
 )
+from tilia.ui.timelines.harmony.elements.harmony_attrs import _INV_TO_STRING
 from tilia.ui.timelines.harmony.utils import (
     INT_TO_APPLIED_TO_SUFFIX,
 )
@@ -127,24 +128,23 @@ class SelectHarmonyParams(QDialog):
 
     @staticmethod
     def _get_quality_items(row_amount: int):
-        all_items = [
-            ("", 0),
-            ("1st", 1),
-            ("2nd", 2),
-            ("3rd", 3),
-        ]
-        return all_items[: row_amount + 1]
+        return [(_INV_TO_STRING[i], i) for i in range(row_amount + 1)]
 
     def on_quality_combobox_changed(self, *_):
         quality = self.quality_combobox.currentData()
+        current_inversion = self.inversion_combobox.currentData()
 
-        # Clearing the combo box to refill it with the correct number of rows
         for _ in range(self.inversion_combobox.model().rowCount()):
             self.inversion_combobox.removeItem(0)
 
         inversion_amount = get_inversion_amount(quality)
         for text, data in self._get_quality_items(inversion_amount):
             self.inversion_combobox.addItem(text, data)
+
+        target = min(current_inversion, inversion_amount)
+        self.inversion_combobox.setCurrentIndex(
+            self.inversion_combobox.findData(target)
+        )
 
     def _populate_widgets(self, params):
         def get_index_by_param(combobox, param):

@@ -1,14 +1,20 @@
 from tilia.timelines.harmony.constants import (
     FONT_TYPES,
     HARMONY_DISPLAY_MODES,
-    HARMONY_INVERSIONS,
     HARMONY_QUALITIES,
+    get_inversion_amount,
 )
 from tilia.ui.format import format_media_time
 from tilia.ui.timelines.copy_paste import CopyAttributes
 from tilia.ui.timelines.harmony.constants import ACCIDENTAL_TO_INT, NOTE_NAME_TO_INT
 from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX
 from tilia.ui.windows.inspect import InspectRowKind
+
+_INV_TO_STRING = {0: "", 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th", 6: "6th"}
+
+
+def _inversion_items(quality: str) -> list[tuple[str, int]]:
+    return [(_INV_TO_STRING[i], i) for i in range(get_inversion_amount(quality) + 1)]
 
 
 def get_inversion_inspect_args():
@@ -87,6 +93,7 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
 
 def get_inspector_dict(harmony):
     return {
+        "__items_update": {"Inversion": _inversion_items(harmony.get_data("quality"))},
         "Label": harmony.label,
         "Time": format_media_time(harmony.get_data("time")),
         "Comments": harmony.get_data("comments"),
