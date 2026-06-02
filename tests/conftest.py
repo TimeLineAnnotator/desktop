@@ -222,6 +222,23 @@ def qtui(tilia, cleanup_requests, qapplication, use_test_settings, use_test_logg
     yield qtui_
 
 
+def _teardown_youtube_player(player) -> None:
+    from tilia.media.player.youtube import YouTubePlayer
+
+    if not isinstance(player, YouTubePlayer):
+        return
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    # Schedule deletion then flush DeferredDelete synchronously so the C++
+    # QWebEngineView object is actually destroyed before the worker exits.
+    # processEvents() alone does not flush DeferredDelete (Qt requires a full
+    # event-loop cycle); sendPostedEvents with DeferredDelete does. Without
+    # this QtWebEngineProcess stays alive as an orphan on macOS, preventing
+    # the xdist worker from exiting and hanging the CI job.
+    player.view.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
 # noinspection PyProtectedMember
 @pytest.fixture(scope="module")
 def tilia(cleanup_requests):
@@ -229,6 +246,7 @@ def tilia(cleanup_requests):
     tilia_.set_file_media_duration(100)
     tilia_.reset_undo_manager()
     yield tilia_
+    _teardown_youtube_player(tilia_.player)
 
 
 @pytest.fixture
