@@ -176,7 +176,7 @@ class TestFileLoad:
         assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
         assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
 
-    def test_media_path_is_youtube_url(self, tilia_state, tmp_path):
+    def test_media_path_is_youtube_url(self, tilia_state, qtui, tmp_path):
         file_data = tests.utils.get_blank_file_data()
         tmp_file = tmp_path / "test_file_load.tla"
         media_path = "https://www.youtube.com/watch?v=wBfVsucRe1w"
