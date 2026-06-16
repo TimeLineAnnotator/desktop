@@ -161,6 +161,9 @@ jobs:
             build/*/velopack/*-Setup.pkg
             build/*/velopack/*-Setup.exe
             build/*/velopack/*.AppImage
+            build/*/velopack/releases.*.json
+            build/*/velopack/assets.*.json
+            build/*/velopack/RELEASES-*
           retention-days: 1
 
   deploy:
