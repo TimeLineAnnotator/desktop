@@ -105,6 +105,7 @@ target-version = "py310"
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["tilia*"]
 exclude = [
     "build", "build.*",
     "dist",
