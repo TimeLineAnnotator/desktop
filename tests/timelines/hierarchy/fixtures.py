@@ -4,25 +4,14 @@ import pytest
 
 from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.timeline_kinds import TimelineKind
-from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
-
-
-class TestHierarchyTimelineUI(HierarchyTimelineUI):
-    def create_hierarchy(
-        self, start: float, end: float, level: int, **kwargs
-    ) -> tuple[Hierarchy | None, HierarchyUI | None]:
-        ...
 
 
 @pytest.fixture
-def hierarchy_tlui(hierarchy_tl, tluis) -> TestHierarchyTimelineUI:
+def hierarchy_tlui(hierarchy_tl, tluis):
     post(Post.APP_STATE_RECORD, "tlui fixture")
     ui = tluis.get_timeline_ui(hierarchy_tl.id)
-
-    ui.create_hierarchy = hierarchy_tl.create_hierarchy
     ui.create_component = hierarchy_tl.create_component
     return ui  # will be deleted by tls
 

@@ -94,6 +94,13 @@ class HierarchyTimelineUI(TimelineUI):
                 icon=icon,
             )
 
+        cls.register_timeline_command(
+            collection,
+            "add",
+            cls.on_add,
+            TimelineSelector.FIRST,
+        )
+
     def on_settings_updated(self, updated_settings):
         if "hierarchy_timeline" in updated_settings:
             get(Get.TIMELINE_COLLECTION).set_timeline_data(
@@ -316,6 +323,12 @@ class HierarchyTimelineUI(TimelineUI):
         if success := self.timeline.group(self.elements_to_components(elements)):
             self._adjust_timeline_height()
         return success
+
+    def on_add(self, start: float, end: float, level: int, **kwargs):
+        component, _ = self.timeline.create_component(
+            ComponentKind.HIERARCHY, start=start, end=end, level=level, **kwargs
+        )
+        return bool(component)
 
     def on_split(self, time: float | None = None):
         if time is None:

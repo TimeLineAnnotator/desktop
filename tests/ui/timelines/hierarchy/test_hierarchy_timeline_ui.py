@@ -38,9 +38,9 @@ def assert_is_copy_data_of(copy_data: dict, hierarchy_ui: HierarchyUI):
 
 class TestActions:
     def test_increase_level(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(1, 2, 1)
-        tlui.create_hierarchy(3, 4, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("timeline.hierarchy.add", start=3, end=4, level=1)
 
         tlui.select_element(tlui[0])
         commands.execute("timeline.hierarchy.increase_level")
@@ -52,9 +52,9 @@ class TestActions:
         assert tlui[1].get_data("level") == 1
 
     def test_increase_level_multiple_hierarchies(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(1, 2, 1)
-        tlui.create_hierarchy(3, 4, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("timeline.hierarchy.add", start=3, end=4, level=1)
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -66,9 +66,9 @@ class TestActions:
         assert tlui[2].get_data("level") == 2
 
     def test_decrease_level(self, tlui):
-        tlui.create_hierarchy(0, 1, 2)
-        tlui.create_hierarchy(1, 2, 2)
-        tlui.create_hierarchy(3, 4, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=2)
+        commands.execute("timeline.hierarchy.add", start=3, end=4, level=2)
 
         tlui.select_element(tlui[0])
         commands.execute("timeline.hierarchy.decrease_level")
@@ -78,9 +78,9 @@ class TestActions:
         assert tlui[2].get_data("level") == 2
 
     def test_decrease_level_multiple_hierarchies(self, tlui):
-        tlui.create_hierarchy(0, 1, 2)
-        tlui.create_hierarchy(1, 2, 2)
-        tlui.create_hierarchy(3, 4, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=2)
+        commands.execute("timeline.hierarchy.add", start=3, end=4, level=2)
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -92,7 +92,7 @@ class TestActions:
         assert tlui[2].get_data("level") == 1
 
     def test_set_color(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.select_element(tlui[0])
 
         with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
@@ -101,7 +101,7 @@ class TestActions:
         assert tlui[0].get_data("color") == "#000000"
 
     def test_reset_color(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.select_element(tlui[0])
 
         with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
@@ -112,7 +112,7 @@ class TestActions:
         assert tlui[0].get_data("color") is None
 
     def test_add_pre_start(self, tlui):
-        tlui.create_hierarchy(0.1, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
         tlui.select_element(tlui[0])
 
         with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
@@ -122,7 +122,7 @@ class TestActions:
         assert tlui[0].pre_start_handle
 
     def test_add_post_end(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.select_element(tlui[0])
 
         with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
@@ -132,7 +132,7 @@ class TestActions:
         assert tlui[0].post_end_handle
 
     def test_split(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         assert len(tlui) == 1
         commands.execute("media.seek", 0.5)
         commands.execute("timeline.hierarchy.split")
@@ -140,8 +140,8 @@ class TestActions:
         assert len(tlui) == 2
 
     def test_merge(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(1, 2, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -151,8 +151,8 @@ class TestActions:
         assert len(tlui) == 1
 
     def test_group(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(1, 2, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -162,7 +162,7 @@ class TestActions:
         assert len(tlui) == 3
 
     def test_group_no_units_selected_does_nothing(self, tlui, tilia_errors):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
 
         commands.execute("timeline.hierarchy.group")
 
@@ -170,7 +170,7 @@ class TestActions:
         tilia_errors.assert_no_error()
 
     def test_delete_elements(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
 
         tlui.select_element(tlui[0])
 
@@ -179,7 +179,7 @@ class TestActions:
         assert len(tlui) == 0
 
     def test_create_hierarchy_below(self, tlui):
-        tlui.create_hierarchy(0, 1, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
 
         tlui.select_element(tlui[0])
 
@@ -190,8 +190,10 @@ class TestActions:
 
 class TestCopyPaste:
     def test_paste(self, tlui):
-        tlui.create_hierarchy(0, 1, 1, label="paste test")
-        tlui.create_hierarchy(0, 1, 2)
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=1, label="paste test"
+        )
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
 
         tlui.select_element(tlui[0])
         commands.execute("timeline.component.copy")
@@ -203,13 +205,17 @@ class TestCopyPaste:
         assert tlui[1].get_data("label") == "paste test"
 
     def test_paste_without_children_into_selected_elements(self, tlui):
-        tlui.create_hierarchy(0, 0.5, 1, color="#000000")
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=0.5, level=1, color="#000000"
+        )
         set_dummy_copy_attributes(tlui[0])
         tlui.select_element(tlui[0])
         commands.execute("timeline.component.copy")
         tlui.deselect_all_elements()
 
-        tlui.create_hierarchy(0.5, 1, 1, color="#000000")
+        commands.execute(
+            "timeline.hierarchy.add", start=0.5, end=1, level=1, color="#000000"
+        )
         hrc1, hrc2 = tlui.timeline[0], tlui.timeline[1]  # order will change with paste
 
         tlui.select_element(tlui[1])
@@ -220,10 +226,10 @@ class TestCopyPaste:
     def test_paste_with_children_into_selected_elements_without_rescaling(
         self, tlui, tilia_state
     ):
-        tlui.create_hierarchy(0, 0.5, 1)
-        tlui.create_hierarchy(0.5, 1, 1)
-        tlui.create_hierarchy(0, 1, 2)
-        tlui.create_hierarchy(1, 2, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=0.5, level=1)
+        commands.execute("timeline.hierarchy.add", start=0.5, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=2)
 
         # order will change with paste
         hrc1 = tlui.timeline[0]
@@ -258,10 +264,10 @@ class TestCopyPaste:
         assert_are_copies(copied_children_2, hrc2)
 
     def test_paste_with_children_into_selected_elements_with_rescaling(self, tlui):
-        tlui.create_hierarchy(0, 0.5, 1)
-        tlui.create_hierarchy(0.5, 1, 1)
-        tlui.create_hierarchy(0, 1, 2)
-        tlui.create_hierarchy(1, 1.5, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=0.5, level=1)
+        commands.execute("timeline.hierarchy.add", start=0.5, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+        commands.execute("timeline.hierarchy.add", start=1, end=1.5, level=2)
 
         # order will change with paste
         hrc1 = tlui.timeline[0]
@@ -290,19 +296,35 @@ class TestCopyPaste:
         assert copied_children_2.end == 1.5
 
     def test_paste_into_hierarchy_that_has_grandchildren(self, tlui):
-        tlui.create_hierarchy(0, 0.5, 1)  # grandchild
-        tlui.create_hierarchy(0.5, 1, 1)  # grandchild
-        tlui.create_hierarchy(1, 1.5, 1)  # grandchild
-        tlui.create_hierarchy(1.5, 2, 1)  # grandchild
-        tlui.create_hierarchy(0, 1, 2)  # child
-        tlui.create_hierarchy(1, 2, 2)  # child
-        destination, _ = tlui.create_hierarchy(0, 2, 3)  # grandparent
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=0.5, level=1
+        )  # grandchild
+        commands.execute(
+            "timeline.hierarchy.add", start=0.5, end=1, level=1
+        )  # grandchild
+        commands.execute(
+            "timeline.hierarchy.add", start=1, end=1.5, level=1
+        )  # grandchild
+        commands.execute(
+            "timeline.hierarchy.add", start=1.5, end=2, level=1
+        )  # grandchild
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)  # child
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=2)  # child
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=2, level=3
+        )  # grandparent
+        destination = tlui.timeline[6]
 
-        tlui.create_hierarchy(2, 2.25, 2)  # child
-        tlui.create_hierarchy(2.25, 2.5, 2)  # child
-        tlui.create_hierarchy(2.5, 2.75, 2)  # child
-        tlui.create_hierarchy(2.75, 3, 2)  # child
-        source, _ = tlui.create_hierarchy(2, 3, 3)  # parent
+        commands.execute("timeline.hierarchy.add", start=2, end=2.25, level=2)  # child
+        commands.execute(
+            "timeline.hierarchy.add", start=2.25, end=2.5, level=2
+        )  # child
+        commands.execute(
+            "timeline.hierarchy.add", start=2.5, end=2.75, level=2
+        )  # child
+        commands.execute("timeline.hierarchy.add", start=2.75, end=3, level=2)  # child
+        commands.execute("timeline.hierarchy.add", start=2, end=3, level=3)  # parent
+        source = tlui.timeline[11]
 
         tlui.select_element(tlui.get_element(source.id))
         commands.execute("timeline.component.copy")
@@ -317,12 +339,13 @@ class TestCopyPaste:
             assert child.end == (i + 1) * 0.5
 
     def test_paste_from_hierarchy_with_grandchildren(self, tlui):
-        tlui.create_hierarchy(0, 0.5, 1)
-        tlui.create_hierarchy(0.5, 1, 1)
-        tlui.create_hierarchy(0, 0.5, 2)
-        tlui.create_hierarchy(0.5, 1, 2)
-        tlui.create_hierarchy(0, 1, 3)
-        hrc6, _ = tlui.create_hierarchy(1, 2, 3)
+        commands.execute("timeline.hierarchy.add", start=0, end=0.5, level=1)
+        commands.execute("timeline.hierarchy.add", start=0.5, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=0, end=0.5, level=2)
+        commands.execute("timeline.hierarchy.add", start=0.5, end=1, level=2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=3)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=3)
+        hrc6 = tlui.timeline[5]
 
         set_dummy_copy_attributes(tlui.timeline[0])
         set_dummy_copy_attributes(tlui.timeline[1])
@@ -345,10 +368,10 @@ class TestCopyPaste:
         assert copied_children_2.children[0].end == 2.0
 
     def test_paste_with_children_into_different_level_fails(self, tlui):
-        tlui.create_hierarchy(0, 0.5, 1)
-        tlui.create_hierarchy(0.5, 1, 1)
-        tlui.create_hierarchy(0, 1, 2)
-        tlui.create_hierarchy(1, 1.5, 3)
+        commands.execute("timeline.hierarchy.add", start=0, end=0.5, level=1)
+        commands.execute("timeline.hierarchy.add", start=0.5, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+        commands.execute("timeline.hierarchy.add", start=1, end=1.5, level=3)
 
         tlui.select_element(tlui[2])
         commands.execute("timeline.component.copy")
@@ -364,20 +387,37 @@ class TestCopyPaste:
 
 class TestCreateHierarchy:
     def test_create_single(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
 
         assert len(tlui.elements) == 1
 
     def test_create_multiple(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(0.1, 1, 1)
-        tlui.create_hierarchy(0.2, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=0.2, end=1, level=1)
         assert len(tlui.elements) == 3
+
+    def test_add_command_creates_component(self, tlui):
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+
+        assert len(tlui.elements) == 1
+        component = tlui.timeline[0]
+        assert component.start == 0
+        assert component.end == 1
+        assert component.level == 2
+
+    def test_add_command_passes_kwargs(self, tlui):
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=1, label="my label"
+        )
+
+        component = tlui.timeline[0]
+        assert component.get_data("label") == "my label"
 
 
 class TestUndoRedo:
     def test_split(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
 
         post(Post.APP_STATE_RECORD, "test state")
 
@@ -390,8 +430,8 @@ class TestUndoRedo:
         assert len(tlui) == 2
 
     def test_merge(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(1, 2, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -407,7 +447,7 @@ class TestUndoRedo:
         assert len(tlui) == 1
 
     def test_increase_level(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.select_element(tlui[0])
 
         post(Post.APP_STATE_RECORD, "test state")
@@ -421,7 +461,7 @@ class TestUndoRedo:
         assert tlui.elements[0].get_data("level") == 2
 
     def test_decrease_level(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
         tlui.select_element(tlui[0])
 
         post(Post.APP_STATE_RECORD, "test state")
@@ -435,8 +475,8 @@ class TestUndoRedo:
         assert tlui.elements[0].get_data("level") == 1
 
     def test_group(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(1, 2, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -452,7 +492,7 @@ class TestUndoRedo:
         assert len(tlui) == 3
 
     def test_delete(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
 
         tlui.select_element(tlui[0])
 
@@ -467,8 +507,8 @@ class TestUndoRedo:
         assert len(tlui) == 0
 
     def test_delete_parent_and_child(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(0, 1, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
 
         tlui.select_element(tlui[0])
         tlui.select_element(tlui[1])
@@ -484,7 +524,7 @@ class TestUndoRedo:
         assert len(tlui) == 0
 
     def test_create_unit_below(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
 
         tlui.select_element(tlui[0])
 
@@ -499,8 +539,10 @@ class TestUndoRedo:
         assert len(tlui) == 2
 
     def test_paste(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 1, label="paste test")
-        tlui.create_hierarchy(0, 1, 2)
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=1, label="paste test"
+        )
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
         post(Post.APP_STATE_RECORD, "test state")
 
         tlui.select_element(tlui[0])
@@ -519,10 +561,10 @@ class TestUndoRedo:
         assert tlui[1].get_data("label") == "paste test"
 
     def test_paste_with_children(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(1, 2, 1)
-        tlui.create_hierarchy(0, 2, 2)
-        tlui.create_hierarchy(2, 3, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("timeline.hierarchy.add", start=0, end=2, level=2)
+        commands.execute("timeline.hierarchy.add", start=2, end=3, level=2)
 
         # Must record state explicitly, as we have not executed any command
         post(Post.APP_STATE_RECORD, "test state")
@@ -544,7 +586,7 @@ class TestUndoRedo:
 
 class TestCreateChild:
     def test_create_child(self, tlui, tluis):
-        tlui.create_hierarchy(0, 1, 2)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
 
         tlui.select_element(tlui[0])
 
@@ -559,7 +601,7 @@ class TestCreateChild:
         assert len(tlui) == 2
 
     def test_at_lowest_level_user_declines_new_level(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
 
         tlui.select_element(tlui[0])
 
@@ -572,7 +614,7 @@ class TestCreateChild:
 
     class TestUserAcceptsNewLevel:
         def test_single_hierarchy(self, tlui):
-            tlui.create_hierarchy(0, 1, 1)
+            commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
 
             tlui.select_element(tlui[0])
 
@@ -585,8 +627,8 @@ class TestCreateChild:
             assert tlui[1].get_data("level") == 2
 
         def test_with_parent(self, tlui):
-            tlui.create_hierarchy(0, 1, 1)
-            tlui.create_hierarchy(0, 1, 2)
+            commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+            commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
 
             tlui.select_element(tlui[0])
 
@@ -600,9 +642,9 @@ class TestCreateChild:
             assert tlui[2].get_data("level") == 3
 
         def test_with_siblings(self, tlui):
-            tlui.create_hierarchy(0, 1, 1)
-            tlui.create_hierarchy(1, 2, 1)
-            tlui.create_hierarchy(2, 3, 1)
+            commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+            commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+            commands.execute("timeline.hierarchy.add", start=2, end=3, level=1)
 
             tlui.select_element(tlui[0])
 
@@ -617,7 +659,7 @@ class TestCreateChild:
             assert tlui[3].get_data("level") == 2
 
         def test_prompt_create_level_below_is_false(self, tlui):
-            tlui.create_hierarchy(0, 1, 1)
+            commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
 
             tlui.select_element(tlui[0])
 
@@ -629,7 +671,9 @@ class TestCreateChild:
 
 class TestClear:
     def test_initial_hierarchy_doesnt_trigger_confirmation(self, tlui, tilia_state):
-        tlui.create_hierarchy(0, tilia_state.duration, 1)
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=tilia_state.duration, level=1
+        )
 
         commands.execute("timeline.clear", tlui)
 
@@ -638,7 +682,13 @@ class TestClear:
     def test_initial_hierarchy_with_edited_label_triggers_confirmation(
         self, tlui, tilia_state
     ):
-        tlui.create_hierarchy(0, tilia_state.duration, 1, label="I WAS EDITED")
+        commands.execute(
+            "timeline.hierarchy.add",
+            start=0,
+            end=tilia_state.duration,
+            level=1,
+            label="I WAS EDITED",
+        )
 
         with patch_yes_or_no_dialog(False):
             commands.execute("timeline.clear", tlui)
@@ -647,9 +697,9 @@ class TestClear:
         assert len(tlui) == 1
 
     def test_not_empty(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
-        tlui.create_hierarchy(1, 2, 1)
-        tlui.create_hierarchy(2, 3, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("timeline.hierarchy.add", start=2, end=3, level=1)
 
         with patch_yes_or_no_dialog(True):
             commands.execute("timeline.clear", tlui)
