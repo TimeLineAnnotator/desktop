@@ -27,7 +27,11 @@ def serialize_components(
     components: set[Serializable] | list[Serializable],
 ) -> dict[int, dict[str]]:
 
-    return {c.id: serialize_component(c) for c in components}
+    result = {}
+    for c in sorted(components, key=lambda c: int(c.id)):
+        result[c.id] = serialize_component(c)
+
+    return result
 
 
 def serialize_component(component: Serializable) -> dict[str]:
@@ -53,7 +57,7 @@ def deserialize_components(
     errors = []
 
     for id, serialized_component in serialized_components.items():
-        component, error = _deserialize_component(timeline, serialized_component)
+        component, error = _deserialize_component(timeline, id, serialized_component)
         if not component:
             errors.append(f"id={id} | {error}")
             continue
@@ -69,7 +73,7 @@ def deserialize_components(
 
 
 def _deserialize_component(
-    timeline: Timeline, serialized_component: dict[str]
+    timeline: Timeline, id: str, serialized_component: dict[str]
 ) -> tuple[TimelineComponent, str]:
     """Creates the serialized TimelineComponent in the given timeline."""
 
@@ -83,7 +87,7 @@ def _deserialize_component(
 
     # create component
     component, fail_reason = timeline.create_component(
-        component_kind, **constructor_kwargs
+        component_kind, **constructor_kwargs, id=id
     )
 
     return component, fail_reason
