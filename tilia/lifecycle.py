@@ -251,11 +251,11 @@ def _run_hook_from_argv() -> bool:
     """
     args = sys.argv[1:]
     for flag, handler in [
-        ("--velopack-install", _on_velopack_install),
-        ("--velopack-updated", _on_velopack_install),
-        ("--velopack-obsolete", lambda v: None),
-        ("--velopack-uninstall", _on_velopack_uninstall),
-        ("--velopack-firstrun", lambda v: None),
+        ("--veloapp-install", _on_velopack_install),
+        ("--veloapp-updated", _on_velopack_install),
+        ("--veloapp-obsolete", lambda v: None),
+        ("--veloapp-uninstall", _on_velopack_uninstall),
+        ("--veloapp-firstrun", lambda v: None),
     ]:
         if flag in args:
             idx = args.index(flag)
@@ -282,7 +282,7 @@ def init() -> None:
     Must be called before QApplication is created, inside a
     ``"__compiled__" in globals()`` guard.
     """
-    _hook_mode = any(a.startswith("--velopack") for a in sys.argv[1:])
+    _hook_mode = any(a.startswith("--veloapp") for a in sys.argv[1:])
 
     # Parse hook args manually — the Velopack Python SDK only accepts
     # C-level built-in callables via on_*_callback(), so we bypass it.
