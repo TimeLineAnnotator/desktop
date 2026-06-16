@@ -12,10 +12,11 @@ from tilia.exceptions import GetComponentDataError, NoReplyToRequest
 from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
+from tilia.ui.menus import ScoreMenu
 from tilia.ui.smooth_scroll import setup_smooth, smooth
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.cursors import CursorMixIn
@@ -39,8 +40,9 @@ from tilia.ui.windows.svg_viewer import SvgViewer
 class ScoreTimelineUI(TimelineUI):
     TOOLBAR_CLASS = ScoreTimelineToolbar
     ACCEPTS_HORIZONTAL_ARROWS = True
+    timeline_class = ScoreTimeline
+    menu_class = ScoreMenu
 
-    TIMELINE_KIND = TimelineKind.SCORE_TIMELINE
     ELEMENT_CLASS = [
         NoteUI,
         StaffUI,

@@ -7,10 +7,11 @@ from PySide6.QtCore import QEvent, QtMsgType, QUrl
 from tests.conftest import parametrize_tlui
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import PatchPost, Serve
-from tests.utils import get_actions_in_menu, get_main_window_menu
+from tests.utils import get_actions_in_menu, get_main_window_menu, get_submenu
 from tilia.boot import handle_qt_log_message
 from tilia.requests import Get, Post, post
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui.commands import get_qaction
 from tilia.ui.qtui import FileDropEventFilter
 from tilia.ui.timelines.marker import MarkerTimelineUI
@@ -37,7 +38,7 @@ class TestImport:
                     with Serve(
                         Get.FROM_USER_YES_OR_NO, True
                     ):  # confirm overwriting components
-                        post(Post.IMPORT_CSV, TimelineKind.MARKER_TIMELINE)
+                        post(Post.IMPORT_CSV, MarkerTimeline)
 
         assert marker_tl.get_state() == prev_state
 
@@ -57,7 +58,7 @@ class TestImport:
                 ),  # we use a media file as garbage
             ),
         ):
-            post(Post.IMPORT_CSV, TimelineKind.MARKER_TIMELINE)
+            post(Post.IMPORT_CSV, MarkerTimeline)
 
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_title("Import")
@@ -133,17 +134,17 @@ class TestTimelineToolbars:
         assert not is_toolbar_visible(qtui, tlui.TOOLBAR_CLASS)
 
     def test_is_not_duplicated_when_multiple_timelines_are_present(self, qtui, tls):
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.create_timeline(MarkerTimeline)
+        tls.create_timeline(MarkerTimeline)
+        tls.create_timeline(MarkerTimeline)
 
         assert len(get_toolbars_of_class(qtui, MarkerTimelineUI.TOOLBAR_CLASS)) == 1
 
     def test_is_not_hidden_when_second_instance_of_timeline_is_deleted(
         self, qtui, marker_tlui, tls
     ):
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.create_timeline(MarkerTimeline)
+        tls.create_timeline(MarkerTimeline)
         tls.delete_timeline(tls[1])
 
         assert is_toolbar_visible(qtui, marker_tlui.TOOLBAR_CLASS)
@@ -154,8 +155,8 @@ class TestTimelineToolbars:
         assert not is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
 
     def test_is_not_hidden_when_second_instance_of_timeline_is_hidden(self, qtui, tls):
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
-        tls.create_timeline(TimelineKind.MARKER_TIMELINE)
+        tls.create_timeline(MarkerTimeline)
+        tls.create_timeline(MarkerTimeline)
         tls.set_timeline_data(tls[1].id, "is_visible", False)
 
         assert is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
@@ -260,6 +261,33 @@ class TestMenus:
         ]
         expected = [get_qaction(action) for action in expected]
         assert set(actions) == set(expected)
+
+
+class TestDynamicTimelinesSubmenus:
+    """Per-kind submenus under Timelines should be visible iff at least one
+    timeline of that kind currently exists."""
+
+    @staticmethod
+    def _submenu(qtui, name):
+        return get_submenu(get_main_window_menu(qtui, "Timelines"), name)
+
+    def test_marker_submenu_hidden_when_no_marker_timeline(self, qtui):
+        assert not self._submenu(qtui, "Marker").menuAction().isVisible()
+
+    def test_marker_submenu_visible_when_marker_timeline_exists(
+        self, qtui, marker_tlui
+    ):
+        assert self._submenu(qtui, "Marker").menuAction().isVisible()
+
+    def test_marker_submenu_stays_visible_after_other_kind_created(
+        self, qtui, marker_tlui, tls
+    ):
+        # Regression: comparing UI class against backend-class list always
+        # returned False, hiding every dynamic submenu on each TYPE_INSTANCED.
+        marker_submenu = self._submenu(qtui, "Marker")
+        assert marker_submenu.menuAction().isVisible()
+        tls.create_timeline(HierarchyTimeline)
+        assert marker_submenu.menuAction().isVisible()
 
 
 class TestHandleQtLogMessage:

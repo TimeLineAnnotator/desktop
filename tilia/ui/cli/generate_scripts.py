@@ -89,8 +89,8 @@ timeline_args = namedtuple("timeline_args", "add imp is_beat requires_beat ref_n
 
 
 def _get_timeline_args(filename: str, folder_name: str):
-    timeline_kinds = ["hierarchy", "hrc", "marker", "mrk", "beat", "bea"]
-    for kind in timeline_kinds:
+    timeline_types = ["hierarchy", "hrc", "marker", "mrk", "beat", "bea"]
+    for kind in timeline_types:
         if kind in filename:
             args, is_by_time, name = _get_args_from_filename(
                 filename.removesuffix(".csv"), kind

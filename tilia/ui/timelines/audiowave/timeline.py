@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tilia.requests import Get, Post, get, listen
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.ui.timelines.audiowave.element import AmplitudeBarUI
 from tilia.ui.timelines.base.timeline import TimelineUI
 
@@ -11,8 +11,7 @@ from ...format import format_media_time
 class AudioWaveTimelineUI(TimelineUI):
     ELEMENT_CLASS = AmplitudeBarUI
     ACCEPTS_HORIZONTAL_ARROWS = True
-
-    TIMELINE_KIND = TimelineKind.AUDIOWAVE_TIMELINE
+    timeline_class = AudioWaveTimeline
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -20,7 +20,6 @@ from tilia.timelines.base.validators import validate_positive_integer
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.validators import validate_level_count
-from tilia.timelines.timeline_kinds import TimelineKind
 
 
 class HarmonyTLComponentManager(TimelineComponentManager):
@@ -136,7 +135,6 @@ class HarmonyTLComponentManager(TimelineComponentManager):
 
 
 class HarmonyTimeline(Timeline):
-    KIND = TimelineKind.HARMONY_TIMELINE
     DEFAULT_LEVEL_HEIGHT = 35
     SERIALIZABLE = [
         "level_count",

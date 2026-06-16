@@ -2,21 +2,16 @@ from __future__ import annotations
 
 import copy
 from bisect import bisect
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from tilia.exceptions import TimelineValidationError
 from tilia.requests import Get, Post, get, post, serve
+from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hash_timelines import hash_function
-from tilia.timelines.timeline_kinds import (
-    TimelineKind,
-    get_timeline_class_from_kind,
-    get_timeline_kind_from_string,
-)
-from tilia.timelines.timeline_kinds import (
-    TimelineKind as TlKind,
-)
+from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui.format import format_media_time
 from tilia.ui.strings import SCALE_TIMELINE_PROMPT
 from tilia.undo_manager import PauseUndoManager
@@ -24,6 +19,8 @@ from tilia.utils import get_tilia_class_string
 
 if TYPE_CHECKING:
     from tilia.app import App
+
+T = TypeVar("T", bound=Timeline)
 
 
 class Timelines:
@@ -64,8 +61,8 @@ class Timelines:
             serve(self, request, callback)
 
     @property
-    def timeline_kinds(self):
-        return {tl.KIND for tl in self._timelines}
+    def timeline_types(self):
+        return {type(tl) for tl in self._timelines}
 
     @property
     def is_empty(self):
@@ -78,23 +75,23 @@ class Timelines:
         return (
             self.is_empty
             or len(
-                set([x.KIND for x in self]).difference(
-                    (TimelineKind.SLIDER_TIMELINE, TimelineKind.AUDIOWAVE_TIMELINE)
+                set([type(x) for x in self]).difference(
+                    (SliderTimeline, AudioWaveTimeline)
                 )
             )
             == 0
         )
 
     @staticmethod
-    def _validate_timeline_kind(kind: TlKind | str):
+    def _validate_timeline_type(kind: type[Timeline] | str):
         if isinstance(kind, str):
             try:
-                kind = TlKind(kind)
+                kind = Timeline.get_class_by_name(kind)
             except ValueError as e:
                 raise TimelineValidationError(
                     f"Can't create timeline: invalid timeline kind '{kind}'"
                 ) from e
-        if not isinstance(kind, TlKind):
+        if not (isinstance(kind, type) and issubclass(kind, Timeline)):
             raise TimelineValidationError(
                 f"Can't create timeline: invalid timeline kind '{kind}'"
             )
@@ -103,26 +100,25 @@ class Timelines:
 
     def create_timeline(
         self,
-        kind: TlKind | str,
+        kind: type[Timeline] | str,
         components: dict[int, dict[str, Any]] | None = None,
         *args,
         **kwargs,
     ) -> Timeline:
 
         if isinstance(kind, str):
-            kind = get_timeline_kind_from_string(kind)
+            kind = Timeline.get_class_by_name(kind)
 
         # has to be stored before timeline is created
-        is_first_of_kind = kind not in self.timeline_kinds
+        is_first_of_kind = kind not in self.timeline_types
 
-        timeline_class = get_timeline_class_from_kind(kind)
-        tl = timeline_class(*args, **kwargs)
+        tl = kind(*args, **kwargs)
         self._add_to_timelines(tl)
 
         post(Post.TIMELINE_CREATE_DONE, kind, tl.id)
 
         if is_first_of_kind:
-            post(Post.TIMELINE_KIND_INSTANCED, kind)
+            post(Post.TIMELINE_TYPE_INSTANCED, kind)
 
         if components:
             # can't be done until timeline UI has been created
@@ -134,7 +130,7 @@ class Timelines:
             # been created.
             tl.setup_blank_timeline()
 
-        if kind == TlKind.AUDIOWAVE_TIMELINE and not components:
+        if kind == AudioWaveTimeline and not components:
             tl.refresh()
 
         return tl
@@ -144,6 +140,12 @@ class Timelines:
 
     def get_timelines(self):
         return sorted(self._timelines)
+
+    def get_timeline_by_type(self, type_: type[T]) -> T:
+        return next((tl for tl in self if isinstance(tl, type_)), None)
+
+    def get_timelines_by_type(self, type_: type[T]) -> list[T]:
+        return [tl for tl in self if isinstance(tl, type_)]
 
     def get_timeline_by_attr(self, attr: str, value: Any):
         return next((tl for tl in self if getattr(tl, attr) == value), None)
@@ -168,8 +170,8 @@ class Timelines:
         self._remove_from_timelines(timeline)
         post(Post.TIMELINE_DELETE_DONE, timeline.id)
 
-        if timeline.KIND not in self.timeline_kinds:
-            post(Post.TIMELINE_KIND_NOT_INSTANCED, timeline.KIND)
+        if type(timeline) not in self.timeline_types:
+            post(Post.TIMELINE_TYPE_NOT_INSTANCED, type(timeline))
 
     @staticmethod
     def clear_timeline(timeline: Timeline):
@@ -226,14 +228,26 @@ class Timelines:
         hash = hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
         return state, hash
 
+    @staticmethod
+    def _get_timeline_class_string(kind_string: str) -> str:
+        # TiLiA < 0.7 serialised the kind as e.g. "MARKER_TIMELINE";
+        # strip the suffix so files saved by older versions still load.
+        if kind_string.endswith("_TIMELINE"):
+            return kind_string.replace("_TIMELINE", "").capitalize()
+        else:
+            return kind_string
+
     def deserialize_timelines(self, data: dict) -> None:
         data_copy = copy.deepcopy(data)  # so pop does not modify original data
 
         for id, tl_data in data_copy.items():
             if "display_position" in tl_data:
                 tl_data["ordinal"] = tl_data.pop("display_position") + 1
-            kind = TimelineKind(tl_data.pop("kind"))
-            self.create_timeline(kind, id=id, **tl_data)
+            # We need to pop so no duplicate arguments are passed
+            kind = tl_data.pop("kind")
+            self.create_timeline(
+                self._get_timeline_class_string(kind), id=id, **tl_data
+            )
 
     def restore_state(self, timeline_states: dict[str, dict]) -> None:
         id_to_timelines = {tl.id: tl for tl in self}
@@ -250,7 +264,8 @@ class Timelines:
         # create timelines that are only in restored state
         for id in list(set(timeline_states) - set(shared_tl_ids)):
             params = timeline_states[id].copy()
-            kind = TimelineKind(params.pop("kind"))
+            # We need to pop so no duplicate arguments are passed
+            kind = self._get_timeline_class_string(params.pop("kind"))
             self.create_timeline(kind, id=id, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
@@ -267,8 +282,8 @@ class Timelines:
     def get_timeline_ids(self):
         return [tl.id for tl in self]
 
-    def has_timeline_of_kind(self, kind: TlKind):
-        return kind in self.timeline_kinds
+    def has_timeline_of_type(self, tl_type: type[Timeline]):
+        return tl_type in self.timeline_types
 
     def _scale_or_crop_timelines(self, new_duration, prev_duration):
         confirm = get(
@@ -321,16 +336,14 @@ class Timelines:
         post(Post.TIMELINES_CROP_DONE)
 
     def get_beat_timeline_for_measure_calculation(self):
-        beat_tls = sorted(
-            self.get_timelines_by_attr("KIND", TimelineKind.BEAT_TIMELINE)
-        )
+        beat_tls = sorted(self.get_timelines_by_type(BeatTimeline))
         if beat_tls:
             return beat_tls[0]
         else:
             return None
 
     def get_metric_position(self, time: float) -> MetricPosition | None:
-        if not self.get_timelines_by_attr("KIND", TimelineKind.BEAT_TIMELINE):
+        if not self.get_timelines_by_type(BeatTimeline):
             return None
         tl = self.get_beat_timeline_for_measure_calculation()
         if not tl:

@@ -3,8 +3,9 @@ import tilia.ui.timelines.copy_paste
 from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.ui import commands
+from tilia.ui.menus import HierarchyMenu
 from tilia.ui.timelines.base.timeline import (
     TimelineUI,
     with_elements,
@@ -28,10 +29,11 @@ from tilia.ui.timelines.hierarchy.key_press_manager import (
 class HierarchyTimelineUI(TimelineUI):
     TOOLBAR_CLASS = HierarchyTimelineToolbar
     ELEMENT_CLASS = HierarchyUI
-    TIMELINE_KIND = TimelineKind.HIERARCHY_TIMELINE
     ACCEPTS_HORIZONTAL_ARROWS = True
     ACCEPTS_VERTICAL_ARROWS = True
     MIN_MARGIN = 10
+    timeline_class = HierarchyTimeline
+    menu_class = HierarchyMenu
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -270,7 +272,7 @@ class HierarchyTimelineUI(TimelineUI):
 
         post(
             Post.TIMELINE_ELEMENT_COPY_DONE,
-            {"components": component_data, "timeline_kind": self.timeline.KIND},
+            {"components": component_data, "timeline_type": self.timeline_class},
         )
 
         return True

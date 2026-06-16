@@ -26,7 +26,7 @@ from tilia.media.player import QtAudioPlayer, YouTubePlayer
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.windows import WindowKind
 
@@ -342,7 +342,7 @@ class TestFileSetup:
                 "is_visible": True,
                 "ordinal": 1,
                 "components": {},
-                "kind": "HIERARCHY_TIMELINE",
+                "kind": "Hierarchy",
             }
         }  # empty hierarchy timeline
         tmp_file = tmp_path / "test_file_setup.tla"
@@ -351,7 +351,7 @@ class TestFileSetup:
             commands.execute("file.open")
 
         assert len(tls) == 2
-        assert TimelineKind.SLIDER_TIMELINE in tls.timeline_kinds
+        assert SliderTimeline in tls.timeline_types
 
 
 def assert_open_failed(tilia, tilia_errors, opened_file_path, prev_file):
@@ -456,7 +456,7 @@ class TestOpen:
       "is_visible": true,
       "ordinal": 0,
       "height": 25,
-      "kind": "SLIDER_TIMELINE",
+      "kind": "Slider",
       "components": {}
     }
   },

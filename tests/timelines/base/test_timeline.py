@@ -1,11 +1,6 @@
 from unittest.mock import patch
 
 from tilia.timelines.base.timeline import Timeline
-from tilia.timelines.timeline_kinds import TimelineKind
-
-
-def test_timeline_subclasses():
-    assert len(Timeline.subclasses()) == len(TimelineKind)
 
 
 def test_ensure_timeline_ui_subclasses_is_only_called_once():

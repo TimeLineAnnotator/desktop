@@ -2,7 +2,11 @@ import argparse
 
 import tilia.errors
 from tilia.requests import Get, get
-from tilia.timelines.timeline_kinds import TimelineKind as TlKind
+from tilia.timelines.base.timeline import Timeline
+from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
+from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui.cli.io import output
 
 
@@ -41,26 +45,15 @@ Examples:
     add_subp.set_defaults(func=add)
 
 
-KIND_STR_TO_TLKIND = {
-    "hierarchy": TlKind.HIERARCHY_TIMELINE,
-    "hrc": TlKind.HIERARCHY_TIMELINE,
-    "marker": TlKind.MARKER_TIMELINE,
-    "mrk": TlKind.MARKER_TIMELINE,
-    "beat": TlKind.BEAT_TIMELINE,
-    "bea": TlKind.BEAT_TIMELINE,
-    "score": TlKind.SCORE_TIMELINE,
-    "sco": TlKind.SCORE_TIMELINE,
-}
-
 TLKIND_TO_KWARGS_NAMES = {
-    TlKind.BEAT_TIMELINE: ["name", "height", "beat_pattern"],
-    TlKind.HIERARCHY_TIMELINE: ["name", "height"],
-    TlKind.MARKER_TIMELINE: ["name", "height"],
-    TlKind.SCORE_TIMELINE: ["name", "height"],
+    BeatTimeline: ["name", "height", "beat_pattern"],
+    HierarchyTimeline: ["name", "height"],
+    MarkerTimeline: ["name", "height"],
+    ScoreTimeline: ["name", "height"],
 }
 
 
-def get_kwargs_by_timeline_kind(namespace: argparse.Namespace, kind: TlKind):
+def get_kwargs_by_timeline_type(namespace: argparse.Namespace, kind: type(Timeline)):
     kwargs = {}
     for attr in TLKIND_TO_KWARGS_NAMES[kind]:
         kwargs[attr] = getattr(namespace, attr)
@@ -68,6 +61,17 @@ def get_kwargs_by_timeline_kind(namespace: argparse.Namespace, kind: TlKind):
 
 
 def add(namespace: argparse.Namespace):
+    KIND_STR_TO_TLKIND = {
+        "hierarchy": HierarchyTimeline,
+        "hrc": HierarchyTimeline,
+        "marker": MarkerTimeline,
+        "mrk": MarkerTimeline,
+        "beat": BeatTimeline,
+        "bea": BeatTimeline,
+        "score": ScoreTimeline,
+        "sco": ScoreTimeline,
+    }
+
     if not get(Get.MEDIA_DURATION):
         tilia.errors.display(tilia.errors.CLI_CREATE_TIMELINE_WITHOUT_DURATION)
         return
@@ -76,7 +80,8 @@ def add(namespace: argparse.Namespace):
 
     output(f"Adding timeline with {kind=}, {name=}")
 
-    tl_kind = KIND_STR_TO_TLKIND[kind]
-    kwargs = get_kwargs_by_timeline_kind(namespace, tl_kind)
+    tl_type = KIND_STR_TO_TLKIND[kind]
 
-    get(Get.TIMELINE_COLLECTION).create_timeline(tl_kind, **kwargs)
+    kwargs = get_kwargs_by_timeline_type(namespace, tl_type)
+
+    get(Get.TIMELINE_COLLECTION).create_timeline(tl_type, **kwargs)

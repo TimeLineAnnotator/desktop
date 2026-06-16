@@ -20,17 +20,13 @@ from tilia.timelines.harmony.validators import (
     validate_quality,
     validate_step,
 )
-from tilia.ui.timelines.harmony.constants import (
-    CHORD_COMMON_NAME_TO_TYPE,
-    NOTE_NAME_TO_INT,
-    ROMAN_TO_INT,
-)
 
 if TYPE_CHECKING:
     from tilia.timelines.harmony.timeline import HarmonyTimeline
 
 
 class Harmony(PointLikeTimelineComponent):
+
     SERIALIZABLE = [
         "time",
         "comments",
@@ -165,6 +161,15 @@ def _get_music21_object_from_text(
     tuple[music21.harmony.ChordSymbol | music21.roman.RomanNumeral, str]
     | tuple[None, None]
 ):
+
+    # TODO: these are local imports only because the constants live in the
+    # UI folder and importing them at module level would cause a circular.
+    # Move the constants out of `tilia/ui/` so this can become a top-level import.
+    from tilia.ui.timelines.harmony.constants import (
+        CHORD_COMMON_NAME_TO_TYPE,
+        NOTE_NAME_TO_INT,
+    )
+
     text, prefixed_accidental = _extract_prefixed_accidental(text)
     text = _format_postfix_accidental(text)
     text = _replace_special_abbreviations(text)
@@ -190,6 +195,11 @@ def _get_music21_object_from_text(
 def _get_params_from_music21_object(
     obj: music21.harmony.ChordSymbol | music21.roman.RomanNumeral, kind: str
 ) -> dict:
+    # TODO: these are local imports only because the constants live in the
+    # UI folder and importing them at module level would cause a circular.
+    # Move the constants out of `tilia/ui/` so this can become a top-level import.
+    from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT, ROMAN_TO_INT
+
     step = NOTE_NAME_TO_INT[obj.root().step]
     accidental = int(obj.root().alter)
     inversion = obj.inversion() if obj.inversion() else 0

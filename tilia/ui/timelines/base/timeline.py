@@ -67,7 +67,6 @@ def with_elements(func: Callable) -> Callable:
 
 
 class TimelineUI(ABC):  # noqa: B024
-    TIMELINE_KIND = None
     TOOLBAR_CLASS = None
     COPY_PASTE_MANGER_CLASS = None
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes([], [])
@@ -76,6 +75,8 @@ class TimelineUI(ABC):  # noqa: B024
     CONTEXT_MENU_CLASS: type[TimelineUIContextMenu] = TimelineUIContextMenu
     ACCEPTS_VERTICAL_ARROWS = False
     ACCEPTS_HORIZONTAL_ARROWS = False
+    timeline_class = None
+    menu_class = None
 
     def __init__(
         self,
@@ -177,15 +178,15 @@ class TimelineUI(ABC):  # noqa: B024
         **kwargs,
     ):
         """
-        Register a command named "timeline.{timeline_kind}.{name}" for this timeline kind
+        Register a command named "timeline.{timeline_type}.{name}" for this timeline kind
         with TimelineUIs.on_timeline_command() as a wrapper for the callback.
         """
-        kind_shortname = cls.TIMELINE_KIND.name.lower().replace("_timeline", "")
+        kind_shortname = cls.timeline_class.type_name().lower()
 
         commands.register(
             f"timeline.{kind_shortname}.{name}",
             functools.partial(
-                collection.on_timeline_command, cls.TIMELINE_KIND, callback, selector
+                collection.on_timeline_command, cls.timeline_class, callback, selector
             ),
             *args,
             **kwargs,
@@ -561,7 +562,7 @@ class TimelineUI(ABC):  # noqa: B024
     def __str__(self):
         return (
             f"{self.get_data('name') if self.timeline else '<unavailable>'} |"
-            f" {self.TIMELINE_KIND.value.capitalize().split('_')[0]} Timeline"
+            f" {self.timeline_class.type_name()} timeline"
         )
 
     def update_element_order(self, element: T):
@@ -589,7 +590,7 @@ class TimelineUI(ABC):  # noqa: B024
 
         post(
             Post.TIMELINE_ELEMENT_COPY_DONE,
-            {"components": component_data, "timeline_kind": self.timeline.KIND},
+            {"components": component_data, "timeline_type": self.timeline_class},
         )
         return True
 

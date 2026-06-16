@@ -5,7 +5,6 @@ import pytest
 from tilia.requests import Post, post
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.timeline_kinds import TimelineKind
 
 
 @pytest.fixture
@@ -20,7 +19,7 @@ def audiowave_tlui(tilia, audiowave_tl, tluis):
 
 @pytest.fixture
 def audiowave_tl(tls):
-    tl: AudioWaveTimeline = tls.create_timeline(TimelineKind.AUDIOWAVE_TIMELINE)
+    tl: AudioWaveTimeline = tls.create_timeline(AudioWaveTimeline)
     tl.refresh = lambda self: None
 
     tl.clear()

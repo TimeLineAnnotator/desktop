@@ -4,7 +4,6 @@ from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
-from tilia.timelines.timeline_kinds import TimelineKind
 
 
 @pytest.fixture
@@ -19,7 +18,7 @@ def score_tlui(score_tl, tluis):
 
 @pytest.fixture
 def score_tl(tls):
-    tl: ScoreTimeline = tls.create_timeline(TimelineKind.SCORE_TIMELINE)
+    tl: ScoreTimeline = tls.create_timeline(ScoreTimeline)
 
     yield tl
 

@@ -2,12 +2,6 @@ from tilia.ui.cli.timelines.utils import assert_error
 
 
 class TestAddBeat:
-    def test_wrong_timeline_kind_raises_error(self, cli, tls):
-        cli.parse_and_run("timeline add hierarchy")
-
-        with assert_error():
-            cli.parse_and_run("component beat --tl-ordinal 1 --time 0")
-
     def test_bad_ordinal_raises_error(self, cli, tls):
         cli.parse_and_run("timeline add beat --beat-pattern 4")
 

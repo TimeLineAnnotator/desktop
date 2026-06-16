@@ -27,7 +27,6 @@ from .validators import (
 )
 
 if TYPE_CHECKING:
-    from tilia.timelines.timeline_kinds import TimelineKind
 
     # noinspection PyUnresolvedReferences
     from .component import TimelineComponent
@@ -50,7 +49,6 @@ class TimelineFlag(Enum):
 class Timeline(ABC, Generic[TC]):
     SERIALIZABLE = ["name", "height", "is_visible", "ordinal"]
     NOT_EXPORTABLE_ATTRS = []
-    KIND: TimelineKind | None = None
     FLAGS = []
     COMPONENT_MANAGER_CLASS = None
 
@@ -92,7 +90,12 @@ class Timeline(ABC, Generic[TC]):
         return self.components[item]
 
     def __len__(self):
-        return self.component_manager.component_count
+        # SliderTimeline has no COMPONENT_MANAGER_CLASS, so component_manager
+        # is None there and len(slider_tl) would otherwise crash.
+        if self.component_manager:
+            return self.component_manager.component_count
+        else:
+            return 0
 
     def __bool__(self):
         """Prevents False form being returned when timeline is empty."""
@@ -108,7 +111,7 @@ class Timeline(ABC, Generic[TC]):
         return self.ordinal < other.ordinal
 
     def __eq__(self, other):
-        if self.KIND != other.KIND:
+        if type(self) is not type(other):
             return False
         for attr in self.SERIALIZABLE:
             if self.get_data(attr) != other.get_data(attr):
@@ -150,7 +153,23 @@ class Timeline(ABC, Generic[TC]):
     def get_kinds_by_flag(cls, flag: TimelineFlag | list[TimelineFlag]):
         if isinstance(flag, TimelineFlag):
             flag = [flag]
-        return [c.KIND for c in cls.__subclasses__() if any(f in c.FLAGS for f in flag)]
+        return [c for c in cls.__subclasses__() if any(f in c.FLAGS for f in flag)]
+
+    @classmethod
+    def type_name(cls):
+        """
+        Returns the name of the Timeline subclass without the 'Timeline' suffix.
+        Example: MarkerTimeline -> Marker
+        """
+        return cls.__name__.replace("Timeline", "")
+
+    @classmethod
+    def get_class_by_name(cls, name: str) -> type[Timeline]:
+        for c in cls.subclasses():
+            if c.type_name().lower() == name.lower():
+                return c
+        else:
+            raise ValueError(f"No timeline class with name {name}")
 
     def validate_set_data(self, attr, value):
         if not hasattr(self, attr):
@@ -192,7 +211,7 @@ class Timeline(ABC, Generic[TC]):
         if success:
             post(
                 Post.TIMELINE_COMPONENT_CREATED,
-                self.KIND,
+                type(self),
                 self.id,
                 kind,
                 component.id,
@@ -256,9 +275,9 @@ class Timeline(ABC, Generic[TC]):
 
     def _get_base_state(self) -> dict:
         """Returns a dict with serializable timeline attributes, excluding components."""
-        state = {"kind": self.KIND.name}
+        state = {"kind": self.type_name()}
 
-        string_to_hash = self.KIND.name + "|"
+        string_to_hash = self.type_name() + "|"
 
         for attr in self.SERIALIZABLE:
             if isinstance(value := getattr(self, attr), list):
@@ -480,7 +499,7 @@ class TimelineComponentManager(Generic[T, TC]):
         self._remove_from_components_set(component)
         post(
             Post.TIMELINE_COMPONENT_DELETED,
-            self.timeline.KIND,
+            type(self.timeline),
             self.timeline.id,
             component.id,
         )
@@ -538,7 +557,9 @@ class TimelineComponentManager(Generic[T, TC]):
             self.timeline.create_component(kind, id=id, **component_data)
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
-        post(event, self.timeline.KIND, self.timeline.id, component_id, *args, **kwargs)
+        post(
+            event, type(self.timeline), self.timeline.id, component_id, *args, **kwargs
+        )
 
     def crop(self, length: float) -> None:
         raise NotImplementedError

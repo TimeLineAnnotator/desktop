@@ -9,7 +9,6 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
-from tilia.timelines.timeline_kinds import TimelineKind
 
 
 def setup_parser(subparsers):
@@ -20,7 +19,7 @@ def setup_parser(subparsers):
 
     import_parser.set_defaults(func=import_timeline)
 
-    import_subparsers = import_parser.add_subparsers(dest="tl_kind")
+    import_subparsers = import_parser.add_subparsers(dest="tl_type")
     setup_import_marker_and_hierarchy_parser(import_subparsers)
     setup_import_score_parser(import_subparsers)
     setup_import_beat_parser(import_subparsers)
@@ -121,20 +120,11 @@ def validate_timelines_for_import(
     success = True
     error_message = ""
 
-    if kind_str == "marker" and tl.KIND != TimelineKind.MARKER_TIMELINE:
-        error_message = f"{tl} is not a marker timeline"
-        success = False
-    elif kind_str == "hierarchy" and tl.KIND != TimelineKind.HIERARCHY_TIMELINE:
-        error_message = f"{tl} is not a hierarchy timeline"
-        success = False
-    elif kind_str == "beat" and tl.KIND != TimelineKind.BEAT_TIMELINE:
-        error_message = f"{tl} is not a beat timeline"
-        success = False
-    elif kind_str == "score" and tl.KIND != TimelineKind.SCORE_TIMELINE:
-        error_message = f"{tl} is not a score timeline"
+    if not isinstance(tl, Timeline.get_class_by_name(kind_str)):
+        error_message = f"{tl} is not a {kind_str} timeline"
         success = False
 
-    if ref_tl and ref_tl.KIND != TimelineKind.BEAT_TIMELINE:
+    if ref_tl and not isinstance(ref_tl, BeatTimeline):
         error_message = f"{ref_tl} is not a beat timeline"
         success = False
 
@@ -151,11 +141,11 @@ def import_timeline(namespace):
         namespace.reference_tl_ordinal = None
         namespace.reference_tl_name = None
 
-    tl_kind = namespace.tl_kind
+    tl_type = namespace.tl_type
 
-    if tl_kind == "beat":
+    if tl_type == "beat":
         measure_or_time = None
-    elif tl_kind == "score":
+    elif tl_type == "score":
         # must set to get a beat timeline
         # from get_timelines_for_import
         measure_or_time = "by-measure"
@@ -173,7 +163,7 @@ def import_timeline(namespace):
     file = Path(namespace.file)
 
     success, error_message = validate_timelines_for_import(
-        tl, ref_tl, tl_kind, measure_or_time
+        tl, ref_tl, tl_type, measure_or_time
     )
     if not success:
         post(
@@ -191,27 +181,27 @@ def import_timeline(namespace):
     tl.clear()
 
     errors = None
-    if tl_kind == "marker":
+    if tl_type == "marker":
         tl = cast(MarkerTimeline, tl)
         if measure_or_time == "by-measure":
             success, errors = marker.import_by_measure(tl, ref_tl, file)
         else:
             success, errors = marker.import_by_time(tl, file)
-    elif tl_kind == "hierarchy":
+    elif tl_type == "hierarchy":
         tl = cast(HierarchyTimeline, tl)
         if measure_or_time == "by-measure":
             success, errors = hierarchy.import_by_measure(tl, ref_tl, file)
         else:
             success, errors = hierarchy.import_by_time(tl, file)
-    elif tl_kind == "beat":
+    elif tl_type == "beat":
         tl = cast(BeatTimeline, tl)
         success, errors = beat.beats_from_csv(tl, file)
 
-    elif tl_kind == "score":
+    elif tl_type == "score":
         tl = cast(ScoreTimeline, tl)
         success, errors = musicxml.notes_from_musicXML(tl, ref_tl, str(file.resolve()))
     else:
-        raise ValueError(f"Unknown timeline kind: {tl_kind}")
+        raise ValueError(f"Unknown timeline kind: {tl_type}")
 
     if errors:
         post(Post.DISPLAY_ERROR, "Import error", f"Errors: {errors}")

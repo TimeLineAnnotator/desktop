@@ -19,7 +19,7 @@ from tilia.media.loader import load_media
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
 from tilia.timelines.collection.collection import Timelines
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.format import format_media_time
 from tilia.ui.strings import SCALE_TIMELINE_PROMPT
@@ -500,10 +500,8 @@ class App:
 
     def setup_file(self):
         # creates a slider timeline if none was loaded
-        if not get(Get.TIMELINE_COLLECTION).has_timeline_of_kind(
-            TimelineKind.SLIDER_TIMELINE
-        ):
-            self.timelines.create_timeline(TimelineKind.SLIDER_TIMELINE)
+        if not get(Get.TIMELINE_COLLECTION).has_timeline_of_type(SliderTimeline):
+            self.timelines.create_timeline(SliderTimeline)
             self.file_manager.set_timelines(*self.get_timelines_state())
 
         self.reset_undo_manager()
