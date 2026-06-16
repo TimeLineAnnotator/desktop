@@ -11,9 +11,7 @@ from PySide6.QtCore import (
     QKeyCombination,
     QObject,
     Qt,
-    QtMsgType,
     QUrl,
-    qInstallMessageHandler,
 )
 from PySide6.QtGui import QDesktopServices, QFontDatabase, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
@@ -38,7 +36,6 @@ import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
-from tilia.log import logger
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
 from tilia.timelines.timeline_kinds import TimelineKind as TlKind
@@ -79,7 +76,6 @@ class TiliaMainWindow(QMainWindow):
         self.setWindowTitle(tilia.constants.APP_NAME)
         self.setWindowIcon(QIcon.fromTheme("tilia"))
         self.setStatusTip("Main window")
-        qInstallMessageHandler(self.handle_qt_log_message)
         self.setAcceptDrops(True)
         self._drop_filter = FileDropEventFilter()
 
@@ -100,25 +96,6 @@ class TiliaMainWindow(QMainWindow):
         # leaving every custom icon blank (#475).
         scheme = QApplication.styleHints().colorScheme()
         return "tiliaDark" if scheme == Qt.ColorScheme.Dark else "tiliaLight"
-
-    # Qt warnings emitted on every paint while the SVG score viewer is open.
-    # They are harmless rendering-engine noise but flood the log loudly enough
-    # to make the app unresponsive (see issue #513).
-    QT_LOG_NOISE_PATTERNS = (
-        "QFont::setPixelSize: Pixel size <= 0",
-        "QWindowsFontEngineDirectWrite::addGlyphsToPath: GetGlyphRunOutline failed",
-    )
-
-    @staticmethod
-    def handle_qt_log_message(type, context, msg):
-        f_msg = f"[{type.name}] {context.file}:{context.line} - {msg}"
-        if type == QtMsgType.QtFatalMsg:
-            raise Exception(f_msg)
-        if type == QtMsgType.QtWarningMsg and any(
-            p in msg for p in TiliaMainWindow.QT_LOG_NOISE_PATTERNS
-        ):
-            return
-        logger.error(f_msg)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event is None:
