@@ -38,9 +38,14 @@ class DragManager:
         self.after_each(dragged_to)
 
     def on_mouse_release(self):
+        self.cleanup()
+        self.on_release()
+
+    def cleanup(self):
+        # Unsubscribe without firing on_release — for owners being torn
+        # down mid-drag, where the callback would touch a phantom.
         for post, _ in self.LISTENS:
             stop_listening(self, post)
-        self.on_release()
 
 
 def minmax(x: int, min_x: int, max_x: int) -> int:

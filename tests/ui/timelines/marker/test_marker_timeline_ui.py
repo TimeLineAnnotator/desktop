@@ -298,6 +298,32 @@ class TestDrag:
             drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(100) + 200, 0)
             assert marker_tlui[0].get_data("time") == 100
 
+    def test_delete_mid_drag_does_not_leak_listener(
+        self, marker_tlui, tluis, tilia_state
+    ):
+        # Regression test for #515: clicking a marker arms a DragManager
+        # listener that was only torn down on mouse-release. Deleting the
+        # marker before release left a stale listener that crashed the
+        # next drag with a KeyError.
+        tilia_state.duration = 100
+        tilia_state.current_time = 10
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+        assert marker_tlui[0].drag_manager is not None  # arm precondition
+
+        # Without the fix, this dispatches into the deleted element's
+        # DragManager and raises KeyError on set_data("time", ...).
+        post(
+            Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG,
+            int(time_x_converter.get_x_by_time(20)),
+            0,
+        )
+        commands.execute("timeline.component.delete")
+
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+
+        assert marker_tlui.is_empty
+
 
 class TestElementContextMenu:
     def test_is_shown_on_right_click(self, marker_tlui, tluis):
@@ -431,9 +457,7 @@ class TestTimelineUIContextMenu:
 
         assert marker_tlui.is_empty
 
-    def test_clear_action_is_disabled_when_timeline_is_empty(
-        self, marker_tlui, tluis
-    ):
+    def test_clear_action_is_disabled_when_timeline_is_empty(self, marker_tlui, tluis):
         # #435: clearing an empty timeline is a no-op; the menu action
         # should be disabled to make that clear to the user.
         context_menu = self.get_context_menu(tluis)
