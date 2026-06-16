@@ -226,6 +226,11 @@ def _build_exe():
     exe_cmd = _get_exe_cmd()
     exe_cmd.extend(_get_nuitka_toml())
     exe_cmd.append(f"--user-package-configuration-file={cfg_path.as_posix()}")
+    # Embed the distribution metadata explicitly. The YAML `include-metadata`
+    # entry alone is dropped when top_level.txt lists a non-compiled package
+    # (e.g. a stray `htmlcov/`) first; the CLI flag uses reason "user requested"
+    # which bypasses Nuitka's hasDoneModule gate. See constants.py runtime read.
+    exe_cmd.append(f"--include-distribution-metadata={_project_name()}")
     exe_cmd.append(main_file.as_posix())
 
     _print(["Building exe with command:", exe_cmd], P.CMD)
