@@ -12,6 +12,10 @@ class TimelineUIsView(QGraphicsView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Defer file drops to the main window: QGraphicsView accepts drops by
+        # default, which would swallow them before they reach the window's
+        # drop filter.
+        self.setAcceptDrops(False)
         self._update_scroll_margins()
         setup_smooth(self)
 
