@@ -83,8 +83,8 @@ class TiliaMainWindow(QMainWindow):
         self.setAcceptDrops(True)
         self._drop_filter = FileDropEventFilter()
 
-    def setup_qapplication(self, q_application: QApplication):
-        q_application.installEventFilter(self._drop_filter)
+    def install_drop_filter(self):
+        self.installEventFilter(self._drop_filter)
 
     def changeEvent(self, event: QEvent) -> None:
         if event.type() == event.Type.ThemeChange:
@@ -183,12 +183,7 @@ class TiliaMainWindow(QMainWindow):
 
 
 class FileDropEventFilter(QObject):
-    """Routes file drag/drop events from any widget to the main window.
-
-    Qt only delivers drag/drop events to widgets with setAcceptDrops(True),
-    and child widgets cover most of TiliaMainWindow, so an app-level filter
-    is needed to catch drops anywhere in the window.
-    """
+    """Handles file drag/drop events for the main window."""
 
     _DRAG_EVENT_TYPES = (
         QEvent.Type.DragEnter,
@@ -335,7 +330,7 @@ class QtUI:
     def _setup_main_window(self, mw: TiliaMainWindow):
         self.main_window = mw
         if os.environ.get("ENVIRONMENT") != "test":
-            self.main_window.setup_qapplication(self.q_application)
+            self.main_window.install_drop_filter()
         self._reset_window_title()
 
     @staticmethod
