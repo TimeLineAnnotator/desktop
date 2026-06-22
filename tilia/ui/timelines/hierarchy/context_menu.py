@@ -26,13 +26,18 @@ class HierarchyContextMenu(TimelineUIElementContextMenu):
 
     def __init__(self, element):
         self.items = DEFAULT_ITEMS.copy()
-        if not element.has_pre_start and element.get_data("start") > 0:
+        if (
+            not element.has_pre_start
+            and element.get_data("start") >= element.MIN_FRAME_LENGTH
+        ):
             self.items.insert(
                 6, (MenuItemKind.COMMAND, "timeline.hierarchy.add_pre_start")
             )
 
-        if not element.has_post_end and element.get_data("end") < get(
-            Get.MEDIA_DURATION
+        if (
+            not element.has_post_end
+            and get(Get.MEDIA_DURATION) - element.get_data("end")
+            >= element.MIN_FRAME_LENGTH
         ):
             self.items.insert(
                 6, (MenuItemKind.COMMAND, "timeline.hierarchy.add_post_end")
