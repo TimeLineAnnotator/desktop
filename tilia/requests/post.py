@@ -38,7 +38,6 @@ class Post(Enum):
     MEDIA_METADATA_TITLE_UPDATED = auto()
     METADATA_UPDATE_FIELDS = auto()
     PLAYBACK_AREA_SET_WIDTH = auto()
-    ZOOM_TOOLBAR_UPDATE = auto()
     PLAYER_CANCEL_LOOP = auto()
     PLAYER_CURRENT_LOOP_CHANGED = auto()
     PLAYER_CURRENT_TIME_CHANGED = auto()
@@ -92,6 +91,7 @@ class Post(Enum):
     WINDOW_CLOSE_DONE = auto()
     WINDOW_UPDATE_REQUEST = auto()
     WINDOW_UPDATE_STATE = auto()
+    ZOOM_TOOLBAR_UPDATE = auto()
 
 
 _posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary(
