@@ -109,40 +109,6 @@ class TestTimelines:
         tls.delete_timeline(tls[0])
         assert tls.serve_ordinal_for_new_timeline() == 1
 
-    def test_deserialize_timelines_with_display_position(self, tls):
-        data = {
-            0: {
-                "height": 220,
-                "is_visible": True,
-                "name": "test1",
-                "display_position": 0,
-                "components": {},
-                "kind": TimelineKind.HIERARCHY_TIMELINE,
-            },
-            1: {
-                "height": 220,
-                "is_visible": True,
-                "name": "test2",
-                "display_position": 1,
-                "components": {},
-                "kind": TimelineKind.MARKER_TIMELINE,
-            },
-        }
-
-        tls.deserialize_timelines(data)
-
-        # assert timelines where created in right order
-        assert tls[0].name == "test1"
-        assert tls[1].name == "test2"
-
-        # assert ordinal property has been set
-        assert tls[0].ordinal == 1
-        assert tls[1].ordinal == 2
-
-        # assert display_position attribute was not created
-        assert not hasattr(tls[0], "display_position")
-        assert not hasattr(tls[1], "display_position")
-
     def test_serialize_timelines_serializes_ordinals(self, tls):
         tl1 = tls.create_timeline(TimelineKind.SLIDER_TIMELINE)
         tl2 = tls.create_timeline(TimelineKind.HIERARCHY_TIMELINE)

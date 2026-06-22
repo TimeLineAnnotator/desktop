@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import tilia.constants
 import tilia.errors
 from tilia.exceptions import (
     MediaMetadataFieldAlreadyExists,
@@ -11,10 +12,19 @@ from tilia.exceptions import (
 )
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.file.media_metadata import MediaMetadata
+from tilia.file.migration import is_from_newer_version, migrate
 from tilia.file.tilia_file import TiliaFile, validate_tla_data
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
 from tilia.ui import commands
+
+OPEN_FILE_NEWER_VERSION_TITLE = "Open file from a newer version?"
+OPEN_FILE_NEWER_VERSION_PROMPT = (
+    "This file was created with TiLiA {} but you are running {}.\n"
+    "It may not load correctly, and saving could discard data that this "
+    "version doesn't understand.\n\n"
+    "Open it anyway?"
+)
 
 
 def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None, Path | None]:
@@ -36,6 +46,19 @@ def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None, Path | None
     if not valid:
         tilia.errors.display(tilia.errors.OPEN_FILE_INVALID_TLA, file_path, reason)
         return False, None, None
+
+    if is_from_newer_version(data):
+        proceed = get(
+            Get.FROM_USER_YES_OR_NO,
+            OPEN_FILE_NEWER_VERSION_TITLE,
+            OPEN_FILE_NEWER_VERSION_PROMPT.format(
+                data.get("version", "?"), tilia.constants.VERSION
+            ),
+        )
+        if not proceed:
+            return False, None, None
+
+    data, _ = migrate(data)
 
     old_path = Path(data["file_path"])
 
