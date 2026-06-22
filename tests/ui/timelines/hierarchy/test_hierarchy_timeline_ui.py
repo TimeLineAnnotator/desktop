@@ -2,11 +2,13 @@ import pytest
 from PySide6.QtGui import QColor
 
 from tests.mock import Serve, patch_yes_or_no_dialog
+from tests.utils import get_command_names
 from tilia.requests import Get, Post, post
 from tilia.settings import settings
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.ui import commands
 from tilia.ui.timelines.hierarchy import HierarchyUI
+from tilia.ui.timelines.hierarchy.context_menu import HierarchyContextMenu
 
 
 @pytest.fixture
@@ -186,6 +188,59 @@ class TestActions:
         commands.execute("timeline.hierarchy.create_child")
 
         assert len(tlui) == 2
+
+
+class TestAddFrameValidation:
+    """Pre-start / post-end add is offered only when a frame fits (issue #495).
+
+    Pre-start extends left of ``start`` (toward 0); post-end extends right of
+    ``end`` (toward the media duration). When there isn't room for at least the
+    minimum length, the context menu must not offer the add.
+    """
+
+    PRE_START = "timeline.hierarchy.add_pre_start"
+    POST_END = "timeline.hierarchy.add_post_end"
+
+    # Context-menu presence.
+
+    def test_pre_start_in_menu_when_room_before_start(self, tlui):
+        tlui.create_hierarchy(1, 2, 1)
+        menu = HierarchyContextMenu(tlui[0])
+        assert self.PRE_START in get_command_names(menu)
+
+    def test_pre_start_not_in_menu_when_start_at_zero(self, tlui):
+        tlui.create_hierarchy(0, 1, 1)
+        menu = HierarchyContextMenu(tlui[0])
+        assert self.PRE_START not in get_command_names(menu)
+
+    def test_post_end_in_menu_when_room_after_end(self, tlui, tilia_state):
+        tilia_state.duration = 100
+        tlui.create_hierarchy(0, 50, 1)
+        menu = HierarchyContextMenu(tlui[0])
+        assert self.POST_END in get_command_names(menu)
+
+    def test_post_end_not_in_menu_when_end_at_duration(self, tlui, tilia_state):
+        tilia_state.duration = 100
+        tlui.create_hierarchy(0, 100, 1)
+        menu = HierarchyContextMenu(tlui[0])
+        assert self.POST_END not in get_command_names(menu)
+
+    # Too little room for a valid frame: the menu must not offer the add.
+
+    def test_pre_start_not_in_menu_when_room_below_min_length(self, tlui):
+        tlui.create_hierarchy(HierarchyUI.MIN_FRAME_LENGTH / 2, 1, 1)
+        menu = HierarchyContextMenu(tlui[0])
+        assert self.PRE_START not in get_command_names(menu)
+
+    def test_post_end_not_in_menu_when_room_below_min_length(
+        self, tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        tlui.create_hierarchy(
+            0, tilia_state.duration - HierarchyUI.MIN_FRAME_LENGTH / 2, 1
+        )
+        menu = HierarchyContextMenu(tlui[0])
+        assert self.POST_END not in get_command_names(menu)
 
 
 class TestCopyPaste:

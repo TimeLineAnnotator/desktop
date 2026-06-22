@@ -75,6 +75,10 @@ class HierarchyUI(TimelineUIElement):
     NAME_WHEN_UNLABELLED = "Unnamed"
     FULL_NAME_SEPARATOR = "-"
 
+    # Smallest value the float input dialog (Qt's getDouble) accepts at its
+    # default precision.
+    MIN_FRAME_LENGTH = 0.1
+
     UPDATE_TRIGGERS = [
         "start",
         "end",

@@ -352,7 +352,7 @@ class HierarchyTimelineUI(TimelineUI):
             Get.FROM_USER_FLOAT,
             "Add pre-start",
             "Pre-start length",
-            minValue=0.1,
+            minValue=HierarchyUI.MIN_FRAME_LENGTH,
             maxValue=min(elm.get_data("start") for elm in elements),
         )
         if not accept:
@@ -367,7 +367,7 @@ class HierarchyTimelineUI(TimelineUI):
             Get.FROM_USER_FLOAT,
             "Add post-end",
             "Post-end length",
-            minValue=0.1,
+            minValue=HierarchyUI.MIN_FRAME_LENGTH,
             maxValue=get(Get.MEDIA_DURATION)
             - max(elm.get_data("end") for elm in elements),
         )
