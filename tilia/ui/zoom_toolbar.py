@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QSizePolicy,
@@ -38,6 +38,7 @@ class ZoomToolbar(QToolBar):
         self.setFloatable(False)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         self.setMaximumHeight(30)
+        self.setIconSize(QSize(16, 16))
 
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -48,6 +49,15 @@ class ZoomToolbar(QToolBar):
         self._slider = QSlider(Qt.Orientation.Horizontal)
         self._slider.setRange(0, _SLIDER_STEPS)
         self._slider.setFixedWidth(100)
+        # Shrink the handle/groove to match the 16px toolbar icons; the native
+        # handle otherwise dwarfs them. palette() keeps it theme-aware.
+        self._slider.setStyleSheet(
+            "QSlider::groove:horizontal{height:4px;border-radius:2px;"
+            "background:palette(mid);}"
+            "QSlider::handle:horizontal{width:12px;height:12px;margin:-4px 0;"
+            "border-radius:6px;background:palette(button);"
+            "border:1px solid palette(dark);}"
+        )
         self._slider.setValue(_ratio_to_slider(1.0))
         self._slider.sliderMoved.connect(self._on_slider_moved)
         self._slider.sliderReleased.connect(self._on_slider_released)
@@ -65,6 +75,9 @@ class ZoomToolbar(QToolBar):
         self._edit.setRange(0, math.inf)
         self._edit.setButtonSymbols(QDoubleSpinBox.ButtonSymbols.NoButtons)
         self._edit.setFixedWidth(60)
+        # Commit only on Enter/focus-out instead of on every keystroke, so
+        # typing "250" doesn't fire a full re-zoom at 2%, 25%, then 250%.
+        self._edit.setKeyboardTracking(False)
         self._edit.valueChanged.connect(self._on_edit_committed)
         self.addWidget(self._edit)
 
