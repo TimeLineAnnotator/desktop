@@ -281,7 +281,7 @@ def tls(tilia):
     _tls.clear()  # deletes created timelines
 
 
-@pytest.fixture(params=["marker", "harmony", "beat", "hierarchy", "audiowave", "score"])
+@pytest.fixture
 def tlui(
     request,
     marker_tlui,
