@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QSizePolicy,
@@ -51,13 +51,7 @@ class ZoomToolbar(QToolBar):
         self._slider.setFixedWidth(100)
         # Shrink the handle/groove to match the 16px toolbar icons; the native
         # handle otherwise dwarfs them. palette() keeps it theme-aware.
-        self._slider.setStyleSheet(
-            "QSlider::groove:horizontal{height:4px;border-radius:2px;"
-            "background:palette(mid);}"
-            "QSlider::handle:horizontal{width:12px;height:12px;margin:-4px 0;"
-            "border-radius:6px;background:palette(button);"
-            "border:1px solid palette(dark);}"
-        )
+        self._apply_slider_stylesheet()
         self._slider.setValue(_ratio_to_slider(1.0))
         self._slider.sliderMoved.connect(self._on_slider_moved)
         self._slider.sliderReleased.connect(self._on_slider_released)
@@ -82,6 +76,20 @@ class ZoomToolbar(QToolBar):
         self.addWidget(self._edit)
 
         listen(self, Post.ZOOM_TOOLBAR_UPDATE, self._on_zoom_toolbar_update)
+
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == QEvent.Type.PaletteChange:
+            self._apply_slider_stylesheet()
+        super().changeEvent(event)
+
+    def _apply_slider_stylesheet(self) -> None:
+        self._slider.setStyleSheet(
+            "QSlider::groove:horizontal{height:4px;border-radius:2px;"
+            "background:palette(window-text);}"
+            "QSlider::handle:horizontal{width:12px;height:12px;margin:-4px 0;"
+            "border-radius:6px;background:palette(button);"
+            "border:1px solid palette(button-text);}"
+        )
 
     def _update_ui(self, ratio: float) -> None:
         self._slider.blockSignals(True)
