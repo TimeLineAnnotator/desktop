@@ -194,7 +194,7 @@ def _get_params_from_music21_object(
     accidental = int(obj.root().alter)
     inversion = obj.inversion() if obj.inversion() else 0
     if kind == "roman":
-        quality = obj.impliedQuality
+        quality = obj.letter_type
         applied_to = (
             ROMAN_TO_INT[obj.secondaryRomanNumeral.figure.upper()]
             if obj.secondaryRomanNumeral
