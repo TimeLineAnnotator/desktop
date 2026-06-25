@@ -94,3 +94,37 @@ class TestChordSymbolParsing:
         # extensions are not currently supported
         params = parse_text("C" + extension)
         assert params["step"] == 0
+
+
+class TestRomanNumeralParsing:
+    # Regression guard: a roman-numeral seventh used to select the triad
+    # quality (e.g. "V7" -> "major") because the parser read music21's
+    # `impliedQuality`, which only reflects the triad, instead of the full
+    # chord type computed from the chord's pitches.
+    @pytest.mark.parametrize(
+        "text, quality, step, inversion",
+        [
+            ("V", "major", 4, 0),
+            ("V7", "dominant-seventh", 4, 0),
+            ("V65", "dominant-seventh", 4, 1),
+            ("V43", "dominant-seventh", 4, 2),
+            ("V42", "dominant-seventh", 4, 3),
+            ("ii7", "minor-seventh", 1, 0),
+            ("viio7", "diminished-seventh", 6, 0),
+        ],
+    )
+    def test_quality_step_and_inversion(self, text, quality, step, inversion, qtui):
+        params = parse_text(text)
+        assert params["quality"] == quality
+        assert params["step"] == step
+        assert params["inversion"] == inversion
+
+    def test_seventh_quality_is_not_collapsed_to_triad(self, qtui):
+        # Direct guard for the reported bug: typing "V7" selected "Major".
+        assert parse_text("V7")["quality"] == "dominant-seventh"
+
+    def test_applied_seventh(self, qtui):
+        params = parse_text("V7/V")
+        assert params["quality"] == "dominant-seventh"
+        assert params["applied_to"] == 4
+        assert params["step"] == 1
