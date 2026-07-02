@@ -6,6 +6,10 @@ from PySide6.QtWidgets import QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRe
 
 from tilia.ui.timelines.cursors import CursorMixIn
 
+# Drag handles must sit above the decorative overlays (label, comments and
+# loop icons at z = level + 1 in element.py) so their clicks aren't stolen.
+HANDLE_Z = 100
+
 
 class HierarchyBodyHandle(CursorMixIn, QGraphicsRectItem):
     def __init__(
@@ -26,7 +30,7 @@ class HierarchyBodyHandle(CursorMixIn, QGraphicsRectItem):
 
     def set_position(self, x, width, height, tl_height, bottom_margin):
         self.setRect(self.get_rect(x, width, height, tl_height, bottom_margin))
-        self.setZValue(0)
+        self.setZValue(HANDLE_Z)
 
     @staticmethod
     def get_rect(x, width, height, tl_height, bottom_margin):

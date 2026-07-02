@@ -309,6 +309,14 @@ class TestCommentsIndicator:
         hui.set_data("end", 100)
         assert hui.comments_icon.isVisible()
 
+    def test_does_not_stack_above_drag_handles(self, tlui):
+        # Regression: the comments emoji's bounding box overhangs the end
+        # handle's x. If the icon stacks above the handle it wins the itemAt
+        # hit-test and the boundary can't be dragged.
+        hui = self.create_hierarchy_ui(tlui, comments="something")
+        assert hui.comments_icon.zValue() < hui.start_handle.zValue()
+        assert hui.comments_icon.zValue() < hui.end_handle.zValue()
+
 
 class TestDoubleClick:
     def test_posts_seek(self, tlui, tilia_state):
