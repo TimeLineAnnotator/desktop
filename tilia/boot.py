@@ -44,6 +44,10 @@ def handle_exception(type, value, tb):
 QT_LOG_NOISE_PATTERNS = (
     "QFont::setPixelSize: Pixel size <= 0",
     "QWindowsFontEngineDirectWrite::addGlyphsToPath: GetGlyphRunOutline failed",
+    # Emitted by QtGui's ICC parser when it can't read the description tag of a
+    # colour profile - on macOS the display profile is re-parsed for every
+    # native window, flooding the log on startup. Purely cosmetic.
+    "fromIccProfile: Failed to parse description",
 )
 
 

@@ -309,6 +309,7 @@ class TestHandleQtLogMessage:
         [
             "QFont::setPixelSize: Pixel size <= 0 (0)",
             "QWindowsFontEngineDirectWrite::addGlyphsToPath: GetGlyphRunOutline failed (Der Vorgang wurde erfolgreich beendet.)",
+            "fromIccProfile: Failed to parse description",
         ],
     )
     def test_known_noise_warning_is_suppressed(self, noisy_msg):
