@@ -8,6 +8,7 @@ from tilia.settings import settings
 
 class TimelineScene(QGraphicsScene):
     LABEL_Y_MARGIN = 3
+    LOOP_BOX_Z = -100
 
     def __init__(
         self,
@@ -73,9 +74,7 @@ class TimelineScene(QGraphicsScene):
         self.set_loop_box_color(QColor(settings.get("general", "loop_box_shade")))
         self.loop_box.setVisible(False)
         self.addItem(self.loop_box)
-        self.loop_box.setZValue(
-            -len(settings.get("hierarchy_timeline", "default_colors")) - 1
-        )
+        self.loop_box.setZValue(self.LOOP_BOX_Z)
 
     def set_loop_box_color(self, color):
         pen = QPen()
