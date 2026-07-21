@@ -232,9 +232,7 @@ class TestAddFrameValidation:
         menu = HierarchyContextMenu(tlui[0])
         assert self.PRE_START not in get_command_names(menu)
 
-    def test_post_end_not_in_menu_when_room_below_min_length(
-        self, tlui, tilia_state
-    ):
+    def test_post_end_not_in_menu_when_room_below_min_length(self, tlui, tilia_state):
         tilia_state.duration = 100
         tlui.create_hierarchy(
             0, tilia_state.duration - HierarchyUI.MIN_FRAME_LENGTH / 2, 1

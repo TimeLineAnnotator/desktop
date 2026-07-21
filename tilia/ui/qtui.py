@@ -96,7 +96,6 @@ class TiliaMainWindow(QMainWindow):
         scheme = QApplication.styleHints().colorScheme()
         return "tiliaDark" if scheme == Qt.ColorScheme.Dark else "tiliaLight"
 
-
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event is None:
             return
