@@ -264,6 +264,48 @@ class TestFileLoad:
         tilia.player.on_media_duration_available(201.0, requested_video_id=video_id_b)
         assert tilia_state.duration == 201
 
+    @pytest.mark.parametrize(
+        "reported_duration",
+        [EXAMPLE_MEDIA_DURATION - 1, EXAMPLE_MEDIA_DURATION + 1],
+        ids=["shorter", "longer"],
+    )
+    def test_async_duration_after_open_does_not_prompt_or_change_timelines(
+        self, tilia, tilia_state, marker_tlui, tls, tmp_path, reported_duration
+    ):
+        # Regression for #453. Opening a file loads its media with
+        # scale_timelines="keep": the timelines were saved to match it, so a
+        # slightly different duration later reported by the player (YouTube
+        # returns it asynchronously, often off by a fraction of a second)
+        # must neither prompt to scale nor scale/crop components -- whether
+        # it comes back longer or shorter than the stored value. A shorter
+        # value used to crop and silently delete end components.
+
+        # Reference real media in the file, but without a live QMediaPlayer
+        # load while building it: reopening performs the only real media
+        # load, and a second Qt setSource in one process can deadlock
+        # CoreAudio on macOS.
+        tilia_state.media_path = EXAMPLE_MEDIA_PATH
+        # "no" (not the prompting default) because the marker timeline
+        # fixture already exists; it is still empty here, so nothing scales
+        # or crops.
+        tilia_state.set_duration(EXAMPLE_MEDIA_DURATION, scale_timelines="no")
+        marker_time = EXAMPLE_MEDIA_DURATION - 0.5
+        commands.execute("media.seek", marker_time)
+        commands.execute("timeline.marker.add")
+
+        # Stub the Qt engine load so reopening doesn't touch a real audio
+        # device; the scale/crop path under test is driven by the
+        # set_file_media_duration call below, not by the media load itself.
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=True):
+            save_and_reopen(tmp_path)
+            with Serve(Get.FROM_USER_YES_OR_NO, True) as scale_prompt:
+                tilia.set_file_media_duration(reported_duration)
+
+        marker_tl = tls.get_timelines_by_attr("KIND", TimelineKind.MARKER_TIMELINE)[0]
+        assert not scale_prompt.called
+        assert len(marker_tl) == 1
+        assert marker_tl[0].get_data("time") == pytest.approx(marker_time)
+
 
 class TestMediaLoad:
     @staticmethod
