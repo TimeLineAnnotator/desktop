@@ -178,8 +178,8 @@ def _get_music21_object_from_text(
     elif text.startswith(("I", "i", "V", "v")):
         try:
             roman_numeral = music21.roman.RomanNumeral(prefixed_accidental + text, key)
-            letter_common_name = music21.chord.Chord(roman_numeral.pitches).commonName
-            roman_numeral.letter_type = CHORD_COMMON_NAME_TO_TYPE[letter_common_name]
+            if roman_numeral.commonName not in CHORD_COMMON_NAME_TO_TYPE:
+                raise KeyError(roman_numeral.commonName)
             return roman_numeral, "roman"
         except (ValueError, KeyError):
             pass
@@ -194,7 +194,7 @@ def _get_params_from_music21_object(
     accidental = int(obj.root().alter)
     inversion = obj.inversion() if obj.inversion() else 0
     if kind == "roman":
-        quality = obj.letter_type
+        quality = CHORD_COMMON_NAME_TO_TYPE[obj.commonName]
         applied_to = (
             ROMAN_TO_INT[obj.secondaryRomanNumeral.figure.upper()]
             if obj.secondaryRomanNumeral
