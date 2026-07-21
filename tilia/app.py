@@ -121,7 +121,7 @@ class App:
     def set_file_media_duration(
         self,
         duration: float,
-        scale_timelines: Literal["yes", "no", "prompt"] | None = None,
+        scale_timelines: Literal["yes", "no", "prompt", "keep"] | None = None,
     ) -> None:
         if scale_timelines:
             self.should_scale_timelines = scale_timelines
@@ -234,7 +234,7 @@ class App:
         self,
         path: str,
         record: bool = True,
-        scale_timelines: Literal["yes", "no", "prompt"] = "prompt",
+        scale_timelines: Literal["yes", "no", "prompt", "keep"] = "prompt",
         initial_duration: float | None = None,
     ) -> bool:
         """
@@ -357,7 +357,16 @@ class App:
             self._next_id = max(self._next_id, max(ids) + 1)
 
     def on_media_duration_changed(self, duration: float):
-        if not self.timelines.is_blank and duration != self.duration:
+        # "keep" leaves the timelines untouched: they already match this
+        # media (e.g. we just opened a file), so a duration report that
+        # differs slightly — YouTube returns it asynchronously, often off by
+        # a few ms — must neither prompt to scale nor crop end components
+        # (#453). Only the duration itself is updated, below.
+        if (
+            not self.timelines.is_blank
+            and duration != self.duration
+            and self.should_scale_timelines != "keep"
+        ):
             crop_or_scale = ""
             if self.should_scale_timelines == "prompt":
                 if self.prompt_scale_timelines(self.duration, duration):
@@ -429,7 +438,13 @@ class App:
             post(Post.PLAYER_URL_CHANGED, "")
             return
 
-        self.load_media(new_path, initial_duration=duration)
+        # Media that belongs to a file we just opened: the timelines were
+        # saved to match it, so neither prompt to rescale nor crop when the
+        # player reports its duration. "no" is not enough here — it still
+        # crops when the reported duration comes back shorter, and YouTube
+        # returns that duration asynchronously, often off by a few ms from
+        # the stored value, which would silently delete end components (#453).
+        self.load_media(new_path, initial_duration=duration, scale_timelines="keep")
 
     def on_file_load(self, file: TiliaFile) -> bool:
         media_path = file.media_path
