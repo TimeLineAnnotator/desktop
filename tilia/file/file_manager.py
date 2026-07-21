@@ -21,7 +21,7 @@ from tilia.ui import commands
 OPEN_FILE_NEWER_VERSION_TITLE = "Open file from a newer version?"
 OPEN_FILE_NEWER_VERSION_PROMPT = (
     "This file was created with TiLiA {} but you are running {}.\n"
-    "It may not load correctly, and saving could discard data that this "
+    "Errors may occur, and saving could permanently discard data that this "
     "version doesn't understand.\n\n"
     "Open it anyway?"
 )
