@@ -22,6 +22,16 @@ def make_timeline(kind, **extra):
     }
 
 
+def make_pre_0_1_1_timeline(kind, display_position, **extra):
+    """A timeline dict as written before the 0.1.1 ordinal migration.
+
+    Pre-0.1.1 files have ``display_position``, not ``ordinal``.
+    """
+    timeline = make_timeline(kind, display_position=display_position, **extra)
+    del timeline["ordinal"]
+    return timeline
+
+
 def make_tla(version, timelines=None):
     return {
         "file_path": "",
@@ -70,9 +80,8 @@ class TestMigrate:
     def test_display_position_to_ordinal(self):
         data = make_tla(
             "0.1.0",
-            {"0": make_timeline("MARKER_TIMELINE", display_position=3)},
+            {"0": make_pre_0_1_1_timeline("MARKER_TIMELINE", display_position=3)},
         )
-        del data["timelines"]["0"]["ordinal"]
 
         migrated, applied = migrate(data, app_version="0.6.2")
 
@@ -102,9 +111,8 @@ class TestMigrate:
     def test_chaining_runs_all_applicable_migrations(self):
         data = make_tla(
             "0.1.0",
-            {"0": make_timeline("HIERARCHY_TIMELINE", display_position=0)},
+            {"0": make_pre_0_1_1_timeline("HIERARCHY_TIMELINE", display_position=0)},
         )
-        del data["timelines"]["0"]["ordinal"]
 
         migrated, applied = migrate(data, app_version="0.7.0")
 
