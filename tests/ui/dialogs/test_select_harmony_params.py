@@ -97,6 +97,20 @@ class TestChordSymbolParsing:
         params = parse_text("C" + extension)
         assert params["step"] == 0
 
+    def test_applied_to_is_cleared_when_no_longer_applied(qtui):
+        # Regression guard: the applied-to combobox was only ever updated when
+        # parsing produced a nonzero applied_to, so editing the text back down
+        # to a plain (non-applied) chord left the previous selection (e.g. "/V")
+        # stuck in the combobox instead of resetting to "none".
+        dialog = SelectHarmonyParams()
+        dialog.line_edit.setText("V7/V")
+        dialog.populate_from_text()
+        assert dialog.applied_to_combobox.currentData() == 4
+
+        dialog.line_edit.setText("V7")
+        dialog.populate_from_text()
+        assert dialog.applied_to_combobox.currentData() == 0
+
 
 class TestRomanNumeralParsing:
     # Regression guard: a roman-numeral seventh used to select the triad
