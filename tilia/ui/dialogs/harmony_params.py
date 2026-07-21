@@ -186,12 +186,9 @@ class SelectHarmonyParams(QDialog):
         self.inversion_combobox.setCurrentIndex(
             get_index_by_param(self.inversion_combobox, "inversion")
         )
-        if params["applied_to"]:
-            self.applied_to_combobox.setCurrentIndex(
-                self.applied_to_combobox.findText(
-                    INT_TO_APPLIED_TO_SUFFIX[params["applied_to"]]
-                )
-            )
+        self.applied_to_combobox.setCurrentIndex(
+            get_index_by_param(self.applied_to_combobox, "applied_to")
+        )
         self._populating = False
 
     def populate_from_text(self):
