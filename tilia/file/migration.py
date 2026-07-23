@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Callable
 
 from tilia.constants import VERSION
+from tilia.timelines.timeline_kinds import TimelineKind
 
 Migration = Callable[[dict], dict]
 
@@ -69,6 +70,23 @@ MIGRATIONS: list[tuple[str, Migration]] = [
     ("0.1.1", _to_0_1_1_display_position_to_ordinal),
     ("0.7.0", _to_0_7_0_timeline_kind),
 ]
+
+
+def _is_known_kind(kind: str | None) -> bool:
+    try:
+        TimelineKind(kind)
+    except ValueError:
+        return False
+    return True
+
+
+def find_unknown_timeline_kinds(data: dict) -> dict[str, str]:
+    return {
+        id: kind
+        for id, timeline in data.get("timelines", {}).items()
+        if isinstance(timeline, dict)
+        and not _is_known_kind(kind := timeline.get("kind"))
+    }
 
 
 def migrate(data: dict, app_version: str = VERSION) -> tuple[dict, list[str]]:

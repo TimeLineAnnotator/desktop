@@ -248,7 +248,10 @@ class Timelines:
         # create timelines that are only in restored state
         for id in list(set(timeline_states) - set(shared_tl_ids)):
             params = timeline_states[id].copy()
-            kind = TimelineKind(params.pop("kind"))
+            try:
+                kind = TimelineKind(params.pop("kind"))
+            except ValueError:
+                continue
             self.create_timeline(kind, id=id, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
