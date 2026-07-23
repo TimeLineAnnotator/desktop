@@ -4,6 +4,7 @@ from tilia.ui.dialogs.basic import (
     ask_for_float,
     ask_for_int,
     ask_for_string,
+    ask_unknown_timeline_kind_action,
     ask_yes_or_no,
 )
 from tilia.ui.dialogs.file import (
@@ -50,6 +51,10 @@ class DialogManager:
             (Get.FROM_USER_RETRY_PDF_PATH, ask_retry_pdf_file),
             (Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA, ask_add_timeline_without_media),
             (Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, ask_beat_timeline_fill_method),
+            (
+                Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION,
+                ask_unknown_timeline_kind_action,
+            ),
         }
 
         for request, callback in SERVES:

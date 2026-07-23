@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import itertools
 import json
 import os
 import re
@@ -163,11 +162,24 @@ class App:
 
         self.old_file_path = old_path
         self.cur_file_path = Path(file.file_path)
+        if file.unknown_timelines or file.deleted_timelines:
+            self._reserve_ids({**file.unknown_timelines, **file.deleted_timelines})
 
         success = self.on_file_load(file)
         if not success:
             self.on_restore_state(prev_state)
             return
+
+        file.timelines, file.timelines_hash = self.get_timelines_state()
+
+        if file.unknown_timelines or file.deleted_timelines:
+            file.timelines = {
+                **self._renumber_ordinal_for_append(
+                    file.unknown_timelines, file.timelines
+                ),
+                **file.deleted_timelines,
+                **file.timelines,
+            }
 
         self.file_manager.file = file
         post(Post.APP_FILE_LOADED, file)
@@ -291,10 +303,10 @@ class App:
 
         def handle_invalid_id(id):
             tilia.errors.display(tilia.errors.INVALID_ID, id)
-            return str(next(self._id_counter))
+            return self._next_available_id()
 
         if id is None:
-            return str(next(self._id_counter))
+            return self._next_available_id()
 
         if type(id) not in [int, str]:
             return handle_invalid_id(id)
@@ -314,15 +326,35 @@ class App:
         existing_ids = timeline_ids.union(component_ids)
 
         if int_id in existing_ids:
-            return str(next(self._id_counter))
+            return self._next_available_id()
 
-        if not existing_ids or int_id > max(existing_ids):
-            self._id_counter = itertools.count(int_id + 1)
+        self._next_id = max(self._next_id, int_id + 1)
 
         return str(int_id)
 
+    def _next_available_id(self) -> str:
+        id = self._next_id
+        self._next_id += 1
+        return str(id)
+
     def reset_id_generator(self):
-        self._id_counter = itertools.count()
+        self._next_id = 0
+
+    def _reserve_ids(self, unknown_timelines: dict) -> None:
+        def to_int(value):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        ids = [
+            n
+            for timeline_id, timeline_data in unknown_timelines.items()
+            for i in (timeline_id, *timeline_data.get("components", {}))
+            if (n := to_int(i)) is not None
+        ]
+        if ids:
+            self._next_id = max(self._next_id, max(ids) + 1)
 
     def on_media_duration_changed(self, duration: float):
         if not self.timelines.is_blank and duration != self.duration:
@@ -478,11 +510,31 @@ class App:
     def get_timelines_state(self):
         return self.timelines.serialize_timelines()
 
+    @staticmethod
+    def _renumber_ordinal_for_append(
+        unknown_timelines: dict, live_timelines: dict
+    ) -> dict:
+        if not unknown_timelines:
+            return {}
+        live_max = max(
+            (tl.get("ordinal", 0) for tl in live_timelines.values()), default=0
+        )
+        ordered_ids = sorted(
+            unknown_timelines, key=lambda id: unknown_timelines[id].get("ordinal", 0)
+        )
+        return {
+            id: {**unknown_timelines[id], "ordinal": live_max + offset}
+            for offset, id in enumerate(ordered_ids, start=1)
+        }
+
     def get_app_state(self) -> dict:
         timelines_state, timelines_hash = self.timelines.serialize_timelines()
+        unknown_timelines = self._renumber_ordinal_for_append(
+            self.file_manager.file.unknown_timelines, timelines_state
+        )
         params = {
             "media_metadata": dict(self.file_manager.file.media_metadata),
-            "timelines": timelines_state,
+            "timelines": {**unknown_timelines, **timelines_state},
             "timelines_hash": timelines_hash,
             "media_path": get(Get.MEDIA_PATH),
             "file_path": self.file_manager.get_file_path(),

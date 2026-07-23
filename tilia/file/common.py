@@ -34,8 +34,15 @@ def write_tilia_file_to_disk(file: TiliaFile, path: str | Path):
         tilia.constants.YOUTUBE_URL_REGEX, file.media_path
     ):
         file.media_path = Path(file.media_path).as_posix()
+    # unknown_timelines are already folded into timelines in app.get_app_state().
+    # The remaining unknown_timelines/deleted_timelines are runtime-only bookkeeping.
+    data = {
+        k: v
+        for k, v in file.__dict__.items()
+        if k not in ("unknown_timelines", "deleted_timelines")
+    }
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(file.__dict__, f, **JSON_CONFIG)
+        json.dump(data, f, **JSON_CONFIG)
 
 
 def validate_save_path(path: Path):

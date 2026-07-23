@@ -50,6 +50,10 @@ class CLI:
             (Get.FROM_USER_RETRY_MEDIA_PATH, on_ask_retry_media_file),
             (Get.FROM_USER_RETRY_PDF_PATH, on_ask_retry_pdf_file),
             (Get.FROM_USER_MEDIA_PATH, on_ask_media_path),
+            (
+                Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION,
+                on_ask_unknown_timeline_kind_action,
+            ),
         }
         for request, callback in SERVES:
             serve(self, request, callback)
@@ -210,6 +214,25 @@ def on_ask_retry_media_file() -> bool:
 
 def on_ask_retry_pdf_file() -> bool:
     return on_ask_yes_or_no("Invalid PDF", "Would you like to load another PDF file?")
+
+
+def on_ask_unknown_timeline_kind_action(kinds: list[str]) -> tuple[bool, bool]:
+    kind_list = ", ".join(sorted(set(kinds)))
+    # (proceed, delete)
+    outcomes = {
+        "cancel": (False, False),
+        "delete": (True, True),
+        "ignore": (True, False),
+    }
+    valid_answers = {x for opt in outcomes for x in (opt, opt[0])}
+    prompt = (
+        f"Unknown timeline type(s) found: {kind_list}. "
+        f"Delete, ignore (keep in file, unopened), or cancel opening? "
+        f"[delete/ignore/cancel]: "
+    )
+    while (ans := input(prompt).lower()) not in valid_answers:
+        pass
+    return next(v for opt, v in outcomes.items() if ans in (opt, opt[0]))
 
 
 def on_ask_media_path() -> tuple[bool, str]:

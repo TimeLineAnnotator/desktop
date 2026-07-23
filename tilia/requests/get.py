@@ -30,6 +30,7 @@ class Get(Enum):
     FROM_USER_SHOULD_SAVE_CHANGES = auto()
     FROM_USER_STRING = auto()
     FROM_USER_TILIA_FILE_PATH = auto()
+    FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION = auto()
     FROM_USER_YES_OR_NO = auto()
     ID = auto()
     IS_FILE_MODIFIED = auto()

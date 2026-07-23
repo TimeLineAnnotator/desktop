@@ -12,10 +12,15 @@ from tilia.exceptions import (
 )
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.file.media_metadata import MediaMetadata
-from tilia.file.migration import is_from_newer_version, migrate
+from tilia.file.migration import (
+    find_unknown_timeline_kinds,
+    is_from_newer_version,
+    migrate,
+)
 from tilia.file.tilia_file import TiliaFile, validate_tla_data
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
+from tilia.timelines.hash_timelines import hash_function
 from tilia.ui import commands
 
 OPEN_FILE_NEWER_VERSION_TITLE = "Open file from a newer version?"
@@ -25,6 +30,43 @@ OPEN_FILE_NEWER_VERSION_PROMPT = (
     "version doesn't understand.\n\n"
     "Open it anyway?"
 )
+
+
+def _pop_unknown_timelines(data: dict, unknown_kinds: dict) -> dict:
+    return {id: data["timelines"].pop(id) for id in unknown_kinds}
+
+
+def _ensure_components_hash(timelines: dict) -> dict:
+    """Fills in a ``"components_hash"`` for any entry missing one, mutating
+    and returning ``timelines``.
+
+    A raw timeline entry that was popped and kept as unknown never goes
+    through ``Timeline.get_state()`` (it's never turned into a live
+    component tree), so it lacks the ``"components_hash"`` key every other
+    entry in ``file.timelines`` has. ``are_tilia_data_equal`` reads that key
+    unconditionally when checking "is the file modified", so a missing one
+    would raise ``KeyError`` the moment an ignored timeline is present.
+    """
+    for timeline in timelines.values():
+        if "components_hash" not in timeline:
+            timeline["components_hash"] = hash_function(
+                json.dumps(timeline.get("components", {}), sort_keys=True)
+            )
+    return timelines
+
+
+def _compact_ordinals(timelines: dict) -> None:
+    """Renumbers ``"ordinal"`` to a dense ``1..N`` sequence in place,
+    preserving relative order.
+
+    Needed after popping unknown-kind timelines: leaving a gap (e.g. 1, 3
+    after removing ordinal 2) means the next auto-assigned ordinal
+    (``len(timelines) + 1``) can land back on an ordinal that's still in
+    use, since that count no longer matches the highest ordinal in play.
+    """
+    ordered = sorted(timelines.items(), key=lambda item: item[1].get("ordinal", 0))
+    for new_ordinal, (_, timeline) in enumerate(ordered, start=1):
+        timeline["ordinal"] = new_ordinal
 
 
 def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None, Path | None]:
@@ -60,12 +102,38 @@ def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None, Path | None
 
     data, _ = migrate(data)
 
+    unknown_kinds = find_unknown_timeline_kinds(data)
+    ignored_timelines = {}
+    deleted_timelines = {}
+    if unknown_kinds:
+        proceed, delete = get(
+            Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, list(unknown_kinds.values())
+        )
+        if not proceed:
+            return False, None, None
+        popped = _ensure_components_hash(_pop_unknown_timelines(data, unknown_kinds))
+        _compact_ordinals(data["timelines"])
+        if delete:
+            deleted_timelines = popped
+        else:
+            ignored_timelines = popped
+
     old_path = Path(data["file_path"])
 
     data["file_path"] = (
         file_path if isinstance(file_path, str) else str(file_path.resolve())
     )
-    return True, TiliaFile(**data), old_path
+    return (
+        True,
+        (
+            TiliaFile(
+                **data,
+                unknown_timelines=ignored_timelines,
+                deleted_timelines=deleted_timelines,
+            )
+        ),
+        old_path,
+    )
 
 
 class FileManager:
@@ -256,8 +324,8 @@ class FileManager:
 
     def save(self, data: dict, path: Path | str):
         data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
-        self.file = TiliaFile(**data)
-        write_tilia_file_to_disk(TiliaFile(**data), str(path))
+        self.file = TiliaFile(**data, unknown_timelines=self.file.unknown_timelines)
+        write_tilia_file_to_disk(self.file, str(path))
 
         try:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)

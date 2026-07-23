@@ -56,6 +56,37 @@ def ask_yes_no_or_cancel(title: str, prompt: str) -> tuple[bool, bool]:
     )
 
 
+class UnknownTimelineKindMessageBox(QMessageBox):
+    def __init__(self, title: str, prompt: str) -> None:
+        super().__init__(
+            QMessageBox.Icon.Warning,
+            title,
+            prompt,
+            QMessageBox.StandardButton.Cancel
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Ignore,
+            get(Get.MAIN_WINDOW),
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+
+
+def ask_unknown_timeline_kind_action(kinds: list[str]) -> tuple[bool, bool]:
+    kind_list = ", ".join(sorted(set(kinds)))
+    title = "Unknown timeline type"
+    prompt = (
+        f"This file has timeline(s) of a type this version of TiLiA doesn't "
+        f"recognize: {kind_list}.\n\n"
+        "Discard them permanently or ignore them (keep them in the file, "
+        "unopened, in case a newer version can read them later)?"
+    )
+    result = UnknownTimelineKindMessageBox(title, prompt).exec()
+
+    return (
+        result != QMessageBox.StandardButton.Cancel,  # proceed
+        result == QMessageBox.StandardButton.Discard,  # delete
+    )
+
+
 class YesOrNoMessageBox(QMessageBox):
     def __init__(self, title: str, prompt: str) -> None:
         super().__init__(
