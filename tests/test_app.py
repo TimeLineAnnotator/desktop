@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from typing import Literal
 from unittest.mock import patch
@@ -34,6 +35,28 @@ from tilia.ui.windows import WindowKind
 class TestLogger:
     def test_sentry_not_logging(self, use_test_logger):
         assert "tilia.log" in tilia.log.sentry_sdk.integrations.logging._IGNORED_LOGGERS
+
+    def test_sentry_ignores_tilia_log_records(self):
+        tilia.log.sentry_sdk.integrations.logging.ignore_logger(tilia.log.logger.name)
+        record = logging.LogRecord(
+            name=tilia.log.logger.name,
+            level=logging.CRITICAL,
+            pathname=__file__,
+            lineno=0,
+            msg="intentional test failure - must not reach Sentry",
+            args=None,
+            exc_info=None,
+        )
+        event_handler = tilia.log.sentry_sdk.integrations.logging.EventHandler()
+        breadcrumb_handler = (
+            tilia.log.sentry_sdk.integrations.logging.BreadcrumbHandler()
+        )
+        assert not event_handler._can_record(record)
+        assert not breadcrumb_handler._can_record(record)
+
+    def test_sentry_is_never_initialized_during_tests(self):
+        client = tilia.log.sentry_sdk.get_client()
+        assert not client.is_active()
 
 
 class TestSaveFileOnClose:
