@@ -32,9 +32,7 @@ from tilia.ui.windows import WindowKind
 
 
 class TestLogger:
-    def test_sentry_not_logging(self):
-        # TODO: make this test run first in batch testing.
-        # enabling sentry during tests will fill inbox up unnecessarily
+    def test_sentry_not_logging(self, use_test_logger):
         assert "tilia.log" in tilia.log.sentry_sdk.integrations.logging._IGNORED_LOGGERS
 
 
