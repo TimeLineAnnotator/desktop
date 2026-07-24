@@ -306,6 +306,31 @@ class TestFileLoad:
         assert len(marker_tl) == 1
         assert marker_tl[0].get_data("time") == pytest.approx(marker_time)
 
+    def test_large_async_duration_change_after_open_still_prompts(
+        self, tilia, tilia_state, marker_tlui, tls, tmp_path
+    ):
+        # A duration change larger than DURATION_JITTER_TOLERANCE
+        # (tilia/app.py) is not YouTube's async jitter -- even under "keep"
+        # it must still be treated as a genuine media change and prompt to
+        # scale, unlike the small-jitter case in the test above.
+        tilia_state.media_path = EXAMPLE_MEDIA_PATH
+        tilia_state.set_duration(EXAMPLE_MEDIA_DURATION, scale_timelines="no")
+        marker_time = EXAMPLE_MEDIA_DURATION - 0.5
+        commands.execute("media.seek", marker_time)
+        commands.execute("timeline.marker.add")
+
+        new_duration = EXAMPLE_MEDIA_DURATION + 100
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=True):
+            save_and_reopen(tmp_path)
+            with Serve(Get.FROM_USER_YES_OR_NO, True) as scale_prompt:
+                tilia.set_file_media_duration(new_duration)
+
+        marker_tl = tls.get_timelines_by_attr("KIND", TimelineKind.MARKER_TIMELINE)[0]
+        assert scale_prompt.called
+        assert marker_tl[0].get_data("time") == pytest.approx(
+            marker_time * new_duration / EXAMPLE_MEDIA_DURATION
+        )
+
 
 class TestMediaLoad:
     @staticmethod

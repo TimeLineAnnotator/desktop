@@ -32,6 +32,9 @@ if TYPE_CHECKING:
     from tilia.undo_manager import UndoManager
 
 
+DURATION_JITTER_TOLERANCE = 2.0
+
+
 class App:
     def __init__(
         self,
@@ -100,11 +103,13 @@ class App:
             "edit.redo", self.undo_manager.redo, text="&Redo", shortcut="Ctrl+Shift+Z"
         )
 
-        commands.register(
-            "folder.open.autosaves",
-            tilia.dirs.open_autosaves_dir,
-            "Open autosa&ves folder...",
-        ),
+        (
+            commands.register(
+                "folder.open.autosaves",
+                tilia.dirs.open_autosaves_dir,
+                "Open autosa&ves folder...",
+            ),
+        )
 
         commands.register(
             "file.export.img",
@@ -359,16 +364,26 @@ class App:
     def on_media_duration_changed(self, duration: float):
         # "keep" leaves the timelines untouched: they already match this
         # media (e.g. we just opened a file), so a duration report that
-        # differs slightly — YouTube returns it asynchronously, often off by
-        # a few ms — must neither prompt to scale nor crop end components
-        # (#453). Only the duration itself is updated, below.
+        # differs only by jitter — YouTube returns it asynchronously, see
+        # DURATION_JITTER_TOLERANCE above — must neither prompt to scale
+        # nor crop end components (#453). Only the duration itself is
+        # updated, below. A difference at or above the tolerance is treated
+        # as a genuine media change instead, falling back to "prompt" for
+        # this report only -- should_scale_timelines itself is untouched,
+        # so a later, smaller jitter report is still handled as "keep".
+        effective_mode = self.should_scale_timelines
+        if effective_mode == "keep" and abs(duration - self.duration) >= (
+            DURATION_JITTER_TOLERANCE
+        ):
+            effective_mode = "prompt"
+
         if (
             not self.timelines.is_blank
             and duration != self.duration
-            and self.should_scale_timelines != "keep"
+            and effective_mode != "keep"
         ):
             crop_or_scale = ""
-            if self.should_scale_timelines == "prompt":
+            if effective_mode == "prompt":
                 if self.prompt_scale_timelines(self.duration, duration):
                     crop_or_scale = "scale"
                 else:
@@ -377,9 +392,9 @@ class App:
                             crop_or_scale = "crop"
                         else:
                             crop_or_scale = "scale"
-            elif self.should_scale_timelines == "yes":
+            elif effective_mode == "yes":
                 crop_or_scale = "scale"
-            elif duration < self.duration:  # self.should_scale_timelines == 'no'
+            elif duration < self.duration:  # effective_mode == 'no'
                 crop_or_scale = "crop"
 
             if crop_or_scale == "scale":
