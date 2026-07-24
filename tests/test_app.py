@@ -215,6 +215,55 @@ class TestFileLoad:
         assert tilia_state.media_path == media_path
         assert tilia_state.duration == 101
 
+    def test_stale_youtube_duration_after_switching_video_is_ignored(
+        self, tilia, tilia_state, qtui, tmp_path
+    ):
+        # Regression test: opening two YouTube-backed files in a row reuses
+        # the same YouTubePlayer/QWebEngineView instance (media type doesn't
+        # change, so _change_player_type never tears it down). A
+        # getDuration() JS query issued for the first video can resolve
+        # after the second video has already loaded -- on_media_duration_available
+        # must ignore a result tagged with a video_id that's no longer the
+        # one currently loaded, rather than silently overwriting the
+        # duration of the (unrelated) now-open file.
+        def make_file(tmp_name: str, media_path: str, media_length: float):
+            file_data = tests.utils.get_blank_file_data()
+            file_data["media_path"] = media_path
+            file_data["media_metadata"]["media length"] = media_length
+            path = tmp_path / tmp_name
+            path.write_text(json.dumps(file_data))
+            return path
+
+        file_a = make_file(
+            "file_a.tla", "https://www.youtube.com/watch?v=aaaaaaaaaaa", 100
+        )
+        file_b = make_file(
+            "file_b.tla", "https://www.youtube.com/watch?v=bbbbbbbbbbb", 200
+        )
+
+        with (
+            Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, file_a)),
+            Serve(Get.PLAYER_CLASS, YouTubePlayer),
+        ):
+            commands.execute("file.open")
+        video_id_a = tilia.player.video_id
+        assert tilia_state.duration == 100
+
+        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, file_b)):
+            commands.execute("file.open")
+        video_id_b = tilia.player.video_id
+        assert video_id_b != video_id_a
+        assert tilia_state.duration == 200
+
+        # Simulate file A's getDuration() echo resolving late, after file B
+        # has already loaded into the same, reused player instance.
+        tilia.player.on_media_duration_available(999.0, requested_video_id=video_id_a)
+        assert tilia_state.duration == 200
+
+        # A report tagged with the currently-loaded video is still honored.
+        tilia.player.on_media_duration_available(201.0, requested_video_id=video_id_b)
+        assert tilia_state.duration == 201
+
 
 class TestMediaLoad:
     @staticmethod
