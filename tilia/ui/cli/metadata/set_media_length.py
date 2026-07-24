@@ -10,6 +10,15 @@ def setup_parser(subparsers):
     )
     parser.add_argument("value", type=float, help="Media length value in seconds.")
 
+    parser.add_argument(
+        "-s",
+        "--scale-timelines",
+        type=str,
+        choices=["yes", "no", "prompt"],
+        default="prompt",
+        help="Automatically scale the media timeline",
+    )
+
     parser.set_defaults(func=set_media_length)
 
 
@@ -30,4 +39,12 @@ def validate_value(value: float) -> bool:
 
 def set_media_length(namespace: argparse.Namespace):
     if validate_value(namespace.value):
-        post(Post.PLAYER_DURATION_AVAILABLE, namespace.value)
+        # Explicit scale_timelines here, rather than leaving it unset: this
+        # is a standalone command, so it must not silently inherit
+        # should_scale_timelines left over from a previous, unrelated
+        # `load-media --scale-timelines` invocation in the same session.
+        post(
+            Post.PLAYER_DURATION_AVAILABLE,
+            namespace.value,
+            scale_timelines=namespace.scale_timelines,
+        )

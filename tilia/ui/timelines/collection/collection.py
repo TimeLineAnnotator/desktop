@@ -396,7 +396,10 @@ class TimelineUIs:
             )
             if not success:
                 return False
-            post(Post.PLAYER_DURATION_AVAILABLE, duration)
+            # Explicit "prompt": this duration isn't tied to any media load,
+            # so it must not silently inherit should_scale_timelines left
+            # over from an unrelated, earlier load.
+            post(Post.PLAYER_DURATION_AVAILABLE, duration, scale_timelines="prompt")
         elif action_to_take == AddTimelineWithoutMedia.Result.LOAD_MEDIA:
             success, path = get(Get.FROM_USER_MEDIA_PATH)
             if not success:
@@ -1302,7 +1305,12 @@ class TimelineUIs:
         duration = get(Get.MEDIA_DURATION)
         return duration * PIXELS_PER_SECOND if duration > 0 else PLAYBACK_AREA_WIDTH
 
-    def _on_duration_available(self, duration: float) -> None:
+    def _on_duration_available(
+        self, duration: float, scale_timelines: str | None = None
+    ) -> None:
+        # scale_timelines is unused here -- accepted only so this listener's
+        # signature stays compatible with callers of Post.PLAYER_DURATION_AVAILABLE
+        # that pass it (see App.set_file_media_duration, the other listener).
         if duration > 0:
             self._apply_zoom(duration * PIXELS_PER_SECOND * get(Get.CURRENT_ZOOM))
 
