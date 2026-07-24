@@ -408,9 +408,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             else:
                 attr_to_new_value[attr] = separator.join(non_empty)
 
-        colors = [h.color for h in hierarchies]
-        if colors[0] and all(c == colors[0] for c in colors[1:]):
-            attr_to_new_value["color"] = colors[0]
+        colors = set(h.color for h in hierarchies)
+        if len(colors) == 1:
+            attr_to_new_value["color"] = colors.pop()
 
         for unit in hierarchies:
             post(Post.LOOP_IGNORE_COMPONENT, self.timeline.id, unit.id)
