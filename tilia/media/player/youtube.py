@@ -25,6 +25,7 @@ class PlayerTracker(QObject):
         set_is_playing,
         set_playback_rate,
         display_error,
+        get_video_id,
     ):
         super().__init__()
         self.on_duration_available = on_duration_available
@@ -34,6 +35,7 @@ class PlayerTracker(QObject):
         self.set_playback_rate = set_playback_rate
         self.player_toolbar_enabled = False
         self.display_error = display_error
+        self.get_video_id = get_video_id
 
     @Slot("float")
     def on_new_time(self, time):
@@ -43,7 +45,17 @@ class PlayerTracker(QObject):
     def on_player_state_change(self, state):
         if state == self.State.UNSTARTED.value:
             post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.WAITING_FOR_YOUTUBE)
-            self.page.runJavaScript("getDuration()", self.on_duration_available)
+            # Capture which video this query is for -- by the time the JS
+            # round-trip resolves, a different video may already be loaded
+            # (e.g. the user opened another YouTube-backed file), and a
+            # stale duration must not be attributed to it.
+            requested_video_id = self.get_video_id()
+            self.page.runJavaScript(
+                "getDuration()",
+                lambda duration: self.on_duration_available(
+                    duration, requested_video_id
+                ),
+            )
             self.player_toolbar_enabled = False
         elif state == self.State.PLAYING.value:
             if not self.player_toolbar_enabled:
@@ -83,6 +95,7 @@ class YouTubePlayer(Player):
 
     def __init__(self):
         super().__init__()
+        self.video_id = None
         self._setup_web_engine()
         self._setup_web_channel()
 
@@ -102,6 +115,7 @@ class YouTubePlayer(Player):
             self.set_is_playing,
             self._engine_set_playback_rate,
             self.display_error,
+            lambda: self.video_id,
         )
         self.channel.registerObject("backend", self.shared_object)
         self.view.page().setWebChannel(self.channel)
@@ -146,11 +160,17 @@ class YouTubePlayer(Player):
 
         self.is_media_loaded = True
 
-    def on_media_duration_available(self, duration):
+    def on_media_duration_available(self, duration, requested_video_id=None):
+        # requested_video_id is the video this query was issued for; if a
+        # different video has loaded by the time the JS round-trip resolves
+        # (e.g. the user opened another YouTube-backed file), this result
+        # is stale and must not be applied.
+        if requested_video_id is not None and requested_video_id != self.video_id:
+            return
         if duration == self.duration:
             return
         if not duration:
-            return self.retry_get_duration()
+            return self.retry_get_duration(requested_video_id)
 
         super().on_media_duration_available(duration)
 
@@ -164,8 +184,12 @@ class YouTubePlayer(Player):
                 MediaTimeChangeReason.PLAYBACK,
             )
 
-    def retry_get_duration(self):
-        QTimer.singleShot(500, self.view, self._engine_get_media_duration)
+    def retry_get_duration(self, requested_video_id=None):
+        QTimer.singleShot(
+            500,
+            self.view,
+            lambda: self._engine_get_media_duration(requested_video_id),
+        )
 
     def display_error(self, message: str):
         tilia.errors.display(
@@ -225,9 +249,12 @@ class YouTubePlayer(Player):
         self.video_id = None
         self.shared_object.player_toolbar_enabled = False
 
-    def _engine_get_media_duration(self):
+    def _engine_get_media_duration(self, requested_video_id=None):
         self.view.page().runJavaScript(
-            "getDuration()", self.on_media_duration_available
+            "getDuration()",
+            lambda duration: self.on_media_duration_available(
+                duration, requested_video_id
+            ),
         )
 
     def _engine_exit(self):
