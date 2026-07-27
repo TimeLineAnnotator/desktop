@@ -97,7 +97,7 @@ class TestChordSymbolParsing:
         params = parse_text("C" + extension)
         assert params["step"] == 0
 
-    def test_applied_to_is_cleared_when_no_longer_applied(qtui):
+    def test_applied_to_is_cleared_when_no_longer_applied(self, qtui):
         # Regression guard: the applied-to combobox was only ever updated when
         # parsing produced a nonzero applied_to, so editing the text back down
         # to a plain (non-applied) chord left the previous selection (e.g. "/V")
