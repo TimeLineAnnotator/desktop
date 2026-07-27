@@ -11,7 +11,7 @@ class TimeXConverter:
         self.playback_area_width = get(Get.PLAYBACK_AREA_WIDTH)
         self.left_margin_x = get(Get.LEFT_MARGIN_X)
 
-    def on_media_duration_changed(self, duration):
+    def on_media_duration_changed(self, duration, is_confirmation: bool = False):
         self.media_duration = duration
 
     def on_playback_area_set_width(self, width):

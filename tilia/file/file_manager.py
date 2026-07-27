@@ -163,7 +163,7 @@ class FileManager:
     @file.setter
     def file(self, value: TiliaFile) -> None:
         self._file = value
-        self._saved_metadata = dict(value.media_metadata)
+        self.resync_saved_metadata()
 
     def _setup_requests(self):
         LISTENS = {
@@ -354,6 +354,9 @@ class FileManager:
     def new(self):
         self._setup_file()
 
+    def resync_saved_metadata(self) -> None:
+        self._saved_metadata = dict(self.file.media_metadata)
+
     def is_file_modified(self, current_data: dict) -> bool:
         # are_tilia_data_equal can't detect media_metadata changes
         # because the live and "saved" metadata are the same mutated
@@ -366,18 +369,23 @@ class FileManager:
     def on_player_url_changed(self, path: str | Path) -> None:
         self.file.media_path = str(path)
 
-    def on_player_duration_changed(self, duration: float):
+    def on_player_duration_changed(
+        self, duration: float, is_confirmation: bool = False
+    ) -> None:
         self.file.media_metadata["media length"] = duration
-        # System-driven; keep the saved snapshot in sync so a media
-        # load doesn't get reported as a user modification.
-        self._saved_metadata["media length"] = duration
+        if is_confirmation:
+            # The player is confirming the duration of media that already
+            # belongs to the current file (App posts this while
+            # should_scale_timelines == "keep", e.g. right after opening a
+            # file — see #453) rather than reporting a user-driven change.
+            # Keep the snapshot in sync so it isn't flagged as an edit.
+            self._saved_metadata["media length"] = duration
 
     def set_media_metadata(self, value: MediaMetadata):
         self.file.media_metadata = value
 
     def set_media_duration(self, value: float):
         self.file.media_metadata["media length"] = value
-        self._saved_metadata["media length"] = value
 
     def set_timelines(self, state: dict, hash: str):
         self.file.timelines = state
