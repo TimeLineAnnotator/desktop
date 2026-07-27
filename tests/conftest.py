@@ -116,12 +116,17 @@ class TiliaState:
     @duration.setter
     def duration(self, value):
         self.app.set_file_media_duration(value)
+        # TiliaState pokes app state directly for test setup; it isn't a
+        # simulated user action, so it shouldn't make is_file_modified()
+        # see an edit (#377).
+        self.file_manager.resync_saved_metadata()
 
     def set_duration(
-        self, value, scale_timelines: Literal["yes", "no", "prompt"] = "prompt"
+        self, value, scale_timelines: Literal["yes", "no", "prompt", "keep"] = "prompt"
     ):
         """Use this if you want to pass scale_timelines."""
         self.app.set_file_media_duration(value, scale_timelines)
+        self.file_manager.resync_saved_metadata()
 
     @property
     def media_path(self):
@@ -253,6 +258,7 @@ def _teardown_youtube_player(player) -> None:
 def tilia(cleanup_requests):
     tilia_ = setup_logic(autosaver=False)
     tilia_.set_file_media_duration(100)
+    tilia_.file_manager.resync_saved_metadata()
     tilia_.reset_undo_manager()
     yield tilia_
     _teardown_youtube_player(tilia_.player)
