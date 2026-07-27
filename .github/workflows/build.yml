@@ -175,13 +175,14 @@ jobs:
 
       - name: Check output
         env:
-          GH_TOKEN: ${{ github.token }}
+          RELEASE_ASSETS: ${{ steps.release.outputs.assets }}
         run: |
           echo "Counting assets released..."
-          ASSET_COUNT=$(gh release view ${{ github.ref_name }} --json assets --jq '.assets | length')
+          ASSET_COUNT=$(jq 'length' <<< "$RELEASE_ASSETS")
           if [ "$ASSET_COUNT" -eq 4 ]; then
             echo "4 assets found!"
           else
             echo "::error::Incorrect number of assets! Got $ASSET_COUNT. Potential errors in build."
+            echo "assets: $RELEASE_ASSETS"
             exit 1
           fi
