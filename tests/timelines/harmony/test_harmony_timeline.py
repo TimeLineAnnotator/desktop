@@ -23,6 +23,17 @@ class TestGetInversionAmount:
         with pytest.raises(ValueError):
             get_inversion_amount("not-a-quality")
 
+    @pytest.mark.parametrize(
+        "quality",
+        ["Italian", "French", "German", "Neapolitan", "Tristan", "power"],
+    )
+    def test_qualities_without_inversion_display_have_no_inversions(self, quality):
+        # These qualities either have no inversions in standard tonal harmony
+        # (the augmented sixths are defined by having b6 in the bass) or their
+        # label is a fixed string regardless of bass note, so the inspector
+        # and add-harmony dialog shouldn't offer inversions for them.
+        assert get_inversion_amount(quality) == 0
+
 
 class TestInversionValidation:
     def test_inversion_within_quality_range_is_accepted(self, harmony_tl):
