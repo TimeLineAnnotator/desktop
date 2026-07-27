@@ -72,7 +72,7 @@ class PlayerToolbar(QToolBar):
         self.update_time_string()
         self.on_ui_update_silent(PlayerToolbarElement.TOGGLE_PLAY_PAUSE, False)
 
-    def on_media_duration_changed(self, duration: float):
+    def on_media_duration_changed(self, duration: float, is_confirmation: bool = False):
         self.duration_string = format_media_time(duration)
         self.update_time_string()
 

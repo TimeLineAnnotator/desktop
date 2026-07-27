@@ -135,8 +135,22 @@ class App:
         # crops or scales components — otherwise the UI re-positions
         # cropped elements against the OLD media_duration and the
         # timeline appears to stop at the old end-time (#496).
-        post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+        # is_confirmation tells file_manager this duration belongs to
+        # media we already associated with the current file (#453's
+        # "keep" mode, within normal jitter), not a user-driven change,
+        # so it shouldn't be treated as an unsaved edit.
+        post(
+            Post.FILE_MEDIA_DURATION_CHANGED,
+            duration,
+            is_confirmation=self._is_duration_confirmation(duration),
+        )
         self.on_media_duration_changed(duration)
+
+    def _is_duration_confirmation(self, duration: float) -> bool:
+        return (
+            self.should_scale_timelines == "keep"
+            and abs(duration - self.duration) < DURATION_JITTER_TOLERANCE
+        )
 
     def is_file_modified(self) -> bool:
         return self.file_manager.is_file_modified(self.get_app_state())
@@ -372,9 +386,7 @@ class App:
         # this report only -- should_scale_timelines itself is untouched,
         # so a later, smaller jitter report is still handled as "keep".
         effective_mode = self.should_scale_timelines
-        if effective_mode == "keep" and abs(duration - self.duration) >= (
-            DURATION_JITTER_TOLERANCE
-        ):
+        if effective_mode == "keep" and not self._is_duration_confirmation(duration):
             effective_mode = "prompt"
 
         if (
