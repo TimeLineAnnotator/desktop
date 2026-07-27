@@ -143,16 +143,26 @@ class TestFileManager:
 
         assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))
 
-    @pytest.mark.xfail(strict=True)
-    def test_duration_change_does_not_mark_file_modified(self, tilia, tmp_path):
-        # Should setting a new media duration be counted as an edited file?
-        post(Post.PLAYER_DURATION_AVAILABLE, 120)
+    def test_file_open_duration_confirmation_does_not_mark_modified(
+        self, tilia, tmp_path
+    ):
+        # Opening a .tla occasionally sets media duration twice, due to the asynchronous nature of the YouTube player.
+        # Confirmation reports with "keep" should not trigger a modification flag.
+        tilia.set_file_media_duration(100, scale_timelines="keep")
         tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
-        tilia.file_manager.on_save_to_path_request([tmp_file_path])
-        post(Post.PLAYER_DURATION_AVAILABLE, 10)
+        tilia.file_manager.on_save_to_path_request(tmp_file_path)
+        assert not tilia.file_manager.is_file_modified(get(Get.APP_STATE))
+
+        tilia.set_file_media_duration(100.94, scale_timelines="keep")
+        assert not tilia.file_manager.is_file_modified(get(Get.APP_STATE))
+
+    def test_duration_change_after_save_marks_file_modified(self, tilia, tmp_path):
+        tilia.set_file_media_duration(120, scale_timelines="prompt")
+        tmp_file_path = (tmp_path / "test_save.tla").resolve().__str__()
+        tilia.file_manager.on_save_to_path_request(tmp_file_path)
+        tilia.set_file_media_duration(10, scale_timelines="prompt")
         assert tilia.file_manager.is_file_modified(get(Get.APP_STATE))
 
-    @pytest.mark.xfail(strict=True)
     def test_media_load_marks_file_modified(self, tilia):
         # Loading a different media file is a user action and must be
         # detected as a modification so the "save changes?" prompt fires.
