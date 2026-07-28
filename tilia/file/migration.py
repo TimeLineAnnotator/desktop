@@ -52,7 +52,7 @@ def _to_0_1_1_display_position_to_ordinal(data: dict) -> dict:
     return data
 
 
-def _normalize_kind_string(kind: str) -> str:
+def normalize_kind_string(kind: str) -> str:
     """Shorten a serialized timeline ``kind``.
 
     TiLiA < 0.7 wrote the kind as e.g. ``"MARKER_TIMELINE"``; 0.7 writes the
@@ -65,7 +65,7 @@ def _normalize_kind_string(kind: str) -> str:
 
 def _to_0_7_0_timeline_kind(data: dict) -> dict:
     for timeline in data.get("timelines", {}).values():
-        timeline["kind"] = _normalize_kind_string(timeline.get("kind", ""))
+        timeline["kind"] = normalize_kind_string(timeline.get("kind", ""))
     return data
 
 
@@ -80,7 +80,7 @@ def _is_known_kind(kind: str | None) -> bool:
     if kind is None:
         return False
     try:
-        Timeline.get_class_by_name(_normalize_kind_string(kind))
+        Timeline.get_class_by_name(normalize_kind_string(kind))
     except ValueError:
         return False
     return True
