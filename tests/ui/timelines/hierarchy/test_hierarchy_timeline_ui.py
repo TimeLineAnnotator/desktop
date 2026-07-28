@@ -204,38 +204,46 @@ class TestAddFrameValidation:
     # Context-menu presence.
 
     def test_pre_start_in_menu_when_room_before_start(self, tlui):
-        tlui.create_hierarchy(1, 2, 1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
         menu = HierarchyContextMenu(tlui[0])
         assert self.PRE_START in get_command_names(menu)
 
     def test_pre_start_not_in_menu_when_start_at_zero(self, tlui):
-        tlui.create_hierarchy(0, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         menu = HierarchyContextMenu(tlui[0])
         assert self.PRE_START not in get_command_names(menu)
 
     def test_post_end_in_menu_when_room_after_end(self, tlui, tilia_state):
         tilia_state.duration = 100
-        tlui.create_hierarchy(0, 50, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=50, level=1)
         menu = HierarchyContextMenu(tlui[0])
         assert self.POST_END in get_command_names(menu)
 
     def test_post_end_not_in_menu_when_end_at_duration(self, tlui, tilia_state):
         tilia_state.duration = 100
-        tlui.create_hierarchy(0, 100, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
         menu = HierarchyContextMenu(tlui[0])
         assert self.POST_END not in get_command_names(menu)
 
     # Too little room for a valid frame: the menu must not offer the add.
 
     def test_pre_start_not_in_menu_when_room_below_min_length(self, tlui):
-        tlui.create_hierarchy(HierarchyUI.MIN_FRAME_LENGTH / 2, 1, 1)
+        commands.execute(
+            "timeline.hierarchy.add",
+            start=HierarchyUI.MIN_FRAME_LENGTH / 2,
+            end=1,
+            level=1,
+        )
         menu = HierarchyContextMenu(tlui[0])
         assert self.PRE_START not in get_command_names(menu)
 
     def test_post_end_not_in_menu_when_room_below_min_length(self, tlui, tilia_state):
         tilia_state.duration = 100
-        tlui.create_hierarchy(
-            0, tilia_state.duration - HierarchyUI.MIN_FRAME_LENGTH / 2, 1
+        commands.execute(
+            "timeline.hierarchy.add",
+            start=0,
+            end=tilia_state.duration - HierarchyUI.MIN_FRAME_LENGTH / 2,
+            level=1,
         )
         menu = HierarchyContextMenu(tlui[0])
         assert self.POST_END not in get_command_names(menu)
