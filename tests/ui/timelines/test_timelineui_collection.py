@@ -444,7 +444,7 @@ class TestLoop:
         # paths) used to leave loop_elements populated and the player
         # still in is_looping=True, so playback would keep seeking
         # back over the new media.
-        self.tlui.create_hierarchy(10, 20, 1)
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
         self.tlui.select_all_elements()
         post(Post.PLAYER_TOGGLE_LOOP, True)
         assert get(Get.LOOP_TIME) == (10, 20)

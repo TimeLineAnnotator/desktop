@@ -456,7 +456,7 @@ class TestScaleCropTimeline:
         from tilia.ui.timelines.hierarchy.element import HierarchyUI
 
         tilia_state.set_duration(100)
-        hierarchy_tlui.create_hierarchy(0, 100, 1)
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
         tilia_state.set_duration(50, scale_timelines="no")  # falls back to crop
 
         # After crop the component spans [0, 50]; the new media is 50s
