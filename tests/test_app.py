@@ -28,6 +28,7 @@ from tilia.media.player import QtAudioPlayer, YouTubePlayer
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.windows import WindowKind
@@ -301,7 +302,7 @@ class TestFileLoad:
             with Serve(Get.FROM_USER_YES_OR_NO, True) as scale_prompt:
                 tilia.set_file_media_duration(reported_duration)
 
-        marker_tl = tls.get_timelines_by_attr("KIND", TimelineKind.MARKER_TIMELINE)[0]
+        marker_tl = tls.get_timelines_by_type(MarkerTimeline)[0]
         assert not scale_prompt.called
         assert len(marker_tl) == 1
         assert marker_tl[0].get_data("time") == pytest.approx(marker_time)
@@ -325,7 +326,7 @@ class TestFileLoad:
             with Serve(Get.FROM_USER_YES_OR_NO, True) as scale_prompt:
                 tilia.set_file_media_duration(new_duration)
 
-        marker_tl = tls.get_timelines_by_attr("KIND", TimelineKind.MARKER_TIMELINE)[0]
+        marker_tl = tls.get_timelines_by_type(MarkerTimeline)[0]
         assert scale_prompt.called
         assert marker_tl[0].get_data("time") == pytest.approx(
             marker_time * new_duration / EXAMPLE_MEDIA_DURATION
@@ -635,7 +636,7 @@ class TestOpen:
         assert tilia.is_file_modified()
 
         known = tilia.file_manager.file.timelines[KNOWN_TIMELINE_ID]
-        assert known["kind"] == "MARKER_TIMELINE"
+        assert known["kind"] == "Marker"
         assert known["ordinal"] == 1
 
     def test_open_newer_file_with_unknown_timeline_kind_user_ignores(
@@ -669,7 +670,7 @@ class TestOpen:
         assert live_hashes == stored_hashes
 
         known = tilia.file_manager.file.timelines[KNOWN_TIMELINE_ID]
-        assert known["kind"] == "MARKER_TIMELINE"
+        assert known["kind"] == "Marker"
         assert known["ordinal"] == 1
         ordinals = [tl["ordinal"] for tl in tilia.file_manager.file.timelines.values()]
         assert len(ordinals) == len(set(ordinals))

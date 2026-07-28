@@ -197,7 +197,11 @@ def _get_params_from_music21_object(
     # TODO: these are local imports only because the constants live in the
     # UI folder and importing them at module level would cause a circular.
     # Move the constants out of `tilia/ui/` so this can become a top-level import.
-    from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT, ROMAN_TO_INT
+    from tilia.ui.timelines.harmony.constants import (
+        CHORD_COMMON_NAME_TO_TYPE,
+        NOTE_NAME_TO_INT,
+        ROMAN_TO_INT,
+    )
 
     step = NOTE_NAME_TO_INT[obj.root().step]
     accidental = int(obj.root().alter)
