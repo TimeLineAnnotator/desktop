@@ -5,6 +5,7 @@ from bisect import bisect
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tilia.exceptions import TimelineValidationError
+from tilia.file.migration import normalize_kind_string
 from tilia.requests import Get, Post, get, post, serve
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.metric_position import MetricPosition
@@ -228,24 +229,13 @@ class Timelines:
         hash = hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
         return state, hash
 
-    @staticmethod
-    def _get_timeline_class_string(kind_string: str) -> str:
-        # TiLiA < 0.7 serialised the kind as e.g. "MARKER_TIMELINE";
-        # strip the suffix so files saved by older versions still load.
-        if kind_string.endswith("_TIMELINE"):
-            return kind_string.replace("_TIMELINE", "").capitalize()
-        else:
-            return kind_string
-
     def deserialize_timelines(self, data: dict) -> None:
         data_copy = copy.deepcopy(data)  # so pop does not modify original data
 
         for id, tl_data in data_copy.items():
             # We need to pop so no duplicate arguments are passed
-            kind = tl_data.pop("kind")
-            self.create_timeline(
-                self._get_timeline_class_string(kind), id=id, **tl_data
-            )
+            kind = normalize_kind_string(tl_data.pop("kind"))
+            self.create_timeline(kind, id=id, **tl_data)
 
     def restore_state(self, timeline_states: dict[str, dict]) -> None:
         id_to_timelines = {tl.id: tl for tl in self}
@@ -263,7 +253,7 @@ class Timelines:
         for id in list(set(timeline_states) - set(shared_tl_ids)):
             params = timeline_states[id].copy()
             # We need to pop so no duplicate arguments are passed
-            kind_string = self._get_timeline_class_string(params.pop("kind"))
+            kind_string = normalize_kind_string(params.pop("kind"))
             try:
                 kind = Timeline.get_class_by_name(kind_string)
             except ValueError:
