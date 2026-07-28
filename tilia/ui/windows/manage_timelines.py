@@ -92,16 +92,22 @@ class ManageTimelines(QDialog):
             return
 
         timeline = get(Get.TIMELINE, item.timeline_ui.id)
+        is_visible = timeline.get_data("is_visible")
 
         self.checkbox.setCheckState(
-            Qt.CheckState.Checked
-            if timeline.get_data("is_visible")
-            else Qt.CheckState.Unchecked
+            Qt.CheckState.Checked if is_visible else Qt.CheckState.Unchecked
         )
-        self.delete_button.setEnabled(TimelineFlag.NOT_DELETABLE not in timeline.FLAGS)
+        self.delete_button.setEnabled(
+            is_visible and TimelineFlag.NOT_DELETABLE not in timeline.FLAGS
+        )
         self.clear_button.setEnabled(
-            TimelineFlag.NOT_CLEARABLE not in timeline.FLAGS and not timeline.is_empty
+            is_visible
+            and TimelineFlag.NOT_CLEARABLE not in timeline.FLAGS
+            and not timeline.is_empty
         )
+        if not is_visible:
+            self.delete_button.setToolTip("Timeline is hidden; cannot delete.")
+            self.clear_button.setToolTip("Timeline is hidden; cannot clear.")
 
     def on_checkbox_state_changed(self, state):
         item = self.list_widget.currentItem()
@@ -110,6 +116,7 @@ class ManageTimelines(QDialog):
         timeline_ui = item.timeline_ui
         if timeline_ui.get_data("is_visible") != bool(state):
             commands.execute("timeline.set_is_visible", timeline_ui, bool(state))
+            self.on_list_current_item_changed(item)
 
     def get_current_timeline_ui(self):
         return self.list_widget.currentItem().timeline_ui
