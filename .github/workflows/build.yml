@@ -235,11 +235,14 @@ jobs:
           echo "Full packages:"; echo "$FULL_PACKAGES"
           echo "User downloads ($DOWNLOAD_COUNT/4):"; echo "$DOWNLOADS"
           MISSING_CHANNELS=()
+          MISSING_MANIFESTS=()
           for channel in macos-silicon macos-intel ubuntu windows; do
             echo "$FULL_PACKAGES" | grep -q "${channel}-full\.nupkg$" || MISSING_CHANNELS+=("$channel")
+            echo "$ASSETS" | jq -e --arg c "$channel" 'any(.[]; . == "releases." + $c + ".json")' > /dev/null || MISSING_MANIFESTS+=("$channel")
           done
-          if [ "${#MISSING_CHANNELS[@]}" -gt 0 ] || [ "$DOWNLOAD_COUNT" -ne 4 ]; then
+          if [ "${#MISSING_CHANNELS[@]}" -gt 0 ] || [ "${#MISSING_MANIFESTS[@]}" -gt 0 ] || [ "$DOWNLOAD_COUNT" -ne 4 ]; then
             [ "${#MISSING_CHANNELS[@]}" -gt 0 ] && echo "::error::Missing full.nupkg for channels: ${MISSING_CHANNELS[*]}"
+            [ "${#MISSING_MANIFESTS[@]}" -gt 0 ] && echo "::error::Missing releases.<channel>.json for channels: ${MISSING_MANIFESTS[*]}"
             [ "$DOWNLOAD_COUNT" -ne 4 ] && echo "::error::Expected 4 user downloads, got $DOWNLOAD_COUNT."
             exit 1
           fi
