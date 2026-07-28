@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Callable
 
 from tilia.constants import VERSION
-from tilia.timelines.timeline_kinds import TimelineKind
+from tilia.timelines.base.timeline import Timeline
 
 Migration = Callable[[dict], dict]
 
@@ -52,16 +52,20 @@ def _to_0_1_1_display_position_to_ordinal(data: dict) -> dict:
     return data
 
 
-def _to_0_7_0_timeline_kind(data: dict) -> dict:
-    """Shorten the serialized timeline ``kind``.
+def _normalize_kind_string(kind: str) -> str:
+    """Shorten a serialized timeline ``kind``.
 
     TiLiA < 0.7 wrote the kind as e.g. ``"MARKER_TIMELINE"``; 0.7 writes the
     ``Timeline`` subclass name without the suffix, e.g. ``"Marker"``.
     """
+    if kind.endswith("_TIMELINE"):
+        return kind.replace("_TIMELINE", "").capitalize()
+    return kind
+
+
+def _to_0_7_0_timeline_kind(data: dict) -> dict:
     for timeline in data.get("timelines", {}).values():
-        kind = timeline.get("kind", "")
-        if kind.endswith("_TIMELINE"):
-            timeline["kind"] = kind.replace("_TIMELINE", "").capitalize()
+        timeline["kind"] = _normalize_kind_string(timeline.get("kind", ""))
     return data
 
 
@@ -73,8 +77,10 @@ MIGRATIONS: list[tuple[str, Migration]] = [
 
 
 def _is_known_kind(kind: str | None) -> bool:
+    if kind is None:
+        return False
     try:
-        TimelineKind(kind)
+        Timeline.get_class_by_name(_normalize_kind_string(kind))
     except ValueError:
         return False
     return True
