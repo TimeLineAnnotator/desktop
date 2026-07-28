@@ -4,7 +4,7 @@ import functools
 from enum import Enum, auto
 from typing import Any, Callable, cast
 
-from PySide6.QtCore import QKeyCombination, Qt
+from PySide6.QtCore import QKeyCombination, QSize, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QLineEdit,
+    QMainWindow,
     QSizePolicy,
     QSpinBox,
     QStackedWidget,
@@ -45,11 +46,13 @@ RowInfo = tuple[str, InspectRowKind, Callable[[], Any | None]]
 class Inspect(QDockWidget):
     KIND = WindowKind.INSPECT
 
-    def __init__(self, main_window) -> None:
+    def __init__(self, main_window: QMainWindow) -> None:
         super().__init__(main_window)
+        self._main_window = main_window
         self.setObjectName("inspector")
         self.setWindowTitle("Inspector")
         self.setMinimumWidth(250)
+        self._auto_width = 250
         self.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetClosable
@@ -85,6 +88,10 @@ class Inspect(QDockWidget):
 
     def __str__(self):
         return get_tilia_class_string(self)
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        return QSize(self._auto_width, hint.height())
 
     def _setup_requests(self):
         LISTENS = {
@@ -355,3 +362,13 @@ class Inspect(QDockWidget):
             self.field_name_to_widgets[name] = (left_widget, right_widget)
 
         self.setFocusProxy(self.inspect_layout.itemAt(1).widget())
+
+        self.setMinimumWidth(self.inspect_widget.minimumSizeHint().width())
+
+        preferred_width = self.inspect_widget.sizeHint().width()
+        if preferred_width > self._auto_width:
+            self._auto_width = preferred_width
+            if not self.isFloating():
+                self._main_window.resizeDocks(
+                    [self], [self._auto_width], Qt.Orientation.Horizontal
+                )
