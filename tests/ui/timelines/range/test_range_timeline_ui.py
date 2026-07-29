@@ -3774,7 +3774,7 @@ class TestSharedShortcuts:
     ):
         tilia_state.duration = 100
         commands.execute("timeline.range.add_range", start=0, end=30)
-        hierarchy_tlui.create_hierarchy(0, 30, 1)
+        self._add_hierarchy(hierarchy_tlui, 0, 30, 1)
         # Ctrl-click on empty space bumps range to the top of select order
         # without disturbing the (empty) selection state.
         click_timeline_ui(range_tlui, time=20, modifier="ctrl")
@@ -3790,7 +3790,7 @@ class TestSharedShortcuts:
     ):
         tilia_state.duration = 100
         commands.execute("timeline.range.add_range", start=0, end=30)
-        hierarchy_tlui.create_hierarchy(0, 30, 1)
+        self._add_hierarchy(hierarchy_tlui, 0, 30, 1)
         click_timeline_ui(hierarchy_tlui, time=20, modifier="ctrl")
         self._seek(15)
 
@@ -3808,10 +3808,10 @@ class TestSharedShortcuts:
         range_tlui.select_element(a)
         range_tlui.select_element(b)
 
-        h1, _ = hierarchy_tlui.create_hierarchy(0, 10, 1)
-        h2, _ = hierarchy_tlui.create_hierarchy(10, 20, 1)
-        hierarchy_tlui.select_element(hierarchy_tlui.get_element(h1.id))
-        hierarchy_tlui.select_element(hierarchy_tlui.get_element(h2.id))
+        h1 = self._add_hierarchy(hierarchy_tlui, 0, 10, 1)
+        h2 = self._add_hierarchy(hierarchy_tlui, 10, 20, 1)
+        hierarchy_tlui.select_element(h1)
+        hierarchy_tlui.select_element(h2)
 
         click_timeline_ui(range_tlui, time=15, modifier="ctrl")
 
@@ -3829,10 +3829,10 @@ class TestSharedShortcuts:
         range_tlui.select_element(a)
         range_tlui.select_element(b)
 
-        h1, _ = hierarchy_tlui.create_hierarchy(0, 10, 1)
-        h2, _ = hierarchy_tlui.create_hierarchy(10, 20, 1)
-        hierarchy_tlui.select_element(hierarchy_tlui.get_element(h1.id))
-        hierarchy_tlui.select_element(hierarchy_tlui.get_element(h2.id))
+        h1 = self._add_hierarchy(hierarchy_tlui, 0, 10, 1)
+        h2 = self._add_hierarchy(hierarchy_tlui, 10, 20, 1)
+        hierarchy_tlui.select_element(h1)
+        hierarchy_tlui.select_element(h2)
 
         click_timeline_ui(hierarchy_tlui, time=25, modifier="ctrl")
 
@@ -3846,7 +3846,7 @@ class TestSharedShortcuts:
     ):
         tilia_state.duration = 100
         self._add_range(range_tlui, 0, 10)
-        hierarchy_tlui.create_hierarchy(0, 10, 1)
+        self._add_hierarchy(hierarchy_tlui, 0, 10, 1)
         self._seek(5)
 
         press_key("s")
@@ -3888,3 +3888,8 @@ class TestSharedShortcuts:
     def _add_range(range_tlui, start, end):
         commands.execute("timeline.range.add_range", start=start, end=end)
         return range_tlui[len(range_tlui) - 1]
+
+    @staticmethod
+    def _add_hierarchy(hierarchy_tlui, start, end, level):
+        commands.execute("timeline.hierarchy.add", start=start, end=end, level=level)
+        return hierarchy_tlui[len(hierarchy_tlui) - 1]
