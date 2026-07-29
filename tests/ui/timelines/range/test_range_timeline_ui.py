@@ -3523,7 +3523,7 @@ class TestSplitRange:
         assert ranges[0].get_data("joined_right") == ranges[1].id
         assert ranges[1].get_data("joined_right") == ranges[2].id
 
-    def test_split_separates_join_at_exact_boundary(self, range_tlui, tilia_state):
+    def test_split_at_exact_join_boundary_is_noop(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         commands.execute("timeline.range.add_range", start=10, end=20)
         commands.execute("timeline.range.add_range", start=20, end=30)
@@ -3535,12 +3535,12 @@ class TestSplitRange:
 
         self._seek(20)
         commands.execute("timeline.range.split_range")
+        # Splitting exactly on an existing join boundary is a no-op — use
+        # Separate to undo a join instead.
         assert len(list(range_tlui)) == 2
-        assert a.get_data("joined_right") is None
-        # Splitting at the join boundary should also push the two halves
-        # apart, the same way the Separate ranges command does.
-        assert a.get_data("end") < 20
-        assert b.get_data("start") > 20
+        assert a.get_data("joined_right") == b.id
+        assert a.get_data("end") == 20
+        assert b.get_data("start") == 20
 
     def test_split_at_time_outside_any_range_is_noop(self, range_tlui, tilia_state):
         tilia_state.duration = 100
