@@ -944,23 +944,39 @@ class TimelineUIs:
         first) and matches each tlui against the `timeline.{kind}.{action}`
         naming convention enforced by `register_timeline_command`.
 
-        If no live timeline matches a bound name and at least one bound
-        name doesn't follow the `timeline.` prefix, surface as an
-        AMBIGUOUS_SHORTCUT error — collisions between non-timeline
-        commands are a configuration bug we want to notice.
+        Surfaces an AMBIGUOUS_SHORTCUT error instead of dispatching when
+        the bound names can't be resolved to a single unambiguous winner:
+        any name that doesn't follow the `timeline.` convention, or two
+        names that share the same `timeline.{kind}.` prefix. The latter
+        means two commands of the *same* kind were bound to the same
+        shortcut — unlike a cross-kind collision (resolved above via the
+        most-recently-clicked timeline), that's always a registration
+        bug, since there's no "most recent" signal to pick between two
+        actions on one kind.
         """
+        seen_kind_prefixes: dict[str, str] = {}
+        for n in names:
+            if not n.startswith("timeline."):
+                tilia.errors.display(
+                    tilia.errors.AMBIGUOUS_SHORTCUT,
+                    f"Non-timeline collision among bound commands: {list(names)}.",
+                )
+                return
+            kind_prefix = ".".join(n.split(".", 2)[:2])
+            if kind_prefix in seen_kind_prefixes:
+                tilia.errors.display(
+                    tilia.errors.AMBIGUOUS_SHORTCUT,
+                    f"Same-kind collision among bound commands: {list(names)}.",
+                )
+                return
+            seen_kind_prefixes[kind_prefix] = n
+
         for tlui in self._select_order:
             prefix = f"timeline.{tlui.timeline_class.type_name().lower()}."
             winner = next((n for n in names if n.startswith(prefix)), None)
             if winner:
                 commands.execute(winner)
                 return
-
-        if any(not n.startswith("timeline.") for n in names):
-            tilia.errors.display(
-                tilia.errors.AMBIGUOUS_SHORTCUT,
-                f"Non-timeline collision among bound commands: {list(names)}.",
-            )
 
     def on_beat_timeline_measure_number_change_done(self, id: int, start_index: int):
         from tilia.ui.timelines.beat import BeatTimelineUI
