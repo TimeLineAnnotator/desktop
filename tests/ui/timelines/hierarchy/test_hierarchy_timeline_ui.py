@@ -96,16 +96,16 @@ class TestActions:
         assert tlui[2].get_data("level") == 1
 
     def test_increase_level_via_keypress(self, tlui):
-        h, _ = tlui.create_hierarchy(0, 1, 1)
-        tlui.select_element(tlui.get_element(h.id))
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        tlui.select_element(tlui[0])
         post(Post.TIMELINE_KEY_PRESS_CTRL_UP)
-        assert tlui.get_element(h.id).get_data("level") == 2
+        assert tlui[0].get_data("level") == 2
 
     def test_decrease_level_via_keypress(self, tlui):
-        h, _ = tlui.create_hierarchy(0, 1, 2)
-        tlui.select_element(tlui.get_element(h.id))
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+        tlui.select_element(tlui[0])
         post(Post.TIMELINE_KEY_PRESS_CTRL_DOWN)
-        assert tlui.get_element(h.id).get_data("level") == 1
+        assert tlui[0].get_data("level") == 1
 
     def test_set_color(self, tlui):
         commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
@@ -151,7 +151,7 @@ class TestActions:
         # Regression: hovering the whisker grab tab didn't change the cursor
         # because the VLine sits inside a QGraphicsItemGroup whose default
         # routing prevented hover events from reaching the child.
-        tlui.create_hierarchy(0.1, 1, 1)
+        commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
         tlui.select_element(tlui[0])
         with Serve(Get.FROM_USER_FLOAT, (True, 0.05)):
             commands.execute("timeline.hierarchy.add_pre_start")
