@@ -181,9 +181,8 @@ class RangeTLComponentManager(TimelineComponentManager):
         """Split at `time` on the given row.
 
         Mid-range (start < time < end): split into two joined ranges.
-        Exactly on a join boundary (time == start of a range with an
-        incoming join): separate that join.
-        Otherwise: no-op.
+        Otherwise: no-op (including exactly on an existing join boundary —
+        use `separate` to undo a join instead).
         """
         if not row_id or row_id not in self.timeline.row_ids:
             return False, "No row to split in."
@@ -220,15 +219,6 @@ class RangeTLComponentManager(TimelineComponentManager):
                 self.timeline.set_component_data(r.id, "end", time)
                 self.timeline.set_component_data(r.id, "joined_right", new_component.id)
                 return True, ""
-
-        # Boundary separation: time falls exactly on a join boundary.
-        for r in same_row:
-            if r.start == time:
-                for other in same_row:
-                    if other.joined_right == r.id:
-                        self.timeline.set_component_data(other.id, "joined_right", None)
-                        return True, ""
-                break
 
         return False, "Nothing to split at this time."
 

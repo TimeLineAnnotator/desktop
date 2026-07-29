@@ -540,20 +540,6 @@ class RangeTimelineUI(TimelineUI):
             target_rows = [row]
 
         any_success = False
-        # Capture join boundaries that the split is about to separate so we
-        # can nudge the two halves apart afterwards (matches the gap that
-        # the explicit Separate ranges command introduces). Doing this
-        # per-row before the split keeps the logic at the UI layer where
-        # `time_x_converter` and `MIN_DRAG_GAP` already live.
-        boundary_pairs: list[tuple[Any, Any]] = []
-        for target_row in target_rows:
-            for r in self.timeline:
-                if r.row_id != target_row.id or r.joined_right is None:
-                    continue
-                partner = self.timeline.get_component(r.joined_right)
-                if partner is not None and partner.start == time:
-                    boundary_pairs.append((r, partner))
-
         for target_row in target_rows:
             success, reason = self.timeline.component_manager.split(time, target_row.id)
             if success:
@@ -562,18 +548,6 @@ class RangeTimelineUI(TimelineUI):
                 # Silently ignore the "nothing to split" case — the user may
                 # press the shortcut at any time, so don't spam errors for it.
                 post(Post.DISPLAY_ERROR, "Error splitting range", reason)
-
-        if boundary_pairs:
-            half_gap_time = time_x_converter.get_time_by_x(
-                MIN_DRAG_GAP / 2
-            ) - time_x_converter.get_time_by_x(0)
-            for left, right in boundary_pairs:
-                self.timeline.set_component_data(
-                    left.id, "end", left.end - half_gap_time
-                )
-                self.timeline.set_component_data(
-                    right.id, "start", right.start + half_gap_time
-                )
 
         return any_success
 
