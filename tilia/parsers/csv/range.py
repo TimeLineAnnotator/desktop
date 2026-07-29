@@ -21,13 +21,16 @@ def _get_or_create_row(timeline: RangeTimeline, row_name: str) -> RangeTimeline.
     return timeline.add_row(name=row_name)
 
 
-_TRUE_LITERALS = {"true", "1", "yes", "y", "t"}
-_FALSE_LITERALS = {"false", "0", "no", "n", "f", ""}
+_TRUE_LITERALS = {"true"}
+_FALSE_LITERALS = {"false", ""}
 
 
 def _parse_optional_bool(value: str) -> tuple[bool, bool]:
-    """Parse a permissive boolean. Returns (ok, value) — `ok=False` signals
-    an unrecognised input the caller should report as a CSV error."""
+    """Parse a strict boolean ('true'/'false', case-insensitive; blank
+    counts as 'false') — matches the convention used by the beat CSV
+    parser's `is_first_in_measure` column. Returns (ok, value) —
+    `ok=False` signals an unrecognised input the caller should report as
+    a CSV error."""
     s = value.strip().lower()
     if s in _FALSE_LITERALS:
         return True, False
@@ -52,33 +55,33 @@ def _apply_pending_joins(
     left in place — only the offending join is dropped."""
     errors: list[str] = []
     by_row: dict[str, list[tuple[Range, bool]]] = {}
-    for rng, row_id, flag in pending_joins:
-        by_row.setdefault(row_id, []).append((rng, flag))
+    for range_obj, row_id, flag in pending_joins:
+        by_row.setdefault(row_id, []).append((range_obj, flag))
 
     for row_id, entries in by_row.items():
         entries.sort(key=lambda e: e[0])
         row = timeline.get_row_by_id(row_id)
         row_label = row.name if row is not None else row_id
-        for i, (rng, flag) in enumerate(entries):
+        for i, (range_obj, flag) in enumerate(entries):
             if not flag:
                 continue
             if i + 1 >= len(entries):
                 errors.append(
-                    f"start={rng.start}, end={rng.end} | "
+                    f"start={range_obj.start}, end={range_obj.end} | "
                     f"joined_with_next=true on last range of row "
                     f"{row_label!r}; no next neighbor to join with"
                 )
                 continue
             target = entries[i + 1][0]
-            if rng.end != target.start:
+            if range_obj.end != target.start:
                 errors.append(
-                    f"start={rng.start}, end={rng.end} | "
+                    f"start={range_obj.start}, end={range_obj.end} | "
                     f"joined_with_next=true but next range on row "
                     f"{row_label!r} starts at {target.start} (must equal "
-                    f"{rng.end} for ranges to join)"
+                    f"{range_obj.end} for ranges to join)"
                 )
                 continue
-            timeline.set_component_data(rng.id, "joined_right", target.id)
+            timeline.set_component_data(range_obj.id, "joined_right", target.id)
     return errors
 
 
