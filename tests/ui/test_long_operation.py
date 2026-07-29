@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from tilia.requests import LongOperation, Post, post
@@ -9,6 +11,23 @@ def drain_stack(qtui):
     toolbar = qtui._long_op_toolbar
     while toolbar._stack:
         post(Post.LONG_OPERATION, LongOperation.DONE)
+
+
+class _FakeElapsedTimer:
+    """Deterministic stand-in for QElapsedTimer so throttle tests don't
+    depend on real wall-clock timing."""
+
+    def __init__(self):
+        self.elapsed_ms = 0
+
+    def start(self):
+        self.elapsed_ms = 0
+
+    def restart(self):
+        self.elapsed_ms = 0
+
+    def elapsed(self):
+        return self.elapsed_ms
 
 
 class TestLongOperationToolbar:
@@ -64,3 +83,23 @@ class TestLongOperationToolbar:
     def test_done_without_started_is_safe(self, qtui):
         post(Post.LONG_OPERATION, LongOperation.DONE)
         assert qtui._long_op_toolbar.isHidden()
+
+    def test_progress_throttles_process_events(self, qtui):
+        toolbar = qtui._long_op_toolbar
+        toolbar._progress_timer = _FakeElapsedTimer()
+        post(Post.LONG_OPERATION, LongOperation.STARTED, "Op")
+        with patch("tilia.ui.long_operation.QApplication.processEvents") as mock_pe:
+            for i in range(50):
+                post(Post.LONG_OPERATION, LongOperation.PROGRESS, i, 50)
+            assert mock_pe.call_count == 0
+            assert toolbar._bar.value() == 49
+
+    def test_progress_processes_events_after_throttle_elapses(self, qtui):
+        toolbar = qtui._long_op_toolbar
+        fake_timer = _FakeElapsedTimer()
+        toolbar._progress_timer = fake_timer
+        post(Post.LONG_OPERATION, LongOperation.STARTED, "Op")
+        fake_timer.elapsed_ms = 150
+        with patch("tilia.ui.long_operation.QApplication.processEvents") as mock_pe:
+            post(Post.LONG_OPERATION, LongOperation.PROGRESS, 1, 50)
+            assert mock_pe.call_count == 1

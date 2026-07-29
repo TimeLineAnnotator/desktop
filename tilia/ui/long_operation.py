@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtCore import QElapsedTimer, QEvent, QObject, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QProgressBar, QToolBar
 
 from tilia.requests import LongOperation, Post, listen
+
+_PROGRESS_THROTTLE_MS = 100
 
 
 class _DialogCursorFilter(QObject):
@@ -69,6 +71,7 @@ class LongOperationToolbar(QToolBar):
         self.hide()
 
         self._stack: list[str] = []
+        self._progress_timer = QElapsedTimer()
         self._dialog_cursor_filter = _DialogCursorFilter(self._stack)
         self._input_block_filter = _InputBlockFilter()
         self._app: QApplication = QApplication.instance()  # type: ignore[assignment]
@@ -97,6 +100,7 @@ class LongOperationToolbar(QToolBar):
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             self._app.installEventFilter(self._dialog_cursor_filter)
             self._app.installEventFilter(self._input_block_filter)
+        self._progress_timer.start()
         QApplication.processEvents()
 
     def _on_progress(self, value: int, maximum: int) -> None:
@@ -105,6 +109,9 @@ class LongOperationToolbar(QToolBar):
         if self._bar.maximum() != maximum:
             self._bar.setMaximum(maximum)
         self._bar.setValue(value)
+        if self._progress_timer.elapsed() < _PROGRESS_THROTTLE_MS:
+            return
+        self._progress_timer.restart()
         QApplication.processEvents()
 
     def _on_done(self) -> None:
