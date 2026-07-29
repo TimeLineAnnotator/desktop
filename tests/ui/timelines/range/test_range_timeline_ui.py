@@ -3867,6 +3867,8 @@ class TestSharedShortcuts:
     def test_ambiguous_shortcut_warning_surfaces_to_user(self, qtui, tilia_errors):
         from PySide6.QtCore import QtMsgType
 
+        from tilia.boot import handle_qt_log_message
+
         # Mimic the Qt log call: handle_qt_log_message receives type, context,
         # message. We construct a minimal context-like object with the two
         # attributes the handler reads.
@@ -3874,7 +3876,7 @@ class TestSharedShortcuts:
             file = "test_file"
             line = 0
 
-        qtui.main_window.handle_qt_log_message(
+        handle_qt_log_message(
             QtMsgType.QtWarningMsg,
             _Ctx(),
             "QAction::eventFilter: Ambiguous shortcut overload: S",
