@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QToolButton
 
 from tests.mock import Serve
 from tests.ui.timelines.interact import (
@@ -143,6 +144,24 @@ class TestCreateDeleteComponent:
         action.trigger()
         assert len(range_tlui) == 1
         assert_range(range_tlui, 0, start=10)
+
+    def test_ranges_dropdown_remembers_last_used(self, range_tlui):
+        # Join/Merge is a MenuButtonPopup dropdown: the main button area
+        # re-runs whichever of the two was picked last from the arrow menu.
+        toolbar = range_tlui.TOOLBAR_CLASS()
+        join_action = get_qaction("timeline.range.join_ranges")
+        merge_action = get_qaction("timeline.range.merge_ranges")
+        button = next(
+            btn
+            for btn in toolbar.findChildren(QToolButton)
+            if btn.defaultAction() is join_action
+        )
+
+        merge_action.trigger()
+        assert button.defaultAction() is merge_action
+
+        join_action.trigger()
+        assert button.defaultAction() is join_action
 
     def test_create_at_selected_time(self, range_tlui, use_test_settings):
         commands.execute("media.seek", 10)
@@ -2274,22 +2293,6 @@ class TestRowDeletionGuard:
         get_context_menu(range_tlui, 0, 0)
 
 
-class TestRemoveRowToolbarEnabled:
-    def test_disabled_with_one_row(self, range_tlui):
-        assert range_tlui.timeline.row_count == 1
-        assert get_qaction("timeline.range.remove_row").isEnabled() is False
-
-    def test_enabled_after_adding_second_row(self, range_tlui):
-        commands.execute("timeline.range.add_row")
-        assert get_qaction("timeline.range.remove_row").isEnabled() is True
-
-    def test_disabled_again_after_removing_back_to_one(self, range_tlui):
-        commands.execute("timeline.range.add_row")
-        commands.execute("timeline.range.remove_row", row=range_tlui.rows[1])
-        assert range_tlui.timeline.row_count == 1
-        assert get_qaction("timeline.range.remove_row").isEnabled() is False
-
-
 class TestAddRowAboveBelowCommands:
     def test_add_row_above_uses_selected_row(self, range_tlui):
         commands.execute("timeline.range.add_row")
@@ -2501,32 +2504,6 @@ class TestSettingsCrashRegression:
         post(Post.SETTINGS_UPDATED, ["range_timeline"])
 
 
-class TestRemoveRowToolbarPerSelectedTimeline:
-    @staticmethod
-    def _make_two(tluis):
-        commands.execute("timelines.add.range", name="A")
-        commands.execute("timelines.add.range", name="B")
-        ranges = [t for t in tluis if isinstance(t, RangeTimelineUI)]
-        a = next(t for t in ranges if t.get_data("name") == "A")
-        b = next(t for t in ranges if t.get_data("name") == "B")
-        return a, b
-
-    def test_disabled_when_selected_timeline_has_one_row(self, tluis):
-        a, b = self._make_two(tluis)
-        click_timeline_ui(b, 1)
-        commands.execute("timeline.range.add_row")
-        assert b.timeline.row_count == 2
-        assert a.timeline.row_count == 1
-        click_timeline_ui(a, 1)
-        assert get_qaction("timeline.range.remove_row").isEnabled() is False
-
-    def test_enabled_when_selected_timeline_has_more_than_one_row(self, tluis):
-        a, _ = self._make_two(tluis)
-        click_timeline_ui(a, 1)
-        commands.execute("timeline.range.add_row")
-        assert get_qaction("timeline.range.remove_row").isEnabled() is True
-
-
 class TestPreStartPostEnd:
     def _make_range(self, range_tlui, start=10, end=20):
         commands.execute("timeline.range.add_range", start=start, end=end)
@@ -2657,13 +2634,6 @@ class TestPreStartPostEnd:
         post(Post.SETTINGS_UPDATED, ["range_timeline"])
         range_tlui.deselect_element(elem)
         assert elem.pre_start_handle.isVisible() is True
-
-    def test_toggle_always_show_extensions_command_flips_setting(self, range_tlui):
-        settings.set("range_timeline", "always_show_extensions", False)
-        commands.execute("timeline.range.toggle_always_show_extensions")
-        assert bool(settings.get("range_timeline", "always_show_extensions"))
-        commands.execute("timeline.range.toggle_always_show_extensions")
-        assert not bool(settings.get("range_timeline", "always_show_extensions"))
 
     def test_context_menu_offers_add_when_unset(self, range_tlui):
         elem = self._make_range(range_tlui, start=10, end=20)
@@ -3389,15 +3359,6 @@ class TestLabelAlignment:
         text_width = elem.label.boundingRect().width()
         assert elem.label.x() == (elem.start_x + elem.end_x - text_width) / 2
 
-    @pytest.mark.parametrize("alignment", ["left", "center", "right"])
-    def test_align_command_sets_alignment(self, range_tlui, alignment):
-        # Start from a different known value so the assertion proves the
-        # command changed the state rather than matching the default.
-        other = "right" if alignment != "right" else "left"
-        self._set_alignment(other)
-        commands.execute(f"timeline.range.align_labels_{alignment}")
-        assert range_tlui.label_alignment == alignment
-
     def test_alignment_is_global_across_timelines(self, tluis):
         # Two independent range timelines should reflect the same setting.
         commands.execute("timelines.add.range", name="A")
@@ -3407,13 +3368,6 @@ class TestLabelAlignment:
         self._set_alignment("right")
         assert ranges[0].label_alignment == "right"
         assert ranges[1].label_alignment == "right"
-
-    @pytest.mark.parametrize("alignment", ["left", "center", "right"])
-    def test_toolbar_button_checked_state(self, range_tlui, alignment):
-        self._set_alignment(alignment)
-        for opt in ("left", "center", "right"):
-            action = get_qaction(f"timeline.range.align_labels_{opt}")
-            assert action.isChecked() == (opt == alignment)
 
     @pytest.mark.parametrize("alignment", ["center", "right"])
     def test_label_alignment_after_typing_text(self, range_tlui, alignment):

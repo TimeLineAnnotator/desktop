@@ -187,7 +187,7 @@ class RangeTimelineUI(TimelineUI):
             ("add_row", "Add row", "", ""),
             ("add_row_above", "Add row above", "", "range-row-add-above"),
             ("add_row_below", "Add row below", "", "range-row-add-below"),
-            ("remove_row", "Remove row", "", "range-row-remove"),
+            ("remove_row", "Remove row", "", ""),
             ("rename_row", "Rename row", "", ""),
             ("set_row_color", "Set row color", "", ""),
             ("reset_row_color", "Reset row color", "", ""),
@@ -215,15 +215,6 @@ class RangeTimelineUI(TimelineUI):
             ("add_post_end", "Add post-end", "", ""),
             ("delete_pre_start", "Delete pre-start", "", ""),
             ("delete_post_end", "Delete post-end", "", ""),
-            ("align_labels_left", "Align labels left", "", "FormatJustifyLeft"),
-            ("align_labels_center", "Align labels center", "", "FormatJustifyCenter"),
-            ("align_labels_right", "Align labels right", "", "FormatJustifyRight"),
-            (
-                "toggle_always_show_extensions",
-                "Always show pre-start / post-end",
-                "",
-                "range-toggle-extensions",
-            ),
             ("set_split_mode_all_rows", "Split mode: all rows", "", ""),
             ("set_split_mode_selected_row", "Split mode: selected row", "", ""),
         ]
@@ -804,28 +795,6 @@ class RangeTimelineUI(TimelineUI):
                 self.timeline.set_component_data(e.id, "pre_start", e.get_data("start"))
                 changed = True
         return changed
-
-    def _set_label_alignment(self, alignment: str) -> bool:
-        if settings.get("range_timeline", "default_label_alignment") == alignment:
-            return False
-        settings.set("range_timeline", "default_label_alignment", alignment)
-        post(Post.SETTINGS_UPDATED, ["range_timeline"])
-        return True
-
-    def on_align_labels_left(self) -> bool:
-        return self._set_label_alignment("left")
-
-    def on_align_labels_center(self) -> bool:
-        return self._set_label_alignment("center")
-
-    def on_align_labels_right(self) -> bool:
-        return self._set_label_alignment("right")
-
-    def on_toggle_always_show_extensions(self) -> bool:
-        current = settings.get("range_timeline", "always_show_extensions")
-        settings.set("range_timeline", "always_show_extensions", not current)
-        post(Post.SETTINGS_UPDATED, ["range_timeline"])
-        return True
 
     def on_set_split_mode_all_rows(self) -> bool:
         return self._set_split_mode(True)
