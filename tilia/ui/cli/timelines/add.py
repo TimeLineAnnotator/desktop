@@ -51,8 +51,10 @@ Examples:
         "-b",
         type=int,
         nargs="+",
-        default=[4],
-        help="Pattern as space-separated integers indicating beat count in a measure. Pattern will be repeated. Pattern '3 4', for instance, will alternate measures of 3 and 4 beats.",
+        default=None,
+        help="Pattern as space-separated integers indicating beat count in a measure "
+        "(beat timelines only). Pattern will be repeated. Pattern '3 4', for "
+        "instance, will alternate measures of 3 and 4 beats. Defaults to [4].",
     )
     add_subp.add_argument(
         "--row-height",
@@ -71,6 +73,12 @@ TLKIND_TO_KWARGS_NAMES = {
     MarkerTimeline: ["name", "height"],
     RangeTimeline: ["name", "height", "default_row_height"],
     ScoreTimeline: ["name", "height"],
+}
+
+# arg attr -> (timeline kind it's valid for, flag name for the error message)
+KIND_SPECIFIC_ARGS = {
+    "beat_pattern": (BeatTimeline, "--beat-pattern"),
+    "default_row_height": (RangeTimeline, "--row-height"),
 }
 
 
@@ -103,11 +111,12 @@ def add(namespace: argparse.Namespace):
 
     tl_type = KIND_STR_TO_TLKIND[kind]
 
-    if namespace.default_row_height is not None and tl_type is not RangeTimeline:
-        tilia.errors.display(
-            tilia.errors.CLI_ADD_TIMELINE_ARG_NOT_APPLICABLE, "--row-height", kind
-        )
-        return
+    for attr, (expected_kind, flag) in KIND_SPECIFIC_ARGS.items():
+        if getattr(namespace, attr) is not None and tl_type is not expected_kind:
+            tilia.errors.display(
+                tilia.errors.CLI_ADD_TIMELINE_ARG_NOT_APPLICABLE, flag, kind
+            )
+            return
 
     output(f"Adding timeline with {kind=}, {name=}")
 

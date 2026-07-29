@@ -74,3 +74,11 @@ class TestTimelineAdd:
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("--row-height")
         tilia_errors.assert_in_error_message("marker")
+
+    def test_beat_pattern_rejected_for_non_beat_kind(self, cli, tls, tilia_errors):
+        cli.parse_and_run("timelines add marker --name M --beat-pattern 3 4")
+
+        assert len(tls) == 0
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("--beat-pattern")
+        tilia_errors.assert_in_error_message("marker")
