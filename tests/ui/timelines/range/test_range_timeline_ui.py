@@ -3864,6 +3864,24 @@ class TestSharedShortcuts:
         post(Post.SHARED_SHORTCUT_FIRED, ("file.open", "edit.undo"))
         assert any("Ambiguous" in err["title"] for err in tilia_errors.errors)
 
+    def test_same_kind_collision_surfaces_error(
+        self, range_tlui, tilia_state, tilia_errors
+    ):
+        # Two commands of the *same* kind bound to the same shortcut is a
+        # registration bug (there's no "most recently clicked" signal to
+        # resolve between two actions on one kind) — surface an error and
+        # don't silently dispatch to whichever name happens to come first.
+        tilia_state.duration = 100
+        self._add_range(range_tlui, 0, 10)
+
+        post(
+            Post.SHARED_SHORTCUT_FIRED,
+            ("timeline.range.split_range", "timeline.range.merge_ranges"),
+        )
+
+        assert any("Ambiguous" in err["title"] for err in tilia_errors.errors)
+        assert len(range_tlui) == 1
+
     def test_ambiguous_shortcut_warning_surfaces_to_user(self, qtui, tilia_errors):
         from PySide6.QtCore import QtMsgType
 
