@@ -147,6 +147,26 @@ class TestRangeTimelineComponentManager:
         assert "overlap" in reason
 
 
+class TestRowColorValidation:
+    def test_set_row_color_rejects_invalid_color(self, range_tl, tilia_errors):
+        row = range_tl.rows[0]
+        range_tl.set_row_color(row, "#ff0000")
+
+        range_tl.set_row_color(row, "not-a-color")
+
+        assert row.color == "#ff0000"
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("not-a-color")
+
+    def test_add_row_falls_back_to_default_on_invalid_color(
+        self, range_tl, tilia_errors
+    ):
+        row = range_tl.add_row(name="R2", color="not-a-color")
+        assert row.color is None
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("not-a-color")
+
+
 class TestRangePrePostExtremities:
     def test_default_pre_start_equals_start(self, range_tl):
         row_id = range_tl.rows[0].id

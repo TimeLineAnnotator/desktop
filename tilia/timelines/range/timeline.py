@@ -5,6 +5,7 @@ import random
 import string
 from typing import Any
 
+import tilia.errors
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.component.segmentlike import (
@@ -16,6 +17,7 @@ from tilia.timelines.base.timeline import (
     TimelineComponentManager,
     TimelineFlag,
 )
+from tilia.timelines.base.validators import validate_color
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.range.components import Range
 
@@ -388,6 +390,9 @@ class RangeTimeline(Timeline):
             new_id = generate_row_id()
         if name is None:
             name = self.get_row_initial_name()
+        if not validate_color(color):
+            tilia.errors.display(tilia.errors.RANGE_INVALID_ROW_COLOR, color)
+            color = None
         row = self.Row(new_id, name, color, height)
         if idx is None:
             idx = len(self.rows)
@@ -428,6 +433,9 @@ class RangeTimeline(Timeline):
         return True
 
     def set_row_color(self, row: Row, color: str) -> None:
+        if not validate_color(color):
+            tilia.errors.display(tilia.errors.RANGE_INVALID_ROW_COLOR, color)
+            return
         row.color = color
         self._post_rows_update()
 
