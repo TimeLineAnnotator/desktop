@@ -127,6 +127,7 @@ INVALID_ID = Error(
 RANGE_DRAG_INVALID_HANDLE = Error(
     "Range drag error", "Could not start drag: unrecognized handle item."
 )
+RANGE_INVALID_ROW_COLOR = Error("Invalid row color", "'{}' is not a valid color.")
 AMBIGUOUS_SHORTCUT = Error(
     "Ambiguous keyboard shortcut",
     "Two or more commands are bound to the same key combination. "

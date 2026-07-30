@@ -87,6 +87,16 @@ class TestRowAdd:
         assert "added" not in [r.name for r in r1.rows]
         assert "added" in [r.name for r in r2.rows]
 
+    def test_rejects_invalid_color_with_warning(
+        self, range_cli, range_tl, tilia_errors
+    ):
+        range_cli.parse_and_run(
+            "timelines range row add --tl-name R1 --name R2 --color not-a-color"
+        )
+        tilia_errors.assert_error()
+        added = next(r for r in range_tl.rows if r.name == "R2")
+        assert added.color is None
+
 
 class TestRowSetHeight:
     def test_sets_row_height(self, range_cli, range_tl):
@@ -162,6 +172,14 @@ class TestRowSetColor:
             "--row-index 0 --color #abcdef"
         )
         assert range_tl.rows[0].color == "#abcdef"
+
+    def test_rejects_invalid_color(self, range_cli, range_tl, tilia_errors):
+        range_cli.parse_and_run(
+            "timelines range row set-color --tl-name R1 "
+            "--row-index 0 --color not-a-color"
+        )
+        tilia_errors.assert_error()
+        assert range_tl.rows[0].color is None
 
 
 class TestRowResetColor:
