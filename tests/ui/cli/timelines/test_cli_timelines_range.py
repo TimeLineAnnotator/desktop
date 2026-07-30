@@ -95,6 +95,14 @@ class TestRowSetHeight:
         )
         assert range_tl.default_row_height == 75
 
+    def test_rejects_height_below_minimum(self, range_cli, range_tl):
+        with patch("tilia.ui.cli.io.error") as err:
+            range_cli.parse_and_run(
+                "timelines range row set-height --tl-name R1 --height 5"
+            )
+        err.assert_called()
+        assert range_tl.default_row_height != 5
+
 
 class TestRowList:
     def test_lists_rows(self, range_cli, range_tl):

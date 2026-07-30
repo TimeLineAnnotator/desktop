@@ -250,9 +250,11 @@ def add_row(timeline: RangeTimeline, namespace: argparse.Namespace) -> None:
 
 @with_timeline
 def set_row_height(timeline: RangeTimeline, namespace: argparse.Namespace) -> None:
-    get(Get.TIMELINE_COLLECTION).set_timeline_data(
+    success = get(Get.TIMELINE_COLLECTION).set_timeline_data(
         timeline.id, "default_row_height", namespace.height
     )
+    if not success:
+        io.error(f"Invalid row height: {namespace.height} (must be >= 10).")
 
 
 @with_timeline
