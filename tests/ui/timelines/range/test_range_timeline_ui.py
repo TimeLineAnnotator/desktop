@@ -964,6 +964,47 @@ class TestCopyPaste:
         assert pasted_left.get_data("joined_right") == pasted_right.id
         assert pasted_right.get_data("joined_right") is None
 
+    def test_paste_multiple_into_selected_elements_keeps_anchor_join(
+        self, range_tlui, tilia_state
+    ):
+        # Copy a joined pair, then paste onto an existing selected range.
+        # The first pasted item reuses the selected element (the "anchor")
+        # instead of creating a new one — its outgoing join must still be
+        # restored onto the newly created second pasted range.
+        r1, r2 = add_and_join_ranges(range_tlui, [(0, 10), (10, 20)])
+        click_range_ui(r1)
+        click_range_ui(r2, modifier="ctrl")
+        commands.execute("timeline.component.copy")
+
+        commands.execute("timeline.range.add_range", start=50, end=55)
+        target = range_tlui[2]
+        click_range_ui(target)
+        commands.execute("timeline.component.paste")
+
+        assert len(range_tlui) == 4
+        pasted_new = next(e for e in range_tlui if e not in (r1, r2, target))
+        assert target.get_data("joined_right") == pasted_new.id
+
+    def test_paste_preserves_pre_start_and_post_end(self, range_tlui, tilia_state):
+        commands.execute("timeline.range.add_range", start=10, end=20)
+        r = range_tlui[0]
+        range_tlui.timeline.set_component_data(r.id, "pre_start", 7)
+        range_tlui.timeline.set_component_data(r.id, "post_end", 24)
+        click_range_ui(r)
+        commands.execute("timeline.component.copy")
+
+        click_timeline_ui(range_tlui, 400)
+        commands.execute("media.seek", 50)
+        commands.execute("timeline.component.paste")
+
+        pasted = range_tlui[1]
+        assert pasted.get_data("start") == 50
+        assert pasted.get_data("end") == 60
+        # pre_start was 3 before start (10 - 7); post_end was 4 after end
+        # (24 - 20). Both should shift by the same offset as start/end.
+        assert pasted.get_data("pre_start") == 47
+        assert pasted.get_data("post_end") == 64
+
     def test_paste_drops_ranges_outside_media_bounds(self, range_tlui, tilia_state):
         # Media is 100s by default. Pasting a 10s-wide range at 95s would
         # push the end past media duration → rejected by validator.

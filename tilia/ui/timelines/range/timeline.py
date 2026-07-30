@@ -408,11 +408,24 @@ class RangeTimelineUI(TimelineUI):
         paste_into_element(first, paste_data[0])
         self.select_element(first)
 
+        # paste_into_element only applies paste_data["values"] onto the
+        # existing `first` element — its context (old id / joined_right) is
+        # otherwise dropped, silently losing any join where the copied
+        # anchor range was either endpoint. Seed the join-resolution maps
+        # with the anchor before handing off the rest of the batch.
+        anchor_context = paste_data[0]["context"]
+        old_to_new = {}
+        if anchor_context.get("id") is not None:
+            old_to_new[anchor_context["id"]] = first.id
+        old_joined_right_pairs = [(first.id, anchor_context.get("joined_right"))]
+
         self._create_pasted_ranges(
             paste_data[1:],
-            paste_data[0]["context"]["start"],
+            anchor_context["start"],
             first.get_data("start"),
             first.get_data("row_id"),
+            old_to_new=old_to_new,
+            old_joined_right_pairs=old_joined_right_pairs,
         )
 
     def paste_single_into_timeline(self, paste_data: list[dict] | dict) -> None:
@@ -436,16 +449,31 @@ class RangeTimelineUI(TimelineUI):
         reference_time: float,
         target_time: float,
         row_id: str,
+        old_to_new: dict | None = None,
+        old_joined_right_pairs: list[tuple] | None = None,
     ) -> None:
-        old_to_new: dict = {}
-        old_joined_right_pairs: list[tuple] = []
+        old_to_new = {} if old_to_new is None else old_to_new
+        old_joined_right_pairs = (
+            [] if old_joined_right_pairs is None else old_joined_right_pairs
+        )
         for d in copy.deepcopy(paste_data):
             start = d["context"].pop("start")
             end = d["context"].pop("end")
             old_id = d["context"].pop("id", None)
             old_joined_right = d["context"].pop("joined_right", None)
+            pre_start = d["context"].pop("pre_start", None)
+            post_end = d["context"].pop("post_end", None)
             duration = end - start
             new_start = target_time + (start - reference_time)
+
+            extension_kwargs = {}
+            if pre_start is not None:
+                extension_kwargs["pre_start"] = target_time + (
+                    pre_start - reference_time
+                )
+            if post_end is not None:
+                extension_kwargs["post_end"] = target_time + (post_end - reference_time)
+
             comp, _ = self.timeline.create_component(
                 kind=ComponentKind.RANGE,
                 start=new_start,
@@ -453,6 +481,7 @@ class RangeTimelineUI(TimelineUI):
                 row_id=row_id,
                 **d["values"],
                 **d["context"],
+                **extension_kwargs,
             )
             if comp is None:
                 continue
