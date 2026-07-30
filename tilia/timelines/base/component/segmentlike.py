@@ -128,8 +128,18 @@ def scale_segmentlike(cm: TimelineComponentManager, factor: float) -> None:
     for component in cm:
         # attributes need to be set directly
         # to override validation
+        pre_start = getattr(component, "pre_start", None)
+        post_end = getattr(component, "post_end", None)
         component.start = component.get_data("start") * factor
         component.end = component.get_data("end") * factor
+        # The start/end setters above may drag pre_start/post_end along as
+        # a side effect meant for incremental user edits (e.g. dragging a
+        # handle), not a bulk rescale — overwrite with the properly scaled
+        # originals captured before the setters ran.
+        if pre_start is not None:
+            component.pre_start = pre_start * factor
+        if post_end is not None:
+            component.post_end = post_end * factor
 
 
 def crop_segmentlike(cm: TimelineComponentManager, length: float) -> None:
@@ -139,4 +149,10 @@ def crop_segmentlike(cm: TimelineComponentManager, length: float) -> None:
         if start >= length:
             cm.delete_component(component)
         elif end > length:
+            post_end = getattr(component, "post_end", None)
             component.set_data("end", length)
+            # The end setter only drags post_end along when there's no
+            # active post-extension; with one, it's left stale beyond the
+            # new (shorter) media length.
+            if post_end is not None and post_end > length:
+                component.set_data("post_end", length)

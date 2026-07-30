@@ -254,3 +254,34 @@ class TestRangePrePostExtremities:
         r = list(range_tl)[0]
         assert r.pre_start == 5
         assert r.post_end == 25
+
+    def test_scale_scales_pre_start_and_post_end(self, range_tl):
+        row_id = range_tl.rows[0].id
+        r, _ = range_tl.create_component(
+            ComponentKind.RANGE,
+            id=1,
+            start=10,
+            end=20,
+            row_id=row_id,
+            pre_start=5,
+            post_end=25,
+        )
+        range_tl.component_manager.scale(2)
+        assert r.start == 20
+        assert r.end == 40
+        assert r.pre_start == 10
+        assert r.post_end == 50
+
+    def test_crop_clamps_post_end_beyond_new_length(self, range_tl):
+        row_id = range_tl.rows[0].id
+        r, _ = range_tl.create_component(
+            ComponentKind.RANGE,
+            id=1,
+            start=10,
+            end=20,
+            row_id=row_id,
+            post_end=25,
+        )
+        range_tl.component_manager.crop(15)
+        assert r.end == 15
+        assert r.post_end == 15

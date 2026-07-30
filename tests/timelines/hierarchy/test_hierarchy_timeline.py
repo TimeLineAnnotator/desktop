@@ -256,6 +256,28 @@ class TestHierarchyTimelineComponentManager:
         assert hrc3.start == 1.5
         assert hrc3.end == 3
 
+    def test_scale_scales_pre_start_and_post_end(self, hierarchy_tl):
+        hrc, _ = hierarchy_tl.create_hierarchy(
+            start=2, end=4, level=1, pre_start=1, post_end=6
+        )
+
+        hierarchy_tl.component_manager.scale(0.5)
+
+        assert hrc.start == 1
+        assert hrc.end == 2
+        assert hrc.pre_start == 0.5
+        assert hrc.post_end == 3
+
+    def test_crop_clamps_post_end_beyond_new_length(self, hierarchy_tl):
+        hrc, _ = hierarchy_tl.create_hierarchy(
+            start=0.0, end=0.2, level=1, post_end=0.4
+        )
+
+        hierarchy_tl.component_manager.crop(0.1)
+
+        assert hrc.end == 0.1
+        assert hrc.post_end == 0.1
+
     def test_increase_level(self, hierarchy_tl):
         hrc, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
         hierarchy_tl.alter_levels([hrc], 1)
