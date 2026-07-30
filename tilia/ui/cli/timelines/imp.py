@@ -21,7 +21,7 @@ def setup_parser(subparsers):
 
     import_parser.set_defaults(func=import_timeline)
 
-    import_subparsers = import_parser.add_subparsers(dest="tl_type")
+    import_subparsers = import_parser.add_subparsers(dest="tl_type", required=True)
     setup_import_marker_and_hierarchy_parser(import_subparsers)
     setup_import_score_parser(import_subparsers)
     setup_import_beat_parser(import_subparsers)
@@ -33,7 +33,7 @@ def setup_import_range_parser(subparser):
         "range",
         help="Import range timeline data",
     )
-    subparsers = parser.add_subparsers(dest="measure_or_time")
+    subparsers = parser.add_subparsers(dest="measure_or_time", required=True)
     setup_import_by_time(subparsers)
     setup_import_by_measure(subparsers)
 
@@ -56,7 +56,7 @@ def setup_import_marker_and_hierarchy_parser(subparser):
             kind,
             help=f"Import {plural} data",
         )
-        subparsers = parser.add_subparsers(dest="measure_or_time")
+        subparsers = parser.add_subparsers(dest="measure_or_time", required=True)
         setup_import_by_time(subparsers)
         setup_import_by_measure(subparsers)
 

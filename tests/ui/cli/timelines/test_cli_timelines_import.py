@@ -187,6 +187,40 @@ class TestImportTimeline:
         assert len(notes) == 4
 
 
+class TestImportRequiresSubcommand:
+    # These subparsers previously had no `required=True`, so omitting the
+    # subcommand fell through to a wrong default (e.g. "by-time") or an
+    # uncaught ValueError instead of a clean argparse usage error. Check
+    # stderr for argparse's own "required" complaint rather than just the
+    # parse_and_run return value — a raw ValueError also gets caught and
+    # returns True, so the return value alone doesn't distinguish a clean
+    # rejection from a crash.
+    def test_missing_tl_type_fails_cleanly(self, cli, tls, capsys):
+        cli.parse_and_run("timelines import")
+        assert "required" in capsys.readouterr().err
+
+    def test_missing_measure_or_time_for_range_fails_cleanly(
+        self, cli, range_tl, capsys
+    ):
+        # --file/--target-* belong to the by-time/by-measure sub-subparser,
+        # so they can't be passed here — this deliberately stops right at
+        # the missing subcommand.
+        cli.parse_and_run("timelines import range")
+        assert "required" in capsys.readouterr().err
+
+    def test_missing_measure_or_time_for_marker_fails_cleanly(
+        self, cli, marker_tl, capsys
+    ):
+        cli.parse_and_run("timelines import marker")
+        assert "required" in capsys.readouterr().err
+
+    def test_missing_measure_or_time_for_hierarchy_fails_cleanly(
+        self, cli, hierarchy_tl, capsys
+    ):
+        cli.parse_and_run("timelines import hierarchy")
+        assert "required" in capsys.readouterr().err
+
+
 class ImportTestCase:
     def __init__(self, timelines, get_timelines_params, expected_tl, expected_ref_tl):
         self.timelines = timelines
