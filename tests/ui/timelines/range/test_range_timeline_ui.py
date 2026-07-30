@@ -3513,6 +3513,12 @@ class TestSplitRange:
         left, right = ranges
         assert left.get_data("pre_start") == 5
         assert right.get_data("post_end") == 35
+        # The extension belongs to only one half each — regression coverage
+        # for the other two corners, which used to be left stale: the left
+        # half's post_end and the right half's pre_start should both pin to
+        # their own start/end (no extension), not linger at the original's.
+        assert left.get_data("post_end") == left.get_data("end")
+        assert right.get_data("pre_start") == right.get_data("start")
 
     def test_split_preserves_outgoing_join(self, range_tlui, tilia_state):
         tilia_state.duration = 100

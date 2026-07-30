@@ -214,9 +214,14 @@ class RangeTLComponentManager(TimelineComponentManager):
                 if new_component is None:
                     return False, "Could not create new range."
 
-                # Shrinking end auto-collapses the original's post_end (the
-                # right half carries the original post_end now).
+                # Shrinking end only auto-collapses the original's post_end
+                # when there was no active post-extension (the `end` setter's
+                # drag-along side effect is a no-op otherwise) — collapse it
+                # explicitly here too, since the right half already carries
+                # the original post_end above and the left half should have
+                # no post-extension of its own after a split.
                 self.timeline.set_component_data(r.id, "end", time)
+                self.timeline.set_component_data(r.id, "post_end", time)
                 self.timeline.set_component_data(r.id, "joined_right", new_component.id)
                 return True, ""
 
