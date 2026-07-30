@@ -84,8 +84,9 @@ class ZoomToolbar(QToolBar):
 
     def _apply_slider_stylesheet(self) -> None:
         self._slider.setStyleSheet(
-            "QSlider::groove:horizontal{height:4px;border-radius:2px;"
-            "background:palette(window-text);}"
+            "QSlider{min-height:20px;}"
+            "QSlider::groove:horizontal{height:4px;margin:8px 0;"
+            "border-radius:2px;background:palette(window-text);}"
             "QSlider::handle:horizontal{width:12px;height:12px;margin:-4px 0;"
             "border-radius:6px;background:palette(button);"
             "border:1px solid palette(button-text);}"
