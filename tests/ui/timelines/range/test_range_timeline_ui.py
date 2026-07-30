@@ -808,6 +808,19 @@ class TestJoinedHandleVisibility:
         assert r1.start_handle.brush().color().alpha() == 255
         assert r2.end_handle.brush().color().alpha() == 255
 
+    def test_joined_edge_handles_transparent_across_chain(self, range_tlui):
+        # A 3-range chain: only the two shared inner edges go transparent;
+        # the two outer edges stay opaque. Regression coverage for the
+        # batched incoming-join lookup in update_joined_right (previously
+        # each element rescanned the whole timeline per handle refresh).
+        r1, r2, r3 = add_and_join_ranges(range_tlui, [(10, 20), (20, 30), (30, 40)])
+        assert r1.start_handle.brush().color().alpha() == 255
+        assert r1.end_handle.brush().color().alpha() == 0
+        assert r2.start_handle.brush().color().alpha() == 0
+        assert r2.end_handle.brush().color().alpha() == 0
+        assert r3.start_handle.brush().color().alpha() == 0
+        assert r3.end_handle.brush().color().alpha() == 255
+
     def test_handles_restored_after_separate(self, range_tlui):
         r1, r2 = add_and_join_ranges(range_tlui, [(10, 20), (20, 30)])
         commands.execute("timeline.range.separate_ranges")

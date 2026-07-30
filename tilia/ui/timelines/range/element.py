@@ -209,9 +209,17 @@ class RangeUI(TimelineUIElement):
     def update_joined_right(self) -> None:
         # A joined_right change affects this range AND its partner (current or
         # previous). Refresh handle visibility timeline-wide so both ends of a
-        # join transition correctly.
+        # join transition correctly. Compute the "who points at me" reverse
+        # index once here instead of letting each element's
+        # _update_handle_visibility rescan the whole timeline — that turned
+        # an N-range join chain (N calls to this method) into O(n^3) work.
+        incoming_join_targets = {
+            elem.get_data("joined_right")
+            for elem in self.timeline_ui
+            if elem.get_data("joined_right") not in (None, elem.id)
+        }
         for elem in self.timeline_ui:
-            elem._update_handle_visibility()
+            elem._update_handle_visibility(elem.id in incoming_join_targets)
         self._update_join_separator_visibility()
 
     def child_items(self) -> list[QGraphicsItem]:
@@ -332,14 +340,18 @@ class RangeUI(TimelineUIElement):
         self.scene.addItem(self.end_handle)
         self._update_handle_visibility()
 
-    def _update_handle_visibility(self) -> None:
+    def _update_handle_visibility(self, has_incoming_join: bool | None = None) -> None:
         # Hide handles at joined edges so the dashed separator is visible.
         # The handles remain clickable for dragging the shared edge.
+        # `has_incoming_join` can be precomputed by a caller that already
+        # scanned the timeline once (see update_joined_right) to avoid a
+        # fresh O(n) scan per element.
         has_outgoing_join = self.get_data("joined_right") is not None
-        has_incoming_join = any(
-            elem.id != self.id and elem.get_data("joined_right") == self.id
-            for elem in self.timeline_ui
-        )
+        if has_incoming_join is None:
+            has_incoming_join = any(
+                elem.id != self.id and elem.get_data("joined_right") == self.id
+                for elem in self.timeline_ui
+            )
         self.end_handle.set_transparent(has_outgoing_join)
         self.start_handle.set_transparent(has_incoming_join)
 
