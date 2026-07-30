@@ -43,8 +43,11 @@ class RangeUI(TimelineUIElement):
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         values=["label", "color", "comments"],
         # `id` and `joined_right` go through context so paste can reconstruct
-        # joins between pasted siblings.
-        context=["start", "end", "id", "joined_right"],
+        # joins between pasted siblings. `pre_start`/`post_end` go through
+        # context (not values) because, like start/end, they're absolute
+        # times that need to shift by the paste offset rather than being
+        # copied verbatim — see RangeTimelineUI._create_pasted_ranges.
+        context=["start", "end", "id", "joined_right", "pre_start", "post_end"],
     )
 
     UPDATE_TRIGGERS = [
