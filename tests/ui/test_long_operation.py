@@ -2,7 +2,8 @@ from unittest.mock import patch
 
 import pytest
 
-from tilia.requests import LongOperation, Post, post
+from tests.mock import Serve
+from tilia.requests import Get, LongOperation, Post, post
 
 
 @pytest.fixture(autouse=True)
@@ -103,3 +104,15 @@ class TestLongOperationToolbar:
         with patch("tilia.ui.long_operation.QApplication.processEvents") as mock_pe:
             post(Post.LONG_OPERATION, LongOperation.PROGRESS, 1, 50)
             assert mock_pe.call_count == 1
+
+    def test_started_avoids_process_events_for_youtube_player(self, qtui):
+        with (
+            Serve(Get.MEDIA_TYPE, "youtube"),
+            patch("tilia.ui.long_operation.QApplication.processEvents") as mock_pe,
+            patch(
+                "tilia.ui.long_operation.QCoreApplication.sendPostedEvents"
+            ) as mock_spe,
+        ):
+            post(Post.LONG_OPERATION, LongOperation.STARTED, "Op")
+            assert mock_pe.call_count == 0
+            assert mock_spe.call_count == 1
