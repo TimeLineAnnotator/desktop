@@ -22,15 +22,17 @@ class _DialogCursorFilter(QObject):
         self._open_count = 0
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if isinstance(obj, QDialog):
-            if event.type() == QEvent.Type.Show:
-                if self._open_count == 0 and QApplication.overrideCursor():
-                    QApplication.restoreOverrideCursor()
-                self._open_count += 1
-            elif event.type() == QEvent.Type.Hide:
-                self._open_count = max(0, self._open_count - 1)
-                if self._open_count == 0 and self._stack:
-                    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        if not isinstance(obj, QDialog):
+            return False
+
+        if event.type() == QEvent.Type.Show:
+            if self._open_count == 0 and QApplication.overrideCursor():
+                QApplication.restoreOverrideCursor()
+            self._open_count += 1
+        elif event.type() == QEvent.Type.Hide:
+            self._open_count = max(0, self._open_count - 1)
+            if self._open_count == 0 and self._stack:
+                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         return False
 
 
