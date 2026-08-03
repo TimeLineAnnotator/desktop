@@ -26,6 +26,7 @@ from tilia.requests import (
 from tilia.requests.get import reset as reset_get
 from tilia.requests.post import reset as reset_post
 from tilia.ui.cli.ui import CLI
+from tilia.ui.commands import reset as reset_commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.ui.windows import WindowKind
@@ -277,6 +278,10 @@ def cleanup_requests():
 
     reset_get()
     reset_post()
+    # Without this, a later module whose tests never instantiate qtui (e.g. a
+    # bare backend fixture calling commands.execute()) would silently reuse a
+    # command bound to this module's already-torn-down TimelineUIs instance.
+    reset_commands()
 
 
 @pytest.fixture

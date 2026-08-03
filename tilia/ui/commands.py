@@ -152,3 +152,8 @@ def _execute_prod(command_name: str, *args, **kwargs):
 
 _name_to_action = {}
 _name_to_callback = {}
+
+
+def reset() -> None:
+    _name_to_action.clear()
+    _name_to_callback.clear()
