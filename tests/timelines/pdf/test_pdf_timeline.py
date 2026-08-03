@@ -15,14 +15,14 @@ class TestPageTotal:
 
 
 class TestPageNumber:
-    def test_marker_page_number_default_is_next_page(self, pdf_tl):
+    def test_marker_page_number_default_is_next_page(self, pdf_tlui, pdf_tl):
         pdf_tl.page_total = 2
         commands.execute("timeline.pdf.add")
         commands.execute("media.seek", 10)
         commands.execute("timeline.pdf.add")
         assert pdf_tl[1].get_data("page_number") == 2
 
-    def test_first_marker_page_number_is_one(self, pdf_tl):
+    def test_first_marker_page_number_is_one(self, pdf_tlui, pdf_tl):
         pdf_tl.page_total = 1
         commands.execute("timeline.pdf.add")
         assert pdf_tl[0].get_data("page_number") == 1
