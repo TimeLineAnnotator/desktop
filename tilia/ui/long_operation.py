@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QElapsedTimer, QEvent, QObject, Qt
+from PySide6.QtCore import QCoreApplication, QElapsedTimer, QEvent, QObject, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QProgressBar, QToolBar
 
-from tilia.requests import LongOperation, Post, listen
+from tilia.requests import Get, LongOperation, Post, get, listen
 
 _PROGRESS_THROTTLE_MS = 100
 
@@ -95,6 +95,14 @@ class LongOperationToolbar(QToolBar):
         self._bar.setValue(0)
         self.show()
 
+    def _pump(self) -> None:
+        # See commit message for why this isn't just processEvents().
+        if get(Get.MEDIA_TYPE) == "youtube":
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.LayoutRequest)
+            self.repaint()
+        else:
+            QApplication.processEvents()
+
     def _on_started(self, label: str) -> None:
         self._stack.append(label)
         self._show_current()
@@ -103,7 +111,7 @@ class LongOperationToolbar(QToolBar):
             self._app.installEventFilter(self._dialog_cursor_filter)
             self._app.installEventFilter(self._input_block_filter)
         self._progress_timer.start()
-        QApplication.processEvents()
+        self._pump()
 
     def _on_progress(self, value: int, maximum: int) -> None:
         if not self._stack:
@@ -114,7 +122,7 @@ class LongOperationToolbar(QToolBar):
         if self._progress_timer.elapsed() < _PROGRESS_THROTTLE_MS:
             return
         self._progress_timer.restart()
-        QApplication.processEvents()
+        self._pump()
 
     def _on_done(self) -> None:
         if not self._stack:
