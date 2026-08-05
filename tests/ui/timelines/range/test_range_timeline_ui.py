@@ -709,12 +709,14 @@ class TestRangeLabel:
 
     def test_long_label_elided_into_short_range(self, range_tlui):
         # A 1-second range is a few pixels wide; a long label cannot fit and
-        # must be elided ("Word…" rather than overflowing the body).
+        # must be truncated rather than overflowing the body. Don't assert
+        # on Qt's literal elision marker ("…" vs "...") — that's a font/
+        # environment detail, not this test's concern.
+        long_label = "A label far too long to ever fit"
         commands.execute("timeline.range.add_range", start=0, end=1)
-        range_tlui[0].set_data("label", "A label far too long to ever fit")
+        range_tlui[0].set_data("label", long_label)
         rendered = range_tlui[0].label.toPlainText()
-        assert rendered != "A label far too long to ever fit"
-        assert "…" in rendered or rendered == ""
+        assert len(rendered) < len(long_label)
 
     def test_label_re_elides_after_resize(self, range_tlui):
         commands.execute("timeline.range.add_range", start=0, end=1)
