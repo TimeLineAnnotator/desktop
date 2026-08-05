@@ -69,13 +69,6 @@ class HierarchyFrameHandle(QGraphicsItemGroup):
             frame_x, y - self.HEIGHT / 2, y + self.HEIGHT / 2
         )
 
-    def setVisible(self, visible: bool) -> None:  # noqa: N802 (Qt override)
-        # If we hide while the VLine is hovered, no hoverLeaveEvent fires
-        # and the override cursor would stay applied.
-        if not visible:
-            self.vertical_line.cleanup()
-        super().setVisible(visible)
-
     class VLine(CursorMixIn, QGraphicsLineItem):
         # Hover/click hit area widened beyond the rendered pen so the
         # cursor changes and the line is grabbable without pixel-perfect
