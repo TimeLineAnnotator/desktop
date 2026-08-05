@@ -242,4 +242,9 @@ def reset() -> None:
     _name_to_action.clear()
     _name_to_callback.clear()
     _shortcut_to_commands.clear()
-    _shared_qshortcuts.clear()
+    # _shared_qshortcuts is intentionally left alone: its entries are Qt
+    # QShortcut objects parented to the main window, which setup_shortcuts()
+    # already detaches/deleteLater()s (checking shiboken6.isValid first) the
+    # next time it runs. Clearing the Python-side list here without that
+    # same care would drop the last live reference to still-valid C++
+    # objects before Qt can detach them, which crashed the interpreter.
