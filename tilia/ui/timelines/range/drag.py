@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import math
 from typing import TYPE_CHECKING, Literal
 
 from PySide6.QtWidgets import QGraphicsItem
@@ -88,7 +89,14 @@ def _start_frame_drag(range_ui: RangeUI, extremity: Extremity) -> None:
 
 
 def _after_each_frame_drag(range_ui: RangeUI, extremity: Extremity, x: int) -> None:
-    range_ui.set_data(extremity, time_x_converter.get_time_by_x(x))
+    # Snap a collapsed whisker onto the body's own extremity — the x<->time
+    # round trip isn't always bit-exact (mirrors hierarchy/drag.py).
+    body_extremity = "start" if extremity == "pre_start" else "end"
+    time = time_x_converter.get_time_by_x(x)
+    body_extremity_time = range_ui.get_data(body_extremity)
+    if math.isclose(time, body_extremity_time):
+        time = body_extremity_time
+    range_ui.set_data(extremity, time)
 
 
 def _get_min_x(
@@ -118,6 +126,17 @@ def _get_max_x(
             return partner_ui.end_x - MIN_DRAG_GAP
         return get(Get.RIGHT_MARGIN_X)
     return range_ui.end_x - MIN_DRAG_GAP
+
+
+def _snap_to_media_edge(value: float, media_duration: float) -> float:
+    # A margin-clamped body drag should land exactly on 0/media_duration,
+    # but the pixel round trip can leave a hair's-breadth residue on the
+    # wrong side — snap it back (mirrors hierarchy/drag.py's isclose check).
+    if math.isclose(value, 0.0, abs_tol=1e-9):
+        return 0.0
+    if math.isclose(value, media_duration, abs_tol=1e-9):
+        return media_duration
+    return value
 
 
 def before_each_drag(range_ui: RangeUI) -> None:
@@ -206,11 +225,18 @@ def start_body_drag(range_ui: RangeUI) -> None:
         new_dragged_start_x = x - state["click_offset_x"]
         new_dragged_start = time_x_converter.get_time_by_x(new_dragged_start_x)
         delta = new_dragged_start - original_starts[range_ui.id]
+        media_duration = get(Get.MEDIA_DURATION)
         for m in chain_members:
-            new_start = original_starts[m.id] + delta
-            new_end = original_ends[m.id] + delta
-            new_pre_start = original_pre_starts[m.id] + delta
-            new_post_end = original_post_ends[m.id] + delta
+            new_start = _snap_to_media_edge(
+                original_starts[m.id] + delta, media_duration
+            )
+            new_end = _snap_to_media_edge(original_ends[m.id] + delta, media_duration)
+            new_pre_start = _snap_to_media_edge(
+                original_pre_starts[m.id] + delta, media_duration
+            )
+            new_post_end = _snap_to_media_edge(
+                original_post_ends[m.id] + delta, media_duration
+            )
             # Set in the order that avoids a transient start >= end state.
             # Setting pre_start before start (and post_end after end) avoids
             # the start.setter from auto-collapsing pre_start back to start
