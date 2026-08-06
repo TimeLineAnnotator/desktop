@@ -219,8 +219,17 @@ def setup_shortcuts(main_window: QMainWindow) -> None:
 
     for shortcut_str, names in _shortcut_to_commands.items():
         if len(names) > 1:
+            # A tab in QAction text makes QMenu render whatever follows as
+            # a shortcut-style hint, independent of any real QKeySequence —
+            # this keeps the key visible in menus even though the actual
+            # binding below is the shared QShortcut, not the QAction's own.
+            hint = QKeySequence(shortcut_str).toString(
+                QKeySequence.SequenceFormat.NativeText
+            )
             for name in names:
-                _name_to_action[name].setShortcut(QKeySequence())
+                action = _name_to_action[name]
+                action.setShortcut(QKeySequence())
+                action.setText(f"{action.text()}\t{hint}")
             shortcut = QShortcut(QKeySequence(shortcut_str), main_window)
             shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
             # Hand the bound names to whichever listener owns the dispatch

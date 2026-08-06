@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QToolButton
 
 from tests.mock import Serve
@@ -3917,6 +3918,25 @@ class TestSharedShortcuts:
         )
 
         assert any("Ambiguous" in err["title"] for err in tilia_errors.errors)
+
+    def test_ambiguous_shortcut_still_shown_as_menu_hint(self, qtui):
+        # e/s are stripped from the QAction's real shortcut (ambiguous
+        # between range and hierarchy) but the keypress still works via the
+        # shared QShortcut (see the dispatch tests above) — this confirms
+        # the menu doesn't go silent about what the key is.
+        merge_action = get_qaction("timeline.range.merge_ranges")
+        assert merge_action.shortcut().isEmpty()
+        assert merge_action.text().endswith("\tE")
+
+        split_action = get_qaction("timeline.range.split_range")
+        assert split_action.shortcut().isEmpty()
+        assert split_action.text().endswith("\tS")
+
+        # join isn't shared with any other kind, so it keeps its real
+        # QAction shortcut and doesn't need the manual hint.
+        join_action = get_qaction("timeline.range.join_ranges")
+        assert join_action.shortcut() == QKeySequence("j")
+        assert "\t" not in join_action.text()
 
     @staticmethod
     def _add_range(range_tlui, start, end):
