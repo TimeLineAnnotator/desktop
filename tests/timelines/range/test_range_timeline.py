@@ -167,6 +167,34 @@ class TestRowColorValidation:
         tilia_errors.assert_in_error_message("not-a-color")
 
 
+class TestRowDefaultNaming:
+    def test_default_names_follow_creation_order(self, range_tl):
+        row1 = range_tl.add_row()
+        row2 = range_tl.add_row()
+
+        assert range_tl.rows[0].name == "Row 0"
+        assert row1.name == "Row 1"
+        assert row2.name == "Row 2"
+
+    def test_default_name_collides_after_deleting_and_readding_a_row(self, range_tl):
+        # Documents current behavior rather than asserting it's desirable:
+        # add_row's default name is f"Row {row_count_at_creation}", not a
+        # renumbering-on-delete or uniqueness-checked scheme (unlike row.id,
+        # which does loop until unique). Deleting the middle row of 3 drops
+        # the count back to 2, so the next default-named row collides with
+        # the row that was never touched.
+        row1 = range_tl.add_row()  # "Row 1"
+        row2 = range_tl.add_row()  # "Row 2"
+
+        range_tl.remove_row(row1)
+        assert [r.name for r in range_tl.rows] == ["Row 0", "Row 2"]
+
+        new_row = range_tl.add_row()
+
+        assert new_row.name == "Row 2" == row2.name
+        assert new_row.id != row2.id  # still uniquely identified despite the clash
+
+
 class TestRangePrePostExtremities:
     def test_default_pre_start_equals_start(self, range_tl):
         row_id = range_tl.rows[0].id
