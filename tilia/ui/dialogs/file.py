@@ -94,6 +94,7 @@ def ask_for_path_to_export(
 def ask_for_pdf_file() -> tuple[bool, str | None]:
     dialog = QFileDialog()
     dialog.setWindowTitle("Choose PDF")
+    dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
     dialog.setFilter(QtCore.QDir.Filter.Files)
     dialog.setNameFilter("PDF files (*.pdf)")
 
@@ -135,6 +136,7 @@ def ask_for_media_file() -> tuple[bool, str | None]:
 
     dialog = QFileDialog()
     dialog.setWindowTitle("Load media")
+    dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
     dialog.setFilter(QtCore.QDir.Filter.Files)
     dialog.setNameFilters(
         [
