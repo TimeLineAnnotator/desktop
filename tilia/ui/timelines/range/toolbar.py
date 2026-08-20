@@ -27,9 +27,9 @@ class RangeTimelineToolbar(TimelineToolbar):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setStyleSheet(
-            "QToolBar::separator { background: palette(mid); "
+            "QToolBar::separator { background: palette(midlight); "
             "width: 2px; margin: 4px 8px; }"
-            "QToolButton::menu-button { border-left: 1px solid palette(mid); "
+            "QToolButton::menu-button { border-color: palette(text); "
             "width: 14px; }"
             "QToolButton::menu-arrow { width: 8px; height: 8px; }"
         )
