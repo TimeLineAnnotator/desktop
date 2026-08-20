@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QRadioButton,
     QSpinBox,
+    QCheckBox
 )
 
 from tilia.requests import Get, get
@@ -36,6 +37,7 @@ class FillBeatTimeline(QDialog):
                     if checked_option
                     else self._by_amount_edit.value()
                 ),
+                self._offset_value.value() if self._with_offset.isChecked() else 0,
             )
 
         super().__init__(
@@ -52,7 +54,21 @@ class FillBeatTimeline(QDialog):
         self._by_amount_edit = QSpinBox()
         _by_interval_prompt = QRadioButton()
         self._by_interval_edit = QDoubleSpinBox()
+
+        self._with_offset = QCheckBox(
+            'Start Time Offset'
+        )
+        self._offset_value = QSpinBox()
+
+        self._offset_value.setRange(0, 1000)
+        self._offset_value.setValue(10)
+        self._offset_value.setEnabled(
+            False
+        )
+        self._with_offset.toggled.connect(self._offset_value.setEnabled)
+
         self._options = QButtonGroup(self)
+        
 
         # setup method radio buttons
         _by_amount_prompt.setText(BEAT_TIMELINE_BY_AMOUNT_OPTION)
@@ -104,13 +120,15 @@ class FillBeatTimeline(QDialog):
         self.layout().addWidget(self._by_amount_edit, 1, 1)
         self.layout().addWidget(_by_interval_prompt, 2, 0)
         self.layout().addWidget(self._by_interval_edit, 2, 1)
-        self.layout().addWidget(_button_box, 3, 0, 1, 2)
+        self.layout().addWidget(self._with_offset, 3, 0)
+        self.layout().addWidget(self._offset_value, 3, 1)
+        self.layout().addWidget(_button_box, 4, 0, 1, 2)
         self.get_result = get_result
 
     @classmethod
     def select(
         cls,
-    ) -> tuple[bool, None | tuple[BeatTimeline, BeatTimeline.FillMethod, float]]:
+    ) -> tuple[bool, None | tuple[BeatTimeline, BeatTimeline.FillMethod, float, float]]:
         instance = cls()
         if instance.exec() == QDialog.DialogCode.Accepted:
             return True, instance.get_result()
