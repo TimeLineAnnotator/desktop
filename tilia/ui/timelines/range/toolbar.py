@@ -1,12 +1,6 @@
 import functools
 
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QMenu,
-    QToolButton,
-    QWidget,
-)
+from PySide6.QtWidgets import QMenu, QToolButton
 
 from tilia.requests import Post, listen
 from tilia.settings import settings
@@ -14,32 +8,6 @@ from tilia.ui import commands
 from tilia.ui.timelines.toolbar import TimelineToolbar
 
 VALID_LABEL_ALIGNMENTS = ("left", "center", "right")
-
-
-class _ButtonRow(QWidget):
-    """A row of action buttons. Items are either QActions (rendered as a
-    plain button with that action) or pre-built QToolButtons (e.g. a
-    dropdown)."""
-
-    def __init__(
-        self,
-        items: list[QAction | QToolButton],
-        icon_size,
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        for item in items:
-            if isinstance(item, QAction):
-                btn = QToolButton(self)
-                btn.setDefaultAction(item)
-            else:
-                btn = item
-                btn.setParent(self)
-            btn.setIconSize(icon_size)
-            layout.addWidget(btn)
 
 
 class RangeTimelineToolbar(TimelineToolbar):
@@ -58,11 +26,6 @@ class RangeTimelineToolbar(TimelineToolbar):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Make the section separator visible across themes — the default 1-px
-        # mid-grey line nearly disappears against a dark toolbar. Same for the
-        # dropdown buttons' menu-arrow area: give it a visible divider and
-        # force the arrow onto the CSS renderer so it actually shows up
-        # (palette-based, so it stays correct in both light and dark themes).
         self.setStyleSheet(
             "QToolBar::separator { background: palette(mid); "
             "width: 2px; margin: 4px 8px; }"
@@ -80,24 +43,24 @@ class RangeTimelineToolbar(TimelineToolbar):
         self._refresh_split_mode_checked()
 
     def _build_ranges_section(self) -> None:
-        add_action = commands.get_qaction("timeline.range.add_range")
-        join_merge = self._build_action_dropdown(
-            ["timeline.range.join_ranges", "timeline.range.merge_ranges"],
+        self.addAction(commands.get_qaction("timeline.range.add_range"))
+        self.addWidget(
+            self._build_action_dropdown(
+                ["timeline.range.join_ranges", "timeline.range.merge_ranges"],
+            )
         )
-        separate_split = self._build_action_dropdown(
-            ["timeline.range.separate_ranges", "timeline.range.split_range"],
+        self.addWidget(
+            self._build_action_dropdown(
+                ["timeline.range.separate_ranges", "timeline.range.split_range"],
+            )
         )
-        section = _ButtonRow(
-            [add_action, join_merge, separate_split], self.iconSize(), self
-        )
-        self.addWidget(section)
 
     def _build_rows_section(self) -> None:
-        add_row = self._build_action_dropdown(
-            ["timeline.range.add_row_above", "timeline.range.add_row_below"],
+        self.addWidget(
+            self._build_action_dropdown(
+                ["timeline.range.add_row_above", "timeline.range.add_row_below"],
+            )
         )
-        section = _ButtonRow([add_row], self.iconSize(), self)
-        self.addWidget(section)
 
     def _build_action_dropdown(self, command_names: list[str]) -> QToolButton:
         # MenuButtonPopup: the main button area re-runs whichever action was
