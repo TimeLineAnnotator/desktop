@@ -498,7 +498,7 @@ class RangeBody(CursorMixIn, QGraphicsRectItem):
     def __init__(
         self, start_x: float, end_x: float, y: float, height: float, color: str
     ):
-        super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
+        super().__init__(cursor_shape=Qt.CursorShape.SizeAllCursor)
         self.set_position(start_x, end_x, y, height)
         self.set_pen_style_no_pen()
         self.set_fill(color)
@@ -555,7 +555,7 @@ class RangeLabel(CursorMixIn, QGraphicsTextItem):
         text: str,
         alignment: str = "left",
     ):
-        super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
+        super().__init__(cursor_shape=Qt.CursorShape.SizeAllCursor)
         self.setup_font()
         self._raw_text = text
         self._max_width = max(
@@ -615,7 +615,7 @@ class RangeCommentsIcon(CursorMixIn, QGraphicsTextItem):
     VERTICAL_MARGIN = 4
 
     def __init__(self, end_x: float, y: float, height: float):
-        super().__init__(cursor_shape=Qt.CursorShape.PointingHandCursor)
+        super().__init__(cursor_shape=Qt.CursorShape.SizeAllCursor)
         # QTextDocument adds a 4 px margin on every side by default; without
         # this it's the dominant contribution to the icon's bounding rect.
         self.document().setDocumentMargin(0)
