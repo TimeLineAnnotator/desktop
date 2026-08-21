@@ -404,6 +404,35 @@ class TestHierarchyTimelineComponentManager:
         assert child2.parent == parent2
         assert child2.children == []
 
+    def test_genealogy_with_parent_start_drifted_past_child_start(self, hierarchy_tl):
+        # Files saved before paste-complete stopped drifting can hold a parent
+        # whose start sits a few ulps after its child's. The two were meant to
+        # coincide, so the child must still be adopted.
+        eps = 4e-14
+        parent, _ = hierarchy_tl.create_hierarchy(0.5 + eps, 1, 2)
+        child, _ = hierarchy_tl.create_hierarchy(0.5, 1, 1)
+
+        assert child.parent == parent
+        assert parent.children == [child]
+
+    def test_genealogy_with_parent_end_drifted_before_child_end(self, hierarchy_tl):
+        eps = 4e-14
+        parent, _ = hierarchy_tl.create_hierarchy(0, 1 - eps, 2)
+        child, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
+
+        assert child.parent == parent
+        assert parent.children == [child]
+
+    def test_genealogy_ignores_candidate_that_is_genuinely_too_narrow(
+        self, hierarchy_tl
+    ):
+        # Guard against the tolerance being too coarse: a candidate that falls
+        # well short of the child is not its parent.
+        hierarchy_tl.create_hierarchy(0.5, 0.9, 2)
+        child, _ = hierarchy_tl.create_hierarchy(0.5, 1, 1)
+
+        assert child.parent is None
+
     def test_get_boundary_conflicts_empty_timeline(self, hierarchy_tl):
         assert not hierarchy_tl.get_boundary_conflicts()
 
@@ -495,6 +524,31 @@ class TestHierarchyTimelineComponentManager:
         assert len(conflicts) == 2
         assert {h1, h3} in conflicts
         assert {h2, h3} in conflicts
+
+    def test_get_boundary_conflicts_drifted_coincident_boundaries(self, hierarchy_tl):
+        # A neighbor whose end sits a few ulps past the next component's start
+        # was meant to be flush with it. That float noise is not a conflict.
+        eps = 1e-13
+        hierarchy_tl.create_hierarchy(0, 0.5 + eps, 2)
+        hierarchy_tl.create_hierarchy(0.5, 1, 2)
+
+        assert not hierarchy_tl.get_boundary_conflicts()
+
+    def test_get_boundary_conflicts_overlap_well_past_boundary_still_conflicts(
+        self, hierarchy_tl
+    ):
+        # Guard against the tolerance being too coarse.
+        h1, _ = hierarchy_tl.create_hierarchy(0, 0.6, 2)
+        h2, _ = hierarchy_tl.create_hierarchy(0.5, 1, 2)
+
+        assert set(hierarchy_tl.get_boundary_conflicts()[0]) == {h1, h2}
+
+    def test_get_boundary_conflicts_drifted_duplicate_on_same_level(self, hierarchy_tl):
+        eps = 1e-13
+        h1, _ = hierarchy_tl.create_hierarchy(0, 1, 1)
+        h2, _ = hierarchy_tl.create_hierarchy(eps, 1 + eps, 1)
+
+        assert set(hierarchy_tl.get_boundary_conflicts()[0]) == {h1, h2}
 
 
 class TestSplit:
@@ -720,6 +774,35 @@ class TestGroup:
         hierarchy_tl.create_hierarchy(start=0.0, end=0.2, level=2)
 
         success, _ = hierarchy_tl.component_manager.group([hrc1, hrc2])
+        assert not success
+
+    def test_neighbor_end_drifted_just_past_group_start_does_not_fail(
+        self, hierarchy_tl
+    ):
+        # Operations that rescale components (e.g. paste-complete) can leave a
+        # neighbor's end a few ulps past the group's start even though the two
+        # were meant to be coincident. This float noise must not be read as an
+        # overlap. Regression for grouping split units after paste-complete.
+        eps = 1e-13
+        hierarchy_tl.create_hierarchy(start=0.0, end=0.5 + eps, level=2)
+        hrc1, _ = hierarchy_tl.create_hierarchy(start=0.5, end=0.75, level=1)
+        hrc2, _ = hierarchy_tl.create_hierarchy(start=0.75, end=1.0, level=1)
+
+        success, reason = hierarchy_tl.component_manager.group([hrc1, hrc2])
+
+        assert success, reason
+        assert hrc1.parent == hrc2.parent
+        assert hrc1.parent.level == 2
+
+    def test_neighbor_end_well_inside_group_still_fails(self, hierarchy_tl):
+        # Guard against the tolerance being too coarse: a neighbor ending well
+        # inside the group is a genuine overlap and must still be rejected.
+        hierarchy_tl.create_hierarchy(start=0.0, end=0.6, level=2)
+        hrc1, _ = hierarchy_tl.create_hierarchy(start=0.5, end=0.75, level=1)
+        hrc2, _ = hierarchy_tl.create_hierarchy(start=0.75, end=1.0, level=1)
+
+        success, _ = hierarchy_tl.component_manager.group([hrc1, hrc2])
+
         assert not success
 
 
