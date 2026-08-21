@@ -656,17 +656,21 @@ class BeatTimeline(Timeline):
         BY_AMOUNT = 0
         BY_INTERVAL = 1
 
-    def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
+    def fill_with_beats(
+        self, method: BeatTimeline.FillMethod, value: int | float, offset: int | float
+    ):
         duration = get(Get.MEDIA_DURATION)
         self.component_manager.compute_is_first_in_measure = False
         # only compute at end
 
         if method == BeatTimeline.FillMethod.BY_AMOUNT:
             for i in range(value):
-                self.create_component(ComponentKind.BEAT, i * duration / value)
+                self.create_component(
+                    ComponentKind.BEAT, offset + (i * duration / value)
+                )
         elif method == BeatTimeline.FillMethod.BY_INTERVAL:
             for i in range(math.floor(duration / value)):
-                self.create_component(ComponentKind.BEAT, i * value)
+                self.create_component(ComponentKind.BEAT, offset + (i * value))
 
         self.component_manager.compute_is_first_in_measure = True
         self.recalculate_measures()
