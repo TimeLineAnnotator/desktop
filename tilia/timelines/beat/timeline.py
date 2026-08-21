@@ -655,6 +655,7 @@ class BeatTimeline(Timeline):
     class FillMethod(Enum):
         BY_AMOUNT = 0
         BY_INTERVAL = 1
+        BY_BPM = 2
 
     def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
         duration = get(Get.MEDIA_DURATION)
@@ -667,6 +668,10 @@ class BeatTimeline(Timeline):
         elif method == BeatTimeline.FillMethod.BY_INTERVAL:
             for i in range(math.floor(duration / value)):
                 self.create_component(ComponentKind.BEAT, i * value)
+        elif method == BeatTimeline.FillMethod.BY_BPM:
+            interval_value = 60 / value
+            for i in range(math.floor(duration / interval_value)):
+                self.create_component(ComponentKind.BEAT, i * interval_value)
 
         self.component_manager.compute_is_first_in_measure = True
         self.recalculate_measures()
