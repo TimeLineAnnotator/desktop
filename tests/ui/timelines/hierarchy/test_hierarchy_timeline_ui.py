@@ -17,6 +17,11 @@ def tlui(hierarchy_tlui):
     return hierarchy_tlui
 
 
+def get_hierarchy(tlui, start: float, level: int) -> Hierarchy:
+    """Look a hierarchy up by its data, for setups that aren't in sorted order."""
+    return next(c for c in tlui.timeline if c.start == start and c.level == level)
+
+
 def set_dummy_copy_attributes(hierarchy: Hierarchy) -> None:
     for attr in HierarchyUI.DEFAULT_COPY_ATTRIBUTES.values:
         if attr == "color":
@@ -470,6 +475,138 @@ class TestCopyPaste:
         component_state2 = tlui.timeline.components
 
         assert component_state1 == component_state2
+
+    def test_paste_complete_keeps_shared_boundaries_exact(self, tlui):
+        # Siblings sharing a boundary in the source must still share it exactly
+        # after being rescaled into the target. Scaling each component
+        # independently would leave the two a few ulps apart, which later
+        # operations read as an overlap.
+        commands.execute("timeline.hierarchy.add", start=40, end=45, level=3)
+        commands.execute("timeline.hierarchy.add", start=45, end=70, level=3)
+        commands.execute("timeline.hierarchy.add", start=40, end=70, level=4)
+        commands.execute("timeline.hierarchy.add", start=0, end=23.4, level=4)
+        root = get_hierarchy(tlui, 40, 4)
+        target = get_hierarchy(tlui, 0, 4)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+        commands.execute("timeline.component.paste_complete")
+
+        left, right = sorted(target.children)
+
+        assert left.end == right.start
+        # the subtree must also line up exactly with the target it was pasted into
+        assert left.start == target.start
+        assert right.end == target.end
+
+    def test_paste_complete_keeps_grandchild_boundaries_exact(self, tlui):
+        # Nesting compounds any per-component error, since each level would
+        # re-derive its scale factor from the already-rounded bounds of the
+        # level above. One map for the whole subtree avoids that.
+        commands.execute("timeline.hierarchy.add", start=40, end=45, level=1)
+        commands.execute("timeline.hierarchy.add", start=45, end=52.5, level=1)
+        commands.execute("timeline.hierarchy.add", start=40, end=52.5, level=2)
+        commands.execute("timeline.hierarchy.add", start=52.5, end=70, level=2)
+        commands.execute("timeline.hierarchy.add", start=40, end=70, level=3)
+        commands.execute("timeline.hierarchy.add", start=0, end=23.4, level=3)
+        root = get_hierarchy(tlui, 40, 3)
+        target = get_hierarchy(tlui, 0, 3)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+        commands.execute("timeline.component.paste_complete")
+
+        left_child, right_child = sorted(target.children)
+        grandchild_1, grandchild_2 = sorted(left_child.children)
+
+        assert grandchild_1.end == grandchild_2.start
+        # grandchildren must align exactly with their parent's bounds, and the
+        # children with each other
+        assert grandchild_1.start == left_child.start
+        assert grandchild_2.end == left_child.end == right_child.start
+
+    def test_paste_complete_into_same_timespan_is_exact(self, tlui):
+        # An identity rescale must not perturb any boundary.
+        commands.execute("timeline.hierarchy.add", start=40, end=45.55, level=1)
+        commands.execute("timeline.hierarchy.add", start=45.55, end=70, level=1)
+        commands.execute("timeline.hierarchy.add", start=40, end=70, level=2)
+        commands.execute("timeline.hierarchy.add", start=70, end=100, level=2)
+        root = get_hierarchy(tlui, 40, 2)
+        target = get_hierarchy(tlui, 70, 2)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+        commands.execute("timeline.component.paste_complete")
+
+        left, right = sorted(target.children)
+
+        assert left.start == 70
+        assert left.end == right.start == 75.55
+        assert right.end == 100
+
+    def test_group_split_child_of_pasted_hierarchy(self, tlui):
+        # End-to-end guard over a whole editing flow that runs on rescaled
+        # boundaries: paste a subtree into a shorter target, then create a
+        # child inside one of the pasted units, lower its level, split it and
+        # group the halves. Every step compares boundaries the paste produced,
+        # so any drift between a pasted unit and its neighbour surfaces here as
+        # a spurious overlap.
+        # Source subtree lives at [40, 70]; the two level-3 children share the
+        # boundary 45, pasted into the shorter target [0, 23.4].
+        commands.execute("timeline.hierarchy.add", start=40, end=45, level=3)
+        # the right child is left childless, so it is the one that gets split
+        commands.execute("timeline.hierarchy.add", start=45, end=70, level=3)
+        commands.execute("timeline.hierarchy.add", start=40, end=70, level=4)
+        commands.execute("timeline.hierarchy.add", start=0, end=23.4, level=4)
+        root = get_hierarchy(tlui, 40, 4)
+        target = get_hierarchy(tlui, 0, 4)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+        commands.execute("timeline.component.paste_complete")
+
+        # the pasted right child. Components with end <= 30 are the pasted
+        # target subtree; the source subtree lives at >= 40.
+        pasted_right_child = max(
+            (c for c in tlui.timeline if c.level == 3 and c.end <= 30),
+            key=lambda c: c.start,
+        )
+
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(pasted_right_child.id))
+        commands.execute("timeline.hierarchy.create_child")  # -> level 2 child
+
+        child = max(c for c in tlui.timeline if c.level == 2 and c.end <= 30)
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(child.id))
+        commands.execute("timeline.hierarchy.decrease_level")  # level 2 -> 1
+
+        commands.execute(
+            "timeline.hierarchy.split",
+            time=(pasted_right_child.start + pasted_right_child.end) / 2,
+        )
+
+        halves = sorted(
+            (c for c in tlui.timeline if c.level == 1 and c.end <= 30),
+            key=lambda c: c.start,
+        )
+        assert len(halves) == 2
+        tlui.deselect_all_elements()
+        for half in halves:
+            tlui.select_element(tlui.get_element(half.id))
+        commands.execute("timeline.hierarchy.group")
+
+        grouped = [c for c in tlui.timeline if c.level == 2 and c.end <= 30]
+        assert len(grouped) == 1
+        assert halves[0].parent == halves[1].parent == grouped[0]
 
 
 class TestCreateHierarchy:
