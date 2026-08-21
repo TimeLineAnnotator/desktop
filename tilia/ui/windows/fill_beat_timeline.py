@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -9,7 +10,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QRadioButton,
     QSpinBox,
-    QCheckBox
 )
 
 from tilia.requests import Get, get
@@ -55,20 +55,15 @@ class FillBeatTimeline(QDialog):
         _by_interval_prompt = QRadioButton()
         self._by_interval_edit = QDoubleSpinBox()
 
-        self._with_offset = QCheckBox(
-            'Start Time Offset'
-        )
+        self._with_offset = QCheckBox("Start Time Offset")
         self._offset_value = QSpinBox()
 
         self._offset_value.setRange(0, 1000)
         self._offset_value.setValue(10)
-        self._offset_value.setEnabled(
-            False
-        )
+        self._offset_value.setEnabled(False)
         self._with_offset.toggled.connect(self._offset_value.setEnabled)
 
         self._options = QButtonGroup(self)
-        
 
         # setup method radio buttons
         _by_amount_prompt.setText(BEAT_TIMELINE_BY_AMOUNT_OPTION)
