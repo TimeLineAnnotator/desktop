@@ -2,10 +2,10 @@ from typing import Callable
 
 import tilia.ui.strings
 import tilia.ui.timelines.copy_paste
-from tilia.log import logger
 from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.ui import commands
 from tilia.ui.menus import HierarchyMenu
@@ -217,8 +217,8 @@ class HierarchyTimelineUI(TimelineUI):
         self,
         child_pastedata_: dict,
         map_time: Callable[[float], float],
-    ):
-        component, _ = self.timeline.create_component(
+    ) -> tuple[Hierarchy | None, str | None]:
+        return self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
             start=map_time(child_pastedata_["context"]["start"]),
             end=map_time(child_pastedata_["context"]["end"]),
@@ -226,41 +226,47 @@ class HierarchyTimelineUI(TimelineUI):
             **child_pastedata_["values"],
         )
 
-        return component
+    def paste_with_children_into_element(
+        self, paste_data: dict, element: HierarchyUI
+    ) -> list[str]:
+        """Paste the copied subtree into ``element``, rescaled to its timespan.
 
-    def paste_with_children_into_element(self, paste_data: dict, element: HierarchyUI):
+        Returns the reasons any descendant could not be created. Pasting is
+        best-effort: a child that fails is skipped along with its own subtree,
+        and the remaining siblings are still pasted.
+        """
         map_time = self._get_paste_time_map(
             paste_data["context"]["start"],
             paste_data["context"]["end"],
             element.tl_component.start,
             element.tl_component.end,
         )
-        self._paste_subtree_into_element(paste_data, element, map_time)
+        return self._paste_subtree_into_element(paste_data, element, map_time)
 
     def _paste_subtree_into_element(
         self,
         paste_data: dict,
         element: HierarchyUI,
         map_time: Callable[[float], float],
-    ) -> None:
+    ) -> list[str]:
         tilia.ui.timelines.copy_paste.paste_into_element(element, paste_data)
 
+        fail_reasons = []
         for child_paste_data in paste_data.get("children", []):
-            child_component = self._create_child_from_paste_data(
+            child_component, fail_reason = self._create_child_from_paste_data(
                 child_paste_data, map_time
             )
 
             if child_component is None:
-                logger.error(
-                    "Could not paste hierarchy child into "
-                    f"'{element.tl_component}': component creation failed."
-                )
+                fail_reasons.append(fail_reason)
                 continue
 
             if child_paste_data.get("children", None):
-                self._paste_subtree_into_element(
+                fail_reasons += self._paste_subtree_into_element(
                     child_paste_data, self.get_component_ui(child_component), map_time
                 )
+
+        return fail_reasons
 
     def get_copy_data_from_hierarchy_ui(self, hierarchy_ui: HierarchyUI):
         ui_data = get_copy_data_from_element(
@@ -328,6 +334,7 @@ class HierarchyTimelineUI(TimelineUI):
             return False
 
         data = copied_components[0]
+        fail_reasons = []
         for element in self.selected_elements:
             success, reason = _validate_paste_complete_level(element, data)
             if not success:
@@ -337,7 +344,11 @@ class HierarchyTimelineUI(TimelineUI):
             while children := element.get_data("children"):
                 self.timeline.delete_components(children)
 
-            self.paste_with_children_into_element(data, element)
+            fail_reasons += self.paste_with_children_into_element(data, element)
+
+        if fail_reasons:
+            _display_paste_complete_error("\n".join(fail_reasons))
+            return False
 
         return True
 
