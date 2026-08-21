@@ -1,7 +1,10 @@
+from unittest.mock import patch
+
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
+import tilia.errors
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.utils import get_command_names
 from tilia.requests import Get, Post, post
@@ -475,6 +478,51 @@ class TestCopyPaste:
         component_state2 = tlui.timeline.components
 
         assert component_state1 == component_state2
+
+    def test_paste_complete_reports_child_creation_failure(self, tlui):
+        commands.execute("timeline.hierarchy.add", start=40, end=45, level=1)
+        commands.execute("timeline.hierarchy.add", start=45, end=70, level=1)
+        commands.execute("timeline.hierarchy.add", start=40, end=70, level=2)
+        commands.execute("timeline.hierarchy.add", start=0, end=23.4, level=2)
+        root = get_hierarchy(tlui, 40, 2)
+        target = get_hierarchy(tlui, 0, 2)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+
+        with (
+            patch.object(
+                tlui.timeline, "create_component", return_value=(None, "no room")
+            ),
+            patch("tilia.errors.display") as display,
+        ):
+            commands.execute("timeline.component.paste_complete")
+
+        display.assert_called_once()
+        assert display.call_args.args[0] == tilia.errors.COMPONENTS_PASTE_ERROR
+        assert "no room" in display.call_args.args[1]
+        assert not target.children
+
+    def test_paste_complete_reports_no_error_when_children_are_created(self, tlui):
+        commands.execute("timeline.hierarchy.add", start=40, end=45, level=1)
+        commands.execute("timeline.hierarchy.add", start=45, end=70, level=1)
+        commands.execute("timeline.hierarchy.add", start=40, end=70, level=2)
+        commands.execute("timeline.hierarchy.add", start=0, end=23.4, level=2)
+        root = get_hierarchy(tlui, 40, 2)
+        target = get_hierarchy(tlui, 0, 2)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+
+        with patch("tilia.errors.display") as display:
+            commands.execute("timeline.component.paste_complete")
+
+        display.assert_not_called()
+        assert len(target.children) == 2
 
     def test_paste_complete_keeps_shared_boundaries_exact(self, tlui):
         # Siblings sharing a boundary in the source must still share it exactly
