@@ -34,8 +34,10 @@ class FillBeatTimeline(QDialog):
                 self._timeline_combobox.currentData(),
                 BeatTimeline.FillMethod(checked_option),
                 (
-                    self._by_interval_edit.value() if checked_option == 1
-                    else self._by_bpm_edit.value() if checked_option == 2
+                    self._by_interval_edit.value()
+                    if checked_option == 1
+                    else self._by_bpm_edit.value()
+                    if checked_option == 2
                     else self._by_amount_edit.value()
                 ),
             )
