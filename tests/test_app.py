@@ -594,6 +594,18 @@ class TestOpen:
 
         assert_open_failed(tilia, tilia_errors, tmp_file, prev_file)
 
+    def test_open_file_with_timelines_not_a_mapping(
+        self, tilia, tmp_path, tilia_errors
+    ):
+        prev_file = tilia.file_manager.file
+        tmp_file = tmp_path / "test.tla"
+        file_data = tests.utils.get_blank_file_data()
+        file_data["timelines"] = ["not", "a", "mapping"]
+        tmp_file.write_text(json.dumps(file_data))
+        commands.execute("file.open", tmp_file)
+
+        assert_open_failed(tilia, tilia_errors, tmp_file, prev_file)
+
     def test_open_newer_file_with_unknown_timeline_kind_user_cancels(
         self, tilia, tmp_path, tilia_errors
     ):
