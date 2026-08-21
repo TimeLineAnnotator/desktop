@@ -74,11 +74,17 @@ Rule of thumb: anything a user could trigger is a command; anything only the cod
 - **Use `ORDERING_ATTRS` / natural `__lt__`** when sorting timeline components. Each `TimelineComponent` subclass declares `ORDERING_ATTRS` (e.g. `Range = ("start", "row_id")`); `sorted(components)` already orders correctly. Adding `key=lambda c: c.start` is at best redundant and at worst hides the secondary tiebreaker.
 - **Don't `raise` for stale-UI references or internal-invariant violations** on paths reachable in production. Use `tilia.log.logger.error(...)` + early return. The default console threshold is `ERROR`; `WARNING` only surfaces under `dev.log_requests=True`, so `error` is the level that actually reaches users.
 
+## Branches and PRs
+
+Open pull requests against **`dev`**, not `main`. `dev` is the integration branch; `main` trails it by a long way.
+
+Rebase onto `dev` before opening a PR. A branch cut from `main`, from a release tag, or from an older `dev` can be a hundred commits behind, and test-helper conventions move quickly — `tlui.create_hierarchy(...)` was replaced by `commands.execute("timeline.hierarchy.add", start=..., end=..., level=...)`, for instance — so tests that pass on the old base may not even run on `dev`.
+
 ## Commit hygiene
 
 Split unrelated changes into their own commits, even if they were touched while building a feature: codebase-wide refactors (`type(Foo)` → `type[Foo]`), deprecation removals, mechanical fixes (block-signal patterns), `Post.*` additions consumed elsewhere, and doc/test-pattern updates that emerged from the work belong on their own commits with explanatory messages. Reviewers want to evaluate each rationale separately.
 
-When you discover a pre-existing bug in code unrelated to the feature you're working on, prompt for opening a separate PR off `main`/`dev` rather than burying the fix in the feature branch.
+When you discover a pre-existing bug in code unrelated to the feature you're working on, prompt for opening a separate PR off `dev` rather than burying the fix in the feature branch.
 
 ## Testing conventions
 
