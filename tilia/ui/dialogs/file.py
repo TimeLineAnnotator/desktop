@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Sequence
 
-from PySide6 import QtCore
-from PySide6.QtCore import QDir
 from PySide6.QtWidgets import QFileDialog
 
 import tilia.ui.dialogs.basic
@@ -30,7 +28,6 @@ def ask_for_tilia_file_to_open() -> tuple[bool, str | None]:
     dialog = QFileDialog()
     dialog.setWindowTitle(f"Open {APP_NAME} files")
     dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-    dialog.setFilter(QDir.Filter.Files)
     dialog.setNameFilters([APP_FILE_FILTER, "All files (*)"])
     return _get_return_from_file_dialog(dialog)
 
@@ -40,7 +37,6 @@ def ask_for_file_to_open(
 ) -> tuple[bool, str | None]:
     dialog = QFileDialog()
     dialog.setWindowTitle(title)
-    dialog.setFilter(QDir.Filter.Files)
     dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
     if isinstance(name_filters, str):
         name_filters = [name_filters]
@@ -95,7 +91,6 @@ def ask_for_pdf_file() -> tuple[bool, str | None]:
     dialog = QFileDialog()
     dialog.setWindowTitle("Choose PDF")
     dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-    dialog.setFilter(QtCore.QDir.Filter.Files)
     dialog.setNameFilter("PDF files (*.pdf)")
 
     return _get_return_from_file_dialog(dialog)
@@ -137,7 +132,6 @@ def ask_for_media_file() -> tuple[bool, str | None]:
     dialog = QFileDialog()
     dialog.setWindowTitle("Load media")
     dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-    dialog.setFilter(QtCore.QDir.Filter.Files)
     dialog.setNameFilters(
         [
             f"All supported media files ({all_filetypes})",

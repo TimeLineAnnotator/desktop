@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from PySide6.QtCore import QDir
 from PySide6.QtWidgets import QFileDialog
 
 from tilia.ui.dialogs import file as file_dialogs
@@ -14,19 +15,45 @@ OPEN_DIALOG_BUILDERS = {
     "media": lambda: file_dialogs.ask_for_media_file(),
 }
 
+DIALOG_BUILDERS = OPEN_DIALOG_BUILDERS | {
+    "save": lambda: file_dialogs.ask_for_path_to_save(
+        "Save as", "TiLiA files (*.tla)", "file.tla"
+    ),
+}
+
 
 def build_dialog(builder):
     """Runs a dialog-creating function, returning the dialog instead of executing it."""
-    captured = []
-
-    def capture(dialog):
-        captured.append(dialog)
-        return False, None
-
-    with patch.object(file_dialogs, "_get_return_from_file_dialog", capture):
+    with patch.object(
+        file_dialogs, "_get_return_from_file_dialog", return_value=(False, None)
+    ) as get_return:
         builder()
 
-    return captured[0]
+    return get_return.call_args.args[0]
+
+
+DEFAULT_FILTER = (
+    QDir.Filter.Dirs
+    | QDir.Filter.Files
+    | QDir.Filter.Drives
+    | QDir.Filter.AllDirs
+    | QDir.Filter.NoDot
+    | QDir.Filter.NoDotDot
+)
+
+
+class TestDirectoriesAreListed:
+    @pytest.mark.parametrize("name", DIALOG_BUILDERS)
+    def test_dialog_keeps_default_filter(self, name, qtui):
+        # QFileDialog.setFilter replaces Qt's default filter instead of adding
+        # to it, so no dialog may call it. Dropping AllDirs hides every folder
+        # and leaves the user unable to navigate; dropping NoDot/NoDotDot lists
+        # "." and ".." as entries. Which of the two you get depends on call
+        # order, because setFileMode() re-derives the filter and puts AllDirs
+        # and Drives back. See issue #565.
+        dialog = build_dialog(DIALOG_BUILDERS[name])
+
+        assert dialog.filter() == DEFAULT_FILTER
 
 
 class TestOpenDialogsRequireExistingFile:
