@@ -1,5 +1,8 @@
+from typing import Callable
+
 import tilia.ui.strings
 import tilia.ui.timelines.copy_paste
+from tilia.log import logger
 from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
@@ -181,35 +184,44 @@ class HierarchyTimelineUI(TimelineUI):
             paste_into_element(element, paste_data[0])
             self.select_element(element)
 
+    @staticmethod
+    def _get_paste_time_map(
+        source_start: float,
+        source_end: float,
+        target_start: float,
+        target_end: float,
+    ) -> Callable[[float], float]:
+        """Return the affine map from the copied subtree's timespan to the target's.
+
+        The whole subtree shares one map, so a time that appears in several
+        copied components — as one's end and the next one's start — maps to the
+        same float in all of them and coincident boundaries stay coincident.
+        Deriving a scale factor separately per nesting level, or anchoring
+        starts and ends to different reference points, lets those boundaries
+        drift apart by a few ulps, which later reads as an overlap.
+        """
+        scale_factor = (target_end - target_start) / (source_end - source_start)
+
+        def map_time(time: float) -> float:
+            # Anchor the endpoints exactly: scaling them arithmetically can
+            # land a ulp off, misaligning the subtree with the target.
+            if time == source_start:
+                return target_start
+            if time == source_end:
+                return target_end
+            return (time - source_start) * scale_factor + target_start
+
+        return map_time
+
     def _create_child_from_paste_data(
         self,
-        new_parent: HierarchyUI,
-        prev_parent_start: float,
-        prev_parent_end: float,
         child_pastedata_: dict,
+        map_time: Callable[[float], float],
     ):
-
-        new_parent_length = new_parent.tl_component.end - new_parent.tl_component.start
-
-        prev_parent_length = prev_parent_end - prev_parent_start
-        scale_factor = new_parent_length / prev_parent_length
-
-        relative_child_start = child_pastedata_["context"]["start"] - prev_parent_start
-
-        new_child_start = (
-            relative_child_start * scale_factor
-        ) + new_parent.tl_component.start
-
-        relative_child_end = child_pastedata_["context"]["end"] - prev_parent_end
-
-        new_child_end = (
-            relative_child_end * scale_factor
-        ) + new_parent.tl_component.end
-
         component, _ = self.timeline.create_component(
             kind=ComponentKind.HIERARCHY,
-            start=new_child_start,
-            end=new_child_end,
+            start=map_time(child_pastedata_["context"]["start"]),
+            end=map_time(child_pastedata_["context"]["end"]),
             level=child_pastedata_["context"]["level"],
             **child_pastedata_["values"],
         )
@@ -217,24 +229,38 @@ class HierarchyTimelineUI(TimelineUI):
         return component
 
     def paste_with_children_into_element(self, paste_data: dict, element: HierarchyUI):
+        map_time = self._get_paste_time_map(
+            paste_data["context"]["start"],
+            paste_data["context"]["end"],
+            element.tl_component.start,
+            element.tl_component.end,
+        )
+        self._paste_subtree_into_element(paste_data, element, map_time)
+
+    def _paste_subtree_into_element(
+        self,
+        paste_data: dict,
+        element: HierarchyUI,
+        map_time: Callable[[float], float],
+    ) -> None:
         tilia.ui.timelines.copy_paste.paste_into_element(element, paste_data)
 
-        if "children" in paste_data:
-            children_of_element = []
-            for child_paste_data in paste_data["children"]:
-                child_component = self._create_child_from_paste_data(
-                    element,
-                    paste_data["context"]["start"],
-                    paste_data["context"]["end"],
-                    child_paste_data,
+        for child_paste_data in paste_data.get("children", []):
+            child_component = self._create_child_from_paste_data(
+                child_paste_data, map_time
+            )
+
+            if child_component is None:
+                logger.error(
+                    "Could not paste hierarchy child into "
+                    f"'{element.tl_component}': component creation failed."
                 )
+                continue
 
-                if child_paste_data.get("children", None):
-                    self.paste_with_children_into_element(
-                        child_paste_data, self.get_component_ui(child_component)
-                    )
-
-                children_of_element.append(child_component)
+            if child_paste_data.get("children", None):
+                self._paste_subtree_into_element(
+                    child_paste_data, self.get_component_ui(child_component), map_time
+                )
 
     def get_copy_data_from_hierarchy_ui(self, hierarchy_ui: HierarchyUI):
         ui_data = get_copy_data_from_element(
