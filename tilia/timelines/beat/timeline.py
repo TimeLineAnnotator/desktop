@@ -669,7 +669,7 @@ class BeatTimeline(Timeline):
             for i in range(math.floor(duration / value)):
                 self.create_component(ComponentKind.BEAT, i * value)
         elif method == BeatTimeline.FillMethod.BY_BPM:
-            interval_value = float(60) / float(value)
+            interval_value = 60 / value
             for i in range(math.floor(duration / interval_value)):
                 self.create_component(ComponentKind.BEAT, i * interval_value)
 
