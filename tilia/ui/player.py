@@ -1,7 +1,7 @@
 from enum import Enum, auto
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction, QFontMetrics, QIcon
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QLabel,
@@ -193,7 +193,17 @@ class PlayerToolbar(QToolBar):
 
     def add_time_label(self):
         self.time_label = QLabel(f"{self.current_time_string}/{self.duration_string}")
-        self.time_label.setMargin(3)
+
+        self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        max_time_str = self.duration_string
+        metrics = QFontMetrics(self.time_label.font())
+        calculated_width = (
+            (metrics.horizontalAdvance(max_time_str) * 2)
+            + 20  # fix the width of the time label to be the largest size needed (twice the duration string length) plus a margin of 20px
+        )
+
+        self.time_label.setFixedWidth(calculated_width)
         self.addWidget(self.time_label)
 
     def add_volume_toggle(self):
