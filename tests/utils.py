@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from pprint import pformat
@@ -7,7 +8,7 @@ from typing import Callable
 from unittest.mock import patch
 
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMenu, QToolButton, QWidgetAction
+from PySide6.QtWidgets import QApplication, QMenu, QToolButton, QWidgetAction
 
 from tests.mock import patch_ask_for_string_dialog, patch_file_dialog
 from tilia.requests import Get, Post, get, listen, post, stop_listening
@@ -185,6 +186,24 @@ def long_operation_spy():
         yield calls
     finally:
         stop_listening(listener, Post.LONG_OPERATION)
+
+
+def wait_until(condition: Callable[[], bool], timeout: float = 2.0) -> None:
+    """
+    Polls `condition` while pumping the GUI event loop, for code that
+    dispatches work to a real background QThread (see
+    tilia.ui.background_task.run_in_background) and needs its GUI-thread
+    completion callback (delivered via a queued connection) to actually run.
+    A plain busy-wait without processEvents() would never let that queued
+    delivery happen and would hang until `timeout`.
+    Raises AssertionError if `condition` is never true within `timeout`.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if condition():
+            return
+        QApplication.processEvents()
+    raise AssertionError(f"Condition not met within {timeout}s")
 
 
 def reloadable(save_path):
