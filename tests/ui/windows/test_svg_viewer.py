@@ -80,3 +80,31 @@ class TestStripBeatXMarkers:
         # The bumped one should now be 15px.
         font_sizes = sorted(g[0].attrib["font-size"] for g in kept)
         assert font_sizes == ["15px", "15px"]
+
+
+SVG_WITHOUT_MARKERS = (
+    "<svg><g class='vf-text'><text font-size='15px' x='0'>Allegro</text></g></svg>"
+)
+SVG_WITH_MARKERS = (
+    "<svg>"
+    "<g class='vf-text'><text font-size='0.00001px' x='100'>1␟0␟4</text></g>"
+    "<g class='vf-text'><text font-size='0.00001px' x='150'>1␟2␟4</text></g>"
+    "</svg>"
+)
+
+
+class TestLoadSvgData:
+    def test_loads_svg_with_beat_markers(self, qtui, score_tl, tls, tluis):
+        tls.set_timeline_data(score_tl.id, "svg_data", SVG_WITH_MARKERS)
+
+        assert tluis.get_timeline_ui(score_tl.id).svg_view.is_svg_loaded
+        assert score_tl.get_data("viewer_beat_x") == {1.0: 100.0, 1.5: 150.0}
+
+    def test_displays_error_when_no_beat_positions_found(
+        self, qtui, score_tl, tls, tluis, tilia_errors
+    ):
+        tls.set_timeline_data(score_tl.id, "svg_data", SVG_WITHOUT_MARKERS)
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("Beat positions not found")
+        assert not tluis.get_timeline_ui(score_tl.id).svg_view.is_svg_loaded
