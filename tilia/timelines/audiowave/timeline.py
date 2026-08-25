@@ -4,7 +4,7 @@ import numpy as np
 import soundfile
 
 import tilia.errors
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Get, LongOperation, Post, get, long_operation, post
 from tilia.settings import settings
 from tilia.timelines.base.timeline import (
     Timeline,
@@ -31,6 +31,7 @@ class AudioWaveTimeline(Timeline):
     def default_height(self):
         return settings.get("audiowave_timeline", "default_height")
 
+    @long_operation("Creating audiowave timeline...")
     def _create_timeline(self):
         dt, normalised_amplitudes = self._get_normalised_amplitudes()
         self._create_components(dt, normalised_amplitudes)
@@ -59,6 +60,7 @@ class AudioWaveTimeline(Timeline):
         return dt, [amp / max(amplitude) for amp in amplitude]
 
     def _create_components(self, duration: float, amplitudes: list[float]):
+        total = len(amplitudes)
         for i, amplitude in enumerate(amplitudes):
             self.create_component(
                 kind=ComponentKind.AUDIOWAVE,
@@ -66,6 +68,7 @@ class AudioWaveTimeline(Timeline):
                 end=(i + 1) * duration,
                 amplitude=amplitude,
             )
+            post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, total)
 
     def refresh(self):
         self.clear()
