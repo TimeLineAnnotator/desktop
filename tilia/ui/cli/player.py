@@ -6,14 +6,16 @@ import httpx
 import isodate
 
 from tilia.media.player import Player
-from tilia.media.player.qtplayer import QtPlayer
+from tilia.media.player.qtaudio import QtAudioPlayer
 from tilia.requests import Post, post
 
 
-class CLIVideoPlayer(QtPlayer):
-    # inherits only from QtPlayer to prevent
-    # the creation of a video widget
-    pass
+class CLIVideoPlayer(QtAudioPlayer):
+    # inherits QtAudioPlayer (no video widget/sink at all) rather than
+    # QtVideoPlayer -- CLI has no GUI to show a video window in, and
+    # QMediaPlayer plays a video file's audio track fine with no video
+    # output set.
+    MEDIA_TYPE = "video"
 
 
 class CLIYoutubePlayer(Player):

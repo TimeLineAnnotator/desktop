@@ -9,6 +9,7 @@ from tests.constants import (
     EXAMPLE_MEDIA_DURATION,
     EXAMPLE_MEDIA_PATH,
     EXAMPLE_MEDIA_SCALE_FACTOR,
+    EXAMPLE_VIDEO_PATH,
 )
 from tilia.requests import Get, get
 from tilia.ui import commands
@@ -19,6 +20,29 @@ def test_load_media(cli, tilia_state):
     cli.parse_and_run(f"load-media {EXAMPLE_MEDIA_PATH}")
     assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
     assert tilia_state.duration != 9.957
+
+
+def test_load_local_video(cli, tilia_state):
+    """CLIVideoPlayer plays a local video file's audio track through the
+    same worker-thread QtAudioPlayer machinery as CLI's plain audio player
+    -- CLI has no GUI to show a picture in."""
+    cli.parse_and_run(f"load-media {EXAMPLE_VIDEO_PATH}")
+    assert tilia_state.media_path == EXAMPLE_VIDEO_PATH
+    assert tilia_state.duration != 9.957
+
+
+def test_load_media_with_webengineview_alive(cli, tilia_state):
+    """CLI's audio/video players used to be the unfixed QtPlayer -- this
+    would hang/crash once a QWebEngineView (e.g. from a score import)
+    exists in-process, same hazard as the GUI's player tests cover."""
+    from PySide6.QtWebEngineWidgets import QWebEngineView
+
+    view = QWebEngineView()
+    try:
+        cli.parse_and_run(f"load-media {EXAMPLE_VIDEO_PATH}")
+        assert tilia_state.media_path == EXAMPLE_VIDEO_PATH
+    finally:
+        view.deleteLater()
 
 
 def assert_load_was_successful(duration):
