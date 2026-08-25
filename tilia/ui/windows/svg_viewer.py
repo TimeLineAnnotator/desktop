@@ -151,7 +151,7 @@ class SvgViewer(ViewDockWidget):
             beat_x_pos, success = self.timeline.set_data(
                 "viewer_beat_x", self._get_beat_x_pos(self.score_root)
             )
-            if not success:
+            if not success or not beat_x_pos:
                 tilia.errors.display(
                     tilia.errors.SCORE_SVG_CREATE_ERROR,
                     "File not properly set up. Beat positions not found.",
