@@ -59,6 +59,10 @@ class ScoreTLComponentManager(TimelineComponentManager):
 
     def clear(self):
         super().clear()
+        # The score viewer is rebuilt from svg_data, so a cleared timeline
+        # must not keep it: otherwise the viewer reopens with the discarded
+        # score, both in this session and after saving and reloading.
+        self.timeline.save_svg_data("")
         post(Post.SCORE_TIMELINE_CLEAR_DONE, self.timeline.id)
 
 
