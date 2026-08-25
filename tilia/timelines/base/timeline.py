@@ -509,8 +509,15 @@ class TimelineComponentManager(Generic[T, TC]):
             self.delete_component(component)
 
     def hash_components(self):
+        # The digest must not depend on the order of ``self._components``.
+        # ``ORDERING_ATTRS`` is not a total order across kinds — a Staff at
+        # index 0 and a Clef at time 0 both have an ordinal of ``(0,)`` — so
+        # ``bisect.insort_left`` leaves tied components in insertion order, and
+        # ``restore_state`` recreates them in an order that varies between
+        # processes. Ordering by ``(ordinal, hash)`` is total and reproducible,
+        # while still matching the ordinal order whenever ordinals are distinct.
         str_to_hash = ""
-        for component in self._components:
+        for component in sorted(self._components, key=lambda c: (c.ordinal, c.hash)):
             str_to_hash += component.hash + "|"
 
         return hash_function(str_to_hash)
@@ -543,12 +550,21 @@ class TimelineComponentManager(Generic[T, TC]):
                 hashes_to_delete.add(hash)
                 hashes_to_create.add(hash)
 
-        ids_to_delete = [cur_hash_to_id[id] for id in hashes_to_delete]
+        # Iterate the dicts rather than the hash sets: set iteration order over
+        # strings varies with PYTHONHASHSEED, which would make the resulting
+        # component order (and everything derived from it) process-dependent.
+        # ``cur_hash_to_id`` follows the current component order and
+        # ``prev_hash_to_data`` the order the previous state was serialized in.
+        ids_to_delete = [
+            id for hash, id in cur_hash_to_id.items() if hash in hashes_to_delete
+        ]
         self.timeline.delete_components(
             [self.timeline.get_component(id) for id in ids_to_delete]
         )
 
-        components_to_create = [prev_hash_to_data[hash] for hash in hashes_to_create]
+        components_to_create = [
+            data for hash, data in prev_hash_to_data.items() if hash in hashes_to_create
+        ]
         for component_data in components_to_create:
             component_data = component_data.copy()
             kind = ComponentKind[component_data.pop("kind")]
