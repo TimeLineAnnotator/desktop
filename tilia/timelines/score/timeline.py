@@ -108,11 +108,15 @@ class ScoreTimeline(Timeline):
 
     @viewer_beat_x.setter
     def viewer_beat_x(self, x_pos: dict[float, float] | None = None):
-        if x_pos:
-            self._viewer_beat_x = x_pos
+        self._viewer_beat_x = x_pos or {}
 
-    def save_svg_data(self, svg_data):
-        self._svg_data = svg_data
+    def clear(self):
+        # `svg_data` and `viewer_beat_x` describe the score being removed, so
+        # they have to go together. Keeping either one would make a score
+        # imported afterwards render against the previous score's data.
+        self.svg_data = ""
+        self.viewer_beat_x = {}
+        super().clear()
 
     @property
     def staff_count(self):
