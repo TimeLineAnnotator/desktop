@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.utils import undoable
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
 
 
@@ -548,3 +549,27 @@ class TestBeatTimeline:
                 timeline.delete_components(list(timeline.components))
 
         assert component_manager.compute_is_first_in_measure is True
+
+
+class TestGetExtensionFromBeatPattern:
+    def test_starting_measure_emptier_than_beat_pattern(self):
+        extension = BeatTimeline.get_extension_from_beat_pattern(
+            [4], 3, beats_on_starting_measure=2
+        )
+        assert extension == [2, 1]
+
+    def test_starting_measure_as_full_as_beat_pattern(self):
+        extension = BeatTimeline.get_extension_from_beat_pattern(
+            [4], 3, beats_on_starting_measure=4
+        )
+        assert extension == [3]
+
+    def test_starting_measure_fuller_than_beat_pattern(self):
+        """ "Set amount in measure" can put more beats in a measure than the
+        beat pattern prescribes for it. There is nothing left to fill in that
+        case, so the extension has to start a new measure.
+        """
+        extension = BeatTimeline.get_extension_from_beat_pattern(
+            [4], 3, beats_on_starting_measure=5
+        )
+        assert extension == [3]
