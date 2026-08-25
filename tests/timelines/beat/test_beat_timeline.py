@@ -268,6 +268,23 @@ class TestBeatTimeline:
         beat_tl.reset_measure_number(1)
         assert beat_tl.measures_to_force_display == []
 
+    def test_reduce_measure_numbers_drops_forced_display_out_of_range(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [1])
+        for i in range(5):
+            beat_tl.create_beat(time=i + 1)
+        beat_tl.recalculate_measures()
+
+        # forcing a later measure first leaves the list unsorted
+        beat_tl.set_measure_number(4, 40)
+        beat_tl.set_measure_number(1, 10)
+        assert beat_tl.measures_to_force_display == [4, 1]
+
+        beat_tl.delete_components([beat_tl[2], beat_tl[3], beat_tl[4]])
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.measure_count == 2
+        assert beat_tl.measures_to_force_display == [1]
+
     def test_reset_measure_number_first_measure(self, beat_tl):
         beat_tl.measure_numbers = [1, 2, 3, 4]
         beat_tl.set_measure_number(0, 10)

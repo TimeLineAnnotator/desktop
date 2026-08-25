@@ -508,12 +508,11 @@ class BeatTimeline(Timeline):
         if not extra_measure_count:
             return
         self.measure_numbers = self.measure_numbers[:-extra_measure_count]
-        if self.measures_to_force_display:
-            while (
-                self.measures_to_force_display
-                and self.measures_to_force_display[-1] >= self.measure_count
-            ):
-                self.measures_to_force_display.pop(-1)
+        # measures_to_force_display is not sorted, so every index has to be
+        # checked, not just the ones at the end of the list.
+        self.measures_to_force_display = [
+            i for i in self.measures_to_force_display if i < self.measure_count
+        ]
 
     def update_beats_that_start_measures(self):
         # noinspection PyAttributeOutsideInit
