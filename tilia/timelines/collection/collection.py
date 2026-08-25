@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from tilia.exceptions import TimelineValidationError
 from tilia.file.migration import normalize_kind_string
-from tilia.requests import Get, Post, get, post, serve
+from tilia.requests import Get, Post, get, long_operation, post, serve
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
@@ -229,6 +229,7 @@ class Timelines:
         hash = hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
         return state, hash
 
+    @long_operation("Opening file...")
     def deserialize_timelines(self, data: dict) -> None:
         data_copy = copy.deepcopy(data)  # so pop does not modify original data
 

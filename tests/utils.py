@@ -10,7 +10,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu, QToolButton, QWidgetAction
 
 from tests.mock import patch_ask_for_string_dialog, patch_file_dialog
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Get, Post, get, listen, post, stop_listening
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
 from tilia.ui.timelines.base.context_menus import TimelineUIContextMenu
@@ -152,6 +152,39 @@ def undoable():
 
             state_diff = pformat(deepdiff.DeepDiff(get(Get.APP_STATE), state_after))
         raise AssertionError("Redoing did not preserve state.\n" + state_diff) from e
+
+
+class _LongOperationSpyListener:
+    """Plain object to register as a listener with `listen()`, which keys its
+    internal registry with a weakref.WeakKeyDictionary and so cannot use a
+    bare `object()` (not weak-referenceable)."""
+
+
+@contextmanager
+def long_operation_spy():
+    """
+    Records LONG_OPERATION posts made during the `with` block.
+    Use this to assert that progress feedback fires during a
+    @long_operation-decorated call.
+    E.g.
+    ```
+    with long_operation_spy() as calls:
+        commands.execute("timelines.import.marker")
+    progress_calls = [args for phase, args in calls if phase == LongOperation.PROGRESS]
+    assert progress_calls
+    ```
+    """
+    listener = _LongOperationSpyListener()
+    calls = []
+
+    def on_long_operation(phase, *args):
+        calls.append((phase, args))
+
+    listen(listener, Post.LONG_OPERATION, on_long_operation)
+    try:
+        yield calls
+    finally:
+        stop_listening(listener, Post.LONG_OPERATION)
 
 
 def reloadable(save_path):

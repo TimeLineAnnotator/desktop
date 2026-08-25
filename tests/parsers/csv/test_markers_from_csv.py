@@ -4,8 +4,8 @@ from unittest.mock import patch
 from PySide6.QtWidgets import QFileDialog
 
 from tests.parsers.csv.common import write_csv
-from tests.utils import undoable
-from tilia.requests import Post, post
+from tests.utils import long_operation_spy, undoable
+from tilia.requests import LongOperation, Post, post
 from tilia.ui import commands
 from tilia.ui.format import format_media_time
 
@@ -160,6 +160,17 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
     tilia_errors.assert_in_error_message("nonsense")
 
     assert marker_tl[0].time == 1
+
+
+def test_markers_by_time_from_csv_reports_progress(tmp_path, marker_tlui):
+    data = "time,label,comments\n1,first,a\n5,second,b\n10,third,c"
+
+    with long_operation_spy() as calls:
+        patch_import(tmp_path, "time", marker_tlui.timeline, data)
+
+    progress_calls = [args for phase, args in calls if phase == LongOperation.PROGRESS]
+    assert progress_calls
+    assert progress_calls[-1] == (3, 3)
 
 
 def test_component_creation_fail_reason_gets_into_errors(

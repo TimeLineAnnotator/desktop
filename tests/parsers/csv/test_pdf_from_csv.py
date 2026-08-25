@@ -2,6 +2,8 @@ from typing import Any
 
 import tilia.parsers.csv.pdf
 from tests.parsers.csv.common import write_csv
+from tests.utils import long_operation_spy
+from tilia.requests import LongOperation
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.pdf.timeline import PdfTimeline
 
@@ -59,6 +61,20 @@ class TestByTime:
         for i, (time, page_number) in enumerate(rows[1:]):
             assert pdf_tl[i].get_data("time") == time
             assert pdf_tl[i].get_data("page_number") == page_number
+
+    def test_reports_progress(self, tmp_path, beat_tl, pdf_tl):
+        pdf_tl.page_total = 12
+        rows = [["time", "page_number"], [0, 1], [1, 2], [10, 11], [11, 12], [20, 3]]
+        data = _get_csv_data(*rows)
+
+        with long_operation_spy() as calls:
+            call_patched_import_by_time_func(tmp_path, pdf_tl, data)
+
+        progress_calls = [
+            args for phase, args in calls if phase == LongOperation.PROGRESS
+        ]
+        assert progress_calls
+        assert progress_calls[-1] == (5, 5)
 
     def test_invalid_values_return_errors(self, tmp_path, beat_tl, pdf_tl):
         pdf_tl.page_total = 1

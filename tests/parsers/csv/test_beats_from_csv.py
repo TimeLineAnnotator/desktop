@@ -1,5 +1,7 @@
 from tests.parsers.csv.common import assert_in_errors, write_csv
+from tests.utils import long_operation_spy
 from tilia.parsers.csv.beat import beats_from_csv
+from tilia.requests import LongOperation
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.ui.format import format_media_time
 
@@ -18,6 +20,17 @@ def test_by_time(tmp_path, beat_tl):
     assert beat_tl[1].time == 10
     assert beat_tl[2].time == 15
     assert beat_tl[3].time == 20
+
+
+def test_reports_progress(tmp_path, beat_tl):
+    data = "time\n5\n10\n15\n20"
+
+    with long_operation_spy() as calls:
+        _import(tmp_path, beat_tl, data)
+
+    progress_calls = [args for phase, args in calls if phase == LongOperation.PROGRESS]
+    assert progress_calls
+    assert progress_calls[-1] == (4, 4)
 
 
 def test_component_creation_fail_reason_gets_into_errors(

@@ -1,8 +1,10 @@
 from tests.parsers.csv.common import assert_in_errors, write_csv
+from tests.utils import long_operation_spy
 from tilia.parsers.csv.hierarchy import (
     import_by_measure,
     import_by_time,
 )
+from tilia.requests import LongOperation
 
 
 def test_hierarchies_by_time_from_csv(tmp_path, hierarchy_tlui):
@@ -26,6 +28,17 @@ def test_hierarchies_by_time_from_csv(tmp_path, hierarchy_tlui):
     assert hierarchies[2].end == 3
     assert hierarchies[2].level == 3
     assert hierarchies[2].label == "third"
+
+
+def test_hierarchies_by_time_from_csv_reports_progress(tmp_path, hierarchy_tlui):
+    data = "start,end,level,label\n0,1,1,first\n1,2,2,second\n2,3,3,third"
+
+    with long_operation_spy() as calls:
+        import_by_time(hierarchy_tlui.timeline, write_csv(tmp_path, data))
+
+    progress_calls = [args for phase, args in calls if phase == LongOperation.PROGRESS]
+    assert progress_calls
+    assert progress_calls[-1] == (3, 3)
 
 
 def test_hierarchies_by_measure_from_csv(tmp_path, beat_tlui, hierarchy_tlui):

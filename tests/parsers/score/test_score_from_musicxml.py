@@ -1,5 +1,7 @@
 from tests.mock import patch_yes_or_no_dialog
+from tests.utils import long_operation_spy
 from tilia.parsers.score.musicxml import notes_from_musicXML
+from tilia.requests import LongOperation
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -105,6 +107,41 @@ def test_example(score_tl, beat_tl, tmp_path):
     staff = score_tl.get_component_by_attr("KIND", ComponentKind.STAFF)
     assert staff.index == 0
     assert staff.line_count == 5
+
+
+def test_reports_progress(score_tl, beat_tl, tmp_path):
+    example = """<score-partwise version="3.1">
+    <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+    </part-list>
+    <part id="P1">
+        <measure number="1">
+        <attributes>
+            <divisions>4</divisions>
+            <key><fifths>0</fifths></key>
+            <time><beats>4</beats><beat-type>4</beat-type></time>
+            <clef><sign>G</sign><line>2</line></clef>
+        </attributes>
+        <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration></note>
+        </measure>
+        <measure number="2">
+        <note><pitch><step>D</step><octave>4</octave></pitch><duration>16</duration></note>
+        </measure>
+    </part>
+    </score-partwise>
+    """
+
+    beat_tl.beat_pattern = [4]
+    for i in range(9):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+
+    with long_operation_spy() as calls:
+        _import_with_patch(score_tl, beat_tl, example, tmp_path)
+
+    progress_calls = [args for phase, args in calls if phase == LongOperation.PROGRESS]
+    assert progress_calls
+    assert progress_calls[-1] == (2, 2)
 
 
 def test_changing_attributes(score_tl, beat_tl, tmp_path):

@@ -2,6 +2,8 @@ import pytest
 
 import tilia.parsers.csv.harmony
 from tests.parsers.csv.common import assert_in_errors, write_csv
+from tests.utils import long_operation_spy
+from tilia.requests import LongOperation
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.timeline import HarmonyTimeline
@@ -60,6 +62,25 @@ class TestByTime:
         assert harmony_tl[0].get_data("step") == step
         assert harmony_tl[0].get_data("accidental") == accidental
         assert harmony_tl[0].get_data("type") == type
+
+    def test_reports_progress(self, tmp_path, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol",
+                "0,harmony,C#",
+                "1,harmony,Dm",
+                "2,harmony,Ebo7",
+            ]
+        )
+
+        with long_operation_spy() as calls:
+            call_patched_import_by_time_func(tmp_path, harmony_tl, data)
+
+        progress_calls = [
+            args for phase, args in calls if phase == LongOperation.PROGRESS
+        ]
+        assert progress_calls
+        assert progress_calls[-1] == (3, 3)
 
     @pytest.mark.parametrize("required_attr", ["time", "symbol", "harmony_or_key"])
     def test_fails_without_a_required_column(self, tmp_path, required_attr, harmony_tl):

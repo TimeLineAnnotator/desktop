@@ -3,8 +3,13 @@ from pathlib import Path
 
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.marker.interact import click_marker_ui
-from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
-from tilia.requests import Get
+from tests.utils import (
+    long_operation_spy,
+    save_and_reopen,
+    save_tilia_to_tmp_path,
+    undoable,
+)
+from tilia.requests import Get, LongOperation
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.serialize import serialize_components
@@ -134,6 +139,21 @@ class TestRoundTripDesktopFileDesktop:
         second_contents = _read_tla(second_path)
 
         assert second_contents["timelines"] == first_contents["timelines"]
+
+
+class TestDeserializeProgressFeedback:
+    def test_reopening_a_file_reports_progress(self, marker_tlui, tmp_path):
+        for time in [0, 10, 20]:
+            commands.execute("timeline.marker.add", time=time)
+
+        with long_operation_spy() as calls:
+            save_and_reopen(tmp_path, "progress")
+
+        progress_calls = [
+            args for phase, args in calls if phase == LongOperation.PROGRESS
+        ]
+        assert progress_calls
+        assert progress_calls[-1] == (3, 3)
 
 
 def _save_open_save(tmp_path) -> tuple[dict, dict]:
