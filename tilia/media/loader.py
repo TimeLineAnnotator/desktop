@@ -35,6 +35,10 @@ def _change_player_type(player, media_type):
         # new player is constructed. processEvents() alone doesn't flush
         # DeferredDelete (Qt requires a full event-loop cycle), but
         # sendPostedEvents with DeferredDelete does.
+        # Different hazard from tilia.ui.webengine_tracking (which guards
+        # against reentering the event loop while ANY QWebEngineView has
+        # pending work) -- this one is specific to tearing down the
+        # long-lived YouTube player's own view.
         player.destroy()
 
         from PySide6.QtCore import QCoreApplication, QEvent

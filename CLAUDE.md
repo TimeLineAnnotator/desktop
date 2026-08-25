@@ -68,6 +68,16 @@ Rule of thumb: anything a user could trigger is a command; anything only the cod
 - `tilia/ui/cli/` — click-style CLI exposing a subset of features.
 - `tilia/undo_manager.py` — app-state snapshots; `PauseUndoManager` context manager suppresses recording.
 
+### Qt event-loop reentrancy and QWebEngineView
+
+Once a `QWebEngineView` exists in-process (the YouTube player in `tilia/media/player/youtube.py`, or `musicxml_to_svg` in `tilia/parsers/score/musicxml_to_svg.py` — both subclass it directly), it is unsafe on Linux/macOS to reenter the Qt event loop via `QApplication.processEvents()` or a nested `QEventLoop().exec()` while it has pending Chromium IPC work; doing so can segfault. This is specific to `QWebEngineView`'s platform integration, not a general Qt hazard.
+
+- `tilia/ui/webengine_tracking.py` monkey-patches `QWebEngineView.__init__` to set a process-global, one-way flag (`any_web_engine_view_created()`) the first time any such view is constructed anywhere — catching both current call sites and future ones without per-call-site opt-in.
+- `tilia/ui/long_operation.py::_pump()` consults that flag to choose a safe fallback (`QCoreApplication.sendPostedEvents(None, QEvent.Type.LayoutRequest)` + `repaint()`) instead of `processEvents()` when showing progress feedback.
+- `tilia/media/loader.py::_change_player_type` has a related but distinct hazard: switching away from the YouTube player must flush `DeferredDelete` events before constructing the new player, to avoid a macOS CoreAudio/AVFoundation deadlock. Don't conflate the two — different mechanism, different trigger condition.
+- **Known unresolved issue**: `tilia/media/player/qtplayer.py::wait_for_signal` uses a nested `QEventLoop().exec()` to synchronously wait for a Qt signal (media load/stop). This is a genuine reentrancy hazard under the same conditions above and has not been fixed — restructuring it to be callback-driven instead of blocking would need a `Player` interface change with app-wide caller impact.
+- Normal modal `QDialog`/`QMessageBox`/`QFileDialog`/`QMenu` `.exec()` calls elsewhere in `tilia/ui/` are **not** part of this hazard family — they're expected blocking UI, not a reentrant pump, and don't need this treatment.
+
 ## Code style
 
 - **Type hints required** in production code (`tilia/`). Annotate all function/method parameters, return types, and instance attributes whose types aren't obvious from initialization. Tests (`tests/`) do not need type hints.
