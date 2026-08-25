@@ -617,7 +617,8 @@ class BeatTimeline(Timeline):
 
     def force_display_measure_number(self, measure_index: int) -> None:
         self.clear_cached_metric_positions()
-        self.measures_to_force_display.append(measure_index)
+        if measure_index not in self.measures_to_force_display:
+            self.measures_to_force_display.append(measure_index)
 
     def unforce_display_measure_number(self, measure_index: int) -> None:
         self.clear_cached_metric_positions()

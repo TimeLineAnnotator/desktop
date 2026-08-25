@@ -254,6 +254,20 @@ class TestBeatTimeline:
         assert beat_tl.measure_numbers == [1, 2, 10, 11, 5, 6]
         assert beat_tl.measures_to_force_display == [4, 2]
 
+    def test_set_measure_number_twice_forces_display_once(self, beat_tl):
+        beat_tl.measure_numbers = [1, 2, 3, 4]
+        beat_tl.set_measure_number(1, 10)
+        beat_tl.set_measure_number(1, 10)
+        assert beat_tl.measures_to_force_display == [1]
+
+    def test_reset_measure_number_unforces_display_after_repeated_sets(self, beat_tl):
+        beat_tl.measure_numbers = [1, 2, 3, 4]
+        beat_tl.set_measure_number(1, 10)
+        beat_tl.set_measure_number(1, 20)
+        beat_tl.set_measure_number(1, 30)
+        beat_tl.reset_measure_number(1)
+        assert beat_tl.measures_to_force_display == []
+
     def test_reset_measure_number_first_measure(self, beat_tl):
         beat_tl.measure_numbers = [1, 2, 3, 4]
         beat_tl.set_measure_number(0, 10)
