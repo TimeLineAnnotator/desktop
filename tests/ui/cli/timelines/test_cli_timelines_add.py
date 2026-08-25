@@ -1,10 +1,36 @@
 from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_PDF_PATH
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
+from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.pdf.timeline import PdfTimeline
+from tilia.timelines.slider.timeline import SliderTimeline
+from tilia.ui.cli.timelines.add import (
+    KIND_STR_TO_TIMELINE_CLASS,
+    TIMELINE_CLASS_TO_KWARGS_NAMES,
+)
+
+
+class TestTimelineAddCoverage:
+    """#476 was a kind reachable everywhere else in the app but missing from
+    the CLI's tables. These fail when the next kind is added and not wired up
+    here, rather than letting it go unnoticed again."""
+
+    def test_every_creatable_kind_can_be_added(self):
+        creatable = set(Timeline.subclasses()) - {SliderTimeline}
+
+        assert set(KIND_STR_TO_TIMELINE_CLASS.values()) == creatable
+
+    def test_every_creatable_kind_declares_its_kwargs(self):
+        creatable = set(Timeline.subclasses()) - {SliderTimeline}
+
+        assert set(TIMELINE_CLASS_TO_KWARGS_NAMES) == creatable
+
+    def test_slider_cannot_be_added(self):
+        # It is created with the file and can't be deleted.
+        assert SliderTimeline not in KIND_STR_TO_TIMELINE_CLASS.values()
 
 
 class TestTimelineAdd:
