@@ -217,17 +217,14 @@ class SvgViewer(ViewDockWidget):
             yield e, parts
 
     @staticmethod
-    def _strip_beat_x_markers(root: etree._Element) -> None:
-        """Remove the data-marker text elements that `_get_beat_x_pos`
-        strips on first load. Used when reloading an already-processed SVG.
+    def _get_beat_x_pos(root: etree._Element) -> dict[float, float]:
+        """Build the beat-to-x mapping from the data markers, removing each
+        marker from ``root`` as it is read. Returns an empty mapping for an
+        SVG whose markers were already stripped.
         """
-        for e, _ in SvgViewer._extract_beat_position_markers(root):
-            e.getparent().remove(e)
-
-    def _get_beat_x_pos(self, root: etree._Element) -> dict[float, float]:
         x_stamps = {}
         measure_divs = {}
-        for e, parts in self._extract_beat_position_markers(root):
+        for e, parts in SvgViewer._extract_beat_position_markers(root):
             e.getparent().remove(e)
 
             measure, beat_div, max_div = map(int, parts)
