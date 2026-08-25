@@ -1,6 +1,7 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from PySide6.QtWidgets import QInputDialog
 
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.utils import undoable
@@ -347,6 +348,70 @@ class TestSetMeasureNumber:
         """Assumes there a beat in the measure is selected"""
         with Serve(Get.FROM_USER_INT, (True, number)):
             commands.execute("timeline.beat.set_measure_number")
+
+    @staticmethod
+    def _get_dialog_kwargs():
+        """Runs the command with the dialog mocked and returns how it was called.
+
+        Serve discards the arguments the request is made with, so the dialog
+        itself has to be mocked to check what it is prefilled with.
+        """
+        with patch.object(QInputDialog, "getInt", return_value=(0, False)) as dialog:
+            commands.execute("timeline.beat.set_measure_number")
+        return dialog.call_args.kwargs
+
+    def test_dialog_initial_value_is_current_measure_number(self, beat_tlui):
+        beat_tlui.create_beat(0)
+        beat_tlui.select_element(beat_tlui[0])
+
+        assert self._get_dialog_kwargs()["value"] == 1
+
+    def test_dialog_initial_value_after_measure_number_was_changed(self, beat_tlui):
+        beat_tlui.timeline.beat_pattern = [3]
+        for i in range(12):
+            beat_tlui.create_beat(i / 10)
+
+        beat_tlui.select_element(beat_tlui[3])
+        self._set_measure_number()
+
+        assert self._get_dialog_kwargs()["value"] == DUMMY_MEASURE_NUMBER
+
+    def test_dialog_initial_value_when_beat_is_not_first_in_measure(self, beat_tlui):
+        beat_tlui.timeline.beat_pattern = [3]
+        for i in range(12):
+            beat_tlui.create_beat(i / 10)
+        beat_tlui.timeline.set_measure_number(1, 42)
+
+        beat_tlui.select_element(beat_tlui[4])
+
+        assert self._get_dialog_kwargs()["value"] == 42
+
+    def test_dialog_initial_value_is_earliest_selected_measure(self, beat_tlui):
+        beat_tlui.timeline.beat_pattern = [1]
+        for i in range(6):
+            beat_tlui.create_beat(i / 10)
+
+        beat_tlui.select_element(beat_tlui[4])
+        beat_tlui.select_element(beat_tlui[1])
+
+        assert self._get_dialog_kwargs()["value"] == 2
+
+    def test_accepting_initial_value_sets_all_selected_measures(self, beat_tlui):
+        beat_tlui.timeline.beat_pattern = [1]
+        for i in range(6):
+            beat_tlui.create_beat(i / 10)
+
+        beat_tlui.select_element(beat_tlui[1])
+        beat_tlui.select_element(beat_tlui[4])
+
+        with patch.object(
+            QInputDialog,
+            "getInt",
+            side_effect=lambda *_, **kwargs: (kwargs["value"], True),
+        ):
+            commands.execute("timeline.beat.set_measure_number")
+
+        assert beat_tlui.timeline.measure_numbers == [1, 2, 3, 4, 2, 3]
 
     def test_set_measure_number_single_measure(self, beat_tlui):
         beat_tlui.create_beat(0)
