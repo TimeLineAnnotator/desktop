@@ -345,6 +345,17 @@ class TestSvgView:
 
         assert score_tlui.get_or_create_svg_view() is score_tlui.svg_view
 
+    def test_viewer_and_tracker_come_back_after_reloading(
+        self, score_tlui, note, tls, tmp_path
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        @reloadable(tmp_path / "file.tla")
+        def check() -> None:
+            score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+            assert score.svg_view is not None
+            assert score.measure_tracker.isVisible()
+
 
 class TestResetSvg:
     def test_deletes_existing_viewer(self, score_tlui, tls):
