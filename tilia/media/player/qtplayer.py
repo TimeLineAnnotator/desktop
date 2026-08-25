@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEventLoop, QTimer, QUrl, SignalInstance
+from PySide6.QtCore import QEventLoop, QObject, QTimer, QUrl, SignalInstance, Slot
 from PySide6.QtMultimedia import (
     QAudio,
     QAudioDevice,
@@ -13,6 +13,23 @@ from tilia.requests import Post, post
 from tilia.ui.player import PlayerStatus
 
 from .base import Player
+
+
+class PositionRelay(QObject):
+    """Lives on the GUI thread. AudioEngineWorker/VideoEngineWorker push
+    position here via a queued connection (same pattern as FrameRelay), so
+    _engine_get_current_time can read a plain attribute instead of blocking
+    on a round-trip to the worker thread every UPDATE_INTERVAL tick -- which
+    used to cause real, sustained lag under CPU contention, since a blocked
+    GUI thread pumps no messages at all."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.position = 0.0
+
+    @Slot(float)
+    def on_position_changed(self, position: float) -> None:
+        self.position = position
 
 
 def wait_for_signal(signal: SignalInstance, value):
