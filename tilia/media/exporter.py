@@ -2,7 +2,10 @@ from pathlib import Path
 
 import soundfile
 
+from tilia.requests import long_operation
 
+
+@long_operation("Exporting audio...")
 def export_audio(
     source_path: Path | str,
     destination_path: Path,
