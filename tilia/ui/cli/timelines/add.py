@@ -10,6 +10,40 @@ from tilia.timelines.range.timeline import RangeTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui.cli.io import output
 
+# Every kind the user can create, with its abbreviation. SliderTimeline is
+# deliberately absent: it comes with the file and can't be deleted.
+KIND_STR_TO_TIMELINE_CLASS: dict[str, type[Timeline]] = {
+    "beat": BeatTimeline,
+    "bea": BeatTimeline,
+    "hierarchy": HierarchyTimeline,
+    "hrc": HierarchyTimeline,
+    "marker": MarkerTimeline,
+    "mrk": MarkerTimeline,
+    "range": RangeTimeline,
+    "rng": RangeTimeline,
+    "score": ScoreTimeline,
+    "sco": ScoreTimeline,
+}
+
+# The creation kwargs each kind accepts. This doubles as the validation
+# table: an optional argument the user passed that isn't listed for their
+# kind is rejected rather than silently dropped.
+TIMELINE_CLASS_TO_KWARGS_NAMES: dict[type[Timeline], list[str]] = {
+    BeatTimeline: ["name", "height", "beat_pattern"],
+    HierarchyTimeline: ["name", "height"],
+    MarkerTimeline: ["name", "height"],
+    RangeTimeline: ["name", "height", "default_row_height"],
+    ScoreTimeline: ["name", "height"],
+}
+
+# Optional argument attribute -> the flag to name in error messages.
+# "name" is absent because every kind accepts it.
+OPTIONAL_ARG_TO_FLAG = {
+    "beat_pattern": "--beat-pattern",
+    "default_row_height": "--row-height",
+    "height": "--height",
+}
+
 
 def setup_parser(subparser):
     add_subp = subparser.add_parser(
@@ -26,18 +60,7 @@ Examples:
     )
     add_subp.add_argument(
         "kind",
-        choices=[
-            "hierarchy",
-            "hrc",
-            "marker",
-            "mrk",
-            "beat",
-            "bea",
-            "score",
-            "sco",
-            "range",
-            "rng",
-        ],
+        choices=list(KIND_STR_TO_TIMELINE_CLASS),
         help="Kind of timeline to add",
     )
     add_subp.add_argument(
@@ -67,52 +90,25 @@ Examples:
     add_subp.set_defaults(func=add)
 
 
-TLKIND_TO_KWARGS_NAMES = {
-    BeatTimeline: ["name", "height", "beat_pattern"],
-    HierarchyTimeline: ["name", "height"],
-    MarkerTimeline: ["name", "height"],
-    RangeTimeline: ["name", "height", "default_row_height"],
-    ScoreTimeline: ["name", "height"],
-}
-
-# arg attr -> (timeline kind it's valid for, flag name for the error message)
-KIND_SPECIFIC_ARGS = {
-    "beat_pattern": (BeatTimeline, "--beat-pattern"),
-    "default_row_height": (RangeTimeline, "--row-height"),
-}
-
-
 def get_kwargs_by_timeline_type(namespace: argparse.Namespace, kind: type[Timeline]):
     kwargs = {}
-    for attr in TLKIND_TO_KWARGS_NAMES[kind]:
+    for attr in TIMELINE_CLASS_TO_KWARGS_NAMES[kind]:
         kwargs[attr] = getattr(namespace, attr)
     return kwargs
 
 
 def add(namespace: argparse.Namespace):
-    KIND_STR_TO_TLKIND = {
-        "hierarchy": HierarchyTimeline,
-        "hrc": HierarchyTimeline,
-        "marker": MarkerTimeline,
-        "mrk": MarkerTimeline,
-        "beat": BeatTimeline,
-        "bea": BeatTimeline,
-        "score": ScoreTimeline,
-        "sco": ScoreTimeline,
-        "range": RangeTimeline,
-        "rng": RangeTimeline,
-    }
-
     if not get(Get.MEDIA_DURATION):
         tilia.errors.display(tilia.errors.CLI_CREATE_TIMELINE_WITHOUT_DURATION)
         return
     kind = namespace.kind
     name = namespace.name
 
-    tl_type = KIND_STR_TO_TLKIND[kind]
+    tl_type = KIND_STR_TO_TIMELINE_CLASS[kind]
+    accepted_kwargs = TIMELINE_CLASS_TO_KWARGS_NAMES[tl_type]
 
-    for attr, (expected_kind, flag) in KIND_SPECIFIC_ARGS.items():
-        if getattr(namespace, attr) is not None and tl_type is not expected_kind:
+    for attr, flag in OPTIONAL_ARG_TO_FLAG.items():
+        if getattr(namespace, attr) is not None and attr not in accepted_kwargs:
             tilia.errors.display(
                 tilia.errors.CLI_ADD_TIMELINE_ARG_NOT_APPLICABLE, flag, kind
             )
