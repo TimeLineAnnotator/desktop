@@ -23,7 +23,8 @@ tilia                       # Qt GUI
 tilia --user-interface cli  # CLI (source-only, not in compiled builds)
 
 # Tests (pytest-env auto-sets ENVIRONMENT=test and QT_QPA_PLATFORM=offscreen)
-pytest                                                  # full suite
+pytest                                                  # full suite (~10 min)
+pytest -n auto                                          # full suite in parallel (~1.5 min, pytest-xdist)
 pytest tests/ui/timelines/marker/test_marker_timeline_ui.py    # one file
 pytest tests/ui/timelines/marker/test_marker_timeline_ui.py::TestCreateDelete::test_create_at_selected_time  # one test
 pytest -k marker                                        # by keyword
@@ -39,6 +40,14 @@ python scripts/deploy.py <ref_name> <os_type>  # output in build/<os_type>/exe
 ```
 
 Default pytest timeout is 10s (pytest-timeout). `ffmpeg` must be on PATH for audio export/convert features.
+
+Prefer `-n auto` — the suite takes minutes serially and about a minute in parallel. A handful of
+tests (notably in `tests/test_app.py` and the CLI roundtrip tests) fail intermittently under
+`-n auto`, and which ones fail varies between runs; this predates any given change, so confirm a
+failure reproduces serially before investigating it. The same goes for `undoable()` on a timeline
+with several components: `TimelineComponentManager.restore_state` recreates components in
+set-iteration order while `hash_components()` hashes them in list order, so whether the assertion
+passes depends on `PYTHONHASHSEED`.
 
 ## Architecture
 
