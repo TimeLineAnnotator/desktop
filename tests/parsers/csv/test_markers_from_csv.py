@@ -1,17 +1,18 @@
-import os
-from pathlib import Path
 from typing import Literal
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 from PySide6.QtWidgets import QFileDialog
 
+from tests.parsers.csv.common import write_csv
 from tests.utils import undoable
 from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.format import format_media_time
 
 
-def patch_import(by: Literal["time", "measure"], tl, data) -> tuple[str, list[str]]:
+def patch_import(
+    tmp_path, by: Literal["time", "measure"], tl, data
+) -> tuple[str, list[str]]:
     # Tests are using low-level functions to create beats
     # so we need to trigger an app state record manually.
     post(Post.APP_STATE_RECORD, "test state")
@@ -22,15 +23,16 @@ def patch_import(by: Literal["time", "measure"], tl, data) -> tuple[str, list[st
             return_value=(True, by),
         ),
         patch.object(QFileDialog, "exec", return_value=True),
-        patch.object(QFileDialog, "selectedFiles", return_value=[Path()]),
-        patch("builtins.open", mock_open(read_data=data)),
+        patch.object(
+            QFileDialog, "selectedFiles", return_value=[write_csv(tmp_path, data)]
+        ),
         undoable(),
     ):
         success = commands.execute("timelines.import.marker")
     return success
 
 
-def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
+def test_markers_by_measure_from_csv(tmp_path, beat_tlui, marker_tlui):
     beat_tl = beat_tlui.timeline
     marker_tl = marker_tlui.timeline
     beat_tl.beat_pattern = [1]
@@ -43,7 +45,7 @@ def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
 
     data = "measure,fraction,label,comments\n1,0,first,a\n2,0.5,second,b\n3,1,third,c"
 
-    patch_import("measure", marker_tl, data)
+    patch_import(tmp_path, "measure", marker_tl, data)
 
     assert marker_tl[0].time == 1
     assert marker_tl[1].time == 2.5
@@ -51,7 +53,7 @@ def test_markers_by_measure_from_csv(beat_tlui, marker_tlui):
 
 
 def test_markers_by_measure_from_csv_multiple_measures_with_number(
-    beat_tlui, marker_tlui
+    tmp_path, beat_tlui, marker_tlui
 ):
     beat_tl = beat_tlui.timeline
     marker_tl = marker_tlui.timeline
@@ -66,29 +68,27 @@ def test_markers_by_measure_from_csv_multiple_measures_with_number(
 
     data = "measure\n1"
 
-    patch_import("measure", marker_tl, data)
+    patch_import(tmp_path, "measure", marker_tl, data)
 
     assert marker_tl[0].time == 1
     assert marker_tl[1].time == 2
     assert marker_tl[2].time == 3
 
 
-def test_markers_by_measure_from_csv_fails_if_no_measure_column(beat_tlui, marker_tlui):
-    os.chdir(Path(Path(__file__).absolute().parents[1]))
-
+def test_markers_by_measure_from_csv_fails_if_no_measure_column(
+    tmp_path, beat_tlui, marker_tlui
+):
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
-    patch_import("measure", marker_tlui.timeline, data)
+    patch_import(tmp_path, "measure", marker_tlui.timeline, data)
 
     assert marker_tlui.is_empty
 
 
-def test_markers_by_time_from_csv(marker_tlui):
-    os.chdir(Path(Path(__file__).absolute().parents[1]))
-
+def test_markers_by_time_from_csv(tmp_path, marker_tlui):
     data = "time,label,comments\n1,first,a\n5,second,b\n10,third,c"
     marker_tl = marker_tlui.timeline
-    patch_import("time", marker_tl, data)
+    patch_import(tmp_path, "time", marker_tl, data)
 
     assert marker_tl[0].time == 1
     assert marker_tl[0].label == "first"
@@ -103,51 +103,49 @@ def test_markers_by_time_from_csv(marker_tlui):
     assert marker_tl[2].comments == "c"
 
 
-def test_markers_by_time_from_csv_fails_if_no_time_column(marker_tlui):
-    os.chdir(Path(Path(__file__).absolute().parents[1]))
-
+def test_markers_by_time_from_csv_fails_if_no_time_column(tmp_path, marker_tlui):
     data = "label,comments\nfirst,a\nsecond,b\nthird,c"
 
-    patch_import("time", marker_tlui.timeline, data)
+    patch_import(tmp_path, "time", marker_tlui.timeline, data)
 
     assert marker_tlui.is_empty
 
 
 def test_markers_by_time_from_csv_outputs_error_if_bad_time_value(
-    marker_tlui, tilia_errors
+    tmp_path, marker_tlui, tilia_errors
 ):
     data = "time\nnonsense"
 
-    success = patch_import("time", marker_tlui.timeline, data)
+    success = patch_import(tmp_path, "time", marker_tlui.timeline, data)
 
     assert success
     tilia_errors.assert_in_error_message("nonsense")
 
 
 def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
-    marker_tlui, tilia_state, tilia_errors
+    tmp_path, marker_tlui, tilia_state, tilia_errors
 ):
     tilia_state.duration = 100
     data = "time\n999"
 
-    success = patch_import("time", marker_tlui.timeline, data)
+    success = patch_import(tmp_path, "time", marker_tlui.timeline, data)
 
     assert success
     tilia_errors.assert_in_error_message(format_media_time(999))
 
 
 def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
-    marker_tlui, beat_tlui, tilia_errors
+    tmp_path, marker_tlui, beat_tlui, tilia_errors
 ):
     data = "measure\nnonsense"
-    success = patch_import("measure", marker_tlui.timeline, data)
+    success = patch_import(tmp_path, "measure", marker_tlui.timeline, data)
 
     assert success
     tilia_errors.assert_in_error_message("nonsense")
 
 
 def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
-    marker_tlui, beat_tlui, tilia_errors
+    tmp_path, marker_tlui, beat_tlui, tilia_errors
 ):
     beat_tl = beat_tlui.timeline
     marker_tl = marker_tlui.timeline
@@ -156,7 +154,7 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
     beat_tlui.create_beat(time=2)
 
     data = "measure,fraction\n1,nonsense"
-    success = patch_import("measure", marker_tl, data)
+    success = patch_import(tmp_path, "measure", marker_tl, data)
 
     assert success
     tilia_errors.assert_in_error_message("nonsense")
@@ -165,12 +163,12 @@ def test_markers_by_measure_from_csv_outputs_error_if_bad_fraction_value(
 
 
 def test_component_creation_fail_reason_gets_into_errors(
-    marker_tl, beat_tlui, tilia_state, tilia_errors
+    tmp_path, marker_tl, beat_tlui, tilia_state, tilia_errors
 ):
 
     tilia_state.duration = 100
     data = "time\n101"
 
-    patch_import("time", marker_tl, data)
+    patch_import(tmp_path, "time", marker_tl, data)
 
     tilia_errors.assert_in_error_message(format_media_time(101))

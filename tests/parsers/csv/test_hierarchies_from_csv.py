@@ -1,24 +1,14 @@
-import os
-from pathlib import Path
-from unittest.mock import mock_open, patch
-
-from tests.parsers.csv.common import assert_in_errors
+from tests.parsers.csv.common import assert_in_errors, write_csv
 from tilia.parsers.csv.hierarchy import (
     import_by_measure,
     import_by_time,
 )
 
 
-def test_hierarchies_by_time_from_csv(hierarchy_tlui):
-    os.chdir(Path(Path(__file__).absolute().parents[1]))
-
+def test_hierarchies_by_time_from_csv(tmp_path, hierarchy_tlui):
     data = "start,end,level,label\n0,1,1,first\n1,2,2,second\n2,3,3,third"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_time(
-            hierarchy_tlui.timeline,
-            Path("parsers", "test_markers_by_time_from_csv.csv").resolve(),
-        )
+    import_by_time(hierarchy_tlui.timeline, write_csv(tmp_path, data))
 
     hierarchies = sorted(hierarchy_tlui.timeline)
 
@@ -38,7 +28,7 @@ def test_hierarchies_by_time_from_csv(hierarchy_tlui):
     assert hierarchies[2].label == "third"
 
 
-def test_hierarchies_by_measure_from_csv(beat_tlui, hierarchy_tlui):
+def test_hierarchies_by_measure_from_csv(tmp_path, beat_tlui, hierarchy_tlui):
     beat_tl = beat_tlui.timeline
     hierarchy_tl = hierarchy_tlui.timeline
     beat_tl.beat_pattern = [1]
@@ -49,16 +39,9 @@ def test_hierarchies_by_measure_from_csv(beat_tlui, hierarchy_tlui):
 
     beat_tl.recalculate_measures()
 
-    os.chdir(Path(Path(__file__).absolute().parents[1]))
-
     data = "start,end,level,label\n1,2,1,a\n2,3,2,b\n3,4,3,c"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        import_by_measure(
-            hierarchy_tl,
-            beat_tl,
-            Path(),
-        )
+    import_by_measure(hierarchy_tl, beat_tl, write_csv(tmp_path, data))
 
     hierarchies = sorted(hierarchy_tl)
 
@@ -79,43 +62,40 @@ def test_hierarchies_by_measure_from_csv(beat_tlui, hierarchy_tlui):
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_start_value(
-    hierarchy_tlui, beat_tlui
+    tmp_path, hierarchy_tlui, beat_tlui
 ):
     data = "start,end,level\nnonsense, 1, 1"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            hierarchy_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = import_by_measure(
+        hierarchy_tlui.timeline, beat_tlui.timeline, write_csv(tmp_path, data)
+    )
 
     assert "nonsense" in errors[0]
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_end_value(
-    hierarchy_tlui, beat_tlui
+    tmp_path, hierarchy_tlui, beat_tlui
 ):
     data = "start,end,level\n1, nonsense, 1"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            hierarchy_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = import_by_measure(
+        hierarchy_tlui.timeline, beat_tlui.timeline, write_csv(tmp_path, data)
+    )
 
     assert "nonsense" in errors[0]
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_level_value(
-    hierarchy_tlui, beat_tlui
+    tmp_path, hierarchy_tlui, beat_tlui
 ):
     data = "start,end,level\n1, 1, nonsense"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            hierarchy_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = import_by_measure(
+        hierarchy_tlui.timeline, beat_tlui.timeline, write_csv(tmp_path, data)
+    )
 
     assert "nonsense" in errors[0]
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_start_fraction_value(
-    hierarchy_tlui, beat_tlui
+    tmp_path, hierarchy_tlui, beat_tlui
 ):
     beat_tl = beat_tlui.timeline
     hierarchy_tl = hierarchy_tlui.timeline
@@ -124,10 +104,9 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_start_fraction_val
     beat_tlui.create_beat(time=2)
 
     data = "start,start_fraction,end,level\n1,nonsense, 2, 1"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            hierarchy_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = import_by_measure(
+        hierarchy_tlui.timeline, beat_tlui.timeline, write_csv(tmp_path, data)
+    )
 
     assert "nonsense" in errors[0]
 
@@ -135,7 +114,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_start_fraction_val
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_end_fraction_value(
-    hierarchy_tlui, beat_tlui
+    tmp_path, hierarchy_tlui, beat_tlui
 ):
     beat_tl = beat_tlui.timeline
     hierarchy_tl = hierarchy_tlui.timeline
@@ -144,10 +123,9 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_end_fraction_value
     beat_tlui.create_beat(time=2)
 
     data = "start,end,end_fraction,level\n1, 2, nonsense, 1"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            hierarchy_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = import_by_measure(
+        hierarchy_tlui.timeline, beat_tlui.timeline, write_csv(tmp_path, data)
+    )
 
     assert "nonsense" in errors[0]
 
@@ -155,7 +133,7 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_bad_end_fraction_value
 
 
 def test_hierarchies_by_measure_from_csv_outputs_error_if_no_measure_found(
-    hierarchy_tlui, beat_tlui
+    tmp_path, hierarchy_tlui, beat_tlui
 ):
     beat_tl = beat_tlui.timeline
     beat_tl.beat_pattern = [1]
@@ -163,24 +141,22 @@ def test_hierarchies_by_measure_from_csv_outputs_error_if_no_measure_found(
     beat_tlui.create_beat(time=2)
 
     data = "start,end,level\n3, 4, 1"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            hierarchy_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = import_by_measure(
+        hierarchy_tlui.timeline, beat_tlui.timeline, write_csv(tmp_path, data)
+    )
 
     assert "No measure with number" in errors[0]
 
     data = "start,end,level\n1, 5, 1"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            hierarchy_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = import_by_measure(
+        hierarchy_tlui.timeline, beat_tlui.timeline, write_csv(tmp_path, data)
+    )
 
     assert "No measure with number" in errors[0]
 
 
 def test_hierarchies_by_measure_from_csv_bad_optional_attrs_values(
-    hierarchy_tlui, beat_tlui
+    tmp_path, hierarchy_tlui, beat_tlui
 ):
     beat_tl = beat_tlui.timeline
     beat_tl.beat_pattern = [1]
@@ -188,26 +164,21 @@ def test_hierarchies_by_measure_from_csv_bad_optional_attrs_values(
     beat_tlui.create_beat(time=2)
 
     data = "start,end,level,pre_start,post_end,\n1,2,1,nonsense1,nonsense2"
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_measure(
-            hierarchy_tlui.timeline, beat_tlui.timeline, Path()
-        )
+    success, errors = import_by_measure(
+        hierarchy_tlui.timeline, beat_tlui.timeline, write_csv(tmp_path, data)
+    )
 
     assert "nonsense1" in errors[0]
     assert "nonsense2" in errors[1]
 
 
 def test_component_creation_fail_reason_gets_into_errors(
-    hierarchy_tl, beat_tlui, tilia_state
+    tmp_path, hierarchy_tl, beat_tlui, tilia_state
 ):
 
     tilia_state.duration = 100
     data = "start,end,level\n101,1,1"
 
-    with patch("builtins.open", mock_open(read_data=data)):
-        success, errors = import_by_time(
-            hierarchy_tl,
-            Path(),
-        )
+    success, errors = import_by_time(hierarchy_tl, write_csv(tmp_path, data))
 
     assert_in_errors("101", errors)
