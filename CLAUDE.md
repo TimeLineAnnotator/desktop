@@ -103,6 +103,41 @@ Read `TESTING.md` first. Key points:
 - Prefer end-to-end (backend-through-frontend) tests; backend-only tests are appropriate for complex pure logic but shouldn't be kept if they're coupled to implementation details.
 - **Gold reference**: `tests/ui/timelines/marker/test_marker_timeline_ui.py`. When uncertain about structure or depth, match that file.
 
+## Delivering a fix for human testing
+
+Human verification of AI-written fixes is the delivery bottleneck, and most of that
+time is scenario setup — clone, launch, create timeline, create components. Every fix
+ships with a repro bundle so testing costs one paste instead.
+
+1. **A `.tla` fixture** that lands the app directly in the buggy scenario.
+   - Keep it media-free where possible: `"media_path": ""` plus a `"media length"` in
+     `media_metadata`. `App._setup_file_media` returns early when the path is empty, so
+     the file opens with no prompt and no error.
+   - Generate it, don't hand-write the JSON: a CLI script (`script <path>` then
+     `save <name>.tla`) when `timelines add` / `components` cover the kind, otherwise a
+     throwaway pytest that builds the state through `commands.execute(...)` and saves via
+     `commands.execute("file.save", ...)`. Hand-authored JSON drifts from the real
+     serialization format.
+   - **The fixture must reproduce the bug on the base branch.** Verify it before opening
+     the PR: if the reviewer stashes the fix and relaunches the same file, they must see
+     the broken behavior. A fixture that only ever shows the fixed state proves nothing.
+2. **A copy-paste launch command** in the PR description, e.g.
+   `gh pr checkout <N> && tilia repro/<issue>.tla`. `tilia` takes a `.tla` path as a
+   positional argument (see `boot.setup_parser`), so no extra tooling is needed.
+3. **Three lines of acceptance criteria**: the action to perform, what the bug looked
+   like, what correct looks like. Removing setup time doesn't help if the reviewer still
+   has to reverse-engineer what they're judging.
+
+**Fixture lifecycle: always delete the `.tla` before merge.** The file format changes,
+and committed fixtures go stale silently. What survives is the generator (CLI script or
+pytest) — promote that into the test suite as a regression test if the scenario is worth
+keeping. Never leave a `.tla` behind as the durable artifact.
+
+**When the bug needs real media** (playback, audiowave, video, PDF), a portable fixture
+is impossible — say so instead of shipping one that can't reproduce it, and ask the user
+for a suitable media file. Record the path in your memory so later sessions reuse the
+same file rather than asking again.
+
 ## Debugging GUI-only bugs
 
 When a bug is reported in the running app but the test suite is green, agents can't drive the desktop GUI themselves. The fallback is to instrument the suspect code path and ask the user to reproduce live:
