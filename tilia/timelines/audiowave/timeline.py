@@ -4,7 +4,7 @@ import numpy as np
 import soundfile
 
 import tilia.errors
-from tilia.requests import Get, LongOperation, Post, get, long_operation, post
+from tilia.requests import Get, LongOperation, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.timeline import (
     Timeline,
@@ -12,6 +12,19 @@ from tilia.timelines.base.timeline import (
     TimelineFlag,
 )
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.ui.background_task import run_in_background
+
+
+def _compute_normalised_amplitudes(
+    audio: soundfile.SoundFile, divisions: int
+) -> tuple[float, list[float]]:
+    """Runs on a worker thread -- must not call post()/get() or touch Qt."""
+    dt = audio.frames / audio.samplerate / divisions
+    amplitude = [
+        np.sqrt(np.mean(chunk**2))
+        for chunk in audio.blocks(audio.frames // divisions)
+    ]
+    return dt, [amp / max(amplitude) for amp in amplitude]
 
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
@@ -31,10 +44,39 @@ class AudioWaveTimeline(Timeline):
     def default_height(self):
         return settings.get("audiowave_timeline", "default_height")
 
-    @long_operation("Creating audiowave timeline...")
     def _create_timeline(self):
-        dt, normalised_amplitudes = self._get_normalised_amplitudes()
-        self._create_components(dt, normalised_amplitudes)
+        # Cast to int: Get.PLAYBACK_AREA_WIDTH can be a float (widget
+        # geometry), but audio.blocks() below requires an int blocksize.
+        divisions = int(
+            min(
+                [
+                    get(Get.PLAYBACK_AREA_WIDTH),
+                    settings.get("audiowave_timeline", "max_divisions"),
+                    self.audio.frames,
+                ]
+            )
+        )
+        audio = self.audio
+
+        post(
+            Post.LONG_OPERATION, LongOperation.STARTED, "Creating audiowave timeline..."
+        )
+
+        def on_done(result: tuple[float, list[float]]) -> None:
+            dt, normalised_amplitudes = result
+            self._create_components(dt, normalised_amplitudes)
+            post(Post.LONG_OPERATION, LongOperation.DONE)
+
+        def on_error(_exc: Exception) -> None:
+            post(Post.LONG_OPERATION, LongOperation.DONE)
+            self._update_visibility(False)
+            tilia.errors.display(tilia.errors.AUDIOWAVE_INVALID_FILE)
+
+        run_in_background(
+            lambda: _compute_normalised_amplitudes(audio, divisions),
+            on_done=on_done,
+            on_error=on_error,
+        )
 
     def _get_audio(self):
         path = get(Get.MEDIA_PATH)
@@ -43,21 +85,6 @@ class AudioWaveTimeline(Timeline):
         except Exception:
             tilia.errors.display(tilia.errors.AUDIOWAVE_INVALID_FILE)
             return None
-
-    def _get_normalised_amplitudes(self):
-        divisions = min(
-            [
-                get(Get.PLAYBACK_AREA_WIDTH),
-                settings.get("audiowave_timeline", "max_divisions"),
-                self.audio.frames,
-            ]
-        )
-        dt = self.audio.frames / self.audio.samplerate / divisions
-        amplitude = [
-            np.sqrt(np.mean(chunk**2))
-            for chunk in self.audio.blocks(self.audio.frames // divisions)
-        ]
-        return dt, [amp / max(amplitude) for amp in amplitude]
 
     def _create_components(self, duration: float, amplitudes: list[float]):
         total = len(amplitudes)
