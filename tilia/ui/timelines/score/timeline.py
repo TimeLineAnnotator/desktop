@@ -93,15 +93,27 @@ class ScoreTimelineUI(TimelineUI):
         }
 
     @property
-    def svg_view(self):
+    def svg_view(self) -> SvgViewer | None:
+        """The score viewer serving this timeline, or None if there is none.
+
+        Reading this never creates a viewer. Use `get_or_create_svg_view`
+        when one is required.
+        """
         try:
             return get(Get.SCORE_VIEWER, self.id)
         except NoReplyToRequest:
-            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-            if self.timeline.svg_data:
-                viewer.load_svg_data(self.timeline.svg_data)
-                self.measure_tracker.setVisible(not viewer.is_hidden)
+            return None
+
+    def get_or_create_svg_view(self) -> SvgViewer:
+        """This timeline's score viewer, creating and loading one if needed."""
+        if (viewer := self.svg_view) is not None:
             return viewer
+
+        viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
+        if self.timeline.svg_data:
+            viewer.load_svg_data(self.timeline.svg_data)
+            self.measure_tracker.setVisible(not viewer.is_hidden)
+        return viewer
 
     @staticmethod
     def get_time_signature_icon_name(n: int) -> str:
@@ -114,8 +126,8 @@ class ScoreTimelineUI(TimelineUI):
     def update_name(self):
         name = self.get_data("name")
         self.scene.set_text(name)
-        if self.svg_view:
-            self.svg_view.update_title(name)
+        if (viewer := self.svg_view) is not None:
+            viewer.update_title(name)
 
     def get_staff_y_cache(self):
         return {
@@ -455,8 +467,8 @@ class ScoreTimelineUI(TimelineUI):
         return (x1 - x0) / self._measure_count
 
     def on_audio_time_change(self, time: float, _) -> None:
-        if self.svg_view.is_svg_loaded:
-            self.svg_view.scroll_to_time(time, False)
+        if (viewer := self.svg_view) is not None and viewer.is_svg_loaded:
+            viewer.scroll_to_time(time, False)
 
     def _setup_svg_view(self) -> None:
         self.tracker_start = 0
@@ -467,15 +479,18 @@ class ScoreTimelineUI(TimelineUI):
         self.scene.addItem(self.measure_tracker)
 
         if self.timeline.svg_data:
-            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-            viewer.load_svg_data(self.timeline.svg_data)
-            self.measure_tracker.show()
+            self.get_or_create_svg_view()
 
     def update_svg_data(self) -> None:
-        self.svg_view.load_svg_data(self.timeline.svg_data)
+        if (viewer := self.svg_view) is None:
+            # Creating the viewer loads the current data as part of its setup.
+            self.get_or_create_svg_view()
+        else:
+            viewer.load_svg_data(self.timeline.svg_data)
 
-    def reset_svg(self):
-        self.svg_view.deleteLater()
+    def reset_svg(self) -> None:
+        if (viewer := self.svg_view) is not None:
+            viewer.deleteLater()
 
     def on_left_click(self, item, modifier, double, x, y):
         if item != self.measure_tracker:
@@ -497,7 +512,8 @@ class ScoreTimelineUI(TimelineUI):
             post(Post.ELEMENT_DRAG_START)
 
     def after_each_drag(self, drag_x: int):
-        self.svg_view.scroll_to_time(time_x_converter.get_time_by_x(drag_x), True)
+        if (viewer := self.svg_view) is not None:
+            viewer.scroll_to_time(time_x_converter.get_time_by_x(drag_x), True)
 
     def on_drag_end(self):
         if self.dragged:
@@ -529,7 +545,7 @@ class ScoreTimelineUI(TimelineUI):
             __set_tracker_position(QPointF(start, end))
 
     def on_timeline_width_set_done(self, _: float) -> None:
-        if self.svg_view and self.svg_view.is_svg_loaded:
+        if (viewer := self.svg_view) is not None and viewer.is_svg_loaded:
             self.update_measure_tracker_position()
 
 

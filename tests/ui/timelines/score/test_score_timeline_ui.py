@@ -12,6 +12,7 @@ from tests.mock import (
 )
 from tests.utils import get_blank_file_data, reloadable
 from tilia.errors import SCORE_STAFF_ID_ERROR
+from tilia.exceptions import NoReplyToRequest
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.component_kinds import ComponentKind
@@ -314,3 +315,63 @@ def test_symbol_staff_collision(qtui, tmp_path):
     )
 
     assert staff_top_y_sans_symbols < staff_top_y_with_symbols
+
+
+SVG_WITH_MARKERS = (
+    "<svg>"
+    "<g class='vf-text'><text font-size='0.00001px' x='100'>1␟0␟4</text></g>"
+    "<g class='vf-text'><text font-size='0.00001px' x='150'>1␟2␟4</text></g>"
+    "</svg>"
+)
+
+
+class TestSvgView:
+    def test_is_none_when_no_viewer_exists(self, score_tlui):
+        assert score_tlui.svg_view is None
+
+    def test_reading_it_does_not_register_a_viewer(self, score_tlui):
+        assert score_tlui.svg_view is None
+
+        with pytest.raises(NoReplyToRequest):
+            get(Get.SCORE_VIEWER, score_tlui.id)
+
+    def test_get_or_create_creates_and_loads(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        assert score_tlui.get_or_create_svg_view().is_svg_loaded
+
+    def test_get_or_create_returns_existing_viewer(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        assert score_tlui.get_or_create_svg_view() is score_tlui.svg_view
+
+
+class TestResetSvg:
+    def test_deletes_existing_viewer(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        score_tlui.reset_svg()
+
+        assert score_tlui.svg_view is None
+
+    def test_does_not_raise_when_no_viewer_exists(self, score_tlui):
+        score_tlui.reset_svg()
+
+        assert score_tlui.svg_view is None
+
+    def test_does_not_raise_when_another_timeline_owns_the_viewer(
+        self, score_tlui, tls, tluis
+    ):
+        other = tls.create_timeline(ScoreTimeline)
+        tls.set_timeline_data(other.id, "svg_data", SVG_WITH_MARKERS)
+
+        score_tlui.reset_svg()
+
+        assert tluis.get_timeline_ui(other.id).svg_view is not None
+
+
+class TestAudioTimeChange:
+    def test_does_not_create_a_viewer(self, score_tlui):
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 1.0, None)
+
+        assert score_tlui.svg_view is None
