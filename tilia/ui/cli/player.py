@@ -65,7 +65,7 @@ class CLIYoutubePlayer(Player):
     def _engine_get_current_time(self) -> float:
         ...
 
-    def _engine_stop(self):
+    def _engine_stop(self) -> None:
         ...
 
     def _engine_seek(self, time: float) -> None:
@@ -74,7 +74,7 @@ class CLIYoutubePlayer(Player):
     def _engine_unload_media(self) -> None:
         ...
 
-    def _engine_load_media(self, media_path: str) -> None:
+    def _engine_load_media(self, media_path: str) -> bool:
         ...
 
     def _engine_play(self) -> None:
@@ -83,7 +83,7 @@ class CLIYoutubePlayer(Player):
     def _engine_get_media_duration(self) -> float:
         ...
 
-    def _engine_exit(self) -> float:
+    def _engine_exit(self) -> None:
         ...
 
     def _engine_set_volume(self, volume: int) -> None:
