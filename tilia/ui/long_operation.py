@@ -3,7 +3,8 @@ from __future__ import annotations
 from PySide6.QtCore import QCoreApplication, QElapsedTimer, QEvent, QObject, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QProgressBar, QToolBar
 
-from tilia.requests import Get, LongOperation, Post, get, listen
+from tilia.requests import LongOperation, Post, listen
+from tilia.ui.webengine_tracking import any_web_engine_view_created
 
 _PROGRESS_THROTTLE_MS = 100
 
@@ -97,7 +98,7 @@ class LongOperationToolbar(QToolBar):
 
     def _pump(self) -> None:
         # See commit message for why this isn't just processEvents().
-        if get(Get.MEDIA_TYPE) == "youtube":
+        if any_web_engine_view_created():
             QCoreApplication.sendPostedEvents(None, QEvent.Type.LayoutRequest)
             self.repaint()
         else:
