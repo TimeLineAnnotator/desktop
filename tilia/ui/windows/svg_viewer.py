@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 import tilia.errors
+from tilia.log import logger
 from tilia.requests import (
     Get,
     Post,
@@ -146,6 +147,9 @@ class SvgViewer(ViewDockWidget):
         return v_toolbar
 
     def load_svg_data(self, data: str) -> None:
+        if not data:
+            logger.error("Score viewer got no SVG data to load.")
+            return
         self.score_root = etree.fromstring(data, None)
         if not (x_pos := self.timeline.get_data("viewer_beat_x")):
             beat_x_pos, success = self.timeline.set_data(

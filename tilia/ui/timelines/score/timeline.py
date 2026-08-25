@@ -482,7 +482,11 @@ class ScoreTimelineUI(TimelineUI):
             self.get_or_create_svg_view()
 
     def update_svg_data(self) -> None:
-        if (viewer := self.svg_view) is None:
+        if not self.timeline.svg_data:
+            # No score left to show. Reached when the timeline is cleared and
+            # when undo/redo restores a state where it was.
+            self.reset_svg()
+        elif (viewer := self.svg_view) is None:
             # Creating the viewer loads the current data as part of its setup.
             self.get_or_create_svg_view()
         else:
