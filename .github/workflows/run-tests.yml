@@ -81,12 +81,12 @@ jobs:
     - name: Test with pytest
       if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11') }}
       run: |
-        pytest -v -n auto --reruns=2 --timeout=10
+        pytest -v -n auto --reruns=2 --timeout=10 --timeout-method=thread
 
     - name: Test with pytest (coverage)
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
       run: |
-        pytest -v -n auto --reruns=2 --timeout=10 --cov-report= --cov=tilia
+        pytest -v -n auto --reruns=2 --timeout=10 --timeout-method=thread --cov-report= --cov=tilia
 
     - name: Generate Coverage Report
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
