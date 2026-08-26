@@ -19,8 +19,9 @@ class TestExportAudio:
         sample_rate = _write_wav(source)
         destination = tmp_path / "out.wav"
 
-        export_audio(source, destination, start_time=0.5, end_time=1.5)
-        wait_until(lambda: destination.exists())
+        with long_operation_spy() as calls:
+            export_audio(source, destination, start_time=0.5, end_time=1.5)
+            wait_until(lambda: any(phase == LongOperation.DONE for phase, _ in calls))
 
         written, written_sample_rate = soundfile.read(destination)
         assert written_sample_rate == sample_rate
