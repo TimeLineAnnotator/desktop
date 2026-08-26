@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any, Callable, ParamSpec
 
 from PySide6.QtCore import (
@@ -108,6 +110,15 @@ class EngineWorker(QObject):
         if self.player is not None:
             self.position_changed.emit(self.player.position() / 1000)
 
+    @contextmanager
+    def _position_timer_paused(self) -> Generator[None, None, None]:
+        self._position_timer.stop()
+        try:
+            yield
+        finally:
+            if self.player is not None:
+                self._position_timer.start()
+
     def _do_stop(self) -> bool:
         @wait_for_signal(
             self.player.playbackStateChanged, QMediaPlayer.PlaybackState.StoppedState
@@ -128,20 +139,23 @@ class EngineWorker(QObject):
             self.player.setSource(QUrl.fromLocalFile(path))
             return True
 
-        success = load_media(media_path)
+        with self._position_timer_paused():
+            success = load_media(media_path)
         duration_ms = self.player.duration() if success else 0
         completion.result = (success, duration_ms)
         completion.event.set()
 
     @Slot(object)
     def stop(self, completion: Completion) -> None:
-        completion.result = self._do_stop()
+        with self._position_timer_paused():
+            completion.result = self._do_stop()
         completion.event.set()
 
     @Slot(object)
     def unload(self, completion: Completion) -> None:
-        self._do_stop()  # Must be _do_stop() instead of player.stop() to avoid freeze.
-        self.player.setSource(QUrl())
+        with self._position_timer_paused():
+            self._do_stop()  # Must be _do_stop() instead of player.stop() to avoid freeze.
+            self.player.setSource(QUrl())
         completion.result = None
         completion.event.set()
 
