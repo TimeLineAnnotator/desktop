@@ -2,7 +2,7 @@ import re
 from enum import Enum
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QObject, QTimer, QUrl, Slot
+from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -19,23 +19,17 @@ from tilia.ui.windows.view_window import ViewWindow
 class PlayerTracker(QObject):
     def __init__(
         self,
-        page,
-        on_duration_available,
         set_current_time,
         set_is_playing,
         set_playback_rate,
         display_error,
-        get_video_id,
     ):
         super().__init__()
-        self.on_duration_available = on_duration_available
         self.set_current_time = set_current_time
-        self.page = page
         self.set_is_playing = set_is_playing
         self.set_playback_rate = set_playback_rate
         self.player_toolbar_enabled = False
         self.display_error = display_error
-        self.get_video_id = get_video_id
 
     @Slot("float")
     def on_new_time(self, time):
@@ -45,17 +39,6 @@ class PlayerTracker(QObject):
     def on_player_state_change(self, state):
         if state == self.State.UNSTARTED.value:
             post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.WAITING_FOR_YOUTUBE)
-            # Capture which video this query is for -- by the time the JS
-            # round-trip resolves, a different video may already be loaded
-            # (e.g. the user opened another YouTube-backed file), and a
-            # stale duration must not be attributed to it.
-            requested_video_id = self.get_video_id()
-            self.page.runJavaScript(
-                "getDuration()",
-                lambda duration: self.on_duration_available(
-                    duration, requested_video_id
-                ),
-            )
             self.player_toolbar_enabled = False
         elif state == self.State.PLAYING.value:
             if not self.player_toolbar_enabled:
@@ -92,6 +75,12 @@ class UrlRequestInterceptor(QWebEngineUrlRequestInterceptor):
 class YouTubePlayer(Player):
     MEDIA_TYPE = "youtube"
     PATH_TO_HTML = Path(__file__).parent / "youtube.html"
+    LOAD_POLL_INTERVAL = 500  # ms between getLoadState() polls
+    MAX_LOAD_ATTEMPTS = 20  # ~10s before a load is declared failed
+    LOAD_FAILED_MESSAGE = (
+        "Could not load this video. It may have been removed, made private, "
+        "or the video ID may be wrong."
+    )
 
     def __init__(self):
         super().__init__()
@@ -109,13 +98,10 @@ class YouTubePlayer(Player):
     def _setup_web_channel(self):
         self.channel = QWebChannel()
         self.shared_object = PlayerTracker(
-            self.view.page(),
-            self.on_media_duration_available,
             self.set_current_time,
             self.set_is_playing,
             self._engine_set_playback_rate,
             self.display_error,
-            lambda: self.video_id,
         )
         self.channel.registerObject("backend", self.shared_object)
         self.view.page().setWebChannel(self.channel)
@@ -169,10 +155,50 @@ class YouTubePlayer(Player):
             return
         if duration == self.duration:
             return
-        if not duration:
-            return self.retry_get_duration(requested_video_id)
 
         super().on_media_duration_available(duration)
+
+    def on_load_state_available(
+        self, state: dict | None, requested_video_id: str, attempt: int
+    ) -> None:
+        """
+        Called with the result of each getLoadState() poll started by
+        _engine_load_media. The poll ends when the player reports the
+        requested video with a duration, or when we give up on it.
+        """
+        if requested_video_id != self.video_id:
+            # Another video was requested while this round-trip was in
+            # flight; that request runs its own poll.
+            return
+
+        loaded_video_id = (state or {}).get("videoId", "")
+        duration = (state or {}).get("duration", 0)
+
+        if loaded_video_id == requested_video_id and duration:
+            self.on_media_duration_available(duration, requested_video_id)
+            return
+
+        if attempt >= self.MAX_LOAD_ATTEMPTS:
+            self.on_media_load_failed()
+            return
+
+        self.retry_get_duration(requested_video_id, attempt + 1)
+
+    def on_media_load_failed(self) -> None:
+        """
+        The requested video never became the loaded video. YouTube reports
+        some failures through onError, but not all of them: loading an
+        unplayable video over an already playing one leaves the previous
+        video in place without raising anything, so the load has to be
+        checked rather than assumed.
+        """
+        self.display_error(self.LOAD_FAILED_MESSAGE)
+        # media_path is what the file declares, and it stays the file's
+        # media path even though it could not be loaded. Clearing it here
+        # would drop the URL from the file on the next save.
+        media_path = self.media_path
+        self.unload_media()
+        self.media_path = media_path
 
     def set_current_time(self, time):
         self.check_seek_outside_loop(time)
@@ -184,11 +210,11 @@ class YouTubePlayer(Player):
                 MediaTimeChangeReason.PLAYBACK,
             )
 
-    def retry_get_duration(self, requested_video_id=None):
+    def retry_get_duration(self, requested_video_id: str, attempt: int = 0):
         QTimer.singleShot(
-            500,
+            self.LOAD_POLL_INTERVAL,
             self.view,
-            lambda: self._engine_get_media_duration(requested_video_id),
+            lambda: self._engine_get_media_duration(requested_video_id, attempt),
         )
 
     def display_error(self, message: str):
@@ -211,12 +237,23 @@ class YouTubePlayer(Player):
         self.video_id = self.get_id_from_url(media_path)
 
         def load_video():
-            self.view.page().runJavaScript(f'loadVideo("{self.video_id}")')
+            requested_video_id = self.video_id
+            self.view.page().runJavaScript(f'loadVideo("{requested_video_id}")')
+            # Loading is fire-and-forget on the JS side, so poll until the
+            # player reports this video as the loaded one. Without this a
+            # failed load is indistinguishable from a slow one, and the
+            # previously loaded video keeps playing unnoticed.
+            self.retry_get_duration(requested_video_id)
 
         if self.is_web_page_loaded:
             load_video()
         else:
-            self.view.loadFinished.connect(load_video)
+            # SingleShot: a plain connect would leave load_video attached
+            # and re-run it -- and re-start its poll -- on every later page
+            # load, which can report the same failure more than once.
+            self.view.loadFinished.connect(
+                load_video, Qt.ConnectionType.SingleShotConnection
+            )
 
         return True
 
@@ -249,11 +286,11 @@ class YouTubePlayer(Player):
         self.video_id = None
         self.shared_object.player_toolbar_enabled = False
 
-    def _engine_get_media_duration(self, requested_video_id=None):
+    def _engine_get_media_duration(self, requested_video_id: str, attempt: int = 0):
         self.view.page().runJavaScript(
-            "getDuration()",
-            lambda duration: self.on_media_duration_available(
-                duration, requested_video_id
+            "getLoadState()",
+            lambda state: self.on_load_state_available(
+                state, requested_video_id, attempt
             ),
         )
 
