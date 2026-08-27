@@ -114,16 +114,38 @@ ships with a repro bundle so testing costs one paste instead.
      `media_metadata`. `App._setup_file_media` returns early when the path is empty, so
      the file opens with no prompt and no error.
    - Generate it, don't hand-write the JSON: a CLI script (`script <path>` then
-     `save <name>.tla`) when `timelines add` / `components` cover the kind, otherwise a
+     `save <path>.tla`) when `timelines add` / `components` cover the kind, otherwise a
      throwaway pytest that builds the state through `commands.execute(...)` and saves via
      `commands.execute("file.save", ...)`. Hand-authored JSON drifts from the real
      serialization format.
+   - **Every path handed to TiLiA must be absolute**, in the generator and in the launch
+     command alike. Outside `ENVIRONMENT=prod`, `dirs.setup_dirs` chdirs into the `tilia`
+     package, so relative paths resolve against `tilia/` rather than the repo root — and
+     `boot()` parses its arguments *before* that chdir, so `tilia repro/x.tla` passes
+     argparse validation and then fails to open with "File not found", while a CLI
+     `save repro/x.tla` writes inside `tilia/` without saying so.
    - **The fixture must reproduce the bug on the base branch.** Verify it before opening
      the PR: if the reviewer stashes the fix and relaunches the same file, they must see
      the broken behavior. A fixture that only ever shows the fixed state proves nothing.
-2. **A copy-paste launch command** in the PR description, e.g.
-   `gh pr checkout <N> && tilia repro/<issue>.tla`. `tilia` takes a `.tla` path as a
-   positional argument (see `boot.setup_parser`), so no extra tooling is needed.
+2. **A copy-paste launch command** in the PR description, run through the project
+   environment and with an absolute fixture path:
+
+   ```bash
+   uv run tilia "$PWD/repro/<issue>.tla"
+   ```
+
+   Run it from the repo root; `$PWD` expands to an absolute path before the app starts,
+   which keeps the line portable without hard-coding anyone's checkout. `uv run` (or an
+   activated `.venv`) is what puts `tilia` on PATH — a bare `tilia` usually resolves to
+   nothing. `tilia` takes a `.tla` path as a positional argument (see
+   `boot.setup_parser`), so no extra tooling is needed.
+
+   Keep `gh pr checkout <N>` **out** of that line. It is one-time setup, and re-running
+   it is not always safe: it aborts when the head branch is already checked out in
+   another worktree, and its fast-forward fails once the local branch has diverged —
+   at which point `--force` resets the branch and discards whatever the reviewer changed
+   locally. State the checkout once above the launch command, and say plainly that
+   re-running it can throw local edits away.
 3. **Three lines of acceptance criteria**: the action to perform, what the bug looked
    like, what correct looks like. Removing setup time doesn't help if the reviewer still
    has to reverse-engineer what they're judging.
