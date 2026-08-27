@@ -142,11 +142,18 @@
         tryPlayerFunctionElseQueue("seekTo", time, true);
       }
 
-      function getDuration() {
-        if (isPlayerLoaded()) {
-          return player.getDuration();
+      function getLoadState() {
+        if (!isPlayerLoaded()) {
+          return { videoId: "", duration: 0 };
         }
-        return null;
+        // videoId is the video the player actually holds, which is not
+        // necessarily the one that was last requested: loading an
+        // unplayable video leaves the previous one in place.
+        const data = player.getVideoData();
+        return {
+          videoId: data && data.video_id ? data.video_id : "",
+          duration: player.getDuration(),
+        };
       }
 
       function play() {
