@@ -23,10 +23,13 @@
       const tag = document.createElement("script");
       tag.id = "iframe-temp";
       tag.src = "https://www.youtube.com/iframe_api";
+      // Reported as recoverable: reloading the page re-runs this script tag and
+      // re-issues loadVideo, so once the connection is back the refresh really
+      // does recover. This is the one failure a reload reliably repairs.
       tag.addEventListener("error", function () {
         const msg = "Could not reach YouTube. Check your internet connection.";
         const tryNotify = () => {
-          if (backend) backend.on_error(msg);
+          if (backend) backend.on_recoverable_error(msg);
           else setTimeout(tryNotify, 50);
         };
         tryNotify();
