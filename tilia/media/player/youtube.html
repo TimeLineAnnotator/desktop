@@ -98,35 +98,41 @@
         }
       }
 
+      // Messages are what the user reads, so they say what to do about the
+      // failure rather than quoting the IFrame API reference. YouTube reports
+      // code 2 for ids it merely doesn't recognise, not only for malformed
+      // ones, so 2 and 100 have to stay compatible with each other.
       function onError(event) {
         switch (event.data) {
           case 2:
             backend.on_error(
-              "The request contains an invalid parameter value. For example, this error occurs if you specify a video ID that does not have 11 characters, or if the video ID contains invalid characters, such as exclamation points or asterisks.",
+              "YouTube did not accept this video ID. Check that the address is a link to an existing video.",
             );
             break;
 
           case 5:
             backend.on_error(
-              "The requested content cannot be played in an HTML5 player or another error related to the HTML5 player has occurred.",
+              "This video could not be played in the embedded player.",
             );
             break;
 
           case 100:
             backend.on_error(
-              "The video requested was not found. This error occurs when a video has been removed (for any reason) or has been marked as private.",
+              "Video not found. It may have been removed, made private, or never existed.",
             );
             break;
 
           case 101:
           case 150:
             backend.on_error(
-              "The owner of the requested video does not allow it to be played in embedded players.",
+              "This video cannot be played here: its owner does not allow it to be embedded in other sites. Try opening it on YouTube instead.",
             );
             break;
 
           default:
-            backend.on_error("Error code: ${event.data}.");
+            backend.on_error(
+              `YouTube reported an unexpected error (code ${event.data}).`,
+            );
         }
       }
 
