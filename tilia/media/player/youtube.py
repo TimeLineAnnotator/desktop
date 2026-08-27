@@ -93,9 +93,23 @@ class YouTubePlayer(Player):
     MEDIA_TYPE = "youtube"
     PATH_TO_HTML = Path(__file__).parent / "youtube.html"
 
+    # Every YouTube video id has been eleven characters of [A-Za-z0-9_-] for
+    # as long as the service has existed, but YouTube has never promised to
+    # keep it that way. So this is used to *choose an error message*, never to
+    # refuse a load: if the format ever widens, the message gets vaguer and
+    # nothing else changes. See is_well_formed_id.
+    VIDEO_ID_PATTERN = re.compile(r"[\w-]{11}")
+
+    MALFORMED_ID_MESSAGE = (
+        "This does not look like the address of a YouTube video. Check the "
+        "URL: the video id is the eleven-character code after 'watch?v=' or "
+        "'youtu.be/'."
+    )
+
     def __init__(self):
         super().__init__()
         self.video_id = None
+        self.video_id_is_well_formed = True
         self._setup_web_engine()
         self._setup_web_channel()
 
@@ -192,9 +206,23 @@ class YouTubePlayer(Player):
         )
 
     def display_error(self, message: str):
+        # YouTube reports code 2 both for ids it can't parse and for ids it
+        # simply doesn't have, so its message can't tell the two apart. When
+        # we already know the id can't be one, say so instead.
+        if not self.video_id_is_well_formed:
+            message = self.MALFORMED_ID_MESSAGE
         tilia.errors.display(
             tilia.errors.YOUTUBE_PLAYER_ERROR, message + f"\nVideo ID: {self.video_id}"
         )
+
+    @classmethod
+    def is_well_formed_id(cls, video_id: str | None) -> bool:
+        """Whether video_id has the shape YouTube ids have always had.
+
+        A False result only sharpens the error message shown after a failed
+        load; it never prevents one. See VIDEO_ID_PATTERN.
+        """
+        return bool(video_id) and bool(cls.VIDEO_ID_PATTERN.fullmatch(video_id))
 
     @staticmethod
     def get_id_from_url(url):
@@ -209,6 +237,7 @@ class YouTubePlayer(Player):
 
     def _engine_load_media(self, media_path: str) -> bool:
         self.video_id = self.get_id_from_url(media_path)
+        self.video_id_is_well_formed = self.is_well_formed_id(self.video_id)
 
         def load_video():
             self.view.page().runJavaScript(f'loadVideo("{self.video_id}")')
@@ -247,6 +276,7 @@ class YouTubePlayer(Player):
             self.view.page().runJavaScript("stop()")
         self.view.hide()
         self.video_id = None
+        self.video_id_is_well_formed = True
         self.shared_object.player_toolbar_enabled = False
 
     def _engine_get_media_duration(self, requested_video_id=None):
