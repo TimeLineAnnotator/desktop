@@ -1,19 +1,26 @@
+import logging
 import re
 from enum import Enum
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QObject, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineUrlRequestInterceptor
+from PySide6.QtWebEngineCore import (
+    QWebEngineFullScreenRequest,
+    QWebEngineSettings,
+    QWebEngineUrlRequestInterceptor,
+)
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 import tilia.constants
 import tilia.errors
 from tilia.media.player import Player
 from tilia.media.player.base import MediaTimeChangeReason
-from tilia.requests import Post, post
+from tilia.requests import Get, Post, get, post
 from tilia.ui.player import PlayerStatus, PlayerToolbarElement
 from tilia.ui.windows.view_window import ViewWindow
+
+logger = logging.getLogger(__name__)
 
 
 class PlayerTracker(QObject):
@@ -26,6 +33,7 @@ class PlayerTracker(QObject):
         set_playback_rate,
         display_error,
         get_video_id,
+        display_recoverable_error,
     ):
         super().__init__()
         self.on_duration_available = on_duration_available
@@ -36,6 +44,7 @@ class PlayerTracker(QObject):
         self.player_toolbar_enabled = False
         self.display_error = display_error
         self.get_video_id = get_video_id
+        self.display_recoverable_error = display_recoverable_error
 
     @Slot("float")
     def on_new_time(self, time):
@@ -72,6 +81,14 @@ class PlayerTracker(QObject):
     @Slot(str)
     def on_error(self, message: str) -> None:
         self.display_error(message)
+
+    @Slot(str)
+    def on_recoverable_error(self, message: str) -> None:
+        self.display_recoverable_error(message)
+
+    @Slot(str)
+    def _print(self, message: str) -> None:
+        logger.debug(message)
 
     class State(Enum):
         UNSTARTED = -1
@@ -116,6 +133,7 @@ class YouTubePlayer(Player):
             self._engine_set_playback_rate,
             self.display_error,
             lambda: self.video_id,
+            self.display_recoverable_error,
         )
         self.channel.registerObject("backend", self.shared_object)
         self.view.page().setWebChannel(self.channel)
@@ -195,6 +213,15 @@ class YouTubePlayer(Player):
         tilia.errors.display(
             tilia.errors.YOUTUBE_PLAYER_ERROR, message + f"\nVideo ID: {self.video_id}"
         )
+
+    def display_recoverable_error(self, message: str):
+        self.display_error(message)
+        if get(
+            Get.FROM_USER_YES_OR_NO,
+            "YouTube Player Error",
+            "Would you like to try and refresh the page?",
+        ):
+            self.view.reload()
 
     @staticmethod
     def get_id_from_url(url):
@@ -288,7 +315,18 @@ class YouTubePlayer(Player):
 class QWebEngineWindow(ViewWindow, QWebEngineView):
     def __init__(self):
         super().__init__("TiLiA Player", menu_title="YouTube Player")
+        self.page().fullScreenRequested.connect(self._toggle_full_screen)
+        self.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True
+        )
         self.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
+        self.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False
+        )
         self.resize(800, 600)
+
+    def _toggle_full_screen(self, request: QWebEngineFullScreenRequest) -> None:
+        request.accept()
+        self.showFullScreen() if request.toggleOn() else self.showNormal()
