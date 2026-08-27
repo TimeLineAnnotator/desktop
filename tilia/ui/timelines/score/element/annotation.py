@@ -12,7 +12,7 @@ class ScoreAnnotationUI(TimelineUIElement):
 
     @property
     def svg_view(self) -> SvgViewer:
-        return self.timeline_ui.svg_view
+        return self.timeline_ui.get_or_create_svg_view()
 
     def update_x(self):
         self.svg_view.update_annotation(self.id)

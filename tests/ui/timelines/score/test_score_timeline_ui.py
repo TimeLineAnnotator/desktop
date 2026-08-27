@@ -12,6 +12,7 @@ from tests.mock import (
 )
 from tests.utils import get_blank_file_data, reloadable
 from tilia.errors import SCORE_STAFF_ID_ERROR
+from tilia.exceptions import NoReplyToRequest
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.component_kinds import ComponentKind
@@ -314,3 +315,151 @@ def test_symbol_staff_collision(qtui, tmp_path):
     )
 
     assert staff_top_y_sans_symbols < staff_top_y_with_symbols
+
+
+SVG_WITH_MARKERS = (
+    "<svg>"
+    "<g class='vf-text'><text font-size='0.00001px' x='100'>1␟0␟4</text></g>"
+    "<g class='vf-text'><text font-size='0.00001px' x='150'>1␟2␟4</text></g>"
+    "</svg>"
+)
+
+
+class TestSvgView:
+    def test_is_none_when_no_viewer_exists(self, score_tlui):
+        assert score_tlui.svg_view is None
+
+    def test_reading_it_does_not_register_a_viewer(self, score_tlui):
+        assert score_tlui.svg_view is None
+
+        with pytest.raises(NoReplyToRequest):
+            get(Get.SCORE_VIEWER, score_tlui.id)
+
+    def test_get_or_create_creates_and_loads(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        assert score_tlui.get_or_create_svg_view().is_svg_loaded
+
+    def test_get_or_create_returns_existing_viewer(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        assert score_tlui.get_or_create_svg_view() is score_tlui.svg_view
+
+    def test_viewer_and_tracker_come_back_after_reloading(
+        self, score_tlui, note, tls, tmp_path
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        @reloadable(tmp_path / "file.tla")
+        def check() -> None:
+            score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+            assert score.svg_view is not None
+            assert score.measure_tracker.isVisible()
+
+
+class TestResetSvg:
+    def test_deletes_existing_viewer(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        score_tlui.reset_svg()
+
+        assert score_tlui.svg_view is None
+
+    def test_does_not_raise_when_no_viewer_exists(self, score_tlui):
+        score_tlui.reset_svg()
+
+        assert score_tlui.svg_view is None
+
+    def test_does_not_raise_when_another_timeline_owns_the_viewer(
+        self, score_tlui, tls, tluis
+    ):
+        other = tls.create_timeline(ScoreTimeline)
+        tls.set_timeline_data(other.id, "svg_data", SVG_WITH_MARKERS)
+
+        score_tlui.reset_svg()
+
+        assert tluis.get_timeline_ui(other.id).svg_view is not None
+
+
+class TestAudioTimeChange:
+    def test_does_not_create_a_viewer(self, score_tlui):
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 1.0, None)
+
+        assert score_tlui.svg_view is None
+
+
+class TestClear:
+    @staticmethod
+    def _clear(score_tlui):
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            commands.execute("timeline.clear", score_tlui)
+
+    def test_closes_the_svg_viewer(self, score_tlui, note, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        self._clear(score_tlui)
+
+        assert score_tlui.svg_view is None
+
+    def test_viewer_stays_closed_during_playback(self, score_tlui, note, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        self._clear(score_tlui)
+
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 1.0, None)
+
+        assert score_tlui.svg_view is None
+
+    def test_discards_svg_data(self, score_tlui, note, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        self._clear(score_tlui)
+
+        assert score_tlui.get_data("svg_data") == ""
+
+    def test_restoring_a_cleared_state_closes_the_viewer(self, score_tlui, note, tls):
+        # The path undo/redo takes when it lands on a cleared state.
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        self._clear(score_tlui)
+        cleared_state, _ = tls.serialize_timelines()
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        tls.restore_state(cleared_state)
+
+        assert score_tlui.get_data("svg_data") == ""
+        assert score_tlui.svg_view is None
+
+    def test_score_does_not_come_back_after_saving_and_reloading(
+        self, score_tlui, note, tls, tmp_path
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        self._clear(score_tlui)
+
+        @reloadable(tmp_path / "file.tla")
+        def check() -> None:
+            score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+            assert score.get_data("svg_data") == ""
+            assert score.svg_view is None
+
+    def test_undo_redo(self, score_tlui, note, tls):
+        # `undoable()` can't be used here: TimelineComponentManager.restore_state
+        # recreates components in set-iteration order while hash_components()
+        # hashes them in list order, so a restored state's components_hash
+        # depends on PYTHONHASHSEED. That is a pre-existing defect in the base
+        # timeline, unrelated to clearing; assert the restored values directly.
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        svg_data = score_tlui.get_data("svg_data")
+        post(Post.APP_STATE_RECORD, "setup")
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            commands.execute("timeline.clear", score_tlui)
+
+        commands.execute("edit.undo")
+
+        assert len(score_tlui.timeline) == 3
+        assert score_tlui.get_data("svg_data") == svg_data
+        assert score_tlui.svg_view is not None
+
+        commands.execute("edit.redo")
+
+        assert len(score_tlui.timeline) == 0
+        assert score_tlui.get_data("svg_data") == ""
+        assert score_tlui.svg_view is None
