@@ -131,14 +131,16 @@ ships with a repro bundle so testing costs one paste instead.
    environment and with an absolute fixture path:
 
    ```bash
-   uv run tilia "$PWD/repro/<issue>.tla"
+   uv run --python 3.12 tilia "$PWD/repro/<issue>.tla"
    ```
 
    Run it from the repo root; `$PWD` expands to an absolute path before the app starts,
    which keeps the line portable without hard-coding anyone's checkout. `uv run` (or an
    activated `.venv`) is what puts `tilia` on PATH — a bare `tilia` usually resolves to
-   nothing. `tilia` takes a `.tla` path as a positional argument (see
-   `boot.setup_parser`), so no extra tooling is needed.
+   nothing. Pin the interpreter: `requires-python` allows up to 3.13, so a fresh
+   environment resolves to the version this project documents as flaky under PySide.
+   `tilia` takes a `.tla` path as a positional argument (see `boot.setup_parser`), so no
+   extra tooling is needed.
 
    Keep `gh pr checkout <N>` **out** of that line. It is one-time setup, and re-running
    it is not always safe: it aborts when the head branch is already checked out in
