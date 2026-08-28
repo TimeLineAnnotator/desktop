@@ -5,7 +5,7 @@ import traceback
 from collections.abc import Callable
 from typing import NoReturn
 
-from PySide6.QtCore import QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QEvent, QtMsgType, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication
 
 import tilia.errors
@@ -68,6 +68,55 @@ def handle_qt_log_message(type, context, msg):
     logger.error(f_msg)
 
 
+class PendingFileOpen:
+    """Buffers a file path until a callback is registered to receive it.
+
+    Split out from TiliaApplication so it is testable without constructing a
+    QApplication (only one may exist per process).
+    """
+
+    def __init__(self):
+        self._pending: str | None = None
+        self._callback: Callable[[str], None] | None = None
+
+    def handle(self, path: str) -> None:
+        if self._callback:
+            self._callback(path)
+        else:
+            self._pending = path
+
+    def set_callback(self, callback: Callable[[str], None]) -> None:
+        self._callback = callback
+        if self._pending is not None:
+            callback(self._pending)
+            self._pending = None
+
+
+class TiliaApplication(QApplication):
+    """QApplication that also catches QFileOpenEvent.
+
+    macOS does not put the double-clicked/dropped file's path in argv the way
+    Windows and Linux do — LaunchServices sends an ``odoc`` Apple Event, which
+    Qt's Cocoa platform plugin turns into a QFileOpenEvent on the application
+    object. On a cold launch this event can arrive as soon as the QApplication
+    is constructed, before boot() has built the App/UI to hand it to, so it is
+    buffered until set_file_open_callback is called.
+    """
+
+    def __init__(self, argv):
+        self._file_open = PendingFileOpen()
+        super().__init__(argv)
+
+    def event(self, event) -> bool:
+        if event.type() == QEvent.Type.FileOpen:
+            self._file_open.handle(event.file())
+            return True
+        return super().event(event)
+
+    def set_file_open_callback(self, callback: Callable[[str], None]) -> None:
+        self._file_open.set_callback(callback)
+
+
 def boot():
     sys.excepthook = handle_exception
 
@@ -79,11 +128,12 @@ def boot():
     args = setup_parser()
     setup_dirs()
     logger.setup()
-    q_application = QApplication(sys.argv)
+    q_application = TiliaApplication(sys.argv)
     qInstallMessageHandler(handle_qt_log_message)
     global app, ui
     app = setup_logic()
     ui = setup_ui(q_application, args.user_interface)
+    q_application.set_file_open_callback(app.on_open)
     logger.debug("INITIALISED")
     if os.environ.get("ENVIRONMENT") == "dev":
         try:
