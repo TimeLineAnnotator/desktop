@@ -20,6 +20,7 @@ import sys
 import types
 
 import pytest
+from PySide6.QtWidgets import QApplication
 
 import tilia.errors
 import tilia.updates as updates
@@ -320,6 +321,10 @@ def test_report_user_check_displays_failure_with_detail(monkeypatch):
     )
 
     updates._report(False, "the actual reason")
+    # _report marshals onto the main thread via QTimer.singleShot(0, ...) so a
+    # background-thread failure never builds a QMessageBox off-thread; nothing
+    # runs the event loop here, so pump it once to let the queued call through.
+    QApplication.processEvents()
 
     assert len(calls) == 1
     err, args = calls[0]
