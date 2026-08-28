@@ -1,4 +1,6 @@
+import copy
 import functools
+import os
 import sys
 from pathlib import Path
 from typing import Literal
@@ -8,7 +10,6 @@ from colorama import Fore, Style
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import tilia.constants as constants_module
 import tilia.log as logging_module
 import tilia.settings as settings_module
 import tilia.utils  # noqa: F401
@@ -204,12 +205,51 @@ def resources() -> Path:
     return Path(__file__).parent / "resources"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolate_settings(tmp_path_factory):
+    """Point the settings manager at a throwaway store for the whole session.
+
+    Settings are backed by a real QSettings store, so anything a test writes
+    outlives it. Pointing the tests at a *named* store meant those values
+    leaked into later tests, into the other xdist workers and into subsequent
+    runs; and any test that ran before a module requesting the test store
+    wrote to the developer's own settings instead.
+
+    Autouse and session-scoped so that no test can reach the real store,
+    whichever fixtures it happens to request.
+    """
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    path = tmp_path_factory.mktemp("settings") / f"{worker}.ini"
+    settings_module.settings._settings = QSettings(
+        str(path), QSettings.Format.IniFormat
+    )
+    _reset_settings_to_default()
+    yield
+
+
+def _reset_settings_to_default():
+    settings_module.settings._settings.clear()
+    settings_module.settings._cache = {}
+    settings_module.settings._check_all_default_settings_present()
+
+
+@pytest.fixture(autouse=True)
+def restore_settings_after_test(isolate_settings):
+    """Undo any setting a test writes.
+
+    Tests are expected to set the values they depend on explicitly, which only
+    works if the next test does not inherit them.
+    """
+    before = copy.deepcopy(settings_module.settings._cache)
+    yield
+    settings_module.settings._cache = before
+    for group_name, group in before.items():
+        for name, value in group.items():
+            settings_module.settings._set(group_name, name, value)
+
+
 @pytest.fixture(scope="module")
 def use_test_settings(qapplication):
-    settings_module.settings._settings = QSettings(
-        constants_module.APP_NAME, "DesktopTests", None
-    )
-    settings_module.settings._check_all_default_settings_present()
     settings_module.settings.set("general", "prioritise_performance", True)
     yield
 
