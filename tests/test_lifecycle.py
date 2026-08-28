@@ -51,6 +51,7 @@ class FakeRegistry:
 
     HKEY_CURRENT_USER = "HKCU"
     REG_SZ = 1
+    KEY_ALL_ACCESS = 0xF003F
 
     def __init__(self):
         self.keys = {}
@@ -58,16 +59,31 @@ class FakeRegistry:
     def _has_subkeys(self, path):
         return any(p.startswith(path + "\\") for p in self.keys)
 
+    def _direct_subkey_count(self, path):
+        prefix = path + "\\"
+        return len(
+            {
+                p[len(prefix) :].split("\\", 1)[0]
+                for p in self.keys
+                if p.startswith(prefix)
+            }
+        )
+
     def CreateKeyEx(self, root, path):
         parts = path.split("\\")
         for i in range(1, len(parts) + 1):
             self.keys.setdefault("\\".join(parts[:i]), {})
         return _FakeKey(path)
 
-    def OpenKey(self, root, path):
+    def OpenKey(self, root, path, reserved=0, access=None):
         if path not in self.keys:
             raise FileNotFoundError(2, "cannot find the file specified", path)
         return _FakeKey(path)
+
+    def QueryInfoKey(self, key):
+        num_subkeys = self._direct_subkey_count(key.path)
+        num_values = len(self.keys[key.path])
+        return (num_subkeys, num_values, 0)
 
     def SetValueEx(self, key, name, reserved, type_, value):
         self.keys[key.path][name] = value
@@ -157,19 +173,29 @@ class TestWindowsFileAssociation:
         assert r"Software\Classes\TiLiA.tla" not in registry.keys
         assert r"Software\Classes\Applications\TiLiA.exe" not in registry.keys
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "_unregister deletes .tla before removing its OpenWithProgids subkey, "
-            "and DeleteKey refuses a key with subkeys. See review comment on "
-            "tilia/lifecycle.py:102."
-        ),
-    )
     def test_uninstall_removes_the_tla_key(self, registry):
         lifecycle._register_windows_file_association()
         lifecycle._unregister_windows_file_association()
 
         assert r"Software\Classes\.tla" not in registry.keys
+
+    def test_uninstall_leaves_other_apps_open_with_entries_alone(self, registry):
+        """Another app's OpenWithProgids entry must survive our uninstall."""
+        lifecycle._register_windows_file_association()
+        with registry.CreateKeyEx(
+            registry.HKEY_CURRENT_USER, r"Software\Classes\.tla\OpenWithProgids"
+        ) as k:
+            registry.SetValueEx(k, "OtherApp.tla", 0, registry.REG_SZ, "")
+
+        lifecycle._unregister_windows_file_association()
+
+        assert (
+            registry.keys[r"Software\Classes\.tla\OpenWithProgids"]["OtherApp.tla"]
+            == ""
+        )
+        assert (
+            "TiLiA.tla" not in registry.keys[r"Software\Classes\.tla\OpenWithProgids"]
+        )
 
     def test_uninstall_leaves_a_foreign_handler_alone(self, registry):
         """Another app owns .tla — we must not delete its association."""
