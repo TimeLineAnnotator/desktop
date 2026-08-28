@@ -27,14 +27,15 @@ def load_media(
 
 
 def _change_player_type(player, media_type):
-    if player.MEDIA_TYPE == "youtube":
-        # QWebEngineView holds exclusive CoreAudio/AVFoundation resources; if
-        # its renderer process is still alive when QMediaPlayer initialises,
-        # they deadlock on macOS. Destroy the old player and flush
-        # DeferredDelete events so its C++ object is actually gone before the
-        # new player is constructed. processEvents() alone doesn't flush
-        # DeferredDelete (Qt requires a full event-loop cycle), but
-        # sendPostedEvents with DeferredDelete does.
+    if player.MEDIA_TYPE == "youtube" or media_type == "youtube":
+        # A live QWebEngineView and a live QMediaPlayer deadlock on macOS if
+        # they coexist even briefly. Destroy the old player and flush
+        # DeferredDelete first so it's actually gone before the new one is
+        # constructed -- processEvents() doesn't flush DeferredDelete, but
+        # sendPostedEvents with it does. Different hazard from
+        # tilia.ui.webengine_tracking (reentering the event loop while any
+        # QWebEngineView has pending work); this one's about construction
+        # order, either direction.
         player.destroy()
 
         from PySide6.QtCore import QCoreApplication, QEvent
@@ -44,7 +45,8 @@ def _change_player_type(player, media_type):
 
     # Construct the new player before destroying the old one: if the
     # constructor raises, app.player stays valid. Safe because serve() keeps
-    # _servers_to_requests consistent when ownership changes.
+    # _servers_to_requests consistent when ownership changes -- no
+    # QWebEngineView on either side here, so no coexistence hazard.
     new_player = get(Get.PLAYER_CLASS, media_type)()
     player.destroy()
     return new_player

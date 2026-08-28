@@ -6,11 +6,13 @@ from tilia.parsers.csv.base import (
     get_column_not_found_error_message,
     get_params_indices,
 )
+from tilia.requests import LongOperation, Post, long_operation, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.marker.timeline import MarkerTimeline
 
 
+@long_operation("Importing markers...")
 def import_by_time(
     timeline: MarkerTimeline,
     path: Path,
@@ -34,7 +36,10 @@ def import_by_time(
 
         if "time" not in params_to_indices:
             return False, [get_column_not_found_error_message("time")]
-        for row in reader:
+        rows = list(reader)
+        total = len(rows)
+        for row_index, row in enumerate(rows):
+            post(Post.LONG_OPERATION, LongOperation.PROGRESS, row_index + 1, total)
             if not row:
                 continue
             # validate time
@@ -65,6 +70,7 @@ def import_by_time(
         return True, errors
 
 
+@long_operation("Importing markers...")
 def import_by_measure(
     timeline: MarkerTimeline,
     beat_tl: BeatTimeline,
@@ -88,7 +94,10 @@ def import_by_measure(
 
         if "measure" not in params_to_indices:
             return False, [get_column_not_found_error_message("measure")]
-        for row in reader:
+        rows = list(reader)
+        total = len(rows)
+        for row_index, row in enumerate(rows):
+            post(Post.LONG_OPERATION, LongOperation.PROGRESS, row_index + 1, total)
             if not row:
                 continue
             # get and validate measure

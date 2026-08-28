@@ -10,6 +10,7 @@ from tilia.parsers.csv.common import (
     _parse_measure_fraction,
     _validate_required_attrs,
 )
+from tilia.requests import LongOperation, Post, long_operation, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.pdf.timeline import PdfTimeline
@@ -39,6 +40,7 @@ def _parse_page_number(timeline: PdfTimeline, value: str):
     return value
 
 
+@long_operation("Importing PDF markers...")
 def import_by_time(
     timeline: PdfTimeline,
     path: Path,
@@ -77,7 +79,10 @@ def import_by_time(
 
         attr_data = _get_attr_data(attrs_with_parsers, indices)
 
-        for row_data in reader:
+        rows = list(reader)
+        total = len(rows)
+        for row_index, row_data in enumerate(rows):
+            post(Post.LONG_OPERATION, LongOperation.PROGRESS, row_index + 1, total)
             if not row_data:
                 continue
 
@@ -95,6 +100,7 @@ def import_by_time(
         return True, errors
 
 
+@long_operation("Importing PDF markers...")
 def import_by_measure(
     pdf_tl: PdfTimeline,
     beat_tl: BeatTimeline,
@@ -135,7 +141,10 @@ def import_by_measure(
 
         attr_data = _get_attr_data(attrs_with_parsers, indices)
 
-        for row_data in reader:
+        rows = list(reader)
+        total = len(rows)
+        for row_index, row_data in enumerate(rows):
+            post(Post.LONG_OPERATION, LongOperation.PROGRESS, row_index + 1, total)
             if not row_data:
                 continue
 

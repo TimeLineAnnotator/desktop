@@ -238,11 +238,11 @@ class YouTubePlayer(Player):
     def _engine_unpause(self):
         self.view.page().runJavaScript("play()")
 
-    def _engine_stop(self):
+    def _engine_stop(self) -> None:
         self.view.page().runJavaScript("pause()")
         self._engine_seek(0)
 
-    def _engine_unload_media(self):
+    def _engine_unload_media(self) -> None:
         if self.is_web_page_loaded:
             self.view.page().runJavaScript("stop()")
         self.view.hide()
@@ -257,7 +257,7 @@ class YouTubePlayer(Player):
             ),
         )
 
-    def _engine_exit(self):
+    def _engine_exit(self) -> None:
         self.view.deleteLater()
         post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.NO_MEDIA)
 

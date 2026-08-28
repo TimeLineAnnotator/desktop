@@ -8,7 +8,7 @@ from zipfile import ZipFile
 from lxml import etree
 
 from tilia.parsers.score.musicxml_to_svg import musicxml_to_svg
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Get, LongOperation, Post, get, long_operation, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Note
@@ -59,6 +59,7 @@ class TiliaMXLReader:
         self.file.close()
 
 
+@long_operation("Importing score...")
 def notes_from_musicXML(
     score_tl: ScoreTimeline,
     beat_tl: BeatTimeline,
@@ -73,6 +74,8 @@ def notes_from_musicXML(
     """
     errors = []
     metric_division = MetricDivision()
+    total_measures = 0
+    measures_done = 0
 
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
     sign_to_line = {"C": 3, "F": 4, "G": 2}
@@ -432,8 +435,16 @@ def notes_from_musicXML(
         return dict()
 
     def _parse_part(part: etree._Element, part_id: str):
+        nonlocal measures_done
         _parse_attributes(part, part_id)
         for measure in part.findall("measure"):
+            measures_done += 1
+            post(
+                Post.LONG_OPERATION,
+                LongOperation.PROGRESS,
+                measures_done,
+                total_measures,
+            )
             if measure.get("implicit") == "yes":
                 if measure.get("number") != "0":
                     # if number is 0, this is a pickup measure,
@@ -521,6 +532,7 @@ def notes_from_musicXML(
                 return False, [INSERT_MEASURE_ZERO_FAILED.format(reason)]
 
     part_id_to_staves = _parse_staves(tree)
+    total_measures = sum(len(part.findall("measure")) for part in tree.findall("part"))
     for part in tree.findall("part"):
         _parse_part(part, part.get("id"))
     post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tl.id)

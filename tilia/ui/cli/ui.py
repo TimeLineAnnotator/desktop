@@ -7,7 +7,7 @@ import traceback
 from colorama import Fore
 
 import tilia.constants
-from tilia.media.player.qtplayer import QtPlayer
+from tilia.media.player.qtaudio import QtAudioPlayer
 from tilia.requests import Get, serve
 from tilia.requests.post import Post, listen, post
 from tilia.settings import settings
@@ -165,7 +165,7 @@ class CLI:
     def get_player_class(media_type: str):
         return {
             "video": CLIVideoPlayer,
-            "audio": QtPlayer,
+            "audio": QtAudioPlayer,
             "youtube": CLIYoutubePlayer,
         }[media_type]
 
