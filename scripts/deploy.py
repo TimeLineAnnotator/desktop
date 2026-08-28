@@ -14,6 +14,7 @@ Hence this pyside-deploy-inspired script.
 
 import os
 import re
+import shutil
 import sys
 import traceback
 from enum import Enum
@@ -383,14 +384,7 @@ def build():
     dotenv.set_key(env_file, "ENVIRONMENT", "prod")
     if buildlib.exists():
         _print(["Cleaning build folder..."], P.ERROR)
-        for r, dirs, files in os.walk(buildlib, False):
-            p = Path(r)
-            _print([f"\t~{p}"])
-            for f in files:
-                os.unlink(p / f)
-            for d in dirs:
-                os.rmdir(p / d)
-        os.rmdir(buildlib)
+        shutil.rmtree(buildlib)
 
     try:
         _build_exe()
