@@ -95,19 +95,38 @@ def _register_windows_file_association() -> None:
 def _unregister_windows_file_association() -> None:
     import winreg
 
-    # Only remove .tla if we own it
+    open_with_key = rf"{_TLA_EXT_KEY}\OpenWithProgids"
+
+    # OpenWithProgids is a subkey of .tla, and DeleteKey refuses to remove a
+    # key that still has subkeys - so our value has to come out of it (and the
+    # now-possibly-empty subkey removed) before .tla itself can be deleted.
+    # Only our own value is touched: other apps can have entries of their own
+    # in OpenWithProgids, and those must survive our uninstall.
+    key_now_empty = False
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER, open_with_key, 0, winreg.KEY_ALL_ACCESS
+        ) as k:
+            try:
+                winreg.DeleteValue(k, _TLA_PROGID)
+            except OSError:
+                pass
+            num_subkeys, num_values, _ = winreg.QueryInfoKey(k)
+            key_now_empty = num_subkeys == 0 and num_values == 0
+    except OSError:
+        pass
+
+    if key_now_empty:
+        try:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, open_with_key)
+        except OSError:
+            pass
+
+    # Only remove .tla itself if we own it.
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _TLA_EXT_KEY) as k:
             if winreg.QueryValueEx(k, "")[0] == _TLA_PROGID:
                 winreg.DeleteKey(winreg.HKEY_CURRENT_USER, _TLA_EXT_KEY)
-    except OSError:
-        pass
-
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, rf"{_TLA_EXT_KEY}\OpenWithProgids"
-        ) as k:
-            winreg.DeleteValue(k, _TLA_PROGID)
     except OSError:
         pass
 
