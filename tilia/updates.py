@@ -133,9 +133,23 @@ def _report(silent: bool, message: str) -> None:
     """
     if silent:
         return
+    # _report always runs on check_for_updates' background thread. Post.DISPLAY_ERROR
+    # is dispatched synchronously (tilia/requests/post.py), so an un-marshaled call
+    # here would build/exec() a QMessageBox off the main thread and crash — same
+    # failure mode QtUI.on_update_available's success path already avoids via
+    # QTimer.singleShot with a context object (schedules on that object's thread).
+    # check_for_updates is only ever invoked from QtUI, so a QApplication with a
+    # running event loop is guaranteed to exist here.
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+
     import tilia.errors
 
-    tilia.errors.display(tilia.errors.VELOPACK_UPDATE_FAILED, message)
+    QTimer.singleShot(
+        0,
+        QApplication.instance(),
+        lambda: tilia.errors.display(tilia.errors.VELOPACK_UPDATE_FAILED, message),
+    )
 
 
 def _run_check(silent: bool) -> None:
