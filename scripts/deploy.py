@@ -148,7 +148,18 @@ def _get_exe_cmd() -> list[str]:
         f"--output-dir={(outdir / 'exe').as_posix()}",
         f"--product-name={name}",
         f"--file-version={version}",
-        f"--output-filename={out_filename if 'mac' in build_os else name}",
+        # macOS's default filesystem is case-insensitive: an output filename
+        # that is a pure case-variant of the "tilia" package (e.g. "TiLiA")
+        # collides with Nuitka's own Contents/MacOS/tilia/ data-files
+        # directory - NotADirectoryError partway through the build. Windows
+        # and Linux don't have this problem ("TiLiA.exe" has an extension;
+        # Linux's filesystem is case-sensitive), so only mac needs a name
+        # that isn't just "tilia" with different casing.
+        (
+            f"--output-filename={name}-bin"
+            if "mac" in build_os
+            else f"--output-filename={name}"
+        ),
         f"--macos-app-icon={icon_path.as_posix()}",
         "--macos-app-mode=gui",
         f"--macos-app-name={name}",
