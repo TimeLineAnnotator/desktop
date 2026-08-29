@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from enum import Enum, auto
 from typing import TypeAlias
 
@@ -243,11 +244,22 @@ class ViewMenu(QMenu):
         self.windows[window_id] = qaction
 
 
-class HelpMenu(TiliaMenu):
-    menu_title = "&Help"
+def _help_menu_items() -> list[tuple[MenuItemKind, TiliaMenuItem]]:
     items = [
         (MenuItemKind.COMMAND, "window.open.about"),
         (MenuItemKind.COMMAND, "open_website_help"),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.COMMAND, "help.check_for_updates"),
     ]
+    # Windows already gets a proper Add/Remove Programs entry from Velopack -
+    # the normal, complete way to uninstall there. A second, partial
+    # in-app uninstall command would just be a confusing duplicate, so it
+    # isn't offered on Windows at all (see tilia/lifecycle.py::uninstall).
+    if sys.platform != "win32":
+        items.append((MenuItemKind.COMMAND, "help.uninstall"))
+    return items
+
+
+class HelpMenu(TiliaMenu):
+    menu_title = "&Help"
+    items = _help_menu_items()
