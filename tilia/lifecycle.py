@@ -154,11 +154,47 @@ def _unregister_windows_file_association() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _register_linux_file_association() -> None:
+def _stable_appimage_path() -> Path:
+    """Where the running AppImage gets copied to on first integration.
+
+    Matches how AppImageLauncher-style self-integration normally works: a
+    stable copy separate from wherever the user happened to download the
+    file to, so moving/deleting the original doesn't silently break the
+    desktop launcher entry.
+    """
+    from tilia.constants import APP_NAME
+
+    bin_dir = Path(os.environ.get("XDG_BIN_HOME", str(Path.home() / ".local" / "bin")))
+    return bin_dir / f"{APP_NAME}.AppImage"
+
+
+def _ensure_stable_appimage_copy() -> str | None:
+    """Copy the running AppImage to its stable location if not already
+    running from there. Returns the stable path, or None if not running as a
+    mounted AppImage at all (e.g. a raw extracted binary) - matches the
+    APPIMAGE check _make_locator (tilia/updates.py) makes for the same reason.
+    """
+    import shutil
+
+    appimage_path = os.environ.get("APPIMAGE")
+    if not appimage_path:
+        return None
+
+    source = Path(appimage_path).resolve()
+    stable = _stable_appimage_path()
+    if stable.exists() and source == stable.resolve():
+        return str(stable)
+
+    stable.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, stable)
+    return str(stable)
+
+
+def _register_linux_file_association(exec_path: str | None = None) -> None:
     import shutil
     import subprocess
 
-    exe = sys.executable
+    exe = exec_path or sys.executable
     xdg_data = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share")))
 
     mime_dir = xdg_data / "mime" / "packages"
@@ -215,20 +251,88 @@ def _unregister_linux_file_association() -> None:
             )
 
 
+def _remove_stable_appimage_copy() -> None:
+    _stable_appimage_path().unlink(missing_ok=True)
+
+
 def _ensure_linux_file_association() -> None:
     try:
+        exe = _ensure_stable_appimage_copy() or sys.executable
         xdg_data = Path(
             os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))
         )
         desktop_file = xdg_data / "applications" / "tilia.desktop"
-        if (
-            desktop_file.exists()
-            and f"Exec={sys.executable} " in desktop_file.read_text()
-        ):
+        if desktop_file.exists() and f"Exec={exe} " in desktop_file.read_text():
             return
-        _register_linux_file_association()
+        _register_linux_file_association(exe)
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# In-app "Uninstall" command
+# ---------------------------------------------------------------------------
+#
+# Registration-only: removes file associations / Launch Services entry, never
+# touches user data (QSettings, autosaves, logs, recent files).
+#
+# Windows isn't handled here: Velopack already registers a proper
+# Add/Remove Programs entry there, which is the normal, complete way to
+# uninstall a Windows app - a second, partial uninstall path inside the app
+# itself would just be a confusing duplicate.
+
+
+def _macos_app_bundle_path() -> Path | None:
+    # sys.executable is <App>.app/Contents/MacOS/<exe>.
+    bundle = Path(sys.executable).parents[2]
+    return bundle if bundle.suffix == ".app" else None
+
+
+def _uninstall_macos() -> str:
+    import subprocess
+
+    bundle = _macos_app_bundle_path()
+    if bundle is not None:
+        lsregister = (
+            "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+            "LaunchServices.framework/Support/lsregister"
+        )
+        try:
+            subprocess.run([lsregister, "-u", str(bundle)], check=False)
+        except OSError:
+            pass
+    return (
+        "TiLiA's file association has been removed. Drag TiLiA to the Trash "
+        "to finish uninstalling."
+    )
+
+
+def _uninstall_linux() -> str:
+    _unregister_linux_file_association()
+    _remove_stable_appimage_copy()
+    return (
+        "TiLiA's file associations and app-menu entry have been removed. "
+        "You can now delete the TiLiA.AppImage file to finish uninstalling."
+    )
+
+
+def uninstall() -> str:
+    """Remove OS-level registration for the current platform.
+
+    Returns a message describing what happened / what the user should still
+    do, for the caller to display. Safe to call repeatedly, and when nothing
+    was registered in the first place.
+    """
+    if sys.platform == "darwin":
+        return _uninstall_macos()
+    if sys.platform == "linux":
+        return _uninstall_linux()
+    if sys.platform == "win32":
+        return (
+            "On Windows, use Add/Remove Programs (in Settings > Apps) to "
+            "uninstall TiLiA - it's already registered there."
+        )
+    return "Uninstall isn't available on this platform."
 
 
 # ---------------------------------------------------------------------------
