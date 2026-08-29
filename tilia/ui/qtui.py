@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import os
 import re
+import sys
 from pathlib import Path
 
 from PySide6 import QtGui
@@ -12,7 +13,6 @@ from PySide6.QtCore import (
     QObject,
     Qt,
     QTimer,
-    QtMsgType,
     QUrl,
 )
 from PySide6.QtGui import QDesktopServices, QFontDatabase, QIcon, QPainter, QPixmap
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QGraphicsScene,
     QMainWindow,
+    QMessageBox,
 )
 
 import tilia.constants
@@ -316,6 +317,14 @@ class QtUI:
             "Check for &Updates...",
         )
 
+        # Not offered on Windows at all - see HelpMenu (tilia/ui/menus.py).
+        if sys.platform != "win32":
+            commands.register(
+                "help.uninstall",
+                self.on_uninstall,
+                "&Uninstall TiLiA...",
+            )
+
     def _setup_main_window(self, mw: TiliaMainWindow):
         self.main_window = mw
         if os.environ.get("ENVIRONMENT") != "test":
@@ -396,6 +405,28 @@ class QtUI:
         QTimer.singleShot(
             0, self.main_window, lambda: show_update_dialog(manager, update)
         )
+
+    def on_uninstall(self) -> None:
+        if "__compiled__" not in globals():
+            QMessageBox.information(
+                self.main_window,
+                "Uninstall TiLiA",
+                "Uninstall is only available in the installed app - a source "
+                "checkout has nothing registered to remove.",
+            )
+            return
+
+        if not get(
+            Get.FROM_USER_YES_OR_NO,
+            "Uninstall TiLiA",
+            "Remove TiLiA's file association and app-menu entry?\n\n"
+            "Your settings, autosaves, and files are not affected.",
+        ):
+            return
+
+        from tilia.lifecycle import uninstall
+
+        QMessageBox.information(self.main_window, "Uninstall TiLiA", uninstall())
 
     def exit(self, code: int, cause: str | None = None):
         # Code = 0 means a successful run, code = 1 means an unhandled exception.
