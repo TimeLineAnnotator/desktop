@@ -561,11 +561,19 @@ class TestPlatformDispatch:
 
     @pytest.mark.parametrize(
         "platform,expected",
-        [("win32", ["windows"]), ("linux", ["linux"]), ("darwin", [])],
+        [
+            ("win32", ["windows"]),
+            ("linux", ["linux", "linux-stable-copy"]),
+            ("darwin", ["mac"]),
+        ],
     )
-    def test_uninstall_unregisters_for_the_running_platform(
+    def test_uninstall_cleans_up_for_the_running_platform(
         self, monkeypatch, platform, expected
     ):
+        """Same cleanup as the in-app uninstall() command - so CI can exercise
+        mac/Linux uninstall via this hook's argv flag, same as Windows already
+        does, with no CLI or GUI automation available here.
+        """
         calls = []
         monkeypatch.setattr(sys, "platform", platform)
         monkeypatch.setattr(
@@ -577,6 +585,14 @@ class TestPlatformDispatch:
             lifecycle,
             "_unregister_linux_file_association",
             lambda: calls.append("linux"),
+        )
+        monkeypatch.setattr(
+            lifecycle,
+            "_remove_stable_appimage_copy",
+            lambda: calls.append("linux-stable-copy"),
+        )
+        monkeypatch.setattr(
+            lifecycle, "_uninstall_macos", lambda: calls.append("mac") or "message"
         )
 
         lifecycle._on_velopack_uninstall("1.2.3")
