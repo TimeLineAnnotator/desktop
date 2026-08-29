@@ -88,7 +88,16 @@ def _make_locator():
     - macOS: ``<App>.app/Contents/MacOS/{UpdateMac, sq.version}``; the bundle is
       installed read-only (and root-owned via the .pkg), so updates are staged
       under the user Library cache rather than inside the bundle.
+    - Linux: an AppImage, FUSE-mounted at runtime under ``<mount>/usr/bin/``.
+      RootAppDir has to be the AppImage's own file path, from the $APPIMAGE
+      env var the AppImage runtime sets - the mount point is a fresh temp dir
+      every launch, useless as a stable identity. There is no per-user "app
+      data" dir to stage updates in the way macOS's Library/Caches is, so
+      PackagesDir follows Velopack's own convention: a fixed, packId-scoped
+      spot under /var/tmp. IsPortable=True, unlike the other two: nothing
+      "installs" an AppImage.
     """
+    import os
     import sys
     from pathlib import Path
 
@@ -100,6 +109,7 @@ def _make_locator():
 
     from velopack import VelopackLocatorConfig
 
+    is_portable = False
     if sys.platform == "darwin":
         root_dir = current_dir.parents[1]  # <App>.app
         update_exe = current_dir / "UpdateMac"
@@ -110,10 +120,23 @@ def _make_locator():
             packages_dir.mkdir(parents=True, exist_ok=True)
         except OSError:
             pass
-    else:
+    elif sys.platform.startswith("linux"):
+        appimage_path = os.environ.get("APPIMAGE")
+        if not appimage_path:
+            # Not actually running as a mounted AppImage (e.g. a raw
+            # extracted binary) - nothing Velopack-manageable to locate.
+            return None
+        root_dir = Path(appimage_path)
+        mount_dir = current_dir.parents[1]  # current_dir is <mount>/usr/bin
+        update_exe = mount_dir / "UpdateNix"
+        packages_dir = Path("/var/tmp/velopack") / APP_NAME / "packages"
+        is_portable = True
+    elif sys.platform == "win32":
         root_dir = current_dir.parent
         update_exe = root_dir / "Update.exe"
         packages_dir = root_dir / "packages"
+    else:
+        return None
 
     return VelopackLocatorConfig(
         RootAppDir=str(root_dir),
@@ -121,7 +144,7 @@ def _make_locator():
         PackagesDir=str(packages_dir),
         ManifestPath=str(current_dir / "sq.version"),
         CurrentBinaryDir=str(current_dir),
-        IsPortable=False,
+        IsPortable=is_portable,
     )
 
 
