@@ -351,11 +351,18 @@ def _on_velopack_install(version: str) -> None:
 
 
 def _on_velopack_uninstall(version: str) -> None:
+    # Same cleanup as the in-app uninstall() command, so this does the right
+    # thing if Velopack (or some future packaging change) ever does fire this
+    # hook on Linux/macOS - and CI can exercise it directly (no CLI, no GUI
+    # automation available here) via the same argv flag Windows already uses.
     try:
         if sys.platform == "win32":
             _unregister_windows_file_association()
         elif sys.platform == "linux":
             _unregister_linux_file_association()
+            _remove_stable_appimage_copy()
+        elif sys.platform == "darwin":
+            _uninstall_macos()
     except Exception:
         pass
 
