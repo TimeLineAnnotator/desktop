@@ -127,6 +127,47 @@ def test_make_locator_windows_uses_update_exe(monkeypatch, tmp_path):
     assert loc.RootAppDir == str(tmp_path)
 
 
+def test_make_locator_linux_uses_updatenix_and_appimage_env(monkeypatch, tmp_path):
+    mount = tmp_path / "mount_abc123" / "usr" / "bin"
+    mount.mkdir(parents=True)
+    (mount / "sq.version").write_text("<package/>")
+    exe = mount / "tilia-bin"
+    exe.write_text("")
+    appimage = tmp_path / "Downloads" / "TiLiA.AppImage"
+    appimage.parent.mkdir(parents=True)
+    appimage.write_text("")
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(sys, "executable", str(exe))
+    monkeypatch.setenv("APPIMAGE", str(appimage))
+    _install_fake_velopack(monkeypatch)
+
+    loc = updates._make_locator()
+
+    assert loc is not None
+    assert loc.UpdateExePath.endswith("UpdateNix")
+    # RootAppDir is the AppImage's own path (from $APPIMAGE), not the
+    # ephemeral FUSE mount point.
+    assert loc.RootAppDir == str(appimage)
+    assert loc.PackagesDir.replace("\\", "/").endswith("velopack/TiLiA/packages")
+    assert loc.IsPortable is True
+
+
+def test_make_locator_linux_without_appimage_env_returns_none(monkeypatch, tmp_path):
+    mount = tmp_path / "mount_abc123" / "usr" / "bin"
+    mount.mkdir(parents=True)
+    (mount / "sq.version").write_text("<package/>")
+    exe = mount / "tilia-bin"
+    exe.write_text("")
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(sys, "executable", str(exe))
+    monkeypatch.delenv("APPIMAGE", raising=False)
+    _install_fake_velopack(monkeypatch)
+
+    assert updates._make_locator() is None
+
+
 def test_make_locator_macos_mkdir_failure_is_nonfatal(monkeypatch, tmp_path):
     macos = tmp_path / "TiLiA.app" / "Contents" / "MacOS"
     macos.mkdir(parents=True)
