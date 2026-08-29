@@ -42,6 +42,7 @@ jobs:
         run: |
           chmod +x ./scripts/linux-setup.sh
           ./scripts/linux-setup.sh
+          sudo apt-get install -y libfuse2
 
       - name: Remove problematic brew libs (see Nuitka/Nuitka#2853)
         if: runner.os == 'macOS' && runner.arch != 'ARM64'
@@ -160,24 +161,21 @@ jobs:
         shell: bash
         run: |
           VPK_DIR="${{ steps.build-exe.outputs.vpk-outdir }}"
-          APPIMAGE=$(find "$VPK_DIR" -name "*.AppImage" 2>/dev/null | head -1)
-          if [ -z "$APPIMAGE" ]; then
+          APPIMAGE_FILE=$(find "$VPK_DIR" -name "*.AppImage" 2>/dev/null | head -1)
+          if [ -z "$APPIMAGE_FILE" ]; then
             echo "::error::No AppImage found in $VPK_DIR"; exit 1
           fi
-          TMPDIR=$(mktemp -d)
-          cd "$TMPDIR" && "$APPIMAGE" --appimage-extract 2>/dev/null || true
-          BINARY=$(find "$TMPDIR/squashfs-root" -maxdepth 3 -name "${{ steps.build-exe.outputs.stable-exe-name }}" -type f | head -1)
-          chmod +x "$BINARY"
-          echo "path=$(basename $APPIMAGE)" >> "$GITHUB_OUTPUT"
+          chmod +x "$APPIMAGE_FILE"
+          echo "path=$(basename $APPIMAGE_FILE)" >> "$GITHUB_OUTPUT"
           echo "Starting GUI..."
           start=$(date +%s)
-          timeout 10 "$BINARY" || true
+          timeout 10 "$APPIMAGE_FILE" || true
           if (($(date +%s) - $start < 10)); then
             echo "::error::Process terminated early! Potential errors in build."
             exit 1
           fi
           echo "Starting CLI..."
-          timeout 10 "$BINARY" --user-interface=cli || true
+          timeout 10 "$APPIMAGE_FILE" --user-interface=cli || true
 
       - name: Upload Velopack packages
         uses: actions/upload-artifact@v7
