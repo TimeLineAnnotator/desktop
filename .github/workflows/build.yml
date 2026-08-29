@@ -127,6 +127,33 @@ jobs:
           echo "Starting CLI..."
           timeout 10 "$BINARY" --user-interface=cli || true
 
+      - name: Test uninstall cleanup [Windows]
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          INSTALL_DIR="$(cygpath "$LOCALAPPDATA")/TiLiA"
+          UPDATE_EXE="$INSTALL_DIR/Update.exe"
+          if [ ! -f "$UPDATE_EXE" ]; then
+            echo "::error::Update.exe not found in $INSTALL_DIR"
+            exit 1
+          fi
+          echo "Uninstalling..."
+          "$UPDATE_EXE" uninstall --silent
+          sleep 5
+          if [ -d "$INSTALL_DIR" ]; then
+            echo "::error::$INSTALL_DIR still exists after uninstall"
+            exit 1
+          fi
+          if reg query "HKCU\Software\Classes\.tla" >/dev/null 2>&1; then
+            echo "::error::.tla file association survived uninstall"
+            exit 1
+          fi
+          if reg query "HKCU\Software\Classes\Applications\TiLiA.exe" >/dev/null 2>&1; then
+            echo "::error::Applications\\TiLiA.exe registry entry survived uninstall"
+            exit 1
+          fi
+          echo "Uninstall removed the install dir and registry entries."
+
       - name: Test portable [Linux]
         id: set-path
         if: runner.os == 'Linux'
