@@ -303,6 +303,179 @@ class TestLinuxFileAssociation:
 
         assert _desktop_file(xdg).exists()
 
+    def test_ensure_points_exec_at_the_stable_copy_when_appimage_env_is_set(
+        self, xdg, monkeypatch, tmp_path
+    ):
+        downloaded = tmp_path / "Downloads" / "TiLiA.AppImage"
+        downloaded.parent.mkdir(parents=True)
+        downloaded.write_bytes(b"appimage-contents")
+        home = tmp_path / "home"
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        monkeypatch.delenv("XDG_BIN_HOME", raising=False)
+        monkeypatch.setenv("APPIMAGE", str(downloaded))
+
+        lifecycle._ensure_linux_file_association()
+
+        stable = home / ".local" / "bin" / "TiLiA.AppImage"
+        assert f"Exec={stable} %F" in _desktop_file(xdg).read_text()
+        assert stable.read_bytes() == b"appimage-contents"
+
+
+# --------------------------------------------------------------------------- #
+# Linux: stable AppImage copy
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def stable_home(tmp_path, monkeypatch):
+    """Point the stable-copy location at a temp dir, isolated from real home."""
+    home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.delenv("XDG_BIN_HOME", raising=False)
+    return home / ".local" / "bin" / "TiLiA.AppImage"
+
+
+class TestStableAppImageCopy:
+    def test_returns_none_without_appimage_env(self, stable_home, monkeypatch):
+        monkeypatch.delenv("APPIMAGE", raising=False)
+
+        assert lifecycle._ensure_stable_appimage_copy() is None
+
+    def test_copies_from_the_appimage_env_path(
+        self, stable_home, monkeypatch, tmp_path
+    ):
+        source = tmp_path / "Downloads" / "TiLiA.AppImage"
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b"contents")
+        monkeypatch.setenv("APPIMAGE", str(source))
+
+        result = lifecycle._ensure_stable_appimage_copy()
+
+        assert result == str(stable_home)
+        assert stable_home.read_bytes() == b"contents"
+
+    def test_is_a_noop_when_already_running_from_the_stable_copy(
+        self, stable_home, monkeypatch
+    ):
+        stable_home.parent.mkdir(parents=True)
+        stable_home.write_bytes(b"already-here")
+        monkeypatch.setenv("APPIMAGE", str(stable_home))
+
+        result = lifecycle._ensure_stable_appimage_copy()
+
+        assert result == str(stable_home)
+        assert stable_home.read_bytes() == b"already-here"
+
+    def test_remove_is_safe_when_nothing_is_there(self, stable_home):
+        lifecycle._remove_stable_appimage_copy()  # must not raise
+
+        assert not stable_home.exists()
+
+    def test_remove_deletes_the_stable_copy(self, stable_home):
+        stable_home.parent.mkdir(parents=True)
+        stable_home.write_bytes(b"x")
+
+        lifecycle._remove_stable_appimage_copy()
+
+        assert not stable_home.exists()
+
+
+# --------------------------------------------------------------------------- #
+# In-app "Uninstall" command
+# --------------------------------------------------------------------------- #
+
+
+class TestMacOSAppBundlePath:
+    def test_returns_the_app_bundle(self, monkeypatch, tmp_path):
+        macos_dir = tmp_path / "TiLiA.app" / "Contents" / "MacOS"
+        macos_dir.mkdir(parents=True)
+        monkeypatch.setattr(sys, "executable", str(macos_dir / "TiLiA-bin"))
+
+        assert lifecycle._macos_app_bundle_path() == tmp_path / "TiLiA.app"
+
+    def test_returns_none_outside_a_bundle(self, monkeypatch, tmp_path):
+        bin_dir = tmp_path / "usr" / "local" / "bin"
+        bin_dir.mkdir(parents=True)
+        monkeypatch.setattr(sys, "executable", str(bin_dir / "tilia"))
+
+        assert lifecycle._macos_app_bundle_path() is None
+
+
+class TestUninstallMacOS:
+    def test_unregisters_the_bundle_from_launch_services(self, monkeypatch, tmp_path):
+        macos_dir = tmp_path / "TiLiA.app" / "Contents" / "MacOS"
+        macos_dir.mkdir(parents=True)
+        monkeypatch.setattr(sys, "executable", str(macos_dir / "TiLiA-bin"))
+        calls = []
+        monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+
+        message = lifecycle._uninstall_macos()
+
+        assert calls == [
+            [
+                "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+                "LaunchServices.framework/Support/lsregister",
+                "-u",
+                str(tmp_path / "TiLiA.app"),
+            ]
+        ]
+        assert "Trash" in message
+
+    def test_is_safe_when_not_running_from_a_bundle(self, monkeypatch, tmp_path):
+        bin_dir = tmp_path / "usr" / "local" / "bin"
+        bin_dir.mkdir(parents=True)
+        monkeypatch.setattr(sys, "executable", str(bin_dir / "tilia"))
+        calls = []
+        monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+
+        message = lifecycle._uninstall_macos()
+
+        assert calls == []
+        assert "Trash" in message
+
+
+class TestUninstallLinux:
+    def test_removes_associations_and_the_stable_copy(self, xdg, stable_home):
+        lifecycle._register_linux_file_association()
+        stable_home.parent.mkdir(parents=True)
+        stable_home.write_bytes(b"x")
+
+        message = lifecycle._uninstall_linux()
+
+        assert not _desktop_file(xdg).exists()
+        assert not _mime_file(xdg).exists()
+        assert not stable_home.exists()
+        assert "AppImage" in message
+
+    def test_is_safe_when_nothing_was_registered(self, xdg, stable_home):
+        lifecycle._uninstall_linux()  # must not raise
+
+
+class TestUninstallDispatch:
+    def test_darwin_calls_uninstall_macos(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "darwin")
+        monkeypatch.setattr(lifecycle, "_uninstall_macos", lambda: "mac-done")
+
+        assert lifecycle.uninstall() == "mac-done"
+
+    def test_linux_calls_uninstall_linux(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(lifecycle, "_uninstall_linux", lambda: "linux-done")
+
+        assert lifecycle.uninstall() == "linux-done"
+
+    def test_windows_points_at_add_remove_programs(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "win32")
+
+        assert "Add/Remove Programs" in lifecycle.uninstall()
+
+    def test_unrecognized_platform_returns_a_message_rather_than_raising(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(sys, "platform", "freebsd")
+
+        lifecycle.uninstall()  # must not raise
+
 
 # --------------------------------------------------------------------------- #
 # Velopack hook dispatch
