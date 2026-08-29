@@ -106,6 +106,33 @@ jobs:
           kill $CLI_PID 2>/dev/null || echo "WARNING: CLI exited before 10s"
           wait $CLI_PID 2>/dev/null || true
 
+      - name: Test uninstall cleanup [mac]
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+          APP=$(find /Applications -maxdepth 1 -name "TiLiA*.app" 2>/dev/null | head -1)
+          BINARY="$APP/Contents/MacOS/${{ steps.build-exe.outputs.out-binary-name }}"
+          if ! "$LSREGISTER" -dump | grep -qF "$APP"; then
+            echo "::error::App bundle isn't registered with Launch Services - nothing to unlink"
+            exit 1
+          fi
+          echo "Uninstalling..."
+          "$BINARY" --veloapp-uninstall "${{ steps.build-exe.outputs.pack-version }}"
+          if "$LSREGISTER" -dump | grep -qF "$APP"; then
+            echo "::error::Launch Services still lists $APP after uninstall"
+            exit 1
+          fi
+          # uninstall() only unregisters - deleting the bundle is left to the
+          # user (the mac norm is "drag to Trash"), so finish that step here
+          # to confirm the OS resources are actually reclaimed end to end.
+          sudo rm -rf "$APP"
+          if [ -d "$APP" ]; then
+            echo "::error::$APP still exists after removal"
+            exit 1
+          fi
+          echo "Uninstall unregistered the bundle from Launch Services."
+
       - name: Test installer [Windows]
         if: runner.os == 'Windows'
         shell: bash
@@ -176,6 +203,27 @@ jobs:
           fi
           echo "Starting CLI..."
           timeout 10 "$APPIMAGE_FILE" --user-interface=cli || true
+
+      - name: Test uninstall cleanup [Linux]
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          DESKTOP_FILE="$HOME/.local/share/applications/tilia.desktop"
+          MIME_FILE="$HOME/.local/share/mime/packages/tilia.xml"
+          STABLE_COPY="$HOME/.local/bin/TiLiA.AppImage"
+          if [ ! -f "$DESKTOP_FILE" ] || [ ! -f "$MIME_FILE" ] || [ ! -f "$STABLE_COPY" ]; then
+            echo "::error::Expected desktop/mime/stable-copy registration from the earlier GUI run was not found"
+            exit 1
+          fi
+          VPK_DIR="${{ steps.build-exe.outputs.vpk-outdir }}"
+          APPIMAGE_FILE=$(find "$VPK_DIR" -name "*.AppImage" 2>/dev/null | head -1)
+          echo "Uninstalling..."
+          "$APPIMAGE_FILE" --veloapp-uninstall "${{ steps.build-exe.outputs.pack-version }}"
+          if [ -f "$DESKTOP_FILE" ] || [ -f "$MIME_FILE" ] || [ -f "$STABLE_COPY" ]; then
+            echo "::error::Desktop/mime files or the stable AppImage copy survived the uninstall hook"
+            exit 1
+          fi
+          echo "Uninstall removed the desktop/mime registration and the stable AppImage copy."
 
       - name: Upload Velopack packages
         uses: actions/upload-artifact@v7
