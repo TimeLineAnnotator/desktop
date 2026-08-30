@@ -147,29 +147,27 @@ class SvgViewer(ViewDockWidget):
 
     def load_svg_data(self, data: str) -> None:
         self.score_root = etree.fromstring(data, None)
-        if not (x_pos := self.timeline.get_data("viewer_beat_x")):
-            beat_x_pos, success = self.timeline.set_data(
-                "viewer_beat_x", self._get_beat_x_pos(self.score_root)
+        # Reading the markers removes them, which is also what keeps them out
+        # of the render: Qt emits a font warning per marker per paint
+        # (issue #513), which both floods the log and tanks frame rate.
+        # The stripped SVG is deliberately not written back to the timeline:
+        # `svg_data` keeps its markers so that the mapping below can always be
+        # rebuilt from it, which is what makes a re-imported score use its own
+        # beat positions instead of the previous score's.
+        beat_x_pos = self._get_beat_x_pos(self.score_root)
+        if not beat_x_pos:
+            # SVGs saved before the markers were kept have none left to read,
+            # so the mapping stored alongside them is all there is to go on.
+            beat_x_pos = self.timeline.get_data("viewer_beat_x")
+        if not beat_x_pos:
+            tilia.errors.display(
+                tilia.errors.SCORE_SVG_CREATE_ERROR,
+                "File not properly set up. Beat positions not found.",
             )
-            if not success:
-                tilia.errors.display(
-                    tilia.errors.SCORE_SVG_CREATE_ERROR,
-                    "File not properly set up. Beat positions not found.",
-                )
-                return
-            else:
-                self.beat_x_position = {
-                    float(beat): float(x) for beat, x in beat_x_pos.items()
-                }
-        else:
-            # `_get_beat_x_pos` strips data-marker elements as a side effect.
-            # When viewer_beat_x is already cached we skip it, so the markers
-            # can survive into the rendered SVG. Qt emits a font warning per
-            # marker per paint (issue #513), which both floods the log and
-            # tanks frame rate — strip them here too.
-            self._strip_beat_x_markers(self.score_root)
-            self.beat_x_position = {float(beat): float(x) for beat, x in x_pos.items()}
-        self.timeline.save_svg_data(str(etree.tostring(self.score_root), "utf-8"))
+            return
+
+        self.timeline.set_data("viewer_beat_x", beat_x_pos)
+        self.beat_x_position = {float(beat): float(x) for beat, x in beat_x_pos.items()}
 
         self.setParent(get(Get.MAIN_WINDOW))
         self.score_renderer.load(bytearray(etree.tostring(self.score_root)))
@@ -219,17 +217,14 @@ class SvgViewer(ViewDockWidget):
             yield e, parts
 
     @staticmethod
-    def _strip_beat_x_markers(root: etree._Element) -> None:
-        """Remove the data-marker text elements that `_get_beat_x_pos`
-        strips on first load. Used when reloading an already-processed SVG.
+    def _get_beat_x_pos(root: etree._Element) -> dict[float, float]:
+        """Build the beat-to-x mapping from the data markers, removing each
+        marker from ``root`` as it is read. Returns an empty mapping for an
+        SVG whose markers were already stripped.
         """
-        for e, _ in SvgViewer._extract_beat_position_markers(root):
-            e.getparent().remove(e)
-
-    def _get_beat_x_pos(self, root: etree._Element) -> dict[float, float]:
         x_stamps = {}
         measure_divs = {}
-        for e, parts in self._extract_beat_position_markers(root):
+        for e, parts in SvgViewer._extract_beat_position_markers(root):
             e.getparent().remove(e)
 
             measure, beat_div, max_div = map(int, parts)
