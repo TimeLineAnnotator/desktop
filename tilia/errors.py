@@ -133,6 +133,8 @@ AMBIGUOUS_SHORTCUT = Error(
     "Two or more commands are bound to the same key combination. "
     "Qt could not decide which to fire. Please report this:\n\n{}",
 )
+VELOPACK_UPDATE_FAILED = Error("Update failed", "{}")
+GIT_PULL_FAILED = Error("Pull failed", "{}")
 
 
 def display(error: Error, *args):
