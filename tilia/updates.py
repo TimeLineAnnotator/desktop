@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from velopack import UpdateInfo, UpdateManager
 
 
-GIT_BRANCH = "main"
+GIT_BRANCH = "dev"
 
 
 @dataclass
