@@ -131,6 +131,35 @@ class TestRomanNumeralDisplay:
 
         assert harmony_tlui[0].label.startswith(expected_start)
 
+    @pytest.mark.parametrize(
+        "step,quality,inversion,expected",
+        [
+            (0, "major", 1, "I6"),
+            (0, "major", 2, "I64"),
+            (1, "minor-seventh", 0, "ii7"),
+            (1, "minor-seventh", 1, "ii65"),
+            (4, "dominant-seventh", 1, "V65"),
+            (4, "dominant-seventh", 2, "V43"),
+            (4, "dominant-seventh", 3, "V42"),
+        ],
+    )
+    def test_roman_label_has_no_blank_accidental_placeholder(
+        self, step, quality, inversion, expected, harmony_tlui
+    ):
+        # "s" marks an accidental slot left blank; MusAnalysis only consumes it
+        # inside the three-figure "%" stack, so it must not reach shorter
+        # figures, where it would be drawn as a literal letter.
+        add_harmony(step=step, quality=quality, inversion=inversion)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    def test_roman_label_keeps_blank_accidental_placeholder_in_stacked_figures(
+        self, harmony_tlui
+    ):
+        add_harmony(step=4, quality="dominant-ninth", inversion=3)
+
+        assert harmony_tlui.harmonies()[0].label == "V%sss432"
+
     def test_roman_label_for_ninth_chord_high_inversion(self, harmony_tlui):
         # inversion=4 places the 9th in the bass; label is dynamically computed
         add_harmony(

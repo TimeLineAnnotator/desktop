@@ -134,8 +134,13 @@ def _fmt_mod(mod: str | None, none_str: str = "") -> str:
 
 
 def _figs_to_str(figures: list[tuple[int, str | None]]) -> str:
-    prefix = "%" if len(figures) > 2 else ""
-    accs = "".join(_fmt_mod(mod, "s") for _, mod in figures)
+    # MusAnalysis only consumes the "s" placeholder (an accidental slot left
+    # blank) inside the three-figure stack introduced by "%". Outside it there
+    # is no blank slot, so an unaccidented figure must contribute nothing —
+    # otherwise the "s" is rendered as a literal letter next to the numeral.
+    stacked = len(figures) > 2
+    prefix = "%" if stacked else ""
+    accs = "".join(_fmt_mod(mod, "s" if stacked else "") for _, mod in figures)
     nums = "".join(str(n) for n, _ in figures)
     return prefix + accs + nums
 
