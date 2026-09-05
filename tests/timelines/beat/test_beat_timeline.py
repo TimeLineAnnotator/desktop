@@ -1,5 +1,8 @@
+from unittest.mock import patch
+
 import pytest
 
+from tests.utils import undoable
 from tilia.ui import commands
 
 
@@ -436,3 +439,81 @@ class TestBeatTimeline:
 
         assert len(tilia.timelines[0]) == 11
         assert tilia.timelines[0][-1].get_data("time") == 10
+
+    @staticmethod
+    def _add_beats(times):
+        for time in times:
+            commands.execute("media.seek", time)
+            commands.execute("timeline.beat.add")
+
+    def test_insert_beats_after_deleting_all_beats(self, beat_tlui):
+        self._add_beats(range(8))
+
+        beat_tlui.select_all_elements()
+        commands.execute("timeline.component.delete")
+
+        # An emptied timeline must not keep a measure structure describing
+        # beats that no longer exist.
+        assert beat_tlui.timeline.beats_in_measure == []
+        assert beat_tlui.timeline.measure_numbers == []
+
+        self._add_beats(range(8))
+
+        assert beat_tlui.timeline.beats_in_measure == [4, 4]
+        assert [
+            i for i, b in enumerate(beat_tlui) if b.get_data("is_first_in_measure")
+        ] == [0, 4]
+
+    def test_insert_beats_after_deleting_some_beats(self, beat_tlui):
+        self._add_beats(range(8))
+
+        for element in list(beat_tlui)[4:]:
+            beat_tlui.select_element(element)
+        commands.execute("timeline.component.delete")
+
+        assert beat_tlui.timeline.beats_in_measure == [4]
+
+        self._add_beats(range(8, 12))
+
+        assert beat_tlui.timeline.beats_in_measure == [4, 4]
+        assert [
+            i for i, b in enumerate(beat_tlui) if b.get_data("is_first_in_measure")
+        ] == [0, 4]
+
+    def test_undo_redo_delete_all_beats(self, beat_tlui):
+        self._add_beats(range(8))
+
+        beat_tlui.select_all_elements()
+        with undoable():
+            commands.execute("timeline.component.delete")
+
+    def test_delete_keeps_an_outer_suppression_in_place(self, beat_tlui):
+        # BeatTLComponentManager.restore_state suppresses recomputation across a
+        # whole delete-then-create pass, and reaches delete_components in the
+        # middle of it. Restoring a hardcoded True here would re-enable the
+        # recomputation for every beat the restore re-creates afterwards.
+        self._add_beats(range(8))
+        timeline = beat_tlui.timeline
+        component_manager = timeline.component_manager
+
+        with component_manager.suppressing_is_first_in_measure():
+            timeline.delete_components(list(timeline.components)[4:])
+
+            assert component_manager.compute_is_first_in_measure is False
+
+        assert component_manager.compute_is_first_in_measure is True
+
+    def test_delete_restores_the_flag_when_a_deletion_raises(self, beat_tlui):
+        # Leaving the flag off would silently stop every beat created later in
+        # the session from getting any measure data.
+        self._add_beats(range(8))
+        timeline = beat_tlui.timeline
+        component_manager = timeline.component_manager
+
+        with patch.object(
+            component_manager, "delete_component", side_effect=ValueError
+        ):
+            with pytest.raises(ValueError):
+                timeline.delete_components(list(timeline.components))
+
+        assert component_manager.compute_is_first_in_measure is True
