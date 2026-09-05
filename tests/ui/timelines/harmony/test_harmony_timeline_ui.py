@@ -131,6 +131,75 @@ class TestRomanNumeralDisplay:
 
         assert harmony_tlui[0].label.startswith(expected_start)
 
+    @pytest.mark.parametrize(
+        "step,quality,inversion,expected",
+        [
+            (0, "major", 1, "I6"),
+            (0, "major", 2, "I64"),
+            (1, "minor-seventh", 1, "ii65"),
+            (4, "dominant-seventh", 1, "V65"),
+            (4, "dominant-seventh", 2, "V43"),
+            (4, "dominant-seventh", 3, "V42"),
+            # Four figures: more than the "%" stack's three slots, so the whole
+            # group falls back to the inline form.
+            (0, "half-diminished-13th", 4, "io\\bb7542"),
+            # Three figures, but a double accidental needs two characters and
+            # overflows its single slot — same fallback.
+            (0, "diminished-seventh", 1, "iobbb653"),
+        ],
+    )
+    def test_roman_label_has_no_blank_accidental_placeholder(
+        self, step, quality, inversion, expected, harmony_tlui
+    ):
+        # "s" marks an accidental slot left blank. MusAnalysis consumes it only
+        # inside the "%" stack, and only there in its exact shape: three slots
+        # of one character each, paired with three numbers. Anywhere else it is
+        # drawn as a literal letter next to the numeral.
+        add_harmony(step=step, quality=quality, inversion=inversion)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "step,accidental,quality,inversion",
+        [
+            (6, 0, "major", 1),  # figures (6, None), (3, "#")
+            (0, 0, "augmented", 1),  # figures (6, None), (3, "#")
+            (1, -1, "major", 2),  # figures (6, None), (4, "-")
+            (0, 0, "dominant-seventh", 1),  # figures (6, None), (5, "-")
+            (0, 0, "half-diminished-13th", 4),  # four figures
+            (0, 0, "diminished-seventh", 1),  # double accidental
+        ],
+    )
+    def test_roman_label_has_no_literal_s_when_figures_carry_accidentals(
+        self, step, accidental, quality, inversion, harmony_tlui
+    ):
+        # A partially accidented figure group is the case the placeholder rule
+        # is easiest to get wrong: dropping the blank slot only for fully
+        # diatonic groups would leave the letter in every one of these.
+        # Asserting on the absence of "s" rather than on the exact string keeps
+        # this test independent of how the accidentals end up positioned.
+        add_harmony(
+            step=step, accidental=accidental, quality=quality, inversion=inversion
+        )
+
+        assert "s" not in harmony_tlui.harmonies()[0].label
+
+    def test_roman_label_keeps_blank_accidental_placeholder_in_stacked_figures(
+        self, harmony_tlui
+    ):
+        add_harmony(step=4, quality="dominant-ninth", inversion=3)
+
+        assert harmony_tlui.harmonies()[0].label == "V%sss432"
+
+    def test_roman_label_keeps_stack_when_only_some_figures_are_accidented(
+        self, harmony_tlui
+    ):
+        # Three figures, one accidental, all single-character: still the exact
+        # shape the "%" stack takes, so the two blank slots must be kept.
+        add_harmony(step=6, quality="dominant-seventh", inversion=1)
+
+        assert harmony_tlui.harmonies()[0].label == "VII%ss#653"
+
     def test_roman_label_for_ninth_chord_high_inversion(self, harmony_tlui):
         # inversion=4 places the 9th in the bass; label is dynamically computed
         add_harmony(
