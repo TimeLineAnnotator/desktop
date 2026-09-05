@@ -431,6 +431,11 @@ class QtUI:
             self.main_window.restoreGeometry(geometry)
             self.main_window.restoreState(state)
 
+        # restoreState() also restores toolbar visibility, which may be stale or,
+        # for states saved before toolbars had unique object names, belong to a
+        # different timeline kind. The loaded timelines are the source of truth.
+        self.timeline_uis.update_toolbar_visibility()
+
         self._set_window_title_from_metadata_title()
 
     def _setup_widgets(self):
