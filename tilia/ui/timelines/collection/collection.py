@@ -699,6 +699,10 @@ class TimelineUIs:
             toolbar = tl_class.TOOLBAR_CLASS()
             self.main_window.addToolBar(toolbar)
             self.kind_to_toolbar[tl_kind] = toolbar
+            # addToolBar() only shows the toolbar on the next event loop iteration.
+            # Show it now, so that saving the window state right after opening a file
+            # does not record the toolbar as hidden.
+            toolbar.show()
 
     def _get_timeline_ui_by_scene(self, scene):
         return next((tlui for tlui in self if tlui.scene == scene), None)
