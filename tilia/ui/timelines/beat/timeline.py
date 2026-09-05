@@ -104,12 +104,6 @@ class BeatTimelineUI(TimelineUI):
 
         return sorted(list(measure_indices))
 
-    def on_delete_component(self, elements: list[BeatUI] | None = None) -> bool:
-        success = super().on_delete_component(elements)
-        if success:
-            self.timeline.recalculate_measures()
-        return success
-
     @with_elements
     def on_set_measure_number(self, elements: list[BeatUI] | None = None):
         accepted, number = get(
