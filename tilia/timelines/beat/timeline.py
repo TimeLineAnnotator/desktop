@@ -3,6 +3,8 @@ from __future__ import annotations
 import itertools
 import math
 from bisect import bisect
+from collections.abc import Iterator
+from contextlib import contextmanager
 from enum import Enum
 from math import isclose
 from typing import Any, cast
@@ -29,6 +31,25 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline = cast(BeatTimeline, self.timeline)
         self.compute_is_first_in_measure = True
         self.compute_metric_fraction_dict = True
+
+    @contextmanager
+    def suppressing_is_first_in_measure(self) -> Iterator[bool]:
+        """
+        Suppress per-beat measure recomputation for the duration of the block.
+
+        Yields the value the flag had on entry, so a caller can tell whether it
+        owns the recomputation or an outer block will do it once at the end.
+        Restoring that value rather than a literal True is what keeps nested
+        blocks correct; the try/finally keeps a raising body from leaving the
+        flag off for the rest of the timeline's life, which would silently stop
+        every beat created afterwards from getting any measure data.
+        """
+        was_computing = self.compute_is_first_in_measure
+        self.compute_is_first_in_measure = False
+        try:
+            yield was_computing
+        finally:
+            self.compute_is_first_in_measure = was_computing
 
     @property
     def beat_times(self):
@@ -641,16 +662,24 @@ class BeatTimeline(Timeline):
 
         self.clear_cached_metric_positions()
 
-        self.component_manager.compute_is_first_in_measure = False
-        for component in list(reversed(components)):
-            self.component_manager.delete_component(component)
-        self.component_manager.update_is_first_in_measure = True
+        component_manager = self.component_manager
+        with component_manager.suppressing_is_first_in_measure() as was_computing:
+            for component in list(reversed(components)):
+                component_manager.delete_component(component)
 
-        if not self.is_empty:
-            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
-            post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
+        if not was_computing:
+            # BeatTLComponentManager.restore_state, reached on every undo and
+            # redo, suppresses recomputation across a whole delete-then-create
+            # pass and recomputes once at the end. Recomputing here would make
+            # every beat it re-creates afterwards sweep the whole timeline.
+            return
 
-            # Higher index is possible.
+        # Unconditional, including when the timeline is now empty: otherwise it
+        # keeps a beats_in_measure / measure_numbers describing beats that no
+        # longer exist, and the UI keeps their labels.
+        self.recalculate_measures()
+        component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
 
     class FillMethod(Enum):
         BY_AMOUNT = 0
