@@ -125,7 +125,7 @@ def beats_from_csv(
             timeline.set_data("measures_to_force_display", measures_to_force_display)
 
     component_manager = timeline.component_manager
-    with component_manager.is_first_in_measure_computation_paused():
+    with component_manager.suppressing_is_first_in_measure():
         with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
             next(reader)
             for row in reader:

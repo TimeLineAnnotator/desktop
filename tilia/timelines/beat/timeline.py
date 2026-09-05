@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import math
 from bisect import bisect, bisect_left
+from collections.abc import Iterator
 from contextlib import contextmanager
 from enum import Enum
 from math import isclose
@@ -32,13 +33,23 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.compute_metric_fraction_dict = True
 
     @contextmanager
-    def is_first_in_measure_computation_paused(self):
-        previous = self.compute_is_first_in_measure
+    def suppressing_is_first_in_measure(self) -> Iterator[bool]:
+        """
+        Suppress per-beat measure recomputation for the duration of the block.
+
+        Yields the value the flag had on entry, so a caller can tell whether it
+        owns the recomputation or an outer block will do it once at the end.
+        Restoring that value rather than a literal True is what keeps nested
+        blocks correct; the try/finally keeps a raising body from leaving the
+        flag off for the rest of the timeline's life, which would silently stop
+        every beat created afterwards from getting any measure data.
+        """
+        was_computing = self.compute_is_first_in_measure
         self.compute_is_first_in_measure = False
         try:
-            yield
+            yield was_computing
         finally:
-            self.compute_is_first_in_measure = previous
+            self.compute_is_first_in_measure = was_computing
 
     @property
     def beat_times(self):
@@ -160,11 +171,11 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline.update_metric_fraction_dicts()
 
     def crop(self, length: float) -> None:
-        with self.is_first_in_measure_computation_paused():
+        with self.suppressing_is_first_in_measure():
             crop_pointlike(self, length)
 
     def clear(self):
-        with self.is_first_in_measure_computation_paused():
+        with self.suppressing_is_first_in_measure():
             for component in self._components.copy():
                 self.delete_component(component)
 
@@ -174,7 +185,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         measure_numbers = self.timeline.measure_numbers.copy()
         measures_to_force_display = self.timeline.measures_to_force_display.copy()
 
-        with self.is_first_in_measure_computation_paused():
+        with self.suppressing_is_first_in_measure():
             # This call will change the attributes above.
             super().deserialize_components(serialized_components)
 
@@ -190,7 +201,7 @@ class BeatTLComponentManager(TimelineComponentManager):
 
     def restore_state(self, prev_state: dict):
         self.timeline.clear_cached_metric_positions()
-        with self.is_first_in_measure_computation_paused():
+        with self.suppressing_is_first_in_measure():
             super().restore_state(prev_state)
         self.timeline.recalculate_measures()
         self.update_is_first_in_measure_of_subsequent_beats(0)
@@ -758,7 +769,7 @@ class BeatTimeline(Timeline):
 
         self.clear_cached_metric_positions()
 
-        with self.component_manager.is_first_in_measure_computation_paused():
+        with self.component_manager.suppressing_is_first_in_measure():
             for component in list(reversed(components)):
                 self.component_manager.delete_component(component)
 
@@ -776,7 +787,7 @@ class BeatTimeline(Timeline):
     def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
         duration = get(Get.MEDIA_DURATION)
 
-        with self.component_manager.is_first_in_measure_computation_paused():
+        with self.component_manager.suppressing_is_first_in_measure():
             if method == BeatTimeline.FillMethod.BY_AMOUNT:
                 total = int(value)
                 for i in range(total):
