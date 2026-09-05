@@ -178,13 +178,19 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline.update_metric_fraction_dicts()
 
     def crop(self, length: float) -> None:
-        with self.suppressing_is_first_in_measure():
+        with self.suppressing_is_first_in_measure() as was_computing:
             crop_pointlike(self, length)
 
+        if was_computing:
+            self.timeline.refresh_measures()
+
     def clear(self):
-        with self.suppressing_is_first_in_measure():
+        with self.suppressing_is_first_in_measure() as was_computing:
             for component in self._components.copy():
                 self.delete_component(component)
+
+        if was_computing:
+            self.timeline.refresh_measures()
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):
         # Storing these attributes so we can restore them below.
@@ -210,9 +216,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline.clear_cached_metric_positions()
         with self.suppressing_is_first_in_measure():
             super().restore_state(prev_state)
-        self.timeline.recalculate_measures()
-        self.update_is_first_in_measure_of_subsequent_beats(0)
-        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.timeline.id, 0)
+        self.timeline.refresh_measures()
 
 
 class BeatTimeline(Timeline):
@@ -670,6 +674,20 @@ class BeatTimeline(Timeline):
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
 
+    def refresh_measures(self) -> None:
+        """
+        Rebuild the measure structure and have the UI relabel every beat.
+
+        Run this after any bulk operation that added or removed beats with
+        per-beat recomputation suppressed. It is safe on an emptied timeline,
+        and required there: otherwise beats_in_measure and measure_numbers go
+        on describing beats that no longer exist, and the labels stay on
+        screen.
+        """
+        self.recalculate_measures()
+        self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
+
     def delete_components(self, components: list[TC]) -> None:
         self._validate_delete_components(components)
 
@@ -687,12 +705,7 @@ class BeatTimeline(Timeline):
             # every beat it re-creates afterwards sweep the whole timeline.
             return
 
-        # Unconditional, including when the timeline is now empty: otherwise it
-        # keeps a beats_in_measure / measure_numbers describing beats that no
-        # longer exist, and the UI keeps their labels.
-        self.recalculate_measures()
-        component_manager.update_is_first_in_measure_of_subsequent_beats(0)
-        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
+        self.refresh_measures()
 
     class FillMethod(Enum):
         BY_AMOUNT = 0

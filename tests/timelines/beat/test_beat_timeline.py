@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.mock import patch_yes_or_no_dialog
 from tests.utils import undoable
 from tilia.ui import commands
 
@@ -517,3 +518,32 @@ class TestBeatTimeline:
                 timeline.delete_components(list(timeline.components))
 
         assert component_manager.compute_is_first_in_measure is True
+
+    def test_shrinking_media_drops_measures_for_cropped_beats(
+        self, beat_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        self._add_beats(range(12))
+
+        assert beat_tlui.timeline.beats_in_measure == [4, 4, 4]
+
+        tilia_state.set_duration(7.5, scale_timelines="no")
+
+        # The measure structure has to shrink with the beats. Leaving a third
+        # measure behind makes measure_count over-report, makes
+        # get_time_by_measure interpolate against a partition that no longer
+        # exists, and makes "Distribute beats" on the last measure raise.
+        assert len(beat_tlui) == 8
+        assert beat_tlui.timeline.beats_in_measure == [4, 4]
+
+    def test_clearing_the_timeline_drops_the_measure_structure(self, beat_tlui):
+        self._add_beats(range(12))
+
+        assert beat_tlui.timeline.beats_in_measure == [4, 4, 4]
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", beat_tlui)
+
+        assert len(beat_tlui) == 0
+        assert beat_tlui.timeline.beats_in_measure == []
+        assert beat_tlui.timeline.measure_numbers == []
