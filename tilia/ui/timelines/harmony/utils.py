@@ -134,10 +134,18 @@ def _fmt_mod(mod: str | None, none_str: str = "") -> str:
 
 
 def _figs_to_str(figures: list[tuple[int, str | None]]) -> str:
-    prefix = "%" if len(figures) > 2 else ""
-    accs = "".join(_fmt_mod(mod, "s") for _, mod in figures)
+    # The "%" stack is a fixed three-slot construct: MusAnalysis pairs each of
+    # three single-character accidental slots with one of three numbers, and
+    # consumes "s" as a slot left blank. Any other shape overflows it — a
+    # different figure count, or a double accidental needing two characters —
+    # and the placeholders are then drawn as literal letters next to the
+    # numeral. Those fall back to the inline form, which has no blank slot and
+    # so must contribute nothing for an unaccidented figure.
+    slots = [_fmt_mod(mod, "s") for _, mod in figures]
     nums = "".join(str(n) for n, _ in figures)
-    return prefix + accs + nums
+    if len(slots) == 3 and all(len(slot) == 1 for slot in slots):
+        return "%" + "".join(slots) + nums
+    return "".join(_fmt_mod(mod) for _, mod in figures) + nums
 
 
 def _figure_index_for_pitch(
