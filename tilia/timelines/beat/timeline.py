@@ -51,23 +51,40 @@ class BeatTLComponentManager(TimelineComponentManager):
         finally:
             self.compute_is_first_in_measure = was_computing
 
+    @contextmanager
+    def suppressing_metric_fraction_dict(self) -> Iterator[bool]:
+        """
+        Suppress per-beat rebuilds of the metric-fraction dicts for the block.
+
+        Same contract as suppressing_is_first_in_measure: restore what was
+        found, and restore it even when the body raises. Leaving this flag off
+        would stop set_component_data from ever rebuilding the dicts again, so
+        every later get_time_by_measure and by-measure import would silently
+        read stale time-to-measure data.
+        """
+        was_computing = self.compute_metric_fraction_dict
+        self.compute_metric_fraction_dict = False
+        try:
+            yield was_computing
+        finally:
+            self.compute_metric_fraction_dict = was_computing
+
     @property
     def beat_times(self):
         return {b.time for b in self._components}
 
     def update_is_first_in_measure_of_subsequent_beats(self, start_index):
-        self.compute_metric_fraction_dict = False
-        beats_that_start_measure = set(self.timeline.beats_that_start_measures)
-        for i, beat in enumerate(self.timeline[start_index:]):
-            is_first_in_measure = start_index + i in beats_that_start_measure
-            if is_first_in_measure != beat.is_first_in_measure:
-                self.timeline.set_component_data(
-                    beat.id,
-                    "is_first_in_measure",
-                    is_first_in_measure,
-                )
+        with self.suppressing_metric_fraction_dict():
+            beats_that_start_measure = set(self.timeline.beats_that_start_measures)
+            for i, beat in enumerate(self.timeline[start_index:]):
+                is_first_in_measure = start_index + i in beats_that_start_measure
+                if is_first_in_measure != beat.is_first_in_measure:
+                    self.timeline.set_component_data(
+                        beat.id,
+                        "is_first_in_measure",
+                        is_first_in_measure,
+                    )
 
-        self.compute_metric_fraction_dict = True
         self.timeline.update_metric_fraction_dicts()
 
     def create_component(
@@ -161,15 +178,13 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline.update_metric_fraction_dicts()
 
     def crop(self, length: float) -> None:
-        self.compute_is_first_in_measure = False
-        crop_pointlike(self, length)
-        self.compute_is_first_in_measure = True
+        with self.suppressing_is_first_in_measure():
+            crop_pointlike(self, length)
 
     def clear(self):
-        self.compute_is_first_in_measure = False
-        for component in self._components.copy():
-            self.delete_component(component)
-        self.compute_is_first_in_measure = True
+        with self.suppressing_is_first_in_measure():
+            for component in self._components.copy():
+                self.delete_component(component)
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):
         # Storing these attributes so we can restore them below.
@@ -177,26 +192,24 @@ class BeatTLComponentManager(TimelineComponentManager):
         measure_numbers = self.timeline.measure_numbers.copy()
         measures_to_force_display = self.timeline.measures_to_force_display.copy()
 
-        self.compute_is_first_in_measure = False
+        with self.suppressing_is_first_in_measure():
+            # This call will change the attributes above.
+            super().deserialize_components(serialized_components)
 
-        # This call will change the attributes above.
-        super().deserialize_components(serialized_components)
-
-        # But we restore them here.
-        self.timeline.set_data("measure_numbers", measure_numbers)
-        self.timeline.set_data("beats_in_measure", beats_in_measure)
-        self.timeline.set_data("measures_to_force_display", measures_to_force_display)
-
-        self.compute_is_first_in_measure = True
+            # But we restore them here.
+            self.timeline.set_data("measure_numbers", measure_numbers)
+            self.timeline.set_data("beats_in_measure", beats_in_measure)
+            self.timeline.set_data(
+                "measures_to_force_display", measures_to_force_display
+            )
 
         self.timeline.recalculate_measures()
         post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def restore_state(self, prev_state: dict):
         self.timeline.clear_cached_metric_positions()
-        self.compute_is_first_in_measure = False
-        super().restore_state(prev_state)
-        self.compute_is_first_in_measure = True
+        with self.suppressing_is_first_in_measure():
+            super().restore_state(prev_state)
         self.timeline.recalculate_measures()
         self.update_is_first_in_measure_of_subsequent_beats(0)
         post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.timeline.id, 0)
@@ -687,17 +700,15 @@ class BeatTimeline(Timeline):
 
     def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
         duration = get(Get.MEDIA_DURATION)
-        self.component_manager.compute_is_first_in_measure = False
         # only compute at end
+        with self.component_manager.suppressing_is_first_in_measure():
+            if method == BeatTimeline.FillMethod.BY_AMOUNT:
+                for i in range(value):
+                    self.create_component(ComponentKind.BEAT, i * duration / value)
+            elif method == BeatTimeline.FillMethod.BY_INTERVAL:
+                for i in range(math.floor(duration / value)):
+                    self.create_component(ComponentKind.BEAT, i * value)
 
-        if method == BeatTimeline.FillMethod.BY_AMOUNT:
-            for i in range(value):
-                self.create_component(ComponentKind.BEAT, i * duration / value)
-        elif method == BeatTimeline.FillMethod.BY_INTERVAL:
-            for i in range(math.floor(duration / value)):
-                self.create_component(ComponentKind.BEAT, i * value)
-
-        self.component_manager.compute_is_first_in_measure = True
         self.recalculate_measures()
         self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
 
