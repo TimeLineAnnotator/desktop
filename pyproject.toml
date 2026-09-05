@@ -49,7 +49,11 @@ Repository = "https://github.com/TimeLineAnnotator/desktop"
 build = [
     "build",
     "ImageIO; sys_platform == 'darwin'",
-    "Nuitka >= 4.0",
+    # Pinned: under Nuitka 4.2.1 the compiled executable dies at startup with
+    # "module 'music21.repeat' has no attribute 'RepeatMark'" -- music21.bar
+    # reads that attribute at module level while music21.repeat is still
+    # initialising, and 4.2.1 no longer orders the imports so that it resolves.
+    "Nuitka==4.1.3",
     "ordered-set==4.1.0",
     "pyyaml",
     "setuptools<82.0.0; python_version >= '3.12'", #  setuptools>82.0.0 no longer provides pkg_resources
