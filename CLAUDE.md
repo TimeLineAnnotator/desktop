@@ -125,8 +125,9 @@ ships with a repro bundle so testing costs one paste instead.
      argparse validation and then fails to open with "File not found", while a CLI
      `save repro/x.tla` writes inside `tilia/` without saying so.
    - **The fixture must reproduce the bug on the base branch.** Verify it before opening
-     the PR: if the reviewer stashes the fix and relaunches the same file, they must see
-     the broken behavior. A fixture that only ever shows the fixed state proves nothing.
+     the PR by running the before-state command from item 4 yourself: the same file, on
+     the base ref, must show the broken behavior. A fixture that only ever shows the
+     fixed state proves nothing.
 2. **A copy-paste launch command** in the PR description, run through the project
    environment and with an absolute fixture path:
 
@@ -151,6 +152,29 @@ ships with a repro bundle so testing costs one paste instead.
 3. **Three lines of acceptance criteria**: the action to perform, what the bug looked
    like, what correct looks like. Removing setup time doesn't help if the reviewer still
    has to reverse-engineer what they're judging.
+4. **A before-state launch command**, so the reviewer sees the bug instead of taking the
+   description on trust. Point a worktree pinned to the base ref at the *same* fixture
+   file — only the app code changes:
+
+   ```bash
+   git worktree add --detach ../tilia-base <base-ref>
+   cd ../tilia-base
+   uv run --python 3.12 tilia "<absolute path to the fixture in the PR worktree>"
+   ```
+
+   Give both lines in the PR description, base ref and fixture path already filled in,
+   and close with `git worktree remove ../tilia-base`.
+
+   Do **not** tell the reviewer to stash the fix instead. The stash stack is shared
+   across every worktree of a repository, and agent sessions run in parallel worktrees
+   here — a `git stash pop` can restore somebody else's work, and dropping the wrong
+   entry loses it. A detached worktree touches no shared state and leaves the reviewer's
+   own checkout alone, which is the same reason `gh pr checkout <N>` is kept out of the
+   launch line in item 2.
+
+   Seeing the failure first is what makes the acceptance criteria checkable: without it
+   a reviewer can only confirm that the after-state looks plausible, which is precisely
+   the judgement the fixture is supposed to replace.
 
 **Fixture lifecycle: always delete the `.tla` before merge.** The file format changes,
 and committed fixtures go stale silently. What survives is the generator (CLI script or
