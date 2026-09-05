@@ -10,6 +10,9 @@ venv
 __pycache__
 tilia/dev
 
+# Generated repro fixtures
+.repro
+
 # IDEs
 .vscode
 .idea
