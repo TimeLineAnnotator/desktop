@@ -3,12 +3,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from tests.mock import Serve, patch_yes_or_no_dialog
-from tests.utils import undoable
+from tests.utils import get_command_action, undoable
 from tilia.requests import Get, Post, post
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
+from tilia.ui.timelines.beat.context_menu import BeatTimelineUIContextMenu
 from tilia.ui.windows import WindowKind
+
+TOGGLE_RECALC = "timeline.beat.toggle_recalculate_measures"
 
 
 def get_displayed_measure_number(beat_ui):
@@ -630,3 +633,63 @@ class TestUndoRedo:
             "1",
             "2",
         ]
+
+
+class TestToggleRecalculateMeasures:
+    @pytest.fixture(autouse=True)
+    def reset_action(self):
+        # The QAction is a process-wide singleton, so its check state would
+        # leak between tests. Reset it around each test.
+        action = commands.get_qaction(TOGGLE_RECALC)
+        action.setChecked(False)
+        yield
+        action.setChecked(False)
+
+    def test_action_is_checkable_and_starts_unchecked(self, beat_tlui):
+        action = commands.get_qaction(TOGGLE_RECALC)
+        assert action.isCheckable()
+        assert not action.isChecked()
+        assert beat_tlui.timeline.component_manager.compute_is_first_in_measure
+
+    def test_pause_sets_cm_flag_false_and_checks_action(self, beat_tlui):
+        commands.execute(TOGGLE_RECALC)
+
+        cm = beat_tlui.timeline.component_manager
+        assert cm.compute_is_first_in_measure is False
+        assert commands.get_qaction(TOGGLE_RECALC).isChecked()
+
+    def test_resume_runs_catch_up_recalc(self, beat_tlui):
+        beat_tlui.timeline.beat_pattern = [2]
+        commands.execute(TOGGLE_RECALC)
+
+        commands.execute("media.seek", 1.0)
+        commands.execute("timeline.beat.add")
+        commands.execute("media.seek", 2.0)
+        commands.execute("timeline.beat.add")
+
+        assert len(beat_tlui.timeline.components) == 2
+        assert sum(beat_tlui.timeline.beats_in_measure) == 0
+
+        commands.execute(TOGGLE_RECALC)
+
+        assert sum(beat_tlui.timeline.beats_in_measure) == 2
+        assert beat_tlui.timeline.component_manager.compute_is_first_in_measure
+        assert not commands.get_qaction(TOGGLE_RECALC).isChecked()
+
+    def test_context_menu_includes_toggle(self, beat_tlui):
+        menu = BeatTimelineUIContextMenu(beat_tlui, 0, 0)
+        assert get_command_action(menu, TOGGLE_RECALC) is not None
+
+    def test_context_menu_trigger_does_not_error(self, beat_tlui):
+        # TimelineUIContextMenu.add_action rewires the action's triggered
+        # signal to pass the clicked timeline_ui as an extra positional arg
+        # to commands.execute. Make sure the toggle callback tolerates it
+        # (regression guard against the "takes 1 positional argument but 2
+        # were given" TypeError).
+        menu = BeatTimelineUIContextMenu(beat_tlui, 0, 0)
+        action = get_command_action(menu, TOGGLE_RECALC)
+        assert action is not None
+        action.trigger()
+
+        cm = beat_tlui.timeline.component_manager
+        assert cm.compute_is_first_in_measure is False
