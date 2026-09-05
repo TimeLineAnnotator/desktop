@@ -105,86 +105,94 @@ Read `TESTING.md` first. Key points:
 
 ## Delivering a fix for human testing
 
-Human verification of AI-written fixes is the delivery bottleneck, and most of that
-time is scenario setup — clone, launch, create timeline, create components. Every fix
-ships with a repro bundle so testing costs one paste instead.
+Agents can't drive the desktop GUI, so an agent cannot verify its own fix in the
+running app — a human has to. Writing the setup out programmatically was never worth
+it when a human wrote the fix, because the tester could reach the scenario faster by
+hand than the author could script it. That trade has flipped: generating the setup now
+costs the author nothing. So every fix ships a repro bundle.
 
-1. **A `.tla` fixture** that lands the app directly in the buggy scenario.
-   - Keep it media-free where possible: `"media_path": ""` plus a `"media length"` in
-     `media_metadata`. `App._setup_file_media` returns early when the path is empty, so
-     the file opens with no prompt and no error.
-   - Generate it, don't hand-write the JSON: a CLI script (`script <path>` then
-     `save <path>.tla`) when `timelines add` / `components` cover the kind, otherwise a
-     throwaway pytest that builds the state through `commands.execute(...)` and saves via
-     `commands.execute("file.save", ...)`. Hand-authored JSON drifts from the real
-     serialization format.
-   - **Every path handed to TiLiA must be absolute**, in the generator and in the launch
-     command alike. Outside `ENVIRONMENT=prod`, `dirs.setup_dirs` chdirs into the `tilia`
-     package, so relative paths resolve against `tilia/` rather than the repo root — and
-     `boot()` parses its arguments *before* that chdir, so `tilia repro/x.tla` passes
-     argparse validation and then fails to open with "File not found", while a CLI
-     `save repro/x.tla` writes inside `tilia/` without saying so.
-   - **The fixture must reproduce the bug on the base branch.** Verify it before opening
-     the PR by running the before-state command from item 4 yourself: the same file, on
-     the base ref, must show the broken behavior. A fixture that only ever shows the
-     fixed state proves nothing.
-2. **A copy-paste launch command** in the PR description, run through the project
-   environment and with an absolute fixture path:
+Nothing repro-specific is committed. The `.tla` and the commands that build it are
+throwaway; the durable artifact is the regression test, written the way tests are
+normally written. Generated files go in `.repro/`, which is gitignored.
+
+1. **A scenario, as CLI commands**, in the PR description — the state the reviewer
+   needs to be in before they do anything.
+   - Keep it media-free: no `load-media`, just `metadata set-media-length`. That leaves
+     `"media_path": ""` plus a `"media length"` in `media_metadata`, and
+     `App._setup_file_media` returns early on an empty path, so the file opens with no
+     prompt and no error.
+   - CLI coverage is uneven. `timelines add` handles hierarchy, marker, beat, score,
+     range and audiowave; `components` registers only the `beat` subparser, so
+     `timelines import` (marker and hierarchy CSV, beat CSV, score MusicXML) is usually
+     the route when a timeline needs components. Outside those, fall back to a throwaway
+     pytest that builds the state through `commands.execute(...)` and saves via
+     `commands.execute("file.save", ...)`, and paste that instead.
+   - Don't hand-write the `.tla` JSON. It drifts from the real serialization format.
+2. **Three commands** in the PR description, base ref and paths already filled in.
+
+   Build the fixture, from the PR branch's checkout:
 
    ```bash
-   uv run --python 3.12 tilia "$PWD/repro/<issue>.tla"
+   mkdir -p .repro && printf '%s
+'      'metadata set-media-length 60'      'timelines add beat --name "Measures" --beat-pattern 4'      "save \"$PWD/.repro/<issue>.tla\" --overwrite"      | uv run --python 3.12 tilia --user-interface cli
    ```
 
-   Run it from the repo root; `$PWD` expands to an absolute path before the app starts,
-   which keeps the line portable without hard-coding anyone's checkout. `uv run` (or an
-   activated `.venv`) is what puts `tilia` on PATH — a bare `tilia` usually resolves to
-   nothing. Pin the interpreter: `requires-python` allows up to 3.13, so a fresh
-   environment resolves to the version this project documents as flaky under PySide.
-   `tilia` takes a `.tla` path as a positional argument (see `boot.setup_parser`), so no
-   extra tooling is needed.
-
-   Keep `gh pr checkout <N>` **out** of that line. It is one-time setup, and re-running
-   it is not always safe: it aborts when the head branch is already checked out in
-   another worktree, and its fast-forward fails once the local branch has diverged —
-   at which point `--force` resets the branch and discards whatever the reviewer changed
-   locally. State the checkout once above the launch command, and say plainly that
-   re-running it can throw local edits away.
-3. **Three lines of acceptance criteria**: the action to perform, what the bug looked
-   like, what correct looks like. Removing setup time doesn't help if the reviewer still
-   has to reverse-engineer what they're judging.
-4. **A before-state launch command**, so the reviewer sees the bug instead of taking the
-   description on trust. Point a worktree pinned to the base ref at the *same* fixture
-   file — only the app code changes:
+   See the bug, on the base ref:
 
    ```bash
    git worktree add --detach ../tilia-base <base-ref>
    cd ../tilia-base
-   uv run --python 3.12 tilia "<absolute path to the fixture in the PR worktree>"
+   uv run --python 3.12 tilia "<absolute path to .repro/<issue>.tla>"
    ```
 
-   Give both lines in the PR description, base ref and fixture path already filled in,
-   and close with `git worktree remove ../tilia-base`.
+   See the fix, from the PR branch's checkout:
 
-   Do **not** tell the reviewer to stash the fix instead. The stash stack is shared
-   across every worktree of a repository, and agent sessions run in parallel worktrees
-   here — a `git stash pop` can restore somebody else's work, and dropping the wrong
-   entry loses it. A detached worktree touches no shared state and leaves the reviewer's
-   own checkout alone, which is the same reason `gh pr checkout <N>` is kept out of the
-   launch line in item 2.
+   ```bash
+   uv run --python 3.12 tilia "$PWD/.repro/<issue>.tla"
+   ```
 
-   Seeing the failure first is what makes the acceptance criteria checkable: without it
-   a reviewer can only confirm that the after-state looks plausible, which is precisely
-   the judgement the fixture is supposed to replace.
+   Close with `git worktree remove ../tilia-base`.
 
-**Fixture lifecycle: always delete the `.tla` before merge.** The file format changes,
-and committed fixtures go stale silently. What survives is the generator (CLI script or
-pytest) — promote that into the test suite as a regression test if the scenario is worth
-keeping. Never leave a `.tla` behind as the durable artifact.
+   Three things make these lines actually run:
+   - **Every path handed to TiLiA must be absolute.** Outside `ENVIRONMENT=prod`,
+     `dirs.setup_dirs` chdirs into the `tilia` package, so relative paths resolve
+     against `tilia/` rather than the repo root — and `boot()` parses its arguments
+     *before* that chdir, so `tilia .repro/x.tla` passes argparse validation and then
+     fails to open with "File not found", while a CLI `save .repro/x.tla` writes inside
+     `tilia/` without saying so. On Windows, run these in PowerShell: Git Bash expands
+     `$PWD` to an MSYS path (`/c/Users/...`) that the interpreter cannot open.
+   - **Go through the project environment, and pin the interpreter.** A bare `tilia`
+     resolves to nothing without an activated `.venv`. `requires-python` allows up to
+     3.13, so a fresh environment otherwise resolves to the version this project
+     documents as flaky under PySide.
+   - **Use a detached worktree for the base ref, never `git stash`.** The stash stack is
+     shared across every worktree of a repository and agent sessions run in parallel
+     worktrees here, so a pop can restore someone else's work. For the same reason keep
+     `gh pr checkout <N>` out of the copy-paste lines: it aborts when the head branch is
+     checked out elsewhere, its fast-forward fails once the local branch has diverged,
+     and `--force` then discards whatever the reviewer changed locally. State the
+     checkout once, above the commands, and say that re-running it can lose local edits.
+3. **Three lines of acceptance criteria**: the action to perform, what the bug looked
+   like, what correct looks like. Removing setup time doesn't help if the reviewer still
+   has to reverse-engineer what they're judging.
+4. **A line on what the bundle does not verify.** The fix, the regression test and the
+   scenario all come from one author with one mental model. The before/after pair proves
+   the scenario changed behavior; it cannot prove the scenario is the bug that was
+   reported. A reviewer who builds the setup by hand is running an independent check,
+   and the bundle removes that check while making the review feel more thorough. So
+   derive the scenario and the acceptance criteria from the issue text rather than from
+   the fix, and name the cases the bundle doesn't cover.
+
+Verify the bundle before opening the PR by running the before-state command yourself.
+A fixture that only ever shows the fixed state proves nothing. If the fix changes
+serialization, generate the fixture on the base ref instead — one built by the fixed
+code may not open there.
 
 **When the bug needs real media** (playback, audiowave, video, PDF), a portable fixture
 is impossible — say so instead of shipping one that can't reproduce it, and ask the user
 for a suitable media file. Record the path in your memory so later sessions reuse the
 same file rather than asking again.
+
 
 ## Debugging GUI-only bugs
 
