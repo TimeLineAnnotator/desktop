@@ -644,13 +644,12 @@ class BeatTimeline(Timeline):
         self.component_manager.compute_is_first_in_measure = False
         for component in list(reversed(components)):
             self.component_manager.delete_component(component)
-        self.component_manager.update_is_first_in_measure = True
+        self.component_manager.compute_is_first_in_measure = True
 
+        self.recalculate_measures()
         if not self.is_empty:
             self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
-            post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
-
-            # Higher index is possible.
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
 
     class FillMethod(Enum):
         BY_AMOUNT = 0

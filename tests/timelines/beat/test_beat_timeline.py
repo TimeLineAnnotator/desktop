@@ -436,3 +436,50 @@ class TestBeatTimeline:
 
         assert len(tilia.timelines[0]) == 11
         assert tilia.timelines[0][-1].get_data("time") == 10
+
+    def test_insert_beats_after_deleting_all_beats(self, beat_tl):
+        for i in range(8):
+            beat_tl.create_beat(i)
+
+        beat_tl.delete_components(list(beat_tl.components))
+
+        assert beat_tl.beats_in_measure == []
+        assert beat_tl.measure_numbers == []
+
+        for i in range(8):
+            beat_tl.create_beat(i)
+
+        assert beat_tl.beats_in_measure == [4, 4]
+        assert [b.is_first_in_measure for b in beat_tl] == [
+            True,
+            False,
+            False,
+            False,
+            True,
+            False,
+            False,
+            False,
+        ]
+
+    def test_insert_beats_after_deleting_some_beats(self, beat_tl):
+        for i in range(8):
+            beat_tl.create_beat(i)
+
+        beat_tl.delete_components(list(beat_tl.components)[4:])
+
+        assert beat_tl.beats_in_measure == [4]
+
+        for i in range(8, 12):
+            beat_tl.create_beat(i)
+
+        assert beat_tl.beats_in_measure == [4, 4]
+        assert [b.is_first_in_measure for b in beat_tl] == [
+            True,
+            False,
+            False,
+            False,
+            True,
+            False,
+            False,
+            False,
+        ]
