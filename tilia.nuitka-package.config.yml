@@ -5,7 +5,7 @@
 # yamllint disable rule:comments
 # too many spelling things, spell-checker: disable
 ---
-- module-name: "music21" # mostly regex matching entire refrences to tests and deleting.
+- module-name: "music21" # mostly regex matching entire references to tests and deleting.
   anti-bloat:
     - description: "remove tests"
       replacements_plain:
