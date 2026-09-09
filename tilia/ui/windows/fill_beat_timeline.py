@@ -1,3 +1,4 @@
+from consts import BY_AMOUNT_RANGE, BY_BPM_RANGE
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -17,6 +18,8 @@ from tilia.timelines.timeline_kinds import TimelineKind
 from tilia.ui.strings import (
     BEAT_TIMELINE_BY_AMOUNT_OPTION,
     BEAT_TIMELINE_BY_AMOUNT_SUFFIX,
+    BEAT_TIMELINE_BY_BPM_OPTION,
+    BEAT_TIMELINE_BY_BPM_SUFFIX,
     BEAT_TIMELINE_BY_INTERVAL_OPTION,
     BEAT_TIMELINE_BY_INTERVAL_SUFFIX,
     BEAT_TIMELINE_FILL_PROMPT,
@@ -27,13 +30,15 @@ from tilia.ui.strings import (
 class FillBeatTimeline(QDialog):
     def __init__(self):
         def get_result():
-            checked_option = self._options.checkedId() % 2
+            checked_option = self._options.checkedId() % len(BeatTimeline.FillMethod)
             return (
                 self._timeline_combobox.currentData(),
                 BeatTimeline.FillMethod(checked_option),
                 (
                     self._by_interval_edit.value()
-                    if checked_option
+                    if checked_option == BeatTimeline.FillMethod.BY_INTERVAL
+                    else self._by_bpm_edit.value()
+                    if checked_option == BeatTimeline.FillMethod.BY_BPM
                     else self._by_amount_edit.value()
                 ),
             )
@@ -49,7 +54,9 @@ class FillBeatTimeline(QDialog):
 
         self._timeline_combobox = QComboBox()
         _by_amount_prompt = QRadioButton()
+        _by_bpm_prompt = QRadioButton()
         self._by_amount_edit = QSpinBox()
+        self._by_bpm_edit = QSpinBox()
         _by_interval_prompt = QRadioButton()
         self._by_interval_edit = QDoubleSpinBox()
         self._options = QButtonGroup(self)
@@ -59,19 +66,30 @@ class FillBeatTimeline(QDialog):
         _by_amount_prompt.toggled.connect(
             lambda checked: self._by_amount_edit.setEnabled(checked)
         )
+        _by_bpm_prompt.setText(BEAT_TIMELINE_BY_BPM_OPTION)
+        _by_bpm_prompt.toggled.connect(
+            lambda checked: self._by_bpm_edit.setEnabled(checked)
+        )
         _by_interval_prompt.setText(BEAT_TIMELINE_BY_INTERVAL_OPTION)
         _by_interval_prompt.toggled.connect(
             lambda checked: self._by_interval_edit.setEnabled(checked)
         )
 
-        self._options.addButton(_by_amount_prompt, 0)
-        self._options.addButton(_by_interval_prompt, 1)
+        self._options.addButton(_by_amount_prompt, BeatTimeline.FillMethod.BY_AMOUNT)
+        self._options.addButton(
+            _by_interval_prompt, BeatTimeline.FillMethod.BY_INTERVAL
+        )
+        self._options.addButton(_by_bpm_prompt, BeatTimeline.FillMethod.BY_BPM)
         _by_amount_prompt.setChecked(True)
 
         # setup line edits
-        self._by_amount_edit.setRange(1, 2147483647)
+        self._by_amount_edit.setRange(1, BY_AMOUNT_RANGE)
         self._by_amount_edit.setSuffix(BEAT_TIMELINE_BY_AMOUNT_SUFFIX)
         self._by_amount_edit.setValue(1)
+        self._by_bpm_edit.setRange(1, BY_BPM_RANGE)
+        self._by_bpm_edit.setSuffix(BEAT_TIMELINE_BY_BPM_SUFFIX)
+        self._by_bpm_edit.setValue(120)
+        self._by_bpm_edit.setEnabled(False)
         self._by_interval_edit.setRange(0.01, get(Get.MEDIA_DURATION))
         self._by_interval_edit.setSuffix(BEAT_TIMELINE_BY_INTERVAL_SUFFIX)
         self._by_interval_edit.setValue(1)
@@ -100,11 +118,25 @@ class FillBeatTimeline(QDialog):
         # add widgets to layout
         self.layout().addWidget(self._prompt, 0, 0)
         self.layout().addWidget(self._timeline_combobox, 0, 1)
-        self.layout().addWidget(_by_amount_prompt, 1, 0)
-        self.layout().addWidget(self._by_amount_edit, 1, 1)
-        self.layout().addWidget(_by_interval_prompt, 2, 0)
-        self.layout().addWidget(self._by_interval_edit, 2, 1)
-        self.layout().addWidget(_button_box, 3, 0, 1, 2)
+
+        self.layout().addWidget(
+            _by_amount_prompt, BeatTimeline.FillMethod.BY_AMOUNT + 1, 0
+        )
+        self.layout().addWidget(
+            self._by_amount_edit, BeatTimeline.FillMethod.BY_AMOUNT + 1, 1
+        )
+        self.layout().addWidget(
+            _by_interval_prompt, BeatTimeline.FillMethod.BY_INTERVAL + 1, 0
+        )
+        self.layout().addWidget(
+            self._by_interval_edit, BeatTimeline.FillMethod.BY_INTERVAL + 1, 1
+        )
+        self.layout().addWidget(_by_bpm_prompt, BeatTimeline.FillMethod.BY_BPM + 1, 0)
+        self.layout().addWidget(
+            self._by_bpm_edit, BeatTimeline.FillMethod.BY_BPM + 1, 1
+        )
+
+        self.layout().addWidget(_button_box, len(BeatTimeline.FillMethod), 0, 1, 2)
         self.get_result = get_result
 
     @classmethod
