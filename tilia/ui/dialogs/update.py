@@ -6,8 +6,8 @@ import sys
 import threading
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
 import tilia.constants
 import tilia.errors
@@ -56,17 +56,35 @@ def _show_velopack_dialog(
 
     parent = get(Get.MAIN_WINDOW)
 
+    # The download can take minutes; without visible progress users assume
+    # nothing happens and close TiLiA, which kills the daemon download thread.
+    progress = QProgressDialog(f"Downloading TiLiA {version}...", "", 0, 100, parent)
+    progress.setWindowTitle("Updating TiLiA")
+    progress.setCancelButton(None)  # Velopack downloads cannot be cancelled
+    progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+    progress.setMinimumDuration(0)
+    progress.setAutoClose(False)
+    progress.setValue(0)
+    progress.show()
+
+    def _on_progress(percent: int) -> None:
+        QTimer.singleShot(0, progress, lambda: progress.setValue(percent))
+
     def _apply():
         try:
-            manager.download_updates(update)
+            manager.download_updates(update, _on_progress)
+            QTimer.singleShot(
+                0, progress, lambda: progress.setLabelText("Restarting TiLiA...")
+            )
             manager.apply_updates_and_restart(update)
         except Exception as e:
             msg = str(e)
-            QTimer.singleShot(
-                0,
-                parent,
-                lambda: tilia.errors.display(tilia.errors.VELOPACK_UPDATE_FAILED, msg),
-            )
+
+            def _show_error() -> None:
+                progress.close()
+                tilia.errors.display(tilia.errors.VELOPACK_UPDATE_FAILED, msg)
+
+            QTimer.singleShot(0, parent, _show_error)
 
     threading.Thread(target=_apply, daemon=True).start()
 
