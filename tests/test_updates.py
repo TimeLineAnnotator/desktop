@@ -145,7 +145,8 @@ def test_make_locator_linux_uses_updatenix_and_appimage_env(monkeypatch, tmp_pat
     loc = updates._make_locator()
 
     assert loc is not None
-    assert loc.UpdateExePath.endswith("UpdateNix")
+    # UpdateNix lives in <mount>/usr/bin, next to sq.version and the binary.
+    assert loc.UpdateExePath == str(mount / "UpdateNix")
     # RootAppDir is the AppImage's own path (from $APPIMAGE), not the
     # ephemeral FUSE mount point.
     assert loc.RootAppDir == str(appimage)

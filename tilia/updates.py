@@ -127,8 +127,8 @@ def _make_locator():
             # extracted binary) - nothing Velopack-manageable to locate.
             return None
         root_dir = Path(appimage_path)
-        mount_dir = current_dir.parents[1]  # current_dir is <mount>/usr/bin
-        update_exe = mount_dir / "UpdateNix"
+        # vpk places UpdateNix next to sq.version and the binary in <mount>/usr/bin
+        update_exe = current_dir / "UpdateNix"
         packages_dir = Path("/var/tmp/velopack") / APP_NAME / "packages"
         is_portable = True
     elif sys.platform == "win32":
