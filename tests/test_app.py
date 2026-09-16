@@ -143,6 +143,26 @@ class TestSaveFileOnClose:
         exit_mock.assert_not_called()
         save_mock.assert_not_called()
 
+    def test_close_prompts_to_save_after_loading_media(self, tilia, qtui, tmp_path):
+        # Establish a clean "saved" baseline via a real save, so the prompt
+        # checked for below can only be caused by the media load that
+        # follows, not by state left over from earlier tests in this module
+        # (tilia/qtui are module-scoped).
+        save_tilia_to_tmp_path(tmp_path)
+        assert not get(Get.IS_FILE_MODIFIED)
+
+        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
+            commands.execute("media.load.local")
+
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as should_save,
+            PatchPost("tilia.app", Post.UI_EXIT) as exit_mock,
+        ):
+            commands.execute("tilia.close")
+
+        assert should_save.called
+        exit_mock.assert_called()
+
 
 class TestFileLoad:
     def test_media_path_does_not_exist_and_media_length_available(
@@ -968,6 +988,24 @@ class TestFileNew:
         # it checks if app._windows[kind] is None.
         # Those should be equivalent, if everything is working as it should
         assert not any(qtui.is_window_open(k) for k in WindowKind)
+
+    def test_new_prompts_to_save_after_loading_media(self, tilia, qtui, tmp_path):
+        # Establish a clean "saved" baseline via a real save, so the prompt
+        # checked for below can only be caused by the media load that
+        # follows, not by state left over from earlier tests in this module
+        # (tilia/qtui are module-scoped).
+        save_tilia_to_tmp_path(tmp_path)
+        assert not get(Get.IS_FILE_MODIFIED)
+
+        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
+            commands.execute("media.load.local")
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as should_save:
+            commands.execute("file.new")
+
+        assert should_save.called
+        assert get(Get.MEDIA_DURATION) == 0
+        assert not tilia.player.media_path
 
 
 class TestRelativePaths:
