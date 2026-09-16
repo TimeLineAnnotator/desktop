@@ -31,4 +31,14 @@ def validate_tla_data(data: dict) -> tuple[bool, str]:
         if key not in data:
             return False, f"Missing field: {key}"
 
+    if not isinstance(data["timelines"], dict):
+        return False, "'timelines' must be a mapping of timeline id to timeline data."
+
+    for tl_id, timeline in data["timelines"].items():
+        if not isinstance(timeline, dict):
+            return (
+                False,
+                f"Timeline '{tl_id}' data must be a mapping, got {type(timeline).__name__}.",
+            )
+
     return True, ""

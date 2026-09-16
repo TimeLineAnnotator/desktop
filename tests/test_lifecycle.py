@@ -1,0 +1,651 @@
+"""Tests for tilia.lifecycle.
+
+lifecycle.py runs before the UI exists — Velopack invokes it with hook flags on
+install/update/uninstall, and boot.py calls init() inside a `__compiled__`
+guard. None of that is reachable through commands.execute, so these tests call
+the functions directly; that is the right level for boot-time code.
+
+Every platform-specific import in lifecycle.py is function-local
+(`import winreg`, `import ctypes`, `import shutil`), which is what makes the
+Windows path testable from any OS: swapping sys.modules["winreg"] for a fake is
+enough. The Linux path needs no faking at all beyond XDG_DATA_HOME.
+"""
+
+import ctypes
+import shutil
+import subprocess
+import sys
+import types
+from pathlib import Path
+
+import pytest
+
+import tilia.lifecycle as lifecycle
+
+# --------------------------------------------------------------------------- #
+# Windows: in-memory registry double
+# --------------------------------------------------------------------------- #
+
+
+class _FakeKey:
+    """Handle returned by CreateKeyEx/OpenKey; usable as a context manager."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class FakeRegistry:
+    """Stand-in for the winreg surface lifecycle.py uses.
+
+    Keys are stored flat, keyed by their backslash-separated path, so "does
+    this key have subkeys" is a prefix test. DeleteKey mirrors the real API and
+    refuses to delete a key that still has subkeys — that constraint is the
+    whole point of test_uninstall_removes_the_tla_key.
+    """
+
+    HKEY_CURRENT_USER = "HKCU"
+    REG_SZ = 1
+    KEY_ALL_ACCESS = 0xF003F
+
+    def __init__(self):
+        self.keys = {}
+
+    def _has_subkeys(self, path):
+        return any(p.startswith(path + "\\") for p in self.keys)
+
+    def _direct_subkey_count(self, path):
+        prefix = path + "\\"
+        return len(
+            {
+                p[len(prefix) :].split("\\", 1)[0]
+                for p in self.keys
+                if p.startswith(prefix)
+            }
+        )
+
+    def CreateKeyEx(self, root, path):
+        parts = path.split("\\")
+        for i in range(1, len(parts) + 1):
+            self.keys.setdefault("\\".join(parts[:i]), {})
+        return _FakeKey(path)
+
+    def OpenKey(self, root, path, reserved=0, access=None):
+        if path not in self.keys:
+            raise FileNotFoundError(2, "cannot find the file specified", path)
+        return _FakeKey(path)
+
+    def QueryInfoKey(self, key):
+        num_subkeys = self._direct_subkey_count(key.path)
+        num_values = len(self.keys[key.path])
+        return (num_subkeys, num_values, 0)
+
+    def SetValueEx(self, key, name, reserved, type_, value):
+        self.keys[key.path][name] = value
+
+    def QueryValueEx(self, key, name):
+        if name not in self.keys[key.path]:
+            raise FileNotFoundError(2, "cannot find the file specified", name)
+        return self.keys[key.path][name], self.REG_SZ
+
+    def DeleteValue(self, key, name):
+        if name not in self.keys[key.path]:
+            raise FileNotFoundError(2, "cannot find the file specified", name)
+        del self.keys[key.path][name]
+
+    def DeleteKey(self, root, path):
+        if path not in self.keys:
+            raise FileNotFoundError(2, "cannot find the file specified", path)
+        if self._has_subkeys(path):
+            raise OSError(41, "the directory is not empty", path)
+        del self.keys[path]
+
+
+class _FakeShell32:
+    def __init__(self):
+        self.calls = []
+
+        def SHChangeNotify(*args):
+            self.calls.append(args)
+
+        self.SHChangeNotify = SHChangeNotify
+
+
+@pytest.fixture
+def registry(monkeypatch):
+    """Fake winreg + ctypes.windll so the Windows path runs on any OS."""
+    reg = FakeRegistry()
+    shell32 = _FakeShell32()
+    monkeypatch.setitem(sys.modules, "winreg", reg)
+    # ctypes.windll does not exist off Windows, hence raising=False.
+    monkeypatch.setattr(
+        ctypes, "windll", types.SimpleNamespace(shell32=shell32), raising=False
+    )
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\test\AppData\Local")
+    reg.shell32 = shell32
+    return reg
+
+
+class TestWindowsFileAssociation:
+    def test_register_writes_progid_and_open_with_entries(self, registry):
+        lifecycle._register_windows_file_association()
+
+        assert registry.keys[r"Software\Classes\.tla"][""] == "TiLiA.tla"
+        assert registry.keys[r"Software\Classes\TiLiA.tla"][""] == "TiLiA File"
+        # advertises TiLiA as a candidate in the "Open with" submenu
+        assert "TiLiA.tla" in registry.keys[r"Software\Classes\.tla\OpenWithProgids"]
+        app_key = r"Software\Classes\Applications\TiLiA.exe"
+        assert registry.keys[app_key]["FriendlyAppName"] == "TiLiA"
+        assert ".tla" in registry.keys[rf"{app_key}\SupportedTypes"]
+
+    def test_register_points_commands_at_the_velopack_current_path(self, registry):
+        lifecycle._register_windows_file_association()
+
+        # Built with Path, so the separator follows the host OS; on Windows,
+        # where this code actually runs, that is a backslash.
+        expected = (
+            Path(r"C:\Users\test\AppData\Local") / "TiLiA" / "current" / ("TiLiA.exe")
+        )
+        for key in (
+            r"Software\Classes\TiLiA.tla\shell\open\command",
+            r"Software\Classes\Applications\TiLiA.exe\shell\open\command",
+        ):
+            assert registry.keys[key][""] == f'"{expected}" "%1"'
+        assert registry.keys[r"Software\Classes\TiLiA.tla\DefaultIcon"][""] == (
+            f"{expected},0"
+        )
+
+    def test_register_notifies_the_shell(self, registry):
+        lifecycle._register_windows_file_association()
+
+        # SHCNE_ASSOCCHANGED, or Explorer keeps showing the old icon/handler.
+        assert registry.shell32.calls == [(0x08000000, 0x0000, None, None)]
+
+    def test_uninstall_removes_the_progid_and_app_keys(self, registry):
+        lifecycle._register_windows_file_association()
+        lifecycle._unregister_windows_file_association()
+
+        assert r"Software\Classes\TiLiA.tla" not in registry.keys
+        assert r"Software\Classes\Applications\TiLiA.exe" not in registry.keys
+
+    def test_uninstall_removes_the_tla_key(self, registry):
+        lifecycle._register_windows_file_association()
+        lifecycle._unregister_windows_file_association()
+
+        assert r"Software\Classes\.tla" not in registry.keys
+
+    def test_uninstall_leaves_other_apps_open_with_entries_alone(self, registry):
+        """Another app's OpenWithProgids entry must survive our uninstall."""
+        lifecycle._register_windows_file_association()
+        with registry.CreateKeyEx(
+            registry.HKEY_CURRENT_USER, r"Software\Classes\.tla\OpenWithProgids"
+        ) as k:
+            registry.SetValueEx(k, "OtherApp.tla", 0, registry.REG_SZ, "")
+
+        lifecycle._unregister_windows_file_association()
+
+        assert (
+            registry.keys[r"Software\Classes\.tla\OpenWithProgids"]["OtherApp.tla"]
+            == ""
+        )
+        assert (
+            "TiLiA.tla" not in registry.keys[r"Software\Classes\.tla\OpenWithProgids"]
+        )
+
+    def test_uninstall_leaves_a_foreign_handler_alone(self, registry):
+        """Another app owns .tla — we must not delete its association."""
+        with registry.CreateKeyEx(registry.HKEY_CURRENT_USER, r"Software\Classes\.tla"):
+            pass
+        registry.keys[r"Software\Classes\.tla"][""] = "OtherApp.tla"
+
+        lifecycle._unregister_windows_file_association()
+
+        assert registry.keys[r"Software\Classes\.tla"][""] == "OtherApp.tla"
+
+    def test_uninstall_is_safe_when_nothing_was_registered(self, registry):
+        lifecycle._unregister_windows_file_association()  # must not raise
+
+        assert registry.keys == {}
+
+
+# --------------------------------------------------------------------------- #
+# Linux: XDG desktop entry + MIME package
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def xdg(tmp_path, monkeypatch):
+    """Point XDG_DATA_HOME at a temp dir and stub out the refresh tools."""
+    data_home = tmp_path / "share"
+    monkeypatch.setenv("XDG_DATA_HOME", str(data_home))
+    monkeypatch.setattr(sys, "executable", "/opt/tilia/current/TiLiA")
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    return data_home
+
+
+def _desktop_file(data_home):
+    return data_home / "applications" / "tilia.desktop"
+
+
+def _mime_file(data_home):
+    return data_home / "mime" / "packages" / "tilia.xml"
+
+
+class TestLinuxFileAssociation:
+    def test_register_writes_desktop_entry(self, xdg):
+        lifecycle._register_linux_file_association()
+
+        content = _desktop_file(xdg).read_text()
+        assert "Exec=/opt/tilia/current/TiLiA %F" in content
+        assert "MimeType=application/x-tilia;" in content
+
+    def test_register_writes_mime_package(self, xdg):
+        lifecycle._register_linux_file_association()
+
+        content = _mime_file(xdg).read_text()
+        assert 'mime-type type="application/x-tilia"' in content
+        assert 'glob pattern="*.tla"' in content
+
+    def test_register_refreshes_databases_when_tools_are_present(
+        self, xdg, monkeypatch
+    ):
+        monkeypatch.setattr(shutil, "which", lambda name: f"/usr/bin/{name}")
+        calls = []
+        monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+
+        lifecycle._register_linux_file_association()
+
+        assert [cmd[0] for cmd in calls] == [
+            "update-mime-database",
+            "update-desktop-database",
+        ]
+
+    def test_unregister_removes_both_files(self, xdg):
+        lifecycle._register_linux_file_association()
+
+        lifecycle._unregister_linux_file_association()
+
+        assert not _desktop_file(xdg).exists()
+        assert not _mime_file(xdg).exists()
+
+    def test_unregister_is_safe_when_nothing_was_registered(self, xdg):
+        lifecycle._unregister_linux_file_association()  # must not raise
+
+        assert not _desktop_file(xdg).exists()
+
+    def test_ensure_does_not_rewrite_a_current_entry(self, xdg, monkeypatch):
+        lifecycle._register_linux_file_association()
+        calls = []
+        monkeypatch.setattr(
+            lifecycle, "_register_linux_file_association", lambda: calls.append(1)
+        )
+
+        lifecycle._ensure_linux_file_association()
+
+        assert calls == []
+
+    def test_ensure_rewrites_after_the_executable_moved(self, xdg, monkeypatch):
+        """The update case: Velopack swaps in a new current/ directory."""
+        lifecycle._register_linux_file_association()
+        monkeypatch.setattr(sys, "executable", "/opt/tilia/current-2/TiLiA")
+
+        lifecycle._ensure_linux_file_association()
+
+        assert "Exec=/opt/tilia/current-2/TiLiA %F" in _desktop_file(xdg).read_text()
+
+    def test_ensure_writes_a_missing_entry(self, xdg):
+        lifecycle._ensure_linux_file_association()
+
+        assert _desktop_file(xdg).exists()
+
+    def test_ensure_points_exec_at_the_stable_copy_when_appimage_env_is_set(
+        self, xdg, monkeypatch, tmp_path
+    ):
+        downloaded = tmp_path / "Downloads" / "TiLiA.AppImage"
+        downloaded.parent.mkdir(parents=True)
+        downloaded.write_bytes(b"appimage-contents")
+        home = tmp_path / "home"
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        monkeypatch.delenv("XDG_BIN_HOME", raising=False)
+        monkeypatch.setenv("APPIMAGE", str(downloaded))
+
+        lifecycle._ensure_linux_file_association()
+
+        stable = home / ".local" / "bin" / "TiLiA.AppImage"
+        assert f"Exec={stable} %F" in _desktop_file(xdg).read_text()
+        assert stable.read_bytes() == b"appimage-contents"
+
+
+# --------------------------------------------------------------------------- #
+# Linux: stable AppImage copy
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def stable_home(tmp_path, monkeypatch):
+    """Point the stable-copy location at a temp dir, isolated from real home."""
+    home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.delenv("XDG_BIN_HOME", raising=False)
+    return home / ".local" / "bin" / "TiLiA.AppImage"
+
+
+class TestStableAppImageCopy:
+    def test_returns_none_without_appimage_env(self, stable_home, monkeypatch):
+        monkeypatch.delenv("APPIMAGE", raising=False)
+
+        assert lifecycle._ensure_stable_appimage_copy() is None
+
+    def test_copies_from_the_appimage_env_path(
+        self, stable_home, monkeypatch, tmp_path
+    ):
+        source = tmp_path / "Downloads" / "TiLiA.AppImage"
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b"contents")
+        monkeypatch.setenv("APPIMAGE", str(source))
+
+        result = lifecycle._ensure_stable_appimage_copy()
+
+        assert result == str(stable_home)
+        assert stable_home.read_bytes() == b"contents"
+
+    def test_is_a_noop_when_already_running_from_the_stable_copy(
+        self, stable_home, monkeypatch
+    ):
+        stable_home.parent.mkdir(parents=True)
+        stable_home.write_bytes(b"already-here")
+        monkeypatch.setenv("APPIMAGE", str(stable_home))
+
+        result = lifecycle._ensure_stable_appimage_copy()
+
+        assert result == str(stable_home)
+        assert stable_home.read_bytes() == b"already-here"
+
+    def test_remove_is_safe_when_nothing_is_there(self, stable_home):
+        lifecycle._remove_stable_appimage_copy()  # must not raise
+
+        assert not stable_home.exists()
+
+    def test_remove_deletes_the_stable_copy(self, stable_home):
+        stable_home.parent.mkdir(parents=True)
+        stable_home.write_bytes(b"x")
+
+        lifecycle._remove_stable_appimage_copy()
+
+        assert not stable_home.exists()
+
+
+# --------------------------------------------------------------------------- #
+# In-app "Uninstall" command
+# --------------------------------------------------------------------------- #
+
+
+class TestMacOSAppBundlePath:
+    def test_returns_the_app_bundle(self, monkeypatch, tmp_path):
+        macos_dir = tmp_path / "TiLiA.app" / "Contents" / "MacOS"
+        macos_dir.mkdir(parents=True)
+        monkeypatch.setattr(sys, "executable", str(macos_dir / "TiLiA-bin"))
+
+        assert lifecycle._macos_app_bundle_path() == tmp_path / "TiLiA.app"
+
+    def test_returns_none_outside_a_bundle(self, monkeypatch, tmp_path):
+        bin_dir = tmp_path / "usr" / "local" / "bin"
+        bin_dir.mkdir(parents=True)
+        monkeypatch.setattr(sys, "executable", str(bin_dir / "tilia"))
+
+        assert lifecycle._macos_app_bundle_path() is None
+
+
+class TestUninstallMacOS:
+    def test_unregisters_the_bundle_from_launch_services(self, monkeypatch, tmp_path):
+        macos_dir = tmp_path / "TiLiA.app" / "Contents" / "MacOS"
+        macos_dir.mkdir(parents=True)
+        monkeypatch.setattr(sys, "executable", str(macos_dir / "TiLiA-bin"))
+        calls = []
+        monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+
+        message = lifecycle._uninstall_macos()
+
+        assert calls == [
+            [
+                "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+                "LaunchServices.framework/Support/lsregister",
+                "-u",
+                str(tmp_path / "TiLiA.app"),
+            ]
+        ]
+        assert "Trash" in message
+
+    def test_is_safe_when_not_running_from_a_bundle(self, monkeypatch, tmp_path):
+        bin_dir = tmp_path / "usr" / "local" / "bin"
+        bin_dir.mkdir(parents=True)
+        monkeypatch.setattr(sys, "executable", str(bin_dir / "tilia"))
+        calls = []
+        monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+
+        message = lifecycle._uninstall_macos()
+
+        assert calls == []
+        assert "Trash" in message
+
+
+class TestUninstallLinux:
+    def test_removes_associations_and_the_stable_copy(self, xdg, stable_home):
+        lifecycle._register_linux_file_association()
+        stable_home.parent.mkdir(parents=True)
+        stable_home.write_bytes(b"x")
+
+        message = lifecycle._uninstall_linux()
+
+        assert not _desktop_file(xdg).exists()
+        assert not _mime_file(xdg).exists()
+        assert not stable_home.exists()
+        assert "AppImage" in message
+
+    def test_is_safe_when_nothing_was_registered(self, xdg, stable_home):
+        lifecycle._uninstall_linux()  # must not raise
+
+
+class TestUninstallDispatch:
+    def test_darwin_calls_uninstall_macos(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "darwin")
+        monkeypatch.setattr(lifecycle, "_uninstall_macos", lambda: "mac-done")
+
+        assert lifecycle.uninstall() == "mac-done"
+
+    def test_linux_calls_uninstall_linux(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(lifecycle, "_uninstall_linux", lambda: "linux-done")
+
+        assert lifecycle.uninstall() == "linux-done"
+
+    def test_windows_points_at_add_remove_programs(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "win32")
+
+        assert "Add/Remove Programs" in lifecycle.uninstall()
+
+    def test_unrecognized_platform_returns_a_message_rather_than_raising(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(sys, "platform", "freebsd")
+
+        lifecycle.uninstall()  # must not raise
+
+
+# --------------------------------------------------------------------------- #
+# Velopack hook dispatch
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def hooks(monkeypatch):
+    """Record which lifecycle hook fired, with the version it was handed."""
+    calls = []
+    monkeypatch.setattr(
+        lifecycle, "_on_velopack_install", lambda v: calls.append(("install", v))
+    )
+    monkeypatch.setattr(
+        lifecycle, "_on_velopack_uninstall", lambda v: calls.append(("uninstall", v))
+    )
+    return calls
+
+
+class TestHookDispatch:
+    @pytest.mark.parametrize(
+        "flag,expected",
+        [
+            ("--veloapp-install", [("install", "1.2.3")]),
+            ("--veloapp-updated", [("install", "1.2.3")]),
+            ("--veloapp-uninstall", [("uninstall", "1.2.3")]),
+            ("--veloapp-obsolete", []),
+            ("--veloapp-firstrun", []),
+        ],
+    )
+    def test_flag_dispatches_to_the_right_hook(
+        self, hooks, monkeypatch, flag, expected
+    ):
+        monkeypatch.setattr(sys, "argv", ["TiLiA", flag, "1.2.3"])
+
+        assert lifecycle._run_hook_from_argv() is True
+        assert hooks == expected
+
+    def test_missing_version_argument_is_tolerated(self, hooks, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["TiLiA", "--veloapp-install"])
+
+        assert lifecycle._run_hook_from_argv() is True
+        assert hooks == [("install", "")]
+
+    def test_normal_launch_is_not_a_hook(self, hooks, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["TiLiA", "some_file.tla"])
+
+        assert lifecycle._run_hook_from_argv() is False
+        assert hooks == []
+
+    def test_velopack_prefix_is_not_a_hook_flag(self, hooks, monkeypatch):
+        # Regression: the hooks first shipped matching --velopack-*, but
+        # Velopack passes --veloapp-*, so they never fired and no file
+        # association was ever written.
+        monkeypatch.setattr(sys, "argv", ["TiLiA", "--velopack-install", "1.2.3"])
+
+        assert lifecycle._run_hook_from_argv() is False
+        assert hooks == []
+
+
+class TestPlatformDispatch:
+    @pytest.mark.parametrize(
+        "platform,expected",
+        [("win32", ["windows"]), ("linux", ["linux"]), ("darwin", [])],
+    )
+    def test_install_registers_for_the_running_platform(
+        self, monkeypatch, platform, expected
+    ):
+        calls = []
+        monkeypatch.setattr(sys, "platform", platform)
+        monkeypatch.setattr(
+            lifecycle,
+            "_register_windows_file_association",
+            lambda: calls.append("windows"),
+        )
+        monkeypatch.setattr(
+            lifecycle, "_register_linux_file_association", lambda: calls.append("linux")
+        )
+
+        lifecycle._on_velopack_install("1.2.3")
+
+        assert calls == expected
+
+    @pytest.mark.parametrize(
+        "platform,expected",
+        [
+            ("win32", ["windows"]),
+            ("linux", ["linux", "linux-stable-copy"]),
+            ("darwin", ["mac"]),
+        ],
+    )
+    def test_uninstall_cleans_up_for_the_running_platform(
+        self, monkeypatch, platform, expected
+    ):
+        """Same cleanup as the in-app uninstall() command - so CI can exercise
+        mac/Linux uninstall via this hook's argv flag, same as Windows already
+        does, with no CLI or GUI automation available here.
+        """
+        calls = []
+        monkeypatch.setattr(sys, "platform", platform)
+        monkeypatch.setattr(
+            lifecycle,
+            "_unregister_windows_file_association",
+            lambda: calls.append("windows"),
+        )
+        monkeypatch.setattr(
+            lifecycle,
+            "_unregister_linux_file_association",
+            lambda: calls.append("linux"),
+        )
+        monkeypatch.setattr(
+            lifecycle,
+            "_remove_stable_appimage_copy",
+            lambda: calls.append("linux-stable-copy"),
+        )
+        monkeypatch.setattr(
+            lifecycle, "_uninstall_macos", lambda: calls.append("mac") or "message"
+        )
+
+        lifecycle._on_velopack_uninstall("1.2.3")
+
+        assert calls == expected
+
+
+# --------------------------------------------------------------------------- #
+# init()
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def velopack_app(monkeypatch):
+    """Record whether the Velopack SDK's own App().run() was invoked."""
+    calls = []
+    monkeypatch.setattr(lifecycle, "_run_velopack_app", lambda: calls.append(1))
+    return calls
+
+
+class TestInit:
+    def test_hook_mode_runs_the_hook_and_exits(self, hooks, velopack_app, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["TiLiA", "--veloapp-install", "1.2.3"])
+
+        with pytest.raises(SystemExit) as exc:
+            lifecycle.init()
+
+        assert exc.value.code == 0
+        assert hooks == [("install", "1.2.3")]
+        assert velopack_app == [1]
+
+    def test_normal_launch_does_not_exit(self, hooks, velopack_app, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["TiLiA"])
+        monkeypatch.setattr(sys, "platform", "win32")
+
+        lifecycle.init()
+
+        assert hooks == []
+        assert velopack_app == [1]
+
+    def test_linux_association_is_ensured_only_on_linux(
+        self, velopack_app, monkeypatch
+    ):
+        calls = []
+        monkeypatch.setattr(sys, "argv", ["TiLiA"])
+        monkeypatch.setattr(
+            lifecycle, "_ensure_linux_file_association", lambda: calls.append(1)
+        )
+
+        monkeypatch.setattr(sys, "platform", "darwin")
+        lifecycle.init()
+        assert calls == []
+
+        monkeypatch.setattr(sys, "platform", "linux")
+        lifecycle.init()
+        assert calls == [1]

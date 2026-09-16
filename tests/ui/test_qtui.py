@@ -1,9 +1,11 @@
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
 from PySide6.QtCore import QEvent, QtMsgType, QUrl
 
+import tilia.ui.qtui as qtui_module
 from tests.conftest import parametrize_tlui
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import PatchPost, Serve
@@ -296,6 +298,61 @@ class TestDynamicTimelinesSubmenus:
         assert marker_submenu.menuAction().isVisible()
         tls.create_timeline(HierarchyTimeline)
         assert marker_submenu.menuAction().isVisible()
+
+
+class TestHelpMenu:
+    def test_help_menu_has_right_actions(self, qtui):
+        menu = get_main_window_menu(qtui, "Help")
+        actions = get_actions_in_menu(menu)
+        expected = [
+            "window.open.about",
+            "open_website_help",
+            "help.check_for_updates",
+        ]
+        # Windows already gets a proper Add/Remove Programs entry from
+        # Velopack, so help.uninstall isn't offered there.
+        if sys.platform != "win32":
+            expected.append("help.uninstall")
+        expected = [get_qaction(action) for action in expected]
+        assert set(actions) == set(expected)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="help.uninstall isn't registered on Windows"
+)
+class TestUninstall:
+    def test_source_run_shows_source_only_message(self, qtui):
+        with patch("tilia.ui.qtui.QMessageBox.information") as info:
+            qtui.on_uninstall()
+
+        info.assert_called_once()
+        assert "only available in the installed app" in info.call_args.args[2]
+
+    def test_declining_confirmation_skips_uninstall(self, qtui, monkeypatch):
+        monkeypatch.setattr(qtui_module, "__compiled__", True, raising=False)
+        with (
+            Serve(Get.FROM_USER_YES_OR_NO, False),
+            patch("tilia.ui.qtui.QMessageBox.information") as info,
+            patch("tilia.lifecycle.uninstall") as uninstall,
+        ):
+            qtui.on_uninstall()
+
+        uninstall.assert_not_called()
+        info.assert_not_called()
+
+    def test_confirming_calls_lifecycle_uninstall_and_shows_result(
+        self, qtui, monkeypatch
+    ):
+        monkeypatch.setattr(qtui_module, "__compiled__", True, raising=False)
+        with (
+            Serve(Get.FROM_USER_YES_OR_NO, True),
+            patch("tilia.ui.qtui.QMessageBox.information") as info,
+            patch("tilia.lifecycle.uninstall", return_value="done") as uninstall,
+        ):
+            qtui.on_uninstall()
+
+        uninstall.assert_called_once()
+        info.assert_called_once_with(qtui.main_window, "Uninstall TiLiA", "done")
 
 
 class TestHandleQtLogMessage:

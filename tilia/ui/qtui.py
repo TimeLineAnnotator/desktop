@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import os
 import re
+import sys
 from pathlib import Path
 
 from PySide6 import QtGui
@@ -11,6 +12,7 @@ from PySide6.QtCore import (
     QKeyCombination,
     QObject,
     Qt,
+    QTimer,
     QUrl,
 )
 from PySide6.QtGui import QDesktopServices, QFontDatabase, QIcon, QPainter, QPixmap
@@ -20,6 +22,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QGraphicsScene,
     QMainWindow,
+    QMessageBox,
 )
 
 import tilia.constants
@@ -33,6 +36,7 @@ import tilia.parsers.csv.pdf
 import tilia.parsers.score.musicxml
 import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
+import tilia.updates
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
 from tilia.requests import Get, Post, get, listen, post, serve
@@ -250,6 +254,7 @@ class QtUI:
             (Post.TIMELINE_TYPE_NOT_INSTANCED, self.on_timeline_type_change),
             (Post.DISPLAY_ERROR, display_error),
             (Post.UI_EXIT, self.exit),
+            (Post.APP_UPDATE_AVAILABLE, self.on_update_available),
         }
 
         SERVES = {
@@ -305,6 +310,20 @@ class QtUI:
         )
 
         commands.register("open_website_help", self.on_open_website_help, "&Help...")
+
+        commands.register(
+            "help.check_for_updates",
+            lambda: tilia.updates.check_for_updates(silent=False),
+            "Check for &Updates...",
+        )
+
+        # Not offered on Windows at all - see HelpMenu (tilia/ui/menus.py).
+        if sys.platform != "win32":
+            commands.register(
+                "help.uninstall",
+                self.on_uninstall,
+                "&Uninstall TiLiA...",
+            )
 
     def _setup_main_window(self, mw: TiliaMainWindow):
         self.main_window = mw
@@ -375,7 +394,39 @@ class QtUI:
 
     def launch(self):
         self.main_window.show()
+        tilia.updates.check_for_updates(silent=True)
         return self.q_application.exec()
+
+    def on_update_available(self, manager, update) -> None:
+        from tilia.ui.dialogs.update import show_update_dialog
+
+        # Called from a background thread — QTimer.singleShot with a context
+        # object schedules the callable in the context's thread (main thread).
+        QTimer.singleShot(
+            0, self.main_window, lambda: show_update_dialog(manager, update)
+        )
+
+    def on_uninstall(self) -> None:
+        if "__compiled__" not in globals():
+            QMessageBox.information(
+                self.main_window,
+                "Uninstall TiLiA",
+                "Uninstall is only available in the installed app - a source "
+                "checkout has nothing registered to remove.",
+            )
+            return
+
+        if not get(
+            Get.FROM_USER_YES_OR_NO,
+            "Uninstall TiLiA",
+            "Remove TiLiA's file association and app-menu entry?\n\n"
+            "Your settings, autosaves, and files are not affected.",
+        ):
+            return
+
+        from tilia.lifecycle import uninstall
+
+        QMessageBox.information(self.main_window, "Uninstall TiLiA", uninstall())
 
     def exit(self, code: int, cause: str | None = None):
         # Code = 0 means a successful run, code = 1 means an unhandled exception.
