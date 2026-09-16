@@ -77,6 +77,7 @@ class LongOperationToolbar(QToolBar):
         self._dialog_cursor_filter = _DialogCursorFilter(self._stack)
         self._input_block_filter = _InputBlockFilter()
         self._app: QApplication = QApplication.instance()  # type: ignore[assignment]
+        self._filters_installed = False
 
         listen(self, Post.LONG_OPERATION, self._on_long_operation)
 
@@ -103,15 +104,32 @@ class LongOperationToolbar(QToolBar):
         else:
             QApplication.processEvents()
 
-    def _on_started(self, label: str) -> None:
+    def _on_started(self, label: str, blocks_input: bool = True) -> None:
         self._stack.append(label)
         self._show_current()
         if len(self._stack) == 1:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            self._app.installEventFilter(self._dialog_cursor_filter)
-            self._app.installEventFilter(self._input_block_filter)
+            self._install_filters(blocks_input)
         self._progress_timer.start()
         self._pump()
+
+    def _install_filters(self, blocks_input: bool) -> None:
+        """An event filter written in Python and installed on the QApplication
+        makes PySide wrap every QObject whose events pass through it.
+        QtWebEngine draws through internal QtQuick objects, and wrapping one of
+        those during a hover event crashes PySide with SIGSEGV -- issue #548,
+        whose fix scoped the file-drop filter to the main window but left these
+        two on the application.
+
+        So they only go up where QtWebEngine cannot be on screen: not while the
+        loaded player is YouTube-backed, and not during an operation that can
+        load one.
+        """
+        if not blocks_input or get(Get.MEDIA_TYPE) == "youtube":
+            return
+        self._app.installEventFilter(self._dialog_cursor_filter)
+        self._app.installEventFilter(self._input_block_filter)
+        self._filters_installed = True
 
     def _on_progress(self, value: int, maximum: int) -> None:
         if not self._stack:
@@ -135,7 +153,9 @@ class LongOperationToolbar(QToolBar):
             self._label.setText("")
             self._bar.setMaximum(0)
             self._bar.setValue(0)
-            self._app.removeEventFilter(self._dialog_cursor_filter)
-            self._app.removeEventFilter(self._input_block_filter)
+            if self._filters_installed:
+                self._app.removeEventFilter(self._dialog_cursor_filter)
+                self._app.removeEventFilter(self._input_block_filter)
+                self._filters_installed = False
             self._dialog_cursor_filter.reset()
             QApplication.restoreOverrideCursor()

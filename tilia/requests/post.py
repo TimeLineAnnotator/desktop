@@ -13,7 +13,7 @@ class LongOperation(Enum):
     DONE = auto()  # args: ()
 
 
-def long_operation(label: str):
+def long_operation(label: str, blocks_input: bool = True):
     """Decorator that wraps a function with LongOperation STARTED/DONE posts.
 
     Indeterminate (duration unknown) — animated bar for the full duration:
@@ -33,12 +33,17 @@ def long_operation(label: str):
     DONE is always posted in a finally block, even if the function raises.
     Operations may nest: each call pushes onto a stack; the toolbar stays
     visible until the stack empties.
+
+    blocks_input=False stops the toolbar from swallowing mouse events for the
+    duration. It swallows them with event filters on the QApplication, which
+    are not safe while QtWebEngine can be on screen, so pass it for any
+    operation that may load a YouTube player.
     """
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            post(Post.LONG_OPERATION, LongOperation.STARTED, label)
+            post(Post.LONG_OPERATION, LongOperation.STARTED, label, blocks_input)
             try:
                 return func(*args, **kwargs)
             finally:
