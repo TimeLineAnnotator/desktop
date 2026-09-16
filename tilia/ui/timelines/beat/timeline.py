@@ -1,6 +1,6 @@
 import copy
 
-from tilia.requests import Get, Post, get, listen
+from tilia.requests import Get, Post, get, listen, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
@@ -97,6 +97,17 @@ class BeatTimelineUI(TimelineUI):
             text="Set amount in measure",
         )
 
+        cls.register_timeline_command(
+            collection,
+            "toggle_recalculate_measures",
+            cls.on_toggle_recalculate_measures,
+            TimelineSelector.FIRST,
+            text="Pause measure recalculation",
+            shortcut="Ctrl+Shift+B",
+            icon="MediaPlaybackPause",
+            checkable=True,
+        )
+
     def _get_measure_indices(self, elements: list[BeatUI]):
         measure_indices = set()
         for e in elements:
@@ -159,8 +170,41 @@ class BeatTimelineUI(TimelineUI):
 
         self.timeline_ui: BeatTimelineUI
         component, _ = self.timeline.create_component(ComponentKind.BEAT, time)
-        self.timeline.recalculate_measures()
         return False if component is None else True
+
+    def on_toggle_recalculate_measures(self, *_):
+        # *_ swallows the extra positional arg that
+        # TimelineUIContextMenu.add_action injects (the clicked timeline_ui).
+        # We already have `self` (picked by the FIRST selector) and don't need
+        # the menu-passed copy.
+        #
+        # When the user is tapping many beats into a long timeline, the
+        # per-beat recalc is the dominant cost. Pausing it skips the whole
+        # `recalculate_measures` block inside `create_component` (gated on
+        # `compute_is_first_in_measure`), so each beat-add drops to ~O(log N).
+        # On resume we run a single catch-up recalc + UI refresh.
+        #
+        # The cm flag is the source of truth — when invoked via menu click Qt
+        # has already toggled the action's check state, but when invoked via
+        # `commands.execute()` (tests, shortcut wiring, etc.) the action's
+        # state is unchanged. Compute the new value from the cm flag and
+        # sync the action's check state to match either way.
+        cm = self.timeline.component_manager
+        resume = not cm.compute_is_first_in_measure
+        cm.compute_is_first_in_measure = resume
+
+        action = commands.get_qaction("timeline.beat.toggle_recalculate_measures")
+        action.setChecked(not resume)
+
+        if resume:
+            self.timeline.recalculate_measures()
+            cm.update_is_first_in_measure_of_subsequent_beats(0)
+            post(
+                Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
+                self.timeline.id,
+                0,
+            )
+        return False
 
     @staticmethod
     @command_callback
@@ -211,13 +255,17 @@ class BeatTimelineUI(TimelineUI):
 
     def should_display_measure_number(self, beat_ui):
         beat = self.timeline.get_component(beat_ui.id)
-        beat_index = self.timeline.components.index(beat)
+        beat_index = self.timeline.get_beat_index(beat)
         measure_index, _ = self.timeline.get_measure_index(beat_index)
         return self.timeline.should_display_measure_number(measure_index)
 
     def on_measure_number_change_done(self, start_index: int):
+        # update_is_first_in_measure() covers both the body height (which
+        # depends on is_first_in_measure) and the label. Bulk callers no
+        # longer fire Post.TIMELINE_COMPONENT_SET_DATA_DONE per flipped
+        # beat, so this pass is the only path that refreshes those bodies.
         for beat_ui in self[start_index:]:
-            beat_ui.update_label()
+            beat_ui.update_is_first_in_measure()
 
     def get_copy_data_from_selected_elements(self):
         return self.get_copy_data_from_beat_uis(self.selected_elements)

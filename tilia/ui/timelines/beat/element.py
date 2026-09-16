@@ -120,8 +120,18 @@ class BeatUI(TimelineUIElement):
         self.update_position()
 
     def update_position(self):
-        self.body.set_position(self.x, self.height)
-        self.label.set_position(self.x, self.height)
+        # Cache x/height locally: each is computed twice without this (once
+        # for body, once for label) and the calls aren't free (get_x_by_time
+        # plus get_data on every property read). For zooms on long beat
+        # timelines this loop is the dominant cost.
+        x = self.x
+        h = self.height
+        self.body.set_position(x, h)
+        # Skip invisible labels (most beats with beat_pattern>=2 have empty
+        # text and are hidden). Zoom doesn't change visibility, so a hidden
+        # label can stay put until update_label runs and re-positions it.
+        if self.label.isVisible():
+            self.label.set_position(x, h)
 
     def update_is_first_in_measure(self) -> None:
         self.body.set_position(self.x, self.height)
