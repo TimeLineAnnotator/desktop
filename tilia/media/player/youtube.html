@@ -11,6 +11,7 @@
       height="360"
       src="https://www.youtube.com/embed?enablejsapi=1"
     ></div>
+    <div id="no-video" hidden>No video loaded</div>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script type="text/javascript">
       var backend;
@@ -135,6 +136,7 @@
       }
 
       function loadVideo(id) {
+        document.getElementById("no-video").hidden = true;
         tryPlayerFunctionElseQueue("loadPlaylist", [id]);
       }
 
@@ -142,11 +144,48 @@
         tryPlayerFunctionElseQueue("seekTo", time, true);
       }
 
-      function getDuration() {
-        if (isPlayerLoaded()) {
-          return player.getDuration();
+      function getLoadState() {
+        // Replies as JSON text, not as an object: runJavaScript hands an
+        // empty string back to Qt for any JS object, so only scalars survive
+        // the bridge.
+        const state = { ready: false, videoId: "", duration: 0 };
+        if (!isPlayerLoaded()) {
+          return JSON.stringify(state);
         }
-        return null;
+        try {
+          // getVideoUrl reports the video the player is actually holding,
+          // which is not necessarily the one that was last requested:
+          // loading an unplayable video leaves the previous one in place.
+          const url = player.getVideoUrl();
+          // Only from here on is the player answering questions. It exists
+          // well before its API is attached, and that wait is startup, not a
+          // failed load.
+          state.ready = true;
+          const match = /[?&]v=([\w-]+)/.exec(url || "");
+          state.videoId = match ? match[1] : "";
+          state.duration = player.getDuration() || 0;
+        } catch (e) {
+          // The player object exists but its API is not attached yet. Report
+          // nothing loaded and let the next poll ask again.
+        }
+        return JSON.stringify(state);
+      }
+
+      function clearPlayer() {
+        // The player API cannot unload a video: after stopVideo, and after
+        // clearVideo too, the video stays cued and a click on the frame plays
+        // it again -- after a failed load, that is the video from before.
+        // The window can be reopened from the View menu, so cover the frame
+        // instead of leaving a player that looks usable.
+        document.getElementById("no-video").hidden = false;
+        if (!isPlayerLoaded()) {
+          return;
+        }
+        try {
+          player.stopVideo();
+        } catch (e) {
+          // API not attached, so nothing is playing anyway.
+        }
       }
 
       function play() {

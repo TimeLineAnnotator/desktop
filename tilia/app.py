@@ -175,7 +175,7 @@ class App:
         self.on_clear()
         self._do_open(path, prev_state)
 
-    @long_operation("Loading file...")
+    @long_operation("Loading file...", blocks_input=False)
     def _do_open(self, path: Path, prev_state: dict) -> None:
         success, file, old_path = open_tla(path)
         if not success:
@@ -272,7 +272,7 @@ class App:
 
         return self._do_load_media(path, record, initial_duration)
 
-    @long_operation("Loading media...")
+    @long_operation("Loading media...", blocks_input=False)
     def _do_load_media(
         self,
         path: str,

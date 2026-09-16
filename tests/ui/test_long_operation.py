@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.mock import Serve
-from tilia.requests import Get, LongOperation, Post, post
+from tilia.requests import Get, LongOperation, Post, long_operation, post
 
 
 @pytest.fixture(autouse=True)
@@ -116,3 +116,56 @@ class TestLongOperationToolbar:
             post(Post.LONG_OPERATION, LongOperation.STARTED, "Op")
             assert mock_pe.call_count == 0
             assert mock_spe.call_count == 1
+
+
+class TestWebEngineSafety:
+    """The toolbar blocks input with event filters on the QApplication. PySide
+    crashes when such a filter has to wrap one of QtWebEngine's internal
+    QtQuick objects, so they must stay off whenever a YouTube player can be on
+    screen (issue #548)."""
+
+    def test_filters_installed_for_a_plain_operation(self, qtui):
+        post(Post.LONG_OPERATION, LongOperation.STARTED, "Op")
+
+        assert qtui._long_op_toolbar._filters_installed
+
+    def test_no_filters_while_a_youtube_player_is_loaded(self, qtui):
+        with Serve(Get.MEDIA_TYPE, "youtube"):
+            post(Post.LONG_OPERATION, LongOperation.STARTED, "Op")
+
+        assert not qtui._long_op_toolbar._filters_installed
+
+    def test_no_filters_for_an_operation_that_can_load_a_player(self, qtui):
+        # The player is created during the operation, so the media type at the
+        # start of it says nothing about what will be on screen by the end.
+        post(Post.LONG_OPERATION, LongOperation.STARTED, "Loading media...", False)
+
+        assert not qtui._long_op_toolbar._filters_installed
+
+    def test_filters_removed_after_done(self, qtui):
+        post(Post.LONG_OPERATION, LongOperation.STARTED, "Op")
+        post(Post.LONG_OPERATION, LongOperation.DONE)
+
+        assert not qtui._long_op_toolbar._filters_installed
+
+    def test_decorator_blocks_input_by_default(self, qtui):
+        seen = {}
+
+        @long_operation("Op")
+        def operation():
+            seen["installed"] = qtui._long_op_toolbar._filters_installed
+
+        operation()
+
+        assert seen["installed"] is True
+
+    def test_decorator_can_leave_input_alone(self, qtui):
+        seen = {}
+
+        @long_operation("Op", blocks_input=False)
+        def operation():
+            seen["installed"] = qtui._long_op_toolbar._filters_installed
+
+        operation()
+
+        assert seen["installed"] is False
