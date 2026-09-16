@@ -1,3 +1,4 @@
+import json
 import re
 from enum import Enum
 from pathlib import Path
@@ -76,7 +77,8 @@ class YouTubePlayer(Player):
     MEDIA_TYPE = "youtube"
     PATH_TO_HTML = Path(__file__).parent / "youtube.html"
     LOAD_POLL_INTERVAL = 500  # ms between getLoadState() polls
-    MAX_LOAD_ATTEMPTS = 20  # ~10s before a load is declared failed
+    MAX_LOAD_ATTEMPTS = 6  # ~3s of an answering player before a load fails
+    MAX_TOTAL_ATTEMPTS = 40  # ~20s before giving up on a page that never answers
     LOAD_FAILED_MESSAGE = (
         "Could not load this video. It may have been removed, made private, "
         "or the video ID may be wrong."
@@ -92,6 +94,15 @@ class YouTubePlayer(Player):
         self.view = QWebEngineWindow()
         self.request_interceptor = UrlRequestInterceptor()
         self.is_web_page_loaded = False
+        # One owned timer rather than a chain of singleShots: the poll has to
+        # be cancellable, or it keeps querying a page that is being torn down.
+        self._poll_video_id = None
+        self._poll_attempt = 0
+        self._poll_total = 0
+        self._load_failure_reported = False
+        self._load_poll_timer = QTimer(self.view)
+        self._load_poll_timer.setSingleShot(True)
+        self._load_poll_timer.timeout.connect(self._poll_load_state)
         self.view.loadFinished.connect(self._on_web_page_load_finished)
         self.view.load(QUrl.fromLocalFile(self.PATH_TO_HTML.resolve().__str__()))
 
@@ -101,7 +112,7 @@ class YouTubePlayer(Player):
             self.set_current_time,
             self.set_is_playing,
             self._engine_set_playback_rate,
-            self.display_error,
+            self.on_player_error,
         )
         self.channel.registerObject("backend", self.shared_object)
         self.view.page().setWebChannel(self.channel)
@@ -159,32 +170,73 @@ class YouTubePlayer(Player):
         super().on_media_duration_available(duration)
 
     def on_load_state_available(
-        self, state: dict | None, requested_video_id: str, attempt: int
+        self, state: str | None, requested_video_id: str
     ) -> None:
         """
-        Called with the result of each getLoadState() poll started by
-        _engine_load_media. The poll ends when the player reports the
-        requested video with a duration, or when we give up on it.
+        Called with the result of one getLoadState() poll. The poll ends when
+        the player reports the requested video with a duration, or when we
+        give up on it.
         """
-        if requested_video_id != self.video_id:
-            # Another video was requested while this round-trip was in
-            # flight; that request runs its own poll.
+        if (
+            requested_video_id != self.video_id
+            or requested_video_id != self._poll_video_id
+        ):
+            # Superseded by another load, or cancelled by an unload while this
+            # round-trip was in flight. Reaching into the page or the window
+            # from here would touch a player that is being torn down.
             return
 
-        loaded_video_id = (state or {}).get("videoId", "")
-        duration = (state or {}).get("duration", 0)
+        is_answering, loaded_video_id, duration = self._parse_load_state(state)
 
         if loaded_video_id == requested_video_id and duration:
+            self._stop_load_poll()
             self.on_media_duration_available(duration, requested_video_id)
             return
 
-        if attempt >= self.MAX_LOAD_ATTEMPTS:
-            self.on_media_load_failed()
+        self._poll_total += 1
+        if is_answering:
+            # Attempts only count once the player answers at all. Waiting for
+            # the page and the IFrame API to come up is startup, and counting
+            # it made every load spend the whole budget before failing.
+            self._poll_attempt += 1
+
+        if (
+            self._poll_attempt >= self.MAX_LOAD_ATTEMPTS
+            or self._poll_total >= self.MAX_TOTAL_ATTEMPTS
+        ):
+            self._stop_load_poll()
+            # Leave this callback before reporting: display_error opens a modal
+            # dialog and unload_media calls back into the page, neither of which
+            # is safe from inside a runJavaScript result callback.
+            QTimer.singleShot(0, self.view, self.on_media_load_failed)
             return
 
-        self.retry_get_duration(requested_video_id, attempt + 1)
+        self._load_poll_timer.start(self.LOAD_POLL_INTERVAL)
 
-    def on_media_load_failed(self) -> None:
+    @staticmethod
+    def _parse_load_state(state: str | None) -> tuple[bool, str, float]:
+        """
+        getLoadState() replies with JSON text -- runJavaScript hands back an
+        empty string for a JS object, so only scalars cross the bridge. An
+        empty or malformed reply means the page could not answer, which counts
+        as "not loaded yet".
+
+        The first element says whether the player answered the query at all,
+        as opposed to not being up yet.
+        """
+        try:
+            parsed = json.loads(state)
+        except (TypeError, ValueError):
+            return False, "", 0.0
+        if not isinstance(parsed, dict):
+            return False, "", 0.0
+        return (
+            bool(parsed.get("ready")),
+            parsed.get("videoId") or "",
+            parsed.get("duration") or 0.0,
+        )
+
+    def on_media_load_failed(self, message: str | None = None) -> None:
         """
         The requested video never became the loaded video. YouTube reports
         some failures through onError, but not all of them: loading an
@@ -192,13 +244,35 @@ class YouTubePlayer(Player):
         video in place without raising anything, so the load has to be
         checked rather than assumed.
         """
-        self.display_error(self.LOAD_FAILED_MESSAGE)
+        self._load_failure_reported = True
+        self.display_error(message or self.LOAD_FAILED_MESSAGE)
         # media_path is what the file declares, and it stays the file's
         # media path even though it could not be loaded. Clearing it here
         # would drop the URL from the file on the next save.
         media_path = self.media_path
         self.unload_media()
         self.media_path = media_path
+
+    def on_player_error(self, message: str) -> None:
+        """
+        An error reported by YouTube itself. For a video that cannot be
+        played, YouTube stays quiet until playback is attempted, which can
+        fall on either side of the load poll giving up. Either way it is one
+        failure, so whichever notices first reports it and the other is
+        dropped.
+        """
+        if self._load_failure_reported:
+            return
+
+        if self._poll_video_id is not None:
+            # The video still being polled for is the one YouTube is
+            # complaining about: this is that load failing, reported early
+            # and with YouTube's own reason instead of the generic one.
+            self._stop_load_poll()
+            self.on_media_load_failed(message)
+            return
+
+        self.display_error(message)
 
     def set_current_time(self, time):
         self.check_seek_outside_loop(time)
@@ -210,11 +284,24 @@ class YouTubePlayer(Player):
                 MediaTimeChangeReason.PLAYBACK,
             )
 
-    def retry_get_duration(self, requested_video_id: str, attempt: int = 0):
-        QTimer.singleShot(
-            self.LOAD_POLL_INTERVAL,
-            self.view,
-            lambda: self._engine_get_media_duration(requested_video_id, attempt),
+    def _start_load_poll(self, video_id: str) -> None:
+        self._poll_video_id = video_id
+        self._poll_attempt = 0
+        self._poll_total = 0
+        self._load_poll_timer.start(self.LOAD_POLL_INTERVAL)
+
+    def _stop_load_poll(self) -> None:
+        self._poll_video_id = None
+        self._load_poll_timer.stop()
+
+    def _poll_load_state(self) -> None:
+        requested_video_id = self._poll_video_id
+        if requested_video_id is None or requested_video_id != self.video_id:
+            self._stop_load_poll()
+            return
+        self.view.page().runJavaScript(
+            "getLoadState()",
+            lambda state: self.on_load_state_available(state, requested_video_id),
         )
 
     def display_error(self, message: str):
@@ -243,7 +330,8 @@ class YouTubePlayer(Player):
             # player reports this video as the loaded one. Without this a
             # failed load is indistinguishable from a slow one, and the
             # previously loaded video keeps playing unnoticed.
-            self.retry_get_duration(requested_video_id)
+            self._load_failure_reported = False
+            self._start_load_poll(requested_video_id)
 
         if self.is_web_page_loaded:
             load_video()
@@ -280,21 +368,22 @@ class YouTubePlayer(Player):
         self._engine_seek(0)
 
     def _engine_unload_media(self):
+        self._stop_load_poll()
         if self.is_web_page_loaded:
-            self.view.page().runJavaScript("stop()")
+            self.view.page().runJavaScript("clearPlayer()")
         self.view.hide()
+        # The View menu is the way back into the window. With no video loaded
+        # there is nothing to go back to, so drop the entry until the next
+        # load shows the window again.
+        self.view.deregister()
         self.video_id = None
         self.shared_object.player_toolbar_enabled = False
 
-    def _engine_get_media_duration(self, requested_video_id: str, attempt: int = 0):
-        self.view.page().runJavaScript(
-            "getLoadState()",
-            lambda state: self.on_load_state_available(
-                state, requested_video_id, attempt
-            ),
-        )
+    def _engine_get_media_duration(self):
+        self._poll_load_state()
 
     def _engine_exit(self):
+        self._stop_load_poll()
         self.view.deleteLater()
         post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.NO_MEDIA)
 

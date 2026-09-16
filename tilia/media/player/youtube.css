@@ -10,3 +10,23 @@ iframe {
 body {
 	margin: 0px;
 }
+
+#no-video {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 100%;
+	width: 100%;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: black;
+	color: #bbb;
+	font-family: sans-serif;
+}
+
+/* display: flex above would otherwise override the hidden attribute. */
+#no-video[hidden] {
+	display: none;
+}
