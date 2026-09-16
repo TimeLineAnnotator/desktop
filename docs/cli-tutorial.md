@@ -21,25 +21,36 @@ For any command, you can get detailed help and examples by typing a command foll
 
 ```bash
 >>> timelines add --help
-usage: main.py timelines add [-h] [--name NAME] [--height HEIGHT] [--beat-pattern BEAT_PATTERN [BEAT_PATTERN ...]] {hierarchy,hrc,marker,mrk,beat,bea,score,sco}
+usage: main.py timelines add [-h] [--name NAME] [--height HEIGHT] [--beat-pattern BEAT_PATTERN [BEAT_PATTERN ...]] [--row-height DEFAULT_ROW_HEIGHT] [--path PATH]
+                            {audiowave,aud,beat,bea,harmony,har,hierarchy,hrc,marker,mrk,pdf,range,rng,score,sco}
 
 positional arguments:
-  {hierarchy,hrc,marker,mrk,beat,bea,score,sco}
+  {audiowave,aud,beat,bea,harmony,har,hierarchy,hrc,marker,mrk,pdf,range,rng,score,sco}
                         Kind of timeline to add
 
 options:
   -h, --help            show this help message and exit
   --name NAME, -n NAME  Name of the new timeline
   --height HEIGHT, -e HEIGHT
-                        Height of the timeline
+                        Height of the timeline. Not valid for harmony timelines, whose height follows from their level height and visible level count.
   --beat-pattern BEAT_PATTERN [BEAT_PATTERN ...], -b BEAT_PATTERN [BEAT_PATTERN ...]
-                        Pattern as space-separated integers indicating beat count in a measure. Pattern will be repeated. Pattern '3 4', for instance, will alternate measures of 3 and 4 beats.
+                        Pattern as space-separated integers indicating beat count in a measure (beat timelines only). Pattern will be repeated. Pattern '3 4', for instance, will alternate measures
+                        of 3 and 4 beats. Defaults to [4].
+  --row-height DEFAULT_ROW_HEIGHT
+                        Per-timeline default row height (range timelines only). Defaults to the global setting.
+  --path PATH, -p PATH  Path to the PDF file (PDF timelines only). Required for those.
 
 Examples:
   timelines add beat --name "Measures" --beat-pattern 4
   timelines add hierarchy --name "Form"
   timelines add marker --name "Cadences"
+  timelines add harmony --name "Chords"
+  timelines add pdf --name "Score" --path score.pdf
 ```
+
+Every timeline kind can be created from the CLI, by full name or by
+abbreviation. Arguments that don't apply to the chosen kind are rejected
+rather than ignored, so `timelines add harmony --height 50` is an error.
 
 ---
 
