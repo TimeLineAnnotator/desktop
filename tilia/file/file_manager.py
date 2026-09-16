@@ -350,8 +350,16 @@ class FileManager:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
             zoom = get(Get.CURRENT_ZOOM)
         except NoReplyToRequest:
+            # No UI is listening (e.g. CLI usage or tests without a full
+            # Qt UI set up), so there's nothing to persist here.
             geometry, window_state, zoom = None, None, None
-        settings.update_recent_files(path, geometry, window_state, zoom)
+        try:
+            current_time = get(Get.MEDIA_CURRENT_TIME)
+        except NoReplyToRequest:
+            current_time = None
+        settings.update_recent_files(
+            path, geometry, window_state, zoom, time=current_time
+        )
 
     def new(self):
         self._setup_file()

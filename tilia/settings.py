@@ -176,7 +176,14 @@ class SettingsManager(QObject):
     def _get_key(group_name: str, setting: str, in_default: bool) -> str:
         return f"{'editable/' if in_default else ''}{group_name}/{setting}"
 
-    def update_recent_files(self, path, geometry, state, zoom: float | None = None):
+    def update_recent_files(
+        self,
+        path,
+        geometry,
+        state,
+        zoom: float | None = None,
+        time: float | None = None,
+    ):
         recent_files = self._settings.value("private/recent_files", [])
         if not isinstance(recent_files, list):
             recent_files = [recent_files]
@@ -189,6 +196,8 @@ class SettingsManager(QObject):
         self._settings.setValue(f"private/recent_files/{path}/state", state)
         if zoom is not None:
             self._settings.setValue(f"private/recent_files/{path}/zoom", zoom)
+        if time is not None:
+            self._settings.setValue(f"private/recent_files/{path}/playback_time", time)
         self._apply_recent_files_changes()
 
     def get_file_geometry(self, path) -> tuple:
@@ -201,6 +210,11 @@ class SettingsManager(QObject):
         path = Path(path).as_posix()
         zoom = self._settings.value(f"private/recent_files/{path}/zoom", None)
         return float(zoom) if zoom is not None else None
+
+    def get_file_time(self, path) -> float | None:
+        path = Path(path).as_posix()
+        value = self._settings.value(f"private/recent_files/{path}/playback_time", None)
+        return float(value) if value is not None else None
 
     def remove_from_recent_files(self, path):
         recent_files = self._settings.value("private/recent_files", [])
