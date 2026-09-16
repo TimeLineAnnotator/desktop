@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.mock import Serve
-from tilia.requests import Get, LongOperation, Post, post
+import tilia.ui.webengine_tracking as webengine_tracking
+from tilia.requests import LongOperation, Post, post
 
 
 @pytest.fixture(autouse=True)
@@ -12,6 +12,13 @@ def drain_stack(qtui):
     toolbar = qtui._long_op_toolbar
     while toolbar._stack:
         post(Post.LONG_OPERATION, LongOperation.DONE)
+
+
+@pytest.fixture(autouse=True)
+def no_webengine(monkeypatch):
+    # any_web_engine_view_created() is a sticky, process-global flag; pin it
+    # to the common case so these tests don't flake based on test order.
+    monkeypatch.setattr(webengine_tracking, "_any_web_engine_view_created", False)
 
 
 class _FakeElapsedTimer:
@@ -105,9 +112,12 @@ class TestLongOperationToolbar:
             post(Post.LONG_OPERATION, LongOperation.PROGRESS, 1, 50)
             assert mock_pe.call_count == 1
 
-    def test_started_avoids_process_events_for_youtube_player(self, qtui):
+    def test_started_avoids_process_events_once_webengine_is_used(self, qtui):
         with (
-            Serve(Get.MEDIA_TYPE, "youtube"),
+            patch(
+                "tilia.ui.long_operation.any_web_engine_view_created",
+                return_value=True,
+            ),
             patch("tilia.ui.long_operation.QApplication.processEvents") as mock_pe,
             patch(
                 "tilia.ui.long_operation.QCoreApplication.sendPostedEvents"

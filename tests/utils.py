@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from pprint import pformat
@@ -7,10 +8,10 @@ from typing import Callable
 from unittest.mock import patch
 
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMenu, QToolButton, QWidgetAction
+from PySide6.QtWidgets import QApplication, QMenu, QToolButton, QWidgetAction
 
 from tests.mock import patch_ask_for_string_dialog, patch_file_dialog
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Get, Post, get, listen, post, stop_listening
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
 from tilia.ui.timelines.base.context_menus import TimelineUIContextMenu
@@ -152,6 +153,57 @@ def undoable():
 
             state_diff = pformat(deepdiff.DeepDiff(get(Get.APP_STATE), state_after))
         raise AssertionError("Redoing did not preserve state.\n" + state_diff) from e
+
+
+class _LongOperationSpyListener:
+    """Plain object to register as a listener with `listen()`, which keys its
+    internal registry with a weakref.WeakKeyDictionary and so cannot use a
+    bare `object()` (not weak-referenceable)."""
+
+
+@contextmanager
+def long_operation_spy():
+    """
+    Records LONG_OPERATION posts made during the `with` block.
+    Use this to assert that progress feedback fires during a
+    @long_operation-decorated call.
+    E.g.
+    ```
+    with long_operation_spy() as calls:
+        commands.execute("timelines.import.marker")
+    progress_calls = [args for phase, args in calls if phase == LongOperation.PROGRESS]
+    assert progress_calls
+    ```
+    """
+    listener = _LongOperationSpyListener()
+    calls = []
+
+    def on_long_operation(phase, *args):
+        calls.append((phase, args))
+
+    listen(listener, Post.LONG_OPERATION, on_long_operation)
+    try:
+        yield calls
+    finally:
+        stop_listening(listener, Post.LONG_OPERATION)
+
+
+def wait_until(condition: Callable[[], bool], timeout: float = 2.0) -> None:
+    """
+    Polls `condition` while pumping the GUI event loop, for code that
+    dispatches work to a real background QThread (see
+    tilia.ui.background_task.run_in_background) and needs its GUI-thread
+    completion callback (delivered via a queued connection) to actually run.
+    A plain busy-wait without processEvents() would never let that queued
+    delivery happen and would hang until `timeout`.
+    Raises AssertionError if `condition` is never true within `timeout`.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if condition():
+            return
+        QApplication.processEvents()
+    raise AssertionError(f"Condition not met within {timeout}s")
 
 
 def reloadable(save_path):

@@ -6,14 +6,16 @@ import httpx
 import isodate
 
 from tilia.media.player import Player
-from tilia.media.player.qtplayer import QtPlayer
+from tilia.media.player.qtaudio import QtAudioPlayer
 from tilia.requests import Post, post
 
 
-class CLIVideoPlayer(QtPlayer):
-    # inherits only from QtPlayer to prevent
-    # the creation of a video widget
-    pass
+class CLIVideoPlayer(QtAudioPlayer):
+    # inherits QtAudioPlayer (no video widget/sink at all) rather than
+    # QtVideoPlayer -- CLI has no GUI to show a video window in, and
+    # QMediaPlayer plays a video file's audio track fine with no video
+    # output set.
+    MEDIA_TYPE = "video"
 
 
 class CLIYoutubePlayer(Player):
@@ -63,7 +65,7 @@ class CLIYoutubePlayer(Player):
     def _engine_get_current_time(self) -> float:
         ...
 
-    def _engine_stop(self):
+    def _engine_stop(self) -> None:
         ...
 
     def _engine_seek(self, time: float) -> None:
@@ -72,7 +74,7 @@ class CLIYoutubePlayer(Player):
     def _engine_unload_media(self) -> None:
         ...
 
-    def _engine_load_media(self, media_path: str) -> None:
+    def _engine_load_media(self, media_path: str) -> bool:
         ...
 
     def _engine_play(self) -> None:
@@ -81,7 +83,7 @@ class CLIYoutubePlayer(Player):
     def _engine_get_media_duration(self) -> float:
         ...
 
-    def _engine_exit(self) -> float:
+    def _engine_exit(self) -> None:
         ...
 
     def _engine_set_volume(self, volume: int) -> None:

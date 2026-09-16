@@ -6,10 +6,12 @@ from tilia.parsers.csv.base import (
     get_column_not_found_error_message,
     get_params_indices,
 )
+from tilia.requests import LongOperation, Post, long_operation, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 
 
+@long_operation("Importing beats...")
 def beats_from_csv(
     timeline: BeatTimeline,
     path: Path,
@@ -126,7 +128,10 @@ def beats_from_csv(
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
         next(reader)
-        for row in reader:
+        rows = list(reader)
+        total = len(rows)
+        for row_index, row in enumerate(rows):
+            post(Post.LONG_OPERATION, LongOperation.PROGRESS, row_index + 1, total)
             if not row:
                 continue
 

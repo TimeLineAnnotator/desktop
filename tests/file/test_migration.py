@@ -1,13 +1,14 @@
 import json
 
 from tests.mock import Serve
+from tests.utils import long_operation_spy
 from tilia.file.file_manager import open_tla
 from tilia.file.migration import (
     _parse_version,
     is_from_newer_version,
     migrate,
 )
-from tilia.requests import Get
+from tilia.requests import Get, LongOperation
 
 
 def make_timeline(kind, **extra):
@@ -165,3 +166,17 @@ class TestOpenTlaNewerVersionWarning:
 
         assert success is True
         assert file is not None
+
+
+class TestOpenTlaReportsProgress:
+    def test_reports_started_and_done(self, tmp_path):
+        path = tmp_path / "file.tla"
+        path.write_text(json.dumps(make_tla("0.1.1")), encoding="utf-8")
+
+        with long_operation_spy() as calls:
+            success, file, _ = open_tla(path)
+
+        assert success is True
+        phases = [phase for phase, _ in calls]
+        assert phases[0] == LongOperation.STARTED
+        assert phases[-1] == LongOperation.DONE

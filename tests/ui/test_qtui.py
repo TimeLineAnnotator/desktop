@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from PySide6.QtCore import QEvent, QtMsgType, QUrl
@@ -23,22 +23,24 @@ class TestImport:
         "tilia.ui.timelines.collection.import_._get_by_time_or_by_measure_from_user"
     )
 
-    def test_timeline_gets_restored_if_import_fails(self, qtui, marker_tl):
+    def test_timeline_gets_restored_if_import_fails(self, qtui, marker_tl, tmp_path):
         for i in range(100):
             marker_tl.create_marker(i)
 
         prev_state = marker_tl.get_state()
 
+        bad_csv = tmp_path / "bad.csv"
+        bad_csv.write_text("nonsense")
+
         with patch(
             self.patch_target,
             return_value=(True, "time"),
         ):
-            with patch("builtins.open", mock_open(read_data="nonsense")):
-                with Serve(Get.FROM_USER_FILE_PATH, (True, "")):
-                    with Serve(
-                        Get.FROM_USER_YES_OR_NO, True
-                    ):  # confirm overwriting components
-                        post(Post.IMPORT_CSV, MarkerTimeline)
+            with Serve(Get.FROM_USER_FILE_PATH, (True, str(bad_csv))):
+                with Serve(
+                    Get.FROM_USER_YES_OR_NO, True
+                ):  # confirm overwriting components
+                    post(Post.IMPORT_CSV, MarkerTimeline)
 
         assert marker_tl.get_state() == prev_state
 
