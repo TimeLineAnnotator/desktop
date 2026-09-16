@@ -30,6 +30,18 @@ class ViewWidget(Generic[T]):
         event.ignore()
         self.hide()
 
+    def deregister(self) -> None:
+        """Take the window out of the View menu until it is shown again.
+
+        The entry is a way back into a window that has something to show. A
+        player window with no media loaded has nothing, and showEvent puts the
+        entry back, title and all, the next time there is.
+        """
+        if not self.is_registered:
+            return
+        post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.DELETED)
+        self.is_registered = False
+
     def on_update_request(self: T, window_id: int, to_show: bool) -> None:
         if window_id == self.id:
             self.blockSignals(True)

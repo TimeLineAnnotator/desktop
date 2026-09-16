@@ -8,6 +8,7 @@ from tests.utils import (
     load_youtube_media,
 )
 from tilia.requests import Post, listen, post
+from tilia.ui.enums import WindowState
 from tilia.ui.windows import WindowKind
 
 
@@ -90,3 +91,34 @@ class TestViewWindow:
 
         post(Post.WINDOW_UPDATE_REQUEST, window2.id, True)
         assert window2.isVisible()
+
+    def test_youtube_window_leaves_view_menu_when_media_is_unloaded(self, tilia, qtui):
+        # The menu entry is the way back into the window. With no video loaded
+        # it would only lead to a dead one.
+        window = self.load_youtube_video(tilia)
+        states = []
+
+        def record(window_id, state, title=""):
+            states.append((window_id, state))
+
+        listen(qtui, Post.WINDOW_UPDATE_STATE, record)
+
+        tilia.player.unload_media()
+
+        assert (window.id, WindowState.DELETED) in states
+        assert not window.is_registered
+
+    def test_youtube_window_returns_to_view_menu_with_its_title(self, tilia, qtui):
+        window = self.load_youtube_video(tilia)
+        tilia.player.unload_media()
+        titles = []
+
+        def record(window_id, state, title=""):
+            titles.append(title)
+
+        listen(qtui, Post.WINDOW_UPDATE_STATE, record)
+
+        window.show()
+
+        assert window.menu_title in titles
+        assert window.is_registered
