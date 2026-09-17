@@ -593,6 +593,9 @@ class TimelineUIs:
             getattr(self, "update_" + attr)()
 
     def delete_timeline_ui(self, timeline_ui: TimelineUI):
+        # Before delete(), which schedules the scene for deletion: a selection
+        # box kept past that makes the next clear_selection_boxes() raise.
+        self._forget_selection_boxes_in_scene(timeline_ui.scene)
         timeline_ui.delete()
         self.scene.removeItem(timeline_ui.view.proxy)
         self._remove_from_timeline_uis_set(timeline_ui)
@@ -878,6 +881,12 @@ class TimelineUIs:
         for sb in self.selection_boxes.copy():
             sb.scene().removeItem(sb)
             self.selection_boxes.remove(sb)
+
+    def _forget_selection_boxes_in_scene(self, scene: QGraphicsScene) -> None:
+        """Forgets the selection boxes in `scene`, which is about to be deleted."""
+        self.selection_boxes = [
+            sb for sb in self.selection_boxes if sb.scene() is not scene
+        ]
 
     def on_selection_box_select_item(
         self, scene: QGraphicsScene, item: QGraphicsItem
