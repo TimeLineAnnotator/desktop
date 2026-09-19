@@ -475,7 +475,10 @@ class ScoreTimelineUI(TimelineUI):
         self.svg_view.load_svg_data(self.timeline.svg_data)
 
     def reset_svg(self):
-        self.svg_view.deleteLater()
+        try:
+            get(Get.SCORE_VIEWER, self.id).deleteLater()
+        except NoReplyToRequest:
+            pass
 
     def on_left_click(self, item, modifier, double, x, y):
         if item != self.measure_tracker:
