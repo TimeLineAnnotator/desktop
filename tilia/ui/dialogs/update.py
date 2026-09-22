@@ -64,6 +64,7 @@ def _show_velopack_dialog(
     progress.setWindowModality(Qt.WindowModality.ApplicationModal)
     progress.setMinimumDuration(0)
     progress.setAutoClose(False)
+    progress.setAutoReset(False)
     progress.setValue(0)
     progress.show()
 
