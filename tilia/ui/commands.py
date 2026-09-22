@@ -61,6 +61,7 @@ def register(
     shortcut: str = "",
     icon: str = "",
     parent: QMainWindow | QWidget | None = None,
+    checkable: bool = False,
 ):
     """
     Register a command with name to a callback.
@@ -68,6 +69,9 @@ def register(
 
     Also creates a QAction with the given text, shortcut and icon.
      The action can be retrieved with commands.get_qaction(name) and used in the Qt interface.
+
+    When checkable=True, the action behaves as a toggle. The callback can read
+    the new checked state via commands.get_qaction(name).isChecked().
     """
     action = CommandQAction(name, parent)
 
@@ -94,6 +98,9 @@ def register(
         elif icon in QIcon.ThemeIcon._member_names_:
             action.setIcon(QIcon.fromTheme(getattr(QIcon.ThemeIcon, icon)))
     action.setIconVisibleInMenu(False)
+
+    if checkable:
+        action.setCheckable(True)
 
     if callback:
         # Qt sometimes activates signals with additional parameters,

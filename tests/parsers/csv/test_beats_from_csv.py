@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
+import pytest
+
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.beat import beats_from_csv
 from tilia.timelines.base.metric_position import MetricPosition
@@ -112,3 +114,13 @@ def test_with_invalid_is_first_in_measure(beat_tl):
     _import_with_patch(beat_tl, data)
 
     assert beat_tl.beats_in_measure == [5, 3]
+
+
+@pytest.mark.timeout(5)
+def test_import_many_beats_from_csv(beat_tl, tilia_state):
+    tilia_state.set_duration(1000, scale_timelines="no")
+    data = "time\n" + "\n".join(str(i) for i in range(1000))
+
+    _import_with_patch(beat_tl, data)
+
+    assert len(beat_tl) == 1000

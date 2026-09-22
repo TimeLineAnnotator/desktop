@@ -24,4 +24,8 @@ class BeatContextMenu(TimelineUIElementContextMenu):
 
 class BeatTimelineUIContextMenu(TimelineUIContextMenu):
     name = "Beat timeline"
-    items = [(MenuItemKind, "timeline.set_name")]
+    items = [
+        (MenuItemKind.COMMAND, "timeline.set_name"),
+        (MenuItemKind.SEPARATOR, None),
+        (MenuItemKind.COMMAND, "timeline.beat.toggle_recalculate_measures"),
+    ]
