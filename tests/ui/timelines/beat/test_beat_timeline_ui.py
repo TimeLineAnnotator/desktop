@@ -509,6 +509,29 @@ class TestSetBeatAmountInMeasure:
 
         assert [get_displayed_measure_number(b) for b in beat_tlui] == ["1", "", "2"]
 
+    def test_add_beat_when_last_measure_is_fuller_than_beat_pattern(self, beat_tlui):
+        beat_tlui.timeline.beat_pattern = [4]
+        for i in range(24):
+            beat_tlui.create_beat(i / 10)
+
+        # give a middle measure one beat more than the beat pattern prescribes
+        beat_tlui.select_element(beat_tlui[16])
+        with Serve(Get.FROM_USER_INT, (True, 5)):
+            commands.execute("timeline.beat.set_amount_in_measure")
+
+        # then make that measure the last one
+        beat_tlui.deselect_all_elements()
+        for element in list(beat_tlui)[-3:]:
+            beat_tlui.select_element(element)
+        commands.execute("timeline.component.delete")
+        assert beat_tlui.timeline.beats_in_measure == [4, 4, 4, 4, 5]
+
+        commands.execute("media.seek", 3.0)
+        commands.execute("timeline.beat.add")
+
+        assert len(beat_tlui) == 22
+        assert beat_tlui.timeline.beats_in_measure == [4, 4, 4, 4, 5, 1]
+
 
 class TestFillWithBeats:
     @pytest.fixture(autouse=True)

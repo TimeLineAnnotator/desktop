@@ -417,13 +417,13 @@ class BeatTimeline(Timeline):
                 diff = beats - beats_on_starting_measure
                 extension = [min(diff, amount)]
                 remaining_beats = amount - diff
-            elif beats_on_starting_measure == beats:
+            else:
+                # A measure may hold more beats than the beat pattern
+                # prescribes for it, as "Set amount in measure" sets an
+                # arbitrary amount. There is nothing left to fill in that
+                # case, so the extension starts a new measure.
                 extension = []
                 remaining_beats = amount
-            else:
-                raise ValueError(
-                    "More beats on starting measure than found in the iterator"
-                )
         else:
             extension = []
             remaining_beats = amount
@@ -472,7 +472,7 @@ class BeatTimeline(Timeline):
 
         bp_index = (self.measure_count % len(self.beat_pattern)) - 1
         is_last_measure_complete = (
-            self._beats_in_measure[-1] == self.beat_pattern[bp_index]
+            self._beats_in_measure[-1] >= self.beat_pattern[bp_index]
         )
 
         if is_last_measure_complete:
