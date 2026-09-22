@@ -167,7 +167,7 @@ class BeatTimelineUI(TimelineUI):
         if not accepted:
             return False
 
-        timeline, method, value = result
+        timeline, method, value, offset = result
 
         if not timeline.is_empty:
             confirmed = get(
@@ -179,7 +179,7 @@ class BeatTimelineUI(TimelineUI):
                 return False
             timeline.clear()
 
-        timeline.fill_with_beats(method, value)
+        timeline.fill_with_beats(method, value, offset)
 
         return True
 
