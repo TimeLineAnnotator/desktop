@@ -44,10 +44,12 @@ Visual analyses of music have proven to be an enduringly popular, effective, and
 
 Whatever potential a *static* image has, an *interactive* one offers considerably more. Formal analysis is one of the clearest beneficiaries of the visual summary of music. Form can be hard to parse (especially in real-time) but is often easy to understand in relatively simple, at-a-glance summaries.
 
-Save for a few exceptions [@gotham:2019], musical scholarship has not yet made the leap into this technological space with any degree of decisiveness or consistency.
+Save for a relatively small early body of literature[^lit], musical scholarship has not yet made the leap into this technological space with any degree of decisiveness or consistency.
 Even most visually minded music analyses are consigned to static images embedded in print (or in e-copies at best) and not subject to the expectations for _fair_,
 open-source data sharing that are now *de rigueur* in other fields.
 Still among the more computationally inclined communities, there has been little progress made on the coordination of standards and corpora for formal analysis.
+
+[^lit]: @gotham:2019, for instance, is a first step towards a standard for formal annotations. @balke:2017 and @rosenzweig:2020 provide interfaces for interacting with specific annotation corpora. See also footnotes below.
 
 In today's digital age, we have come to expect certain basic interactive
 features across visual interfaces, such as **resizing**
@@ -61,7 +63,7 @@ While one _can_ appropriate tools (which primary purpose is editing scores or au
 
 [^2]: Additionally, websites like _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] support the digital annotation of scores, not specific to analysis.
 
-[^3]: Yorgason's _Audio Timeliner_ [@yorgason:2018], based on the original _Variations Audio Timeliner_ [@notess:2004], is notable for capturing the needs of its users with its simple design. _Dezrann_ [@giraud:2018] is another noteworthy, actively maintained website that allows the alignment of score data on top of annotation.
+[^3]: Yorgason's _Audio Timeliner_ [@yorgason:2018], based on the original _Variations Audio Timeliner_ [@notess:2004], is notable for capturing the needs of its users with its simple design, but is not open-source. iAnalyse5 [@couprie:2019] is a similar closed-source offering that is also not cross-platform. _Dezrann_ [@giraud:2018] is a noteworthy, actively maintained and open-source website that allows the alignment of score data on top of annotation. Sonic Visualiser [@cannam:2010] excels when it comes to annotating and visualising audio, but lacks integration with musical scores.
 
 In response to these challenges (user-friendly design, interoperable
 formats, real-time interactivity ... ), we present 'TiLiA': a timeline
@@ -70,6 +72,10 @@ annotator for all.
 # Specifications
 
 TiLiA consists of an organisation of digital tools, primarily of its [open-source desktop application and command-line interface](https://github.com/TimeLineAnnotator/desktop), but also of a supporting online platform, which we plan to make open-source in the future. The desktop application is developed in Python using the PySide binding for the Qt UI framework. Automated testing is done with `pytest`, and partially-automated deployment is available via GitHub Actions. The code base is loosely organised around a Model-View-Controller (MVC) pattern, which allows both the CLI and the GUI to benefit from the same backend logic. We provide object-oriented base classes such as `Timeline`, `TimelineUI` and `TimelineComponent` as a means to promote extensibility and support an evergrowing range of annotation needs.
+
+![A *simplified* diagram for the main timeline base classes.\label{fig:classes}](timeline-class-diagram.png)
+
+\autoref{fig:classes} is a *simplified* diagram for the main timeline base classes. The outer box shows the base classes shared by all timeline types; the inner box shows the concrete subclasses for the marker timeline type, one example among the various timeline types. `Timeline` acts as container for `TimelineComponent`s. Both act as models of `TimelineUI` and `TimelineUIElement`, which are views; in the marker example, `MarkerTimelineUI` and `MarkerUI` view `MarkerTimeline` and `Marker` respectively.
 
 TiLiA is designed to facilitate the *creation* of analyses —
 particularly where this requires complex alignment with audio/video sources —
@@ -85,6 +91,8 @@ Each *timeline type* is designed to support conventional formal annotations, wit
 These timelines each contain one or more *component types*
 (e.g., markers for marker timelines), each with different
 *properties* to convey information including comments, colour and labels.
+
+We connect timelines and their components by using the loaded media as a "base layer" to which all timelines refer. Timeline components have either `time` or `start_time` and `end_time` timestamps which position them in relation to the underlying media. If a different media is loaded, the user has the option to either uniformly scale timelines to the new media or to keep them at their original position (deleting out-of-bounds components if necessary). If a beat timeline is present, the software can map timestamps to metric positions, also providing a metric-based interface for importing, exporting and interacting with timelines.
 
 ![Excerpt of a TiLiA analysis on the desktop application.\label{fig:example}](tilia-desktop.png)
 
@@ -130,5 +138,11 @@ storage of analyses, but also to support the
 still-rare practice of analytical *collaboration* and structured
 *searches* on the corpora; both which benefit from network effects
 facilitated by the lowered entry barrier.
+
+# Outlook
+
+The TiLiA desktop application aims to provide a user-friendly annotation tool both for MIR researchers and musicologists. It can be used to create large annotation datasets or detailed, interactive analyses of individual pieces. It can also be used in the classroom to better connect theoretical concepts with audiovisual material or as a common interface for analytical assignments.
+
+In the future we hope to convert existing open-source datasets and integrate them into the web platform, providing a centralised hub where diversified audiovisual data can be queried and interacted with in a uniform manner. We also plan to improve audio processing and score displaying capabilities and to add more timeline types (e.g. a 2-dimensional graph timeline) to offer more diversified visualisations.
 
 # References

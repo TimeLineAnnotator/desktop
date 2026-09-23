@@ -14,6 +14,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Build PlantUML diagrams
+        # JOSS's PDF build (below) is plain Pandoc/LaTeX and can't render
+        # diagram source itself, so diagrams have to be pre-rendered to
+        # images before that step runs.
+        run: |
+          sudo apt-get update && sudo apt-get install -y graphviz fonts-open-sans
+          curl -fsSL -o plantuml.jar \
+            https://github.com/plantuml/plantuml/releases/download/v1.2026.8/plantuml-1.2026.8.jar
+          java -jar plantuml.jar -tpng -Sdpi=200 paper/timeline-class-diagram.puml
       - name: Build draft PDF
         uses: openjournals/openjournals-draft-action@master
         with:
@@ -32,6 +46,6 @@ jobs:
         run: |
           git config --global user.name 'Paper Workflow Bot'
           git config --global user.email 'paper_bot@tilia.github.io'
-          git add paper/paper.pdf
+          git add paper/paper.pdf paper/timeline-class-diagram.png
           git commit -m "[skip ci] Update: paper.pdf"
           git push
