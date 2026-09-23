@@ -34,7 +34,7 @@ bibliography: paper.bib
 
 # Summary
 
-'TiLiA' (**Ti**me**Li**ne **A**nnotator) is an open-source, cross-platform network of tools and resources designed to facilitate real-time creating, displaying and interacting with timeline-style annotations of audio, video and musical scores. Developed in Python with the PySide UI framework, TiLiA is available primarily as a desktop Graphical User Interface (GUI),supported by a Command Line Interface (CLI) as well as a free and open online platform where users may upload, view and query existing analyses.
+'TiLiA' (**Ti**me**Li**ne **A**nnotator) is an open-source, cross-platform network of tools and resources designed to facilitate real-time creating, displaying and interacting with timeline-style annotations of audio, video and musical scores. Developed in Python with the PySide UI framework, TiLiA is available primarily as a desktop Graphical User Interface (GUI), supported by a Command Line Interface (CLI) as well as a free and open online platform where users may upload, view and query existing analyses.
 
 # Statement of need
 
@@ -55,7 +55,7 @@ content to fit the window, keyboard shortcuts, undo/redo functionality, and so o
 expectations, such as **real-time synchronisation** (a.k.a., audio or
 score following). Any tool that aims to win over users effectively must present analytical ideas naturally and intuitively, with minimal friction in the user interface.
 
-While one _can_ appropriate tools (which primary purpose is editing scores or audio) for creating visual analyses, [^1] [^2] the current range of tools dedicated to the task typically offer limited functionality and their uptake by the wider community haws been minimal. [^3]
+While one _can_ appropriate tools (which primary purpose is editing scores or audio) for creating visual analyses, [^1] [^2] the current range of tools dedicated to the task typically offer limited functionality and their uptake by the wider community has been minimal. [^3]
 
 [^1]: The music notation software _Sibelius_, for instance, has offered a timeline since c.2019 with bar numbers and rudimentary checkpoints for changes to time and key signatures, presumably because they are possible indicators of section breaks. @peebles:2013 discusses how to use an audio editor (_Audacity_) in a similar way to the tools discussed here.
 
@@ -69,7 +69,7 @@ annotator for all.
 
 # Specifications
 
-TiLiA consists of an organisation of digital tools, primarily of its [open-source desktop application and command-line interface](https://github.com/TimeLineAnnotator/desktop), but also of a supporting online platform, which we plan to make open-source in the future. The desktop application is developed in Python using the PySide binding for the Qt UI framework. Automated testing is done with `pytest`, and partially-automated deployment is available via GitHub Actions. The code base is loosely organized around a Model-View-Controller (MVC) pattern, which allows both the CLI and the GUI to benefit from the same backend logic. We provide object-oriented base classes such as `Timeline`, `TimelineUI` and `TimelineComponent` as a means to promote extensibility and support an evergrowing range of annotation needs.
+TiLiA consists of an organisation of digital tools, primarily of its [open-source desktop application and command-line interface](https://github.com/TimeLineAnnotator/desktop), but also of a supporting online platform, which we plan to make open-source in the future. The desktop application is developed in Python using the PySide binding for the Qt UI framework. Automated testing is done with `pytest`, and partially-automated deployment is available via GitHub Actions. The code base is loosely organised around a Model-View-Controller (MVC) pattern, which allows both the CLI and the GUI to benefit from the same backend logic. We provide object-oriented base classes such as `Timeline`, `TimelineUI` and `TimelineComponent` as a means to promote extensibility and support an evergrowing range of annotation needs.
 
 TiLiA is designed to facilitate the *creation* of analyses —
 particularly where this requires complex alignment with audio/video sources —
@@ -93,7 +93,7 @@ Currently, there are eight types of timelines:
 | Timeline type | Purpose |
 |---|---|
 | **Audiowave** | Displaying amplitude graphs |
-| **Beat** | Marking beats/measures, synchronizing metrical and absolute time |
+| **Beat** | Marking beats/measures, synchronising metrical and absolute time |
 | **Harmony** | Chord symbols and roman numeral analysis |
 | **Hierarchy** | Representing hierarchical relations and sequences|
 | **Marker** | Annotating discrete timepoints |
