@@ -71,7 +71,7 @@ annotator for all.
 
 # Specifications
 
-TiLiA consists of an organisation of digital tools, primarily of its [open-source desktop application and command-line interface](https://github.com/TimeLineAnnotator/desktop), but also of a supporting online platform, which we plan to make open-source in the future. The desktop application is developed in Python using the PySide binding for the Qt UI framework. Automated testing is done with `pytest`, and partially-automated deployment is available via GitHub Actions. The code base is loosely organised around a Model-View-Controller (MVC) pattern, which allows both the CLI and the GUI to benefit from the same backend logic. We provide object-oriented base classes such as `Timeline`, `TimelineUI` and `TimelineComponent` as a means to promote extensibility and support an evergrowing range of annotation needs.
+TiLiA consists of an organisation of digital tools, primarily of its [open-source desktop application and command-line interface](https://github.com/TimeLineAnnotator/desktop), but also of a supporting online platform. The desktop application is developed in Python using the PySide binding for the Qt UI framework. Automated testing is done with `pytest`, and fully-automated deployment is available via GitHub Actions. The code base is loosely organised around a Model-View-Controller (MVC) pattern, which allows both the CLI and the GUI to benefit from the same backend logic. We provide object-oriented base classes such as `Timeline`, `TimelineUI` and `TimelineComponent` as a means to promote extensibility and support an evergrowing range of annotation needs.
 
 ![A *simplified* diagram for the main timeline base classes.\label{fig:classes}](timeline-class-diagram.png)
 
