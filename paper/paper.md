@@ -128,6 +128,7 @@ files, enabling programmatic conversion from various data formats to TiLiA files
     load-media <path to audio> --scale-timelines yes
     metadata set title "Title"
     save <path to TiLiA file> --overwrite
+    export <path to JSON file> --overwrite
 
 ## Online platform
 
