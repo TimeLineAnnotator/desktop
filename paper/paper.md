@@ -88,14 +88,17 @@ These timelines each contain one or more *component types*
 
 ![Excerpt of a TiLiA analysis on the desktop application.\label{fig:example}](tilia-desktop.png)
 
-Currently, there are six types of timelines:
+Currently, there are seven types of timelines:
 
-- **Audiowave timelines**, for displaying amplitude graphs
-- **Harmony timelines**, for displaying properly formatted chord symbols and roman numeral analysis
-- **Hierarchy timelines**, for representing hierarchical structures
-- **Marker timelines**, for highlighting discrete timepoints
-- **PDF timelines**, for synchronising PDF documents with playback
-- **Score timeline**, for synchronising a to-scale and synchronized "piano roll" notation as well as conventional musical notation from digital scores with playback
+| Timeline type | Purpose |
+|---|---|
+| **Audiowave** | Displaying amplitude graphs |
+| **Beat** | Marking beats/measures, synchronizing metrical and absolute time |
+| **Harmony** | Chord symbols and roman numeral analysis |
+| **Hierarchy** | Representing hierarchical relations and sequences|
+| **Marker** | Annotating discrete timepoints |
+| **PDF** | Synchronising external PDF documents with playback |
+| **Score** | Synchronising digitised scores with playback |
 
 ## Command-line interface
 In addition to the desktop GUI and the web app, a **command line
