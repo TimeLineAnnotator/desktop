@@ -88,7 +88,7 @@ These timelines each contain one or more *component types*
 
 ![Excerpt of a TiLiA analysis on the desktop application.\label{fig:example}](tilia-desktop.png)
 
-Currently, there are seven types of timelines:
+Currently, there are eight types of timelines:
 
 | Timeline type | Purpose |
 |---|---|
@@ -98,6 +98,7 @@ Currently, there are seven types of timelines:
 | **Hierarchy** | Representing hierarchical relations and sequences|
 | **Marker** | Annotating discrete timepoints |
 | **PDF** | Synchronising external PDF documents with playback |
+| **Range** | Representing non-hierarchical relations and sequences |
 | **Score** | Synchronising digitised scores with playback |
 
 ## Command-line interface
