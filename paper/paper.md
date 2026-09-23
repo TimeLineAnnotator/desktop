@@ -118,7 +118,7 @@ files, enabling programmatic conversion from various data formats to TiLiA files
 
     load-media <path to audio> --scale-timelines yes
     metadata set title "Title"
-    save --overwrite <path to TiLiA file>
+    save <path to TiLiA file> --overwrite
 
 ## Online platform
 
