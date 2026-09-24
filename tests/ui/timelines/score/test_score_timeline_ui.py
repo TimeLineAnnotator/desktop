@@ -10,7 +10,7 @@ from tests.mock import (
     patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
 )
-from tests.utils import get_blank_file_data, reloadable
+from tests.utils import get_blank_file_data, reloadable, undoable
 from tilia.errors import SCORE_STAFF_ID_ERROR
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
@@ -80,6 +80,25 @@ def test_create_key_signature(score_tlui, fifths):
     )
     score_tlui.create_component(ComponentKind.KEY_SIGNATURE, 0, 0, fifths)
     assert score_tlui[0]
+
+
+class TestClear:
+    def test_clear(self, score_tlui, note):
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+
+        assert score_tlui.is_empty
+
+    def test_undo_redo(self, score_tlui, note):
+        # Score components have no user-facing creation command, so the fixture
+        # builds them directly and nothing records the resulting state. Record
+        # it here, or undo would restore the empty timeline the tlui fixture
+        # recorded instead. The staff and the clef have equal ordinals, so undo
+        # may recreate them in either order; the timeline hash must not notice.
+        post(Post.APP_STATE_RECORD, "components created by fixture")
+
+        with undoable(), patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
 
 
 def _check_attrs(tmp_path, items_per_attr):

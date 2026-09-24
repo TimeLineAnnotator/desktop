@@ -129,3 +129,45 @@ def test_crop_staff(score_tl, tilia_state):
     score_tl.crop(50)
 
     assert s in score_tl
+
+
+# Staff orders by ``index`` and Clef by ``time``, so a staff at index 0 and a
+# clef at time 0 both have an ordinal of ``(0,)`` and neither sorts before the
+# other. Clef ignores ``staff_index`` altogether, so the clefs of a multi-staff
+# score all tie too. Components that tie keep the order they were created in,
+# which after an undo is whatever order restore_state happened to use.
+MIXED_KINDS = [
+    (ComponentKind.STAFF, (0, 5), {}),
+    (ComponentKind.CLEF, (0, 0), {"shorthand": Clef.Shorthand.TREBLE}),
+    (ComponentKind.NOTE, (0, 1, 0, 0, 3, 0), {}),
+]
+
+EQUAL_ORDINALS = [
+    (ComponentKind.STAFF, (0, 5), {}),
+    (ComponentKind.STAFF, (1, 5), {}),
+    (ComponentKind.CLEF, (0, 0), {"shorthand": Clef.Shorthand.TREBLE}),
+    (ComponentKind.CLEF, (1, 0), {"shorthand": Clef.Shorthand.BASS}),
+]
+
+
+def components_hash_for(timeline, components):
+    timeline.clear()
+    for kind, args, kwargs in components:
+        timeline.create_component(kind, *args, **kwargs)
+    return timeline.component_manager.hash_components()
+
+
+class TestHashComponents:
+    def test_does_not_depend_on_creation_order_of_components_of_different_kinds(
+        self, score_tl
+    ):
+        assert components_hash_for(score_tl, MIXED_KINDS) == components_hash_for(
+            score_tl, list(reversed(MIXED_KINDS))
+        )
+
+    def test_does_not_depend_on_creation_order_of_components_with_equal_ordinals(
+        self, score_tl
+    ):
+        assert components_hash_for(score_tl, EQUAL_ORDINALS) == components_hash_for(
+            score_tl, list(reversed(EQUAL_ORDINALS))
+        )
