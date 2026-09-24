@@ -11,7 +11,7 @@ from tests.mock import (
     patch_yes_or_no_dialog,
 )
 from tests.utils import get_blank_file_data, reloadable
-from tilia.errors import SCORE_STAFF_ID_ERROR
+from tilia.errors import SCORE_STAFF_ID_ERROR, SCORE_SVG_CREATE_ERROR
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.component_kinds import ComponentKind
@@ -314,3 +314,129 @@ def test_symbol_staff_collision(qtui, tmp_path):
     )
 
     assert staff_top_y_sans_symbols < staff_top_y_with_symbols
+
+
+MARKER_FONT_SIZE = "0.000009999999999999999px"
+
+
+def _svg_with_beat_markers(*markers: tuple[int, int, int, int]) -> str:
+    """Build an SVG carrying the near-invisible `measure␟division␟divisions`
+    text markers the score viewer reads beat positions from. Each marker is
+    (measure, division, divisions per measure, x).
+    """
+    elements = "".join(
+        f'<g class="vf-text">'
+        f'<text font-size="{MARKER_FONT_SIZE}" x="{x}" y="0">{m}␟{d}␟{divs}</text>'
+        f"</g>"
+        for m, d, divs, x in markers
+    )
+    return f'<svg width="1000" height="200">{elements}</svg>'
+
+
+SVG_WITHOUT_MARKERS = '<svg width="1000" height="200"/>'
+SVG_FIRST_SCORE = _svg_with_beat_markers((1, 0, 32, 100), (1, 16, 32, 150))
+SVG_SECOND_SCORE = _svg_with_beat_markers((1, 0, 32, 900), (1, 16, 32, 950))
+BEAT_X_FIRST_SCORE = {1.0: 100.0, 1.5: 150.0}
+BEAT_X_SECOND_SCORE = {1.0: 900.0, 1.5: 950.0}
+
+
+class TestViewerBeatPositions:
+    @staticmethod
+    def _import_score(tls, score_tlui, svg: str) -> None:
+        """Stand in for the musicXML import, which reaches the timeline as a
+        single `svg_data` write once the web engine has produced the SVG.
+        """
+        tls.set_timeline_data(score_tlui.id, "svg_data", svg)
+
+    @staticmethod
+    def _clear(score_tlui) -> None:
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            commands.execute("timeline.clear", score_tlui)
+
+    def test_beat_positions_come_from_the_imported_score(self, score_tlui, tls):
+        self._import_score(tls, score_tlui, SVG_FIRST_SCORE)
+
+        assert score_tlui.get_data("viewer_beat_x") == BEAT_X_FIRST_SCORE
+        assert score_tlui.svg_view.beat_x_position == BEAT_X_FIRST_SCORE
+
+    def test_clear_drops_beat_positions(self, score_tlui, note, tls):
+        self._import_score(tls, score_tlui, SVG_FIRST_SCORE)
+
+        self._clear(score_tlui)
+
+        assert score_tlui.get_data("viewer_beat_x") == {}
+
+    def test_score_imported_after_clear_uses_its_own_beat_positions(
+        self, score_tlui, note, tls
+    ):
+        self._import_score(tls, score_tlui, SVG_FIRST_SCORE)
+        self._clear(score_tlui)
+
+        self._import_score(tls, score_tlui, SVG_SECOND_SCORE)
+
+        assert score_tlui.get_data("viewer_beat_x") == BEAT_X_SECOND_SCORE
+        assert score_tlui.svg_view.beat_x_position == BEAT_X_SECOND_SCORE
+
+    def test_score_imported_over_another_uses_its_own_beat_positions(
+        self, score_tlui, tls
+    ):
+        self._import_score(tls, score_tlui, SVG_FIRST_SCORE)
+
+        self._import_score(tls, score_tlui, SVG_SECOND_SCORE)
+
+        assert score_tlui.get_data("viewer_beat_x") == BEAT_X_SECOND_SCORE
+        assert score_tlui.svg_view.beat_x_position == BEAT_X_SECOND_SCORE
+
+    def test_beat_positions_survive_saving_and_reloading(
+        self, score_tlui, note, tls, tmp_path
+    ):
+        self._import_score(tls, score_tlui, SVG_FIRST_SCORE)
+
+        @reloadable(tmp_path / "file.tla")
+        def check() -> None:
+            score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+            assert score.get_data("viewer_beat_x") == BEAT_X_FIRST_SCORE
+
+    def test_score_saved_without_markers_falls_back_to_stored_positions(
+        self, score_tlui, tls, tilia_errors
+    ):
+        # Files saved before the markers were kept in `svg_data` hold a
+        # stripped SVG, so the mapping saved with them is the only source left.
+        tls.set_timeline_data(score_tlui.id, "viewer_beat_x", BEAT_X_FIRST_SCORE)
+
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITHOUT_MARKERS)
+
+        assert score_tlui.svg_view.beat_x_position == BEAT_X_FIRST_SCORE
+        tilia_errors.assert_no_error()
+
+    def test_score_without_any_beat_positions_reports_an_error(
+        self, score_tlui, tls, tilia_errors
+    ):
+        self._import_score(tls, score_tlui, SVG_WITHOUT_MARKERS)
+
+        tilia_errors.assert_in_error_title(SCORE_SVG_CREATE_ERROR.title)
+
+    def test_undo_redo_across_clear_and_reimport(
+        self, score_tlui, note, tls, tilia_errors
+    ):
+        self._import_score(tls, score_tlui, SVG_FIRST_SCORE)
+        post(Post.APP_STATE_RECORD, "import first score")
+        self._clear(score_tlui)  # the clear command records the state itself
+        self._import_score(tls, score_tlui, SVG_SECOND_SCORE)
+        post(Post.APP_STATE_RECORD, "import second score")
+
+        commands.execute("edit.undo")
+        assert score_tlui.get_data("viewer_beat_x") == {}
+
+        commands.execute("edit.undo")
+        assert score_tlui.get_data("viewer_beat_x") == BEAT_X_FIRST_SCORE
+        assert score_tlui.svg_view.beat_x_position == BEAT_X_FIRST_SCORE
+
+        commands.execute("edit.redo")
+        assert score_tlui.get_data("viewer_beat_x") == {}
+
+        commands.execute("edit.redo")
+        assert score_tlui.get_data("viewer_beat_x") == BEAT_X_SECOND_SCORE
+        assert score_tlui.svg_view.beat_x_position == BEAT_X_SECOND_SCORE
+
+        tilia_errors.assert_no_error()
