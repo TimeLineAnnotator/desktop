@@ -99,7 +99,7 @@ We connect timelines and their components by using the loaded media as a "base l
 Currently, there are eight types of timelines:
 
 | Timeline type | Purpose |
-|---|---|
+|------|------------------|
 | **Audiowave** | Displaying amplitude graphs |
 | **Beat** | Marking beats/measures, synchronising metrical and absolute time |
 | **Harmony** | Chord symbols and roman numeral analysis |
