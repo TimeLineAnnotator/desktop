@@ -492,7 +492,10 @@ class TestFileSetup:
 
 def assert_open_failed(tilia, tilia_errors, opened_file_path, prev_file):
     tilia_errors.assert_error()
-    assert settings.get_recent_files()[0] != opened_file_path
+    # get_recent_files returns posix strings, so the path has to be converted
+    # before comparing; `!= opened_file_path` compared a str to a Path and was
+    # therefore always true.
+    assert Path(opened_file_path).as_posix() not in settings.get_recent_files()
     assert tilia.file_manager.file == prev_file
 
 
