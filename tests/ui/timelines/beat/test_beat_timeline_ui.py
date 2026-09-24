@@ -422,6 +422,21 @@ class TestSetMeasureNumber:
         commands.execute("edit.redo")
         assert beat_tlui.timeline.measure_numbers[0] == 1
 
+    def test_reset_measure_number_hides_label_set_more_than_once(self, beat_tlui):
+        settings.set("beat_timeline", "display_measure_periodicity", 4)
+        beat_tlui.timeline.beat_pattern = [1]
+        for i in range(4):
+            beat_tlui.create_beat(i)
+
+        beat_tlui.select_element(beat_tlui[1])
+        self._set_measure_number()
+        self._set_measure_number()
+        assert get_displayed_measure_number(beat_tlui[1]) == str(DUMMY_MEASURE_NUMBER)
+
+        commands.execute("timeline.beat.reset_measure_number")
+
+        assert get_displayed_measure_number(beat_tlui[1]) == ""
+
     def test_measure_zero_number_is_not_displayed(self, beat_tlui):
         settings.set("beat_timeline", "display_measure_periodicity", 2)
         beat_tlui.timeline.beat_pattern = [1]
