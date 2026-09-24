@@ -18,7 +18,7 @@ from tilia.file.migration import (
     migrate,
 )
 from tilia.file.tilia_file import TiliaFile, validate_tla_data
-from tilia.requests import Get, Post, get, listen, post, serve
+from tilia.requests import Get, Post, get, listen, long_operation, post, serve
 from tilia.settings import settings
 from tilia.timelines.hash_timelines import hash_function
 from tilia.ui import commands
@@ -69,6 +69,7 @@ def _compact_ordinals(timelines: dict) -> None:
         timeline["ordinal"] = new_ordinal
 
 
+@long_operation("Reading file...")
 def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None, Path | None]:
     try:
         with open(file_path, "r", encoding="utf-8") as f:

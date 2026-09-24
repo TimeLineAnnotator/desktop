@@ -70,6 +70,7 @@ class App:
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_STATE_RECORD, self.on_record_state),
             (Post.PLAYER_DURATION_AVAILABLE, self.set_file_media_duration),
+            (Post.UI_EXIT, self.on_ui_exit),
         }
 
         SERVES = {
@@ -253,6 +254,9 @@ class App:
                 return
 
         post(Post.UI_EXIT, 0)
+
+    def on_ui_exit(self, *_args) -> None:
+        self.player.destroy()
 
     def load_media(
         self,

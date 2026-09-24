@@ -296,7 +296,7 @@ class Player(ABC):
         ...
 
     @abstractmethod
-    def _engine_stop(self):
+    def _engine_stop(self) -> None:
         ...
 
     @abstractmethod
@@ -308,7 +308,7 @@ class Player(ABC):
         ...
 
     @abstractmethod
-    def _engine_load_media(self, media_path: str) -> None:
+    def _engine_load_media(self, media_path: str) -> bool:
         ...
 
     @abstractmethod
@@ -320,7 +320,7 @@ class Player(ABC):
         ...
 
     @abstractmethod
-    def _engine_exit(self) -> float:
+    def _engine_exit(self) -> None:
         ...
 
     @abstractmethod

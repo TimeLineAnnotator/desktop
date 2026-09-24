@@ -1,28 +1,8 @@
-import os
-
-import pytest
-
-from tests.constants import EXAMPLE_MEDIA_PATH
+from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_VIDEO_PATH
 from tilia.requests import Post, post
 from tilia.ui import commands
 
 
-@pytest.fixture
-def conservative_player_stop(tilia):
-    """
-    Increases player.SLEEP_AFTER_STOP to 5 seconds if on CI.
-    Avoids freezes when setting URL after stop. Workaround for running tests on CI.
-    Proper handling of player status changes would be a more robust solution.
-    """
-
-    original_sleep_after_stop = tilia.player.SLEEP_AFTER_STOP
-    if os.getenv("CI") == "true":
-        tilia.player.SLEEP_AFTER_STOP = 5
-    yield
-    tilia.player.SLEEP_AFTER_STOP = original_sleep_after_stop
-
-
-@pytest.mark.skipif(os.getenv("CI") == "true", reason="Tests are flaky on CI.")
 class TestPlayer:
     @staticmethod
     def _load_example():
@@ -42,3 +22,54 @@ class TestPlayer:
         self._load_example()
         commands.execute("media.toggle_play", False)
         post(Post.APP_CLEAR)
+
+
+class TestPlayerWithWebEngineView:
+    """Regression coverage for QtAudioPlayer's worker-thread fix: loading/
+    playing/stopping local audio must not hang or crash once a
+    QWebEngineView (score view, YouTube player) exists in-process. Before
+    the fix, QtPlayer's wait_for_signal blocked on a nested QEventLoop on
+    the GUI thread, which could reenter WebEngine's pending IPC work and
+    segfault."""
+
+    def test_load_play_stop_audio_with_webengineview_alive(self, tilia):
+        from PySide6.QtWebEngineWidgets import QWebEngineView
+
+        view = QWebEngineView()
+        try:
+            post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH)
+            commands.execute("media.toggle_play", True)
+            commands.execute("media.toggle_play", False)
+            post(Post.APP_CLEAR)
+        finally:
+            view.deleteLater()
+
+
+class TestVideoPlayer:
+    """QtVideoPlayer needs Get.MAIN_WINDOW (served by QtUI), unlike the
+    audio-only tests above which only need the bare App (`tilia`)."""
+
+    def test_load_play_stop_video(self, qtui):
+        post(Post.APP_MEDIA_LOAD, EXAMPLE_VIDEO_PATH)
+        commands.execute("media.toggle_play", True)
+        commands.execute("media.toggle_play", False)
+        post(Post.APP_CLEAR)
+
+
+class TestVideoPlayerWithWebEngineView:
+    """Regression coverage for QtVideoPlayer's worker-thread fix: loading/
+    playing/stopping local video must not hang or crash once a
+    QWebEngineView (score view, YouTube player) exists in-process -- the
+    same hazard QtAudioPlayer was fixed for, now also fixed for video."""
+
+    def test_load_play_stop_video_with_webengineview_alive(self, qtui):
+        from PySide6.QtWebEngineWidgets import QWebEngineView
+
+        view = QWebEngineView()
+        try:
+            post(Post.APP_MEDIA_LOAD, EXAMPLE_VIDEO_PATH)
+            commands.execute("media.toggle_play", True)
+            commands.execute("media.toggle_play", False)
+            post(Post.APP_CLEAR)
+        finally:
+            view.deleteLater()

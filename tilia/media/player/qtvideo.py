@@ -5,25 +5,34 @@ from PySide6.QtWidgets import QSizePolicy
 
 from tilia.ui.windows.view_window import ViewWindow
 
-from .qtplayer import QtPlayer
+from .qtplayer import WorkerThreadPlayer
+from .video_worker import FrameRelay, VideoEngineWorker
 
 
-class QtVideoPlayer(QtPlayer):
+class QtVideoPlayer(WorkerThreadPlayer):
+    """Video playback on a dedicated worker QThread (see video_worker.py),
+    same reentrancy fix as QtAudioPlayer. self.widget (QVideoWidget) stays
+    on the GUI thread; the player pairs with a same-thread QVideoSink
+    instead, relaying frames to the widget via FrameRelay. Pairing the
+    worker-thread player directly with the GUI-thread widget via
+    setVideoOutput() looks fine (no crash, correct state transitions) but
+    silently drops all frame delivery -- see FrameRelay's docstring.
+    """
+
     MEDIA_TYPE = "video"
+    _worker_cls = VideoEngineWorker
 
-    def __init__(self):
-        super().__init__()
+    def _extra_setup(self) -> None:
         self.widget = QVideoWindow()
-        self.player.setVideoOutput(self.widget)
+        self._frame_relay = FrameRelay(self.widget)
 
-    def _engine_load_media(self, media_path: str) -> bool:
-        result = super()._engine_load_media(media_path)
-        if result:
-            self.widget.show()
-        return result
+    def _connect_extra(self) -> None:
+        self._worker.frame_ready.connect(self._frame_relay.on_frame)
 
-    def _engine_exit(self):
-        super()._engine_exit()
+    def _on_load_success(self) -> None:
+        self.widget.show()
+
+    def _extra_exit_cleanup(self) -> None:
         self.widget.deleteLater()
 
 

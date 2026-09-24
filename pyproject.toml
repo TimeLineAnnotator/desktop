@@ -67,6 +67,7 @@ ci-tests = [
 ]
 dev = [
     "icecream>=2.1.0",
+    "lxml-stubs>=0.5.1",
     "pre-commit",
     {include-group = "testing"},
 ]

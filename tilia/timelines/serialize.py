@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import tilia.errors
+from tilia.requests import LongOperation, Post, post
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
@@ -55,8 +56,10 @@ def deserialize_components(
 
     id_to_component_dict = {}
     errors = []
+    total = len(serialized_components)
 
-    for id, serialized_component in serialized_components.items():
+    for i, (id, serialized_component) in enumerate(serialized_components.items()):
+        post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, total)
         component, error = _deserialize_component(timeline, id, serialized_component)
         if not component:
             errors.append(f"id={id} | {error}")

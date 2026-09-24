@@ -245,13 +245,14 @@ def _teardown_youtube_player(player) -> None:
         return
     from PySide6.QtCore import QCoreApplication, QEvent
 
-    # Schedule deletion then flush DeferredDelete synchronously so the C++
-    # QWebEngineView object is actually destroyed before the worker exits.
-    # processEvents() alone does not flush DeferredDelete (Qt requires a full
-    # event-loop cycle); sendPostedEvents with DeferredDelete does. Without
-    # this QtWebEngineProcess stays alive as an orphan on macOS, preventing
-    # the xdist worker from exiting and hanging the CI job.
-    player.view.deleteLater()
+    # player.destroy() (called before this) already schedules the view for
+    # deletion via _engine_exit's view.deleteLater(); flush DeferredDelete
+    # synchronously here so the C++ QWebEngineView object is actually
+    # destroyed before the worker exits. processEvents() alone does not
+    # flush DeferredDelete (Qt requires a full event-loop cycle);
+    # sendPostedEvents with DeferredDelete does. Without this
+    # QtWebEngineProcess stays alive as an orphan on macOS, preventing the
+    # xdist worker from exiting and hanging the CI job.
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
@@ -263,6 +264,13 @@ def tilia(cleanup_requests):
     tilia_.file_manager.resync_saved_metadata()
     tilia_.reset_undo_manager()
     yield tilia_
+    # Without this, QtAudioPlayer's worker QThread (see
+    # tilia/media/player/audio_worker.py) never receives quit() and keeps
+    # running after the module's tests finish -- harmless for one leaked
+    # thread, but with one QThread leaked per test module across the whole
+    # suite, the interpreter crashes at process exit trying to tear down
+    # hundreds of still-running native threads.
+    tilia_.player.destroy()
     _teardown_youtube_player(tilia_.player)
 
 
