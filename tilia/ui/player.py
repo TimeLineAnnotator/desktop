@@ -1,18 +1,26 @@
-from enum import Enum, auto
+from __future__ import annotations
 
-from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QAction, QIcon
+from enum import Enum, auto
+from typing import TYPE_CHECKING
+
+from PySide6.QtCore import QEvent, QRegularExpression, Qt
+from PySide6.QtGui import QAction, QIcon, QRegularExpressionValidator
+
+if TYPE_CHECKING:
+    from tilia.file.tilia_file import TiliaFile
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QLabel,
+    QLineEdit,
     QSlider,
     QToolBar,
 )
 
 import tilia.errors
 from tilia.requests import Get, Post, get, listen, post, stop_listening_to_all
+from tilia.settings import settings
 from tilia.ui import commands
-from tilia.ui.format import format_media_time
+from tilia.ui.format import format_media_time, parse_media_time
 
 
 class PlayerToolbar(QToolBar):
@@ -25,7 +33,10 @@ class PlayerToolbar(QToolBar):
 
         self.current_time_string = format_media_time(0)
         self.duration_string = format_media_time(0)
+        self.duration = 0.0
         self.last_playback_rate = 1.0
+        self._status = PlayerStatus.NO_MEDIA
+        self._pending_time: float | None = None
 
         self._setup_controls()
 
@@ -41,6 +52,8 @@ class PlayerToolbar(QToolBar):
             (Post.PLAYER_STOPPED, self.on_stop),
             (Post.PLAYER_UPDATE_CONTROLS, self.on_update_controls),
             (Post.PLAYER_UI_UPDATE, self.on_ui_update_silent),
+            (Post.APP_FILE_LOADED, self._on_file_loaded),
+            (Post.APP_CLEAR, self._on_clear),
         }
 
         for post_, callback in LISTENS:
@@ -65,42 +78,82 @@ class PlayerToolbar(QToolBar):
 
     def on_player_current_time_changed(self, audio_time: float, *_) -> None:
         self.current_time_string = format_media_time(audio_time)
-        self.update_time_string()
+        self._update_time_edit()
 
     def on_stop(self) -> None:
         self.current_time_string = format_media_time(0)
-        self.update_time_string()
+        self._update_time_edit()
         self.on_ui_update_silent(PlayerToolbarElement.TOGGLE_PLAY_PAUSE, False)
 
     def on_media_duration_changed(self, duration: float, is_confirmation: bool = False):
+        self.duration = duration
         self.duration_string = format_media_time(duration)
-        self.update_time_string()
+        self._update_time_edit()
+        self.duration_label.setText(self.duration_string)
+        if self._status == PlayerStatus.NO_MEDIA:
+            self.time_edit.setEnabled(duration > 0)
+            self.duration_label.setEnabled(duration > 0)
+        if self._pending_time is not None and duration > 0:
+            commands.execute("media.seek", min(self._pending_time, duration))
+            self._pending_time = None
 
-    def update_time_string(self):
-        self.time_label.setText(f"{self.current_time_string}/{self.duration_string}")
+    def _on_file_loaded(self, file: TiliaFile) -> None:
+        self._pending_time = settings.get_file_time(file.file_path)
+
+    def _on_clear(self) -> None:
+        self._pending_time = None
+
+    def _update_time_edit(self) -> None:
+        if not self.time_edit.hasFocus():
+            self.time_edit.setText(self.current_time_string)
+
+    def _on_time_committed(self) -> None:
+        seconds = parse_media_time(self.time_edit.text())
+        if seconds is not None:
+            commands.execute("media.seek", max(0.0, min(seconds, self.duration)))
+        self.time_edit.setText(self.current_time_string)
+        self.time_edit.clearFocus()
+
+    def eventFilter(self, obj: object, event: QEvent) -> bool:
+        if obj is self.time_edit and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                self.time_edit.setText(self.current_time_string)
+                self.time_edit.clearFocus()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _set_player_controls_enabled(self, enabled: bool) -> None:
+        for widget in self.tooltipped_widgets:
+            widget.setEnabled(enabled)
+        self.duration_label.setEnabled(enabled)
 
     def on_update_controls(self, state):
+        self._status = state
         match state:
             case PlayerStatus.NO_MEDIA:
                 for widget in self.tooltipped_widgets:
                     widget.setToolTip(
                         "<i>Player disabled.<br>Load file via '</i>File > Load Media File<i>' to start.</i>"
                     )
-                self.setEnabled(False)
+                self._set_player_controls_enabled(False)
+                self.time_edit.setEnabled(self.duration > 0)
             case PlayerStatus.PLAYER_ENABLED:
                 for widget, tooltip in self.tooltipped_widgets.items():
                     widget.setToolTip(tooltip)
+                self._set_player_controls_enabled(True)
+                self.time_edit.setEnabled(True)
                 self.reset()
-                self.setEnabled(True)
             case PlayerStatus.WAITING_FOR_YOUTUBE:
                 for widget in self.tooltipped_widgets:
                     widget.setToolTip(
                         "<i>Player disabled.<br>Click on YouTube video to enable player.</i>"
                     )
-                self.setEnabled(False)
+                self._set_player_controls_enabled(False)
+                self.time_edit.setEnabled(False)
+                self._pending_time = None
 
     def on_ui_update_silent(self, element_to_set, value):
-        if not self.isEnabled():
+        if self._status != PlayerStatus.PLAYER_ENABLED:
             return
         match element_to_set:
             case PlayerToolbarElement.TOGGLE_PLAY_PAUSE:
@@ -191,10 +244,27 @@ class PlayerToolbar(QToolBar):
         self.tooltipped_widgets[self.loop_toggle_action] = "Toggle Loop"
         self.addAction(self.loop_toggle_action)
 
+    _TIME_RE = QRegularExpressionValidator(
+        QRegularExpression(r"^\d*(?::\d*(?::\d*)?)?(?:\.\d*)?$")
+    )
+
     def add_time_label(self):
-        self.time_label = QLabel(f"{self.current_time_string}/{self.duration_string}")
-        self.time_label.setMargin(3)
-        self.addWidget(self.time_label)
+        self.time_edit = QLineEdit(self.current_time_string)
+        self.time_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.time_edit.setFrame(False)
+        self.time_edit.setFixedWidth(65)
+        self.time_edit.setValidator(self._TIME_RE)
+        self.time_edit.returnPressed.connect(self._on_time_committed)
+        self.time_edit.installEventFilter(self)
+        self.addWidget(self.time_edit)
+
+        separator = QLabel("/")
+        separator.setMargin(1)
+        self.addWidget(separator)
+
+        self.duration_label = QLabel(self.duration_string)
+        self.duration_label.setMargin(3)
+        self.addWidget(self.duration_label)
 
     def add_volume_toggle(self):
         def on_volume_toggle(checked: bool) -> None:
