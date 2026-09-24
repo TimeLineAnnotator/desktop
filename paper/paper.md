@@ -42,32 +42,29 @@ Visual analyses of music have proven to be an enduringly popular, effective, and
 
 [^0]: See @isaacson:2023 for a survey of this long history.
 
-Whatever potential a *static* image has, an *interactive* one offers considerably more. Formal analysis is one of the clearest beneficiaries of the visual summary of music. Form can be hard to parse (especially in real-time) but is often easy to understand in relatively simple, at-a-glance summaries.
-
-Save for a relatively small early body of literature[^lit], musical scholarship has not yet made the leap into this technological space with any degree of decisiveness or consistency.
-Even most visually minded music analyses are consigned to static images embedded in print (or in e-copies at best) and not subject to the expectations for _fair_,
-open-source data sharing that are now *de rigueur* in other fields.
-Still among the more computationally inclined communities, there has been little progress made on the coordination of standards and corpora for formal analysis.
-
-[^lit]: @gotham:2019, for instance, is a first step towards a standard for formal annotations. @balke:2017 and @rosenzweig:2020 provide interfaces for interacting with specific annotation corpora. See also footnotes below.
+A comprehensive analysis of music requires being able to summarise the relationships between events that are happening concurrently and through time.
+Furthermore, whatever potential a *static* image has, an *interactive* one offers considerably more. Formal analysis is one of the clearest beneficiaries of the visual summary of music. Form can be hard to parse (especially in real-time) but is often easy to understand in relatively simple, at-a-glance summaries.
 
 In today's digital age, we have come to expect certain basic interactive
-features across visual interfaces, such as **resizing**
+features across visual interfaces, such as resizing
 content to fit the window, keyboard shortcuts, undo/redo functionality, and so on. Musical contexts extend this with additional
 expectations, such as **real-time synchronisation** (a.k.a., audio or
 score following). Any tool that aims to win over users effectively must present analytical ideas naturally and intuitively, with minimal friction in the user interface.
 
-While one _can_ appropriate tools (which primary purpose is editing scores or audio) for creating visual analyses, [^1] [^2] the current range of tools dedicated to the task typically offer limited functionality and their uptake by the wider community has been minimal. [^3]
+Save for a relatively small early body of literature (see the following section), musical scholarship has not yet made the leap into this technological space with any degree of decisiveness or consistency.
+Even most visually minded music analyses are consigned to static images embedded in print (or in e-copies at best) and not subject to the expectations for _fair_,
+open-source data sharing that are now *de rigueur* in other fields.
+Still among the more computationally inclined communities, there has been little progress made on the coordination of standards and corpora for formal analysis.
 
-[^1]: The music notation software _Sibelius_, for instance, has offered a timeline since c.2019 with bar numbers and rudimentary checkpoints for changes to time and key signatures, presumably because they are possible indicators of section breaks. @peebles:2013 discusses how to use an audio editor (_Audacity_) in a similar way to the tools discussed here.
+# State of the field
 
-[^2]: Additionally, websites like _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] support the digital annotation of scores, not specific to analysis.
+While one _can_ appropriate tools (whose primary purpose is editing scores or audio) for creating visual analyses, the current range of tools dedicated to the task typically offer limited functionality and their uptake by the wider community has been minimal.
 
-[^3]: Yorgason's _Audio Timeliner_ [@yorgason:2018], based on the original _Variations Audio Timeliner_ [@notess:2004], is notable for capturing the needs of its users with its simple design, but is not open-source. iAnalyse5 [@couprie:2019] is a similar closed-source offering that is also not cross-platform. _Dezrann_ [@giraud:2018] is a noteworthy, actively maintained and open-source website that allows the alignment of score data on top of annotation. Sonic Visualiser [@cannam:2010] excels when it comes to annotating and visualising audio, but lacks integration with musical scores.
+Existing tools fall into a few groups, none of which meets this need on its own. General-purpose audio and notation software can be repurposed for analysis [@peebles:2013], but it is built for editing rather than annotating: the timeline in _Sibelius_, for instance, offers only bar numbers and rudimentary checkpoints. Audio-analysis tools such as Sonic Visualiser [@cannam:2010] and Partiels [@guillot:2025] centre on audio and on features extracted by plug-ins, and lack integration with musical scores. Score-annotation platforms such as _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] are not specific to analysis, and the MPM Toolbox [@berndt:2021] is tied to a single performance-markup format. Other timeline-based tools are either closed-source, like _Audio Timeliner_ [@yorgason:2018; @notess:2004] and _iAnalyse_ [@couprie:2019] (which is also not cross-platform), or web-based, like the open-source _Dezrann_ [@giraud:2018]. These do not have dedicated tools to annotate other musical relations beyond hierarchical structures.
 
-In response to these challenges (user-friendly design, interoperable
-formats, real-time interactivity ... ), we present 'TiLiA': a timeline
-annotator for all.
+Research systems show what such interfaces can offer. SyncPlayer [@kurth:2005], the Walküre interface [@balke:2017] and the Erkomaishvili interface [@rosenzweig:2020] give synchronised access to specific corpora. Hierarchical structural annotations exist in datasets such as SALAMI [@smith:2011], the Wagner Ring Dataset [@weiss:2023] and in @gotham:2019, alongside research on hierarchical segmentation [@mcfee:2014]. These resources, however, come with their own interfaces or none at all. To our knowledge, no open-source, cross-platform tool combines alignment with audio, video, YouTube streams, PDFs and scores, dedicated musical annotation systems, and scriptable import and export.
+
+In response to these challenges, we present 'TiLiA': a timeline annotator for all.
 
 # Specifications
 
