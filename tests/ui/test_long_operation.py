@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -116,3 +118,22 @@ class TestLongOperationToolbar:
             post(Post.LONG_OPERATION, LongOperation.STARTED, "Op")
             assert mock_pe.call_count == 0
             assert mock_spe.call_count == 1
+
+
+class TestLazyTypeIncarnation:
+    def test_importing_module_incarnates_qproxystyle(self):
+        # The toolbar installs event filters on the QApplication, so they are
+        # handed every object that receives an event. If PySide6 has to build
+        # the Python wrapper for such an object's type from inside a filter, it
+        # re-enters shiboken's lazy type creation and segfaults. Importing
+        # QProxyStyle in tilia.ui.long_operation incarnates it beforehand.
+        # Run in a subprocess: an un-incarnated type is absent from the QtWidgets
+        # module dict, and any earlier test in this process may have incarnated
+        # it already.
+        code = (
+            "import PySide6.QtWidgets as widgets\n"
+            "assert 'QProxyStyle' not in widgets.__dict__, 'already incarnated'\n"
+            "import tilia.ui.long_operation\n"
+            "assert 'QProxyStyle' in widgets.__dict__, 'not incarnated on import'\n"
+        )
+        subprocess.run([sys.executable, "-c", code], check=True, timeout=120)
