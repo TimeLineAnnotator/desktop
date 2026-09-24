@@ -22,7 +22,7 @@ authors:
 affiliations:
  - name: Universidade Federal do Rio de Janeiro, Brazil
    index: 1
- - name: Independent Researcher, United Kingdom
+ - name: École Polytechnique Fédérale de Lausanne, Digital and Cognitive Musicology Lab, Switzerland
    index: 2
  - name: King's College London, United Kingdom
    index: 3
