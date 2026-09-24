@@ -204,8 +204,14 @@ def resources() -> Path:
     return Path(__file__).parent / "resources"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session", autouse=True)
 def use_test_settings(qapplication):
+    # Session-scoped and autouse so this redirect happens before *any* test
+    # touches tilia.settings.settings, not just tests that pull in qtui.
+    # Backend-only tests (e.g. those using the bare `tilia`/`tilia_state`
+    # fixtures) call things like App.update_recent_files(), which would
+    # otherwise write tmp_path files from the test run into the developer's
+    # real "Desktop Settings" store (the actual app's recent-files list).
     settings_module.settings._settings = QSettings(
         constants_module.APP_NAME, "DesktopTests", None
     )
@@ -223,7 +229,7 @@ def use_test_logger(qapplication):
 
 
 @pytest.fixture(scope="module")
-def qtui(tilia, cleanup_requests, qapplication, use_test_settings, use_test_logger):
+def qtui(tilia, cleanup_requests, qapplication, use_test_logger):
     # Re-register time_x_converter listeners before creating QtUI so that
     # time_x_converter receives PLAYBACK_AREA_SET_WIDTH before qtui's handler
     # fires TIMELINE_WIDTH_SET_DONE (which calls set_width which calls
