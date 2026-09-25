@@ -1,0 +1,100 @@
+@startuml
+skinparam defaultFontName "Open Sans"
+skinparam linetype ortho
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #444444
+  ArrowColor #444444
+}
+hide circle
+
+package "Base classes (all timeline types)" {
+  class Timeline {
+    +name: str
+    +height: int
+    +is_visible: bool
+    +components: List<TimelineComponent>
+    +set_data(attr: str, value: Any)
+    +get_data(attr: str)
+    +create_component(kind: ComponentKind, *args, **kwargs)
+    +get_component(id: int)
+    ' +set_component_data(id: int, attr: str, value: Any)
+    ' +get_component_data(id: int, attr: str)
+  }
+
+  class TimelineUI {
+    +timeline: Timeline
+    +elements: List<TimelineUIElement>
+    +set_data(attr: str, value: Any)
+    +get_data(attr: str)
+    +get_timeline_component(id: int)
+    +get_component_ui(component: TimelineComponent)
+  }
+
+  class TimelineComponent {
+    +id: int
+    +timeline: Timeline
+    +set_data(attr: str, value: Any)
+    +get_data(attr: str)
+  }
+
+  class TimelineUIElement {
+    +id: int
+    +timeline_ui: TimelineUI
+    +tl_component: TimelineComponent
+    +set_data(attr: str, value: Any)
+    +get_data(attr: str)
+    +on_right_click(x: float, y: float)
+    +on_select()
+    +on_deselect()
+    +update_position()
+  }
+
+
+  package "Marker classes" #FDE6DF {
+    class MarkerTimeline {
+      +components: List<Marker>
+    }
+    class MarkerTimelineUI {
+      +timeline: MarkerTimeline
+      +elements: List<MarkerUI>
+      +on_add(time: float)
+    }
+
+    class Marker {
+      +time: float
+      +label: str
+      +color: str
+      +comments: str
+    }
+
+    class MarkerUI {
+      +timeline_ui: MarkerTimelineUI
+      +tl_component: Marker
+      +on_left_click()
+      +update_color()
+      +update_label()
+    }
+  }
+}
+
+Timeline *--- TimelineComponent
+TimelineUI *--- TimelineUIElement
+' TimelineUI .right.> Timeline : views
+' TimelineUIElement .right.> TimelineComponent : views
+
+Timeline <|-- MarkerTimeline
+TimelineUI <|-- MarkerTimelineUI
+TimelineComponent <|-right- Marker
+TimelineUIElement <|-left- MarkerUI
+
+MarkerTimeline *-- Marker
+MarkerTimelineUI *-- MarkerUI
+MarkerTimelineUI .right.> MarkerTimeline : views
+MarkerUI .right.> Marker : views
+
+
+
+Timeline -[hidden]right- TimelineUI
+
+@enduml
