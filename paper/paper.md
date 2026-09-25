@@ -102,11 +102,9 @@ TiLiA consists of an organisation of digital tools, primarily of its [open-sourc
 
 \autoref{fig:classes} is a *simplified* diagram for the main timeline base classes. The outer box shows the base classes shared by all timeline types; the inner box shows the concrete subclasses for the marker timeline type, one example among the various timeline types. `Timeline` acts as container for `TimelineComponent`s. Both act as models of `TimelineUI` and `TimelineUIElement`, which are views; in the marker example, `MarkerTimelineUI` and `MarkerUI` view `MarkerTimeline` and `Marker` respectively.
 
-TiLiA is designed to facilitate the *creation* of analyses —
-particularly where this requires complex alignment with audio/video sources —
-and the (conversion and) *import* of analyses of external origin through CSV files.
-This effort thus connects TiLiA to wider datasets and scholarship, while also expanding its
-functionality. The [tilia-dcml](https://github.com/TimeLineAnnotator/dcml-to-tilia) repository demonstrates how the TiLiA CLI might be used to visualise data from an external corpus of musical analyses. The CLI can also *export* timelines created in TiLiA to a JSON file suitable for processing by other software.
+TiLiA is designed both for the manual creation of analyses — particularly where this requires complex alignment with audio/video sources — and for the large-scale conversion and import of external analyses.
+While the `.tla` format may still change as functionality grows, data can be imported from CSV and exported to JSON in stable, documented formats ([import](https://tilia-app.com/help/import), [export](https://tilia-app.com/help/export#json-format)), and both steps can be fully automated with the CLI.
+The [tilia-dcml](https://github.com/TimeLineAnnotator/dcml-to-tilia) repository demonstrates this by integrating an external corpus of musical analyses.
 
 ## The desktop application
 
