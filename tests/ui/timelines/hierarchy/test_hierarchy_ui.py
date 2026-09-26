@@ -2,11 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.utils import save_and_reopen, undoable
 from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
-from tilia.ui.timelines.hierarchy import HierarchyUI
+from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 from tilia.ui.timelines.hierarchy.drag import DRAG_PROXIMITY_LIMIT
+from tilia.ui.windows import WindowKind
 
 
 @pytest.fixture
@@ -531,3 +533,79 @@ class TestDoubleClick:
         tlui[0].on_double_left_click(None)
 
         mock.assert_not_called()
+
+
+class TestFieldInspectorEdit:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def open_inspector_for(self, tlui, element, qtui):
+        tlui.select_element(element)
+        commands.execute("timeline.element.inspect")
+        return qtui._windows[WindowKind.INSPECT]
+
+    @pytest.mark.parametrize(
+        "field_name, attr, new_value",
+        [
+            pytest.param("Label", "label", "new label", id="hierarchy-label"),
+            pytest.param(
+                "Formal type",
+                "formal_type",
+                "phrase",
+                id="hierarchy-formal-type",
+            ),
+            pytest.param(
+                "Formal function",
+                "formal_function",
+                "antecedent",
+                id="hierarchy-formal-function",
+            ),
+        ],
+    )
+    def test_single_line_field_edit_changes_component_and_ui(
+        self, qtui, tlui, tluis, tmp_path, field_name, attr, new_value
+    ):
+        # formal_type/formal_function have no on-canvas glyph (grep of
+        # tilia/ finds them only in components.py, csv parser and
+        # get_inspector_dict — see tilia/ui/timelines/hierarchy/element.py),
+        # so "what its UI shows" is checked via get_inspector_dict(), the
+        # element's own UI-facing readback of the field. Label does have a
+        # canvas glyph, checked separately below.
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
+        hui = tlui[0]
+        inspector = self.open_inspector_for(tlui, hui, qtui)
+        line_edit = inspector.field_name_to_widgets[field_name][1]
+
+        with undoable():
+            line_edit.setText(new_value)
+
+        assert hui.get_data(attr) == new_value
+        assert hui.get_inspector_dict()[field_name] == new_value
+        if field_name == "Label":
+            assert hui.label.toPlainText() == new_value
+            assert hui.full_name.endswith(new_value)
+
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
+        assert reloaded_tlui[0].get_data(attr) == new_value
+
+    def test_comments_edit_changes_component_and_ui(self, qtui, tlui, tluis, tmp_path):
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
+        hui = tlui[0]
+        assert not hui.comments_icon.isVisible()
+        inspector = self.open_inspector_for(tlui, hui, qtui)
+        comments_edit = inspector.field_name_to_widgets["Comments"][1]
+
+        with undoable():
+            comments_edit.setPlainText("some comments")
+
+        assert hui.get_data("comments") == "some comments"
+        assert hui.comments_icon.isVisible()
+
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
+        reloaded_hui = reloaded_tlui[0]
+        assert reloaded_hui.get_data("comments") == "some comments"
+        assert reloaded_hui.comments_icon.isVisible()

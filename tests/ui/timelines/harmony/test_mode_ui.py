@@ -3,8 +3,13 @@ from unittest.mock import patch
 import pytest
 
 from tests.ui.timelines.harmony.interact import click_mode_ui
+from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_mode
 from tests.ui.timelines.interact import click_timeline_ui
+from tests.utils import save_and_reopen, undoable
+from tilia.requests import Post, post
 from tilia.ui import commands
+from tilia.ui.timelines.harmony import HarmonyTimelineUI
+from tilia.ui.windows.kinds import WindowKind
 
 
 @pytest.fixture
@@ -103,3 +108,60 @@ class TestCopyPaste:
         assert len(tlui) == 6
         for attr in attributes_to_copy.keys():
             assert target_mui.get_data(attr) == attributes_to_copy[attr]
+
+
+class TestModeFieldInspectorEdit:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def open_inspector_for(self, mode_ui, qtui):
+        click_mode_ui(mode_ui)
+        commands.execute("timeline.element.inspect")
+        return qtui._windows[WindowKind.INSPECT]
+
+    @pytest.mark.parametrize(
+        "field_name, attr, new_value",
+        [
+            # Reading: "set mode tonic" and "set mode step" are treated as
+            # separate rows on the manual checklist, but the Inspector
+            # has a single note-name combo for a mode ("Step", whose items
+            # are note names — i.e. the mode's tonic). No second field or
+            # code path distinguishes a "tonic" from a "step" for a mode
+            # (tilia/ui/timelines/harmony/elements/mode_attrs.py
+            # INSPECTOR_FIELDS has only Step/Accidental/Type/Comments), and
+            # a keyboard-arrow-driven "step through values" interaction
+            # (the other plausible reading) could not be simulated
+            # reliably here: the focused combo loses Qt focus again as
+            # soon as the event loop is spun (QApplication.processEvents),
+            # even after get(Get.MAIN_WINDOW).show() + setFocus() first
+            # made it the real QApplication.focusWidget() — a real window
+            # in the running app would keep it, so this looks like a
+            # test-harness limitation rather than an app defect, and isn't
+            # a sound basis for an xfail. Both rows are treated as this one
+            # field, edited by direct selection.
+            pytest.param("Step", "step", 3, id="mode-tonic-step"),
+            pytest.param("Accidental", "accidental", 1, id="mode-accidental"),
+            pytest.param("Type", "type", "dorian", id="mode-type"),
+        ],
+    )
+    def test_combo_field_edit_changes_component_and_ui(
+        self, qtui, harmony_tlui, tluis, tmp_path, field_name, attr, new_value
+    ):
+        add_mode(step=0, accidental=0, type="major")
+        mode = harmony_tlui.modes()[0]
+        inspector = self.open_inspector_for(mode, qtui)
+        combo = inspector.field_name_to_widgets[field_name][1]
+        text_before = mode.body.toPlainText()
+
+        with undoable():
+            combo.setCurrentIndex(combo.findData(new_value))
+
+        assert mode.get_data(attr) == new_value
+        assert mode.body.toPlainText() != text_before
+
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        assert reloaded_tlui.modes()[0].get_data(attr) == new_value

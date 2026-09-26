@@ -5,8 +5,10 @@ import pytest
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_harmony, add_mode
 from tests.ui.timelines.interact import click_timeline_ui
+from tests.utils import save_and_reopen, undoable
 from tilia.requests import Post, post
 from tilia.ui import commands
+from tilia.ui.timelines.harmony import HarmonyTimelineUI
 from tilia.ui.windows.kinds import WindowKind
 
 
@@ -205,3 +207,237 @@ class TestInversionInspectorItems:
 
         # inversion 4 is invalid for major; should clamp to max (2)
         assert inversion_combo.currentData() == 2
+
+
+class TestChordFieldInspectorEdit:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def open_inspector_for(self, harmony_ui, qtui):
+        click_harmony_ui(harmony_ui)
+        commands.execute("timeline.element.inspect")
+        return qtui._windows[WindowKind.INSPECT]
+
+    @pytest.mark.parametrize(
+        "field_name, attr, new_value",
+        [
+            pytest.param("Accidental", "accidental", -1, id="chord-accidental"),
+            pytest.param("Applied to", "applied_to", 2, id="chord-applied-to"),
+            pytest.param("Inversion", "inversion", 1, id="chord-inversion"),
+            pytest.param("Quality", "quality", "minor", id="chord-quality"),
+            pytest.param("Step", "step", 3, id="chord-step"),
+            pytest.param(
+                "Display mode", "display_mode", "letter", id="chord-display-as"
+            ),
+        ],
+    )
+    def test_combo_field_edit_changes_component_and_ui(
+        self, qtui, harmony_tlui, tluis, tmp_path, field_name, attr, new_value
+    ):
+        # Editing the field through the inspector (not set_component_data)
+        # changes the component, changes what the body shows, is undoable,
+        # and survives save/reopen.
+        add_harmony()
+        harmony = harmony_tlui.harmonies()[0]
+        inspector = self.open_inspector_for(harmony, qtui)
+        combo = inspector.field_name_to_widgets[field_name][1]
+        text_before = harmony.body.toPlainText()
+
+        with undoable():
+            combo.setCurrentIndex(combo.findData(new_value))
+
+        assert harmony.get_data(attr) == new_value
+        assert harmony.body.toPlainText() != text_before
+
+        # Release the click's selection box before the scene is torn down
+        # by reload — otherwise TimelineUIs.selection_boxes keeps a
+        # reference the reload invalidates, and the tluis fixture's own
+        # teardown click-release crashes trying to clear it.
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        assert reloaded_tlui.harmonies()[0].get_data(attr) == new_value
+
+    @pytest.mark.parametrize(
+        "initial_display_mode, new_display_mode, expect_custom_text",
+        [
+            pytest.param("roman", "custom", True, id="chord-display-as-custom"),
+            pytest.param("custom", "roman", False, id="chord-display-as-not-custom"),
+        ],
+    )
+    def test_display_mode_custom_transitions(
+        self,
+        qtui,
+        harmony_tlui,
+        tluis,
+        tmp_path,
+        initial_display_mode,
+        new_display_mode,
+        expect_custom_text,
+    ):
+        # Switching into "custom" shows the custom text verbatim; switching
+        # away from "custom" shows the computed label again, not the stale
+        # custom text. Each param uses a fresh element so the
+        # single inspector-field edit under test stays a single undo entry
+        # (two edits to the same field through the same open inspector
+        # collapse into one entry — see
+        # test_clearing_comments_via_inspector_is_undoable in
+        # tests/ui/timelines/range/test_range_timeline_ui.py).
+        add_harmony(display_mode=initial_display_mode, custom_text="my custom text")
+        harmony = harmony_tlui.harmonies()[0]
+        inspector = self.open_inspector_for(harmony, qtui)
+        display_combo = inspector.field_name_to_widgets["Display mode"][1]
+
+        with undoable():
+            display_combo.setCurrentIndex(display_combo.findData(new_display_mode))
+
+        assert harmony.get_data("display_mode") == new_display_mode
+        assert (harmony.body.toPlainText() == "my custom text") == expect_custom_text
+
+        # Release the click's selection box before the scene is torn down
+        # by reload — otherwise TimelineUIs.selection_boxes keeps a
+        # reference the reload invalidates, and the tluis fixture's own
+        # teardown click-release crashes trying to clear it.
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        assert reloaded_tlui.harmonies()[0].get_data("display_mode") == new_display_mode
+
+    @pytest.mark.parametrize(
+        "font_type, expected_family",
+        [
+            pytest.param(
+                "analytic",
+                "MusAnalysis",
+                id="chord-custom-text-font-analytic",
+            ),
+            pytest.param("normal", "Arial", id="chord-custom-text-font-regular"),
+        ],
+    )
+    def test_custom_text_edit_under_font(
+        self, qtui, harmony_tlui, tluis, tmp_path, font_type, expected_family
+    ):
+        # "font 'regular'" in the checklist is FONT_TYPES's "normal" value
+        # (tilia/timelines/harmony/constants.py); the combo has no entry
+        # literally spelled "regular".
+        add_harmony(
+            display_mode="custom",
+            custom_text_font_type=font_type,
+            custom_text="old text",
+        )
+        harmony = harmony_tlui.harmonies()[0]
+        inspector = self.open_inspector_for(harmony, qtui)
+        custom_label_edit = inspector.field_name_to_widgets["Custom label"][1]
+        assert harmony.body.font().family() == expected_family
+
+        with undoable():
+            custom_label_edit.setText("new custom text")
+
+        assert harmony.get_data("custom_text") == "new custom text"
+        assert harmony.body.toPlainText() == "new custom text"
+        assert harmony.body.font().family() == expected_family
+
+        # Release the click's selection box before the scene is torn down
+        # by reload — otherwise TimelineUIs.selection_boxes keeps a
+        # reference the reload invalidates, and the tluis fixture's own
+        # teardown click-release crashes trying to clear it.
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_harmony = reloaded_tlui.harmonies()[0]
+        assert reloaded_harmony.get_data("custom_text") == "new custom text"
+        assert reloaded_harmony.body.toPlainText() == "new custom text"
+
+    def test_custom_label_font_combo_changes_body_font(
+        self, qtui, harmony_tlui, tluis, tmp_path
+    ):
+        add_harmony(
+            display_mode="custom",
+            custom_text_font_type="analytic",
+            custom_text="styled text",
+        )
+        harmony = harmony_tlui.harmonies()[0]
+        inspector = self.open_inspector_for(harmony, qtui)
+        font_combo = inspector.field_name_to_widgets["Custom label font"][1]
+        assert harmony.body.font().family() == "MusAnalysis"
+
+        with undoable():
+            font_combo.setCurrentIndex(font_combo.findData("normal"))
+
+        assert harmony.get_data("custom_text_font_type") == "normal"
+        assert harmony.body.font().family() == "Arial"
+
+        # Release the click's selection box before the scene is torn down
+        # by reload — otherwise TimelineUIs.selection_boxes keeps a
+        # reference the reload invalidates, and the tluis fixture's own
+        # teardown click-release crashes trying to clear it.
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        assert (
+            reloaded_tlui.harmonies()[0].get_data("custom_text_font_type") == "normal"
+        )
+
+
+class TestInvalidInversionInspectorEdit:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def open_inspector_for(self, harmony_ui, qtui):
+        click_harmony_ui(harmony_ui)
+        commands.execute("timeline.element.inspect")
+        return qtui._windows[WindowKind.INSPECT]
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "An invalid inversion is silently discarded with no "
+            "user-facing error. tilia/ui/timelines/base/timeline.py "
+            "on_inspector_field_edited calls element.set_data(attr, value) "
+            "and ignores the (value, success) tuple it returns, so "
+            "validate_set_data()==False in "
+            "tilia/timelines/base/component/base.py never reaches "
+            "errors.display()/Post.DISPLAY_ERROR."
+        ),
+    )
+    def test_invalid_inversion_is_refused_with_error(
+        self, qtui, harmony_tlui, tilia_errors
+    ):
+        add_harmony(quality="major", inversion=0)  # major: valid inversions 0-2
+        harmony = harmony_tlui.harmonies()[0]
+        self.open_inspector_for(harmony, qtui)
+
+        # The Inversion combo only ever lists valid choices for the current
+        # quality, so a real user can't pick an invalid one through it.
+        # Post the event the widget would send if it could, to exercise the
+        # validation/error path itself.
+        post(Post.INSPECTOR_FIELD_EDITED, "Inversion", 9, harmony.id, 0)
+
+        assert harmony.get_data("inversion") == 0  # refused, not applied
+        tilia_errors.assert_error()
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "No error is ever shown for an invalid inversion (see "
+            "test_invalid_inversion_is_refused_with_error), so the "
+            "wording can't be checked either. The historical message read "
+            "'...for this letter type', which should say 'chord quality' "
+            "instead."
+        ),
+    )
+    def test_invalid_inversion_error_mentions_chord_quality(
+        self, qtui, harmony_tlui, tilia_errors
+    ):
+        add_harmony(quality="major", inversion=0)
+        harmony = harmony_tlui.harmonies()[0]
+        self.open_inspector_for(harmony, qtui)
+
+        post(Post.INSPECTOR_FIELD_EDITED, "Inversion", 9, harmony.id, 0)
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("chord quality")
