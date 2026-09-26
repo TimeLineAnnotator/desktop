@@ -94,6 +94,20 @@ class TestActions:
         assert tlui[1].get_data("level") == 1
         assert tlui[2].get_data("level") == 1
 
+    def test_decrease_level_with_child_at_previous_level_fails(
+        self, tlui, tilia_errors
+    ):
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+        parent = tlui[0]
+        tlui.select_element(parent)
+        commands.execute("timeline.hierarchy.create_child")
+
+        commands.execute("timeline.hierarchy.decrease_level")
+
+        assert parent.get_data("level") == 2
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("overlap")
+
     def test_increase_level_via_keypress(self, tlui):
         commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.select_element(tlui[0])
@@ -188,6 +202,35 @@ class TestActions:
         commands.execute("timeline.hierarchy.group")
 
         assert len(tlui) == 3
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "ComponentManager.group (tilia/timelines/hierarchy/timeline.py"
+            ":236-241) creates the grouping unit with only start/end/level, so"
+            " Hierarchy.__init__ (tilia/timelines/hierarchy/components.py:83-84)"
+            " defaults pre_start/post_end to that start/end instead of the"
+            " outermost pre_start/post_end of the grouped units."
+        ),
+    )
+    def test_group_inherits_outermost_pre_start_and_post_end(self, tlui):
+        commands.execute(
+            "timeline.hierarchy.add", start=1, end=2, level=1, pre_start=0.5
+        )
+        commands.execute(
+            "timeline.hierarchy.add", start=2, end=3, level=1, post_end=3.5
+        )
+        unit_a, unit_b = tlui[0], tlui[1]
+
+        tlui.select_element(unit_a)
+        tlui.select_element(unit_b)
+        commands.execute("timeline.hierarchy.group")
+
+        assert len(tlui) == 3
+        grouping_unit = next(e for e in tlui if e not in (unit_a, unit_b))
+        assert grouping_unit.get_data("level") == 2
+        assert grouping_unit.get_data("pre_start") == pytest.approx(0.5)
+        assert grouping_unit.get_data("post_end") == pytest.approx(3.5)
 
     def test_group_no_units_selected_does_nothing(self, tlui, tilia_errors):
         commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
