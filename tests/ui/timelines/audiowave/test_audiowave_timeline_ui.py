@@ -3,8 +3,10 @@ from unittest.mock import patch
 import pytest
 from PySide6.QtWidgets import QInputDialog
 
+import tilia.errors
 from tests.mock import Serve
 from tests.utils import (
+    EXAMPLE_VIDEO_FILENAME,
     get_command_action,
     load_local_media,
     load_youtube_media,
@@ -161,3 +163,21 @@ class TestMediaLoadInteraction:
             load_local_media((resources / "example.mp3").resolve())
 
         mock_refresh.assert_called()
+
+
+class TestAddTimeline:
+    def test_add_with_local_video_loaded(self, tluis, tls, tilia_errors, resources):
+        """Adding an AudioWave timeline while a local video is loaded
+        should warn (soundfile can't read the video container) and leave
+        the timeline hidden, instead of crashing. Extracting audio from the
+        video file to display it anyway is out of scope."""
+        load_local_media((resources / EXAMPLE_VIDEO_FILENAME).resolve())
+
+        commands.execute("timelines.add.audiowave", name="AudioWave")
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_title(tilia.errors.AUDIOWAVE_INVALID_FILE.title)
+
+        tl = tls.get_timeline_by_type(AudioWaveTimeline)
+        assert tl is not None
+        assert tl.get_data("is_visible") is False

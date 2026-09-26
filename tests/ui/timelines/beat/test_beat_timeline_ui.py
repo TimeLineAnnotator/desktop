@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from tests.mock import Serve, patch_yes_or_no_dialog
-from tests.utils import undoable
+from tests.utils import reloadable, undoable
 from tilia.requests import Get, Post, post
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
@@ -509,6 +509,39 @@ class TestSetMeasureNumber:
 
         displayed_measure = [get_displayed_measure_number(b) for b in beat_tlui]
         assert displayed_measure == ["", "1", "", "3"]
+
+    def test_set_measure_number_undo_redo_and_reload(self, beat_tlui, tluis, tmp_path):
+        """Setting a measure number is undoable/redoable and survives
+        a save/reopen round trip."""
+        commands.execute("timeline.beat.add")
+        beat_tlui.select_element(beat_tlui[0])
+
+        with undoable():
+            self._set_measure_number()
+            assert beat_tlui.timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
+
+        @reloadable(tmp_path / "file.tla")
+        def check_measure_number():
+            assert tluis[0].timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
+
+    def test_reset_measure_number_is_undoable(self, beat_tlui):
+        """Undoing a measure-number reset must restore the custom
+        number exactly (full app-state comparison, not just the target
+        attribute), and redoing must reset it again. Uses a non-first
+        measure so the reset also exercises the propagation cascade to
+        later measures, not just the hardcoded "measure 0 resets to 1"
+        branch."""
+        beat_tlui.timeline.beat_pattern = [3]
+        for i in range(12):
+            beat_tlui.create_beat(i / 10)
+        beat_tlui.timeline.recalculate_measures()
+
+        beat_tlui.select_element(beat_tlui[3])
+        self._set_measure_number()
+
+        with undoable():
+            commands.execute("timeline.beat.reset_measure_number")
+            assert beat_tlui.timeline.measure_numbers[1] == 2
 
 
 class TestActions:

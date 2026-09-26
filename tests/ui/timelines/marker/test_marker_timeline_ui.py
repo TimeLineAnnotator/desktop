@@ -581,6 +581,28 @@ class TestInspect:
 
         assert marker_tlui[0].get_data("comments") == ""
 
+    def test_set_comments_to_empty_string_is_undoable(self, marker_tlui, tluis):
+        """Clearing the Comments field to an empty string must be
+        undoable/redoable like any other inspector edit -- it shouldn't be
+        special-cased (e.g. skipped from state recording) just because the
+        resulting value is falsy."""
+        commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        press_key("Enter")
+        press_key("Tab")
+        type_string("some comments")
+        press_key("Escape")
+
+        press_key("Enter")
+        press_key("Tab")
+        press_key("A", modifier=Qt.KeyboardModifier.ControlModifier)
+        with undoable():
+            press_key("Backspace")
+            assert marker_tlui[0].get_data("comments") == ""
+
+        assert marker_tlui[0].get_data("comments") == ""
+
     def test_set_attribute_with_multiple_selected(
         self, marker_tlui, tluis, tilia_state
     ):
