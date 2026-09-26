@@ -163,6 +163,19 @@ class TestSaveFileOnClose:
         assert should_save.called
         exit_mock.assert_called()
 
+    def test_file_modified_and_user_chooses_not_to_save_changes(self):
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as should_save,
+            patch("tilia.file.file_manager.FileManager.save") as save_mock,
+            PatchPost("tilia.app", Post.UI_EXIT) as exit_mock,
+        ):
+            commands.execute("tilia.close")
+
+        assert should_save.called
+        exit_mock.assert_called()
+        save_mock.assert_not_called()
+
 
 class TestFileLoad:
     def test_media_path_does_not_exist_and_media_length_available(
@@ -429,6 +442,21 @@ class TestMediaLoad:
         assert (
             marker_tl[0].get_data("time") == 50 * EXAMPLE_MEDIA_DURATION / prev_duration
         )
+
+    def test_undo_after_loading_from_file_menu_does_not_error(
+        self, qtui, tilia_state, tilia_errors
+    ):
+        # Unlike the tests above, load through the actual media.load.local
+        # command (as triggered from the File menu), not by posting
+        # APP_MEDIA_LOAD directly -- this test is specifically about that path.
+        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
+            commands.execute("media.load.local")
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+
+        commands.execute("edit.undo")
+
+        tilia_errors.assert_no_error()
+        assert not tilia_state.media_path
 
 
 class TestScaleCropTimeline:
@@ -910,6 +938,26 @@ class TestOpen:
 
         assert tilia.file_manager.file.media_metadata["title"] == "Saved title"
 
+    def test_opens_file_from_recent_files_menu_after_saving(
+        self, tilia, qtui, tmp_path
+    ):
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Recent File Test")
+        path = save_tilia_to_tmp_path(tmp_path, "recent_file_test")
+
+        # Clear state so the recent-files entry is what brings the title back.
+        commands.execute("file.new")
+        assert get(Get.MEDIA_TITLE) != "Recent File Test"
+
+        file_menu = tests.utils.get_main_window_menu(qtui, "File")
+        recent_files_menu = tests.utils.get_submenu(file_menu, "Open Recent file")
+        action = recent_files_menu.actions()[0]
+        assert action.text() == Path(path).as_posix()
+
+        action.trigger()
+
+        assert get(Get.MEDIA_TITLE) == "Recent File Test"
+        assert Path(get(Get.FILE_PATH)) == Path(path)
+
 
 class TestUndoRedo:
     def test_undo_fails(self, tilia, qtui, tluis, tilia_errors):
@@ -1006,6 +1054,84 @@ class TestFileNew:
         assert should_save.called
         assert get(Get.MEDIA_DURATION) == 0
         assert not tilia.player.media_path
+
+    # Choosing not to save is already covered above by
+    # test_new_prompts_to_save_after_loading_media: that test loads
+    # media to dirty the file, answers FROM_USER_SHOULD_SAVE_CHANGES with
+    # (True, False) ("don't save"), and asserts the new file is created.
+
+    @pytest.mark.parametrize("cancel_mechanism", ["cancel_button", "close_dialog"])
+    def test_new_file_prompt_is_cancelled(
+        self, tilia, qtui, tmp_path, cancel_mechanism
+    ):
+        # Clicking Cancel and closing the dialog both resolve
+        # to the Yes/No/Cancel message box's escape button in Qt, i.e. the
+        # same (False, ...) FROM_USER_SHOULD_SAVE_CHANGES answer, so they
+        # exercise the same code path.
+        save_tilia_to_tmp_path(tmp_path)
+        assert not get(Get.IS_FILE_MODIFIED)
+
+        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
+            commands.execute("media.load.local")
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)) as should_save:
+            commands.execute("file.new")
+
+        assert should_save.called
+        # New file was not created; media from before the cancelled prompt
+        # is still loaded.
+        assert tilia.player.media_path == EXAMPLE_MEDIA_PATH
+
+    @pytest.mark.parametrize(
+        "save_path_answer,expect_new_file",
+        [
+            pytest.param(True, True, id="choose_to_save"),
+            pytest.param(False, False, id="save_then_cancel_save_dialog"),
+        ],
+    )
+    def test_new_file_prompt_choose_to_save(
+        self, tilia, qtui, tmp_path, save_path_answer, expect_new_file
+    ):
+        # Reset to a brand new, never-saved file (no file_path yet), so that
+        # choosing "save" below must go through the save-as path dialog
+        # instead of silently re-saving to an already-known path.
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            commands.execute("file.new")
+        assert not get(Get.IS_FILE_MODIFIED)
+        assert not get(Get.FILE_PATH)
+
+        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
+            commands.execute("media.load.local")
+
+        save_as_path = tmp_path / "test_new_file_prompt_choose_to_save.tla"
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
+            Serve(
+                Get.FROM_USER_SAVE_PATH_TILIA,
+                (save_path_answer, save_as_path if save_path_answer else ""),
+            ),
+        ):
+            commands.execute("file.new")
+
+        if expect_new_file:
+            assert get(Get.MEDIA_DURATION) == 0
+            assert not tilia.player.media_path
+        else:
+            # Cancelling the save-as dialog must not create a new file.
+            assert tilia.player.media_path == EXAMPLE_MEDIA_PATH
+
+    def test_new_file_no_prompt_when_current_file_already_saved(
+        self, tilia, qtui, tmp_path
+    ):
+        path = save_tilia_to_tmp_path(tmp_path)
+        assert not get(Get.IS_FILE_MODIFIED)
+        assert Path(get(Get.FILE_PATH)) == Path(path)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)) as should_save:
+            commands.execute("file.new")
+
+        assert not should_save.called
+        assert get(Get.FILE_PATH) == ""
 
 
 class TestRelativePaths:
