@@ -7,7 +7,11 @@ from PySide6.QtGui import QWheelEvent
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
-from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
+from tests.ui.timelines.interact import (
+    click_timeline_ui,
+    drag_mouse_in_timeline_view,
+    press_key,
+)
 from tests.ui.timelines.marker.interact import click_marker_ui
 from tests.utils import save_and_reopen, save_tilia_to_tmp_path
 from tilia.file.common import are_tilia_data_equal
@@ -361,6 +365,40 @@ class TestSeek:
             commands.execute(add_request)
         assert tlui[0].get_data("time") == pytest.approx(50)
 
+    def test_split_via_shortcut_while_dragging_slider_splits_at_drag_time(
+        self, hierarchy_tlui, slider_tlui, tilia_state, tluis
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
+
+        y = slider_tlui.trough.pos().y()
+        click_timeline_ui(slider_tlui, 0, y=y)
+        target_x = time_x_converter.get_x_by_time(30)
+        drag_mouse_in_timeline_view(target_x, y, release=False)
+
+        press_key("s")
+
+        assert len(hierarchy_tlui) == 2
+        ordered = sorted(hierarchy_tlui, key=lambda h: h.get_data("start"))
+        assert ordered[0].get_data("end") == pytest.approx(30)
+        assert ordered[1].get_data("start") == pytest.approx(30)
+
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        # Splitting posts Post.LOOP_IGNORE_COMPONENT unconditionally (see
+        # HierarchyTimeline.component_manager.split), which adds the
+        # replaced unit's id to TimelineUIs.loop_delete_ignore. That set is
+        # only ever pruned from inside on_hierarchy_merge_split, and only
+        # when a loop is active at split time -- so a split with no loop
+        # active (as here) leaves a stale id in a set that lives on the
+        # module-scoped TimelineUIs instance (tests/conftest.py's `qtui`
+        # fixture) for the rest of this test module. Because per-test
+        # id generators restart from the same values (App.on_clear via the
+        # `tilia_state` fixture), a later test's loop bookkeeping can find
+        # that id already present and misbehave. Clear it explicitly so
+        # this test doesn't leak state into whatever runs after it in the
+        # same module.
+        tluis.loop_delete_ignore.clear()
+
 
 class TestLoop:
     def test_loop_with_none_selected(self, tilia_state):
@@ -599,6 +637,64 @@ class TestLoop:
         assert loop_box_rect.right() == pytest.approx(
             time_x_converter.get_x_by_time(50)
         )
+
+    def test_add_pre_start_while_looped_extends_loop_region(self, tilia_state):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 50)
+
+        with Serve(Get.FROM_USER_FLOAT, (True, 5)):
+            commands.execute("timeline.hierarchy.add_pre_start")
+
+        assert get(Get.LOOP_TIME) == (5, 50)
+
+    def test_add_post_end_while_looped_extends_loop_region(self, tilia_state):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 50)
+
+        with Serve(Get.FROM_USER_FLOAT, (True, 20)):
+            commands.execute("timeline.hierarchy.add_post_end")
+
+        assert get(Get.LOOP_TIME) == (10, 70)
+
+    def test_loop_hierarchy_with_pre_start_includes_it(self, tilia_state):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, pre_start=5
+        )
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (5, 50)
+
+    def test_loop_hierarchy_with_post_end_includes_it(self, tilia_state):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, post_end=70
+        )
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 70)
+
+    def test_loop_hierarchy_with_pre_start_and_post_end_includes_both(
+        self, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add",
+            start=10,
+            end=50,
+            level=1,
+            pre_start=5,
+            post_end=70,
+        )
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (5, 70)
 
 
 class TestClearAllTimelines:

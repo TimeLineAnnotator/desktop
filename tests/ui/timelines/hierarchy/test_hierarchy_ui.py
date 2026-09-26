@@ -6,6 +6,7 @@ from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.hierarchy import HierarchyUI
+from tilia.ui.timelines.hierarchy.drag import DRAG_PROXIMITY_LIMIT
 
 
 @pytest.fixture
@@ -87,6 +88,60 @@ class TestHierarchyUI:
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
         assert hierarchy_tlui[0].dragged
         assert hierarchy_tlui[0].end_x == time_x_converter.get_x_by_time(time_to_drag)
+
+    def test_drag_end_handle_beyond_timeline_end_is_clamped(
+        self, tlui, hierarchy_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        hui = hierarchy_tlui[0]
+        hierarchy_tlui._trigger_left_click_side_effects(hui, hui.end_handle)
+
+        x_to_drag = time_x_converter.get_x_by_time(tilia_state.duration) + 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("end") == pytest.approx(tilia_state.duration)
+
+    def test_drag_end_handle_cannot_pass_units_start(
+        self, tlui, hierarchy_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        hui = hierarchy_tlui[0]
+        hierarchy_tlui._trigger_left_click_side_effects(hui, hui.end_handle)
+
+        x_to_drag = hui.start_x - 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("end") > hui.get_data("start")
+        assert hui.end_x == pytest.approx(hui.start_x + DRAG_PROXIMITY_LIMIT)
+
+    def test_drag_start_handle_cannot_pass_units_end(
+        self, tlui, hierarchy_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        hui = hierarchy_tlui[0]
+        hierarchy_tlui._trigger_left_click_side_effects(hui, hui.start_handle)
+
+        x_to_drag = hui.end_x + 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("start") < hui.get_data("end")
+        assert hui.start_x == pytest.approx(hui.end_x - DRAG_PROXIMITY_LIMIT)
+
+    def test_drag_start_handle_beyond_timeline_start_is_clamped(
+        self, tlui, hierarchy_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        hui = hierarchy_tlui[0]
+        hierarchy_tlui._trigger_left_click_side_effects(hui, hui.start_handle)
+
+        x_to_drag = time_x_converter.get_x_by_time(0) - 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("start") == pytest.approx(0)
 
 
 class TestPreStartIndicator:
@@ -212,6 +267,50 @@ class TestPreStartIndicator:
 
         assert tlui[0].pre_start_handle.isVisible() is False
 
+    def test_drag_pre_start_handle_cannot_pass_units_start(self, tlui, tilia_state):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, pre_start=5
+        )
+        hui = tlui[0]
+        tlui.select_element(hui)
+        tlui._trigger_left_click_side_effects(hui, hui.pre_start_handle.vertical_line)
+
+        x_to_drag = hui.start_x + 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("pre_start") == pytest.approx(hui.get_data("start"))
+
+    def test_drag_pre_start_handle_beyond_timeline_start_is_clamped(
+        self, tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, pre_start=5
+        )
+        hui = tlui[0]
+        tlui.select_element(hui)
+        tlui._trigger_left_click_side_effects(hui, hui.pre_start_handle.vertical_line)
+
+        x_to_drag = time_x_converter.get_x_by_time(0) - 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("pre_start") == pytest.approx(0)
+
+    def test_drag_pre_start_handle_normal_drag(self, tlui, tilia_state):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, pre_start=5
+        )
+        hui = tlui[0]
+        tlui.select_element(hui)
+        tlui._trigger_left_click_side_effects(hui, hui.pre_start_handle.vertical_line)
+
+        x_to_drag = time_x_converter.get_x_by_time(2)
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("pre_start") == pytest.approx(2)
+
 
 class TestPostEndIndicator:
     def test_has_pre_start_when_element_has_post_end(self, tlui):
@@ -334,6 +433,31 @@ class TestPostEndIndicator:
         tlui.deselect_element(tlui[0])
 
         assert tlui[0].post_end_handle.isVisible() is False
+
+    def test_drag_post_end_handle_onto_end_removes_it_with_child_present(
+        self, tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=50, level=2, post_end=70
+        )
+        parent = tlui[0]
+        tlui.select_element(parent)
+        commands.execute("timeline.hierarchy.create_child")
+        child = next(e for e in tlui if e is not parent)
+
+        tlui.select_element(parent)
+        tlui._trigger_left_click_side_effects(
+            parent, parent.post_end_handle.vertical_line
+        )
+        x_to_drag = parent.end_x
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+
+        assert not parent.has_post_end
+        assert parent.get_data("post_end") == pytest.approx(parent.get_data("end"))
+        assert child.get_data("start") == 0
+        assert child.get_data("end") == 50
 
 
 class TestCommentsIndicator:
