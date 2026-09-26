@@ -12,6 +12,7 @@ from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import (
     PatchPost,
     Serve,
+    patch_ask_for_string_dialog,
     patch_file_dialog,
     patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
@@ -485,6 +486,28 @@ class TestMediaLoad:
         tilia_errors.assert_error()
         assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
         assert tilia_state.player.is_playing
+
+    def test_cancel_local_file_dialog_changes_nothing(self, tilia_state, qtui):
+        # Loading media, then cancelling the "Load Media File" file
+        # dialog, must leave the already-loaded media untouched.
+        self._load_media(EXAMPLE_MEDIA_PATH)
+
+        with patch_file_dialog(False, [""]):
+            commands.execute("media.load.local")
+
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
+
+    def test_cancel_youtube_url_dialog_changes_nothing(self, tilia_state, qtui):
+        # Loading media, then cancelling the "Load from Youtube" URL
+        # prompt, must leave the already-loaded media untouched.
+        self._load_media(EXAMPLE_MEDIA_PATH)
+
+        with patch_ask_for_string_dialog(False, ""):
+            commands.execute("media.load.youtube")
+
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
 
 
 class TestScaleCropTimeline:
