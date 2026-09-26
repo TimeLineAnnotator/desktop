@@ -39,6 +39,7 @@ at all, tested here anyway, plus the two completeness guards.
 
 from __future__ import annotations
 
+import sys
 from contextlib import ExitStack, contextmanager, nullcontext
 from typing import NamedTuple
 from unittest.mock import Mock
@@ -848,6 +849,26 @@ MENU_CASES = [
         "Help",
         "open_website_help",
         call_through=False,  # opens a real web browser
+    ),
+    MenuCase(
+        "help-menu-check-for-updates",
+        "Help",
+        "help.check_for_updates",
+        call_through=False,  # checks for updates over the network
+    ),
+    # Not offered on Windows, where Velopack's Add/Remove Programs entry
+    # uninstalls TiLiA (see tilia/ui/menus.py::_help_menu_items).
+    *(
+        [
+            MenuCase(
+                "help-menu-uninstall",
+                "Help",
+                "help.uninstall",
+                call_through=False,  # would really uninstall TiLiA
+            )
+        ]
+        if sys.platform != "win32"
+        else []
     ),
 ]
 
