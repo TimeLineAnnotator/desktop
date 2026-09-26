@@ -456,6 +456,36 @@ class TestMediaLoad:
         tilia_errors.assert_no_error()
         assert not tilia_state.media_path
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "Player.load_media (tilia/media/player/base.py:98-99) calls"
+            " self.stop() whenever is_playing is True before attempting the new"
+            " load, so a load that ultimately fails still stops playback of the"
+            " media that remains current."
+        ),
+    )
+    def test_load_invalid_media_with_media_playing_keeps_it_playing(
+        self, tilia_state, tilia_errors, tmp_path
+    ):
+        # Manual QA found that loading invalid media while other media
+        # is loaded leaves the previous media's path/duration in place (that
+        # part is covered by test_load_invalid_extension_with_media_loaded
+        # above) but "playing does not work" afterwards. Player.load_media
+        # (tilia/media/player/base.py) calls self.stop() whenever
+        # self.is_playing is True *before* attempting the new load -- so a
+        # load that ultimately fails still kills playback of the media that
+        # is (still) current.
+        self._load_media(EXAMPLE_MEDIA_PATH)
+        tilia_state.player.is_playing = True
+
+        nonexisting_media = tmp_path / "nothere.mp3"
+        self._load_media(str(nonexisting_media))
+
+        tilia_errors.assert_error()
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.player.is_playing
+
 
 class TestScaleCropTimeline:
     @pytest.mark.parametrize(
@@ -535,6 +565,39 @@ class TestScaleCropTimeline:
         body_right = hierarchy_tlui[0].body.rect().right()
         expected_right = time_x_converter.get_x_by_time(50) - HierarchyUI.X_OFFSET
         assert body_right == pytest.approx(expected_right)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "scale_timeline_components (tilia/timelines/collection/"
+            "collection.py:323-325) posts no done-signal after rescaling,"
+            " unlike crop_timeline_components (same file, :327-330) which"
+            " posts Post.TIMELINES_CROP_DONE -- so update_time_on_elements()"
+            " never redraws components at their new, rescaled positions."
+        ),
+    )
+    def test_scale_triggers_element_redraw(self, hierarchy_tlui, tilia_state):
+        # Manual QA found that after loading a shorter media and
+        # choosing to scale (not crop), component drawings are not updated
+        # -- "at first it looks like nothing happened". crop_timeline_components
+        # (tilia/timelines/collection/collection.py) posts
+        # Post.TIMELINES_CROP_DONE, which drives update_timeline_times() ->
+        # element_manager.update_time_on_elements() to redraw elements at
+        # their new positions. scale_timeline_components in the same file has
+        # no equivalent post, so that redraw never runs even though the
+        # backend data is rescaled correctly.
+        tilia_state.set_duration(100)
+        commands.execute("timeline.hierarchy.add", start=0, end=50, level=1)
+
+        with patch.object(
+            hierarchy_tlui.element_manager,
+            "update_time_on_elements",
+            wraps=hierarchy_tlui.element_manager.update_time_on_elements,
+        ) as spy:
+            tilia_state.set_duration(50, scale_timelines="yes")
+
+        assert hierarchy_tlui[0].get_data("end") == pytest.approx(25)
+        spy.assert_called()
 
 
 def save_and_reopen_file_without_slider_timeline(tilia_state, tmp_path) -> None:

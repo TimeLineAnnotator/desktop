@@ -491,6 +491,58 @@ class TestLoop:
         assert not tluis.loop_elements
         assert not tilia_state.player.is_looping
 
+    def test_loop_redo_of_invalidating_change_cancels(self):
+        # Sibling of test_loop_undo_manager_cancels above -- redoing a
+        # change that invalidates the active loop must
+        # cancel it too, just like undoing one does. Delete the looped
+        # hierarchy, undo the delete (bringing it back), re-loop over it,
+        # then redo the delete so the hierarchy vanishes again.
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
+        self.tlui.select_all_elements()
+        commands.execute("timeline.component.delete")
+        commands.execute("edit.undo")
+
+        self.tlui.select_all_elements()
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 20)
+
+        commands.execute("edit.redo")
+        assert get(Get.LOOP_TIME) == (0, 0)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "SliderTimelineUI.set_width (tilia/ui/timelines/slider/"
+            "timeline.py:124-127) overrides TimelineUI.set_width without"
+            " repositioning scene.loop_box the way the base implementation"
+            " (tilia/ui/timelines/base/timeline.py:248-252) does, so only the"
+            " slider timeline's loop shading is left behind on zoom."
+        ),
+    )
+    def test_zoom_updates_slider_loop_shading(self, tilia_state, slider_tlui):
+        # Manual QA found that zooming with the mouse wheel (Ctrl+wheel
+        # goes through the same commands.execute("view.zoom.in"/"out") as the
+        # toolbar -- see TimelineUIsView.wheelEvent) while a loop is active
+        # does not move the slider timeline's loop-shading box.
+        # TimelineUI.set_width (ui/timelines/base/timeline.py) repositions
+        # scene.loop_box after a width change, but SliderTimelineUI.set_width
+        # (ui/timelines/slider/timeline.py) overrides set_width without doing
+        # the same, so only the slider timeline's loop shading is left behind
+        # at its pre-zoom position.
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 50)
+
+        commands.execute("view.zoom.in")
+
+        loop_box_rect = slider_tlui.scene.loop_box.rect()
+        assert loop_box_rect.left() == pytest.approx(time_x_converter.get_x_by_time(10))
+        assert loop_box_rect.right() == pytest.approx(
+            time_x_converter.get_x_by_time(50)
+        )
+
 
 class TestClearAllTimelines:
     def test_none(self, tilia, tluis):
