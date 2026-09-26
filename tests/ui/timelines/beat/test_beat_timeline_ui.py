@@ -3,12 +3,16 @@ from unittest.mock import MagicMock
 import pytest
 
 from tests.mock import Serve, patch_yes_or_no_dialog
-from tests.utils import reloadable, undoable
+from tests.ui.timelines.beat.interact import click_beat_ui
+from tests.ui.timelines.interact import drag_mouse_in_timeline_view
+from tests.utils import get_command_names, reloadable, undoable
 from tilia.requests import Get, Post, post
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
+from tilia.ui.coords import time_x_converter
+from tilia.ui.timelines.beat.context_menu import BeatContextMenu
 from tilia.ui.windows import WindowKind
 
 
@@ -763,3 +767,168 @@ class TestTimelineUIContextMenu:
         context_menu = beat_tlui.CONTEXT_MENU_CLASS(beat_tlui, 0, 0)
 
         assert get_qaction("timeline.set_height") not in context_menu.actions()
+
+
+class TestChangeBeatsInMeasureContextMenu:
+    def test_context_menu_has_set_amount_in_measure(self, beat_tlui):
+        beat_tlui.create_beat(0)
+        menu = BeatContextMenu(beat_tlui[0])
+        assert "timeline.beat.set_amount_in_measure" in get_command_names(menu)
+
+    def test_change_3_to_8_beats_and_undo_redo(self, beat_tlui):
+        # A timeline with 3 beats/measure; change one measure from 3 to 8
+        # beats and undo/redo it. Regression test for a previously reported
+        # crash on undo.
+        beat_tlui.timeline.beat_pattern = [3]
+        for t in range(6):
+            commands.execute("timeline.beat.add", time=t)
+        assert beat_tlui.timeline.beats_in_measure == [3, 3]
+
+        beat_tlui.select_element(beat_tlui[0])
+        with undoable():
+            with Serve(Get.FROM_USER_INT, (True, 8)):
+                commands.execute("timeline.beat.set_amount_in_measure")
+        assert beat_tlui.timeline.beats_in_measure == [6]
+
+
+class TestDistributeBeatsErrors:
+    def test_distribute_from_last_beat_displays_error(self, beat_tlui, tilia_errors):
+        for t in range(8):
+            beat_tlui.create_beat(t)
+
+        beat_tlui.select_element(beat_tlui[-1])
+        commands.execute("timeline.beat.distribute")
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_title("Distribute")
+        assert beat_tlui.timeline.beats_in_measure == [4, 4]
+
+    def test_distribute_measure_with_one_beat_displays_error(
+        self, beat_tlui, tilia_errors
+    ):
+        # Most plausible reading: the only measure-with-one-beat case the app
+        # actually flags is a trailing/incomplete last measure -
+        # BeatTLComponentManager.distribute_beats only errors on
+        # `measure_index == measure_count - 1`, so build a timeline whose
+        # last measure has exactly one beat.
+        for t in range(5):
+            beat_tlui.create_beat(t)
+        assert beat_tlui.timeline.beats_in_measure == [4, 1]
+
+        beat_tlui.select_element(beat_tlui[4])
+        commands.execute("timeline.beat.distribute")
+
+        tilia_errors.assert_error()
+        assert beat_tlui.timeline.beats_in_measure == [4, 1]
+
+
+class TestSetBeatAmountInMeasureEdgeCases:
+    def test_add_beat_after_oversized_measure_change(self, beat_tlui):
+        for t in range(8):
+            beat_tlui.create_beat(t)  # pattern [4] -> measures [4, 4]
+
+        beat_tlui.select_element(beat_tlui[0])
+        with Serve(Get.FROM_USER_INT, (True, 100)):
+            commands.execute("timeline.beat.set_amount_in_measure")
+
+        commands.execute("timeline.beat.add", time=8)
+        assert len(beat_tlui) == 9
+
+    def test_change_beats_starting_from_measure_with_one_beat(self, beat_tlui):
+        # The one-beat measure being changed is not the last measure, so the
+        # shortfall is absorbed from later measures instead of being
+        # silently reverted.
+        beat_tlui.timeline.beat_pattern = [1, 4]
+        for t in range(5):
+            commands.execute("timeline.beat.add", time=t)
+        assert beat_tlui.timeline.beats_in_measure == [1, 4]
+
+        beat_tlui.select_element(beat_tlui[0])
+        with undoable():
+            with Serve(Get.FROM_USER_INT, (True, 2)):
+                commands.execute("timeline.beat.set_amount_in_measure")
+        assert beat_tlui.timeline.beats_in_measure == [2, 3]
+
+
+class TestFillWithBeatsIntervalEdgeCases:
+    @pytest.mark.parametrize(
+        "pre_existing_beats, interval",
+        [
+            pytest.param(0, 0.5, id="empty-timeline"),
+            pytest.param(1, 0.5, id="non-empty-timeline"),
+            pytest.param(
+                0,
+                0,
+                id="interval-zero",
+                marks=pytest.mark.xfail(
+                    strict=True,
+                    reason=(
+                        "BeatTimeline.fill_with_beats divides the media "
+                        "duration by the interval unconditionally "
+                        "(tilia/timelines/beat/timeline.py:705), so an "
+                        "interval of 0 raises ZeroDivisionError instead of "
+                        "being refused."
+                    ),
+                ),
+            ),
+        ],
+    )
+    def test_fill_by_interval(
+        self, beat_tlui, tilia_state, pre_existing_beats, interval
+    ):
+        for t in range(pre_existing_beats):
+            commands.execute("timeline.beat.add", time=t)
+
+        response = (
+            True,
+            (beat_tlui.timeline, BeatTimeline.FillMethod.BY_INTERVAL, interval),
+        )
+        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, response):
+            with patch_yes_or_no_dialog(True):
+                with undoable():
+                    commands.execute("timeline.beat.fill")
+
+        amount = int(tilia_state.duration / interval)
+        assert len(beat_tlui) == amount
+
+
+class TestDragBeatLimits:
+    def test_drag_beyond_next_beat_cannot_pass_it(self, beat_tlui, tilia_state):
+        tilia_state.duration = 100
+        commands.execute("timeline.beat.add", time=10)
+        commands.execute("timeline.beat.add", time=20)
+        commands.execute("timeline.beat.add", time=30)
+
+        click_beat_ui(beat_tlui[1])
+        with undoable():
+            drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(40), 0)
+            assert beat_tlui[1].get_data("time") < 30
+
+    def test_drag_beyond_previous_beat_cannot_pass_it(self, beat_tlui, tilia_state):
+        tilia_state.duration = 100
+        commands.execute("timeline.beat.add", time=10)
+        commands.execute("timeline.beat.add", time=20)
+        commands.execute("timeline.beat.add", time=30)
+
+        click_beat_ui(beat_tlui[1])
+        with undoable():
+            drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(0), 0)
+            assert beat_tlui[1].get_data("time") > 10
+
+    def test_drag_beyond_timeline_end_is_clamped(self, beat_tlui, tilia_state):
+        tilia_state.duration = 100
+        commands.execute("timeline.beat.add", time=90)
+
+        click_beat_ui(beat_tlui[0])
+        with undoable():
+            drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(100) + 200, 0)
+            assert beat_tlui[0].get_data("time") == 100
+
+    def test_drag_beyond_timeline_start_is_clamped(self, beat_tlui, tilia_state):
+        tilia_state.duration = 100
+        commands.execute("timeline.beat.add", time=10)
+
+        click_beat_ui(beat_tlui[0])
+        with undoable():
+            drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(0) - 200, 0)
+            assert beat_tlui[0].get_data("time") == 0
