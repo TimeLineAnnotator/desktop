@@ -432,6 +432,27 @@ class TestTimelineUIContextMenu:
 
         assert tluis[1].get_data("name") == "Move me down"
 
+    def test_redo_after_move_preserves_visual_order(self, tluis):
+        # Manual QA found redo does not preserve order -- undoable() already
+        # checks that Get.APP_STATE (backend ordinals) matches after
+        # undo+redo, but that wouldn't catch the timeline *views* being left
+        # at their pre-redo screen position. Check the actual view Y
+        # coordinates, which is what a manual tester would see.
+        commands.execute("timelines.add.marker", name="A")
+        commands.execute("timelines.add.marker", name="B")
+        commands.execute("timelines.add.marker", name="C")
+        tlui_a, tlui_b, tlui_c = tluis[0], tluis[1], tluis[2]
+
+        context_menu = self.get_context_menu(tluis, 0)
+        move_down_action = get_command_action(context_menu, "timeline.move_down")
+
+        with undoable():
+            move_down_action.trigger()
+
+        # undoable() leaves the app in the post-move state (having just
+        # redone it): B, A, C from top to bottom.
+        assert tlui_b.view.y() < tlui_a.view.y() < tlui_c.view.y()
+
     def test_delete_via_context_menu(self, marker_tlui, tluis):
         context_menu = self.get_context_menu(tluis)
         delete_action = get_command_action(context_menu, "timeline.delete")
@@ -498,6 +519,14 @@ class TestInspect:
         click_marker_ui(marker_tlui[0])
         press_key("Enter")
         press_key("Escape")
+
+        assert not qtui.is_window_open(WindowKind.INSPECT)
+
+    def test_enter_with_no_selection_is_noop(self, marker_tlui, tluis, qtui):
+        # click on an empty part of the timeline to give it focus without
+        # selecting anything, then press Enter: nothing should happen.
+        click_timeline_ui(marker_tlui, 50)
+        press_key("Enter")
 
         assert not qtui.is_window_open(WindowKind.INSPECT)
 

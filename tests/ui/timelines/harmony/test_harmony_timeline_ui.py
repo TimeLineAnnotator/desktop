@@ -3,8 +3,10 @@ import pytest
 import tilia.ui.commands
 from tests.mock import Serve
 from tests.ui.timelines.harmony.interact import click_harmony_ui
+from tests.utils import get_command_action
 from tilia.requests import Get
 from tilia.ui import commands
+from tilia.ui.commands import get_qaction
 
 FLAT_SIGN = "`b"
 SHARP_SIGN = "`#"
@@ -268,3 +270,65 @@ class TestCopyPaste:
         commands.execute("timeline.component.paste")
 
         assert len(harmony_tlui) == 5
+
+
+class TestTimelineUIContextMenu:
+    def test_has_no_height_set_action(self, harmony_tlui, tluis):
+        context_menu = harmony_tlui.CONTEXT_MENU_CLASS(harmony_tlui, 0, 0)
+
+        assert get_qaction("timeline.set_height") not in context_menu.actions()
+
+
+class TestAddAtExistingTime:
+    def test_add_harmony_at_same_time_shows_error(self, harmony_tlui, tilia_errors):
+        add_harmony(0)
+        add_harmony(0)
+
+        assert len(harmony_tlui.harmonies()) == 1
+        tilia_errors.assert_error()
+
+    def test_add_mode_at_same_time_shows_error(self, harmony_tlui, tilia_errors):
+        add_mode(0)
+        add_mode(0)
+
+        assert len(harmony_tlui.modes()) == 1
+        tilia_errors.assert_error()
+
+
+class TestKeysRowVisibility:
+    """Toggling the keys row (via the harmony timeline's own
+    context menu) should reposition timelines below the harmony timeline in
+    both directions -- hiding and showing the row."""
+
+    @staticmethod
+    def get_context_menu(harmony_tlui):
+        return harmony_tlui.CONTEXT_MENU_CLASS(harmony_tlui, 0, 0)
+
+    def test_hide_keys_moves_timelines_below_up(self, harmony_tlui, tluis):
+        commands.execute("timelines.add.marker", name="")
+        marker_tlui = tluis[1]
+        y_before = marker_tlui.view.y()
+
+        context_menu = self.get_context_menu(harmony_tlui)
+        hide_keys_action = get_command_action(
+            context_menu, "timeline.harmony.hide_keys"
+        )
+        assert hide_keys_action.isVisible()
+        hide_keys_action.trigger()
+
+        assert marker_tlui.view.y() < y_before
+
+    def test_show_keys_moves_timelines_below_down(self, harmony_tlui, tluis):
+        commands.execute("timelines.add.marker", name="")
+        marker_tlui = tluis[1]
+
+        hide_menu = self.get_context_menu(harmony_tlui)
+        get_command_action(hide_menu, "timeline.harmony.hide_keys").trigger()
+        y_after_hide = marker_tlui.view.y()
+
+        show_menu = self.get_context_menu(harmony_tlui)
+        show_keys_action = get_command_action(show_menu, "timeline.harmony.show_keys")
+        assert show_keys_action.isVisible()
+        show_keys_action.trigger()
+
+        assert marker_tlui.view.y() > y_after_hide
