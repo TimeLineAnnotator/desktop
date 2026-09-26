@@ -491,6 +491,62 @@ class TestLoop:
         assert not tluis.loop_elements
         assert not tilia_state.player.is_looping
 
+    def test_group_keeps_loop(self):
+        # Grouping a looped hierarchy must not affect the loop.
+        # HierarchyTimeline.group (tilia/timelines/hierarchy/timeline.py)
+        # only creates a new, higher-level wrapping component -- it never
+        # deletes/recreates the grouped units, so the looped element (and
+        # therefore the loop) is untouched.
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
+        self.tlui.select_all_elements()
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 20)
+
+        commands.execute("timeline.hierarchy.group")
+        assert get(Get.LOOP_TIME) == (10, 20)
+
+    def test_loading_new_media_cancels_loop(self, tilia_state, tluis, resources):
+        # Loading new media while a loop is active must cancel the loop.
+        post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH, scale_timelines="yes")
+        commands.execute("timeline.hierarchy.add", start=1, end=5, level=1)
+        self.tlui.select_all_elements()
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (1, 5)
+
+        post(
+            Post.APP_MEDIA_LOAD,
+            str((resources / "example.wav").resolve()),
+            scale_timelines="yes",
+        )
+
+        assert get(Get.LOOP_TIME) == (0, 0)
+        assert not tluis.loop_elements
+        assert not tilia_state.player.is_looping
+
+    def test_loop_new_hierarchy_after_media_load_cancelled_loop(
+        self, tilia_state, tluis, resources
+    ):
+        # Once a loop has been cancelled by loading new media, selecting a
+        # (new) hierarchy and looping again must loop that hierarchy.
+        post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH, scale_timelines="yes")
+        commands.execute("timeline.hierarchy.add", start=1, end=5, level=1)
+        self.tlui.select_all_elements()
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (1, 5)
+
+        post(
+            Post.APP_MEDIA_LOAD,
+            str((resources / "example.wav").resolve()),
+            scale_timelines="yes",
+        )
+
+        commands.execute("timeline.hierarchy.add", start=6, end=8, level=1)
+        self.tlui.deselect_all_elements()
+        self.tlui.select_element(self.tlui[1])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+
+        assert get(Get.LOOP_TIME) == (6, 8)
+
     def test_loop_redo_of_invalidating_change_cancels(self):
         # Sibling of test_loop_undo_manager_cancels above -- redoing a
         # change that invalidates the active loop must

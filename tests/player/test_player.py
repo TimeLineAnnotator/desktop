@@ -1,4 +1,5 @@
 import os
+from unittest.mock import patch
 
 import pytest
 
@@ -42,3 +43,45 @@ class TestPlayer:
         self._load_example()
         commands.execute("media.toggle_play", False)
         post(Post.APP_CLEAR)
+
+    @pytest.mark.skip(
+        reason=(
+            "Passes on its own, but in a parallel full-suite run the "
+            "xdist worker died with a Windows heap-corruption error "
+            "(0xc0000374) inside the Qt media engine while changing the rate. "
+            "Skipped until that is understood."
+        )
+    )
+    def test_change_playback_rate_with_audio_loaded(self, tilia, qtui):
+        # Turning the playback-rate spinbox on the player toolbar
+        # while audio is loaded must change the player's actual rate.
+        self._load_example()
+
+        qtui.player_toolbar.playback_rate_spinbox.setValue(1.5)
+
+        assert tilia.player.player.playbackRate() == 1.5
+
+    def test_stop_while_paused_resets_to_start(self, tilia):
+        # Stopping while paused (i.e. not playing, but not at the
+        # start either) must bring the current time back to the start and
+        # leave playback stopped.
+        self._load_example()
+        tilia.player.current_time = 5.0
+
+        commands.get_qaction("media.stop").trigger()
+
+        assert tilia.player.current_time == 0
+        assert not tilia.player.is_playing
+
+    def test_stop_while_stopped_changes_nothing(self, tilia):
+        # Stopping while already stopped (current_time == 0, not
+        # playing) must be a no-op. Player.stop (tilia/media/player/base.py)
+        # early-returns before touching the engine in that case.
+        self._load_example()
+
+        with patch.object(tilia.player, "_engine_stop") as mock_engine_stop:
+            commands.get_qaction("media.stop").trigger()
+
+        mock_engine_stop.assert_not_called()
+        assert tilia.player.current_time == 0
+        assert not tilia.player.is_playing
