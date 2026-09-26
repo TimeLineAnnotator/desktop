@@ -191,6 +191,14 @@ class TestClearButtonIsEnabled:
             commands.execute("timeline.component.delete")
             assert not mt.clear_button.isEnabled()
 
+    def test_disabled_for_audiowave_timeline_even_when_non_empty(self, audiowave_tlui):
+        # AudioWaveTimeline.FLAGS includes NOT_CLEARABLE, so Clear should
+        # stay disabled regardless of whether it has components.
+        audiowave_tlui.create_amplitudebar(0, 1, 1)
+        with manage_timelines() as mt:
+            mt.list_widget.setCurrentRow(0)
+            assert not mt.clear_button.isEnabled()
+
 
 class TestButtonsDisabledWhenHidden:
     """Regression tests — Clear and Delete buttons should be disabled

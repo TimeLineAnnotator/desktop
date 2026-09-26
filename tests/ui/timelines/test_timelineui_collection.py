@@ -2,6 +2,8 @@ import functools
 from unittest.mock import patch
 
 import pytest
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
@@ -608,6 +610,42 @@ class TestZoom:
         post(Post.PLAYER_DURATION_AVAILABLE, duration)
         assert get(Get.CURRENT_ZOOM) == pytest.approx(1.5)
         assert get(Get.PLAYBACK_AREA_WIDTH) == pytest.approx(original_width)
+
+
+class TestZoomWheel:
+    """Zooming in/out with the mouse wheel (Ctrl + wheel over
+    the timeline view), as opposed to the view.zoom.in/out commands tested
+    above, which TestZoom exercises directly."""
+
+    @staticmethod
+    def _send_ctrl_wheel(view, angle_delta_y: int):
+        event = QWheelEvent(
+            QPointF(0, 0),
+            QPointF(0, 0),
+            QPoint(0, 0),
+            QPoint(0, angle_delta_y),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.ControlModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        view.wheelEvent(event)
+
+    def test_ctrl_wheel_up_zooms_in(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        commands.execute("view.zoom.set", 1.0)
+
+        self._send_ctrl_wheel(tluis.view, 120)
+
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(1.0 * ZOOM_MULTIPLIER)
+
+    def test_ctrl_wheel_down_zooms_out(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        commands.execute("view.zoom.set", 1.0)
+
+        self._send_ctrl_wheel(tluis.view, -120)
+
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(1.0 / ZOOM_MULTIPLIER)
 
 
 def test_timeline_command_fails(tilia, qtui, tluis, marker_tlui, tilia_errors):

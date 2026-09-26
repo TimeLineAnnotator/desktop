@@ -8,6 +8,7 @@ from tilia.requests import Get, Post, post
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
+from tilia.ui.commands import get_qaction
 from tilia.ui.windows import WindowKind
 
 
@@ -645,3 +646,10 @@ class TestUndoRedo:
             "1",
             "2",
         ]
+
+
+class TestTimelineUIContextMenu:
+    def test_has_no_height_set_action(self, beat_tlui, tluis):
+        context_menu = beat_tlui.CONTEXT_MENU_CLASS(beat_tlui, 0, 0)
+
+        assert get_qaction("timeline.set_height") not in context_menu.actions()
