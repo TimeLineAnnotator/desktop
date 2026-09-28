@@ -609,22 +609,3 @@ def test_import_score_then_delete_all_beats_does_not_crash(
     # Metric position depends on the beat timeline; with no beats left this
     # should degrade to None rather than raise.
     assert note_ui.get_data("start_metric_position") is None
-
-
-@pytest.mark.skip(
-    reason=(
-        "Needs rendering. 'Click a note: playback seeks to it, and the "
-        "viewer's highlight rectangle moves with the selection' is about the "
-        "rendered score notation in the SvgViewer window, not the timeline's "
-        "own NoteUI. The seek-on-click behaviour lives in "
-        "SvgStaveNote.mouseDoubleClickEvent (tilia/ui/windows/svg_viewer.py), "
-        "and SvgStaveNote items only exist once real SVG note glyphs have "
-        "been produced by the QWebEngineView-based musicxml_to_svg renderer "
-        "(tilia/parsers/score/musicxml_to_svg.py:39). Every existing score "
-        "test uses svg_data='' and there's no synchronous test harness for "
-        "that async renderer, so this can't be exercised in the offscreen "
-        "pytest session without faking the rendered SVG, which isn't allowed."
-    )
-)
-def test_click_note_in_score_viewer_seeks_and_moves_highlight():
-    pass

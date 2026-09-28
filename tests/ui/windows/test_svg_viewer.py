@@ -1,13 +1,14 @@
 import pytest
 from lxml import etree
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QWheelEvent
+from PySide6.QtGui import QColor, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from tests.mock import Serve
-from tests.utils import undoable
+from tests.utils import reloadable, undoable
 from tilia.requests import Get, Post, get, post
+from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
 from tilia.ui.windows.svg_viewer import SvgStaveNote, SvgTlaAnnotation, SvgViewer
 
@@ -204,6 +205,27 @@ def _add_annotation_via_toolbar(viewer: SvgViewer, text="Allegro") -> SvgTlaAnno
     return _annotations(viewer)[0]
 
 
+def _looks_highlighted(viewer: SvgViewer, note: SvgStaveNote) -> bool:
+    """Whether the selection highlight is painted over `note`.
+
+    SvgStaveNote.paint fills the glyph red while it is selected, so this
+    grabs the note's patch of the view and looks for red pixels instead of
+    re-reading isSelected(): what this covers is the rectangle the user sees
+    moving, not the selection state. It has to go through the view rather
+    than QGraphicsScene.render, which doesn't reproduce the composition mode
+    paint() uses for the fill.
+    """
+    view = viewer.view
+    patch = view.mapFromScene(note.sceneBoundingRect()).boundingRect()
+    image = view.viewport().grab(patch).toImage()
+    for x in range(image.width()):
+        for y in range(image.height()):
+            color = QColor(image.pixel(x, y))
+            if color.red() > 150 and color.green() < 100 and color.blue() < 100:
+                return True
+    return False
+
+
 class TestAnnotations:
     def test_create_annotation_shortcut(self, svg_viewer):
         _stavenotes(svg_viewer)[0].setSelected(True)
@@ -212,6 +234,30 @@ class TestAnnotations:
             annotations = _annotations(svg_viewer)
             assert len(annotations) == 1
             assert annotations[0].text() == "Allegro"
+
+    def test_annotation_keeps_its_place_after_reload(self, svg_viewer, tmp_path):
+        # Loading a saved file puts each annotation back in roughly the
+        # place it was left in. Opening a file rebuilds the viewer from the
+        # saved components, so this reads the positions off the rebuilt
+        # items rather than the ones the fixture handed out.
+        _add_annotation_via_toolbar(svg_viewer, "Allegro")
+
+        def positions():
+            score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+            return {
+                a.text(): (a.pos().x(), a.pos().y())
+                for a in _annotations(score.svg_view)
+            }
+
+        before = positions()
+        assert before
+
+        @reloadable(tmp_path / "file.tla")
+        def check_positions():
+            after = positions()
+            assert after.keys() == before.keys()
+            for text, position in before.items():
+                assert after[text] == pytest.approx(position, abs=1)
 
     def test_delete_annotation_shortcut(self, svg_viewer):
         annotation = _add_annotation_via_toolbar(svg_viewer)
@@ -309,6 +355,21 @@ class TestNoteInteraction:
         pos = view.mapFromScene(note.sceneBoundingRect().center())
         QTest.mouseDClick(view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
         assert tilia_state.current_time == pytest.approx(1.0)
+
+    def test_highlight_follows_the_selected_note(self, svg_viewer):
+        # Clicking a note paints the highlight over it, and clicking
+        # another moves the highlight along with the selection.
+        notes = _stavenotes(svg_viewer)
+        view = svg_viewer.view
+        assert not any(_looks_highlighted(svg_viewer, note) for note in notes)
+
+        for selected, other in ((0, 1), (1, 0)):
+            pos = view.mapFromScene(notes[selected].sceneBoundingRect().center())
+            QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+            QApplication.processEvents()
+
+            assert _looks_highlighted(svg_viewer, notes[selected])
+            assert not _looks_highlighted(svg_viewer, notes[other])
 
     def test_select_one_note(self, svg_viewer):
         notes = _stavenotes(svg_viewer)
