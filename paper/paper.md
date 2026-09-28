@@ -74,25 +74,35 @@ Datasets need all of them: SALAMI [@smith:2011] and the Wagner Ring Dataset [@we
 Input formats and multimodality have varied support. Symbolic-based platforms, for instance, rarely support video.
 The Walküre [@balke:2017], Freischütz Digital [@muller:2013], Erkomaishvili [@rosenzweig:2020] and Lohengrin TimeMachine [@lewis:2021] interfaces show what multimodal, synchronised and richly interactive access can offer, but are tied to specific corpora.
 
-In response to this challenge, we present 'TiLiA': a timeline annotator for all.
-It provides an open-source, cross-platform desktop tool that aligns annotations with audio, video, YouTube, PDFs and scores on shared timelines, offers dedicated types for musical structure, harmony and metre, and can be scripted and exchanged through CSV and JSON.
-
-| Tool             | Annotation types | Media         | Open source | Scripting & interop | Platforms   |
-|----------------------|------------------|--------------|-------------|----------------|-------------|
-| TiLiA            | H I O B C (E)    | A V Y S P     | GPLv3       | CLI; CSV, JSON      | W L M (web) |
-| Audio Timeliner  | H I T            | A             | –           | CLI                 | W M         |
-| BriFormer        | H I (O)          | A Y           | –           | –                   | web         |
-| Dezrann          | (H) I O C E      | A Y S P       | GPLv3       | JSON                | web         |
-| iAnalyse         | I O E T          | A V S P       | –           | –                   | M           |
-| mei-friend       | I C E T          | S P           | AGPLv3      | MEI                 | web         |
-| Sonic Visualiser | I O B C T        | A             | GPLv2       | CSV, CLI            | W L M       |
++-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
+|                   | Annotation type                         | Media                       |                       |                | Platform              |
++ Tool              +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+ Licence               + Script/        +-----+-----+-----+-----+
+|                   | B   | C   | E   | H   | I   | O   | T   | A   | P   | S   | V   | Y   |                       | IO             | L   | M   | W   | w   |
++:==================+:====+:====+:====+:====+:====+:====+:====+:====+:====+:====+:====+:====+:======================+:===============+:====+:====+:====+:====+
+| TiLiA             | `●` | `●` | `○` | `●` | `●` | `●` |     | `●` | `●` | `●` | `●` | `●` | GPL-3.0               | CLI; CSV, JSON | `●` | `●` | `●` | `○` |
++-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
+| Audio Timeliner   |     |     |     | `●` | `●` |     | `●` | `●` |     |     |     |     | –                     | CLI            |     | `●` | `●` |     |
++-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
+| BriFormer         |     |     |     | `●` | `●` | `○` |     | `●` |     |     |     | `●` | –                     | –              |     |     |     | `●` |
++-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
+| Dezrann           |     | `●` | `●` | `○` | `●` | `●` |     | `●` | `●` | `●` |     | `●` | GPL-3.0               | JSON           |     |     |     | `●` |
++-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
+| iAnalyse          |     |     | `●` |     | `●` | `●` | `●` | `●` | `●` | `●` | `●` |     | –                     | –              |     | `●` |     |     |
++-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
+| mei-friend        |     | `●` | `●` |     | `●` |     | `●` |     | `●` | `●` |     |     | AGPL-3.0              | MEI            |     |     |     | `●` |
++-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
+| Sonic Visualiser  | `●` | `●` |     |     | `●` | `●` | `●` | `●` |     |     |     |     | GPL-2.0               | CSV, CLI       | `●` | `●` | `●` |     |
++-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
 
 : Comparison of music annotation tools. \label{tab:comparison}
 
-*Annotations:* **H** hierarchical · **I** instant · **O** overlapping · **B** beat · **C** harmony · **E** score elements · **T** text\
-*Media:* **A** audio · **V** video · **Y** YouTube · **S** score · **P** PDF\
-*Platforms:* **W** Windows · **L** Linux · **M** macOS\
-Parentheses mark partial support.
+*Annotations:* **B** beat · **C** harmony · **E** score elements · **H** hierarchical · **I** instant · **O** overlapping · **T** text\
+*Media:* **A** audio · **P** PDF · **S** score · **V** video · **Y** YouTube\
+*Platforms:* **L** Linux · **M** macOS · **W** Windows · **w** web\
+Hollow circles mark partial support.
+
+In response to this challenge, we present 'TiLiA': a timeline annotator for all.
+It provides an open-source, cross-platform desktop tool that aligns annotations with audio, video, YouTube, PDFs and scores on shared timelines, offers dedicated types for musical structure, harmony and metre, and can be scripted and exchanged through CSV and JSON.
 
 # Specifications
 
