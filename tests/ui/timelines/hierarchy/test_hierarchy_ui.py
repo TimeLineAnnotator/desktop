@@ -163,7 +163,6 @@ class TestPreStartIndicator:
         assert tlui[1].pre_start_handle.isVisible() is True
         assert tlui[0].pre_start_handle.isVisible() is False
 
-    @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_selected_descendant(self, tlui):
         commands.execute(
             "timeline.hierarchy.add", start=0.1, end=1, level=2, pre_start=0
@@ -288,7 +287,6 @@ class TestPostEndIndicator:
         assert tlui[1].post_end_handle.isVisible() is True
         assert tlui[0].post_end_handle.isVisible() is False
 
-    @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_selected_descendant(self, tlui):
         commands.execute(
             "timeline.hierarchy.add", start=0.1, end=1, level=2, post_end=1.10
