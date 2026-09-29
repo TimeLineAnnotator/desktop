@@ -57,6 +57,12 @@ Commonly useful helpers:
 - **Menu / command discovery:** `get_command_action(menu, command_name)`, `get_command_from_toolbar(tlui, command_name)`, `get_command_names(menu)`, `get_submenu(menu, name)`, `get_main_window_menu(qtui, name)`, `get_context_menu(tlui, x, y)`, `get_actions_in_menu(menu)`. `get_command_action` walks ribbon-style toolbars where commands are wrapped in `QWidgetAction` containers.
 - **Modal-dialog patches** (in `tests.mock`): `patch_file_dialog`, `patch_ask_for_string_dialog` — context managers that drive modals, as covered in the modal-dialogs section above.
 
+## Don't write `.tla` files by hand
+
+Build the state a test needs through user actions (`commands.execute(...)`, `tilia_state`) and round-trip it with `save_and_reopen(tmp_path)`. Don't assemble file data with `get_blank_file_data()` + `json.dumps` and write it to disk: hand-written files drift from what TiLiA actually saves and can encode states no user can reach. If no user flow can produce a state, question whether it needs a test at all. Some older tests still use the hand-written pattern; don't copy it.
+
+The exception is loading files the current version can't produce, such as old file formats (migration) or timeline kinds it doesn't know.
+
 ## Index timelines and UI elements directly
 
 Index `*_tlui` and timeline collections directly: `range_tlui[0]`, not `list(range_tlui)[0]`. Likewise `len(range_tlui)` over `len(list(range_tlui))`. UI elements are kept sorted by their components' `ORDERING_ATTRS`, so positional indexing is well-defined.
