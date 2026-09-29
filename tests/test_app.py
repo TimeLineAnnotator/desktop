@@ -308,7 +308,7 @@ class TestFileLoad:
         self, tilia, tilia_state, marker_tlui, tls, tmp_path
     ):
         # A duration change larger than DURATION_JITTER_TOLERANCE
-        # (tilia/app.py) is not YouTube's async jitter -- even under "keep"
+        # (tilia/constants.py) is not YouTube's async jitter -- even under "keep"
         # it must still be treated as a genuine media change and prompt to
         # scale, unlike the small-jitter case in the test above.
         tilia_state.media_path = EXAMPLE_MEDIA_PATH

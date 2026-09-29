@@ -32,9 +32,6 @@ if TYPE_CHECKING:
     from tilia.undo_manager import UndoManager
 
 
-DURATION_JITTER_TOLERANCE = 2.0
-
-
 class App:
     def __init__(
         self,
@@ -149,7 +146,8 @@ class App:
     def _is_duration_confirmation(self, duration: float) -> bool:
         return (
             self.should_scale_timelines == "keep"
-            and abs(duration - self.duration) < DURATION_JITTER_TOLERANCE
+            and abs(duration - self.duration)
+            < tilia.constants.DURATION_JITTER_TOLERANCE
         )
 
     def is_file_modified(self) -> bool:
@@ -392,7 +390,7 @@ class App:
         # "keep" leaves the timelines untouched: they already match this
         # media (e.g. we just opened a file), so a duration report that
         # differs only by jitter — YouTube returns it asynchronously, see
-        # DURATION_JITTER_TOLERANCE above — must neither prompt to scale
+        # tilia.constants.DURATION_JITTER_TOLERANCE — must neither prompt to scale
         # nor crop end components (#453). Only the duration itself is
         # updated, below. A difference at or above the tolerance is treated
         # as a genuine media change instead, falling back to "prompt" for
