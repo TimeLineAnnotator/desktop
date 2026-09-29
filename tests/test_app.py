@@ -28,6 +28,7 @@ from tilia.media.player import QtAudioPlayer, YouTubePlayer
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
@@ -328,6 +329,47 @@ class TestFileLoad:
         assert marker_tl[0].get_data("time") == pytest.approx(
             marker_time * new_duration / EXAMPLE_MEDIA_DURATION
         )
+
+    def test_components_past_jittered_duration_survive_save_and_reopen(
+        self,
+        tilia,
+        tilia_state,
+        marker_tlui,
+        hierarchy_tlui,
+        tls,
+        tmp_path,
+        tilia_errors,
+    ):
+        # "keep" leaves components at the old end in place when the player
+        # reports a slightly shorter duration after open. Saving then stores
+        # the shorter media length with the components past it; reopening
+        # must clamp them to the media length instead of dropping them.
+        tilia_state.media_path = EXAMPLE_MEDIA_PATH
+        tilia_state.set_duration(EXAMPLE_MEDIA_DURATION, scale_timelines="no")
+        commands.execute("media.seek", EXAMPLE_MEDIA_DURATION)
+        commands.execute("timeline.marker.add")
+        commands.execute(
+            "timeline.hierarchy.add",
+            start=EXAMPLE_MEDIA_DURATION / 2,
+            end=EXAMPLE_MEDIA_DURATION,
+            level=1,
+        )
+
+        reported_duration = EXAMPLE_MEDIA_DURATION - 0.5
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=True):
+            save_and_reopen(tmp_path)
+            tilia.set_file_media_duration(reported_duration)
+            save_and_reopen(tmp_path)
+
+        tilia_errors.assert_no_error()
+        assert tilia_state.duration == reported_duration
+        marker_tl = tls.get_timelines_by_type(MarkerTimeline)[0]
+        assert len(marker_tl) == 1
+        assert marker_tl[0].get_data("time") == reported_duration
+        hierarchy_tl = tls.get_timelines_by_type(HierarchyTimeline)[0]
+        assert len(hierarchy_tl) == 1
+        assert hierarchy_tl[0].get_data("end") == reported_duration
+        assert hierarchy_tl[0].get_data("post_end") == reported_duration
 
 
 class TestMediaLoad:
