@@ -272,6 +272,10 @@ class Player(ABC):
         self.unload_media()
 
     def destroy(self):
+        # A player is destroyed when media of another kind replaces its own,
+        # possibly while it's playing. Stop it first: otherwise its play loop
+        # keeps polling an engine that _engine_exit() has already torn down.
+        self.stop()
         stop_listening_to_all(self)
         stop_serving_all(self)
         self._engine_exit()
