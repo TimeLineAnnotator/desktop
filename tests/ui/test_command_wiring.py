@@ -52,6 +52,7 @@ from PySide6.QtWidgets import QApplication, QToolButton
 
 import tilia.ui.commands as commands
 from tests.conftest import TiliaErrors
+from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.interact import press_key
 from tests.utils import (
@@ -60,8 +61,9 @@ from tests.utils import (
     get_command_names,
     get_main_window_menu,
     get_submenu,
+    load_local_media,
 )
-from tilia.requests import Get
+from tilia.requests import Get, Post, get, listen, stop_listening
 from tilia.ui.commands import CommandQAction
 from tilia.ui.menus import (
     AddTimelinesMenu,
@@ -170,6 +172,15 @@ def fire(action):
     action.trigger()
 
 
+def press_main_window_key(key: str, modifier: Qt.KeyboardModifier | None = None):
+    """press_key, with the main window active. A window of its own, like the
+    viewer a PDF timeline opens, stays the active one until the user clicks
+    back into the main window, and until then no main-window shortcut fires.
+    """
+    get(Get.MAIN_WINDOW).activateWindow()
+    press_key(key, modifier=modifier)
+
+
 @contextmanager
 def spy_command_no_call_through(name: str):
     """Like spy_command, but the replacement does NOT call through to the
@@ -237,6 +248,13 @@ CONTEXT_MENU_CASES = [
     ),
     ContextMenuCase(
         "context-menu-hierarchy-paste", "hierarchy", "timeline.component.paste"
+    ),
+    ContextMenuCase(
+        "context-menu-hierarchy-paste-complete",
+        "hierarchy",
+        "timeline.component.paste_complete",
+        # Paste complete is only shown while a hierarchy unit is selected.
+        needs_selection=True,
     ),
     # No needs_selection here: NoteUI.on_select() dereferences a `.body`
     # that only exists once the score viewer has actually rendered SVG
@@ -432,10 +450,10 @@ def test_context_menu_route(
 # (timeline_ui, x, y) rather than (element,), so CONTEXT_MENU_CASES/
 # test_context_menu_route above (built around _build_element's element
 # construction) can't express these -- a small parallel table+test instead.
-# Only kinds/commands not already covered elsewhere are listed: every
-# TimelineUIContextMenu subclass also unconditionally adds Delete/Clear
-# (add_default_actions) and, unless overridden, Set name/Set height (base
-# `items`) -- see test_guard_command_coverage, which walks all of them.
+# Hierarchy and harmony stand in for every kind: each TimelineUIContextMenu
+# subclass also unconditionally adds Delete/Clear (add_default_actions) and,
+# unless overridden, Set name/Set height (base `items`) -- see
+# test_guard_command_coverage, which walks all of them.
 # --------------------------------------------------------------------------
 
 
@@ -475,9 +493,15 @@ TIMELINE_CONTEXT_MENU_CASES = [
         "timeline.clear",
         # Clear is only enabled when the timeline has something to clear.
         # Declining the confirmation keeps the unit, so nothing is lost.
-        # (timeline.delete is already covered by test_manage_timelines_delete.)
         serves=((Get.FROM_USER_YES_OR_NO, False),),
         needs_component=True,
+    ),
+    TimelineContextMenuCase(
+        "timeline-context-menu-hierarchy-delete",
+        "hierarchy",
+        "timeline.delete",
+        # Declining the confirmation keeps the timeline.
+        serves=((Get.FROM_USER_YES_OR_NO, False),),
     ),
     TimelineContextMenuCase(
         "timeline-context-menu-harmony-show-keys",
@@ -490,6 +514,12 @@ TIMELINE_CONTEXT_MENU_CASES = [
         "timeline-context-menu-harmony-hide-keys",
         "harmony",
         "timeline.harmony.hide_keys",
+    ),
+    TimelineContextMenuCase(
+        "timeline-context-menu-harmony-delete",
+        "harmony",
+        "timeline.delete",
+        serves=((Get.FROM_USER_YES_OR_NO, False),),
     ),
 ]
 
@@ -528,8 +558,10 @@ def test_timeline_context_menu_route(case, hierarchy_tlui, harmony_tlui):
 
 
 # --------------------------------------------------------------------------
-# Keyboard-shortcut routes (main-window scoped: Ctrl+C/V, Ctrl+Shift+V, g).
-# Shortcut strings are pinned via QKeySequence equality.
+# Keyboard-shortcut routes: every registered command shortcut but the score
+# viewer's (see SCORE_VIEWER_SHORTCUT_CASES), plus the keys that reach a
+# command some other way. Shortcut strings are pinned via QKeySequence
+# equality.
 # --------------------------------------------------------------------------
 
 
@@ -539,6 +571,12 @@ class ShortcutCase(NamedTuple):
     modifier: Qt.KeyboardModifier
     command: str
     shortcut_text: str
+    # The timeline the command acts on, if any. A hierarchy gets
+    # `selected_units` selected units.
+    kind: str | None = "hierarchy"
+    selected_units: int = 1
+    serves: tuple[tuple[Get, object], ...] = ()
+    call_through: bool = True
 
 
 SHORTCUT_CASES = [
@@ -570,22 +608,208 @@ SHORTCUT_CASES = [
         "timeline.hierarchy.group",
         "g",
     ),
+    ShortcutCase(
+        "shortcut-hierarchy-split",
+        "s",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.hierarchy.split",
+        "s",
+    ),
+    ShortcutCase(
+        "shortcut-hierarchy-merge",
+        "e",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.hierarchy.merge",
+        "e",
+        selected_units=2,
+    ),
+    ShortcutCase(
+        "shortcut-hierarchy-create-child",
+        "c",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.hierarchy.create_child",
+        "c",
+        # A level-1 unit has no level below it: decline creating one.
+        serves=((Get.FROM_USER_YES_OR_NO, False),),
+    ),
+    ShortcutCase(
+        "shortcut-range-add-range",
+        "r",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.range.add_range",
+        "r",
+        kind="range",
+    ),
+    ShortcutCase(
+        "shortcut-range-join-ranges",
+        "j",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.range.join_ranges",
+        "j",
+        kind="range",
+    ),
+    # Hierarchy binds "e" and "s" too; with only a range timeline, they go
+    # to range.
+    ShortcutCase(
+        "shortcut-range-merge-ranges",
+        "e",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.range.merge_ranges",
+        "e",
+        kind="range",
+    ),
+    ShortcutCase(
+        "shortcut-range-split-range",
+        "s",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.range.split_range",
+        "s",
+        kind="range",
+    ),
+    ShortcutCase(
+        "shortcut-marker-add",
+        "m",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.marker.add",
+        "m",
+        kind="marker",
+    ),
+    ShortcutCase(
+        "shortcut-beat-add",
+        "b",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.beat.add",
+        "b",
+        kind="beat",
+    ),
+    ShortcutCase(
+        "shortcut-harmony-add-harmony",
+        "h",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.harmony.add_harmony",
+        "h",
+        kind="harmony",
+        serves=((Get.FROM_USER_HARMONY_PARAMS, (False, {})),),
+    ),
+    ShortcutCase(
+        "shortcut-pdf-add",
+        "p",
+        Qt.KeyboardModifier.NoModifier,
+        "timeline.pdf.add",
+        "p",
+        kind="pdf",
+    ),
+    ShortcutCase(
+        "shortcut-zoom-in",
+        "+",
+        Qt.KeyboardModifier.ControlModifier,
+        "view.zoom.in",
+        "Ctrl++",
+        kind=None,
+    ),
+    ShortcutCase(
+        "shortcut-zoom-out",
+        "-",
+        Qt.KeyboardModifier.ControlModifier,
+        "view.zoom.out",
+        "Ctrl+-",
+        kind=None,
+    ),
+    ShortcutCase(
+        "shortcut-undo",
+        "z",
+        Qt.KeyboardModifier.ControlModifier,
+        "edit.undo",
+        "Ctrl+Z",
+        kind=None,
+    ),
+    ShortcutCase(
+        "shortcut-redo",
+        "z",
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+        "edit.redo",
+        "Ctrl+Shift+Z",
+        kind=None,
+    ),
+    # The file shortcuts are answered as their File menu cases are.
+    ShortcutCase(
+        "shortcut-file-new",
+        "n",
+        Qt.KeyboardModifier.ControlModifier,
+        "file.new",
+        "Ctrl+N",
+        kind=None,
+        call_through=False,
+    ),
+    ShortcutCase(
+        "shortcut-file-open",
+        "o",
+        Qt.KeyboardModifier.ControlModifier,
+        "file.open",
+        "Ctrl+O",
+        kind=None,
+        serves=(
+            (Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+            (Get.FROM_USER_TILIA_FILE_PATH, (False, "")),
+        ),
+    ),
+    ShortcutCase(
+        "shortcut-file-save",
+        "s",
+        Qt.KeyboardModifier.ControlModifier,
+        "file.save",
+        "Ctrl+S",
+        kind=None,
+        serves=((Get.FROM_USER_SAVE_PATH_TILIA, (False, "")),),
+    ),
+    ShortcutCase(
+        "shortcut-file-save-as",
+        "s",
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+        "file.save_as",
+        "Ctrl+Shift+S",
+        kind=None,
+        serves=((Get.FROM_USER_SAVE_PATH_TILIA, (False, "")),),
+    ),
+    ShortcutCase(
+        "shortcut-load-media-local",
+        "l",
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+        "media.load.local",
+        "Ctrl+Shift+L",
+        kind=None,
+        serves=((Get.FROM_USER_MEDIA_PATH, (False, "")),),
+    ),
 ]
 
 
 @pytest.mark.parametrize("case", SHORTCUT_CASES, ids=[c.id for c in SHORTCUT_CASES])
-def test_shortcut_route(case, hierarchy_tlui):
+def test_shortcut_route(case, request):
     action = commands.get_qaction(case.command)
-    assert action.shortcut() == QKeySequence(case.shortcut_text)
+    names = commands._shortcut_to_commands.get(
+        commands._normalize_shortcut(case.shortcut_text), []
+    )
+    if len(names) > 1:
+        # A key that several kinds bind is one QShortcut on the main window
+        # instead, which runs the command of the kind clicked last (see
+        # commands.setup_shortcuts).
+        assert case.command in names
+    else:
+        assert action.shortcut() == QKeySequence(case.shortcut_text)
 
-    # A selected hierarchy element gives every one of these commands a
-    # valid target (copy/paste/paste_complete/group all act on selection).
-    commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
-    hierarchy_tlui.select_element(hierarchy_tlui[0])
+    if case.kind == "hierarchy":
+        hierarchy_tlui = request.getfixturevalue("hierarchy_tlui")
+        # Selected units for the commands that act on the selection (merge
+        # needs two).
+        for i in range(case.selected_units):
+            commands.execute("timeline.hierarchy.add", start=i, end=i + 1, level=1)
+            hierarchy_tlui.select_element(hierarchy_tlui[i])
+    elif case.kind is not None:
+        request.getfixturevalue(f"{case.kind}_tlui")
 
     assert_usable(action)
-    with spy_command(case.command) as spy:
-        press_key(case.key, modifier=case.modifier)
+    with fire_context(case.command, case.serves, case.call_through) as spy:
+        press_main_window_key(case.key, modifier=case.modifier)
     spy.assert_called()
 
 
@@ -604,6 +828,19 @@ def test_shortcut_increase_level(hierarchy_tlui):
     with spy_command("timeline.hierarchy.increase_level") as spy:
         QTest.keyClick(
             hierarchy_tlui.view, Qt.Key.Key_Up, Qt.KeyboardModifier.ControlModifier
+        )
+    spy.assert_called()
+
+
+def test_shortcut_decrease_level(hierarchy_tlui):
+    """Ctrl+Down, dispatched the same way as Ctrl+Up above."""
+    # Level 2, so that there is a level to move down to.
+    commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
+    hierarchy_tlui.select_element(hierarchy_tlui[0])
+
+    with spy_command("timeline.hierarchy.decrease_level") as spy:
+        QTest.keyClick(
+            hierarchy_tlui.view, Qt.Key.Key_Down, Qt.KeyboardModifier.ControlModifier
         )
     spy.assert_called()
 
@@ -645,6 +882,47 @@ def test_shortcut_range_move_to_row(test_id, key, command, range_tlui):
     spy.assert_called()
 
 
+def test_shortcut_play_pause(qtui):
+    """Space belongs to the player toolbar's own play/pause QAction, not to a
+    command (see NOT_BACKED_BY_COMMAND), and only works while that toolbar
+    is enabled, i.e. with media loaded."""
+    load_local_media(EXAMPLE_MEDIA_PATH)
+    action = qtui.player_toolbar.play_toggle_action
+    assert action.shortcut() == QKeySequence("Space")
+
+    assert_usable(action)
+    assert qtui.player_toolbar.isEnabled(), "player toolbar is disabled"
+    # Not called through: that would start real playback.
+    with spy_command_no_call_through("media.toggle_play") as spy:
+        press_main_window_key("Space")
+    spy.assert_called_once_with(True)
+
+
+# Keys the main window maps to commands itself, in keyPressEvent, with no
+# QAction shortcut behind them. (It maps Ctrl+C/Ctrl+V too, but the copy and
+# paste shortcuts above take those keys before it sees them.)
+MAIN_WINDOW_KEY_CASES = [
+    ("main-window-key-delete", "Delete", "timeline.component.delete"),
+    ("main-window-key-return", "Return", "timeline.element.inspect"),
+    ("main-window-key-enter", "Enter", "timeline.element.inspect"),  # keypad
+]
+
+
+@pytest.mark.parametrize(
+    "test_id,key,command",
+    MAIN_WINDOW_KEY_CASES,
+    ids=[c[0] for c in MAIN_WINDOW_KEY_CASES],
+)
+def test_main_window_key_route(test_id, key, command, hierarchy_tlui):
+    commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+    hierarchy_tlui.select_element(hierarchy_tlui[0])
+
+    assert_usable(commands.get_qaction(command))
+    with spy_command(command) as spy:
+        press_main_window_key(key)
+    spy.assert_called()
+
+
 # --------------------------------------------------------------------------
 # Main-window menu routes (Edit / View / Timelines).
 # --------------------------------------------------------------------------
@@ -657,10 +935,19 @@ class MenuCase(NamedTuple):
     submenu_path: tuple[str, ...] = ()
     serves: tuple[tuple[Get, object], ...] = ()
     call_through: bool = True
+    # The route is only shown while a hierarchy unit is selected.
+    needs_selected_unit: bool = False
 
 
 MENU_CASES = [
     MenuCase("edit-menu-paste", "Edit", "timeline.component.paste"),
+    MenuCase("edit-menu-copy", "Edit", "timeline.component.copy"),
+    MenuCase(
+        "edit-menu-paste-complete",
+        "Edit",
+        "timeline.component.paste_complete",
+        needs_selected_unit=True,
+    ),
     MenuCase("menu-bar-zoom-in", "View", "view.zoom.in"),
     MenuCase("menu-bar-zoom-out", "View", "view.zoom.out"),
     MenuCase("edit-menu-undo", "Edit", "edit.undo"),
@@ -909,7 +1196,12 @@ MENU_CASES = [
 
 
 @pytest.mark.parametrize("case", MENU_CASES, ids=[c.id for c in MENU_CASES])
-def test_main_window_menu_route(case, qtui):
+def test_main_window_menu_route(case, qtui, request):
+    if case.needs_selected_unit:
+        hierarchy_tlui = request.getfixturevalue("hierarchy_tlui")
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        hierarchy_tlui.select_element(hierarchy_tlui[0])
+
     menu = get_main_window_menu(qtui, case.menu_name)
     for submenu_name in case.submenu_path:
         menu = get_submenu(menu, submenu_name)
@@ -936,6 +1228,8 @@ def test_main_window_menu_route(case, qtui):
 TOOLBAR_CASES = [
     ("toolbar-hierarchy-split", "timeline.hierarchy.split"),
     ("toolbar-hierarchy-merge", "timeline.hierarchy.merge"),
+    ("toolbar-hierarchy-group", "timeline.hierarchy.group"),
+    ("toolbar-hierarchy-increase-level", "timeline.hierarchy.increase_level"),
     ("toolbar-hierarchy-decrease-level", "timeline.hierarchy.decrease_level"),
     ("toolbar-hierarchy-create-child", "timeline.hierarchy.create_child"),
 ]
@@ -945,8 +1239,8 @@ TOOLBAR_CASES = [
     "test_id,command", TOOLBAR_CASES, ids=[c[0] for c in TOOLBAR_CASES]
 )
 def test_hierarchy_toolbar_route(test_id, command, hierarchy_tlui):
-    # Two adjacent level-1 elements: a valid target for split/merge/
-    # decrease_level/create_child regardless of which one this case fires.
+    # Two adjacent level-2 elements: a valid target for every button on the
+    # toolbar, whichever one this case fires.
     commands.execute("timeline.hierarchy.add", start=0, end=1, level=2)
     commands.execute("timeline.hierarchy.add", start=1, end=2, level=2)
     hierarchy_tlui.select_element(hierarchy_tlui[0])
@@ -1102,8 +1396,46 @@ def test_toolbar_route(
     spy.assert_called()
 
 
+def test_range_toolbar_split_mode_toggle():
+    """The range toolbar's split-mode button is a plain checkable QToolButton
+    (see NOT_BACKED_BY_COMMAND) that runs one of two commands by name,
+    depending on the state it was toggled into."""
+    toolbar = RangeTimelineToolbar()
+    button = toolbar._split_mode_button
+    assert button.isEnabled()
+
+    # Twice, to reach both commands. Not called through: they write a
+    # persisted setting that other test processes share.
+    for _ in range(2):
+        command = RangeTimelineToolbar.SPLIT_MODE_COMMAND_BY_ALL_ROWS[
+            not button.isChecked()
+        ]
+        with spy_command_no_call_through(command) as spy:
+            QTest.mouseClick(button, Qt.MouseButton.LeftButton)
+        spy.assert_called()
+
+
+def test_player_toolbar_loop_toggle(qtui):
+    """The loop button has no command behind it (see NOT_BACKED_BY_COMMAND):
+    its route ends in Post.PLAYER_TOGGLE_LOOP."""
+    # The player toolbar is disabled until media is loaded.
+    load_local_media(EXAMPLE_MEDIA_PATH)
+    toolbar = qtui.player_toolbar
+    button = toolbar.widgetForAction(toolbar.loop_toggle_action)
+    assert_usable(toolbar.loop_toggle_action)
+    assert button.isEnabled(), "loop button is disabled"
+
+    loop_toggled = Mock()
+    listen(loop_toggled, Post.PLAYER_TOGGLE_LOOP, loop_toggled)
+    try:
+        QTest.mouseClick(button, Qt.MouseButton.LeftButton)
+    finally:
+        stop_listening(loop_toggled, Post.PLAYER_TOGGLE_LOOP)
+    loop_toggled.assert_called_once_with(True)
+
+
 # --------------------------------------------------------------------------
-# Manage Timelines window (a plain QPushButton, not a QAction/shortcut).
+# Manage Timelines window (plain QPushButtons, not QActions/shortcuts).
 # --------------------------------------------------------------------------
 
 
@@ -1125,9 +1457,57 @@ def test_manage_timelines_delete(hierarchy_tlui, qtui):
     spy.assert_called()
 
 
+# With two timelines listed, the second has one above it to move past and
+# the first one below.
+MANAGE_TIMELINES_MOVE_CASES = [
+    ("manage-timelines-move-up", "up_button", 1),
+    ("manage-timelines-move-down", "down_button", 0),
+]
+
+
+@pytest.mark.parametrize(
+    "test_id,button_name,row",
+    MANAGE_TIMELINES_MOVE_CASES,
+    ids=[c[0] for c in MANAGE_TIMELINES_MOVE_CASES],
+)
+def test_manage_timelines_move(
+    test_id, button_name, row, hierarchy_tlui, marker_tlui, qtui
+):
+    commands.execute("window.open.manage_timelines")
+    dialog = qtui._windows[WindowKind.MANAGE_TIMELINES]
+    assert dialog.list_widget.count() == 2
+    dialog.list_widget.setCurrentRow(row)
+    button = getattr(dialog, button_name)
+
+    assert button.isEnabled()
+    with spy_command("timelines.permute_ordinal") as spy:
+        QTest.mouseClick(button, Qt.MouseButton.LeftButton)
+    spy.assert_called()
+
+
+# --------------------------------------------------------------------------
+# Main window close button (a close event, not a QAction).
+# --------------------------------------------------------------------------
+
+
+def test_main_window_close_button(qtui):
+    main_window = qtui.main_window
+    main_window.show()
+    try:
+        # Not called through: tilia.close would ask to save and quit the app.
+        with spy_command_no_call_through("tilia.close") as spy:
+            main_window.close()
+        spy.assert_called()
+        # closeEvent leaves the closing to tilia.close.
+        assert main_window.isVisible()
+    finally:
+        # qtui is module-scoped: later tests still use this window.
+        main_window.show()
+
+
 # --------------------------------------------------------------------------
 # Score viewer: a per-instance toolbar (QToolButtons in a QVBoxLayout, not
-# a QToolBar/QMenu, so get_command_action doesn't apply directly) plus two
+# a QToolBar/QMenu, so get_command_action doesn't apply directly) plus three
 # real QAction shortcuts scoped to the viewer widget.
 # --------------------------------------------------------------------------
 
@@ -1167,6 +1547,7 @@ def test_score_viewer_toolbar_route(test_id, command, score_tlui):
 SCORE_VIEWER_SHORTCUT_CASES = [
     ("score-viewer-font-inc", "timeline.score.font_inc", "Shift+Up"),
     ("score-viewer-font-dec", "timeline.score.font_dec", "Shift+Down"),
+    ("score-viewer-edit", "timeline.score.edit", "Shift+Return"),
 ]
 
 
@@ -1240,7 +1621,8 @@ NOT_BACKED_BY_COMMAND = {
     "RangeTimelineToolbar: split-mode toggle": (
         "A plain checkable QToolButton (_build_split_mode_button), wired "
         "to _on_split_mode_toggled(), which calls commands.execute(...) "
-        "by name directly -- not a CommandQAction."
+        "by name directly -- not a CommandQAction. "
+        "test_range_toolbar_split_mode_toggle clicks it."
     ),
     "ViewMenu: per-window checkable items": (
         "ViewMenu._get_action builds a plain checkable QAction per open "
@@ -1256,7 +1638,8 @@ NOT_BACKED_BY_COMMAND = {
         "Plain checkable QAction (play_toggle_action), wired to "
         "commands.execute('media.toggle_play', checked). Its Space "
         "shortcut (player.py) is set directly on that QAction too, so it "
-        "isn't in commands._shortcut_to_commands either."
+        "isn't in commands._shortcut_to_commands either. "
+        "test_shortcut_play_pause presses it."
     ),
     "PlayerToolbar: volume slider": (
         "Plain QSlider (volume_slider), wired via valueChanged to "
@@ -1272,7 +1655,8 @@ NOT_BACKED_BY_COMMAND = {
     ),
     "PlayerToolbar: loop toggle": (
         "Plain QAction with no backing command at all -- wired straight "
-        "to post(Post.PLAYER_TOGGLE_LOOP, checked)."
+        "to post(Post.PLAYER_TOGGLE_LOOP, checked). "
+        "test_player_toolbar_loop_toggle clicks it."
     ),
 }
 
@@ -1281,13 +1665,15 @@ COVERED_COMMANDS = (
     {c.command for c in CONTEXT_MENU_CASES}
     | {c.command for c in TIMELINE_CONTEXT_MENU_CASES}
     | {c.command for c in SHORTCUT_CASES}
+    | {command for _, _, command in MAIN_WINDOW_KEY_CASES}
     | {c.command for c in MENU_CASES}
     | {command for _, command in TOOLBAR_CASES}
     | {c.command for c in TOOLBAR_ROUTE_CASES}
     | {command for _, command in SCORE_VIEWER_TOOLBAR_CASES}
     | {command for _, command, _ in SCORE_VIEWER_SHORTCUT_CASES}
     | {command for _, _, command in RANGE_CTRL_ARROW_CASES}
-    | {"timeline.hierarchy.increase_level", "timeline.delete"}
+    | set(RangeTimelineToolbar.SPLIT_MODE_COMMAND_BY_ALL_ROWS.values())
+    | {"media.toggle_play", "timelines.permute_ordinal", "tilia.close"}
 )
 
 
