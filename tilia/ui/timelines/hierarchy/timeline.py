@@ -376,34 +376,47 @@ class HierarchyTimelineUI(TimelineUI):
         return self.timeline.create_children(self.elements_to_components(elements))
 
     @with_elements
-    def on_add_pre_start(self, elements: list[HierarchyUI]):
-        accept, value = get(
-            Get.FROM_USER_FLOAT,
-            "Add pre-start",
-            "Pre-start length",
-            minValue=HierarchyUI.MIN_FRAME_LENGTH,
-            maxValue=min(elm.get_data("start") for elm in elements),
-        )
-        if not accept:
+    def on_add_pre_start(
+        self, elements: list[HierarchyUI], length: float | None = None
+    ) -> bool:
+        max_length = min(elm.get_data("start") for elm in elements)
+        if length is None:
+            accept, length = get(
+                Get.FROM_USER_FLOAT,
+                "Add pre-start",
+                "Pre-start length",
+                minValue=HierarchyUI.MIN_FRAME_LENGTH,
+                maxValue=max_length,
+            )
+            if not accept:
+                return False
+        elif not HierarchyUI.MIN_FRAME_LENGTH <= length <= max_length:
             return False
 
-        self._on_add_frame(elements, value, HierarchyUI.Extremity.PRE_START)
+        self._on_add_frame(elements, length, HierarchyUI.Extremity.PRE_START)
         return True
 
     @with_elements
-    def on_add_post_end(self, elements: list[HierarchyUI]):
-        accept, value = get(
-            Get.FROM_USER_FLOAT,
-            "Add post-end",
-            "Post-end length",
-            minValue=HierarchyUI.MIN_FRAME_LENGTH,
-            maxValue=get(Get.MEDIA_DURATION)
-            - max(elm.get_data("end") for elm in elements),
+    def on_add_post_end(
+        self, elements: list[HierarchyUI], length: float | None = None
+    ) -> bool:
+        max_length = get(Get.MEDIA_DURATION) - max(
+            elm.get_data("end") for elm in elements
         )
-        if not accept:
+        if length is None:
+            accept, length = get(
+                Get.FROM_USER_FLOAT,
+                "Add post-end",
+                "Post-end length",
+                minValue=HierarchyUI.MIN_FRAME_LENGTH,
+                maxValue=max_length,
+            )
+            if not accept:
+                return False
+        elif not HierarchyUI.MIN_FRAME_LENGTH <= length <= max_length:
             return False
 
-        self._on_add_frame(elements, value, HierarchyUI.Extremity.POST_END)
+        self._on_add_frame(elements, length, HierarchyUI.Extremity.POST_END)
         return True
 
     def _on_add_frame(
