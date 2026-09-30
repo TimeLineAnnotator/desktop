@@ -187,8 +187,12 @@ class TimelinesListWidget(QListWidget):
             self.setCurrentRow(max(0, self.model().rowCount() - 1))
 
     def update_items(self):
+        # While the old items go, the current item can land on one whose
+        # timeline was just deleted. Callers set the current row afterwards.
+        self.blockSignals(True)
         self.clear()
         self._setup_items()
+        self.blockSignals(False)
 
     def on_up_button(self):
         if not self.selectedIndexes():
