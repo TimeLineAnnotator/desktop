@@ -34,6 +34,9 @@ def load_youtube_media(url: str = EXAMPLE_YOUTUBE_URL):
 
 
 def get_blank_file_data():
+    """Raw file data, only for files the current version can't produce
+    (malformed data, unknown timeline kinds, old formats). Otherwise build
+    the state with commands and save it; see TESTING.md."""
     return {
         "file_path": "",
         "media_path": "",
@@ -64,20 +67,6 @@ def get_blank_file_data():
         },
         "app_name": "TiLiA",
         "version": "0.1.1",
-    }
-
-
-def get_dummy_timeline_data(id: int = 1) -> dict[str, dict]:
-    return {
-        str(id): {
-            "height": 220,
-            "is_visible": True,
-            "ordinal": 1,
-            "name": "test",
-            "kind": "Hierarchy",
-            "components_hash": "",
-            "components": {},
-        }
     }
 
 
