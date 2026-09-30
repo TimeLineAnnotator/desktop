@@ -6,6 +6,7 @@ from typing import Iterable
 from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_point_like
+from tilia.timelines.base.media_bounds import is_past_media_end
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.timeline import TimelineComponentManager
 from tilia.ui.format import format_media_time
@@ -55,7 +56,7 @@ class PointLikeTimelineComponent(TimelineComponent):
     @staticmethod
     def validate_time_is_inbounds(time: float) -> tuple[bool, str]:
         media_duration = get(Get.MEDIA_DURATION)
-        if time > media_duration:
+        if is_past_media_end(time):
             return (
                 False,
                 f"Time '{format_media_time(time)}' is bigger than media time '{format_media_time(media_duration)}'",
