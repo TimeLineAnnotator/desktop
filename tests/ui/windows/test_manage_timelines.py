@@ -1,3 +1,4 @@
+import sys
 from contextlib import contextmanager
 from typing import Literal
 
@@ -5,7 +6,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 
-from tests.mock import patch_yes_or_no_dialog
+from tests.mock import patch_yes_no_or_cancel_mb, patch_yes_or_no_dialog
 from tilia.requests import Get, get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.collection.collection import Timelines
@@ -153,12 +154,50 @@ class TestChangeTimelineOrder:
 
 
 class TesttimelinesChangeWhileOpen:
+    @pytest.fixture
+    def uncaught(self, monkeypatch):
+        # Qt hands exceptions raised in the window's slots to sys.excepthook,
+        # where the app shows its crash dialog and exits. They never reach
+        # pytest, so collect them here.
+        exceptions = []
+        monkeypatch.setattr(sys, "excepthook", lambda *info: exceptions.append(info[1]))
+        return exceptions
+
     def test_timeline_is_deleted(self, tluis):
         commands.execute("timelines.add.marker", name="")
         with manage_timelines() as mt:
             mt.list_widget.setCurrentRow(0)
             commands.execute("timeline.delete", tluis[0], confirm=False)
             assert mt.list_widget.count() == 0
+
+    @staticmethod
+    def move_second_timeline_up(mt):
+        mt.list_widget.setCurrentRow(1)
+        QTest.mouseClick(mt.up_button, Qt.MouseButton.LeftButton)
+
+    def test_timeline_is_deleted_after_reordering(self, tluis, uncaught):
+        commands.execute("timelines.add.marker", name="First")
+        commands.execute("timelines.add.marker", name="Second")
+        with manage_timelines() as mt:
+            self.move_second_timeline_up(mt)
+            first = next(tlui for tlui in tluis if tlui.get_data("name") == "First")
+            commands.execute("timeline.delete", first, confirm=False)
+
+            assert uncaught == []
+            assert mt.list_widget.count() == 1
+            assert mt.list_widget.currentItem().timeline_ui.get_data("name") == "Second"
+
+    def test_new_file_after_reordering(self, tluis, uncaught):
+        commands.execute("timelines.add.marker", name="First")
+        commands.execute("timelines.add.marker", name="Second")
+        with manage_timelines() as mt:
+            self.move_second_timeline_up(mt)
+            with patch_yes_no_or_cancel_mb(False):
+                commands.execute("file.new")
+
+            assert uncaught == []
+            listed = [mt.list_widget.item(i) for i in range(mt.list_widget.count())]
+            assert all(get(Get.TIMELINE, item.timeline_ui.id) for item in listed)
 
     # Much more could be tested here.
 
