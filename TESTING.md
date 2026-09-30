@@ -7,7 +7,15 @@ The test suite is written in pytest. Below are some things to keep in my mind wh
 - The `press_key` and `type_string` functions can be used to simulate keyboard input.
 
 ### Modal dialogs
-Unfortunately, we can't simulate input to modal dialogs, as they block execution. To work around that, we can:
+If a command accepts the value a dialog would ask for, pass it as an argument instead of mocking the dialog:
+
+```python
+commands.execute("timelines.add.marker", name="Cadences")
+```
+
+Only drive the dialog when it is what the test is about (e.g. creating a timeline through the full prompt flow, or cancelling it).
+
+Unfortunately, we can't simulate input to modal dialogs, as they block execution. When a test does need the dialog, we can:
 - Mock methods of the modal dialogs (e.g. `QInputDialog.getInt`). There are utility functions that do that in some cases (e.g. `tests.utils.patch_file_dialog`)
 - If the dialog is called in response to a `Get` request, the `Serve` context manager can be used to mock the return value of the request. E.g.:
 

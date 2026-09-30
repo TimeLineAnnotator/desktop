@@ -93,6 +93,7 @@ Read `TESTING.md` first. Key points:
 - **Simulate users, don't call internals.** Use `commands.execute(...)` everywhere possible — including test *setup*, not just the action under test. Calling `tlui.create_marker(0)` directly is the old style; `commands.execute("timeline.marker.add")` is preferred even when it's not the thing being tested. Older tests violate this; refactors are welcome.
 - **Don't write `.tla` files by hand.** Build state with commands and round-trip it with `save_and_reopen(tmp_path)`; don't copy the older `get_blank_file_data()` + `json.dumps` pattern. Only files the current version can't produce (old formats, unknown timeline kinds) are an exception.
 - **Fixtures** in `tests/conftest.py` + per-kind `fixtures.py` files (registered via `pytest_plugins` in the root conftest). Common: `tilia_state`, `user_actions`, `marker_tlui`, `beat_tlui`, etc.
+- **Pass values as command arguments instead of mocking the dialog** when the command accepts them: `commands.execute("timelines.add.marker", name="Cadences")`, not `Serve(Get.FROM_USER_STRING, ...)` around it. Drive the dialog only when it is what the test is about.
 - **Modal dialogs block execution** and cannot be driven directly. Two workarounds:
   - Mock the Qt method (e.g. `QInputDialog.getInt`); helpers like `tests.utils.patch_file_dialog` exist.
   - If the dialog is triggered by a `Get.FROM_USER_*` request, use `Serve(Get.FROM_USER_INT, (True, 150))` as a context manager to short-circuit it. Prefer mocking the dialog when feasible (covers more code).
