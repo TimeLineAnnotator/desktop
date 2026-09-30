@@ -226,7 +226,11 @@ class ScoreTimelineUI(TimelineUI):
             self.staff_extreme_notes[staff_index]["high"] = note
 
     def _update_staff_heights(self) -> None:
-        min_margin_with_sym = 80
+        # Each staff is centered in its band, so only half of the margin lies
+        # above it. That half must fit the symbols drawn above the staff at
+        # their largest size: their height grows with the zoom level, but
+        # staff heights are only recomputed on load.
+        min_margin_with_sym = 2 * (self.SYMBOLS_ABOVE_STAFF_MAX_HEIGHT + 5)
         min_margin_sans_sym = 30
         staff_heights = {}
         for i, notes in self.staff_extreme_notes.items():
