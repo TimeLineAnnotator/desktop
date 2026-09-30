@@ -1,9 +1,13 @@
 import os
+import sys
+import time
 from unittest.mock import patch
 
 import pytest
+from PySide6.QtWidgets import QApplication
 
 from tests.constants import EXAMPLE_MEDIA_PATH
+from tests.utils import EXAMPLE_VIDEO_FILENAME, load_local_media
 from tilia.requests import Post, post
 from tilia.ui import commands
 
@@ -90,4 +94,49 @@ class TestStop:
 
         mock_engine_stop.assert_not_called()
         assert tilia.player.current_time == 0
+        assert not tilia.player.is_playing
+
+
+def process_events_for(seconds: float) -> None:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        QApplication.processEvents()
+        time.sleep(0.01)
+
+
+class TestReplacePlayerWhilePlaying:
+    # Loading local video over local audio, or audio over video, replaces the
+    # player with one of the other kind. These play real media, muted.
+
+    @pytest.fixture
+    def uncaught(self, monkeypatch):
+        # Qt hands exceptions raised in its slots (like the play loop's timer)
+        # to sys.excepthook, where the app shows its crash dialog and exits.
+        # They never reach pytest, so collect them here.
+        exceptions = []
+        monkeypatch.setattr(sys, "excepthook", lambda *info: exceptions.append(info[1]))
+        return exceptions
+
+    @pytest.mark.parametrize(
+        "first,second",
+        [("audio", "video"), ("video", "audio")],
+        ids=["video-over-playing-audio", "audio-over-playing-video"],
+    )
+    def test_loading_the_other_kind_while_playing(
+        self, tilia, qtui, resources, uncaught, first, second
+    ):
+        paths = {
+            "audio": EXAMPLE_MEDIA_PATH,
+            "video": str((resources / EXAMPLE_VIDEO_FILENAME).resolve()),
+        }
+        load_local_media(paths[first])
+        tilia.player.audio_output.setMuted(True)
+        commands.execute("media.toggle_play", True)
+        process_events_for(0.3)
+
+        load_local_media(paths[second])
+        process_events_for(0.5)  # several ticks of any play loop left running
+
+        assert uncaught == []
+        assert tilia.player.MEDIA_TYPE == second
         assert not tilia.player.is_playing
