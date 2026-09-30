@@ -51,6 +51,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QToolButton
 
 import tilia.ui.commands as commands
+from tests.conftest import TiliaErrors
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.interact import press_key
 from tests.utils import (
@@ -141,13 +142,31 @@ def spy_command(name: str):
         commands._name_to_callback[name] = original
 
 
+@pytest.fixture(autouse=True)
+def _commands_must_not_fail():
+    """A route only works if the command it reaches runs. Timeline commands
+    catch what their callback raises and show it as a "Command failed"
+    error, which the spies above would not notice, so fail on that."""
+    errors = TiliaErrors()
+    yield
+    failed = [e["message"] for e in errors.errors if e["title"] == "Command failed"]
+    errors.reset()
+    assert not failed, failed[0]
+
+
+def assert_usable(action):
+    """A user can only click an action that is enabled and shown, so a route
+    that's disabled or hidden in the state its test sets up is broken for
+    that state, even if the command behind it works."""
+    name = getattr(action, "command_name", action.text())
+    assert action.isEnabled(), f"{name!r} is disabled"
+    assert action.isVisible(), f"{name!r} is hidden"
+
+
 def fire(action):
-    """Trigger a QAction as a click would. Qt's .trigger() is a no-op on a
-    disabled action, which would be a false negative for wiring purposes
-    (enablement is application *behaviour*, tested elsewhere) -- so force
-    it enabled first.
-    """
-    action.setEnabled(True)
+    """Trigger a QAction as a click would, after checking it could be clicked.
+    Qt's trigger() would run a disabled action's slot silently otherwise."""
+    assert_usable(action)
     action.trigger()
 
 
@@ -425,6 +444,11 @@ class TimelineContextMenuCase(NamedTuple):
     kind: str  # "hierarchy" | "harmony"
     command: str
     serves: tuple[tuple[Get, object], ...] = ()
+    # The timeline needs a component for the command to be enabled.
+    needs_component: bool = False
+    # Commands run first from the same context menu, as a user would, to
+    # reach the state in which the route is shown.
+    before: tuple[str, ...] = ()
 
 
 TIMELINE_CONTEXT_MENU_CASES = [
@@ -449,15 +473,18 @@ TIMELINE_CONTEXT_MENU_CASES = [
         "timeline-context-menu-hierarchy-clear",
         "hierarchy",
         "timeline.clear",
-        # hierarchy_tlui is fresh/empty here: on_timeline_clear's
-        # `if timeline_ui.is_empty: return False` guard fires before the
-        # yes/no confirmation, so no dialog is reached. (timeline.delete
-        # is already covered by test_manage_timelines_delete.)
+        # Clear is only enabled when the timeline has something to clear.
+        # Declining the confirmation keeps the unit, so nothing is lost.
+        # (timeline.delete is already covered by test_manage_timelines_delete.)
+        serves=((Get.FROM_USER_YES_OR_NO, False),),
+        needs_component=True,
     ),
     TimelineContextMenuCase(
         "timeline-context-menu-harmony-show-keys",
         "harmony",
         "timeline.harmony.show_keys",
+        # "Show keys" is only offered while the keys are hidden.
+        before=("timeline.harmony.hide_keys",),
     ),
     TimelineContextMenuCase(
         "timeline-context-menu-harmony-hide-keys",
@@ -479,6 +506,14 @@ _TIMELINE_CONTEXT_MENU_CLASSES = {
 )
 def test_timeline_context_menu_route(case, hierarchy_tlui, harmony_tlui):
     tlui = {"hierarchy": hierarchy_tlui, "harmony": harmony_tlui}[case.kind]
+    if case.needs_component:
+        assert case.kind == "hierarchy"
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+    for command in case.before:
+        # Through a context menu of their own: building one is what wires the
+        # command's action to this timeline.
+        earlier_menu = _TIMELINE_CONTEXT_MENU_CLASSES[case.kind](tlui, 0, 0)
+        get_command_action(earlier_menu, command).trigger()
     menu = _TIMELINE_CONTEXT_MENU_CLASSES[case.kind](tlui, 0, 0)
 
     action = get_command_action(menu, case.command)
@@ -548,7 +583,7 @@ def test_shortcut_route(case, hierarchy_tlui):
     commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
     hierarchy_tlui.select_element(hierarchy_tlui[0])
 
-    action.setEnabled(True)
+    assert_usable(action)
     with spy_command(case.command) as spy:
         press_key(case.key, modifier=case.modifier)
     spy.assert_called()
@@ -1122,8 +1157,9 @@ def test_score_viewer_toolbar_route(test_id, command, score_tlui):
     button = _find_toolbutton(svg_viewer, command)
     assert button is not None, f"{command!r} not found on score viewer toolbar"
 
+    assert_usable(button.defaultAction())
+    assert button.isEnabled(), f"{command!r} button is disabled"
     with spy_command(command) as spy:
-        button.defaultAction().setEnabled(True)
         QTest.mouseClick(button, Qt.MouseButton.LeftButton)
     spy.assert_called()
 
@@ -1156,7 +1192,7 @@ def test_score_viewer_shortcut_route(test_id, command, shortcut_text, score_tlui
     QApplication.processEvents()
 
     key = shortcut_text.rsplit("+", 1)[-1]
-    action.setEnabled(True)
+    assert_usable(action)
     with spy_command(command) as spy:
         QTest.keyClick(
             svg_viewer, getattr(Qt.Key, f"Key_{key}"), Qt.KeyboardModifier.ShiftModifier
