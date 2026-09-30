@@ -232,11 +232,6 @@ def test_duplicate_staff_deletes_timeline(qtui, tls, tilia_errors, tmp_path):
     assert tls.get_timeline_by_type(ScoreTimeline) is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Known bug: the margin above a staff without notes is too small, "
-    "so the clef overlaps the top staff line.",
-)
 def test_symbols_do_not_collide_with_staff_without_notes(
     qtui, score_tlui, beat_tlui, beat_tl
 ):
