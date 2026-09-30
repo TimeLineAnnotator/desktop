@@ -296,10 +296,12 @@ class HierarchyTimelineUI(TimelineUI):
         commands.execute(cmd)
 
     def get_max_hierarchy_height(self):
+        # An empty timeline still needs room for level-1 units.
         max_level = max(
             self.timeline.component_manager.get_existing_values_for_attr(
                 "level", ComponentKind.HIERARCHY
-            )
+            ),
+            default=1,
         )
         return HierarchyUI.base_height() + (
             HierarchyUI.x_increment_per_lvl() * max_level
