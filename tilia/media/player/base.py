@@ -199,6 +199,11 @@ class Player(ABC):
         if not seek_if_playing and self.is_playing:
             return
 
+        # Components rebuilt from saved or recorded state may sit slightly
+        # past the media end (see tilia.timelines.base.media_bounds), and
+        # clicking one seeks to its time.
+        time = min(max(time, 0.0), get(Get.MEDIA_DURATION))
+
         if self.is_media_loaded:
             self.check_seek_outside_loop(time)
 
