@@ -151,8 +151,7 @@ class TestSaveFileOnClose:
         save_tilia_to_tmp_path(tmp_path)
         assert not get(Get.IS_FILE_MODIFIED)
 
-        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
-            commands.execute("media.load.local")
+        load_local_media(EXAMPLE_MEDIA_PATH)
 
         with (
             Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as should_save,
@@ -449,8 +448,7 @@ class TestMediaLoad:
         # Unlike the tests above, load through the actual media.load.local
         # command (as triggered from the File menu), not by posting
         # APP_MEDIA_LOAD directly -- this test is specifically about that path.
-        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
-            commands.execute("media.load.local")
+        load_local_media(EXAMPLE_MEDIA_PATH)
         assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
 
         commands.execute("edit.undo")
@@ -1045,8 +1043,7 @@ class TestFileNew:
         save_tilia_to_tmp_path(tmp_path)
         assert not get(Get.IS_FILE_MODIFIED)
 
-        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
-            commands.execute("media.load.local")
+        load_local_media(EXAMPLE_MEDIA_PATH)
 
         with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as should_save:
             commands.execute("file.new")
@@ -1071,8 +1068,7 @@ class TestFileNew:
         save_tilia_to_tmp_path(tmp_path)
         assert not get(Get.IS_FILE_MODIFIED)
 
-        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
-            commands.execute("media.load.local")
+        load_local_media(EXAMPLE_MEDIA_PATH)
 
         with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)) as should_save:
             commands.execute("file.new")
@@ -1100,8 +1096,7 @@ class TestFileNew:
         assert not get(Get.IS_FILE_MODIFIED)
         assert not get(Get.FILE_PATH)
 
-        with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
-            commands.execute("media.load.local")
+        load_local_media(EXAMPLE_MEDIA_PATH)
 
         save_as_path = tmp_path / "test_new_file_prompt_choose_to_save.tla"
         with (
