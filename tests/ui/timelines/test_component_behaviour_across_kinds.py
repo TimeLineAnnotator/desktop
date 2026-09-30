@@ -57,8 +57,7 @@ def _id(kind: str, suffix: str) -> str:
 
 def _set_color(click, element, hex_color):
     click(element)
-    with Serve(Get.FROM_USER_COLOR, (True, QColor(hex_color))):
-        commands.execute("timeline.component.set_color")
+    commands.execute("timeline.component.set_color", color=QColor(hex_color))
 
 
 def create_marker(tlui, time, attr_value=None):
@@ -379,8 +378,7 @@ def test_set_color(kind_id, request, tluis):
 
     click(element)
     with undoable():
-        with Serve(Get.FROM_USER_COLOR, (True, QColor("#123456"))):
-            commands.execute("timeline.component.set_color")
+        commands.execute("timeline.component.set_color", color=QColor("#123456"))
         assert element.get_data("color") == "#123456"
 
 
