@@ -5,8 +5,7 @@ from PIL import Image
 
 from tests.conftest import parametrize_component
 from tests.constants import EXAMPLE_MEDIA_PATH
-from tests.mock import Serve, patch_ask_for_string_dialog, patch_file_dialog
-from tests.utils import get_tmp_file_with_dummy_timeline
+from tests.mock import Serve, patch_ask_for_string_dialog
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.timeline import TimelineFlag
@@ -148,14 +147,15 @@ class TestExportJSON:
 
 
 class TestExportImage:
-    def _get_sample_file(self, tmp_path):
-        return get_tmp_file_with_dummy_timeline(tmp_path).__str__()
+    @staticmethod
+    def _add_timeline():
+        with patch_ask_for_string_dialog(True, "test"):
+            commands.execute("timelines.add.hierarchy")
 
     @pytest.mark.parametrize("scale_factor", [1.0, 0.5, 2.0])
     def test_image_export(self, qtui, monkeypatch, tmp_path, scale_factor):
         image_path = tmp_path / "tl_image.jpg"
-        with patch_file_dialog(True, [self._get_sample_file(tmp_path)]):
-            commands.execute("file.open")
+        self._add_timeline()
 
         scene = get(Get.MAIN_WINDOW).centralWidget().scene()
         original_width = scene.sceneRect().width()
@@ -177,8 +177,7 @@ class TestExportImage:
 
     def test_image_export_resize_rejected(self, qtui, monkeypatch, tmp_path):
         image_path = tmp_path / "tl_image.jpg"
-        with patch_file_dialog(True, [self._get_sample_file(tmp_path)]):
-            commands.execute("file.open")
+        self._add_timeline()
 
         monkeypatch.setattr(ResizeRect, "new_size", lambda *_: [False, None])
 

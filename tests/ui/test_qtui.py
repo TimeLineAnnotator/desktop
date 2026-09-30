@@ -13,7 +13,7 @@ from tests.utils import (
     get_actions_in_menu,
     get_main_window_menu,
     get_submenu,
-    get_tmp_file_with_dummy_timeline,
+    save_file_with_hierarchy_timeline,
 )
 from tilia.boot import handle_qt_log_message
 from tilia.requests import Get, Post, post
@@ -190,7 +190,7 @@ class TestTimelineToolbars:
         # includes toolbar visibility. That state can be stale or, before toolbars
         # had unique object names, belong to another timeline kind. The timelines
         # in the file decide which toolbars are shown.
-        tmp_file = get_tmp_file_with_dummy_timeline(tmp_path)
+        tmp_file = save_file_with_hierarchy_timeline(tmp_path)
         open_file(tmp_file)
 
         get_toolbars_of_class(qtui, HierarchyTimelineUI.TOOLBAR_CLASS)[0].hide()
