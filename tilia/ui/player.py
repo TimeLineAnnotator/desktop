@@ -5,9 +5,6 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QEvent, QRegularExpression, Qt
 from PySide6.QtGui import QAction, QIcon, QRegularExpressionValidator
-
-if TYPE_CHECKING:
-    from tilia.file.tilia_file import TiliaFile
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QLabel,
@@ -21,6 +18,9 @@ from tilia.requests import Get, Post, get, listen, post, stop_listening_to_all
 from tilia.settings import settings
 from tilia.ui import commands
 from tilia.ui.format import format_media_time, parse_media_time
+
+if TYPE_CHECKING:
+    from tilia.file.tilia_file import TiliaFile
 
 
 class PlayerToolbar(QToolBar):
