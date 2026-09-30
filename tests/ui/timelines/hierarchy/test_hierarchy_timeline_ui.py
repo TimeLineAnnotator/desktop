@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QInputDialog
 
 import tilia.errors
 from tests.mock import patch_yes_or_no_dialog
@@ -1146,6 +1147,21 @@ class TestCreateChild:
             commands.execute("timeline.hierarchy.create_child")
 
             assert len(tlui) == 2
+
+
+class TestSetHeight:
+    # Through the dialog, whose minimum is the height the levels need.
+    def test_set_height(self, hierarchy_tlui):
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        with patch.object(QInputDialog, "getInt", return_value=(200, True)):
+            commands.execute("timeline.set_height", hierarchy_tlui)
+        assert hierarchy_tlui.get_data("height") == 200
+
+    def test_set_height_of_empty_timeline(self, hierarchy_tlui):
+        assert len(hierarchy_tlui) == 0
+        with patch.object(QInputDialog, "getInt", return_value=(200, True)):
+            commands.execute("timeline.set_height", hierarchy_tlui)
+        assert hierarchy_tlui.get_data("height") == 200
 
 
 class TestClear:
