@@ -6,6 +6,8 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Callable, cast
 
 if TYPE_CHECKING:
+    from PySide6.QtGui import QColor
+
     from tilia.file.tilia_file import TiliaFile
 
 from PySide6.QtCore import QPoint, Qt
@@ -1296,9 +1298,12 @@ class TimelineUIs:
 
         return self.on_timeline_data_set(timeline_ui.id, "height", height)
 
-    def on_timeline_set_component_color(self) -> None:
-        success, color = get(Get.FROM_USER_COLOR)
-        if not success or not color.isValid():
+    def on_timeline_set_component_color(self, color: QColor | None = None) -> None:
+        if color is None:
+            success, color = get(Get.FROM_USER_COLOR)
+            if not success:
+                return
+        if not color.isValid():
             return
 
         @with_elements
