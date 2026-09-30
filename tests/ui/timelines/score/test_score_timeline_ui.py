@@ -495,8 +495,7 @@ def test_set_color_of_several_notes(score_tlui, score_tl):
     score_tlui.select_element(note1_ui)
     score_tlui.select_element(note2_ui)
 
-    with Serve(Get.FROM_USER_COLOR, (True, QColor("#123456"))):
-        commands.execute("timeline.component.set_color")
+    commands.execute("timeline.component.set_color", color=QColor("#123456"))
 
     assert note1_ui.get_data("color") == "#123456"
     assert note2_ui.get_data("color") == "#123456"
@@ -512,8 +511,7 @@ def test_reset_color_of_several_notes(score_tlui, score_tl):
     score_tlui.select_element(note1_ui)
     score_tlui.select_element(note2_ui)
 
-    with Serve(Get.FROM_USER_COLOR, (True, QColor("#123456"))):
-        commands.execute("timeline.component.set_color")
+    commands.execute("timeline.component.set_color", color=QColor("#123456"))
 
     commands.execute("timeline.component.reset_color")
 

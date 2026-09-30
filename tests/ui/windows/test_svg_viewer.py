@@ -200,8 +200,7 @@ def _annotations(viewer: SvgViewer) -> list[SvgTlaAnnotation]:
 
 def _add_annotation_via_toolbar(viewer: SvgViewer, text="Allegro") -> SvgTlaAnnotation:
     _stavenotes(viewer)[0].setSelected(True)
-    with Serve(Get.FROM_USER_STRING, (True, text)):
-        commands.execute("timeline.score.add")
+    commands.execute("timeline.score.add", text=text)
     return _annotations(viewer)[0]
 
 
@@ -297,21 +296,17 @@ class TestAnnotations:
         annotation.setSelected(True)
         with (
             undoable(),
-            Serve(Get.FROM_USER_STRING, (True, "")),
             Serve(Get.FROM_USER_YES_OR_NO, True),
         ):
-            commands.execute("timeline.score.edit")
+            commands.execute("timeline.score.edit", text="")
             assert _annotations(svg_viewer) == []
 
     def test_edit_annotation_to_empty_kept_if_declined_toolbar(self, svg_viewer):
         # Same flow, declining the confirmation: annotation must survive.
         annotation = _add_annotation_via_toolbar(svg_viewer)
         annotation.setSelected(True)
-        with (
-            Serve(Get.FROM_USER_STRING, (True, "")),
-            Serve(Get.FROM_USER_YES_OR_NO, False),
-        ):
-            commands.execute("timeline.score.edit")
+        with (Serve(Get.FROM_USER_YES_OR_NO, False),):
+            commands.execute("timeline.score.edit", text="")
         assert _annotations(svg_viewer) == [annotation]
 
     def test_increase_annotation_font_toolbar(self, svg_viewer):
