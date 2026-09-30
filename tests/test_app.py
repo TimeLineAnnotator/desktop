@@ -23,6 +23,7 @@ from tests.utils import (
     save_and_reopen,
     save_tilia_to_tmp_path,
 )
+from tilia.constants import DURATION_JITTER_TOLERANCE
 from tilia.file.migration import find_unknown_timeline_kinds
 from tilia.media.player import QtAudioPlayer, YouTubePlayer
 from tilia.requests import Get, Post, get, post
@@ -330,20 +331,20 @@ class TestFileLoad:
             marker_time * new_duration / EXAMPLE_MEDIA_DURATION
         )
 
-    def test_components_past_jittered_duration_survive_save_and_reopen(
-        self,
-        tilia,
-        tilia_state,
-        marker_tlui,
-        hierarchy_tlui,
-        tls,
-        tmp_path,
-        tilia_errors,
+
+class TestDurationJitter:
+    # Opening a file loads its media in "keep" mode (#453): a slightly
+    # different duration reported later by the player (YouTube does so
+    # asynchronously) only updates the duration, leaving components at the
+    # old end past it. Rebuilding components from saved or recorded state
+    # must keep them there -- neither clamp nor drop them -- since a later
+    # report may bring the original duration back.
+    JITTERED_DURATION = EXAMPLE_MEDIA_DURATION - 0.5
+
+    @pytest.fixture(autouse=True)
+    def open_with_jittered_duration(
+        self, tilia, tilia_state, marker_tlui, hierarchy_tlui, tmp_path
     ):
-        # "keep" leaves components at the old end in place when the player
-        # reports a slightly shorter duration after open. Saving then stores
-        # the shorter media length with the components past it; reopening
-        # must clamp them to the media length instead of dropping them.
         tilia_state.media_path = EXAMPLE_MEDIA_PATH
         tilia_state.set_duration(EXAMPLE_MEDIA_DURATION, scale_timelines="no")
         commands.execute("media.seek", EXAMPLE_MEDIA_DURATION)
@@ -355,21 +356,87 @@ class TestFileLoad:
             level=1,
         )
 
-        reported_duration = EXAMPLE_MEDIA_DURATION - 0.5
         with patch.object(QtAudioPlayer, "_engine_load_media", return_value=True):
             save_and_reopen(tmp_path)
-            tilia.set_file_media_duration(reported_duration)
-            save_and_reopen(tmp_path)
+            tilia.set_file_media_duration(self.JITTERED_DURATION)
+            yield
 
-        tilia_errors.assert_no_error()
-        assert tilia_state.duration == reported_duration
+    @staticmethod
+    def marker_times(tls):
+        return sorted(
+            m.get_data("time") for m in tls.get_timelines_by_type(MarkerTimeline)[0]
+        )
+
+    @staticmethod
+    def assert_end_components_untouched(tls):
         marker_tl = tls.get_timelines_by_type(MarkerTimeline)[0]
-        assert len(marker_tl) == 1
-        assert marker_tl[0].get_data("time") == reported_duration
+        assert marker_tl[-1].get_data("time") == EXAMPLE_MEDIA_DURATION
         hierarchy_tl = tls.get_timelines_by_type(HierarchyTimeline)[0]
         assert len(hierarchy_tl) == 1
-        assert hierarchy_tl[0].get_data("end") == reported_duration
-        assert hierarchy_tl[0].get_data("post_end") == reported_duration
+        assert hierarchy_tl[0].get_data("end") == EXAMPLE_MEDIA_DURATION
+        assert hierarchy_tl[0].get_data("post_end") == EXAMPLE_MEDIA_DURATION
+
+    def test_save_and_reopen_keeps_components_past_duration(
+        self, tilia, tilia_state, tls, tmp_path, tilia_errors
+    ):
+        save_and_reopen(tmp_path)
+
+        tilia_errors.assert_no_error()
+        assert tilia_state.duration == self.JITTERED_DURATION
+        self.assert_end_components_untouched(tls)
+
+        # The player reporting the original duration again makes them
+        # in-bounds with nothing lost.
+        tilia.set_file_media_duration(EXAMPLE_MEDIA_DURATION)
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
+        self.assert_end_components_untouched(tls)
+
+    def test_undo_recreating_components_keeps_them_past_duration(self, tls, tluis):
+        # Record a state with the jittered duration to undo back to.
+        commands.execute("timeline.marker.add", time=1)
+
+        marker_tl = tls.get_timelines_by_type(MarkerTimeline)[0]
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", tluis.get_timeline_ui(marker_tl.id))
+        assert self.marker_times(tls) == []
+
+        commands.execute("edit.undo")
+
+        assert self.marker_times(tls) == [1, EXAMPLE_MEDIA_DURATION]
+
+    def test_undo_recreating_timeline_keeps_components_past_duration(self, tls, tluis):
+        # Record a state with the jittered duration to undo back to.
+        commands.execute("timeline.marker.add", time=1)
+
+        marker_tl = tls.get_timelines_by_type(MarkerTimeline)[0]
+        commands.execute(
+            "timeline.delete", tluis.get_timeline_ui(marker_tl.id), confirm=False
+        )
+        assert not tls.get_timelines_by_type(MarkerTimeline)
+
+        commands.execute("edit.undo")
+
+        assert self.marker_times(tls) == [1, EXAMPLE_MEDIA_DURATION]
+
+    def test_new_component_past_duration_is_rejected(self, tls):
+        # Only rebuilt components may overshoot the reported duration.
+        commands.execute("timeline.marker.add", time=self.JITTERED_DURATION + 0.2)
+
+        assert self.marker_times(tls) == [EXAMPLE_MEDIA_DURATION]
+
+    def test_components_past_jitter_tolerance_are_dropped_on_reopen(
+        self, tilia, tls, tmp_path, tilia_errors
+    ):
+        # Successive reports can each be within tolerance of the previous
+        # one while drifting further than that from the components.
+        tilia.set_file_media_duration(
+            EXAMPLE_MEDIA_DURATION - DURATION_JITTER_TOLERANCE - 0.1
+        )
+        save_and_reopen(tmp_path)
+
+        tilia_errors.assert_error()
+        assert self.marker_times(tls) == []
+        assert len(tls.get_timelines_by_type(HierarchyTimeline)[0]) == 0
 
 
 class TestMediaLoad:
