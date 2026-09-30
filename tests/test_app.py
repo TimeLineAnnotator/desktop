@@ -25,7 +25,7 @@ from tests.utils import (
     save_tilia_to_tmp_path,
 )
 from tilia.file.migration import find_unknown_timeline_kinds
-from tilia.media.player import QtAudioPlayer, YouTubePlayer
+from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
@@ -174,12 +174,13 @@ class TestFileLoad:
         self, qtui, tilia_state, tmp_path
     ):
         tilia_state.duration = 0
-        file_data = tests.utils.get_blank_file_data()
-        file_data["media_path"] = "invalid.tla"
-        tmp_file = tmp_path / "test_file_load.tla"
-        tmp_file.write_text(json.dumps(file_data))
+        load_local_media(tmp_path / "nothere.mp3")
+        tla_path = tmp_path / "test.tla"
+        with patch_file_dialog(True, [str(tla_path)]):
+            commands.execute("file.save_as")
+
         with (
-            patch_file_dialog(True, [str(tmp_file)]),
+            patch_file_dialog(True, [str(tla_path)]),
             patch_yes_or_no_dialog(False),  # do no try to load another media
         ):
             commands.execute("file.open")
@@ -202,17 +203,12 @@ class TestFileLoad:
         assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
 
     def test_media_path_is_youtube_url(self, tilia_state, qtui, tmp_path):
-        file_data = tests.utils.get_blank_file_data()
-        tmp_file = tmp_path / "test_file_load.tla"
-        media_path = "https://www.youtube.com/watch?v=wBfVsucRe1w"
-        file_data["media_path"] = media_path
-        file_data["media_metadata"]["media length"] = 101
-        tmp_file.write_text(json.dumps(file_data))
-        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
-            commands.execute("file.open")
+        load_youtube_media(EXAMPLE_YOUTUBE_URL)
+        tilia_state.duration = 101
+        save_and_reopen(tmp_path)
 
         assert tilia_state.is_undo_manager_cleared
-        assert tilia_state.media_path == media_path
+        assert tilia_state.media_path == EXAMPLE_YOUTUBE_URL
         assert tilia_state.duration == 101
 
     def test_stale_youtube_duration_after_switching_video_is_ignored(
@@ -226,31 +222,28 @@ class TestFileLoad:
         # must ignore a result tagged with a video_id that's no longer the
         # one currently loaded, rather than silently overwriting the
         # duration of the (unrelated) now-open file.
-        def make_file(tmp_name: str, media_path: str, media_length: float):
-            file_data = tests.utils.get_blank_file_data()
-            file_data["media_path"] = media_path
-            file_data["media_metadata"]["media length"] = media_length
+        def save_file(tmp_name: str, url: str, duration: float):
+            commands.execute("file.new")
+            load_youtube_media(url)
+            tilia_state.duration = duration
             path = tmp_path / tmp_name
-            path.write_text(json.dumps(file_data))
+            with patch_file_dialog(True, [str(path)]):
+                commands.execute("file.save_as")
             return path
 
-        file_a = make_file(
+        file_a = save_file(
             "file_a.tla", "https://www.youtube.com/watch?v=aaaaaaaaaaa", 100
         )
-        file_b = make_file(
+        file_b = save_file(
             "file_b.tla", "https://www.youtube.com/watch?v=bbbbbbbbbbb", 200
         )
+        commands.execute("file.new")
 
-        with (
-            Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, file_a)),
-            Serve(Get.PLAYER_CLASS, YouTubePlayer),
-        ):
-            commands.execute("file.open")
+        commands.execute("file.open", file_a)
         video_id_a = tilia.player.video_id
         assert tilia_state.duration == 100
 
-        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, file_b)):
-            commands.execute("file.open")
+        commands.execute("file.open", file_b)
         video_id_b = tilia.player.video_id
         assert video_id_b != video_id_a
         assert tilia_state.duration == 200
@@ -509,25 +502,22 @@ class TestScaleCropTimeline:
         assert body_right == pytest.approx(expected_right)
 
 
+def save_and_reopen_file_without_slider_timeline(tilia_state, tmp_path) -> None:
+    commands.execute("file.new")
+    tilia_state.duration = 100
+    with patch_ask_for_string_dialog(True, "test"):
+        commands.execute("timelines.add.hierarchy")
+    slider_ui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", SliderTimeline)
+    with patch_yes_or_no_dialog(True):
+        commands.execute("timeline.delete", slider_ui)
+    save_and_reopen(tmp_path)
+
+
 class TestFileSetup:
     def test_slider_timeline_is_created_when_loaded_file_does_not_have_one(
-        self, tls, tmp_path
+        self, qtui, tilia_state, tls, tmp_path
     ):
-        file_data = tests.utils.get_blank_file_data()
-        file_data["timelines"] = {
-            "1": {
-                "name": "",
-                "height": 40,
-                "is_visible": True,
-                "ordinal": 1,
-                "components": {},
-                "kind": "Hierarchy",
-            }
-        }  # empty hierarchy timeline
-        tmp_file = tmp_path / "test_file_setup.tla"
-        tmp_file.write_text(json.dumps(file_data))
-        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
-            commands.execute("file.open")
+        save_and_reopen_file_without_slider_timeline(tilia_state, tmp_path)
 
         assert len(tls) == 2
         assert SliderTimeline in tls.timeline_types
@@ -568,34 +558,30 @@ def get_file_data_with_unknown_timeline_kind():
 
 
 class TestOpen:
-    def test_open_with_timeline(self, tilia, tls, tmp_path):
-        tl_data = tests.utils.get_dummy_timeline_data()
-        tl_id = list(tl_data.keys())[0]
+    def test_open_with_timeline(self, qtui, tls, tmp_path):
+        with patch_ask_for_string_dialog(True, "test"):
+            commands.execute("timelines.add.hierarchy")
+        for start, end, level in [(0, 1, 1), (1, 2, 1), (2, 3, 2)]:
+            commands.execute(
+                "timeline.hierarchy.add", start=start, end=end, level=level
+            )
+        saved = [
+            (h.get_data("start"), h.get_data("end"), h.get_data("level"))
+            for h in tls.get_timelines_by_type(HierarchyTimeline)[0]
+        ]
+        tmp_file = Path(save_tilia_to_tmp_path(tmp_path))
+        commands.execute("file.new")
 
-        for i, (start, end, level) in enumerate([(0, 1, 1), (1, 2, 1), (2, 3, 2)]):
-            tl_data[tl_id]["components"][i] = {
-                "start": start,
-                "end": end,
-                "level": level,
-                "comments": "",
-                "label": "Unit 1",
-                "parent": None,
-                "children": [],
-                "kind": "HIERARCHY",
-            }
-
-        file_data = tests.utils.get_blank_file_data()
-        file_data["timelines"] = tl_data
-        file_data["media_metadata"]["media length"] = 100
-
-        tmp_file = tmp_path / "test.tla"
-        tmp_file.write_text(json.dumps(file_data, indent=2))
-        with Serve(Get.FROM_USER_TILIA_FILE_PATH, (True, tmp_file)):
+        with patch_file_dialog(True, [str(tmp_file)]):
             commands.execute("file.open")
 
         assert Path(settings.get_recent_files()[0]) == tmp_file
         assert len(tls) == 2  # Slider timeline is also created by default
-        assert len(tls[0]) == 3
+        loaded = [
+            (h.get_data("start"), h.get_data("end"), h.get_data("level"))
+            for h in tls.get_timelines_by_type(HierarchyTimeline)[0]
+        ]
+        assert loaded == saved
 
     def test_open_with_path(self, qtui, tilia, tls, tmp_path):
         tmp_file = tests.utils.save_file_with_hierarchy_timeline(tmp_path)
@@ -797,24 +783,17 @@ class TestOpen:
         file_data["timelines"][UNKNOWN_TIMELINE_ID]["kind"] = "MARKER_TIMELINE"
         assert find_unknown_timeline_kinds(file_data) == {}
 
-    def test_file_not_modified_after_open(self, tilia, tmp_path):
-        file_data = tests.utils.get_blank_file_data()
-        tl_data = tests.utils.get_dummy_timeline_data()
-        file_data["timelines"] = tl_data
-        file_path = tmp_path / "test.tla"
-        file_path.write_text(json.dumps(file_data))
-
-        tilia.on_clear()
-        commands.execute("file.open", file_path)
-        assert not tilia.file_manager.is_file_modified(tilia.file_manager.file.__dict__)
-
-    def test_default_slider_timeline_reflected_in_baseline(self, tilia, tmp_path):
-        file_data = tests.utils.get_blank_file_data()
-        file_data["timelines"] = tests.utils.get_dummy_timeline_data()  # no slider
-        tmp_file = tmp_path / "test.tla"
-        tmp_file.write_text(json.dumps(file_data))
+    def test_file_not_modified_after_open(self, qtui, tilia, tmp_path):
+        tmp_file = tests.utils.save_file_with_hierarchy_timeline(tmp_path)
 
         commands.execute("file.open", tmp_file)
+
+        assert not tilia.is_file_modified()
+
+    def test_default_slider_timeline_reflected_in_baseline(
+        self, qtui, tilia, tilia_state, tmp_path
+    ):
+        save_and_reopen_file_without_slider_timeline(tilia_state, tmp_path)
 
         assert not tilia.is_file_modified()
 
