@@ -195,8 +195,7 @@ def test_missing_staff_deletes_timeline(qtui, tls, tilia_errors, tmp_path):
     tmp_file = tmp_path / "test.tla"
     tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
 
-    with patch_file_dialog(True, [tmp_file]):
-        commands.execute("file.open")
+    commands.execute("file.open", tmp_file)
 
     tilia_errors.assert_in_error_title(SCORE_STAFF_ID_ERROR.title)
     assert tls.get_timeline_by_type(ScoreTimeline) is None
@@ -225,8 +224,7 @@ def test_duplicate_staff_deletes_timeline(qtui, tls, tilia_errors, tmp_path):
     tmp_file = tmp_path / "test.tla"
     tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
 
-    with patch_file_dialog(True, [tmp_file]):
-        commands.execute("file.open")
+    commands.execute("file.open", tmp_file)
 
     tilia_errors.assert_in_error_title(SCORE_STAFF_ID_ERROR.title)
     assert tls.get_timeline_by_type(ScoreTimeline) is None

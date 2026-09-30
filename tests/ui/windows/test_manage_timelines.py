@@ -5,7 +5,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 
-from tests.mock import Serve, patch_yes_or_no_dialog
+from tests.mock import patch_yes_or_no_dialog
 from tilia.requests import Get, get
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.collection.collection import Timelines
@@ -66,10 +66,9 @@ class TestChangeTimelineVisibility:
 class TestChangeTimelineOrder:
     @pytest.fixture(autouse=True)
     def setup_timelines(self, tluis, tls):
-        with Serve(Get.FROM_USER_STRING, (True, "")):
-            commands.execute("timelines.add.marker")
-            commands.execute("timelines.add.marker")
-            commands.execute("timelines.add.marker")
+        commands.execute("timelines.add.marker", name="")
+        commands.execute("timelines.add.marker", name="")
+        commands.execute("timelines.add.marker", name="")
         return list(tls)
 
     @staticmethod

@@ -1639,8 +1639,7 @@ class TestRowHeight:
             "timeline.range.add_range", row=range_tlui.rows[1], start=0, end=10
         )
         original_y = range_tlui[0].body.rect().y()
-        with Serve(Get.FROM_USER_INT, (True, 80)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=80)
         assert range_tlui[0].body.rect().y() != original_y
 
     def test_set_row_height_updates_row_label_position(self, range_tlui):
@@ -1650,8 +1649,7 @@ class TestRowHeight:
         # changes, that y must change too.
         label = range_tlui.row_labels[range_tlui.rows[1].id]
         original_y = label.y()
-        with Serve(Get.FROM_USER_INT, (True, 80)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=80)
         assert label.y() != original_y
 
     def test_set_row_height_no_crash_when_highlight_cleared(self, range_tlui):
@@ -1660,29 +1658,25 @@ class TestRowHeight:
         # focus) and the user then changed row height from the context menu.
         range_tlui._delete_row_highlight()
         assert range_tlui.row_highlight is None
-        with Serve(Get.FROM_USER_INT, (True, 80)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=80)
         assert range_tlui.default_row_height == 80
 
     def test_set_row_height_resizes_range_body(self, range_tlui):
         commands.execute("timeline.range.add_range", start=0, end=10)
-        with Serve(Get.FROM_USER_INT, (True, 80)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=80)
         assert range_tlui[0].body.rect().height() == 80
 
     def test_set_row_height_to_same_value_does_not_error(
         self, range_tlui, tilia_errors
     ):
         original = range_tlui.default_row_height
-        with Serve(Get.FROM_USER_INT, (True, original)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=original)
         assert range_tlui.default_row_height == original
         tilia_errors.assert_no_error()
 
     def test_save_load_preserves_row_height(self, tilia, tluis, tilia_state, tmp_path):
         commands.execute("timelines.add.range", name="range")
-        with Serve(Get.FROM_USER_INT, (True, 75)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=75)
 
         save_and_reopen(tmp_path)
 
@@ -1691,14 +1685,12 @@ class TestRowHeight:
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
 
     def test_label_font_uses_default_size_when_row_height_is_large(self, range_tlui):
-        with Serve(Get.FROM_USER_INT, (True, 80)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=80)
         label = range_tlui.row_labels[range_tlui.rows[0].id]
         assert label.font().pixelSize() == range_tlui.DEFAULT_LABEL_PIXEL_SIZE
 
     def test_label_font_shrinks_when_row_height_is_small(self, range_tlui):
-        with Serve(Get.FROM_USER_INT, (True, 10)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=10)
         label = range_tlui.row_labels[range_tlui.rows[0].id]
         assert label.font().pixelSize() < range_tlui.DEFAULT_LABEL_PIXEL_SIZE
         assert label.font().pixelSize() >= range_tlui.MIN_LABEL_PIXEL_SIZE
@@ -2593,16 +2585,14 @@ class TestPreStartPostEnd:
     def test_add_pre_start_clamps_at_zero(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 50.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=50.0)
         assert elem.get_data("pre_start") == 0.0
 
     def test_add_post_end_clamps_at_media_duration(self, range_tlui, tilia_state):
         # The default fixture duration is 100; ask for an extension that
         # would push post_end past it.
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 200.0)):
-            commands.execute("timeline.range.add_post_end")
+        commands.execute("timeline.range.add_post_end", length=200.0)
         assert elem.get_data("post_end") == tilia_state.duration
 
     def test_add_pre_start_cancel_does_nothing(self, range_tlui):
@@ -2613,15 +2603,13 @@ class TestPreStartPostEnd:
 
     def test_add_pre_start_zero_or_negative_does_nothing(self, range_tlui):
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 0.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=0.0)
         assert elem.get_data("pre_start") == 10
 
     def test_delete_pre_start(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         assert elem.get_data("pre_start") == 6.0
         commands.execute("timeline.range.delete_pre_start")
         assert elem.get_data("pre_start") == elem.get_data("start")
@@ -2629,8 +2617,7 @@ class TestPreStartPostEnd:
     def test_delete_post_end(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_post_end")
+        commands.execute("timeline.range.add_post_end", length=4.0)
         commands.execute("timeline.range.delete_post_end")
         assert elem.get_data("post_end") == elem.get_data("end")
 
@@ -2640,8 +2627,7 @@ class TestPreStartPostEnd:
         commands.execute("timeline.range.add_range", start=30, end=40)
         for e in range_tlui:
             range_tlui.select_element(e)
-        with Serve(Get.FROM_USER_FLOAT, (True, 3.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=3.0)
         ranges = sorted(range_tlui)
         assert ranges[0].get_data("pre_start") == 7.0
         assert ranges[1].get_data("pre_start") == 27.0
@@ -2656,8 +2642,7 @@ class TestPreStartPostEnd:
     def test_whiskers_visible_when_selected_and_extended(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         assert elem.pre_start_handle.isVisible()
 
     def test_whiskers_hidden_when_deselected(self, range_tlui, tilia_state):
@@ -2665,8 +2650,7 @@ class TestPreStartPostEnd:
         post(Post.SETTINGS_UPDATED, ["range_timeline"])
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         assert elem.pre_start_handle.isVisible()
         range_tlui.deselect_element(elem)
         assert elem.pre_start_handle.isVisible() is False
@@ -2674,8 +2658,7 @@ class TestPreStartPostEnd:
     def test_whiskers_hide_after_delete(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         assert elem.pre_start_handle.isVisible()
         commands.execute("timeline.range.delete_pre_start")
         assert elem.pre_start_handle.isVisible() is False
@@ -2685,8 +2668,7 @@ class TestPreStartPostEnd:
     ):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         settings.set("range_timeline", "always_show_extensions", True)
         post(Post.SETTINGS_UPDATED, ["range_timeline"])
         range_tlui.deselect_element(elem)
@@ -2704,10 +2686,8 @@ class TestPreStartPostEnd:
     def test_context_menu_offers_delete_when_set(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
-        with Serve(Get.FROM_USER_FLOAT, (True, 5.0)):
-            commands.execute("timeline.range.add_post_end")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
+        commands.execute("timeline.range.add_post_end", length=5.0)
         menu = RangeContextMenu(elem)
         action_names = [a.text() for a in menu.actions()]
         assert "Delete pre-start" in action_names
@@ -2720,8 +2700,7 @@ class TestPreStartPostEnd:
         elem = self._make_range(range_tlui, start=10, end=20)
         # When neither is set, it just shows "-"
         assert elem.get_inspector_dict()["Pre-start / post-end"] == "-"
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         # Now pre is set, post is not
         value = elem.get_inspector_dict()["Pre-start / post-end"]
         assert " / -" in value
@@ -2730,10 +2709,8 @@ class TestPreStartPostEnd:
     def test_body_drag_carries_pre_start_and_post_end(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=20, end=40)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
-        with Serve(Get.FROM_USER_FLOAT, (True, 5.0)):
-            commands.execute("timeline.range.add_post_end")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
+        commands.execute("timeline.range.add_post_end", length=5.0)
         # pre_start = 16, post_end = 45.
         click_range_ui(elem)
         center_x = time_x_converter.get_x_by_time(30)
@@ -2754,8 +2731,7 @@ class TestPreStartPostEnd:
         # start is 3 (so pre_start lands at 0).
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 3.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=3.0)
         click_range_ui(elem)
         center_x = time_x_converter.get_x_by_time(15)
         drag_mouse_in_timeline_view(center_x, 0, release=False)
@@ -2766,8 +2742,7 @@ class TestPreStartPostEnd:
     def test_drag_pre_start_handle_left(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=20, end=40)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         # pre_start at 16; drag handle to time 10.
         click_pre_start_handle(elem)
         drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(10), 0)
@@ -2778,8 +2753,7 @@ class TestPreStartPostEnd:
     def test_drag_post_end_handle_right(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=20, end=40)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_post_end")
+        commands.execute("timeline.range.add_post_end", length=4.0)
         click_post_end_handle(elem)
         drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(60), 0)
         assert elem.get_data("post_end") == pytest.approx(60)
@@ -2790,8 +2764,7 @@ class TestPreStartPostEnd:
         # at the body's start (pre_start can't exceed start).
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=20, end=40)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         click_pre_start_handle(elem)
         drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(80), 0)
         assert elem.get_data("pre_start") == 20  # == start, clamped
@@ -2799,8 +2772,7 @@ class TestPreStartPostEnd:
     def test_drag_post_end_handle_clamped_at_body(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=20, end=40)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_post_end")
+        commands.execute("timeline.range.add_post_end", length=4.0)
         click_post_end_handle(elem)
         drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(0), 0)
         assert elem.get_data("post_end") == 40  # == end, clamped
@@ -2813,8 +2785,7 @@ class TestPreStartPostEnd:
         post(Post.SETTINGS_UPDATED, ["range_timeline"])
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=20, end=40)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         click_pre_start_handle(elem)
         drag_mouse_in_timeline_view(
             time_x_converter.get_x_by_time(10), 0, release=False
@@ -2830,16 +2801,14 @@ class TestPreStartPostEnd:
         # test here (see tilia/ui/timelines/cursors.py).
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=20, end=40)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         vline = elem.pre_start_handle.vertical_line
         assert vline.cursor().shape() == Qt.CursorShape.SizeHorCursor
 
     def test_drag_pre_start_handle_undoable(self, range_tlui, tilia_state):
         tilia_state.duration = 100
         elem = self._make_range(range_tlui, start=20, end=40)
-        with Serve(Get.FROM_USER_FLOAT, (True, 4.0)):
-            commands.execute("timeline.range.add_pre_start")
+        commands.execute("timeline.range.add_pre_start", length=4.0)
         click_pre_start_handle(elem)
         drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(10), 0)
         commands.execute("edit.undo")
@@ -2850,10 +2819,8 @@ class TestPreStartPostEnd:
     ):
         tilia_state.duration = 100
         self._make_range(range_tlui, start=10, end=20)
-        with Serve(Get.FROM_USER_FLOAT, (True, 3.0)):
-            commands.execute("timeline.range.add_pre_start")
-        with Serve(Get.FROM_USER_FLOAT, (True, 5.0)):
-            commands.execute("timeline.range.add_post_end")
+        commands.execute("timeline.range.add_pre_start", length=3.0)
+        commands.execute("timeline.range.add_post_end", length=5.0)
 
         save_and_reopen(tmp_path)
 
@@ -3251,8 +3218,7 @@ class TestPerRowHeight:
 
     def test_reset_row_height_command(self, range_tlui):
         row = range_tlui.rows[0]
-        with Serve(Get.FROM_USER_INT, (True, 80)):
-            commands.execute("timeline.range.set_row_height_for_row", row=row)
+        commands.execute("timeline.range.set_row_height_for_row", row=row, height=80)
         commands.execute("timeline.range.reset_row_height_for_row", row=row)
         assert row.height is None
 
@@ -3327,8 +3293,7 @@ class TestPerRowHeight:
 
     def test_undo_restores_per_row_height(self, range_tlui):
         row = range_tlui.rows[0]
-        with Serve(Get.FROM_USER_INT, (True, 80)):
-            commands.execute("timeline.range.set_row_height_for_row", row=row)
+        commands.execute("timeline.range.set_row_height_for_row", row=row, height=80)
         assert row.height == 80
         commands.execute("edit.undo")
         # The row instance was rebuilt by the state restore; resolve by id.
@@ -3732,8 +3697,7 @@ class TestCommentsIndicator:
         commands.execute("timeline.range.add_range", start=0, end=10)
         elem = range_tlui[0]
         range_tlui.timeline.set_component_data(elem.id, "comments", "note")
-        with Serve(Get.FROM_USER_INT, (True, 10)):
-            commands.execute("timeline.range.set_row_height")
+        commands.execute("timeline.range.set_row_height", height=10)
         size = elem.comments_icon.font().pixelSize()
         assert size < RangeCommentsIcon.DEFAULT_PIXEL_SIZE
         assert size >= RangeCommentsIcon.MIN_PIXEL_SIZE
