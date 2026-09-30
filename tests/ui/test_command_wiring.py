@@ -1140,14 +1140,18 @@ SCORE_VIEWER_SHORTCUT_CASES = [
     ids=[c[0] for c in SCORE_VIEWER_SHORTCUT_CASES],
 )
 def test_score_viewer_shortcut_route(test_id, command, shortcut_text, score_tlui):
+    # The viewer is built lazily (get_or_create_svg_view) and registers its
+    # commands as it is built, so build it before looking the action up.
+    # Otherwise the lookup only works when an earlier test in the same
+    # process happened to build a viewer.
+    svg_viewer = score_tlui.get_or_create_svg_view()
     action = commands.get_qaction(command)
     assert action.shortcut() == QKeySequence(shortcut_text)
 
-    svg_viewer = score_tlui.get_or_create_svg_view()
-    # The viewer is built lazily (get_or_create_svg_view) and, unlike
-    # ManageTimelines/other windows, isn't shown or docked as a side
-    # effect -- an invisible/windowless widget never becomes Qt's "active
-    # window", so its WindowShortcut-context action never activates.
+    # Unlike ManageTimelines and other windows, the viewer isn't shown or
+    # docked as a side effect -- an invisible/windowless widget never becomes
+    # Qt's "active window", so its WindowShortcut-context action never
+    # activates.
     svg_viewer.show()
     QApplication.processEvents()
 
