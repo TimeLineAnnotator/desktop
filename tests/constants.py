@@ -11,4 +11,7 @@ EXAMPLE_MUSICXML_PATH = str(
 EXAMPLE_MULTISTAFF_MUSICXML_PATH = str(
     (Path(__file__).parent / "resources" / "example_multistaff.musicxml").resolve()
 ).replace("\\", "/")
+EXAMPLE_RESTS_ONLY_MUSICXML_PATH = str(
+    (Path(__file__).parent / "resources" / "example_rests_only.musicxml").resolve()
+).replace("\\", "/")
 EXAMPLE_YT_URL = "https://youtu.be/6TtjniGQqAc?si=KDINcHVRsl4cH8Rn"
