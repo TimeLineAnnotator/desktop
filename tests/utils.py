@@ -1,5 +1,4 @@
 import importlib.util
-import json
 from contextlib import contextmanager
 from pathlib import Path
 from pprint import pformat
@@ -82,13 +81,15 @@ def get_dummy_timeline_data(id: int = 1) -> dict[str, dict]:
     }
 
 
-def get_tmp_file_with_dummy_timeline(tmp_path: Path) -> Path:
-    file_data = get_blank_file_data()
-    file_data["timelines"] = get_dummy_timeline_data()
-    tmp_file = tmp_path / "test.tla"
-    tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
+def save_file_with_hierarchy_timeline(tmp_path: Path) -> Path:
+    """Saves a file with an empty hierarchy timeline, then starts a new
+    file, so the saved one can be opened as a different file."""
+    with patch_ask_for_string_dialog(True, "test"):
+        commands.execute("timelines.add.hierarchy")
+    file_path = Path(save_tilia_to_tmp_path(tmp_path, "hierarchy"))
+    commands.execute("file.new")
 
-    return tmp_file
+    return file_path
 
 
 def get_method_patch_target(method: Callable) -> str:

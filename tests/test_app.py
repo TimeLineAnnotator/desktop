@@ -12,6 +12,7 @@ from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import (
     PatchPost,
     Serve,
+    patch_ask_for_string_dialog,
     patch_file_dialog,
     patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
@@ -596,8 +597,8 @@ class TestOpen:
         assert len(tls) == 2  # Slider timeline is also created by default
         assert len(tls[0]) == 3
 
-    def test_open_with_path(self, tilia, tls, tmp_path):
-        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+    def test_open_with_path(self, qtui, tilia, tls, tmp_path):
+        tmp_file = tests.utils.save_file_with_hierarchy_timeline(tmp_path)
         commands.execute("file.open", tmp_file)
 
         assert Path(settings.get_recent_files()[0]) == tmp_file
@@ -850,75 +851,68 @@ class TestOpen:
             ("test_field3", "c"),
         ]
 
-    def test_open_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
+    @staticmethod
+    def _save_file_with_marker_then_add_marker(tilia_state, tmp_path) -> Path:
+        # Leaves the app with an unsaved change: a marker added after saving.
+        tilia_state.duration = 100
+        with patch_ask_for_string_dialog(True, "test"):
+            commands.execute("timelines.add.marker")
         previous_path = tmp_path / "previous.tla"
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, previous_path)):
-            commands.execute("file.save")
-
-        # make change
-
+        with patch_file_dialog(True, [str(previous_path)]):
+            commands.execute("file.save_as")
         commands.execute("timeline.marker.add")
-        prev_tl_id = marker_tlui.id
-        prev_marker_id = marker_tlui[0].id
+        return previous_path
 
-        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
-
-        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)):
-            commands.execute("file.open", tmp_file)
-
-        with open(previous_path, "r", encoding="utf-8") as f:
-            contents = json.load(f)  # read contents
-
-        assert len(tls) == 2  # assert load was successful
-        assert (
-            contents["timelines"][str(prev_tl_id)]["components"][str(prev_marker_id)][
-                "time"
-            ]
-            == 0
+    def test_open_saving_changes(self, qtui, tilia_state, tls, tmp_path):
+        tmp_file = tests.utils.save_file_with_hierarchy_timeline(tmp_path)
+        previous_path = self._save_file_with_marker_then_add_marker(
+            tilia_state, tmp_path
         )
 
-    def test_open_without_saving_changes(self, tilia, tls, marker_tlui, tmp_path):
-        previous_path = tmp_path / "previous.tla"
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, previous_path)):
-            commands.execute("file.save")
-
-        # make change
-        marker_tlui.create_marker(10)
-        prev_tl_id = marker_tlui.id
-
-        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
-
-        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+        with patch_yes_no_or_cancel_mb(True):
             commands.execute("file.open", tmp_file)
 
+        assert tls.get_timelines_by_type(HierarchyTimeline)
+        assert not tls.get_timelines_by_type(MarkerTimeline)
         with open(previous_path, "r", encoding="utf-8") as f:
-            contents = json.load(f)  # read contents
+            contents = json.load(f)
+        marker_tl_data = next(
+            tl for tl in contents["timelines"].values() if tl["kind"] == "Marker"
+        )
+        assert len(marker_tl_data["components"]) == 1
 
-        assert len(tls) == 2  # assert load was successful
-        assert len(list(contents["timelines"][str(prev_tl_id)]["components"])) == 0
+    def test_open_without_saving_changes(self, qtui, tilia_state, tls, tmp_path):
+        tmp_file = tests.utils.save_file_with_hierarchy_timeline(tmp_path)
+        previous_path = self._save_file_with_marker_then_add_marker(
+            tilia_state, tmp_path
+        )
+
+        with patch_yes_no_or_cancel_mb(False):
+            commands.execute("file.open", tmp_file)
+
+        assert tls.get_timelines_by_type(HierarchyTimeline)
+        assert not tls.get_timelines_by_type(MarkerTimeline)
+        with open(previous_path, "r", encoding="utf-8") as f:
+            contents = json.load(f)
+        marker_tl_data = next(
+            tl for tl in contents["timelines"].values() if tl["kind"] == "Marker"
+        )
+        assert len(marker_tl_data["components"]) == 0
 
     def test_open_cancelling_should_save_changes_dialog(
-        self, tilia, tls, marker_tlui, tmp_path
+        self, qtui, tilia, tilia_state, tmp_path
     ):
-        previous_path = tmp_path / "previous.tla"
-        with Serve(Get.FROM_USER_SAVE_PATH_TILIA, (True, previous_path)):
-            commands.execute("file.save")
-
-        # make change
-        marker_tlui.create_marker(10)
-
+        tmp_file = tests.utils.save_file_with_hierarchy_timeline(tmp_path)
+        self._save_file_with_marker_then_add_marker(tilia_state, tmp_path)
         prev_state = tilia.get_app_state()
 
-        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
-
-        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)):
+        with patch_yes_no_or_cancel_mb(False, cancel=True):
             commands.execute("file.open", tmp_file)
 
-        assert len(tls) == 1  # assert file wasn't opened
         assert tilia.get_app_state() == prev_state
 
-    def test_open_then_save(self, tmp_path, tilia_errors):
-        tmp_file = tests.utils.get_tmp_file_with_dummy_timeline(tmp_path)
+    def test_open_then_save(self, qtui, tmp_path, tilia_errors):
+        tmp_file = tests.utils.save_file_with_hierarchy_timeline(tmp_path)
         commands.execute("file.open", tmp_file)
         commands.execute("file.save")
         tilia_errors.assert_no_error()
