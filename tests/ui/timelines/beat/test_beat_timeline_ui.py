@@ -786,8 +786,7 @@ class TestChangeBeatsInMeasureContextMenu:
 
         beat_tlui.select_element(beat_tlui[0])
         with undoable():
-            with Serve(Get.FROM_USER_INT, (True, 8)):
-                commands.execute("timeline.beat.set_amount_in_measure")
+            commands.execute("timeline.beat.set_amount_in_measure", amount=8)
         assert beat_tlui.timeline.beats_in_measure == [6]
 
 
@@ -828,8 +827,7 @@ class TestSetBeatAmountInMeasureEdgeCases:
             beat_tlui.create_beat(t)  # pattern [4] -> measures [4, 4]
 
         beat_tlui.select_element(beat_tlui[0])
-        with Serve(Get.FROM_USER_INT, (True, 100)):
-            commands.execute("timeline.beat.set_amount_in_measure")
+        commands.execute("timeline.beat.set_amount_in_measure", amount=100)
 
         commands.execute("timeline.beat.add", time=8)
         assert len(beat_tlui) == 9
@@ -845,8 +843,7 @@ class TestSetBeatAmountInMeasureEdgeCases:
 
         beat_tlui.select_element(beat_tlui[0])
         with undoable():
-            with Serve(Get.FROM_USER_INT, (True, 2)):
-                commands.execute("timeline.beat.set_amount_in_measure")
+            commands.execute("timeline.beat.set_amount_in_measure", amount=2)
         assert beat_tlui.timeline.beats_in_measure == [2, 3]
 
 
