@@ -5,7 +5,7 @@ from PIL import Image
 
 from tests.conftest import parametrize_component
 from tests.constants import EXAMPLE_MEDIA_PATH
-from tests.mock import Serve, patch_ask_for_string_dialog
+from tests.mock import Serve
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.timeline import TimelineFlag
@@ -16,8 +16,7 @@ from tilia.ui.dialogs.resize_rect import ResizeRect
 
 class TestExportJSON:
     def _trigger_export_action(self, path):
-        with Serve(Get.FROM_USER_EXPORT_PATH, (True, path)):
-            commands.execute("file.export.json")
+        commands.execute("file.export.json", path)
 
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -29,8 +28,7 @@ class TestExportJSON:
     ):
         # Marker timeline is chosen as an example. Ideally this should be parametrized for all timelines kinds.
         tl_name = "my name"
-        with patch_ask_for_string_dialog(True, tl_name):
-            commands.execute("timeline.set_name", marker_tlui)
+        commands.execute("timeline.set_name", marker_tlui, name=tl_name)
 
         tmp_file = tmp_path / "test.json"
 
@@ -149,8 +147,7 @@ class TestExportJSON:
 class TestExportImage:
     @staticmethod
     def _add_timeline():
-        with patch_ask_for_string_dialog(True, "test"):
-            commands.execute("timelines.add.hierarchy")
+        commands.execute("timelines.add.hierarchy", name="test")
 
     @pytest.mark.parametrize("scale_factor", [1.0, 0.5, 2.0])
     def test_image_export(self, qtui, monkeypatch, tmp_path, scale_factor):
@@ -165,8 +162,7 @@ class TestExportImage:
 
         monkeypatch.setattr(ResizeRect, "new_size", lambda *_: [True, new_width])
 
-        with Serve(Get.FROM_USER_EXPORT_PATH, (True, image_path)):
-            commands.execute("file.export.img")
+        commands.execute("file.export.img", image_path)
 
         with Image.open(image_path) as img:
             assert img.size[0] == new_width
@@ -181,7 +177,6 @@ class TestExportImage:
 
         monkeypatch.setattr(ResizeRect, "new_size", lambda *_: [False, None])
 
-        with Serve(Get.FROM_USER_EXPORT_PATH, (True, image_path)):
-            commands.execute("file.export.img")
+        commands.execute("file.export.img", image_path)
 
         assert not image_path.exists()

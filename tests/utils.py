@@ -73,8 +73,7 @@ def get_blank_file_data():
 def save_file_with_hierarchy_timeline(tmp_path: Path) -> Path:
     """Saves a file with an empty hierarchy timeline, then starts a new
     file, so the saved one can be opened as a different file."""
-    with patch_ask_for_string_dialog(True, "test"):
-        commands.execute("timelines.add.hierarchy")
+    commands.execute("timelines.add.hierarchy", name="test")
     file_path = Path(save_tilia_to_tmp_path(tmp_path, "hierarchy"))
     commands.execute("file.new")
 
@@ -158,9 +157,9 @@ def reloadable(save_path):
     def check_and_reload(checks):
         checks()
 
-        with patch_file_dialog(True, [save_path, save_path]):
+        with patch_file_dialog(True, [save_path]):
             commands.execute("file.save")
-            commands.execute("file.open")
+        commands.execute("file.open", save_path)
 
         checks()
 
@@ -236,8 +235,7 @@ def get_actions_in_menu(menu: QMenu):
 
 def save_tilia_to_tmp_path(tmp_path, filename: str = "test") -> str:
     tmp_file_path = (tmp_path / (filename + ".tla")).resolve().__str__()
-    with patch_file_dialog(True, [tmp_file_path]):
-        commands.execute("file.save_as")
+    commands.execute("file.save_as", tmp_file_path)
     return tmp_file_path
 
 

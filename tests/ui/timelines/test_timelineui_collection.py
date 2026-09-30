@@ -82,8 +82,7 @@ class TestTimelineUICreation:
             (True, AddTimelineWithoutMedia.Result.SET_DURATION),
         ):
             with Serve(Get.FROM_USER_FLOAT, (True, 10)):
-                with Serve(Get.FROM_USER_STRING, (True, "")):
-                    commands.execute("timelines.add.marker")
+                commands.execute("timelines.add.marker", name="")
         assert tilia_state.duration == 10
         assert len(tluis) == 1
 
@@ -94,8 +93,7 @@ class TestTimelineUICreation:
             (True, AddTimelineWithoutMedia.Result.LOAD_MEDIA),
         ):
             with Serve(Get.FROM_USER_MEDIA_PATH, (True, EXAMPLE_MEDIA_PATH)):
-                with Serve(Get.FROM_USER_STRING, (True, "")):
-                    commands.execute("timelines.add.marker")
+                commands.execute("timelines.add.marker", name="")
         assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
         assert len(tluis) == 1
 
@@ -128,8 +126,7 @@ class TestTimelineUICreation:
         assert tluis.is_empty
 
     def test_delete(self, tls, tluis):
-        with Serve(Get.FROM_USER_STRING, (True, "")):
-            commands.execute("timelines.add.marker")
+        commands.execute("timelines.add.marker", name="")
 
         tls.delete_timeline(tls[0])  # this should be a command
         assert tls.is_empty
