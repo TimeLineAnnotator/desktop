@@ -1378,7 +1378,7 @@ _TOOLBAR_CLASSES = {
     "case", TOOLBAR_ROUTE_CASES, ids=[c.id for c in TOOLBAR_ROUTE_CASES]
 )
 def test_toolbar_route(
-    case, qtui, beat_tlui, harmony_tlui, marker_tlui, pdf_tlui, range_tlui
+    case, tilia, qtui, beat_tlui, harmony_tlui, marker_tlui, pdf_tlui, range_tlui
 ):
     # Every *_tlui fixture above is requested (not just the one `case.kind`
     # needs) so TimelineSelector.FIRST/Get.SELECTED_TIME-based callbacks
@@ -1388,8 +1388,15 @@ def test_toolbar_route(
     toolbar = (
         qtui.player_toolbar if case.kind == "player" else _TOOLBAR_CLASSES[case.kind]()
     )
+    if case.kind == "player":
+        # The player toolbar is disabled until media is loaded. Scaling the
+        # timelines above to it skips the prompt that would ask.
+        tilia.load_media(EXAMPLE_MEDIA_PATH, scale_timelines="yes")
     action = _find_toolbar_command_action(toolbar, case.command)
     assert action is not None, f"{case.command!r} not found on {case.kind!r} toolbar"
+    # A disabled toolbar disables its buttons, not their actions.
+    button = toolbar.widgetForAction(action)
+    assert button is None or button.isEnabled(), f"{case.command!r} button is disabled"
 
     with fire_context(case.command, case.serves) as spy:
         fire(action)
