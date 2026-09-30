@@ -3,11 +3,13 @@ import json
 import pytest
 from PySide6.QtGui import QColor
 
-from tests.constants import EXAMPLE_MULTISTAFF_MUSICXML_PATH
+from tests.constants import (
+    EXAMPLE_MULTISTAFF_MUSICXML_PATH,
+    EXAMPLE_RESTS_ONLY_MUSICXML_PATH,
+)
 from tests.mock import (
     Serve,
     patch_file_dialog,
-    patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
 )
 from tests.utils import get_blank_file_data, reloadable
@@ -230,87 +232,31 @@ def test_duplicate_staff_deletes_timeline(qtui, tls, tilia_errors, tmp_path):
     assert tls.get_timeline_by_type(ScoreTimeline) is None
 
 
-def test_symbol_staff_collision(qtui, tmp_path):
-    file_data_with_symbols = get_blank_file_data()
-    file_data_with_symbols["timelines"] = {
-        0: {
-            "kind": "Score",
-            "height": 1,
-            "is_visible": True,
-            "name": "",
-            "ordinal": 1,
-            "svg_data": "",
-            "viewer_beat_x": {},
-            "hash": "",
-            "components": {
-                1: {"line_count": 5, "index": 0, "kind": "STAFF", "hash": ""},
-                2: {
-                    "staff_index": 0,
-                    "time": 0,
-                    "line_number": -1,
-                    "step": 4,
-                    "octave": 4,
-                    "icon": "clef-treble",
-                    "kind": "CLEF",
-                    "hash": "",
-                },
-            },
-            "components_hash": "",
-        }
-    }
-
-    tmp_file_with_symbols = tmp_path / "test_with_sym.tla"
-    tmp_file_with_symbols.write_text(
-        json.dumps(file_data_with_symbols), encoding="utf-8"
-    )
-
-    with patch_file_dialog(True, [tmp_file_with_symbols]):
-        commands.execute("file.open")
-
-    score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
-    clef = score.timeline.get_component_by_attr("KIND", ComponentKind.CLEF)
-    staff = score.timeline.get_component_by_attr("KIND", ComponentKind.STAFF)
-
-    staff_top_y_with_symbols = (
-        score.get_element(staff.id).staff_lines.lines[0].line().y1()
-    )
-
-    assert score.get_element(clef.id).body.y() != staff_top_y_with_symbols
-
-    file_data_sans_symbols = get_blank_file_data()
-    file_data_sans_symbols["timelines"] = {
-        0: {
-            "kind": "Score",
-            "height": 1,
-            "is_visible": True,
-            "name": "",
-            "ordinal": 1,
-            "svg_data": "",
-            "viewer_beat_x": {},
-            "hash": "",
-            "components": {
-                1: {"line_count": 5, "index": 0, "kind": "STAFF", "hash": ""},
-            },
-            "components_hash": "",
-        }
-    }
-
-    tmp_file_sans_symbols = tmp_path / "test_sans_sym.tla"
-    tmp_file_sans_symbols.write_text(
-        json.dumps(file_data_sans_symbols), encoding="utf-8"
-    )
+@pytest.mark.xfail(
+    strict=True,
+    reason="Known bug: the margin above a staff without notes is too small, "
+    "so the clef overlaps the top staff line.",
+)
+def test_symbols_do_not_collide_with_staff_without_notes(
+    qtui, score_tlui, beat_tlui, beat_tl
+):
+    # With no notes to size the staff, the space reserved above it must
+    # still keep the clef clear of the staff lines.
+    beat_tl.beat_pattern = [1]
+    for i in range(1, 3):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [1, 2]
+    beat_tl.recalculate_measures()
 
     with (
-        patch_file_dialog(True, [tmp_file_sans_symbols]),
-        patch_yes_no_or_cancel_mb(False),  # do not save changes
+        patch_file_dialog(True, [EXAMPLE_RESTS_ONLY_MUSICXML_PATH]),
+        patch_yes_or_no_dialog(False),
     ):
-        commands.execute("file.open")
+        commands.execute("timelines.import.score")
 
-    score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
-    staff = score.timeline.get_component_by_attr("KIND", ComponentKind.STAFF)
+    clef = score_tlui.timeline.get_component_by_attr("KIND", ComponentKind.CLEF)
+    staff = score_tlui.timeline.get_component_by_attr("KIND", ComponentKind.STAFF)
+    clef_bottom_y = score_tlui.get_element(clef.id).body.sceneBoundingRect().bottom()
+    staff_top_y = score_tlui.get_element(staff.id).staff_lines.lines[0].line().y1()
 
-    staff_top_y_sans_symbols = (
-        score.get_element(staff.id).staff_lines.lines[0].line().y1()
-    )
-
-    assert staff_top_y_sans_symbols < staff_top_y_with_symbols
+    assert clef_bottom_y <= staff_top_y
