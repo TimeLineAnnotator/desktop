@@ -17,7 +17,7 @@ from tilia.settings import settings
 class TiliaLogger(logging.Logger):
     """
     Logs to file and console.
-    settings.dev.log_requests sets console log level to INFO when True, WARNING when False.
+    settings.dev.log_requests sets console log level to INFO when True, ERROR when False.
     (Only logs of level or higher will be logged by the handler.)
 
     Log level   |Message type
@@ -25,8 +25,13 @@ class TiliaLogger(logging.Logger):
     DEBUG       |file dumps, autosave file name
     INFO        |tilia.posts
     WARNING     |tilia.errors
-    ERROR       |Qt log messages
+    ERROR       |Qt log messages, internal-invariant violations
     CRITICAL    |Crash messages
+
+    tilia.errors.display is for failures the user must be told about: it
+    shows a dialog (and logs at WARNING, below the default console level).
+    logger.error is for internal-invariant violations that need no dialog;
+    it is the lowest level that reaches the console by default.
     """
 
     DSN = {
