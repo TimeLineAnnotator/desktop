@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from tests.mock import Serve, patch_ask_for_int_dialog, patch_yes_or_no_dialog
+from tests.mock import patch_ask_for_int_dialog, patch_yes_or_no_dialog
 from tests.ui.timelines.beat.interact import (
     click_beat_ui,
     click_time_signature_label,
@@ -586,7 +586,7 @@ class TestSetMeasureNumber:
     @staticmethod
     def _set_measure_number(number=DUMMY_MEASURE_NUMBER):
         """Assumes there a beat in the measure is selected"""
-        with Serve(Get.FROM_USER_INT, (True, number)):
+        with patch_ask_for_int_dialog(True, number):
             commands.execute("timeline.beat.set_measure_number")
 
     def test_set_measure_number_single_measure(self, beat_tlui):
@@ -731,7 +731,7 @@ class TestSetBeatAmountInMeasure:
         beat_tlui.select_element(beat_tlui[0])
 
         beat_tlui.timeline.set_beat_amount_in_measure = MagicMock()
-        with Serve(Get.FROM_USER_INT, (True, 11)):
+        with patch_ask_for_int_dialog(True, 11):
             commands.execute("timeline.beat.set_amount_in_measure")
 
         beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)
@@ -745,7 +745,7 @@ class TestSetBeatAmountInMeasure:
 
         beat_tlui.select_element(beat_tlui[0])
 
-        with Serve(Get.FROM_USER_INT, (True, 2)):
+        with patch_ask_for_int_dialog(True, 2):
             commands.execute("timeline.beat.set_amount_in_measure")
 
         assert [get_displayed_measure_number(b) for b in beat_tlui] == ["1", "", "2"]
@@ -758,9 +758,8 @@ class TestFillWithBeats:
         post(Post.APP_STATE_RECORD, "test")
 
     def test_by_amount(self, beat_tlui):
-        with Serve(
-            Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD,
-            (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100)),
+        with patch_fill_beat_timeline_dialog(
+            beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100
         ):
             with undoable():
                 commands.execute("timeline.beat.fill")
@@ -770,9 +769,8 @@ class TestFillWithBeats:
     def test_by_interval(self, beat_tlui, tilia_state):
         interval = 0.5
         amount = int(tilia_state.duration / interval)
-        with Serve(
-            Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD,
-            (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_INTERVAL, interval)),
+        with patch_fill_beat_timeline_dialog(
+            beat_tlui.timeline, BeatTimeline.FillMethod.BY_INTERVAL, interval
         ):
             with undoable():
                 commands.execute("timeline.beat.fill")
@@ -783,8 +781,9 @@ class TestFillWithBeats:
     def test_accept_delete_existing_beats(self, beat_tlui):
         commands.execute("timeline.beat.add")
 
-        response = (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100))
-        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, response):
+        with patch_fill_beat_timeline_dialog(
+            beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100
+        ):
             with patch_yes_or_no_dialog(True):
                 with undoable():
                     commands.execute("timeline.beat.fill")
@@ -793,8 +792,9 @@ class TestFillWithBeats:
 
     def test_reject_delete_existing_beats(self, beat_tlui):
         beat_tlui.create_beat(0)
-        response = (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100))
-        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, response):
+        with patch_fill_beat_timeline_dialog(
+            beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100
+        ):
             with patch_yes_or_no_dialog(False):
                 commands.execute("timeline.beat.fill")
 
