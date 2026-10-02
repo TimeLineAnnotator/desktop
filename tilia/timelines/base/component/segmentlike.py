@@ -6,6 +6,7 @@ from typing import Iterable, TypeVar
 from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_extended
+from tilia.timelines.base.media_bounds import is_past_media_end
 from tilia.timelines.base.metric_position import MetricInterval, MetricPosition
 from tilia.timelines.base.timeline import TimelineComponentManager
 
@@ -92,12 +93,12 @@ class SegmentLikeTimelineComponent(TimelineComponent):
     @staticmethod
     def validate_times(start: float, end: float) -> tuple[bool, str]:
         media_duration = get(Get.MEDIA_DURATION)
-        if start > media_duration:
+        if is_past_media_end(start):
             return (
                 False,
                 f"Start time '{start}' is bigger than media time '{media_duration}'",
             )
-        elif end > media_duration:
+        elif is_past_media_end(end):
             return (
                 False,
                 f"End time '{end}' is bigger than media time '{media_duration}'",

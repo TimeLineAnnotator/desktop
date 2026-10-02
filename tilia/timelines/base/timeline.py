@@ -13,6 +13,7 @@ from tilia.exceptions import (
     SetTimelineDataError,
 )
 from tilia.timelines import serialize
+from tilia.timelines.base.media_bounds import restoring_components
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
 from tilia.utils import get_sibling_packages
 
@@ -549,12 +550,13 @@ class TimelineComponentManager(Generic[T, TC]):
         )
 
         components_to_create = [prev_hash_to_data[hash] for hash in hashes_to_create]
-        for component_data in components_to_create:
-            component_data = component_data.copy()
-            kind = ComponentKind[component_data.pop("kind")]
-            id = component_data.pop("id")
+        with restoring_components():
+            for component_data in components_to_create:
+                component_data = component_data.copy()
+                kind = ComponentKind[component_data.pop("kind")]
+                id = component_data.pop("id")
 
-            self.timeline.create_component(kind, id=id, **component_data)
+                self.timeline.create_component(kind, id=id, **component_data)
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(

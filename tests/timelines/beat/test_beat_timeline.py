@@ -13,16 +13,14 @@ class TestBeatTimeline:
         assert len(beat_tlui) == 1
 
     def test_create_beat_at_negative_time_fails(self, beat_tlui):
-        commands.execute("media.seek", -10)
-        commands.execute("timeline.beat.add")
+        commands.execute("timeline.beat.add", time=-10)
         assert len(beat_tlui) == 0
 
     def test_create_beat_at_time_bigger_than_media_duration_fails(
         self, beat_tlui, tilia_state
     ):
         tilia_state.duration = 100
-        commands.execute("media.seek", 101)
-        commands.execute("timeline.beat.add")
+        commands.execute("timeline.beat.add", time=101)
         assert len(beat_tlui) == 0
 
     def test_create_beat_at_middle_updates_next_beats_is_first_in_measure(

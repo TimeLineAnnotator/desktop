@@ -22,6 +22,18 @@ def conservative_player_stop(tilia):
     tilia.player.SLEEP_AFTER_STOP = original_sleep_after_stop
 
 
+class TestSeek:
+    @pytest.mark.parametrize(
+        "time, expected",
+        [(50, 50), (150, 100), (-10, 0)],
+        ids=["in_bounds", "past_end", "negative"],
+    )
+    def test_seek_is_clamped_to_media_bounds(self, tilia_state, time, expected):
+        tilia_state.duration = 100
+        commands.execute("media.seek", time)
+        assert tilia_state.current_time == expected
+
+
 @pytest.mark.skipif(os.getenv("CI") == "true", reason="Tests are flaky on CI.")
 class TestPlayer:
     @staticmethod
