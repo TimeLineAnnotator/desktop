@@ -686,7 +686,7 @@ class TimelineUIs:
             tlui = cast(SliderTimelineUI, tlui)
             tlui.update_items_position()
         else:
-            tlui.element_manager.update_time_on_elements()
+            tlui.update_time_on_elements()
 
     @staticmethod
     def get_timeline_ui_class(kind: type[Timeline]) -> type[TimelineUI]:

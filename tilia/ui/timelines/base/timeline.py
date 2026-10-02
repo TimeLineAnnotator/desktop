@@ -233,7 +233,7 @@ class TimelineUI(ABC):  # noqa: B024
         self.view.set_height(height)
         self.collection.update_height()
         if self.element_manager:
-            self.element_manager.update_time_on_elements()
+            self.update_time_on_elements()
 
     def update_name(self):
         self.scene.set_text(self.get_data("name"))
@@ -241,7 +241,7 @@ class TimelineUI(ABC):  # noqa: B024
     def set_width(self, width):
         self.scene.set_width(int(width))
         self.view.setFixedWidth(int(width))
-        self.element_manager.update_time_on_elements()
+        self.update_time_on_elements()
         self.scene.set_playback_line_pos(
             time_x_converter.get_x_by_time(get(Get.SELECTED_TIME))
         )
@@ -250,6 +250,10 @@ class TimelineUI(ABC):  # noqa: B024
             time_x_converter.get_x_by_time(loop_start),
             time_x_converter.get_x_by_time(loop_end),
         )
+
+    def update_time_on_elements(self) -> None:
+        """Repositions elements after the time-to-x mapping changed."""
+        self.element_manager.update_time_on_elements()
 
     def update_ordinal(self):
         self.collection.update_timeline_ui_ordinal()
