@@ -45,6 +45,17 @@ class TestTimelineUICreation:
             commands.execute(command)
         assert len(tluis) == 1
 
+    def test_beat_pattern_as_argument(self, tluis):
+        commands.execute("timelines.add.beat", name="", beat_pattern="2[3] 4")
+
+        assert tluis[0].timeline.beat_pattern == "2[3] 4"
+
+    def test_invalid_beat_pattern_argument_creates_nothing(self, tluis, tilia_errors):
+        commands.execute("timelines.add.beat", name="", beat_pattern="2[")
+
+        assert len(tluis) == 0
+        tilia_errors.assert_in_error_message("Unclosed")
+
     def test_pdf_path_as_argument(self, tluis, resources):
         path = str(resources / "example.pdf")
 
@@ -63,7 +74,7 @@ class TestTimelineUICreation:
         # was being checked on the backend class instead of the UI class and
         # silently returned False, leaving the beat pattern at its default.
         # Make sure the prompted value actually reaches the timeline.
-        prompted_pattern = [3, 2]
+        prompted_pattern = "3 2"
         with (
             Serve(Get.FROM_USER_BEAT_PATTERN, (True, prompted_pattern)),
             Serve(Get.FROM_USER_STRING, (True, "")),
