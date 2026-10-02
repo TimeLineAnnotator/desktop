@@ -64,9 +64,6 @@ SET_HEIGHT_NOT_APPLICABLE = Error(
     "Cannot set height",
     "The height of a {} timeline {}.",
 )
-BEAT_PATTERN_ERROR = Error(
-    "Insert beat pattern", "Beat pattern must be one or more numbers."
-)
 HIERARCHY_CREATE_CHILD_FAILED = Error(
     "Create child hierarchy", "Create child failed: {}"
 )
@@ -125,6 +122,7 @@ INVALID_RETURN_VALUES_FOR_COMMAND = Error(
     "Invalid return values for command: {}\nValues: {}",
 )
 SCORE_SVG_CREATE_ERROR = Error("Error creating SVG", "{}")
+INVALID_BEAT_PATTERN = Error("Set beat pattern", "Invalid beat pattern: {}")
 INVALID_MEASURE_FRACTION = Error(
     "Invalid measure fraction",
     "Measure fraction '{}' is not valid. Using closest valid value.",

@@ -1,6 +1,18 @@
+from fractions import Fraction
+
 # What an input for a time accepts while it is typed: the forms
 # parse_media_time reads, and the incomplete ones on the way to them.
 MEDIA_TIME_PATTERN = r"^\d*(?::\d*(?::\d*)?)?(?:\.\d*)?$"
+
+
+def format_numerator(numerator: Fraction) -> str:
+    """A whole number, or a whole number plus a fraction: "4", "4 1/3", "1/2"."""
+    whole = numerator.numerator // numerator.denominator
+    remainder = numerator - whole
+    if not remainder:
+        return str(whole)
+    fraction = f"{remainder.numerator}/{remainder.denominator}"
+    return f"{whole} {fraction}" if whole else fraction
 
 
 def format_media_time(audio_time: float | str) -> str:
