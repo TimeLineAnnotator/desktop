@@ -4,7 +4,7 @@ import math
 from typing import Any, Callable, Iterable
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QIcon
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGraphicsRectItem
 
 import tilia.errors
@@ -34,6 +34,7 @@ from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,
 )
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
+from tilia.ui.timelines.time_signature_glyphs import load_time_signature_pixmaps
 from tilia.ui.windows.svg_viewer import SvgViewer
 
 
@@ -90,14 +91,7 @@ class ScoreTimelineUI(TimelineUI):
         )
 
     def _setup_pixmaps(self):
-        self.pixmaps = {
-            "time signature": {
-                character: QIcon.fromTheme(
-                    self.get_time_signature_icon_name(character)
-                ).pixmap(48, 48)
-                for character in "0123456789+"
-            },
-        }
+        self.pixmaps = {"time signature": load_time_signature_pixmaps()}
 
     @property
     def svg_view(self) -> SvgViewer | None:
@@ -121,10 +115,6 @@ class ScoreTimelineUI(TimelineUI):
             viewer.load_svg_data(self.timeline.svg_data)
             self.measure_tracker.setVisible(not viewer.is_hidden)
         return viewer
-
-    @staticmethod
-    def get_time_signature_icon_name(character: str) -> str:
-        return f"time-signature-{'plus' if character == '+' else character}"
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
