@@ -45,6 +45,18 @@ class TestTimelineUICreation:
             commands.execute(command)
         assert len(tluis) == 1
 
+    def test_pdf_path_as_argument(self, tluis, resources):
+        path = str(resources / "example.pdf")
+
+        commands.execute("timelines.add.pdf", name="", path=path)
+
+        assert tluis[0].timeline.path == path
+
+    def test_arguments_for_kinds_without_any_are_ignored(self, tluis):
+        commands.execute("timelines.add.marker", name="", beat_pattern="4")
+
+        assert len(tluis) == 1
+
     def test_beat_creation_uses_pattern_from_user_prompt(self, tluis):
         # Regression: the kind-refactor passed the backend Timeline class to
         # on_timeline_add, so `hasattr(ui_cls, "get_additional_args_for_creation")`
