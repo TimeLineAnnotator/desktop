@@ -1,3 +1,16 @@
+from fractions import Fraction
+
+
+def format_numerator(numerator: Fraction) -> str:
+    """A whole number, or a whole number plus a fraction: "4", "4 1/3", "1/2"."""
+    whole = numerator.numerator // numerator.denominator
+    remainder = numerator - whole
+    if not remainder:
+        return str(whole)
+    fraction = f"{remainder.numerator}/{remainder.denominator}"
+    return f"{whole} {fraction}" if whole else fraction
+
+
 def format_media_time(audio_time: float | str) -> str:
     seconds_and_fraction = f"{audio_time % 60:.1f}".zfill(4)
     minutes = int(float(audio_time) // 60)
