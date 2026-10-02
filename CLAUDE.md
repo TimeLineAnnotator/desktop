@@ -123,3 +123,35 @@ When a bug is reported in the running app but the test suite is green, agents ca
 ## CI
 
 `.github/workflows/run-tests.yml` runs ruff + pytest on Linux/macOS/Windows across Python 3.10–3.13 (excluding Windows+3.13). Linting is `continue-on-error: true` — ruff failures won't fail CI, but they should still be fixed. After tests, CI boots the GUI and CLI for 10s each as a smoke check.
+
+## Release notes
+
+**Title and heading**
+
+- The release title is the bare tag: `v0.6.3`.
+- The body opens with an H1 naming the headline changes in sentence case, comma-separated with an Oxford comma: `# Zoom toolbar, fix YouTube load crash, and other patches`. A release that is only fixes is named after them: `# Fix missing pypdf dependency`, `# Score file loading fixes`, `# Bug fixes: player, score timeline, and theme detection`.
+- A prose intro under the H1 is rare and reserved for big shifts that need explaining (v0.6.0: PySide, Nuitka, GitHub releases). It speaks as "we".
+
+**Sections**, in this order, leaving out empty ones (a small patch is often just `## Fixes`):
+
+1. `## Highlights` — new features, plus fixes big enough to headline (v0.6.1 "SVG score viewer is responsive again"). Breaking changes go here too (v0.6.2's `--file` → positional argument); there are no callouts.
+2. `## Fixes`
+3. `## Performance` (only when there is a speed-up worth its own section)
+4. `## Internal`
+5. `## Docs`
+
+No `###` subsections, no `[!NOTE]`/`[!IMPORTANT]` callouts.
+
+**Bullets**
+
+- Highlights: `- **Name** — description.` The name is a short bold noun phrase, optionally prefixed with the area (``**CLI: `move` command**``, `**Score timeline: per-stave key and time signatures**`). After the spaced em dash the description starts lower-case, says what the user can now do in one or two sentences, and ends with a period.
+- Fixes: one plain sentence per user-visible symptom, phrased as the new behaviour: "Deleting a timeline element mid-drag no longer crashes.", "Score timeline: note colour can now be changed." Not the code change. Area prefixes (`CLI:`, `macOS:`, `Score timeline:`) where it helps. Several small crashes can share one bullet ("Several crashes resolved: when ..., when ...").
+- Internal: terse one-liners for contributors, often prefixed (`CI:`, `Test isolation:`).
+- Docs: name the file first (`TESTING.md: ...`, `README points to ...`).
+- Issue and PR references go at the end of the bullet: `(#470)` or `Closes #548.`
+- UI paths are written plainly with an arrow, not bolded: `File → Export`. File names, flags and commands go in backticks.
+- Write from the user's side of the release. Fixes to a feature that hadn't shipped yet (e.g. updater fixes before the updater's first release) are part of that feature, not separate fixes.
+
+**Footer**
+
+`**Full Changelog**: https://github.com/TimeLineAnnotator/desktop/compare/<prev>...<tag>`, and nothing else. A `## What's Changed` PR list is a last resort for when compare links can't show the release.
