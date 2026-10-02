@@ -607,6 +607,10 @@ class App:
         # creates a slider timeline if none was loaded
         if not get(Get.TIMELINE_COLLECTION).has_timeline_of_type(SliderTimeline):
             self.timelines.create_timeline(SliderTimeline)
-            self.file_manager.set_timelines(*self.get_timelines_state())
+
+        # What loading adds (the slider timeline above, the beat unit every
+        # beat timeline keeps on its first beat) is part of the opened file,
+        # not a change to it, so the "last saved" state is taken from here.
+        self.file_manager.set_timelines(*self.get_timelines_state())
 
         self.reset_undo_manager()
