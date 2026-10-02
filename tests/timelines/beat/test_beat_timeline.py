@@ -519,6 +519,27 @@ class TestBeatTimeline:
 
         assert component_manager.compute_is_first_in_measure is True
 
+    def test_crop_recalculates_measures(self, beat_tlui, tilia_state):
+        beat_tlui.timeline.set_data("beat_pattern", [2, 3])
+        self._add_beats(range(10))
+        beat_tlui.timeline.set_measure_number(3, 20)
+
+        tilia_state.set_duration(5.5, scale_timelines="no")
+
+        timeline = beat_tlui.timeline
+        assert len(timeline) == 6
+        assert timeline.beats_in_measure == [2, 3, 1]
+        assert timeline.measure_numbers == [1, 2, 3]
+        assert timeline.measures_to_force_display == []
+        assert [b.is_first_in_measure for b in timeline] == [
+            True,
+            False,
+            True,
+            False,
+            False,
+            True,
+        ]
+
     def test_shrinking_media_drops_measures_for_cropped_beats(
         self, beat_tlui, tilia_state
     ):

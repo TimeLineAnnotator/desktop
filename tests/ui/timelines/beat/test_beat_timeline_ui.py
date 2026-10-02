@@ -2,7 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests.mock import Serve, patch_yes_or_no_dialog
+from tests.mock import Serve, patch_ask_for_int_dialog, patch_yes_or_no_dialog
+from tests.ui.timelines.beat.interact import patch_fill_beat_timeline_dialog
 from tests.utils import undoable
 from tilia.requests import Get, Post, post
 from tilia.settings import settings
@@ -558,6 +559,31 @@ class TestFillWithBeats:
                 commands.execute("timeline.beat.fill")
 
         assert len(beat_tlui) == 1
+
+    def test_refilling_starts_the_measures_over(self, beat_tlui):
+        def fill(amount):
+            with patch_fill_beat_timeline_dialog(
+                beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, amount
+            ):
+                commands.execute("timeline.beat.fill")
+
+        fill(12)
+        beat_tlui.select_element(beat_tlui[4])
+        with patch_ask_for_int_dialog(True, 3):
+            commands.execute("timeline.beat.set_amount_in_measure")
+        beat_tlui.deselect_all_elements()
+        beat_tlui.select_element(beat_tlui[7])
+        with patch_ask_for_int_dialog(True, 10):
+            commands.execute("timeline.beat.set_measure_number")
+        assert beat_tlui.timeline.measure_numbers == [1, 2, 10, 11]
+
+        with patch_yes_or_no_dialog(True):
+            with undoable():
+                fill(8)
+
+        assert beat_tlui.timeline.beats_in_measure == [4, 4]
+        assert beat_tlui.timeline.measure_numbers == [1, 2]
+        assert beat_tlui.timeline.get_time_by_measure(3) == []
 
 
 class TestUndoRedo:
