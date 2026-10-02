@@ -1,11 +1,8 @@
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QGraphicsItemGroup, QGraphicsPixmapItem
-
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,
 )
+from tilia.ui.timelines.time_signature_glyphs import TimeSignatureBody
 
 
 class TimeSignatureUI(TimelineUIElementWithCollision):
@@ -73,77 +70,3 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
 
     def on_select(self):
         return
-
-
-class TimeSignatureBody(QGraphicsItemGroup):
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        numerator: int,
-        denominator: int,
-        digit_height: int,
-        pixmaps: dict[int, QPixmap],
-    ):
-        super().__init__()
-        self.pixmaps = pixmaps
-        self.numerator = numerator
-        self.denominator = denominator
-        self.set_numerator_items(numerator, digit_height)
-        self.set_denominator_items(denominator, digit_height)
-        self.align_pixmaps(numerator, denominator)
-        self.set_position(x, y)
-
-    def get_scaled_pixmap(self, digit: int | str, height: int):
-        return self.pixmaps[int(digit)].scaledToHeight(
-            height, mode=Qt.TransformationMode.SmoothTransformation
-        )
-
-    def set_numerator_items(self, numerator: int, height: int):
-        self.numerator_items = []
-        for i, digit in enumerate(str(numerator)):
-            item = NumberPixmap(self.get_scaled_pixmap(digit, height), self)
-            item.digit = int(digit)
-            item.setPos(i * item.pixmap().width(), 0)
-            self.numerator_items.append(item)
-
-    def set_denominator_items(self, denominator: int, height: int):
-        self.denominator_items = []
-        for i, digit in enumerate(str(denominator)):
-            item = NumberPixmap(self.get_scaled_pixmap(digit, height), self)
-            item.digit = int(digit)
-            item.setPos(i * item.pixmap().width(), item.pixmap().height())
-            self.denominator_items.append(item)
-
-    def align_pixmaps(self, numerator: int, denominator: int):
-        difference = len(str(denominator)) - len(str(numerator))
-        if difference > 0:
-            # numerator is shorter than denominator
-            for item in self.numerator_items:
-                item.moveBy(difference * item.pixmap().width() / 2, 0)
-
-        elif difference < 0:
-            # denominator is shorter than numerator
-            for item in self.denominator_items:
-                item.moveBy(difference * item.pixmap().width() * -1 / 2, 0)
-
-    def set_height(self, height: int):
-        for i, item in enumerate(self.numerator_items):
-            item.setPixmap(self.get_scaled_pixmap(item.digit, height))
-            item.setPos(i * item.pixmap().width(), 0)
-
-        for i, item in enumerate(self.denominator_items):
-            item.setPixmap(self.get_scaled_pixmap(item.digit, height))
-            item.setPos(i * item.pixmap().width(), item.pixmap().height())
-
-        self.align_pixmaps(self.numerator, self.denominator)
-
-    def set_position(self, x: float, y: float):
-        self.setPos(x, y)
-
-    def canvas_items(self):
-        return self.numerator_items + self.denominator_items
-
-
-class NumberPixmap(QGraphicsPixmapItem):
-    digit = 0

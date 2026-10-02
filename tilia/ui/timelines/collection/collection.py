@@ -350,7 +350,15 @@ class TimelineUIs:
             return True
         return False
 
-    def on_timeline_add(self, cls: type[Timeline], name: str | None = None):
+    def on_timeline_add(
+        self, cls: type[Timeline], name: str | None = None, **creation_args: Any
+    ):
+        """
+        `creation_args` are values the timeline kind would otherwise prompt
+        for (e.g. `beat_pattern`, `path`), passed to its UI class's
+        get_additional_args_for_creation.
+        """
+
         def _get_media_is_loaded():
             if get(Get.MEDIA_DURATION) == 0:
                 return False
@@ -378,10 +386,17 @@ class TimelineUIs:
         # `cls` here is the backend timeline class — look the UI class up.
         ui_cls = self.get_timeline_ui_class(cls)
         if hasattr(ui_cls, "get_additional_args_for_creation"):
-            success, additional_args = ui_cls.get_additional_args_for_creation()
+            success, additional_args = ui_cls.get_additional_args_for_creation(
+                **creation_args
+            )
             if not success:
                 return False
             kwargs |= additional_args
+        elif creation_args:
+            logger.error(
+                f"{cls.__name__} takes no creation arguments; "
+                f"ignoring {sorted(creation_args)}."
+            )
 
         get(Get.TIMELINE_COLLECTION).create_timeline(
             kind=cls, components=None, name=name, **kwargs
@@ -686,7 +701,7 @@ class TimelineUIs:
             tlui = cast(SliderTimelineUI, tlui)
             tlui.update_items_position()
         else:
-            tlui.element_manager.update_time_on_elements()
+            tlui.update_time_on_elements()
 
     @staticmethod
     def get_timeline_ui_class(kind: type[Timeline]) -> type[TimelineUI]:

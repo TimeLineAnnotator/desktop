@@ -2,13 +2,17 @@ import argparse
 
 import tilia.errors
 from tilia.requests import Get, get
+from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline
+from tilia.timelines.beat.pattern import parse
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.range.timeline import RangeTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
+from tilia.ui.cli import io
 from tilia.ui.cli.io import output
+from tilia.ui.consts import BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
 
 
 def setup_parser(subparser):
@@ -19,6 +23,7 @@ def setup_parser(subparser):
         epilog="""
 Examples:
   timelines add beat --name "Measures" --beat-pattern 4
+  timelines add beat --name "Measures" --beat-pattern 10[4] 3 15[4]
   timelines add hierarchy --name "Form"
   timelines add marker --name "Cadences"
 """,
@@ -49,12 +54,13 @@ Examples:
     add_subp.add_argument(
         "--beat-pattern",
         "-b",
-        type=int,
+        type=str,
         nargs="+",
         default=None,
-        help="Pattern as space-separated integers indicating beat count in a measure "
-        "(beat timelines only). Pattern will be repeated. Pattern '3 4', for "
-        "instance, will alternate measures of 3 and 4 beats. Defaults to [4].",
+        help="Beats per measure, separated by spaces (beat timelines only). "
+        "The pattern repeats after its last measure: '3 4' alternates measures "
+        "of 3 and 4 beats. Use n[...] to repeat a group: '10[4] 3' is ten "
+        "measures of 4, then one of 3. Defaults to 4.",
     )
     add_subp.add_argument(
         "--row-height",
@@ -118,8 +124,23 @@ def add(namespace: argparse.Namespace):
             )
             return
 
-    output(f"Adding timeline with {kind=}, {name=}")
-
     kwargs = get_kwargs_by_timeline_type(namespace, tl_type)
+    if kwargs.get("beat_pattern") is not None:
+        pattern = " ".join(kwargs["beat_pattern"])
+        result = parse(pattern)
+        if not result.is_complete:
+            io.error(f"Invalid beat pattern '{pattern}': {result.error}")
+            return
+        kwargs["beat_pattern"] = pattern
+    if tl_type is BeatTimeline:
+        # New beat timelines show time signatures, with room for them.
+        kwargs["show_time_signatures"] = True
+        if kwargs.get("height") is None:
+            kwargs["height"] = (
+                settings.get("beat_timeline", "default_height")
+                + BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
+            )
+
+    output(f"Adding timeline with {kind=}, {name=}")
 
     get(Get.TIMELINE_COLLECTION).create_timeline(tl_type, **kwargs)

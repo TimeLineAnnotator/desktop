@@ -1,24 +1,25 @@
-import tilia.errors
-from tilia.ui.windows.beat_pattern import AskBeatPattern
+from collections.abc import Callable
+
+from tilia.ui.windows.beat_pattern import BeatPatternDialog
+from tilia.ui.windows.beat_unit import BeatUnitDialog, BeatUnitInput
 from tilia.ui.windows.fill_beat_timeline import BeatTimeline, FillBeatTimeline
 
 
-def ask_for_beat_pattern():
-    def validate_result():
-        if not result:
-            return False
-        return all([x.isnumeric() for x in result])
+def ask_for_beat_pattern(
+    initial_text: str = "",
+    beat_count: int | None = None,
+    get_overwritten_bars: Callable[[list[int]], list[int]] | None = None,
+) -> tuple[bool, str]:
+    return BeatPatternDialog.ask(initial_text, beat_count, get_overwritten_bars)
 
-    result, accept = AskBeatPattern().ask()
 
-    if not accept:
-        return False, []
-
-    elif not validate_result():
-        tilia.errors.display(tilia.errors.BEAT_PATTERN_ERROR)
-        return ask_for_beat_pattern()
-    else:
-        return True, list(map(int, result))
+def ask_for_beat_unit(
+    denominator: int,
+    units: str,
+    beat_count: int | None = None,
+    show_scope: bool = True,
+) -> tuple[bool, BeatUnitInput | None]:
+    return BeatUnitDialog.ask(denominator, units, beat_count, show_scope)
 
 
 def ask_beat_timeline_fill_method() -> tuple[

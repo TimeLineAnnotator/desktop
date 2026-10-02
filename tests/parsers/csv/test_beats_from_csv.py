@@ -112,3 +112,62 @@ def test_with_invalid_is_first_in_measure(beat_tl):
     _import_with_patch(beat_tl, data)
 
     assert beat_tl.beats_in_measure == [5, 3]
+
+
+class TestBeatUnitColumns:
+    def test_rows_with_values_get_beat_units(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+        data = "time,denominator,units\n0,8,3\n1,,\n2,4,2+3\n3,,\n4,,1\n5,,"
+
+        success, errors = _import_with_patch(beat_tl, data)
+
+        assert success
+        assert errors == []
+        values = [
+            (beat_tl.get_component(u.beat_id).time, u.denominator, u.units)
+            for u in beat_tl.beat_units
+        ]
+        assert values == [(0, 8, "3"), (2, 4, "2+3"), (4, 4, "1")]
+
+    def test_empty_values_carry_over(self, beat_tl):
+        beat_tl.beat_pattern = [1]
+        data = "time,denominator,units\n0,8,\n1,,1/2"
+
+        _import_with_patch(beat_tl, data)
+
+        values = [(u.denominator, u.units) for u in beat_tl.beat_units]
+        assert values == [(8, "1"), (8, "1/2")]
+
+    def test_only_one_of_the_columns(self, beat_tl):
+        data = "time,units\n0,2+3"
+
+        _import_with_patch(beat_tl, data)
+
+        (beat_unit,) = beat_tl.beat_units
+        assert (beat_unit.denominator, beat_unit.units) == (4, "2+3")
+        assert beat_unit.beat_id == beat_tl[0].id
+
+    def test_invalid_values_are_reported(self, beat_tl):
+        data = "time,denominator,units\n0,0,1\n1,4,2+\n2,8,1"
+
+        success, errors = _import_with_patch(beat_tl, data)
+
+        assert_in_errors("denominator", errors)
+        assert_in_errors("2+", errors)
+        # The first beat keeps its default beat unit; only the valid row adds one.
+        values = [(u.denominator, u.units) for u in beat_tl.beat_units]
+        assert values == [(4, "1"), (8, "1")]
+
+    def test_without_the_columns(self, beat_tl):
+        _import_with_patch(beat_tl, "time\n0\n1")
+
+        values = [(u.denominator, u.units) for u in beat_tl.beat_units]
+        assert values == [(4, "1")]
+        assert beat_tl.beat_units[0].assumed
+
+    def test_values_from_the_file_are_not_assumed(self, beat_tl):
+        _import_with_patch(beat_tl, "time,denominator\n0,4\n1,")
+
+        (beat_unit,) = beat_tl.beat_units
+        assert (beat_unit.denominator, beat_unit.units) == (4, "1")
+        assert not beat_unit.assumed

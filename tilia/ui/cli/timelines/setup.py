@@ -1,4 +1,5 @@
 from .add import setup_parser as setup_add_parser
+from .beat import setup_parser as setup_beat_parser
 from .imp import setup_parser as setup_import_parser
 from .list import setup_parser as setup_list_parser
 from .move import setup_parser as setup_move_parser
@@ -16,6 +17,7 @@ def setup_parser(subparsers):
     tl_subparser = tl.add_subparsers(dest="timeline_command")
 
     setup_add_parser(tl_subparser)
+    setup_beat_parser(tl_subparser)
     setup_import_parser(tl_subparser)
     setup_list_parser(tl_subparser)
     setup_move_parser(tl_subparser)

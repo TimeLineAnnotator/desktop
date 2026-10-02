@@ -284,8 +284,6 @@ class Timeline(ABC, Generic[TC]):
                 value = value.copy()
             state[attr] = value
             string_to_hash += str(value) + "|"
-
-            string_to_hash += str(value) + "|"
         state["hash"] = hash_function(f"{state['kind']}|{string_to_hash}")
 
         return state

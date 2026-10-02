@@ -1,7 +1,10 @@
 from tests.constants import EXAMPLE_MEDIA_PATH
+from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.ui.cli.timelines.utils import assert_error
+from tilia.ui.consts import BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
 
 
 class TestTimelineAdd:
@@ -59,13 +62,36 @@ class TestTimelineAdd:
         tl = tls.get_timelines()[0]
         assert isinstance(tl, BeatTimeline)
         assert tl.name == "test"
-        assert tl.beat_pattern == [1, 2, 3]
+        assert tl.beat_pattern == "1 2 3"
+
+    def test_add_beat_timeline_with_bracketed_pattern(self, cli, tls):
+        cli.parse_and_run("timeline add beat --beat-pattern 10[4] 3 15[4]")
+
+        tl = tls.get_timelines()[0]
+        assert tl.beat_pattern == "10[4] 3 15[4]"
+        assert tl.beat_pattern_bars == [4] * 10 + [3] + [4] * 15
+
+    def test_new_beat_timeline_shows_time_signatures(self, cli, tls):
+        cli.parse_and_run("timeline add beat")
+
+        tl = tls.get_timelines()[0]
+        assert tl.show_time_signatures
+        assert tl.height == (
+            settings.get("beat_timeline", "default_height")
+            + BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
+        )
+
+    def test_add_beat_timeline_with_invalid_pattern(self, cli, tls):
+        with assert_error():
+            cli.parse_and_run("timeline add beat --beat-pattern 2[")
+
+        assert len(tls) == 0
 
     def test_add_beat_timeline_no_beat_pattern_provided(self, cli, tls):
         cli.parse_and_run("timeline add beat")
 
         tl = tls.get_timelines()[0]
-        assert tl.beat_pattern == [4]
+        assert tl.beat_pattern == "4"
 
     def test_row_height_rejected_for_non_range_kind(self, cli, tls, tilia_errors):
         cli.parse_and_run("timelines add marker --name M --row-height 50")
