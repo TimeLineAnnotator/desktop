@@ -69,7 +69,31 @@ def _get_invalid_symbol_error(component_kind: Literal["harmony", "key"], symbol:
     )
 
 
-def _create_component(component_kind, symbol, harmony_tl, time):
+HARMONY_OPTIONAL_ATTRS = (
+    "comments",
+    "display_mode",
+    "custom_text",
+    "custom_text_font_type",
+)
+MODE_OPTIONAL_ATTRS = ("comments",)
+
+
+def _get_optional_params(
+    component_kind: Literal["harmony", "key"], attr_to_value: dict[str, Any]
+) -> dict[str, Any]:
+    optional_attrs = (
+        HARMONY_OPTIONAL_ATTRS if component_kind == "harmony" else MODE_OPTIONAL_ATTRS
+    )
+    return {k: v for k, v in attr_to_value.items() if k in optional_attrs}
+
+
+def _create_component(
+    component_kind: Literal["harmony", "key"],
+    symbol: str,
+    harmony_tl: HarmonyTimeline,
+    time: float,
+    optional_params: dict[str, Any] | None = None,
+) -> list[str]:
     errors = []
     success, params = _get_component_params_from_text(
         component_kind, symbol, harmony_tl.get_key_by_time(time)
@@ -82,6 +106,7 @@ def _create_component(component_kind, symbol, harmony_tl, time):
     component, fail_reason = harmony_tl.create_component(
         (ComponentKind.HARMONY if component_kind == "harmony" else ComponentKind.MODE),
         time,
+        **(optional_params or {}),
         **params,
     )
     if not component:
@@ -150,6 +175,7 @@ def import_by_time(
                 attr_to_value["symbol"],
                 timeline,
                 attr_to_value["time"],
+                _get_optional_params(attr_to_value["harmony_or_key"], attr_to_value),
             )
 
         return True, errors
@@ -227,6 +253,9 @@ def import_by_measure(
                     attr_to_value["symbol"],
                     harmony_tl,
                     time,
+                    _get_optional_params(
+                        attr_to_value["harmony_or_key"], attr_to_value
+                    ),
                 )
 
         return True, errors
