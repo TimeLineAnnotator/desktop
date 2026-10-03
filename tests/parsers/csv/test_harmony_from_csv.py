@@ -335,3 +335,40 @@ class TestOptionalColumns:
         assert_in_errors("nonsense", errors)
         assert harmony_tl[0].get_data("display_mode") == "letter"
         assert harmony_tl[0].get_data("comments") == "hello"
+
+
+class TestSymbolsThatRaise:
+    def test_by_time(self, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol",
+                "0,key,C",
+                "10,key,F:min",
+                "20,harmony,V42/bVII",
+                "30,harmony,D",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert success
+        assert_in_errors("F:min", errors)
+        assert_in_errors("V42/bVII", errors)
+        assert len(harmony_tl.modes()) == 1
+        assert len(harmony_tl.harmonies()) == 1
+
+    def test_by_measure(self, harmony_tl, beat_tl):
+        make_beats(beat_tl)
+        data = "\n".join(
+            [
+                "harmony_or_key,measure,fraction,symbol",
+                "key,1,0,C",
+                "key,2,0,F:min",
+                "harmony,2,0,V42/bVII",
+                "harmony,3,0,D",
+            ]
+        )
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        assert success
+        assert_in_errors("F:min", errors)
+        assert_in_errors("V42/bVII", errors)
+        assert len(harmony_tl.modes()) == 1
+        assert len(harmony_tl.harmonies()) == 1

@@ -95,9 +95,13 @@ def _create_component(
     optional_params: dict[str, Any] | None = None,
 ) -> list[str]:
     errors = []
-    success, params = _get_component_params_from_text(
-        component_kind, symbol, harmony_tl.get_key_by_time(time)
-    )
+    try:
+        success, params = _get_component_params_from_text(
+            component_kind, symbol, harmony_tl.get_key_by_time(time)
+        )
+    except Exception:
+        # the text parsers may raise on some symbols instead of failing gracefully
+        success, params = False, None
 
     if not success:
         errors.append(_get_invalid_symbol_error(component_kind, symbol))
