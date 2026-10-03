@@ -1,0 +1,9 @@
+[
+ {"file_id": "f1", "name": "Überleitung.tla", "path": "corpus/Überleitung.tla", "state": "ok", "reason": null,
+  "fields": {"title": "Überleitung", "composer": "μετάβαση", "tags": ["transição", "过渡", "מעבר", "🎵"]},
+  "timelines": {"count": 3, "kinds": {"hierarchy": 2, "marker": 1}}},
+ {"file_id": "f2", "name": "broken.tla", "path": "corpus/broken.tla", "state": "unreadable",
+  "reason": "line 12: Expecting ',' delimiter", "fields": {}, "timelines": {"count": 0, "kinds": {}}},
+ {"file_id": "f3", "name": "offline.tla", "path": "corpus/offline.tla", "state": "unavailable",
+  "reason": "the file is not reachable", "fields": {}, "timelines": {"count": 0, "kinds": {}}}
+]

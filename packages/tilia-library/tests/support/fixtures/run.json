@@ -1,0 +1,6 @@
+{"rows": [
+  {"file_id": "f1", "path": "corpus/Überleitung.tla", "start": 0.0, "end": 4.5, "match_start": 0.0, "match_end": 4.5, "label": "Überleitung"},
+  {"file_id": "f1", "path": "corpus/Überleitung.tla", "start": 4.5, "end": 9.0, "match_start": 4.5, "match_end": 9.0, "label": "transição"}],
+ "count": 2, "total": 2, "truncated": false, "files": 1,
+ "explain": "every unit labelled like a transition", "warnings": [],
+ "sql": "SELECT 1", "stopped": null, "generation": 1}

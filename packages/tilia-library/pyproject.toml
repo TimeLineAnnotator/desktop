@@ -21,8 +21,12 @@ dependencies = ["tilia-core==0.0.1"]
 Homepage = "https://tilia-app.com"
 Repository = "https://github.com/TimeLineAnnotator/desktop"
 
+[project.entry-points."tilia.commands"]
+library = "tilia_library.command:main"
+
 [dependency-groups]
 dev = ["pytest>=8.0.0"]
+browser = ["pytest>=8.0.0", "playwright>=1.40"]
 
 [tool.uv.sources]
 tilia-core = { workspace = true }
