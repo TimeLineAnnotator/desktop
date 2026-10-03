@@ -16,6 +16,9 @@ authors = [
     {name = "Anne Foo"}
 ]
 
+[project.scripts]
+tilia = "tilia_core.command:main"
+
 [project.urls]
 Homepage = "https://tilia-app.com"
 Repository = "https://github.com/TimeLineAnnotator/desktop"
