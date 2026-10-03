@@ -68,6 +68,18 @@ Rule of thumb: anything a user could trigger is a command; anything only the cod
 - `tilia/ui/cli/` — click-style CLI exposing a subset of features.
 - `tilia/undo_manager.py` — app-state snapshots; `PauseUndoManager` context manager suppresses recording.
 
+## Packages
+
+`packages/` holds `tilia-core` (`tilia_core`) and `tilia-library` (`tilia_library`) in a uv workspace with the app at the root. Neither package may import the app (`tilia`) or PySide6; each package's isolation test enforces that. Dependencies go one way: library → core, and later the app → core (the app doesn't depend on either package yet).
+
+```bash
+uv sync --all-packages                         # the app and both packages, editable
+uv run --package tilia-core pytest packages/tilia-core   # run one package's tests in its own environment
+python scripts/check_packages.py               # what CI's Packages workflow runs
+```
+
+`pytest` at the root runs only the app's tests. The two packages share one version number and are released together.
+
 ## Code style
 
 - **Type hints required** in production code (`tilia/`). Annotate all function/method parameters, return types, and instance attributes whose types aren't obvious from initialization. Tests (`tests/`) do not need type hints.

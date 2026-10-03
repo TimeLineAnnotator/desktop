@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tilia-library"
+version = "0.0.1"
+description = "TiLiA Library: query and edit folders of TiLiA files in the browser"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    {email = "tilia@tilia-app.com"},
+    {name = "Felipe Defensor"},
+    {name = "Anne Foo"}
+]
+dependencies = ["tilia-core==0.0.1"]
+
+[project.urls]
+Homepage = "https://tilia-app.com"
+Repository = "https://github.com/TimeLineAnnotator/desktop"
+
+[dependency-groups]
+dev = ["pytest>=8.0.0"]
+
+[tool.uv.sources]
+tilia-core = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
