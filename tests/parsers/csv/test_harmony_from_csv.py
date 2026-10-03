@@ -224,3 +224,114 @@ class TestByMeasure:
         assert harmony_tl[0].get_data("step") == step
         assert harmony_tl[0].get_data("accidental") == accidental
         assert harmony_tl[0].get_data("type") == type
+
+
+OPTIONAL_HARMONY_VALUES = {
+    "comments": "a comment",
+    "display_mode": "roman",
+    "custom_text": "my text",
+    "custom_text_font_type": "normal",
+}
+OPTIONAL_HEADER = "comments,display_mode,custom_text,custom_text_font_type"
+OPTIONAL_ROW = "a comment,roman,my text,normal"
+
+
+def make_beats(beat_tl):
+    beat_tl.set_data("beat_pattern", [2])
+    for i in range(6):
+        beat_tl.create_beat(i * 10)
+
+
+class TestOptionalColumns:
+    def test_harmony_by_time(self, harmony_tl):
+        data = "\n".join(
+            [
+                f"time,harmony_or_key,symbol,{OPTIONAL_HEADER}",
+                f"0,harmony,C,{OPTIONAL_ROW}",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert not errors
+        for attr, value in OPTIONAL_HARMONY_VALUES.items():
+            assert harmony_tl[0].get_data(attr) == value
+
+    def test_harmony_by_measure(self, harmony_tl, beat_tl):
+        make_beats(beat_tl)
+        data = "\n".join(
+            [
+                f"harmony_or_key,measure,fraction,symbol,{OPTIONAL_HEADER}",
+                f"harmony,2,0,C,{OPTIONAL_ROW}",
+            ]
+        )
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        assert not errors
+        assert harmony_tl[0].get_data("time") == 20
+        for attr, value in OPTIONAL_HARMONY_VALUES.items():
+            assert harmony_tl[0].get_data(attr) == value
+
+    def test_key_by_time(self, harmony_tl):
+        data = "\n".join(
+            [
+                f"time,harmony_or_key,symbol,{OPTIONAL_HEADER}",
+                f"0,key,C,{OPTIONAL_ROW}",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert not errors
+        assert isinstance(harmony_tl[0], Mode)
+        assert harmony_tl[0].get_data("comments") == "a comment"
+
+    def test_key_by_measure(self, harmony_tl, beat_tl):
+        make_beats(beat_tl)
+        data = "\n".join(
+            [
+                f"harmony_or_key,measure,fraction,symbol,{OPTIONAL_HEADER}",
+                f"key,2,0,C,{OPTIONAL_ROW}",
+            ]
+        )
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        assert not errors
+        assert isinstance(harmony_tl[0], Mode)
+        assert harmony_tl[0].get_data("comments") == "a comment"
+
+    def test_absent_columns_keep_defaults_by_time(self, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol",
+                "0,harmony,C",
+                "10,key,D",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert not errors
+        harmony = harmony_tl.harmonies()[0]
+        assert harmony.get_data("comments") == ""
+        assert harmony.get_data("display_mode") == "letter"
+        assert harmony.get_data("custom_text") == ""
+        assert harmony.get_data("custom_text_font_type") == "analytic"
+        assert harmony_tl.modes()[0].get_data("comments") == ""
+
+    def test_absent_columns_keep_defaults_by_measure(self, harmony_tl, beat_tl):
+        make_beats(beat_tl)
+        data = "\n".join(
+            [
+                "harmony_or_key,measure,fraction,symbol",
+                "harmony,1,0,C",
+            ]
+        )
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        assert not errors
+        assert harmony_tl[0].get_data("display_mode") == "letter"
+        assert harmony_tl[0].get_data("custom_text_font_type") == "analytic"
+
+    def test_invalid_value_is_reported_and_default_kept(self, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol,display_mode,comments",
+                "0,harmony,C,nonsense,hello",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert_in_errors("nonsense", errors)
+        assert harmony_tl[0].get_data("display_mode") == "letter"
+        assert harmony_tl[0].get_data("comments") == "hello"
