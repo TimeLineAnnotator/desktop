@@ -66,8 +66,11 @@ def check_package(name: str, wheels: list[Path], tmp: Path) -> None:
     env = tmp / f"env-{name}"
     venv.create(env, with_pip=True)
     python = env_python(env)
+    test_deps = ["pytest"]
+    if sys.version_info < (3, 11):
+        test_deps.append("tomli")
     run(
-        [python, "-m", "pip", "install", "pytest", *map(str, wheels)],
+        [python, "-m", "pip", "install", *test_deps, *map(str, wheels)],
         tmp,
         f"{name}: install into a fresh environment",
     )

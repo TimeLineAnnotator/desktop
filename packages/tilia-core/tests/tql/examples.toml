@@ -1,0 +1,926 @@
+# TQL 0.1.0: the printed examples as tests (tql.md §11; constitution, Principle V).
+#
+# Each [[example]] runs `query` on a made-up file, its `fixture`, and must give
+# exactly `rows`, in any order; `plan` names where the plan prints it. The
+# expected rows are written from the musical reading, not copied from an
+# implementation: where an implementation disagrees, one of them has a bug.
+#
+# A row lists the units of one match, numbered unit by numbered unit ($1, $2 …)
+# and separated by " | "; several units of one step are separated by ", ".
+# A unit is "label@start", its start in seconds as the fixture gives it; a
+# chord or a key goes by its label as TiLiA shows it. Where the query marks a
+# result with @, the result's units are in [brackets]. A query of only WHERE
+# that lists timelines gives their names.
+#
+# A bulk edit also lists its planned writes in `writes`:
+#   "unit: field = value"           SET
+#   "unit: tag x", "unit: untag x"   TAG, UNTAG
+#   "unit: delete"                   DELETE
+#   "+ label@start..end level n"     a unit GROUP adds
+#   "timeline: field = value"        a timeline's field
+# `core_only = true` marks writes only tilia-core can make (timeline fields
+# arrive with T5); an implementation without them checks the rows only.
+#
+# A fixture is one file: `length` (the media length, in seconds), `fields` (the
+# file's fields), `grammar` (its label grammar: "de Clercq", or none, when each
+# label is read whole, tql.md §5) and its timelines, each with a `name`, a
+# `kind` and its units:
+#   hierarchy  units = [[label, level, start, end, colour?], …]  (level 1 = the lowest)
+#   marker     units = [[label, time], …]
+#   range      rows = [names]; units = [[row, label, start, end], …]
+#   harmony    keys = [[time, tonic, "major" | "minor"], …] and
+#              chords = [[time, root, quality, inversion?, applied_to?], …],
+#              a quality as TiLiA stores it
+#   beats      a beat every `every` seconds from `start`, `beats_per_bar` to a
+#              bar, and a bar per printed number in `numbers` (or `bars` = n for
+#              bars 1 … n)
+# Roles are the plan's: a hierarchy called "Form (X)" has role form and author
+# X, a marker timeline called "Cadences" role cadences, and a harmony timeline
+# the roles harmony (its chords) and keys (its keys).
+
+# ==========================================================================
+# Fixtures
+# ==========================================================================
+
+[fixtures.exposition]
+about = "plan §4.2: a made-up exposition, one row per hierarchy level, and its cadences"
+length = 24
+
+[[fixtures.exposition.timelines]]
+name = "Form (Caplin)"
+kind = "hierarchy"
+units = [
+  ["exposition",   3,  0, 22],
+  ["MT",           2,  0,  8],
+  ["TR",           2,  8, 10],
+  ["ST",           2, 10, 22],
+  ["presentation", 1,  0,  4],
+  ["continuation", 1,  4,  8],
+  ["presentation", 1, 10, 14],
+  ["continuation", 1, 14, 18],
+  ["continuation", 1, 18, 22],
+]
+
+[[fixtures.exposition.timelines]]
+name = "Cadences"
+kind = "marker"
+units = [["HC", 7.5], ["HC", 9.5], ["EC", 17.5], ["PAC", 21.5]]
+
+[fixtures.sonata]
+about = """a made-up exposition of 40 bars in 4/4, a beat a second: MT in bars 1-16 \
+(a sentence), the transition in 17-24, ST in 25-40 (its last continuation ends \
+with a cadential unit); C major, then G major from ST on; two fermatas"""
+length = 160
+
+[[fixtures.sonata.timelines]]
+name = "Form (Caplin)"
+kind = "hierarchy"
+units = [
+  ["exposition",   4,   0, 160],
+  ["MT",           3,   0,  64],
+  ["Transition",   3,  64,  96],
+  ["ST",           3,  96, 160],
+  ["sentence",     2,   0,  64],
+  ["presentation", 1,   0,  32],
+  ["continuation", 1,  32,  64],
+  ["presentation", 2,  96, 112],
+  ["continuation", 2, 112, 136],
+  ["continuation", 2, 136, 160],
+  ["cadential",    1, 148, 160],
+]
+
+[[fixtures.sonata.timelines]]
+name = "Cadences"
+kind = "marker"
+units = [["PAC", 60], ["HC", 92], ["HC", 128], ["PAC", 157]]
+
+[[fixtures.sonata.timelines]]
+name = "Fermatas"
+kind = "marker"
+units = [["fermata", 96], ["fermata", 150]]
+
+[[fixtures.sonata.timelines]]
+name = "Harmony"
+kind = "harmony"
+keys = [[0, "C", "major"], [96, "G", "major"]]
+
+[[fixtures.sonata.timelines]]
+name = "Beats"
+kind = "beats"
+start = 0
+every = 1
+beats_per_bar = 4
+bars = 40
+
+[fixtures.pop]
+about = """a made-up song of 32 bars in 4/4, a beat a second, as two analysts read \
+it, with the solos of a range timeline; analyst A colours one chorus pink"""
+length = 128
+grammar = "de Clercq"
+
+[[fixtures.pop.timelines]]
+name = "Form (A)"
+kind = "hierarchy"
+units = [
+  ["A",       2,   8,  56],
+  ["A",       2,  56,  88],
+  ["intro",   1,   0,   8],
+  ["verse",   1,   8,  24],
+  ["verse",   1,  24,  40],
+  ["chorus",  1,  40,  56],
+  ["verse",   1,  56,  72],
+  ["chorus",  1,  72,  88, "#ffc0cb"],
+  ["bridge",  1,  88, 104],
+  ["chorus",  1, 104, 120],
+  ["outro",   1, 120, 128],
+]
+
+[[fixtures.pop.timelines]]
+name = "Form (B)"
+kind = "hierarchy"
+units = [
+  ["intro",   1,   0,   8],
+  ["verse",   1,   8,  40],
+  ["chorus",  1,  40,  56],
+  ["verse",   1,  56,  72],
+  ["refrain", 1,  72,  88],
+  ["bridge",  1,  88, 104],
+  ["chorus?", 1, 104, 120],
+  ["bridge",  1, 120, 128],
+]
+
+[[fixtures.pop.timelines]]
+name = "Instruments"
+kind = "range"
+rows = ["solo"]
+units = [["solo", "solo", 76, 84], ["solo", "solo", 92, 100]]
+
+[[fixtures.pop.timelines]]
+name = "Beats"
+kind = "beats"
+start = 0
+every = 1
+beats_per_bar = 4
+bars = 32
+
+[fixtures.strophic]
+about = "a made-up strophic song as two analysts read it, one of them with a closing bridge"
+length = 80
+
+[[fixtures.strophic.timelines]]
+name = "Form (Trevor de Clercq)"
+kind = "hierarchy"
+units = [
+  ["verse",  1,  0, 16],
+  ["chorus", 1, 16, 32],
+  ["verse",  1, 32, 48],
+  ["chorus", 1, 48, 64],
+  ["bridge", 1, 64, 80],
+]
+
+[[fixtures.strophic.timelines]]
+name = "Form (David Temperley)"
+kind = "hierarchy"
+units = [
+  ["verse",  1,  0, 16],
+  ["chorus", 1, 16, 32],
+  ["verse",  1, 32, 48],
+  ["chorus", 1, 48, 64],
+]
+
+[fixtures.harmony]
+about = """made-up chords, a chord a second: C major, then C minor (with a Picardy \
+third), then E-flat major, in three phrases"""
+length = 24
+fields = { composer = "Mozart" }
+
+[[fixtures.harmony.timelines]]
+name = "Harmony"
+kind = "harmony"
+keys = [[0, "C", "major"], [8, "C", "minor"], [16, "Eb", "major"]]
+chords = [
+  [ 0, "C",  "major"],
+  [ 1, "G",  "dominant-seventh"],
+  [ 2, "C",  "major"],
+  [ 3, "G",  "dominant-seventh", 1],
+  [ 4, "C",  "major"],
+  [ 6, "G",  "major"],
+  [ 7, "C",  "major"],
+  [ 8, "C",  "minor"],
+  [ 9, "G",  "dominant-seventh"],
+  [10, "C",  "major"],
+  [14, "G",  "major"],
+  [16, "Eb", "major"],
+  [17, "Bb", "dominant-seventh"],
+  [18, "Eb", "major"],
+]
+
+[[fixtures.harmony.timelines]]
+name = "Form (P)"
+kind = "hierarchy"
+units = [["phrase", 1, 0, 8], ["phrase", 1, 8, 16], ["phrase", 1, 16, 24]]
+
+[fixtures.repeat]
+about = "a made-up piece in 4/4, a beat a second, whose bars 9-16 are played twice"
+length = 96
+
+[[fixtures.repeat.timelines]]
+name = "Form (R)"
+kind = "hierarchy"
+units = [
+  ["A",  2,  0, 32],
+  ["B",  2, 32, 64],
+  ["B",  2, 64, 96],
+  ["b1", 1, 32, 44],
+  ["b2", 1, 44, 64],
+  ["b1", 1, 64, 76],
+  ["b2", 1, 76, 96],
+]
+
+[[fixtures.repeat.timelines]]
+name = "Beats"
+kind = "beats"
+start = 0
+every = 1
+beats_per_bar = 4
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 9, 10, 11, 12, 13, 14, 15, 16]
+
+[fixtures.recipe]
+about = "s4-style analysis timelines, an analyst's name in each, and cadence labels with a key"
+length = 12
+
+[[fixtures.recipe.timelines]]
+name = "Form (de Clercq)"
+kind = "hierarchy"
+units = [["verse", 1, 0, 12]]
+
+[[fixtures.recipe.timelines]]
+name = "Form (Covach)"
+kind = "hierarchy"
+units = [["verse", 1, 0, 12]]
+
+[[fixtures.recipe.timelines]]
+name = "Cadences"
+kind = "marker"
+units = [["I:PAC", 4], ["HC", 8], ["I:PAC", 11]]
+
+[fixtures.scripts]
+about = "labels in Chinese and in German"
+length = 40
+
+[[fixtures.scripts.timelines]]
+name = "Form (X)"
+kind = "hierarchy"
+units = [["主歌", 1, 0, 10], ["副歌", 1, 10, 20], ["主歌", 1, 20, 30], ["Straße", 1, 30, 40]]
+
+# ==========================================================================
+# §4.2, the worked example's match table
+# ==========================================================================
+
+[[example]]
+plan = "§4.2 table, row 1"
+query = "ST[continuation{2}] IN form"
+fixture = "exposition"
+rows = ["ST@10"]
+why = "two of its children, in a row, are continuations"
+
+[[example]]
+plan = "§4.2 table, row 2"
+query = "ST[CONSISTS OF presentation THEN continuation{2}] IN form"
+fixture = "exposition"
+rows = ["ST@10"]
+why = "these are all its children, in this order"
+
+[[example]]
+plan = "§4.2 table, row 3"
+query = "exposition[continuation] IN form"
+fixture = "exposition"
+rows = []
+why = "the continuations are its grandchildren, not its children"
+
+[[example]]
+plan = "§4.2 table, row 4"
+query = "exposition[CONTAINS continuation] IN form"
+fixture = "exposition"
+rows = ["exposition@0"]
+why = "CONTAINS looks at any depth"
+
+[[example]]
+plan = "§4.2 table, row 5"
+query = "* THEN *[continuation{2}] IN form"
+fixture = "exposition"
+rows = ["TR@8 | ST@10"]
+why = "a unit followed by a unit with two continuations"
+
+[[example]]
+plan = "§4.2 table, row 6"
+query = "MT THEN ST[continuation{2}] IN form"
+fixture = "exposition"
+rows = []
+why = "THEN means directly followed by, and TR comes between"
+
+[[example]]
+plan = "§4.2 table, row 7"
+query = "continuation[parent = ST] IN form"
+fixture = "exposition"
+rows = ["continuation@14", "continuation@18"]
+why = "not MT's, whose parent is MT"
+
+[[example]]
+plan = "§4.2 table, row 8"
+query = "ST[CONTAINS PAC IN cadences] IN form"
+fixture = "exposition"
+rows = ["ST@10"]
+why = "a PAC lies within ST"
+
+[[example]]
+plan = "§4.2 table, row 9"
+query = "ST[ENDS WITH PAC IN cadences] IN form"
+fixture = "exposition"
+rows = ["ST@10"]
+why = "the PAC is ST's last cadence; the EC comes before it"
+
+[[example]]
+plan = "§4.2 table, row 10"
+query = "ST[ENDS WITH EC IN cadences] IN form"
+fixture = "exposition"
+rows = []
+why = "the EC is not ST's last cadence"
+
+[[example]]
+plan = "§4.2 table, row 11"
+query = "* IN cadences ENDS ST IN form"
+fixture = "exposition"
+rows = ["PAC@21.5 | ST@10"]
+why = "the mirror form: the cadence that ends ST"
+
+[[example]]
+plan = "§4.2 table, row 12"
+query = "* IN cadences SAME END ST IN form"
+fixture = "exposition"
+rows = []
+why = "timing, not order: the PAC comes before ST's written end"
+
+[[example]]
+plan = "§4.2 table, row 13"
+query = "MT[ENDS WITH HC IN cadences] THEN TR IN form"
+fixture = "exposition"
+rows = ["MT@0 | TR@8"]
+why = "MT's last cadence is an HC, and TR follows it"
+
+# ==========================================================================
+# §4.2, the other queries printed there
+# ==========================================================================
+
+[[example]]
+plan = "§4.2 (relations)"
+query = "ST[CONTAINS PAC IN cadences]"
+fixture = "exposition"
+rows = ["ST@10"]
+
+[[example]]
+plan = "§4.2 (order)"
+query = "ST[ENDS WITH PAC IN cadences]"
+fixture = "exposition"
+rows = ["ST@10"]
+
+[[example]]
+plan = "§4.2 (children)"
+query = "ST[continuation{2}]"
+fixture = "exposition"
+rows = ["ST@10"]
+
+[[example]]
+plan = "§4.2 (which IN belongs to what)"
+query = "TR THEN ST[CONTAINS PAC IN cadences] IN form"
+fixture = "exposition"
+rows = ["TR@8 | ST@10"]
+why = "a transition directly followed by a subordinate theme that contains a PAC"
+
+[[example]]
+plan = "§4.2 (reading brackets)"
+query = "ST[continuation{2} AND CONTAINS PAC IN cadences]"
+fixture = "exposition"
+rows = ["ST@10"]
+
+[[example]]
+plan = "§4.2 (groups)"
+query = "ST[NOT CONTAINS PAC IN cadences]"
+fixture = "exposition"
+rows = []
+why = "ST has a PAC"
+
+[[example]]
+plan = "§4.2 (order)"
+query = "MT[STARTS WITH presentation THEN continuation]"
+fixture = "exposition"
+rows = ["MT@0"]
+
+[[example]]
+plan = "§4.2 (order)"
+query = "ST[ENDS WITH HC THEN PAC IN cadences]"
+fixture = "sonata"
+rows = ["ST@96"]
+why = "ST's last two cadences are an HC, then a PAC"
+
+[[example]]
+plan = "§4.2 (children)"
+query = "continuation[ENDS WITH cadential]"
+fixture = "sonata"
+rows = ["continuation@136"]
+why = "ST's second continuation; the others end without a cadential unit"
+
+[[example]]
+plan = "§4.2 (CONTAINS)"
+query = "*[CONTAINS continuation[ENDS WITH cadential]] IN form"
+fixture = "sonata"
+rows = ["exposition@0", "ST@96"]
+why = "at any depth below the unit"
+
+[[example]]
+plan = "§4.2 (order)"
+query = "CONSISTS OF intro THEN *+ THEN outro IN form"
+fixture = "pop"
+rows = ["intro@0 | verse@8, verse@24, chorus@40, verse@56, chorus@72, bridge@88, chorus@104 | outro@120"]
+why = "analyst A's reading; B's ends with a bridge"
+
+[[example]]
+plan = "§4.2 (the hole rule)"
+query = "HC THEN PAC IN cadences"
+fixture = "sonata"
+rows = ["HC@128 | PAC@157"]
+why = "a half cadence whose next cadence is a PAC; the HC in bar 24 is followed by another HC"
+
+[[example]]
+plan = "§4.2 (distances)"
+query = "ST IN form STARTS AFTER MT IN form WHERE $1.start >= $2.start + 16 bars"
+fixture = "sonata"
+rows = ["ST@96 | MT@0"]
+why = "ST starts in bar 25, 24 bars after MT"
+
+[[example]]
+plan = "§4.2 (distances)"
+query = "PAC IN cadences DURING ST IN form WHERE $1.start >= $2.start + 4 bars"
+fixture = "sonata"
+rows = ["PAC@157 | ST@96"]
+why = "the PAC in bar 40 lies 15 bars into ST"
+
+[[example]]
+plan = "§4.2 (matching rules)"
+query = 'phrase[ENDS WITH I IN harmony]'
+fixture = "harmony"
+rows = ["phrase@0", "phrase@16"]
+why = "the middle phrase's last chord is V; the chord on its last boundary belongs to the next phrase"
+
+[[example]]
+plan = "§4.2 (matching rules)"
+query = '* IN keys WHERE key = "c"'
+fixture = "harmony"
+rows = ["c@8"]
+
+[[example]]
+plan = "§4.2 (positions relative to the piece)"
+query = "*[start >= 33% AND end <= 67%] IN form"
+fixture = "pop"
+rows = ["verse@56", "verse@56"]
+why = "the middle third is 42.24-85.76 s; both analysts' third verse lies inside it"
+
+[[example]]
+plan = "§4.2 (names without a prefix)"
+query = "[color = pink] THEN bridge"
+fixture = "pop"
+rows = ["chorus@72 | bridge@88"]
+
+[[example]]
+plan = "§4.2 (the language in one screen)"
+query = "verse THEN chorus"
+fixture = "pop"
+rows = ["verse@24 | chorus@40", "verse@56 | chorus@72", "verse@8 | chorus@40"]
+why = "analyst A's first verse is followed by another verse; B's second by a refrain"
+
+[[example]]
+plan = "§4.2 (the language in one screen)"
+query = "(verse THEN chorus)+"
+fixture = "pop"
+rows = ["verse@24, chorus@40, verse@56, chorus@72", "verse@8, chorus@40"]
+
+[[example]]
+plan = "§4.2 (text in any script)"
+query = "副歌 THEN 主歌"
+fixture = "scripts"
+rows = ["副歌@10 | 主歌@20"]
+
+[[example]]
+plan = "§4.2 (text in any script)"
+query = "STRASSE"
+fixture = "scripts"
+rows = ["Straße@30"]
+
+# ==========================================================================
+# §4.3, layer 1: labels and sequences in one lane
+# ==========================================================================
+
+[[example]]
+plan = "§4.3, layer 1"
+query = "verse+ THEN chorus IN form"
+fixture = "pop"
+rows = ["verse@8, verse@24 | chorus@40", "verse@56 | chorus@72", "verse@8 | chorus@40"]
+
+[[example]]
+plan = "§4.3, layer 1"
+query = "verse+ THEN @chorus IN form"
+fixture = "pop"
+rows = ["verse@8, verse@24 | [chorus@40]", "verse@56 | [chorus@72]", "verse@8 | [chorus@40]"]
+
+[[example]]
+plan = "§4.3, layer 1"
+query = '"chorus?" IN form'
+fixture = "pop"
+rows = ["chorus?@104"]
+
+[[example]]
+plan = "§4.3, layer 1"
+query = "G7 THEN C IN harmony"
+fixture = "harmony"
+rows = ["V7@1 | I@2", "V65@3 | I@4", "V7@9 | I@10"]
+why = "chord symbols are absolute: G7 then C in C major and in C minor; not Bb7 then Eb"
+
+[[example]]
+plan = "§4.3, layer 1"
+query = "V7 THEN I IN harmony"
+fixture = "harmony"
+rows = ["V7@1 | I@2", "V65@3 | I@4", "V7@9 | I@10", "V7@17 | I@18"]
+why = "Roman numerals are read in the key in force, and V7 takes every inversion"
+
+# ==========================================================================
+# §4.3, layer 2: conditions and positions
+# ==========================================================================
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "* IN form WHERE level = 2"
+fixture = "pop"
+rows = ["A@8", "A@56"]
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "* IN markers WHERE time > 1:30"
+fixture = "sonata"
+rows = ["HC@92", "fermata@96", "HC@128", "fermata@150", "PAC@157"]
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "* IN harmony WHERE inversion = 1"
+fixture = "harmony"
+rows = ["V65@3"]
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "V7[inversion = 0] THEN I IN harmony"
+fixture = "harmony"
+rows = ["V7@1 | I@2", "V7@9 | I@10", "V7@17 | I@18"]
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "V65 THEN I IN harmony"
+fixture = "harmony"
+rows = ["V65@3 | I@4"]
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "[color = pink] THEN bridge IN form"
+fixture = "pop"
+rows = ["chorus@72 | bridge@88"]
+
+[[example]]
+plan = "§4.3, layer 2"
+query = 'bridge IN form WHERE author = "Trevor de Clercq"'
+fixture = "strophic"
+rows = ["bridge@64"]
+
+[[example]]
+plan = "§4.3, layer 2"
+query = 'V7[key = "c"] THEN I IN harmony WHERE file.composer = "Mozart"'
+fixture = "harmony"
+rows = ["V7@9 | I@10"]
+why = "the V7 in C minor, and the Picardy third after it"
+
+[[example]]
+plan = "§4.3, layer 2"
+query = '* IN keys WHERE key = "Eb"'
+fixture = "harmony"
+rows = ["Eb@16"]
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "Transition[bar = 1..60] IN form"
+fixture = "sonata"
+rows = ["Transition@64"]
+why = "it starts in bar 17"
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "PAC[downbeat] IN cadences"
+fixture = "sonata"
+rows = ["PAC@60"]
+why = "the PAC in bar 40 arrives on beat 2"
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "*[bar = 12..16 AND pass = 2] IN form"
+fixture = "repeat"
+rows = ["b2@76"]
+why = "b2 starts in bar 12 both times through; only the second time is pass 2"
+
+[[example]]
+plan = "§4.3, layer 2"
+query = "chorus[start >= 50%] IN form"
+fixture = "pop"
+rows = ["chorus@72", "chorus@104", "chorus?@104"]
+why = "the second half starts at 64 s; analyst B's uncertain chorus counts as a chorus"
+
+# ==========================================================================
+# §4.3, layer 3: relations between timelines, NOT and $n
+# ==========================================================================
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "PAC IN cadences DURING ST IN form"
+fixture = "exposition"
+rows = ["PAC@21.5 | ST@10"]
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "ST IN form CONTAINS PAC IN cadences"
+fixture = "exposition"
+rows = ["ST@10 | PAC@21.5"]
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "ST IN form NOT CONTAINS PAC IN cadences"
+fixture = "exposition"
+rows = []
+why = "the only ST has a PAC"
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "ST IN form ENDS WITH PAC IN cadences"
+fixture = "exposition"
+rows = ["ST@10 | PAC@21.5"]
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "* IN cadences ENDS ST IN form"
+fixture = "exposition"
+rows = ["PAC@21.5 | ST@10"]
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "solo IN ranges OVERLAPS bridge IN form"
+fixture = "pop"
+rows = ["solo@92 | bridge@88", "solo@92 | bridge@88"]
+why = "both analysts' bridges; the other solo plays over a chorus"
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "* IN keys SAME START ST IN form"
+fixture = "sonata"
+rows = ["G@96 | ST@96"]
+
+[[example]]
+plan = "§4.3, layer 3"
+query = '* IN "Form (A)" SAME END * IN "Form (B)"'
+fixture = "pop"
+rows = [
+  "intro@0 | intro@0",
+  "verse@24 | verse@8",
+  "chorus@40 | chorus@40",
+  "A@8 | chorus@40",
+  "verse@56 | verse@56",
+  "chorus@72 | refrain@72",
+  "A@56 | refrain@72",
+  "bridge@88 | bridge@88",
+  "chorus@104 | chorus?@104",
+  "outro@120 | bridge@120",
+]
+why = "every level of A against every level of B; B hears the first two verses as one"
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "fermata IN markers SAME END * IN form"
+fixture = "sonata"
+rows = ["fermata@96 | Transition@64"]
+
+[[example]]
+plan = "§4.3, layer 3"
+query = '* IN "Form (A)" SAME * IN "Form (B)"'
+fixture = "pop"
+rows = [
+  "intro@0 | intro@0",
+  "chorus@40 | chorus@40",
+  "verse@56 | verse@56",
+  "chorus@72 | refrain@72",
+  "bridge@88 | bridge@88",
+  "chorus@104 | chorus?@104",
+  "outro@120 | bridge@120",
+]
+
+[[example]]
+plan = "§4.3, layer 3"
+query = '* IN "Form (A)" SAME * IN "Form (B)" WHERE $1.label != $2.label'
+fixture = "pop"
+rows = ["chorus@72 | refrain@72", "chorus@104 | chorus?@104", "outro@120 | bridge@120"]
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "HC IN cadences BEFORE PAC IN cadences WITHIN 8 bars"
+fixture = "sonata"
+rows = ["HC@128 | PAC@157"]
+why = "7.25 bars apart; the HC in bar 24 is 16.25 bars before that PAC"
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "solo IN ranges AFTER verse IN form WITHIN 2 bars"
+fixture = "pop"
+rows = ["solo@76 | verse@56", "solo@76 | verse@56"]
+why = "a bar after both analysts' third verse; the other solo comes five bars after it"
+
+[[example]]
+plan = "§4.3, layer 3"
+query = "* IN keys CONTAINS ST IN form"
+fixture = "sonata"
+rows = ["G@96 | ST@96"]
+why = "G major lasts from ST's start to the end of the piece"
+
+# ==========================================================================
+# §4.3, layer 4: structure
+# ==========================================================================
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "sentence[presentation THEN continuation] IN form"
+fixture = "sonata"
+rows = ["sentence@0"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "* THEN *[continuation{2}] IN form"
+fixture = "exposition"
+rows = ["TR@8 | ST@10"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "TR THEN ST[continuation{2}] IN form"
+fixture = "exposition"
+rows = ["TR@8 | ST@10"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "TR THEN ST[CONSISTS OF presentation THEN continuation{2}] IN form"
+fixture = "exposition"
+rows = ["TR@8 | ST@10"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "TR[ENDS WITH HC IN cadences] THEN ST[continuation{2}] IN form"
+fixture = "exposition"
+rows = ["TR@8 | ST@10"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "MT[STARTS WITH presentation] IN form"
+fixture = "exposition"
+rows = ["MT@0"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "ST[NOT continuation] IN form"
+fixture = "exposition"
+rows = []
+why = "ST has continuations among its children"
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "continuation[parent = ST] IN form"
+fixture = "exposition"
+rows = ["continuation@14", "continuation@18"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "exposition[CONTAINS presentation] IN form"
+fixture = "exposition"
+rows = ["exposition@0"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "ST[CONTAINS HC THEN PAC IN cadences] IN form"
+fixture = "sonata"
+rows = ["ST@96"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "*[continuation[ENDS WITH cadential]] IN form"
+fixture = "sonata"
+rows = ["ST@96"]
+why = "a child continuation that ends with a cadential unit; the sentence's continuation has none"
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "STARTS WITH intro IN form"
+fixture = "pop"
+rows = ["intro@0", "intro@0"]
+why = "both analysts' lowest level"
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "ENDS WITH bridge IN form"
+fixture = "pop"
+rows = ["bridge@120"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "CONSISTS OF (verse THEN chorus){2} IN form"
+fixture = "strophic"
+rows = ["verse@0, chorus@16, verse@32, chorus@48"]
+why = "Temperley's reading; de Clercq's ends with a bridge"
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "(verse THEN chorus)+ THEN bridge IN form"
+fixture = "pop"
+rows = ["verse@24, chorus@40, verse@56, chorus@72 | bridge@88"]
+
+[[example]]
+plan = "§4.3, layer 4"
+query = "(verse THEN chorus) OR (verse THEN bridge) IN form"
+fixture = "pop"
+rows = ["verse@24, chorus@40", "verse@56, chorus@72", "verse@8, chorus@40"]
+
+# ==========================================================================
+# §4.3, layer 5: actions
+# ==========================================================================
+
+[[example]]
+plan = "§4.3, layer 5"
+query = 'WHERE tl.name ~ /^Form \((.+)\)$/ -> SET tl.role = "form", tl.author = "\1"'
+fixture = "recipe"
+rows = ["Form (de Clercq)", "Form (Covach)"]
+writes = [
+  "Form (de Clercq): role = form",
+  "Form (de Clercq): author = de Clercq",
+  "Form (Covach): role = form",
+  "Form (Covach): author = Covach",
+]
+core_only = true
+
+[[example]]
+plan = "§4.3, layer 5"
+query = '"I:PAC" IN cadences -> SET label = "PAC"'
+fixture = "recipe"
+rows = ["I:PAC@4", "I:PAC@11"]
+writes = ["I:PAC@4: label = PAC", "I:PAC@11: label = PAC"]
+
+[[example]]
+plan = "§4.3, layer 5"
+query = '* THEN @bridge THEN * IN form -> TAG "inner"'
+fixture = "pop"
+rows = ["chorus@72 | [bridge@88] | chorus@104", "refrain@72 | [bridge@88] | chorus?@104"]
+writes = ["bridge@88: tag inner", "bridge@88: tag inner"]
+why = "the bridges between two units, not their neighbours; B's closing bridge has none after it"
+
+# ==========================================================================
+# §4.6: writing
+# ==========================================================================
+
+[[example]]
+plan = "§4.6"
+query = 'verse+ THEN chorus IN form -> GROUP AS "A"'
+fixture = "pop"
+rows = ["verse@8, verse@24 | chorus@40", "verse@56 | chorus@72", "verse@8 | chorus@40"]
+writes = ["+ A@8..56 level 2"]
+why = "analyst A already groups both runs as A; B's run gets a parent"
+
+[[example]]
+plan = "§4.6"
+query = 'ST[ENDS WITH PAC IN cadences] IN form -> TAG "pac-closed"'
+fixture = "exposition"
+rows = ["ST@10"]
+writes = ["ST@10: tag pac-closed"]
+
+[[example]]
+plan = "§4.6"
+query = '* IN cadences ENDS ST IN form -> TAG "closes-st"'
+fixture = "exposition"
+rows = ["PAC@21.5 | ST@10"]
+writes = ["PAC@21.5: tag closes-st"]
+
+[[example]]
+plan = "§4.6"
+query = '* IN "Form (A)" SAME * IN "Form (B)" WHERE $1.label != $2.label -> TAG $0 "disagree"'
+fixture = "pop"
+rows = ["chorus@72 | refrain@72", "chorus@104 | chorus?@104", "outro@120 | bridge@120"]
+writes = [
+  "chorus@72: tag disagree", "refrain@72: tag disagree",
+  "chorus@104: tag disagree", "chorus?@104: tag disagree",
+  "outro@120: tag disagree", "bridge@120: tag disagree",
+]
