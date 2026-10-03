@@ -1,0 +1,121 @@
+"""A stand-in for the core that answers from JSON files, for tests."""
+
+from __future__ import annotations
+
+import copy
+import json
+import threading
+from pathlib import Path
+from typing import Any
+
+from tilia_library.backend import QueryError
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def _load(name: str) -> Any:
+    return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+
+
+class FixtureBackend:
+    """Implements every Backend method from the files in ``fixtures/``."""
+
+    def __init__(self) -> None:
+        self._data: dict[str, Any] = {}
+
+    def _get(self, name: str) -> Any:
+        if name not in self._data:
+            self._data[name] = _load(name)
+        return copy.deepcopy(self._data[name])
+
+    def _by_id(self, name: str, file_id: str) -> Any:
+        data = self._get(name)
+        if file_id not in data:
+            raise KeyError(file_id)
+        return data[file_id]
+
+    def open_corpus(self, path: Path) -> object:
+        return Path(path).name
+
+    def generation(self, corpus: object) -> int:
+        return 1
+
+    def scan(self, corpus: object) -> dict:
+        return self._get("scan")
+
+    def reread(self, corpus: object, path: Path) -> dict:
+        return self._get("scan")
+
+    def files(self, corpus: object) -> list[dict]:
+        return self._get("files")
+
+    def file_detail(self, corpus: object, file_id: str) -> dict:
+        return self._by_id("file_detail", file_id)
+
+    def context(self, corpus: object, file_id: str, timeline_ids: list[str]) -> dict:
+        result = self._by_id("context", file_id)
+        if timeline_ids:
+            result["timelines"] = [
+                t for t in result["timelines"] if t["id"] in timeline_ids
+            ]
+        return result
+
+    def explain(self, text: str) -> str:
+        if "error" in text:
+            pos = text.index("error")
+            raise QueryError("unexpected word", pos, pos + len("error"))
+        return self._get("explain")["text"]
+
+    def run(
+        self,
+        corpus: object,
+        text: str,
+        *,
+        max_matches: int,
+        time_limit: float,
+        cancel: threading.Event,
+    ) -> dict:
+        result = self._get("run")
+        if cancel.is_set():
+            result["stopped"] = "cancelled"
+        return result
+
+    def query_sql(self, corpus: object, text: str) -> dict:
+        return self._get("query_sql")
+
+    def sql(
+        self,
+        corpus: object,
+        text: str,
+        *,
+        max_rows: int,
+        time_limit: float,
+        cancel: threading.Event,
+    ) -> dict:
+        result = self._get("sql")
+        if cancel.is_set():
+            result["stopped"] = "cancelled"
+        return result
+
+    def statistics(self, corpus: object, text: str, by: list[str]) -> dict:
+        return self._get("statistics")
+
+    def categories(self, corpus: object, fold: bool) -> dict:
+        return self._get("categories")
+
+    def plan(self, corpus: object, statement: str, skip_files: set[Path]) -> dict:
+        return self._get("plan")
+
+    def apply(
+        self, corpus: object, plan: dict, keys: set[str], skip_files: set[Path]
+    ) -> dict:
+        return self._get("apply")
+
+    def edit_log(self, corpus: object) -> list[dict]:
+        return self._get("edit_log")
+
+    def undo(self, corpus: object, entry: str, skip_files: set[Path]) -> dict:
+        return self._get("undo")
+
+    def media_of(self, corpus: object, file_id: str) -> dict:
+        return self._by_id("media_of", file_id)

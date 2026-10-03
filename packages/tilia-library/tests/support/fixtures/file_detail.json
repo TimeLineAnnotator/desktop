@@ -1,0 +1,8 @@
+{"f1": {"file_id": "f1", "name": "Überleitung.tla", "path": "corpus/Überleitung.tla",
+  "fields": {"title": "Überleitung", "composer": "μετάβαση"},
+  "timelines": [
+   {"id": "t1", "name": "Form", "kind": "hierarchy", "fields": {"levels": 2}},
+   {"id": "t2", "name": "Sections", "kind": "hierarchy", "fields": {"levels": 1}},
+   {"id": "t3", "name": "Notes", "kind": "marker", "fields": {}}]},
+ "f2": {"file_id": "f2", "name": "broken.tla", "path": "corpus/broken.tla", "fields": {}, "timelines": []},
+ "f3": {"file_id": "f3", "name": "offline.tla", "path": "corpus/offline.tla", "fields": {}, "timelines": []}}

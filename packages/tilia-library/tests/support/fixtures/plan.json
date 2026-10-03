@@ -1,0 +1,4 @@
+{"plan": [{"key": "k1", "file_id": "f1", "do": "write", "reason": "label matches",
+  "writes": [{"op": "set", "component_id": "u1", "timeline_id": "t1", "field": "label", "old": "Überleitung", "new": "Transition"}]}],
+ "skipped_files": [{"file_id": "f2", "reason": "unreadable"}],
+ "summary": "1 change in 1 file", "explain": "rename Überleitung", "warnings": [], "generation": 1}
