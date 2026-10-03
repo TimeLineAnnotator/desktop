@@ -105,7 +105,12 @@ jobs:
         name: packages
         path: dist/
 
+    # PyPI creates at most one new project per run from pending publishers, so
+    # a release that adds a new package can stop half-way; skipping the files
+    # PyPI already has lets the next run finish it.
     - uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        skip-existing: true
 
   verify:
     name: verify (${{ matrix.os }})
