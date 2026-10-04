@@ -102,7 +102,13 @@ def page(browser, entry_url):
 
 def run(page, text=STATEMENT):
     page.fill("#ql-box", text)
-    page.press("#ql-box", "Control+Enter")
+    # Cards from the previous query are already there, so wait for this
+    # query's answer; the page draws it before it hides "Stop".
+    with page.expect_response(
+        lambda r: r.request.method == "POST" and r.url.endswith("/ql")
+    ):
+        page.press("#ql-box", "Control+Enter")
+    page.wait_for_function("() => document.querySelector('#ql-stop').hidden")
     page.wait_for_selector(".ql-card")
 
 
