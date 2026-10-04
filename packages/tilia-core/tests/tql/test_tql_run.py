@@ -1,6 +1,7 @@
 """tql.run on sequence patterns: lanes, literals, results, rows and keys."""
 
 import sqlite3
+import threading
 
 import examples
 import fixture_index
@@ -332,7 +333,7 @@ class TestRun:
 
     def test_time_limit_and_cancel_are_accepted(self):
         index = index_of("exposition")
-        got = tql.run(index, "* IN form", time_limit=5.0, cancel=lambda: False)
+        got = tql.run(index, "* IN form", time_limit=5.0, cancel=threading.Event())
         assert len(got.matches) == 9
 
     def test_matches_are_ordered_by_file_then_start(self):
