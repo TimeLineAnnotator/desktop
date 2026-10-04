@@ -7,6 +7,7 @@ import fixture_index
 import pytest
 
 from tilia_core import tql
+from tilia_core.tql import readonly
 
 QUERY = "a THEN b IN form"
 
@@ -43,6 +44,38 @@ def full(big_index):
 
 def keys(result):
     return [m.key for m in result.matches]
+
+
+class SteppingClock:
+    """Stands in for the ``time`` module that the limits read: each read moves
+    the clock on by 1 ms, so a time limit falls at a known point of the run on
+    any machine. A full run of ``QUERY`` on ``big_index`` reads it about 2,000
+    times."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        self.now += 0.001
+        return self.now
+
+
+class PausingEvent(threading.Event):
+    """A cancel event that holds the run at its ``n``-th check until another
+    thread has set it, so the cancel lands mid-run on any machine."""
+
+    def __init__(self, n: int) -> None:
+        super().__init__()
+        self.n = n
+        self.checks = 0
+        self.paused = threading.Event()
+
+    def is_set(self) -> bool:
+        self.checks += 1
+        if self.checks == self.n:
+            self.paused.set()
+            self.wait(10)
+        return super().is_set()
 
 
 class TestNoLimitByDefault:
@@ -85,12 +118,11 @@ class TestMaxMatches:
 
 
 class TestTimeLimit:
-    def test_stops_with_the_matches_so_far(self, big_index, full):
-        start = time.monotonic()
-        got = tql.run(big_index, QUERY, time_limit=0.1)
-        assert time.monotonic() - start < 1.5
+    def test_stops_with_the_matches_so_far(self, big_index, full, monkeypatch):
+        monkeypatch.setattr(readonly, "time", SteppingClock())
+        got = tql.run(big_index, QUERY, time_limit=1.0)
         assert got.stopped == "time_limit"
-        assert len(got.matches) == len(got.rows) < len(full.matches)
+        assert 0 < len(got.matches) == len(got.rows) < len(full.matches)
         assert keys(got) == keys(full)[: len(got.matches)]
 
     def test_a_zero_limit_stops_at_once(self, big_index):
@@ -131,17 +163,19 @@ class TestCancel:
         assert got.stopped is None and keys(got) == keys(full)
 
     def test_set_from_another_thread_during_a_long_run(self, big_index, full):
-        cancel = threading.Event()
-        timer = threading.Timer(0.15, cancel.set)
-        timer.start()
-        start = time.monotonic()
-        try:
-            got = tql.run(big_index, QUERY, cancel=cancel)
-        finally:
-            timer.cancel()
-        assert time.monotonic() - start < 1.8
+        cancel = PausingEvent(1000)
+
+        def cancel_once_paused() -> None:
+            if cancel.paused.wait(10):
+                cancel.set()
+
+        other = threading.Thread(target=cancel_once_paused)
+        other.start()
+        got = tql.run(big_index, QUERY, cancel=cancel)
+        other.join(10)
+        assert cancel.paused.is_set()
         assert got.stopped == "cancelled"
-        assert len(got.matches) == len(got.rows) < len(full.matches)
+        assert 0 < len(got.matches) == len(got.rows) < len(full.matches)
         assert keys(got) == keys(full)[: len(got.matches)]
 
     def test_a_cancelled_run_leaves_the_index_usable(self, big_index, full):
