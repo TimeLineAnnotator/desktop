@@ -11,7 +11,7 @@ import os
 import re
 import threading
 import unicodedata
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -219,9 +219,15 @@ class Corpora:
 class CorpusHandles:
     """The core's handle on each corpus opened in this run, opened on first use."""
 
-    def __init__(self, backend: Backend, corpora: Corpora) -> None:
+    def __init__(
+        self,
+        backend: Backend,
+        corpora: Corpora,
+        on_open: Callable[[str, Corpus, object], None] | None = None,
+    ) -> None:
         self._backend = backend
         self._corpora = corpora
+        self._on_open = on_open
         self._handles: dict[str, object] = {}
         self._lock = threading.Lock()
 
@@ -231,6 +237,10 @@ class CorpusHandles:
         if corpus is None:
             raise KeyError(cid)
         with self._lock:
-            if cid not in self._handles:
+            opened = cid not in self._handles
+            if opened:
                 self._handles[cid] = self._backend.open_corpus(corpus.path)
-            return corpus, self._handles[cid]
+            handle = self._handles[cid]
+        if opened and self._on_open is not None:
+            self._on_open(cid, corpus, handle)
+        return corpus, handle

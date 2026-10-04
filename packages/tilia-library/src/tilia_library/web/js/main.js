@@ -1,5 +1,6 @@
 import { CORPUS, bootLibrary } from './corpus.js';
 import { loadFiles } from './files.js';
+import { startPolling } from './liveness.js';
 import { qa } from './lib/dom.js';
 import { notAvailable, panelSection, showPanel, urlPanel } from './panels.js';
 import { errMsg, setStatus } from './util.js';
@@ -17,7 +18,10 @@ for (const name of ["query", "categories", "statistics", "edit-log"]) {
 }
 
 bootLibrary().then(() => {
-  if (CORPUS) openPanel(urlPanel());
+  if (CORPUS) {
+    openPanel(urlPanel());
+    startPolling();
+  }
 }).catch(e => setStatus(errMsg(0, { error: String(e) }), "error"));
 
 window.__bootOk = true;
