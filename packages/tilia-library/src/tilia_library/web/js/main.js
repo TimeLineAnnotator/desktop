@@ -1,4 +1,5 @@
 import { CORPUS, bootLibrary } from './corpus.js';
+import { loadEditLog } from './edit-log.js';
 import { loadFiles } from './files.js';
 import { startPolling } from './liveness.js';
 import { qa } from './lib/dom.js';
@@ -12,14 +13,13 @@ function openPanel(name) {
   if (name === "files") loadFiles().catch(e => setStatus(String(e), "error"));
   if (name === "query") loadQuery();
   if (name === "statistics") loadStatistics();
+  if (name === "edit-log") loadEditLog().catch(e => setStatus(String(e), "error"));
 }
 
 for (const tab of qa(document, "#tabs button")) {
   tab.addEventListener("click", () => openPanel(tab.dataset.panel));
 }
-for (const name of ["categories", "edit-log"]) {
-  notAvailable(panelSection(name), "a later version of TiLiA Library");
-}
+notAvailable(panelSection("categories"), "a later version of TiLiA Library");
 
 bootLibrary().then(() => {
   if (CORPUS) {
