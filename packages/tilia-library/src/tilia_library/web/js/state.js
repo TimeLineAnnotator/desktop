@@ -20,6 +20,8 @@ export const query = {
   expanded: new Set(),   // file ids whose cards show every match line
   contexts: new Map(),   // "<file id>|<timeline ids>" -> promise of the /api/ql-context answer
   contextsGeneration: null,  // the generation `contexts` was filled at
+  sortCol: null,         // the table column its rows are sorted by, or null for the server's order
+  sortDir: 1,            // 1 ascending, -1 descending
 };
 
 // The query panel's bulk edit (`query -> ACTION`).
