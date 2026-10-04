@@ -14,14 +14,27 @@ Shapes returned:
   "timelines": {"count": int, "kinds": {"hierarchy": 2, ...}}}]
 - file_detail: {"file_id", "name", "path", "fields",
   "timelines": [{"id", "name", "kind", "fields": {...}}]}
-- context: {"file_id", "timelines": [{"id", "name", "kind",
-  "units": [{"id", "start", "end", "label"}]}]}
-- run: {"rows": [{"file_id", "path", "start", "end", "match_start",
-  "match_end", ...}], "count", "total", "truncated", "files", "explain",
-  "warnings": [...], "sql", "stopped": null | "max_matches" | "time_limit" |
-  "cancelled", "generation"}
+- context: {"file_id", "name", "end": float or null, "timelines": [{"id",
+  "name", "kind", "rows": {"<level>": "<row name>"}, "components":
+  [{"component_id", "level", "start", "end", "label", "color", "point"}]}]}
+  (the units of the named timelines, one strip row per level: hierarchy
+  levels, range rows, a marker lane; for the cards' strips)
+- run: {"columns": [str], "rows": [{<column>: value}], "matches": [{"key",
+  "file_id", "name", "start", "end", "match_start", "match_end", "lane":
+  {"timeline_id", "timeline", "kind", "level", "row"} or null, "slots":
+  [[{"component_id", "timeline_id", "timeline", "label", "start", "end",
+  "level", "kind", "target"}]], "timelines": [ids]}], "files": int, "grain":
+  "match" | "timeline" | "file", "slots": int, "target": bool, "explain": str,
+  "warnings": [str], "action": str or null, "action_error": {"error", "pos",
+  "end"} or null, "stopped": null | "max_matches" | "time_limit" |
+  "cancelled", "generation": int}. ``rows`` is the result table, one row per
+  match, keyed by ``columns`` (TQL's columns: file, title, timeline, lane,
+  ids, label, start, end, bar, beat, $1.label, ...; a WHERE-only query lists
+  timelines or files with its own columns); ``matches[i]`` is what the cards
+  draw for ``rows[i]``. Times are seconds (float).
 - query_sql: {"sql", "notes": [...]}
-- sql: {"columns": [...], "rows": [[...]], "stopped", "generation"}
+- sql: {"columns": [str], "rows": [[value]], "stopped", "generation"};
+  raises ``SqlError``
 - statistics: {"generation", "tables": [{"name", "title", "columns", "rows"}]}
 - categories: {"generation", "categories": [{"category", "group", "n"}]}
 - plan: {"plan": [{"key", "file_id", "do", "reason", "writes": [{"op",
@@ -64,6 +77,14 @@ class QueryError(Exception):
         self.msg = msg
         self.pos = pos
         self.end = end
+
+
+class SqlError(Exception):
+    """A SQL statement the core refuses, or SQLite's own error."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
 class Backend(Protocol):

@@ -14,6 +14,15 @@ from tilia_library.corpora import Corpora
 from tilia_library.liveness import Liveness
 from tilia_library.server import LibraryServer
 
+# The fixture corpus's counts, read from the fixture so that adding a file to it
+# doesn't break these tests.
+_ROWS = FixtureBackend().files(None)
+FIXTURE_COUNTS = (
+    len(_ROWS),
+    sum(r["state"] == "unreadable" for r in _ROWS),
+    sum(r["state"] == "unavailable" for r in _ROWS),
+)
+
 
 class FakeClock:
     def __init__(self) -> None:
@@ -159,7 +168,7 @@ def test_state_before_the_first_scan(liveness, corpus):
     assert state["scanning"] is False
     assert state["last_scan"] is None
     assert state["available"] is True
-    assert (state["files"], state["unreadable"], state["unavailable"]) == (3, 1, 1)
+    assert (state["files"], state["unreadable"], state["unavailable"]) == FIXTURE_COUNTS
 
 
 def test_state_is_a_copy(liveness, corpus):
@@ -291,7 +300,7 @@ def test_state_route(served, backend, liveness, clock, corpus):
     status, data = _call(served, "GET", f"/api/{cid}/state")
     assert status == 200
     assert data["generation"] == 1
-    assert data["files"] == 3
+    assert data["files"] == FIXTURE_COUNTS[0]
     status, _ = _call(served, "POST", f"/api/{cid}/rescan", {})
     assert status == 202
     liveness.tick()
@@ -344,4 +353,8 @@ def test_library_counts(served, corpus):
     _call(served, "GET", f"/api/{corpus.id}/files")
     _, after = _call(served, "GET", "/api/library")
     listed = after["corpora"][0]
-    assert (listed["files"], listed["unreadable"], listed["unavailable"]) == (3, 1, 1)
+    assert (
+        listed["files"],
+        listed["unreadable"],
+        listed["unavailable"],
+    ) == FIXTURE_COUNTS

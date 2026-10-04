@@ -7,3 +7,17 @@ export const files = {
   expanded: new Set(),   // file ids whose timelines are shown
   details: new Map(),    // file id -> the answer of /api/files/<file_id>
 };
+
+// The query panel's state.
+export const query = {
+  tab: typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,  // one id per page load
+  seq: 0,                // the newest request; an older answer is dropped
+  pending: 0,            // requests that are out
+  result: null,          // the last successful /api/ql answer
+  restored: false,       // the remembered text has been put back
+  expanded: new Set(),   // file ids whose cards show every match line
+  contexts: new Map(),   // "<file id>|<timeline ids>" -> promise of the /api/ql-context answer
+  contextsGeneration: null,  // the generation `contexts` was filled at
+};

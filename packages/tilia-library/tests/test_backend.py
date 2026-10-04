@@ -48,7 +48,7 @@ def call(backend, name, cancel=None):
     }
     kwargs = {
         "run": ((corpus, "hello"), dict(max_matches=10, time_limit=1.0, cancel=cancel)),
-        "sql": ((corpus, "hello"), dict(max_rows=10, time_limit=1.0, cancel=cancel)),
+        "sql": ((corpus, "select 1"), dict(max_rows=10, time_limit=1.0, cancel=cancel)),
     }
     if name in kwargs:
         a, k = kwargs[name]
@@ -146,8 +146,8 @@ def test_fixture_shapes():
     }
     assert set(b.reread(corpus, Path("a.tla"))) == keys(b.scan(corpus))
     files = b.files(corpus)
-    assert [f["state"] for f in files] == ["ok", "unreadable", "unavailable"]
-    assert files[1]["reason"].startswith("line 12")
+    assert [f["state"] for f in files] == ["ok", "ok", "unreadable", "unavailable"]
+    assert files[2]["reason"].startswith("line 12")
     for f in files:
         assert keys(f) == {
             "file_id",
@@ -163,36 +163,51 @@ def test_fixture_shapes():
     assert keys(detail) == {"file_id", "name", "path", "fields", "timelines"}
     assert keys(detail["timelines"][0]) == {"id", "name", "kind", "fields"}
     ctx = b.context(corpus, "f1", [])
-    assert keys(ctx) == {"file_id", "timelines"}
-    assert keys(ctx["timelines"][0]["units"][0]) == {"id", "start", "end", "label"}
+    assert keys(ctx) == {"file_id", "name", "end", "timelines"}
+    assert keys(ctx["timelines"][0]["components"][0]) == {
+        "component_id",
+        "level",
+        "start",
+        "end",
+        "label",
+        "color",
+        "point",
+    }
     assert [t["id"] for t in b.context(corpus, "f1", ["t2"])["timelines"]] == ["t2"]
-    labels = {u["label"] for t in ctx["timelines"] for u in t["units"]}
+    labels = {u["label"] for t in ctx["timelines"] for u in t["components"]}
     assert {"Überleitung", "transição", "μετάβαση", "过渡", "מעבר", "🎵"} <= labels
     ev = threading.Event()
     run = b.run(corpus, "q", max_matches=5, time_limit=1, cancel=ev)
     assert keys(run) == {
+        "columns",
         "rows",
-        "count",
-        "total",
-        "truncated",
+        "matches",
         "files",
+        "grain",
+        "slots",
+        "target",
         "explain",
         "warnings",
-        "sql",
+        "action",
+        "action_error",
         "stopped",
         "generation",
     }
     assert run["stopped"] is None
-    assert keys(run["rows"][0]) >= {
+    assert keys(run["matches"][0]) == {
+        "key",
         "file_id",
-        "path",
+        "name",
         "start",
         "end",
         "match_start",
         "match_end",
+        "lane",
+        "slots",
+        "timelines",
     }
     assert keys(b.query_sql(corpus, "q")) == {"sql", "notes"}
-    sql = b.sql(corpus, "q", max_rows=5, time_limit=1, cancel=ev)
+    sql = b.sql(corpus, "select 1", max_rows=5, time_limit=1, cancel=ev)
     assert keys(sql) == {"columns", "rows", "stopped", "generation"}
     stats = b.statistics(corpus, "q", [])
     assert keys(stats) == {"generation", "tables"}

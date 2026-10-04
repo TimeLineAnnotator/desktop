@@ -1,3 +1,4 @@
 {"f1": {"kind": "local", "path": "corpus/audio.wav", "youtube_id": null, "length": 12.0, "reason": null},
+ "f4": {"kind": "local", "path": "corpus/perekhod.wav", "youtube_id": null, "length": 10.0, "reason": null},
  "f2": {"kind": "none", "path": null, "youtube_id": null, "length": null, "reason": "the file is unreadable"},
  "f3": {"kind": "youtube", "path": null, "youtube_id": "dQw4w9WgXcQ", "length": null, "reason": null}}

@@ -8,13 +8,20 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from tilia_library.backend import QueryError
+from tilia_library.backend import QueryError, SqlError
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def _load(name: str) -> Any:
     return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def _raise_on_error_word(text: str) -> None:
+    """Refuse a text with the word "error", pointing at it (in code points)."""
+    if "error" in text:
+        pos = text.index("error")
+        raise QueryError("unexpected word", pos, pos + len("error"))
 
 
 class FixtureBackend:
@@ -61,9 +68,7 @@ class FixtureBackend:
         return result
 
     def explain(self, text: str) -> str:
-        if "error" in text:
-            pos = text.index("error")
-            raise QueryError("unexpected word", pos, pos + len("error"))
+        _raise_on_error_word(text)
         return self._get("explain")["text"]
 
     def run(
@@ -75,12 +80,14 @@ class FixtureBackend:
         time_limit: float,
         cancel: threading.Event,
     ) -> dict:
+        _raise_on_error_word(text)
         result = self._get("run")
         if cancel.is_set():
             result["stopped"] = "cancelled"
         return result
 
     def query_sql(self, corpus: object, text: str) -> dict:
+        _raise_on_error_word(text)
         return self._get("query_sql")
 
     def sql(
@@ -92,6 +99,8 @@ class FixtureBackend:
         time_limit: float,
         cancel: threading.Event,
     ) -> dict:
+        if not text.strip().lower().startswith(("select", "with")):
+            raise SqlError("only SELECT statements can run here")
         result = self._get("sql")
         if cancel.is_set():
             result["stopped"] = "cancelled"

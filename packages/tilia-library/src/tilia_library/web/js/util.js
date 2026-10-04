@@ -20,3 +20,11 @@ export function errMsg(status, data) {
   }
   return `HTTP ${status}`;
 }
+
+/** Seconds as m:ss, for display only: 65.4 is "1:05". */
+export function mmss(seconds) {
+  const s = Number(seconds);
+  if (!isFinite(s)) return "";
+  const m = Math.floor(s / 60), ss = Math.floor(s % 60);
+  return `${m}:${String(ss).padStart(2, "0")}`;
+}

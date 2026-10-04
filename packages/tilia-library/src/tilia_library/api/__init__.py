@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tilia_library.api import files, library
+from tilia_library.api import files, library, query
 from tilia_library.api import liveness as liveness_api
 from tilia_library.corpora import Corpora, CorpusHandles
 from tilia_library.liveness import Liveness
@@ -23,4 +23,5 @@ def register_all(
     library.register(server, corpora, liveness=liveness)
     files.register(server, corpora, handles)
     liveness_api.register(server, corpora, handles, liveness)
+    query.register(server, corpora, handles)
     return handles

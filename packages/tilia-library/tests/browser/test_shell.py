@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -14,6 +15,12 @@ from serve_fixtures import make_corpora  # noqa: E402
 
 from tilia_library.api import register_all  # noqa: E402
 from tilia_library.server import LibraryServer  # noqa: E402
+
+FILES = json.loads(
+    (Path(__file__).resolve().parents[1] / "support/fixtures/files.json").read_text(
+        encoding="utf8"
+    )
+)
 
 
 @pytest.fixture
@@ -63,8 +70,8 @@ def test_picker(page):
 
 
 def test_files_table(page):
-    assert page.inner_text("#files-count") == "3 files"
-    assert names(page) == ["Überleitung.tla", "broken.tla", "offline.tla"]
+    assert page.inner_text("#files-count") == f"{len(FILES)} files"
+    assert names(page) == [f["name"] for f in FILES]
     body = page.inner_text("tbody")
     for label in ("μετάβαση", "过渡", "מעבר", "can't read"):
         assert label in body
@@ -76,15 +83,16 @@ def test_sort_filter_expand(page):
     page.click("th[data-sort=name]")
     assert names(page) == first[::-1]
     page.fill("#files-filter", "מעבר")
-    assert page.inner_text("#files-count") == "1 of 3 files"
+    assert page.inner_text("#files-count") == f"1 of {len(FILES)} files"
     page.click("button.expand")
+    page.wait_for_selector("tr.detail tbody tr")
     assert page.locator("tr.detail tbody tr").count() == 3
     assert "hierarchy" in page.inner_text("tr.detail")
 
 
 def test_query_tab_and_remove(page):
     page.click("#tabs button[data-panel=query]")
-    assert "Not available yet" in page.inner_text("section[data-panel=query]")
+    assert page.is_visible("#ql-box")
     page.once("dialog", lambda d: d.accept())
     page.click("#corpus-remove")
     page.wait_for_function(
