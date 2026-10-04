@@ -22,12 +22,12 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, unquote
 
+from tilia_core.library_link import PROTOCOL
 from tilia_library import security
 from tilia_library.backend import Backend, NotAvailable
 
 logger = logging.getLogger(__name__)
 
-PROTOCOL = 1  # the version of the library's HTTP API (the core will own this later)
 MAX_BODY = 16 * 1024 * 1024
 
 Handler = Callable[["Request"], "Response"]
