@@ -1,33 +1,11 @@
 # Examples tql.run can't run yet: one line `<n>: <reason>` each (the test marks them xfail, strict).
-1: bracket conditions or children
-2: bracket conditions or children
-3: bracket conditions or children
-4: bracket conditions or children
-5: bracket conditions or children
-6: bracket conditions or children
-7: bracket conditions or children
-8: bracket conditions or children
-9: bracket conditions or children
-10: bracket conditions or children
-11: relation between two units
-12: relation between two units
-13: bracket conditions or children
-14: bracket conditions or children
-15: bracket conditions or children
-16: bracket conditions or children
-17: bracket conditions or children
-18: bracket conditions or children
-19: bracket conditions or children
-20: bracket conditions or children
-21: bracket conditions or children
-22: bracket conditions or children
-23: bracket conditions or children
-26: relation between two units
-27: relation between two units
-28: bracket conditions or children
+7: field comparisons in brackets
+26: WHERE
+27: WHERE
+28: chords and keys labels
 29: WHERE
-30: bracket conditions or children
-31: bracket conditions or children
+30: field comparisons in brackets
+31: field comparisons in brackets
 39: chords and keys labels
 40: chords and keys labels
 41: WHERE
@@ -35,40 +13,17 @@
 43: WHERE
 44: chords and keys labels
 45: chords and keys labels
-46: bracket conditions or children
+46: field comparisons in brackets
 47: WHERE
 48: WHERE
 49: WHERE
-50: bracket conditions or children
-51: bracket conditions or children
-52: bracket conditions or children
-53: bracket conditions or children
-54: relation between two units
-55: relation between two units
-56: relation between two units
-57: relation between two units
-58: relation between two units
-59: relation between two units
-60: relation between two units
-61: relation between two units
-62: relation between two units
-63: relation between two units
-64: relation between two units
-65: relation between two units
-66: relation between two units
-67: relation between two units
-68: bracket conditions or children
-69: bracket conditions or children
-70: bracket conditions or children
-71: bracket conditions or children
-72: bracket conditions or children
-73: bracket conditions or children
-74: bracket conditions or children
-75: bracket conditions or children
-76: bracket conditions or children
-77: bracket conditions or children
-78: bracket conditions or children
+50: field comparisons in brackets
+51: field comparisons in brackets
+52: field comparisons in brackets
+53: field comparisons in brackets
+64: WHERE
+65: WITHIN in bars
+66: WITHIN in bars
+75: field comparisons in brackets
 84: WHERE
-88: bracket conditions or children
-89: relation between two units
-90: relation between two units
+90: WHERE

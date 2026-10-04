@@ -1,9 +1,10 @@
-"""Turn the parts of a TQL sequence pattern into SQL and lanes.
+"""Turn the parts of a TQL pattern into SQL and lanes.
 
 Two jobs: :func:`resolve_lanes` says which lanes of a file an ``IN`` clause
 names, and :func:`candidate_statement` writes the SELECT that finds the
-components fitting one ``Unit`` of the query. Python builds the lanes and walks
-them; SQL only picks each unit's candidates.
+components fitting one ``Unit`` of the query: its label and the timing
+relations in its brackets (as ``EXISTS``). Python builds the lanes and walks
+them, and tests the conditions SQL does not take (:mod:`.relations`).
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import fnmatch
 import sqlite3
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Iterable
 
 from tilia_core.labels import fold, nfc
 
@@ -177,9 +178,51 @@ def _role_lanes(
     return out
 
 
+def timeline_lanes(con: sqlite3.Connection, timeline_id: str) -> list[LaneSpec]:
+    """Every lane of one timeline."""
+    tl = con.execute(
+        "SELECT id, kind, name FROM timelines WHERE id = ?", (timeline_id,)
+    ).fetchone()
+    return [] if tl is None else _lanes_of(con, tl, None)
+
+
+def check_labels(specs: Iterable[LaneSpec], units: Iterable[syntax.Unit]) -> None:
+    """Raise NotImplementedError when ``units`` would be matched against the
+    chords or keys of ``specs`` by anything but ``*``: that is for the harmony
+    part."""
+    if any(s.kind in ("chord", "key") for s in specs) and not all(
+        is_wildcard(u) for u in units
+    ):
+        raise NotImplementedError(
+            "labels in chords and keys lanes are for the harmony part"
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Candidate statements
 # --------------------------------------------------------------------------- #
+Resolve = Callable[[syntax.Lane], "list[LaneSpec]"]
+
+
+class SqlBuilder:
+    """The parameters of one statement, in the order their ``?`` appear, and
+    the numbering that keeps the aliases of nested statements apart."""
+
+    def __init__(self, resolve: Resolve | None = None) -> None:
+        self.params: list[Any] = []
+        self.resolve = resolve
+        self._n = 0
+
+    def alias(self, prefix: str) -> str:
+        self._n += 1
+        return f"{prefix}{self._n}"
+
+    def lanes(self, lane: syntax.Lane) -> list[LaneSpec]:
+        if self.resolve is None:
+            raise NotImplementedError("a relation needs the lanes of its file")
+        return self.resolve(lane)
+
+
 def is_wildcard(unit: syntax.Unit) -> bool:
     """Whether ``unit`` is a plain ``*``, the one literal that fits a chord or
     a key until the harmony part lands."""
@@ -202,17 +245,17 @@ def _category_test(lit: syntax.Literal, alias: str, params: list[Any]) -> str:
     return f"({alias}.category = ? OR substr({alias}.category, 1, ?) = ?)"
 
 
-def _alt_sql(alt: syntax.Alt, n: int, params: list[Any]) -> str:
-    """One ``a/b/…``: every literal on the one component. Words need their own
-    category row each; the other literals test the label."""
+def _alt_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
+    """One ``a/b/…``: every literal on the one component ``comp``. Words need
+    their own category row each; the other literals test the label."""
     tests: list[str] = []
     words = [lit for lit in alt.lits if lit.kind == "word"]
-    aliases = [f"k{n}_{i}" for i in range(len(words))]
+    aliases = [f"k{comp}{n}_{i}" for i in range(len(words))]
     word_tests: list[str] = []
     for lit, alias in zip(words, aliases, strict=True):
         word_tests.append(_category_test(lit, alias, params))
     if words:
-        joins = " AND ".join(f"{a}.component_id = c.id" for a in aliases)
+        joins = " AND ".join(f"{a}.component_id = {comp}.id" for a in aliases)
         distinct = "".join(
             f" AND {a}.rowid <> {b}.rowid"
             for i, a in enumerate(aliases)
@@ -226,32 +269,103 @@ def _alt_sql(alt: syntax.Alt, n: int, params: list[Any]) -> str:
         )
     for lit in alt.lits:
         if lit.kind == "exact":
-            tests.append("COALESCE(trim(c.label), '') = ?")
+            tests.append(f"COALESCE(trim({comp}.label), '') = ?")
             params.append(nfc(lit.text))
         elif lit.kind == "regex":
-            tests.append("(c.label IS NOT NULL AND c.label REGEXP ?)")
+            tests.append(f"({comp}.label IS NOT NULL AND {comp}.label REGEXP ?)")
             params.append(lit.text)
         elif lit.kind == "any":
             tests.append("1")
     return "(" + " AND ".join(tests) + ")"
 
 
-def candidate_statement(unit: syntax.Unit, file_id: str) -> tuple[str, list[Any]]:
-    """``(sql, parameters)`` selecting the ids of the components of ``file_id``
-    that fit ``unit`` (tql.md §5), bound with ``?``."""
-    if unit.conds:
-        raise NotImplementedError(
-            "bracket conditions are not available yet (conditions)"
-        )
+def split_conds(unit: syntax.Unit) -> tuple[list[syntax.RelCond], list[syntax.Cond]]:
+    """The bracket conditions of ``unit`` that SQL tests (timing relations to
+    another lane, whose target SQL tests in full) and those Python tests."""
+    from . import relations  # relations imports this module
+
+    in_sql: list[syntax.RelCond] = []
+    in_python: list[syntax.Cond] = []
+    for cond in unit.conds:
+        if isinstance(cond, (syntax.Compare, syntax.Downbeat)):
+            raise NotImplementedError(
+                "field and position conditions in brackets are not available yet "
+                "(conditions)"
+            )
+        if isinstance(cond, syntax.RelCond) and relations.in_sql(cond.relation):
+            in_sql.append(cond)
+        else:
+            in_python.append(cond)
+    return in_sql, in_python
+
+
+def needs_python(unit: syntax.Unit) -> bool:
+    """Whether some bracket condition of ``unit`` is left to Python."""
+    return bool(split_conds(unit)[1])
+
+
+def lane_test(specs: list[LaneSpec], comp: str, bld: SqlBuilder) -> str:
+    """The test that component ``comp`` lies in one of the lanes ``specs``."""
+    groups: dict[tuple[str, str], list[LaneSpec]] = {}
+    for s in specs:
+        groups.setdefault((s.timeline_id, s.kind), []).append(s)
+    tests: list[str] = []
+    for (tid, kind), group in groups.items():
+        bld.params.extend((tid, kind))
+        test = f"{comp}.timeline_id = ? AND {comp}.kind = ?"
+        if kind == "hierarchy":
+            marks = ", ".join("?" for _ in group)
+            bld.params.extend(s.level for s in group)
+            test += (
+                " AND EXISTS (SELECT 1 FROM hierarchies h WHERE "
+                f"h.component_id = {comp}.id AND h.level IN ({marks}))"
+            )
+        elif kind == "range":
+            marks = ", ".join("?" for _ in group)
+            bld.params.extend(s.row_id for s in group)
+            test += (
+                " AND EXISTS (SELECT 1 FROM ranges r WHERE "
+                f"r.component_id = {comp}.id AND r.row_id IN ({marks}))"
+            )
+        tests.append(f"({test})")
+    return "(" + " OR ".join(tests) + ")" if tests else "0"
+
+
+def unit_test(unit: syntax.Unit, comp: str, bld: SqlBuilder) -> str:
+    """The test that component ``comp`` fits ``unit``: its label, and the timing
+    relations among its brackets as ``EXISTS``."""
+    from . import relations  # relations imports this module
+
+    in_sql, _ = split_conds(unit)
     term = unit.term
     if term is None:
+        test = "1"
+    else:
+        alts = [_alt_sql(alt, comp, n, bld.params) for n, alt in enumerate(term.alts)]
+        test = " OR ".join(alts)
+        if term.negate:
+            test = f"NOT ({test})"
+    if not in_sql:
+        return test
+    parts = [f"({test})"] + [
+        relations.exists_sql(c.relation, comp, bld) for c in in_sql
+    ]
+    return " AND ".join(parts)
+
+
+def candidate_statement(
+    unit: syntax.Unit, file_id: str, resolve: Resolve | None = None
+) -> tuple[str, list[Any]]:
+    """``(sql, parameters)`` selecting the ids of the components of ``file_id``
+    that fit ``unit`` (tql.md §5), bound with ``?``: its label and the timing
+    relations in its brackets. ``resolve`` names the lanes of an ``IN`` clause.
+    Conditions on fields are for a later part."""
+    if unit.term is None and not unit.conds:
         raise NotImplementedError(
             "a unit without a label is not available yet (conditions)"
         )
-    params: list[Any] = [file_id]
-    alts = [_alt_sql(alt, n, params) for n, alt in enumerate(term.alts)]
-    test = " OR ".join(alts)
-    if term.negate:
-        test = f"NOT ({test})"
+    bld = SqlBuilder(resolve)
+    bld.params.append(file_id)
+    test = unit_test(unit, "c", bld)
     sql = f"SELECT c.id FROM components c WHERE c.file_id = ? AND ({test})"
-    return sql, params
+    return sql, bld.params

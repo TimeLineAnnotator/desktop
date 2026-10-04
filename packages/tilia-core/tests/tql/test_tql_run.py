@@ -357,11 +357,9 @@ class TestRun:
     @pytest.mark.parametrize(
         "text",
         [
-            "PAC IN cadences DURING ST IN form",
             "WHERE tl.name ~ /^Form/",
             "verse THEN chorus IN form WITHIN 2 bars",
             "verse[level = 1] IN form",
-            "ST[continuation] IN form",
             "verse IN form WHERE level = 1",
         ],
     )
