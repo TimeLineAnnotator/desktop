@@ -345,7 +345,15 @@ class Log(Protocol):
 
     con: sqlite3.Connection
 
-    def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> list[Any]:
+    def execute(
+        self,
+        sql: str,
+        params: tuple[Any, ...] | list[Any] = (),
+        part: str | None = None,
+    ) -> list[Any]:
+        ...
+
+    def note(self, text: str) -> None:
         ...
 
 
@@ -399,8 +407,15 @@ class Scope:
     built from them, the hierarchy's parents, and the components each unit of
     the query fits. Everything is loaded when first asked for."""
 
-    def __init__(self, log: Log, file_id: str, time_map: Any = None) -> None:
+    def __init__(
+        self,
+        log: Log,
+        file_id: str,
+        time_map: Any = None,
+        labels: dict[int, str] | None = None,
+    ) -> None:
         self.log = log
+        self.labels = {} if labels is None else labels  # what each unit's SQL answers
         self.file_id = file_id
         self.time_map = time_map  # the file's, or None: see ``index.time_map``
         self._timelines: dict[str, list[Component]] = {}
@@ -579,9 +594,14 @@ class Scope:
         sql, params = tql_compile.candidate_statement(
             unit, self.file_id, self.lanes, self.time_map is not None
         )
-        ids = [r[0] for r in self.log.execute(sql, params)]
+        part = self.labels.get(id(unit), "a unit of the query")
+        ids = [r[0] for r in self.log.execute(sql, params, part)]
         _, in_python = tql_compile.split_conds(unit)
         if in_python:
+            self.log.note(
+                f"{part.split(':')[0]}: the brackets SQL does not take are "
+                "tested in Python on the rows above."
+            )
             self._load_all()
             ids = [
                 i
@@ -719,6 +739,7 @@ class Scope:
             alt = syntax.Alt([lit], v.raw, v.pos)
             got = syntax.Unit(syntax.Term([alt], False, v.pos), [], v.pos)
             self._steps[id(cond)] = self.keep(got)
+            self.labels[id(got)] = f"the step {cond.field.raw} {cond.op} {v.raw}"
         return got
 
     def step_ok(
@@ -1018,11 +1039,15 @@ class Scope:
 
 
 def matches(
-    scope: Scope, pattern: syntax.RelPattern, specs: list[LaneSpec]
+    scope: Scope,
+    pattern: syntax.RelPattern,
+    specs: list[LaneSpec],
+    part: str = "a relation of the query",
 ) -> Iterator[Match]:
     """The matches of a sentence-form relation in one file, ``specs`` being the
     lanes of its left unit: the left unit, then the target's steps. A negated
-    relation gives the left unit alone."""
+    relation gives the left unit alone. ``part`` is what its join answers, for
+    ``Result.sql``."""
     rel, left = pattern.relation, pattern.left
     tql_compile.check_labels(specs, [left])
     if uses_map(rel.within) and scope.time_map is None:
@@ -1032,6 +1057,8 @@ def matches(
         test = scope.keep(
             syntax.Unit(left.term, [*left.conds, syntax.RelCond(rel)], left.pos)
         )
+        if id(left) in scope.labels:
+            scope.labels[id(test)] = scope.labels[id(left)]
         for comp in scope.lane_components(specs):
             if scope.fits(test, comp):
                 yield scope.match(comp, [])
@@ -1054,7 +1081,12 @@ def matches(
         )
         check_left = tql_compile.needs_python(left)
         check_right = tql_compile.needs_python(target)
-        for a_id, a_tl, b_id, b_tl in scope.log.execute(sql, params):
+        if check_left or check_right:
+            scope.log.note(
+                "$1 and $2: the brackets SQL does not take are tested in Python "
+                "on the rows above."
+            )
+        for a_id, a_tl, b_id, b_tl in scope.log.execute(sql, params, part):
             a, b = scope.component(a_id, a_tl), scope.component(b_id, b_tl)
             if check_left and not scope.fits(left, a):
                 continue

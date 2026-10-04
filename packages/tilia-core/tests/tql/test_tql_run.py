@@ -469,14 +469,16 @@ class TestSql:
         got = tql.run(index_of("pop"), 'verse THEN "it\'s" IN form')
         assert got.sql
         for statement in got.sql.split("\n\n"):
-            assert statement.endswith(";")
+            lines = statement.splitlines()
+            assert lines[0].startswith("--")
+            assert lines[-1].startswith("--") or lines[-1].endswith(";")
         assert "?" not in got.sql
         assert "c.file_id = 'f1'" in got.sql
         assert "'it''s'" in got.sql
         assert "'verse'" in got.sql
 
     def test_numbers_and_null_are_written_as_they_are(self):
-        from tilia_core.tql.engine import sql_literal
+        from tilia_core.tql.showsql import sql_literal
 
         assert sql_literal(3) == "3"
         assert sql_literal(2.5) == "2.5"
