@@ -1,6 +1,7 @@
 import { closest, q, qInput } from './lib/dom.js';
 import { noteGeneration, onRerun } from './liveness.js';
 import { notAvailable, panelSection } from './panels.js';
+import { openInTilia } from './playback.js';
 import { files } from './state.js';
 import { errMsg, escapeHtml, setStatus } from './util.js';
 
@@ -51,13 +52,17 @@ function fieldsCell(fields) {
   return text(pairs.join(""));
 }
 
+function openButton(row) {
+  return row.state === "ok" ? '<button type="button" class="files-open">Open in TiLiA</button>' : "";
+}
+
 function rowHtml(row) {
   const id = escapeHtml(row.file_id);
   const open = files.expanded.has(row.file_id);
   const kinds = kindsText(row.timelines.kinds);
   const timelines = `${row.timelines.count}${kinds ? ` <span class="muted">(${escapeHtml(kinds)})</span>` : ""}`;
   const main = `<tr data-file-id="${id}">` +
-    `<td class="expand-cell"><button type="button" class="expand" data-file-id="${id}" aria-expanded="${open}">${open ? "▾" : "▸"}</button></td>` +
+    `<td class="expand-cell"><button type="button" class="expand" data-file-id="${id}" aria-expanded="${open}">${open ? "▾" : "▸"}</button>${openButton(row)}</td>` +
     text(escapeHtml(row.name)) + stateCell(row) + text(timelines) + fieldsCell(row.fields) +
     text(escapeHtml(row.path), ' class="muted"') + "</tr>";
   return open ? main + detailHtml(row.file_id) : main;
@@ -103,8 +108,14 @@ function buildShell() {
     render();
   });
   q(root, "tbody").addEventListener("click", e => {
-    const button = closest(/** @type {Element} */ (e.target), "button.expand");
-    if (button) toggle(button.dataset.fileId);
+    const target = /** @type {Element} */ (e.target);
+    const button = closest(target, "button.expand");
+    if (button) { toggle(button.dataset.fileId); return; }
+    if (closest(target, "button.files-open")) {
+      const id = closest(target, "tr").dataset.fileId;
+      const row = files.rows.find(r => r.file_id === id);
+      if (row) openInTilia(id, row.name);
+    }
   });
 }
 

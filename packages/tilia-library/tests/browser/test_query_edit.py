@@ -185,7 +185,7 @@ def test_strips_show_the_ticked_writes(page):
     )
     pick(page, K2).uncheck()
     page.wait_for_function(
-        "document.querySelectorAll('.ql-card')[0].querySelectorAll('.strip-block.plan-del').length === 0"
+        "() => document.querySelectorAll('.ql-card')[0].querySelectorAll('.strip-block.plan-del').length === 0"
     )
 
 
@@ -242,7 +242,7 @@ def test_apply_sends_only_the_ticked_keys(page, backend):
     pick(page, K2).uncheck()
     page.click("#ql-apply")
     page.wait_for_function(
-        "document.querySelector('#ql-edit-result').textContent.includes('Wrote')"
+        "() => document.querySelector('#ql-edit-result').textContent.includes('Wrote')"
     )
     assert backend.applied == [{K1, K4, K5}]
     assert page.locator("#ql-edit-result").inner_text() == "Wrote 2 files."
@@ -250,7 +250,7 @@ def test_apply_sends_only_the_ticked_keys(page, backend):
         f"Write 3 changes to 2 files?\n\n{STATEMENT}\n\nThis rewrites the .tla files on disk."
     ]
     assert page.locator("#ql-apply").is_disabled()
-    page.wait_for_function("document.querySelectorAll('.run-pick').length === 0")
+    page.wait_for_function("() => document.querySelectorAll('.run-pick').length === 0")
     assert page.locator(".ql-card").count() == 2
 
 
@@ -258,7 +258,7 @@ def test_the_confirmation_counts_deletions(page):
     preview(page)
     page.click("#ql-apply")
     page.wait_for_function(
-        "document.querySelector('#ql-edit-result').textContent.includes('Wrote')"
+        "() => document.querySelector('#ql-edit-result').textContent.includes('Wrote')"
     )
     assert page.dialogs[0].startswith(
         "Write 4 changes to 2 files?\n1 of them delete components.\n\n"
@@ -280,7 +280,7 @@ def test_a_changed_plan_gives_the_new_preview_and_writes_nothing(page, backend):
     backend.new_label = "Something else"
     page.click("#ql-apply")
     page.wait_for_function(
-        "document.querySelector('#ql-edit-result').textContent.includes('changed')"
+        "() => document.querySelector('#ql-edit-result').textContent.includes('changed')"
     )
     assert page.locator("#ql-edit-result").inner_text() == (
         "The files changed since the preview. This is the new preview; nothing was written."
@@ -299,7 +299,7 @@ def test_an_expired_preview(page, clock):
     clock.now = 101.0
     page.click("#ql-apply")
     page.wait_for_function(
-        "document.querySelector('#ql-edit-result').textContent.includes('expired')"
+        "() => document.querySelector('#ql-edit-result').textContent.includes('expired')"
     )
     assert page.locator("#ql-edit-result").inner_text() == (
         "The preview expired; preview again."

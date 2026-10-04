@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from tilia_library.api import edits, files, library, query, statistics
+from tilia_library.api import edits, files, library, media, query, statistics
 from tilia_library.api import liveness as liveness_api
 from tilia_library.corpora import Corpora, CorpusHandles
+from tilia_library import launch
+from tilia_library.launch import open_in_tilia
 from tilia_library.liveness import Liveness
 from tilia_library.previews import Previews
 from tilia_library.server import LibraryServer
@@ -20,6 +22,7 @@ def register_all(
     *,
     previews: Previews | None = None,
     skip_files: Callable[[str], set[Path]] = lambda cid: set(),
+    opener: Callable[[Path], str] = open_in_tilia,
 ) -> CorpusHandles:
     """Add every panel's routes to the server and return the corpus handles.
 
@@ -38,4 +41,6 @@ def register_all(
         server, corpora, handles, liveness, previews or Previews(), skip_files
     )
     statistics.register(server, corpora, handles)
+    media.register(server, corpora, handles)
+    launch.register(server, corpora, handles, opener)
     return handles
