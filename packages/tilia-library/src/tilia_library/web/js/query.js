@@ -4,7 +4,8 @@ import { renderFormStrip, stripExtent } from './form-strip.js';
 import { closest, evTarget, q, qArea, qInput, qa } from './lib/dom.js';
 import { noteGeneration, onRerun } from './liveness.js';
 import { notAvailable, panelSection } from './panels.js';
-import { query } from './state.js';
+import { cardHeadParts, editBarHtml, lineParts, overlay, syncCardPicks, syncEditBar, textChanged, wireEdit } from './ql-edit.js';
+import { edit, query } from './state.js';
 import { errMsg, escapeHtml, mmss, setStatus } from './util.js';
 
 const DEBOUNCE_MS = 400;
@@ -20,6 +21,7 @@ const NOUNS = { match: ["match", "matches"], timeline: ["timeline", "timelines"]
 
 const section = () => panelSection("query");
 const box = () => qArea(section(), "#ql-box");
+export const boxText = () => box().value;
 const results = () => q(section(), "#ql-results");
 const isCards = () => query.result.grain === "match" && !qInput(section(), "#ql-table").checked;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -73,7 +75,7 @@ function setMarks(span) {
   marks.scrollTop = box().scrollTop;
 }
 
-function clearError() {
+export function clearError() {
   const root = section();
   box().classList.remove("bad");
   q(root, "#ql-error").hidden = true;
@@ -82,13 +84,17 @@ function clearError() {
   setMarks(null);
 }
 
-function showError(text, data) {
-  const root = section();
-  const err = q(root, "#ql-error");
+export function showError(text, data) {
+  const err = q(section(), "#ql-error");
   err.textContent = data && (data.detail || data.error) || errMsg(0, data);
   err.hidden = false;
-  box().classList.add("bad");
   if (query.result) results().classList.add("stale");
+  markError(text, data);
+}
+
+/** Mark the span [pos, end) of an error (code points) in the box; the box is red when there is one. */
+export function markError(text, data) {
+  box().classList.add("bad");
   if (data && typeof data.pos === "number") {
     const pos = utf16(text, data.pos);
     const end = utf16(text, Math.max(typeof data.end === "number" ? data.end : data.pos + 1, data.pos + 1));
@@ -112,6 +118,7 @@ function setPending(delta) {
 function clearResults() {
   const root = section();
   query.result = null;
+  syncEditBar(null);
   clearError();
   q(root, "#ql-explain").textContent = "";
   q(root, "#ql-warnings").hidden = true;
@@ -159,6 +166,7 @@ export async function run() {
     query.contextsGeneration = data.generation;
   }
   query.result = data;
+  syncEditBar(data);
   renderAnswer();
   noteGeneration("query", data.generation);
 }
@@ -194,7 +202,7 @@ function renderAnswer() {
   renderResults();
 }
 
-function renderResults() {
+export function renderResults() {
   const d = query.result;
   if (!d) return;
   if (cardObserver) { cardObserver.disconnect(); cardObserver = null; }
@@ -204,7 +212,7 @@ function renderResults() {
 // ---- cards ------------------------------------------------------------------ //
 
 let cardObserver = null;
-let cards = [];   // what the drawn cards show, by index
+export let cards = [];   // what the drawn cards show, by index
 
 function groupCards(d) {
   const byFile = new Map();
@@ -241,11 +249,12 @@ function unitHtml(slot, n, withLane) {
 
 /** One match: each numbered unit; a lane every unit shares is said once, at the end. */
 function lineHtml(m) {
+  const { off, pick, diff } = lineParts(m);
   const lanes = m.slots.filter(s => s.length).map(s => laneText(s[0]));
   const shared = lanes.length > 0 && lanes.every(l => l === lanes[0]);
   const body = m.slots.map((s, n) => unitHtml(s, n, !shared)).join("");
   const lane = shared ? `<span class="ql-lane">${escapeHtml(lanes[0])}</span>` : "";
-  return `<div class="seq-run ql-run"><span class="seq-labels">${body}</span>${lane}</div>`;
+  return `<div class="seq-run ql-run${off ? " run-off" : ""}">${pick}<span class="seq-labels">${body}</span>${lane}${diff}</div>`;
 }
 
 function linesHtml(c, i) {
@@ -256,9 +265,10 @@ function linesHtml(c, i) {
 }
 
 function cardHtml(c, i) {
+  const { pick, ticked } = cardHeadParts(c, i);
   return `<div class="seq-card ql-card" data-i="${i}" data-file-id="${escapeHtml(String(c.fileId))}">` +
-    `<div class="seq-head"><span class="seq-title">${escapeHtml(c.name)}</span>` +
-    `<span class="seq-meta">${plural(c.matches.length, "match", "matches")}</span></div>` +
+    `<div class="seq-head">${pick}<span class="seq-title">${escapeHtml(c.name)}</span>` +
+    `<span class="seq-meta">${plural(c.matches.length, "match", "matches")}${ticked}</span></div>` +
     `<div class="seq-runs">${linesHtml(c, i)}</div>` +
     `<div class="seq-strip-wrap ql-strips"><div class="seq-strip-loading">loading timelines…</div></div></div>`;
 }
@@ -278,6 +288,7 @@ function renderCards() {
       paintStrips(Number(/** @type {HTMLElement} */ (e.target).dataset.i));
     }
   }, { rootMargin: "400px 0px" });
+  syncCardPicks();
   for (const el of qa(results(), ".ql-card")) cardObserver.observe(el);
 }
 
@@ -311,7 +322,7 @@ function slotSets(c, timelineId) {
   return { first, other, ctx };
 }
 
-async function paintStrips(i) {
+export async function paintStrips(i) {
   const c = cards[i];
   const el = results().querySelector(`.ql-card[data-i="${i}"]`);
   if (!c || !el) return;
@@ -324,21 +335,23 @@ async function paintStrips(i) {
   const extent = stripExtent(tls.flatMap(t => t.components), data.end);
   wrap.innerHTML = tls.map(t => {
     const { first, other, ctx } = slotSets(c, t.id);
+    const { adds, marks } = overlay(c, t.id);
     const kind = String(t.kind || "").toLowerCase();
     const name = t.name || "(unnamed)";
     return `<div class="ql-tl" data-tl="${escapeHtml(String(t.id))}"><div class="ql-tl-name">${escapeHtml(name)}` +
       (kind && kind !== name.toLowerCase() ? ` <span class="muted">${escapeHtml(kind)}</span>` : "") + "</div>" +
-      renderFormStrip(t.components, { highlightIds: first, parentIds: other, contextIds: ctx, extent, rowLabels: t.rows }) +
+      renderFormStrip(t.components, { highlightIds: first, parentIds: other, contextIds: ctx, extent, rowLabels: t.rows, adds, marks }) +
       "</div>";
   }).join("");
 }
 
 // ---- tables ------------------------------------------------------------------ //
 
-function tableHtml(columns, rows, id, valueOf) {
-  const head = columns.map(c => `<th>${escapeHtml(c)}</th>`).join("");
-  const body = rows.slice(0, ROW_CAP).map(row =>
-    "<tr>" + columns.map((c, i) => {
+/** `extra`, when given, adds a first column: {head, cell(i) -> html, off(i) -> bool for a dimmed row}. */
+function tableHtml(columns, rows, id, valueOf, extra = null) {
+  const head = (extra ? `<th>${escapeHtml(extra.head)}</th>` : "") + columns.map(c => `<th>${escapeHtml(c)}</th>`).join("");
+  const body = rows.slice(0, ROW_CAP).map((row, n) =>
+    `<tr${extra && extra.off(n) ? ' class="run-off"' : ""}>` + (extra ? `<td>${extra.cell(n)}</td>` : "") + columns.map((c, i) => {
       const v = valueOf(row, c, i);
       return `<td dir="auto">${v == null ? "" : escapeHtml(v)}</td>`;
     }).join("") + "</tr>").join("");
@@ -349,7 +362,16 @@ function tableHtml(columns, rows, id, valueOf) {
 
 function renderTable() {
   const d = query.result;
-  results().innerHTML = tableHtml(d.columns, d.rows, "ql-grid", (row, c) => row[c]);
+  // with a preview live, the plan of each row's match goes in a first column
+  const edits = edit.live && d.grain === "match"
+    ? d.matches.map(lineParts)
+    : null;
+  const extra = edits && {
+    head: "edit",
+    cell: n => edits[n] ? edits[n].pick + edits[n].diff : "",
+    off: n => !!edits[n] && edits[n].off,
+  };
+  results().innerHTML = tableHtml(d.columns, d.rows, "ql-grid", (row, c) => row[c], extra);
 }
 
 // ---- CSV ---------------------------------------------------------------------- //
@@ -403,6 +425,7 @@ function buildShell() {
     '<div class="ql-info"><p id="ql-error" class="ql-error" role="alert" hidden></p><div id="ql-explain" class="ql-explain"></div>' +
     '<ul id="ql-warnings" class="ql-warnings" hidden></ul>' +
     '<div class="ql-status"><span id="ql-count"></span><span id="ql-stopped" class="ql-stopped" hidden></span></div></div>' +
+    editBarHtml() +
     '<div id="ql-sql" class="ql-sql" hidden><textarea id="ql-sql-box" aria-label="SQL" spellcheck="false"></textarea>' +
     '<ul id="ql-sql-notes" class="muted"></ul><div><button id="ql-sql-run" type="button">Run SQL</button></div>' +
     '<p id="ql-sql-error" class="ql-error"></p><div id="ql-sql-result"></div></div>' +
@@ -411,6 +434,7 @@ function buildShell() {
   area.addEventListener("input", () => {
     remember(area.value);
     setMarks(marked);
+    textChanged();
     schedule();
   });
   area.addEventListener("scroll", () => { q(root, "#ql-marks").scrollTop = area.scrollTop; });
@@ -423,6 +447,7 @@ function buildShell() {
   q(root, "#ql-csv").addEventListener("click", csv);
   q(root, "#ql-show-sql").addEventListener("click", () => showSql().catch(e => setStatus(String(e), "error")));
   q(root, "#ql-sql-run").addEventListener("click", () => runSql().catch(e => setStatus(String(e), "error")));
+  wireEdit();
   results().addEventListener("click", e => {
     const more = closest(evTarget(e), "button.ql-more");
     if (!more) return;
