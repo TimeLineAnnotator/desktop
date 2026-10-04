@@ -109,8 +109,42 @@ class FixtureBackend:
             result["stopped"] = "cancelled"
         return result
 
-    def statistics(self, corpus: object, text: str, by: list[str]) -> dict:
-        return self._get("statistics")
+    def statistics(
+        self, corpus: object, text: str, by: list[str], *, fold: bool = False
+    ) -> dict:
+        _raise_on_error_word(text)
+        data = self._get("statistics")
+        key = by[0]
+        counts = (
+            ([key, by[1], "matches", "files"], data["counts2"])
+            if len(by) > 1
+            else ([key, "matches", "files"], data["counts"])
+        )
+        tables = [
+            ("counts", "Counts", *counts),
+            (
+                "durations",
+                "Durations",
+                [key, "n", "min", "median", "mean", "max"]
+                + [f"{c}_bars" for c in ("n", "min", "median", "mean", "max")],
+                data["durations"],
+            ),
+            (
+                "positions",
+                "Positions",
+                [key, "from_pct", "to_pct", "n"],
+                data["positions"],
+            ),
+            ("transitions", "Transitions", ["from", "to", "n"], data["transitions"]),
+        ]
+        return {
+            "generation": data["generation"],
+            "tables": [
+                {"name": n, "title": t, "columns": c, "rows": r}
+                for n, t, c, r in tables
+            ],
+            "warnings": ["subtypes folded"] if fold else [],
+        }
 
     def categories(self, corpus: object, fold: bool) -> dict:
         return self._get("categories")
