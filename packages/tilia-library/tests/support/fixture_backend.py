@@ -147,7 +147,21 @@ class FixtureBackend:
         }
 
     def categories(self, corpus: object, fold: bool) -> dict:
-        return self._get("categories")
+        data = self._get("categories")
+        if fold:
+            rows = data["categories"]
+            by_name = {row["category"]: row for row in rows}
+            kept = []
+            for row in rows:
+                top = row["category"].split(".", 1)[0]
+                if top == row["category"]:
+                    kept.append(row)
+                elif top in by_name:
+                    by_name[top]["n"] += row["n"]
+                else:
+                    kept.append({**row, "category": top})
+            data["categories"] = kept
+        return data
 
     def plan(self, corpus: object, statement: str, skip_files: set[Path]) -> dict:
         _raise_on_error_word(statement)

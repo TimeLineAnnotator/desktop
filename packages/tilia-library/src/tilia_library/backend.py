@@ -44,7 +44,10 @@ Shapes returned:
   ``_bars`` suffix (n_bars, min_bars, ...); positions: the key, from_pct,
   to_pct, n; transitions: from, to, n. Rows are lists in ``columns`` order;
   raises ``QueryError``
-- categories: {"generation", "categories": [{"category", "group", "n"}]}
+- categories: {"generation", "grammar": bool (whether the corpus has a label
+  grammar), "categories": [{"category", "group": str or null, "n"}]}; ``n`` is
+  how many components carry the category (with ``fold``, subtypes are counted
+  in their category)
 - plan: {"plan": [{"key", "file_id", "name", "do": "write" | "skip",
   "reason": str or null, "writes": [{"op": "set" | "add" | "delete",
   "component_id", "timeline_id", "field", "old", "new"}]}], "skipped_files":

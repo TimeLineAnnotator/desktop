@@ -6,7 +6,16 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from tilia_library.api import edit_log, edits, files, library, media, query, statistics
+from tilia_library.api import (
+    categories,
+    edit_log,
+    edits,
+    files,
+    library,
+    media,
+    query,
+    statistics,
+)
 from tilia_library.api import windows as windows_api
 from tilia_library.api import liveness as liveness_api
 from tilia_library.corpora import Corpora, CorpusHandles
@@ -33,8 +42,9 @@ def register_all(
     """Add every panel's routes to the server and return the corpus handles.
 
     Without a ``liveness``, one is made and started; a given one is used as it is. The edit previews are kept in one
-    ``Previews`` for the server (a given one, or a new one). The TiLiA windows are tracked in one ``Windows`` (a given one, or a
-    new one); unless ``skip_files`` is given, the files they report as unsaved are the ones edits leave alone.
+    ``Previews`` for the server (a given one, or a new one), shared by the edit and categories routes. The TiLiA
+    windows are tracked in one ``Windows`` (a given one, or a new one); unless ``skip_files`` is given, the files they
+    report as unsaved are the ones edits leave alone.
     """
     if windows is None:
         windows = Windows()
@@ -69,15 +79,9 @@ def register_all(
             logger.exception("could not tell TiLiA windows about edit %s", entry)
 
     windows_api.register(server, corpora, handles, liveness, windows)
-    edits.register(
-        server,
-        corpora,
-        handles,
-        liveness,
-        previews or Previews(),
-        skip_files,
-        on_written,
-    )
+    previews = previews or Previews()
+    edits.register(server, corpora, handles, liveness, previews, skip_files, on_written)
+    categories.register(server, corpora, handles, previews, skip_files)
     statistics.register(server, corpora, handles)
     media.register(server, corpora, handles)
     launch.register(server, corpora, handles, opener)

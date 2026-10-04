@@ -1,5 +1,91 @@
-{"generation": 1, "categories": [
-  {"category": "Überleitung", "group": "Überleitung", "n": 1},
-  {"category": "transição", "group": "Überleitung", "n": 1},
-  {"category": "μετάβαση", "group": "Überleitung", "n": 1},
-  {"category": "🎵", "group": "🎵", "n": 1}]}
+{
+ "generation": 1,
+ "grammar": true,
+ "categories": [
+  {
+   "category": "Überleitung",
+   "group": "Überleitung",
+   "n": 1
+  },
+  {
+   "category": "transição",
+   "group": "Überleitung",
+   "n": 1
+  },
+  {
+   "category": "μετάβαση",
+   "group": "Überleitung",
+   "n": 1
+  },
+  {
+   "category": "🎵",
+   "group": "🎵",
+   "n": 1
+  },
+  {
+   "category": "bridge",
+   "group": "form",
+   "n": 12
+  },
+  {
+   "category": "bridge.modern",
+   "group": "form",
+   "n": 5
+  },
+  {
+   "category": "bridge.classic",
+   "group": "form",
+   "n": 3
+  },
+  {
+   "category": "verse",
+   "group": "form",
+   "n": 20
+  },
+  {
+   "category": "verse 2",
+   "group": "form",
+   "n": 4
+  },
+  {
+   "category": "chorus",
+   "group": "form",
+   "n": 20
+  },
+  {
+   "category": "intro",
+   "group": "role",
+   "n": 7
+  },
+  {
+   "category": "outro",
+   "group": "role",
+   "n": 7
+  },
+  {
+   "category": "过渡",
+   "group": "role",
+   "n": 2
+  },
+  {
+   "category": "מעבר",
+   "group": "role",
+   "n": 2
+  },
+  {
+   "category": "coda",
+   "group": null,
+   "n": 1
+  },
+  {
+   "category": "refrain",
+   "group": "role",
+   "n": 9
+  },
+  {
+   "category": "hook",
+   "group": "role",
+   "n": 9
+  }
+ ]
+}
