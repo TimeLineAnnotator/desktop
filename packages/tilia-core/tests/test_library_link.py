@@ -12,7 +12,16 @@ import pytest
 import tomlkit
 
 from tilia_core import library_link, state
-from tilia_core.library_link import LibraryLink, ServerRecord, find_library, ping
+from tilia_core.library_link import (
+    ChangedByEdit,
+    LibraryLink,
+    OpenFile,
+    ServerRecord,
+    WindowForgotten,
+    WindowLease,
+    find_library,
+    ping,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -244,3 +253,150 @@ def test_a_reply_that_is_not_http_raises_os_error_and_ping_is_none():
             LibraryLink(record, 1, "x").request("GET", "/api/ping")
     with garbage_server() as address:
         assert ping(ServerRecord.new(address, "x", "1")) is None
+
+
+@contextlib.contextmanager
+def recording_server(token, replies):
+    """A stand-in library: records each request, answers from ``replies``.
+
+    ``replies`` maps (method, path) to (status, json answer or None).
+    """
+    seen = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def _answer(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length)
+            seen.append(
+                {
+                    "method": self.command,
+                    "path": self.path,
+                    "body": json.loads(raw) if raw else None,
+                    "auth": self.headers.get("Authorization"),
+                }
+            )
+            status, answer = replies.get((self.command, self.path), (404, None))
+            body = b"" if answer is None else json.dumps(answer).encode()
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        do_POST = do_DELETE = _answer
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}/", seen
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(5)
+
+
+def link_to(address, token="tok"):
+    return LibraryLink(ServerRecord.new(address, token, "1"), 1, "1")
+
+
+FILES = [OpenFile("/a/one.tla", True), OpenFile("/a/two.tla", False)]
+FILES_JSON = [
+    {"path": "/a/one.tla", "unsaved": True},
+    {"path": "/a/two.tla", "unsaved": False},
+]
+
+
+def test_register_sends_pid_and_files_and_parses_the_lease():
+    lease = {"window": "w1", "poll_seconds": 2, "lease_seconds": 15}
+    with recording_server("tok", {("POST", "/api/windows"): (200, lease)}) as (
+        address,
+        seen,
+    ):
+        got = link_to(address).register(42, FILES)
+    assert got == WindowLease("w1", 2.0, 15.0)
+    assert seen == [
+        {
+            "method": "POST",
+            "path": "/api/windows",
+            "body": {"pid": 42, "files": FILES_JSON},
+            "auth": "Bearer tok",
+        }
+    ]
+
+
+def test_sync_sends_the_list_and_parses_events_skipping_unknown_kinds():
+    events = [
+        {
+            "seq": 3,
+            "type": "changed-by-edit",
+            "path": "/a/one.tla",
+            "corpus": "c",
+            "entry": "e1",
+        },
+        {"seq": 4, "type": "something-newer", "path": "/a/one.tla"},
+    ]
+    path = "/api/windows/w%2F1/sync"
+    with recording_server("tok", {("POST", path): (200, {"events": events})}) as (
+        address,
+        seen,
+    ):
+        got = link_to(address).sync("w/1", FILES)
+    assert got == [ChangedByEdit(3, "/a/one.tla", "c", "e1")]
+    assert seen[0]["method"] == "POST" and seen[0]["path"] == path
+    assert seen[0]["body"] == {"files": FILES_JSON}
+    assert seen[0]["auth"] == "Bearer tok"
+
+
+def test_saved_and_close_send_their_messages():
+    replies = {
+        ("POST", "/api/windows/w1/saved"): (204, None),
+        ("DELETE", "/api/windows/w1"): (204, None),
+    }
+    with recording_server("tok", replies) as (address, seen):
+        link = link_to(address)
+        assert link.saved("w1", "/a/one.tla") is None
+        assert link.close("w1") is None
+    assert [(s["method"], s["path"], s["body"]) for s in seen] == [
+        ("POST", "/api/windows/w1/saved", {"path": "/a/one.tla"}),
+        ("DELETE", "/api/windows/w1", None),
+    ]
+
+
+def test_a_forgotten_window_raises_for_sync_and_saved_but_not_close():
+    with recording_server("tok", {}) as (address, _):
+        link = link_to(address)
+        with pytest.raises(WindowForgotten):
+            link.sync("w1", FILES)
+        with pytest.raises(WindowForgotten):
+            link.saved("w1", "/a/one.tla")
+        link.close("w1")
+
+
+def test_other_error_statuses_raise_os_error_naming_status_and_error():
+    replies = {
+        ("POST", "/api/windows"): (400, {"error": "bad pid"}),
+        ("POST", "/api/windows/w1/sync"): (500, {"error": "internal error"}),
+        ("DELETE", "/api/windows/w1"): (500, None),
+    }
+    with recording_server("tok", replies) as (address, _):
+        link = link_to(address)
+        with pytest.raises(OSError, match="400.*bad pid"):
+            link.register(1, [])
+        with pytest.raises(OSError, match="500.*internal error"):
+            link.sync("w1", [])
+        with pytest.raises(OSError, match="500"):
+            link.close("w1")
+
+
+def test_a_refused_connection_is_an_os_error():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    link = link_to(f"http://127.0.0.1:{port}/")
+    with pytest.raises(OSError):
+        link.register(1, [])
+    with pytest.raises(OSError):
+        link.sync("w1", [])
