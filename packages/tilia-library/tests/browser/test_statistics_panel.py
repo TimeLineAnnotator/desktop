@@ -25,14 +25,6 @@ def entry_url(tmp_path):
     server.stop()
 
 
-@pytest.fixture(scope="module")
-def browser():
-    with sync_api.sync_playwright() as p:
-        browser = p.chromium.launch()
-        yield browser
-        browser.close()
-
-
 @pytest.fixture
 def page(browser, entry_url):
     page = browser.new_page()
