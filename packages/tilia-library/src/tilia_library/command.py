@@ -17,7 +17,7 @@ from pathlib import Path
 
 from tilia_core import state
 from tilia_core.library_link import PROTOCOL, LibraryLink, ServerRecord, ping
-from tilia_library.api import library as library_api
+from tilia_library.api import register_all
 from tilia_library.backend import CoreBackend
 from tilia_library.corpora import Corpora
 from tilia_library.server import LibraryServer
@@ -317,7 +317,7 @@ def _serve(
         return 1
     started = False
     try:
-        library_api.register(server, corpora)
+        register_all(server, corpora)
         record = ServerRecord(
             protocol=PROTOCOL,
             library_version=server.library_version,

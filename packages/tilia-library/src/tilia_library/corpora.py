@@ -21,6 +21,7 @@ import tomlkit
 
 from tilia_core import state
 from tilia_core.state import StateFile
+from tilia_library.backend import Backend
 
 LIBRARY_NAME = "library.toml"
 FORMAT_VERSION = 1
@@ -213,3 +214,23 @@ class Corpora:
                     doc["last_corpus"] = cid
                     state_file.save(doc)
                     return
+
+
+class CorpusHandles:
+    """The core's handle on each corpus opened in this run, opened on first use."""
+
+    def __init__(self, backend: Backend, corpora: Corpora) -> None:
+        self._backend = backend
+        self._corpora = corpora
+        self._handles: dict[str, object] = {}
+        self._lock = threading.Lock()
+
+    def get(self, cid: str) -> tuple[Corpus, object]:
+        """Return the corpus and its handle; ``KeyError`` for an unknown id."""
+        corpus = self._corpora.get(cid)
+        if corpus is None:
+            raise KeyError(cid)
+        with self._lock:
+            if cid not in self._handles:
+                self._handles[cid] = self._backend.open_corpus(corpus.path)
+            return corpus, self._handles[cid]
