@@ -192,6 +192,7 @@ def run(
         warnings=warn.messages(),
         stopped=stopped,
         generation=index.generation,
+        _index=index,
     )
 
 

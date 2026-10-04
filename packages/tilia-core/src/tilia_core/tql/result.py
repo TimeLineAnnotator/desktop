@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Sequence
+
+from . import stats
 
 
 @dataclass(frozen=True)
@@ -81,3 +85,45 @@ class Result:
     warnings: list[str]
     stopped: str | None
     generation: int
+    _index: Any = field(default=None, repr=False, compare=False)
+
+    def to_csv(self, path: str | Path) -> None:
+        """Write the table of ``rows`` as CSV: a header of the columns, then a
+        line per row; UTF-8 in NFC, LF line endings, no byte-order mark. Times
+        are in seconds with three decimals, None is an empty field."""
+        columns: list[str] = []
+        for row in self.rows:
+            columns.extend(c for c in row if c not in columns)
+        timed = [bool(_TIME_COLUMN.match(c)) for c in columns]
+        stats.write_csv(
+            path,
+            columns,
+            (
+                [
+                    _seconds(v) if t else v
+                    for v, t in zip((row.get(c) for c in columns), timed, strict=True)
+                ]
+                for row in self.rows
+            ),
+        )
+
+    def stats(
+        self,
+        name: str,
+        by: str | Sequence[str] | None = None,
+        *,
+        fold_subtypes: bool = False,
+    ) -> stats.Table:
+        """A statistics table of the targets: ``counts`` (``by`` one key or two),
+        ``durations`` and ``positions`` (one key), or ``transitions`` (none).
+        ``by`` is ``label`` unless given; see :mod:`tilia_core.tql.stats`.
+        ``fold_subtypes`` makes the ``category`` key the part before the first
+        dot. Raises ``ValueError`` for an unknown ``name`` or key."""
+        return stats.compute(self, name, by, fold_subtypes=fold_subtypes)
+
+
+_TIME_COLUMN = re.compile(r"(\$\d+\.)?(start|end)$")
+
+
+def _seconds(value: Any) -> Any:
+    return f"{value:.3f}" if isinstance(value, (int, float)) else value
