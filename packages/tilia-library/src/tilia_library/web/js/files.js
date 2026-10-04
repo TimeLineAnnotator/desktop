@@ -1,4 +1,5 @@
 import { closest, q, qInput } from './lib/dom.js';
+import { noteGeneration, onRerun } from './liveness.js';
 import { notAvailable, panelSection } from './panels.js';
 import { files } from './state.js';
 import { errMsg, escapeHtml, setStatus } from './util.js';
@@ -87,11 +88,12 @@ function render() {
 function buildShell() {
   const root = section();
   root.innerHTML = `<div class="bar"><input id="files-filter" type="search" placeholder="Filter files" aria-label="Filter files">` +
-    `<span id="files-count" class="count"></span></div><table><thead></thead><tbody></tbody></table>`;
+    `<span id="files-count" class="count"></span><button id="files-rescan" type="button">Rescan now</button></div><table><thead></thead><tbody></tbody></table>`;
   qInput(root, "#files-filter").addEventListener("input", e => {
     files.filter = /** @type {HTMLInputElement} */ (e.target).value;
     render();
   });
+  q(root, "#files-rescan").addEventListener("click", rescan);
   q(root, "thead").addEventListener("click", e => {
     const th = closest(/** @type {Element} */ (e.target), "th[data-sort]");
     if (!th) return;
@@ -104,6 +106,12 @@ function buildShell() {
     const button = closest(/** @type {Element} */ (e.target), "button.expand");
     if (button) toggle(button.dataset.fileId);
   });
+}
+
+async function rescan() {
+  const r = await fetch("/api/rescan", { method: "POST", body: "{}" });
+  if (!r.ok) { setStatus(errMsg(r.status, await r.json().catch(() => null)), "error"); return; }
+  setStatus("Rescanning…", "");
 }
 
 async function toggle(fileId) {
@@ -133,4 +141,7 @@ export async function loadFiles() {
   files.details.clear();
   files.expanded.clear();
   render();
+  noteGeneration("files", data.generation);
 }
+
+onRerun("files", loadFiles);

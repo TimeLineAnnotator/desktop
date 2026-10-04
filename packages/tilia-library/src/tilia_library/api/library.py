@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tilia_library.corpora import Corpora, Corpus
+from tilia_library.liveness import Liveness
 from tilia_library.server import (
     ApiError,
     LibraryServer,
@@ -16,19 +17,22 @@ from tilia_library.server import (
 HOW_TO_ADD = "tilia library FOLDER"
 
 
-def _listing(corpus: Corpus) -> dict[str, object]:
+def _listing(corpus: Corpus, liveness: Liveness | None) -> dict[str, object]:
+    state = liveness.state(corpus.id) if liveness else None
     return {
         "id": corpus.id,
         "name": corpus.name,
         "path": str(corpus.path),
         "available": corpus.available,
-        "files": None,
-        "unreadable": None,
-        "unavailable": None,
+        "files": state["files"] if state else None,
+        "unreadable": state["unreadable"] if state else None,
+        "unavailable": state["unavailable"] if state else None,
     }
 
 
-def register(server: LibraryServer, corpora: Corpora) -> None:
+def register(
+    server: LibraryServer, corpora: Corpora, liveness: Liveness | None = None
+) -> None:
     """Add the library routes to the server, working on ``corpora``."""
 
     def get_library(request: Request) -> Response:
@@ -41,7 +45,7 @@ def register(server: LibraryServer, corpora: Corpora) -> None:
                 f"{corpora.set_aside_to.name}, starting with no corpora"
             )
         data: dict[str, object] = {
-            "corpora": [_listing(c) for c in listed],
+            "corpora": [_listing(c, liveness) for c in listed],
             "last_corpus": last.id if last else None,
         }
         if not listed:
