@@ -2,14 +2,18 @@
 
 ``text REGEXP pattern`` is ``regexp(pattern, text)``; ``tql_fold`` and
 ``tql_color`` compare labels and colours the way the language does.
+``tql_chord`` and ``tql_key`` read a literal as a chord or a key and ask whether
+a chord or a key component matches it (a literal that is none matches nothing).
 """
 
 from __future__ import annotations
 
 import re
 import sqlite3
+from functools import lru_cache
+from typing import Any, Callable
 
-from tilia_core import derived
+from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
 
 
@@ -31,6 +35,85 @@ def tql_color(text: str | None) -> str | None:
     return derived.color(text)
 
 
+@lru_cache(maxsize=1024)
+def chord_spec(text: str) -> harmony.ChordSpec | str:
+    """The chord ``text`` names, or why it names none."""
+    try:
+        return harmony.parse_chord(text)
+    except harmony.HarmonyError as exc:
+        return str(exc)
+
+
+@lru_cache(maxsize=1024)
+def key_spec(text: str) -> harmony.KeySpec | str:
+    """The key ``text`` names, or why it names none."""
+    try:
+        return harmony.parse_key(text)
+    except harmony.HarmonyError as exc:
+        return str(exc)
+
+
+def _chord_function(
+    con: sqlite3.Connection,
+) -> Callable[[str | None, str | None], int]:
+    def tql_chord(literal: str | None, component_id: str | None) -> int:
+        """1 when the chord ``component_id`` matches ``literal``, read in the
+        key in force (C major before the first key); a literal that is no chord
+        matches nothing."""
+        if literal is None:
+            return 0
+        row = con.cursor().execute(_CHORD_ROW, (component_id,)).fetchone()
+        if row is None:
+            return 0
+        spec = chord_spec(literal)
+        if isinstance(spec, str):
+            return 0
+        chord = dict(zip(_CHORD_COLUMNS, row[:5], strict=True))
+        key = None if row[5] is None else _mode(row[5:8])
+        return 1 if harmony.chord_matches(spec, chord, key or derived.C_MAJOR) else 0
+
+    return tql_chord
+
+
+def _key_function(
+    con: sqlite3.Connection,
+) -> Callable[[str | None, str | None], int]:
+    def tql_key(literal: str | None, component_id: str | None) -> int:
+        """1 when the key ``component_id`` matches ``literal``; a literal that
+        is no key matches nothing."""
+        if literal is None:
+            return 0
+        row = (
+            con.cursor()
+            .execute(
+                "SELECT step, accidental, mode FROM keys WHERE component_id = ?",
+                (component_id,),
+            )
+            .fetchone()
+        )
+        if row is None:
+            return 0
+        spec = key_spec(literal)
+        if isinstance(spec, str):
+            return 0
+        return 1 if harmony.key_matches(spec, _mode(row)) else 0
+
+    return tql_key
+
+
+_CHORD_COLUMNS = ("step", "accidental", "quality", "inversion", "applied_to")
+_CHORD_ROW = (
+    "SELECT ch.step, ch.accidental, ch.quality, ch.inversion, ch.applied_to, "
+    "k.step, k.accidental, k.mode FROM chords ch "
+    "LEFT JOIN keys k ON k.component_id = ch.key_id WHERE ch.component_id = ?"
+)
+
+
+def _mode(row: Any) -> dict[str, Any]:
+    """The mode dict ``harmony`` reads, from a ``(step, accidental, mode)`` row."""
+    return {"step": row[0], "accidental": row[1], "type": row[2]}
+
+
 def register(con: sqlite3.Connection) -> None:
     """Register the functions on ``con``. Calling it again does nothing."""
     try:
@@ -41,3 +124,5 @@ def register(con: sqlite3.Connection) -> None:
     con.create_function("regexp", 2, regexp, deterministic=True)
     con.create_function("tql_fold", 1, tql_fold, deterministic=True)
     con.create_function("tql_color", 1, tql_color, deterministic=True)
+    con.create_function("tql_chord", 2, _chord_function(con))
+    con.create_function("tql_key", 2, _key_function(con))
