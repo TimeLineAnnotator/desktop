@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from tilia_library.api import edits, files, library, query
+from tilia_library.api import edits, files, library, query, statistics
 from tilia_library.api import liveness as liveness_api
 from tilia_library.corpora import Corpora, CorpusHandles
 from tilia_library.liveness import Liveness
@@ -37,4 +37,5 @@ def register_all(
     edits.register(
         server, corpora, handles, liveness, previews or Previews(), skip_files
     )
+    statistics.register(server, corpora, handles)
     return handles
