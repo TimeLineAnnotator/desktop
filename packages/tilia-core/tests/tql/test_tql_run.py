@@ -82,9 +82,9 @@ class TestLanes:
         assert len(lane_names("pop", bare("hierarchy"))) == 3
 
     @pytest.mark.parametrize("word", ["bars", "bar", "measures", "measure"])
-    def test_bars_are_not_yet_there(self, word):
-        with pytest.raises(NotImplementedError):
-            lane_names("pop", bare(word))
+    def test_bars_are_one_lane_on_the_time_map_timeline(self, word):
+        assert lane_names("pop", bare(word)) == ["Beats · bars"]
+        assert lane_names("exposition", bare(word)) == []
 
     def test_quoted_name_keeps_its_case(self):
         assert lane_names("pop", quoted("Form (A)")) == [
@@ -228,10 +228,10 @@ class TestLiterals:
         got = matched("*")
         assert len(got) == 11 and "" in got
 
-    def test_positions_are_for_later(self):
+    def test_a_position_is_read_from_the_positions_table(self):
         unit = tql.parse("verse[bar = 1] IN form").pattern.seq.steps[0].item
-        with pytest.raises(NotImplementedError, match="positions"):
-            tql_compile.candidate_statement(unit, "f1")
+        sql, params = tql_compile.candidate_statement(unit, "f1")
+        assert "positions" in sql and params[-1] == 1.0
 
     def test_a_simple_comparison_is_in_the_candidate_statement(self):
         unit = tql.parse("verse[level = 1] IN form").pattern.seq.steps[0].item
@@ -358,18 +358,6 @@ class TestRun:
         assert got.generation == index.generation
         assert got.explain == tql.explain(tql.parse("TR IN form"))
         assert got.grain == "match" and got.warnings == []
-
-    @pytest.mark.parametrize(
-        "text",
-        [
-            "verse THEN chorus IN form WITHIN 2 bars",
-            "verse[bar = 1] IN form",
-            "verse IN form WHERE level = 1 AND bar = 1",
-        ],
-    )
-    def test_later_parts_say_so(self, text):
-        with pytest.raises(NotImplementedError):
-            tql.run(index_of("exposition"), text)
 
     def test_chord_literals_run(self):
         got = tql.run(index_of("harmony"), "V7 THEN I IN harmony")

@@ -24,6 +24,7 @@ from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
 
 from . import syntax
+from .lanes import bar_id, pass_numbers
 from .result import Component
 
 CASE_SENSITIVE = frozenset({"key", "roman", "symbol"})
@@ -232,9 +233,9 @@ class Log(Protocol):
 
 
 class Facts:
-    """The stored values of one file: its units' colour, comments, tags, depth
-    and chord and key columns, its timelines' fields and its own fields.
-    Everything is loaded when first asked for."""
+    """The stored values of one file: its units' colour, comments, tags, depth,
+    positions and chord and key columns, its timelines' fields and its own
+    fields. Everything is loaded when first asked for."""
 
     def __init__(self, log: Log, file_id: str) -> None:
         self.log = log
@@ -242,6 +243,16 @@ class Facts:
         self._units: dict[str, dict[str, Any]] | None = None
         self._timelines: dict[str, dict[str, Any]] = {}
         self._file: dict[str, list[Any]] | None = None
+        self._media_length: list[float | None] | None = None
+
+    def media_length(self) -> float | None:
+        """The length of the file's media in seconds; None without one."""
+        if self._media_length is None:
+            rows = self.log.execute(
+                "SELECT media_length FROM files WHERE id = ?", (self.file_id,)
+            )
+            self._media_length = [rows[0][0] if rows else None]
+        return self._media_length[0]
 
     def unit(self, comp_id: str) -> dict[str, Any]:
         """The stored fields of one component (``tags`` is a list)."""
@@ -253,17 +264,21 @@ class Facts:
         rows = self.log.execute(
             "SELECT c.id, c.color, c.comments, h.depth, ch.quality, ch.inversion, "
             "ch.applied_to, ch.root, ch.roman, ch.symbol, COALESCE(ch.key, k.key), "
-            "k.tonic, k.mode FROM components c "
+            "k.tonic, k.mode, p.bar, p.end_bar, p.beat, p.pass, p.bar_count, "
+            "p.bar_label, p.bar_beat_count, p.downbeat FROM components c "
             "LEFT JOIN hierarchies h ON h.component_id = c.id "
             "LEFT JOIN chords ch ON ch.component_id = c.id "
-            "LEFT JOIN keys k ON k.component_id = c.id WHERE c.file_id = ?",
+            "LEFT JOIN keys k ON k.component_id = c.id "
+            "LEFT JOIN positions p ON p.component_id = c.id WHERE c.file_id = ?",
             (self.file_id,),
         )
         names = (
             "color comments depth quality inversion applied_to root roman symbol "
-            "key tonic mode"
+            "key tonic mode bar end_bar beat pass bar.count bar.label "
+            "bar.beat_count downbeat"
         ).split()
         units = {r[0]: dict(zip(names, r[1:], strict=True)) for r in rows}
+        units.update(self._load_bars())
         for fields in units.values():
             fields["tags"] = []
         tags = self.log.execute(
@@ -276,6 +291,29 @@ class Facts:
         for owner, value in tags:
             units[owner]["tags"].append(value)
         return units
+
+    def _load_bars(self) -> dict[str, dict[str, Any]]:
+        """The position fields of the units of the bars lane, which no component
+        row holds: each bar starts on its downbeat, at its first beat."""
+        rows = self.log.execute(
+            "SELECT count, number, label, beats FROM measures WHERE file_id = ? "
+            "ORDER BY count",
+            (self.file_id,),
+        )
+        passes = pass_numbers([r[1] for r in rows])
+        return {
+            bar_id(self.file_id, count): {
+                "bar": number,
+                "end_bar": number,
+                "beat": 1.0,
+                "pass": nth,
+                "bar.count": count,
+                "bar.label": label,
+                "bar.beat_count": beats,
+                "downbeat": 1,
+            }
+            for (count, number, label, beats), nth in zip(rows, passes, strict=True)
+        }
 
     def timeline(self, timeline_id: str | None) -> dict[str, Any]:
         """The fields of a timeline: name, kind, role, author, id, ordinal."""

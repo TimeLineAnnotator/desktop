@@ -242,13 +242,17 @@ class TestTolerance:
         assert lefts(SPANS, "* IN form STARTS AFTER x IN Layers WITHIN 2 s") == ["b@4"]
 
     @pytest.mark.parametrize("unit_", ["bar", "bars", "beat", "beats"])
-    def test_within_in_bars_and_beats_is_for_later(self, unit_):
-        with pytest.raises(NotImplementedError):
-            run(SPANS, f"* IN form DURING w IN Layers WITHIN 2 {unit_}")
-        with pytest.raises(NotImplementedError):
-            run(SPANS, f"*[DURING w IN Layers WITHIN 2 {unit_}] IN form")
-        with pytest.raises(NotImplementedError):
-            run(SPANS, f"* IN form SAME START a WITHIN 2 {unit_}")
+    def test_within_in_bars_and_beats_needs_a_time_map(self, unit_):
+        for query in (
+            f"* IN form DURING w IN Layers WITHIN 2 {unit_}",
+            f"*[DURING w IN Layers WITHIN 2 {unit_}] IN form",
+            f"*[NOT DURING w IN Layers WITHIN 2 {unit_}] IN form",
+            f"* IN form NOT DURING w IN Layers WITHIN 2 {unit_}",
+            f"* IN form SAME START a WITHIN 2 {unit_}",
+        ):
+            got = run(SPANS, query)
+            assert not got.rows, query
+            assert got.warnings == ["1 file without a time map could not answer"]
 
 
 class TestSql:

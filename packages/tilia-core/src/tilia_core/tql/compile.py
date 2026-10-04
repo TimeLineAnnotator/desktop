@@ -3,8 +3,10 @@
 Two jobs: :func:`resolve_lanes` says which lanes of a file an ``IN`` clause
 names, and :func:`candidate_statement` writes the SELECT that finds the
 components fitting one ``Unit`` of the query: its label, the timing
-relations in its brackets (as ``EXISTS``) and its simple comparisons. Python builds the lanes and walks
-them, and tests the conditions SQL does not take (:mod:`.relations`).
+relations in its brackets (as ``EXISTS``) and its simple comparisons, positions
+and lengths in bars and beats included (read from ``positions`` and through the
+time map's SQL functions). Python builds the lanes and walks them, and tests the
+conditions SQL does not take (:mod:`.relations`).
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from tilia_core import derived
 from tilia_core.labels import fold, nfc
 
 from . import sqlfuncs, syntax
+from .lanes import BAR_KIND
 
 ROLE_ALIASES = {"cadence": "cadences", "timemap": "time_map"}
 BUILTIN_ROLES = ("form", "cadences", "harmony", "keys", "time_map")
@@ -36,7 +39,7 @@ KIND_WORDS = {
     "keys": "key",
 }
 BAR_WORDS = ("bar", "bars", "measure", "measures")
-DEFAULT_KINDS = ("hierarchy", "range", "marker")
+DEFAULT_KINDS = ("hierarchy", "range", "marker")  # a query without IN: no bars
 POINT_KINDS = ("marker", "beat")
 
 
@@ -47,7 +50,7 @@ class LaneSpec:
 
     timeline_id: str
     timeline: str
-    kind: str  # hierarchy | range | marker | chord | key | beat
+    kind: str  # hierarchy | range | marker | chord | key | beat | bar
     level: int | None = None
     row_id: str | None = None
     row: str | None = None
@@ -64,6 +67,8 @@ class LaneSpec:
             return f"{self.timeline} · {self.row}"
         if self.kind in ("chord", "key"):
             return f"{self.timeline} · {self.kind}s"
+        if self.kind == BAR_KIND:
+            return f"{self.timeline} · bars"
         return self.timeline
 
 
@@ -130,7 +135,7 @@ def resolve_lanes(
     if not lane.quoted:
         word = ROLE_ALIASES.get(word, word)
         if word in BAR_WORDS:
-            raise NotImplementedError("the bars lane is not available yet")
+            return _bar_lanes(con, file_id)
         stored = {tl[4] for tl in timelines if tl[4]}
         if word in BUILTIN_ROLES or word in stored:
             return _role_lanes(con, file_id, timelines, word)
@@ -150,6 +155,23 @@ def resolve_lanes(
                 if fnmatch.fnmatchcase(row, pattern):
                     out.append(spec)
     return out
+
+
+def on_bars(lane: syntax.Lane | None) -> bool:
+    """Whether ``lane`` is the bars lane (``bars``, ``bar``, ``measures``,
+    ``measure``), whose units no table of components holds."""
+    return lane is not None and not lane.quoted and fold(lane.text.strip()) in BAR_WORDS
+
+
+def _bar_lanes(con: sqlite3.Connection, file_id: str) -> list[LaneSpec]:
+    """The bars lane of a file: one lane, on the timeline its time map reads,
+    when the file has measures."""
+    row = con.execute(
+        "SELECT t.id, t.name FROM files f JOIN timelines t ON t.id = f.time_map "
+        "WHERE f.id = ? AND EXISTS (SELECT 1 FROM measures m WHERE m.file_id = f.id)",
+        (file_id,),
+    ).fetchone()
+    return [] if row is None else [LaneSpec(row[0], row[1], BAR_KIND)]
 
 
 def _role_lanes(
@@ -218,9 +240,10 @@ class SqlBuilder:
     """The parameters of one statement, in the order their ``?`` appear, and
     the numbering that keeps the aliases of nested statements apart."""
 
-    def __init__(self, resolve: Resolve | None = None) -> None:
+    def __init__(self, resolve: Resolve | None = None, has_map: bool = True) -> None:
         self.params: list[Any] = []
         self.resolve = resolve
+        self.has_map = has_map  # whether the file has a time map
         self._n = 0
 
     def alias(self, prefix: str) -> str:
@@ -368,6 +391,15 @@ POSITION_FIELDS = (
     "bar.label",
     "bar.beat_count",
 )
+POSITION_COLUMNS = {
+    "bar": "bar",
+    "end_bar": "end_bar",
+    "beat": "beat",
+    "pass": "pass",
+    "bar.count": "bar_count",
+    "bar.beat_count": "bar_beat_count",
+}  # the numeric position fields and the column of ``positions`` each reads
+LENGTH_UNITS = ("bar", "beat")
 ORDER_OPS = {"=": "=", "!=": "<>", "<": "<", ">": ">", "<=": "<=", ">=": ">="}
 STORED_NUMBERS = {
     "start": "{c}.start",
@@ -378,41 +410,27 @@ STORED_NUMBERS = {
     "depth": "(SELECT h.depth FROM hierarchies h WHERE h.component_id = {c}.id)",
     "inversion": "(SELECT x.inversion FROM chords x WHERE x.component_id = {c}.id)",
     "applied_to": "(SELECT x.applied_to FROM chords x WHERE x.component_id = {c}.id)",
+    **{
+        name: f"(SELECT p.{column} FROM positions p WHERE p.component_id = {{c}}.id)"
+        for name, column in POSITION_COLUMNS.items()
+    },
 }
 
 
-def later(cond: syntax.Cond) -> None:
-    """Raise NotImplementedError for a condition that needs the time map or the
-    piece's length: positions, percentages, lengths in bars or beats, distances."""
-    if isinstance(cond, syntax.Downbeat):
-        raise NotImplementedError("downbeat is not available yet (positions)")
-    if not isinstance(cond, syntax.Compare):
-        return
-    value = cond.value
-    sides = [cond.field] + ([value.value] if value.kind == "ref" else [])
-    for side in sides:
-        if not side.scope and side.name in POSITION_FIELDS:
-            raise NotImplementedError(
-                f"{side.name} is a position: positions are not available yet "
-                "(positions)"
-            )
-    if value.unit:
-        raise NotImplementedError(
-            "percentages and lengths in bars or beats are not available yet "
-            "(positions)"
-        )
-    if value.offset is not None:
-        raise NotImplementedError(
-            "a distance added to a time is not available yet (positions)"
-        )
-
-
 def compare_in_sql(cond: syntax.Compare) -> bool:
-    """Whether SQL tests ``cond`` on one unit: a stored number against a number
-    or a range, or a colour against a colour, or either one's ``*``."""
+    """Whether SQL tests ``cond`` on one unit: a stored number (a position
+    included) against a number or a range, a ``duration`` in bars or beats, or a
+    colour against a colour, or either one's ``*``."""
     f, v = cond.field, cond.value
-    if f.scope or f.index is not None or v.unit or v.offset is not None:
+    if f.scope or f.index is not None or v.offset is not None:
         return False
+    if v.unit:
+        return (
+            f.name == "duration"
+            and v.unit in LENGTH_UNITS
+            and v.kind in ("number", "range")
+            and (v.kind == "range" or cond.op in ORDER_OPS)
+        )
     if f.name in STORED_NUMBERS:
         if v.kind == "number":
             return cond.op in ORDER_OPS
@@ -431,6 +449,8 @@ def compare_sql(cond: syntax.Compare, comp: str, bld: SqlBuilder) -> str:
     f, v = cond.field, cond.value
     if f.name == "color":
         col = f"tql_color({comp}.color)"
+    elif v.unit:
+        col = f"tql_length({comp}.file_id, {comp}.start, {comp}.\"end\", '{v.unit}')"
     else:
         col = STORED_NUMBERS[f.name].format(c=comp)
     if v.kind == "any":
@@ -450,8 +470,20 @@ def compare_sql(cond: syntax.Compare, comp: str, bld: SqlBuilder) -> str:
     else:
         bld.params.append(float(v.value))
         test = f"{col} {ORDER_OPS[cond.op]} ?"
+    if cond_unknowable(cond):  # no value is no match, ``NOT`` included
+        return f"COALESCE(({'NOT ' if cond.negate else ''}({test})), 0)"
     test = f"COALESCE(({test}), 0)"
     return f"NOT {test}" if cond.negate else test
+
+
+def cond_unknowable(cond: syntax.Compare) -> bool:
+    """Whether a unit can lack what ``cond`` compares because of the file (a
+    position or a length in bars or beats needs the time map): the condition
+    then holds of no unit, ``NOT`` included, rather than of every one."""
+    f, v = cond.field, cond.value
+    if v.kind == "any":
+        return False
+    return bool(v.unit) or (not f.scope and f.name in POSITION_FIELDS)
 
 
 def split_conds(
@@ -465,7 +497,6 @@ def split_conds(
     in_sql: list[syntax.RelCond | syntax.Compare] = []
     in_python: list[syntax.Cond] = []
     for cond in unit.conds:
-        later(cond)
         if isinstance(cond, syntax.Compare) and compare_in_sql(cond):
             in_sql.append(cond)
         elif isinstance(cond, syntax.RelCond) and relations.in_sql(cond.relation):
@@ -533,17 +564,22 @@ def unit_test(unit: syntax.Unit, comp: str, bld: SqlBuilder) -> str:
 
 
 def candidate_statement(
-    unit: syntax.Unit, file_id: str, resolve: Resolve | None = None
+    unit: syntax.Unit,
+    file_id: str,
+    resolve: Resolve | None = None,
+    has_map: bool = True,
 ) -> tuple[str, list[Any]]:
     """``(sql, parameters)`` selecting the ids of the components of ``file_id``
     that fit ``unit`` (tql.md §5), bound with ``?``: its label and the timing
     relations in its brackets, and the stored numbers and colours it compares.
-    ``resolve`` names the lanes of an ``IN`` clause."""
+    ``resolve`` names the lanes of an ``IN`` clause; ``has_map`` says whether the
+    file has a time map, without which a relation limited in bars or beats holds
+    of nothing."""
     if unit.term is None and not unit.conds:
         raise NotImplementedError(
             "a unit without a label is not available yet (conditions)"
         )
-    bld = SqlBuilder(resolve)
+    bld = SqlBuilder(resolve, has_map)
     bld.params.append(file_id)
     test = unit_test(unit, "c", bld)
     sql = f"SELECT c.id FROM components c WHERE c.file_id = ? AND ({test})"
