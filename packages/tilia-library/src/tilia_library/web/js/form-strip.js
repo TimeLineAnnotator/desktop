@@ -5,6 +5,8 @@ import { escapeHtml, mmss } from './util.js';
 //   opts.highlightIds  gold `matched`            opts.parentIds   blue `matched-parent`
 //   opts.contextIds    `matched-ctx`             every other block is `dim` once any is given
 //   opts.rowLabels     {level: name}, every named row is drawn, even an empty one
+//   opts.adds          [{level, start, end, label}]: components a pending edit would add, drawn dashed
+//   opts.marks         Map component_id -> {kind: "set" | "del", newLabel?}: blocks a pending edit changes
 //   opts.extent        {tmin, tmax}, shared by the strips of one card
 // A point (a marker) is drawn as a tick, its label running to the right.
 
@@ -37,6 +39,8 @@ export function renderFormStrip(comps, opts = {}) {
   const context = opts.contextIds || null;
   const active = highlight || parents || context;
   const rowLabels = opts.rowLabels || null;
+  const adds = opts.adds || [];
+  const marks = opts.marks || null;
   const { tmin, tmax } = opts.extent || stripExtent(comps, opts.totalDur);
   const dur = (tmax - tmin) || 1;
 
@@ -48,6 +52,8 @@ export function renderFormStrip(comps, opts = {}) {
   }
   if (rowLabels)
     for (const k of Object.keys(rowLabels)) if (!byLevel.has(Number(k))) byLevel.set(Number(k), []);
+  // a new component may sit at a level the timeline has no row for yet
+  for (const a of adds) if (!byLevel.has(a.level)) byLevel.set(a.level, []);
   const levels = [...byLevel.keys()].sort((a, b) => b - a);
   const left = s => `left:${Math.max(0, (s - tmin) / dur * 100).toFixed(2)}%`;
   const pos = (s, e) => `${left(s)};width:${Math.max(0.4, (e - s) / dur * 100).toFixed(2)}%`;
@@ -62,16 +68,25 @@ export function renderFormStrip(comps, opts = {}) {
       const isParent = parents && parents.has(c.component_id);
       const isHot = highlight && highlight.has(c.component_id);
       const isCtx = context && context.has(c.component_id);
+      const mark = marks && marks.get(c.component_id);
       const cls = "strip-block"
         + (c.point ? " point" : "")
         + (active ? (isParent ? " matched matched-parent" : isHot ? " matched"
-                     : isCtx ? " matched-ctx" : " dim") : "");
-      const label = c.label || "";
+                     : isCtx ? " matched-ctx" : " dim") : "")
+        + (mark ? ` plan-${mark.kind}` : "");
+      const label = (mark && mark.newLabel != null ? mark.newLabel : c.label) || "";
       const where = c.point ? mmss(s) : `${mmss(s)}–${mmss(e)}`;
       blocks +=
         `<div class="${cls}" data-cid="${escapeHtml(String(c.component_id))}"` +
         ` style="${c.point ? left(s) : pos(s, e)};background:${safeColor(c.color)}"` +
         ` title="${escapeHtml(`${label}  (${where}, ${name})`)}">${escapeHtml(label)}</div>`;
+    }
+    for (const a of adds) {
+      if (a.level !== lv) continue;
+      blocks +=
+        `<div class="strip-block plan-add" style="${pos(a.start, a.end)}"` +
+        ` title="${escapeHtml(`new: ${a.label}  (${mmss(a.start)}–${mmss(a.end)}, ${name})`)}">` +
+        `${escapeHtml(a.label == null ? "" : a.label)}</div>`;
     }
     html +=
       `<div class="strip-row"><span class="lvl" title="${escapeHtml(name)}">${escapeHtml(name)}</span>` +
