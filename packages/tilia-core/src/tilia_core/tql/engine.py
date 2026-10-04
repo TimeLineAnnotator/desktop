@@ -1,9 +1,12 @@
-"""Run a TQL sequence pattern on an index.
+"""Run a TQL query on an index.
 
 SQL selects each unit's candidates (:mod:`.compile`); this module builds the
-lanes of every file, walks them with :func:`.sequences.find_runs` and writes
-the result table. Relations are in :mod:`.relations`. ``run`` only reads: it never writes to the index and never
-creates a table.
+lanes of every file, walks them with :func:`.sequences.find_runs`, keeps the
+matches that meet ``WHERE`` and writes the result table. Relations are in
+:mod:`.relations`, the comparisons of conditions in :mod:`.values`, and the
+names a query may use in :mod:`.names`. A query of only ``WHERE`` lists
+timelines, files or units. ``run`` only reads: it never writes to the index and
+never creates a table.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from typing import Any, Callable, Iterator
 from tilia_core import derived
 
 from . import compile as tql_compile
-from . import relations, sqlfuncs, syntax
+from . import names, relations, sqlfuncs, syntax, values
 from .explain import explain
 from .result import Component, Match, Result
 from .sequences import find_runs, slots_of
@@ -48,18 +51,10 @@ class _Log:
         return self.con.execute(sql, params).fetchall()
 
 
-def _check(query: syntax.Query) -> syntax.SeqPattern | syntax.RelPattern:
+def _check(query: syntax.Query) -> syntax.SeqPattern | syntax.RelPattern | None:
     p = query.pattern
-    if p is None:
-        raise NotImplementedError("a query of only WHERE is not available yet (where)")
-    if isinstance(p, syntax.RelPattern):
-        if query.where:
-            raise NotImplementedError("WHERE is not available yet (where)")
-        return p
-    if p.within is not None:
+    if isinstance(p, syntax.SeqPattern) and p.within is not None:
         raise NotImplementedError("WITHIN is not available yet (within)")
-    if query.where:
-        raise NotImplementedError("WHERE is not available yet (where)")
     return p
 
 
@@ -97,6 +92,44 @@ def _sequence_matches(
             )
 
 
+def _timeline_row(log: _Log, m: Match, title: str | None) -> dict[str, Any]:
+    """A row of a query of only ``WHERE`` that lists timelines."""
+    name, kind, role, author = log.execute(
+        "SELECT name, kind, role, author FROM timelines WHERE id = ?",
+        (m.timeline_id,),
+    )[0]
+    return {
+        "file": m.file_id,
+        "title": title,
+        "timeline": name,
+        "kind": kind,
+        "role": role,
+        "author": author,
+    }
+
+
+def _file_row(
+    log: _Log, m: Match, title: str | None, file_fields: list[str]
+) -> dict[str, Any]:
+    """A row of a query of only ``WHERE`` that lists files: ``file``, ``title``
+    and a column for each file field the query names (several values joined by
+    ``, ``)."""
+    row: dict[str, Any] = {"file": m.file_id, "title": title}
+    for name in file_fields:
+        if name in row:
+            continue
+        if name == "id":
+            row[name] = m.file_id
+            continue
+        found = log.execute(
+            "SELECT value FROM fields WHERE scope = 'file' AND owner_id = ? "
+            "AND name = ? ORDER BY rowid",
+            (m.file_id, name),
+        )
+        row[name] = ", ".join(str(r[0]) for r in found) if found else None
+    return row
+
+
 def _file_title(log: _Log, file_id: str) -> str | None:
     rows = log.execute(
         "SELECT value FROM fields WHERE scope = 'file' AND owner_id = ? "
@@ -122,8 +155,89 @@ def run(
     con = index.connection()
     sqlfuncs.register(con)
     log = _Log(con)
-    marked = query.has_target
+    catalogue = names.read(log)
+    names.check(catalogue, query)
+    warn = _Warnings()
+    extra: list[str] = []
+    stopped: str | None = None
+    if pattern is None:
+        grain, matches, extra = _where_only(log, catalogue, query, warn)
+        if max_matches is not None and len(matches) > max_matches:
+            matches, stopped = matches[:max_matches], "max_matches"
+    else:
+        grain = "match"
+        matches, stopped = _pattern_matches(log, query, pattern, max_matches, warn)
+    titles: dict[str, str | None] = {}
+    rows = []
+    node_names = {r[0]: r[1] for r in log.execute("SELECT id, name FROM timelines")}
+    for m in matches:
+        fid = m.file_id or _file_of(m)
+        if fid not in titles:
+            titles[fid] = _file_title(log, fid)
+        if grain == "match":
+            rows.append(_row(log, m, node_names, titles[fid]))
+        elif grain == "timeline":
+            rows.append(_timeline_row(log, m, titles[fid]))
+        else:
+            rows.append(_file_row(log, m, titles[fid], extra))
+    return Result(
+        grain=grain,
+        rows=rows,
+        matches=matches,
+        explain=explain(query),
+        sql="\n\n".join(log.statements),
+        warnings=warn.messages(),
+        stopped=stopped,
+        generation=index.generation,
+    )
 
+
+class _Warnings:
+    """What parts of the corpus could not answer, by the files they concern."""
+
+    def __init__(self) -> None:
+        self.files: dict[str, set[str]] = {}
+
+    def file_lacks(self, field_name: str, file_id: str) -> None:
+        self.files.setdefault(f"the file field {field_name!r}", set()).add(file_id)
+
+    def messages(self) -> list[str]:
+        out = []
+        for what, files in self.files.items():
+            n = len(files)
+            out.append(
+                f"{n} file{'s' if n != 1 else ''} without {what} could not answer"
+            )
+        return out
+
+
+def _lanes_with_labels_and_more(
+    scope: relations.Scope, harmony: bool
+) -> list[tql_compile.LaneSpec]:
+    """The default lanes of a file, and, for a question about harmony, the
+    chords and keys of its timelines."""
+    specs = list(scope.lanes(None))
+    if harmony:
+        rows = scope.log.execute(
+            "SELECT id FROM timelines WHERE file_id = ? ORDER BY ordinal",
+            (scope.file_id,),
+        )
+        for (tid,) in rows:
+            specs.extend(s for s in scope.own_lanes(tid) if s.kind in ("chord", "key"))
+    return specs
+
+
+def _pattern_matches(
+    log: _Log,
+    query: syntax.Query,
+    pattern: syntax.SeqPattern | syntax.RelPattern,
+    max_matches: int | None,
+    warn: _Warnings,
+) -> tuple[list[Match], str | None]:
+    """The matches of a sequence or relation pattern in every file, those that
+    meet ``WHERE`` only, in file and time order."""
+    marked = query.has_target
+    single = names.is_single(query)
     found: dict[tuple[Any, ...], Match] = {}
     order: list[tuple[Any, ...]] = []
     stopped: str | None = None
@@ -137,6 +251,13 @@ def run(
         else:
             found_here = _sequence_matches(scope, pattern, specs, marked)
         for match in found_here:
+            if query.where:
+                first = next(c for slot in match.slots for c in slot)
+                subject = values.Subject(match.slots, first.timeline_id, single)
+                ok, caps = scope.where_ok(query.where, subject)
+                if not ok:
+                    continue
+                match.captures = caps
             key = (file_id, tuple(tuple(c.id for c in s) for s in match.slots))
             cur = found.get(key)
             if cur is None:
@@ -147,29 +268,61 @@ def run(
                     break
             elif (match.lane_level or 0) > (cur.lane_level or 0):
                 found[key] = match  # the highest reading of the same run
+        for name in sorted(scope.missing):
+            warn.file_lacks(name, file_id)
         if stopped:
             break
 
     matches = [found[k] for k in order]
     matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
-    names = {r[0]: r[1] for r in log.execute("SELECT id, name FROM timelines")}
-    titles: dict[str, str | None] = {}
-    rows = []
-    for m in matches:
-        fid = _file_of(m)
-        if fid not in titles:
-            titles[fid] = _file_title(log, fid)
-        rows.append(_row(log, m, names, titles[fid]))
-    return Result(
-        grain="match",
-        rows=rows,
-        matches=matches,
-        explain=explain(query),
-        sql="\n\n".join(log.statements),
-        warnings=[],
-        stopped=stopped,
-        generation=index.generation,
-    )
+    return matches, stopped
+
+
+def _where_only(
+    log: _Log, cat: names.Catalogue, query: syntax.Query, warn: _Warnings
+) -> tuple[str, list[Match], list[str]]:
+    """``WHERE`` alone: timelines when it names timeline fields, files when it
+    names only file fields, and units otherwise. Also the file fields it names,
+    for the columns of a file row."""
+    grain = names.where_grain(cat, query)
+    harmony = names.asks_about_harmony(query)
+    matches: list[Match] = []
+    for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+        scope = relations.Scope(log, file_id)
+        timelines = log.execute(
+            "SELECT id, name FROM timelines WHERE file_id = ? ORDER BY ordinal",
+            (file_id,),
+        )
+        if grain == "file":
+            ok, caps = scope.where_ok(query.where, values.Subject([], None))
+            if ok:
+                matches.append(Match([], "", captures=caps, file_id=file_id))
+        elif grain == "timeline":
+            for tid, name in timelines:
+                subject = values.Subject([], tid)
+                ok, caps = scope.where_ok(query.where, subject)
+                if ok:
+                    matches.append(
+                        Match([], name, captures=caps, file_id=file_id, timeline_id=tid)
+                    )
+        else:
+            seen: set[str] = set()
+            for spec in _lanes_with_labels_and_more(scope, harmony):
+                for comp, _, _ in scope.lane_items(spec):
+                    if comp.id in seen:
+                        continue
+                    seen.add(comp.id)
+                    subject = values.Subject([[comp]], comp.timeline_id)
+                    ok, caps = scope.where_ok(query.where, subject)
+                    if ok:
+                        match = scope.match(comp, [])
+                        match.captures = caps
+                        matches.append(match)
+        for name in sorted(scope.missing):
+            warn.file_lacks(name, file_id)
+    if grain == "match":
+        matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
+    return grain, matches, names.named_file_fields(cat, query)
 
 
 # --------------------------------------------------------------------------- #

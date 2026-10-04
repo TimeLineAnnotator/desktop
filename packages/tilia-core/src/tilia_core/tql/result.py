@@ -31,7 +31,11 @@ class Match:
     lane the match was found in; ``lane_level`` and ``lane_row`` say which
     level or range row that lane is. ``slot_lanes``, when the steps lie in
     different lanes (a relation), names each step's lane; ``lane`` is then the
-    first one's."""
+    first one's. ``captures`` are the groups a ``~`` in ``WHERE`` captured.
+
+    A query of only ``WHERE`` that lists timelines or files has no units: its
+    matches have empty ``slots`` and name their ``file_id`` (and, for a
+    timeline, its ``timeline_id``) instead."""
 
     slots: list[list[Component]]
     lane: str
@@ -41,6 +45,8 @@ class Match:
     lane_level: int | None = None
     lane_row: str | None = None
     slot_lanes: list[str] = field(default_factory=list)
+    file_id: str | None = None
+    timeline_id: str | None = None
 
     def is_target(self, n: int, k: int) -> bool:
         """Whether unit ``k`` (from 0) of step ``n`` (``$n``, from 1) is the
@@ -54,7 +60,11 @@ class Match:
         """A key that names the match and is the same on every run: the file,
         then per step the units' ``timeline/component`` ids."""
         first = next((c for s in self.slots for c in s), None)
-        file_id = first.file_id if first is not None else ""
+        if first is None:
+            if self.timeline_id is not None:
+                return f"{self.file_id}|tl:{self.timeline_id}"
+            return f"{self.file_id}|file"
+        file_id = first.file_id
         steps = (",".join(f"{c.timeline_id}/{c.id}" for c in s) for s in self.slots)
         return f"{file_id}|" + ";".join(steps)
 

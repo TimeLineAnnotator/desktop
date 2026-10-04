@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Any, Iterator, Protocol
 
 from . import compile as tql_compile
-from . import syntax
+from . import names, syntax, values
 from .compile import LaneSpec, SqlBuilder
 from .lanes import project
 from .result import Component, Match
@@ -326,6 +326,9 @@ class Scope:
         self._items: dict[LaneSpec, list[Item]] = {}
         self._fit: dict[int, frozenset[str]] = {}
         self._keep: list[Any] = []  # units made here, kept so their ids stay theirs
+        self.facts = values.Facts(log, file_id)
+        self.missing: set[str] = set()  # file fields a condition read and it lacks
+        self._steps: dict[int, syntax.Unit] = {}
 
     # -- components ---------------------------------------------------------- #
     def timeline(self, timeline_id: str) -> list[Component]:
@@ -484,9 +487,159 @@ class Scope:
         if isinstance(cond, syntax.RelCond):
             got = bool(self.rel_targets(comp, cond.relation, first_only=True))
             return got != cond.relation.negate
-        raise NotImplementedError(
-            "conditions on fields are not available yet (conditions)"
-        )
+        if isinstance(cond, syntax.Compare):
+            subject = values.Subject([[comp]], comp.timeline_id, bracket=True)
+            return self.compare(cond, subject, None)
+        raise NotImplementedError(f"{type(cond).__name__} is not a condition on a unit")
+
+    # -- fields -------------------------------------------------------------- #
+    def unit_value(self, name: str, comp: Component) -> Any:
+        """One field of a unit; None when its kind has none."""
+        if name == "label":
+            return comp.label
+        if name in ("start", "time"):
+            return comp.start
+        if name == "end":
+            return comp.end
+        if name == "duration":
+            return comp.end - comp.start
+        if name == "level":
+            return comp.level
+        if name == "row":
+            return comp.row
+        if name == "parent":
+            return self.parent(comp)
+        return self.facts.unit(comp.id).get(name)
+
+    def subject_units(
+        self, f: syntax.FieldRef, subject: values.Subject
+    ) -> list[Component]:
+        """The units ``f`` reads: those step ``$n`` took (``$0``: every unit of
+        the match); with no ``$n``, the subject's first step."""
+        if f.index is None:
+            return list(subject.slots[0]) if subject.slots else []
+        if f.index == 0:
+            return [u for slot in subject.slots for u in slot]
+        return list(subject.slots[f.index - 1]) if f.index <= len(subject.slots) else []
+
+    def place(self, f: syntax.FieldRef, subject: values.Subject) -> str:
+        """Whose field ``f`` is: ``unit``, ``tl`` or ``file``."""
+        if f.scope:
+            return f.scope
+        if subject.bracket or f.index is not None:
+            return "unit"
+        if f.name in names.UNIT_FIELDS and subject.single:
+            return "unit"
+        return "tl" if f.name in names.TIMELINE_FIELDS else "file"
+
+    def field_values(self, f: syntax.FieldRef, subject: values.Subject) -> list[Any]:
+        """The values of field ``f``, one per unit (or timeline) it reads; a list
+        field such as ``tags`` gives all its values."""
+        where = self.place(f, subject)
+        if where == "file":
+            got = self.facts.file().get(f.name)
+            if got is None:
+                self.missing.add(f.name)
+                return []
+            return list(got)
+        out: list[Any] = []
+        if where == "tl":
+            if f.index is None:
+                ids = [subject.timeline_id]
+            else:
+                ids = list(
+                    dict.fromkeys(u.timeline_id for u in self.subject_units(f, subject))
+                )
+            return [self.facts.timeline(t).get(f.name) for t in ids]
+        for comp in self.subject_units(f, subject):
+            value = self.unit_value(f.name, comp)
+            if isinstance(value, list):
+                out.extend(value or [""])  # no tags: a unit with none to equal
+            else:
+                out.append(value)
+        return out
+
+    def step_unit(self, cond: syntax.Compare) -> syntax.Unit:
+        """The step ``cond`` stands for when it matches a label or a parent
+        (Q26): ``[label = verse]`` is the step ``verse``."""
+        got = self._steps.get(id(cond))
+        if got is None:
+            v = cond.value
+            kind = {"word": "word", "string": "exact", "regex": "regex", "any": "any"}[
+                v.kind
+            ]
+            text = str(v.value if v.value is not None else "*")
+            head, _, sub = text.partition(".") if kind == "word" else (text, "", "")
+            lit = syntax.Literal(kind, head, sub or None, v.raw, v.pos)
+            alt = syntax.Alt([lit], v.raw, v.pos)
+            got = syntax.Unit(syntax.Term([alt], False, v.pos), [], v.pos)
+            self._steps[id(cond)] = self.keep(got)
+        return got
+
+    def step_ok(
+        self, cond: syntax.Compare, comps: list[Component | None], bracket: bool
+    ) -> bool:
+        """Whether some of ``comps`` fits the step ``cond`` stands for: ``=``
+        holds when one does, ``!=`` when none does."""
+        step = self.step_unit(cond)
+        hit = False
+        for comp in comps:
+            if comp is None:
+                continue
+            if comp.kind in ("chord", "key") and cond.value.kind != "any":
+                if bracket:
+                    continue  # the unit's lane is checked as a whole
+                raise NotImplementedError(
+                    "labels in chords and keys lanes are for the harmony part"
+                )
+            hit = hit or self.fits(step, comp)
+        if cond.op in ("=", "~"):
+            return hit
+        return not hit
+
+    def compare(
+        self, cond: syntax.Compare, subject: values.Subject, caps: list[str] | None
+    ) -> bool:
+        """Whether the comparison ``cond`` holds of ``subject`` (``NOT`` read).
+        The groups a ``~`` captures go to ``caps``."""
+        return self._compare(cond, subject, caps) != cond.negate
+
+    def _compare(
+        self, cond: syntax.Compare, subject: values.Subject, caps: list[str] | None
+    ) -> bool:
+        f, v = cond.field, cond.value
+        fname = f.name if not f.scope else f"{f.scope}.{f.name}"
+        if not f.scope and f.name == "label" and cond.op in ("=", "!="):
+            if v.kind in ("word", "string"):
+                units: list[Component | None] = list(self.subject_units(f, subject))
+                return self.step_ok(cond, units, subject.bracket) if units else False
+        if not f.scope and f.name == "parent" and v.kind != "ref":
+            parents: list[Component | None] = [
+                self.parent(u) for u in self.subject_units(f, subject)
+            ]
+            return self.step_ok(cond, parents, subject.bracket)
+        lhs = self.field_values(f, subject)
+        if v.kind == "ref":
+            return values.compare(
+                cond.op, lhs, self.field_values(v.value, subject), fname, caps
+            )
+        return values.compare_value(cond.op, lhs, v, fname, caps)
+
+    def where_ok(
+        self, conds: list[syntax.Cond], subject: values.Subject
+    ) -> tuple[bool, tuple[str, ...]]:
+        """Whether the match ``subject`` meets every condition of ``WHERE``, and
+        the groups its ``~`` conditions captured."""
+        caps: list[str] = []
+        for cond in conds:
+            if isinstance(cond, syntax.Compare):
+                ok = self.compare(cond, subject, caps)
+            else:
+                first = next((u for slot in subject.slots for u in slot), None)
+                ok = first is not None and self.cond_ok(cond, first)
+            if not ok:
+                return False, ()
+        return True, tuple(caps)
 
     # -- relations ------------------------------------------------------------ #
     def target_lanes(self, a: Component, rel: syntax.Relation) -> list[LaneSpec]:

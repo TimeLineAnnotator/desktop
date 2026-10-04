@@ -2,8 +2,8 @@
 
 Two jobs: :func:`resolve_lanes` says which lanes of a file an ``IN`` clause
 names, and :func:`candidate_statement` writes the SELECT that finds the
-components fitting one ``Unit`` of the query: its label and the timing
-relations in its brackets (as ``EXISTS``). Python builds the lanes and walks
+components fitting one ``Unit`` of the query: its label, the timing
+relations in its brackets (as ``EXISTS``) and its simple comparisons. Python builds the lanes and walks
 them, and tests the conditions SQL does not take (:mod:`.relations`).
 """
 
@@ -14,6 +14,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
+from tilia_core import derived
 from tilia_core.labels import fold, nfc
 
 from . import syntax
@@ -69,7 +70,7 @@ class LaneSpec:
 # --------------------------------------------------------------------------- #
 # Lanes
 # --------------------------------------------------------------------------- #
-def _name_pattern(lane: syntax.Lane) -> str:
+def name_pattern(lane: syntax.Lane) -> str:
     """The ``fnmatch`` pattern for a lane name: a quoted name keeps its case, a
     bare word ignores it. ``*`` is the only wildcard."""
     text = lane.text.strip()
@@ -137,7 +138,7 @@ def resolve_lanes(
             kind = KIND_WORDS[word]
             return [s for tl in timelines for s in _lanes_of(con, tl, (kind,))]
 
-    pattern = _name_pattern(lane)
+    pattern = name_pattern(lane)
     out: list[LaneSpec] = []
     for tl in timelines:
         name = tl[3] if not lane.quoted else nfc(tl[2])
@@ -223,12 +224,25 @@ class SqlBuilder:
         return self.resolve(lane)
 
 
+def is_label_step(cond: syntax.Cond) -> bool:
+    """Whether ``cond`` is ``[label = verse]``: a label matched as a step, which
+    chords and keys do not take until the harmony part."""
+    return (
+        isinstance(cond, syntax.Compare)
+        and not cond.field.scope
+        and cond.field.name == "label"
+        and cond.op in ("=", "!=")
+        and cond.value.kind in ("word", "string")
+    )
+
+
 def is_wildcard(unit: syntax.Unit) -> bool:
     """Whether ``unit`` is a plain ``*``, the one literal that fits a chord or
     a key until the harmony part lands."""
     term = unit.term
     return (
         term is not None
+        and not any(is_label_step(c) for c in unit.conds)
         and not term.negate
         and len(term.alts) == 1
         and len(term.alts[0].lits) == 1
@@ -279,20 +293,116 @@ def _alt_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
     return "(" + " AND ".join(tests) + ")"
 
 
-def split_conds(unit: syntax.Unit) -> tuple[list[syntax.RelCond], list[syntax.Cond]]:
-    """The bracket conditions of ``unit`` that SQL tests (timing relations to
-    another lane, whose target SQL tests in full) and those Python tests."""
+POSITION_FIELDS = (
+    "bar",
+    "end_bar",
+    "beat",
+    "pass",
+    "bar.count",
+    "bar.label",
+    "bar.beat_count",
+)
+ORDER_OPS = {"=": "=", "!=": "<>", "<": "<", ">": ">", "<=": "<=", ">=": ">="}
+STORED_NUMBERS = {
+    "start": "{c}.start",
+    "time": "{c}.start",
+    "end": '{c}."end"',
+    "duration": '({c}."end" - {c}.start)',
+    "level": "(SELECT h.level FROM hierarchies h WHERE h.component_id = {c}.id)",
+    "depth": "(SELECT h.depth FROM hierarchies h WHERE h.component_id = {c}.id)",
+    "inversion": "(SELECT x.inversion FROM chords x WHERE x.component_id = {c}.id)",
+    "applied_to": "(SELECT x.applied_to FROM chords x WHERE x.component_id = {c}.id)",
+}
+
+
+def later(cond: syntax.Cond) -> None:
+    """Raise NotImplementedError for a condition that needs the time map or the
+    piece's length: positions, percentages, lengths in bars or beats, distances."""
+    if isinstance(cond, syntax.Downbeat):
+        raise NotImplementedError("downbeat is not available yet (positions)")
+    if not isinstance(cond, syntax.Compare):
+        return
+    value = cond.value
+    sides = [cond.field] + ([value.value] if value.kind == "ref" else [])
+    for side in sides:
+        if not side.scope and side.name in POSITION_FIELDS:
+            raise NotImplementedError(
+                f"{side.name} is a position: positions are not available yet "
+                "(positions)"
+            )
+    if value.unit:
+        raise NotImplementedError(
+            "percentages and lengths in bars or beats are not available yet "
+            "(positions)"
+        )
+    if value.offset is not None:
+        raise NotImplementedError(
+            "a distance added to a time is not available yet (positions)"
+        )
+
+
+def compare_in_sql(cond: syntax.Compare) -> bool:
+    """Whether SQL tests ``cond`` on one unit: a stored number against a number
+    or a range, or a colour against a colour, or either one's ``*``."""
+    f, v = cond.field, cond.value
+    if f.scope or f.index is not None or v.unit or v.offset is not None:
+        return False
+    if f.name in STORED_NUMBERS:
+        if v.kind == "number":
+            return cond.op in ORDER_OPS
+        return v.kind in ("range", "any")
+    if f.name == "color":
+        return v.kind == "any" or (
+            v.kind in ("number", "word", "string") and cond.op in ("=", "!=")
+        )
+    return False
+
+
+def compare_sql(cond: syntax.Compare, comp: str, bld: SqlBuilder) -> str:
+    """The condition ``cond`` (see :func:`compare_in_sql`) on component ``comp``.
+    A unit without the value never satisfies a comparison, ``NOT`` included, as in
+    Python: the test is 0 then, not NULL."""
+    f, v = cond.field, cond.value
+    if f.name == "color":
+        col = f"tql_color({comp}.color)"
+    else:
+        col = STORED_NUMBERS[f.name].format(c=comp)
+    if v.kind == "any":
+        empty = (
+            f"({col} IS NULL OR {col} = '')" if f.name == "color" else f"{col} IS NULL"
+        )
+        test = empty if cond.op == "!=" else f"NOT {empty}"
+    elif v.kind == "range":
+        lo, hi = v.value
+        bld.params.extend((lo - 1e-9, hi + 1e-9))
+        between = "NOT BETWEEN" if cond.op == "!=" else "BETWEEN"
+        test = f"{col} {between} ? AND ?"
+    elif f.name == "color":
+        raw = v.raw if v.kind == "number" else v.value
+        bld.params.append(derived.color(str(raw)))
+        test = f"{col} {ORDER_OPS[cond.op]} ?"
+    else:
+        bld.params.append(float(v.value))
+        test = f"{col} {ORDER_OPS[cond.op]} ?"
+    test = f"COALESCE(({test}), 0)"
+    return f"NOT {test}" if cond.negate else test
+
+
+def split_conds(
+    unit: syntax.Unit,
+) -> tuple[list[syntax.RelCond | syntax.Compare], list[syntax.Cond]]:
+    """The bracket conditions of ``unit`` that SQL tests (stored numbers and
+    colours, and timing relations to another lane, whose target SQL tests in
+    full) and those Python tests."""
     from . import relations  # relations imports this module
 
-    in_sql: list[syntax.RelCond] = []
+    in_sql: list[syntax.RelCond | syntax.Compare] = []
     in_python: list[syntax.Cond] = []
     for cond in unit.conds:
-        if isinstance(cond, (syntax.Compare, syntax.Downbeat)):
-            raise NotImplementedError(
-                "field and position conditions in brackets are not available yet "
-                "(conditions)"
-            )
-        if isinstance(cond, syntax.RelCond) and relations.in_sql(cond.relation):
+        later(cond)
+        if isinstance(cond, syntax.Compare) and compare_in_sql(cond):
+            in_sql.append(cond)
+        elif isinstance(cond, syntax.RelCond) and relations.in_sql(cond.relation):
             in_sql.append(cond)
         else:
             in_python.append(cond)
@@ -348,7 +458,10 @@ def unit_test(unit: syntax.Unit, comp: str, bld: SqlBuilder) -> str:
     if not in_sql:
         return test
     parts = [f"({test})"] + [
-        relations.exists_sql(c.relation, comp, bld) for c in in_sql
+        compare_sql(c, comp, bld)
+        if isinstance(c, syntax.Compare)
+        else relations.exists_sql(c.relation, comp, bld)
+        for c in in_sql
     ]
     return " AND ".join(parts)
 
@@ -358,8 +471,8 @@ def candidate_statement(
 ) -> tuple[str, list[Any]]:
     """``(sql, parameters)`` selecting the ids of the components of ``file_id``
     that fit ``unit`` (tql.md §5), bound with ``?``: its label and the timing
-    relations in its brackets. ``resolve`` names the lanes of an ``IN`` clause.
-    Conditions on fields are for a later part."""
+    relations in its brackets, and the stored numbers and colours it compares.
+    ``resolve`` names the lanes of an ``IN`` clause."""
     if unit.term is None and not unit.conds:
         raise NotImplementedError(
             "a unit without a label is not available yet (conditions)"
