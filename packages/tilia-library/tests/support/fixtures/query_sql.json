@@ -1,1 +1,6 @@
-{"sql": "SELECT file_id, start, end FROM units", "notes": ["labels are compared without case"]}
+{
+ "sql": "SELECT file_id, timeline_id, label, start, \"end\" FROM units WHERE label LIKE '%transi%'",
+ "notes": [
+  "sequence steps are matched in Python"
+ ]
+}
