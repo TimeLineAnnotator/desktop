@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
 from . import names
+from .inuse import in_use
 
 if TYPE_CHECKING:
     from .result import Component, Result
@@ -320,6 +321,17 @@ def compute(
     if name not in NAMES:
         raise ValueError(f"unknown statistics {name!r}; allowed: {', '.join(NAMES)}")
     reader = _Reader(result)
+    with in_use(reader.con):
+        return _compute_on(reader, name, by, fold_subtypes)
+
+
+def _compute_on(
+    reader: _Reader,
+    name: str,
+    by: str | Sequence[str] | None,
+    fold: bool,
+) -> Table:
+    """:func:`compute` once ``reader``'s connection is marked in use."""
     if name == "transitions":
         if by is not None:
             raise ValueError("transitions takes no key")
@@ -333,7 +345,7 @@ def compute(
     for key in keys:
         _check_key(reader, key)
     if name == "counts":
-        return _counts(reader, keys, fold_subtypes)
+        return _counts(reader, keys, fold)
     if name == "durations":
-        return _durations(reader, keys[0], fold_subtypes)
-    return _positions(reader, keys[0], fold_subtypes)
+        return _durations(reader, keys[0], fold)
+    return _positions(reader, keys[0], fold)

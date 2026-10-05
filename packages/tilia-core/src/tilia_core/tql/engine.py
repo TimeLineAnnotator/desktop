@@ -20,6 +20,7 @@ from tilia_core import derived
 from . import compile as tql_compile
 from . import names, relations, showsql, sqlfuncs, syntax, values
 from .explain import explain
+from .inuse import in_use
 from .lanes import BAR_KIND
 from .readonly import CHECK_EVERY, Limits, Stopped
 from .result import Component, Match, Result
@@ -134,11 +135,25 @@ def run(
     statement that is running. A stopped run does not raise: it returns the
     matches found so far, with their rows, and ``Result.stopped`` says why
     (``"max_matches"``, ``"time_limit"`` or ``"cancelled"``). Nothing is kept
-    between calls."""
+    between calls. Raises ``RuntimeError`` when another thread is running on the
+    connection the index gives."""
     if isinstance(query, str):
         query = syntax.parse(query)
-    pattern = query.pattern
     con = index.connection()
+    with in_use(con):
+        return _run_on(index, con, query, max_matches, time_limit, cancel)
+
+
+def _run_on(
+    index: Any,
+    con: sqlite3.Connection,
+    query: syntax.Query,
+    max_matches: int | None,
+    time_limit: float | None,
+    cancel: threading.Event | None,
+) -> Result:
+    """:func:`run` on the connection ``con``, which the caller has marked."""
+    pattern = query.pattern
     sqlfuncs.register(con, index)
     log = Recorder(con)
     catalogue = names.read(log)

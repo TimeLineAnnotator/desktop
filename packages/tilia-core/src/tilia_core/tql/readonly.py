@@ -16,6 +16,7 @@ import time
 from typing import Any
 
 from . import sqlfuncs
+from .inuse import in_use
 from .stats import Table
 from .syntax import TQLError
 
@@ -114,8 +115,22 @@ def sql(
     returned and ``Table.stopped`` says why (``"max_rows"``, ``"time_limit"`` or
     ``"cancelled"``). A statement that SQLite refuses or that fails raises
     :class:`~tilia_core.tql.syntax.TQLError` with SQLite's message; nothing is
-    ever written to the index."""
+    ever written to the index. Raises ``RuntimeError`` when another thread is
+    running on the connection the index gives."""
     con = index.connection()
+    with in_use(con):
+        return _sql_on(index, con, text, max_rows, time_limit, cancel)
+
+
+def _sql_on(
+    index: Any,
+    con: sqlite3.Connection,
+    text: str,
+    max_rows: int | None,
+    time_limit: float | None,
+    cancel: threading.Event | None,
+) -> Table:
+    """:func:`sql` on the connection ``con``, which the caller has marked."""
     sqlfuncs.register(con, index)
     limits = Limits(time_limit, cancel)
     columns: list[str] = []

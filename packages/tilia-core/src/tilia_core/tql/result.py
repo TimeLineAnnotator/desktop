@@ -118,7 +118,9 @@ class Result:
         ``durations`` and ``positions`` (one key), or ``transitions`` (none).
         ``by`` is ``label`` unless given; see :mod:`tilia_core.tql.stats`.
         ``fold_subtypes`` makes the ``category`` key the part before the first
-        dot. Raises ``ValueError`` for an unknown ``name`` or key."""
+        dot. Raises ``ValueError`` for an unknown ``name`` or key, and
+        ``RuntimeError`` when another thread is running on the connection the
+        index gives."""
         return stats.compute(self, name, by, fold_subtypes=fold_subtypes)
 
 
