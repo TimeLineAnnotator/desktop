@@ -5,7 +5,7 @@ virtual environment (the library with the core wheel from this checkout), checks
 that neither PySide6 nor the TiLiA app (``tilia``) is importable there, and runs
 the package's tests with that environment's interpreter.
 
-Run it with any Python 3.10 to 3.13: ``python scripts/check_packages.py``.
+Run it with any Python from 3.10 on: ``python scripts/check_packages.py``.
 Exits with 0 if every step passed and 1 at the first failure.
 """
 
