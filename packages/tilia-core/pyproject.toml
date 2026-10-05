@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tilia-core"
+version = "0.0.1"
+description = "TiLiA's file format and corpus tools, without a user interface"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    {email = "tilia@tilia-app.com"},
+    {name = "Felipe Defensor"},
+    {name = "Anne Foo"}
+]
+
+[project.urls]
+Homepage = "https://tilia-app.com"
+Repository = "https://github.com/TimeLineAnnotator/desktop"
+
+[dependency-groups]
+dev = ["pytest>=8.0.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

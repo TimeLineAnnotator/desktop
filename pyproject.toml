@@ -90,6 +90,7 @@ report = "compilation-report.xml"
 deployment = true
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 env = [
     "ENVIRONMENT=test",
     "QT_QPA_PLATFORM=offscreen",
@@ -102,6 +103,7 @@ lint.ignore = ["E203","E501"]
 lint.per-file-ignores = {"__init__.py"=["F401", "I001"]}
 lint.extend-select = ["B","I"]
 target-version = "py310"
+src = [".", "packages/*/src"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -129,3 +131,6 @@ tilia = [
     "ui/icons/*/actions/256/*",
     "ui/icons/*/apps/256/*",
 ]
+
+[tool.uv.workspace]
+members = ["packages/*"]
