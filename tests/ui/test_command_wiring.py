@@ -40,7 +40,7 @@ at all, tested here anyway, plus the two completeness guards.
 from __future__ import annotations
 
 import sys
-from contextlib import ExitStack, contextmanager, nullcontext
+from contextlib import ExitStack, contextmanager
 from typing import NamedTuple
 from unittest.mock import Mock
 
@@ -202,9 +202,13 @@ def spy_command_no_call_through(name: str):
 
 @contextmanager
 def fire_context(command: str, serves=(), call_through: bool = True):
-    """Shared plumbing for routes that need Get.FROM_USER_* prompts served
-    before firing, and/or a no-call-through spy. Yields the spy so callers
-    can still do `spy.assert_called()` themselves.
+    """Fire a route inside this block, then assert the yielded spy was
+    called: that proves the route ran the callback registered under
+    `command`, not a neighbouring command's.
+
+    `serves` answers the dialogs the command opens, as (request, answer)
+    pairs, so firing doesn't block on them. With call_through=False the real
+    callback doesn't run (see spy_command_no_call_through).
     """
     with ExitStack() as stack:
         for request, value in serves:
@@ -228,9 +232,8 @@ class ContextMenuCase(NamedTuple):
     id: str
     kind: str  # "pdf" | "beat" | "hierarchy" | "score"
     command: str
+    serves: tuple[tuple[Get, object], ...] = ()
     needs_selection: bool = False
-    needs_int_dialog: bool = False
-    needs_color_dialog: bool = False
 
 
 CONTEXT_MENU_CASES = [
@@ -272,7 +275,7 @@ CONTEXT_MENU_CASES = [
         "context-menu-hierarchy-set-color",
         "hierarchy",
         "timeline.component.set_color",
-        needs_color_dialog=True,
+        serves=((Get.FROM_USER_COLOR, (True, QColor("#000000"))),),
     ),
     ContextMenuCase(
         "context-menu-hierarchy-reset-color",
@@ -298,7 +301,7 @@ CONTEXT_MENU_CASES = [
         "context-menu-beat-set-measure-number",
         "beat",
         "timeline.beat.set_measure_number",
-        needs_int_dialog=True,
+        serves=((Get.FROM_USER_INT, (True, 1)),),
     ),
     ContextMenuCase(
         "context-menu-beat-reset-measure-number",
@@ -309,7 +312,7 @@ CONTEXT_MENU_CASES = [
         "context-menu-beat-set-amount-in-measure",
         "beat",
         "timeline.beat.set_amount_in_measure",
-        needs_int_dialog=True,
+        serves=((Get.FROM_USER_INT, (True, 1)),),
     ),
     # --- NEW: harmony/mode/marker/range element context menus ----------
     # harmony, mode and marker only expose generic commands (inspect/copy/
@@ -434,13 +437,7 @@ def test_context_menu_route(
     if case.needs_selection:
         tlui.select_element(element)
 
-    if case.needs_int_dialog:
-        dialog_ctx = Serve(Get.FROM_USER_INT, (True, 1))
-    elif case.needs_color_dialog:
-        dialog_ctx = Serve(Get.FROM_USER_COLOR, (True, QColor("#000000")))
-    else:
-        dialog_ctx = nullcontext()
-    with dialog_ctx, spy_command(case.command) as spy:
+    with fire_context(case.command, case.serves) as spy:
         fire(action)
     spy.assert_called()
 
