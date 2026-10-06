@@ -371,9 +371,9 @@ class TestRun:
         with pytest.raises(NotImplementedError):
             tql.run(index_of("exposition"), text)
 
-    def test_chord_literals_are_for_the_harmony_part(self):
-        with pytest.raises(NotImplementedError, match="harmony"):
-            tql.run(index_of("harmony"), "V7 THEN I IN harmony")
+    def test_chord_literals_run(self):
+        got = tql.run(index_of("harmony"), "V7 THEN I IN harmony")
+        assert got.matches
 
     def test_wildcard_over_chords(self):
         got = tql.run(index_of("harmony"), "* THEN * IN chords")

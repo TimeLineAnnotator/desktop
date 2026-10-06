@@ -17,7 +17,7 @@ from typing import Any, Callable, Iterable
 from tilia_core import derived
 from tilia_core.labels import fold, nfc
 
-from . import syntax
+from . import sqlfuncs, syntax
 
 ROLE_ALIASES = {"cadence": "cadences", "timemap": "time_map"}
 BUILTIN_ROLES = ("form", "cadences", "harmony", "keys", "time_map")
@@ -189,14 +189,23 @@ def timeline_lanes(con: sqlite3.Connection, timeline_id: str) -> list[LaneSpec]:
 
 def check_labels(specs: Iterable[LaneSpec], units: Iterable[syntax.Unit]) -> None:
     """Raise NotImplementedError when ``units`` would be matched against the
-    chords or keys of ``specs`` by anything but ``*``: that is for the harmony
-    part."""
-    if any(s.kind in ("chord", "key") for s in specs) and not all(
-        is_wildcard(u) for u in units
+    chords or keys of ``specs`` by a label condition (``[label = V7]``) rather
+    than as a step: that is not available yet."""
+    if any(s.kind in ("chord", "key") for s in specs) and any(
+        has_label_step(u) for u in units
     ):
         raise NotImplementedError(
-            "labels in chords and keys lanes are for the harmony part"
+            "a label condition on chords and keys is not available yet "
+            "(write the chord as a step: V7 IN harmony)"
         )
+
+
+def has_label_step(unit: syntax.Unit) -> bool:
+    """Whether a bracket of ``unit`` matches a label as a step, other than ``*``."""
+    return any(
+        is_label_step(c) and c.value.kind != "any"  # type: ignore[union-attr]
+        for c in unit.conds
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -225,28 +234,13 @@ class SqlBuilder:
 
 
 def is_label_step(cond: syntax.Cond) -> bool:
-    """Whether ``cond`` is ``[label = verse]``: a label matched as a step, which
-    chords and keys do not take until the harmony part."""
+    """Whether ``cond`` is ``[label = verse]``: a label matched as a step."""
     return (
         isinstance(cond, syntax.Compare)
         and not cond.field.scope
         and cond.field.name == "label"
         and cond.op in ("=", "!=")
         and cond.value.kind in ("word", "string")
-    )
-
-
-def is_wildcard(unit: syntax.Unit) -> bool:
-    """Whether ``unit`` is a plain ``*``, the one literal that fits a chord or
-    a key until the harmony part lands."""
-    term = unit.term
-    return (
-        term is not None
-        and not any(is_label_step(c) for c in unit.conds)
-        and not term.negate
-        and len(term.alts) == 1
-        and len(term.alts[0].lits) == 1
-        and term.alts[0].lits[0].kind == "any"
     )
 
 
@@ -260,6 +254,84 @@ def _category_test(lit: syntax.Literal, alias: str, params: list[Any]) -> str:
 
 
 def _alt_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
+    """One ``a/b/…`` on the component ``comp``. A chord is read as a chord and a
+    key as a key (:func:`_harmony_sql`); any other component has its label
+    tested (:func:`_label_sql`)."""
+    lits = alt.lits
+    if len(lits) == 1 and lits[0].kind == "any":
+        return "(1)"
+    harmony = _harmony_sql(alt, comp, params)
+    label = _label_sql(alt, comp, n, params)
+    return (
+        f"(({comp}.kind IN ('chord', 'key') AND {harmony}) OR "
+        f"({comp}.kind NOT IN ('chord', 'key') AND {label}))"
+    )
+
+
+REGEX_COLUMNS = ("roman", "symbol", "key", "custom_text")
+
+
+def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
+    """The test that ``alt`` fits the chord or key ``comp`` (tql.md §5): a
+    regular expression alone searches a chord's Roman numeral, symbol, key and
+    custom text, or a key's name; any other literal is read as a chord or a key
+    (``V/V`` and ``C/E`` as written, with their slash). A chord literal that is
+    no chord, written in quotes, still matches a chord's own custom text."""
+    lits = alt.lits
+    if len(lits) == 1 and lits[0].kind == "regex":
+        pattern = lits[0].text
+        found = " OR ".join(f"x.{col} REGEXP ?" for col in REGEX_COLUMNS)
+        params.extend([pattern] * len(REGEX_COLUMNS))
+        chord = f"EXISTS (SELECT 1 FROM chords x WHERE x.component_id = {comp}.id AND ({found}))"
+        params.append(pattern)
+        key = f"EXISTS (SELECT 1 FROM keys x WHERE x.component_id = {comp}.id AND x.key REGEXP ?)"
+        return (
+            f"(({comp}.kind = 'chord' AND {chord}) OR ({comp}.kind = 'key' AND {key}))"
+        )
+    exact = len(lits) == 1 and lits[0].kind == "exact"
+    text = nfc(lits[0].text if exact else alt.raw)
+    chord = (
+        "EXISTS (SELECT 1 FROM chords x LEFT JOIN keys y ON y.component_id = "
+        f"x.key_id WHERE x.component_id = {comp}.id AND tql_chord(?, x.step, "
+        "x.accidental, x.quality, x.inversion, x.applied_to, y.step, "
+        "y.accidental, y.mode))"
+    )
+    params.append(text)
+    if exact and isinstance(sqlfuncs.chord_spec(text), str):
+        chord = (
+            f"({chord} OR EXISTS (SELECT 1 FROM chords x WHERE "
+            f"x.component_id = {comp}.id AND trim(x.custom_text) = ?))"
+        )
+        params.append(text.strip())
+    params.append(text)
+    key = (
+        f"EXISTS (SELECT 1 FROM keys x WHERE x.component_id = {comp}.id AND "
+        "tql_key(?, x.step, x.accidental, x.mode))"
+    )
+    return f"(({comp}.kind = 'chord' AND {chord}) OR ({comp}.kind = 'key' AND {key}))"
+
+
+def harmony_problems(unit: syntax.Unit, kind: str) -> list[str]:
+    """The warnings for the literals of ``unit`` that are read as chords
+    (``kind`` ``chord``) or as keys (``key``) and are none."""
+    out: list[str] = []
+    for alt in unit.term.alts if unit.term is not None else ():
+        lits = alt.lits
+        if len(lits) == 1 and lits[0].kind in ("any", "regex"):
+            continue
+        if any(lit.kind == "regex" for lit in lits):
+            out.append("a regular expression in a harmony lane must stand alone")
+            continue
+        text = nfc(
+            lits[0].text if len(lits) == 1 and lits[0].kind == "exact" else alt.raw
+        )
+        spec = sqlfuncs.chord_spec(text) if kind == "chord" else sqlfuncs.key_spec(text)
+        if isinstance(spec, str):
+            out.append(f"{text!r} is not a {kind}: {spec}")
+    return out
+
+
+def _label_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
     """One ``a/b/…``: every literal on the one component ``comp``. Words need
     their own category row each; the other literals test the label."""
     tests: list[str] = []

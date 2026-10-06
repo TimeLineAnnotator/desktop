@@ -1,13 +1,7 @@
 # Examples tql.run can't run yet: one line `<n>: <reason>` each (the test marks them xfail, strict).
 26: distances in bars
 27: distances in bars
-28: chords and keys labels
 30: percentages of the piece
-39: chords and keys labels
-40: chords and keys labels
-44: chords and keys labels
-45: chords and keys labels
-48: chords and keys labels
 50: positions
 51: positions
 52: positions
