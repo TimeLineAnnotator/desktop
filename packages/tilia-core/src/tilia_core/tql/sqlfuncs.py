@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import weakref
 from functools import lru_cache
 from typing import Any, Callable
 
@@ -110,17 +111,24 @@ def _mode(row: Any) -> dict[str, Any]:
 
 
 class _TimeMaps:
-    """The time maps of one index, asked for once per file."""
+    """The time maps of one index, asked for once per file. The index is held
+    weakly, since it may hold the connection the functions are registered on;
+    one that takes no weak reference is held, and keeps that connection."""
 
     def __init__(self, index: Any) -> None:
-        self.index = index
+        self._index: Callable[[], Any]
+        try:
+            self._index = weakref.ref(index)
+        except TypeError:
+            self._index = lambda: index
         self._maps: dict[Any, Any] = {}
 
     def get(self, file_id: Any) -> Any:
-        if self.index is None:
+        index = self._index()
+        if index is None:
             return None
         if file_id not in self._maps:
-            self._maps[file_id] = self.index.time_map(file_id)
+            self._maps[file_id] = index.time_map(file_id)
         return self._maps[file_id]
 
 

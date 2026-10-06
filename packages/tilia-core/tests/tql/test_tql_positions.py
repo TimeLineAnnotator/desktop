@@ -2,6 +2,10 @@
 the ``bars`` lane (tql.md §4, §6.1, §7.3, §7.4, §8), on the examples.toml
 fixtures ``sonata``, ``repeat`` and ``pop`` and on small ones built here."""
 
+import gc
+import sqlite3
+import weakref
+
 import examples
 import fixture_index
 import pytest
@@ -672,6 +676,24 @@ class TestSqlFunctions:
         assert con.execute("SELECT tql_color('red')").fetchone()[0] == "#ff0000"
         sqlfuncs.register(con, index)
         assert con.execute("SELECT tql_position('f1', 8, 'bar')").fetchone()[0] == 2.0
+
+    def test_a_dropped_index_frees_its_connection(self):
+        # The functions on the connection ask the index, which holds the
+        # connection, and SQLite's references to them are hidden from the
+        # garbage collector.
+        class Connection(sqlite3.Connection):  # sqlite3's own takes no weakref
+            pass
+
+        built = index_of(DATA["sonata"])
+        con = sqlite3.connect(":memory:", factory=Connection)
+        built.connection().backup(con)
+        index = fixture_index.FixtureIndex(con, built._maps)
+        assert self.call(index, "SELECT tql_position('f1', 8, 'bar')") == 2.0
+        assert tql.run(index, "*[bar = 1] IN form").matches
+        freed = weakref.ref(con)
+        del index, con
+        gc.collect()
+        assert freed() is None
 
 
 class TestReadOnly:
