@@ -4,6 +4,7 @@ from typing import Any, Literal
 import music21
 
 import tilia.timelines.harmony.constants
+from tilia.log import logger
 from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.parsers.csv.common import (
     _get_attr_data,
@@ -95,12 +96,13 @@ def _create_component(
     optional_params: dict[str, Any] | None = None,
 ) -> list[str]:
     errors = []
+    key = harmony_tl.get_key_by_time(time)
     try:
-        success, params = _get_component_params_from_text(
-            component_kind, symbol, harmony_tl.get_key_by_time(time)
-        )
-    except Exception:
-        # the text parsers may raise on some symbols instead of failing gracefully
+        success, params = _get_component_params_from_text(component_kind, symbol, key)
+    except (music21.Music21Exception, KeyError):
+        # The harmony parser raises on some symbols instead of failing, e.g. an
+        # applied chord to a chromatic degree (#627).
+        logger.exception(f"Parsing {component_kind} symbol {symbol!r} raised.")
         success, params = False, None
 
     if not success:

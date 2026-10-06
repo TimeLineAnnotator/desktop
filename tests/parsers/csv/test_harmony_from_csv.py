@@ -338,6 +338,19 @@ class TestOptionalColumns:
 
 
 class TestSymbolsThatRaise:
+    def test_key_symbol_without_note_name_is_reported(self, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol",
+                "0,key,X",
+                "10,key,D",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert success
+        assert_in_errors("X", errors)
+        assert len(harmony_tl.modes()) == 1
+
     def test_by_time(self, harmony_tl):
         data = "\n".join(
             [
