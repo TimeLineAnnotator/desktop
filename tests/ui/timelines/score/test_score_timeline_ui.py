@@ -12,7 +12,15 @@ from tests.mock import (
     patch_file_dialog,
     patch_yes_or_no_dialog,
 )
-from tests.utils import get_blank_file_data, reloadable
+from tests.ui.timelines.interact import press_key
+from tests.utils import (
+    get_blank_file_data,
+    get_command_action,
+    get_main_window_menu,
+    get_submenu,
+    reloadable,
+    undoable,
+)
 from tilia.errors import SCORE_STAFF_ID_ERROR
 from tilia.exceptions import NoReplyToRequest
 from tilia.parsers.score.musicxml import notes_from_musicXML
@@ -21,6 +29,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
+from tilia.ui.windows import WindowKind
 
 
 def test_create(tluis):
@@ -435,3 +444,166 @@ class TestClear:
         assert len(score_tlui.timeline) == 0
         assert score_tlui.get_data("svg_data") == ""
         assert score_tlui.svg_view is None
+
+
+def _add_score_action(qtui):
+    add_menu = get_submenu(get_main_window_menu(qtui, "Timelines"), "Add")
+    return get_command_action(add_menu, "timelines.add.score")
+
+
+def test_create_score_timeline_from_menu_bar(qtui, tluis):
+    # Create a score timeline from the menu bar (Timelines > Add > Score).
+    action = _add_score_action(qtui)
+    assert action is not None
+
+    with Serve(Get.FROM_USER_STRING, (True, "")):
+        with undoable():
+            action.trigger()
+
+    assert len(tluis) == 1
+    assert len(tluis.get_timeline_uis_by_type(ScoreTimeline)) == 1
+
+
+def test_create_several_score_timelines_from_menu_bar(qtui, tluis):
+    # Create several score timelines from the menu bar.
+    action = _add_score_action(qtui)
+
+    with Serve(Get.FROM_USER_STRING, (True, "")):
+        for _ in range(3):
+            action.trigger()
+
+    score_tluis = tluis.get_timeline_uis_by_type(ScoreTimeline)
+    assert len(score_tluis) == 3
+    assert len({tlui.id for tlui in score_tluis}) == 3
+
+
+def _create_two_notes(score_tl):
+    score_tl.create_component(ComponentKind.STAFF, 0, 5)
+    score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)
+    note1 = score_tl.create_component(ComponentKind.NOTE, 0, 1, 0, 0, 3, 0)[0]
+    note2 = score_tl.create_component(ComponentKind.NOTE, 1, 2, 2, 0, 3, 0)[0]
+    return note1, note2
+
+
+def test_set_color_of_several_notes(score_tlui, score_tl):
+    # Set the color of several notes at once (context menu / set_color command).
+    note1, note2 = _create_two_notes(score_tl)
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tlui.id)
+
+    note1_ui = score_tlui.get_component_ui(note1)
+    note2_ui = score_tlui.get_component_ui(note2)
+    score_tlui.select_element(note1_ui)
+    score_tlui.select_element(note2_ui)
+
+    commands.execute("timeline.component.set_color", color=QColor("#123456"))
+
+    assert note1_ui.get_data("color") == "#123456"
+    assert note2_ui.get_data("color") == "#123456"
+
+
+def test_reset_color_of_several_notes(score_tlui, score_tl):
+    # Reset the color of several notes at once (context menu / reset_color command).
+    note1, note2 = _create_two_notes(score_tl)
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tlui.id)
+
+    note1_ui = score_tlui.get_component_ui(note1)
+    note2_ui = score_tlui.get_component_ui(note2)
+    score_tlui.select_element(note1_ui)
+    score_tlui.select_element(note2_ui)
+
+    commands.execute("timeline.component.set_color", color=QColor("#123456"))
+
+    commands.execute("timeline.component.reset_color")
+
+    assert note1_ui.get_data("color") is None
+    assert note2_ui.get_data("color") is None
+
+
+def test_delete_note_keyboard_shortcut_does_nothing(score_tlui, score_tl, note_ui):
+    # Deleting a note with the keyboard shortcut does nothing -- notes
+    # can't be deleted (score components carry TimelineFlag.COMPONENTS_NOT_DELETABLE).
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tlui.id)
+    score_tlui.select_element(note_ui)
+    component_count_before = len(score_tl)
+
+    press_key("Delete")
+
+    assert len(score_tl) == component_count_before
+    assert note_ui.tl_component in score_tl
+
+
+def test_open_inspector_for_note_with_keyboard_shortcut(qtui, score_tlui, note_ui):
+    # Open the inspector for a note with the keyboard shortcut (Enter/Return).
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tlui.id)
+    score_tlui.select_element(note_ui)
+    press_key("Return")
+
+    assert qtui.is_window_open(WindowKind.INSPECT)
+    post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+
+def test_reload_file_places_notes_in_same_position(qtui, score_tl, beat_tl, tmp_path):
+    # Load an annotation (.tla) file -- notes are placed in about the
+    # same place as before saving. Reading: "annotation file" = the app's own
+    # .tla project file (TiLiA = "TimeLine Annotator"); "same place" = same
+    # vertical (pitch/staff-derived) position for every note, mirroring how
+    # test_attribute_positions above checks CLEF/KEY_SIGNATURE/TIME_SIGNATURE
+    # by Y position only -- time-axis (X) placement is not asserted there
+    # either, since it is derived from time_x_converter's view-width-dependent
+    # scale rather than from saved data.
+    beat_tl.beat_pattern = [1]
+    for i in range(0, 3):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.recalculate_measures()
+
+    notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
+
+    def _note_y_positions():
+        score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        notes = sorted(
+            score.timeline.get_components_by_attr("KIND", ComponentKind.NOTE)
+        )
+        assert notes  # sanity: the fixture score has notes to compare
+        return [score.get_element(n.id).top_y for n in notes]
+
+    positions_before = _note_y_positions()
+
+    @reloadable(tmp_path / "file.tla")
+    def check_positions():
+        assert _note_y_positions() == positions_before
+
+
+def test_import_score_with_no_beat_timeline_shows_error(score_tlui, tilia_errors):
+    # Importing a score with no beat timeline in the file shows an error.
+    commands.execute("timelines.import.score")
+    tilia_errors.assert_in_error_title("Import failed")
+
+
+def test_import_score_then_delete_all_beats_does_not_crash(
+    qtui, score_tl, beat_tl, beat_tlui, tmp_path
+):
+    # Import a score, then delete all beats: no crash. This covers the
+    # data-layer half of the behavior -- clicking a note in the rendered
+    # score viewer afterwards needs rendering (see below) and isn't covered
+    # here.
+    beat_tl.beat_pattern = [1]
+    for i in range(0, 3):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.recalculate_measures()
+
+    notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
+    note = score_tl.get_component_by_attr("KIND", ComponentKind.NOTE)
+    assert note is not None
+
+    with patch_yes_or_no_dialog(True):
+        commands.execute("timeline.clear", beat_tlui)
+
+    assert len(beat_tl) == 0
+
+    score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+    note_ui = score.get_element(note.id)
+    # Metric position depends on the beat timeline; with no beats left this
+    # should degrade to None rather than raise.
+    assert note_ui.get_data("start_metric_position") is None

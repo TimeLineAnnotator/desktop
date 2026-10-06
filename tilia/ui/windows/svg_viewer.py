@@ -346,18 +346,21 @@ class SvgViewer(ViewDockWidget):
         self.scene.addItem(new_annotation)
         return new_annotation
 
-    def annotation_add(self) -> None:
+    def annotation_add(self, text: str | None = None) -> None:
         self.filter_selection(SvgStaveNote)
         if not (to_add := self.scene.selectedItems()):
             return
-        success, annotation = get(
-            Get.FROM_USER_STRING, "Score Annotation", "Add annotation"
-        )
-        if not success or not annotation:
+        if text is None:
+            success, text = get(
+                Get.FROM_USER_STRING, "Score Annotation", "Add annotation"
+            )
+            if not success:
+                return
+        if not text:
             return
         for item in to_add:
             new_annotation = self.create_annotation(
-                annotation, self.next_tla_id, item.x(), item.y()
+                text, self.next_tla_id, item.x(), item.y()
             )
             item.setSelected(False)
             new_annotation.setSelected(True)
@@ -384,19 +387,22 @@ class SvgViewer(ViewDockWidget):
         )
         post(Post.APP_STATE_RECORD, "score annotation")
 
-    def annotation_edit(self) -> None:
+    def annotation_edit(self, text: str | None = None) -> None:
         self.filter_selection(SvgTlaAnnotation)
         if not (to_edit := self.scene.selectedItems()):
             return
         for item in to_edit:
-            success, annotation = get(
-                Get.FROM_USER_STRING,
-                "Score Annotation",
-                "Edit Annotation",
-                text=item.text(),
-            )
-            if not success:
-                continue
+            if text is None:
+                success, annotation = get(
+                    Get.FROM_USER_STRING,
+                    "Score Annotation",
+                    "Edit Annotation",
+                    text=item.text(),
+                )
+                if not success:
+                    continue
+            else:
+                annotation = text
             if not annotation:
                 if get(
                     Get.FROM_USER_YES_OR_NO,
