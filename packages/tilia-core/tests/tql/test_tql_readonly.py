@@ -236,6 +236,12 @@ def test_a_failing_statement_raises_with_sqlites_message(index):
         tql.sql(index, "SELEC 1")
 
 
+@pytest.mark.parametrize("text", ["SELECT 'a\x00b'", "SELECT '\ud800'"])
+def test_text_sqlite_cannot_take_raises_a_tql_error(index, text):
+    with pytest.raises(TQLError):
+        tql.sql(index, text)
+
+
 def test_the_connection_writes_normally_afterwards(index):
     con = index.connection()
     for text in ("DELETE FROM components", "SELECT 1", "SELECT * FROM nope"):
