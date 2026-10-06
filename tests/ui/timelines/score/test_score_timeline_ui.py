@@ -367,6 +367,27 @@ class TestClear:
         with pytest.raises(NoReplyToRequest):
             get(Get.SCORE_VIEWER, score_tlui.id)
 
+    def test_redoing_clear_with_an_annotation_does_not_reopen_the_viewer(
+        self, score_tlui, note, tls
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        score_tlui.timeline.create_component(
+            ComponentKind.SCORE_ANNOTATION,
+            x=10.0,
+            y=20.0,
+            viewer_id=0,
+            text="annotation",
+            font_size=14,
+        )
+        post(Post.APP_STATE_RECORD, "setup")
+        self._clear(score_tlui)
+
+        commands.execute("edit.undo")
+        commands.execute("edit.redo")
+
+        with pytest.raises(NoReplyToRequest):
+            get(Get.SCORE_VIEWER, score_tlui.id)
+
     def test_restoring_a_cleared_state_closes_the_viewer(self, score_tlui, note, tls):
         # The path undo/redo takes when it lands on a cleared state.
         tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
