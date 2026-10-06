@@ -9,6 +9,10 @@ One row of ``components`` per hierarchy unit, marker, range, chord, key or
 beat; the tables named after a kind (``hierarchies``, ``ranges``, ``chords``,
 ``keys``) hold what only that kind has, ``positions`` and ``measures`` what the
 file's time map gives, and ``fields`` the user-set fields of files and others.
+
+``PRAGMA user_version`` is 1: the version of these names, which ``show SQL``
+makes public with the functions of :mod:`tilia_core.tql.sqlfuncs`. A change to
+a name that SQL can see raises it.
 """
 
 import sqlite3
@@ -122,6 +126,8 @@ CREATE INDEX components_by_timeline ON components (file_id, timeline_id, start);
 CREATE INDEX categories_by_category ON categories (category);
 CREATE INDEX categories_by_component ON categories (component_id);
 CREATE INDEX components_by_label ON components (label_folded);
+
+PRAGMA user_version = 1;
 """
 
 

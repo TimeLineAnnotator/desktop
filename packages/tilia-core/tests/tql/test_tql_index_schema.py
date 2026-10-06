@@ -77,6 +77,11 @@ def test_tables_and_columns():
         assert found == columns, table
 
 
+def test_the_schema_has_version_1():
+    # the version of the names show SQL makes public
+    assert make().execute("PRAGMA user_version").fetchone() == (1,)
+
+
 def test_indexes():
     con = make()
     found = []
