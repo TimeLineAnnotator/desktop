@@ -6,6 +6,10 @@ on:
 
 jobs:
   paper:
+    # A force-push is diffed against the branch's previous head, so rebasing a
+    # branch cut from an older dev looks like a change to paper/, and this job
+    # would commit a rebuilt PDF onto an unrelated branch.
+    if: ${{ !github.event.forced }}
     permissions:
       actions: write
       contents: write
