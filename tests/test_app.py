@@ -22,6 +22,7 @@ from tests.utils import (
     load_youtube_media,
     save_and_reopen,
     save_tilia_to_tmp_path,
+    undoable,
 )
 from tilia.file.migration import find_unknown_timeline_kinds
 from tilia.media.player import QtAudioPlayer
@@ -877,6 +878,17 @@ class TestOpen:
         commands.execute("file.open", tmp_file)
         commands.execute("file.save")
         tilia_errors.assert_no_error()
+
+    def test_undo_after_open_keeps_metadata(self, qtui, tilia, tilia_state, tmp_path):
+        tilia_state.duration = 100
+        commands.execute("timelines.add.marker", name="test")
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Saved title")
+        save_and_reopen(tmp_path)
+
+        with undoable():
+            commands.execute("timeline.marker.add")
+
+        assert tilia.file_manager.file.media_metadata["title"] == "Saved title"
 
 
 class TestUndoRedo:
