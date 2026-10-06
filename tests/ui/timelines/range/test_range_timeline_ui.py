@@ -1923,8 +1923,8 @@ class TestMultipleRangeTimelines:
 
 
 class TestSettings:
-    # use_test_settings (auto-applied via the qtui fixture) routes settings
-    # writes to a dedicated test QSettings store, so per-test snapshots are
+    # The autouse settings fixtures in tests/conftest.py use a throwaway
+    # store and undo every setting a test changes, so per-test snapshots are
     # not needed — each test sets the values it relies on explicitly.
 
     def test_row_height_setting_changes_row_height(self, range_tlui):
