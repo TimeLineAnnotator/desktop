@@ -127,6 +127,13 @@ class TestShownStatementsRun:
         assert "-- WHERE start > 10:" in got.sql
         assert "Python" in got.sql.split("-- WHERE")[1]
 
+    def test_where_is_found_after_a_sharp_s(self):
+        # upper-cased, ß is SS: one character longer than the query
+        query = '"Schluß" THEN verse IN form WHERE $1.start > 10'
+        got = tql.run(index_of("pop"), query)
+        assert '-- "Schluß" THEN verse IN form: the units above' in got.sql
+        assert "-- WHERE $1.start > 10:" in got.sql
+
     def test_values_are_inline_and_quoted_as_sqlite_does(self):
         index = index_of("pop")
         got = tql.run(index, 'verse THEN "it\'s" IN form')

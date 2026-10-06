@@ -9,6 +9,7 @@ run but not shown. :func:`describe_units` names the parts of a query.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from typing import Any
 
@@ -19,6 +20,7 @@ ORDERS = {
     "ENDS_WITH": "ENDS WITH",
     "CONSISTS_OF": "CONSISTS OF",
 }
+_WHERE = re.compile("WHERE", re.IGNORECASE)
 
 
 def sql_literal(value: Any) -> str:
@@ -154,10 +156,18 @@ def pattern_text(query: syntax.Query) -> str:
         end = min(end, query.action.pos)
     if query.where:
         first = min(c.pos for c in query.where)
-        at = query.text.upper().rfind("WHERE", start, first)
+        at = _where_at(query.text, start, first)
         if at >= 0:
             end = min(end, at)
     return one_line(query.text[start:end])
+
+
+def _where_at(text: str, start: int, end: int) -> int:
+    """Where the last ``WHERE`` in ``text[start:end]`` begins, in any case, or
+    -1. Not looked for in ``text.upper()``, which can be longer than ``text``
+    (``ß`` becomes ``SS``)."""
+    found = [m.start() for m in _WHERE.finditer(text, start, end)]
+    return found[-1] if found else -1
 
 
 def where_text(query: syntax.Query) -> str:
@@ -165,7 +175,7 @@ def where_text(query: syntax.Query) -> str:
     if not query.where:
         return ""
     first = min(c.pos for c in query.where)
-    at = query.text.upper().rfind("WHERE", 0, first)
+    at = _where_at(query.text, 0, first)
     if at < 0:
         return ""
     end = len(query.text) if query.action is None else query.action.pos
