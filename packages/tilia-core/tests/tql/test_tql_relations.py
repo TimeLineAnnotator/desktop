@@ -543,6 +543,40 @@ class TestLabelsAndMatches:
         got = tql.run(index, "*[CONTAINS a] IN form")
         assert sorted(m.slots[0][0].file_id for m in got.matches) == ["f1", "f2", "f2"]
 
+    @pytest.mark.parametrize(
+        "query, expected",
+        [
+            ("p OR q IN Marks DURING a IN form", ["p@2 | a@0", "q@2 | a@0"]),
+            ("p IN Marks DURING a OR b IN form", ["p@2 | a@0", "p@6 | b@4"]),
+            (
+                "p OR q IN Marks DURING a OR b IN form",
+                ["p@2 | a@0", "q@6 | b@4", "q@2 | a@0", "p@6 | b@4"],
+            ),
+            (
+                "a OR b IN form CONTAINS p OR q IN Marks",
+                ["a@0 | p@2", "b@4 | q@6", "a@0 | q@2", "b@4 | p@6"],
+            ),
+            ("*[DURING a OR b IN form] IN Marks", ["p@2", "q@6", "q@2", "p@6"]),
+        ],
+    )
+    def test_an_or_keeps_its_file_lane_and_timing_tests(self, query, expected):
+        # The two files swap p and q, and r lies in neither a nor b.
+        one = fixture(
+            hierarchy("Form (X)", [["a", 1, 0, 4], ["b", 1, 4, 8]]),
+            markers("Marks", [["p", 2], ["q", 6], ["r", 20]]),
+        )
+        two = fixture(
+            hierarchy("Form (X)", [["a", 1, 0, 4], ["b", 1, 4, 8]]),
+            markers("Marks", [["q", 2], ["p", 6], ["r", 20]]),
+        )
+        got = tql.run(fixture_index.build_index(one, two), query)
+        for m in got.matches:
+            assert len({c.file_id for s in m.slots for c in s}) == 1
+        assert Counter(
+            " | ".join(", ".join(unit(c) for c in s) for s in m.slots)
+            for m in got.matches
+        ) == Counter(expected)
+
     def test_chord_labels_wait_for_the_harmony_part(self):
         harmony = fixture(
             hierarchy("Form (X)", [["phrase", 1, 0, 8]]),

@@ -343,6 +343,9 @@ def unit_test(unit: syntax.Unit, comp: str, bld: SqlBuilder) -> str:
     else:
         alts = [_alt_sql(alt, comp, n, bld.params) for n, alt in enumerate(term.alts)]
         test = " OR ".join(alts)
+        if len(alts) > 1:
+            # callers AND this with the file and lane tests
+            test = f"({test})"
         if term.negate:
             test = f"NOT ({test})"
     if not in_sql:
