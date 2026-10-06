@@ -465,6 +465,32 @@ class TestSetMeasureNumber:
 
         assert get_displayed_measure_number(beat_tlui[1]) == ""
 
+    def test_forced_measure_past_the_end_is_dropped_when_beats_are_deleted(
+        self, beat_tlui
+    ):
+        settings.set("beat_timeline", "display_measure_periodicity", 4)
+        beat_tlui.timeline.beat_pattern = [1]
+        for i in range(6):
+            commands.execute("media.seek", i)
+            commands.execute("timeline.beat.add")
+
+        # Forcing measure 6 before measure 2 leaves the list unsorted.
+        beat_tlui.select_element(beat_tlui[5])
+        self._set_measure_number(6)
+        beat_tlui.deselect_all_elements()
+        beat_tlui.select_element(beat_tlui[1])
+        self._set_measure_number(2)
+        beat_tlui.deselect_all_elements()
+
+        for i in range(3, 6):
+            beat_tlui.select_element(beat_tlui[i])
+        commands.execute("timeline.component.delete")
+        for i in range(3, 6):
+            commands.execute("media.seek", i)
+            commands.execute("timeline.beat.add")
+
+        assert get_displayed_measure_number(beat_tlui[5]) == ""
+
     def test_measure_zero_number_is_not_displayed(self, beat_tlui):
         settings.set("beat_timeline", "display_measure_periodicity", 2)
         beat_tlui.timeline.beat_pattern = [1]
