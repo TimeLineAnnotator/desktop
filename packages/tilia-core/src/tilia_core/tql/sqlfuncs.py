@@ -5,14 +5,19 @@
 ``tql_chord`` and ``tql_key`` read a literal as a chord or a key and ask whether
 the columns of a ``chords`` or ``keys`` row match it (a literal that is none
 matches nothing).
+``tql_position``, ``tql_length`` and ``tql_unit_seconds`` ask the time map of a
+file (``index.time_map(file_id)``) where a time lies, how long a span lasts and
+how long a beat or a bar lasts; they are null for a file without a time map and
+for a time off it.
 """
 
 from __future__ import annotations
 
 import re
 import sqlite3
+import weakref
 from functools import lru_cache
-from typing import Any
+from typing import Any, Callable
 
 from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
@@ -105,10 +110,70 @@ def _mode(row: Any) -> dict[str, Any]:
     return {"step": row[0], "accidental": row[1], "type": row[2]}
 
 
-def register(con: sqlite3.Connection) -> None:
-    """Register the functions on ``con``. Calling it again does nothing. No
-    function holds ``con``: SQLite's references to them are hidden from the
-    garbage collector, so one that did would keep ``con`` open for good."""
+class _TimeMaps:
+    """The time maps of one index, asked for once per file. The index is held
+    weakly, since it may hold the connection the functions are registered on;
+    one that takes no weak reference is held, and keeps that connection."""
+
+    def __init__(self, index: Any) -> None:
+        self._index: Callable[[], Any]
+        try:
+            self._index = weakref.ref(index)
+        except TypeError:
+            self._index = lambda: index
+        self._maps: dict[Any, Any] = {}
+
+    def get(self, file_id: Any) -> Any:
+        index = self._index()
+        if index is None:
+            return None
+        if file_id not in self._maps:
+            self._maps[file_id] = index.time_map(file_id)
+        return self._maps[file_id]
+
+
+def _is_time(t: Any) -> bool:
+    return isinstance(t, (int, float)) and not isinstance(t, bool)
+
+
+def _time_map_functions(maps: _TimeMaps) -> dict[str, tuple[int, Callable[..., Any]]]:
+    def tql_position(file_id: Any, time: Any, unit: Any) -> float | None:
+        """Where ``time`` lies along the score, in bars or beats."""
+        tmap = maps.get(file_id)
+        if tmap is None or not _is_time(time):
+            return None
+        return tmap.position(time, unit)
+
+    def tql_length(file_id: Any, start: Any, end: Any, unit: Any) -> float | None:
+        """How long ``start`` to ``end`` lasts, in bars or beats."""
+        tmap = maps.get(file_id)
+        if tmap is None or not _is_time(start) or not _is_time(end):
+            return None
+        return tmap.length(start, end, unit)
+
+    def tql_unit_seconds(file_id: Any, time: Any, unit: Any) -> float | None:
+        """How long the beat or the bar holding ``time`` lasts, in seconds."""
+        tmap = maps.get(file_id)
+        if tmap is None or not _is_time(time):
+            return None
+        return tmap.unit_seconds(time, unit)
+
+    return {
+        "tql_position": (3, tql_position),
+        "tql_length": (4, tql_length),
+        "tql_unit_seconds": (3, tql_unit_seconds),
+    }
+
+
+def register(con: sqlite3.Connection, index: Any = None) -> None:
+    """Register the functions on ``con``. ``index``, when given, is the index
+    whose time maps ``tql_position``, ``tql_length`` and ``tql_unit_seconds``
+    ask (without one they are null); they are registered anew on every call,
+    the others once. No function holds ``con``: SQLite's references to them
+    are hidden from the garbage collector, so one that did would keep ``con``
+    open for good."""
+    for name, (n_args, function) in _time_map_functions(_TimeMaps(index)).items():
+        con.create_function(name, n_args, function)
     try:
         con.execute("SELECT tql_color(NULL)")
         return

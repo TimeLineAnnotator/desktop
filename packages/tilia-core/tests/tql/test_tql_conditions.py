@@ -422,19 +422,6 @@ class TestValues:
     def test_a_bare_word_after_a_tilde_is_a_pattern(self):
         assert units("*[comments ~ rev] IN form") == ["verse@10"]
 
-    def test_a_percentage_a_position_or_a_length_is_for_later(self):
-        for text in (
-            "*[start >= 50%] IN form",
-            "*[bar = 1] IN form",
-            "*[pass = 1..2] IN form",
-            "*[downbeat] IN form",
-            "*[duration = 8 bars] IN form",
-            "* IN form WHERE bar.label = x",
-            "verse THEN chorus IN form WHERE $2.start >= $1.start + 4 bars",
-        ):
-            with pytest.raises(NotImplementedError, match="positions"):
-                run(text)
-
     def test_the_number_of_a_numeric_field_is_checked(self):
         text = "*[start > soon] IN form"
         err = error(text)
@@ -798,8 +785,7 @@ class TestUnknownNames:
             '"solo"',
         ):
             run(f"* IN {lane}")
-        with pytest.raises(NotImplementedError):
-            run("* IN bars")
+        run("* IN bars")
 
 
 class TestAmbiguousNames:

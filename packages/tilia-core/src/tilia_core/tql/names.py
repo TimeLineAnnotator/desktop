@@ -313,8 +313,7 @@ def _check_value(cond: syntax.Compare) -> None:
 
 def check(cat: Catalogue, query: syntax.Query) -> None:
     """Raise :class:`~tilia_core.tql.syntax.TQLError`, at the culprit, for a field
-    or a lane the corpus does not have or a bare name two scopes share; then
-    NotImplementedError for a condition that needs the time map."""
+    or a lane the corpus does not have or a bare name two scopes share."""
     single = is_single(query)
     for lane in _lanes(query):
         _check_lane(cat, lane)
@@ -324,8 +323,42 @@ def check(cat: Catalogue, query: syntax.Query) -> None:
             _check_value(cond)
             if cond.value.kind == "ref":
                 _check_field(cat, cond.value.value, ctx, single)
+
+
+def time_needs(query: syntax.Query) -> tuple[bool, bool]:
+    """What a query asks of a file besides its components: ``(time map, media
+    length)``. The time map for a position, a downbeat, a length or a distance in
+    bars or beats and a ``WITHIN`` in bars or beats; the media length for a
+    percentage of the piece."""
+    needs_map = needs_length = False
+    withins: list[syntax.Within | None] = []
+    p = query.pattern
+    if isinstance(p, syntax.SeqPattern):
+        withins.append(p.within)
+    elif isinstance(p, syntax.RelPattern):
+        withins.append(p.relation.within)
     for cond, _ in _conditions(query):
-        tql_compile.later(cond)
+        if isinstance(cond, syntax.Downbeat):
+            needs_map = True
+        elif isinstance(cond, syntax.RelCond):
+            withins.append(cond.relation.within)
+        elif isinstance(cond, syntax.Compare):
+            fields = [cond.field] + (
+                [cond.value.value] if cond.value.kind == "ref" else []
+            )
+            if any(
+                not f.scope and f.name in tql_compile.POSITION_FIELDS for f in fields
+            ):
+                needs_map = True
+            units = [cond.value.unit]
+            if cond.value.offset is not None:
+                units.append(cond.value.offset[1])
+            needs_map = needs_map or any(u in tql_compile.LENGTH_UNITS for u in units)
+            needs_length = needs_length or "%" in units
+    needs_map = needs_map or any(
+        w is not None and w.unit in tql_compile.LENGTH_UNITS for w in withins
+    )
+    return needs_map, needs_length
 
 
 def where_grain(cat: Catalogue, query: syntax.Query) -> str:
