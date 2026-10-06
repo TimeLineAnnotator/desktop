@@ -1,11 +1,14 @@
 import importlib.util
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from pprint import pformat
-from typing import Callable
+from typing import Any, Callable
 from unittest.mock import patch
 
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QAction
+from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWidgets import QMenu, QToolButton, QWidgetAction
 
 from tests.mock import patch_ask_for_string_dialog, patch_file_dialog
@@ -243,3 +246,23 @@ def save_and_reopen(tmp_path, filename: str = "test") -> None:
     file_path = save_tilia_to_tmp_path(tmp_path, filename)
     post(Post.APP_CLEAR)
     commands.execute("file.open", path=file_path)
+
+
+def wait_until(condition: Callable[[], Any], timeout: float = 10.0) -> bool:
+    """Process Qt events until `condition()` is true, for things that happen
+    asynchronously, such as a web page loading. Returns False on timeout."""
+    deadline = time.monotonic() + timeout
+    while not condition():
+        if time.monotonic() > deadline:
+            return False
+        QCoreApplication.processEvents()
+        time.sleep(0.005)
+    return True
+
+
+def run_js(page: QWebEnginePage, script: str, timeout: float = 10.0) -> Any:
+    """Run `script` in `page` and return its result."""
+    results = []
+    page.runJavaScript(script, 0, results.append)
+    assert wait_until(lambda: results, timeout), f"No result from {script!r}"
+    return results[0]
