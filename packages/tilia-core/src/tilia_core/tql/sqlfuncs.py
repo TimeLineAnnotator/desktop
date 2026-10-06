@@ -1,14 +1,27 @@
 """The SQL functions TQL's statements call, registered on a connection.
 
-``text REGEXP pattern`` is ``regexp(pattern, text)``; ``tql_fold`` and
-``tql_color`` compare labels and colours the way the language does.
-``tql_chord`` and ``tql_key`` read a literal as a chord or a key and ask whether
-the columns of a ``chords`` or ``keys`` row match it (a literal that is none
-matches nothing).
-``tql_position``, ``tql_length`` and ``tql_unit_seconds`` ask the time map of a
-file (``index.time_map(file_id)``) where a time lies, how long a span lasts and
-how long a beat or a bar lasts; they are null for a file without a time map and
-for a time off it.
+Their names are public, like the index's tables: ``Result.sql`` shows them and
+``tql.sql`` lets users call them, so renaming one changes what users have
+written (``test_tql_show_sql.py`` pins them). They are:
+
+- ``regexp(pattern, text)``, which SQLite calls for ``text REGEXP pattern``:
+  1 when the regular expression is found in the text read in NFC.
+- ``tql_fold(text)``: the text folded the way TQL compares words and labels.
+- ``tql_color(text)``: a colour, from a CSS name or a hex code, as ``#rrggbb``.
+- ``tql_chord(literal, step, accidental, quality, inversion, applied_to,
+  key_step, key_accidental, key_mode)``: 1 when the chord of those ``chords``
+  and ``keys`` columns matches the literal read as a chord.
+- ``tql_key(literal, step, accidental, mode)``: 1 when the key of those
+  ``keys`` columns matches the literal read as a key.
+- ``tql_position(file_id, time, unit)``: where a time lies in the file's score,
+  in bars or beats.
+- ``tql_length(file_id, start, end, unit)``: how many bars or beats a span lasts.
+- ``tql_unit_seconds(file_id, time, unit)``: how many seconds the bar or beat
+  holding a time lasts.
+
+A literal that is no chord or no key matches nothing. The last three ask the
+time map of the file (``index.time_map(file_id)``) and are null for a file
+without one and for a time off it.
 """
 
 from __future__ import annotations

@@ -10,6 +10,7 @@ import fixture_index
 import pytest
 
 from tilia_core import tql
+from tilia_core.tql import sqlfuncs
 from tilia_core.tql.syntax import TQLError
 
 DATA = examples.load()
@@ -215,6 +216,33 @@ def test_showing_sql_changes_nothing_in_the_index():
     for statement in statements(got.sql):
         tql.sql(index, statement)
     assert con.total_changes == changes
+
+
+def functions(con):
+    return {(r[0], r[4]) for r in con.execute("PRAGMA function_list")}
+
+
+# The SQL functions shown SQL calls, and how many arguments each takes. Their
+# names are public, like the tables test_tql_index_schema.py pins.
+FUNCTIONS = {
+    ("regexp", 2),
+    ("tql_fold", 1),
+    ("tql_color", 1),
+    ("tql_chord", 9),
+    ("tql_key", 4),
+    ("tql_position", 3),
+    ("tql_length", 4),
+    ("tql_unit_seconds", 3),
+}
+
+
+def test_the_functions_registered_are_the_public_ones():
+    con = sqlite3.connect(":memory:")
+    before = functions(con)
+    sqlfuncs.register(con)
+    after = functions(con)
+    assert FUNCTIONS <= after
+    assert after - before <= FUNCTIONS
 
 
 def test_a_shown_statement_refuses_to_write_when_edited():
