@@ -107,6 +107,21 @@ class TestShownStatementsRun:
             assert lines[0].startswith("--")
             assert lines[-1].startswith("--") or lines[-1].endswith(";")
 
+    def test_the_blocks_are_the_text_and_hold_a_blank_line_inside_a_value(self):
+        index = index_of("pop")
+        got = tql.run(index, '"a\n\nb" THEN verse IN form')
+        assert got.sql == "\n\n".join(b.text for b in got.sql_blocks)
+        # split on blank lines, the text falls apart; the blocks do not
+        assert len(got.sql.split("\n\n")) > len(got.sql_blocks)
+        assert [b.statement is None for b in got.sql_blocks] == [False, False, True]
+        first, second, stage = got.sql_blocks
+        assert first.comment.startswith("$1: ") and second.comment.startswith("$2: ")
+        assert "'a\n\nb'" in first.statement
+        assert stage.comment == blocks(got.sql)[-1][0][0].removeprefix("-- ")
+        for block in (first, second):
+            assert sqlite3.complete_statement(block.statement)
+            tql.sql(index, block.statement)
+
     def test_each_unit_of_a_sequence_names_its_number(self):
         got = tql.run(index_of("pop"), "verse THEN chorus IN form")
         comments = [c for cs, s in blocks(got.sql) if s for c in cs]

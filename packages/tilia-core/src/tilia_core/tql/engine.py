@@ -162,7 +162,7 @@ def run(
         rows=rows,
         matches=matches,
         explain=explain(query),
-        sql=log.text,
+        sql_blocks=log.blocks,
         warnings=warn.messages(),
         stopped=stopped,
         generation=index.generation,
