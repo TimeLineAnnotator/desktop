@@ -3,7 +3,9 @@ from unittest.mock import mock_open, patch
 
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.beat import beats_from_csv
+from tilia.settings import settings
 from tilia.timelines.base.metric_position import MetricPosition
+from tilia.ui import commands
 from tilia.ui.format import format_media_time
 
 
@@ -112,3 +114,17 @@ def test_with_invalid_is_first_in_measure(beat_tl):
     _import_with_patch(beat_tl, data)
 
     assert beat_tl.beats_in_measure == [5, 3]
+
+
+def test_measure_number_on_every_beat_is_forced_once(beat_tlui):
+    settings.set("beat_timeline", "display_measure_periodicity", 4)
+    beat_tlui.timeline.beat_pattern = [4]
+    rows = [f"{time},{1 if time < 4 else 2}" for time in range(8)]
+    _import_with_patch(beat_tlui.timeline, "\n".join(["time,measure", *rows]))
+    assert beat_tlui[4].label.isVisible()
+
+    beat_tlui.select_element(beat_tlui[4])
+    commands.execute("timeline.beat.reset_measure_number")
+
+    # A measure forced once per beat would need a reset per beat.
+    assert not beat_tlui[4].label.isVisible()

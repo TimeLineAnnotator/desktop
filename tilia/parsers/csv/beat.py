@@ -116,7 +116,9 @@ def beats_from_csv(
                     )
                 ):
                     current_measure = int(row[params_to_indices["measure"]])
-                    measures_to_force_display.append(len(measure_numbers))
+                    # Every beat of a measure may carry its number.
+                    if len(measure_numbers) not in measures_to_force_display:
+                        measures_to_force_display.append(len(measure_numbers))
 
             beats_in_measure.append(current_beat)
             measure_numbers.append(current_measure)
