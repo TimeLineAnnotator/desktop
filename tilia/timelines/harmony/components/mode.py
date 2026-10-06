@@ -104,8 +104,10 @@ def _get_music21_object_from_text(text):
     if text.startswith(tuple(valid_initial_chars)):
         try:
             return True, music21.key.Key(text)
-        except ValueError:
+        except (ValueError, music21.Music21Exception):
             return False, None
+
+    return False, None
 
 
 def _get_params_from_music21_object(obj: music21.key.Key):

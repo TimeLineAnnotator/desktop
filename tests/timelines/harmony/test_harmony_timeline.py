@@ -1,5 +1,8 @@
 import pytest
 
+from tilia.timelines.harmony.components.mode import (
+    get_params_from_text as get_mode_params_from_text,
+)
 from tilia.timelines.harmony.constants import get_inversion_amount
 
 
@@ -81,6 +84,22 @@ class TestModeKey:
     def test_phrygian_mode_key(self, harmony_tl):
         mode, _ = harmony_tl.create_mode(type="phrygian")
         assert mode.key.mode == "phrygian"
+
+
+class TestModeParamsFromText:
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("C", {"step": 0, "accidental": 0, "type": "major"}),
+            ("f#", {"step": 3, "accidental": 1, "type": "minor"}),
+        ],
+    )
+    def test_valid_symbol(self, text, expected):
+        assert get_mode_params_from_text(text) == (True, expected)
+
+    @pytest.mark.parametrize("text", ["F:min", "X", "V", ""])
+    def test_invalid_symbol_fails_without_raising(self, text):
+        assert get_mode_params_from_text(text) == (False, None)
 
 
 class TestValidateComponentCreation:
