@@ -113,7 +113,9 @@ def sql(
     ``max_rows`` stops reading after that many rows, ``time_limit`` (seconds)
     and ``cancel`` (an event) stop a long statement; the rows read so far are
     returned and ``Table.stopped`` says why (``"max_rows"``, ``"time_limit"`` or
-    ``"cancelled"``). A statement that SQLite refuses or that fails raises
+    ``"cancelled"``). A statement stopped before its first row returns no
+    column names either (``columns == []``). A statement that SQLite refuses
+    or that fails raises
     :class:`~tilia_core.tql.syntax.TQLError` with SQLite's message; nothing is
     ever written to the index. Raises ``RuntimeError`` when another thread is
     running on the connection the index gives."""
@@ -157,7 +159,11 @@ def _sql_on(
                     break
         finally:
             cursor.close()
-    except (sqlite3.Error, sqlite3.Warning) as err:
+    except TQLError:
+        raise
+    except (sqlite3.Error, sqlite3.Warning, ValueError) as err:
+        # ValueError: text sqlite3 cannot pass on, such as a NUL character
+        # (Python 3.10) or a lone surrogate (UnicodeEncodeError)
         if limits.stopped is None:
             raise TQLError(str(err)) from err
     finally:

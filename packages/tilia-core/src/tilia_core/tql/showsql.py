@@ -3,14 +3,17 @@ its values written in and a ``--`` comment naming the part of the query it
 answers, and a comment at each point where Python takes over.
 
 :class:`Recorder` runs the engine's statements and keeps those that answer a
-part of the query; the reads that only look up names, titles and positions are
-run but not shown. :func:`describe_units` names the parts of a query.
+part of the query, as :class:`SqlBlock` s; the reads that only look up names,
+titles and positions are run but not shown. :func:`describe_units` names the
+parts of a query.
 """
 
 from __future__ import annotations
 
+import re
 import sqlite3
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Iterable
 
 from . import syntax
 
@@ -19,6 +22,7 @@ ORDERS = {
     "ENDS_WITH": "ENDS WITH",
     "CONSISTS_OF": "CONSISTS OF",
 }
+_WHERE = re.compile("WHERE", re.IGNORECASE)
 
 
 def sql_literal(value: Any) -> str:
@@ -43,14 +47,36 @@ def one_line(text: str) -> str:
     return " ".join(text.split())
 
 
+@dataclass(frozen=True)
+class SqlBlock:
+    """One block of ``Result.sql``: ``comment`` names the part of the query it
+    answers (one line, shown after ``--``), and ``statement`` is the statement
+    as it ran, its values written in and ending with ``;``, or None where Python
+    takes over."""
+
+    comment: str
+    statement: str | None = None
+
+    @property
+    def text(self) -> str:
+        """The block as ``Result.sql`` shows it."""
+        if self.statement is None:
+            return f"-- {self.comment}"
+        return f"-- {self.comment}\n{self.statement}"
+
+
+def render(blocks: Iterable[SqlBlock]) -> str:
+    """``Result.sql``: the blocks one after another, a blank line between two."""
+    return "\n\n".join(b.text for b in blocks)
+
+
 class Recorder:
     """Executes statements on a connection. A statement given a ``part`` is
-    remembered, as shown to the user: the ``-- part`` line, then the statement
-    with its parameters written in."""
+    remembered as a :class:`SqlBlock`, as shown to the user."""
 
     def __init__(self, con: sqlite3.Connection) -> None:
         self.con = con
-        self.entries: list[str] = []
+        self.blocks: list[SqlBlock] = []
         self._noted: set[str] = set()
 
     def execute(
@@ -62,7 +88,7 @@ class Recorder:
         rows = self.con.execute(sql, params).fetchall()
         if part is not None:
             text = inline(sql, params).strip().rstrip(";") + ";"
-            self.entries.append(f"-- {one_line(part)}\n{text}")
+            self.blocks.append(SqlBlock(one_line(part), text))
         return rows
 
     def note(self, text: str) -> None:
@@ -71,11 +97,11 @@ class Recorder:
         text = one_line(text)
         if text not in self._noted:
             self._noted.add(text)
-            self.entries.append(f"-- {text}")
+            self.blocks.append(SqlBlock(text))
 
     @property
     def text(self) -> str:
-        return "\n\n".join(self.entries)
+        return render(self.blocks)
 
 
 # --------------------------------------------------------------------------- #
@@ -154,10 +180,18 @@ def pattern_text(query: syntax.Query) -> str:
         end = min(end, query.action.pos)
     if query.where:
         first = min(c.pos for c in query.where)
-        at = query.text.upper().rfind("WHERE", start, first)
+        at = _where_at(query.text, start, first)
         if at >= 0:
             end = min(end, at)
     return one_line(query.text[start:end])
+
+
+def _where_at(text: str, start: int, end: int) -> int:
+    """Where the last ``WHERE`` in ``text[start:end]`` begins, in any case, or
+    -1. Not looked for in ``text.upper()``, which can be longer than ``text``
+    (``ß`` becomes ``SS``)."""
+    found = [m.start() for m in _WHERE.finditer(text, start, end)]
+    return found[-1] if found else -1
 
 
 def where_text(query: syntax.Query) -> str:
@@ -165,7 +199,7 @@ def where_text(query: syntax.Query) -> str:
     if not query.where:
         return ""
     first = min(c.pos for c in query.where)
-    at = query.text.upper().rfind("WHERE", 0, first)
+    at = _where_at(query.text, 0, first)
     if at < 0:
         return ""
     end = len(query.text) if query.action is None else query.action.pos

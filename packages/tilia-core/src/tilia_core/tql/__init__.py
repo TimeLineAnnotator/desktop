@@ -4,6 +4,7 @@ from .engine import run
 from .explain import explain
 from .readonly import sql
 from .result import Match, Result
+from .showsql import SqlBlock
 from .stats import Table
 from .syntax import Query, TQLError, format_error, parse
 
@@ -17,5 +18,6 @@ __all__ = [
     "sql",
     "Result",
     "Match",
+    "SqlBlock",
     "Table",
 ]

@@ -10,6 +10,7 @@ import fixture_index
 import pytest
 
 from tilia_core import tql
+from tilia_core.tql import sqlfuncs
 from tilia_core.tql.syntax import TQLError
 
 DATA = examples.load()
@@ -106,6 +107,21 @@ class TestShownStatementsRun:
             assert lines[0].startswith("--")
             assert lines[-1].startswith("--") or lines[-1].endswith(";")
 
+    def test_the_blocks_are_the_text_and_hold_a_blank_line_inside_a_value(self):
+        index = index_of("pop")
+        got = tql.run(index, '"a\n\nb" THEN verse IN form')
+        assert got.sql == "\n\n".join(b.text for b in got.sql_blocks)
+        # split on blank lines, the text falls apart; the blocks do not
+        assert len(got.sql.split("\n\n")) > len(got.sql_blocks)
+        assert [b.statement is None for b in got.sql_blocks] == [False, False, True]
+        first, second, stage = got.sql_blocks
+        assert first.comment.startswith("$1: ") and second.comment.startswith("$2: ")
+        assert "'a\n\nb'" in first.statement
+        assert stage.comment == blocks(got.sql)[-1][0][0].removeprefix("-- ")
+        for block in (first, second):
+            assert sqlite3.complete_statement(block.statement)
+            tql.sql(index, block.statement)
+
     def test_each_unit_of_a_sequence_names_its_number(self):
         got = tql.run(index_of("pop"), "verse THEN chorus IN form")
         comments = [c for cs, s in blocks(got.sql) if s for c in cs]
@@ -126,6 +142,13 @@ class TestShownStatementsRun:
         got = tql.run(index_of("pop"), "verse IN form WHERE start > 10")
         assert "-- WHERE start > 10:" in got.sql
         assert "Python" in got.sql.split("-- WHERE")[1]
+
+    def test_where_is_found_after_a_sharp_s(self):
+        # upper-cased, ß is SS: one character longer than the query
+        query = '"Schluß" THEN verse IN form WHERE $1.start > 10'
+        got = tql.run(index_of("pop"), query)
+        assert '-- "Schluß" THEN verse IN form: the units above' in got.sql
+        assert "-- WHERE $1.start > 10:" in got.sql
 
     def test_values_are_inline_and_quoted_as_sqlite_does(self):
         index = index_of("pop")
@@ -208,6 +231,33 @@ def test_showing_sql_changes_nothing_in_the_index():
     for statement in statements(got.sql):
         tql.sql(index, statement)
     assert con.total_changes == changes
+
+
+def functions(con):
+    return {(r[0], r[4]) for r in con.execute("PRAGMA function_list")}
+
+
+# The SQL functions shown SQL calls, and how many arguments each takes. Their
+# names are public, like the tables test_tql_index_schema.py pins.
+FUNCTIONS = {
+    ("regexp", 2),
+    ("tql_fold", 1),
+    ("tql_color", 1),
+    ("tql_chord", 9),
+    ("tql_key", 4),
+    ("tql_position", 3),
+    ("tql_length", 4),
+    ("tql_unit_seconds", 3),
+}
+
+
+def test_the_functions_registered_are_the_public_ones():
+    con = sqlite3.connect(":memory:")
+    before = functions(con)
+    sqlfuncs.register(con)
+    after = functions(con)
+    assert FUNCTIONS <= after
+    assert after - before <= FUNCTIONS
 
 
 def test_a_shown_statement_refuses_to_write_when_edited():

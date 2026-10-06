@@ -1,6 +1,7 @@
 """``tql.sql``: one read-only statement, with limits, that never changes the
 index."""
 
+import sqlite3
 import threading
 
 import examples
@@ -11,6 +12,11 @@ from tilia_core import tql
 from tilia_core.tql.syntax import TQLError
 
 FIXTURES = examples.load()["fixtures"]
+# What SQLite says when the authorizer refuses: a statement that runs and only
+# then turns out to return no columns ("not a statement that reads") is no
+# refusal. VACUUM's message differs: SQLite refuses its inner ATTACH.
+REFUSED_BY = r"^(not authorized|authorization denied)"
+FUNCTION_REFUSED = r"^not authorized to use function: "
 
 
 @pytest.fixture
@@ -19,12 +25,22 @@ def index():
 
 
 def snapshot(index):
+    """What a statement could change: the whole main database, temporary
+    objects, attached databases, two pragmas and an open transaction."""
     con = index.connection()
     return (
         con.total_changes,
+        con.in_transaction,
+        list(con.iterdump()),
         con.execute(
             "SELECT type, name, sql FROM sqlite_master ORDER BY name"
         ).fetchall(),
+        con.execute(
+            "SELECT type, name, sql FROM sqlite_temp_master ORDER BY name"
+        ).fetchall(),
+        con.execute("PRAGMA database_list").fetchall(),
+        con.execute("PRAGMA writable_schema").fetchone(),
+        con.execute("PRAGMA user_version").fetchone(),
         {
             name: con.execute(f"SELECT count(*) FROM {name}").fetchone()[0]
             for (name,) in con.execute(
@@ -34,15 +50,37 @@ def snapshot(index):
     )
 
 
+def sqlite_has(text):
+    """Whether this Python's SQLite runs ``text`` (a module or a function that
+    some builds leave out)."""
+    try:
+        sqlite3.connect(":memory:").execute(text)
+    except sqlite3.OperationalError:
+        return False
+    return True
+
+
+NO_FTS5 = pytest.mark.skipif(
+    not sqlite_has("CREATE VIRTUAL TABLE t USING fts5(a)"), reason="no fts5"
+)
+NO_FTS3 = pytest.mark.skipif(
+    not sqlite_has("SELECT fts3_tokenizer('simple')"), reason="no fts3"
+)
 REFUSED = [
     "INSERT INTO components SELECT * FROM components",
+    "INSERT INTO fields VALUES ('file', 'f1', 'x', 'y') RETURNING *",
     "UPDATE components SET label = 'x'",
     "DELETE FROM components",
+    "DELETE FROM components RETURNING id",
+    "EXPLAIN DELETE FROM components",
     "CREATE TABLE t (a)",
     "CREATE TEMP TABLE t (a)",
     "CREATE TEMP VIEW v AS SELECT 1",
     "CREATE VIEW v AS SELECT 1",
     "CREATE TRIGGER g AFTER INSERT ON components BEGIN SELECT 1; END",
+    pytest.param("CREATE VIRTUAL TABLE v USING fts5(a)", marks=NO_FTS5),
+    "ALTER TABLE components RENAME TO c2",
+    "ALTER TABLE components ADD COLUMN zz",
     "DROP TABLE components",
     "ATTACH DATABASE ':memory:' AS other",
     "DETACH DATABASE main",
@@ -51,7 +89,9 @@ REFUSED = [
     "BEGIN",
     "COMMIT",
     "SAVEPOINT s",
-    "SELECT load_extension('nothing')",
+    "ANALYZE",
+    "REINDEX",
+    "VACUUM",
     "REPLACE INTO components SELECT * FROM components",
     "WITH x AS (SELECT 1) DELETE FROM components",
 ]
@@ -60,8 +100,46 @@ REFUSED = [
 @pytest.mark.parametrize("text", REFUSED)
 def test_a_statement_that_writes_or_loads_is_refused_and_changes_nothing(index, text):
     before = snapshot(index)
-    with pytest.raises(TQLError):
+    with pytest.raises(TQLError, match=REFUSED_BY):
         tql.sql(index, text)
+    assert snapshot(index) == before
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "SELECT load_extension('nothing')",
+        "SELECT LOAD_EXTENSION('nothing', 'entry')",
+        pytest.param("SELECT fts3_tokenizer('simple')", marks=NO_FTS3),
+    ],
+)
+def test_the_functions_that_load_code_are_refused(index, text):
+    # SQLite refuses load_extension itself while loading is off, with a
+    # plain "not authorized"; only the authorizer names the function.
+    before = snapshot(index)
+    with pytest.raises(TQLError, match=FUNCTION_REFUSED):
+        tql.sql(index, text)
+    assert snapshot(index) == before
+
+
+@pytest.mark.skipif(
+    not hasattr(sqlite3.Connection, "enable_load_extension"),
+    reason="this Python cannot load extensions",
+)
+def test_load_extension_is_refused_when_loading_is_on(index):
+    index.connection().enable_load_extension(True)
+    before = snapshot(index)
+    with pytest.raises(TQLError, match=FUNCTION_REFUSED):
+        tql.sql(index, "SELECT load_extension('nothing')")
+    assert snapshot(index) == before
+
+
+def test_vacuum_into_writes_no_file(index, tmp_path):
+    copy = tmp_path / "copy.db"
+    before = snapshot(index)
+    with pytest.raises(TQLError, match=REFUSED_BY):
+        tql.sql(index, f"VACUUM INTO '{copy}'")
+    assert not copy.exists()
     assert snapshot(index) == before
 
 
@@ -156,6 +234,12 @@ def test_a_failing_statement_raises_with_sqlites_message(index):
         tql.sql(index, "SELECT nope FROM components")
     with pytest.raises(TQLError, match="syntax error"):
         tql.sql(index, "SELEC 1")
+
+
+@pytest.mark.parametrize("text", ["SELECT 'a\x00b'", "SELECT '\ud800'"])
+def test_text_sqlite_cannot_take_raises_a_tql_error(index, text):
+    with pytest.raises(TQLError):
+        tql.sql(index, text)
 
 
 def test_the_connection_writes_normally_afterwards(index):
