@@ -3,6 +3,7 @@
 from .engine import run
 from .explain import explain
 from .result import Match, Result
+from .stats import Table
 from .syntax import Query, TQLError, format_error, parse
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "run",
     "Result",
     "Match",
+    "Table",
 ]
