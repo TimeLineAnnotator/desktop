@@ -189,6 +189,13 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.compute_is_first_in_measure = True
 
         self.timeline.recalculate_measures()
+        # Files saved by earlier versions can hold duplicate or out-of-range
+        # indices.
+        self.timeline.measures_to_force_display = [
+            i
+            for i in dict.fromkeys(self.timeline.measures_to_force_display)
+            if 0 <= i < self.timeline.measure_count
+        ]
         post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def restore_state(self, prev_state: dict):

@@ -70,6 +70,34 @@ class TestLoadFromFile:
             "8",
         ]
 
+    def test_duplicate_and_out_of_range_forced_measures_are_dropped(
+        self, beat_tlui, tluis, tmp_path
+    ):
+        # Earlier versions could save such a list; the current one can't
+        # produce it, so it is set directly.
+        settings.set("beat_timeline", "display_measure_periodicity", 4)
+        beat_tlui.timeline.beat_pattern = [1]
+        for i in range(4):
+            commands.execute("media.seek", i)
+            commands.execute("timeline.beat.add")
+        beat_tlui.timeline.measures_to_force_display = [1, 6, 1, 2]
+
+        tmp_file = tmp_path / "test.tla"
+        post(Post.REQUEST_SAVE_TO_PATH, tmp_file)
+        commands.execute("file.open", tmp_file)
+
+        reopened = tluis[0]
+        reopened.select_element(reopened[1])
+        commands.execute("timeline.beat.reset_measure_number")
+        # A duplicate would need a second reset to hide the label.
+        assert get_displayed_measure_number(reopened[1]) == ""
+
+        for i in range(4, 7):
+            commands.execute("media.seek", i)
+            commands.execute("timeline.beat.add")
+        # An out-of-range index would force measure 7's label once it exists.
+        assert get_displayed_measure_number(reopened[6]) == ""
+
 
 class TestCreateDeleteBeat:
     def test_create_single(self, beat_tlui):
