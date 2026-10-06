@@ -290,7 +290,12 @@ def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
         )
     exact = len(lits) == 1 and lits[0].kind == "exact"
     text = nfc(lits[0].text if exact else alt.raw)
-    chord = f"tql_chord(?, {comp}.id)"
+    chord = (
+        "EXISTS (SELECT 1 FROM chords x LEFT JOIN keys y ON y.component_id = "
+        f"x.key_id WHERE x.component_id = {comp}.id AND tql_chord(?, x.step, "
+        "x.accidental, x.quality, x.inversion, x.applied_to, y.step, "
+        "y.accidental, y.mode))"
+    )
     params.append(text)
     if exact and isinstance(sqlfuncs.chord_spec(text), str):
         chord = (
@@ -299,10 +304,11 @@ def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
         )
         params.append(text.strip())
     params.append(text)
-    return (
-        f"(({comp}.kind = 'chord' AND {chord}) OR "
-        f"({comp}.kind = 'key' AND tql_key(?, {comp}.id)))"
+    key = (
+        f"EXISTS (SELECT 1 FROM keys x WHERE x.component_id = {comp}.id AND "
+        "tql_key(?, x.step, x.accidental, x.mode))"
     )
+    return f"(({comp}.kind = 'chord' AND {chord}) OR ({comp}.kind = 'key' AND {key}))"
 
 
 def harmony_problems(unit: syntax.Unit, kind: str) -> list[str]:

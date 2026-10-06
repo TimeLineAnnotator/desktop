@@ -1,6 +1,10 @@
 """Chords and keys in the engine (tql.md §5, §7.2): a literal in a chords lane is
 a chord, in a keys lane a key; the chord and key fields compare as music."""
 
+import gc
+import sqlite3
+import weakref
+
 import examples
 import fixture_index
 
@@ -185,6 +189,22 @@ class TestSql:
         before = con.total_changes
         tql.run(index, "V7 THEN I IN harmony")
         assert con.total_changes == before
+
+    def test_a_dropped_connection_is_freed(self):
+        # SQLite's references to the functions are hidden from the garbage
+        # collector, so a function that held the connection would keep it open.
+        class Connection(sqlite3.Connection):  # sqlite3's own takes no weakref
+            pass
+
+        con = sqlite3.connect(":memory:", factory=Connection)
+        fixture_index.build_index(HARMONY).connection().backup(con)
+        index = fixture_index.FixtureIndex(con, {})
+        assert tql.run(index, "V7 IN harmony").matches
+        tql.run(index, "c IN keys")
+        freed = weakref.ref(con)
+        del index, con
+        gc.collect()
+        assert freed() is None
 
 
 class TestMixedLanes:
