@@ -375,10 +375,10 @@ def _build_element(
         commands.execute("timeline.hierarchy.add", start=10, end=20, level=2)
         return hierarchy_tlui, hierarchy_tlui[0]
     if kind == "harmony":
-        # on_add_harmony always prompts Get.FROM_USER_HARMONY_PARAMS once
-        # component validation passes (unlike add_pre_start/add_post_end,
-        # there's no empty-selection short-circuit before it) -- confirm
-        # with no overrides so a real HarmonyUI comes out the other end.
+        # Adding a harmony or a mode opens a dialog for its parameters, and
+        # the command can't take them as arguments. Answer it as a user
+        # clicking OK without changing anything, which adds one with the
+        # default parameters.
         with Serve(Get.FROM_USER_HARMONY_PARAMS, (True, {})):
             commands.execute("timeline.harmony.add_harmony")
         return harmony_tlui, harmony_tlui.harmonies()[0]
