@@ -4,10 +4,13 @@ from unittest.mock import mock_open, patch
 import pytest
 
 import tilia.parsers.csv.harmony
+from tests.mock import patch_file_dialog
 from tests.parsers.csv.common import assert_in_errors
+from tests.utils import undoable
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.timeline import HarmonyTimeline
+from tilia.ui import commands
 
 
 def call_patched_import_by_time_func(timeline: HarmonyTimeline, data: str):
@@ -385,3 +388,36 @@ class TestSymbolsThatRaise:
         assert_in_errors("V42/bVII", errors)
         assert len(harmony_tl.modes()) == 1
         assert len(harmony_tl.harmonies()) == 1
+
+
+class TestImportCommand:
+    def test_import_with_symbols_that_raise_is_one_undo_step(
+        self, harmony_tlui, tmp_path
+    ):
+        path = tmp_path / "harmonies.csv"
+        path.write_text(
+            "\n".join(
+                [
+                    "time,harmony_or_key,symbol,comments",
+                    "0,key,C,home key",
+                    "10,key,F:min,",
+                    "20,harmony,V42/bVII,",
+                    "30,harmony,D,a comment",
+                ]
+            )
+        )
+
+        with (
+            patch(
+                "tilia.ui.timelines.collection.import_._get_by_time_or_by_measure_from_user",
+                return_value=(True, "time"),
+            ),
+            patch_file_dialog(True, [str(path)]),
+            undoable(),
+        ):
+            commands.execute("timelines.import.harmony")
+
+        harmony_tl = harmony_tlui.timeline
+        assert len(harmony_tl.modes()) == 1
+        assert len(harmony_tl.harmonies()) == 1
+        assert harmony_tl.harmonies()[0].get_data("comments") == "a comment"
