@@ -330,7 +330,7 @@ class TestAudioTimeChange:
 class TestClear:
     @staticmethod
     def _clear(score_tlui):
-        with Serve(Get.FROM_USER_YES_OR_NO, True):
+        with patch_yes_or_no_dialog(True):
             commands.execute("timeline.clear", score_tlui)
 
     def test_closes_the_svg_viewer(self, score_tlui, note, tls):
@@ -354,6 +354,18 @@ class TestClear:
         self._clear(score_tlui)
 
         assert score_tlui.get_data("svg_data") == ""
+
+    def test_viewer_stays_closed_after_zooming_and_renaming(
+        self, score_tlui, note, tls
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        self._clear(score_tlui)
+
+        commands.execute("view.zoom.in")
+        commands.execute("timeline.set_name", score_tlui, name="Renamed")
+
+        with pytest.raises(NoReplyToRequest):
+            get(Get.SCORE_VIEWER, score_tlui.id)
 
     def test_restoring_a_cleared_state_closes_the_viewer(self, score_tlui, note, tls):
         # The path undo/redo takes when it lands on a cleared state.
@@ -388,7 +400,7 @@ class TestClear:
         tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
         svg_data = score_tlui.get_data("svg_data")
         post(Post.APP_STATE_RECORD, "setup")
-        with Serve(Get.FROM_USER_YES_OR_NO, True):
+        with patch_yes_or_no_dialog(True):
             commands.execute("timeline.clear", score_tlui)
 
         commands.execute("edit.undo")
