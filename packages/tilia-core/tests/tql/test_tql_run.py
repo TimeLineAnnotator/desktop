@@ -228,10 +228,15 @@ class TestLiterals:
         got = matched("*")
         assert len(got) == 11 and "" in got
 
-    def test_conditions_are_for_later(self):
-        unit = tql.parse("verse[level = 1] IN form").pattern.seq.steps[0].item
-        with pytest.raises(NotImplementedError, match="conditions"):
+    def test_positions_are_for_later(self):
+        unit = tql.parse("verse[bar = 1] IN form").pattern.seq.steps[0].item
+        with pytest.raises(NotImplementedError, match="positions"):
             tql_compile.candidate_statement(unit, "f1")
+
+    def test_a_simple_comparison_is_in_the_candidate_statement(self):
+        unit = tql.parse("verse[level = 1] IN form").pattern.seq.steps[0].item
+        sql, params = tql_compile.candidate_statement(unit, "f1")
+        assert "hierarchies" in sql and params[-1] == 1.0
 
     def test_candidate_statement_shape(self):
         unit = tql.parse("verse IN form").pattern.seq.steps[0].item
@@ -357,10 +362,9 @@ class TestRun:
     @pytest.mark.parametrize(
         "text",
         [
-            "WHERE tl.name ~ /^Form/",
             "verse THEN chorus IN form WITHIN 2 bars",
-            "verse[level = 1] IN form",
-            "verse IN form WHERE level = 1",
+            "verse[bar = 1] IN form",
+            "verse IN form WHERE level = 1 AND bar = 1",
         ],
     )
     def test_later_parts_say_so(self, text):

@@ -1,29 +1,16 @@
 # Examples tql.run can't run yet: one line `<n>: <reason>` each (the test marks them xfail, strict).
-7: field comparisons in brackets
-26: WHERE
-27: WHERE
+26: distances in bars
+27: distances in bars
 28: chords and keys labels
-29: WHERE
-30: field comparisons in brackets
-31: field comparisons in brackets
+30: percentages of the piece
 39: chords and keys labels
 40: chords and keys labels
-41: WHERE
-42: WHERE
-43: WHERE
 44: chords and keys labels
 45: chords and keys labels
-46: field comparisons in brackets
-47: WHERE
-48: WHERE
-49: WHERE
-50: field comparisons in brackets
-51: field comparisons in brackets
-52: field comparisons in brackets
-53: field comparisons in brackets
-64: WHERE
+48: chords and keys labels
+50: positions
+51: positions
+52: positions
+53: percentages of the piece
 65: WITHIN in bars
 66: WITHIN in bars
-75: field comparisons in brackets
-84: WHERE
-90: WHERE

@@ -1,4 +1,4 @@
-"""The printed examples that are sequence patterns, run through ``tql.run``."""
+"""The printed examples, run through ``tql.run``."""
 
 from collections import Counter
 from pathlib import Path
@@ -43,6 +43,13 @@ def _row(match: tql.Match, has_target: bool) -> str:
     return " | ".join(steps)
 
 
+def _rows(result: tql.Result, has_target: bool) -> list[str]:
+    """A query of only WHERE lists timelines by name; the rest by their units."""
+    if result.grain == "timeline":
+        return [r["timeline"] for r in result.rows]
+    return [_row(m, has_target) for m in result.matches]
+
+
 def _params():
     out = []
     for e in DATA["examples"]:
@@ -63,5 +70,5 @@ def test_example(example):
     index = fixture_index.build_index(DATA["fixtures"][example.fixture])
     result = tql.run(index, example.query)
     has_target = tql.parse(example.query).has_target
-    got = Counter(_row(m, has_target) for m in result.matches)
+    got = Counter(_rows(result, has_target))
     assert got == Counter(example.rows)
