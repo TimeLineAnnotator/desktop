@@ -20,6 +20,15 @@ from enum import Enum, auto
 # Guards against inputs like "999999[999999[4]]" expanding into a list that
 # would exhaust memory. Far above the bar count of any real piece.
 MAX_BARS = 100_000
+# Groups are parsed recursively, so nesting is capped well below Python's
+# recursion limit. Far deeper than any pattern worth writing.
+MAX_DEPTH = 32
+# Significant digits in a number. Any more and the number is far above
+# MAX_BARS, and int() refuses strings past a few thousand digits.
+MAX_DIGITS = 9
+# Only ASCII digits: str.isdigit() also accepts characters such as "²" that
+# int() rejects.
+_DIGITS = frozenset("0123456789")
 
 
 class ParseStatus(Enum):
@@ -68,6 +77,7 @@ class _Parser:
     def __init__(self, text: str):
         self.text = text
         self.pos = 0
+        self.depth = 0
 
     def at_end(self) -> bool:
         return self.pos >= len(self.text)
@@ -75,15 +85,21 @@ class _Parser:
     def peek(self) -> str:
         return self.text[self.pos]
 
+    def at_digit(self) -> bool:
+        return not self.at_end() and self.peek() in _DIGITS
+
     def skip_whitespace(self) -> None:
         while not self.at_end() and self.peek().isspace():
             self.pos += 1
 
     def parse_int(self) -> int:
         start = self.pos
-        while not self.at_end() and self.peek().isdigit():
+        while self.at_digit():
             self.pos += 1
-        return int(self.text[start : self.pos])
+        digits = self.text[start : self.pos].lstrip("0")
+        if len(digits) > MAX_DIGITS:
+            raise _Invalid(f"Numbers can have at most {MAX_DIGITS} digits.", start)
+        return int(digits or "0")
 
     def parse_items(self, open_position: int | None = None) -> list[int]:
         """
@@ -118,13 +134,19 @@ class _Parser:
 
     def parse_item(self) -> list[int]:
         start = self.pos
-        count = self.parse_int() if self.peek().isdigit() else None
+        count = self.parse_int() if self.at_digit() else None
         self.skip_whitespace()
 
         if not self.at_end() and self.peek() == "[":
             open_position = self.pos
+            if self.depth >= MAX_DEPTH:
+                raise _Invalid(
+                    f"Groups can be nested at most {MAX_DEPTH} deep.", open_position
+                )
             self.pos += 1
+            self.depth += 1
             group = self.parse_items(open_position)
+            self.depth -= 1
             self.pos += 1  # the closing "]"
             repeats = 1 if count is None else count
             if repeats < 1:
