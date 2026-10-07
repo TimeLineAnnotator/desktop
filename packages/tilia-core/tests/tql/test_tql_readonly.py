@@ -1,6 +1,7 @@
 """``tql.sql``: one read-only statement, with limits, that never changes the
 index."""
 
+import contextlib
 import sqlite3
 import threading
 
@@ -9,6 +10,7 @@ import fixture_index
 import pytest
 
 from tilia_core import tql
+from tilia_core.tql import readonly
 from tilia_core.tql.syntax import TQLError
 
 FIXTURES = examples.load()["fixtures"]
@@ -17,6 +19,11 @@ FIXTURES = examples.load()["fixtures"]
 # refusal. VACUUM's message differs: SQLite refuses its inner ATTACH.
 REFUSED_BY = r"^(not authorized|authorization denied)"
 FUNCTION_REFUSED = r"^not authorized to use function: "
+# What SQLite says when PRAGMA query_only refuses a write.
+READ_ONLY = r"^attempt to write a readonly database$"
+LONG_READ = (
+    "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) SELECT x FROM n"
+)
 
 
 @pytest.fixture
@@ -26,7 +33,7 @@ def index():
 
 def snapshot(index):
     """What a statement could change: the whole main database, temporary
-    objects, attached databases, two pragmas and an open transaction."""
+    objects, attached databases, three pragmas and an open transaction."""
     con = index.connection()
     return (
         con.total_changes,
@@ -41,6 +48,7 @@ def snapshot(index):
         con.execute("PRAGMA database_list").fetchall(),
         con.execute("PRAGMA writable_schema").fetchone(),
         con.execute("PRAGMA user_version").fetchone(),
+        con.execute("PRAGMA query_only").fetchone(),
         {
             name: con.execute(f"SELECT count(*) FROM {name}").fetchone()[0]
             for (name,) in con.execute(
@@ -85,6 +93,7 @@ REFUSED = [
     "ATTACH DATABASE ':memory:' AS other",
     "DETACH DATABASE main",
     "PRAGMA writable_schema = ON",
+    "PRAGMA query_only = OFF",
     "PRAGMA table_info(components)",
     "BEGIN",
     "COMMIT",
@@ -140,6 +149,52 @@ def test_vacuum_into_writes_no_file(index, tmp_path):
     with pytest.raises(TQLError, match=REFUSED_BY):
         tql.sql(index, f"VACUUM INTO '{copy}'")
     assert not copy.exists()
+    assert snapshot(index) == before
+
+
+# What PRAGMA query_only refuses on its own (see readonly's docstring).
+QUERY_ONLY_REFUSES = [
+    "INSERT INTO components SELECT * FROM components",
+    "UPDATE components SET label = 'x'",
+    "DELETE FROM components",
+    "CREATE TABLE t (a)",
+    "CREATE TEMP TABLE t (a)",
+    "DROP TABLE components",
+    "ALTER TABLE components RENAME TO c2",
+    "ALTER TABLE components ADD COLUMN zz",
+    "PRAGMA user_version = 9",
+]
+
+
+@pytest.fixture
+def no_authorizer(monkeypatch):
+    """An authorizer that allows everything: only query_only is left."""
+    monkeypatch.setattr(readonly, "_authorize", readonly._allow_all)
+
+
+@pytest.mark.parametrize("text", QUERY_ONLY_REFUSES)
+def test_query_only_refuses_a_write_the_authorizer_lets_through(
+    index, no_authorizer, text
+):
+    before = snapshot(index)
+    with pytest.raises(TQLError, match=READ_ONLY):
+        tql.sql(index, text)
+    con = index.connection()
+    if con.in_transaction:
+        # Python's sqlite3 began one before INSERT, UPDATE or DELETE, and the
+        # refused write left it open with nothing in it.
+        con.rollback()
+    assert snapshot(index) == before
+
+
+def test_query_only_refuses_vacuum_into_the_authorizer_lets_through(
+    index, no_authorizer, tmp_path
+):
+    # SQLite can create the file before query_only refuses the write; that no
+    # file appears is the authorizer's doing (test_vacuum_into_writes_no_file).
+    before = snapshot(index)
+    with pytest.raises(TQLError, match=READ_ONLY):
+        tql.sql(index, f"VACUUM INTO '{tmp_path / 'copy.db'}'")
     assert snapshot(index) == before
 
 
@@ -259,6 +314,40 @@ def test_the_connection_writes_normally_afterwards(index):
         "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 200000) "
         "SELECT count(*) FROM n"
     ).fetchone() == (200000,)
+
+
+@pytest.mark.parametrize("query_only", [0, 1])
+@pytest.mark.parametrize(
+    "text, limits",
+    [
+        pytest.param("SELECT 1", {}, id="reads"),
+        pytest.param("DELETE FROM components", {}, id="refused"),
+        pytest.param("SELECT * FROM nope", {}, id="fails"),
+        pytest.param("SELECT 'a\x00b'", {}, id="cannot-pass"),
+        pytest.param(LONG_READ, {"time_limit": 0.01}, id="stopped"),
+    ],
+)
+def test_query_only_is_put_back_as_it_was(index, query_only, text, limits):
+    con = index.connection()
+    con.execute(f"PRAGMA query_only = {query_only}")
+    with contextlib.suppress(TQLError):
+        tql.sql(index, text, **limits)
+    assert con.execute("PRAGMA query_only").fetchone() == (query_only,)
+
+
+def test_a_transaction_the_caller_has_open_is_left_alone(index, no_authorizer):
+    con = index.connection()
+    con.execute("CREATE TABLE scratch (a)")
+    con.commit()
+    con.execute("INSERT INTO scratch VALUES (1)")
+    tql.sql(index, "SELECT 1")
+    with pytest.raises(TQLError, match=READ_ONLY):
+        tql.sql(index, "DELETE FROM scratch")
+    assert con.in_transaction
+    assert con.execute("PRAGMA query_only").fetchone() == (0,)
+    con.execute("INSERT INTO scratch VALUES (2)")
+    con.commit()
+    assert con.execute("SELECT a FROM scratch").fetchall() == [(1,), (2,)]
 
 
 def test_a_run_still_works_after_a_refused_call(index):

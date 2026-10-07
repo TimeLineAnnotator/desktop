@@ -1,10 +1,20 @@
 """Read-only SQL on an index: :func:`sql` runs one statement of the user's.
 
-The statement may only read. An authorizer set for the call allows SQLite's
-``SELECT``, ``READ``, ``FUNCTION`` and ``RECURSIVE`` actions and refuses the
-rest (writes, ``ATTACH``, ``DETACH``, ``PRAGMA``, transactions, temporary
-tables, views and triggers, ``load_extension``). Loading extensions is never
-enabled on the connection.
+The statement may only read. Two layers stop it before it changes anything:
+
+- An authorizer set for the call allows SQLite's ``SELECT``, ``READ``,
+  ``FUNCTION`` and ``RECURSIVE`` actions and refuses the rest when the
+  statement is compiled (writes, ``ATTACH``, ``DETACH``, ``PRAGMA``,
+  transactions, temporary tables, views and triggers, ``load_extension``).
+- ``PRAGMA query_only`` is on for the call and put back as it was afterwards,
+  so SQLite refuses a statement as soon as it starts to write: ``INSERT``,
+  ``UPDATE``, ``DELETE``, ``CREATE`` (``TEMP`` too), ``DROP``, ``ALTER``,
+  ``PRAGMA user_version = n`` and ``VACUUM INTO`` (which can still leave an
+  empty file at its path). It lets ``ATTACH``, ``BEGIN`` and the pragmas that
+  set the connection through, ``PRAGMA query_only = OFF`` among them: the
+  authorizer alone refuses those.
+
+Loading extensions is never enabled on the connection.
 """
 
 from __future__ import annotations
@@ -97,6 +107,10 @@ def sql(
     columns: list[str] = []
     rows: list[tuple[Any, ...]] = []
     stopped: str | None = None
+    # The authorizer refuses PRAGMA: set query_only before it goes on and
+    # restore it after it comes off.
+    query_only = con.execute("PRAGMA query_only").fetchone()[0]
+    con.execute("PRAGMA query_only = ON")
     con.set_authorizer(_authorize)
     con.set_progress_handler(limits, CHECK_EVERY)
     try:
@@ -128,4 +142,5 @@ def sql(
     finally:
         con.set_progress_handler(None, 0)
         _remove_authorizer(con)
+        con.execute(f"PRAGMA query_only = {int(query_only)}")
     return Table(columns, rows, stopped=stopped or limits.stopped)
