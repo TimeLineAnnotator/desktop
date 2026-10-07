@@ -3,6 +3,7 @@ from fractions import Fraction as F
 import pytest
 
 from tilia.timelines.beat.units import (
+    MAX_DENOMINATOR,
     fit_units,
     format_units,
     is_fit_ambiguous,
@@ -229,7 +230,10 @@ class TestCreateBeatUnit:
         assert beat_unit is None
         assert error
 
-    @pytest.mark.parametrize("denominator, units", [(0, "1"), (4, "0"), (4, "a")])
+    @pytest.mark.parametrize(
+        "denominator, units",
+        [(0, "1"), (MAX_DENOMINATOR + 1, "1"), (4, "0"), (4, "a")],
+    )
     def test_invalid_values_fail(self, beat_tl, denominator, units):
         add_beats(beat_tl, 2)
         beat_unit, error = beat_tl.create_component(
@@ -356,7 +360,8 @@ class TestSetBeatUnit:
         assert len(beat_tl.beat_units) == 1
 
     @pytest.mark.parametrize(
-        "measure_index, denominator, units", [(5, 4, "1"), (-1, 4, "1"), (0, 0, "1")]
+        "measure_index, denominator, units",
+        [(5, 4, "1"), (-1, 4, "1"), (0, 0, "1"), (0, MAX_DENOMINATOR + 1, "1")],
     )
     def test_invalid(self, beat_tl, measure_index, denominator, units):
         add_beats(beat_tl, 4)
