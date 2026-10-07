@@ -2,7 +2,6 @@ import argparse
 
 import tilia.errors
 from tilia.requests import Get, get
-from tilia.settings import settings
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.pattern import parse
@@ -15,7 +14,7 @@ from tilia.timelines.range.timeline import RangeTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui.cli import io
 from tilia.ui.cli.io import output
-from tilia.ui.consts import BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
+from tilia.ui.timelines.beat_time_signatures import get_creation_args
 
 # Every kind the user can create, with its abbreviation. SliderTimeline is
 # deliberately absent: it comes with the file and can't be deleted.
@@ -169,13 +168,7 @@ def add(namespace: argparse.Namespace):
             return
         kwargs["beat_pattern"] = pattern
     if tl_type is BeatTimeline:
-        # New beat timelines show time signatures, with room for them.
-        kwargs["show_time_signatures"] = True
-        if kwargs.get("height") is None:
-            kwargs["height"] = (
-                settings.get("beat_timeline", "default_height")
-                + BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
-            )
+        kwargs |= get_creation_args(kwargs.get("height"))
 
     output(f"Adding timeline with {kind=}, {name=}")
 

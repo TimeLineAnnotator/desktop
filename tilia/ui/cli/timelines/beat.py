@@ -4,7 +4,6 @@ import argparse
 from collections.abc import Callable
 from functools import wraps
 
-from tilia.requests import Get, get
 from tilia.timelines.beat.pattern import parse
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.beat.units import (
@@ -17,8 +16,8 @@ from tilia.ui.cli.timelines.utils import (
     get_timeline_by_name,
     get_timeline_by_ordinal,
 )
-from tilia.ui.consts import BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
 from tilia.ui.format import format_numerator
+from tilia.ui.timelines.beat_time_signatures import set_time_signatures_shown
 
 
 def setup_parser(subparser):
@@ -314,12 +313,4 @@ def list_units(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
 def set_time_signatures_visibility(
     timeline: BeatTimeline, namespace: argparse.Namespace
 ) -> None:
-    show = namespace.action == "show"
-    if show == timeline.show_time_signatures:
-        return
-    collection = get(Get.TIMELINE_COLLECTION)
-    height_change = BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
-    if not show:
-        height_change = -height_change
-    collection.set_timeline_data(timeline.id, "show_time_signatures", show)
-    collection.set_timeline_data(timeline.id, "height", timeline.height + height_change)
+    set_time_signatures_shown(timeline.id, namespace.action == "show")
