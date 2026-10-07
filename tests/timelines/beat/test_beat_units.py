@@ -472,3 +472,15 @@ class TestState:
         add_beat_unit(beat_tl, 0, 8, "1")
 
         assert beat_tl.component_manager.hash_components() != before
+
+    def test_hash_does_not_depend_on_creation_order(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 4)
+        add_beat_unit(beat_tl, 2, 8, "3")
+        before = beat_tl.component_manager.hash_components()
+
+        # Recreated with the same default values, but after the other one.
+        beat_tl.delete_components([first_beat_unit(beat_tl)])
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (2, 8, "3")]
+
+        assert beat_tl.component_manager.hash_components() == before
