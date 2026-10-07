@@ -702,14 +702,14 @@ class BeatTimeline(Timeline):
     def _build_time_stamp_table(self) -> TimeStampTable:
         times = [beat.time for beat in self.components]
         lengths = self.beat_quarter_lengths
-        seconds_per_quarter = []
-        for index in range(len(times)):
-            # Past the last beat, its length is spread over the last gap.
-            if index < len(times) - 1:
-                gap = times[index + 1] - times[index]
-            else:
-                gap = times[index] - times[index - 1]
-            seconds_per_quarter.append(gap / float(lengths[index]))
+        seconds_per_quarter = [
+            (times[index + 1] - times[index]) / float(lengths[index])
+            for index in range(len(times) - 1)
+        ]
+        # The last beat has no next beat to measure against, so the tempo of
+        # the gap before it carries on past it. Its own length doesn't enter:
+        # that gap lasted the previous beat's length, not the last one's.
+        seconds_per_quarter.append(seconds_per_quarter[-1])
         return TimeStampTable(
             times=times,
             stamps=[float(stamp) for stamp in self.quarter_stamps],

@@ -110,6 +110,17 @@ class TestTimeToStamp:
         assert beat_tl.get_quarter_stamp_by_time(0.5) == pytest.approx(1)
         assert beat_tl.get_quarter_stamp_by_time(1.5) == pytest.approx(3.5)
 
+    def test_past_last_beat_keeps_last_gap_tempo(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, [0, 1, 2])
+        add_beat_unit(beat_tl, 0, 4, "2+3")
+
+        # The last gap lasts 3 quarters over 1 s. The last beat is worth 2
+        # quarters, which must not change that tempo.
+        assert beat_tl.quarter_stamps == [0, 2, 5]
+        assert beat_tl.get_quarter_stamp_by_time(2.5) == pytest.approx(6.5)
+        assert beat_tl.get_time_by_quarter_stamp(6.5) == pytest.approx(2.5)
+
     @pytest.mark.parametrize("times", [[], [5]])
     def test_needs_two_beats(self, beat_tl, times):
         add_beats(beat_tl, times)
