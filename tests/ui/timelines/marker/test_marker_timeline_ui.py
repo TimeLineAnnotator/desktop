@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QColorDialog, QInputDialog
 
-from tests.mock import Serve, patch_ask_for_string_dialog, patch_yes_or_no_dialog
+from tests.mock import patch_ask_for_string_dialog, patch_yes_or_no_dialog
 from tests.ui.test_qtui import get_toolbars_of_class
 from tests.ui.timelines.interact import (
     click_timeline_ui,
@@ -20,7 +20,7 @@ from tests.utils import (
     get_submenu,
     undoable,
 )
-from tilia.requests import Get, Post, post
+from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.coords import time_x_converter
@@ -73,8 +73,7 @@ class TestSetResetColor:
     def set_color_on_all_markers(self, marker_tlui):
         """Assumes there is a single marker on timeline"""
         marker_tlui.select_all_elements()
-        with Serve(Get.FROM_USER_COLOR, (True, QColor(self.TEST_COLOR))):
-            commands.execute("timeline.component.set_color")
+        commands.execute("timeline.component.set_color", color=QColor(self.TEST_COLOR))
 
     def test_set_color(self, marker_tlui):
         commands.execute("timeline.marker.add")

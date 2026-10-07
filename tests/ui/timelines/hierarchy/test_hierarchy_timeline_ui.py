@@ -2,9 +2,9 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from tests.mock import Serve, patch_yes_or_no_dialog
+from tests.mock import patch_yes_or_no_dialog
 from tests.utils import get_command_names
-from tilia.requests import Get, Post, post
+from tilia.requests import Post, post
 from tilia.settings import settings
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.ui import commands
@@ -124,8 +124,7 @@ class TestActions:
         commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.select_element(tlui[0])
 
-        with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
-            commands.execute("timeline.component.set_color")
+        commands.execute("timeline.component.set_color", color=QColor("#000"))
 
         assert tlui[0].get_data("color") == "#000000"
 
@@ -133,8 +132,7 @@ class TestActions:
         commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.select_element(tlui[0])
 
-        with Serve(Get.FROM_USER_COLOR, (True, QColor("#000"))):
-            commands.execute("timeline.component.set_color")
+        commands.execute("timeline.component.set_color", color=QColor("#000"))
 
         commands.execute("timeline.component.reset_color")
 
@@ -144,8 +142,7 @@ class TestActions:
         commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
         tlui.select_element(tlui[0])
 
-        with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
-            commands.execute("timeline.hierarchy.add_pre_start")
+        commands.execute("timeline.hierarchy.add_pre_start", length=0.1)
 
         assert tlui[0].get_data("pre_start") != tlui[0].get_data("start")
         assert tlui[0].pre_start_handle
@@ -154,8 +151,7 @@ class TestActions:
         commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
         tlui.select_element(tlui[0])
 
-        with Serve(Get.FROM_USER_FLOAT, (True, 0.1)):
-            commands.execute("timeline.hierarchy.add_post_end")
+        commands.execute("timeline.hierarchy.add_post_end", length=0.1)
 
         assert tlui[0].get_data("post_end") != tlui[0].get_data("end")
         assert tlui[0].post_end_handle
@@ -168,8 +164,7 @@ class TestActions:
         # test here (see tilia/ui/timelines/cursors.py).
         commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
         tlui.select_element(tlui[0])
-        with Serve(Get.FROM_USER_FLOAT, (True, 0.05)):
-            commands.execute("timeline.hierarchy.add_pre_start")
+        commands.execute("timeline.hierarchy.add_pre_start", length=0.1)
         vline = tlui[0].pre_start_handle.vertical_line
         assert vline.cursor().shape() == Qt.CursorShape.SizeHorCursor
 
