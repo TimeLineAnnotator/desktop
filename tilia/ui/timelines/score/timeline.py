@@ -34,6 +34,7 @@ from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,
 )
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
+from tilia.ui.windows.score.score_view import ScoreView
 from tilia.ui.windows.svg_viewer import SvgViewer
 
 
@@ -88,6 +89,11 @@ class ScoreTimelineUI(TimelineUI):
             Post.SCORE_TIMELINE_CLEAR_DONE,
             self.on_score_timeline_clear_done,
         )
+        listen(
+            self,
+            Post.SCORE_TIMELINE_SCORE_IMPORTED,
+            self.on_score_timeline_score_imported,
+        )
 
     def _setup_pixmaps(self):
         self.pixmaps = {
@@ -100,7 +106,7 @@ class ScoreTimelineUI(TimelineUI):
         }
 
     @property
-    def svg_view(self) -> SvgViewer | None:
+    def svg_view(self) -> SvgViewer | ScoreView | None:
         """The score viewer serving this timeline, or None if there is none.
 
         Reading this never creates a viewer. Use `get_or_create_svg_view`
@@ -111,9 +117,13 @@ class ScoreTimelineUI(TimelineUI):
         except NoReplyToRequest:
             return None
 
-    def get_or_create_svg_view(self) -> SvgViewer:
+    def get_or_create_svg_view(self) -> SvgViewer | ScoreView:
         """This timeline's score viewer, creating and loading one if needed."""
         if (viewer := self.svg_view) is not None:
+            return viewer
+
+        if not self.timeline.svg_data:
+            return ScoreView(name=self.get_data("name"), tl_id=self.id)
             return viewer
 
         viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
@@ -514,15 +524,32 @@ class ScoreTimelineUI(TimelineUI):
             self.get_or_create_svg_view()
 
     def update_svg_data(self) -> None:
+        viewer = self.svg_view
         if not self.timeline.svg_data:
-            # No score left to show. Reached when the timeline is cleared and
-            # when undo/redo restores a state where it was.
-            self.reset_svg()
-        elif (viewer := self.svg_view) is None:
-            # Creating the viewer loads the current data as part of its setup.
-            self.get_or_create_svg_view()
-        else:
-            viewer.load_svg_data(self.timeline.svg_data)
+            # No score stored as SVG (an import replaced it, and was redone, say):
+            # the old viewer has nothing left to show.
+            if isinstance(viewer, SvgViewer):
+                viewer.deleteLater()
+            return
+        if not isinstance(viewer, SvgViewer):
+            # A score stored as SVG came back (by undo, say): it's the old
+            # viewer's to show.
+            if viewer is not None:
+                viewer.deleteLater()
+            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
+        viewer.load_svg_data(self.timeline.svg_data)
+
+    def on_score_timeline_score_imported(
+        self, id: int, text: str, element_ids: dict[int, str]
+    ) -> None:
+        if id != self.id:
+            return
+        viewer = self.svg_view
+        if not isinstance(viewer, ScoreView):
+            if viewer is not None:
+                viewer.deleteLater()
+            viewer = ScoreView(name=self.get_data("name"), tl_id=self.id)
+        viewer.load_score(text, element_ids)
 
     def reset_svg(self) -> None:
         if (viewer := self.svg_view) is not None:
