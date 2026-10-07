@@ -315,15 +315,20 @@ class BeatTLComponentManager(TimelineComponentManager):
         if was_computing:
             self.timeline.refresh_measures()
 
-    def hash_components(self):
+    def _get_beats_and_beat_units(self) -> list[TC]:
+        # Beat units in the order of their beats, not of creation, so equal
+        # states hash and serialize alike however they were reached.
+        return self._components + self.timeline.beat_units
+
+    def hash_components(self) -> str:
         str_to_hash = ""
-        for component in self._components + self._beat_units:
+        for component in self._get_beats_and_beat_units():
             str_to_hash += component.hash + "|"
 
         return hash_function(str_to_hash)
 
-    def serialize_components(self):
-        return serialize.serialize_components(self._components + self._beat_units)
+    def serialize_components(self) -> dict[int | str, dict[str, Any]]:
+        return serialize.serialize_components(self._get_beats_and_beat_units())
 
     @staticmethod
     def _split_beat_units(
