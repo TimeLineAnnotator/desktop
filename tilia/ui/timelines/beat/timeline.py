@@ -5,7 +5,6 @@ from collections import defaultdict
 
 import tilia.errors
 from tilia.requests import Get, Post, get, listen, post
-from tilia.settings import settings
 from tilia.timelines.beat.pattern import parse
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.beat.units import MeasureMeter, format_units
@@ -28,12 +27,15 @@ from tilia.ui.timelines.beat.beat_unit import BeatUnitUI
 from tilia.ui.timelines.beat.context_menu import BeatTimelineUIContextMenu
 from tilia.ui.timelines.beat.element import BeatUI
 from tilia.ui.timelines.beat.time_signature import (
-    TIME_SIGNATURE_BAND_HEIGHT,
     LabelState,
     TimeSignatureLabel,
     TimeSignatureLabelSpec,
 )
 from tilia.ui.timelines.beat.toolbar import BeatTimelineToolbar
+from tilia.ui.timelines.beat_time_signatures import (
+    get_creation_args,
+    set_time_signatures_shown,
+)
 from tilia.ui.timelines.collection.collection import (
     TimelineSelector,
     TimelineUIs,
@@ -319,16 +321,9 @@ class BeatTimelineUI(TimelineUI):
     @staticmethod
     @command_callback
     def on_toggle_time_signatures(timeline_ui: BeatTimelineUI) -> bool:
-        collection = get(Get.TIMELINE_COLLECTION)
-        show = not timeline_ui.get_data("show_time_signatures")
-        height_change = (
-            TIME_SIGNATURE_BAND_HEIGHT if show else -TIME_SIGNATURE_BAND_HEIGHT
+        return set_time_signatures_shown(
+            timeline_ui.id, not timeline_ui.get_data("show_time_signatures")
         )
-        collection.set_timeline_data(timeline_ui.id, "show_time_signatures", show)
-        collection.set_timeline_data(
-            timeline_ui.id, "height", timeline_ui.get_data("height") + height_change
-        )
-        return True
 
     def _get_beat_unit_target_measure(self) -> int | None:
         """
@@ -532,12 +527,7 @@ class BeatTimelineUI(TimelineUI):
             if not result.is_complete:
                 tilia.errors.display(tilia.errors.INVALID_BEAT_PATTERN, result.error)
                 return False, {}
-        return True, {
-            "beat_pattern": beat_pattern,
-            "show_time_signatures": True,
-            "height": settings.get("beat_timeline", "default_height")
-            + TIME_SIGNATURE_BAND_HEIGHT,
-        }
+        return True, {"beat_pattern": beat_pattern} | get_creation_args()
 
     def on_settings_updated(self, updated_settings):
         if "beat_timeline" in updated_settings:
