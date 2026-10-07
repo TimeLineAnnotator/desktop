@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from fractions import Fraction
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.validators import (
@@ -127,7 +127,7 @@ class BeatUnit(TimelineComponent):
         units: str = DEFAULT_UNITS,
         assumed: bool = False,
         **_,
-    ):
+    ) -> None:
         self.beat_id = beat_id
         self.denominator = denominator
         self.assumed = assumed
@@ -137,17 +137,17 @@ class BeatUnit(TimelineComponent):
 
         super().__init__(timeline, id)
 
-    def __str__(self):
+    def __str__(self) -> str:
         assumed = ", assumed" if self.assumed else ""
         return (
             f"BeatUnit({self.denominator} / {self.units} on beat {self.beat_id}"
             f"{assumed})"
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
-    def set_data(self, attr: str, value):
+    def set_data(self, attr: str, value: Any) -> tuple[Any, bool]:
         if attr == "units" and validate_units(value):
             value = format_units(parse_units(value).units)
         return super().set_data(attr, value)

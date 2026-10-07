@@ -1,9 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from tilia.ui.commands import get_qaction
 from tilia.ui.menus import MenuItemKind
 from tilia.ui.timelines.base.context_menus import (
     TimelineUIContextMenu,
     TimelineUIElementContextMenu,
 )
+
+if TYPE_CHECKING:
+    from tilia.ui.timelines.beat.beat_unit import BeatUnitUI
 
 
 class BeatContextMenu(TimelineUIElementContextMenu):
@@ -32,7 +39,7 @@ class BeatUnitContextMenu(TimelineUIElementContextMenu):
         (MenuItemKind.COMMAND, "timeline.component.delete"),
     ]
 
-    def __init__(self, element):
+    def __init__(self, element: BeatUnitUI) -> None:
         super().__init__(element)
         # A measure can hold several beat units after its barlines move. Only
         # the first has a label, so the others are removed from here.

@@ -352,7 +352,7 @@ class TimelineUIs:
 
     def on_timeline_add(
         self, cls: type[Timeline], name: str | None = None, **creation_args: Any
-    ):
+    ) -> bool | None:
         """
         `creation_args` are values the timeline kind would otherwise prompt
         for (e.g. `beat_pattern`, `path`), passed to its UI class's

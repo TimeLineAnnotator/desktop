@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 from collections import defaultdict
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import tilia.errors
 from tilia.requests import Get, Post, get, listen, post
@@ -22,6 +24,7 @@ from tilia.ui.strings import (
     BEAT_UNIT_ASSUMED_TOOLTIP,
     BEAT_UNIT_CONFLICT_TOOLTIP,
 )
+from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import TimelineUI, with_elements
 from tilia.ui.timelines.beat.beat_unit import BeatUnitUI
 from tilia.ui.timelines.beat.context_menu import BeatTimelineUIContextMenu
@@ -162,30 +165,30 @@ class BeatTimelineUI(TimelineUI):
 
     # Beat unit elements are only reachable through their labels; iterating,
     # indexing and counting the timeline UI concern its beats.
-    def __iter__(self):
+    def __iter__(self) -> Iterator[BeatUI]:
         return iter(self.beat_uis)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: int | slice) -> BeatUI | list[BeatUI]:
         return self.beat_uis[item]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.beat_uis)
 
-    def get_next_element(self, element):
+    def get_next_element(self, element: TimelineUIElement) -> BeatUI | None:
         beat_uis = self.beat_uis
         if element not in beat_uis:
             return None
         index = beat_uis.index(element)
         return beat_uis[index + 1] if index + 1 < len(beat_uis) else None
 
-    def get_previous_element(self, element):
+    def get_previous_element(self, element: TimelineUIElement) -> BeatUI | None:
         beat_uis = self.beat_uis
         if element not in beat_uis:
             return None
         index = beat_uis.index(element)
         return beat_uis[index - 1] if index > 0 else None
 
-    def on_horizontal_arrow_press(self, arrow: str):
+    def on_horizontal_arrow_press(self, arrow: str) -> None:
         if any(isinstance(e, BeatUnitUI) for e in self.selected_elements):
             return
         super().on_horizontal_arrow_press(arrow)
@@ -200,13 +203,19 @@ class BeatTimelineUI(TimelineUI):
     def beat_bottom_y(self) -> float:
         return BeatUI.HEIGHT_TALL
 
-    def on_timeline_component_created(self, kind, id, get_data, set_data):
+    def on_timeline_component_created(
+        self,
+        kind: ComponentKind,
+        id: int,
+        get_data: Callable[[str], Any],
+        set_data: Callable[[str, Any], None],
+    ) -> TimelineUIElement:
         element = super().on_timeline_component_created(kind, id, get_data, set_data)
         if kind == ComponentKind.BEAT_UNIT:
             self.update_time_signatures()
         return element
 
-    def on_timeline_component_deleted(self, id: int):
+    def on_timeline_component_deleted(self, id: int) -> None:
         was_beat_unit = isinstance(self.id_to_element.get(id), BeatUnitUI)
         super().on_timeline_component_deleted(id)
         if was_beat_unit:
@@ -305,7 +314,11 @@ class BeatTimelineUI(TimelineUI):
 
     @staticmethod
     def on_inspector_field_edited(
-        element, field_name: str, value, inspected_id: int, inspector_id: int
+        element: TimelineUIElement,
+        field_name: str,
+        value: Any,
+        inspected_id: int,
+        inspector_id: int,
     ) -> None:
         if isinstance(element, BeatUnitUI):
             if inspected_id == element.id:
@@ -517,7 +530,9 @@ class BeatTimelineUI(TimelineUI):
         self.update_time_signatures()
 
     @classmethod
-    def get_additional_args_for_creation(cls, beat_pattern: str | None = None):
+    def get_additional_args_for_creation(
+        cls, beat_pattern: str | None = None
+    ) -> tuple[bool, dict[str, Any]]:
         if beat_pattern is None:
             success, beat_pattern = get(Get.FROM_USER_BEAT_PATTERN)
             if not success:
@@ -567,7 +582,7 @@ class BeatTimelineUI(TimelineUI):
 
         return copy_data
 
-    def get_copy_data_from_beat_ui(self, beat_ui: BeatUI):
+    def get_copy_data_from_beat_ui(self, beat_ui: BeatUI) -> dict[str, Any]:
         data = get_copy_data_from_element(beat_ui, BeatUI.DEFAULT_COPY_ATTRIBUTES)
         beat_unit = self.timeline.get_beat_unit_on_beat(beat_ui.id)
         if beat_unit:
@@ -579,7 +594,7 @@ class BeatTimelineUI(TimelineUI):
         return data
 
     @with_elements
-    def on_copy_element(self, elements) -> bool:
+    def on_copy_element(self, elements: list[TimelineUIElement]) -> bool:
         # Beat units are copied along with the beats they are on.
         component_data = self.get_copy_data_from_beat_uis(
             [e for e in elements if isinstance(e, BeatUI)]
