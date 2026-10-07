@@ -770,7 +770,7 @@ class TestOpen:
             commands.execute("file.open", tmp_file)
 
         tilia_errors.assert_no_error()
-        assert settings.get_recent_files()[0] != tmp_file
+        assert tmp_file.as_posix() not in settings.get_recent_files()
         assert tilia.file_manager.file == prev_file
 
     def test_open_newer_file_with_unknown_timeline_kind_user_deletes(
