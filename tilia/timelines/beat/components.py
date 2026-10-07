@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.validators import (
     validate_bool,
-    validate_positive_integer,
     validate_read_only,
     validate_time,
 )
@@ -16,6 +15,7 @@ from tilia.timelines.beat.units import (
     DEFAULT_UNITS,
     format_units,
     parse_units,
+    validate_denominator,
 )
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -113,7 +113,7 @@ class BeatUnit(TimelineComponent):
         "timeline": validate_read_only,
         "id": validate_read_only,
         "beat_id": validate_component_id,
-        "denominator": validate_positive_integer,
+        "denominator": validate_denominator,
         "units": validate_units,
         "assumed": validate_bool,
     }
@@ -182,7 +182,7 @@ class BeatUnit(TimelineComponent):
             return False, f"No beat with id {beat_id}."
         if beat_id in taken_beat_ids:
             return False, f"Beat {beat_id} already has a beat unit."
-        if not validate_positive_integer(denominator):
+        if not validate_denominator(denominator):
             return False, f"Invalid denominator: {denominator}."
         if not validate_units(units):
             return False, f"Invalid units: {units}."
