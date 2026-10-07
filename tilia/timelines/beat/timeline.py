@@ -23,7 +23,7 @@ from tilia.timelines.base.timeline import (
     TimelineComponentManager,
     TimelineFlag,
 )
-from tilia.timelines.base.validators import validate_bool, validate_positive_integer
+from tilia.timelines.base.validators import validate_bool
 from tilia.timelines.beat.components import Beat, BeatUnit
 from tilia.timelines.beat.pattern import parse
 from tilia.timelines.beat.units import (
@@ -34,6 +34,7 @@ from tilia.timelines.beat.units import (
     format_units,
     is_fit_ambiguous,
     parse_units,
+    validate_denominator,
 )
 from tilia.timelines.beat.validators import (
     validate_beat_pattern,
@@ -823,7 +824,7 @@ class BeatTimeline(Timeline):
         as set by the user even when unchanged, which confirms assumed ones.
         """
         result = parse_units(units)
-        if not result.is_valid or not validate_positive_integer(denominator):
+        if not result.is_valid or not validate_denominator(denominator):
             return False
         if not 0 <= measure_index < self.measure_count:
             return False

@@ -53,6 +53,7 @@ class TestSetUnit:
             "-m 9 -d 4 -u 1",
             "--measure-index 9 -d 4 -u 1",
             "-m 1 -d 0 -u 1",
+            "-m 1 -d 129 -u 1",
             "-m 1 -d 4 -u 2+",
             "-m 1 -d 4 -u 1.5",
         ],

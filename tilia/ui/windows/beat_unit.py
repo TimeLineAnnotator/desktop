@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 import tilia.ui.strings
 from tilia.requests import Get, get
 from tilia.timelines.beat.units import (
+    MAX_DENOMINATOR,
     fit_units,
     format_units,
     is_fit_ambiguous,
@@ -27,8 +28,6 @@ from tilia.timelines.beat.units import (
 )
 from tilia.ui.format import format_numerator
 from tilia.ui.windows.pattern_preview import PatternPreview, PreviewContent
-
-MAX_DENOMINATOR = 128
 
 _UNITS_CHARACTERS = set("0123456789/+")
 

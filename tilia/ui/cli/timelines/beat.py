@@ -7,7 +7,11 @@ from functools import wraps
 from tilia.requests import Get, get
 from tilia.timelines.beat.pattern import parse
 from tilia.timelines.beat.timeline import BeatTimeline
-from tilia.timelines.beat.units import parse_units
+from tilia.timelines.beat.units import (
+    MAX_DENOMINATOR,
+    parse_units,
+    validate_denominator,
+)
 from tilia.ui.cli import io
 from tilia.ui.cli.timelines.utils import (
     get_timeline_by_name,
@@ -249,8 +253,11 @@ def set_unit(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
     if not result.is_valid:
         io.error(f"Invalid units '{namespace.units}': {result.error}")
         return
-    if namespace.denominator < 1:
-        io.error(f"Invalid denominator: {namespace.denominator}.")
+    if not validate_denominator(namespace.denominator):
+        io.error(
+            f"Invalid denominator: {namespace.denominator}. "
+            f"Use 1 to {MAX_DENOMINATOR}."
+        )
         return
 
     timeline.set_beat_unit(

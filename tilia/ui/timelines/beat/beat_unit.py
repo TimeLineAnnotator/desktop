@@ -7,7 +7,7 @@ from PySide6.QtGui import QGuiApplication, QPen
 from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsScene
 
 from tilia.requests import Get, Post, get, post
-from tilia.timelines.beat.units import format_units, parse_units
+from tilia.timelines.beat.units import MAX_DENOMINATOR, format_units, parse_units
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
@@ -18,7 +18,7 @@ from tilia.ui.timelines.beat.time_signature import (
     TimeSignatureLabel,
     TimeSignatureLabelSpec,
 )
-from tilia.ui.windows.beat_unit import MAX_DENOMINATOR, UnitsValidator
+from tilia.ui.windows.beat_unit import UnitsValidator
 from tilia.ui.windows.inspect import InspectRowKind
 
 if TYPE_CHECKING:

@@ -11,8 +11,10 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.beat.units import (
     DEFAULT_DENOMINATOR,
     DEFAULT_UNITS,
+    MAX_DENOMINATOR,
     format_units,
     parse_units,
+    validate_denominator,
 )
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -178,9 +180,10 @@ def _parse_beat_unit_values(
             denominator = int(row_values["denominator"])
         except ValueError:
             denominator = 0
-        if denominator < 1:
+        if not validate_denominator(denominator):
             return (denominator, units), (
-                f"'{row_values['denominator']}' is not a valid denominator"
+                f"'{row_values['denominator']}' is not a valid denominator "
+                f"(1 to {MAX_DENOMINATOR})"
             )
     if "units" in row_values:
         result = parse_units(row_values["units"])

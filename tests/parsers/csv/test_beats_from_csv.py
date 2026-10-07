@@ -148,12 +148,13 @@ class TestBeatUnitColumns:
         assert beat_unit.beat_id == beat_tl[0].id
 
     def test_invalid_values_are_reported(self, beat_tl):
-        data = "time,denominator,units\n0,0,1\n1,4,2+\n2,8,1"
+        data = "time,denominator,units\n0,0,1\n1,4,2+\n2,8,1\n3,129,1"
 
         success, errors = _import_with_patch(beat_tl, data)
 
-        assert_in_errors("denominator", errors)
+        assert_in_errors("'0' is not a valid denominator", errors)
         assert_in_errors("2+", errors)
+        assert_in_errors("'129' is not a valid denominator", errors)
         # The first beat keeps its default beat unit; only the valid row adds one.
         values = [(u.denominator, u.units) for u in beat_tl.beat_units]
         assert values == [(4, "1"), (8, "1")]
