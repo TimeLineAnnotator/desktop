@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QLabel,
     QLineEdit,
+    QPushButton,
     QVBoxLayout,
 )
 
@@ -145,7 +146,7 @@ class BeatPatternDialog(QDialog):
         initial_text: str = "",
         beat_count: int | None = None,
         get_overwritten_bars: Callable[[list[int]], list[int]] | None = None,
-    ):
+    ) -> None:
         super().__init__(
             get(Get.MAIN_WINDOW),
             Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint,
@@ -181,7 +182,7 @@ class BeatPatternDialog(QDialog):
         self._on_text_changed(initial_text)
 
     @property
-    def ok_button(self):
+    def ok_button(self) -> QPushButton:
         return self.button_box.button(QDialogButtonBox.StandardButton.Ok)
 
     @property

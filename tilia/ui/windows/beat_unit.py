@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QRadioButton,
     QSpinBox,
     QVBoxLayout,
@@ -106,7 +107,7 @@ class BeatUnitDialog(QDialog):
         units: str,
         beat_count: int | None = None,
         show_scope: bool = True,
-    ):
+    ) -> None:
         super().__init__(
             get(Get.MAIN_WINDOW),
             Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint,
@@ -156,7 +157,7 @@ class BeatUnitDialog(QDialog):
         self._on_input_changed()
 
     @property
-    def ok_button(self):
+    def ok_button(self) -> QPushButton:
         return self.button_box.button(QDialogButtonBox.StandardButton.Ok)
 
     @property
