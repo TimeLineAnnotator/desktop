@@ -70,7 +70,7 @@ class TimeSignatureBody(QGraphicsItemGroup):
         digit_height: int,
         pixmaps: dict[str, QPixmap],
         color: QColor | None = None,
-    ):
+    ) -> None:
         super().__init__()
         self.pixmaps = pixmaps
         self.color = color

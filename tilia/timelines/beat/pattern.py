@@ -60,21 +60,21 @@ class BarRun:
 
 
 class _Incomplete(Exception):
-    def __init__(self, message: str, position: int):
+    def __init__(self, message: str, position: int) -> None:
         super().__init__(message)
         self.message = message
         self.position = position
 
 
 class _Invalid(Exception):
-    def __init__(self, message: str, position: int):
+    def __init__(self, message: str, position: int) -> None:
         super().__init__(message)
         self.message = message
         self.position = position
 
 
 class _Parser:
-    def __init__(self, text: str):
+    def __init__(self, text: str) -> None:
         self.text = text
         self.pos = 0
         self.depth = 0
