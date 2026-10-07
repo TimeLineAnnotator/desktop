@@ -107,6 +107,7 @@ def sql(
     columns: list[str] = []
     rows: list[tuple[Any, ...]] = []
     stopped: str | None = None
+    in_transaction = con.in_transaction
     # The authorizer refuses PRAGMA: set query_only before it goes on and
     # restore it after it comes off.
     query_only = con.execute("PRAGMA query_only").fetchone()[0]
@@ -142,5 +143,10 @@ def sql(
     finally:
         con.set_progress_handler(None, 0)
         _remove_authorizer(con)
+        if con.in_transaction and not in_transaction:
+            # Python's sqlite3 begins one before INSERT, UPDATE, DELETE and
+            # REPLACE; if the authorizer let one of them through, query_only
+            # refused its write and left the transaction open.
+            con.rollback()
         con.execute(f"PRAGMA query_only = {int(query_only)}")
     return Table(columns, rows, stopped=stopped or limits.stopped)

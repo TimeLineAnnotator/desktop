@@ -157,6 +157,7 @@ QUERY_ONLY_REFUSES = [
     "INSERT INTO components SELECT * FROM components",
     "UPDATE components SET label = 'x'",
     "DELETE FROM components",
+    "REPLACE INTO components SELECT * FROM components",
     "CREATE TABLE t (a)",
     "CREATE TEMP TABLE t (a)",
     "DROP TABLE components",
@@ -179,11 +180,6 @@ def test_query_only_refuses_a_write_the_authorizer_lets_through(
     before = snapshot(index)
     with pytest.raises(TQLError, match=READ_ONLY):
         tql.sql(index, text)
-    con = index.connection()
-    if con.in_transaction:
-        # Python's sqlite3 began one before INSERT, UPDATE or DELETE, and the
-        # refused write left it open with nothing in it.
-        con.rollback()
     assert snapshot(index) == before
 
 
