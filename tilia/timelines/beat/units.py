@@ -15,8 +15,19 @@ from fractions import Fraction
 
 DEFAULT_DENOMINATOR = 4
 DEFAULT_UNITS = "1"
+# Far above any denominator used in notation. Enforced wherever a beat unit
+# is set, so the dialog and inspector, which can't show more, never meet one.
+MAX_DENOMINATOR = 128
 
 _UNIT_CHARACTERS = set("0123456789/")
+
+
+def validate_denominator(value: int) -> bool:
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 1 <= value <= MAX_DENOMINATOR
+    )
 
 
 @dataclass(frozen=True)
