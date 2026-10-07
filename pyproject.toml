@@ -130,6 +130,7 @@ tilia = [
     "ui/icons/*/index.theme",
     "ui/icons/*/actions/256/*",
     "ui/icons/*/apps/256/*",
+    "ui/windows/score/web/*",
 ]
 
 [tool.uv.workspace]

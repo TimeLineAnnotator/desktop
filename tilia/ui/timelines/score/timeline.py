@@ -34,6 +34,7 @@ from tilia.ui.timelines.score.element.with_collision import (
     TimelineUIElementWithCollision,
 )
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
+from tilia.ui.windows.score.score_view import ScoreView
 from tilia.ui.windows.svg_viewer import SvgViewer
 
 
@@ -83,6 +84,11 @@ class ScoreTimelineUI(TimelineUI):
             Post.SCORE_TIMELINE_CLEAR_DONE,
             self.on_score_timeline_clear_done,
         )
+        listen(
+            self,
+            Post.SCORE_TIMELINE_SCORE_IMPORTED,
+            self.on_score_timeline_score_imported,
+        )
 
     def _setup_pixmaps(self):
         self.pixmaps = {
@@ -93,14 +99,16 @@ class ScoreTimelineUI(TimelineUI):
         }
 
     @property
-    def svg_view(self):
+    def svg_view(self) -> SvgViewer | ScoreView:
         try:
             return get(Get.SCORE_VIEWER, self.id)
         except NoReplyToRequest:
+            if not self.timeline.svg_data:
+                return ScoreView(name=self.get_data("name"), tl_id=self.id)
+            # Scores stored as SVG, in older files, keep the old viewer.
             viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-            if self.timeline.svg_data:
-                viewer.load_svg_data(self.timeline.svg_data)
-                self.measure_tracker.setVisible(not viewer.is_hidden)
+            viewer.load_svg_data(self.timeline.svg_data)
+            self.measure_tracker.setVisible(not viewer.is_hidden)
             return viewer
 
     @staticmethod
@@ -480,7 +488,30 @@ class ScoreTimelineUI(TimelineUI):
             self.measure_tracker.show()
 
     def update_svg_data(self) -> None:
-        self.svg_view.load_svg_data(self.timeline.svg_data)
+        viewer = self.svg_view
+        if not self.timeline.svg_data:
+            # No score stored as SVG (an import replaced it, and was redone, say):
+            # the old viewer has nothing left to show.
+            if isinstance(viewer, SvgViewer):
+                viewer.deleteLater()
+            return
+        if isinstance(viewer, ScoreView):
+            # A score stored as SVG came back (by undo, say): it's the old
+            # viewer's to show.
+            viewer.deleteLater()
+            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
+        viewer.load_svg_data(self.timeline.svg_data)
+
+    def on_score_timeline_score_imported(
+        self, id: int, text: str, element_ids: dict[int, str]
+    ) -> None:
+        if id != self.id:
+            return
+        viewer = self.svg_view
+        if not isinstance(viewer, ScoreView):
+            viewer.deleteLater()
+            viewer = ScoreView(name=self.get_data("name"), tl_id=self.id)
+        viewer.load_score(text, element_ids)
 
     def reset_svg(self):
         self.svg_view.deleteLater()

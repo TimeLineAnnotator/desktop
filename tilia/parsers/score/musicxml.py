@@ -7,7 +7,6 @@ from zipfile import ZipFile
 
 from lxml import etree
 
-from tilia.parsers.score.musicxml_to_svg import musicxml_to_svg
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
@@ -73,6 +72,7 @@ def notes_from_musicXML(
     """
     errors = []
     metric_division = MetricDivision()
+    element_ids: dict[int, str] = {}
 
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
     sign_to_line = {"C": 3, "F": 4, "G": 2}
@@ -102,10 +102,13 @@ def notes_from_musicXML(
         # start_times and end_times are always sorted. If start_times[n] is greater than end_time[n], all start_times[n+] will also be greater than end_times[n], which would create a segment-like component with start > end. Therefore, pop off head of end_times until a suitable end_time is found.
         while len(start_times) and len(end_times):
             if (start := start_times[0]) < (end := end_times[0]):
-                _create_component(
+                component_id = _create_component(
                     ComponentKind.NOTE,
                     elem["kwargs"] | {"start": start, "end": end},
                 )
+                element_id = elem["element"].get("id")
+                if component_id is not None and element_id:
+                    element_ids[component_id] = element_id
                 start_times.pop(0)
                 end_times.pop(0)
                 continue
@@ -496,7 +499,6 @@ def notes_from_musicXML(
             "Add beats to the beat timeline before importing a score."
         ]
 
-    svg_converter = musicxml_to_svg(score_tl.id)
     with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
         parser = etree.XMLParser(remove_blank_text=True)
         tree = etree.parse(file, parser=parser, **reader_kwargs).getroot()
@@ -520,11 +522,16 @@ def notes_from_musicXML(
             if not success:
                 return False, [INSERT_MEASURE_ZERO_FAILED.format(reason)]
 
+    # Before parsing, which adds markers to the notes.
+    score_text = _set_note_ids(tree)
+
     part_id_to_staves = _parse_staves(tree)
     for part in tree.findall("part"):
         _parse_part(part, part.get("id"))
     post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tl.id)
-    svg_converter.to_svg(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
+    # The new score replaces one stored as SVG.
+    score_tl.save_svg_data("")
+    post(Post.SCORE_TIMELINE_SCORE_IMPORTED, score_tl.id, score_text, element_ids)
 
     return True, errors
 
@@ -556,6 +563,20 @@ class MetricDivision:
             "number": measure_number,
             "fraction": div_position / self.max_div_per_measure,
         }
+
+
+def _set_note_ids(tree: etree.Element) -> str:
+    """Gives every note an id, which Verovio keeps for the note's element, and
+    returns the score as text."""
+    taken = {e.get("id") for e in tree.iter() if e.get("id")}
+    numbers = itertools.count()
+    for note in tree.iter("note"):
+        if note.get("id"):
+            continue
+        while (note_id := f"tilia-note-{next(numbers)}") in taken:
+            pass
+        note.set("id", note_id)
+    return etree.tostring(tree, encoding="unicode")
 
 
 def _convert_to_partwise(element: etree.Element) -> etree.Element:

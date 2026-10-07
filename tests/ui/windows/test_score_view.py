@@ -1,0 +1,411 @@
+import json
+
+import pytest
+from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtGui import QColor
+
+from tests.constants import EXAMPLE_MUSICXML_PATH
+from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
+from tests.utils import get_blank_file_data, run_js, save_and_reopen, wait_until
+from tilia.exceptions import NoReplyToRequest
+from tilia.requests import Get, Post, get, post
+from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.score.timeline import ScoreTimeline
+from tilia.ui import commands
+from tilia.ui.windows.score.score_view import ScoreView
+from tilia.ui.windows.svg_viewer import SvgViewer
+
+# The viewer's page compiles Verovio when it loads.
+pytestmark = pytest.mark.timeout(60)
+
+# A score as older versions stored it, small enough for the old viewer to load.
+LEGACY_SVG = (
+    '<svg width="100" height="50">'
+    '<g class="vf-stavenote" id="n1"><rect width="5" height="5"/></g>'
+    '<g class="vf-text"><text x="2" font-size="0.000001px">1␟0␟1</text></g>'
+    "</svg>"
+)
+
+
+@pytest.fixture(autouse=True)
+def delete_web_views():
+    yield
+    # Destroy deleted viewers now, so that no QtWebEngineProcess outlives the tests.
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def open_file_with_svg_score(tmp_path):
+    # This version can't make an SVG score, so the file is written by hand.
+    file_data = get_blank_file_data()
+    file_data["media_metadata"]["media length"] = 100
+    file_data["timelines"] = {
+        0: {
+            "kind": "Score",
+            "height": 150,
+            "is_visible": True,
+            "name": "",
+            "ordinal": 1,
+            "svg_data": LEGACY_SVG,
+            "viewer_beat_x": {},
+            "hash": "",
+            "components": {},
+            "components_hash": "",
+        }
+    }
+    path = tmp_path / "svg_score.tla"
+    path.write_text(json.dumps(file_data), encoding="utf-8")
+    commands.execute("file.open", path)
+    return get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+
+
+def add_beat_timeline(tls):
+    beat_tl = tls.create_timeline(BeatTimeline, [], beat_pattern=[4])
+    add_beats(beat_tl)
+    post(Post.APP_STATE_RECORD, "beats")
+    return beat_tl
+
+
+def add_beats(beat_tl):
+    # example.musicxml has a pick-up measure, which the import adds as measure 0.
+    beat_tl.beat_pattern = [3]
+    for time in range(5, 12):
+        beat_tl.create_component(ComponentKind.BEAT, time)
+    beat_tl.recalculate_measures()
+
+
+def add_repeated_beats(beat_tl):
+    # Measures 1 and 2 are played twice.
+    beat_tl.beat_pattern = [3]
+    for time in range(15):
+        beat_tl.create_beat(time)
+    beat_tl.measure_numbers = [1, 2, 1, 2, 3]
+    beat_tl.recalculate_measures()
+
+
+def import_score(add_measure_zero: bool = True):
+    with (
+        patch_file_dialog(True, [EXAMPLE_MUSICXML_PATH]),
+        patch_yes_or_no_dialog(add_measure_zero),
+    ):
+        commands.execute("timelines.import.score")
+
+
+def get_score_view(score_tlui) -> ScoreView:
+    viewer = get(Get.SCORE_VIEWER, score_tlui.id)
+    assert isinstance(viewer, ScoreView)
+    # Verovio's first start takes seconds, more on a busy machine.
+    assert wait_until(
+        lambda: viewer.is_score_loaded, timeout=30
+    ), f"The page didn't load the score (page ready: {viewer._is_page_ready})."
+    return viewer
+
+
+def get_notes(score_tlui):
+    return sorted(
+        score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.NOTE)
+    )
+
+
+def show_narrow(score_view: ScoreView, width: int = 120):
+    # Makes the score's box narrower than the score, so that it has to scroll.
+    # A page that was never shown gets a tiny viewport, and showing a floating
+    # viewer instead crashed a macOS CI worker, so the box is sized in the page.
+    page = score_view.view.page()
+    run_js(
+        page,
+        f"scoreEl.style.cssText = 'right: auto; bottom: auto; width: {width}px;"
+        " height: 200px'; window.dispatchEvent(new Event('resize'))",
+    )
+    assert wait_until(lambda: run_js(page, "scoreEl.clientWidth") == width)
+    assert run_js(page, "scoreEl.scrollWidth") > width
+
+
+def click(score_view: ScoreView, element_id: str, double: bool = False):
+    events = ["click", "click", "dblclick"] if double else ["click"]
+    run_js(
+        score_view.view.page(),
+        f"""(() => {{
+            const head = document.getElementById({json.dumps(element_id)})
+                .querySelector('.notehead');
+            for (const name of {json.dumps(events)}) {{
+                head.dispatchEvent(new MouseEvent(name, {{bubbles: true}}));
+            }}
+        }})()""",
+    )
+
+
+def get_style(score_view: ScoreView, element_id: str, prop: str) -> str:
+    return run_js(
+        score_view.view.page(),
+        f"getComputedStyle(document.getElementById({json.dumps(element_id)})"
+        f".querySelector('.notehead use')).{prop}",
+    )
+
+
+def get_marker(score_view: ScoreView, element_id: str) -> str:
+    return run_js(
+        score_view.view.page(),
+        f"getComputedStyle(document.getElementById({json.dumps(element_id)})).filter",
+    )
+
+
+def set_color(score_tlui, note, color: str):
+    score_tlui.deselect_all_elements()
+    score_tlui.select_element(score_tlui.get_element(note.id))
+    with Serve(Get.FROM_USER_COLOR, (True, QColor(color))):
+        commands.execute("timeline.component.set_color")
+
+
+@pytest.fixture
+def score_view(score_tlui, beat_tlui, beat_tl):
+    add_beats(beat_tl)
+    import_score()
+    return get_score_view(score_tlui)
+
+
+class TestLoad:
+    def test_page_reports_score_loaded(self, score_view, score_tlui):
+        assert "<mei" in score_view.mei
+        for note in get_notes(score_tlui):
+            element_id = score_view.get_element_id(note.id)
+            assert run_js(
+                score_view.view.page(),
+                f"document.getElementById({json.dumps(element_id)})"
+                ".classList.contains('note')",
+            )
+
+    def test_page_loads_only_with_a_score(self, score_tlui):
+        viewer = score_tlui.svg_view
+        assert isinstance(viewer, ScoreView)
+        assert viewer.view is None
+
+    def test_saved_file_has_no_svg(self, score_view, score_tlui, tmp_path):
+        save_and_reopen(tmp_path)
+
+        score_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        assert get_notes(score_tlui)
+        assert score_tlui.timeline.svg_data == ""
+
+
+class TestSeek:
+    def test_double_click_note_seeks_to_its_time(
+        self, score_view, score_tlui, tilia_state
+    ):
+        note = get_notes(score_tlui)[1]  # half-way through measure 0
+        assert note.start != 0
+
+        click(score_view, score_view.get_element_id(note.id), double=True)
+
+        assert wait_until(lambda: tilia_state.current_time == pytest.approx(note.start))
+
+    def test_double_click_repeated_note_seeks_to_nearest_time(
+        self, score_tlui, beat_tlui, beat_tl, tilia_state
+    ):
+        add_repeated_beats(beat_tl)
+        import_score(add_measure_zero=False)
+        score_view = get_score_view(score_tlui)
+        first, _, second, _ = get_notes(score_tlui)
+        commands.execute("media.seek", second.start - 1)
+
+        click(score_view, score_view.get_element_id(first.id), double=True)
+
+        assert wait_until(
+            lambda: tilia_state.current_time == pytest.approx(second.start)
+        )
+
+
+class TestScroll:
+    def test_scroll_to_time_reports_visible_range(
+        self, score_view, score_tlui, tilia_state
+    ):
+        show_narrow(score_view)
+        first, *_, last = get_notes(score_tlui)
+
+        commands.execute("media.seek", last.start)
+
+        assert wait_until(lambda: score_view.visible_times[0] > first.start)
+        start, end = score_view.visible_times
+        assert start <= last.start <= end
+
+    def test_measure_tracker_shows_visible_range(
+        self, score_view, score_tlui, tilia_state
+    ):
+        show_narrow(score_view)
+        last = get_notes(score_tlui)[-1]
+
+        commands.execute("media.seek", last.start)
+
+        assert wait_until(lambda: score_view.visible_times[0] > 0)
+        assert score_tlui.measure_tracker.isVisible()
+        assert (score_tlui.tracker_start, score_tlui.tracker_end) == pytest.approx(
+            tuple(score_view.visible_times)
+        )
+
+
+class TestColor:
+    def test_colored_note_shows_its_color(self, score_view, score_tlui):
+        note = get_notes(score_tlui)[2]
+        element_id = score_view.get_element_id(note.id)
+
+        set_color(score_tlui, note, "#123456")
+
+        assert wait_until(
+            lambda: get_style(score_view, element_id, "fill") == "rgb(18, 52, 86)"
+        )
+
+    def test_reset_color(self, score_view, score_tlui):
+        note = get_notes(score_tlui)[2]
+        element_id = score_view.get_element_id(note.id)
+        set_color(score_tlui, note, "#123456")
+
+        commands.execute("timeline.component.reset_color")
+
+        assert wait_until(
+            lambda: get_style(score_view, element_id, "fill") == "rgb(0, 0, 0)"
+        )
+
+    def test_undo_color(self, score_view, score_tlui):
+        note = get_notes(score_tlui)[2]
+        element_id = score_view.get_element_id(note.id)
+        set_color(score_tlui, note, "#123456")
+        assert wait_until(
+            lambda: get_style(score_view, element_id, "fill") == "rgb(18, 52, 86)"
+        )
+
+        commands.execute("edit.undo")
+
+        assert wait_until(
+            lambda: get_style(score_view, element_id, "fill") == "rgb(0, 0, 0)"
+        )
+
+    def test_repeated_note_shows_color_of_occurrence_playing_now(
+        self, score_tlui, beat_tlui, beat_tl
+    ):
+        add_repeated_beats(beat_tl)
+        import_score(add_measure_zero=False)
+        score_view = get_score_view(score_tlui)
+        first, _, second, _ = get_notes(score_tlui)
+        element_id = score_view.get_element_id(first.id)
+        assert score_view.get_element_id(second.id) == element_id
+        set_color(score_tlui, first, "#ff0000")
+        set_color(score_tlui, second, "#00ff00")
+
+        commands.execute("media.seek", first.start)
+        assert wait_until(
+            lambda: get_style(score_view, element_id, "fill") == "rgb(255, 0, 0)"
+        )
+
+        commands.execute("media.seek", second.start)
+        assert wait_until(
+            lambda: get_style(score_view, element_id, "fill") == "rgb(0, 255, 0)"
+        )
+
+
+class TestSelect:
+    def test_click_selects_note(self, score_view, score_tlui):
+        element_id = score_view.get_element_id(get_notes(score_tlui)[0].id)
+
+        click(score_view, element_id)
+
+        assert wait_until(lambda: score_view.selected_ids == [element_id])
+        assert "drop-shadow" in get_marker(score_view, element_id)
+
+    def test_click_another_note_moves_selection(self, score_view, score_tlui):
+        first, second, *_ = get_notes(score_tlui)
+        first_id = score_view.get_element_id(first.id)
+        second_id = score_view.get_element_id(second.id)
+        click(score_view, first_id)
+
+        click(score_view, second_id)
+
+        assert wait_until(lambda: score_view.selected_ids == [second_id])
+        assert get_marker(score_view, first_id) == "none"
+
+    def test_selected_note_keeps_its_color(self, score_view, score_tlui):
+        note = get_notes(score_tlui)[0]
+        element_id = score_view.get_element_id(note.id)
+        set_color(score_tlui, note, "#123456")
+
+        click(score_view, element_id)
+
+        assert wait_until(lambda: score_view.selected_ids == [element_id])
+        assert get_style(score_view, element_id, "fill") == "rgb(18, 52, 86)"
+
+
+class TestPage:
+    def test_runs_no_inline_scripts(self, score_view):
+        page = score_view.view.page()
+
+        run_js(
+            page,
+            "document.body.insertAdjacentHTML('beforeend',"
+            ' \'<img src="data:," onerror="window.ran = true">\')',
+        )
+
+        assert not wait_until(lambda: run_js(page, "window.ran === true"), 1)
+
+    def test_bridge_offers_only_viewer_calls(self, score_view):
+        names = run_js(
+            score_view.view.page(),
+            "JSON.stringify(Object.keys(bridge).filter("
+            "(name) => typeof bridge[name] === 'function' && !name.includes('(')))",
+        )
+
+        # Besides the viewer's calls: qwebchannel.js's own helpers, and the
+        # deleteLater that Qt publishes for every object.
+        assert set(json.loads(names)) - {
+            "propertyUpdate",
+            "signalEmitted",
+            "unwrapProperties",
+            "unwrapQObject",
+            "deleteLater",
+        } == {
+            "viewerReady",
+            "onScoreLoaded",
+            "onViewportChanged",
+            "onSelectionChanged",
+            "onElementDoubleClicked",
+            "onError",
+        }
+
+
+class TestSvgScores:
+    def test_file_with_svg_score_opens_in_old_viewer(self, qtui, tmp_path):
+        score_tlui = open_file_with_svg_score(tmp_path)
+
+        assert isinstance(get(Get.SCORE_VIEWER, score_tlui.id), SvgViewer)
+
+    def test_import_replaces_svg_score(self, qtui, tls, tmp_path):
+        score_tlui = open_file_with_svg_score(tmp_path)
+        add_beat_timeline(tls)
+
+        import_score()
+
+        get_score_view(score_tlui)
+        assert score_tlui.timeline.svg_data == ""
+
+    def test_undoing_import_brings_back_old_viewer(self, qtui, tls, tmp_path):
+        score_tlui = open_file_with_svg_score(tmp_path)
+        add_beat_timeline(tls)
+        import_score()
+        get_score_view(score_tlui)
+
+        commands.execute("edit.undo")
+
+        assert isinstance(get(Get.SCORE_VIEWER, score_tlui.id), SvgViewer)
+
+    def test_redoing_import_closes_old_viewer(self, qtui, tls, tmp_path):
+        score_tlui = open_file_with_svg_score(tmp_path)
+        add_beat_timeline(tls)
+        import_score()
+        get_score_view(score_tlui)
+        commands.execute("edit.undo")
+
+        commands.execute("edit.redo")
+
+        try:
+            viewer = get(Get.SCORE_VIEWER, score_tlui.id)
+        except NoReplyToRequest:
+            return
+        assert not isinstance(viewer, SvgViewer)
