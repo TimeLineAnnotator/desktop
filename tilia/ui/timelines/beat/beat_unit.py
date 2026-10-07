@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from PySide6.QtCore import QLineF, QPointF, Qt, QTimer
 from PySide6.QtGui import QGuiApplication, QPen
-from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsScene
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsLineItem, QGraphicsScene
 
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.beat.units import MAX_DENOMINATOR, format_units, parse_units
@@ -76,7 +76,7 @@ class BeatUnitUI(TimelineUIElement):
         get_data: Callable[[str], Any],
         set_data: Callable[[str, Any], None],
         **_,
-    ):
+    ) -> None:
         super().__init__(
             id=id,
             timeline_ui=timeline_ui,
@@ -158,7 +158,7 @@ class BeatUnitUI(TimelineUIElement):
     def double_left_click_triggers(self) -> list:
         return list(self.labels)
 
-    def _set_active_label(self, item) -> None:
+    def _set_active_label(self, item: QGraphicsItem) -> None:
         if isinstance(item, TimeSignatureLabel):
             self.active_measure_index = item.measure_index
             self._update_highlight()
@@ -181,14 +181,14 @@ class BeatUnitUI(TimelineUIElement):
         for label in self.labels:
             label.set_selected(label is highlighted)
 
-    def on_left_click(self, item) -> None:
+    def on_left_click(self, item: QGraphicsItem) -> None:
         self._set_active_label(item)
 
-    def on_double_left_click(self, item) -> None:
+    def on_double_left_click(self, item: QGraphicsItem) -> None:
         self._set_active_label(item)
         commands.execute("timeline.beat.set_beat_unit")
 
-    def on_right_click(self, x, y, item) -> None:
+    def on_right_click(self, x: int, y: int, item: QGraphicsItem) -> None:
         self._set_active_label(item)
         super().on_right_click(x, y, item)
 
@@ -209,7 +209,7 @@ class BeatUnitUI(TimelineUIElement):
             "Assumed": "Yes" if self.get_data("assumed") else "No",
         }
 
-    def on_inspector_edit(self, field_name: str, value) -> None:
+    def on_inspector_edit(self, field_name: str, value: int | str) -> None:
         """
         Applies an inspector edit to the measure whose label was clicked,
         asking first whether it applies there only or until the next change.
@@ -234,7 +234,9 @@ class BeatUnitUI(TimelineUIElement):
             lambda: self._apply_inspector_edit(attr, value, measure_index)
         )
 
-    def _apply_inspector_edit(self, attr: str, value, measure_index: int) -> None:
+    def _apply_inspector_edit(
+        self, attr: str, value: int | str, measure_index: int
+    ) -> None:
         try:
             if self.id not in self.timeline_ui.id_to_element:
                 return  # deleted in the meantime

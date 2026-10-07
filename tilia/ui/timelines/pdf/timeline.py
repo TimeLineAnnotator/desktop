@@ -55,7 +55,9 @@ class PdfTimelineUI(TimelineUI):
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_media_time_change)
 
     @classmethod
-    def get_additional_args_for_creation(cls, path: str | None = None):
+    def get_additional_args_for_creation(
+        cls, path: str | None = None
+    ) -> tuple[bool, dict[str, str]]:
         if path is None:
             success, path = get(Get.FROM_USER_PDF_PATH)
             return success, {"path": path}
