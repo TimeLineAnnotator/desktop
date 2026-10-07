@@ -90,10 +90,6 @@ def notes_from_musicXML(
                 continue
             if "kwargs" in elem.keys():
                 _create_components(elem)
-            if "to_annotate" in elem.keys():
-                __annotate_metric_position(
-                    elem["element"], metric_division, elem["div_pos"]
-                )
 
     def _create_components(elem: dict) -> None:
         start_times, end_times = _get_note_times(
@@ -352,14 +348,6 @@ def notes_from_musicXML(
             "octave": int(element.find("unpitched/display-octave").text),
         }
 
-    def __annotate_metric_position(
-        element: etree._Element, metric_division: MetricDivision, div_position: int
-    ) -> None:
-        n = etree.SubElement(element, "notations")
-        t = etree.SubElement(n, "technical")
-        f = etree.SubElement(t, "fingering")
-        f.text = f"{metric_division.measure_num}␟{div_position}␟{metric_division.max_div_per_measure}"
-
     def _get_note_times(
         measure_num: int, div_position: int, duration: int
     ) -> tuple[list[float], list[float]]:
@@ -383,11 +371,7 @@ def notes_from_musicXML(
 
         if element.find("rest") is not None:
             metric_division.update_measure_position(duration)
-            return {
-                "div_pos": metric_division.div_position[1],
-                "element": element,
-                "to_annotate": True,
-            }
+            return dict()
 
         if element.find("pitch") is not None:
             constructor_kwargs = _parse_pitch(element)
@@ -412,7 +396,6 @@ def notes_from_musicXML(
             "duration": duration,
             "element": element,
             "kwargs": constructor_kwargs,
-            "to_annotate": not is_chord,
         }
 
         if not is_chord:
@@ -522,7 +505,7 @@ def notes_from_musicXML(
             if not success:
                 return False, [INSERT_MEASURE_ZERO_FAILED.format(reason)]
 
-    # Before parsing, which adds markers to the notes.
+    # Before parsing, so that each note component gets its note's id.
     score_text = _set_note_ids(tree)
 
     part_id_to_staves = _parse_staves(tree)

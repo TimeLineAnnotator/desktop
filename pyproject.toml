@@ -124,7 +124,6 @@ tilia = [
     "../LICENSE",
     "media/player/youtube.html",
     "media/player/youtube.css",
-    "parsers/score/svg_maker.html",
     "parsers/score/timewise_to_partwise.xsl",
     "ui/fonts/*",
     "ui/icons/*/index.theme",
