@@ -251,11 +251,6 @@ class TestChordFieldInspectorEdit:
         assert harmony.get_data(attr) == new_value
         assert harmony.body.toPlainText() != text_before
 
-        # Release the click's selection box before the scene is torn down
-        # by reload — otherwise TimelineUIs.selection_boxes keeps a
-        # reference the reload invalidates, and the tluis fixture's own
-        # teardown click-release crashes trying to clear it.
-        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
         save_and_reopen(tmp_path)
         reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
         assert reloaded_tlui.harmonies()[0].get_data(attr) == new_value
@@ -296,11 +291,6 @@ class TestChordFieldInspectorEdit:
         assert harmony.get_data("display_mode") == new_display_mode
         assert (harmony.body.toPlainText() == "my custom text") == expect_custom_text
 
-        # Release the click's selection box before the scene is torn down
-        # by reload — otherwise TimelineUIs.selection_boxes keeps a
-        # reference the reload invalidates, and the tluis fixture's own
-        # teardown click-release crashes trying to clear it.
-        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
         save_and_reopen(tmp_path)
         reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
         assert reloaded_tlui.harmonies()[0].get_data("display_mode") == new_display_mode
@@ -339,11 +329,6 @@ class TestChordFieldInspectorEdit:
         assert harmony.body.toPlainText() == "new custom text"
         assert harmony.body.font().family() == expected_family
 
-        # Release the click's selection box before the scene is torn down
-        # by reload — otherwise TimelineUIs.selection_boxes keeps a
-        # reference the reload invalidates, and the tluis fixture's own
-        # teardown click-release crashes trying to clear it.
-        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
         save_and_reopen(tmp_path)
         reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
         reloaded_harmony = reloaded_tlui.harmonies()[0]
@@ -369,11 +354,6 @@ class TestChordFieldInspectorEdit:
         assert harmony.get_data("custom_text_font_type") == "normal"
         assert harmony.body.font().family() == "Arial"
 
-        # Release the click's selection box before the scene is torn down
-        # by reload — otherwise TimelineUIs.selection_boxes keeps a
-        # reference the reload invalidates, and the tluis fixture's own
-        # teardown click-release crashes trying to clear it.
-        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
         save_and_reopen(tmp_path)
         reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
         assert (
