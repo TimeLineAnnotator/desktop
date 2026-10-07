@@ -597,8 +597,7 @@ class TestSetBeatAmountInMeasure:
         beat_tlui.select_element(beat_tlui[0])
 
         beat_tlui.timeline.set_beat_amount_in_measure = MagicMock()
-        with Serve(Get.FROM_USER_INT, (True, 11)):
-            commands.execute("timeline.beat.set_amount_in_measure")
+        commands.execute("timeline.beat.set_amount_in_measure", amount=11)
 
         beat_tlui.timeline.set_beat_amount_in_measure.assert_called_with(0, 11)
 
@@ -611,8 +610,7 @@ class TestSetBeatAmountInMeasure:
 
         beat_tlui.select_element(beat_tlui[0])
 
-        with Serve(Get.FROM_USER_INT, (True, 2)):
-            commands.execute("timeline.beat.set_amount_in_measure")
+        commands.execute("timeline.beat.set_amount_in_measure", amount=2)
 
         assert [get_displayed_measure_number(b) for b in beat_tlui] == ["1", "", "2"]
 
@@ -623,8 +621,7 @@ class TestSetBeatAmountInMeasure:
 
         # give a middle measure one beat more than the beat pattern prescribes
         beat_tlui.select_element(beat_tlui[16])
-        with Serve(Get.FROM_USER_INT, (True, 5)):
-            commands.execute("timeline.beat.set_amount_in_measure")
+        commands.execute("timeline.beat.set_amount_in_measure", amount=5)
 
         # then make that measure the last one
         beat_tlui.deselect_all_elements()
