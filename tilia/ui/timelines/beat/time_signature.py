@@ -59,7 +59,7 @@ class TimeSignatureLabel(QGraphicsRectItem):
         spec: TimeSignatureLabelSpec,
         pixmaps: dict,
         on_hover: Callable[[TimeSignatureLabel, bool], None] | None = None,
-    ):
+    ) -> None:
         super().__init__()
         self.spec = spec
         self.on_hover = on_hover

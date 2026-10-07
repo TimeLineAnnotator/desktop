@@ -20,7 +20,7 @@ from tilia.ui.format import format_numerator
 from tilia.ui.timelines.beat_time_signatures import set_time_signatures_shown
 
 
-def setup_parser(subparser):
+def setup_parser(subparser: argparse._SubParsersAction) -> None:
     beat_parser = subparser.add_parser(
         "beat",
         exit_on_error=False,
@@ -33,7 +33,7 @@ def setup_parser(subparser):
     _setup_time_signatures_parser(beat_subp)
 
 
-def _setup_pattern_parser(subparser):
+def _setup_pattern_parser(subparser: argparse._SubParsersAction) -> None:
     pattern_parser = subparser.add_parser(
         "pattern",
         exit_on_error=False,
@@ -54,7 +54,7 @@ def _add_target_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _setup_pattern_set(subparser):
+def _setup_pattern_set(subparser: argparse._SubParsersAction) -> None:
     parser = subparser.add_parser(
         "set",
         exit_on_error=False,
@@ -82,7 +82,7 @@ Examples:
     parser.set_defaults(func=set_pattern)
 
 
-def _setup_unit_parser(subparser):
+def _setup_unit_parser(subparser: argparse._SubParsersAction) -> None:
     unit_parser = subparser.add_parser(
         "unit",
         exit_on_error=False,
@@ -140,7 +140,7 @@ Examples:
     parser.set_defaults(func=list_units)
 
 
-def _setup_time_signatures_parser(subparser):
+def _setup_time_signatures_parser(subparser: argparse._SubParsersAction) -> None:
     parser = subparser.add_parser(
         "time-signatures",
         exit_on_error=False,
