@@ -2,6 +2,8 @@ import pytest
 
 from tilia.timelines.beat.pattern import (
     MAX_BARS,
+    MAX_DEPTH,
+    MAX_DIGITS,
     BarRun,
     ParseStatus,
     group_runs,
@@ -90,6 +92,39 @@ class TestInvalid:
         result = parse(text)
         assert result.status == ParseStatus.INVALID
         assert "more than" in result.error
+
+    @pytest.mark.parametrize("text", ["²", "4 ²", "①[4]", "٣"])
+    def test_non_ascii_digits(self, text):
+        result = parse(text)
+        assert result.status == ParseStatus.INVALID
+        assert result.error.startswith("Unexpected")
+
+    @pytest.mark.parametrize("text", ["9" * 5000, f"{'9' * 10}[4]"])
+    def test_too_many_digits(self, text):
+        result = parse(text)
+        assert result.status == ParseStatus.INVALID
+        assert result.error == f"Numbers can have at most {MAX_DIGITS} digits."
+        assert result.position == 0
+
+    def test_leading_zeros_do_not_count_as_digits(self):
+        assert parse("0" * 20 + "4").bars == [4]
+
+    def test_max_depth_is_allowed(self):
+        text = "[" * MAX_DEPTH + "4" + "]" * MAX_DEPTH
+        assert parse(text).bars == [4]
+
+    @pytest.mark.parametrize("closed", [True, False])
+    def test_too_deep(self, closed):
+        depth = MAX_DEPTH + 1
+        text = "[" * depth + "4" + ("]" * depth if closed else "")
+        result = parse(text)
+        assert result.status == ParseStatus.INVALID
+        assert result.error == f"Groups can be nested at most {MAX_DEPTH} deep."
+        assert result.position == MAX_DEPTH
+
+    def test_very_deep_nesting_does_not_recurse(self):
+        result = parse("[" * 5000 + "4" + "]" * 5000)
+        assert result.status == ParseStatus.INVALID
 
 
 class TestGroupRuns:
