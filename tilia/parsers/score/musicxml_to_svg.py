@@ -20,6 +20,8 @@ from tilia.requests import (
     get,
 )
 
+SVG_MAKER_PATH = Path(__file__).parent / "svg_maker.html"
+
 
 class SvgWebEngineTracker(QObject):
     def __init__(self, page, on_svg_loaded, display_error) -> None:
@@ -42,11 +44,7 @@ class musicxml_to_svg(QWebEngineView):
         self.timeline_id = timeline_id
         self.is_engine_loaded = False
         super().__init__()
-        self.load(
-            QUrl.fromLocalFile(
-                (Path(__file__).parent / "svg_maker.html").resolve().__str__()
-            )
-        )
+        self.load(QUrl.fromLocalFile(str(SVG_MAKER_PATH.resolve())))
         self.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )

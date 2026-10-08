@@ -1,21 +1,21 @@
 import time
-from html import escape
 from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent
-from PySide6.QtWebEngineCore import QWebEnginePage
+from PySide6.QtWidgets import QApplication
 
-from tilia.parsers.score.musicxml import notes_from_musicXML
+from tests.mock import patch_file_dialog
+from tilia.parsers.score import musicxml_to_svg as musicxml_to_svg_module
 from tilia.parsers.score.musicxml_to_svg import musicxml_to_svg
-from tilia.timelines.component_kinds import ComponentKind
+from tilia.ui import commands
 
-# Stands in for svg_maker.html: keeps the text loadSVG gets, and needs no network.
-STUB_PAGE = (
-    "<html><body><script>"
-    "window.loadSVG = (text) => { window.received = text; };"
-    "</script></body></html>"
-)
+# Stands in for svg_maker.html: keeps the text loadSVG gets, says so in its
+# title, and needs no network.
+STUB_PAGE = """<html><head><title>waiting</title></head><body><script>
+window.loadSVG = (text) => { window.received = text; document.title = "received"; };
+</script></body></html>
+"""
 
 SCORE = """<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
@@ -41,71 +41,70 @@ SCORE = """<?xml version="1.0" encoding="UTF-8"?>
 </score-partwise>
 """
 
+# Each would have come out changed, or broken the script, in a template
+# literal. Kept apart, as the backticks' syntax error would hide the others.
+TITLES = {
+    "backticks": "Rock `n` roll",
+    "code": "${window.ran = true}",
+    "backslashes": r"C:\new \u0041",
+}
 
-def process_events_until(condition, timeout: float = 5.0) -> bool:
+
+def wait_until(condition, timeout: float = 5.0) -> bool:
     deadline = time.monotonic() + timeout
     while not condition():
         if time.monotonic() > deadline:
             return False
         QCoreApplication.processEvents()
-        time.sleep(0.005)
+        time.sleep(0.01)
     return True
 
 
-def run_js(page: QWebEnginePage, script: str):
-    results = []
-    page.runJavaScript(script, 0, results.append)
-    assert process_events_until(lambda: results), f"No result from {script!r}"
-    return results[0]
+def get_converters() -> list[musicxml_to_svg]:
+    return [w for w in QApplication.allWidgets() if isinstance(w, musicxml_to_svg)]
 
 
 @pytest.fixture
-def osmd_pages():
-    """The pages the score import opens for OSMD, showing STUB_PAGE instead."""
-    views = []
-
-    def load(view, _url):
-        view.setHtml(STUB_PAGE)
-        views.append(view)
-
-    try:
-        with patch.object(musicxml_to_svg, "load", load):
-            yield views
-    finally:
-        for view in views:
-            view.deleteLater()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+def stub_osmd_page(tmp_path):
+    path = tmp_path / "svg_maker.html"
+    path.write_text(STUB_PAGE, encoding="utf-8")
+    before = set(get_converters())
+    with patch.object(musicxml_to_svg_module, "SVG_MAKER_PATH", path):
+        yield
+    # A converter deletes itself only once OSMD has sent back an SVG.
+    for converter in set(get_converters()) - before:
+        converter.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
-def import_score_titled(title: str, score_tl, beat_tl, tmp_path) -> None:
+@pytest.mark.parametrize("title", TITLES.values(), ids=TITLES.keys())
+def test_score_reaches_osmd_page_unchanged(
+    title, stub_osmd_page, score_tlui, beat_tlui, beat_tl, tmp_path
+):
     beat_tl.beat_pattern = [1]
     for time_ in range(3):
-        beat_tl.create_component(ComponentKind.BEAT, time_)
+        beat_tl.create_beat(time_)
     beat_tl.recalculate_measures()
     path = tmp_path / "score.musicxml"
-    path.write_text(SCORE.format(title=escape(title)), encoding="utf-8")
-    success, errors = notes_from_musicXML(score_tl, beat_tl, str(path))
-    assert success, errors
+    path.write_text(SCORE.format(title=title), encoding="utf-8")
+    before = set(get_converters())
+    sent = []
+    to_svg = musicxml_to_svg.to_svg
 
+    def spy(converter, data):
+        sent.append(data)
+        return to_svg(converter, data)
 
-def text_received(view) -> str:
-    page = view.page()
-    assert process_events_until(
-        lambda: run_js(page, "window.received !== undefined")
-    ), "OSMD's page got no score."
-    return run_js(page, "window.received")
+    with (
+        patch.object(musicxml_to_svg, "to_svg", spy),
+        patch_file_dialog(True, [str(path)]),
+    ):
+        commands.execute("timelines.import.score")
 
-
-def test_backticks_reach_osmd_page(osmd_pages, score_tl, beat_tl, tmp_path):
-    import_score_titled("Rock `n` roll \\u0041", score_tl, beat_tl, tmp_path)
-
-    (view,) = osmd_pages
-    assert "<work-title>Rock `n` roll \\u0041</work-title>" in text_received(view)
-
-
-def test_code_in_score_does_not_run(osmd_pages, score_tl, beat_tl, tmp_path):
-    import_score_titled("${window.ran = true}", score_tl, beat_tl, tmp_path)
-
-    (view,) = osmd_pages
-    assert "<work-title>${window.ran = true}</work-title>" in text_received(view)
-    assert run_js(view.page(), "window.ran === undefined")
+    (converter,) = set(get_converters()) - before
+    assert wait_until(lambda: converter.title() == "received"), "No score arrived."
+    received = []
+    converter.page().runJavaScript("window.received", 0, received.append)
+    assert wait_until(lambda: received)
+    assert received[0] == sent[0]
+    assert f"<work-title>{title}</work-title>" in received[0]
