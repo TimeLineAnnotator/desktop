@@ -115,6 +115,11 @@ class TestMigratedId:
         value = migrated_id(DOC, "component", "1", old, position=0)
         assert time_field(value) == BASE_MS + 2**38
 
+    def test_a_very_long_numeric_old_id_isnt_an_integer(self):
+        # Longer than Python's int() reads, by default, since 3.10.7.
+        value = migrated_id(DOC, "component", "1", "9" * 5000, position=0)
+        assert time_field(value) == BASE_MS + 2**38
+
     def test_non_integer_ids_sort_after_integer_ones(self):
         assert migrated_id(DOC, "component", "1", "x", position=0) > migrated_id(
             DOC, "component", "1", "999999"

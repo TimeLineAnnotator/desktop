@@ -24,6 +24,7 @@ MIGRATED_BASE_MS = 946_684_800_000  # 2000-01-01T00:00:00Z, in Unix milliseconds
 NON_INTEGER_OFFSET = 1 << 38
 
 _DECIMAL = re.compile(r"0|[1-9][0-9]*")
+_OFFSET_DIGITS = len(str(NON_INTEGER_OFFSET))
 _RAND_A_BITS = 12
 _RAND_B_BITS = 62
 
@@ -70,7 +71,12 @@ def _as_offset(old_id: Any) -> int | None:
         return None
     if isinstance(old_id, int):
         value = old_id
-    elif isinstance(old_id, str) and _DECIMAL.fullmatch(old_id):
+    elif (
+        isinstance(old_id, str)
+        # Longer can't be below the offset, and int() refuses very long text.
+        and len(old_id) <= _OFFSET_DIGITS
+        and _DECIMAL.fullmatch(old_id)
+    ):
         value = int(old_id)
     else:
         return None
