@@ -113,6 +113,14 @@ def test_score_defaults():
     assert (s.source, s.license, s.extra) == (None, None, {})
 
 
+def test_an_empty_score_has_one_form():
+    # Setting the text it has changes nothing, as the writer will see it.
+    s = Score(id="s", format="mei")
+    assert s.lines == [""]
+    s.text = s.text
+    assert s.lines == [""]
+
+
 def test_measure_defaults():
     m = Measure(
         id="b1",

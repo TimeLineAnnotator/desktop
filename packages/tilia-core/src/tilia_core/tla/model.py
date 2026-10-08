@@ -142,7 +142,8 @@ class Score:
 
     id: str
     format: str
-    lines: list[str] = field(default_factory=list)
+    # Empty content is one empty line, as the text setter splits "".
+    lines: list[str] = field(default_factory=lambda: [""])
     source: dict[str, str] | None = None
     license: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
