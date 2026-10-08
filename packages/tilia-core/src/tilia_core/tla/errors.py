@@ -56,4 +56,10 @@ class FileChanged(Exception):
         self.found = found
 
     def __str__(self) -> str:
+        if self.expected is None:
+            return f"{self.path.name} already exists"
+        if self.found is None:
+            return (
+                f"{self.path.name} was removed or became unreadable after it was read"
+            )
         return f"{self.path.name} has changed since it was read"

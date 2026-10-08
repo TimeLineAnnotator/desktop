@@ -171,6 +171,22 @@ def test_file_changed():
     assert "piece.tla" in str(error)
 
 
+@pytest.mark.parametrize(
+    "expected, found, message",
+    [
+        ("ab", "cd", "piece.tla has changed since it was read"),
+        ("ab", None, "piece.tla was removed or became unreadable after it was read"),
+        (None, "cd", "piece.tla already exists"),
+        (None, None, "piece.tla already exists"),
+    ],
+)
+def test_file_changed_says_what_happened(expected, found, message):
+    from pathlib import Path
+
+    error = FileChanged(Path("corpus") / "piece.tla", expected, found)
+    assert str(error) == message
+
+
 def test_file_changed_given_a_path_as_text():
     from pathlib import Path
 
