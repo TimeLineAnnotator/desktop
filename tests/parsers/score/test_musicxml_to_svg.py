@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent
-from PySide6.QtWidgets import QApplication
 
 from tests.mock import patch_file_dialog
 from tilia.parsers.score import musicxml_to_svg as musicxml_to_svg_module
@@ -60,19 +59,25 @@ def wait_until(condition, timeout: float = 5.0) -> bool:
     return True
 
 
-def get_converters() -> list[musicxml_to_svg]:
-    return [w for w in QApplication.allWidgets() if isinstance(w, musicxml_to_svg)]
-
-
 @pytest.fixture
 def stub_osmd_page(tmp_path):
+    """The converters made while it's active, each loading STUB_PAGE."""
     path = tmp_path / "svg_maker.html"
     path.write_text(STUB_PAGE, encoding="utf-8")
-    before = set(get_converters())
-    with patch.object(musicxml_to_svg_module, "SVG_MAKER_PATH", path):
-        yield
+    converters = []
+    init = musicxml_to_svg.__init__
+
+    def record(converter, *args, **kwargs):
+        init(converter, *args, **kwargs)
+        converters.append(converter)
+
+    with (
+        patch.object(musicxml_to_svg_module, "SVG_MAKER_PATH", path),
+        patch.object(musicxml_to_svg, "__init__", record),
+    ):
+        yield converters
     # A converter deletes itself only once OSMD has sent back an SVG.
-    for converter in set(get_converters()) - before:
+    for converter in converters:
         converter.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
@@ -87,7 +92,6 @@ def test_score_reaches_osmd_page_unchanged(
     beat_tl.recalculate_measures()
     path = tmp_path / "score.musicxml"
     path.write_text(SCORE.format(title=title), encoding="utf-8")
-    before = set(get_converters())
     sent = []
     to_svg = musicxml_to_svg.to_svg
 
@@ -101,7 +105,7 @@ def test_score_reaches_osmd_page_unchanged(
     ):
         commands.execute("timelines.import.score")
 
-    (converter,) = set(get_converters()) - before
+    (converter,) = stub_osmd_page
     assert wait_until(lambda: converter.title() == "received"), "No score arrived."
     received = []
     converter.page().runJavaScript("window.received", 0, received.append)
