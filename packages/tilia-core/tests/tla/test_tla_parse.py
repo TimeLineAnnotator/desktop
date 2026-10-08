@@ -67,6 +67,14 @@ def test_error_names_a_file_given_as_text():
     assert str(error) == "piece.tla, line 4: not valid JSON (Expecting ',' delimiter)"
 
 
+def test_error_with_an_empty_path_names_no_file():
+    # An upload without a file name.
+    assert str(refusal(INVALID, "")) == (
+        "line 4: not valid JSON (Expecting ',' delimiter)"
+    )
+    assert str(refusal(b"")) == str(refusal(b"", "")) == "empty file"
+
+
 def test_error_without_a_file():
     assert str(refusal(INVALID)) == "line 4: not valid JSON (Expecting ',' delimiter)"
 

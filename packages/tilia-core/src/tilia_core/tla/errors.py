@@ -30,7 +30,7 @@ class UnreadableFile(ValueError):
 
     def __str__(self) -> str:
         where = []
-        if self.path is not None:
+        if self.path is not None and self.path.name:
             where.append(self.path.name)
         if self.line is not None:
             where.append(f"line {self.line}")
