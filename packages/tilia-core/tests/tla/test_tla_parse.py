@@ -115,11 +115,26 @@ def test_repeated_key_message_when_the_second_pass_finds_nothing(monkeypatch):
     assert (error.place, error.line) == (None, None)
 
 
-@pytest.mark.parametrize("opening, closing", [(b"[", b"]"), (b'{"a":', b"}")])
-def test_nested_too_deeply(opening, closing):
-    deep = opening * 100_000 + b"1" + closing * 100_000
-    error = refusal(b'{"timelines": {}, "x": ' + deep + b"}")
-    assert error.message == "not valid JSON (nested too deeply)"
+def nested(opening: bytes, closing: bytes, levels: int) -> bytes:
+    # The top level counts as one.
+    inner = opening * levels + b"1" + closing * levels
+    return b'{"timelines": {}, "x": ' + inner + b"}"
+
+
+BRACKETS = [(b"[", b"]"), (b'{"a":', b"}")]
+
+
+@pytest.mark.parametrize("opening, closing", BRACKETS)
+@pytest.mark.parametrize("levels", [100, 100_000])
+def test_nested_too_deeply(opening, closing, levels):
+    # 100,000 levels: some systems' parsers run out of stack, others don't.
+    error = refusal(nested(opening, closing, levels))
+    assert error.message == "nested more than 100 levels deep"
+
+
+@pytest.mark.parametrize("opening, closing", BRACKETS)
+def test_nested_up_to_the_limit(opening, closing):
+    assert parse(nested(opening, closing, 99))
 
 
 def test_the_same_key_in_two_objects_is_fine():

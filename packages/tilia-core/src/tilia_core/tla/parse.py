@@ -54,10 +54,32 @@ def parse(data: bytes, *, path: Path | None = None) -> dict[str, Any]:
             f"not valid JSON ({error.msg})", path=path, line=error.lineno
         ) from None
     except RecursionError:
-        raise UnreadableFile("not valid JSON (nested too deeply)", path=path) from None
+        # Where the parser runs out of stack first, which depends on the system.
+        raise UnreadableFile(_TOO_DEEP, path=path) from None
     if not isinstance(content, dict) or "timelines" not in content:
         raise UnreadableFile("not a TiLiA file", path=path)
+    if _deeper_than(content, MAX_DEPTH):
+        raise UnreadableFile(_TOO_DEEP, path=path)
     return content
+
+
+# A TiLiA file nests about eight levels deep. The limit keeps the code that walks
+# a document from running out of stack, whatever the system and Python version.
+MAX_DEPTH = 100
+_TOO_DEEP = f"nested more than {MAX_DEPTH} levels deep"
+
+
+def _deeper_than(content: Any, limit: int) -> bool:
+    stack = [(content, 1)]
+    while stack:
+        value, depth = stack.pop()
+        children = value.values() if isinstance(value, dict) else value
+        for child in children:
+            if isinstance(child, (dict, list)):
+                if depth == limit:
+                    return True
+                stack.append((child, depth + 1))
+    return False
 
 
 def pointer(path: list[str]) -> str:
