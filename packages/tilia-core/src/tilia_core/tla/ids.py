@@ -18,7 +18,10 @@ from typing import Any
 
 ID_KINDS = ("timeline", "component", "score")
 MIGRATED_BASE_MS = 946_684_800_000  # 2000-01-01T00:00:00Z, in Unix milliseconds
-NON_INTEGER_OFFSET = 1 << 40
+# Old integer ids below this offset take the base plus the id; other old ids take
+# the base plus the offset plus their position, also below the offset. So every
+# migrated time field is below the base plus 2**39 ms, in June 2017.
+NON_INTEGER_OFFSET = 1 << 38
 
 _DECIMAL = re.compile(r"0|[1-9][0-9]*")
 _RAND_A_BITS = 12
@@ -82,10 +85,11 @@ def migrated_id(
     `old_ids` are the entry's old ids, outermost first: a timeline's, then a
     component's. The time field is 2000-01-01 plus the last old id in
     milliseconds, so the ids sort as the old ids did, and before any id made
-    later. An old id that isn't a non-negative integer below 2**40 takes
-    2**40 plus `position`, its position in the old file, so such ids sort
-    after the others. The other bits come from a SHA-256 of the document id,
-    the kind and the old ids, so the same file always gives the same ids.
+    since 2017. An old id that isn't a non-negative integer below 2**38 takes
+    2**38 plus `position`, its position in the old file, also below 2**38, so
+    such ids sort after the others. The other bits come from a SHA-256 of the
+    document id, the kind and the old ids, so the same file always gives the
+    same ids.
     """
     if kind not in ID_KINDS:
         raise ValueError(f"kind must be one of {', '.join(ID_KINDS)}, not {kind!r}")
@@ -93,9 +97,10 @@ def migrated_id(
         raise ValueError("migrated_id needs the entry's old id")
     offset = _as_offset(old_ids[-1])
     if offset is None:
-        if position is None or position < 0:
+        if position is None or not 0 <= position < NON_INTEGER_OFFSET:
             raise ValueError(
-                f"old id {old_ids[-1]!r} isn't an integer: give its position in the old file"
+                f"old id {old_ids[-1]!r} isn't an integer: give its position in the"
+                " old file, from 0 to 2**38 - 1"
             )
         offset = NON_INTEGER_OFFSET + position
     key = "\x1f".join([document_id, kind, *(str(old_id) for old_id in old_ids)])

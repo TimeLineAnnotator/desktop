@@ -98,29 +98,46 @@ class TestMigratedId:
     def test_sorts_before_a_new_id(self):
         assert migrated_id(DOC, "component", "1", "99999") < new_id()
 
-    def test_non_integer_takes_the_base_plus_2_40_plus_its_position(self):
+    def test_non_integer_takes_the_base_plus_2_38_plus_its_position(self):
         value = migrated_id(DOC, "component", "1", "a7", position=3)
-        assert time_field(value) == BASE_MS + 2**40 + 3
+        assert time_field(value) == BASE_MS + 2**38 + 3
+
+    @pytest.mark.parametrize("old", [2**38 - 1, str(2**38 - 1)])
+    def test_the_largest_integer(self, old):
+        assert time_field(migrated_id(DOC, "component", "1", old)) == (
+            BASE_MS + 2**38 - 1
+        )
 
     @pytest.mark.parametrize(
-        "old", ["a7", "", "-3", "03", "1.5", " 4", -3, 2**40, True]
+        "old", ["a7", "", "-3", "03", "1.5", " 4", -3, 2**38, str(2**38), True]
     )
     def test_what_counts_as_not_an_integer(self, old):
         value = migrated_id(DOC, "component", "1", old, position=0)
-        assert time_field(value) == BASE_MS + 2**40
+        assert time_field(value) == BASE_MS + 2**38
 
     def test_non_integer_ids_sort_after_integer_ones(self):
         assert migrated_id(DOC, "component", "1", "x", position=0) > migrated_id(
             DOC, "component", "1", "999999"
         )
 
-    def test_non_integer_without_a_position_raises(self):
+    def test_every_migrated_id_sorts_before_a_new_one(self):
+        # Entries made after a migration sort after the migrated ones. The time
+        # fields stay below 2000-01-01 plus 2**39 ms, in June 2017.
+        latest = [
+            migrated_id(DOC, "component", "1", 2**38 - 1),
+            migrated_id(DOC, "component", "1", "x", position=2**38 - 1),
+        ]
+        assert max(time_field(value) for value in latest) == BASE_MS + 2**39 - 1
+        assert max(latest) < new_id()
+
+    @pytest.mark.parametrize("position", [None, -1, 2**38])
+    def test_non_integer_without_a_position_it_can_take_raises(self, position):
         with pytest.raises(ValueError):
-            migrated_id(DOC, "component", "1", "a7")
+            migrated_id(DOC, "component", "1", "a7", position=position)
 
     def test_a_lone_surrogate_in_an_old_id(self):
         value = migrated_id(DOC, "component", "1", chr(0xD83C), position=0)
-        assert time_field(value) == BASE_MS + 2**40
+        assert time_field(value) == BASE_MS + 2**38
 
     def test_unknown_kind_raises(self):
         with pytest.raises(ValueError):
