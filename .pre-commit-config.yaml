@@ -1,3 +1,7 @@
+# tilia-core's .tla test files are kept byte for byte, like .gitattributes keeps
+# them: no hook may fix their whitespace, and a score in them may be large.
+exclude: ^packages/tilia-core/tests/tla/[^/]+/
+
 repos:
   - repo: https://github.com/psf/black
     rev: 22.12.0
