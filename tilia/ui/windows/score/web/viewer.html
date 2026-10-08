@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <!--
-  Scripts run only from this folder and from Qt's resources (qwebchannel.js):
-  no inline scripts or event-handler attributes, so nothing that comes with a
-  score can run. The page makes no network requests.
+  Scripts run only from local files (this folder's) and from Qt's resources
+  (qwebchannel.js), never inline, and no event-handler attribute runs.
+  viewer.js also strips scripts, foreign content and event handlers from a
+  score's SVG before showing it, so nothing that comes with a score can run.
+  The page makes no network requests.
 -->
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src file: qrc: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; font-src data:">

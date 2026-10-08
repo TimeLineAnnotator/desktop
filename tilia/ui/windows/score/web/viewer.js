@@ -37,20 +37,30 @@ function onReady() {
 }
 
 function showSvg(text) {
-  // Parsed as XML and imported, never assigned to innerHTML.
+  // Parsed as XML and imported, never assigned to innerHTML, and stripped of
+  // anything that could run: scripts, foreign (HTML) content, event handlers.
   const doc = new DOMParser().parseFromString(text, "image/svg+xml");
-  if (doc.documentElement.nodeName !== "svg") {
+  const svg = doc.documentElement;
+  if (svg.nodeName !== "svg") {
     throw new Error("Verovio returned no SVG.");
   }
-  scoreEl.replaceChildren(document.importNode(doc.documentElement, true));
+  svg.querySelectorAll("script, foreignObject").forEach((el) => el.remove());
+  for (const el of [svg, ...svg.querySelectorAll("*")]) {
+    for (const attr of [...el.attributes]) {
+      if (attr.name.toLowerCase().startsWith("on")) el.removeAttribute(attr.name);
+    }
+  }
+  scoreEl.replaceChildren(document.importNode(svg, true));
 }
 
 function readTimemap(timemap) {
   measures = [];
   onsets = new Map();
+  const seen = new Set();
   let qEnd = 0;
   for (const entry of timemap) {
-    if (entry.measureOn && !measures.some((m) => m.id === entry.measureOn)) {
+    if (entry.measureOn && !seen.has(entry.measureOn)) {
+      seen.add(entry.measureOn);
       const el = document.getElementById(entry.measureOn);
       measures.push({
         id: entry.measureOn,
@@ -58,7 +68,8 @@ function readTimemap(timemap) {
         qStart: entry.qstamp,
       });
     }
-    for (const id of entry.on || []) {
+    // Verovio lists rests apart from notes.
+    for (const id of [...(entry.on || []), ...(entry.restsOn || [])]) {
       if (!onsets.has(id)) onsets.set(id, entry.qstamp);
     }
     qEnd = Math.max(qEnd, entry.qstamp);
@@ -76,13 +87,18 @@ function headOf(el) {
   return el.querySelector(".notehead") || el;
 }
 
+function staffLineOf(measure) {
+  const el = measure && document.getElementById(measure.id);
+  return el ? el.querySelector(".staff > path") : null;
+}
+
 function measureAnchors() {
   const byQ = new Map();
   const add = (q, x) => {
     if (!byQ.has(q) || x < byQ.get(q)) byQ.set(q, x);
   };
   for (const m of measures) {
-    const line = document.querySelector(`[id="${m.id}"] .staff > path`);
+    const line = staffLineOf(m);
     if (line) add(m.qStart, scoreX(line.getBoundingClientRect().left));
   }
   for (const [id, q] of onsets) {
@@ -90,7 +106,7 @@ function measureAnchors() {
     if (el) add(q, scoreX(headOf(el).getBoundingClientRect().left));
   }
   const last = measures[measures.length - 1];
-  const line = last && document.querySelector(`[id="${last.id}"] .staff > path`);
+  const line = staffLineOf(last);
   if (line) byQ.set(last.qEnd, scoreX(line.getBoundingClientRect().right));
 
   anchors = [];
@@ -136,9 +152,13 @@ function fit() {
   const svg = scoreEl.querySelector("svg");
   if (!svg) return;
   const [, , width, height] = svg.getAttribute("viewBox").split(/\s+/).map(Number);
-  const k = Math.min(1, scoreEl.clientHeight / height);
-  svg.style.width = `${width * k}px`;
-  svg.style.height = `${height * k}px`;
+  // Twice: widening the score can bring in the horizontal scrollbar, which
+  // takes height from the box.
+  for (let pass = 0; pass < 2; pass++) {
+    const k = Math.min(1, scoreEl.clientHeight / height);
+    svg.style.width = `${width * k}px`;
+    svg.style.height = `${height * k}px`;
+  }
   measureAnchors();
 }
 
@@ -248,7 +268,7 @@ window.tiliaSetColors = (colors) => {
   }
 };
 
-window.tiliaSelect = (ids) => select(ids);
+window.tiliaReportViewport = () => reportViewport(true);
 
 new QWebChannel(qt.webChannelTransport, (channel) => {
   bridge = channel.objects.tilia;

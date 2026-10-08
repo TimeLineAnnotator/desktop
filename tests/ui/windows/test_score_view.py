@@ -1,19 +1,23 @@
 import json
+import sys
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
+from PySide6.QtGui import QColor, QHideEvent, QShowEvent
+from PySide6.QtWebEngineCore import QWebEnginePage
+from PySide6.QtWidgets import QApplication
 
-from tests.constants import EXAMPLE_MUSICXML_PATH
+from tests.constants import EXAMPLE_MUSICXML_PATH, EXAMPLE_REST_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
 from tests.utils import get_blank_file_data, run_js, save_and_reopen, wait_until
 from tilia.exceptions import NoReplyToRequest
 from tilia.requests import Get, Post, get, post
+from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
-from tilia.ui.windows.score.score_view import ScoreView
+from tilia.ui.windows.score.score_view import VIEWER_PATH, ScoreView
 from tilia.ui.windows.svg_viewer import SvgViewer
 
 # The viewer's page compiles Verovio when it loads.
@@ -83,9 +87,16 @@ def add_repeated_beats(beat_tl):
     beat_tl.recalculate_measures()
 
 
-def import_score(add_measure_zero: bool = True):
+def add_four_beat_measures(beat_tl):
+    beat_tl.beat_pattern = [4]
+    for time in range(9):
+        beat_tl.create_component(ComponentKind.BEAT, time)
+    beat_tl.recalculate_measures()
+
+
+def import_score(path: str = EXAMPLE_MUSICXML_PATH, add_measure_zero: bool = True):
     with (
-        patch_file_dialog(True, [EXAMPLE_MUSICXML_PATH]),
+        patch_file_dialog(True, [path]),
         patch_yes_or_no_dialog(add_measure_zero),
     ):
         commands.execute("timelines.import.score")
@@ -107,7 +118,7 @@ def get_notes(score_tlui):
     )
 
 
-def show_narrow(score_view: ScoreView, width: int = 120):
+def show_narrow(score_view: ScoreView, width: int = 120, height: int = 200):
     # Makes the score's box narrower than the score, so that it has to scroll.
     # A page that was never shown gets a tiny viewport, and showing a floating
     # viewer instead crashed a macOS CI worker, so the box is sized in the page.
@@ -115,10 +126,15 @@ def show_narrow(score_view: ScoreView, width: int = 120):
     run_js(
         page,
         f"scoreEl.style.cssText = 'right: auto; bottom: auto; width: {width}px;"
-        " height: 200px'; window.dispatchEvent(new Event('resize'))",
+        f" height: {height}px'; window.dispatchEvent(new Event('resize'))",
     )
     assert wait_until(lambda: run_js(page, "scoreEl.clientWidth") == width)
     assert run_js(page, "scoreEl.scrollWidth") > width
+
+
+def let_page_report():
+    # Long enough for any message the page sends to arrive.
+    wait_until(lambda: False, timeout=0.5)
 
 
 def click(score_view: ScoreView, element_id: str, double: bool = False):
@@ -126,10 +142,10 @@ def click(score_view: ScoreView, element_id: str, double: bool = False):
     run_js(
         score_view.view.page(),
         f"""(() => {{
-            const head = document.getElementById({json.dumps(element_id)})
-                .querySelector('.notehead');
+            const el = document.getElementById({json.dumps(element_id)});
+            const target = el.querySelector('.notehead') || el.querySelector('use');
             for (const name of {json.dumps(events)}) {{
-                head.dispatchEvent(new MouseEvent(name, {{bubbles: true}}));
+                target.dispatchEvent(new MouseEvent(name, {{bubbles: true}}));
             }}
         }})()""",
     )
@@ -155,6 +171,13 @@ def set_color(score_tlui, note, color: str):
     score_tlui.select_element(score_tlui.get_element(note.id))
     with Serve(Get.FROM_USER_COLOR, (True, QColor(color))):
         commands.execute("timeline.component.set_color")
+
+
+@pytest.fixture
+def smooth_scrolling():
+    settings.set("general", "prioritise_performance", False)
+    yield
+    settings.set("general", "prioritise_performance", True)
 
 
 @pytest.fixture
@@ -214,6 +237,19 @@ class TestSeek:
             lambda: tilia_state.current_time == pytest.approx(second.start)
         )
 
+    def test_double_click_rest_seeks_to_its_time(
+        self, score_tlui, beat_tlui, beat_tl, tilia_state
+    ):
+        add_four_beat_measures(beat_tl)
+        import_score(EXAMPLE_REST_MUSICXML_PATH)
+        score_view = get_score_view(score_tlui)
+        rest_id = run_js(score_view.view.page(), "document.querySelector('g.rest').id")
+
+        click(score_view, rest_id, double=True)
+
+        # The rest is the second beat of measure 1, which starts at 0.
+        assert wait_until(lambda: tilia_state.current_time == pytest.approx(1.0))
+
 
 class TestScroll:
     def test_scroll_to_time_reports_visible_range(
@@ -240,6 +276,40 @@ class TestScroll:
         assert score_tlui.measure_tracker.isVisible()
         assert (score_tlui.tracker_start, score_tlui.tracker_end) == pytest.approx(
             tuple(score_view.visible_times)
+        )
+
+    def test_hidden_viewer_leaves_measure_tracker_hidden(self, score_view, score_tlui):
+        show_narrow(score_view)
+        QApplication.sendEvent(score_view, QHideEvent())
+
+        commands.execute("media.seek", get_notes(score_tlui)[-1].start)
+
+        let_page_report()
+        assert not score_tlui.measure_tracker.isVisible()
+
+    def test_showing_viewer_again_updates_measure_tracker(self, score_view, score_tlui):
+        show_narrow(score_view)
+        QApplication.sendEvent(score_view, QHideEvent())
+        last = get_notes(score_tlui)[-1]
+        commands.execute("media.seek", last.start)
+
+        QApplication.sendEvent(score_view, QShowEvent())
+
+        assert wait_until(
+            lambda: 0 < score_view.visible_times[0] <= last.start
+            and last.start <= score_view.visible_times[1]
+        )
+        assert score_tlui.measure_tracker.isVisible()
+
+    def test_score_fits_above_scrollbar(self, score_view):
+        page = score_view.view.page()
+
+        show_narrow(score_view, height=100)
+
+        assert run_js(
+            page,
+            "document.querySelector('#score > svg').getBoundingClientRect().height"
+            " <= scoreEl.clientHeight + 0.5",
         )
 
 
@@ -297,6 +367,23 @@ class TestColor:
         )
 
         commands.execute("media.seek", second.start)
+        assert wait_until(
+            lambda: get_style(score_view, element_id, "fill") == "rgb(0, 255, 0)"
+        )
+
+    def test_repeated_note_follows_seek_with_smooth_scrolling(
+        self, smooth_scrolling, score_tlui, beat_tlui, beat_tl
+    ):
+        add_repeated_beats(beat_tl)
+        import_score(add_measure_zero=False)
+        score_view = get_score_view(score_tlui)
+        first, _, second, _ = get_notes(score_tlui)
+        element_id = score_view.get_element_id(first.id)
+        set_color(score_tlui, first, "#ff0000")
+        set_color(score_tlui, second, "#00ff00")
+
+        commands.execute("media.seek", second.start)
+
         assert wait_until(
             lambda: get_style(score_view, element_id, "fill") == "rgb(0, 255, 0)"
         )
@@ -368,6 +455,77 @@ class TestPage:
             "onElementDoubleClicked",
             "onError",
         }
+
+    def test_has_no_context_menu(self, score_view):
+        # Its Reload, Back and View Source would take the page off the score.
+        assert score_view.view.contextMenuPolicy() == Qt.ContextMenuPolicy.NoContextMenu
+
+    def test_reloaded_page_shows_score_again(self, score_view):
+        page = score_view.view.page()
+        run_js(page, "window.beforeReload = true")
+
+        page.triggerAction(QWebEnginePage.WebAction.Reload)
+
+        assert wait_until(
+            lambda: run_js(
+                page,
+                "window.beforeReload === undefined"
+                " && document.querySelectorAll('g.note').length > 0",
+            ),
+            timeout=30,
+        )
+        assert score_view.is_score_loaded
+
+    def test_stays_on_viewer(self, score_view):
+        page = score_view.view.page()
+
+        run_js(page, "location.href = 'https://example.com/'")
+
+        let_page_report()
+        assert page.url().isLocalFile()
+        assert run_js(page, "document.querySelectorAll('g.note').length") > 0
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="drive letters")
+    def test_accepts_viewer_with_other_drive_letter_case(self, score_view):
+        path = str(VIEWER_PATH)
+        url = QUrl.fromLocalFile(path[0].swapcase() + path[1:])
+
+        assert score_view.view.page().acceptNavigationRequest(
+            url, QWebEnginePage.NavigationType.NavigationTypeTyped, True
+        )
+
+    def test_shows_svg_without_scripts(self, score_view):
+        page = score_view.view.page()
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            "<script>window.ran = true</script>"
+            '<g id="x" onclick="window.ran = true"/><foreignObject/></svg>'
+        )
+
+        run_js(page, f"showSvg({json.dumps(svg)})")
+
+        assert json.loads(
+            run_js(
+                page,
+                "JSON.stringify([!!scoreEl.querySelector('script'),"
+                " !!scoreEl.querySelector('foreignObject'),"
+                " document.getElementById('x').hasAttribute('onclick')])",
+            )
+        ) == [False, False, False]
+
+    def test_deleted_viewer_ignores_late_page_messages(self, score_view, tls):
+        bridge = score_view._bridge
+        tls.delete_timeline(score_view.timeline)
+
+        # A message the page sent before the viewer was deleted.
+        bridge.onViewportChanged(
+            json.dumps(
+                {
+                    "start": {"measure": "1", "fraction": 0},
+                    "end": {"measure": "2", "fraction": 0},
+                }
+            )
+        )
 
 
 class TestSvgScores:
