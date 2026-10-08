@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from bisect import bisect
 from pathlib import Path
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 from PySide6.QtCore import QObject, Qt, QUrl, Slot
+from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -36,7 +38,19 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
 from tilia.ui.windows.view_window import ViewDockWidget
 
-VIEWER_URL = QUrl.fromLocalFile(str(Path(__file__).parent / "web" / "viewer.html"))
+if TYPE_CHECKING:
+    from tilia.timelines.score.timeline import ScoreTimeline
+    from tilia.ui.timelines.score.timeline import ScoreTimelineUI
+
+VIEWER_PATH = Path(__file__).parent / "web" / "viewer.html"
+VIEWER_URL = QUrl.fromLocalFile(str(VIEWER_PATH))
+
+# The visible range is looked up at this resolution: the beat timeline keeps
+# every position it's asked about, and scrolling would ask about thousands.
+VIEWPORT_STEPS_PER_MEASURE = 32
+
+# How often the page is restarted after its process dies, before giving up.
+MAX_PAGE_RESTARTS = 2
 
 
 def _parse(payload: str) -> dict[str, Any]:
@@ -50,36 +64,55 @@ def _parse(payload: str) -> dict[str, Any]:
     return data
 
 
+def _is_viewer(url: QUrl) -> bool:
+    if not url.isLocalFile():
+        return False
+    # Paths, not URLs: Chromium writes a Windows drive letter in upper case.
+    return os.path.normcase(os.path.abspath(url.toLocalFile())) == os.path.normcase(
+        os.path.abspath(VIEWER_PATH)
+    )
+
+
 class _Bridge(QObject):
     """The page's `tilia` object. Its slots are all the page can call."""
 
     def __init__(self, score_view: ScoreView) -> None:
         super().__init__()
-        self._score_view = score_view
+        self._score_view: ScoreView | None = score_view
+
+    def detach(self) -> None:
+        # Messages the page sent before its viewer was deleted are dropped.
+        self._score_view = None
 
     @Slot()
     def viewerReady(self) -> None:
-        self._score_view.on_page_ready()
+        if self._score_view:
+            self._score_view.on_page_ready()
 
     @Slot(str)
     def onScoreLoaded(self, payload: str) -> None:
-        self._score_view.on_score_loaded(_parse(payload))
+        if self._score_view:
+            self._score_view.on_score_loaded(_parse(payload))
 
     @Slot(str)
     def onViewportChanged(self, payload: str) -> None:
-        self._score_view.on_viewport_changed(_parse(payload))
+        if self._score_view:
+            self._score_view.on_viewport_changed(_parse(payload))
 
     @Slot(str)
     def onSelectionChanged(self, payload: str) -> None:
-        self._score_view.on_selection_changed(_parse(payload))
+        if self._score_view:
+            self._score_view.on_selection_changed(_parse(payload))
 
     @Slot(str)
     def onElementDoubleClicked(self, payload: str) -> None:
-        self._score_view.on_element_double_clicked(_parse(payload))
+        if self._score_view:
+            self._score_view.on_element_double_clicked(_parse(payload))
 
     @Slot(str)
     def onError(self, payload: str) -> None:
-        self._score_view.on_error(_parse(payload))
+        if self._score_view:
+            self._score_view.on_error(_parse(payload))
 
 
 class _ScorePage(QWebEnginePage):
@@ -89,7 +122,7 @@ class _ScorePage(QWebEnginePage):
     def acceptNavigationRequest(
         self, url: QUrl, _type: QWebEnginePage.NavigationType, _is_main_frame: bool
     ) -> bool:
-        return url == VIEWER_URL
+        return _is_viewer(url)
 
     def javaScriptConsoleMessage(
         self,
@@ -121,11 +154,16 @@ class ScoreView(ViewDockWidget):
         self.is_hidden = False
         self.visible_times = [0.0, 0.0]
         self.selected_ids: list[str] = []
+        self._score_text: str | None = None
         self._is_page_ready = False
+        self._page_restarts = 0
         self._pending_scripts: list[str] = []
         self._element_ids: dict[int, str] = {}
         self._components_by_element: dict[str, list[int]] = {}
         self._repeated_elements: list[str] = []
+        # Repeated elements whose occurrences differ in colour, so that the
+        # colour shown depends on the current time.
+        self._varying_elements: set[str] = set()
         self._shown_colors: dict[str, str | None] = {}
 
         serve(self, Get.SCORE_VIEWER, self.get_viewer)
@@ -146,11 +184,11 @@ class ScoreView(ViewDockWidget):
             return self
 
     @property
-    def timeline(self):
+    def timeline(self) -> ScoreTimeline | None:
         return get(Get.TIMELINE, self.timeline_id)
 
     @property
-    def timeline_ui(self):
+    def timeline_ui(self) -> ScoreTimelineUI | None:
         return get(Get.TIMELINE_UI, self.timeline_id)
 
     @property
@@ -184,9 +222,11 @@ class ScoreView(ViewDockWidget):
             for element_id, component_ids in self._components_by_element.items()
             if len(component_ids) > 1
         ]
+        self._varying_elements = set()
         self._shown_colors = {}
 
         self._setup_page()
+        self._score_text = text
         self._run_script("tiliaLoadScore", text)
 
         self.setParent(get(Get.MAIN_WINDOW))
@@ -200,8 +240,12 @@ class ScoreView(ViewDockWidget):
         if self.view:
             return
         self.view = QWebEngineView(self)
+        # Its Reload, Back and View Source would take the page off the score.
+        self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         page = _ScorePage(self.view)
         page.setBackgroundColor(Qt.GlobalColor.white)
+        page.loadStarted.connect(self._on_load_started)
+        page.renderProcessTerminated.connect(self._on_render_process_terminated)
         self.view.setPage(page)
         self._bridge = _Bridge(self)
         self._channel = QWebChannel(page)
@@ -210,12 +254,40 @@ class ScoreView(ViewDockWidget):
         self.setWidget(self.view)
         self.view.load(VIEWER_URL)
 
+    @staticmethod
+    def _script(function: str, *args: Any) -> str:
+        return f"{function}({', '.join(json.dumps(arg) for arg in args)})"
+
     def _run_script(self, function: str, *args: Any) -> None:
-        script = f"{function}({', '.join(json.dumps(arg) for arg in args)})"
+        script = self._script(function, *args)
         if self._is_page_ready:
             self.view.page().runJavaScript(script)
         else:
             self._pending_scripts.append(script)
+
+    def _on_load_started(self) -> None:
+        # The page reloaded, or restarted after its process died, and lost its
+        # score: show it again once the page is ready.
+        self._is_page_ready = False
+        if self._score_text is not None and not self._pending_scripts:
+            self.is_score_loaded = False
+            self._shown_colors = {}
+            self._pending_scripts.append(
+                self._script("tiliaLoadScore", self._score_text)
+            )
+
+    def _on_render_process_terminated(
+        self, status: QWebEnginePage.RenderProcessTerminationStatus, code: int
+    ) -> None:
+        if (
+            status
+            == QWebEnginePage.RenderProcessTerminationStatus.NormalTerminationStatus
+        ):
+            return
+        logger.error(f"Score viewer's page stopped ({status}, exit code {code}).")
+        if self._page_restarts < MAX_PAGE_RESTARTS:
+            self._page_restarts += 1
+            self.view.reload()
 
     def on_page_ready(self) -> None:
         self._is_page_ready = True
@@ -226,6 +298,8 @@ class ScoreView(ViewDockWidget):
     def on_score_loaded(self, data: dict[str, Any]) -> None:
         self.mei = data.get("mei", "")
         self.is_score_loaded = True
+        self._page_restarts = 0
+        self._update_varying(self._repeated_elements)
         self._update_colors(self._components_by_element)
         self.scroll_to_time(get(Get.SELECTED_TIME), True)
 
@@ -234,9 +308,10 @@ class ScoreView(ViewDockWidget):
             tilia.errors.SCORE_SVG_CREATE_ERROR, data.get("message", "")
         )
 
-    def _get_times(self, position: Any) -> list[float] | None:
+    def _get_times(self, position: Any, snap: bool = False) -> list[float] | None:
         """The times the beat timeline places a score position at, or None
-        if they can't be known."""
+        if they can't be known. `snap` rounds the position to one of
+        `VIEWPORT_STEPS_PER_MEASURE` steps of its measure."""
         beat_tl = self._get_beat_timeline()
         if not beat_tl or not isinstance(position, dict):
             return None
@@ -245,6 +320,9 @@ class ScoreView(ViewDockWidget):
             fraction = min(max(float(position["fraction"]), 0.0), 1.0)
         except (KeyError, TypeError, ValueError):
             return None
+        if snap:
+            steps = VIEWPORT_STEPS_PER_MEASURE
+            fraction = round(fraction * steps) / steps
         if times := beat_tl.get_time_by_measure(number, fraction):
             return times
         return (
@@ -252,8 +330,10 @@ class ScoreView(ViewDockWidget):
         )
 
     def on_viewport_changed(self, data: dict[str, Any]) -> None:
-        start_times = self._get_times(data.get("start"))
-        end_times = self._get_times(data.get("end"))
+        if self.is_hidden:
+            return
+        start_times = self._get_times(data.get("start"), snap=True)
+        end_times = self._get_times(data.get("end"), snap=True)
         if not start_times or not end_times:
             return
 
@@ -272,14 +352,16 @@ class ScoreView(ViewDockWidget):
         self.update_measure_tracker(start_time, end_time)
 
     def update_measure_tracker(self, start: float, end: float) -> None:
+        if not (timeline_ui := self.timeline_ui):
+            return
         if (new_visible_times := [start, end]) == self.visible_times:
             return
         self.visible_times = new_visible_times
         if start != end:
-            self.timeline_ui.update_measure_tracker_position(start, end)
-            self.timeline_ui.measure_tracker.show()
+            timeline_ui.update_measure_tracker_position(start, end)
+            timeline_ui.measure_tracker.show()
         else:
-            self.timeline_ui.measure_tracker.hide()
+            timeline_ui.measure_tracker.hide()
 
     def on_selection_changed(self, data: dict[str, Any]) -> None:
         ids = data.get("ids", [])
@@ -298,10 +380,12 @@ class ScoreView(ViewDockWidget):
         number = math.floor(metric_fraction)
         self._run_script("tiliaScrollTo", number, metric_fraction - number, is_centered)
 
-    def _get_color(self, component_ids: list[int], time: float) -> str | None:
+    @staticmethod
+    def _get_color(
+        timeline: ScoreTimeline, component_ids: list[int], time: float
+    ) -> str | None:
         # A note played more than once shows the colour of the time it's
         # played nearest the current time; on a tie, the earlier one.
-        timeline = self.timeline
         nearest = None
         for component_id in component_ids:
             try:
@@ -316,21 +400,44 @@ class ScoreView(ViewDockWidget):
             return None
         return timeline.get_component_data(nearest[1], "color")
 
-    def _update_colors(self, element_ids: Iterable[str]) -> None:
-        if not self.is_score_loaded or not self.timeline:
+    def _update_varying(self, element_ids: Iterable[str]) -> None:
+        if not (timeline := self.timeline):
             return
-        time = get(Get.SELECTED_TIME)
+        for element_id in element_ids:
+            colors = set()
+            for component_id in self._components_by_element.get(element_id, []):
+                try:
+                    colors.add(timeline.get_component_data(component_id, "color"))
+                except KeyError:
+                    continue
+            if len(colors) > 1:
+                self._varying_elements.add(element_id)
+            else:
+                self._varying_elements.discard(element_id)
+
+    def _update_colors(
+        self, element_ids: Iterable[str], time: float | None = None
+    ) -> None:
+        if not self.is_score_loaded or not (timeline := self.timeline):
+            return
+        if time is None:
+            time = get(Get.SELECTED_TIME)
         changed = {}
         for element_id in element_ids:
-            color = self._get_color(self._components_by_element[element_id], time)
+            color = self._get_color(
+                timeline, self._components_by_element[element_id], time
+            )
             if self._shown_colors.get(element_id) != color:
                 changed[element_id] = color
         if changed:
             self._shown_colors.update(changed)
             self._run_script("tiliaSetColors", changed)
 
-    def on_current_time_changed(self, _time: float, _reason: Any) -> None:
-        self._update_colors(self._repeated_elements)
+    def on_current_time_changed(self, time: float, _reason: Any) -> None:
+        # The time posted, not Get.SELECTED_TIME, which smooth scrolling
+        # updates only later.
+        if self._varying_elements:
+            self._update_colors(list(self._varying_elements), time)
 
     def on_component_set_data_done(
         self, timeline_id: int, component_id: int, attr: str, _value: Any
@@ -338,10 +445,12 @@ class ScoreView(ViewDockWidget):
         if timeline_id != self.timeline_id or attr != "color":
             return
         if element_id := self._element_ids.get(component_id):
+            self._update_varying([element_id])
             self._update_colors([element_id])
 
     def on_components_deserialized(self, timeline_id: int) -> None:
         if timeline_id == self.timeline_id:
+            self._update_varying(self._repeated_elements)
             self._update_colors(self._components_by_element)
 
     def update_annotation(self, tl_component_id: int) -> None:
@@ -351,11 +460,13 @@ class ScoreView(ViewDockWidget):
         """Score annotations aren't shown by this viewer yet."""
 
     def deleteLater(self) -> None:
+        if self._bridge:
+            self._bridge.detach()
         stop_serving_all(self)
         stop_listening_to_all(self)
         super().deleteLater()
 
-    def hideEvent(self, event) -> None:
+    def hideEvent(self, event: QHideEvent) -> None:
         try:
             if timeline_ui := self.timeline_ui:
                 timeline_ui.measure_tracker.hide()
@@ -364,9 +475,12 @@ class ScoreView(ViewDockWidget):
         self.is_hidden = True
         return super().hideEvent(event)
 
-    def showEvent(self, event) -> None:
-        self.scroll_to_time(get(Get.SELECTED_TIME), True)
-        if self.timeline_ui and self.is_score_loaded:
-            self.timeline_ui.measure_tracker.show()
+    def showEvent(self, event: QShowEvent) -> None:
         self.is_hidden = False
+        if self.is_score_loaded:
+            self.scroll_to_time(get(Get.SELECTED_TIME), True)
+            # The range may have changed while the viewer was hidden.
+            self._run_script("tiliaReportViewport")
+            if timeline_ui := self.timeline_ui:
+                timeline_ui.measure_tracker.show()
         return super().showEvent(event)
