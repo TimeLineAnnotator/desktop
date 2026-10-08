@@ -14,6 +14,7 @@ import threading
 import time
 import unicodedata
 import uuid
+from collections import Counter
 from typing import Any
 
 ID_KINDS = ("timeline", "component", "score")
@@ -123,10 +124,23 @@ def _nfc(value: Any) -> Any:
     if isinstance(value, str):
         return unicodedata.normalize("NFC", value)
     if isinstance(value, dict):
-        return {_nfc(key): _nfc(item) for key, item in value.items()}
+        keys = _nfc_keys(list(value))
+        return dict(zip(keys, map(_nfc, value.values()), strict=True))
     if isinstance(value, list):
         return [_nfc(item) for item in value]
     return value
+
+
+def _nfc_keys(keys: list[str]) -> list[str]:
+    """The keys in NFC, except those NFC would merge with another, which are kept
+    as they are, so that no value is lost."""
+    normal = [unicodedata.normalize("NFC", key) for key in keys]
+    if len(set(normal)) == len(normal):
+        return normal
+    counts = Counter(normal)
+    return [
+        key if counts[nfc] > 1 else nfc for key, nfc in zip(keys, normal, strict=True)
+    ]
 
 
 def _without(data: Any, keys: tuple[str, ...]) -> Any:

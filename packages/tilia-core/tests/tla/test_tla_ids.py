@@ -271,6 +271,18 @@ class TestDerivedDocumentId:
         reordered = dict(reversed(list(data.items())))
         assert derived_document_id(reordered) == derived_document_id(data)
 
+    def test_keys_that_nfc_would_merge_keep_both_values(self):
+        decomposed, composed = "é", "é"
+
+        def with_fields(fields):
+            return derived_document_id(edited(set_key("media_metadata", "x", fields)))
+
+        both = with_fields({decomposed: "a", composed: "b"})
+        assert both != with_fields({composed: "b"})
+        assert both != with_fields({composed: "a"})
+        assert both == with_fields({composed: "b", decomposed: "a"})
+        assert with_fields({decomposed: "a"}) == with_fields({composed: "a"})
+
     def test_unchanged_by_crlf_and_a_byte_order_mark(self):
         text = json.dumps(old_file(), indent=2, ensure_ascii=False)
         lf = text.encode("utf-8")
