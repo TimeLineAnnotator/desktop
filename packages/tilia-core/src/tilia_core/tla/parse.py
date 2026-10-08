@@ -19,6 +19,15 @@ class _RepeatedKey(Exception):
     pass
 
 
+class _Constant(Exception):
+    pass
+
+
+def _refuse_constant(name: str) -> Any:
+    # NaN, Infinity and -Infinity: json.loads accepts them, but they aren't JSON.
+    raise _Constant
+
+
 def _no_repeated_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result = dict(pairs)
     if len(result) != len(pairs):
@@ -42,9 +51,11 @@ def parse(data: bytes, *, path: Path | None = None) -> dict[str, Any]:
     if not text.strip(_JSON_WHITESPACE):
         raise UnreadableFile("empty file", path=path)
     try:
-        content = json.loads(text, object_pairs_hook=_no_repeated_keys)
+        content = json.loads(
+            text, object_pairs_hook=_no_repeated_keys, parse_constant=_refuse_constant
+        )
     except _RepeatedKey:
-        key, place, line = _find_repeated_key(text)
+        key, place, line = _find(text, keys=True)
         named = "a key" if key is None else json.dumps(key, ensure_ascii=False)
         raise UnreadableFile(
             f"{named} appears twice in one object", path=path, line=line, place=place
@@ -52,6 +63,12 @@ def parse(data: bytes, *, path: Path | None = None) -> dict[str, Any]:
     except json.JSONDecodeError as error:
         raise UnreadableFile(
             f"not valid JSON ({error.msg})", path=path, line=error.lineno
+        ) from None
+    except _Constant:
+        # What a strict JSON parser says there.
+        _, _, line = _find(text, keys=False)
+        raise UnreadableFile(
+            "not valid JSON (Expecting value)", path=path, line=line
         ) from None
     except RecursionError:
         # Where the parser runs out of stack first, which depends on the system.
@@ -88,12 +105,15 @@ def pointer(path: list[str]) -> str:
 
 
 class _Found(Exception):
-    def __init__(self, key: str, path: list[str], position: int) -> None:
+    def __init__(self, key: str | None, path: list[str], position: int) -> None:
         self.key, self.path, self.position = key, path, position
 
 
-def _walk(text: str, position: int, path: list[str], scan_value: Any) -> int:
-    """Skip the JSON value at `position`, raising `_Found` at a key repeated in one object."""
+def _walk(
+    text: str, position: int, path: list[str], scan_value: Any, keys: bool
+) -> int:
+    """Skip the JSON value at `position`, raising `_Found` at a key repeated in one
+    object when `keys` is true, and at a value `scan_value` refuses."""
     position = _SKIP.match(text, position).end()
     if text[position] == "{":
         seen: set[str] = set()
@@ -103,11 +123,11 @@ def _walk(text: str, position: int, path: list[str], scan_value: Any) -> int:
         while True:
             key_at = position
             key, position = scanstring(text, position + 1)
-            if key in seen:
+            if keys and key in seen:
                 raise _Found(key, [*path, key], key_at)
             seen.add(key)
             position = _SKIP.match(text, position).end() + 1  # the colon
-            position = _walk(text, position, [*path, key], scan_value)
+            position = _walk(text, position, [*path, key], scan_value, keys)
             position = _SKIP.match(text, position).end()
             if text[position] == "}":
                 return position + 1
@@ -118,20 +138,26 @@ def _walk(text: str, position: int, path: list[str], scan_value: Any) -> int:
         if text[position] == "]":
             return position + 1
         while True:
-            position = _walk(text, position, [*path, str(index)], scan_value)
+            position = _walk(text, position, [*path, str(index)], scan_value, keys)
             index += 1
             position = _SKIP.match(text, position).end()
             if text[position] == "]":
                 return position + 1
             position += 1  # the comma
-    _, end = scan_value(text, position)
+    try:
+        _, end = scan_value(text, position)
+    except _Constant:
+        raise _Found(None, path, position) from None
     return end
 
 
-def _find_repeated_key(text: str) -> tuple[str | None, str | None, int | None]:
-    """The first key repeated in one object, its place and its line. Runs only on a refusal."""
+def _find(text: str, *, keys: bool) -> tuple[str | None, str | None, int | None]:
+    """Where json.loads stopped, found again: the first key repeated in one object
+    when `keys` is true, else the first value it refused. Gives the key, the place
+    and the line. Runs only on a refusal."""
+    decoder = json.JSONDecoder(parse_constant=None if keys else _refuse_constant)
     try:
-        _walk(text, 0, [], json.JSONDecoder().scan_once)
+        _walk(text, 0, [], decoder.scan_once, keys)
     except _Found as found:
         return found.key, pointer(found.path), text.count("\n", 0, found.position) + 1
     except (ValueError, IndexError, RecursionError, StopIteration):

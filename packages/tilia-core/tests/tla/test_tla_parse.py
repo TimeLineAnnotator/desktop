@@ -109,10 +109,29 @@ def test_repeated_key_anywhere(data, place, line):
 def test_repeated_key_message_when_the_second_pass_finds_nothing(monkeypatch):
     from tilia_core.tla import parse as module
 
-    monkeypatch.setattr(module, "_find_repeated_key", lambda text: (None, None, None))
+    monkeypatch.setattr(module, "_find", lambda text, keys: (None, None, None))
     error = refusal(REPEATED)
     assert error.message == "a key appears twice in one object"
     assert (error.place, error.line) == (None, None)
+
+
+@pytest.mark.parametrize("constant", [b"NaN", b"Infinity", b"-Infinity"])
+def test_nan_and_infinity_are_not_json(constant):
+    error = refusal(b'{\n  "timelines": {},\n  "a": [1,\n' + constant + b"]\n}\n")
+    assert error.message == "not valid JSON (Expecting value)"
+    assert error.line == 4
+    assert error.place is None
+
+
+def test_nan_after_a_repeated_key_in_an_open_object():
+    # json.loads meets the NaN before it closes the object with the repeated key.
+    error = refusal(b'{"timelines": {}, "a": 1, "a": 2,\n"b": NaN}')
+    assert error.message == "not valid JSON (Expecting value)"
+    assert error.line == 2
+
+
+def test_nan_as_text_is_fine():
+    assert parse(b'{"timelines": {}, "a": "NaN"}')["a"] == "NaN"
 
 
 def nested(opening: bytes, closing: bytes, levels: int) -> bytes:
