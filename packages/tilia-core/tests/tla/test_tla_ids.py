@@ -142,7 +142,7 @@ class TestMigratedId:
         assert max(time_field(value) for value in latest) == BASE_MS + 2**39 - 1
         assert max(latest) < new_id()
 
-    @pytest.mark.parametrize("position", [None, -1, 2**38])
+    @pytest.mark.parametrize("position", [None, -1, 2**38, 3.0, True])
     def test_non_integer_without_a_position_it_can_take_raises(self, position):
         with pytest.raises(ValueError):
             migrated_id(DOC, "component", "1", "a7", position=position)

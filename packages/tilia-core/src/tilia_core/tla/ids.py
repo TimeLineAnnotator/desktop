@@ -106,10 +106,14 @@ def migrated_id(
         raise ValueError("migrated_id needs the entry's old id")
     offset = _as_offset(old_ids[-1])
     if offset is None:
-        if position is None or not 0 <= position < NON_INTEGER_OFFSET:
+        if (
+            not isinstance(position, int)
+            or isinstance(position, bool)
+            or not 0 <= position < NON_INTEGER_OFFSET
+        ):
             raise ValueError(
                 f"old id {old_ids[-1]!r} isn't an integer: give its position in the"
-                " old file, from 0 to 2**38 - 1"
+                " old file, an integer from 0 to 2**38 - 1"
             )
         offset = NON_INTEGER_OFFSET + position
     # A JSON list, which no other list of strings gives, in ASCII: a lone
