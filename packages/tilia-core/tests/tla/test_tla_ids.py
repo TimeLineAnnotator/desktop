@@ -372,13 +372,19 @@ class TestDerivedDocumentId:
         # An old file holds its score's SVG, megabytes long.
         svg = "<svg>" + "x" * 4_000_000 + "</svg>"
         data = edited(set_key("timelines", "1", "svg_data", svg))
-        tracemalloc.start()
+        # Leaves tracing as it found it, for a run with -X tracemalloc.
+        tracing = tracemalloc.is_tracing()
+        if not tracing:
+            tracemalloc.start()
+        before, _ = tracemalloc.get_traced_memory()
+        tracemalloc.reset_peak()
         try:
             derived_document_id(data)
             _, peak = tracemalloc.get_traced_memory()
         finally:
-            tracemalloc.stop()
-        assert peak < len(svg) / 4
+            if not tracing:
+                tracemalloc.stop()
+        assert peak - before < len(svg) / 4
 
     def test_never_changes(self):
         # Files read before and after an update must get the same id.
