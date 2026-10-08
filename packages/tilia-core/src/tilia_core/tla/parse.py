@@ -11,7 +11,6 @@ from typing import Any
 from tilia_core.tla.errors import UnreadableFile
 
 _BOM = b"\xef\xbb\xbf"
-_JSON_WHITESPACE = " \t\n\r"
 _SKIP = re.compile(r"[ \t\n\r]*")
 
 
@@ -48,7 +47,7 @@ def parse(data: bytes, *, path: str | os.PathLike[str] | None = None) -> dict[st
         at = start + error.start
         line = data.count(b"\n", 0, at) + 1
         raise UnreadableFile(f"not UTF-8, at byte {at}", path=path, line=line) from None
-    if not text.strip(_JSON_WHITESPACE):
+    if _SKIP.fullmatch(text):
         raise UnreadableFile("empty file", path=path)
     try:
         content = json.loads(
