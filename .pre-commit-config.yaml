@@ -1,3 +1,6 @@
+# Vendored as published upstream (7 MB).
+exclude: ^tilia/ui/windows/score/web/verovio-toolkit-wasm\.js$
+
 repos:
   - repo: https://github.com/psf/black
     rev: 22.12.0
