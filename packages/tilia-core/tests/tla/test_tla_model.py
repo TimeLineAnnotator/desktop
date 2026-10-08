@@ -169,3 +169,11 @@ def test_file_changed():
         None,
     )
     assert "piece.tla" in str(error)
+
+
+def test_file_changed_given_a_path_as_text():
+    from pathlib import Path
+
+    error = FileChanged("corpus/piece.tla", expected="ab", found="cd")
+    assert error.path == Path("corpus") / "piece.tla"
+    assert "piece.tla" in str(error)

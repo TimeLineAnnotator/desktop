@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -17,13 +18,13 @@ class UnreadableFile(ValueError):
         self,
         message: str,
         *,
-        path: Path | None = None,
+        path: str | os.PathLike[str] | None = None,
         line: int | None = None,
         place: str | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
-        self.path = path
+        self.path = None if path is None else Path(path)
         self.line = line
         self.place = place
 
@@ -46,9 +47,11 @@ class FileChanged(Exception):
     missing or can't be read.
     """
 
-    def __init__(self, path: Path, expected: str | None, found: str | None) -> None:
-        super().__init__(path, expected, found)
-        self.path = path
+    def __init__(
+        self, path: str | os.PathLike[str], expected: str | None, found: str | None
+    ) -> None:
+        self.path = Path(path)
+        super().__init__(self.path, expected, found)
         self.expected = expected
         self.found = found
 

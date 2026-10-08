@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from json.decoder import scanstring
-from pathlib import Path
 from typing import Any
 
 from tilia_core.tla.errors import UnreadableFile
@@ -35,7 +35,7 @@ def _no_repeated_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def parse(data: bytes, *, path: Path | None = None) -> dict[str, Any]:
+def parse(data: bytes, *, path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
     """Parse a file's bytes, or raise `UnreadableFile` saying why they aren't a TiLiA file.
 
     One UTF-8 byte-order mark is skipped; CRLF reads like LF. Text is returned

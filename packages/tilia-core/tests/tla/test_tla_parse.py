@@ -61,6 +61,12 @@ def test_error_names_the_file():
     assert str(error) == "piece.tla, line 4: not valid JSON (Expecting ',' delimiter)"
 
 
+def test_error_names_a_file_given_as_text():
+    error = refusal(INVALID, "corpus/piece.tla")
+    assert error.path == Path("corpus") / "piece.tla"
+    assert str(error) == "piece.tla, line 4: not valid JSON (Expecting ',' delimiter)"
+
+
 def test_error_without_a_file():
     assert str(refusal(INVALID)) == "line 4: not valid JSON (Expecting ',' delimiter)"
 
