@@ -106,6 +106,22 @@ def test_repeated_key_anywhere(data, place, line):
     assert (error.place, error.line) == (place, line)
 
 
+def test_repeated_key_message_when_the_second_pass_finds_nothing(monkeypatch):
+    from tilia_core.tla import parse as module
+
+    monkeypatch.setattr(module, "_find_repeated_key", lambda text: (None, None, None))
+    error = refusal(REPEATED)
+    assert error.message == "a key appears twice in one object"
+    assert (error.place, error.line) == (None, None)
+
+
+@pytest.mark.parametrize("opening, closing", [(b"[", b"]"), (b'{"a":', b"}")])
+def test_nested_too_deeply(opening, closing):
+    deep = opening * 100_000 + b"1" + closing * 100_000
+    error = refusal(b'{"timelines": {}, "x": ' + deep + b"}")
+    assert error.message == "not valid JSON (nested too deeply)"
+
+
 def test_the_same_key_in_two_objects_is_fine():
     assert parse(b'{"timelines": {"a": {"name": 1}, "b": {"name": 2}}}')
 

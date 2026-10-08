@@ -1,4 +1,5 @@
 import copy
+import json
 import threading
 import time
 import unicodedata
@@ -116,6 +117,10 @@ class TestMigratedId:
     def test_non_integer_without_a_position_raises(self):
         with pytest.raises(ValueError):
             migrated_id(DOC, "component", "1", "a7")
+
+    def test_a_lone_surrogate_in_an_old_id(self):
+        value = migrated_id(DOC, "component", "1", chr(0xD83C), position=0)
+        assert time_field(value) == BASE_MS + 2**40
 
     def test_unknown_kind_raises(self):
         with pytest.raises(ValueError):
@@ -240,8 +245,6 @@ class TestDerivedDocumentId:
         assert derived_document_id(reordered) == derived_document_id(data)
 
     def test_unchanged_by_crlf_and_a_byte_order_mark(self):
-        import json
-
         text = json.dumps(old_file(), indent=2, ensure_ascii=False)
         lf = text.encode("utf-8")
         crlf_bom = b"\xef\xbb\xbf" + text.replace("\n", "\r\n").encode("utf-8")
@@ -259,6 +262,14 @@ class TestDerivedDocumentId:
     )
     def test_changed_by_an_edit(self, change):
         assert derived_document_id(edited(change)) != derived_document_id(old_file())
+
+    def test_a_lone_surrogate_gives_an_id(self):
+        # TiLiA saved a label cut inside an emoji as an escaped lone surrogate.
+        label = {"label": chr(0xD83C)}
+        data = parse(
+            json.dumps({"timelines": {"1": {"components": {"2": label}}}}).encode()
+        )
+        assert uuid.UUID(derived_document_id(data)).version == 8
 
     def test_leaves_its_argument_alone(self):
         data = old_file()

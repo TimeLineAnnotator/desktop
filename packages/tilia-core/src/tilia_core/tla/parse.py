@@ -45,16 +45,16 @@ def parse(data: bytes, *, path: Path | None = None) -> dict[str, Any]:
         content = json.loads(text, object_pairs_hook=_no_repeated_keys)
     except _RepeatedKey:
         key, place, line = _find_repeated_key(text)
+        named = "a key" if key is None else json.dumps(key, ensure_ascii=False)
         raise UnreadableFile(
-            f"{json.dumps(key, ensure_ascii=False)} appears twice in one object",
-            path=path,
-            line=line,
-            place=place,
+            f"{named} appears twice in one object", path=path, line=line, place=place
         ) from None
     except json.JSONDecodeError as error:
         raise UnreadableFile(
             f"not valid JSON ({error.msg})", path=path, line=error.lineno
         ) from None
+    except RecursionError:
+        raise UnreadableFile("not valid JSON (nested too deeply)", path=path) from None
     if not isinstance(content, dict) or "timelines" not in content:
         raise UnreadableFile("not a TiLiA file", path=path)
     return content
@@ -70,10 +70,7 @@ class _Found(Exception):
         self.key, self.path, self.position = key, path, position
 
 
-_scan_value = json.JSONDecoder().scan_once
-
-
-def _walk(text: str, position: int, path: list[str]) -> int:
+def _walk(text: str, position: int, path: list[str], scan_value: Any) -> int:
     """Skip the JSON value at `position`, raising `_Found` at a key repeated in one object."""
     position = _SKIP.match(text, position).end()
     if text[position] == "{":
@@ -88,7 +85,7 @@ def _walk(text: str, position: int, path: list[str]) -> int:
                 raise _Found(key, [*path, key], key_at)
             seen.add(key)
             position = _SKIP.match(text, position).end() + 1  # the colon
-            position = _walk(text, position, [*path, key])
+            position = _walk(text, position, [*path, key], scan_value)
             position = _SKIP.match(text, position).end()
             if text[position] == "}":
                 return position + 1
@@ -99,20 +96,20 @@ def _walk(text: str, position: int, path: list[str]) -> int:
         if text[position] == "]":
             return position + 1
         while True:
-            position = _walk(text, position, [*path, str(index)])
+            position = _walk(text, position, [*path, str(index)], scan_value)
             index += 1
             position = _SKIP.match(text, position).end()
             if text[position] == "]":
                 return position + 1
             position += 1  # the comma
-    _, end = _scan_value(text, position)
+    _, end = scan_value(text, position)
     return end
 
 
 def _find_repeated_key(text: str) -> tuple[str | None, str | None, int | None]:
     """The first key repeated in one object, its place and its line. Runs only on a refusal."""
     try:
-        _walk(text, 0, [])
+        _walk(text, 0, [], json.JSONDecoder().scan_once)
     except _Found as found:
         return found.key, pointer(found.path), text.count("\n", 0, found.position) + 1
     except (ValueError, IndexError, RecursionError, StopIteration):

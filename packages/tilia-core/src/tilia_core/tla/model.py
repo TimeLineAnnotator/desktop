@@ -132,9 +132,8 @@ class Timeline:
     measures: MeasureTable | None = None  # beat timelines only
     components: dict[str, Component] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
-    raw: dict[
-        str, Any
-    ] | None = None  # the whole object, for a kind the core doesn't know
+    # The whole object, for a kind the core doesn't know: kept and written back as it is.
+    raw: dict[str, Any] | None = None
 
 
 @dataclass(kw_only=True)

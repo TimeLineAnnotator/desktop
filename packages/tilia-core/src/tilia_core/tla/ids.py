@@ -99,7 +99,8 @@ def migrated_id(
             )
         offset = NON_INTEGER_OFFSET + position
     key = "\x1f".join([document_id, kind, *(str(old_id) for old_id in old_ids)])
-    bits = int.from_bytes(hashlib.sha256(key.encode("utf-8")).digest()[:10], "big")
+    digest = hashlib.sha256(key.encode("utf-8", "surrogatepass")).digest()
+    bits = int.from_bytes(digest[:10], "big")
     rand_a = bits >> (80 - _RAND_A_BITS)
     rand_b = bits & ((1 << _RAND_B_BITS) - 1)
     return _uuid(MIGRATED_BASE_MS + offset, 7, rand_a, rand_b)
@@ -124,11 +125,13 @@ def _without(data: Any, keys: tuple[str, ...]) -> Any:
 def derived_document_id(old: dict[str, Any]) -> str:
     """The document id of a file from an older TiLiA version, a version-8 UUID.
 
-    It comes from a SHA-256 of the file's content, in NFC, as sorted-key JSON,
-    leaving out what changes without an edit: `file_path`, `version`,
-    `app_name`, the stored hashes and the media length. So a moved file, a
-    file with other line endings and a file saved again without an edit keep
-    their id.
+    It comes from a SHA-256 of `old`, in NFC, as sorted-key JSON, leaving
+    out what changes without an edit: `file_path`, `version`, `app_name`, the
+    stored hashes and the media length. So a moved file, a file with other
+    line endings, and a file saved again without an edit by a TiLiA version
+    that writes the same keys keep their id. A version that renames or adds
+    keys changes it, unless the caller passes the content after the
+    migrations that bring every version to the same keys.
     """
     content = _without(old, ("file_path", "version", "app_name", "timelines_hash"))
     if "media_metadata" in content:
@@ -151,7 +154,10 @@ def derived_document_id(old: dict[str, Any]) -> str:
     text = json.dumps(
         _nfc(content), sort_keys=True, ensure_ascii=False, separators=(",", ":")
     )
-    value = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:16], "big")
+    # surrogatepass: a label cut inside an emoji is a lone surrogate, which
+    # TiLiA saved as an escape and json.loads accepts.
+    digest = hashlib.sha256(text.encode("utf-8", "surrogatepass")).digest()
+    value = int.from_bytes(digest[:16], "big")
     value = value & ~(0xF << 76) | 8 << 76
     value = value & ~(0b11 << 62) | 0b10 << 62
     return str(uuid.UUID(int=value))
