@@ -8,6 +8,7 @@ from tilia_core.tla import (
     Measure,
     Score,
     Timeline,
+    UnknownKind,
 )
 from tilia_core.tla.model import (
     component_kind_from_file,
@@ -64,16 +65,40 @@ def test_timeline_kinds_are_read_in_any_letter_case():
     assert timeline_kind_from_file("HIERARCHY") == "hierarchy"
 
 
-def test_unknown_kinds_keep_their_names():
-    assert timeline_kind_from_file("Lyrics") == "Lyrics"
-    assert timeline_kind_to_file("Lyrics") == "Lyrics"
-    assert component_kind_from_file("CHORD_SYMBOL") == "CHORD_SYMBOL"
-    assert component_kind_to_file("CHORD_SYMBOL") == "CHORD_SYMBOL"
+def test_an_unknown_timeline_kind_keeps_its_spelling():
+    assert timeline_kind_from_file("Lyrics") == UnknownKind("Lyrics")
+    assert timeline_kind_to_file(UnknownKind("Lyrics")) == "Lyrics"
 
 
-def test_component_kinds_are_read_exactly():
-    # As TiLiA 0.7 reads them: "Hierarchy" isn't a component kind.
-    assert component_kind_from_file("Hierarchy") == "Hierarchy"
+def test_an_unknown_component_kind_keeps_its_spelling():
+    assert component_kind_from_file("LCMA_FORM") == UnknownKind("LCMA_FORM")
+    assert component_kind_to_file(UnknownKind("LCMA_FORM")) == "LCMA_FORM"
+
+
+@pytest.mark.parametrize("in_file", ["marker", "Hierarchy", "Beat"])
+def test_component_kinds_are_read_exactly(in_file):
+    # As TiLiA 0.7 reads them: "marker" isn't a component kind, although it is
+    # the API's name for one, so it stays apart from markers and keeps its spelling.
+    kind = component_kind_from_file(in_file)
+    assert kind == UnknownKind(in_file)
+    assert kind != in_file.lower()
+    assert component_kind_to_file(kind) == in_file
+
+
+def test_an_unknown_kind_is_not_text():
+    assert UnknownKind("marker") != "marker"
+    assert isinstance(UnknownKind("marker"), UnknownKind)
+    assert {UnknownKind("a"), UnknownKind("a")} == {UnknownKind("a")}
+
+
+@pytest.mark.parametrize(
+    "to_file",
+    [timeline_kind_to_file, component_kind_to_file],
+    ids=["timeline", "component"],
+)
+def test_a_kind_given_as_text_must_be_known(to_file):
+    with pytest.raises(ValueError, match="UnknownKind"):
+        to_file("lyrics")
 
 
 def score(lines):

@@ -17,6 +17,7 @@ from tilia_core.tla.model import (
     ReadWarning,
     Score,
     Timeline,
+    UnknownKind,
 )
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "ReadWarning",
     "Score",
     "Timeline",
+    "UnknownKind",
     "UnreadableFile",
     "new_id",
 ]

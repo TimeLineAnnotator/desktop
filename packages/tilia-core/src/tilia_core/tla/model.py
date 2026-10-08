@@ -2,7 +2,7 @@
 
 The file's layout is described by the format's JSON Schema; this is what the
 reader hands out and the writer takes. Kinds are lower case here ("hierarchy"),
-whatever the file spells them.
+whatever the file spells them; a kind the core doesn't know is an `UnknownKind`.
 """
 
 from __future__ import annotations
@@ -50,24 +50,50 @@ _COMPONENT_KINDS_IN_FILE = {
 }
 
 
-def timeline_kind_from_file(spelling: str) -> str:
-    """The API's name for a timeline kind the file spells so; an unknown kind keeps its name."""
-    return _TIMELINE_KINDS_IN_FILE.get(spelling.lower(), spelling)
+@dataclass(frozen=True)
+class UnknownKind:
+    """A timeline or component kind the core doesn't know, as the file spells it.
+
+    It is never equal to a kind's name, so a component whose kind is spelled
+    "marker" (TiLiA reads component kinds exactly, and knows "MARKER") isn't
+    taken for a marker, and is written back as it was spelled.
+    """
+
+    spelling: str
 
 
-def timeline_kind_to_file(kind: str) -> str:
-    """The file's spelling of a timeline kind; an unknown kind keeps its name."""
-    return TIMELINE_KINDS.get(kind, kind)
+Kind = str | UnknownKind
 
 
-def component_kind_from_file(spelling: str) -> str:
-    """The API's name for a component kind the file spells so; an unknown kind keeps its name."""
-    return _COMPONENT_KINDS_IN_FILE.get(spelling, spelling)
+def timeline_kind_from_file(spelling: str) -> Kind:
+    """The API's name for a timeline kind the file spells so, in any letter case."""
+    return _TIMELINE_KINDS_IN_FILE.get(spelling.lower()) or UnknownKind(spelling)
 
 
-def component_kind_to_file(kind: str) -> str:
-    """The file's spelling of a component kind; an unknown kind keeps its name."""
-    return COMPONENT_KINDS.get(kind, kind)
+def timeline_kind_to_file(kind: Kind) -> str:
+    """The file's spelling of a timeline kind."""
+    return _to_file(kind, TIMELINE_KINDS, "timeline")
+
+
+def component_kind_from_file(spelling: str) -> Kind:
+    """The API's name for a component kind the file spells exactly so."""
+    return _COMPONENT_KINDS_IN_FILE.get(spelling) or UnknownKind(spelling)
+
+
+def component_kind_to_file(kind: Kind) -> str:
+    """The file's spelling of a component kind."""
+    return _to_file(kind, COMPONENT_KINDS, "component")
+
+
+def _to_file(kind: Kind, spellings: dict[str, str], what: str) -> str:
+    if isinstance(kind, UnknownKind):
+        return kind.spelling
+    if kind not in spellings:
+        raise ValueError(
+            f"{kind!r} isn't a {what} kind: give UnknownKind({kind!r}) for a kind"
+            " the core doesn't know"
+        )
+    return spellings[kind]
 
 
 @dataclass(frozen=True)
@@ -115,7 +141,7 @@ class MeasureTable:
 @dataclass(kw_only=True)
 class Component:
     id: str
-    kind: str
+    kind: Kind
     attrs: dict[str, Any] = field(default_factory=dict)
     metadata: Metadata = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
@@ -124,7 +150,7 @@ class Component:
 @dataclass(kw_only=True)
 class Timeline:
     id: str
-    kind: str
+    kind: Kind
     ordinal: int
     name: str = ""
     metadata: Metadata = field(default_factory=dict)
