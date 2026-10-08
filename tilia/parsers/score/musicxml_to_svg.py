@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from html import escape, unescape
 from pathlib import Path
 from re import sub
@@ -72,7 +73,9 @@ class musicxml_to_svg(QWebEngineView):
 
     def to_svg(self, data: str) -> None:
         def convert():
-            self.page().runJavaScript(f"loadSVG(`{data}`)")
+            # As a JSON string, so that nothing in the score ends the string
+            # or runs as code.
+            self.page().runJavaScript(f"loadSVG({json.dumps(data)})")
 
         if self.is_engine_loaded:
             convert()
