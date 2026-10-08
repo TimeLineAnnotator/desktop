@@ -284,6 +284,19 @@ class TestDerivedDocumentId:
         reordered = dict(reversed(list(data.items())))
         assert derived_document_id(reordered) == derived_document_id(data)
 
+    @pytest.mark.parametrize(
+        "place",
+        [("timelines", "1", "height"), ("timelines", "1", "components", "2", "start")],
+    )
+    @pytest.mark.parametrize(
+        "integer, number", [(10, 10.0), (0, -0.0), (10**20, 1e20)]
+    )
+    def test_numbers_by_value(self, place, integer, number):
+        def with_value(value):
+            return derived_document_id(edited(set_key(*place, value)))
+
+        assert with_value(integer) == with_value(number)
+
     def test_keys_that_nfc_would_merge_keep_both_values(self):
         decomposed, composed = "é", "é"
 

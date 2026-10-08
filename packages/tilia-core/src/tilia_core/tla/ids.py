@@ -122,14 +122,17 @@ def migrated_id(
     return _uuid(MIGRATED_BASE_MS + offset, 7, rand_a, rand_b)
 
 
-def _nfc(value: Any) -> Any:
+def _normal(value: Any) -> Any:
+    """`value` with its text in NFC, and its numbers by value: 10.0 as 10."""
     if isinstance(value, str):
         return unicodedata.normalize("NFC", value)
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
     if isinstance(value, dict):
         keys = _nfc_keys(list(value))
-        return dict(zip(keys, map(_nfc, value.values()), strict=True))
+        return dict(zip(keys, map(_normal, value.values()), strict=True))
     if isinstance(value, list):
-        return [_nfc(item) for item in value]
+        return [_normal(item) for item in value]
     return value
 
 
@@ -154,9 +157,9 @@ _SLICE = 1 << 16
 
 
 def _json_parts(value: Any, levels: int) -> Iterator[str]:
-    """`value` in NFC as sorted-key JSON, in parts: the outer `levels` of objects
+    """`value` made normal as sorted-key JSON, in parts: the outer `levels` of objects
     and arrays taken apart, and their text sliced. They join into the text
-    `json.dumps(_nfc(value), sort_keys=True, ...)` would give at once."""
+    `json.dumps(_normal(value), sort_keys=True, ...)` would give at once."""
     if isinstance(value, str):
         value = unicodedata.normalize("NFC", value)
         yield '"'
@@ -165,7 +168,7 @@ def _json_parts(value: Any, levels: int) -> Iterator[str]:
             yield _ENCODER.encode(value[start : start + _SLICE])[1:-1]
         yield '"'
     elif levels == 0 or not isinstance(value, (dict, list)):
-        yield _ENCODER.encode(_nfc(value))
+        yield _ENCODER.encode(_normal(value))
     elif isinstance(value, dict):
         pairs = zip(_nfc_keys(list(value)), value.values(), strict=True)
         yield "{"
@@ -191,13 +194,14 @@ def _without(data: Any, keys: tuple[str, ...]) -> Any:
 def derived_document_id(old: dict[str, Any]) -> str:
     """The document id of a file from an older TiLiA version, a version-8 UUID.
 
-    It comes from a SHA-256 of `old`, in NFC, as sorted-key JSON, leaving
-    out what changes without an edit: `file_path`, `version`, `app_name`, the
-    stored hashes and the media length. So a moved file, a file with other
-    line endings, and a file saved again without an edit by a TiLiA version
-    that writes the same keys keep their id. A version that renames or adds
-    keys changes it, unless the caller passes the content after the
-    migrations that bring every version to the same keys.
+    It comes from a SHA-256 of `old`, in NFC, with numbers by value (10.0 as
+    10), as sorted-key JSON, leaving out what changes without an edit:
+    `file_path`, `version`, `app_name`, the stored hashes and the media
+    length. So a moved file, a file with other line endings, and a file saved
+    again without an edit by a TiLiA version that writes the same keys keep
+    their id. A version that renames or adds keys changes it, unless the
+    caller passes the content after the migrations that bring every version
+    to the same keys.
     """
     content = _without(old, ("file_path", "version", "app_name", "timelines_hash"))
     if "media_metadata" in content:
