@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from html import escape, unescape
 from pathlib import Path
 from re import sub
@@ -34,6 +35,15 @@ class SvgWebEngineTracker(QObject):
     @Slot(str)
     def on_error(self, message: str) -> None:
         self.display_error(message)
+
+
+def load_svg_script(data: str) -> str:
+    """The script that hands MusicXML to OSMD's page.
+
+    The MusicXML goes in as a JSON string literal, so that nothing in the score
+    (a backtick, a `${...}`) can end the string or run as code.
+    """
+    return f"loadSVG({json.dumps(data)})"
 
 
 class musicxml_to_svg(QWebEngineView):
@@ -72,7 +82,7 @@ class musicxml_to_svg(QWebEngineView):
 
     def to_svg(self, data: str) -> None:
         def convert():
-            self.page().runJavaScript(f"loadSVG(`{data}`)")
+            self.page().runJavaScript(load_svg_script(data))
 
         if self.is_engine_loaded:
             convert()
