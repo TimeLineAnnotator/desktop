@@ -123,6 +123,8 @@ def test_score_text_joins_its_lines(lines, text):
         ("<mei>\r\n</mei>\r\n", ["<mei>", "</mei>", ""]),
         ("<mei>\n</mei>", ["<mei>", "</mei>"]),
         ("a\rb", ["a\rb"]),
+        ("a\r\r\nb\r\r\r\n", ["a", "b", ""]),
+        ("a\r", ["a\r"]),
         ('\t"x" \\ ü\n', ['\t"x" \\ ü', ""]),
         ("", [""]),
     ],
@@ -130,6 +132,15 @@ def test_score_text_joins_its_lines(lines, text):
 def test_setting_score_text_splits_it(text, lines):
     s = score([])
     s.text = text
+    assert s.lines == lines
+
+
+@pytest.mark.parametrize("text", ["a\r\r\nb", "a\rb\r\n", "a\r", "\r\n\r", ""])
+def test_setting_a_score_text_back_changes_nothing(text):
+    s = score([])
+    s.text = text
+    lines = list(s.lines)
+    s.text = s.text
     assert s.lines == lines
 
 

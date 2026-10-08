@@ -7,6 +7,7 @@ whatever the file spells them; a kind the core doesn't know is an `UnknownKind`.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -162,6 +163,9 @@ class Timeline:
     raw: dict[str, Any] | None = None
 
 
+_LINE_END = re.compile(r"\r+\n")
+
+
 @dataclass(kw_only=True)
 class Score:
     """A score stored in the file. Its content is kept as lines, without NFC."""
@@ -180,8 +184,10 @@ class Score:
 
     @text.setter
     def text(self, value: str) -> None:
-        # A final newline leaves a final empty line, so the text comes back as it was.
-        self.lines = value.replace("\r\n", "\n").split("\n")
+        # CRs before an LF go, so no line ends in CR, and setting the text back
+        # changes nothing; a lone CR stays in its line. A final newline leaves
+        # a final empty line, so the text comes back as it was.
+        self.lines = _LINE_END.sub("\n", value).split("\n")
 
 
 @dataclass(kw_only=True)
