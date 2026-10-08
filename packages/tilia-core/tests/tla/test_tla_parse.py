@@ -146,12 +146,25 @@ INT_DIGITS = getattr(sys, "get_int_max_str_digits", lambda: 0)()
 
 
 @pytest.mark.skipif(not INT_DIGITS, reason="this Python reads integers of any length")
-def test_a_number_too_long_to_read():
+def test_an_integer_too_long_to_read():
     number = b"1" * (INT_DIGITS + 1)
     error = refusal(b'{\n  "timelines": {},\n  "a": [1,\n' + number + b"]\n}\n")
-    assert error.message == "number too long to read"
+    assert error.message == "number too large to read"
     assert error.line == 4
     assert error.place is None
+
+
+@pytest.mark.parametrize("number", [b"1e999", b"-1E400", b"1" + b"0" * 400 + b".0"])
+def test_a_number_too_large_for_a_float(number):
+    # json.loads reads it as an infinity, which the writer can't write.
+    error = refusal(b'{\n  "timelines": {},\n  "a": [1.5,\n' + number + b"]\n}\n")
+    assert error.message == "number too large to read"
+    assert error.line == 4
+    assert error.place is None
+
+
+def test_the_largest_float_is_fine():
+    assert parse(b'{"timelines": {}, "a": 1.7976931348623157e308}')
 
 
 def nested(opening: bytes, closing: bytes, levels: int) -> bytes:
