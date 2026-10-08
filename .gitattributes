@@ -1,0 +1,4 @@
+# .tla files and the format's schema are written with LF on every system, and
+# their tests compare bytes: git must never convert their line endings.
+*.tla -text
+*.schema.json -text
