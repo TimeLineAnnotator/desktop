@@ -5,14 +5,12 @@ from __future__ import annotations
 import json
 import math
 import os
-import re
-from json.decoder import scanstring
+from json.decoder import WHITESPACE, scanstring
 from typing import Any
 
 from tilia_core.tla.errors import UnreadableFile
 
 _BOM = b"\xef\xbb\xbf"
-_SKIP = re.compile(r"[ \t\n\r]*")
 
 
 class _RepeatedKey(Exception):
@@ -56,7 +54,7 @@ def parse(data: bytes, *, path: str | os.PathLike[str] | None = None) -> dict[st
         at = start + error.start
         line = data.count(b"\n", 0, at) + 1
         raise UnreadableFile(f"not UTF-8, at byte {at}", path=path, line=line) from None
-    if _SKIP.fullmatch(text):
+    if WHITESPACE.fullmatch(text):
         raise UnreadableFile("empty file", path=path)
     try:
         content = json.loads(
@@ -133,10 +131,10 @@ def _walk(
 ) -> int:
     """Skip the JSON value at `position`, raising `_Found` at a key repeated in one
     object when `keys` is true, and at a value `scan_value` refuses."""
-    position = _SKIP.match(text, position).end()
+    position = WHITESPACE.match(text, position).end()
     if text[position] == "{":
         seen: set[str] = set()
-        position = _SKIP.match(text, position + 1).end()
+        position = WHITESPACE.match(text, position + 1).end()
         if text[position] == "}":
             return position + 1
         while True:
@@ -145,21 +143,21 @@ def _walk(
             if keys and key in seen:
                 raise _Found(key, [*path, key], key_at)
             seen.add(key)
-            position = _SKIP.match(text, position).end() + 1  # the colon
+            position = WHITESPACE.match(text, position).end() + 1  # the colon
             position = _walk(text, position, [*path, key], scan_value, keys)
-            position = _SKIP.match(text, position).end()
+            position = WHITESPACE.match(text, position).end()
             if text[position] == "}":
                 return position + 1
-            position = _SKIP.match(text, position + 1).end()  # the comma
+            position = WHITESPACE.match(text, position + 1).end()  # the comma
     if text[position] == "[":
         index = 0
-        position = _SKIP.match(text, position + 1).end()
+        position = WHITESPACE.match(text, position + 1).end()
         if text[position] == "]":
             return position + 1
         while True:
             position = _walk(text, position, [*path, str(index)], scan_value, keys)
             index += 1
-            position = _SKIP.match(text, position).end()
+            position = WHITESPACE.match(text, position).end()
             if text[position] == "]":
                 return position + 1
             position += 1  # the comma
