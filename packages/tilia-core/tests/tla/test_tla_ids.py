@@ -1,7 +1,9 @@
 import copy
+import hashlib
 import json
 import threading
 import time
+import tracemalloc
 import unicodedata
 import uuid
 
@@ -229,14 +231,25 @@ def remove_key(*path):
     return change
 
 
-def nfd(data):
+def normalized(data, form):
     if isinstance(data, str):
-        return unicodedata.normalize("NFD", data)
+        return unicodedata.normalize(form, data)
     if isinstance(data, dict):
-        return {nfd(key): nfd(value) for key, value in data.items()}
+        return {
+            normalized(key, form): normalized(value, form)
+            for key, value in data.items()
+        }
     if isinstance(data, list):
-        return [nfd(value) for value in data]
+        return [normalized(value, form) for value in data]
     return data
+
+
+def nfd(data):
+    return normalized(data, "NFD")
+
+
+def nfc(data):
+    return normalized(data, "NFC")
 
 
 class TestDerivedDocumentId:
@@ -315,6 +328,44 @@ class TestDerivedDocumentId:
         before = copy.deepcopy(data)
         derived_document_id(data)
         assert data == before
+
+    def test_is_the_sha256_of_one_sorted_json_text_in_nfc(self):
+        # However the content is taken apart to be hashed.
+        data = {
+            "timelines": {
+                "1": {
+                    "svg_data": "x" + "é" * 40_000 + '"\\\n\x00' + chr(0xD83C),
+                    "viewer_beat_x": [0.5, 1, None, True, [], {}, ""],
+                    "components": {
+                        "2": {"label": nfd("Exposição"), "deep": [[{"a": [1.25]}]]},
+                        "10": {},
+                    },
+                }
+            },
+            "media_metadata": {nfd("título"): "x"},
+            "z": [[[["deep"]]], "é" * 70_000],
+        }
+        text = json.dumps(
+            nfc(data), sort_keys=True, ensure_ascii=False, separators=(",", ":")
+        )
+        digest = hashlib.sha256(text.encode("utf-8", "surrogatepass")).digest()
+        version_and_variant = 0xF << 76 | 0b11 << 62
+        expected = int.from_bytes(digest[:16], "big") & ~version_and_variant
+        assert uuid.UUID(derived_document_id(data)).int & ~version_and_variant == (
+            expected
+        )
+
+    def test_hashes_long_text_in_slices(self):
+        # An old file holds its score's SVG, megabytes long.
+        svg = "<svg>" + "x" * 4_000_000 + "</svg>"
+        data = edited(set_key("timelines", "1", "svg_data", svg))
+        tracemalloc.start()
+        try:
+            derived_document_id(data)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        assert peak < len(svg) / 4
 
     def test_never_changes(self):
         # Files read before and after an update must get the same id.

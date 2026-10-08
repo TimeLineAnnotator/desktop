@@ -15,6 +15,8 @@ import time
 import unicodedata
 import uuid
 from collections import Counter
+from collections.abc import Iterator
+from operator import itemgetter
 from typing import Any
 
 ID_KINDS = ("timeline", "component", "score")
@@ -143,6 +145,43 @@ def _nfc_keys(keys: list[str]) -> list[str]:
     ]
 
 
+_ENCODER = json.JSONEncoder(sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+# The levels of objects and arrays that are hashed in parts: an old file's
+# document, its timelines, a timeline and its components. Text there is hashed
+# in slices, so that the hash never holds a copy of the file or of its scores.
+_TAKEN_APART = 4
+_SLICE = 1 << 16
+
+
+def _json_parts(value: Any, levels: int) -> Iterator[str]:
+    """`value` in NFC as sorted-key JSON, in parts: the outer `levels` of objects
+    and arrays taken apart, and their text sliced. They join into the text
+    `json.dumps(_nfc(value), sort_keys=True, ...)` would give at once."""
+    if isinstance(value, str):
+        value = unicodedata.normalize("NFC", value)
+        yield '"'
+        for start in range(0, len(value), _SLICE):
+            # Each character is escaped on its own, so slices escape as the whole.
+            yield _ENCODER.encode(value[start : start + _SLICE])[1:-1]
+        yield '"'
+    elif levels == 0 or not isinstance(value, (dict, list)):
+        yield _ENCODER.encode(_nfc(value))
+    elif isinstance(value, dict):
+        pairs = zip(_nfc_keys(list(value)), value.values(), strict=True)
+        yield "{"
+        for index, (key, item) in enumerate(sorted(pairs, key=itemgetter(0))):
+            yield ("," if index else "") + _ENCODER.encode(key) + ":"
+            yield from _json_parts(item, levels - 1)
+        yield "}"
+    else:
+        yield "["
+        for index, item in enumerate(value):
+            if index:
+                yield ","
+            yield from _json_parts(item, levels - 1)
+        yield "]"
+
+
 def _without(data: Any, keys: tuple[str, ...]) -> Any:
     if not isinstance(data, dict):
         return data
@@ -178,13 +217,12 @@ def derived_document_id(old: dict[str, Any]) -> str:
                     for component_id, component in timeline["components"].items()
                 }
             content["timelines"][timeline_id] = timeline
-    text = json.dumps(
-        _nfc(content), sort_keys=True, ensure_ascii=False, separators=(",", ":")
-    )
-    # surrogatepass: a label cut inside an emoji is a lone surrogate, which
-    # TiLiA saved as an escape and json.loads accepts.
-    digest = hashlib.sha256(text.encode("utf-8", "surrogatepass")).digest()
-    value = int.from_bytes(digest[:16], "big")
+    digest = hashlib.sha256()
+    for part in _json_parts(content, _TAKEN_APART):
+        # surrogatepass: a label cut inside an emoji is a lone surrogate, which
+        # TiLiA saved as an escape and json.loads accepts.
+        digest.update(part.encode("utf-8", "surrogatepass"))
+    value = int.from_bytes(digest.digest()[:16], "big")
     value = value & ~(0xF << 76) | 8 << 76
     value = value & ~(0b11 << 62) | 0b10 << 62
     return str(uuid.UUID(int=value))
