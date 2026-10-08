@@ -109,8 +109,10 @@ def migrated_id(
                 " old file, from 0 to 2**38 - 1"
             )
         offset = NON_INTEGER_OFFSET + position
-    key = "\x1f".join([document_id, kind, *(str(old_id) for old_id in old_ids)])
-    digest = hashlib.sha256(key.encode("utf-8", "surrogatepass")).digest()
+    # A JSON list, which no other list of strings gives, in ASCII: a lone
+    # surrogate is escaped.
+    key = json.dumps([document_id, kind, *(str(old_id) for old_id in old_ids)])
+    digest = hashlib.sha256(key.encode("ascii")).digest()
     bits = int.from_bytes(digest[:10], "big")
     rand_a = bits >> (80 - _RAND_A_BITS)
     rand_b = bits & ((1 << _RAND_B_BITS) - 1)

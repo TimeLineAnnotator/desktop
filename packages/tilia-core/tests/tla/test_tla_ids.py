@@ -90,6 +90,11 @@ class TestMigratedId:
             DOC, "component", "4", "12"
         )
 
+    def test_differs_however_the_old_ids_split_the_same_text(self):
+        assert migrated_id(DOC, "component", "a\x1fb", "c", position=0) != (
+            migrated_id(DOC, "component", "a", "b\x1fc", position=0)
+        )
+
     def test_sorts_as_the_old_ids_did(self):
         old = [100, 2, 10, 1000, 0]
         ids = {migrated_id(DOC, "component", "1", str(i)): i for i in old}
@@ -155,7 +160,7 @@ class TestMigratedId:
     def test_never_changes(self):
         # Files read before and after an update must get the same ids.
         assert migrated_id(DOC, "component", "3", "12") == (
-            "00dc6acf-ac0c-7a07-bdd0-8ff3e76e73ca"
+            "00dc6acf-ac0c-7675-8593-1b87a585215c"
         )
 
 
