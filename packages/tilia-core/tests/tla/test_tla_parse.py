@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import pytest
@@ -132,6 +133,19 @@ def test_nan_after_a_repeated_key_in_an_open_object():
 
 def test_nan_as_text_is_fine():
     assert parse(b'{"timelines": {}, "a": "NaN"}')["a"] == "NaN"
+
+
+# Python 3.10.7 and later read no integer longer than this, unless told to.
+INT_DIGITS = getattr(sys, "get_int_max_str_digits", lambda: 0)()
+
+
+@pytest.mark.skipif(not INT_DIGITS, reason="this Python reads integers of any length")
+def test_a_number_too_long_to_read():
+    number = b"1" * (INT_DIGITS + 1)
+    error = refusal(b'{\n  "timelines": {},\n  "a": [1,\n' + number + b"]\n}\n")
+    assert error.message == "number too long to read"
+    assert error.line == 4
+    assert error.place is None
 
 
 def nested(opening: bytes, closing: bytes, levels: int) -> bytes:

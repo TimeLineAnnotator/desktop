@@ -70,6 +70,10 @@ def parse(data: bytes, *, path: Path | None = None) -> dict[str, Any]:
         raise UnreadableFile(
             "not valid JSON (Expecting value)", path=path, line=line
         ) from None
+    except ValueError:
+        # An integer longer than Python reads (4300 digits since Python 3.10.7).
+        _, _, line = _find(text, keys=False)
+        raise UnreadableFile("number too long to read", path=path, line=line) from None
     except RecursionError:
         # Where the parser runs out of stack first, which depends on the system.
         raise UnreadableFile(_TOO_DEEP, path=path) from None
@@ -146,7 +150,9 @@ def _walk(
             position += 1  # the comma
     try:
         _, end = scan_value(text, position)
-    except _Constant:
+    except (_Constant, ValueError):
+        if keys:
+            raise
         raise _Found(None, path, position) from None
     return end
 
