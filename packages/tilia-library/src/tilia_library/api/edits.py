@@ -33,6 +33,7 @@ def register(
     liveness: Liveness,
     previews: Previews,
     skip_files: Callable[[str], set[Path]] = lambda cid: set(),
+    on_written: Callable[[str, list[str], str], None] | None = None,
 ) -> None:
     """Add the bulk edit routes to the server."""
     apply_lock = threading.Lock()  # one apply at a time, so a preview is written once
@@ -113,6 +114,8 @@ def register(
         result = server.backend.apply(handle, fresh, set(only), skip_files(cid))
         previews.discard(preview.id)
         liveness.poke(cid)
+        if on_written is not None:
+            on_written(cid, list(result["written"]), result["entry"])
         return json_response(result)
 
     router = server.router
