@@ -188,14 +188,10 @@ def notes_from_musicXML(
             for staff_no in metric_pos_to_attr:
                 for attr_type in attr_types:
                     measure_nums = list(metric_pos_to_attr[staff_no][attr_type].keys())
-                    if not measure_nums:
-                        # The file has none, such as no key signature.
-                        continue
                     current_mp_index = bisect(measure_nums, measure)
                     if current_mp_index == 0:
-                        errors.append(
-                            f"Cannot create {attr_type} for measure {measure}. {measure} is smaller than the smallest measure found in the provided file {measure_nums[0]}."
-                        )
+                        # The file gives none up to this measure, or none at
+                        # all, such as no key signature.
                         continue
                     if measure_nums[current_mp_index - 1] == measure:
                         continue
@@ -217,7 +213,7 @@ def notes_from_musicXML(
 
                     to_create[staff_no][attr_type] = measure_nums[current_mp_index - 1]
 
-            if not to_create:
+            if not any(to_create.values()):
                 return
 
             times = beat_tl.get_time_by_measure(measure // 1, measure % 1)
@@ -263,6 +259,9 @@ def notes_from_musicXML(
                     )
                     component_kind = ComponentKind.KEY_SIGNATURE
                 case "time":
+                    if attribute.find("beats") is None:
+                        # <senza-misura/>: no time signature.
+                        continue
                     ts_numerator = int(attribute.find("beats").text)
                     ts_denominator = int(attribute.find("beat-type").text)
                     constructor_kwargs = {
@@ -277,6 +276,9 @@ def notes_from_musicXML(
                     component_kind = ComponentKind.TIME_SIGNATURE
                 case "clef":
                     sign = attribute.find("sign").text
+                    if sign == "none":
+                        # No clef: the staff is shown as if in treble clef.
+                        continue
                     if sign not in {"C", "F", "G"}:
                         errors.append(f"<{attribute.tag}> - {sign} not implemented")
                         continue
