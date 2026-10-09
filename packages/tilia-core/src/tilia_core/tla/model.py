@@ -207,6 +207,7 @@ class Document:
     time_unit: str = "seconds"
     media_path: str = ""
     media_length: float | None = None
+    media_extra: dict[str, Any] = field(default_factory=dict)  # unknown keys in media
     metadata: Metadata = field(default_factory=dict)
     timelines: dict[str, Timeline] = field(default_factory=dict)
     scores: dict[str, Score] = field(default_factory=dict)
