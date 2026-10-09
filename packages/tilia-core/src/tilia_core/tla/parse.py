@@ -17,20 +17,24 @@ class _RepeatedKey(Exception):
     pass
 
 
-class _NotFinite(Exception):
+class _Constant(Exception):
+    pass
+
+
+class _TooLarge(Exception):
     pass
 
 
 def _refuse_constant(name: str) -> Any:
     # NaN, Infinity and -Infinity: json.loads accepts them, but they aren't JSON.
-    raise _NotFinite
+    raise _Constant
 
 
 def _finite_float(text: str) -> float:
     # A number like 1e999, which json.loads reads as an infinity.
     value = float(text)
     if not math.isfinite(value):
-        raise _NotFinite
+        raise _TooLarge
     return value
 
 
@@ -60,35 +64,13 @@ def parse(data: bytes, *, path: str | os.PathLike[str] | None = None) -> dict[st
         content = json.loads(
             text, object_pairs_hook=_no_repeated_keys, parse_constant=_refuse_constant
         )
-    except _RepeatedKey:
-        key, place, line = _find(text, keys=True)
-        named = "a key" if key is None else json.dumps(key, ensure_ascii=False)
-        raise UnreadableFile(
-            f"{named} appears twice in one object", path=path, line=line, place=place
-        ) from None
-    except json.JSONDecodeError as error:
-        raise UnreadableFile(
-            f"not valid JSON ({error.msg})", path=path, line=error.lineno
-        ) from None
-    except _NotFinite:
-        # What a strict JSON parser says there.
-        _, _, line = _find(text, keys=False)
-        raise UnreadableFile(
-            "not valid JSON (Expecting value)", path=path, line=line
-        ) from None
-    except ValueError:
-        # An integer longer than Python reads (4300 digits since Python 3.10.7).
-        _, _, line = _find(text, keys=False)
-        raise UnreadableFile(_TOO_LARGE, path=path, line=line) from None
-    except RecursionError:
-        # Where the parser runs out of stack first, which depends on the system.
-        raise UnreadableFile(_TOO_DEEP, path=path) from None
+    except (_RepeatedKey, _Constant, ValueError, RecursionError) as error:
+        raise _refusal(text, error, path) from None
     if not isinstance(content, dict) or "timelines" not in content:
         raise UnreadableFile("not a TiLiA file", path=path)
     problem = _first_problem(content, MAX_DEPTH)
     if problem is not None:
-        line = None if problem == _TOO_DEEP else _find(text, keys=False)[2]
-        raise UnreadableFile(problem, path=path, line=line)
+        raise _refusal(text, problem, path)
     return content
 
 
@@ -97,6 +79,8 @@ def parse(data: bytes, *, path: str | os.PathLike[str] | None = None) -> dict[st
 MAX_DEPTH = 100
 _TOO_DEEP = f"nested more than {MAX_DEPTH} levels deep"
 _TOO_LARGE = "number too large to read"
+# What a strict JSON parser says at NaN or Infinity.
+_NOT_A_VALUE = "not valid JSON (Expecting value)"
 
 
 def _first_problem(content: Any, limit: int) -> str | None:
@@ -116,22 +100,54 @@ def _first_problem(content: Any, limit: int) -> str | None:
     return None
 
 
+def _refusal(
+    text: str, error: Exception | str, path: str | os.PathLike[str] | None
+) -> UnreadableFile:
+    """Why the text is refused: the first problem in it, so that a file gives the
+    same message on every Python version, whose parsers run out of stack at
+    different depths. `error` is what json.loads raised, or what it let through."""
+    found = _find(text)
+    if found is not None and (
+        not isinstance(error, json.JSONDecodeError) or found.position < error.pos
+    ):
+        line = text.count("\n", 0, found.position) + 1
+        place = None if found.key is None else pointer(found.path)
+        return UnreadableFile(found.message, path=path, line=line, place=place)
+    # The walk found nothing before the text stops being JSON.
+    if isinstance(error, json.JSONDecodeError):
+        message = f"not valid JSON ({error.msg})"
+        return UnreadableFile(message, path=path, line=error.lineno)
+    if isinstance(error, _RepeatedKey):
+        return UnreadableFile("a key appears twice in one object", path=path)
+    if isinstance(error, _Constant):
+        return UnreadableFile(_NOT_A_VALUE, path=path)
+    if isinstance(error, RecursionError):
+        return UnreadableFile(_TOO_DEEP, path=path)
+    if isinstance(error, ValueError):
+        # An integer longer than Python reads (4300 digits since Python 3.10.7).
+        return UnreadableFile(_TOO_LARGE, path=path)
+    return UnreadableFile(str(error), path=path)
+
+
 def pointer(path: list[str]) -> str:
     """A JSON Pointer (RFC 6901) to the place `path` names."""
     return "".join("/" + step.replace("~", "~0").replace("/", "~1") for step in path)
 
 
 class _Found(Exception):
-    def __init__(self, key: str | None, path: list[str], position: int) -> None:
-        self.key, self.path, self.position = key, path, position
+    def __init__(
+        self, message: str, path: list[str], position: int, key: str | None = None
+    ) -> None:
+        self.message, self.path, self.position, self.key = message, path, position, key
 
 
-def _walk(
-    text: str, position: int, path: list[str], scan_value: Any, keys: bool
-) -> int:
-    """Skip the JSON value at `position`, raising `_Found` at a key repeated in one
-    object when `keys` is true, and at a value `scan_value` refuses."""
+def _walk(text: str, position: int, path: list[str], scan_value: Any) -> int:
+    """Skip the JSON value at `position`, raising `_Found` at the first problem:
+    an object or array nested deeper than MAX_DEPTH, a key repeated in one object,
+    or a value `scan_value` refuses."""
     position = WHITESPACE.match(text, position).end()
+    if text[position] in "{[" and len(path) == MAX_DEPTH:
+        raise _Found(_TOO_DEEP, path, position)
     if text[position] == "{":
         seen: set[str] = set()
         position = WHITESPACE.match(text, position + 1).end()
@@ -140,11 +156,13 @@ def _walk(
         while True:
             key_at = position
             key, position = scanstring(text, position + 1)
-            if keys and key in seen:
-                raise _Found(key, [*path, key], key_at)
+            if key in seen:
+                named = json.dumps(key, ensure_ascii=False)
+                message = f"{named} appears twice in one object"
+                raise _Found(message, [*path, key], key_at, key)
             seen.add(key)
             position = WHITESPACE.match(text, position).end() + 1  # the colon
-            position = _walk(text, position, [*path, key], scan_value, keys)
+            position = _walk(text, position, [*path, key], scan_value)
             position = WHITESPACE.match(text, position).end()
             if text[position] == "}":
                 return position + 1
@@ -155,7 +173,7 @@ def _walk(
         if text[position] == "]":
             return position + 1
         while True:
-            position = _walk(text, position, [*path, str(index)], scan_value, keys)
+            position = _walk(text, position, [*path, str(index)], scan_value)
             index += 1
             position = WHITESPACE.match(text, position).end()
             if text[position] == "]":
@@ -163,28 +181,25 @@ def _walk(
             position += 1  # the comma
     try:
         _, end = scan_value(text, position)
-    except (_NotFinite, ValueError):
-        if keys:
-            raise
-        raise _Found(None, path, position) from None
+    except json.JSONDecodeError:
+        raise  # where the text stops being JSON
+    except _Constant:
+        raise _Found(_NOT_A_VALUE, path, position) from None
+    except (_TooLarge, ValueError):
+        raise _Found(_TOO_LARGE, path, position) from None
     return end
 
 
-def _find(text: str, *, keys: bool) -> tuple[str | None, str | None, int | None]:
-    """Where json.loads stopped, found again: the first key repeated in one object
-    when `keys` is true, else the first value the reader refuses. Gives the key, the
-    place and the line. Runs only on a refusal."""
-    decoder = (
-        json.JSONDecoder()
-        if keys
-        else json.JSONDecoder(
-            parse_constant=_refuse_constant, parse_float=_finite_float
-        )
+def _find(text: str) -> _Found | None:
+    """The first problem in the text, found by walking it as json.loads reads it,
+    or None when the text stops being JSON first. Runs only on a refusal."""
+    decoder = json.JSONDecoder(
+        parse_constant=_refuse_constant, parse_float=_finite_float
     )
     try:
-        _walk(text, 0, [], decoder.scan_once, keys)
+        _walk(text, 0, [], decoder.scan_once)
     except _Found as found:
-        return found.key, pointer(found.path), text.count("\n", 0, found.position) + 1
+        return found
     except (ValueError, IndexError, RecursionError, StopIteration):
         pass
-    return None, None, None
+    return None

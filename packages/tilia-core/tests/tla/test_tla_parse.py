@@ -124,7 +124,7 @@ def test_repeated_key_anywhere(data, place, line):
 def test_repeated_key_message_when_the_second_pass_finds_nothing(monkeypatch):
     from tilia_core.tla import parse as module
 
-    monkeypatch.setattr(module, "_find", lambda text, keys: (None, None, None))
+    monkeypatch.setattr(module, "_find", lambda text: None)
     error = refusal(REPEATED)
     assert error.message == "a key appears twice in one object"
     assert (error.place, error.line) == (None, None)
@@ -138,11 +138,12 @@ def test_nan_and_infinity_are_not_json(constant):
     assert error.place is None
 
 
-def test_nan_after_a_repeated_key_in_an_open_object():
-    # json.loads meets the NaN before it closes the object with the repeated key.
+def test_the_first_problem_in_the_file_is_reported():
+    # json.loads meets the NaN before it closes the object with the repeated key,
+    # but the key comes first in the file.
     error = refusal(b'{"timelines": {}, "a": 1, "a": 2,\n"b": NaN}')
-    assert error.message == "not valid JSON (Expecting value)"
-    assert error.line == 2
+    assert error.message == '"a" appears twice in one object'
+    assert (error.place, error.line) == ("/a", 1)
 
 
 def test_nan_as_text_is_fine():
@@ -175,6 +176,13 @@ def test_the_largest_float_is_fine():
     assert parse(b'{"timelines": {}, "a": 1.7976931348623157e308}')
 
 
+def test_a_message_and_its_line_name_the_same_problem():
+    # json.loads stops at the NaN, as it reads 1e999 as an infinity, but 1e999
+    # is the first problem in the file.
+    error = refusal(b'{"timelines": {}, "a": 1e999,\n"b": NaN}')
+    assert (error.message, error.line) == ("number too large to read", 1)
+
+
 def nested(opening: bytes, closing: bytes, levels: int) -> bytes:
     # The top level counts as one.
     inner = opening * levels + b"1" + closing * levels
@@ -190,6 +198,25 @@ def test_nested_too_deeply(opening, closing, levels):
     # 100,000 levels: some systems' parsers run out of stack, others don't.
     error = refusal(nested(opening, closing, levels))
     assert error.message == "nested more than 100 levels deep"
+
+
+@pytest.mark.parametrize(
+    "after", [b', "y": NaN}', b', "y": 1e999}', b', "x": 2}', b', "y": }']
+)
+@pytest.mark.parametrize("opening, closing", BRACKETS)
+def test_nested_too_deeply_before_another_problem(opening, closing, after):
+    # Whether json.loads runs out of stack at 2000 levels, before it meets the
+    # NaN, the repeated key or the error, depends on the Python version. The
+    # first problem in the file is the depth, on every one.
+    data = nested(opening, closing, 2000)[:-1] + after
+    assert refusal(data).message == "nested more than 100 levels deep"
+
+
+def test_nan_before_a_file_nested_too_deeply():
+    deep = nested(b"[", b"]", 2000)
+    error = refusal(b'{"timelines": {}, "y": NaN,\n' + deep[1:])
+    assert error.message == "not valid JSON (Expecting value)"
+    assert error.line == 1
 
 
 @pytest.mark.parametrize("opening, closing", BRACKETS)
