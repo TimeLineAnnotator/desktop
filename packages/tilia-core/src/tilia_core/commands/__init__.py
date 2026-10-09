@@ -11,6 +11,9 @@ function that takes no arguments and reads `sys.argv`, like a console script.
 When the subcommand runs, `sys.argv` is `[<script path>, *<arguments after the
 subcommand>]`, so the function sees the same arguments as if it had been
 started on its own. Its return value is the exit code (`None` means 0).
+
+tilia-core's own subcommands are modules in this package, such as
+`tilia_core.commands.migrate`, registered in the same group.
 """
 
 import shlex

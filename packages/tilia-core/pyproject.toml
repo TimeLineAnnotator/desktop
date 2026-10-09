@@ -17,7 +17,7 @@ authors = [
 ]
 
 [project.scripts]
-tilia = "tilia_core.command:main"
+tilia = "tilia_core.commands:main"
 
 [project.urls]
 Homepage = "https://tilia-app.com"
