@@ -597,3 +597,26 @@ def test_attribute_first_given_after_the_first_measure(
     assert errors == []
     components = _get_components_by_kind(score_tl, ATTRIBUTE_KINDS[attribute])
     assert [c.get_data("time") for c in components] == [4]
+
+
+def test_octave_clef(score_tl, beat_tl, tmp_path):
+    # A treble-8vb clef, as for tenor voice or guitar.
+    beat_tl.beat_pattern = [4]
+    for i in range(5):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+    clef = (
+        "<clef><sign>G</sign><line>2</line>"
+        "<clef-octave-change>-1</clef-octave-change></clef>"
+    )
+
+    _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(_measure(_attributes_without("clef") + clef)),
+        tmp_path,
+    )
+
+    (clef,) = _get_components_by_kind(score_tl, ComponentKind.CLEF)
+    assert clef.shorthand() == Clef.Shorthand.TREBLE_8VB
+    assert clef.icon == "clef-treble-8vb"
