@@ -55,6 +55,11 @@ class ScoreTimelineUI(TimelineUI):
     CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
 
     STAFF_MIN_HEIGHT = 150
+    # A staff with no clef TiLiA can read (none in the file, or a percussion,
+    # none or TAB clef) places its notes as in treble clef, as MuseScore,
+    # Verovio and OSMD do, and draws no clef: G (step 4) in octave 4, on the
+    # line below the middle one, as in Clef.from_shorthand.
+    TREBLE_CLEF_POSITION = (4, 4, -1)
     SYMBOLS_ABOVE_STAFF_MAX_HEIGHT = 50
 
     def __init__(self, *args, **kwargs):
@@ -294,6 +299,18 @@ class ScoreTimelineUI(TimelineUI):
             cache[idx][(start_time, get(Get.MEDIA_DURATION))] = clefs_in_staff[-1]
         return cache
 
+    def get_clef_position(self, time: float, staff_index: int) -> tuple[int, int, int]:
+        """The step, octave and line number of the clef at `time` on a staff,
+        or a treble clef's if the staff has none."""
+        clef = self.get_clef_by_time(time, staff_index)
+        if not clef:
+            return self.TREBLE_CLEF_POSITION
+        return (
+            clef.get_data("step"),
+            clef.get_data("octave"),
+            clef.get_data("line_number"),
+        )
+
     def get_clef_by_time(self, time: float, staff_index: int) -> ClefUI | None:
         if staff_index not in self.clef_time_cache:
             return None
@@ -377,11 +394,10 @@ class ScoreTimelineUI(TimelineUI):
         if not staff:
             return None
 
-        clef = self.get_clef_by_time(time, staff_index)
         line_count = staff.get_data("line_count")
-        clef_step = clef.get_data("step")
-        clef_octave = clef.get_data("octave")
-        clef_line_number = clef.get_data("line_number")
+        clef_step, clef_octave, clef_line_number = self.get_clef_position(
+            time, staff_index
+        )
 
         upper_line_number = math.floor(line_count / 2)
         upper_step_diff = (upper_line_number - clef_line_number) * 2

@@ -435,3 +435,63 @@ class TestClear:
         assert len(score_tlui.timeline) == 0
         assert score_tlui.get_data("svg_data") == ""
         assert score_tlui.svg_view is None
+
+
+def _score_with_clef(clef: str, pitch_tag: str = "pitch") -> str:
+    def note(step: str, octave: int) -> str:
+        prefix = "" if pitch_tag == "pitch" else "display-"
+        return (
+            f"<note><{pitch_tag}><{prefix}step>{step}</{prefix}step>"
+            f"<{prefix}octave>{octave}</{prefix}octave></{pitch_tag}>"
+            "<duration>2</duration><type>half</type></note>"
+        )
+
+    return f"""<score-partwise version="4.0">
+    <part-list><score-part id="P1"><part-name>P</part-name></score-part></part-list>
+    <part id="P1"><measure number="1">
+        <attributes>
+            <divisions>1</divisions>
+            <key><fifths>0</fifths></key>
+            <time><beats>4</beats><beat-type>4</beat-type></time>
+            {clef}
+        </attributes>
+        {note("G", 4)}{note("C", 4)}
+    </measure></part>
+    </score-partwise>
+    """
+
+
+def _import_score_text(text: str, tmp_path) -> None:
+    path = tmp_path / "score.musicxml"
+    path.write_text(text, encoding="utf-8")
+    with patch_file_dialog(True, [str(path)]), patch_yes_or_no_dialog(True):
+        commands.execute("timelines.import.score")
+
+
+def _note_tops(score_tlui) -> list[float]:
+    notes = score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.NOTE)
+    return [score_tlui.get_element(note.id).top_y for note in sorted(notes)]
+
+
+@pytest.mark.parametrize(
+    "clef, pitch_tag",
+    [("", "pitch"), ("<clef><sign>percussion</sign></clef>", "unpitched")],
+    ids=["no clef", "percussion clef"],
+)
+def test_notes_without_usable_clef_are_placed_as_in_treble_clef(
+    clef, pitch_tag, qtui, score_tlui, beat_tlui, beat_tl, tmp_path
+):
+    # As MuseScore, Verovio and OSMD do. No clef is drawn: the score has none
+    # TiLiA can show.
+    beat_tl.beat_pattern = [4]
+    for time in range(5):
+        beat_tl.create_beat(time)
+    beat_tl.recalculate_measures()
+    treble = "<clef><sign>G</sign><line>2</line></clef>"
+    _import_score_text(_score_with_clef(treble, pitch_tag), tmp_path)
+    tops_in_treble = _note_tops(score_tlui)
+
+    _import_score_text(_score_with_clef(clef, pitch_tag), tmp_path)
+
+    assert _note_tops(score_tlui) == tops_in_treble
+    assert not score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.CLEF)
