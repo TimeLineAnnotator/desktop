@@ -1,14 +1,14 @@
-TiLiA's score viewer uses Verovio 6.1.0, by Laurent Pugin and others
+TiLiA's score viewer uses Verovio 6.3.0, by Laurent Pugin and others
 (https://www.verovio.org).
 
 verovio-toolkit-wasm.js, in this folder, is Verovio's JavaScript toolkit,
-unmodified from the npm package verovio@6.1.0
-(https://www.npmjs.com/package/verovio/v/6.1.0, dist/verovio-toolkit-wasm.js).
+unmodified from the npm package verovio@6.3.0
+(https://www.npmjs.com/package/verovio/v/6.3.0, dist/verovio-toolkit-wasm.js).
 
 Verovio is free software, licensed under the GNU Lesser General Public License,
 version 3 or later: LGPL-3.0.txt, in this folder, which adds to the GNU General
 Public License, version 3, in TiLiA's LICENSE. The source code of this version
-is at https://github.com/rism-digital/verovio/tree/version-6.1.0.
+is at https://github.com/rism-digital/verovio/tree/version-6.3.0.
 
 The toolkit includes the music fonts Leipzig, Bravura, Gootville, Petaluma and
 Leland, and the text font Liberation, which are licensed under the SIL Open Font
