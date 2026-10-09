@@ -1,4 +1,8 @@
-"""Each measure's meter, from the beat units set on its beats, with desktop#621's rules."""
+"""Each measure's meter, from the beat units set on its beats.
+
+The rules are those of desktop#621 (beat units and time signatures): its
+`BeatTimeline._compute_measure_meters`, moved, with `units.py` beside it.
+"""
 
 from __future__ import annotations
 
@@ -24,16 +28,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class _BeatUnit:
-    """A beat unit as desktop#621's component holds it, with its beat's id as its id."""
+    """A beat unit as desktop#621's component holds it, with its beat's id as its id.
+
+    Its units are parsed once, when they are checked.
+    """
 
     id: str
     denominator: int
-    units: str
+    unit_values: tuple[Fraction, ...]
     assumed: bool
-
-    @property
-    def unit_values(self) -> list[Fraction]:
-        return parse_units(self.units).units
 
 
 def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
@@ -59,9 +62,9 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
             governing = in_measure[0]
 
         if governing is None:
-            denominator, units = DEFAULT_DENOMINATOR, default_units
+            denominator, units = DEFAULT_DENOMINATOR, list(default_units)
         else:
-            denominator, units = governing.denominator, governing.unit_values
+            denominator, units = governing.denominator, list(governing.unit_values)
 
         meters.append(
             MeasureMeter(
@@ -81,9 +84,10 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
 def _readable(beat_id: str, unit: tla.BeatUnit) -> _BeatUnit | None:
     # desktop#621 refuses to create such a unit, and so drops it from a file
     # it loads: the unit before carries on.
+    parsed = parse_units(unit.units) if isinstance(unit.units, str) else None
     if (
-        not isinstance(unit.units, str)
-        or not parse_units(unit.units).is_valid
+        parsed is None
+        or not parsed.is_valid
         or not validate_denominator(unit.denominator)
     ):
         logger.warning(
@@ -96,6 +100,6 @@ def _readable(beat_id: str, unit: tla.BeatUnit) -> _BeatUnit | None:
     return _BeatUnit(
         id=beat_id,
         denominator=unit.denominator,
-        units=unit.units,
+        unit_values=tuple(parsed.units),
         assumed=unit.assumed,
     )
