@@ -169,6 +169,8 @@ class FixtureBackend:
         return self._get("edit_log")
 
     def undo(self, corpus: object, entry: str, skip_files: set[Path]) -> dict:
+        if entry not in {e["entry"] for e in self._get("edit_log")}:
+            raise KeyError(entry)
         return self._get("undo")
 
     def media_of(self, corpus: object, file_id: str) -> dict:
