@@ -28,6 +28,13 @@ def test_strips_one_byte_order_mark():
     assert parse(BOM + MINIMAL) == {"timelines": {}}
 
 
+def test_refuses_a_second_byte_order_mark():
+    # Only one is skipped: a second is text before the JSON.
+    error = refusal(BOM + BOM + MINIMAL)
+    assert error.message.startswith("not valid JSON")
+    assert error.line == 1
+
+
 def test_reads_crlf_like_lf():
     assert parse(crlf(MINIMAL)) == {"timelines": {}}
 
@@ -261,9 +268,11 @@ def test_not_a_tilia_file(data):
     assert refusal(data).message == "not a TiLiA file"
 
 
+@pytest.mark.parametrize("ends", [lambda data: data, crlf], ids=["lf", "crlf"])
 @pytest.mark.parametrize("prefix", [b"", BOM])
-def test_invalid_utf8_gives_its_byte_and_line(prefix):
-    data = prefix + b'{\n  "timelines": {},\n  "name": "\xff"\n}\n'
+def test_invalid_utf8_gives_its_byte_and_line(prefix, ends):
+    # A CRLF counts as one line end.
+    data = ends(prefix + b'{\n  "timelines": {},\n  "name": "\xff"\n}\n')
     offset = data.index(b"\xff")
     error = refusal(data)
     assert error.message == f"not UTF-8, at byte {offset}"
