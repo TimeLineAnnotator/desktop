@@ -486,44 +486,114 @@ SCORE_ATTRIBUTES = {
     "time": "<time><beats>4</beats><beat-type>4</beat-type></time>",
     "clef": "<clef><sign>G</sign><line>2</line></clef>",
 }
+ATTRIBUTE_KINDS = {
+    "key": ComponentKind.KEY_SIGNATURE,
+    "time": ComponentKind.TIME_SIGNATURE,
+    "clef": ComponentKind.CLEF,
+}
 
 
-@pytest.mark.parametrize(
-    "missing, kind",
-    [
-        ("key", ComponentKind.KEY_SIGNATURE),
-        ("time", ComponentKind.TIME_SIGNATURE),
-        ("clef", ComponentKind.CLEF),
-    ],
-)
-def test_score_without_an_attribute(missing, kind, score_tl, beat_tl, tmp_path):
-    # Scores often have no key signature (atonal music, percussion), and
-    # some have no time signature or clef.
-    attributes = "".join(v for k, v in SCORE_ATTRIBUTES.items() if k != missing)
-    example = f"""<score-partwise version="4.0">
-    <part-list>
-        <score-part id="P1"><part-name>Piano</part-name></score-part>
-    </part-list>
-    <part id="P1">
-        <measure number="1">
-        <attributes><divisions>4</divisions>{attributes}</attributes>
+def _measure(attributes: str) -> str:
+    """A measure's contents: its attributes, then a whole note."""
+    return f"""<attributes><divisions>4</divisions>{attributes}</attributes>
         <note>
             <pitch><step>C</step><octave>4</octave></pitch>
             <duration>16</duration>
             <type>whole</type>
-        </note>
-        </measure>
-    </part>
+        </note>"""
+
+
+def _score_with_measures(*measures: str) -> str:
+    measures = "".join(
+        f'<measure number="{number}">{contents}</measure>'
+        for number, contents in enumerate(measures, start=1)
+    )
+    return f"""<score-partwise version="4.0">
+    <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+    </part-list>
+    <part id="P1">{measures}</part>
     </score-partwise>
     """
+
+
+def _attributes_without(missing: str) -> str:
+    return "".join(v for k, v in SCORE_ATTRIBUTES.items() if k != missing)
+
+
+@pytest.mark.parametrize(
+    "missing, replacement",
+    [
+        ("key", ""),
+        ("time", ""),
+        ("time", "<time><senza-misura/></time>"),
+        ("clef", ""),
+        ("clef", "<clef><sign>none</sign></clef>"),
+    ],
+    ids=["no key", "no time signature", "senza misura", "no clef", "none clef"],
+)
+def test_score_without_an_attribute(missing, replacement, score_tl, beat_tl, tmp_path):
+    # Scores often have no key signature (atonal music, percussion), and
+    # some have no time signature or clef. A none clef is shown as if in
+    # treble clef, as the file asks, so it isn't reported.
     beat_tl.beat_pattern = [4]
     for i in range(5):
         beat_tl.create_beat(i)
     beat_tl.recalculate_measures()
 
-    success, errors = _import_with_patch(score_tl, beat_tl, example, tmp_path)
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(_measure(_attributes_without(missing) + replacement)),
+        tmp_path,
+    )
 
     assert success
     assert errors == []
-    assert not _get_components_by_kind(score_tl, kind)
+    assert not _get_components_by_kind(score_tl, ATTRIBUTE_KINDS[missing])
     assert _get_components_by_kind(score_tl, ComponentKind.NOTE)
+
+
+def test_percussion_clef_is_reported_as_not_implemented(score_tl, beat_tl, tmp_path):
+    # TiLiA draws no percussion clef. The notes are placed as in treble clef.
+    beat_tl.beat_pattern = [4]
+    for i in range(5):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+    percussion = "<clef><sign>percussion</sign></clef>"
+
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(_measure(_attributes_without("clef") + percussion)),
+        tmp_path,
+    )
+
+    assert success
+    assert errors == ["<clef> - percussion not implemented"]
+
+
+@pytest.mark.parametrize("attribute", ["key", "time", "clef"])
+def test_attribute_first_given_after_the_first_measure(
+    attribute, score_tl, beat_tl, tmp_path
+):
+    # The measures before it have none, as in a score with none at all.
+    beat_tl.beat_pattern = [4]
+    for i in range(9):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(
+            _measure(_attributes_without(attribute)),
+            _measure(SCORE_ATTRIBUTES[attribute]),
+        ),
+        tmp_path,
+    )
+
+    assert success
+    assert errors == []
+    components = _get_components_by_kind(score_tl, ATTRIBUTE_KINDS[attribute])
+    assert [c.get_data("time") for c in components] == [4]
