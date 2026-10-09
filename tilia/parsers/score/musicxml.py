@@ -96,6 +96,10 @@ def notes_from_musicXML(
                 )
 
     def _create_components(elem: dict) -> None:
+        if metric_division.measure_num not in beat_tl.measure_numbers:
+            # The beat timeline skips this measure, so its notes aren't
+            # imported, as after the beat timeline's last measure.
+            return
         start_times, end_times = _get_note_times(
             metric_division.measure_num, elem["div_pos"], elem["duration"]
         )
@@ -109,7 +113,9 @@ def notes_from_musicXML(
                 start_times.pop(0)
                 end_times.pop(0)
                 continue
-            while len(end_times) and start_times[0] > end_times[0]:
+            # An end equal to the start is dropped too: a note can't end
+            # where it starts, and keeping it would loop forever.
+            while len(end_times) and start_times[0] >= end_times[0]:
                 end_times.pop(0)
 
     def _metric_to_time(

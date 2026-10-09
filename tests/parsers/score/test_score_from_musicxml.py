@@ -646,3 +646,32 @@ def test_non_traditional_key_is_reported_as_not_implemented(
     assert errors == ["<key> - non-traditional key not implemented"]
     assert not _get_components_by_kind(score_tl, ComponentKind.KEY_SIGNATURE)
     assert _get_components_by_kind(score_tl, ComponentKind.NOTE)
+
+
+@pytest.mark.timeout(10)
+def test_notes_in_a_measure_the_beat_timeline_skips_are_not_imported(
+    score_tl, beat_tl, tmp_path
+):
+    # As notes after the beat timeline's last measure.
+    beat_tl.set_data("beat_pattern", [1])
+    for i in range(4):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [1, 3, 4, 5]
+    beat_tl.recalculate_measures()
+
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(
+            _measure("".join(SCORE_ATTRIBUTES.values())), _measure(""), _measure("")
+        ),
+        tmp_path,
+    )
+
+    assert success
+    assert errors == []
+    notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+    assert [(n.get_data("start"), n.get_data("end")) for n in notes] == [
+        (0, 1),
+        (1, 2),
+    ]
