@@ -36,9 +36,7 @@ class SmoothSetter(Generic[T]):
             setpoint = float(setpoint)
 
         if settings.get("general", "prioritise_performance") is True:
-            # A movement started before the setting changed would overwrite it.
-            self.animation.stop()
-            self._setter(setpoint)
+            self.set_now(setpoint)
             return
 
         if self.animation.state() is QVariantAnimation.State.Running:
@@ -46,3 +44,11 @@ class SmoothSetter(Generic[T]):
         self.animation.setStartValue(self._getter())
         self.animation.setEndValue(setpoint)
         self.animation.start()
+
+    def set_now(self, value: T) -> None:
+        """
+        Sets the value at once. Set it through here, not with the setter: a
+        movement still running would overwrite it.
+        """
+        self.animation.stop()
+        self._setter(value)

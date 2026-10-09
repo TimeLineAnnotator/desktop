@@ -1508,9 +1508,7 @@ class TimelineUIs:
             self.clear_selection_boxes()
 
     def on_slider_drag(self, x: float):
-        time = time_x_converter.get_time_by_x(x)
-        self.selected_time = time
-        self.set_playback_lines_position(time)
+        self.smooth_time.set_now(time_x_converter.get_time_by_x(x))
 
     def set_auto_scroll(self, value: ScrollType):
         # noinspection PyAttributeOutsideInit

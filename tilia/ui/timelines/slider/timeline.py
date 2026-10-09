@@ -153,8 +153,7 @@ class SliderTimelineUI(TimelineUI):
             self.dragging = True
 
     def after_each_drag(self, x: int):
-        self.x = x
-        self.set_trough_position()
+        self.smooth_x.set_now(x)
         post(Post.SLIDER_DRAG, x)
 
     def on_drag_end(self):
@@ -176,8 +175,9 @@ class SliderTimelineUI(TimelineUI):
         """No components in SliderTimeline. Must implement abstract method."""
 
     def update_items_position(self):
-        self.x = time_x_converter.get_x_by_time(get(Get.MEDIA_CURRENT_TIME))
-        self.set_trough_position()
+        self.smooth_x.set_now(
+            time_x_converter.get_x_by_time(get(Get.MEDIA_CURRENT_TIME))
+        )
         self.line.set_position(*self._get_line_pos_args())
 
     @property
