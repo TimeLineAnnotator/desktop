@@ -525,15 +525,20 @@ class TestDerivedDocumentId:
         assert derived_document_id(data) == "085ae8ed-bc9f-8aa4-9af9-1f947c8de8cc"
 
     @pytest.mark.parametrize(
-        "change",
+        "place, one, other",
         [
-            set_key("media_metadata", "a text"),
-            set_key("timelines", ["a list"]),
-            set_key("timelines", "1", "a text"),
-            set_key("timelines", "1", "components", ["a list"]),
-            set_key("timelines", "1", "components", "2", "a text"),
+            (["media_metadata"], "a text", "b text"),
+            (["timelines"], ["a list"], ["b list"]),
+            (["timelines", "1"], "a text", "b text"),
+            (["timelines", "1", "components"], ["a list"], ["b list"]),
+            (["timelines", "1", "components", "2"], "a text", "b text"),
         ],
     )
-    def test_takes_what_isnt_an_object_where_one_is_expected(self, change):
-        # An old file can hold anything there: it is hashed as it is.
-        assert uuid.UUID(derived_document_id(edited(change))).version == 8
+    def test_hashes_what_isnt_an_object_where_one_is_expected(self, place, one, other):
+        # An old file can hold anything there: it is hashed as it is, so two
+        # different values give two different ids.
+        def id_with(value) -> str:
+            return derived_document_id(edited(set_key(*place, value)))
+
+        assert uuid.UUID(id_with(one)).version == 8
+        assert id_with(one) != id_with(other)
