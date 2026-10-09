@@ -1,5 +1,6 @@
 import json
 import sys
+from typing import Iterable
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
@@ -9,9 +10,17 @@ from PySide6.QtWidgets import QApplication
 
 from tests.constants import EXAMPLE_MUSICXML_PATH, EXAMPLE_REST_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
-from tests.utils import get_blank_file_data, run_js, save_and_reopen, wait_until
+from tests.ui.timelines.beat.interact import click_beat_ui
+from tests.ui.timelines.interact import click_timeline_ui_element_body
+from tests.utils import (
+    get_blank_file_data,
+    run_js,
+    save_and_reopen,
+    undoable,
+    wait_until,
+)
 from tilia.exceptions import NoReplyToRequest
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Get, get
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
@@ -63,35 +72,34 @@ def open_file_with_svg_score(tmp_path):
     return get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
 
 
-def add_beat_timeline(tls):
-    beat_tl = tls.create_timeline(BeatTimeline, [], beat_pattern=[4])
-    add_beats(beat_tl)
-    post(Post.APP_STATE_RECORD, "beats")
-    return beat_tl
+def add_score_timeline(name: str = "Score"):
+    commands.execute("timelines.add.score", name=name)
+    return next(tlui for tlui in get(Get.TIMELINE_UIS) if tlui.get_data("name") == name)
 
 
-def add_beats(beat_tl):
+def add_beat_timeline(beat_pattern: list[int], times: Iterable[float]):
+    with Serve(Get.FROM_USER_BEAT_PATTERN, (True, beat_pattern)):
+        commands.execute("timelines.add.beat", name="Beats")
+    for time in times:
+        commands.execute("timeline.beat.add", time=time)
+    return get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)
+
+
+def add_beats():
     # example.musicxml has a pick-up measure, which the import adds as measure 0.
-    beat_tl.beat_pattern = [3]
-    for time in range(5, 12):
-        beat_tl.create_component(ComponentKind.BEAT, time)
-    beat_tl.recalculate_measures()
+    add_beat_timeline([3], range(5, 12))
 
 
-def add_repeated_beats(beat_tl):
-    # Measures 1 and 2 are played twice.
-    beat_tl.beat_pattern = [3]
-    for time in range(15):
-        beat_tl.create_beat(time)
-    beat_tl.measure_numbers = [1, 2, 1, 2, 3]
-    beat_tl.recalculate_measures()
+def add_repeated_beats():
+    # Measures 1 and 2 are played twice: the measures are numbered 1, 2, 1, 2, 3.
+    beat_tlui = add_beat_timeline([3], range(15))
+    click_beat_ui(beat_tlui[6])
+    with Serve(Get.FROM_USER_INT, (True, 1)):
+        commands.execute("timeline.beat.set_measure_number")
 
 
-def add_four_beat_measures(beat_tl):
-    beat_tl.beat_pattern = [4]
-    for time in range(9):
-        beat_tl.create_component(ComponentKind.BEAT, time)
-    beat_tl.recalculate_measures()
+def add_four_beat_measures():
+    add_beat_timeline([4], range(9))
 
 
 def import_score(path: str = EXAMPLE_MUSICXML_PATH, add_measure_zero: bool = True):
@@ -113,9 +121,7 @@ def get_score_view(score_tlui) -> ScoreView:
 
 
 def get_notes(score_tlui):
-    return sorted(
-        score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.NOTE)
-    )
+    return [element for element in score_tlui if element.kind == ComponentKind.NOTE]
 
 
 def show_narrow(score_view: ScoreView, width: int = 120, height: int = 200):
@@ -166,9 +172,8 @@ def get_marker(score_view: ScoreView, element_id: str) -> str:
     )
 
 
-def set_color(score_tlui, note, color: str):
-    score_tlui.deselect_all_elements()
-    score_tlui.select_element(score_tlui.get_element(note.id))
+def set_color(note, color: str):
+    click_timeline_ui_element_body(note)
     with Serve(Get.FROM_USER_COLOR, (True, QColor(color))):
         commands.execute("timeline.component.set_color")
 
@@ -181,8 +186,14 @@ def smooth_scrolling():
 
 
 @pytest.fixture
-def score_view(score_tlui, beat_tlui, beat_tl):
-    add_beats(beat_tl)
+def score_tlui(tluis):
+    # Unlike the shared fixture, adds the timeline as a user would.
+    return add_score_timeline()
+
+
+@pytest.fixture
+def score_view(score_tlui):
+    add_beats()
     import_score()
     return get_score_view(score_tlui)
 
@@ -216,31 +227,31 @@ class TestSeek:
         self, score_view, score_tlui, tilia_state
     ):
         note = get_notes(score_tlui)[1]  # half-way through measure 0
-        assert note.start != 0
+        assert note.get_data("start") != 0
 
         click(score_view, score_view.get_element_id(note.id), double=True)
 
-        assert wait_until(lambda: tilia_state.current_time == pytest.approx(note.start))
+        assert wait_until(
+            lambda: tilia_state.current_time == pytest.approx(note.get_data("start"))
+        )
 
     def test_double_click_repeated_note_seeks_to_nearest_time(
-        self, score_tlui, beat_tlui, beat_tl, tilia_state
+        self, score_tlui, tilia_state
     ):
-        add_repeated_beats(beat_tl)
+        add_repeated_beats()
         import_score(add_measure_zero=False)
         score_view = get_score_view(score_tlui)
         first, _, second, _ = get_notes(score_tlui)
-        commands.execute("media.seek", second.start - 1)
+        commands.execute("media.seek", second.get_data("start") - 1)
 
         click(score_view, score_view.get_element_id(first.id), double=True)
 
         assert wait_until(
-            lambda: tilia_state.current_time == pytest.approx(second.start)
+            lambda: tilia_state.current_time == pytest.approx(second.get_data("start"))
         )
 
-    def test_double_click_rest_seeks_to_its_time(
-        self, score_tlui, beat_tlui, beat_tl, tilia_state
-    ):
-        add_four_beat_measures(beat_tl)
+    def test_double_click_rest_seeks_to_its_time(self, score_tlui, tilia_state):
+        add_four_beat_measures()
         import_score(EXAMPLE_REST_MUSICXML_PATH)
         score_view = get_score_view(score_tlui)
         rest_id = run_js(score_view.view.page(), "document.querySelector('g.rest').id")
@@ -258,11 +269,11 @@ class TestScroll:
         show_narrow(score_view)
         first, *_, last = get_notes(score_tlui)
 
-        commands.execute("media.seek", last.start)
+        commands.execute("media.seek", last.get_data("start"))
 
-        assert wait_until(lambda: score_view.visible_times[0] > first.start)
+        assert wait_until(lambda: score_view.visible_times[0] > first.get_data("start"))
         start, end = score_view.visible_times
-        assert start <= last.start <= end
+        assert start <= last.get_data("start") <= end
 
     def test_measure_tracker_shows_visible_range(
         self, score_view, score_tlui, tilia_state
@@ -270,7 +281,7 @@ class TestScroll:
         show_narrow(score_view)
         last = get_notes(score_tlui)[-1]
 
-        commands.execute("media.seek", last.start)
+        commands.execute("media.seek", last.get_data("start"))
 
         assert wait_until(lambda: score_view.visible_times[0] > 0)
         assert score_tlui.measure_tracker.isVisible()
@@ -282,7 +293,7 @@ class TestScroll:
         show_narrow(score_view)
         QApplication.sendEvent(score_view, QHideEvent())
 
-        commands.execute("media.seek", get_notes(score_tlui)[-1].start)
+        commands.execute("media.seek", get_notes(score_tlui)[-1].get_data("start"))
 
         let_page_report()
         assert not score_tlui.measure_tracker.isVisible()
@@ -291,13 +302,13 @@ class TestScroll:
         show_narrow(score_view)
         QApplication.sendEvent(score_view, QHideEvent())
         last = get_notes(score_tlui)[-1]
-        commands.execute("media.seek", last.start)
+        commands.execute("media.seek", last.get_data("start"))
 
         QApplication.sendEvent(score_view, QShowEvent())
 
         assert wait_until(
-            lambda: 0 < score_view.visible_times[0] <= last.start
-            and last.start <= score_view.visible_times[1]
+            lambda: 0 < score_view.visible_times[0] <= last.get_data("start")
+            and last.get_data("start") <= score_view.visible_times[1]
         )
         assert score_tlui.measure_tracker.isVisible()
 
@@ -318,7 +329,7 @@ class TestColor:
         note = get_notes(score_tlui)[2]
         element_id = score_view.get_element_id(note.id)
 
-        set_color(score_tlui, note, "#123456")
+        set_color(note, "#123456")
 
         assert wait_until(
             lambda: get_style(score_view, element_id, "fill") == "rgb(18, 52, 86)"
@@ -327,7 +338,7 @@ class TestColor:
     def test_reset_color(self, score_view, score_tlui):
         note = get_notes(score_tlui)[2]
         element_id = score_view.get_element_id(note.id)
-        set_color(score_tlui, note, "#123456")
+        set_color(note, "#123456")
 
         commands.execute("timeline.component.reset_color")
 
@@ -335,54 +346,55 @@ class TestColor:
             lambda: get_style(score_view, element_id, "fill") == "rgb(0, 0, 0)"
         )
 
-    def test_undo_color(self, score_view, score_tlui):
+    def test_undo_and_redo_color(self, score_view, score_tlui):
         note = get_notes(score_tlui)[2]
         element_id = score_view.get_element_id(note.id)
-        set_color(score_tlui, note, "#123456")
+
+        with undoable():
+            set_color(note, "#123456")
+
+        # Undone and redone.
         assert wait_until(
             lambda: get_style(score_view, element_id, "fill") == "rgb(18, 52, 86)"
         )
-
         commands.execute("edit.undo")
 
         assert wait_until(
             lambda: get_style(score_view, element_id, "fill") == "rgb(0, 0, 0)"
         )
 
-    def test_repeated_note_shows_color_of_occurrence_playing_now(
-        self, score_tlui, beat_tlui, beat_tl
-    ):
-        add_repeated_beats(beat_tl)
+    def test_repeated_note_shows_color_of_occurrence_playing_now(self, score_tlui):
+        add_repeated_beats()
         import_score(add_measure_zero=False)
         score_view = get_score_view(score_tlui)
         first, _, second, _ = get_notes(score_tlui)
         element_id = score_view.get_element_id(first.id)
         assert score_view.get_element_id(second.id) == element_id
-        set_color(score_tlui, first, "#ff0000")
-        set_color(score_tlui, second, "#00ff00")
+        set_color(first, "#ff0000")
+        set_color(second, "#00ff00")
 
-        commands.execute("media.seek", first.start)
+        commands.execute("media.seek", first.get_data("start"))
         assert wait_until(
             lambda: get_style(score_view, element_id, "fill") == "rgb(255, 0, 0)"
         )
 
-        commands.execute("media.seek", second.start)
+        commands.execute("media.seek", second.get_data("start"))
         assert wait_until(
             lambda: get_style(score_view, element_id, "fill") == "rgb(0, 255, 0)"
         )
 
     def test_repeated_note_follows_seek_with_smooth_scrolling(
-        self, smooth_scrolling, score_tlui, beat_tlui, beat_tl
+        self, smooth_scrolling, score_tlui
     ):
-        add_repeated_beats(beat_tl)
+        add_repeated_beats()
         import_score(add_measure_zero=False)
         score_view = get_score_view(score_tlui)
         first, _, second, _ = get_notes(score_tlui)
         element_id = score_view.get_element_id(first.id)
-        set_color(score_tlui, first, "#ff0000")
-        set_color(score_tlui, second, "#00ff00")
+        set_color(first, "#ff0000")
+        set_color(second, "#00ff00")
 
-        commands.execute("media.seek", second.start)
+        commands.execute("media.seek", second.get_data("start"))
 
         assert wait_until(
             lambda: get_style(score_view, element_id, "fill") == "rgb(0, 255, 0)"
@@ -412,7 +424,7 @@ class TestSelect:
     def test_selected_note_keeps_its_color(self, score_view, score_tlui):
         note = get_notes(score_tlui)[0]
         element_id = score_view.get_element_id(note.id)
-        set_color(score_tlui, note, "#123456")
+        set_color(note, "#123456")
 
         click(score_view, element_id)
 
@@ -513,9 +525,9 @@ class TestPage:
             )
         ) == [False, False, False]
 
-    def test_deleted_viewer_ignores_late_page_messages(self, score_view, tls):
+    def test_deleted_viewer_ignores_late_page_messages(self, score_view, score_tlui):
         bridge = score_view._bridge
-        tls.delete_timeline(score_view.timeline)
+        commands.execute("timeline.delete", score_tlui, confirm=False)
 
         # A message the page sent before the viewer was deleted.
         bridge.onViewportChanged(
@@ -529,23 +541,23 @@ class TestPage:
 
 
 class TestSvgScores:
-    def test_file_with_svg_score_opens_in_old_viewer(self, qtui, tmp_path):
+    def test_file_with_svg_score_opens_in_old_viewer(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
 
         assert isinstance(get(Get.SCORE_VIEWER, score_tlui.id), SvgViewer)
 
-    def test_import_replaces_svg_score(self, qtui, tls, tmp_path):
+    def test_import_replaces_svg_score(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
-        add_beat_timeline(tls)
+        add_beats()
 
         import_score()
 
         get_score_view(score_tlui)
         assert score_tlui.timeline.svg_data == ""
 
-    def test_undoing_import_brings_back_old_viewer(self, qtui, tls, tmp_path):
+    def test_undoing_import_brings_back_old_viewer(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
-        add_beat_timeline(tls)
+        add_beats()
         import_score()
         get_score_view(score_tlui)
 
@@ -553,9 +565,9 @@ class TestSvgScores:
 
         assert isinstance(get(Get.SCORE_VIEWER, score_tlui.id), SvgViewer)
 
-    def test_redoing_import_closes_old_viewer(self, qtui, tls, tmp_path):
+    def test_redoing_import_closes_old_viewer(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
-        add_beat_timeline(tls)
+        add_beats()
         import_score()
         get_score_view(score_tlui)
         commands.execute("edit.undo")
