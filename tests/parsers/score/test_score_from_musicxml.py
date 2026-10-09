@@ -675,3 +675,5 @@ def test_notes_in_a_measure_the_beat_timeline_skips_are_not_imported(
         (0, 1),
         (1, 2),
     ]
+    bar_lines = _get_components_by_kind(score_tl, ComponentKind.BAR_LINE)
+    assert [bar_line.get_data("time") for bar_line in bar_lines] == [1, 2]
