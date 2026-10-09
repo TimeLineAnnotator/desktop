@@ -18,6 +18,7 @@ from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
 from tilia.ui.menus import ScoreMenu
 from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.cursors import CursorMixIn
 from tilia.ui.timelines.drag import DragManager
@@ -188,6 +189,10 @@ class ScoreTimelineUI(TimelineUI):
         set_data: Callable[[str, Any], None],
     ):
         element = super().on_timeline_component_created(kind, id, get_data, set_data)
+        self._add_to_caches(element)
+
+    def _add_to_caches(self, element: TimelineUIElement) -> None:
+        kind = element.kind
         if kind == ComponentKind.STAFF:
             self.update_height()
             index = element.get_data("index")
@@ -201,9 +206,9 @@ class ScoreTimelineUI(TimelineUI):
             if not self.first_bar_line:
                 self.first_bar_line = element
                 self.last_bar_line = element
-            elif get_data("time") > self.last_bar_line.get_data("time"):
+            elif element.get_data("time") > self.last_bar_line.get_data("time"):
                 self.last_bar_line = element
-            elif get_data("time") == self.last_bar_line.get_data("time"):
+            elif element.get_data("time") == self.last_bar_line.get_data("time"):
                 self.last_bar_line = element
         elif kind == ComponentKind.NOTE:
             self._update_staff_extreme_notes(element.get_data("staff_index"), element)
@@ -427,10 +432,19 @@ class ScoreTimelineUI(TimelineUI):
         self._reset_caches()
         self.reset_svg()
 
+    def _rebuild_caches(self) -> None:
+        # The caches grow as components are created, but undo and redo also
+        # delete components, one by one: they're rebuilt from the elements
+        # that remain.
+        self._reset_caches()
+        for element in self.elements:
+            self._add_to_caches(element)
+
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
             return
 
+        self._rebuild_caches()
         success = self._validate_staff_numbers()
         if not success:
             tilia.errors.display(tilia.errors.SCORE_STAFF_ID_ERROR, self.staff_numbers)
