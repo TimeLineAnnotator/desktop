@@ -121,9 +121,11 @@ class SettingsManager(QObject):
 
     def __init__(self, qsettings: QSettings | None = None):
         super().__init__()
-        self._settings = qsettings or QSettings(
-            tilia.constants.APP_NAME, application="Desktop Settings", parent=None
-        )
+        if qsettings is None:
+            qsettings = QSettings(
+                tilia.constants.APP_NAME, application="Desktop Settings", parent=None
+            )
+        self._settings = qsettings
         self._files_updated_callbacks = set()
         self._cache = {}
         self._migrate()
