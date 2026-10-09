@@ -800,6 +800,36 @@ def test_a_version_must_be_text():
     assert error.value.place == "/version"
 
 
+@pytest.mark.parametrize(
+    "content, message",
+    [
+        (
+            {"version": "2.0.0", "app_name": "TiLiA", "layers": {}},
+            "written by a newer TiLiA (format 2.0.0)",
+        ),
+        (
+            {"version": "1.0.0-draft.2"},
+            "a draft of the format (1.0.0-draft.2): convert it again from its sources",
+        ),
+        ({"version": 2}, "the format version isn't text"),
+    ],
+)
+def test_the_version_is_checked_before_timelines_are_looked_for(content, message):
+    # A newer format may lay out the rest of the file otherwise.
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(json.dumps(content).encode())
+    assert (error.value.message, error.value.place) == (message, "/version")
+
+
+@pytest.mark.parametrize(
+    "content", [{}, {"a": 1}, {"version": "0.7.0"}, {"version": "1.0.0-draft.1"}]
+)
+def test_an_object_without_timelines_in_a_version_the_core_reads_is_refused(content):
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(json.dumps(content).encode())
+    assert error.value.message == "not a TiLiA file"
+
+
 # New documents
 
 
