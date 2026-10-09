@@ -48,18 +48,18 @@ def python(tmp_path):
 FILE = Path("/music/Überleitung.tla")
 
 
-def test_gui_command_is_started_detached(python):
+def test_ui_command_is_started_detached(python):
     popen = Popen()
     how = open_in_tilia(
         FILE,
-        entry_points=entry_points("gui", "other"),
+        entry_points=entry_points("ui", "other"),
         popen=popen,
         platform="linux",
         executable=str(python),
     )
-    assert how == "tilia-gui"
+    assert how == "tilia-ui"
     [(command, kwargs)] = popen.calls
-    assert command == [str(python.parent / "tilia"), "gui", str(FILE)]
+    assert command == [str(python.parent / "tilia"), "ui", str(FILE)]
     assert kwargs == {
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
@@ -69,18 +69,18 @@ def test_gui_command_is_started_detached(python):
     }
 
 
-def test_gui_command_on_windows(python):
+def test_ui_command_on_windows(python):
     popen = Popen()
     how = open_in_tilia(
         FILE,
-        entry_points=entry_points("gui"),
+        entry_points=entry_points("ui"),
         popen=popen,
         platform="win32",
         executable=str(python),
     )
-    assert how == "tilia-gui"
+    assert how == "tilia-ui"
     [(command, kwargs)] = popen.calls
-    assert command == [str(python.parent / "tilia.exe"), "gui", str(FILE)]
+    assert command == [str(python.parent / "tilia.exe"), "ui", str(FILE)]
     expected = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
         subprocess, "CREATE_NEW_PROCESS_GROUP", 0
     )
@@ -90,7 +90,7 @@ def test_gui_command_on_windows(python):
 
 
 @pytest.mark.parametrize("platform,opener", [("linux", "xdg-open"), ("darwin", "open")])
-def test_system_opener_without_the_gui_command(python, platform, opener):
+def test_system_opener_without_the_ui_command(python, platform, opener):
     popen = Popen()
     how = open_in_tilia(
         FILE,
@@ -126,7 +126,7 @@ def test_system_opener_when_the_script_is_missing(tmp_path):
     popen = Popen()
     how = open_in_tilia(
         FILE,
-        entry_points=entry_points("gui"),
+        entry_points=entry_points("ui"),
         popen=popen,
         platform="linux",
         executable=str(tmp_path / "python"),
@@ -139,7 +139,7 @@ def test_failures_become_tilia_not_found(python):
     with pytest.raises(TiliaNotFound):
         open_in_tilia(
             FILE,
-            entry_points=entry_points("gui"),
+            entry_points=entry_points("ui"),
             popen=Popen(OSError("no")),
             platform="linux",
             executable=str(python),
@@ -203,7 +203,7 @@ def setup(tmp_path):
     corpora = Corpora(tmp_path / "library.toml")
     corpora.add(folder)
     opened = []
-    result = {"value": "tilia-gui"}
+    result = {"value": "tilia-ui"}
 
     def opener(path):
         opened.append(path)
@@ -237,8 +237,8 @@ def post(s, file, cid=None):
 
 
 def test_route_opens_a_relative_and_an_absolute_path(setup):
-    assert post(setup, "rel") == (202, {"how": "tilia-gui"})
-    assert post(setup, "abs") == (202, {"how": "tilia-gui"})
+    assert post(setup, "rel") == (202, {"how": "tilia-ui"})
+    assert post(setup, "abs") == (202, {"how": "tilia-ui"})
     resolved = [p.resolve() for p in setup.opened]
     assert resolved == [
         (setup.folder / "a.tla").resolve(),
