@@ -18,7 +18,7 @@ from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.table import MeasureRow, build_rows_from
 
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
-EPS = 1e-6  # always applies, so float noise never moves a downbeat into the bar before
+EPS = 1e-6  # added to the tolerance, so float noise never decides whether a time is on a beat
 
 FOLDED = (
     "the table lists the measures played next (`next`), "
@@ -72,17 +72,24 @@ class TimeMap:
     def positions(self, start: float, end: float) -> Positions | None:
         """Where a unit from `start` to `end` lies; a point has `end == start`.
 
-        None when its start is off the map.
+        An end that, once both are snapped, isn't after the start ends in the
+        start's bar, as a point's does. None when the start is off the map.
         """
-        located = self._locate(start)
+        snapped_start = self._snapped(start)
+        located = self._locate(snapped_start)
         if located is None:
             return None
         slot, fraction = located
         measure = self._measure_of[slot]
         row = self._rows[measure]
+        snapped_end = self._snapped(end)
+        if snapped_end is not None and snapped_end <= snapped_start:
+            end_bar: int | None = row.number
+        else:
+            end_bar = self._end_bar(snapped_end)
         return Positions(
             bar=row.number,
-            end_bar=row.number if end == start else self._end_bar(end),
+            end_bar=end_bar,
             beat=slot - self._first[measure] + 1 + fraction,
             pass_=row.pass_,
             bar_count=row.count,
@@ -99,7 +106,7 @@ class TimeMap:
         if t is None or not math.isfinite(t):
             return None
         slots = self._slots
-        tolerance = max(EPS, self.tolerance)
+        tolerance = self.tolerance + EPS
         k = bisect.bisect_left(slots, t)  # slots[k - 1] < t <= slots[k]
         best, best_distance = float(t), math.inf
         if k < len(slots) and slots[k] - t <= tolerance:
@@ -108,21 +115,20 @@ class TimeMap:
             best = slots[k - 1]
         return best
 
-    def _locate(self, t: float | None) -> tuple[int, float] | None:
-        """(beat slot, fraction through it) of a time, after snapping; None off the map."""
-        snapped = self._snapped(t)
+    def _locate(self, snapped: float | None) -> tuple[int, float] | None:
+        """(beat slot, fraction through it) of a snapped time; None off the map."""
         slots = self._slots
         if snapped is None or snapped < slots[0] or snapped >= slots[-1]:
             return None
         i = bisect.bisect_right(slots, snapped) - 1
         return i, (snapped - slots[i]) / (slots[i + 1] - slots[i])
 
-    def _end_bar(self, end: float | None) -> int | None:
-        # The end point is excluded: an end on a downbeat belongs to the bar before.
-        snapped = self._snapped(end)
-        if snapped is None or snapped <= self.start or snapped > self.end:
+    def _end_bar(self, snapped_end: float | None) -> int | None:
+        # Only for an end after the start, so after the first downbeat. The end
+        # point is excluded: an end on a downbeat belongs to the bar before.
+        if snapped_end is None or snapped_end > self.end:
             return None
-        return self._rows[bisect.bisect_left(self._downbeats, snapped) - 1].number
+        return self._rows[bisect.bisect_left(self._downbeats, snapped_end) - 1].number
 
     def _is_downbeat(self, t: float) -> bool:
         downbeats = self._downbeats
@@ -130,7 +136,7 @@ class TimeMap:
         nearest = min(
             abs(downbeats[x] - t) for x in (k - 1, k) if 0 <= x < len(downbeats)
         )
-        return nearest <= max(EPS, self.tolerance)
+        return nearest <= self.tolerance + EPS
 
 
 def build_time_map(
