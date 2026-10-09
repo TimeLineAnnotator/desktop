@@ -331,30 +331,41 @@ def _components(
     }
 
 
+# The fields a timeline of an unknown kind leaves out at their default, unless
+# `raw` has the key.
+_RAW_FIELD_DEFAULTS: dict[str, Any] = {"name": "", "ordinal": 0, "metadata": {}}
+
+
 def _raw_timeline(
     timeline: Timeline, raw: Mapping[str, Any], place: str
 ) -> dict[str, Any]:
     """A timeline of a kind the core doesn't know, kept as it is: from `raw`,
     with its kind, name, ordinal and metadata from the timeline's fields (a
     field at its default is written only if `raw` has the key), and with
-    `attrs` and `extra` set on it. Its components are in `raw`."""
-    if timeline.components:
+    `attrs` and `extra` set on it. A key set in two of these is refused, as
+    for a known kind. Its components are in `raw`."""
+    fields = {
+        "kind": _spelling(timeline_kind_to_file, timeline.kind, place),
+        "name": timeline.name,
+        "ordinal": timeline.ordinal,
+        "metadata": timeline.metadata,
+    }
+    edits = _merged(
+        place,
+        ("the timeline's fields", fields),
+        ("attrs", timeline.attrs),
+        ("extra", timeline.extra),
+    )
+    if timeline.components or "components" in edits:
         raise ValueError(
             f"{place}/components: a timeline of a kind the core doesn't know"
             " keeps its components in `raw`"
         )
     value = dict(raw)
-    value["kind"] = _spelling(timeline_kind_to_file, timeline.kind, place)
-    fields = (
-        ("name", timeline.name, ""),
-        ("ordinal", timeline.ordinal, 0),
-        ("metadata", timeline.metadata, {}),
-    )
-    for key, field, default in fields:
-        if key in value or field != default:
-            value[key] = field
-    value.update(timeline.attrs)
-    value.update(timeline.extra)
+    for key, item in edits.items():
+        at_default = key in _RAW_FIELD_DEFAULTS and item == _RAW_FIELD_DEFAULTS[key]
+        if key in value or not at_default:
+            value[key] = item
     return _object(value, UNKNOWN_TIMELINE, place)
 
 
