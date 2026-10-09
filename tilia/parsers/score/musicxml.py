@@ -467,6 +467,10 @@ def notes_from_musicXML(
                 elements_to_create.append(_parse_element(element, part_id))
             _create_elements(elements_to_create)
 
+            if metric_division.measure_num not in beat_tl.measure_numbers:
+                # The beat timeline skips this measure: it gets no bar line,
+                # as it gets no notes.
+                continue
             times = _metric_to_time(
                 metric_division.measure_num, metric_division.div_position[1]
             )
