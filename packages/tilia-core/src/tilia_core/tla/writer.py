@@ -33,6 +33,7 @@ from tilia_core.tla.layout import (
     TIMELINE_SHAPES,
     TOP_SHAPE,
     UNKNOWN_COMPONENT,
+    UNKNOWN_COMPONENT_WITH_METADATA,
     UNKNOWN_SCORE,
     UNKNOWN_TIMELINE,
     Shape,
@@ -305,7 +306,12 @@ def _component(
         ("attrs", component.attrs),
         ("extra", component.extra),
     )
-    shape = COMPONENT_SHAPES.get(component.kind, UNKNOWN_COMPONENT)
+    if not isinstance(component.kind, UnknownKind):
+        shape = COMPONENT_SHAPES[component.kind]
+    elif component._metadata_in_file:
+        shape = UNKNOWN_COMPONENT_WITH_METADATA  # kept as it is, even empty
+    else:
+        shape = UNKNOWN_COMPONENT
     writers: dict[str, Writer] = {}
     if component.kind == "beat":
         marks = MEASURE_SHAPE.defaults if mark_defaults is None else mark_defaults

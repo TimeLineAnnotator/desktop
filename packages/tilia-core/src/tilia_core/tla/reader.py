@@ -279,12 +279,15 @@ class _Reader:
         metadata = self._metadata(component, place)
         if isinstance(kind, UnknownKind):
             known = UNKNOWN_COMPONENT.known
-            return Component(
+            unknown = Component(
                 id=component_id,
                 kind=kind,
                 metadata=metadata,
                 extra=_unknown(component, known),
             )
+            # Kept as it is: an empty metadata is written back where it was.
+            unknown._metadata_in_file = "metadata" in component
+            return unknown
         shape = COMPONENT_SHAPES[kind]
         return Component(
             id=component_id,
