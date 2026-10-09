@@ -1,3 +1,4 @@
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
@@ -142,9 +143,7 @@ class SettingsManager(QObject):
     def __init__(self, qsettings: QSettings | None = None):
         super().__init__()
         if qsettings is None:
-            qsettings = QSettings(
-                tilia.constants.APP_NAME, application="Desktop Settings", parent=None
-            )
+            qsettings = self._open_store()
         self._settings = qsettings
         self._files_updated_callbacks = set()
         self._cache = {}
@@ -169,6 +168,22 @@ class SettingsManager(QObject):
             if migration := self.MIGRATIONS.get(from_version):
                 migration(self._settings)
         self._settings.setValue(self.VERSION_KEY, self.VERSION)
+
+    @staticmethod
+    def _open_store() -> QSettings:
+        if os.environ.get("ENVIRONMENT") == "test":
+            # QSettings.setPath() can move ini files, but not the native stores
+            # of macOS and Windows. Tests use an ini file, which the test suite
+            # moves out of the user's settings (tests/__init__.py).
+            return QSettings(
+                QSettings.Format.IniFormat,
+                QSettings.Scope.UserScope,
+                tilia.constants.APP_NAME,
+                "Desktop Settings",
+            )
+        return QSettings(
+            tilia.constants.APP_NAME, application="Desktop Settings", parent=None
+        )
 
     def _check_all_default_settings_present(self):
         for group_name, setting in self.DEFAULT_SETTINGS.items():
