@@ -508,12 +508,13 @@ def notes_from_musicXML(
     # Before parsing, so that each note component gets its note's id.
     score_text = _set_note_ids(tree)
 
+    # The new score replaces one stored as SVG, before the timeline UI
+    # hears of its components.
+    score_tl.save_svg_data("")
     part_id_to_staves = _parse_staves(tree)
     for part in tree.findall("part"):
         _parse_part(part, part.get("id"))
     post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tl.id)
-    # The new score replaces one stored as SVG.
-    score_tl.save_svg_data("")
     post(Post.SCORE_TIMELINE_SCORE_IMPORTED, score_tl.id, score_text, element_ids)
 
     return True, errors

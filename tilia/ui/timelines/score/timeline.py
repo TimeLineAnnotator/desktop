@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any, Callable, Iterable, TypeVar
 
 from PySide6.QtCore import QPointF, QRectF, Qt
@@ -41,6 +42,15 @@ from tilia.ui.windows.svg_viewer import SvgViewer
 V = TypeVar("V", SvgViewer, ScoreView)
 
 
+@dataclass(eq=False)
+class _ImportedScore:
+    text: str
+    element_ids: dict[int, str]
+    # The components the import made. Undo and redo restore components with
+    # their ids, so they tell which score the timeline holds.
+    component_ids: frozenset[int]
+
+
 class ScoreTimelineUI(TimelineUI):
     TOOLBAR_CLASS = ScoreTimelineToolbar
     ACCEPTS_HORIZONTAL_ARROWS = True
@@ -66,6 +76,10 @@ class ScoreTimelineUI(TimelineUI):
         self.UPDATE_TRIGGERS = self.UPDATE_TRIGGERS + ["svg_data"]
         # Each score timeline has a viewer of its own.
         self._viewer: SvgViewer | ScoreView | None = None
+        # The scores imported since the timeline was opened. Its file doesn't
+        # store them yet, so undo and redo find them here.
+        self._scores: list[_ImportedScore] = []
+        self._shown_score: _ImportedScore | None = None
         listen(
             self,
             Post.SETTINGS_UPDATED,
@@ -439,9 +453,35 @@ class ScoreTimelineUI(TimelineUI):
             # Kept, with its page, for the next score (an import clears the
             # timeline first): Verovio takes seconds to start.
             self._viewer.clear_score()
+            self._shown_score = None
         else:
             self.reset_svg()
         self.measure_tracker.hide()
+
+    def _update_viewer(self) -> None:
+        """Shows the score the timeline holds, after an import, undo or
+        redo, or closes the viewer if it holds none."""
+        if self.timeline.svg_data:
+            if not isinstance(self._viewer, SvgViewer):
+                self._show_svg_score()
+        elif score := self._get_imported_score():
+            viewer = self._ensure_viewer(ScoreView)
+            if score is not self._shown_score:
+                viewer.load_score(score.text, score.element_ids)
+                self._shown_score = score
+        else:
+            self._clear_viewer()
+
+    def _get_imported_score(self) -> _ImportedScore | None:
+        ids = {element.id for element in self.elements}
+        return next(
+            (
+                score
+                for score in reversed(self._scores)
+                if not score.component_ids.isdisjoint(ids)
+            ),
+            None,
+        )
 
     def _rebuild_caches(self) -> None:
         # The caches grow as components are created, but undo and redo also
@@ -479,6 +519,7 @@ class ScoreTimelineUI(TimelineUI):
 
         self.update_height()
         self.collection.update_timeline_uis_position()
+        self._update_viewer()
 
     def _validate_staff_numbers(self) -> bool:
         self.staff_numbers = sorted(self.staff_numbers)
@@ -513,28 +554,36 @@ class ScoreTimelineUI(TimelineUI):
     def _show_svg_score(self) -> None:
         viewer = self._ensure_viewer(SvgViewer)
         viewer.load_svg_data(self.timeline.svg_data)
+        # Annotations restored before the viewer was (undoing a clear, say).
+        for element in self.elements:
+            if element.kind == ComponentKind.SCORE_ANNOTATION and element.get_data(
+                "text"
+            ):
+                viewer.update_annotation(element.id)
         self.measure_tracker.setVisible(not viewer.is_hidden)
 
     def update_svg_data(self) -> None:
         if self.timeline.svg_data:
             # A score stored as SVG came back (by undo, say).
             self._show_svg_score()
-        elif isinstance(self._viewer, SvgViewer):
-            # An import replaced the score stored as SVG (and was redone, say):
-            # the old viewer has nothing left to show.
-            self.reset_svg()
+        else:
+            # An import replaced the score stored as SVG (and was redone, say).
+            self._update_viewer()
 
     def on_score_timeline_score_imported(
         self, id: int, text: str, element_ids: dict[int, str]
     ) -> None:
         if id != self.id:
             return
-        self._ensure_viewer(ScoreView).load_score(text, element_ids)
+        component_ids = frozenset(element.id for element in self.elements)
+        self._scores.append(_ImportedScore(text, element_ids, component_ids))
+        self._update_viewer()
 
     def reset_svg(self) -> None:
         if self._viewer:
             self._viewer.deleteLater()
             self._viewer = None
+        self._shown_score = None
 
     def delete(self) -> None:
         self.reset_svg()
