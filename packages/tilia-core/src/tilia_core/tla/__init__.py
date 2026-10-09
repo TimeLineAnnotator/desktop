@@ -19,8 +19,11 @@ from tilia_core.tla.model import (
     Timeline,
     UnknownKind,
 )
+from tilia_core.tla.read import loads, read
+from tilia_core.tla.write import FORMAT_VERSION, canonical_bytes, new_document
 
 __all__ = [
+    "FORMAT_VERSION",
     "BeatUnit",
     "Component",
     "Document",
@@ -35,5 +38,9 @@ __all__ = [
     "Timeline",
     "UnknownKind",
     "UnreadableFile",
+    "canonical_bytes",
+    "loads",
+    "new_document",
     "new_id",
+    "read",
 ]
