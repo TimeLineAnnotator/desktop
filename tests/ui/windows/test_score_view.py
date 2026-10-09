@@ -695,6 +695,20 @@ class TestSvgScores:
 
         assert isinstance(score_tlui.svg_view, SvgViewer)
 
+    def test_old_viewer_moves_measure_tracker(self, tluis, tmp_path):
+        score_tlui = open_file_with_svg_score(tmp_path)
+        add_beats()
+        viewer = score_tlui.svg_view
+
+        # Paints the score, as showing it would.
+        viewer.view.grab()
+
+        assert viewer.visible_times[1] > 0
+        assert score_tlui.measure_tracker.isVisible()
+        assert (score_tlui.tracker_start, score_tlui.tracker_end) == pytest.approx(
+            tuple(viewer.visible_times)
+        )
+
     def test_import_replaces_svg_score(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
         add_beats()

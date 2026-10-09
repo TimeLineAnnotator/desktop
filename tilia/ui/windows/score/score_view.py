@@ -13,12 +13,10 @@ from __future__ import annotations
 import json
 import math
 import os
-from bisect import bisect
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable
 
 from PySide6.QtCore import QObject, Qt, QUrl, Slot
-from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -33,14 +31,16 @@ from tilia.requests import (
     post,
     stop_listening_to_all,
 )
-from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
 from tilia.ui.enums import WindowState
-from tilia.ui.windows.view_window import ViewDockWidget
+from tilia.ui.windows.score.base import (
+    ScoreViewerBase,
+    get_beat_timeline,
+    get_times_at,
+)
 
 if TYPE_CHECKING:
     from tilia.timelines.score.timeline import ScoreTimeline
-    from tilia.ui.timelines.score.timeline import ScoreTimelineUI
 
 VIEWER_PATH = Path(__file__).parent / "web" / "viewer.html"
 VIEWER_URL = QUrl.fromLocalFile(str(VIEWER_PATH))
@@ -134,25 +134,18 @@ class _ScorePage(QWebEnginePage):
         logger.debug(f"Score viewer: {message} ({source}:{line})")
 
 
-class ScoreView(ViewDockWidget):
+class ScoreView(ScoreViewerBase):
     """Shows a score with Verovio. It offers what `ScoreTimelineUI` calls on
     `SvgViewer`. The page loads with the first score, as Verovio takes a few
     seconds to start."""
 
     def __init__(self, name: str, tl_id: int, *args, **kwargs) -> None:
-        super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
-        self.setObjectName(f"TiLiA Score Viewer {tl_id}")
-        self.setAllowedAreas(
-            Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
-        )
-        self.timeline_id = tl_id
+        super().__init__(name, tl_id, *args, **kwargs)
         self.view: QWebEngineView | None = None
         self._bridge: _Bridge | None = None
         self._channel: QWebChannel | None = None
         self.mei = ""
         self.is_score_loaded = False
-        self.is_hidden = False
-        self.visible_times = [0.0, 0.0]
         self.selected_ids: list[str] = []
         self._score_text: str | None = None
         self._is_page_ready = False
@@ -179,24 +172,8 @@ class ScoreView(ViewDockWidget):
         )
 
     @property
-    def timeline(self) -> ScoreTimeline | None:
-        return get(Get.TIMELINE, self.timeline_id)
-
-    @property
-    def timeline_ui(self) -> ScoreTimelineUI | None:
-        return get(Get.TIMELINE_UI, self.timeline_id)
-
-    @property
     def is_svg_loaded(self) -> bool:
-        # The name `ScoreTimelineUI` uses for the current viewer.
         return self.is_score_loaded
-
-    @staticmethod
-    def _get_beat_timeline() -> BeatTimeline | None:
-        beat_tl = get(
-            Get.TIMELINE_COLLECTION
-        ).get_beat_timeline_for_measure_calculation()
-        return beat_tl if beat_tl and beat_tl.measure_count else None
 
     def get_element_id(self, component_id: int) -> str | None:
         """The id, in the score, of the element a note component stands for."""
@@ -334,7 +311,7 @@ class ScoreView(ViewDockWidget):
         """The times the beat timeline places a score position at, or None
         if they can't be known. `snap` rounds the position to one of
         `VIEWPORT_STEPS_PER_MEASURE` steps of its measure."""
-        beat_tl = self._get_beat_timeline()
+        beat_tl = get_beat_timeline()
         if not beat_tl or not isinstance(position, dict):
             return None
         try:
@@ -345,45 +322,15 @@ class ScoreView(ViewDockWidget):
         if snap:
             steps = VIEWPORT_STEPS_PER_MEASURE
             fraction = round(fraction * steps) / steps
-        if times := beat_tl.get_time_by_measure(number, fraction):
-            return times
-        return (
-            [0] if number < min(beat_tl.measure_numbers) else [get(Get.MEDIA_DURATION)]
-        )
+        return get_times_at(beat_tl, number, fraction)
 
     def on_viewport_changed(self, data: dict[str, Any]) -> None:
         if self.is_hidden or not self.is_score_loaded:
             return
         start_times = self._get_times(data.get("start"), snap=True)
         end_times = self._get_times(data.get("end"), snap=True)
-        if not start_times or not end_times:
-            return
-
-        # Of all the times the visible measures are played at, show the ones
-        # around the current time, as SvgViewer does.
-        current_time = get(Get.SELECTED_TIME)
-        s_idx = bisect(start_times, current_time)
-        start_time = start_times[s_idx - 1 if s_idx != 0 else s_idx]
-        e_idx = bisect(end_times, start_time)
-        if e_idx != len(end_times):
-            end_time = end_times[e_idx]
-        elif start_time != 0 and end_times[0] != 0:
-            end_time = get(Get.MEDIA_DURATION)
-        else:
-            end_time = 0
-        self.update_measure_tracker(start_time, end_time)
-
-    def update_measure_tracker(self, start: float, end: float) -> None:
-        if not (timeline_ui := self.timeline_ui):
-            return
-        if (new_visible_times := [start, end]) == self.visible_times:
-            return
-        self.visible_times = new_visible_times
-        if start != end:
-            timeline_ui.update_measure_tracker_position(start, end)
-            timeline_ui.measure_tracker.show()
-        else:
-            timeline_ui.measure_tracker.hide()
+        if start_times and end_times:
+            self.show_visible_range(start_times, end_times)
 
     def on_selection_changed(self, data: dict[str, Any]) -> None:
         ids = data.get("ids", [])
@@ -396,7 +343,7 @@ class ScoreView(ViewDockWidget):
         commands.execute("media.seek", min(times, key=lambda t: abs(t - current_time)))
 
     def scroll_to_time(self, time: float, is_centered: bool) -> None:
-        if not self.is_score_loaded or not (beat_tl := self._get_beat_timeline()):
+        if not self.is_score_loaded or not (beat_tl := get_beat_timeline()):
             return
         metric_fraction = beat_tl.get_metric_fraction_by_time(time)
         number = math.floor(metric_fraction)
@@ -487,21 +434,7 @@ class ScoreView(ViewDockWidget):
         stop_listening_to_all(self)
         super().deleteLater()
 
-    def hideEvent(self, event: QHideEvent) -> None:
-        try:
-            if timeline_ui := self.timeline_ui:
-                timeline_ui.measure_tracker.hide()
-        except RuntimeError:
-            pass
-        self.is_hidden = True
-        return super().hideEvent(event)
-
-    def showEvent(self, event: QShowEvent) -> None:
-        self.is_hidden = False
-        if self.is_score_loaded:
-            self.scroll_to_time(get(Get.SELECTED_TIME), True)
-            # The range may have changed while the viewer was hidden.
-            self._run_script("tiliaReportViewport")
-            if timeline_ui := self.timeline_ui:
-                timeline_ui.measure_tracker.show()
-        return super().showEvent(event)
+    def on_shown(self) -> None:
+        super().on_shown()
+        # The range may have changed while the viewer was hidden.
+        self._run_script("tiliaReportViewport")
