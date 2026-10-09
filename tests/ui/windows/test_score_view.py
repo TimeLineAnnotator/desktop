@@ -223,10 +223,16 @@ class TestLoad:
                 ".classList.contains('note')",
             )
 
-    def test_page_loads_only_with_a_score(self, score_tlui):
-        viewer = score_tlui.svg_view
-        assert isinstance(viewer, ScoreView)
-        assert viewer.view is None
+    def test_timeline_without_score_has_no_viewer(self, score_tlui):
+        # Renaming the timeline renames its viewer, if it has one.
+        commands.execute("timeline.set_name", score_tlui, name="Renamed")
+
+        assert score_tlui.svg_view is None
+
+    def test_renaming_timeline_renames_viewer(self, score_view, score_tlui):
+        commands.execute("timeline.set_name", score_tlui, name="Renamed")
+
+        assert score_view.menu_title == "Renamed"
 
     def test_saved_file_has_no_svg(self, score_view, score_tlui, tmp_path):
         save_and_reopen(tmp_path)
