@@ -82,3 +82,12 @@ def document(
         media_length=media_length,
         timelines={timeline.id: timeline for timeline in timelines},
     )
+
+
+def pickup_piece() -> tla.Timeline:
+    """4/4 with a one-beat pickup, ending on a three-beat bar: bars 0-5, a beat
+    every second from 1 s, the last at 20 s."""
+    marks = {1: {"number": 0}, 2: {}, 6: {}, 10: {}, 14: {}, 18: {}}
+    return beat_timeline(
+        [{"time": float(t), "measure": marks.get(t)} for t in range(1, 21)]
+    )

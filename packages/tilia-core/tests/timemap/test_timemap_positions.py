@@ -3,7 +3,7 @@ import math
 
 import pytest
 
-from docs import beat_timeline, document
+from docs import beat_timeline, document, pickup_piece
 from tilia_core import tla
 from tilia_core.timemap import TimeMap, time_map_for
 from tilia_core.timemap.table import build_rows
@@ -170,16 +170,9 @@ def test_timemap_end_after_the_closing_barline():
     assert time_map.positions(9.0, math.nan).end_bar is None
 
 
-def _pickup_piece() -> tla.Timeline:
-    # 4/4 with a one-beat pickup, ending on a three-beat bar: a beat every
-    # second from 1 s, the last at 20 s.
-    marks = {1: {"number": 0}, 2: {}, 6: {}, 10: {}, 14: {}, 18: {}}
-    return _timeline(marks, last=20, first=1)
-
-
 def test_timemap_closing_barline():
     # Spec, US1 scenario 8.
-    time_map = _map(_pickup_piece())
+    time_map = _map(pickup_piece())
 
     assert time_map.end == 21.0
     last = _point(time_map, 20.5)
@@ -191,7 +184,7 @@ def test_timemap_closing_barline():
 
 
 def test_timemap_closing_barline_at_the_end_of_the_media():
-    time_map = _map(_pickup_piece(), media_length=20.4)
+    time_map = _map(pickup_piece(), media_length=20.4)
 
     assert time_map.end == 20.4
     assert _point(time_map, 20.2).beat == pytest.approx(3.5)
