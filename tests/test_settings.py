@@ -4,9 +4,11 @@ import pytest
 from PySide6.QtCore import QSettings
 
 from tilia.settings import SettingsManager
+from tilia.ui.enums import ScrollType
 from tilia.ui.windows.settings import get_value_for_widget, get_widget_for_value
 
 EDITED_VALUES = {
+    ("general", "auto-scroll"): ScrollType.BY_PAGE,
     ("general", "window_width"): 1200,
     ("auto-save", "max_stored_files"): 0,
     ("media_metadata", "default_fields"): [],
