@@ -4,6 +4,7 @@ from typing import Iterable
 from unittest.mock import patch
 
 import pytest
+import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
 from PySide6.QtGui import QColor, QHideEvent, QShowEvent
 from PySide6.QtWebEngineCore import QWebEnginePage
@@ -558,6 +559,41 @@ class TestPage:
                 }
             )
         )
+
+
+class TestClear:
+    def test_reimport_keeps_viewer_and_page(self, score_view, score_tlui):
+        run_js(score_view.view.page(), "window.samePage = true")
+
+        import_score()
+
+        assert get_score_view(score_tlui) is score_view
+        assert run_js(score_view.view.page(), "window.samePage === true")
+
+    def test_reimport_keeps_viewer_where_it_was(self, score_view, score_tlui):
+        main_window = get(Get.MAIN_WINDOW)
+        main_window.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, score_view)
+
+        import_score()
+
+        assert get_score_view(score_tlui) is score_view
+        assert (
+            main_window.dockWidgetArea(score_view)
+            == Qt.DockWidgetArea.TopDockWidgetArea
+        )
+
+    def test_clearing_timeline_hides_viewer(self, score_view, score_tlui):
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+
+        assert score_view.isHidden()
+        assert not score_tlui.measure_tracker.isVisible()
+
+    def test_deleting_timeline_deletes_viewer(self, score_view, score_tlui):
+        commands.execute("timeline.delete", score_tlui, confirm=False)
+
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        assert not shiboken6.isValid(score_view)
 
 
 class TestSeveralScoreTimelines:

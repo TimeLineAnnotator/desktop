@@ -30,10 +30,12 @@ from tilia.requests import (
     Post,
     get,
     listen,
+    post,
     stop_listening_to_all,
 )
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
+from tilia.ui.enums import WindowState
 from tilia.ui.windows.view_window import ViewDockWidget
 
 if TYPE_CHECKING:
@@ -203,10 +205,47 @@ class ScoreView(ViewDockWidget):
     def load_score(self, text: str, element_ids: dict[int, str] | None = None) -> None:
         """Shows a score given as MusicXML or MEI. `element_ids` maps the
         timeline's note components to the ids of their elements in the score."""
+        self._forget_score()
+        self._set_element_ids(element_ids or {})
+
+        self._setup_page()
+        self._score_text = text
+        self._run_script("tiliaLoadScore", text)
+
+        main_window = get(Get.MAIN_WINDOW)
+        if self.parentWidget() is not main_window:
+            # The first score puts the viewer below the timelines. Later ones,
+            # after a clear, find it where it was.
+            self.setParent(main_window)
+            main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self)
+        if not self.is_hidden:
+            self.show()
+
+    def clear_score(self) -> None:
+        """Forgets the score, as its timeline was cleared, and closes the
+        viewer as deleting it would. The page stays, so that the next score
+        doesn't start Verovio again, and so does the viewer's place."""
+        self._forget_score()
+        self._set_element_ids({})
+        self._score_text = None
+        # A score the page hasn't shown yet.
+        self._pending_scripts = []
+        if self.is_registered:
+            post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.DELETED)
+            self.is_registered = False
+        self.hide()
+        # Not closed by the user: the next score shows the viewer again.
+        self.is_hidden = False
+
+    def _forget_score(self) -> None:
         self.is_score_loaded = False
         self.mei = ""
         self.selected_ids = []
-        self._element_ids = dict(element_ids or {})
+        self._varying_elements = set()
+        self._shown_colors = {}
+
+    def _set_element_ids(self, element_ids: dict[int, str]) -> None:
+        self._element_ids = dict(element_ids)
         self._components_by_element = {}
         for component_id, element_id in self._element_ids.items():
             self._components_by_element.setdefault(element_id, []).append(component_id)
@@ -215,19 +254,6 @@ class ScoreView(ViewDockWidget):
             for element_id, component_ids in self._components_by_element.items()
             if len(component_ids) > 1
         ]
-        self._varying_elements = set()
-        self._shown_colors = {}
-
-        self._setup_page()
-        self._score_text = text
-        self._run_script("tiliaLoadScore", text)
-
-        self.setParent(get(Get.MAIN_WINDOW))
-        if not self.isVisible() and not self.is_hidden:
-            self.parentWidget().addDockWidget(
-                Qt.DockWidgetArea.BottomDockWidgetArea, self
-            )
-            self.show()
 
     def _setup_page(self) -> None:
         if self.view:
@@ -289,6 +315,9 @@ class ScoreView(ViewDockWidget):
         self._pending_scripts = []
 
     def on_score_loaded(self, data: dict[str, Any]) -> None:
+        if self._score_text is None:
+            # The score was cleared while the page was showing it.
+            return
         self.mei = data.get("mei", "")
         self.is_score_loaded = True
         self._page_restarts = 0
@@ -323,7 +352,7 @@ class ScoreView(ViewDockWidget):
         )
 
     def on_viewport_changed(self, data: dict[str, Any]) -> None:
-        if self.is_hidden:
+        if self.is_hidden or not self.is_score_loaded:
             return
         start_times = self._get_times(data.get("start"), snap=True)
         end_times = self._get_times(data.get("end"), snap=True)
