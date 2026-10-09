@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from tilia_core.tla import (
@@ -161,6 +163,18 @@ def test_setting_a_score_text_back_changes_nothing(text):
     s.text = text
     lines = list(s.lines)
     s.text = s.text
+    assert s.lines == lines
+
+
+@pytest.mark.parametrize("end, lines", [("", ["\r" * 200_000]), ("\n", ["", ""])])
+def test_a_long_run_of_crs_takes_little_time(end, lines):
+    # A run of CRs, as a corrupt score may hold, is read in time linear in its
+    # length: 200,000 take milliseconds, where a regex that rescans the run from
+    # each position takes minutes.
+    s = score([])
+    start = time.perf_counter()
+    s.text = "\r" * 200_000 + end
+    assert time.perf_counter() - start < 1
     assert s.lines == lines
 
 
