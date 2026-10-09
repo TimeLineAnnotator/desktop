@@ -24,7 +24,7 @@ def beat_timeline(
                 attrs[key] = beat[key]
         component_id = tla.new_id()
         components[component_id] = tla.Component(
-            id=component_id, kind="BEAT", attrs=attrs
+            id=component_id, kind="beat", attrs=attrs
         )
     metadata: tla.Metadata = {} if role is None else {"role": role}
     return tla.Timeline(
