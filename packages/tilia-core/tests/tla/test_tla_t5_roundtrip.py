@@ -411,16 +411,39 @@ def test_an_unknown_kind_spelled_like_a_known_one_is_refused():
         tla.canonical_bytes(doc)
 
 
-def test_an_integer_too_long_to_read_back_is_refused():
+@pytest.fixture(params=[None, 0, 100_000], ids=["as it is", "none", "a higher one"])
+def any_limit_on_integers(request):
+    """The running Python's limit on an integer's digits, as it is, taken off
+    or raised: Python 3.10.0 to 3.10.6 have none, and anyone can change it."""
+    if request.param is None:
+        yield
+        return
+    if not hasattr(sys, "set_int_max_str_digits"):
+        pytest.skip("no limit to set")
+    limit = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(request.param)
+    try:
+        yield
+    finally:
+        sys.set_int_max_str_digits(limit)
+
+
+def test_an_integer_too_long_to_read_back_is_refused(any_limit_on_integers):
+    # Longer than 4300 digits, Python's default limit, which a file written
+    # elsewhere must be read with.
     doc = tla.read(EVERY_KIND)
-    doc.extra["n"] = 10**4300
-    with pytest.raises(ValueError, match="/n: an integer too long"):
-        tla.canonical_bytes(doc)
-    doc.extra["n"] = 10**4300 - 1  # 4300 digits: Python reads it
-    assert tla.loads(tla.canonical_bytes(doc)).extra["n"] == 10**4300 - 1
+    for too_long in (10**4300, -(10**4300)):
+        doc.extra["n"] = too_long
+        with pytest.raises(ValueError, match="/n: an integer too long"):
+            tla.canonical_bytes(doc)
+    for longest in (10**4300 - 1, -(10**4300 - 1)):  # 4300 digits: Python reads it
+        doc.extra["n"] = longest
+        assert tla.loads(tla.canonical_bytes(doc)).extra["n"] == longest
 
 
-def test_a_measure_number_too_long_to_read_back_is_refused_naming_its_place():
+def test_a_measure_number_too_long_to_read_back_is_refused_naming_its_place(
+    any_limit_on_integers,
+):
     doc, timeline = beat_timeline(("b1", 0.0, {"number": 10**5000}))
     place = f"/timelines/{timeline.id}/components/b1/measure/number"
     with pytest.raises(ValueError, match=re.escape(place)):
@@ -430,7 +453,8 @@ def test_a_measure_number_too_long_to_read_back_is_refused_naming_its_place():
 @pytest.mark.skipif(
     not hasattr(sys, "set_int_max_str_digits"), reason="no limit to set"
 )
-def test_the_limit_on_integers_is_the_running_pythons():
+def test_an_integer_the_running_python_cant_write_is_refused():
+    # Its limit set lower than its default.
     doc = tla.read(EVERY_KIND)
     doc.extra["n"] = 10**700  # 701 digits
     limit = sys.get_int_max_str_digits()
