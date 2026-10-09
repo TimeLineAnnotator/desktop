@@ -8,7 +8,7 @@ import os
 from json.decoder import WHITESPACE, scanstring
 from typing import Any
 
-from tilia_core.tla.errors import UnreadableFile
+from tilia_core.tla.errors import UnreadableFile, printable
 
 _BOM = b"\xef\xbb\xbf"
 
@@ -157,7 +157,7 @@ def _walk(text: str, position: int, path: list[str], scan_value: Any) -> int:
             key_at = position
             key, position = scanstring(text, position + 1)
             if key in seen:
-                named = json.dumps(key, ensure_ascii=False)
+                named = printable(json.dumps(key, ensure_ascii=False))
                 message = f"{named} appears twice in one object"
                 raise _Found(message, [*path, key], key_at, key)
             seen.add(key)

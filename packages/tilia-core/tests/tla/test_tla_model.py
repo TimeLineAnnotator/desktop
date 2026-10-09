@@ -273,3 +273,9 @@ def test_file_changed_given_a_path_as_text():
     error = FileChanged("corpus/piece.tla", expected="ab", found="cd")
     assert error.path == Path("corpus") / "piece.tla"
     assert "piece.tla" in str(error)
+
+
+def test_file_changed_can_be_printed_whatever_its_file_is_called():
+    # On Linux, a file name that isn't UTF-8 holds lone surrogates.
+    error = FileChanged("caf\udce9.tla", expected="ab", found="cd")
+    assert str(error) == "caf\\udce9.tla has changed since it was read"

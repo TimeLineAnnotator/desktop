@@ -67,6 +67,25 @@ def test_error_names_a_file_given_as_text():
     assert str(error) == "piece.tla, line 4: not valid JSON (Expecting ',' delimiter)"
 
 
+def test_a_refusal_can_be_printed_whatever_its_key_holds():
+    # A key cut inside an emoji is a lone surrogate, which json.loads accepts.
+    error = refusal(b'{"timelines": {}, "a\\ud83d": 1, "a\\ud83d": 2}')
+    assert error.message == '"a\\ud83d" appears twice in one object'
+    assert str(error).encode("utf-8")
+    assert error.place == "/a\ud83d"  # the key itself
+
+
+def test_a_refusal_keeps_the_letters_of_its_key():
+    error = refusal('{"timelines": {}, "é": 1, "é": 2}'.encode())
+    assert error.message == '"é" appears twice in one object'
+
+
+def test_a_refusal_can_be_printed_whatever_its_file_is_called():
+    # On Linux, a file name that isn't UTF-8 holds lone surrogates.
+    error = refusal(b"", Path("caf\udce9.tla"))
+    assert str(error) == "caf\\udce9.tla: empty file"
+
+
 def test_error_with_an_empty_path_names_no_file():
     # An upload without a file name.
     assert str(refusal(INVALID, "")) == (
