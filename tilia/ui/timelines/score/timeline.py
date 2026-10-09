@@ -432,7 +432,16 @@ class ScoreTimelineUI(TimelineUI):
         if id != self.id:
             return
         self._reset_caches()
-        self.reset_svg()
+        self._clear_viewer()
+
+    def _clear_viewer(self) -> None:
+        if isinstance(self._viewer, ScoreView):
+            # Kept, with its page, for the next score (an import clears the
+            # timeline first): Verovio takes seconds to start.
+            self._viewer.clear_score()
+        else:
+            self.reset_svg()
+        self.measure_tracker.hide()
 
     def _rebuild_caches(self) -> None:
         # The caches grow as components are created, but undo and redo also
@@ -526,6 +535,10 @@ class ScoreTimelineUI(TimelineUI):
         if self._viewer:
             self._viewer.deleteLater()
             self._viewer = None
+
+    def delete(self) -> None:
+        self.reset_svg()
+        super().delete()
 
     def on_left_click(self, item, modifier, double, x, y):
         if item != self.measure_tracker:
