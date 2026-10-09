@@ -198,6 +198,131 @@ def test_an_empty_mark_is_never_left_out():
     assert marks.count(True) == 8
 
 
+def beat_timeline(*beats):
+    """A document with one beat timeline, its beats given as (id, time, mark)."""
+    doc = tla.new_document()
+    timeline = tla.Timeline(
+        id=tla.new_id(), kind="beat", ordinal=1, attrs={"height": 35}
+    )
+    for beat_id, time, mark in beats:
+        timeline.components[beat_id] = tla.Component(
+            id=beat_id, kind="beat", attrs={"time": time, "measure": mark}
+        )
+    doc.timelines[timeline.id] = timeline
+    return doc, timeline
+
+
+def written_marks(doc, timeline):
+    again = tla.loads(tla.canonical_bytes(doc)).timelines[timeline.id]
+    return [c.attrs["measure"] for c in again.components.values()]
+
+
+def test_the_first_measures_number_is_always_written():
+    doc, timeline = beat_timeline(
+        ("b1", 0.0, {"number": 1}), ("b2", 1.0, {"number": 2})
+    )
+    assert written_marks(doc, timeline) == [{"number": 1}, {}]
+
+
+def test_marks_follow_each_other_in_time_order_whatever_their_ids():
+    doc, timeline = beat_timeline(
+        ("b1", 1.0, {"number": 2}), ("b2", 0.0, {"number": 1})
+    )
+    assert written_marks(doc, timeline) == [{}, {"number": 1}]
+
+
+def test_marks_at_one_time_follow_each_other_in_id_order():
+    # Given in the other order: the document's order doesn't count.
+    doc, timeline = beat_timeline(
+        ("b2", 0.0, {"number": 6}), ("b1", 0.0, {"number": 5})
+    )
+    assert written_marks(doc, timeline) == [{"number": 5}, {}]
+
+
+def test_a_mark_after_one_without_a_number_keeps_its_number():
+    # With no number to follow, a later number has no default.
+    doc, timeline = beat_timeline(("b1", 0.0, {}), ("b2", 1.0, {"number": 1}))
+    assert written_marks(doc, timeline) == [{}, {"number": 1}]
+
+
+def test_a_marks_label_and_source_are_left_out_at_their_default():
+    doc, timeline = beat_timeline(
+        ("b1", 0.0, {"number": 3, "label": "3", "source": "score"}),
+        ("b2", 1.0, {"label": "4", "source": "tapped"}),
+    )
+    timeline.attrs["measure_source"] = "score"
+    assert written_marks(doc, timeline) == [{"number": 3}, {"source": "tapped"}]
+
+
+# What the writer refuses
+
+
+def test_a_key_set_both_as_an_attribute_and_as_an_unknown_key_is_refused():
+    doc = tla.read(EVERY_KIND)
+    cadences = named(doc, "Cadences")
+    marker = nth(cadences, 0)
+    marker.extra["label"] = "twice"
+    place = f"/timelines/{cadences.id}/components/{marker.id}/label"
+    with pytest.raises(ValueError, match=re.escape(place)):
+        tla.canonical_bytes(doc)
+
+
+def test_an_entry_under_another_id_is_refused():
+    doc = tla.read(EVERY_KIND)
+    cadences = named(doc, "Cadences")
+    doc.timelines["another"] = doc.timelines.pop(cadences.id)
+    with pytest.raises(ValueError, match="/timelines/another: holds the id"):
+        tla.canonical_bytes(doc)
+
+
+def test_a_kind_given_as_text_must_be_known():
+    doc = tla.read(EVERY_KIND)
+    cadences = named(doc, "Cadences")
+    cadences.kind = "lyrics"
+    with pytest.raises(ValueError, match=re.escape(f"/timelines/{cadences.id}/kind")):
+        tla.canonical_bytes(doc)
+
+
+def test_an_integer_too_long_to_read_back_is_refused():
+    doc = tla.read(EVERY_KIND)
+    doc.extra["n"] = 10**4300
+    with pytest.raises(ValueError, match="/n: an integer too long"):
+        tla.canonical_bytes(doc)
+    doc.extra["n"] = 10**4300 - 1  # 4300 digits: Python reads it
+    assert tla.loads(tla.canonical_bytes(doc)).extra["n"] == 10**4300 - 1
+
+
+def test_a_key_that_isnt_text_is_refused():
+    doc = tla.read(EVERY_KIND)
+    doc.metadata[1787] = "year"
+    with pytest.raises(ValueError, match="/metadata: a key must be text"):
+        tla.canonical_bytes(doc)
+
+
+def test_keys_are_written_in_nfc_unless_nfc_would_merge_two():
+    doc = tla.read(EMPTY)
+    composed, decomposed = "Stück", unicodedata.normalize("NFD", "Stück")
+    doc.metadata = {decomposed: "1"}
+    assert list(tla.loads(tla.canonical_bytes(doc)).metadata) == [composed]
+    doc.metadata = {composed: "1", decomposed: "2"}
+    again = tla.loads(tla.canonical_bytes(doc))
+    assert again.metadata == {composed: "1", decomposed: "2"}
+
+
+def test_a_timeline_of_an_unknown_kind_without_raw_is_written_whole():
+    doc = tla.read(EMPTY)
+    timeline = tla.Timeline(id=tla.new_id(), kind=tla.UnknownKind("Lyrics"), ordinal=1)
+    doc.timelines[timeline.id] = timeline
+    again = tla.loads(tla.canonical_bytes(doc)).timelines[timeline.id]
+    assert again.raw == {
+        "kind": "Lyrics",
+        "name": "",
+        "ordinal": 1,
+        "metadata": {},
+        "components": {},
+    }
+
+
 # What the reader gives
 
 
@@ -265,6 +390,69 @@ def test_attributes_at_their_default_are_filled_in():
     assert named(doc, "Beats").attrs["measure_source"] == "tapped"
     assert named(doc, "Harmony").attrs["level_height"] == 35
     assert named(doc, "Score").attrs["is_visible"] is True
+
+
+def test_entries_are_read_in_id_order():
+    content = json.loads(EVERY_KIND.read_bytes())
+    content["timelines"] = dict(reversed(content["timelines"].items()))
+    for timeline in content["timelines"].values():
+        timeline["components"] = dict(reversed(timeline["components"].items()))
+    doc = tla.loads(json.dumps(content).encode())
+    assert list(doc.timelines) == sorted(doc.timelines)
+    for timeline in doc.timelines.values():
+        assert list(timeline.components) == sorted(timeline.components)
+
+
+def edited(change):
+    content = json.loads(UNKNOWN.read_bytes())
+    change(content)
+    return json.dumps(content).encode()
+
+
+def first(content, key):
+    return next(iter(content[key].values()))
+
+
+@pytest.mark.parametrize(
+    "change, place",
+    [
+        (lambda c: c.pop("document_id"), "/document_id"),
+        (lambda c: c.update(media=[]), "/media"),
+        (lambda c: c["media"].pop("length"), "/media/length"),
+        (lambda c: c.update(metadata=["title"]), "/metadata"),
+        (lambda c: c.update(timelines=[]), "/timelines"),
+        (lambda c: c.update(scores={}), "/scores"),
+        (lambda c: first(c, "timelines").update(kind=1), "/timelines/{t}/kind"),
+        (lambda c: first(c, "timelines").pop("ordinal"), "/timelines/{t}/ordinal"),
+        (
+            lambda c: first(c, "timelines").update(components=[]),
+            "/timelines/{t}/components",
+        ),
+        (
+            lambda c: first(c, "timelines").update(metadata=""),
+            "/timelines/{t}/metadata",
+        ),
+        (
+            lambda c: first(first(c, "timelines"), "components").pop("kind"),
+            "/timelines/{t}/components/{c}/kind",
+        ),
+        (
+            lambda c: first(first(c, "timelines"), "components").update(metadata=[]),
+            "/timelines/{t}/components/{c}/metadata",
+        ),
+        (lambda c: c["scores"][0].pop("id"), "/scores/0/id"),
+        (lambda c: c["scores"][0].update(format=None), "/scores/0/format"),
+        (lambda c: c["scores"][0].update(content="<mei/>"), "/scores/0/content"),
+        (lambda c: c["scores"][0]["content"].append(1), "/scores/0/content/2"),
+    ],
+)
+def test_structure_the_reader_needs_is_refused_with_its_place(change, place):
+    content = json.loads(UNKNOWN.read_bytes())
+    timeline_id = next(iter(content["timelines"]))
+    component_id = next(iter(content["timelines"][timeline_id]["components"]))
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(edited(change))
+    assert error.value.place == place.format(t=timeline_id, c=component_id)
 
 
 def test_a_beats_mark_and_unit_are_kept_as_stored():
