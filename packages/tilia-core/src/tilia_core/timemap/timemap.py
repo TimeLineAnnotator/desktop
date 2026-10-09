@@ -20,6 +20,11 @@ from tilia_core.timemap.table import MeasureRow, build_rows_from
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
 EPS = 1e-6  # always applies, so float noise never moves a downbeat into the bar before
 
+FOLDED = (
+    "the table lists the measures played next (`next`), "
+    "which positions don't handle yet"
+)
+
 
 @dataclass(frozen=True)
 class Positions:
@@ -132,20 +137,23 @@ def build_time_map(
     document: tla.Document, timeline: tla.Timeline, *, guessed: bool = False
 ) -> tuple[TimeMap | None, str | None]:
     """The beat timeline's time map, or None with the reason it has none."""
+    table = timeline.measures
+    if table is None or (not table.rows and timeline.components):
+        return None, "no measure table"
     rows_in = rows_of(timeline)
+    if len(rows_in) < len(table.rows):
+        return None, "a downbeat without a time"
     times = [t for row in rows_in for t in row.beat_times]
     if len(times) < 2:
         return None, "fewer than two beats"
-    same = next((b for a, b in zip(times, times[1:], strict=False) if a == b), None)
-    if same is not None:
-        return None, f"two beats at the same time ({same})"
-    if any(row.next is not None for row in rows_in):
-        return (
-            None,
-            "the table lists the measures played next (`next`), "
-            "which positions don't handle yet",
-        )
-    rows = build_rows_from(document, timeline.id, rows_in)
+    for a, b in itertools.pairwise(times):
+        if abs(b - a) < EPS:
+            return None, f"two beats at the same time ({a})"
+        if b < a:
+            return None, f"beats out of time order (at {b})"
+    rows = build_rows_from(document, timeline, rows_in)
+    if rows[0].folded:
+        return None, FOLDED
     slots = (*times, rows[-1].end)
     time_map = TimeMap(
         timeline_id=timeline.id,

@@ -341,6 +341,29 @@ def test_timemap_no_time_map():
             {"time": 13.0},
         ]
     )
+    nearly_same_time = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0},
+            {"time": 1.0 + 1e-9},
+            {"time": 2.0},
+        ]
+    )
+    out_of_order = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0},
+            {"time": 3.0},
+            {"time": 2.0},
+        ]
+    )
+    no_table = _timeline({0: {"number": 1}, 2: {}}, last=3)
+    no_table.measures = None
+    empty_table = _timeline({0: {"number": 1}, 2: {}}, last=3)
+    empty_table.measures.rows.clear()
+    timeless_downbeat = _timeline({0: {"number": 1}, 2: {}, 4: {}}, last=5)
+    second_downbeat = timeless_downbeat.measures.rows[1].id
+    del timeless_downbeat.components[second_downbeat].attrs["time"]
     folded = _timeline({0: {"number": 1}, 2: {}}, last=3)
     folded.measures.rows[1].next = [folded.measures.rows[0].id]
 
@@ -349,6 +372,11 @@ def test_timemap_no_time_map():
         ("one beat", one_beat),
         ("no beats", no_beats),
         ("same time", same_time),
+        ("nearly the same time", nearly_same_time),
+        ("out of order", out_of_order),
+        ("no table", no_table),
+        ("empty table", empty_table),
+        ("timeless downbeat", timeless_downbeat),
         ("folded", folded),
     ]:
         doc = document(timeline)
@@ -360,6 +388,11 @@ def test_timemap_no_time_map():
         "one beat": "fewer than two beats",
         "no beats": "fewer than two beats",
         "same time": "two beats at the same time (12.5)",
+        "nearly the same time": "two beats at the same time (1.0)",
+        "out of order": "beats out of time order (at 2.0)",
+        "no table": "no measure table",
+        "empty table": "no measure table",
+        "timeless downbeat": "a downbeat without a time",
         "folded": "the table lists the measures played next (`next`), "
         "which positions don't handle yet",
     }

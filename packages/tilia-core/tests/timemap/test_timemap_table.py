@@ -34,6 +34,17 @@ def test_count_is_the_position_in_the_timeline():
     assert [r.number for r in rows] == [41, 42, 44, 45]
 
 
+def test_count_is_the_row_s_index_in_the_table():
+    # The downbeat at 2 s has no time: its measure is skipped, and the others
+    # keep their place in the table.
+    timeline = _timeline([{"number": 1}, {}, {}])
+    del timeline.components[timeline.measures.rows[1].id].attrs["time"]
+
+    rows = build_rows(document(timeline), timeline)
+
+    assert [(r.number, r.count) for r in rows] == [(1, 1), (3, 3)]
+
+
 def test_rows_keep_what_the_table_gives():
     timeline = _timeline(
         [
