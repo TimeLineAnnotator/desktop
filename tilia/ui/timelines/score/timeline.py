@@ -57,9 +57,9 @@ class ScoreTimelineUI(TimelineUI):
     STAFF_MIN_HEIGHT = 150
     # A staff with no clef TiLiA can read (none in the file, or a percussion,
     # none or TAB clef) places its notes as in treble clef, as MuseScore,
-    # Verovio and OSMD do, and draws no clef: G (step 4) in octave 4, on the
-    # line below the middle one, as in Clef.from_shorthand.
-    TREBLE_CLEF_POSITION = (4, 4, -1)
+    # Verovio and OSMD do, and draws no clef: B4 (step 6, octave 4) on the
+    # middle line.
+    TREBLE_CENTRAL_STEP = (6, 4)
     SYMBOLS_ABOVE_STAFF_MAX_HEIGHT = 50
 
     def __init__(self, *args, **kwargs):
@@ -299,17 +299,13 @@ class ScoreTimelineUI(TimelineUI):
             cache[idx][(start_time, get(Get.MEDIA_DURATION))] = clefs_in_staff[-1]
         return cache
 
-    def get_clef_position(self, time: float, staff_index: int) -> tuple[int, int, int]:
-        """The step, octave and line number of the clef at `time` on a staff,
-        or a treble clef's if the staff has none."""
+    def get_central_step(self, time: float, staff_index: int) -> tuple[int, int]:
+        """The step and octave of a staff's middle line at `time`, as its clef
+        gives them, or as in treble clef if the staff has none."""
         clef = self.get_clef_by_time(time, staff_index)
         if not clef:
-            return self.TREBLE_CLEF_POSITION
-        return (
-            clef.get_data("step"),
-            clef.get_data("octave"),
-            clef.get_data("line_number"),
-        )
+            return self.TREBLE_CENTRAL_STEP
+        return clef.central_step()
 
     def get_clef_by_time(self, time: float, staff_index: int) -> ClefUI | None:
         if staff_index not in self.clef_time_cache:
@@ -395,25 +391,21 @@ class ScoreTimelineUI(TimelineUI):
             return None
 
         line_count = staff.get_data("line_count")
-        clef_step, clef_octave, clef_line_number = self.get_clef_position(
-            time, staff_index
-        )
+        central_step, central_octave = self.get_central_step(time, staff_index)
 
         upper_line_number = math.floor(line_count / 2)
-        upper_step_diff = (upper_line_number - clef_line_number) * 2
-        upper_step = clef_step + upper_step_diff
+        upper_step = central_step + upper_line_number * 2
         upper_step_octave_diff = upper_step // 7
 
         lower_line_number = math.floor(line_count / 2) * -1
-        lower_step_diff = (lower_line_number - clef_line_number) * 2
-        lower_step = clef_step + lower_step_diff
+        lower_step = central_step + lower_line_number * 2
         lower_step_octave_diff = lower_step // 7
         while lower_step < 0:
             lower_step += 7
 
-        return (lower_step, clef_octave + lower_step_octave_diff), (
+        return (lower_step, central_octave + lower_step_octave_diff), (
             upper_step % 7,
-            clef_octave + upper_step_octave_diff,
+            central_octave + upper_step_octave_diff,
         )
 
     def update_height(self):
