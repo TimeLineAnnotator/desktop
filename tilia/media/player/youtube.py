@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from enum import Enum
@@ -238,7 +239,8 @@ class YouTubePlayer(Player):
         self.video_id = self.get_id_from_url(media_path)
 
         def load_video():
-            self.view.page().runJavaScript(f'loadVideo("{self.video_id}")')
+            # As a JSON string, as the score converter passes its score.
+            self.view.page().runJavaScript(f"loadVideo({json.dumps(self.video_id)})")
 
         if self.is_web_page_loaded:
             load_video()
