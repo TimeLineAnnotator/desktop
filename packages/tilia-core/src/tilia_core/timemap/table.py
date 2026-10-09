@@ -3,14 +3,44 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from types import MappingProxyType
+from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass
 
 from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
 
 logger = logging.getLogger(__name__)
+
+
+class FrozenMetadata(Mapping[str, "str | tuple[str, ...]"]):
+    """A measure's metadata, read-only, with its lists as tuples.
+
+    A copy, so a row doesn't follow later edits to the document, and nobody can
+    change a time map that others share through it. It hashes, pickles and copies.
+    """
+
+    __slots__ = ("_items",)
+
+    def __init__(self, items: Mapping[str, str | list[str]] | None = None) -> None:
+        self._items: dict[str, str | tuple[str, ...]] = {
+            key: tuple(value) if isinstance(value, list) else value
+            for key, value in (items or {}).items()
+        }
+
+    def __getitem__(self, key: str) -> str | tuple[str, ...]:
+        return self._items[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __hash__(self) -> int:
+        return hash(frozenset(self._items.items()))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._items!r})"
 
 
 @dataclass(frozen=True)
@@ -33,7 +63,7 @@ class MeasureRow:
     source: str
     force_display: bool
     next: tuple[str, ...] | None
-    metadata: Mapping[str, str | tuple[str, ...]] = field(hash=False)  # read-only
+    metadata: FrozenMetadata
 
 
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
@@ -84,7 +114,7 @@ def build_rows_from(
                 source=row.source,
                 force_display=row.force_display,
                 next=row.next,
-                metadata=_frozen(row.metadata),
+                metadata=FrozenMetadata(row.metadata),
             )
         )
     return out
@@ -110,19 +140,6 @@ def _closing_barline(
         )
         return end
     return min(end, media_length)
-
-
-def _frozen(
-    metadata: Mapping[str, str | list[str]]
-) -> Mapping[str, str | tuple[str, ...]]:
-    # A copy nobody can change: a row doesn't follow later edits to the
-    # document, and everyone holding the time map shares it.
-    return MappingProxyType(
-        {
-            key: tuple(value) if isinstance(value, list) else value
-            for key, value in metadata.items()
-        }
-    )
 
 
 def find_rows(

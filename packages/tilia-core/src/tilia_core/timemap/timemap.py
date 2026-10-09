@@ -42,7 +42,7 @@ class Positions:
     movement: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class TimeMap:
     """A beat timeline seen as a map from times to positions.
 
@@ -52,14 +52,26 @@ class TimeMap:
 
     timeline_id: str
     guessed: bool  # taken as the first beat timeline, as none had the role time_map
-    start: float  # the first beat
-    end: float  # the closing barline, excluded
-    tolerance: float
     _rows: tuple[MeasureRow, ...] = field(repr=False)
     _slots: tuple[float, ...] = field(repr=False)  # the beats, then the closing barline
     _measure_of: tuple[int, ...] = field(repr=False)  # each beat's measure
     _first: tuple[int, ...] = field(repr=False)  # each measure's first beat
     _downbeats: tuple[float, ...] = field(repr=False)
+
+    @property
+    def start(self) -> float:
+        """The first beat."""
+        return self._slots[0]
+
+    @property
+    def end(self) -> float:
+        """The closing barline, which the map excludes."""
+        return self._slots[-1]
+
+    @property
+    def tolerance(self) -> float:
+        """How close to a beat a time is on it, in the file's unit."""
+        return TOLERANCE
 
     def measure_rows(self) -> list[MeasureRow]:
         """The measure table, in the timeline's order."""
@@ -160,15 +172,11 @@ def build_time_map(
     rows = build_rows_from(document, timeline, rows_in)
     if rows[0].folded:
         return None, FOLDED
-    slots = (*times, rows[-1].end)
     time_map = TimeMap(
         timeline_id=timeline.id,
         guessed=guessed,
-        start=slots[0],
-        end=slots[-1],
-        tolerance=TOLERANCE,
         _rows=tuple(rows),
-        _slots=slots,
+        _slots=(*times, rows[-1].end),
         _measure_of=tuple(j for j, row in enumerate(rows) for _ in range(row.beats)),
         _first=tuple(itertools.accumulate((row.beats for row in rows[:-1]), initial=0)),
         _downbeats=tuple(row.start for row in rows),
