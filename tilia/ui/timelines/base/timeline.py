@@ -557,6 +557,7 @@ class TimelineUI(ABC):  # noqa: B024
     def delete(self):
         stop_listening_to_all(self)
         stop_listening_to_all(self.scene)
+        stop_listening_to_all(self.view)
         self.scene.destroy()
 
     def __repr__(self):
