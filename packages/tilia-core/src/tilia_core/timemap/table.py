@@ -92,8 +92,8 @@ def _closing_barline(
     *before, last = [t for row in rows[-2:] for t in row.beat_times][-2:]
     end = last + (last - before[0] if before else 0.0)
     media_length = document.media_length
-    if media_length is None:
-        return end
+    if media_length is None or document.time_unit != "seconds":
+        return end  # the media's length is in seconds
     if media_length <= last:
         logger.warning(
             "Timeline %s: the last beat (%s) is at or after the end of the media (%s); "
