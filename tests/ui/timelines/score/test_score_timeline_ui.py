@@ -468,9 +468,14 @@ def _import_score_text(text: str, tmp_path) -> None:
         commands.execute("timelines.import.score")
 
 
-def _note_tops(score_tlui) -> list[float]:
+def _note_positions(score_tlui) -> list[tuple[float, int]]:
+    """Each note's top and number of ledger lines."""
     notes = score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.NOTE)
-    return [score_tlui.get_element(note.id).top_y for note in sorted(notes)]
+    positions = []
+    for note in sorted(notes):
+        ui = score_tlui.get_element(note.id)
+        positions.append((ui.top_y, len(ui.ledger_line.lines) if ui.ledger_line else 0))
+    return positions
 
 
 @pytest.mark.parametrize(
@@ -479,19 +484,19 @@ def _note_tops(score_tlui) -> list[float]:
     ids=["no clef", "percussion clef"],
 )
 def test_notes_without_usable_clef_are_placed_as_in_treble_clef(
-    clef, pitch_tag, qtui, score_tlui, beat_tlui, beat_tl, tmp_path
+    clef, pitch_tag, qtui, score_tlui, beat_tlui, tmp_path
 ):
     # As MuseScore, Verovio and OSMD do. No clef is drawn: the score has none
     # TiLiA can show.
-    beat_tl.beat_pattern = [4]
     for time in range(5):
-        beat_tl.create_beat(time)
-    beat_tl.recalculate_measures()
+        commands.execute("timeline.beat.add", time=time)
     treble = "<clef><sign>G</sign><line>2</line></clef>"
     _import_score_text(_score_with_clef(treble, pitch_tag), tmp_path)
-    tops_in_treble = _note_tops(score_tlui)
+    positions_in_treble = _note_positions(score_tlui)
+    # G4 has no ledger line, C4 has one.
+    assert [ledger_lines for _, ledger_lines in positions_in_treble] == [0, 1]
 
     _import_score_text(_score_with_clef(clef, pitch_tag), tmp_path)
 
-    assert _note_tops(score_tlui) == tops_in_treble
+    assert _note_positions(score_tlui) == positions_in_treble
     assert not score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.CLEF)
