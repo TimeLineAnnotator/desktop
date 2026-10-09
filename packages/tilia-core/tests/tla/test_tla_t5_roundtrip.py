@@ -405,6 +405,35 @@ def test_a_key_set_twice_is_named_with_where_it_was_set():
         tla.canonical_bytes(doc)
 
 
+FIELDS = "set both in the timeline's fields"
+IN_RAW = "a timeline of a kind the core doesn't know keeps its components in `raw`"
+
+
+@pytest.mark.parametrize(
+    "attrs, extra, key, message",
+    [
+        ({"name": "a"}, {"name": "e"}, "name", f"{FIELDS} and in attrs"),
+        ({"name": "a"}, {}, "name", f"{FIELDS} and in attrs"),
+        ({"kind": "Marker"}, {}, "kind", f"{FIELDS} and in attrs"),
+        ({}, {"ordinal": 2}, "ordinal", f"{FIELDS} and in extra"),
+        ({"font": "a"}, {"font": "e"}, "font", "set both in attrs and in extra"),
+        ({}, {"components": {}}, "components", IN_RAW),
+        ({"components": {}}, {}, "components", IN_RAW),
+    ],
+)
+def test_a_key_set_twice_on_a_timeline_of_an_unknown_kind_is_refused(
+    attrs, extra, key, message
+):
+    # As on a timeline of a known kind, rather than the last one set winning.
+    doc = tla.read(UNKNOWN)
+    lyrics = list(doc.timelines.values())[3]
+    lyrics.attrs.update(attrs)
+    lyrics.extra.update(extra)
+    place = f"/timelines/{lyrics.id}/{key}"
+    with pytest.raises(ValueError, match=re.escape(f"{place}: {message}")):
+        tla.canonical_bytes(doc)
+
+
 def test_a_key_that_isnt_text_is_refused():
     doc = tla.read(EVERY_KIND)
     doc.metadata[1787] = "year"
