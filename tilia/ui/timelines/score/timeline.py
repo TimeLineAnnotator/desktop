@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, TypeVar
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon
@@ -37,6 +37,8 @@ from tilia.ui.timelines.score.element.with_collision import (
 from tilia.ui.timelines.score.toolbar import ScoreTimelineToolbar
 from tilia.ui.windows.score.score_view import ScoreView
 from tilia.ui.windows.svg_viewer import SvgViewer
+
+V = TypeVar("V", SvgViewer, ScoreView)
 
 
 class ScoreTimelineUI(TimelineUI):
@@ -102,16 +104,18 @@ class ScoreTimelineUI(TimelineUI):
         }
 
     @property
-    def svg_view(self) -> SvgViewer | ScoreView:
-        if self._viewer:
-            return self._viewer
-        if not self.timeline.svg_data:
-            self._viewer = ScoreView(name=self.get_data("name"), tl_id=self.id)
-            return self._viewer
-        # Scores stored as SVG, in older files, keep the old viewer.
-        self._viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-        self._viewer.load_svg_data(self.timeline.svg_data)
-        self.measure_tracker.setVisible(not self._viewer.is_hidden)
+    def svg_view(self) -> SvgViewer | ScoreView | None:
+        """The viewer showing the timeline's score. A timeline without a
+        score has none."""
+        return self._viewer
+
+    def _ensure_viewer(self, viewer_class: type[V]) -> V:
+        """The timeline's viewer, a `viewer_class`; a viewer of the other
+        class is deleted first. `SvgViewer` shows scores stored as SVG, in
+        older files, and `ScoreView` all others."""
+        if not isinstance(self._viewer, viewer_class):
+            self.reset_svg()
+            self._viewer = viewer_class(name=self.get_data("name"), tl_id=self.id)
         return self._viewer
 
     @staticmethod
@@ -125,8 +129,8 @@ class ScoreTimelineUI(TimelineUI):
     def update_name(self):
         name = self.get_data("name")
         self.scene.set_text(name)
-        if self.svg_view:
-            self.svg_view.update_title(name)
+        if self._viewer:
+            self._viewer.update_title(name)
 
     def get_staff_y_cache(self):
         return {
@@ -495,35 +499,28 @@ class ScoreTimelineUI(TimelineUI):
         self.scene.addItem(self.measure_tracker)
 
         if self.timeline.svg_data:
-            self._viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-            self._viewer.load_svg_data(self.timeline.svg_data)
-            self.measure_tracker.show()
+            self._show_svg_score()
+
+    def _show_svg_score(self) -> None:
+        viewer = self._ensure_viewer(SvgViewer)
+        viewer.load_svg_data(self.timeline.svg_data)
+        self.measure_tracker.setVisible(not viewer.is_hidden)
 
     def update_svg_data(self) -> None:
-        viewer = self.svg_view
-        if not self.timeline.svg_data:
-            # No score stored as SVG (an import replaced it, and was redone, say):
+        if self.timeline.svg_data:
+            # A score stored as SVG came back (by undo, say).
+            self._show_svg_score()
+        elif isinstance(self._viewer, SvgViewer):
+            # An import replaced the score stored as SVG (and was redone, say):
             # the old viewer has nothing left to show.
-            if isinstance(viewer, SvgViewer):
-                self.reset_svg()
-            return
-        if isinstance(viewer, ScoreView):
-            # A score stored as SVG came back (by undo, say): it's the old
-            # viewer's to show.
             self.reset_svg()
-            viewer = self._viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-        viewer.load_svg_data(self.timeline.svg_data)
 
     def on_score_timeline_score_imported(
         self, id: int, text: str, element_ids: dict[int, str]
     ) -> None:
         if id != self.id:
             return
-        viewer = self.svg_view
-        if not isinstance(viewer, ScoreView):
-            self.reset_svg()
-            viewer = self._viewer = ScoreView(name=self.get_data("name"), tl_id=self.id)
-        viewer.load_score(text, element_ids)
+        self._ensure_viewer(ScoreView).load_score(text, element_ids)
 
     def reset_svg(self) -> None:
         if self._viewer:
@@ -550,7 +547,8 @@ class ScoreTimelineUI(TimelineUI):
             post(Post.ELEMENT_DRAG_START)
 
     def after_each_drag(self, drag_x: int):
-        self.svg_view.scroll_to_time(time_x_converter.get_time_by_x(drag_x), True)
+        if self._viewer:
+            self._viewer.scroll_to_time(time_x_converter.get_time_by_x(drag_x), True)
 
     def on_drag_end(self):
         if self.dragged:
@@ -582,7 +580,7 @@ class ScoreTimelineUI(TimelineUI):
             __set_tracker_position(QPointF(start, end))
 
     def on_timeline_width_set_done(self, _: float) -> None:
-        if self.svg_view and self.svg_view.is_svg_loaded:
+        if self._viewer and self._viewer.is_svg_loaded:
             self.update_measure_tracker_position()
 
 
