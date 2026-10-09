@@ -39,7 +39,7 @@ from tilia.requests import (
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
-from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.windows.view_window import ViewDockWidget
 
 
@@ -636,7 +636,9 @@ class SvgGraphicsView(QGraphicsView):
         self._viewport_updated()
         self.update_measure_tracker = update_measure_tracker
         self.update_scroll_margins = update_scroll_margins
-        setup_smooth(self)
+        self.smooth_x = SmoothSetter(
+            lambda: self.current_viewport_x_center, self._center_on_x
+        )
 
     def _viewport_updated(self) -> bool:
         viewport = self.mapToScene(self.viewport().geometry()).boundingRect()
@@ -673,21 +675,15 @@ class SvgGraphicsView(QGraphicsView):
             self._check_scene_bounding_rect()
 
     def scroll_to_x(self, x: float):
-        def __get_x():
-            return self.current_viewport_x_center
+        self.smooth_x(x)
 
-        @smooth(self, __get_x)
-        def __set_x(x):
-            old, has_sb = (
-                (sb.value(), True)
-                if (sb := self.verticalScrollBar())
-                else (None, False)
-            )
-            self.centerOn(x, 0)
-            if has_sb:
-                self.verticalScrollBar().setValue(old)
-
-        __set_x(x)
+    def _center_on_x(self, x: float) -> None:
+        old, has_sb = (
+            (sb.value(), True) if (sb := self.verticalScrollBar()) else (None, False)
+        )
+        self.centerOn(x, 0)
+        if has_sb:
+            self.verticalScrollBar().setValue(old)
 
     def wheelEvent(self, event):
         if Qt.KeyboardModifier.ControlModifier not in event.modifiers():
