@@ -122,5 +122,6 @@ class MeasureMeter:
     def time_signature(self) -> tuple[Fraction, int]:
         return self.numerator, self.denominator
 
-    def quarter_length(self, beat_value: Fraction) -> Fraction:
-        return beat_value * 4 / self.denominator
+    def quarter_length(self, beat_value: Fraction | int) -> Fraction:
+        # An int divided by the denominator would give a float.
+        return Fraction(beat_value) * 4 / self.denominator
