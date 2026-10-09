@@ -30,9 +30,7 @@ from tilia.requests import (
     Post,
     get,
     listen,
-    serve,
     stop_listening_to_all,
-    stop_serving_all,
 )
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
@@ -166,7 +164,6 @@ class ScoreView(ViewDockWidget):
         self._varying_elements: set[str] = set()
         self._shown_colors: dict[str, str | None] = {}
 
-        serve(self, Get.SCORE_VIEWER, self.get_viewer)
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_current_time_changed)
         listen(
             self,
@@ -178,10 +175,6 @@ class ScoreView(ViewDockWidget):
             Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED,
             self.on_components_deserialized,
         )
-
-    def get_viewer(self, tl_id: int) -> ScoreView | None:
-        if tl_id == self.timeline_id:
-            return self
 
     @property
     def timeline(self) -> ScoreTimeline | None:
@@ -462,7 +455,6 @@ class ScoreView(ViewDockWidget):
     def deleteLater(self) -> None:
         if self._bridge:
             self._bridge.detach()
-        stop_serving_all(self)
         stop_listening_to_all(self)
         super().deleteLater()
 

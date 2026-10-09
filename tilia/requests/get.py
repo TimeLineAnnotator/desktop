@@ -49,7 +49,6 @@ class Get(Enum):
     PLAYER_CLASS = auto()
     RIGHT_MARGIN_X = auto()
     SELECTED_TIME = auto()
-    SCORE_VIEWER = auto()
     TIMELINE = auto()
     TIMELINES = auto()
     TIMELINE_BY_ATTR = auto()
