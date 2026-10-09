@@ -290,12 +290,16 @@ def notes_from_musicXML(
                     ) - 3
                     octave_change = (
                         int(o.text)
-                        if (o := attribute.find("clef-octave-change"))
+                        if (o := attribute.find("clef-octave-change")) is not None
                         else 0
                     )
                     constructor_kwargs = {
                         "line_number": line,
-                        "icon": Clef.ICON.get(sign),
+                        # Such as "G-8", for treble 8vb. An octave change
+                        # without its own icon gets the plain clef's.
+                        "icon": Clef.ICON.get(
+                            f"{sign}{octave_change * 8:+d}", Clef.ICON[sign]
+                        ),
                         "step": NOTE_NAME_TO_INT[sign],
                         "octave": sign_to_octave[sign] + octave_change,
                     }
