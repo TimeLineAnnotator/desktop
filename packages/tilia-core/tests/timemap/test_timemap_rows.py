@@ -146,3 +146,33 @@ def test_a_beat_unit_that_cannot_be_read_is_ignored(caplog):
 
     assert row.units == ()
     assert "beat unit" in caplog.text
+
+
+def test_a_measure_whose_downbeat_has_no_time_is_skipped(caplog):
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0},
+            {"time": 2.0, "measure": {"number": 2}},
+            {"time": 3.0},
+        ]
+    )
+    downbeat = timeline.measures.rows[1].id
+    del timeline.components[downbeat].attrs["time"]
+
+    rows = rows_of(timeline)
+
+    assert [r.number for r in rows] == [1]
+    assert all(r.id == r.beat_ids[0] for r in rows)
+    assert "downbeat" in caplog.text
+
+
+def test_another_beat_without_a_time_is_left_out_of_its_measure():
+    timeline = beat_timeline(
+        [{"time": 0.0, "measure": {"number": 1}}, {"time": 1.0}, {"time": 2.0}]
+    )
+    del timeline.components[timeline.measures.rows[0].beats[1]].attrs["time"]
+    (row,) = rows_of(timeline)
+
+    assert row.beat_times == (0.0, 2.0)
+    assert len(row.beat_ids) == 2

@@ -34,13 +34,16 @@ def rows_of(timeline: tla.Timeline) -> list[RowIn]:
 
     `Measure.beat_unit` (the unit in force) and any beat pattern are not read:
     the governing unit is computed from the units set on each row's own beats.
+    A beat without a time is logged and left out; a measure whose downbeat has
+    none is left out whole, so every row's `id` is its first beat.
     """
     if timeline.measures is None:
         return []
-    return [_row_in(timeline, row) for row in timeline.measures.rows]
+    rows = (_row_in(timeline, row) for row in timeline.measures.rows)
+    return [row for row in rows if row is not None]
 
 
-def _row_in(timeline: tla.Timeline, row: tla.Measure) -> RowIn:
+def _row_in(timeline: tla.Timeline, row: tla.Measure) -> RowIn | None:
     mark = _dict(timeline.components.get(row.id), "measure")
     beat_ids: list[str] = []
     beat_times: list[float] = []
@@ -61,6 +64,13 @@ def _row_in(timeline: tla.Timeline, row: tla.Measure) -> RowIn:
         unit = _beat_unit(timeline, component)
         if unit is not None:
             units.append((beat_id, unit))
+    if not beat_ids or beat_ids[0] != row.id:
+        logger.warning(
+            "Timeline %s: the downbeat of measure %s has no time; the measure is skipped.",
+            timeline.id,
+            row.id,
+        )
+        return None
     return RowIn(
         id=row.id,
         number=row.number,
