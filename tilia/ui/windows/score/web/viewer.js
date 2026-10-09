@@ -281,9 +281,17 @@ function startToolkit() {
   onReady();
 }
 
-// Under the page's CSP, the runtime is ready before this script runs.
-if (verovio.module.calledRun) {
-  startToolkit();
-} else {
-  verovio.module.onRuntimeInitialized = startToolkit;
-}
+// viewer.html loads the toolkit after this script. The toolkit's load event
+// fires as soon as it has run, while its WebAssembly is still being compiled,
+// so its runtime can't be ready before we ask to hear of it. (Verovio 6.3
+// doesn't set Module.calledRun, so a script after the toolkit can't tell
+// whether the runtime is already ready.)
+document.addEventListener(
+  "load",
+  (event) => {
+    if (event.target.id === "verovio-toolkit") {
+      verovio.module.onRuntimeInitialized = startToolkit;
+    }
+  },
+  true, // a script's load event doesn't bubble
+);

@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <!--
-  Scripts run only from local files (this folder's) and from Qt's resources
-  (qwebchannel.js), never inline, and no event-handler attribute runs.
-  viewer.js also strips scripts, foreign content and event handlers from a
-  score's SVG before showing it, so nothing that comes with a score can run.
-  The page makes no network requests.
+  The CSP lets scripts run from local files (any local file: `file:` can't be
+  narrowed to this folder) and from Qt's resources (qwebchannel.js), never
+  inline, and no event-handler attribute runs. The page loads only this
+  folder's scripts. viewer.js also strips scripts, foreign content and event
+  handlers from a score's SVG before showing it, so nothing that comes with a
+  score can run. The page makes no network requests.
 -->
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src file: qrc: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; font-src data:">
@@ -27,7 +28,8 @@
 <body>
 <div id="score"></div>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-<script src="verovio-toolkit-wasm.js"></script>
+<!-- Before the toolkit, so that it hears when the toolkit's runtime is ready. -->
 <script src="viewer.js"></script>
+<script id="verovio-toolkit" src="verovio-toolkit-wasm.js"></script>
 </body>
 </html>
