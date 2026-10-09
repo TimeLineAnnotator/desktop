@@ -212,6 +212,16 @@ class TestMeasureMeters:
         assert hash(second) == hash(third)
         assert set(beat_tl.measure_meters) == {first, second}
 
+    @pytest.mark.parametrize("beat_value", [1, F(1)])
+    def test_quarter_length_is_exact(self, beat_tl, beat_value):
+        add_beats(beat_tl, 3)
+        add_beat_unit(beat_tl, 0, 6, "1")
+
+        length = beat_tl.get_measure_meter(0).quarter_length(beat_value)
+
+        assert isinstance(length, F)
+        assert length == F(2, 3)
+
     def test_cache_is_refreshed_when_units_change(self, beat_tl):
         add_beats(beat_tl, 4)
         beat_unit = add_beat_unit(beat_tl, 0, 4, "1")
