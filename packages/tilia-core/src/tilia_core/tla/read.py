@@ -9,6 +9,21 @@ from pathlib import Path
 from typing import Any
 
 from tilia_core.tla.errors import UnreadableFile, printable
+from tilia_core.tla.layout import (
+    BEAT_UNIT_SHAPE,
+    COMPONENT_SHAPES,
+    FORMAT_VERSION,
+    MEASURE_SHAPE,
+    MEDIA_SHAPE,
+    RANGE_ROW_SHAPE,
+    TIMELINE_SHAPES,
+    TOP_SHAPE,
+    UNKNOWN_COMPONENT,
+    Shape,
+    nfc_object,
+    nfc_value,
+    pointer_to,
+)
 from tilia_core.tla.model import (
     Component,
     Document,
@@ -19,18 +34,6 @@ from tilia_core.tla.model import (
     timeline_kind_from_file,
 )
 from tilia_core.tla.parse import parse
-from tilia_core.tla.write import (
-    COMPONENT_SHAPES,
-    FORMAT_VERSION,
-    MEDIA_SHAPE,
-    TIMELINE_SHAPES,
-    TOP_SHAPE,
-    UNKNOWN_COMPONENT,
-    Shape,
-    nfc_object,
-    nfc_value,
-    pointer_to,
-)
 
 
 def read(path: str | os.PathLike[str]) -> Document:
@@ -119,11 +122,22 @@ def _check_version(
 
 _TIMELINE_FIELDS = frozenset({"kind", "name", "ordinal", "metadata", "components"})
 _COMPONENT_FIELDS = frozenset({"kind", "metadata"})
-_SCORE_FIELDS = frozenset({"id", "format", "source", "license", "content"})
+_SCORE_FIELDS = frozenset({"id", "format", "content"})
+# Inside an attribute, the objects whose defaults are filled in as well. A
+# mark's number, label and source aren't: they depend on the marks before it,
+# and the timeline's measure table is where they are resolved.
+_NESTED = {"measure": MEASURE_SHAPE, "beat_unit": BEAT_UNIT_SHAPE}
 
 
-def _is_integer(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
+def _filled(value: Any, shape: Shape) -> Any:
+    """An object with the defaults of its shape filled in, from the schema's
+    `default`s; anything else as it is."""
+    if not isinstance(value, dict):
+        return value
+    filled = dict(value)
+    for key, default in shape.defaults.items():
+        filled.setdefault(key, default)
+    return filled
 
 
 def _attrs(
@@ -146,6 +160,11 @@ def _attrs(
             attrs[key] = shape.defaults[key]
         elif shape.derived.get(key) in value:
             attrs[key] = nfc_value(value[shape.derived[key]])
+    for key, shape in _NESTED.items():
+        if key in attrs:
+            attrs[key] = _filled(attrs[key], shape)
+    if isinstance(attrs.get("rows"), list):
+        attrs["rows"] = [_filled(row, RANGE_ROW_SHAPE) for row in attrs["rows"]]
     return attrs
 
 
@@ -157,10 +176,8 @@ def _unknown(value: dict[str, Any], known: frozenset[str]) -> dict[str, Any]:
 
 class _Reader:
     """Makes a `Document` of a file in the current format: kinds in lower case,
-    attributes at their default filled in, unknown keys in `extra`, text in
-    NFC except a score's lines. A beat's measure mark and beat unit are kept as
-    stored: a mark's number, label and source depend on the marks before it,
-    and the timeline's measure table is where they are resolved."""
+    the schema's defaults filled in, unknown keys in `extra`, text in NFC
+    except a score's lines."""
 
     def __init__(self, path: str | os.PathLike[str] | None) -> None:
         self.path = path
@@ -225,19 +242,15 @@ class _Reader:
         spelling = self._text(self._require(timeline, "kind", place), place, "kind")
         kind = timeline_kind_from_file(spelling)
         if isinstance(kind, UnknownKind):
-            # Kept whole, and written back from `raw`; its name, ordinal and
-            # metadata are given as well, for reading.
-            raw = nfc_value(timeline)
-            name, ordinal, metadata = (
-                raw.get(k) for k in ("name", "ordinal", "metadata")
-            )
+            # Kept whole in `raw`. Its name, ordinal and metadata are fields
+            # too, copies the writer writes in place of raw's.
             return Timeline(
                 id=timeline_id,
                 kind=kind,
-                ordinal=ordinal if _is_integer(ordinal) else 0,
-                name=name if isinstance(name, str) else "",
-                metadata=dict(metadata) if isinstance(metadata, dict) else {},
-                raw=raw,
+                ordinal=nfc_value(timeline.get("ordinal", 0)),
+                name=nfc_value(timeline.get("name", "")),
+                metadata=nfc_value(timeline.get("metadata", {})),
+                raw=nfc_value(timeline),
             )
         shape = TIMELINE_SHAPES[kind]
         components = self._require(timeline, "components", place)
@@ -284,9 +297,13 @@ class _Reader:
     def _scores(self, value: Any, place: str) -> dict[str, Score]:
         if not isinstance(value, list):
             raise self._refuse(f"expected a list at {place}", place)
-        scores = {}
+        scores: dict[str, Score] = {}
         for index, item in enumerate(value):
             score = self._score(item, pointer_to(place, index))
+            if score.id in scores:
+                name = printable(json.dumps(score.id, ensure_ascii=False))
+                id_place = pointer_to(pointer_to(place, index), "id")
+                raise self._refuse(f"two scores have the id {name}", id_place)
             scores[score.id] = score
         return dict(sorted(scores.items()))
 
@@ -302,12 +319,16 @@ class _Reader:
             raise self._refuse(f"expected a list at {lines}", lines)
         for index, line in enumerate(content):
             self._text(line, lines, index)
+        # None is no source or licence: a null in the file stays in extra.
+        fields = {
+            k: score[k] for k in ("source", "license") if score.get(k) is not None
+        }
         return Score(
             id=nfc_value(score_id),
             format=nfc_value(score_format),
             lines=list(content),  # as imported: never in NFC
-            source=nfc_value(score["source"]) if "source" in score else None,
-            license=nfc_value(score["license"]) if "license" in score else None,
+            source=nfc_value(fields.get("source")),
+            license=nfc_value(fields.get("license")),
             # A legacy score's beat_x among them.
-            extra=_unknown(score, _SCORE_FIELDS),
+            extra=_unknown(score, _SCORE_FIELDS.union(fields)),
         )
