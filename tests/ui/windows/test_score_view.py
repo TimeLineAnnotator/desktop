@@ -29,7 +29,7 @@ from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.windows.score.score_view import VIEWER_PATH, ScoreView
-from tilia.ui.windows.svg_viewer import SvgViewer
+from tilia.ui.windows.svg_viewer import SvgStaveNote, SvgViewer
 
 # The viewer's page compiles Verovio when it loads.
 pytestmark = pytest.mark.timeout(60)
@@ -105,10 +105,13 @@ def add_four_beat_measures():
 
 
 def import_score(path: str = EXAMPLE_MUSICXML_PATH, add_measure_zero: bool = True):
-    with (
-        patch_file_dialog(True, [path]),
-        patch_yes_or_no_dialog(add_measure_zero),
-    ):
+    with patch_yes_or_no_dialog(add_measure_zero):
+        import_score_file(path)
+
+
+def import_score_file(path: str = EXAMPLE_MUSICXML_PATH):
+    # Answer the import's questions around this.
+    with patch_file_dialog(True, [path]):
         commands.execute("timelines.import.score")
 
 
@@ -185,6 +188,13 @@ def get_marker(score_view: ScoreView, element_id: str) -> str:
         score_view.view.page(),
         f"getComputedStyle(document.getElementById({json.dumps(element_id)})).filter",
     )
+
+
+def add_svg_annotation(viewer: SvgViewer, text: str):
+    note = next(item for item in viewer.scene.items() if isinstance(item, SvgStaveNote))
+    note.setSelected(True)
+    with Serve(Get.FROM_USER_STRING, (True, text)):
+        commands.execute("timeline.score.add")
 
 
 def set_color(note, color: str):
@@ -561,6 +571,54 @@ class TestPage:
         )
 
 
+class TestUndo:
+    def test_undo_and_redo_import(self, score_tlui):
+        add_beats()
+
+        with undoable():
+            import_score()
+
+        viewer = get_score_view(score_tlui)
+        commands.execute("edit.undo")
+        assert viewer.isHidden()
+        assert not viewer.is_score_loaded
+        commands.execute("edit.redo")
+        assert get_score_view(score_tlui) is viewer
+        assert not viewer.isHidden()
+
+    def test_undo_and_redo_import_over_another_score(self, score_tlui):
+        add_beats()
+        # Without its pick-up measure, then with it: two different scores.
+        import_score(add_measure_zero=False)
+        viewer = get_score_view(score_tlui)
+        with patch_yes_or_no_dialog([True, True]):
+            import_score_file()
+        get_score_view(score_tlui)
+
+        commands.execute("edit.undo")
+
+        notes = get_notes(score_tlui)
+        assert len(notes) == 2
+        assert get_score_view(score_tlui) is viewer
+        assert all(viewer.get_element_id(note.id) for note in notes)
+
+        commands.execute("edit.redo")
+
+        notes = get_notes(score_tlui)
+        assert len(notes) == 4
+        assert get_score_view(score_tlui) is viewer
+        assert all(viewer.get_element_id(note.id) for note in notes)
+
+    def test_undoing_clear_shows_score_again(self, score_view, score_tlui):
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+
+        commands.execute("edit.undo")
+
+        assert get_score_view(score_tlui) is score_view
+        assert not score_view.isHidden()
+
+
 class TestClear:
     def test_reimport_keeps_viewer_and_page(self, score_view, score_tlui):
         run_js(score_view.view.page(), "window.samePage = true")
@@ -644,23 +702,31 @@ class TestSvgScores:
         get_score_view(score_tlui)
         assert score_tlui.timeline.svg_data == ""
 
-    def test_undoing_import_brings_back_old_viewer(self, tluis, tmp_path):
+    def test_undo_and_redo_import_over_svg_score(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
         add_beats()
-        import_score()
-        get_score_view(score_tlui)
 
+        with undoable():
+            import_score()
+
+        viewer = get_score_view(score_tlui)
         commands.execute("edit.undo")
-
         assert isinstance(score_tlui.svg_view, SvgViewer)
+        commands.execute("edit.redo")
+        assert get_score_view(score_tlui) is not viewer
 
-    def test_redoing_import_closes_old_viewer(self, tluis, tmp_path):
+    def test_undoing_clear_brings_back_svg_score_and_annotations(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
-        add_beats()
-        import_score()
-        get_score_view(score_tlui)
+        add_svg_annotation(score_tlui.svg_view, "Cadence")
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+        assert score_tlui.svg_view is None
+
         commands.execute("edit.undo")
 
-        commands.execute("edit.redo")
-
-        assert not isinstance(score_tlui.svg_view, SvgViewer)
+        viewer = score_tlui.svg_view
+        assert isinstance(viewer, SvgViewer)
+        assert [
+            annotation["annotation"].text()
+            for annotation in viewer.tla_annotations.values()
+        ] == ["Cadence"]
