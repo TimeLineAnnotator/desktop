@@ -188,8 +188,9 @@ class TestMigratedId:
         "old", ["a7", "", "-3", "03", "1.5", " 4", -3, 2**38, str(2**38), True]
     )
     def test_what_counts_as_not_an_integer(self, old):
-        value = migrated_id(DOC, "component", "1", old, position=0)
-        assert time_field(value) == BASE_MS + 2**38
+        # A position other than 0, so that an id taken for an integer shows.
+        value = migrated_id(DOC, "component", "1", old, position=5)
+        assert time_field(value) == BASE_MS + 2**38 + 5
 
     def test_a_very_long_numeric_old_id_isnt_an_integer(self):
         # Longer than Python's int() reads, by default, since 3.10.7.
@@ -458,3 +459,17 @@ class TestDerivedDocumentId:
     def test_never_changes(self):
         # Files read before and after an update must get the same id.
         assert derived_document_id(old_file()) == "03209ea7-1448-859f-900b-712a89d6f7c2"
+
+    @pytest.mark.parametrize(
+        "change",
+        [
+            set_key("media_metadata", "a text"),
+            set_key("timelines", ["a list"]),
+            set_key("timelines", "1", "a text"),
+            set_key("timelines", "1", "components", ["a list"]),
+            set_key("timelines", "1", "components", "2", "a text"),
+        ],
+    )
+    def test_takes_what_isnt_an_object_where_one_is_expected(self, change):
+        # An old file can hold anything there: it is hashed as it is.
+        assert uuid.UUID(derived_document_id(edited(change))).version == 8
