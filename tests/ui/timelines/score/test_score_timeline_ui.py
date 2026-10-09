@@ -5,6 +5,7 @@ from PySide6.QtGui import QColor
 
 from tests.constants import (
     EXAMPLE_MULTISTAFF_MUSICXML_PATH,
+    EXAMPLE_MUSICXML_PATH,
     EXAMPLE_RESTS_ONLY_MUSICXML_PATH,
 )
 from tests.mock import (
@@ -12,7 +13,7 @@ from tests.mock import (
     patch_file_dialog,
     patch_yes_or_no_dialog,
 )
-from tests.utils import get_blank_file_data, reloadable
+from tests.utils import get_blank_file_data, reloadable, undoable
 from tilia.errors import SCORE_STAFF_ID_ERROR
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
@@ -253,3 +254,50 @@ def test_symbols_do_not_collide_with_staff_without_notes(
     staff_top_y = score_tlui.get_element(staff.id).staff_lines.lines[0].line().y1()
 
     assert clef_bottom_y <= staff_top_y
+
+
+class TestUndoImport:
+    @staticmethod
+    def add_timelines():
+        commands.execute("timelines.add.score", name="Score")
+        with Serve(Get.FROM_USER_BEAT_PATTERN, (True, [3])):
+            commands.execute("timelines.add.beat", name="Beats")
+        # example.musicxml has a pick-up measure, which the import adds as measure 0.
+        for time in range(5, 12):
+            commands.execute("timeline.beat.add", time=time)
+
+    @staticmethod
+    def import_score(add_measure_zero: bool = True, replace: bool = False):
+        # Replacing a score is confirmed first.
+        answers = [True, add_measure_zero] if replace else [add_measure_zero]
+        with (
+            patch_file_dialog(True, [EXAMPLE_MUSICXML_PATH]),
+            patch_yes_or_no_dialog(answers),
+        ):
+            commands.execute("timelines.import.score")
+
+    @staticmethod
+    def get_notes():
+        score_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        return [e for e in score_tlui if e.kind == ComponentKind.NOTE]
+
+    def test_undo_and_redo_import(self, tluis):
+        self.add_timelines()
+
+        with undoable():
+            self.import_score()
+
+        assert len(self.get_notes()) == 4
+
+    def test_undo_and_redo_import_over_another_score(self, tluis):
+        self.add_timelines()
+        # Without its pick-up measure, which isn't in the beat timeline.
+        self.import_score(add_measure_zero=False)
+        assert len(self.get_notes()) == 2
+        self.import_score(replace=True)
+
+        commands.execute("edit.undo")
+        assert len(self.get_notes()) == 2
+
+        commands.execute("edit.redo")
+        assert len(self.get_notes()) == 4
