@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from docs import beat_timeline, document
+from docs import beat_timeline, document, pickup_piece
 from tilia_core import tla
 from tilia_core.timemap.table import build_rows, find_rows
 
@@ -154,17 +154,9 @@ def test_the_closing_barline_after_a_one_beat_last_measure():
     assert (rows[-1].start, rows[-1].end, rows[-1].beats) == (1.5, 2.0, 1)
 
 
-def _pickup_piece() -> tla.Timeline:
-    # 4/4 with a one-beat pickup, ending on a three-beat bar: a beat every
-    # second from 1 s, the last at 20 s (spec, US1 scenario 8).
-    marks = {1: {"number": 0}, 2: {}, 6: {}, 10: {}, 14: {}, 18: {}}
-    return beat_timeline(
-        [{"time": float(t), "measure": marks.get(t)} for t in range(1, 21)]
-    )
-
-
 def test_no_beats_are_added_to_the_last_measure():
-    timeline = _pickup_piece()
+    # Spec, US1 scenario 8.
+    timeline = pickup_piece()
     rows = build_rows(document(timeline), timeline)
 
     assert [r.beats for r in rows] == [1, 4, 4, 4, 4, 3]
@@ -175,7 +167,7 @@ def test_no_beats_are_added_to_the_last_measure():
     "media_length, end", [(None, 21.0), (20.4, 20.4), (21.0, 21.0), (30.0, 21.0)]
 )
 def test_the_end_of_the_media_caps_the_closing_barline(media_length, end, caplog):
-    timeline = _pickup_piece()
+    timeline = pickup_piece()
     rows = build_rows(document(timeline, media_length=media_length), timeline)
 
     assert rows[-1].end == end
@@ -184,7 +176,7 @@ def test_the_end_of_the_media_caps_the_closing_barline(media_length, end, caplog
 
 @pytest.mark.parametrize("media_length", [19.5, 20.0])
 def test_media_ending_at_or_before_the_last_beat_leaves_the_gap(media_length, caplog):
-    timeline = _pickup_piece()
+    timeline = pickup_piece()
     with caplog.at_level(logging.WARNING):
         rows = build_rows(document(timeline, media_length=media_length), timeline)
 
