@@ -133,6 +133,8 @@ button.expand { padding: 0 6px; border-color: transparent; background: none; }
 }
 .ql-sql ul { margin: 0 0 6px; padding-left: 18px; }
 table.ql-table { width: auto; min-width: 100%; }
+button.ql-sort { font: inherit; font-weight: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button.ql-sort:hover { color: var(--accent); }
 .seq-empty { color: var(--muted); padding: 12px 0; }
 
 .seq-card { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin: 8px 0; background: #fff; }
