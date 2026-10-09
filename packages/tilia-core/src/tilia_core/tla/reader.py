@@ -173,9 +173,9 @@ def _attrs(
             attrs[key] = shape.defaults[key]
         elif shape.derived.get(key) in value:
             attrs[key] = nfc_value(value[shape.derived[key]])
-    for key, shape in _NESTED.items():
+    for key, nested in _NESTED.items():
         if key in attrs:
-            attrs[key] = _filled(attrs[key], shape)
+            attrs[key] = _filled(attrs[key], nested)
     if isinstance(attrs.get("rows"), list):
         attrs["rows"] = [_filled(row, RANGE_ROW_SHAPE) for row in attrs["rows"]]
     return attrs
