@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tilia_core.tla import ids
+from tilia_core.tla import ids as tla_ids
 from tilia_core.tla.ids import derived_document_id, migrated_id, new_id
 from tilia_core.tla.parse import parse
 
@@ -66,19 +66,19 @@ NOW_MS = 1_760_000_000_000
 
 
 def fake_clock(monkeypatch, *ms: int) -> None:
-    """Make `ids`' clock read the given milliseconds, in turn, then the last one."""
+    """Make `tla_ids`' clock read the given milliseconds, in turn, then the last one."""
     readings = list(ms)
 
     def time_ns() -> int:
         return (readings.pop(0) if len(readings) > 1 else readings[0]) * 1_000_000
 
-    monkeypatch.setattr(ids, "time", SimpleNamespace(time_ns=time_ns))
+    monkeypatch.setattr(tla_ids, "time", SimpleNamespace(time_ns=time_ns))
 
 
 class TestClock:
     def test_counts_on_within_a_millisecond(self, monkeypatch):
         fake_clock(monkeypatch, NOW_MS)
-        clock = ids._Clock()
+        clock = tla_ids._Clock()
         (ms, first), (ms_again, second) = clock.next(), clock.next()
         assert ms == ms_again == NOW_MS
         assert second == first + 1
@@ -87,8 +87,10 @@ class TestClock:
         # 12 bits count within one millisecond; past them, the next one starts.
         # Each millisecond's counter starts at a random value: 0 here.
         fake_clock(monkeypatch, NOW_MS)
-        monkeypatch.setattr(ids, "secrets", SimpleNamespace(randbits=lambda bits: 0))
-        clock = ids._Clock()
+        monkeypatch.setattr(
+            tla_ids, "secrets", SimpleNamespace(randbits=lambda bits: 0)
+        )
+        clock = tla_ids._Clock()
         readings = [clock.next() for _ in range(5_000)]
         assert readings == sorted(set(readings))
         assert readings[2**12 - 1] == (NOW_MS, 2**12 - 1)
@@ -96,7 +98,7 @@ class TestClock:
 
     def test_stays_in_order_when_the_clock_goes_back(self, monkeypatch):
         fake_clock(monkeypatch, NOW_MS, NOW_MS - 5, NOW_MS - 5)
-        clock = ids._Clock()
+        clock = tla_ids._Clock()
         readings = [clock.next() for _ in range(3)]
         assert readings == sorted(set(readings))
         assert {ms for ms, _ in readings} == {NOW_MS}
@@ -106,7 +108,7 @@ class TestClock:
         # clock but not yet moved its state on. Without it, the second one gets
         # the same millisecond and counter.
         fake_clock(monkeypatch, NOW_MS)
-        clock = ids._Clock()
+        clock = tla_ids._Clock()
         readings = []
         other = threading.Thread(target=lambda: readings.append(clock.next()))
         started = []
@@ -119,7 +121,7 @@ class TestClock:
                 other.join(timeout=0.2)
             return 7
 
-        monkeypatch.setattr(ids, "secrets", SimpleNamespace(randbits=randbits))
+        monkeypatch.setattr(tla_ids, "secrets", SimpleNamespace(randbits=randbits))
         readings.append(clock.next())
         other.join()
         assert len(set(readings)) == 2
