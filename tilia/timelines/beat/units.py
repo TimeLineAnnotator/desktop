@@ -19,6 +19,10 @@ DEFAULT_UNITS = "1"
 # Far above any denominator used in notation. Enforced wherever a beat unit
 # is set, so the dialog and inspector, which can't show more, never meet one.
 MAX_DENOMINATOR = 128
+# Far above any unit written in notation, and far below the 4300 digits
+# Python 3.10.7 and later refuse to read as an int (earlier versions have no
+# limit), so a unit reads the same on every Python.
+MAX_UNIT_LENGTH = 32
 
 _UNIT_CHARACTERS = set("0123456789/")
 
@@ -51,12 +55,15 @@ def parse_units(text: str) -> UnitsParseResult:
         item = item.strip()
         if not item:
             return UnitsParseResult([], "Missing unit around '+'.")
+        too_long = len(item) > MAX_UNIT_LENGTH
+        shown = item[:MAX_UNIT_LENGTH] + "…" if too_long else item
         not_a_fraction = UnitsParseResult(
-            [], f"'{item}' is not a whole number or fraction such as 1/2."
+            [], f"'{shown}' is not a whole number or fraction such as 1/2."
         )
         # Fraction() also accepts decimals, signs and exponents; units are
-        # written the way they are in notation.
-        if not set(item) <= _UNIT_CHARACTERS:
+        # written the way they are in notation. A longer unit is refused
+        # before Fraction() sees it, which may or may not read it.
+        if too_long or not set(item) <= _UNIT_CHARACTERS:
             return not_a_fraction
         try:
             unit = Fraction(item)
