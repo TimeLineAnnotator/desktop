@@ -160,7 +160,7 @@ class TestMeasureMeters:
         add_beat_unit(beat_tl, 0, 4, "2+3")
 
         meters = beat_tl.measure_meters
-        assert [m.beat_values for m in meters] == [[2, 3], [2, 3, 2]]
+        assert [m.beat_values for m in meters] == [(2, 3), (2, 3, 2)]
         assert [m.is_ambiguous for m in meters] == [False, True]
 
     def test_short_measures_take_the_start_of_the_pattern(self, beat_tl):
@@ -169,7 +169,7 @@ class TestMeasureMeters:
         add_beat_unit(beat_tl, 0, 4, "1+2+3")
 
         meters = beat_tl.measure_meters
-        assert [m.beat_values for m in meters] == [[1, 2]] * 3
+        assert [m.beat_values for m in meters] == [(1, 2)] * 3
         assert all(m.is_ambiguous for m in meters)
 
     def test_pickup_also_takes_the_start_of_the_pattern(self, beat_tl):
@@ -177,8 +177,8 @@ class TestMeasureMeters:
         add_beats(beat_tl, 3)
         add_beat_unit(beat_tl, 0, 4, "3+2")
 
-        assert beat_tl.get_measure_meter(0).beat_values == [3]
-        assert beat_tl.get_measure_meter(1).beat_values == [3, 2]
+        assert beat_tl.get_measure_meter(0).beat_values == (3,)
+        assert beat_tl.get_measure_meter(1).beat_values == (3, 2)
 
     def test_two_beat_units_in_a_measure_first_wins(self, beat_tl):
         add_beats(beat_tl, 8)
@@ -201,6 +201,16 @@ class TestMeasureMeters:
         beat_tl.create_beat(0.5)
 
         assert time_signatures(beat_tl) == [(2, 4), (2, 4), (2, 4), (6, 8)]
+
+    def test_meters_can_be_hashed(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+
+        first, second, third = beat_tl.measure_meters
+
+        # The last two are both 2/4 under the first measure's beat unit.
+        assert hash(second) == hash(third)
+        assert set(beat_tl.measure_meters) == {first, second}
 
     def test_cache_is_refreshed_when_units_change(self, beat_tl):
         add_beats(beat_tl, 4)
