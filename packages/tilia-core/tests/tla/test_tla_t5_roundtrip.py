@@ -6,6 +6,7 @@ import json
 import math
 import re
 import sys
+import types
 import unicodedata
 import uuid
 from pathlib import Path
@@ -722,3 +723,18 @@ def test_a_new_document_in_quarters():
     assert tla.new_document(time_unit="quarters").time_unit == "quarters"
     with pytest.raises(ValueError, match="minutes"):
         tla.new_document(time_unit="minutes")
+
+
+# The modules
+
+
+def test_the_functions_dont_hide_the_modules_they_come_from():
+    # `import tilia_core.tla.reader as m` gets the package's attribute, which
+    # a function of the same name would replace.
+    import tilia_core.tla.reader as reader
+    import tilia_core.tla.writer as writer
+
+    assert isinstance(reader, types.ModuleType)
+    assert isinstance(writer, types.ModuleType)
+    assert (reader.read, reader.loads) == (tla.read, tla.loads)
+    assert writer.canonical_bytes is tla.canonical_bytes
