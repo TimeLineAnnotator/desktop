@@ -7,13 +7,14 @@ import pytest
 import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
 from PySide6.QtGui import QColor, QHideEvent, QShowEvent
+from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWidgets import QApplication, QComboBox
 
 from tests.constants import EXAMPLE_MUSICXML_PATH, EXAMPLE_REST_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
 from tests.ui.timelines.beat.interact import click_beat_ui
-from tests.ui.timelines.interact import click_timeline_ui_element_body
+from tests.ui.timelines.interact import click_timeline_ui_element_body, press_key
 from tests.utils import (
     get_blank_file_data,
     run_js,
@@ -27,6 +28,7 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
+from tilia.ui.commands import get_qaction
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.windows.score.score_view import VIEWER_PATH, ScoreView
 from tilia.ui.windows.svg_viewer import SvgStaveNote, SvgViewer
@@ -730,3 +732,36 @@ class TestSvgScores:
             annotation["annotation"].text()
             for annotation in viewer.tla_annotations.values()
         ] == ["Cadence"]
+
+
+class TestShortcuts:
+    def test_app_shortcuts_work_after_click_on_score(self, score_view):
+        ctrl = Qt.KeyboardModifier.ControlModifier
+        shift = Qt.KeyboardModifier.ShiftModifier
+        main_window = get(Get.MAIN_WINDOW)
+        main_window.show()
+        try:
+            page_widget = score_view.view.focusProxy()
+            # A click in the page gives it the keyboard focus.
+            QTest.mouseClick(
+                page_widget,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                page_widget.rect().center(),
+            )
+            # The page has nothing to edit, so it leaves these keys to the app.
+            # Undo comes last, as undoing the import closes the viewer.
+            for command, key, modifiers in [
+                ("timeline.component.copy", "c", ctrl),
+                ("timeline.component.paste", "v", ctrl),
+                ("edit.redo", "z", ctrl | shift),
+                ("edit.undo", "z", ctrl),
+            ]:
+                assert wait_until(lambda: QApplication.focusWidget() is page_widget)
+                triggered = QSignalSpy(get_qaction(command).triggered)
+
+                press_key(key, modifier=modifiers)
+
+                assert triggered.count() == 1, command
+        finally:
+            main_window.hide()
