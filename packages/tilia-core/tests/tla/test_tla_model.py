@@ -65,6 +65,26 @@ def test_timeline_kinds_are_read_in_any_letter_case():
     assert timeline_kind_from_file("HIERARCHY") == "hierarchy"
 
 
+@pytest.mark.parametrize(
+    "in_file, in_api",
+    [
+        ("HIERARCHY_TIMELINE", "hierarchy"),
+        ("AUDIOWAVE_TIMELINE", "audiowave"),
+        ("PDF_TIMELINE", "pdf"),
+    ],
+)
+def test_timeline_kinds_with_the_suffix_older_versions_wrote(in_file, in_api):
+    # TiLiA 0.7 drops "_TIMELINE" from a timeline's kind whenever it opens a
+    # file, whatever the file's version.
+    assert timeline_kind_from_file(in_file) == in_api
+
+
+def test_an_unknown_timeline_kind_with_the_suffix_keeps_its_spelling():
+    kind = timeline_kind_from_file("LYRICS_TIMELINE")
+    assert kind == UnknownKind("LYRICS_TIMELINE")
+    assert timeline_kind_to_file(kind) == "LYRICS_TIMELINE"
+
+
 def test_an_unknown_timeline_kind_keeps_its_spelling():
     assert timeline_kind_from_file("Lyrics") == UnknownKind("Lyrics")
     assert timeline_kind_to_file(UnknownKind("Lyrics")) == "Lyrics"

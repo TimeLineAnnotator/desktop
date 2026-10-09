@@ -68,7 +68,15 @@ Kind = str | UnknownKind
 
 def timeline_kind_from_file(spelling: str) -> Kind:
     """The API's name for a timeline kind the file spells so, in any letter case."""
-    return _TIMELINE_KINDS_IN_FILE.get(spelling.lower()) or UnknownKind(spelling)
+    name = spelling
+    if name.endswith(_OLD_SUFFIX):
+        # As TiLiA 0.7 drops it whenever it opens a file: TiLiA before 0.7
+        # wrote "HIERARCHY_TIMELINE".
+        name = name.replace(_OLD_SUFFIX, "")
+    return _TIMELINE_KINDS_IN_FILE.get(name.lower()) or UnknownKind(spelling)
+
+
+_OLD_SUFFIX = "_TIMELINE"
 
 
 def timeline_kind_to_file(kind: Kind) -> str:
