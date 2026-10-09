@@ -195,6 +195,20 @@ def test_the_end_of_the_media_doesnt_cap_a_quarters_file(caplog):
     assert not caplog.records
 
 
+def test_metadata_is_a_frozen_copy():
+    timeline = _timeline([{"number": 1, "metadata": {"tags": ["a"], "key": "x"}}])
+    doc = document(timeline)
+    (row,) = build_rows(doc, timeline)
+    (again,) = build_rows(doc, timeline)
+
+    assert row.metadata == {"tags": ("a",), "key": "x"}
+    with pytest.raises(TypeError):
+        row.metadata["key"] = "y"  # type: ignore[index]
+    timeline.measures.rows[0].metadata["tags"].append("b")
+    assert row.metadata["tags"] == ("a",)
+    assert row == again and hash(row) == hash(again)
+
+
 def test_a_timeline_without_measures_gives_no_rows():
     timeline = beat_timeline([{"time": 0.0}, {"time": 1.0}])
     timeline.measures = None

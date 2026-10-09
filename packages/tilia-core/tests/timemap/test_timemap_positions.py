@@ -301,13 +301,20 @@ def test_timemap_fields():
 
 
 def test_timemap_is_immutable():
-    time_map = _four_four()
+    timeline = _timeline({0: {"number": 1}, 4: {}, 8: {}}, last=11)
+    doc = document(timeline)
+    time_map = time_map_for(doc, timeline.id)
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         time_map.end = 20.0  # type: ignore[misc]
     rows = time_map.measure_rows()
+    with pytest.raises(TypeError):
+        rows[0].metadata["key"] = "value"  # type: ignore[index]
     rows.clear()
     assert len(time_map.measure_rows()) == 3
+    assert time_map.measure_rows()[0].metadata == {}
+    again = time_map_for(doc, timeline.id)
+    assert time_map == again and hash(time_map) == hash(again)
 
 
 def test_timemap_does_not_follow_later_edits():
