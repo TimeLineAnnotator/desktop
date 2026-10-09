@@ -69,7 +69,7 @@ class Opener:
         self.opened.append(path)
         if self.error:
             raise self.error
-        return "tilia-gui"
+        return "tilia-ui"
 
 
 @pytest.fixture
