@@ -270,6 +270,11 @@ COMPONENT_SHAPES: dict[str, Shape] = {
 UNKNOWN_COMPONENT = _shape(
     ("kind", "metadata"), _COMPONENT, left_out_empty=("metadata",)
 )
+# A component of a kind the core doesn't know is kept as it is: if its file
+# had "metadata", the key is written even empty.
+UNKNOWN_COMPONENT_WITH_METADATA = _shape(
+    ("kind", "metadata"), _COMPONENT, always=("metadata",)
+)
 MEASURE_SHAPE = _shape(
     MEASURE, _SCHEMA["$defs"]["measure"], left_out_empty=("metadata",)
 )

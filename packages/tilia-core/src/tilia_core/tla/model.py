@@ -171,6 +171,11 @@ class Component:
     metadata: Metadata = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
 
+    # Not a field. A component of a kind the core doesn't know is kept as it
+    # is: this says whether its file had "metadata", so that the writer writes
+    # an empty one back where it was, and only there. The reader sets it.
+    _metadata_in_file = False
+
 
 @dataclass(kw_only=True)
 class Timeline:
