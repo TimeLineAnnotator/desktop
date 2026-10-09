@@ -80,6 +80,8 @@ python scripts/check_packages.py               # what CI's Packages workflow run
 
 `pytest` at the root runs only the app's tests. The two packages share one version number and are released together.
 
+Releasing: set the same version in both packages' `pyproject.toml` and in tilia-library's `tilia-core==` requirement, merge, then push a tag `packages-vX.Y.Z` on that commit. `.github/workflows/publish-packages.yml` checks the tag against the versions, builds and tests the packages, uploads them to PyPI through trusted publishing (environment `pypi`), and installs the release from PyPI on three systems. A manual run builds and tests without uploading. PyPI never accepts the same version twice. The app's own releases keep their `vX.Y.Z` tags.
+
 ## Code style
 
 - **Type hints required** in production code (`tilia/`). Annotate all function/method parameters, return types, and instance attributes whose types aren't obvious from initialization. Tests (`tests/`) do not need type hints.

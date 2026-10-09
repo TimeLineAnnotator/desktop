@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tilia-library"
-version = "0.0.1"
+version = "0.0.2"
 description = "TiLiA Library: query and edit folders of TiLiA files in the browser"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ authors = [
     {name = "Felipe Defensor"},
     {name = "Anne Foo"}
 ]
-dependencies = ["tilia-core==0.0.1"]
+dependencies = ["tilia-core==0.0.2"]
 
 [project.urls]
 Homepage = "https://tilia-app.com"
