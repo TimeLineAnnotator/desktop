@@ -771,7 +771,26 @@ def with_version(version):
     return json.dumps(content).encode()
 
 
-@pytest.mark.parametrize("version", ["1.0.0-draft.2", "1.0.0-draft.0", "1.0.0-alpha"])
+@pytest.mark.parametrize("build", ["+build.5", "+20261009", "+exp.sha.5114f85"])
+def test_the_current_version_with_build_metadata_is_current(build):
+    # Semantic Versioning ignores build metadata when it compares versions.
+    content = json.loads(EVERY_KIND.read_bytes())
+    content["version"] = tla.FORMAT_VERSION + build
+    doc = tla.loads(json.dumps(content).encode())
+    assert doc.format_version == tla.FORMAT_VERSION + build
+    assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
+
+
+@pytest.mark.parametrize(
+    "version",
+    [
+        "1.0.0-draft.2",
+        "1.0.0-draft.0",
+        "1.0.0-alpha",
+        "1.0.0-draft.2+build.5",
+        "1.0.0-draft.01",  # not Semantic Versioning's form: draft.1 is
+    ],
+)
 def test_another_draft_is_refused(version):
     with pytest.raises(tla.UnreadableFile) as error:
         tla.loads(with_version(version))
@@ -781,7 +800,9 @@ def test_another_draft_is_refused(version):
     assert error.value.place == "/version"
 
 
-@pytest.mark.parametrize("version", ["1.0.0", "1.0.1", "1.1.0-draft.1", "2.0.0", "1.2"])
+@pytest.mark.parametrize(
+    "version", ["1.0.0", "1.0.1", "1.1.0-draft.1", "2.0.0", "1.2", "1.0.0+build.5"]
+)
 def test_a_newer_format_is_refused_naming_its_version(version):
     with pytest.raises(tla.UnreadableFile) as error:
         tla.loads(with_version(version))
