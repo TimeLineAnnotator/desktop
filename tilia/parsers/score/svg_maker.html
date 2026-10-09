@@ -10,39 +10,52 @@
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.9/build/opensheetmusicdisplay.min.js"></script>
     <script type="text/javascript">
-        let backend;
-        new QWebChannel(qt.webChannelTransport, function (channel) {
-            backend = channel.objects.backend;
-        })
-
-        var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {
-            backend: "svg",
-            drawingParameters: "compacttight",
-            renderSingleHorizontalStaffline: true,
-            drawPartNames: true,
-            measureNumberInterval: 5,
-        })
-
-        osmd.EngravingRules.SheetMaximumWidth = 9999999;
-        osmd.EngravingRules.FingeringTextSize = 0.000001;
-
-        async function loadSVG(filename) {
-            osmd.load(filename).then(
-                function () {
-                    osmd.render();
-
-                    const svgElement = document.getElementById("osmdSvgPage1");
-                    if (!svgElement) {
-                        return false;
-                    }
-                    else {
-                        backend.set_svg(svgElement.outerHTML);
-                        return true;
-                    }
-                }
-            ).catch((response) => {
-                backend.on_error(JSON.stringify(response));
+        const backendReady = new Promise(function (resolve) {
+            new QWebChannel(qt.webChannelTransport, function (channel) {
+                resolve(channel.objects.backend);
             });
+        });
+
+        // Stays undefined when OSMD's script didn't load, as when TiLiA is
+        // offline.
+        let osmd;
+        if (typeof opensheetmusicdisplay !== "undefined") {
+            osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {
+                backend: "svg",
+                drawingParameters: "compacttight",
+                renderSingleHorizontalStaffline: true,
+                drawPartNames: true,
+                measureNumberInterval: 5,
+            });
+
+            osmd.EngravingRules.SheetMaximumWidth = 9999999;
+            osmd.EngravingRules.FingeringTextSize = 0.000001;
+        }
+
+        // Sends back the score's SVG, or an error: every failure is reported.
+        async function loadSVG(text) {
+            const backend = await backendReady;
+            if (!osmd) {
+                backend.on_error(
+                    "OpenSheetMusicDisplay, which draws the score, couldn't be "
+                    + "loaded. It needs an internet connection."
+                );
+                return;
+            }
+            try {
+                await osmd.load(text);
+                osmd.render();
+            } catch (error) {
+                // String(), as JSON.stringify gives "{}" for an Error.
+                backend.on_error(String(error));
+                return;
+            }
+            const svgElement = document.getElementById("osmdSvgPage1");
+            if (!svgElement) {
+                backend.on_error("OpenSheetMusicDisplay drew no score.");
+                return;
+            }
+            backend.set_svg(svgElement.outerHTML);
         }
     </script>
 </body>
