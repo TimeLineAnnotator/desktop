@@ -18,7 +18,7 @@ class MeasureRow:
     """One measure of a beat timeline, with what is computed from the table and never stored."""
 
     id: str  # its downbeat's id
-    count: int  # its position in the timeline, 1…n
+    count: int  # its row's position in the table, 1…n
     number: int
     label: str
     pass_: int | None  # the times through its number so far; None for a cadenza
@@ -37,23 +37,29 @@ class MeasureRow:
 
 
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
-    """The timeline's measure table, in its order; also for a folded table."""
-    return build_rows_from(document, timeline.id, rows_of(timeline))
+    """The timeline's measure table, in its order; also for a folded table.
+
+    A measure whose downbeat has no time is left out, and the others keep their
+    `count`.
+    """
+    return build_rows_from(document, timeline, rows_of(timeline))
 
 
 def build_rows_from(
-    document: tla.Document, timeline_id: str, rows: Sequence[RowIn]
+    document: tla.Document, timeline: tla.Timeline, rows: Sequence[RowIn]
 ) -> list[MeasureRow]:
     """`build_rows` for rows already read from the timeline."""
-    if not rows:
+    if not rows or timeline.measures is None:
         return []
+    counts = {row.id: index + 1 for index, row in enumerate(timeline.measures.rows)}
     folded = any(row.next is not None for row in rows)
     ends = [row.beat_times[0] for row in rows[1:]]
-    ends.append(_closing_barline(document, timeline_id, rows))
+    ends.append(_closing_barline(document, timeline.id, rows))
     passes: dict[int, int] = {}
     movement = 1
     out: list[MeasureRow] = []
-    for index, (row, end) in enumerate(zip(rows, ends, strict=True)):
+    for row, end in zip(rows, ends, strict=True):
+        count = counts[row.id]
         if row.restart:
             passes.clear()
             movement += 1
@@ -63,7 +69,7 @@ def build_rows_from(
         out.append(
             MeasureRow(
                 id=row.id,
-                count=index + 1,
+                count=count,
                 number=row.number,
                 label=row.label,
                 pass_=pass_,
