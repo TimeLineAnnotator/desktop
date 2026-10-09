@@ -75,6 +75,29 @@ def test_timemap_point_end_bar():
     assert (_point(time_map, 6.5).bar, _point(time_map, 6.5).end_bar) == (2, 2)
 
 
+def test_timemap_short_span_ends_in_its_own_bar():
+    time_map = _four_four()
+
+    for start, end in [
+        (4.0, 4.05),  # the end snaps onto the downbeat the start is on
+        (4.0, 4.0 + 1e-12),  # a point with float noise
+        (3.97, 4.03),  # both ends snap onto the same downbeat
+        (5.0, 4.5),  # an end before the start
+    ]:
+        span = time_map.positions(start, end)
+        assert (span.bar, span.end_bar) == (2, 2), (start, end)
+    # an end that snaps onto a later downbeat still belongs to the bar before
+    assert time_map.positions(0.0, 4.05).end_bar == 1
+
+
+def test_timemap_short_span_at_the_first_beat():
+    time_map = _four_four()
+
+    for start, end in [(0.0, 0.05), (-0.05, 0.05), (0.0, 0.0)]:
+        span = time_map.positions(start, end)
+        assert (span.bar, span.end_bar) == (1, 1), (start, end)
+
+
 def test_timemap_fractional_beat():
     time_map = _four_four()
 
@@ -113,6 +136,19 @@ def test_timemap_snapping():
     assert _point(time_map, 4.08).beat == 1.0
     assert _point(time_map, 1.08).beat == 2.0
     assert _point(time_map, 1.38).beat == pytest.approx(2.38)
+
+
+def test_timemap_snapping_exactly_the_tolerance_away():
+    # 4.0 - 3.9 is a little over 0.1 in floating point, and 8.0 - 7.9 a little
+    # under: both are 0.1 from a downbeat, and both are on it.
+    time_map = _four_four()
+
+    for t, bar in [(3.9, 2), (7.9, 3), (4.1, 2), (8.1, 3)]:
+        point = _point(time_map, t)
+        assert (point.bar, point.beat, point.downbeat) == (bar, 1.0, True), t
+    beyond = _point(time_map, 3.8999)
+    assert (beyond.bar, beyond.downbeat) == (1, False)
+    assert beyond.beat == pytest.approx(4.8999)
 
 
 def test_timemap_snapping_onto_the_nearer_beat():
