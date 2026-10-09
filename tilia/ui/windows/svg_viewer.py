@@ -91,6 +91,7 @@ class SvgViewer(ViewDockWidget):
         self.next_tla_id = 0
         self.drag_pos = QPointF()
         self.is_hidden = False
+        self.is_deleted = False
         self.is_svg_loaded = False
         self.visible_times = [0, 0]
         self.beat_x_position = {}
@@ -536,6 +537,10 @@ class SvgViewer(ViewDockWidget):
         )
 
     def update_measure_tracker(self, start: float, end: float) -> None:
+        if self.is_deleted:
+            # Only scheduled for deletion, so it can still be painted after its
+            # timeline is cleared or deleted.
+            return
         if (new_visible_times := [start, end]) == self.visible_times:
             return
         self.visible_times = new_visible_times
@@ -565,6 +570,8 @@ class SvgViewer(ViewDockWidget):
         self.scroll_offset = self.scroll_margin * 4
 
     def deleteLater(self):
+        self.is_deleted = True
+        self.view.smooth_x.delete()
         super().deleteLater()
         stop_serving_all(self)
         stop_listening_to_all(self)

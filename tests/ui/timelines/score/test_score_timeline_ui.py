@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from PySide6.QtCore import QVariantAnimation
 from PySide6.QtGui import QColor
 
 from tests.constants import (
@@ -17,6 +18,7 @@ from tilia.errors import SCORE_STAFF_ID_ERROR
 from tilia.exceptions import NoReplyToRequest
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
+from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -318,6 +320,54 @@ class TestResetSvg:
         score_tlui.reset_svg()
 
         assert tluis.get_timeline_ui(other.id).svg_view is not None
+
+
+class TestSmoothMovementAfterDelete:
+    def test_measure_tracker_stops_when_the_timeline_is_deleted(self, score_tlui, tls):
+        settings.set("general", "prioritise_performance", False)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        animation = score_tlui.smooth_tracker.animation
+        # What the viewer does when the measures it shows change.
+        score_tlui.svg_view.update_measure_tracker(0.0, 2.0)
+        assert animation.state() is QVariantAnimation.State.Running
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.delete", score_tlui)
+
+        assert animation.state() is QVariantAnimation.State.Stopped
+
+    @pytest.mark.parametrize("prioritise_performance", [False, True])
+    @pytest.mark.parametrize("command", ["timeline.delete", "timeline.clear"])
+    def test_viewer_painted_after_its_score_is_gone_leaves_the_tracker(
+        self, score_tlui, note, tls, command, prioritise_performance
+    ):
+        settings.set("general", "prioritise_performance", prioritise_performance)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        viewer = score_tlui.svg_view
+        tracker_times = (score_tlui.tracker_start, score_tlui.tracker_end)
+        with patch_yes_or_no_dialog(True):
+            commands.execute(command, score_tlui)
+
+        # The viewer is only scheduled for deletion, and can still be painted.
+        viewer.update_measure_tracker(2.0, 4.0)
+
+        assert (score_tlui.tracker_start, score_tlui.tracker_end) == tracker_times
+        animation = score_tlui.smooth_tracker.animation
+        assert animation.state() is QVariantAnimation.State.Stopped
+
+    def test_viewer_stops_scrolling_when_the_timeline_is_cleared(
+        self, score_tlui, note, tls
+    ):
+        settings.set("general", "prioritise_performance", False)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        animation = score_tlui.svg_view.view.smooth_x.animation
+        commands.execute("media.seek", 50.0)
+        assert animation.state() is QVariantAnimation.State.Running
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+
+        assert animation.state() is QVariantAnimation.State.Stopped
 
 
 class TestAudioTimeChange:

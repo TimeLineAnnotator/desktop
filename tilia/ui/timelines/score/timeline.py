@@ -17,7 +17,6 @@ from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
 from tilia.ui.menus import ScoreMenu
-from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.cursors import CursorMixIn
 from tilia.ui.timelines.drag import DragManager
@@ -486,7 +485,7 @@ class ScoreTimelineUI(TimelineUI):
         self.tracker_start = 0
         self.tracker_end = 0
         self.dragged = False
-        self.smooth_tracker = SmoothSetter(
+        self.smooth_tracker = self.create_smooth_setter(
             lambda: QPointF(self.tracker_start, self.tracker_end),
             self._set_measure_tracker_times,
         )
