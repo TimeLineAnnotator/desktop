@@ -17,9 +17,11 @@ from tilia_core.tla.layout import (
     MEASURE_SHAPE,
     MEDIA_SHAPE,
     RANGE_ROW_SHAPE,
+    SCORE_SHAPES,
     TIMELINE_SHAPES,
     TOP_SHAPE,
     UNKNOWN_COMPONENT,
+    UNKNOWN_SCORE,
     Shape,
     nfc_object,
     nfc_value,
@@ -339,12 +341,17 @@ class _Reader:
         fields = {
             k: score[k] for k in ("source", "license") if score.get(k) is not None
         }
+        license = fields.get("license")
+        if "license" not in score:
+            # Its default, as for any key: NOASSERTION for an MEI score.
+            shape = SCORE_SHAPES.get(score_format, UNKNOWN_SCORE)
+            license = shape.defaults.get("license")
         return Score(
             id=nfc_value(score_id),
             format=nfc_value(score_format),
             lines=list(content),  # as imported: never in NFC
             source=nfc_value(fields.get("source")),
-            license=nfc_value(fields.get("license")),
+            license=nfc_value(license),
             # A legacy score's beat_x among them.
             extra=_unknown(score, _SCORE_FIELDS.union(fields)),
         )

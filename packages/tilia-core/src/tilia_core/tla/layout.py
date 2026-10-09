@@ -213,28 +213,32 @@ def _shape(
     always: Iterable[str] = (),
     left_out_empty: Iterable[str] = (),
 ) -> Shape:
-    """The shape of objects with these keys, from their schema `nodes`. Keys in
-    `always` are always written, as are the schema's required keys; those in
-    `left_out_empty` are left out when empty."""
+    """The shape of objects with these keys, from their schema `nodes`. The
+    schema's required keys are always written, and so are those in `always`,
+    whatever their value, as a legacy score's components are; any other key
+    is left out at its default, and those in `left_out_empty` when empty. A
+    missing key always means its default: the schema gives none to a key it
+    requires."""
     properties: dict[str, Any] = {}
-    required = set(always)
+    required: set[str] = set()
     for node in nodes:
         node_properties, node_required = _properties(node)
         properties.update(node_properties)
         required |= node_required
+    always = frozenset(always)
     defaults: dict[str, Any] = {}
     derived: dict[str, str] = {}
     for key in keys:
         schema = properties.get(key, {})
-        if key in required:
-            continue
+        if key in always:
+            continue  # written whatever its value
         if "default" in schema:
             defaults[key] = schema["default"]
         elif "x-default-from" in schema:
             derived[key] = schema["x-default-from"]
     return Shape(
         keys=keys,
-        always=frozenset(required & set(keys)),
+        always=(always | required) & frozenset(keys),
         defaults=defaults,
         derived=derived,
         left_out_empty=frozenset(left_out_empty),

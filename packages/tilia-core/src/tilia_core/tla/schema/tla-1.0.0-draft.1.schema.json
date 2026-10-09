@@ -390,7 +390,7 @@
         {
           "if": { "properties": { "format": { "const": "mei" } } },
           "then": {
-            "required": ["source", "license"],
+            "required": ["source"],
             "properties": {
               "source": {
                 "description": "Where the score came from (FR-131): the original file, its origin, and the converter with its version when it was converted.",
@@ -403,7 +403,7 @@
                 "additionalProperties": { "type": "string" }
               },
               "license": {
-                "description": "The licence the original file states, as written, or NOASSERTION until it's filled in (FR-131, TimeLineAnnotator/project-management#171).",
+                "description": "The licence the original file states, as written, or NOASSERTION until it's filled in (FR-131, TimeLineAnnotator/project-management#171). Left out at NOASSERTION, its default, like any key at its default: a missing key means its default (TimeLineAnnotator/project-management#227).",
                 "type": "string",
                 "minLength": 1,
                 "default": "NOASSERTION"

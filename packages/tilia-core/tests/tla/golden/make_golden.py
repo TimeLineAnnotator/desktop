@@ -474,7 +474,7 @@ def unknown() -> dict[str, Any]:
                 "id": score_id,
                 "format": "mei",
                 "source": {"file": "a.mei", "x_source": "kept"},
-                "license": "NOASSERTION",
+                # No licence: left out at its default, NOASSERTION.
                 "content": ["<mei/>", ""],
                 "x_score": "kept",
             }
