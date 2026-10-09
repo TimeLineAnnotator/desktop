@@ -30,6 +30,11 @@ class SmoothSetter(Generic[T]):
         self.animation.valueChanged.connect(self._setter)
 
     def __call__(self, setpoint: T) -> None:
+        if isinstance(setpoint, int):
+            # The animation can't step between an int and a float: it sends
+            # None instead. Times and positions are floats.
+            setpoint = float(setpoint)
+
         if settings.get("general", "prioritise_performance") is True:
             # A movement started before the setting changed would overwrite it.
             self.animation.stop()

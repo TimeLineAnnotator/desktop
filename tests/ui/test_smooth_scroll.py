@@ -21,6 +21,17 @@ class TestFollowingThePlayback:
         wait_for_smooth_movement(tluis.smooth_time)
         assert tluis.selected_time == pytest.approx(time)
 
+    def test_moves_smoothly_to_a_whole_number_time(self, tluis):
+        settings.set("general", "prioritise_performance", False)
+        commands.execute("timelines.add.marker", name="")
+        commands.execute("media.seek", 2.5)
+        wait_for_smooth_movement(tluis.smooth_time)
+
+        commands.execute("media.seek", 7)
+
+        wait_for_smooth_movement(tluis.smooth_time)
+        assert tluis.selected_time == 7.0
+
     def test_moves_at_once_when_prioritising_performance(self, tluis):
         settings.set("general", "prioritise_performance", True)
         commands.execute("timelines.add.marker", name="")
