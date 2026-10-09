@@ -555,7 +555,6 @@ def notes_from_musicXML(
             "Add beats to the beat timeline before importing a score."
         ]
 
-    svg_converter = musicxml_to_svg(score_tl.id)
     with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
         parser = etree.XMLParser(remove_blank_text=True)
         tree = etree.parse(file, parser=parser, **reader_kwargs).getroot()
@@ -583,6 +582,8 @@ def notes_from_musicXML(
     for part in tree.findall("part"):
         _parse_part(part, part.get("id"))
     post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tl.id)
+    # Only now, so that a file that fails above leaves no converter behind.
+    svg_converter = musicxml_to_svg(score_tl.id)
     svg_converter.to_svg(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
 
     return True, errors

@@ -59,18 +59,27 @@ class musicxml_to_svg(QWebEngineView):
         self.channel.registerObject("backend", self.shared_object)
         self.page().setWebChannel(self.channel)
 
-    def engine_loaded(self) -> None:
+    def engine_loaded(self, ok: bool) -> None:
+        if not ok:
+            self.display_error("The page that draws the score couldn't be loaded.")
+            return
         self.is_engine_loaded = True
 
     def preprocess_svg(self, svg: str) -> None:
-        svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
-        get(Get.TIMELINE_COLLECTION).set_timeline_data(
-            self.timeline_id, "svg_data", svg
-        )
-        self.deleteLater()
+        try:
+            timelines = get(Get.TIMELINE_COLLECTION)
+            if timelines.get_timeline(self.timeline_id) is None:
+                # Deleted while OSMD was drawing, as by File > New.
+                return
+            svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
+            timelines.set_timeline_data(self.timeline_id, "svg_data", svg)
+        finally:
+            self.deleteLater()
 
     def to_svg(self, data: str) -> None:
-        def convert():
+        def convert(ok: bool = True):
+            if not ok:
+                return
             # As a JSON string, so that nothing in the score ends the string
             # or runs as code.
             self.page().runJavaScript(f"loadSVG({json.dumps(data)})")
@@ -82,3 +91,4 @@ class musicxml_to_svg(QWebEngineView):
 
     def display_error(self, message: str) -> None:
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
+        self.deleteLater()
