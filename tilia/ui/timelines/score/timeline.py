@@ -17,7 +17,7 @@ from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
 from tilia.ui.menus import ScoreMenu
-from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.cursors import CursorMixIn
 from tilia.ui.timelines.drag import DragManager
@@ -486,7 +486,10 @@ class ScoreTimelineUI(TimelineUI):
         self.tracker_start = 0
         self.tracker_end = 0
         self.dragged = False
-        setup_smooth(self)
+        self.smooth_tracker = SmoothSetter(
+            lambda: QPointF(self.tracker_start, self.tracker_end),
+            self._set_measure_tracker_times,
+        )
         self.measure_tracker = MeasureTracker()
         self.scene.addItem(self.measure_tracker)
 
@@ -539,26 +542,22 @@ class ScoreTimelineUI(TimelineUI):
     def update_measure_tracker_position(
         self, start: float | None = None, end: float | None = None
     ) -> None:
-        def __get_tracker_position() -> QPointF:
-            return QPointF(self.tracker_start, self.tracker_end)
-
-        @smooth(self, __get_tracker_position)
-        def __set_tracker_position(point: QPointF):
-            self.tracker_start = point.x()
-            self.tracker_end = point.y()
-            __update_position()
-
-        def __update_position():
-            self.measure_tracker.update_position(
-                time_x_converter.get_x_by_time(self.tracker_start),
-                time_x_converter.get_x_by_time(self.tracker_end),
-                self.view.height(),
-            )
-
         if not (start or end):
-            __update_position()
+            self._update_measure_tracker()
         else:
-            __set_tracker_position(QPointF(start, end))
+            self.smooth_tracker(QPointF(start, end))
+
+    def _set_measure_tracker_times(self, times: QPointF) -> None:
+        self.tracker_start = times.x()
+        self.tracker_end = times.y()
+        self._update_measure_tracker()
+
+    def _update_measure_tracker(self) -> None:
+        self.measure_tracker.update_position(
+            time_x_converter.get_x_by_time(self.tracker_start),
+            time_x_converter.get_x_by_time(self.tracker_end),
+            self.view.height(),
+        )
 
     def on_timeline_width_set_done(self, _: float) -> None:
         if (viewer := self.svg_view) is not None and viewer.is_svg_loaded:

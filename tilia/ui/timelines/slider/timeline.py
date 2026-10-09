@@ -18,7 +18,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
-from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.drag import DragManager
@@ -64,7 +64,9 @@ class SliderTimelineUI(TimelineUI):
         self._setup_line()
         self._setup_trough()
         self._setup_playback_line()
-        setup_smooth(self)
+        self.smooth_x = SmoothSetter(
+            lambda: self.trough.x() + self.trough_radius, self._set_x
+        )
 
         self.dragging = False
 
@@ -151,8 +153,7 @@ class SliderTimelineUI(TimelineUI):
             self.dragging = True
 
     def after_each_drag(self, x: int):
-        self.x = x
-        self.set_trough_position()
+        self.smooth_x.set_now(x)
         post(Post.SLIDER_DRAG, x)
 
     def on_drag_end(self):
@@ -161,16 +162,12 @@ class SliderTimelineUI(TimelineUI):
         post(Post.SLIDER_DRAG_END)
 
     def on_audio_time_change(self, time: float, _: MediaTimeChangeReason) -> None:
-        def __get_x():
-            return self.trough.x() + self.trough_radius
-
-        @smooth(self, __get_x)
-        def __set_x(x):
-            self.x = x
-            self.set_trough_position()
-
         if not self.dragging:
-            __set_x(time_x_converter.get_x_by_time(time))
+            self.smooth_x(time_x_converter.get_x_by_time(time))
+
+    def _set_x(self, x: float) -> None:
+        self.x = x
+        self.set_trough_position()
 
     def get_ui_for_component(
         self, component_kind: ComponentKind, component: TimelineComponent, **kwargs
@@ -178,8 +175,9 @@ class SliderTimelineUI(TimelineUI):
         """No components in SliderTimeline. Must implement abstract method."""
 
     def update_items_position(self):
-        self.x = time_x_converter.get_x_by_time(get(Get.MEDIA_CURRENT_TIME))
-        self.set_trough_position()
+        self.smooth_x.set_now(
+            time_x_converter.get_x_by_time(get(Get.MEDIA_CURRENT_TIME))
+        )
         self.line.set_position(*self._get_line_pos_args())
 
     @property

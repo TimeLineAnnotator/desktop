@@ -35,7 +35,7 @@ from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.enums import ScrollType
 from tilia.ui.player import PlayerToolbarElement
-from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.timeline import TimelineUI, with_elements
 from tilia.ui.timelines.collection.import_ import _on_import_to_timeline
@@ -102,7 +102,7 @@ class TimelineUIs:
         self.loop_time = (self.selected_time, self.selected_time)
         self.loop_elements = set()
         self.loop_delete_ignore = set()
-        setup_smooth(self)
+        self.smooth_time = SmoothSetter(lambda: self.selected_time, self._set_time)
 
     def __str__(self) -> str:
         return self.__class__.__name__ + "-" + str(id(self))
@@ -1492,18 +1492,14 @@ class TimelineUIs:
         self.view.move_to_x(x + self.view.scroll_offset)
 
     def on_media_time_change(self, time: float, reason: MediaTimeChangeReason) -> None:
-        def __get_time():
-            return self.selected_time
-
-        @smooth(self, __get_time)
-        def __set_time(time):
-            self.set_playback_lines_position(time)
-            self.selected_time = time
-
         self._auto_scroll(reason, time)
 
         if not self.is_dragging:
-            __set_time(time)
+            self.smooth_time(time)
+
+    def _set_time(self, time: float) -> None:
+        self.set_playback_lines_position(time)
+        self.selected_time = time
 
     def set_is_dragging(self, is_dragging: bool) -> None:
         # noinspection PyAttributeOutsideInit
@@ -1512,9 +1508,7 @@ class TimelineUIs:
             self.clear_selection_boxes()
 
     def on_slider_drag(self, x: float):
-        time = time_x_converter.get_time_by_x(x)
-        self.selected_time = time
-        self.set_playback_lines_position(time)
+        self.smooth_time.set_now(time_x_converter.get_time_by_x(x))
 
     def set_auto_scroll(self, value: ScrollType):
         # noinspection PyAttributeOutsideInit

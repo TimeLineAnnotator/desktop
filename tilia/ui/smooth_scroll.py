@@ -2,46 +2,53 @@
 # - use global timer? update all frames at the same time
 # - apply smoothing curve to input - currently linear
 
-from typing import Any, Callable
+from typing import Callable, Generic, TypeVar
 
 from PySide6.QtCore import QVariantAnimation
 
 from tilia.settings import settings
 
-
-def setup_smooth(self):
-    self.animation = QVariantAnimation()
-    self.animation.setDuration(125)
+T = TypeVar("T")
 
 
-def smooth(self: Any, args_getter: Callable[[], object]):
+class SmoothSetter(Generic[T]):
     """
-    Function Wrapper
-    Smooths changes made by `args_setter` by inputting smaller changes over time.
-    Run `setup_smooth` in object init.
+    Sets a value in small steps over a short time, so that it moves smoothly,
+    or at once when the user prioritises performance.
 
-    - `args_getter` retrieves current values
-    - `args_setter` sets values
-    - `args_setpoint` is the final value of the variables to be set
-
-    `args_getter` and `args_setter` must refer to the same variables in `args_setpoint` in the same order.
+    Create one per value when its owner is set up, from a getter and a setter
+    of that value. Calling it moves the value to the given setpoint.
     """
 
-    def wrapper(args_setter: Callable[[object], None]) -> Callable:
-        def wrapped_setter(args_setpoint: object) -> None:
-            if self.animation.state() is QVariantAnimation.State.Running:
-                self.animation.pause()
-            self.animation.setStartValue(args_getter())
-            self.animation.setEndValue(args_setpoint)
-            self.animation.start()
+    DURATION = 125
 
-        def timeout(value: object) -> None:
-            args_setter(value)
+    def __init__(self, getter: Callable[[], T], setter: Callable[[T], None]) -> None:
+        self._getter = getter
+        self._setter = setter
+        self.animation = QVariantAnimation()
+        self.animation.setDuration(self.DURATION)
+        self.animation.valueChanged.connect(self._setter)
+
+    def __call__(self, setpoint: T) -> None:
+        if isinstance(setpoint, int):
+            # The animation can't step between an int and a float: it sends
+            # None instead. Times and positions are floats.
+            setpoint = float(setpoint)
 
         if settings.get("general", "prioritise_performance") is True:
-            return args_setter
+            self.set_now(setpoint)
+            return
 
-        self.animation.valueChanged.connect(timeout)
-        return wrapped_setter
+        if self.animation.state() is QVariantAnimation.State.Running:
+            self.animation.pause()
+        self.animation.setStartValue(self._getter())
+        self.animation.setEndValue(setpoint)
+        self.animation.start()
 
-    return wrapper
+    def set_now(self, value: T) -> None:
+        """
+        Sets the value at once. Set it through here, not with the setter: a
+        movement still running would overwrite it.
+        """
+        self.animation.stop()
+        self._setter(value)
