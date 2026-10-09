@@ -185,6 +185,16 @@ def test_media_ending_at_or_before_the_last_beat_leaves_the_gap(media_length, ca
     assert "media" in caplog.text
 
 
+def test_the_end_of_the_media_doesnt_cap_a_quarters_file(caplog):
+    # The media's length is in seconds; a quarters file's times are in quarter notes.
+    timeline = pickup_piece()
+    for media_length in (20.4, 19.5):
+        doc = document(timeline, media_length=media_length, time_unit="quarters")
+
+        assert build_rows(doc, timeline)[-1].end == 21.0
+    assert not caplog.records
+
+
 def test_a_timeline_without_measures_gives_no_rows():
     timeline = beat_timeline([{"time": 0.0}, {"time": 1.0}])
     timeline.measures = None
