@@ -109,3 +109,4 @@ jobs:
         tilia --help
         tilia --help | grep -x "  ui"
         tilia ui --help
+        tilia-ui --help
