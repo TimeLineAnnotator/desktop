@@ -5,6 +5,7 @@ CI runs these on Windows, macOS and Linux with each supported Python; the
 golden files are the bytes every one of them must write."""
 
 import codecs
+import importlib
 import importlib.util
 import json
 import os
@@ -17,8 +18,11 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
-from tilia_core.tla import write
 from tilia_core.tla.model import COMPONENT_KINDS, TIMELINE_KINDS
+
+# The module, which `tla.write`, once it is the function that writes a file,
+# hides as an attribute of the package.
+write = importlib.import_module("tilia_core.tla.write")
 
 GOLDEN = Path(__file__).parent / "golden"
 GOLDEN_FILES = sorted(GOLDEN.glob("*.tla"))
