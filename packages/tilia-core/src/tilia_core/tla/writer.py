@@ -182,22 +182,23 @@ def _object(
     return written
 
 
-def _merged(place: str, *parts: tuple[str, Mapping[str, Any]]) -> dict[str, Any]:
-    """An entry's keys, from the places the API holds them: its fields,
-    `attrs` and `extra`, named in `parts`, which may not share a key."""
-    merged: dict[str, Any] = {}
-    for _, part in parts:
+def _merged(
+    place: str,
+    fields: tuple[str, dict[str, Any]],
+    *parts: tuple[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """An entry's keys, from the places the API holds them: its fields, then
+    `attrs` and `extra`, each named, which may not share a key. The fields
+    are a new dict, which the others are added to rather than copied."""
+    fields_name, merged = fields
+    for index, (name, part) in enumerate(parts):
+        if not merged.keys().isdisjoint(part):
+            key = next(key for key in part if key in merged)
+            earlier = next((n for n, p in parts[:index] if key in p), fields_name)
+            raise ValueError(
+                f"{pointer_to(place, key)}: set both in {earlier} and in {name}"
+            )
         merged.update(part)
-    if len(merged) < sum(len(part) for _, part in parts):
-        seen: dict[str, str] = {}
-        for name, part in parts:
-            for key in part:
-                if key in seen:
-                    raise ValueError(
-                        f"{pointer_to(place, key)}: set both in {seen[key]}"
-                        f" and in {name}"
-                    )
-                seen[key] = name
     return merged
 
 
@@ -301,8 +302,22 @@ def _lines(value: Any, parent: str, key: str | int) -> Any:
     ]
 
 
+def _beat_writers(marks: Mapping[str, Mapping[str, Any]]) -> dict[str, Writer]:
+    """The writers of a timeline's beats, made once per timeline. `marks` are
+    the defaults of its downbeats' marks, by the downbeat's place."""
+
+    def mark(item: Any, parent: str, key: str | int) -> Any:
+        # Always written, even empty: a mark is what makes a downbeat.
+        if not isinstance(item, dict):
+            return _value(item, parent, key)
+        defaults = marks.get(parent, MEASURE_SHAPE.defaults)
+        return _object(item, MEASURE_SHAPE, pointer_to(parent, key), defaults)
+
+    return {"measure": mark, "beat_unit": _beat_unit}
+
+
 def _component(
-    component: Component, place: str, mark_defaults: Mapping[str, Any] | None
+    component: Component, place: str, beat_writers: Mapping[str, Writer]
 ) -> dict[str, Any]:
     kind = _spelling(component_kind_to_file, component.kind, place)
     value = _merged(
@@ -320,17 +335,7 @@ def _component(
         shape = UNKNOWN_COMPONENT_WITH_METADATA  # kept as it is, even empty
     else:
         shape = UNKNOWN_COMPONENT
-    writers: dict[str, Writer] = {}
-    if component.kind == "beat":
-        marks = MEASURE_SHAPE.defaults if mark_defaults is None else mark_defaults
-
-        def mark(item: Any, parent: str, key: str | int) -> Any:
-            # Always written, even empty: a mark is what makes a downbeat.
-            if not isinstance(item, dict):
-                return _value(item, parent, key)
-            return _object(item, MEASURE_SHAPE, pointer_to(parent, key), marks)
-
-        writers = {"measure": mark, "beat_unit": _beat_unit}
+    writers = beat_writers if component.kind == "beat" else None
     return _object(value, shape, place, writers=writers)
 
 
@@ -339,10 +344,17 @@ def _components(
     place: str,
     marks: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, Any]:
-    return {
-        key: _component(component, pointer_to(place, key), marks.get(component.id))
-        for key, component in _entries(components, place)
-    }
+    """A timeline's components, in id order. `marks` are the defaults of its
+    downbeats' marks, by the downbeat's id."""
+    by_place: dict[str, Mapping[str, Any]] = {}
+    beat_writers = _beat_writers(by_place)
+    written: dict[str, Any] = {}
+    for key, component in _entries(components, place):
+        at = pointer_to(place, key)
+        if component.id in marks:
+            by_place[at] = marks[component.id]  # before its mark is written
+        written[key] = _component(component, at, beat_writers)
+    return written
 
 
 # The fields a timeline of an unknown kind leaves out at their default, unless
