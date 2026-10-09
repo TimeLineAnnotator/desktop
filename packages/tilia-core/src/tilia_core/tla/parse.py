@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
+from collections.abc import Callable
 from json.decoder import WHITESPACE, scanstring
 from typing import Any
 
@@ -45,11 +46,19 @@ def _no_repeated_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def parse(data: bytes, *, path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
+def parse(
+    data: bytes,
+    *,
+    path: str | os.PathLike[str] | None = None,
+    check: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
     """Parse a file's bytes, or raise `UnreadableFile` saying why they aren't a TiLiA file.
 
     One UTF-8 byte-order mark is skipped; CRLF reads like LF. Text is returned
-    as it is, without normalisation.
+    as it is, without normalisation. `check`, when given, is called with the
+    top level as soon as it is an object, before anything is required of it:
+    the reader checks the version there, since a newer format may lay out
+    the rest otherwise.
     """
     start = len(_BOM) if data.startswith(_BOM) else 0
     try:
@@ -66,7 +75,11 @@ def parse(data: bytes, *, path: str | os.PathLike[str] | None = None) -> dict[st
         )
     except (_RepeatedKey, _Constant, ValueError, RecursionError) as error:
         raise _refusal(text, error, path) from None
-    if not isinstance(content, dict) or "timelines" not in content:
+    if not isinstance(content, dict):
+        raise UnreadableFile("not a TiLiA file", path=path)
+    if check is not None:
+        check(content)
+    if "timelines" not in content:
         raise UnreadableFile("not a TiLiA file", path=path)
     problem = _first_problem(content, MAX_DEPTH)
     if problem is not None:

@@ -268,6 +268,36 @@ def test_not_a_tilia_file(data):
     assert refusal(data).message == "not a TiLiA file"
 
 
+class Checked(Exception):
+    pass
+
+
+def check(content):
+    raise Checked(content)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [b'{"a": 1}', nested(b"[", b"]", 100), MINIMAL],
+    ids=["without timelines", "nested too deeply", "a TiLiA file"],
+)
+def test_the_check_sees_the_top_level_before_anything_is_required_of_it(data):
+    # The reader checks the version there: a newer format may hold anything else.
+    with pytest.raises(Checked):
+        parse(data, check=check)
+
+
+def test_a_check_that_passes_changes_nothing():
+    assert parse(MINIMAL, check=lambda content: None) == {"timelines": {}}
+
+
+@pytest.mark.parametrize("data", [b"[]", b"null"])
+def test_the_check_sees_only_an_object(data):
+    with pytest.raises(UnreadableFile) as info:
+        parse(data, check=check)
+    assert info.value.message == "not a TiLiA file"
+
+
 @pytest.mark.parametrize("ends", [lambda data: data, crlf], ids=["lf", "crlf"])
 @pytest.mark.parametrize("prefix", [b"", BOM])
 def test_invalid_utf8_gives_its_byte_and_line(prefix, ends):

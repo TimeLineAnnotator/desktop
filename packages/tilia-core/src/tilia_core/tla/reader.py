@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -49,8 +50,13 @@ def read(path: str | os.PathLike[str]) -> Document:
 
 def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Document:
     """Read a `.tla` file's bytes. `path`, when given, is where the file is."""
-    content = parse(data, path=path)
-    _check_version(content, path)
+    # The version first: a newer format may lay out the rest otherwise.
+    content = parse(data, path=path, check=partial(_check_version, path=path))
+    version = content.get("version", "0.0.0")
+    if _is_old(version):
+        raise NotImplementedError(
+            f"reading files from TiLiA {printable(version)} needs the migration"
+        )
     return _Reader(path).document(content)
 
 
@@ -89,24 +95,26 @@ def _precedence(version: str) -> tuple[Any, ...] | None:
     return _number(major), _number(minor), _number(patch), release
 
 
+def _is_old(version: str) -> bool:
+    """Major version 0, as TiLiA compares versions: a file from TiLiA 0.x."""
+    return not _LEADING_DIGITS.match(version).group().strip("0")
+
+
 def _check_version(
     content: dict[str, Any], path: str | os.PathLike[str] | None
 ) -> None:
-    """Return if the file is in the current format, and raise otherwise: a
-    draft other than the current one is converted again from its sources, never
-    read (FR-007), and a newer format is refused, naming its version (FR-014)."""
+    """Return if the file is in the current format or an old one, which the
+    migration reads, and raise otherwise: a draft other than the current one
+    is converted again from its sources, never read (FR-007), and a newer
+    format is refused, naming its version (FR-014). Nothing else in the file
+    is looked at."""
     version = content.get("version", "0.0.0")
     if not isinstance(version, str):
         raise UnreadableFile(
             "the format version isn't text", path=path, place="/version"
         )
-    if version == FORMAT_VERSION:
+    if version == FORMAT_VERSION or _is_old(version):
         return
-    if not _LEADING_DIGITS.match(version).group().strip("0"):
-        # Major version 0, as TiLiA compares versions: a file from TiLiA 0.x.
-        raise NotImplementedError(
-            f"reading files from TiLiA {printable(version)} needs the migration"
-        )
     ours, theirs = _precedence(FORMAT_VERSION), _precedence(version)
     if theirs is not None and (
         theirs < ours or (theirs[:3] == ours[:3] and theirs[3] != _RELEASE)
