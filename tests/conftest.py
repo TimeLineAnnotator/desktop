@@ -1,18 +1,18 @@
 import copy
 import functools
-import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Literal
 
 import pytest
 from colorama import Fore, Style
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 import tilia.log as logging_module
 import tilia.settings as settings_module
 import tilia.utils  # noqa: F401
+from tests import SETTINGS_DIR
 from tilia.app import App
 from tilia.boot import setup_logic
 from tilia.media.player.base import MediaTimeChangeReason
@@ -206,23 +206,18 @@ def resources() -> Path:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def isolate_settings(tmp_path_factory):
-    """Point the settings manager at a throwaway store for the whole session.
+def isolate_settings():
+    """Start the session from the default settings.
 
     Settings are backed by a real QSettings store, so anything a test writes
-    outlives it. Pointing the tests at a *named* store meant those values
-    leaked into later tests, into the other xdist workers and into subsequent
-    runs; and any test that ran before a module requesting the test store
-    wrote to the developer's own settings instead.
+    outlives it. Each test process keeps that store in a throwaway directory
+    of its own (tests/__init__.py), so values can't leak into the other xdist
+    workers, into subsequent runs or into the developer's own settings. This
+    clears whatever the process stored before its first test.
 
-    Autouse and session-scoped so that no test can reach the real store,
+    Autouse and session-scoped so that every test starts from the defaults,
     whichever fixtures it happens to request.
     """
-    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
-    path = tmp_path_factory.mktemp("settings") / f"{worker}.ini"
-    settings_module.settings._settings = QSettings(
-        str(path), QSettings.Format.IniFormat
-    )
     _reset_settings_to_default()
     yield
 
@@ -231,6 +226,14 @@ def _reset_settings_to_default():
     settings_module.settings._settings.clear()
     settings_module.settings._cache = {}
     settings_module.settings._check_all_default_settings_present()
+
+
+def pytest_unconfigure(config):
+    # Write pending settings while Python is still running. Otherwise QSettings
+    # writes them when the process exits, after the directory is gone, and
+    # creates it again.
+    settings_module.settings._settings.sync()
+    shutil.rmtree(SETTINGS_DIR, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)

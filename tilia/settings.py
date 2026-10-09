@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSettings
@@ -103,12 +104,26 @@ class SettingsManager(QObject):
     }
 
     def __init__(self):
-        self._settings = QSettings(
-            tilia.constants.APP_NAME, application="Desktop Settings", parent=None
-        )
+        self._settings = self._open_store()
         self._files_updated_callbacks = set()
         self._cache = {}
         self._check_all_default_settings_present()
+
+    @staticmethod
+    def _open_store() -> QSettings:
+        if os.environ.get("ENVIRONMENT") == "test":
+            # QSettings.setPath() can move ini files, but not the native stores
+            # of macOS and Windows. Tests use an ini file, which the test suite
+            # moves out of the user's settings (tests/__init__.py).
+            return QSettings(
+                QSettings.Format.IniFormat,
+                QSettings.Scope.UserScope,
+                tilia.constants.APP_NAME,
+                "Desktop Settings",
+            )
+        return QSettings(
+            tilia.constants.APP_NAME, application="Desktop Settings", parent=None
+        )
 
     def _check_all_default_settings_present(self):
         for group_name, setting in self.DEFAULT_SETTINGS.items():
