@@ -14,6 +14,7 @@ import unicodedata
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from functools import cached_property
 from importlib.resources import files
 from typing import Any
 
@@ -169,11 +170,14 @@ class Shape:
     """
 
     keys: tuple[str, ...]
-    known: frozenset[str]
     always: frozenset[str]
     defaults: Mapping[str, Any]
     derived: Mapping[str, str]
     left_out_empty: frozenset[str]
+
+    @cached_property
+    def known(self) -> frozenset[str]:
+        return frozenset(self.keys)
 
 
 def _definition(ref: str) -> dict[str, Any]:
@@ -230,7 +234,6 @@ def _shape(
             derived[key] = schema["x-default-from"]
     return Shape(
         keys=keys,
-        known=frozenset(keys),
         always=frozenset(required & set(keys)),
         defaults=defaults,
         derived=derived,
@@ -336,11 +339,22 @@ def ascii_keys(value: Mapping[str, Any]) -> bool:
     return value.keys() <= _LAYOUT_KEYS or "".join(value).isascii()
 
 
-def nfc_object(value: dict[str, Any]) -> dict[str, Any]:
-    """`value` with its keys in NFC, and its values as they are."""
-    if ascii_keys(value):
-        return value
-    return dict(zip(nfc_keys(list(value)), value.values(), strict=True))
+def nfc_object(value: dict[Any, Any], place: str | None = None) -> dict[str, Any]:
+    """`value` with its keys in NFC, and its values as they are: `value`
+    itself if its keys are ASCII. With `place`, for the writer, a key that
+    isn't text raises ValueError, naming the place."""
+    try:
+        if ascii_keys(value):
+            return value
+    except TypeError:  # a key that isn't text
+        if place is None:
+            raise
+    keys = list(value)
+    if place is not None:
+        for key in keys:
+            if not isinstance(key, str):
+                raise ValueError(f"{place}: a key must be text, not {key!r}")
+    return dict(zip(nfc_keys(keys), value.values(), strict=True))
 
 
 def nfc_value(value: Any) -> Any:

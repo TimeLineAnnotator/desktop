@@ -37,9 +37,8 @@ from tilia_core.tla.layout import (
     UNKNOWN_SCORE,
     UNKNOWN_TIMELINE,
     Shape,
-    ascii_keys,
     is_integer,
-    nfc_keys,
+    nfc_object,
     nfc_text,
     pointer_to,
 )
@@ -82,19 +81,8 @@ def _readable(value: int) -> bool:
 def _value(value: Any, parent: str, key: str | int) -> Any:
     """`value` as written: text in NFC, objects in their own order. Raises
     ValueError, naming the place, for a value JSON can't hold."""
-    kind = type(value)
-    if kind is str:
-        return value if value.isascii() else nfc_text(value)
-    if kind is float and value - value == 0.0:  # finite: not NaN or infinite
-        return value
     if isinstance(value, str):
         return nfc_text(value)
-    if value is None or isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        if _readable(value):
-            return value
-        raise ValueError(f"{pointer_to(parent, key)}: an integer too long to read back")
     if isinstance(value, float):
         if math.isfinite(value):
             return value
@@ -102,33 +90,22 @@ def _value(value: Any, parent: str, key: str | int) -> Any:
             f"{pointer_to(parent, key)}: {value!r} can't be written: JSON has no"
             " NaN or infinity"
         )
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        if _readable(value):
+            return value
+        raise ValueError(f"{pointer_to(parent, key)}: an integer too long to read back")
     place = pointer_to(parent, key)
     if isinstance(value, dict):
-        return {k: _value(v, place, k) for k, v in _text_keyed(value, place).items()}
+        return {k: _value(v, place, k) for k, v in nfc_object(value, place).items()}
     if isinstance(value, (list, tuple)):
         return [_value(item, place, index) for index, item in enumerate(value)]
     raise ValueError(f"{place}: a {type(value).__name__} can't be written in JSON")
 
 
-def _text_keys(value: Mapping[Any, Any], place: str) -> list[str]:
-    for key in value:
-        if not isinstance(key, str):
-            raise ValueError(f"{place}: a key must be text, not {key!r}")
-    return nfc_keys(list(value))
-
-
-def _text_keyed(value: Mapping[Any, Any], place: str) -> Mapping[str, Any]:
-    """`value` with its keys in NFC, checked to be text."""
-    try:
-        if ascii_keys(value):
-            return value
-    except TypeError:
-        pass  # a key that isn't text, which _text_keys names
-    return dict(zip(_text_keys(value, place), value.values(), strict=True))
-
-
 def _object(
-    value: Mapping[str, Any],
+    value: dict[str, Any],
     shape: Shape,
     place: str,
     defaults: Mapping[str, Any] | None = None,
@@ -139,7 +116,7 @@ def _object(
     it equals its default, by type and value (0 isn't 0.0), or, without one,
     when it is None. `defaults` replaces the shape's own, for a measure's
     mark, whose defaults depend on the marks before it."""
-    values = _text_keyed(value, place)
+    values = nfc_object(value, place)
     if defaults is None:
         defaults = shape.defaults
     always, derived, empty = shape.always, shape.derived, shape.left_out_empty
@@ -171,8 +148,6 @@ def _object(
         writer = writers.get(key) if writers else None
         if writer is not None:
             written[key] = writer(item, place, key)
-        elif (kind is str and item.isascii()) or (kind is float and item - item == 0):
-            written[key] = item  # what most values are, written as they are
         else:
             written[key] = _value(item, place, key)
     if found < len(values):
@@ -202,12 +177,12 @@ def _merged(
     return merged
 
 
-def _entries(entries: Mapping[str, Any], place: str) -> list[tuple[str, Any]]:
+def _entries(entries: dict[str, Any], place: str) -> list[tuple[str, Any]]:
     """Timelines, components or scores in id order, each checked to be under its own id."""
     for given, entry in entries.items():
         if getattr(entry, "id", given) != given:
             raise ValueError(f"{pointer_to(place, given)}: holds the id {entry.id!r}")
-    return sorted(_text_keyed(entries, place).items(), key=itemgetter(0))
+    return sorted(nfc_object(entries, place).items(), key=itemgetter(0))
 
 
 def _spelling(to_file: Callable[[Kind], str], kind: Kind, place: str) -> str:
@@ -340,7 +315,7 @@ def _component(
 
 
 def _components(
-    components: Mapping[str, Component],
+    components: dict[str, Component],
     place: str,
     marks: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, Any]:
