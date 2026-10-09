@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from html import escape, unescape
 from pathlib import Path
 from re import sub
@@ -18,6 +19,8 @@ from tilia.requests import (
     Get,
     get,
 )
+
+SVG_MAKER_PATH = Path(__file__).parent / "svg_maker.html"
 
 
 class SvgWebEngineTracker(QObject):
@@ -41,11 +44,7 @@ class musicxml_to_svg(QWebEngineView):
         self.timeline_id = timeline_id
         self.is_engine_loaded = False
         super().__init__()
-        self.load(
-            QUrl.fromLocalFile(
-                (Path(__file__).parent / "svg_maker.html").resolve().__str__()
-            )
-        )
+        self.load(QUrl.fromLocalFile(str(SVG_MAKER_PATH.resolve())))
         self.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
@@ -72,7 +71,9 @@ class musicxml_to_svg(QWebEngineView):
 
     def to_svg(self, data: str) -> None:
         def convert():
-            self.page().runJavaScript(f"loadSVG(`{data}`)")
+            # As a JSON string, so that nothing in the score ends the string
+            # or runs as code.
+            self.page().runJavaScript(f"loadSVG({json.dumps(data)})")
 
         if self.is_engine_loaded:
             convert()
