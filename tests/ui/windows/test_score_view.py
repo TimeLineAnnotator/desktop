@@ -1,12 +1,13 @@
 import json
 import sys
 from typing import Iterable
+from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
 from PySide6.QtGui import QColor, QHideEvent, QShowEvent
 from PySide6.QtWebEngineCore import QWebEnginePage
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QComboBox
 
 from tests.constants import EXAMPLE_MUSICXML_PATH, EXAMPLE_REST_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
@@ -19,13 +20,13 @@ from tests.utils import (
     undoable,
     wait_until,
 )
-from tilia.exceptions import NoReplyToRequest
 from tilia.requests import Get, get
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
+from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.windows.score.score_view import VIEWER_PATH, ScoreView
 from tilia.ui.windows.svg_viewer import SvgViewer
 
@@ -110,8 +111,21 @@ def import_score(path: str = EXAMPLE_MUSICXML_PATH, add_measure_zero: bool = Tru
         commands.execute("timelines.import.score")
 
 
+def import_score_into(score_tlui):
+    # With several score timelines, the import asks which one to import into.
+    def choose_timeline(dialog):
+        combo_box = dialog.findChild(QComboBox)
+        for index in range(combo_box.count()):
+            if combo_box.itemData(index) is score_tlui:
+                combo_box.setCurrentIndex(index)
+        return True
+
+    with patch.object(ChooseDialog, "exec", choose_timeline):
+        import_score()
+
+
 def get_score_view(score_tlui) -> ScoreView:
-    viewer = get(Get.SCORE_VIEWER, score_tlui.id)
+    viewer = score_tlui.svg_view
     assert isinstance(viewer, ScoreView)
     # Verovio's first start takes seconds, more on a busy machine.
     assert wait_until(
@@ -540,11 +554,44 @@ class TestPage:
         )
 
 
+class TestSeveralScoreTimelines:
+    def test_seek_with_a_timeline_without_score(self, score_view, tilia_state):
+        add_score_timeline("Other")
+
+        commands.execute("media.seek", 7)
+
+        assert tilia_state.current_time == 7
+
+    def test_each_timeline_has_its_own_viewer(self, score_tlui):
+        other_tlui = add_score_timeline("Other")
+        add_beats()
+
+        import_score_into(score_tlui)
+        import_score_into(other_tlui)
+
+        viewer = get_score_view(score_tlui)
+        other_viewer = get_score_view(other_tlui)
+        assert viewer is not other_viewer
+        assert viewer.timeline_id == score_tlui.id
+        assert other_viewer.timeline_id == other_tlui.id
+
+    def test_deleting_a_timeline_keeps_the_others_viewer(self, score_tlui):
+        other_tlui = add_score_timeline("Other")
+        add_beats()
+        import_score_into(score_tlui)
+        import_score_into(other_tlui)
+        viewer = get_score_view(score_tlui)
+
+        commands.execute("timeline.delete", other_tlui, confirm=False)
+
+        assert score_tlui.svg_view is viewer
+
+
 class TestSvgScores:
     def test_file_with_svg_score_opens_in_old_viewer(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
 
-        assert isinstance(get(Get.SCORE_VIEWER, score_tlui.id), SvgViewer)
+        assert isinstance(score_tlui.svg_view, SvgViewer)
 
     def test_import_replaces_svg_score(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
@@ -563,7 +610,7 @@ class TestSvgScores:
 
         commands.execute("edit.undo")
 
-        assert isinstance(get(Get.SCORE_VIEWER, score_tlui.id), SvgViewer)
+        assert isinstance(score_tlui.svg_view, SvgViewer)
 
     def test_redoing_import_closes_old_viewer(self, tluis, tmp_path):
         score_tlui = open_file_with_svg_score(tmp_path)
@@ -574,8 +621,4 @@ class TestSvgScores:
 
         commands.execute("edit.redo")
 
-        try:
-            viewer = get(Get.SCORE_VIEWER, score_tlui.id)
-        except NoReplyToRequest:
-            return
-        assert not isinstance(viewer, SvgViewer)
+        assert not isinstance(score_tlui.svg_view, SvgViewer)

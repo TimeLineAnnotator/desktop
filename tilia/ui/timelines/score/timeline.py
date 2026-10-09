@@ -8,7 +8,7 @@ from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QGraphicsRectItem
 
 import tilia.errors
-from tilia.exceptions import GetComponentDataError, NoReplyToRequest
+from tilia.exceptions import GetComponentDataError
 from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
@@ -62,6 +62,8 @@ class ScoreTimelineUI(TimelineUI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.UPDATE_TRIGGERS = self.UPDATE_TRIGGERS + ["svg_data"]
+        # Each score timeline has a viewer of its own.
+        self._viewer: SvgViewer | ScoreView | None = None
         listen(
             self,
             Post.SETTINGS_UPDATED,
@@ -101,16 +103,16 @@ class ScoreTimelineUI(TimelineUI):
 
     @property
     def svg_view(self) -> SvgViewer | ScoreView:
-        try:
-            return get(Get.SCORE_VIEWER, self.id)
-        except NoReplyToRequest:
-            if not self.timeline.svg_data:
-                return ScoreView(name=self.get_data("name"), tl_id=self.id)
-            # Scores stored as SVG, in older files, keep the old viewer.
-            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-            viewer.load_svg_data(self.timeline.svg_data)
-            self.measure_tracker.setVisible(not viewer.is_hidden)
-            return viewer
+        if self._viewer:
+            return self._viewer
+        if not self.timeline.svg_data:
+            self._viewer = ScoreView(name=self.get_data("name"), tl_id=self.id)
+            return self._viewer
+        # Scores stored as SVG, in older files, keep the old viewer.
+        self._viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
+        self._viewer.load_svg_data(self.timeline.svg_data)
+        self.measure_tracker.setVisible(not self._viewer.is_hidden)
+        return self._viewer
 
     @staticmethod
     def get_time_signature_icon_name(n: int) -> str:
@@ -481,12 +483,8 @@ class ScoreTimelineUI(TimelineUI):
         return (x1 - x0) / self._measure_count
 
     def on_audio_time_change(self, time: float, _) -> None:
-        try:
-            svg_view = get(Get.SCORE_VIEWER, self.id)
-        except NoReplyToRequest:
-            return
-        if svg_view.is_svg_loaded:
-            svg_view.scroll_to_time(time, False)
+        if self._viewer and self._viewer.is_svg_loaded:
+            self._viewer.scroll_to_time(time, False)
 
     def _setup_svg_view(self) -> None:
         self.tracker_start = 0
@@ -497,8 +495,8 @@ class ScoreTimelineUI(TimelineUI):
         self.scene.addItem(self.measure_tracker)
 
         if self.timeline.svg_data:
-            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-            viewer.load_svg_data(self.timeline.svg_data)
+            self._viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
+            self._viewer.load_svg_data(self.timeline.svg_data)
             self.measure_tracker.show()
 
     def update_svg_data(self) -> None:
@@ -507,13 +505,13 @@ class ScoreTimelineUI(TimelineUI):
             # No score stored as SVG (an import replaced it, and was redone, say):
             # the old viewer has nothing left to show.
             if isinstance(viewer, SvgViewer):
-                viewer.deleteLater()
+                self.reset_svg()
             return
         if isinstance(viewer, ScoreView):
             # A score stored as SVG came back (by undo, say): it's the old
             # viewer's to show.
-            viewer.deleteLater()
-            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
+            self.reset_svg()
+            viewer = self._viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
         viewer.load_svg_data(self.timeline.svg_data)
 
     def on_score_timeline_score_imported(
@@ -523,12 +521,14 @@ class ScoreTimelineUI(TimelineUI):
             return
         viewer = self.svg_view
         if not isinstance(viewer, ScoreView):
-            viewer.deleteLater()
-            viewer = ScoreView(name=self.get_data("name"), tl_id=self.id)
+            self.reset_svg()
+            viewer = self._viewer = ScoreView(name=self.get_data("name"), tl_id=self.id)
         viewer.load_score(text, element_ids)
 
-    def reset_svg(self):
-        self.svg_view.deleteLater()
+    def reset_svg(self) -> None:
+        if self._viewer:
+            self._viewer.deleteLater()
+            self._viewer = None
 
     def on_left_click(self, item, modifier, double, x, y):
         if item != self.measure_tracker:

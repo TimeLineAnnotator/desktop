@@ -31,9 +31,7 @@ from tilia.requests import (
     Post,
     get,
     post,
-    serve,
     stop_listening_to_all,
-    stop_serving_all,
 )
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
@@ -52,11 +50,6 @@ class SvgViewer(ViewDockWidget):
         self.timeline_id = tl_id
 
         self.__setup_score_viewer()
-        serve(self, Get.SCORE_VIEWER, self.get_viewer)
-
-    def get_viewer(self, tl_id: int):
-        if tl_id == self.timeline_id:
-            return self
 
     @property
     def timeline(self):
@@ -562,7 +555,6 @@ class SvgViewer(ViewDockWidget):
 
     def deleteLater(self):
         super().deleteLater()
-        stop_serving_all(self)
         stop_listening_to_all(self)
 
     def resizeEvent(self, a0):
