@@ -56,18 +56,25 @@ from tilia_core.tla.model import (
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
-# Every Python reads an integer of fewer than 640 digits back, whatever its
-# limit (sys.set_int_max_str_digits); 2000 bits are fewer than 610 digits.
+# Every Python writes and reads an integer of fewer than 640 digits, whatever
+# its limit (sys.set_int_max_str_digits); 2000 bits are fewer than 610 digits.
 _SHORT_INTEGER_BITS = 2000
+# Python reads at most 4300 digits by default (since 3.10.7), the sign aside.
+# The bound is that, whatever the running Python's limit, so that the same
+# document gives the same bytes, or the same refusal, everywhere.
+_TOO_LONG = 10**4300
 
 
 def _readable(value: int) -> bool:
-    """Whether the running Python can write this integer, and so read it back."""
+    """Whether this integer, written, reads back on any Python: it has at
+    most 4300 digits, and the running Python can write it."""
     if value.bit_length() <= _SHORT_INTEGER_BITS:
         return True
+    if not -_TOO_LONG < value < _TOO_LONG:
+        return False
     try:
         str(value)
-    except ValueError:  # longer than the limit
+    except ValueError:  # longer than the running Python's limit, set lower
         return False
     return True
 
