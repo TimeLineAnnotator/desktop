@@ -31,7 +31,8 @@ def tapped(count, pattern=(4,), units=None):
             {
                 "time": float(index),
                 "measure": {} if index in starts else None,
-                "beat_unit": units.get(index),
+                # A copy, so that no two tests share a unit's dict.
+                "beat_unit": dict(units[index]) if units.get(index) else None,
             }
             for index in range(count)
         ]
@@ -156,13 +157,25 @@ class TestUnreadableUnits:
     )
     def test_is_ignored_and_the_unit_before_carries_on(self, bad, caplog):
         timeline = tapped(8, (2,), {2: unit(8, "3"), 4: bad})
-        before = beat_ids(timeline)[2]
+        before, ignored = beat_ids(timeline)[2], beat_ids(timeline)[4]
 
         result = meters(timeline)
-        assert time_signatures(timeline) == [(2, 4), (6, 8), (6, 8), (6, 8)]
+        assert [m.time_signature for m in result] == [(2, 4), (6, 8), (6, 8), (6, 8)]
         assert [m.starts_here for m in result] == [True, True, False, False]
         assert [m.beat_unit_id for m in result][1:] == [before] * 3
-        assert "beat unit" in caplog.text
+        (warning,) = [
+            r for r in caplog.records if r.name == "tilia_core.timemap.meters"
+        ]
+        assert ignored in warning.getMessage()
+
+    def test_before_a_readable_one_does_not_govern_its_measure(self):
+        timeline = tapped(8, units={4: unit(8, "x"), 6: unit(2, "1")})
+
+        meter = meters(timeline)[1]
+        assert meter.beat_unit_id == beat_ids(timeline)[6]
+        assert meter.denominator == 2
+        assert meter.starts_here
+        assert not meter.is_conflicting
 
     def test_does_not_make_its_measure_conflicting(self):
         timeline = tapped(4, units={0: unit(8, "3"), 2: unit(8, "x")})
