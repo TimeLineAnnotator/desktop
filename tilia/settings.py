@@ -17,7 +17,9 @@ UNREADABLE = _Unreadable()
 class SettingsManager(QObject):
     # Bump VERSION when a setting's name, group or type changes, and add a
     # function to MIGRATIONS that moves version VERSION - 1 to VERSION.
-    # Settings are migrated, never reset.
+    # Settings are migrated, never reset. Version 0 is both a store saved
+    # before settings were versioned and a new, empty one, so a migration
+    # must allow for the settings it moves being missing.
     VERSION = 1
     VERSION_KEY = "meta/settings_version"
     MIGRATIONS: dict[int, Callable[[QSettings], None]] = {}
