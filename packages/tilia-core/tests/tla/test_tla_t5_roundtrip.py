@@ -362,6 +362,29 @@ def test_a_null_source_or_licence_is_kept(format):
     assert (written["source"], written["license"]) == (None, None)
 
 
+@pytest.mark.parametrize("license", ["NOASSERTION", None])
+def test_an_mei_scores_licence_at_its_default_is_left_out(license):
+    # A missing key means its default, NOASSERTION, as for any key.
+    doc = tla.read(EVERY_KIND)
+    (score,) = doc.scores.values()
+    assert score.format == "mei"
+    score.license = license
+    data = tla.canonical_bytes(doc)
+    (written,) = json.loads(data)["scores"]
+    assert "license" not in written
+    (again,) = tla.loads(data).scores.values()
+    assert again.license == "NOASSERTION"
+    assert tla.canonical_bytes(tla.loads(data)) == data
+
+
+def test_an_mei_scores_stated_licence_is_written():
+    doc = tla.read(EVERY_KIND)
+    (score,) = doc.scores.values()
+    assert score.license == "CC0-1.0"
+    (written,) = json.loads(tla.canonical_bytes(doc))["scores"]
+    assert written["license"] == "CC0-1.0"
+
+
 # What the writer refuses
 
 
@@ -750,6 +773,7 @@ def test_unknown_kinds_and_keys_are_kept():
     (score,) = doc.scores.values()
     assert score.extra == {"x_score": "kept"}
     assert score.source == {"file": "a.mei", "x_source": "kept"}
+    assert score.license == "NOASSERTION"  # left out: its default
 
 
 def test_an_unknown_kind_is_written_from_raw():

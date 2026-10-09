@@ -236,8 +236,30 @@ def test_the_defaults_are_the_schemas():
         "measure_source": "tapped",
         "measure_table": None,
     }
-    # Required keys are always written, even at a default: an MEI score's licence.
-    assert "license" in layout.SCORE_SHAPES["mei"].always
+    # Left out at its default, NOASSERTION, like any key.
+    assert layout.SCORE_SHAPES["mei"].defaults == {"license": "NOASSERTION"}
+    assert layout.SCORE_SHAPES["mei"].always == {"id", "format", "source", "content"}
+
+
+def test_no_key_is_both_required_and_given_a_default():
+    # A missing key always means its default, so the schema never requires a
+    # key it gives one; required keys are among those always written.
+    shapes = [
+        layout.TOP_SHAPE,
+        layout.MEDIA_SHAPE,
+        *layout.TIMELINE_SHAPES.values(),
+        *layout.COMPONENT_SHAPES.values(),
+        layout.UNKNOWN_COMPONENT,
+        layout.MEASURE_SHAPE,
+        layout.BEAT_UNIT_SHAPE,
+        layout.RANGE_ROW_SHAPE,
+        *layout.SCORE_SHAPES.values(),
+        layout.UNKNOWN_SCORE,
+        layout.SCORE_SOURCE_SHAPE,
+    ]
+    for shape in shapes:
+        assert shape.always.isdisjoint(shape.defaults), shape.keys
+        assert shape.always.isdisjoint(shape.derived), shape.keys
 
 
 @pytest.mark.skipif(

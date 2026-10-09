@@ -112,7 +112,6 @@
         "file": "a.mei",
         "x_source": "kept"
       },
-      "license": "NOASSERTION",
       "content": [
         "<mei/>",
         ""
