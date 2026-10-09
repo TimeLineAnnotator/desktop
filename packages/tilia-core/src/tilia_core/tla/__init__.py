@@ -20,8 +20,8 @@ from tilia_core.tla.model import (
     UnknownKind,
 )
 from tilia_core.tla.layout import FORMAT_VERSION
-from tilia_core.tla.read import loads, read
-from tilia_core.tla.write import canonical_bytes, new_document
+from tilia_core.tla.reader import loads, read
+from tilia_core.tla.writer import canonical_bytes, new_document
 
 __all__ = [
     "FORMAT_VERSION",
