@@ -2067,7 +2067,7 @@ class TestAssumedBeatUnits:
 
         assert assumed_flags(tluis[0].timeline) == [True]
 
-    def test_pickup_copies_the_flag_of_the_next_beat_unit(self, tluis):
+    def test_pickup_copy_of_the_next_beat_unit_is_assumed(self, tluis):
         add_beat_timeline_with_pattern("1 2")
         add_beats(range(1, 5))
         set_beat_unit(tluis[0], 0, 8, "3")
@@ -2076,7 +2076,13 @@ class TestAssumedBeatUnits:
         commands.execute("media.seek", 0)
         commands.execute("timeline.beat.add")
 
-        assert assumed_flags(tluis[0].timeline) == [False, False]
+        # It gets the next beat unit's values, but nobody set them there.
+        timeline = tluis[0].timeline
+        assert assumed_flags(timeline) == [True, False]
+        assert [(u.denominator, u.units) for u in timeline.beat_units] == [
+            (8, "3"),
+            (8, "3"),
+        ]
 
     def test_beat_inspector_says_assumed(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
@@ -2110,6 +2116,45 @@ class TestAssumedBeatUnits:
         commands.execute("file.open", path=resources / "tla" / "many_beats.tla")
 
         assert assumed_flags(tluis[0].timeline) == [True]
+
+    def test_file_without_a_first_beat_unit_loads_its_copy_assumed(
+        self, tluis, tmp_path
+    ):
+        # TiLiA always keeps a beat unit in the first measure, so it can't
+        # write such a file: remove that beat unit from a saved one.
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(6))
+        set_beat_unit(tluis[0], 2, 8, "3")
+        first_beat_id = tluis[0].timeline[0].id
+        path = save_tilia_to_tmp_path(tmp_path)
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        components = next(
+            tl["components"]
+            for tl in data["timelines"].values()
+            if tl["kind"] == "Beat"
+        )
+        (first_unit_id,) = [
+            id
+            for id, component in components.items()
+            if component["kind"] == "BEAT_UNIT"
+            and component["beat_id"] == first_beat_id
+        ]
+        del components[first_unit_id]
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        post(Post.APP_CLEAR)
+
+        commands.execute("file.open", path=path)
+
+        # The first measure gets a copy of the beat unit on bar 3, but nobody
+        # set a time signature on the bars before it.
+        meters = tluis[0].timeline.measure_meters
+        assert [(m.time_signature, m.is_assumed) for m in meters] == [
+            ((6, 8), True),
+            ((6, 8), True),
+            ((6, 8), False),
+        ]
 
     def test_pasted_beat_unit_keeps_its_flag(self, tluis):
         add_beat_timeline_with_pattern("2")

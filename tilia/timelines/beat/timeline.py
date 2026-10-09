@@ -1021,8 +1021,10 @@ class BeatTimeline(Timeline):
         When one is missing, e.g. because a pickup was added before the old
         first beat, it copies the next beat unit's values (a pickup in a 6/8
         piece starts as 6/8); with no other beat units, or `copy_next` False,
-        it gets the default. Skipped while beats are being changed in bulk,
-        which recalculates and calls this once at the end.
+        it gets the default. Either way it is assumed: nobody set a time
+        signature on the measures before the next beat unit. Skipped while
+        beats are being changed in bulk, which recalculates and calls this
+        once at the end.
         """
         manager = self.component_manager
         if (
@@ -1040,15 +1042,14 @@ class BeatTimeline(Timeline):
         beat_units = self.beat_units
         if copy_next and beat_units:
             denominator, units = beat_units[0].denominator, beat_units[0].units
-            assumed = beat_units[0].assumed
         else:
-            denominator, units, assumed = DEFAULT_DENOMINATOR, DEFAULT_UNITS, True
+            denominator, units = DEFAULT_DENOMINATOR, DEFAULT_UNITS
         self.create_component(
             ComponentKind.BEAT_UNIT,
             beat_id=self[0].id,
             denominator=denominator,
             units=units,
-            assumed=assumed,
+            assumed=True,
         )
 
     def put_beat_unit_on_beat(
