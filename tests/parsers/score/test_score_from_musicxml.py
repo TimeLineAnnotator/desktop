@@ -620,3 +620,29 @@ def test_octave_clef(score_tl, beat_tl, tmp_path):
     (clef,) = _get_components_by_kind(score_tl, ComponentKind.CLEF)
     assert clef.shorthand() == Clef.Shorthand.TREBLE_8VB
     assert clef.icon == "clef-treble-8vb"
+
+
+def test_non_traditional_key_is_reported_as_not_implemented(
+    score_tl, beat_tl, tmp_path
+):
+    # TiLiA's key signatures only have fifths.
+    beat_tl.beat_pattern = [4]
+    for i in range(5):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+    key = (
+        "<key><key-step>B</key-step><key-alter>-1</key-alter>"
+        "<key-step>F</key-step><key-alter>1</key-alter></key>"
+    )
+
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(_measure(_attributes_without("key") + key)),
+        tmp_path,
+    )
+
+    assert success
+    assert errors == ["<key> - non-traditional key not implemented"]
+    assert not _get_components_by_kind(score_tl, ComponentKind.KEY_SIGNATURE)
+    assert _get_components_by_kind(score_tl, ComponentKind.NOTE)

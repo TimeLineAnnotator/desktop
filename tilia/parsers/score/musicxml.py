@@ -249,6 +249,13 @@ def notes_from_musicXML(
         for attribute in attributes:
             match attribute.tag:
                 case "key":
+                    if attribute.find("fifths") is None:
+                        # A non-traditional key, written with <key-step> and
+                        # <key-alter>.
+                        errors.append(
+                            f"<{attribute.tag}> - non-traditional key not implemented"
+                        )
+                        continue
                     constructor_kwargs = {
                         "fifths": int(attribute.find("fifths").text),
                     }
