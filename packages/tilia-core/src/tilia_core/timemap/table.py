@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import copy
 import logging
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
@@ -33,7 +33,7 @@ class MeasureRow:
     source: str
     force_display: bool
     next: tuple[str, ...] | None
-    metadata: dict[str, str | list[str]]
+    metadata: Mapping[str, str | tuple[str, ...]] = field(hash=False)  # read-only
 
 
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
@@ -78,7 +78,7 @@ def build_rows_from(
                 source=row.source,
                 force_display=row.force_display,
                 next=row.next,
-                metadata=copy.deepcopy(row.metadata),  # not the document's own
+                metadata=_frozen(row.metadata),
             )
         )
     return out
@@ -104,6 +104,19 @@ def _closing_barline(
         )
         return end
     return min(end, media_length)
+
+
+def _frozen(
+    metadata: Mapping[str, str | list[str]]
+) -> Mapping[str, str | tuple[str, ...]]:
+    # A copy nobody can change: a row doesn't follow later edits to the
+    # document, and everyone holding the time map shares it.
+    return MappingProxyType(
+        {
+            key: tuple(value) if isinstance(value, list) else value
+            for key, value in metadata.items()
+        }
+    )
 
 
 def find_rows(
