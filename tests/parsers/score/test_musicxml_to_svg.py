@@ -60,31 +60,32 @@ def wait_until(condition, timeout: float = 5.0) -> bool:
 
 
 @pytest.fixture
-def stub_osmd_page(tmp_path):
-    """The converters made while it's active, each loading STUB_PAGE."""
+def osmd_calls(tmp_path):
+    """The converters that load STUB_PAGE while it's active, with the text each
+    is asked to convert."""
     path = tmp_path / "svg_maker.html"
     path.write_text(STUB_PAGE, encoding="utf-8")
-    converters = []
-    init = musicxml_to_svg.__init__
+    calls = []
+    to_svg = musicxml_to_svg.to_svg
 
-    def record(converter, *args, **kwargs):
-        init(converter, *args, **kwargs)
-        converters.append(converter)
+    def record(converter, data):
+        calls.append((converter, data))
+        return to_svg(converter, data)
 
     with (
         patch.object(musicxml_to_svg_module, "SVG_MAKER_PATH", path),
-        patch.object(musicxml_to_svg, "__init__", record),
+        patch.object(musicxml_to_svg, "to_svg", record),
     ):
-        yield converters
+        yield calls
     # A converter deletes itself only once OSMD has sent back an SVG.
-    for converter in converters:
+    for converter, _ in calls:
         converter.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 @pytest.mark.parametrize("title", TITLES.values(), ids=TITLES.keys())
 def test_score_reaches_osmd_page_unchanged(
-    title, stub_osmd_page, score_tlui, beat_tlui, beat_tl, tmp_path
+    title, osmd_calls, score_tlui, beat_tlui, beat_tl, tmp_path
 ):
     beat_tl.beat_pattern = [1]
     for time_ in range(3):
@@ -92,23 +93,14 @@ def test_score_reaches_osmd_page_unchanged(
     beat_tl.recalculate_measures()
     path = tmp_path / "score.musicxml"
     path.write_text(SCORE.format(title=title), encoding="utf-8")
-    sent = []
-    to_svg = musicxml_to_svg.to_svg
 
-    def spy(converter, data):
-        sent.append(data)
-        return to_svg(converter, data)
-
-    with (
-        patch.object(musicxml_to_svg, "to_svg", spy),
-        patch_file_dialog(True, [str(path)]),
-    ):
+    with patch_file_dialog(True, [str(path)]):
         commands.execute("timelines.import.score")
 
-    (converter,) = stub_osmd_page
+    ((converter, sent),) = osmd_calls
     assert wait_until(lambda: converter.title() == "received"), "No score arrived."
     received = []
     converter.page().runJavaScript("window.received", 0, received.append)
     assert wait_until(lambda: received)
-    assert received[0] == sent[0]
+    assert received[0] == sent
     assert f"<work-title>{title}</work-title>" in received[0]
