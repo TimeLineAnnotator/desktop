@@ -91,8 +91,11 @@ class TiliaState:
         self.app.on_clear()
         self.duration = 100
 
-        # reset current time
+        # Reset the current time at once. A smooth movement, started here or
+        # left running by the test, would take its next steps whenever a later
+        # test runs the event loop. restore_settings_after_test undoes this.
         self.player.current_time = 0
+        settings_module.settings.set("general", "prioritise_performance", True)
         post(Post.PLAYER_CURRENT_TIME_CHANGED, 0, MediaTimeChangeReason.PLAYBACK)
 
         self.media_path = ""
