@@ -16,6 +16,15 @@ PANELS = ["files", "query", "categories", "statistics", "edit-log"]
 IMPORT = re.compile(r"""^\s*import\s+(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]""", re.M)
 
 
+ALLOWED_ADDRESSES = {
+    Path("js")
+    / "playback.js": (
+        "https://www.youtube-nocookie.com/embed/",
+        "https://www.youtube.com/watch",
+    )
+}
+
+
 def _web_files():
     return sorted(p for p in WEB.rglob("*") if p.is_file())
 
@@ -45,8 +54,28 @@ def test_nothing_loads_from_the_internet():
     for path in _web_files():
         if VENDOR in path.parents:
             continue
-        text = path.read_text(encoding="utf-8")
+        text = _without_allowed(path, path.read_text(encoding="utf-8"))
         assert "http://" not in text and "https://" not in text, path
+
+
+def _without_allowed(path, text):
+    for address in ALLOWED_ADDRESSES.get(path.relative_to(WEB), ()):
+        text = text.replace(address, "")
+    return text
+
+
+def test_the_allowance_for_youtube_addresses_is_narrow():
+    playback = WEB / "js" / "playback.js"
+    text = playback.read_text(encoding="utf-8")
+    assert "https://" not in _without_allowed(playback, text)
+    for extra in ("https://example.com/x", "http://www.youtube.com/watch"):
+        assert extra in _without_allowed(playback, text + f'\nconst X = "{extra}";')
+    sample = 'const A = "https://www.youtube.com/watch"; "https://evil.example/";'
+    assert "https://evil.example/" in _without_allowed(playback, sample)
+    other = WEB / "js" / "main.js"
+    assert "https://www.youtube.com/watch" in _without_allowed(
+        other, "https://www.youtube.com/watch"
+    )
 
 
 def test_main_ends_with_boot_flag():

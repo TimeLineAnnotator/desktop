@@ -45,6 +45,17 @@ CONTENT_TYPES = {
 
 JSON_TYPE = "application/json; charset=utf-8"
 
+CHUNK = 64 * 1024
+
+# The page loads nothing from the internet except YouTube's player, in its own
+# frame, and nothing from inline scripts.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; media-src 'self'; connect-src 'self'; "
+    "frame-src https://www.youtube-nocookie.com; object-src 'none'; "
+    "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+)
+
 FORBIDDEN_PAGE = (
     "<!doctype html>\n"
     '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
@@ -109,6 +120,8 @@ class Response:
     body: bytes = b""
     content_type: str | None = None
     headers: dict[str, str] = field(default_factory=dict)
+    # (path, start, length): the body is that part of a file, sent in chunks
+    file: tuple[Path, int, int] | None = None
 
 
 def json_response(data: object, status: int = 200) -> Response:
@@ -317,14 +330,39 @@ class _RequestHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         if response.content_type:
             self.send_header("Content-Type", response.content_type)
         for name, value in {**response.headers, **(extra or {})}.items():
             self.send_header(name, value)
-        self.send_header("Content-Length", str(len(response.body)))
+        length = response.file[2] if response.file else len(response.body)
+        self.send_header("Content-Length", str(length))
         self.end_headers()
-        if not head_only and response.status >= 200:
+        if head_only or response.status < 200:
+            return
+        if response.file:
+            self._copy_file(*response.file)
+        else:
             self.wfile.write(response.body)
+
+    def _copy_file(self, path: Path, start: int, length: int) -> None:
+        """Send part of a file in chunks; stop quietly when the browser leaves."""
+        try:
+            with open(path, "rb") as source:
+                source.seek(start)
+                left = length
+                while left > 0:
+                    chunk = source.read(min(CHUNK, left))
+                    if not chunk:  # the file shrank: the browser must not wait
+                        self.close_connection = True
+                        break
+                    self.wfile.write(chunk)
+                    left -= len(chunk)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.close_connection = True
+        except OSError:
+            logger.exception("could not send %s", path)
+            self.close_connection = True
 
     def _read_body(self) -> bytes | Response:
         """The request body, or the response that refuses it."""

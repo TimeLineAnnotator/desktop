@@ -4,6 +4,7 @@ import { renderFormStrip, stripExtent } from './form-strip.js';
 import { closest, evTarget, q, qArea, qInput, qa } from './lib/dom.js';
 import { noteGeneration, onRerun } from './liveness.js';
 import { notAvailable, panelSection } from './panels.js';
+import { onControl, openInTilia, play } from './playback.js';
 import { cardHeadParts, editBarHtml, lineParts, overlay, syncCardPicks, syncEditBar, textChanged, wireEdit } from './ql-edit.js';
 import { edit, query } from './state.js';
 import { errMsg, escapeHtml, mmss, setStatus } from './util.js';
@@ -234,7 +235,7 @@ const isContext = u => u.target === false;
 
 function unitHtml(slot, n, withLane) {
   const tag = `<span class="ql-n ${n === 0 ? "n1" : "n2"}">$${n + 1}</span>`;
-  if (!slot.length) return `<span class="ql-unit">${tag}<span class="muted" title="this step matched nothing here">—</span></span>`;
+  if (!slot.length) return `<span class="ql-unit" data-slot="${n}">${tag}<span class="muted" title="this step matched nothing here">—</span></span>`;
   const ctx = slot.every(isContext);
   const labels = slot.map(u => {
     const t = u.label ? escapeHtml(u.label) : '<span class="muted" title="empty label">∅</span>';
@@ -244,23 +245,24 @@ function unitHtml(slot, n, withLane) {
   const at = typeof u0.start === "number"
     ? `<span class="ql-time" title="${u0.start.toFixed(2)} s">${mmss(u0.start)}</span>` : "";
   const lane = withLane ? `<span class="ql-lane">${escapeHtml(laneText(u0))}</span>` : "";
-  return `<span class="ql-unit${ctx ? " ql-ctx" : ""}">${tag}${labels}${lane}${at}</span>`;
+  return `<span class="ql-unit${ctx ? " ql-ctx" : ""}" data-slot="${n}">${tag}${labels}${lane}${at}</span>`;
 }
 
 /** One match: each numbered unit; a lane every unit shares is said once, at the end. */
-function lineHtml(m) {
+function lineHtml(m, n) {
   const { off, pick, diff } = lineParts(m);
   const lanes = m.slots.filter(s => s.length).map(s => laneText(s[0]));
   const shared = lanes.length > 0 && lanes.every(l => l === lanes[0]);
   const body = m.slots.map((s, n) => unitHtml(s, n, !shared)).join("");
   const lane = shared ? `<span class="ql-lane">${escapeHtml(lanes[0])}</span>` : "";
-  return `<div class="seq-run ql-run${off ? " run-off" : ""}">${pick}<span class="seq-labels">${body}</span>${lane}${diff}</div>`;
+  const playBtn = '<button type="button" class="ql-play" title="Play with context">▶</button>';
+  return `<div class="seq-run ql-run${off ? " run-off" : ""}" data-n="${n}">${pick}<span class="seq-labels">${body}</span>${lane}${diff}${playBtn}</div>`;
 }
 
 function linesHtml(c, i) {
   const list = query.expanded.has(c.fileId) ? c.matches : c.matches.slice(0, LINE_CAP);
   const rest = c.matches.length - list.length;
-  return list.map(lineHtml).join("") +
+  return list.map((m, n) => lineHtml(m, n)).join("") +
     (rest > 0 ? `<button type="button" class="ql-more" data-i="${i}">show all ${c.matches.length} matches (${rest} more)</button>` : "");
 }
 
@@ -268,7 +270,8 @@ function cardHtml(c, i) {
   const { pick, ticked } = cardHeadParts(c, i);
   return `<div class="seq-card ql-card" data-i="${i}" data-file-id="${escapeHtml(String(c.fileId))}">` +
     `<div class="seq-head">${pick}<span class="seq-title">${escapeHtml(c.name)}</span>` +
-    `<span class="seq-meta">${plural(c.matches.length, "match", "matches")}${ticked}</span></div>` +
+    `<span class="seq-meta">${plural(c.matches.length, "match", "matches")}${ticked}</span>` +
+    '<button type="button" class="ql-open">Open in TiLiA</button></div>' +
     `<div class="seq-runs">${linesHtml(c, i)}</div>` +
     `<div class="seq-strip-wrap ql-strips"><div class="seq-strip-loading">loading timelines…</div></div></div>`;
 }
@@ -448,12 +451,55 @@ function buildShell() {
   q(root, "#ql-show-sql").addEventListener("click", () => showSql().catch(e => setStatus(String(e), "error")));
   q(root, "#ql-sql-run").addEventListener("click", () => runSql().catch(e => setStatus(String(e), "error")));
   wireEdit();
-  results().addEventListener("click", e => {
-    const more = closest(evTarget(e), "button.ql-more");
-    if (!more) return;
+  results().addEventListener("click", onResultsClick);
+  results().addEventListener("dblclick", onResultsDblClick);
+}
+
+// ---- playing and opening --------------------------------------------------- //
+
+const finite = list => list.filter(Number.isFinite);
+
+function onResultsClick(e) {
+  const target = evTarget(e);
+  const more = closest(target, "button.ql-more");
+  if (more) {
     query.expanded.add(cards[Number(more.dataset.i)].fileId);
     renderResults();
-  });
+    return;
+  }
+  const card = closest(target, ".ql-card");
+  if (!card) return;
+  const c = cards[Number(card.dataset.i)];
+  if (!c) return;
+  if (closest(target, "button.ql-open")) { openInTilia(c.fileId, c.name); return; }
+  if (closest(target, "button.ql-play")) {
+    const m = c.matches[Number(closest(target, ".ql-run").dataset.n)];
+    if (m) play(m.file_id, m.name, m.match_start ?? m.start, m.match_end ?? m.end);
+  }
+}
+
+function onResultsDblClick(e) {
+  const target = evTarget(e);
+  if (onControl(target)) return;
+  const d = query.result;
+  const row = closest(target, "#ql-grid tbody tr");
+  let m = null, start, end;
+  if (row && d && d.matches) {
+    m = d.matches[row.sectionRowIndex];
+  } else if (closest(target, ".ql-run")) {
+    const c = cards[Number(closest(target, ".ql-card").dataset.i)];
+    m = c && c.matches[Number(closest(target, ".ql-run").dataset.n)];
+    const unit = closest(target, ".ql-unit");
+    if (m && unit) {
+      const slot = m.slots[Number(unit.dataset.slot)] || [];
+      const starts = finite(slot.map(u => u.start)), ends = finite(slot.map(u => u.end));
+      if (!starts.length) return;
+      [start, end] = [Math.min(...starts), ends.length ? Math.max(...ends) : undefined];
+    }
+  }
+  if (!m) return;
+  getSelection().removeAllRanges();
+  play(m.file_id, m.name, start ?? m.start, start === undefined ? m.end : end);
 }
 
 /** Build the panel the first time it is shown. */

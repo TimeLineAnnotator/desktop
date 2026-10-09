@@ -46,7 +46,7 @@ def test_notice_appears_and_rerun_hides_it(entry_url):
             assert loads and page.locator("#changed").is_hidden()
             page.click("#files-rescan")
             page.wait_for_function(
-                "document.getElementById('status').textContent.includes('Rescanning')"
+                "() => document.getElementById('status').textContent.includes('Rescanning')"
             )
             assert problems == []
         finally:
