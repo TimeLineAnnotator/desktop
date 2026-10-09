@@ -57,9 +57,13 @@ class TestNewId:
         for out in results:
             assert out == sorted(out)
 
-    def test_low_bits_are_random(self):
-        low = {uuid.UUID(new_id()).int & (2**62 - 1) for _ in range(100)}
-        assert len(low) == 100
+    def test_low_bits_are_62_random_bits(self, monkeypatch):
+        fake_clock(monkeypatch, NOW_MS)
+        asked = fake_random(monkeypatch)
+        monkeypatch.setattr(tla_ids, "_clock", tla_ids._Clock())
+        value = uuid.UUID(new_id()).int
+        assert 62 in asked
+        assert value & (2**62 - 1) == 2**62 - 1
 
 
 NOW_MS = 1_760_000_000_000
@@ -75,33 +79,54 @@ def fake_clock(monkeypatch, *ms: int) -> None:
     monkeypatch.setattr(tla_ids, "time", SimpleNamespace(time_ns=time_ns))
 
 
+def fake_random(monkeypatch) -> list[int]:
+    """Make `tla_ids`' random numbers the largest the bits asked for can hold, so
+    that a test sees how many were asked for; return the list of requests."""
+    asked: list[int] = []
+
+    def randbits(bits: int) -> int:
+        asked.append(bits)
+        return (1 << bits) - 1
+
+    monkeypatch.setattr(tla_ids, "secrets", SimpleNamespace(randbits=randbits))
+    return asked
+
+
+# A millisecond's counter starts from 11 random bits, so it leaves room for at
+# least 2**11 ids before it overflows its 12 bits.
+SEED = 2**11 - 1
+
+
 class TestClock:
     def test_counts_on_within_a_millisecond(self, monkeypatch):
         fake_clock(monkeypatch, NOW_MS)
+        fake_random(monkeypatch)
         clock = tla_ids._Clock()
-        (ms, first), (ms_again, second) = clock.next(), clock.next()
-        assert ms == ms_again == NOW_MS
-        assert second == first + 1
+        assert [clock.next(), clock.next()] == [(NOW_MS, SEED), (NOW_MS, SEED + 1)]
+
+    def test_a_millisecond_starts_its_counter_from_11_random_bits(self, monkeypatch):
+        fake_clock(monkeypatch, NOW_MS)
+        asked = fake_random(monkeypatch)
+        assert tla_ids._Clock().next() == (NOW_MS, SEED)
+        assert asked == [11]
 
     def test_a_full_counter_moves_on_to_the_next_millisecond(self, monkeypatch):
         # 12 bits count within one millisecond; past them, the next one starts.
-        # Each millisecond's counter starts at a random value: 0 here.
         fake_clock(monkeypatch, NOW_MS)
-        monkeypatch.setattr(
-            tla_ids, "secrets", SimpleNamespace(randbits=lambda bits: 0)
-        )
+        fake_random(monkeypatch)
         clock = tla_ids._Clock()
         readings = [clock.next() for _ in range(5_000)]
         assert readings == sorted(set(readings))
-        assert readings[2**12 - 1] == (NOW_MS, 2**12 - 1)
-        assert readings[2**12] == (NOW_MS + 1, 0)
+        last = 2**12 - 1 - SEED  # the index of the first millisecond's last reading
+        assert readings[last] == (NOW_MS, 2**12 - 1)
+        assert readings[last + 1] == (NOW_MS + 1, SEED)
 
     def test_stays_in_order_when_the_clock_goes_back(self, monkeypatch):
-        fake_clock(monkeypatch, NOW_MS, NOW_MS - 5, NOW_MS - 5)
+        fake_clock(monkeypatch, NOW_MS, NOW_MS - 5)
+        fake_random(monkeypatch)
         clock = tla_ids._Clock()
         readings = [clock.next() for _ in range(3)]
-        assert readings == sorted(set(readings))
-        assert {ms for ms, _ in readings} == {NOW_MS}
+        assert readings == [(NOW_MS, SEED), (NOW_MS, SEED + 1), (NOW_MS, SEED + 2)]
 
     def test_two_threads_never_get_the_same_reading(self, monkeypatch):
         # The lock keeps a second thread out while the first one has read the
