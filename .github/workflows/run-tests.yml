@@ -98,14 +98,14 @@ jobs:
       shell: bash
       run: |
         echo "Starting GUI..."
-        QT_DEBUG_PLUGINS=1 tilia-gui & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: GUI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
+        QT_DEBUG_PLUGINS=1 tilia-ui & TILIA_PID=$!; sleep 10; kill $TILIA_PID 2>/dev/null || echo "WARNING: GUI exited before 10s"; wait $TILIA_PID 2>/dev/null || true
         echo "Starting CLI..."
-        printf 'about\nquit\n' | tilia-gui -i=cli || true
+        printf 'about\nquit\n' | tilia-ui -i=cli || true
 
     - name: Check the tilia command
       shell: bash
       run: |
         pip install -e packages/tilia-core
         tilia --help
-        tilia --help | grep gui
-        tilia gui --help
+        tilia --help | grep -x "  ui"
+        tilia ui --help

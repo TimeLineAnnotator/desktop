@@ -4,9 +4,9 @@ A package adds a subcommand by registering an entry point in the group
 `tilia.commands`, in its `pyproject.toml`:
 
     [project.entry-points."tilia.commands"]
-    gui = "tilia.__main__:main"
+    ui = "tilia.__main__:main"
 
-The entry point's name is the subcommand (`tilia gui`) and its value names a
+The entry point's name is the subcommand (`tilia ui`) and its value names a
 function that takes no arguments and reads `sys.argv`, like a console script.
 When the subcommand runs, `sys.argv` is `[<script path>, *<arguments after the
 subcommand>]`, so the function sees the same arguments as if it had been
@@ -35,16 +35,16 @@ def _print_help(commands: dict[str, EntryPoint]) -> int:
             print(f"  {name}")
     else:
         print("\nNo commands are installed.")
-    if "gui" in commands:
-        print("\nTo open a file in TiLiA: tilia gui piece.tla")
+    if "ui" in commands:
+        print("\nTo open a file in TiLiA: tilia ui piece.tla")
     return 0
 
 
 def _not_a_command(argv: list[str], commands: dict[str, EntryPoint]) -> int:
-    # Temporary: `tilia piece.tla` used to open the GUI; point people to `tilia gui`.
+    # Temporary: `tilia piece.tla` used to start TiLiA; point people to `tilia ui`.
     print(f"tilia: '{argv[0]}' is not a tilia command.", file=sys.stderr)
-    if "gui" in commands:
-        print(f'Did you mean "tilia gui {shlex.join(argv)}"?', file=sys.stderr)
+    if "ui" in commands:
+        print(f'Did you mean "tilia ui {shlex.join(argv)}"?', file=sys.stderr)
     else:
         print("See 'tilia --help' for the installed commands.", file=sys.stderr)
     return 2

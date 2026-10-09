@@ -39,10 +39,10 @@ authors = [
 ]
 
 [project.scripts]
-tilia-gui = "tilia.__main__:main"
+tilia-ui = "tilia.__main__:main"
 
 [project.entry-points."tilia.commands"]
-gui = "tilia.__main__:main"
+ui = "tilia.__main__:main"
 
 [project.urls]
 Homepage = "https://tilia-app.com"

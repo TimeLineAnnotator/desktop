@@ -24,22 +24,22 @@ def install(monkeypatch, **functions):
 
 
 def test_no_arguments_lists_commands(monkeypatch, capsys):
-    install(monkeypatch, gui=lambda: 0, other=lambda: 0)
+    install(monkeypatch, ui=lambda: 0, other=lambda: 0)
 
     assert commands.main([]) == 0
 
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines.index("  gui") < lines.index("  other")
-    assert "To open a file in TiLiA: tilia gui piece.tla" in out
+    assert lines.index("  other") < lines.index("  ui")
+    assert "To open a file in TiLiA: tilia ui piece.tla" in out
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_help_flags(monkeypatch, capsys, flag):
-    install(monkeypatch, gui=lambda: 0)
+    install(monkeypatch, ui=lambda: 0)
 
     assert commands.main([flag]) == 0
-    assert "gui" in capsys.readouterr().out
+    assert "  ui" in capsys.readouterr().out.splitlines()
 
 
 def test_no_commands_installed_says_so(monkeypatch, capsys):
@@ -49,67 +49,67 @@ def test_no_commands_installed_says_so(monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "No commands are installed." in out
-    assert "tilia gui" not in out
+    assert "tilia ui" not in out
 
 
-def test_file_name_suggests_gui(monkeypatch, capsys):
-    install(monkeypatch, gui=lambda: 0)
+def test_file_name_suggests_ui(monkeypatch, capsys):
+    install(monkeypatch, ui=lambda: 0)
 
     assert commands.main(["piece.tla"]) == 2
 
     err = capsys.readouterr().err
     assert "tilia: 'piece.tla' is not a tilia command." in err
-    assert 'Did you mean "tilia gui piece.tla"?' in err
+    assert 'Did you mean "tilia ui piece.tla"?' in err
 
 
-def test_old_cli_flag_suggests_gui(monkeypatch, capsys):
-    install(monkeypatch, gui=lambda: 0)
+def test_old_cli_flag_suggests_ui(monkeypatch, capsys):
+    install(monkeypatch, ui=lambda: 0)
 
     assert commands.main(["-i", "cli"]) == 2
-    assert 'Did you mean "tilia gui -i cli"?' in capsys.readouterr().err
+    assert 'Did you mean "tilia ui -i cli"?' in capsys.readouterr().err
 
 
 def test_suggestion_quotes_arguments(monkeypatch, capsys):
-    install(monkeypatch, gui=lambda: 0)
+    install(monkeypatch, ui=lambda: 0)
 
     assert commands.main(["my piece.tla"]) == 2
-    assert "tilia gui 'my piece.tla'" in capsys.readouterr().err
+    assert "tilia ui 'my piece.tla'" in capsys.readouterr().err
 
 
-def test_unknown_command_without_gui(monkeypatch, capsys):
+def test_unknown_command_without_ui(monkeypatch, capsys):
     install(monkeypatch)
 
     assert commands.main(["piece.tla"]) == 2
 
     err = capsys.readouterr().err
-    assert "tilia gui" not in err
+    assert "tilia ui" not in err
     assert "tilia --help" in err
 
 
 def test_command_receives_arguments_in_sys_argv(monkeypatch):
     seen = []
 
-    def gui():
+    def ui():
         seen.append(list(sys.argv))
         return 7
 
-    install(monkeypatch, gui=gui)
-    monkeypatch.setattr(sys, "argv", ["/path/to/tilia", "gui", "a", "b c"])
+    install(monkeypatch, ui=ui)
+    monkeypatch.setattr(sys, "argv", ["/path/to/tilia", "ui", "a", "b c"])
 
-    assert commands.main(["gui", "a", "b c"]) == 7
+    assert commands.main(["ui", "a", "b c"]) == 7
     assert seen == [["/path/to/tilia", "a", "b c"]]
 
 
 def test_command_returning_none_exits_zero(monkeypatch):
-    install(monkeypatch, gui=lambda: None)
-    monkeypatch.setattr(sys, "argv", ["tilia", "gui"])
+    install(monkeypatch, ui=lambda: None)
+    monkeypatch.setattr(sys, "argv", ["tilia", "ui"])
 
-    assert commands.main(["gui"]) == 0
+    assert commands.main(["ui"]) == 0
 
 
 def test_argv_defaults_to_sys_argv(monkeypatch):
-    install(monkeypatch, gui=lambda: 3)
-    monkeypatch.setattr(sys, "argv", ["tilia", "gui"])
+    install(monkeypatch, ui=lambda: 3)
+    monkeypatch.setattr(sys, "argv", ["tilia", "ui"])
 
     assert commands.main() == 3
 

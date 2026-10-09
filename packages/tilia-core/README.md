@@ -8,7 +8,7 @@ This package is under development and nothing is stable yet.
 pip install tilia-core
 ```
 
-The package installs the `tilia` command. Other installed packages add subcommands to it; `tilia gui` starts TiLiA when TiLiA is installed.
+The package installs the `tilia` command. Other installed packages add subcommands to it; `tilia ui` starts TiLiA when TiLiA is installed.
 
 ## License
 

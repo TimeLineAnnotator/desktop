@@ -19,8 +19,8 @@ pip install --group dev
 pre-commit install
 
 # Run the app
-tilia-gui                       # Qt GUI
-tilia-gui --user-interface cli  # CLI (source-only, not in compiled builds)
+tilia-ui                       # Qt GUI
+tilia-ui --user-interface cli  # CLI (source-only, not in compiled builds)
 
 # Tests (pytest-env auto-sets ENVIRONMENT=test and QT_QPA_PLATFORM=offscreen)
 pytest                                                  # full suite
@@ -72,7 +72,7 @@ Rule of thumb: anything a user could trigger is a command; anything only the cod
 
 `packages/` holds `tilia-core` (`tilia_core`) and `tilia-library` (`tilia_library`) in a uv workspace with the app at the root. Neither package may import the app (`tilia`) or PySide6; each package's isolation test enforces that. Dependencies go one way: library → core, and later the app → core (the app doesn't depend on either package yet).
 
-The `tilia` command is installed by tilia-core (`tilia_core/commands/__init__.py`), a dispatcher whose subcommands are entry points in the group `tilia.commands`, registered by whichever packages are installed. The app registers `gui`, so `tilia gui [arguments]` starts TiLiA; the app's own script, which works without tilia-core, is `tilia-gui`.
+The `tilia` command is installed by tilia-core (`tilia_core/commands/__init__.py`), a dispatcher whose subcommands are entry points in the group `tilia.commands`, registered by whichever packages are installed. The app registers `ui`, so `tilia ui [arguments]` starts TiLiA, with its graphical or its text interface; the app's own script, which works without tilia-core, is `tilia-ui`.
 
 ```bash
 uv sync --all-packages                         # the app and both packages, editable
