@@ -6,9 +6,11 @@ import time
 import tracemalloc
 import unicodedata
 import uuid
+from types import SimpleNamespace
 
 import pytest
 
+from tilia_core.tla import ids as tla_ids
 from tilia_core.tla.ids import derived_document_id, migrated_id, new_id
 from tilia_core.tla.parse import parse
 
@@ -54,6 +56,123 @@ class TestNewId:
         assert len(set(everything)) == len(everything)
         for out in results:
             assert out == sorted(out)
+
+    def test_low_bits_are_62_random_bits(self, monkeypatch):
+        fake_clock(monkeypatch, NOW_MS)
+        asked = fake_random(monkeypatch)
+        monkeypatch.setattr(tla_ids, "_clock", tla_ids._Clock())
+        value = uuid.UUID(new_id()).int
+        assert 62 in asked
+        assert value & (2**62 - 1) == 2**62 - 1
+
+
+NOW_MS = 1_760_000_000_000
+
+
+def fake_clock(monkeypatch, *ms: int) -> None:
+    """Make `tla_ids`' clock read the given milliseconds, in turn, then the last one."""
+    readings = list(ms)
+
+    def time_ns() -> int:
+        return (readings.pop(0) if len(readings) > 1 else readings[0]) * 1_000_000
+
+    monkeypatch.setattr(tla_ids, "time", SimpleNamespace(time_ns=time_ns))
+
+
+def fake_random(monkeypatch) -> list[int]:
+    """Make `tla_ids`' random numbers the largest the bits asked for can hold, so
+    that a test sees how many were asked for; return the list of requests."""
+    asked: list[int] = []
+
+    def randbits(bits: int) -> int:
+        asked.append(bits)
+        return (1 << bits) - 1
+
+    monkeypatch.setattr(tla_ids, "secrets", SimpleNamespace(randbits=randbits))
+    return asked
+
+
+# A millisecond's counter starts from 11 random bits, so it leaves room for at
+# least 2**11 ids before it overflows its 12 bits.
+SEED = 2**11 - 1
+
+
+class TestClock:
+    def test_counts_on_within_a_millisecond(self, monkeypatch):
+        fake_clock(monkeypatch, NOW_MS)
+        fake_random(monkeypatch)
+        clock = tla_ids._Clock()
+        assert [clock.next(), clock.next()] == [(NOW_MS, SEED), (NOW_MS, SEED + 1)]
+
+    def test_a_millisecond_starts_its_counter_from_11_random_bits(self, monkeypatch):
+        fake_clock(monkeypatch, NOW_MS)
+        asked = fake_random(monkeypatch)
+        assert tla_ids._Clock().next() == (NOW_MS, SEED)
+        assert asked == [11]
+
+    def test_a_full_counter_moves_on_to_the_next_millisecond(self, monkeypatch):
+        # 12 bits count within one millisecond; past them, the next one starts.
+        fake_clock(monkeypatch, NOW_MS)
+        fake_random(monkeypatch)
+        clock = tla_ids._Clock()
+        readings = [clock.next() for _ in range(5_000)]
+        assert readings == sorted(set(readings))
+        last = 2**12 - 1 - SEED  # the index of the first millisecond's last reading
+        assert readings[last] == (NOW_MS, 2**12 - 1)
+        assert readings[last + 1] == (NOW_MS + 1, SEED)
+
+    def test_stays_in_order_when_the_clock_goes_back(self, monkeypatch):
+        fake_clock(monkeypatch, NOW_MS, NOW_MS - 5)
+        fake_random(monkeypatch)
+        clock = tla_ids._Clock()
+        readings = [clock.next() for _ in range(3)]
+        assert readings == [(NOW_MS, SEED), (NOW_MS, SEED + 1), (NOW_MS, SEED + 2)]
+
+    def test_two_threads_never_get_the_same_reading(self, monkeypatch):
+        # The lock keeps a second thread out while the first one has read the
+        # clock but not yet moved its state on. Without it, the second one gets
+        # the same millisecond and counter. The first one waits there until the
+        # second has either finished or started to wait for the lock, so the
+        # test depends on neither timing nor luck.
+        fake_clock(monkeypatch, NOW_MS)
+        clock = tla_ids._Clock()
+        moved_on = threading.Event()
+        clock._lock = _WatchedLock(moved_on)
+        readings = []
+
+        def second() -> None:
+            readings.append(clock.next())
+            moved_on.set()
+
+        other = threading.Thread(target=second)
+
+        def randbits(bits: int) -> int:
+            if threading.current_thread() is not other:
+                other.start()
+                # Only a safety net: either event comes at once.
+                assert moved_on.wait(timeout=10), "the second thread is stuck"
+            return 7
+
+        monkeypatch.setattr(tla_ids, "secrets", SimpleNamespace(randbits=randbits))
+        readings.append(clock.next())
+        other.join()
+        assert len(set(readings)) == 2
+
+
+class _WatchedLock:
+    """A lock that sets an event when a thread has to wait for it."""
+
+    def __init__(self, contended: threading.Event) -> None:
+        self._lock = threading.Lock()
+        self._contended = contended
+
+    def __enter__(self) -> None:
+        if not self._lock.acquire(blocking=False):
+            self._contended.set()
+            self._lock.acquire()
+
+    def __exit__(self, *exc: object) -> None:
+        self._lock.release()
 
 
 class TestMigratedId:
@@ -119,8 +238,9 @@ class TestMigratedId:
         "old", ["a7", "", "-3", "03", "1.5", " 4", -3, 2**38, str(2**38), True]
     )
     def test_what_counts_as_not_an_integer(self, old):
-        value = migrated_id(DOC, "component", "1", old, position=0)
-        assert time_field(value) == BASE_MS + 2**38
+        # A position other than 0, so that an id taken for an integer shows.
+        value = migrated_id(DOC, "component", "1", old, position=5)
+        assert time_field(value) == BASE_MS + 2**38 + 5
 
     def test_a_very_long_numeric_old_id_isnt_an_integer(self):
         # Longer than Python's int() reads, by default, since 3.10.7.
@@ -163,6 +283,11 @@ class TestMigratedId:
         # Files read before and after an update must get the same ids.
         assert migrated_id(DOC, "component", "3", "12") == (
             "00dc6acf-ac0c-7675-8593-1b87a585215c"
+        )
+        # A score whose old id ("y") isn't an integer and takes its position,
+        # in a timeline whose old id holds a lone surrogate.
+        assert migrated_id(DOC, "score", "x" + chr(0xD83D), "y", position=7) == (
+            "011c6acf-ac07-7f14-b82a-e67001c09083"
         )
 
 
@@ -389,3 +514,32 @@ class TestDerivedDocumentId:
     def test_never_changes(self):
         # Files read before and after an update must get the same id.
         assert derived_document_id(old_file()) == "03209ea7-1448-859f-900b-712a89d6f7c2"
+        # Floats of several sizes and whole-number floats; a letter with two
+        # marks, decomposed (long s, dot below, dot above), which NFC composes;
+        # an emoji and a lone surrogate. chr() keeps an editor from normalising
+        # them.
+        letter = chr(0x017F) + chr(0x0323) + chr(0x0307)
+        label = chr(0x1F600) + " " + letter + " " + chr(0xD83D)
+        numbers = {"f": 0.1, "g": 1e-7, "h": 123456789012345678.0, "i": 1e16}
+        component = {"l": label, **numbers}
+        data = {"timelines": {"1": {"components": {"1": component}}}}
+        assert derived_document_id(data) == "085ae8ed-bc9f-8aa4-9af9-1f947c8de8cc"
+
+    @pytest.mark.parametrize(
+        "place, one, other",
+        [
+            (["media_metadata"], "a text", "b text"),
+            (["timelines"], ["a list"], ["b list"]),
+            (["timelines", "1"], "a text", "b text"),
+            (["timelines", "1", "components"], ["a list"], ["b list"]),
+            (["timelines", "1", "components", "2"], "a text", "b text"),
+        ],
+    )
+    def test_hashes_what_isnt_an_object_where_one_is_expected(self, place, one, other):
+        # An old file can hold anything there: it is hashed as it is, so two
+        # different values give two different ids.
+        def id_with(value) -> str:
+            return derived_document_id(edited(set_key(*place, value)))
+
+        assert uuid.UUID(id_with(one)).version == 8
+        assert id_with(one) != id_with(other)
