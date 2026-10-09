@@ -22,7 +22,7 @@ class MeasureRow:
     number: int
     label: str
     pass_: int | None  # the times through its number so far; None for a cadenza
-    movement: int  # 1, plus one per restart at or before it
+    movement: int  # 1, plus one per restart at or before it, but for one on the first row
     cadenza: bool
     restart: bool
     folded: bool  # the table has `next`: `count` and `pass_` aren't playing positions
@@ -60,7 +60,7 @@ def build_rows_from(
     out: list[MeasureRow] = []
     for row, end in zip(rows, ends, strict=True):
         count = counts[row.id]
-        if row.restart:
+        if row.restart and count > 1:  # the first row is in movement 1 anyway
             passes.clear()
             movement += 1
         pass_: int | None = None

@@ -108,6 +108,16 @@ def test_without_a_restart_a_second_song_is_a_second_pass():
     assert [r.movement for r in rows] == [1, 1, 1, 1]
 
 
+def test_a_restart_on_the_first_bar_leaves_it_in_movement_1():
+    rows = _rows(
+        [{"number": 1, "restart": True}, {}, {"number": 1, "restart": True}, {}]
+    )
+
+    assert [r.movement for r in rows] == [1, 1, 2, 2]
+    assert [r.pass_ for r in rows] == [1, 1, 1, 1]
+    assert [r.restart for r in rows] == [True, False, True, False]
+
+
 def test_each_restart_starts_another_movement():
     rows = _rows(
         [{"number": 1}, {"number": 1, "restart": True}, {"number": 1, "restart": True}]
