@@ -365,6 +365,26 @@ def test_a_kind_given_as_text_must_be_known():
         tla.canonical_bytes(doc)
 
 
+def test_an_unknown_kind_spelled_like_a_known_one_is_refused():
+    # The reader would read it back as the known kind, with its defaults.
+    doc = tla.read(UNKNOWN)
+    beats, markers, _, lyrics = doc.timelines.values()
+    lyrics.kind = tla.UnknownKind("MARKER_TIMELINE")
+    with pytest.raises(ValueError, match=re.escape(f"/timelines/{lyrics.id}/kind")):
+        tla.canonical_bytes(doc)
+    lyrics.kind = tla.UnknownKind("Lyrics")
+    beats.kind = tla.UnknownKind("beat")
+    with pytest.raises(ValueError, match=re.escape(f"/timelines/{beats.id}/kind")):
+        tla.canonical_bytes(doc)
+    beats.kind = "beat"
+    other = nth(markers, 1)
+    assert other.kind == tla.UnknownKind("marker")  # read exactly: not a marker
+    other.kind = tla.UnknownKind("MARKER")
+    place = f"/timelines/{markers.id}/components/{other.id}/kind"
+    with pytest.raises(ValueError, match=re.escape(place)):
+        tla.canonical_bytes(doc)
+
+
 def test_an_integer_too_long_to_read_back_is_refused():
     doc = tla.read(EVERY_KIND)
     doc.extra["n"] = 10**4300

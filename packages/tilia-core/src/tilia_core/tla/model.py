@@ -7,6 +7,7 @@ whatever the file spells them; a kind the core doesn't know is an `UnknownKind`.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -56,7 +57,9 @@ class UnknownKind:
 
     It is never equal to a kind's name, so a component whose kind is spelled
     "marker" (TiLiA reads component kinds exactly, and knows "MARKER") isn't
-    taken for a marker, and is written back as it was spelled.
+    taken for a marker, and is written back as it was spelled. The writer
+    refuses one spelled as the reader reads a known kind: a timeline's
+    "Marker", "MARKER_TIMELINE", or a component's "MARKER".
     """
 
     spelling: str
@@ -80,7 +83,7 @@ _OLD_SUFFIX = "_TIMELINE"
 
 def timeline_kind_to_file(kind: Kind) -> str:
     """The file's spelling of a timeline kind."""
-    return _to_file(kind, TIMELINE_KINDS, "timeline")
+    return _to_file(kind, TIMELINE_KINDS, timeline_kind_from_file, "timeline")
 
 
 def component_kind_from_file(spelling: str) -> Kind:
@@ -90,11 +93,23 @@ def component_kind_from_file(spelling: str) -> Kind:
 
 def component_kind_to_file(kind: Kind) -> str:
     """The file's spelling of a component kind."""
-    return _to_file(kind, COMPONENT_KINDS, "component")
+    return _to_file(kind, COMPONENT_KINDS, component_kind_from_file, "component")
 
 
-def _to_file(kind: Kind, spellings: dict[str, str], what: str) -> str:
+def _to_file(
+    kind: Kind,
+    spellings: dict[str, str],
+    from_file: Callable[[str], Kind],
+    what: str,
+) -> str:
     if isinstance(kind, UnknownKind):
+        # One the reader would read back as a known kind wouldn't stay unknown.
+        known = from_file(kind.spelling)
+        if not isinstance(known, UnknownKind):
+            raise ValueError(
+                f"{kind!r} would be read back as the {what} kind {known!r}:"
+                f" give {known!r}"
+            )
         return kind.spelling
     if kind not in spellings:
         raise ValueError(
