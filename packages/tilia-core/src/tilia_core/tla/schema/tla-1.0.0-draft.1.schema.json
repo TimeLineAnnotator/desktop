@@ -1,0 +1,436 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TiLiA file (.tla), format 1.0.0-draft.1",
+  "description": "The layout decided in #161 (WP3, FR-005). A reader that doesn't use tilia-core fills in the defaults below itself. It checks a file's structure: required keys, types and id formats. Keys it doesn't know are allowed, since the core keeps them (FR-051a). Three things JSON Schema can't check are the core's alone: that each id is used once, that each reference names something that exists, and that no object has the same key twice. Rules the core only warns about, such as the syntax of `vocabulary`, are described, not enforced. Attributes of a known kind are left out of the file when they equal their default (#161, point 6); the defaults are the `default` of each property, or, for a default that depends on another value, the extra annotation `x-default-from`, which names that value. This file is the one place the defaults are kept: the core reads them from here.",
+  "type": "object",
+  "required": ["app_name", "version", "document_id", "time_unit", "media", "metadata", "timelines", "scores"],
+  "properties": {
+    "app_name": {
+      "description": "Always \"TiLiA\" (#161, point 13).",
+      "const": "TiLiA"
+    },
+    "version": {
+      "description": "The format version (#7). Before the freeze, 1.0.0-draft.N (Q2).",
+      "const": "1.0.0-draft.1"
+    },
+    "document_id": { "$ref": "#/$defs/id" },
+    "time_unit": {
+      "description": "The unit of every time in the file (T12).",
+      "enum": ["seconds", "quarters"]
+    },
+    "media": {
+      "description": "The file's media (#161, point 2).",
+      "type": "object",
+      "required": ["path", "length"],
+      "properties": {
+        "path": {
+          "description": "Relative to the file's folder, with /; absolute only when no relative path exists; a URL as it is; empty without media (FR-033).",
+          "type": "string"
+        },
+        "length": {
+          "description": "Seconds; null when unknown (FR-073).",
+          "oneOf": [{ "type": "number", "exclusiveMinimum": 0 }, { "type": "null" }]
+        }
+      }
+    },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "timelines": {
+      "description": "Keyed by id, written in id order (research R7).",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": { "$ref": "#/$defs/timeline" }
+    },
+    "scores": {
+      "description": "Empty for a file without a score (FR-130); written in id order.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/score" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUID in lower-case hex (UUIDv7 for timelines and components, FR-004).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "time": {
+      "description": "In the file's time unit; never rounded (T5).",
+      "type": "number"
+    },
+    "nullable_string": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+    "nullable_integer": { "oneOf": [{ "type": "integer" }, { "type": "null" }] },
+    "metadata": {
+      "description": "Named values, each a text or a list of texts (FR-070), in the order they were added (#161, point 1). Recognised: role, author (one full name), source, vocabulary (id@version or a bare id; checked with a warning, not here) on timelines; tags (a list) and generated_by on components and measures. Left out of a timeline, component or measure when empty.",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "array", "items": { "type": "string" } }
+        ]
+      }
+    },
+    "components": {
+      "description": "Keyed by id, written in id order.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": { "$ref": "#/$defs/component" }
+    },
+    "timeline_base": {
+      "type": "object",
+      "required": ["kind", "ordinal", "components"],
+      "properties": {
+        "kind": { "type": "string" },
+        "name": { "type": "string", "default": "" },
+        "ordinal": { "type": "integer", "minimum": 1 },
+        "height": {
+          "description": "Always written where a kind has one: TiLiA's default height comes from each user's settings, so it can't be a default of the format.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "is_visible": { "type": "boolean", "default": true },
+        "measure_table": {
+          "description": "The id of the beat timeline whose measures place this timeline: a score timeline's, or that of a timeline imported by measure (FR-086, FR-133).",
+          "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }],
+          "default": null
+        },
+        "metadata": { "$ref": "#/$defs/metadata" },
+        "components": { "$ref": "#/$defs/components" }
+      }
+    },
+    "timeline": {
+      "description": "A timeline of a known kind is checked against that kind; one of a kind the core doesn't know is kept as it is (FR-015).",
+      "type": "object",
+      "required": ["kind"],
+      "properties": { "kind": { "type": "string" } },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "enum": ["Slider", "AudioWave"] } } },
+          "then": {
+            "$ref": "#/$defs/timeline_base",
+            "required": ["height"],
+            "properties": {
+              "components": {
+                "description": "A slider has none; an AudioWave timeline's are built from the media and not stored (#161, point 9).",
+                "maxProperties": 0
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["Hierarchy", "Marker"] } } },
+          "then": { "$ref": "#/$defs/timeline_base", "required": ["height"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "Beat" } } },
+          "then": {
+            "$ref": "#/$defs/timeline_base",
+            "required": ["height"],
+            "properties": {
+              "beat_pattern": {
+                "description": "TiLiA's rule for making new measures, as text (desktop#621's syntax, such as \"10[4] 3\").",
+                "type": "string",
+                "default": "4"
+              },
+              "show_time_signatures": {
+                "description": "Display setting (desktop#621). Migrated files from before time signatures have false.",
+                "type": "boolean",
+                "default": true
+              },
+              "measure_source": {
+                "description": "Where the measures came from (T12, Q9); a measure's own `source` overrides it.",
+                "$ref": "#/$defs/measure_source",
+                "default": "tapped"
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "Harmony" } } },
+          "then": {
+            "$ref": "#/$defs/timeline_base",
+            "description": "A harmony timeline has no height of its own; its levels have one.",
+            "properties": {
+              "level_count": { "type": "integer", "minimum": 1, "default": 1 },
+              "level_height": { "type": "integer", "minimum": 0, "default": 35 },
+              "visible_level_count": { "type": "integer", "minimum": 0, "default": 2 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "Range" } } },
+          "then": {
+            "$ref": "#/$defs/timeline_base",
+            "required": ["height", "rows"],
+            "properties": {
+              "rows": {
+                "description": "In display order, top to bottom (#161, point 14).",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "name"],
+                  "properties": {
+                    "id": { "description": "Six letters and digits, unique in its timeline; kept as stored.", "type": "string" },
+                    "name": { "type": "string" },
+                    "color": { "$ref": "#/$defs/nullable_string", "default": null },
+                    "height": { "$ref": "#/$defs/nullable_integer", "default": null }
+                  }
+                }
+              },
+              "default_row_height": { "$ref": "#/$defs/nullable_integer", "default": null }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "Score" } } },
+          "then": {
+            "$ref": "#/$defs/timeline_base",
+            "required": ["height"],
+            "properties": {
+              "score": {
+                "description": "The id of an entry of `scores` (FR-133); left out before a score is imported.",
+                "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }],
+                "default": null
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "Pdf" } } },
+          "then": {
+            "$ref": "#/$defs/timeline_base",
+            "required": ["height", "path"],
+            "properties": {
+              "path": { "description": "As the media's path (FR-033).", "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+    "measure_source": {
+      "description": "Where values came from (T12): tapped (made by a person in TiLiA), score, import, unknown (converted by the migration, Q9), or edited (from a score, an import or the migration, then changed by a person; #161).",
+      "enum": ["tapped", "score", "import", "unknown", "edited"]
+    },
+    "measure": {
+      "description": "On a beat that starts a measure; the first beat always has one (#161). A measure's beats are the beats from its mark to the next one. Always written, even empty (`{}`): its presence marks the downbeat, so it is never left out as a default.",
+      "type": "object",
+      "properties": {
+        "number": {
+          "description": "The printed bar number. Written on the first measure always; on a later one only when it isn't the previous measure's number plus one. A pickup is numbered 0.",
+          "type": "integer",
+          "x-default-from": "the previous measure's number + 1"
+        },
+        "label": {
+          "description": "The printed name, when it isn't the number (\"16a\", \"2c\").",
+          "type": "string",
+          "x-default-from": "number, as text"
+        },
+        "force_display": { "type": "boolean", "default": false },
+        "cadenza": {
+          "description": "A cadenza: it has no pass, and doesn't count towards the passes of its number (#191).",
+          "type": "boolean",
+          "default": false
+        },
+        "restart": {
+          "description": "The first bar of a new movement or song in the same file: every pass count starts again here (#191).",
+          "type": "boolean",
+          "default": false
+        },
+        "next": {
+          "description": "In a folded table, the measures played after this one, one per pass, by their downbeats' ids (the Measure Map's `next`). Left out when the next measure in the timeline follows.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "source": {
+          "$ref": "#/$defs/measure_source",
+          "x-default-from": "the timeline's measure_source"
+        },
+        "metadata": { "$ref": "#/$defs/metadata" }
+      }
+    },
+    "beat_unit": {
+      "description": "On a beat where the unit changes, applying from the start of that beat's measure (desktop#621). Two in one measure are allowed: TiLiA warns before saving and shows the measure red (#161, point 10).",
+      "type": "object",
+      "required": ["denominator", "units"],
+      "properties": {
+        "denominator": { "type": "integer", "minimum": 1 },
+        "units": { "description": "Units per tap, such as \"1\", \"3\", \"1/2\" or \"2+3\" (desktop#621's syntax; checked with a warning, not here).", "type": "string" },
+        "assumed": { "type": "boolean", "default": false }
+      }
+    },
+    "component": {
+      "description": "A component of a known kind is checked against that kind; one of a kind the core doesn't know is kept as it is.",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string" },
+        "metadata": { "$ref": "#/$defs/metadata" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "HIERARCHY" } } },
+          "then": {
+            "required": ["start", "end", "level"],
+            "properties": {
+              "start": { "$ref": "#/$defs/time" },
+              "pre_start": { "$ref": "#/$defs/time", "x-default-from": "start" },
+              "end": { "$ref": "#/$defs/time" },
+              "post_end": { "$ref": "#/$defs/time", "x-default-from": "end" },
+              "level": { "type": "integer", "minimum": 1 },
+              "label": { "type": "string", "default": "" },
+              "color": { "$ref": "#/$defs/nullable_string", "default": "" },
+              "comments": { "type": "string", "default": "" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "MARKER" } } },
+          "then": {
+            "required": ["time"],
+            "properties": {
+              "time": { "$ref": "#/$defs/time" },
+              "comments": { "type": "string", "default": "" },
+              "label": { "type": "string", "default": "" },
+              "color": { "$ref": "#/$defs/nullable_string", "default": null }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "RANGE" } } },
+          "then": {
+            "required": ["start", "end", "row_id"],
+            "properties": {
+              "start": { "$ref": "#/$defs/time" },
+              "end": { "$ref": "#/$defs/time" },
+              "row_id": { "description": "The id of one of the timeline's rows.", "type": "string" },
+              "label": { "type": "string", "default": "" },
+              "color": { "$ref": "#/$defs/nullable_string", "default": null },
+              "comments": { "type": "string", "default": "" },
+              "joined_right": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }], "default": null },
+              "pre_start": { "$ref": "#/$defs/time", "x-default-from": "start" },
+              "post_end": { "$ref": "#/$defs/time", "x-default-from": "end" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "HARMONY" } } },
+          "then": {
+            "required": ["time"],
+            "properties": {
+              "time": { "$ref": "#/$defs/time" },
+              "comments": { "type": "string", "default": "" },
+              "step": { "type": "integer", "default": 0 },
+              "accidental": { "type": "integer", "default": 0 },
+              "quality": { "type": "string", "default": "major" },
+              "inversion": { "type": "integer", "default": 0 },
+              "applied_to": { "type": "integer", "default": 0 },
+              "level": { "type": "integer", "minimum": 1, "default": 1 },
+              "display_mode": { "enum": ["letter", "roman", "custom"], "default": "letter" },
+              "custom_text": { "type": "string", "default": "" },
+              "custom_text_font_type": { "enum": ["analytic", "normal"], "default": "analytic" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "MODE" } } },
+          "then": {
+            "required": ["time"],
+            "properties": {
+              "time": { "$ref": "#/$defs/time" },
+              "step": { "type": "integer", "default": 0 },
+              "accidental": { "type": "integer", "default": 0 },
+              "type": { "type": "string", "default": "major" },
+              "comments": { "type": "string", "default": "" },
+              "level": { "type": "integer", "minimum": 1, "default": 2 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "BEAT" } } },
+          "then": {
+            "required": ["time"],
+            "properties": {
+              "time": { "$ref": "#/$defs/time" },
+              "measure": { "$ref": "#/$defs/measure" },
+              "beat_unit": { "$ref": "#/$defs/beat_unit" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "PDF_MARKER" } } },
+          "then": {
+            "required": ["time", "page_number"],
+            "properties": {
+              "time": { "$ref": "#/$defs/time" },
+              "page_number": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["NOTE", "STAFF", "CLEF", "KEY_SIGNATURE", "TIME_SIGNATURE", "BAR_LINE", "SCORE_ANNOTATION"] } } },
+          "then": {
+            "description": "Only in a score timeline whose score is a legacy SVG (FR-022): kept from the old file with every attribute TiLiA stored."
+          }
+        }
+      ]
+    },
+    "score": {
+      "description": "Two shapes, by `format` (#161, point 11).",
+      "type": "object",
+      "required": ["id", "format", "content"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "format": { "enum": ["mei", "svg-osmd-legacy"] },
+        "content": {
+          "description": "The score's lines: CRLF, or any run of CRs before an LF, turned into LF, split on LF, with a final empty element when it ends with a newline; not normalised to NFC (FR-132). Splitting gives at least one line: empty content is [\"\"].",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "format": { "const": "mei" } } },
+          "then": {
+            "required": ["source", "license"],
+            "properties": {
+              "source": {
+                "description": "Where the score came from (FR-131): the original file, its origin, and the converter with its version when it was converted.",
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string" },
+                  "origin": { "type": "string" },
+                  "converter": { "type": "string" }
+                },
+                "additionalProperties": { "type": "string" }
+              },
+              "license": {
+                "description": "The licence the original file states, as written, or NOASSERTION until it's filled in (FR-131, #171).",
+                "type": "string",
+                "minLength": 1,
+                "default": "NOASSERTION"
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "format": { "const": "svg-osmd-legacy" } } },
+          "then": {
+            "description": "A score the migration made from an old file's SVG (FR-022). TiLiA never recorded a source or licence for it. SVG scores are to be deprecated.",
+            "required": ["beat_x"],
+            "properties": {
+              "beat_x": {
+                "description": "The old viewer's beat positions (viewer_beat_x), as [time, x] pairs in time order.",
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "prefixItems": [{ "type": "number" }, { "type": "number" }],
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
