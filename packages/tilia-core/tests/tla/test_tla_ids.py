@@ -131,25 +131,48 @@ class TestClock:
     def test_two_threads_never_get_the_same_reading(self, monkeypatch):
         # The lock keeps a second thread out while the first one has read the
         # clock but not yet moved its state on. Without it, the second one gets
-        # the same millisecond and counter.
+        # the same millisecond and counter. The first one waits there until the
+        # second has either finished or started to wait for the lock, so the
+        # test depends on neither timing nor luck.
         fake_clock(monkeypatch, NOW_MS)
         clock = tla_ids._Clock()
+        moved_on = threading.Event()
+        clock._lock = _WatchedLock(moved_on)
         readings = []
-        other = threading.Thread(target=lambda: readings.append(clock.next()))
-        started = []
+
+        def second() -> None:
+            readings.append(clock.next())
+            moved_on.set()
+
+        other = threading.Thread(target=second)
 
         def randbits(bits: int) -> int:
-            if not started:
-                started.append(True)
+            if threading.current_thread() is not other:
                 other.start()
-                # At once without the lock; with it, the other thread waits.
-                other.join(timeout=0.2)
+                # Only a safety net: either event comes at once.
+                assert moved_on.wait(timeout=10), "the second thread is stuck"
             return 7
 
         monkeypatch.setattr(tla_ids, "secrets", SimpleNamespace(randbits=randbits))
         readings.append(clock.next())
         other.join()
         assert len(set(readings)) == 2
+
+
+class _WatchedLock:
+    """A lock that sets an event when a thread has to wait for it."""
+
+    def __init__(self, contended: threading.Event) -> None:
+        self._lock = threading.Lock()
+        self._contended = contended
+
+    def __enter__(self) -> None:
+        if not self._lock.acquire(blocking=False):
+            self._contended.set()
+            self._lock.acquire()
+
+    def __exit__(self, *exc: object) -> None:
+        self._lock.release()
 
 
 class TestMigratedId:
