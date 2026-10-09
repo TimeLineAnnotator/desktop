@@ -276,7 +276,8 @@ _range_row = _shaped(RANGE_ROW_SHAPE)
 
 
 def _rows(value: Any, parent: str, key: str | int) -> Any:
-    if not isinstance(value, list):
+    """A range timeline's rows, each in its layout; a tuple as a list."""
+    if not isinstance(value, (list, tuple)):
         return _value(value, parent, key)
     place = pointer_to(parent, key)
     return [_range_row(row, place, index) for index, row in enumerate(value)]

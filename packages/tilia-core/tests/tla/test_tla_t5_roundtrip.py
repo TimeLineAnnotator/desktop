@@ -281,6 +281,14 @@ def test_score_lines_given_as_a_tuple_are_written_as_they_are():
     assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
 
 
+def test_range_rows_given_as_a_tuple_are_written_as_a_list_is():
+    # A row's color and height are left out at their default (null).
+    doc = tla.read(EVERY_KIND)
+    texture = named(doc, "Texture")
+    texture.attrs["rows"] = tuple(texture.attrs["rows"])
+    assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
+
+
 def test_a_surrogate_pair_given_as_two_characters_is_written_as_one():
     # As JSON reads the pair back: writing again then changes nothing.
     doc = tla.read(EVERY_KIND)
