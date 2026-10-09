@@ -40,9 +40,9 @@ def open_in_tilia(
     platform: str = sys.platform,
     executable: str = sys.executable,
 ) -> str:
-    """Open a file in TiLiA's window; return "tilia-gui", or "system".
+    """Open a file in TiLiA's window; return "tilia-ui", or "system".
 
-    When TiLiA's ``gui`` command is installed next to this Python, run it;
+    When TiLiA's ``ui`` command is installed next to this Python, run it;
     otherwise ask the system to open the file with whatever is registered for
     it. Raises ``TiliaNotFound`` when nothing could be started.
     """
@@ -66,10 +66,10 @@ def open_in_tilia(
 
     try:
         script = _tilia_script(executable, platform)
-        has_gui = any(e.name == "gui" for e in entry_points(group="tilia.commands"))
-        if has_gui and script.is_file():
-            start([str(script), "gui", str(path)])
-            return "tilia-gui"
+        has_ui = any(e.name == "ui" for e in entry_points(group="tilia.commands"))
+        if has_ui and script.is_file():
+            start([str(script), "ui", str(path)])
+            return "tilia-ui"
         if windows:
             if startfile is None:
                 raise TiliaNotFound("no way to open files on this system")
