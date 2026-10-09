@@ -37,32 +37,22 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.smooth_scroll import setup_smooth, smooth
-from tilia.ui.windows.view_window import ViewDockWidget
+from tilia.ui.windows.score.base import (
+    ScoreViewerBase,
+    get_beat_timeline,
+    get_times_at,
+)
 
 
-class SvgViewer(ViewDockWidget):
+class SvgViewer(ScoreViewerBase):
     def __init__(self, name: str, tl_id: int, *args, **kwargs) -> None:
-        super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
-        self.setObjectName(f"TiLiA Score Viewer {tl_id}")
-        self.setAllowedAreas(
-            Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
-        )
-        self.timeline_id = tl_id
-
+        super().__init__(name, tl_id, *args, **kwargs)
         self.__setup_score_viewer()
-
-    @property
-    def timeline(self):
-        return get(Get.TIMELINE, self.timeline_id)
-
-    @property
-    def timeline_ui(self):
-        return get(Get.TIMELINE_UI, self.timeline_id)
 
     def __setup_score_viewer(self) -> None:
         self.view = SvgGraphicsView(
             get_times=self._get_time_from_scene_x,
-            update_measure_tracker=self.update_measure_tracker,
+            show_visible_range=self.show_visible_range,
             update_scroll_margins=self._update_scroll_margins,
             parent=self,
         )
@@ -82,9 +72,7 @@ class SvgViewer(ViewDockWidget):
         self.tla_annotations = {}
         self.next_tla_id = 0
         self.drag_pos = QPointF()
-        self.is_hidden = False
         self.is_svg_loaded = False
-        self.visible_times = [0, 0]
         self.beat_x_position = {}
         self.cur_t_x = 0.0
         self._update_scroll_margins()
@@ -470,22 +458,11 @@ class SvgViewer(ViewDockWidget):
                 k: self.beat_x_position[k] for k in sorted(self.beat_x_position.keys())
             }
 
-        beat_tl = get(
-            Get.TIMELINE_COLLECTION
-        ).get_beat_timeline_for_measure_calculation()
-
-        if not beat_tl or not beat_tl.measure_count:
+        if not (beat_tl := get_beat_timeline()):
             return {}
 
         for key, beat in beat_pos.items():
-            t = beat_tl.get_time_by_measure(*beat)
-            if not t:
-                t = (
-                    [0]
-                    if beat[0] < min(beat_tl.measure_numbers)
-                    else [get(Get.MEDIA_DURATION)]
-                )
-            output[key] = t
+            output[key] = get_times_at(beat_tl, *beat)
 
         return output
 
@@ -524,16 +501,6 @@ class SvgViewer(ViewDockWidget):
             ((t1 := times[idx]), current_time - t1),
         )
 
-    def update_measure_tracker(self, start: float, end: float) -> None:
-        if (new_visible_times := [start, end]) == self.visible_times:
-            return
-        self.visible_times = new_visible_times
-        if start != end:
-            self.timeline_ui.update_measure_tracker_position(start, end)
-            self.timeline_ui.measure_tracker.show()
-        else:
-            self.timeline_ui.measure_tracker.hide()
-
     def scroll_to_time(self, time: float, is_centered: bool):
         self.cur_t_x = self._get_scene_x_from_time(time)
         if is_centered:
@@ -560,22 +527,6 @@ class SvgViewer(ViewDockWidget):
     def resizeEvent(self, a0):
         super().resizeEvent(a0)
         self._update_scroll_margins()
-
-    def hideEvent(self, a0) -> None:
-        try:
-            self.timeline_ui.measure_tracker.hide()
-        except RuntimeError:
-            pass
-
-        self.is_hidden = True
-        return super().hideEvent(a0)
-
-    def showEvent(self, event):
-        self.scroll_to_time(get(Get.SELECTED_TIME), True)
-        if self.timeline_ui:
-            self.timeline_ui.measure_tracker.show()
-        self.is_hidden = False
-        return super().showEvent(event)
 
     def enterEvent(self, event) -> None:
         self.setFocus()
@@ -606,7 +557,7 @@ class SvgGraphicsView(QGraphicsView):
     def __init__(
         self,
         get_times: Callable[[dict[int, float]], dict[int, list[float]]],
-        update_measure_tracker: Callable[[float, float], None],
+        show_visible_range: Callable[[list[float], list[float]], None],
         update_scroll_margins: Callable[..., None],
         *args,
         **kwargs,
@@ -622,7 +573,7 @@ class SvgGraphicsView(QGraphicsView):
         self.current_viewport_y_center = 0.0
         self.current_viewport_x_center = 0.0
         self._viewport_updated()
-        self.update_measure_tracker = update_measure_tracker
+        self.show_visible_range = show_visible_range
         self.update_scroll_margins = update_scroll_margins
         setup_smooth(self)
 
@@ -717,18 +668,7 @@ class SvgGraphicsView(QGraphicsView):
                 # We should use another data structure if we care about order.
                 start_ts, end_ts = list(times)
 
-            current_time = get(Get.SELECTED_TIME)
-            start_time = start_ts[
-                s_idx - 1 if (s_idx := bisect(start_ts, current_time)) != 0 else s_idx
-            ]
-            end_time = (
-                end_ts[e_idx]
-                if (e_idx := bisect(end_ts, start_time)) != len(end_ts)
-                else (
-                    get(Get.MEDIA_DURATION) if start_time != 0 and end_ts[0] != 0 else 0
-                )
-            )
-            self.update_measure_tracker(start_time, end_time)
+            self.show_visible_range(start_ts, end_ts)
 
 
 class SvgStaveNote(QGraphicsSvgItem):
