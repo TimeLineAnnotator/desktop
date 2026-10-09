@@ -598,6 +598,11 @@ class TimelineUIs:
         self._forget_selection_boxes_in_scene(timeline_ui.scene)
         timeline_ui.delete()
         self.scene.removeItem(timeline_ui.view.proxy)
+        # Out of the scene, nothing else deletes the proxy and the view it
+        # holds. Left to the garbage collector, they were freed with the
+        # timeline's scene and items at any later moment, in any order, which
+        # could corrupt the heap.
+        timeline_ui.view.proxy.deleteLater()
         self._remove_from_timeline_uis_set(timeline_ui)
         self._remove_from_timeline_ui_select_order(timeline_ui)
         self._hide_toolbar_if_needed(timeline_ui)

@@ -2,6 +2,7 @@ import functools
 from unittest.mock import patch
 
 import pytest
+import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 
@@ -137,6 +138,20 @@ class TestTimelineUICreation:
 
         tls.delete_timeline(tls[0])  # this should be a command
         assert tls.is_empty
+
+    def test_delete_deletes_its_view(self, tls, tluis):
+        commands.execute("timelines.add.marker", name="")
+        timeline_ui = tluis.get_timeline_ui(tls[0].id)
+        view = timeline_ui.view
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.delete", timeline_ui)
+        # The view is only scheduled for deletion; an event loop would delete
+        # it right away, so do that here. Left to the garbage collector, it
+        # was freed with its scene at any later time, which corrupted the heap.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert not shiboken6.isValid(view)
 
     def test_update_select_order(self, tls, tluis):
         tl1 = tls.create_timeline(HierarchyTimeline, name="test1")
