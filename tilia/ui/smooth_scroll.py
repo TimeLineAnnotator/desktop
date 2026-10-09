@@ -17,7 +17,8 @@ class SmoothSetter(Generic[T]):
     or at once when the user prioritises performance.
 
     Create one per value when its owner is set up, from a getter and a setter
-    of that value. Calling it moves the value to the given setpoint.
+    of that value. Calling it moves the value to the given setpoint. Delete it
+    with the objects the setter changes.
     """
 
     DURATION = 125
@@ -25,11 +26,15 @@ class SmoothSetter(Generic[T]):
     def __init__(self, getter: Callable[[], T], setter: Callable[[T], None]) -> None:
         self._getter = getter
         self._setter = setter
+        self._is_deleted = False
         self.animation = QVariantAnimation()
         self.animation.setDuration(self.DURATION)
         self.animation.valueChanged.connect(self._setter)
 
     def __call__(self, setpoint: T) -> None:
+        if self._is_deleted:
+            return
+
         if isinstance(setpoint, int):
             # The animation can't step between an int and a float: it sends
             # None instead. Times and positions are floats.
@@ -50,5 +55,16 @@ class SmoothSetter(Generic[T]):
         Sets the value at once. Set it through here, not with the setter: a
         movement still running would overwrite it.
         """
+        if self._is_deleted:
+            return
         self.animation.stop()
         self._setter(value)
+
+    def delete(self) -> None:
+        """
+        Stops the movement and ignores calls from now on. A movement, or a call
+        that comes late, would otherwise set the value on deleted objects.
+        """
+        self._is_deleted = True
+        self.animation.stop()
+        self.animation.valueChanged.disconnect(self._setter)

@@ -18,7 +18,6 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
-from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.drag import DragManager
@@ -64,7 +63,7 @@ class SliderTimelineUI(TimelineUI):
         self._setup_line()
         self._setup_trough()
         self._setup_playback_line()
-        self.smooth_x = SmoothSetter(
+        self.smooth_x = self.create_smooth_setter(
             lambda: self.trough.x() + self.trough_radius, self._set_x
         )
 
