@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QAbstractSlider, QGraphicsView
 
 from tilia.requests import Post, post
 from tilia.ui import commands
-from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.smooth_scroll import SmoothSetter
 
 
 class TimelineUIsView(QGraphicsView):
@@ -17,21 +17,20 @@ class TimelineUIsView(QGraphicsView):
         # drop filter.
         self.setAcceptDrops(False)
         self._update_scroll_margins()
-        setup_smooth(self)
+        self.smooth_x = SmoothSetter(self._get_center_x, self._center_on_x)
 
     def is_hscrollbar_pressed(self):
         return self.horizontalScrollBar().isSliderDown()
 
     def move_to_x(self, x: float):
-        def __get_x():
-            return self.mapToScene(self.viewport().rect().center()).x()
+        self.smooth_x(x)
 
-        @smooth(self, __get_x)
-        def __set_x(x):
-            y = self.mapToScene(self.viewport().rect().center()).y() + 1
-            self.centerOn(x, y)
+    def _get_center_x(self) -> float:
+        return self.mapToScene(self.viewport().rect().center()).x()
 
-        __set_x(x)
+    def _center_on_x(self, x: float) -> None:
+        y = self.mapToScene(self.viewport().rect().center()).y() + 1
+        self.centerOn(x, y)
 
     @property
     def current_viewport_x(self):
