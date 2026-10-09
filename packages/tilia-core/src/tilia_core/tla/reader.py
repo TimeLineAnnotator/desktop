@@ -116,6 +116,11 @@ def _check_version(
     if version == FORMAT_VERSION or _is_old(version):
         return
     ours, theirs = _precedence(FORMAT_VERSION), _precedence(version)
+    if theirs is not None and version.partition("+")[0] == FORMAT_VERSION:
+        # The current version with build metadata, which Semantic Versioning
+        # ignores when it compares versions. Compared as text, since
+        # _precedence reads draft.01, which isn't in its form, as draft.1.
+        return
     if theirs is not None and (
         theirs < ours or (theirs[:3] == ours[:3] and theirs[3] != _RELEASE)
     ):
