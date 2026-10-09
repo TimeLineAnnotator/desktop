@@ -188,6 +188,8 @@ def test_measure_defaults():
     )
     assert m.beat_units == []
     assert m.force_display is False
+    assert m.cadenza is False
+    assert m.restart is False
     assert m.next is None
     assert m.metadata == {}
 
