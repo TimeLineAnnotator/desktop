@@ -437,7 +437,11 @@ class TestClear:
         assert score_tlui.svg_view is None
 
 
-def _score_with_clef(clef: str, pitch_tag: str = "pitch") -> str:
+FOUR_FOUR = "<time><beats>4</beats><beat-type>4</beat-type></time>"
+TREBLE_CLEF = "<clef><sign>G</sign><line>2</line></clef>"
+
+
+def _score_with_clef(clef: str, pitch_tag: str = "pitch", time: str = FOUR_FOUR) -> str:
     def note(step: str, octave: int) -> str:
         prefix = "" if pitch_tag == "pitch" else "display-"
         return (
@@ -452,7 +456,7 @@ def _score_with_clef(clef: str, pitch_tag: str = "pitch") -> str:
         <attributes>
             <divisions>1</divisions>
             <key><fifths>0</fifths></key>
-            <time><beats>4</beats><beat-type>4</beat-type></time>
+            {time}
             {clef}
         </attributes>
         {note("G", 4)}{note("C", 4)}
@@ -490,8 +494,7 @@ def test_notes_without_usable_clef_are_placed_as_in_treble_clef(
     # TiLiA can show.
     for time in range(5):
         commands.execute("timeline.beat.add", time=time)
-    treble = "<clef><sign>G</sign><line>2</line></clef>"
-    _import_score_text(_score_with_clef(treble, pitch_tag), tmp_path)
+    _import_score_text(_score_with_clef(TREBLE_CLEF, pitch_tag), tmp_path)
     positions_in_treble = _note_positions(score_tlui)
     # G4 has no ledger line, C4 has one.
     assert [ledger_lines for _, ledger_lines in positions_in_treble] == [0, 1]
@@ -500,3 +503,50 @@ def test_notes_without_usable_clef_are_placed_as_in_treble_clef(
 
     assert _note_positions(score_tlui) == positions_in_treble
     assert not score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.CLEF)
+
+
+def _drawn(time_signature_ui) -> tuple[str, str]:
+    """A time signature's top and bottom lines, read left to right. A plus
+    between two pairs is in both."""
+    glyphs = sorted(time_signature_ui.body.glyphs, key=lambda glyph: glyph.x())
+    top = "".join(g.character for g in glyphs if g.row != "denominator")
+    bottom = "".join(g.character for g in glyphs if g.row != "numerator")
+    return top, bottom
+
+
+@pytest.mark.parametrize(
+    "time, drawn",
+    [
+        (FOUR_FOUR, ("4", "4")),
+        ("<time><beats>3+2</beats><beat-type>8</beat-type></time>", ("3+2", "8")),
+        (
+            "<time><beats>2</beats><beat-type>4</beat-type>"
+            "<beats>3</beats><beat-type>8</beat-type></time>",
+            ("2+3", "4+8"),
+        ),
+    ],
+    ids=["simple", "composite", "several pairs"],
+)
+def test_time_signature_is_drawn_as_written(
+    time, drawn, qtui, score_tlui, beat_tlui, tmp_path
+):
+    for t in range(5):
+        commands.execute("timeline.beat.add", time=t)
+    _import_score_text(_score_with_clef(TREBLE_CLEF, time=time), tmp_path)
+
+    @reloadable(tmp_path / "file.tla")
+    def check_drawn():
+        score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        (time_signature,) = score.timeline.get_components_by_attr(
+            "KIND", ComponentKind.TIME_SIGNATURE
+        )
+        time_signature_ui = score.get_element(time_signature.id)
+        assert _drawn(time_signature_ui) == drawn
+        y_by_row = {}
+        for glyph in time_signature_ui.body.glyphs:
+            assert not glyph.pixmap().isNull()
+            y_by_row.setdefault(glyph.row, set()).add(glyph.y())
+        # The plus between two pairs is halfway down.
+        assert max(y_by_row["numerator"]) < min(y_by_row["denominator"])
+        for y in y_by_row.get("between", []):
+            assert max(y_by_row["numerator"]) < y < min(y_by_row["denominator"])

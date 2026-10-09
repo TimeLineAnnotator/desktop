@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QGraphicsItemGroup, QGraphicsPixmapItem
@@ -33,8 +35,7 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
         self.body = TimeSignatureBody(
             self.x,
             self.body_y(),
-            self.get_data("numerator"),
-            self.get_data("denominator"),
+            self.tl_component.get_pairs(),
             self.get_body_digit_height(),
             self.timeline_ui.pixmaps["time signature"],
         )
@@ -76,74 +77,88 @@ class TimeSignatureUI(TimelineUIElementWithCollision):
 
 
 class TimeSignatureBody(QGraphicsItemGroup):
+    """A time signature's numerators over its denominators, as written, such as
+    3+2 over 8. Two pairs (2/4 + 3/8) are drawn side by side, with a plus
+    halfway down between them."""
+
     def __init__(
         self,
         x: float,
         y: float,
-        numerator: int,
-        denominator: int,
+        pairs: list[tuple[str, int]],
         digit_height: int,
-        pixmaps: dict[int, QPixmap],
+        pixmaps: dict[str, QPixmap],
     ):
         super().__init__()
         self.pixmaps = pixmaps
-        self.numerator = numerator
-        self.denominator = denominator
-        self.set_numerator_items(numerator, digit_height)
-        self.set_denominator_items(denominator, digit_height)
-        self.align_pixmaps(numerator, denominator)
+        # Each pair's numerator and denominator glyphs, and each plus between
+        # two pairs.
+        self.columns: list[tuple[list[Glyph], list[Glyph]]] = []
+        self.pluses: list[Glyph] = []
+        for i, (numerator, denominator) in enumerate(pairs):
+            if i > 0:
+                self.pluses.append(Glyph("+", Glyph.BETWEEN, self))
+            self.columns.append(
+                (
+                    [Glyph(c, Glyph.NUMERATOR, self) for c in numerator],
+                    [Glyph(c, Glyph.DENOMINATOR, self) for c in str(denominator)],
+                )
+            )
+        self.glyphs = self.pluses + [
+            glyph
+            for numerator, denominator in self.columns
+            for glyph in numerator + denominator
+        ]
+        self.set_height(digit_height)
         self.set_position(x, y)
 
-    def get_scaled_pixmap(self, digit: int | str, height: int):
-        return self.pixmaps[int(digit)].scaledToHeight(
+    def get_scaled_pixmap(self, character: str, height: int):
+        return self.pixmaps[character].scaledToHeight(
             height, mode=Qt.TransformationMode.SmoothTransformation
         )
 
-    def set_numerator_items(self, numerator: int, height: int):
-        self.numerator_items = []
-        for i, digit in enumerate(str(numerator)):
-            item = NumberPixmap(self.get_scaled_pixmap(digit, height), self)
-            item.digit = int(digit)
-            item.setPos(i * item.pixmap().width(), 0)
-            self.numerator_items.append(item)
-
-    def set_denominator_items(self, denominator: int, height: int):
-        self.denominator_items = []
-        for i, digit in enumerate(str(denominator)):
-            item = NumberPixmap(self.get_scaled_pixmap(digit, height), self)
-            item.digit = int(digit)
-            item.setPos(i * item.pixmap().width(), item.pixmap().height())
-            self.denominator_items.append(item)
-
-    def align_pixmaps(self, numerator: int, denominator: int):
-        difference = len(str(denominator)) - len(str(numerator))
-        if difference > 0:
-            # numerator is shorter than denominator
-            for item in self.numerator_items:
-                item.moveBy(difference * item.pixmap().width() / 2, 0)
-
-        elif difference < 0:
-            # denominator is shorter than numerator
-            for item in self.denominator_items:
-                item.moveBy(difference * item.pixmap().width() * -1 / 2, 0)
-
     def set_height(self, height: int):
-        for i, item in enumerate(self.numerator_items):
-            item.setPixmap(self.get_scaled_pixmap(item.digit, height))
-            item.setPos(i * item.pixmap().width(), 0)
+        for glyph in self.glyphs:
+            glyph.setPixmap(self.get_scaled_pixmap(glyph.character, height))
 
-        for i, item in enumerate(self.denominator_items):
-            item.setPixmap(self.get_scaled_pixmap(item.digit, height))
-            item.setPos(i * item.pixmap().width(), item.pixmap().height())
-
-        self.align_pixmaps(self.numerator, self.denominator)
+        x = 0
+        for i, (numerator, denominator) in enumerate(self.columns):
+            if i > 0:
+                plus = self.pluses[i - 1]
+                gap = height / 4
+                plus.setPos(x + gap, height / 2)
+                x += plus.pixmap().width() + 2 * gap
+            width = max(_row_width(numerator), _row_width(denominator))
+            _place_row(numerator, x + (width - _row_width(numerator)) / 2, 0)
+            _place_row(denominator, x + (width - _row_width(denominator)) / 2, height)
+            x += width
 
     def set_position(self, x: float, y: float):
         self.setPos(x, y)
 
     def canvas_items(self):
-        return self.numerator_items + self.denominator_items
+        return self.glyphs
 
 
-class NumberPixmap(QGraphicsPixmapItem):
-    digit = 0
+def _row_width(glyphs: list[Glyph]) -> float:
+    return sum(glyph.pixmap().width() for glyph in glyphs)
+
+
+def _place_row(glyphs: list[Glyph], x: float, y: float):
+    for glyph in glyphs:
+        glyph.setPos(x, y)
+        x += glyph.pixmap().width()
+
+
+class Glyph(QGraphicsPixmapItem):
+    """A digit or plus of a time signature, in the numerator's row, the
+    denominator's, or between two pairs."""
+
+    NUMERATOR = "numerator"
+    DENOMINATOR = "denominator"
+    BETWEEN = "between"
+
+    def __init__(self, character: str, row: str, parent: QGraphicsItemGroup):
+        super().__init__(parent)
+        self.character = character
+        self.row = row

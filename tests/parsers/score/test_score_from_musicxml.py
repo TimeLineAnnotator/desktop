@@ -101,7 +101,7 @@ def test_example(score_tl, beat_tl, tmp_path):
     )
     assert time_signature.staff_index == 0
     assert time_signature.time == 0
-    assert time_signature.numerator == 4
+    assert time_signature.numerator == "4"
     assert time_signature.denominator == 4
 
     staff = score_tl.get_component_by_attr("KIND", ComponentKind.STAFF)
@@ -300,7 +300,7 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
         )
         == 3
     )
-    for index, time_sig in {0: (4, 4), 2: (4, 4), 4: (7, 8)}.items():
+    for index, time_sig in {0: ("4", 4), 2: ("4", 4), 4: ("7", 8)}.items():
         ts = score_tl.component_manager.get_component_by_attribute(
             "time", index, ComponentKind.TIME_SIGNATURE
         )
@@ -677,3 +677,53 @@ def test_notes_in_a_measure_the_beat_timeline_skips_are_not_imported(
     ]
     bar_lines = _get_components_by_kind(score_tl, ComponentKind.BAR_LINE)
     assert [bar_line.get_data("time") for bar_line in bar_lines] == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "time, written",
+    [
+        ("<time><beats>3+2</beats><beat-type>8</beat-type></time>", [("3+2", 8)]),
+        (
+            "<time><beats>2</beats><beat-type>4</beat-type>"
+            "<beats>3</beats><beat-type>8</beat-type></time>",
+            [("2", 4), ("3", 8)],
+        ),
+    ],
+    ids=["composite", "several pairs"],
+)
+def test_time_signature_as_written(time, written, score_tl, beat_tl, tmp_path):
+    beat_tl.beat_pattern = [4]
+    for i in range(5):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(_measure(_attributes_without("time") + time)),
+        tmp_path,
+    )
+
+    assert success
+    assert errors == []
+    (time_signature,) = _get_components_by_kind(score_tl, ComponentKind.TIME_SIGNATURE)
+    assert time_signature.get_pairs() == written
+
+
+def test_time_signature_tilia_cannot_draw_is_reported(score_tl, beat_tl, tmp_path):
+    beat_tl.beat_pattern = [4]
+    for i in range(5):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+    time = "<time><beats>2.5</beats><beat-type>4</beat-type></time>"
+
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(_measure(_attributes_without("time") + time)),
+        tmp_path,
+    )
+
+    assert success
+    assert errors == ["<time> - 2.5/4 not implemented"]
+    assert not _get_components_by_kind(score_tl, ComponentKind.TIME_SIGNATURE)

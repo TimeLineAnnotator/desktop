@@ -1,4 +1,5 @@
 import itertools
+import re
 from bisect import bisect
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,7 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Note
 from tilia.timelines.score.components.clef import Clef
+from tilia.timelines.score.components.time_signature import validate_numerator
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui.strings import (
     INSERT_MEASURE_ZERO_FAILED,
@@ -275,12 +277,43 @@ def notes_from_musicXML(
                     if attribute.find("beats") is None:
                         # <senza-misura/>: no time signature.
                         continue
-                    ts_numerator = int(attribute.find("beats").text)
-                    ts_denominator = int(attribute.find("beat-type").text)
-                    constructor_kwargs = {
-                        "numerator": ts_numerator,
-                        "denominator": ts_denominator,
-                    }
+                    # As written: a numerator can be composite ("3+2"), and
+                    # there can be several pairs (2/4 + 3/8).
+                    numerators = [
+                        "".join((beats.text or "").split())
+                        for beats in attribute.findall("beats")
+                    ]
+                    denominators = [
+                        "".join((beat_type.text or "").split())
+                        for beat_type in attribute.findall("beat-type")
+                    ]
+                    if (
+                        len(numerators) != len(denominators)
+                        or not all(map(validate_numerator, numerators))
+                        or not all(
+                            re.fullmatch("[0-9]+", d) and int(d) > 0
+                            for d in denominators
+                        )
+                    ):
+                        written = " + ".join(
+                            f"{n}/{d}"
+                            for n, d in itertools.zip_longest(
+                                numerators, denominators, fillvalue="?"
+                            )
+                        )
+                        errors.append(f"<{attribute.tag}> - {written} not implemented")
+                        continue
+                    pairs = [
+                        [numerator, int(denominator)]
+                        for numerator, denominator in zip(
+                            numerators, denominators, strict=True
+                        )
+                    ]
+                    constructor_kwargs = (
+                        {"numerator": pairs[0][0], "denominator": pairs[0][1]}
+                        if len(pairs) == 1
+                        else {"pairs": pairs}
+                    )
                     staff_numbers = (
                         [attribute.get("number")]
                         if attribute.get("number") is not None

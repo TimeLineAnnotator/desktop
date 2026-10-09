@@ -34,6 +34,15 @@ def test_create_time_signature(time_signature):
     assert time_signature
 
 
+def test_time_signature_with_a_whole_number_numerator_has_it_as_text(score_tl):
+    # Files written before numerators were text have whole numbers.
+    time_signature, _ = score_tl.create_component(
+        ComponentKind.TIME_SIGNATURE, 0, 0, numerator=4, denominator=4
+    )
+    assert time_signature.numerator == "4"
+    assert time_signature.get_pairs() == [("4", 4)]
+
+
 def test_create_key_signature(key_signature):
     assert key_signature
 

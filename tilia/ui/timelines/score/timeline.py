@@ -92,8 +92,10 @@ class ScoreTimelineUI(TimelineUI):
     def _setup_pixmaps(self):
         self.pixmaps = {
             "time signature": {
-                n: QIcon.fromTheme(self.get_time_signature_icon_name(n)).pixmap(48, 48)
-                for n in range(10)
+                character: QIcon.fromTheme(
+                    self.get_time_signature_icon_name(character)
+                ).pixmap(48, 48)
+                for character in "0123456789+"
             },
         }
 
@@ -121,8 +123,8 @@ class ScoreTimelineUI(TimelineUI):
         return viewer
 
     @staticmethod
-    def get_time_signature_icon_name(n: int) -> str:
-        return f"time-signature-{n}"
+    def get_time_signature_icon_name(character: str) -> str:
+        return f"time-signature-{'plus' if character == '+' else character}"
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
