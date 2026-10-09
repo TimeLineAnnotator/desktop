@@ -1,3 +1,5 @@
+import pytest
+
 from tests.mock import patch_yes_or_no_dialog
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.timelines.component_kinds import ComponentKind
@@ -477,3 +479,51 @@ def test_import_in_last_measure(qtui, beat_tl, score_tl, tmp_path):
 
     notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
     assert len(notes) == 3
+
+
+SCORE_ATTRIBUTES = {
+    "key": "<key><fifths>0</fifths></key>",
+    "time": "<time><beats>4</beats><beat-type>4</beat-type></time>",
+    "clef": "<clef><sign>G</sign><line>2</line></clef>",
+}
+
+
+@pytest.mark.parametrize(
+    "missing, kind",
+    [
+        ("key", ComponentKind.KEY_SIGNATURE),
+        ("time", ComponentKind.TIME_SIGNATURE),
+        ("clef", ComponentKind.CLEF),
+    ],
+)
+def test_score_without_an_attribute(missing, kind, score_tl, beat_tl, tmp_path):
+    # Scores often have no key signature (atonal music, percussion), and
+    # some have no time signature or clef.
+    attributes = "".join(v for k, v in SCORE_ATTRIBUTES.items() if k != missing)
+    example = f"""<score-partwise version="4.0">
+    <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+    </part-list>
+    <part id="P1">
+        <measure number="1">
+        <attributes><divisions>4</divisions>{attributes}</attributes>
+        <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>16</duration>
+            <type>whole</type>
+        </note>
+        </measure>
+    </part>
+    </score-partwise>
+    """
+    beat_tl.beat_pattern = [4]
+    for i in range(5):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+
+    success, errors = _import_with_patch(score_tl, beat_tl, example, tmp_path)
+
+    assert success
+    assert errors == []
+    assert not _get_components_by_kind(score_tl, kind)
+    assert _get_components_by_kind(score_tl, ComponentKind.NOTE)

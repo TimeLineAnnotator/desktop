@@ -188,6 +188,9 @@ def notes_from_musicXML(
             for staff_no in metric_pos_to_attr:
                 for attr_type in attr_types:
                     measure_nums = list(metric_pos_to_attr[staff_no][attr_type].keys())
+                    if not measure_nums:
+                        # The file has none, such as no key signature.
+                        continue
                     current_mp_index = bisect(measure_nums, measure)
                     if current_mp_index == 0:
                         errors.append(
