@@ -10,6 +10,7 @@ unit and number of tapped beats, and is never stored.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -68,7 +69,7 @@ def parse_units(text: str) -> UnitsParseResult:
     return UnitsParseResult(units)
 
 
-def format_units(units: list[Fraction]) -> str:
+def format_units(units: Sequence[Fraction]) -> str:
     """Writes units in canonical form, e.g. [2, 3] as "2+3"."""
     return "+".join(str(unit) for unit in units)
 
@@ -105,8 +106,8 @@ class MeasureMeter:
     """
 
     denominator: int
-    units: list[Fraction]
-    beat_values: list[Fraction]
+    units: tuple[Fraction, ...]
+    beat_values: tuple[Fraction, ...]
     beat_unit_id: str | None
     starts_here: bool
     is_ambiguous: bool
