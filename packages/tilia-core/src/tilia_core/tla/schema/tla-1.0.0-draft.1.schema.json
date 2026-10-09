@@ -1,16 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "TiLiA file (.tla), format 1.0.0-draft.1",
-  "description": "The layout decided in #161 (WP3, FR-005). A reader that doesn't use tilia-core fills in the defaults below itself. It checks a file's structure: required keys, types and id formats. Keys it doesn't know are allowed, since the core keeps them (FR-051a). Three things JSON Schema can't check are the core's alone: that each id is used once, that each reference names something that exists, and that no object has the same key twice. Rules the core only warns about, such as the syntax of `vocabulary`, are described, not enforced. Attributes of a known kind are left out of the file when they equal their default (#161, point 6); the defaults are the `default` of each property, or, for a default that depends on another value, the extra annotation `x-default-from`, which names that value. This file is the one place the defaults are kept: the core reads them from here.",
+  "description": "The layout decided in TimeLineAnnotator/project-management#161 (WP3, FR-005). A reader that doesn't use tilia-core fills in the defaults below itself. It checks a file's structure: required keys, types and id formats. Keys it doesn't know are allowed, since the core keeps them (FR-051a). Three things JSON Schema can't check are the core's alone: that each id is used once, that each reference names something that exists, and that no object has the same key twice. Rules the core only warns about, such as the syntax of `vocabulary`, are described, not enforced. Attributes of a known kind are left out of the file when they equal their default (TimeLineAnnotator/project-management#161, point 6); the defaults are the `default` of each property, or, for a default that depends on another value, the extra annotation `x-default-from`, which names that value. This file is the one place the defaults are kept: the core reads them from here.",
   "type": "object",
   "required": ["app_name", "version", "document_id", "time_unit", "media", "metadata", "timelines", "scores"],
   "properties": {
     "app_name": {
-      "description": "Always \"TiLiA\" (#161, point 13).",
+      "description": "Always \"TiLiA\" (TimeLineAnnotator/project-management#161, point 13).",
       "const": "TiLiA"
     },
     "version": {
-      "description": "The format version (#7). Before the freeze, 1.0.0-draft.N (Q2).",
+      "description": "The format version (TimeLineAnnotator/project-management#7). Before the freeze, 1.0.0-draft.N (Q2).",
       "const": "1.0.0-draft.1"
     },
     "document_id": { "$ref": "#/$defs/id" },
@@ -19,7 +19,7 @@
       "enum": ["seconds", "quarters"]
     },
     "media": {
-      "description": "The file's media (#161, point 2).",
+      "description": "The file's media (TimeLineAnnotator/project-management#161, point 2).",
       "type": "object",
       "required": ["path", "length"],
       "properties": {
@@ -59,7 +59,7 @@
     "nullable_string": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
     "nullable_integer": { "oneOf": [{ "type": "integer" }, { "type": "null" }] },
     "metadata": {
-      "description": "Named values, each a text or a list of texts (FR-070), in the order they were added (#161, point 1). Recognised: role, author (one full name), source, vocabulary (id@version or a bare id; checked with a warning, not here) on timelines; tags (a list) and generated_by on components and measures. Left out of a timeline, component or measure when empty.",
+      "description": "Named values, each a text or a list of texts (FR-070), in the order they were added (TimeLineAnnotator/project-management#161, point 1). Recognised: role, author (one full name), source, vocabulary (id@version or a bare id; checked with a warning, not here) on timelines; tags (a list) and generated_by on components and measures. Left out of a timeline, component or measure when empty.",
       "type": "object",
       "additionalProperties": {
         "oneOf": [
@@ -109,7 +109,7 @@
             "required": ["height"],
             "properties": {
               "components": {
-                "description": "A slider has none; an AudioWave timeline's are built from the media and not stored (#161, point 9).",
+                "description": "A slider has none; an AudioWave timeline's are built from the media and not stored (TimeLineAnnotator/project-management#161, point 9).",
                 "maxProperties": 0
               }
             }
@@ -162,7 +162,7 @@
             "required": ["height", "rows"],
             "properties": {
               "rows": {
-                "description": "In display order, top to bottom (#161, point 14).",
+                "description": "In display order, top to bottom (TimeLineAnnotator/project-management#161, point 14).",
                 "type": "array",
                 "items": {
                   "type": "object",
@@ -206,11 +206,11 @@
       ]
     },
     "measure_source": {
-      "description": "Where values came from (T12): tapped (made by a person in TiLiA), score, import, unknown (converted by the migration, Q9), or edited (from a score, an import or the migration, then changed by a person; #161).",
+      "description": "Where values came from (T12): tapped (made by a person in TiLiA), score, import, unknown (converted by the migration, Q9), or edited (from a score, an import or the migration, then changed by a person; TimeLineAnnotator/project-management#161).",
       "enum": ["tapped", "score", "import", "unknown", "edited"]
     },
     "measure": {
-      "description": "On a beat that starts a measure; the first beat always has one (#161). A measure's beats are the beats from its mark to the next one. Always written, even empty (`{}`): its presence marks the downbeat, so it is never left out as a default.",
+      "description": "On a beat that starts a measure; the first beat always has one (TimeLineAnnotator/project-management#161). A measure's beats are the beats from its mark to the next one. Always written, even empty (`{}`): its presence marks the downbeat, so it is never left out as a default.",
       "type": "object",
       "properties": {
         "number": {
@@ -225,12 +225,12 @@
         },
         "force_display": { "type": "boolean", "default": false },
         "cadenza": {
-          "description": "A cadenza: it has no pass, and doesn't count towards the passes of its number (#191).",
+          "description": "A cadenza: it has no pass, and doesn't count towards the passes of its number (TimeLineAnnotator/project-management#191).",
           "type": "boolean",
           "default": false
         },
         "restart": {
-          "description": "The first bar of a new movement or song in the same file: every pass count starts again here (#191).",
+          "description": "The first bar of a new movement or song in the same file: every pass count starts again here (TimeLineAnnotator/project-management#191).",
           "type": "boolean",
           "default": false
         },
@@ -247,7 +247,7 @@
       }
     },
     "beat_unit": {
-      "description": "On a beat where the unit changes, applying from the start of that beat's measure (desktop#621). Two in one measure are allowed: TiLiA warns before saving and shows the measure red (#161, point 10).",
+      "description": "On a beat where the unit changes, applying from the start of that beat's measure (desktop#621). Two in one measure are allowed: TiLiA warns before saving and shows the measure red (TimeLineAnnotator/project-management#161, point 10).",
       "type": "object",
       "required": ["denominator", "units"],
       "properties": {
@@ -373,7 +373,7 @@
       ]
     },
     "score": {
-      "description": "Two shapes, by `format` (#161, point 11).",
+      "description": "Two shapes, by `format` (TimeLineAnnotator/project-management#161, point 11).",
       "type": "object",
       "required": ["id", "format", "content"],
       "properties": {
@@ -403,7 +403,7 @@
                 "additionalProperties": { "type": "string" }
               },
               "license": {
-                "description": "The licence the original file states, as written, or NOASSERTION until it's filled in (FR-131, #171).",
+                "description": "The licence the original file states, as written, or NOASSERTION until it's filled in (FR-131, TimeLineAnnotator/project-management#171).",
                 "type": "string",
                 "minLength": 1,
                 "default": "NOASSERTION"
