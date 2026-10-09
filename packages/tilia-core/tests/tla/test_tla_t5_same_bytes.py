@@ -5,7 +5,6 @@ CI runs these on Windows, macOS and Linux with each supported Python; the
 golden files are the bytes every one of them must write."""
 
 import codecs
-import importlib
 import importlib.util
 import json
 import os
@@ -18,11 +17,8 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
+from tilia_core.tla import layout
 from tilia_core.tla.model import COMPONENT_KINDS, TIMELINE_KINDS
-
-# The module, which `tla.write`, once it is the function that writes a file,
-# hides as an attribute of the package.
-write = importlib.import_module("tilia_core.tla.write")
 
 GOLDEN = Path(__file__).parent / "golden"
 GOLDEN_FILES = sorted(GOLDEN.glob("*.tla"))
@@ -138,7 +134,9 @@ def test_the_golden_files_are_what_make_golden_writes():
 
 SCHEMA = json.loads(
     (
-        Path(write.__file__).parent / "schema" / f"tla-{tla.FORMAT_VERSION}.schema.json"
+        Path(layout.__file__).parent
+        / "schema"
+        / f"tla-{tla.FORMAT_VERSION}.schema.json"
     ).read_bytes()
 )
 
@@ -153,35 +151,35 @@ def branches(definition, key):
 def test_the_writers_key_orders_are_the_schemas():
     # The writer's tables give the order; the schema lists the same keys in it.
     defs = SCHEMA["$defs"]
-    assert tuple(SCHEMA["properties"]) == write.TOP_LEVEL
-    assert tuple(SCHEMA["properties"]["media"]["properties"]) == write.MEDIA
+    assert tuple(SCHEMA["properties"]) == layout.TOP_LEVEL
+    assert tuple(SCHEMA["properties"]["media"]["properties"]) == layout.MEDIA
     base = tuple(defs["timeline_base"]["properties"])
-    assert base == write.TIMELINE_BEFORE + write.TIMELINE_AFTER
+    assert base == layout.TIMELINE_BEFORE + layout.TIMELINE_AFTER
     timelines = dict(branches(defs["timeline"], "kind"))
     assert sorted(timelines) == sorted(TIMELINE_KINDS.values())
     for kind, spelling in TIMELINE_KINDS.items():
         own = tuple(
             k for k in timelines[spelling].get("properties", {}) if k not in base
         )
-        assert own == write.TIMELINE_OWN[kind], kind
+        assert own == layout.TIMELINE_OWN[kind], kind
     components = dict(branches(defs["component"], "kind"))
     assert sorted(components) == sorted(COMPONENT_KINDS.values())
     for kind, spelling in COMPONENT_KINDS.items():
         attributes = tuple(components[spelling].get("properties", ()))
-        if kind in write.LEGACY_SCORE_COMPONENTS:
+        if kind in layout.LEGACY_SCORE_COMPONENTS:
             assert attributes == ()
         else:
-            assert attributes == write.COMPONENT_ATTRIBUTES[kind], kind
-    assert tuple(defs["measure"]["properties"]) == write.MEASURE
-    assert tuple(defs["beat_unit"]["properties"]) == write.BEAT_UNIT
+            assert attributes == layout.COMPONENT_ATTRIBUTES[kind], kind
+    assert tuple(defs["measure"]["properties"]) == layout.MEASURE
+    assert tuple(defs["beat_unit"]["properties"]) == layout.BEAT_UNIT
     rows = timelines["Range"]["properties"]["rows"]["items"]["properties"]
-    assert tuple(rows) == write.RANGE_ROW
+    assert tuple(rows) == layout.RANGE_ROW
     scores = dict(branches(defs["score"], "format"))
-    for format, keys in write.SCORES.items():
+    for format, keys in layout.SCORES.items():
         known = {*defs["score"]["properties"], *scores[format]["properties"]}
         assert known == set(keys), format
     assert tuple(scores["mei"]["properties"]["source"]["properties"]) == (
-        write.SCORE_SOURCE
+        layout.SCORE_SOURCE
     )
 
 
@@ -198,53 +196,48 @@ def derived_names(value):
 
 def test_every_default_the_schema_derives_is_implemented():
     shapes = [
-        *write.TIMELINE_SHAPES.values(),
-        *write.COMPONENT_SHAPES.values(),
-        write.MEASURE_SHAPE,
-        write.BEAT_UNIT_SHAPE,
-        write.RANGE_ROW_SHAPE,
-        *write.SCORE_SHAPES.values(),
+        *layout.TIMELINE_SHAPES.values(),
+        *layout.COMPONENT_SHAPES.values(),
+        layout.MEASURE_SHAPE,
+        layout.BEAT_UNIT_SHAPE,
+        layout.RANGE_ROW_SHAPE,
+        *layout.SCORE_SHAPES.values(),
     ]
     by_name = {
-        write.PREVIOUS_NUMBER_PLUS_ONE,
-        write.NUMBER_AS_TEXT,
-        write.TIMELINE_MEASURE_SOURCE,
+        layout.PREVIOUS_NUMBER_PLUS_ONE,
+        layout.NUMBER_AS_TEXT,
+        layout.TIMELINE_MEASURE_SOURCE,
     }
     found = set()
     for shape in shapes:
         for name in shape.derived.values():
             # From a key of the same object, or by name, for a measure's mark.
             assert name in shape.keys or (
-                shape is write.MEASURE_SHAPE and name in by_name
+                shape is layout.MEASURE_SHAPE and name in by_name
             )
             found.add(name)
     assert found == set(derived_names(SCHEMA))
 
 
 def test_the_defaults_are_the_schemas():
-    marker = write.COMPONENT_SHAPES["marker"]
-    assert marker.defaults == {
-        "comments": "",
-        "label": "",
-        "color": None,
-        "metadata": {},
-    }
+    marker = layout.COMPONENT_SHAPES["marker"]
+    assert marker.defaults == {"comments": "", "label": "", "color": None}
     assert marker.always == {"kind", "time"}
-    assert write.COMPONENT_SHAPES["hierarchy"].derived == {
+    assert marker.left_out_empty == {"metadata"}
+    assert layout.COMPONENT_SHAPES["hierarchy"].derived == {
         "pre_start": "start",
         "post_end": "end",
     }
-    assert write.TIMELINE_SHAPES["beat"].defaults == {
+    assert layout.TIMELINE_SHAPES["beat"].defaults == {
         "name": "",
         "is_visible": True,
         "beat_pattern": "4",
         "show_time_signatures": True,
         "measure_source": "tapped",
         "measure_table": None,
-        "metadata": {},
     }
     # Required keys are always written, even at a default: an MEI score's licence.
-    assert "license" in write.SCORE_SHAPES["mei"].always
+    assert "license" in layout.SCORE_SHAPES["mei"].always
 
 
 @pytest.mark.skipif(

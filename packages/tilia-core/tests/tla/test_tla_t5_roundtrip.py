@@ -5,6 +5,7 @@ format, and which versions it reads."""
 import json
 import math
 import re
+import sys
 import unicodedata
 import uuid
 from pathlib import Path
@@ -188,7 +189,11 @@ def test_a_downbeat_whose_mark_holds_only_defaults_is_written_as_an_empty_mark()
     ) in data.decode()
     assert data == EVERY_KIND.read_bytes()
     again = tla.loads(data).timelines[beats.id].components[downbeat.id]
-    assert again.attrs["measure"] == {}
+    assert again.attrs["measure"] == {
+        "force_display": False,
+        "cadenza": False,
+        "restart": False,
+    }
 
 
 def test_an_empty_mark_is_never_left_out():
@@ -213,8 +218,10 @@ def beat_timeline(*beats):
 
 
 def written_marks(doc, timeline):
-    again = tla.loads(tla.canonical_bytes(doc)).timelines[timeline.id]
-    return [c.attrs["measure"] for c in again.components.values()]
+    """The marks as the file holds them, in id order."""
+    content = json.loads(tla.canonical_bytes(doc))
+    components = content["timelines"][timeline.id]["components"]
+    return [component["measure"] for component in components.values()]
 
 
 def test_the_first_measures_number_is_always_written():
@@ -254,6 +261,80 @@ def test_a_marks_label_and_source_are_left_out_at_their_default():
     assert written_marks(doc, timeline) == [{"number": 3}, {"source": "tapped"}]
 
 
+def test_none_for_a_derived_default_means_unset():
+    # A mark's number is never null: None is the default, and is left out.
+    doc, timeline = beat_timeline(
+        ("b1", 0.0, {"number": 1}), ("b2", 1.0, {"number": None, "label": None})
+    )
+    assert written_marks(doc, timeline) == [{"number": 1}, {}]
+    doc = tla.read(EVERY_KIND)
+    form = named(doc, "Form")
+    nth(form, 0).attrs["pre_start"] = None
+    assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
+
+
+def test_score_lines_given_as_a_tuple_are_written_as_they_are():
+    doc = tla.read(EVERY_KIND)
+    (score,) = doc.scores.values()
+    score.lines = tuple(score.lines)  # its decomposed line stays decomposed
+    assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
+
+
+def test_a_surrogate_pair_given_as_two_characters_is_written_as_one():
+    # As JSON reads the pair back: writing again then changes nothing.
+    doc = tla.read(EVERY_KIND)
+    doc.metadata["title"] = "cut \ud83c" + "\udfb5"
+    data = tla.canonical_bytes(doc)
+    again = tla.loads(data)
+    assert again.metadata["title"] == "cut 🎵"
+    assert tla.canonical_bytes(again) == data
+
+
+def test_edits_to_a_timeline_of_an_unknown_kind_are_written():
+    doc = tla.read(UNKNOWN)
+    lyrics = list(doc.timelines.values())[3]
+    assert lyrics.metadata is not lyrics.raw["metadata"]
+    lyrics.name, lyrics.ordinal = "Words", 9
+    lyrics.metadata["tags"] = ["sung"]
+    lyrics.extra["font_size"] = 12
+    again = tla.loads(tla.canonical_bytes(doc)).timelines[lyrics.id]
+    assert (again.name, again.ordinal) == ("Words", 9)
+    assert again.metadata == {"role": "lyrics", "tags": ["sung"]}
+    assert (again.raw["font"], again.raw["font_size"]) == ("serif", 12)
+
+
+def test_a_timeline_of_an_unknown_kind_gains_no_key_it_didnt_have():
+    content = json.loads(UNKNOWN.read_bytes())
+    lyrics = list(content["timelines"])[3]
+    for key in ("name", "ordinal", "metadata"):
+        del content["timelines"][lyrics][key]
+    data = (json.dumps(content, indent=2, ensure_ascii=False) + "\n").encode()
+    doc = tla.loads(data)
+    timeline = doc.timelines[lyrics]
+    assert (timeline.name, timeline.ordinal, timeline.metadata) == ("", 0, {})
+    assert tla.canonical_bytes(doc) == data
+
+
+def test_a_timeline_of_an_unknown_kind_keeps_its_components_in_raw():
+    doc = tla.read(UNKNOWN)
+    lyrics = list(doc.timelines.values())[3]
+    marker = tla.Component(id=tla.new_id(), kind="marker", attrs={"time": 1.0})
+    lyrics.components[marker.id] = marker
+    with pytest.raises(ValueError, match="keeps its components in `raw`"):
+        tla.canonical_bytes(doc)
+
+
+@pytest.mark.parametrize("format", ["mei", "musicxml"])
+def test_a_null_source_or_licence_is_kept(format):
+    content = json.loads(UNKNOWN.read_bytes())
+    content["scores"][0].update(format=format, source=None, license=None)
+    doc = tla.loads(json.dumps(content).encode())
+    (score,) = doc.scores.values()
+    assert (score.source, score.license) == (None, None)
+    (written,) = json.loads(tla.canonical_bytes(doc))["scores"]
+    assert (written["source"], written["license"]) == (None, None)
+
+
 # What the writer refuses
 
 
@@ -290,6 +371,37 @@ def test_an_integer_too_long_to_read_back_is_refused():
         tla.canonical_bytes(doc)
     doc.extra["n"] = 10**4300 - 1  # 4300 digits: Python reads it
     assert tla.loads(tla.canonical_bytes(doc)).extra["n"] == 10**4300 - 1
+
+
+def test_a_measure_number_too_long_to_read_back_is_refused_naming_its_place():
+    doc, timeline = beat_timeline(("b1", 0.0, {"number": 10**5000}))
+    place = f"/timelines/{timeline.id}/components/b1/measure/number"
+    with pytest.raises(ValueError, match=re.escape(place)):
+        tla.canonical_bytes(doc)
+
+
+@pytest.mark.skipif(
+    not hasattr(sys, "set_int_max_str_digits"), reason="no limit to set"
+)
+def test_the_limit_on_integers_is_the_running_pythons():
+    doc = tla.read(EVERY_KIND)
+    doc.extra["n"] = 10**700  # 701 digits
+    limit = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(640)
+    try:
+        with pytest.raises(ValueError, match="/n: an integer too long"):
+            tla.canonical_bytes(doc)
+    finally:
+        sys.set_int_max_str_digits(limit)
+    assert b'"n": 1000' in tla.canonical_bytes(doc)
+
+
+def test_a_key_set_twice_is_named_with_where_it_was_set():
+    doc = tla.read(EVERY_KIND)
+    doc.media_extra["path"] = "elsewhere.flac"
+    message = "/media/path: set both in media_path and media_length and in media_extra"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        tla.canonical_bytes(doc)
 
 
 def test_a_key_that_isnt_text_is_refused():
@@ -455,18 +567,42 @@ def test_structure_the_reader_needs_is_refused_with_its_place(change, place):
     assert error.value.place == place.format(t=timeline_id, c=component_id)
 
 
-def test_a_beats_mark_and_unit_are_kept_as_stored():
-    # The measure table, which resolves a mark's number, label and source, is
-    # built from them.
+def test_two_scores_with_one_id_are_refused():
+    # Rather than keeping one, and losing the other on the next save.
+    content = json.loads(UNKNOWN.read_bytes())
+    content["scores"].append({**content["scores"][0], "content": ["<other/>", ""]})
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(json.dumps(content).encode())
+    assert error.value.place == "/scores/1/id"
+    assert "two scores have the id" in error.value.message
+
+
+def test_a_marks_defaults_are_filled_in_except_those_from_other_marks():
+    # A mark's number, label and source depend on the marks before it: the
+    # measure table resolves them.
     beats = named(tla.read(EVERY_KIND), "Beats")
+    flags = {"force_display": False, "cadenza": False, "restart": False}
     assert nth(beats, 0).attrs == {
         "time": 0.0,
-        "measure": {"number": 0},
-        "beat_unit": {"denominator": 4, "units": "1"},
+        "measure": {"number": 0, **flags},
+        "beat_unit": {"denominator": 4, "units": "1", "assumed": False},
     }
-    assert nth(beats, 1).attrs == {"time": 1.0, "measure": {}}
+    assert nth(beats, 1).attrs == {"time": 1.0, "measure": flags}
     assert nth(beats, 1).metadata == {"tags": ["check"]}
     assert nth(beats, 2).attrs == {"time": 2.0}
+    assert nth(beats, 4).attrs["measure"] == {
+        **flags,
+        "label": "2a",
+        "force_display": True,
+    }
+
+
+def test_a_range_rows_defaults_are_filled_in():
+    texture = named(tla.read(EVERY_KIND), "Texture")
+    assert texture.attrs["rows"] == [
+        {"id": "aZ3k9P", "name": "Mão direita", "color": None, "height": None},
+        {"id": "Qm7x2L", "name": "Linke Hand", "color": "#e57373", "height": 40},
+    ]
 
 
 def test_unknown_kinds_and_keys_are_kept():
@@ -481,7 +617,19 @@ def test_unknown_kinds_and_keys_are_kept():
     assert doc.media_extra == {"x_media": "kept"}
     assert beats.extra == {"x_timeline": "kept"}
     assert nth(beats, 0).extra == {"x_beat": "kept"}
-    assert nth(beats, 0).attrs["measure"] == {"number": 1, "x_mark": "kept"}
+    assert nth(beats, 0).attrs["measure"] == {
+        "number": 1,
+        "x_mark": "kept",
+        "force_display": False,
+        "cadenza": False,
+        "restart": False,
+    }
+    assert nth(beats, 0).attrs["beat_unit"] == {
+        "denominator": 4,
+        "units": "1",
+        "x_unit": 0,
+        "assumed": False,
+    }
     marker, other = markers.components.values()
     assert marker.extra == {
         "Y": True,
@@ -489,7 +637,9 @@ def test_unknown_kinds_and_keys_are_kept():
     }
     assert other.kind == tla.UnknownKind("marker")
     assert (other.attrs, other.extra) == ({}, {"label": "spelled otherwise", "time": 2})
-    assert rows.attrs["rows"] == [{"id": "aZ3k9P", "name": "Row", "x_row": "kept"}]
+    assert rows.attrs["rows"] == [
+        {"id": "aZ3k9P", "name": "Row", "x_row": "kept", "color": None, "height": None}
+    ]
     assert lyrics.kind == tla.UnknownKind("Lyrics")
     assert (lyrics.name, lyrics.ordinal, lyrics.metadata) == (
         "Lyrics",
