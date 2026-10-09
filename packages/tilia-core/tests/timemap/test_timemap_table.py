@@ -1,4 +1,7 @@
+import copy
+import dataclasses
 import logging
+import pickle
 
 import pytest
 
@@ -228,6 +231,15 @@ def test_metadata_is_a_frozen_copy():
     timeline.measures.rows[0].metadata["tags"].append("b")
     assert row.metadata["tags"] == ("a",)
     assert row == again and hash(row) == hash(again)
+
+
+def test_rows_can_be_pickled_copied_and_turned_into_dicts():
+    timeline = _timeline([{"number": 1, "metadata": {"tags": ["a"], "key": "x"}}])
+    (row,) = build_rows(document(timeline), timeline)
+
+    assert pickle.loads(pickle.dumps(row)) == row
+    assert copy.deepcopy(row) == row
+    assert dataclasses.asdict(row)["metadata"] == {"tags": ("a",), "key": "x"}
 
 
 def test_a_timeline_without_measures_gives_no_rows():

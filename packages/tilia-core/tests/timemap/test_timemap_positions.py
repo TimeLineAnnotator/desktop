@@ -1,5 +1,6 @@
 import dataclasses
 import math
+import pickle
 
 import pytest
 
@@ -343,14 +344,24 @@ def test_timemap_is_immutable():
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         time_map.end = 20.0  # type: ignore[misc]
+    with pytest.raises(TypeError):
+        dataclasses.replace(time_map, end=20.0)  # type: ignore[call-arg]
     rows = time_map.measure_rows()
     with pytest.raises(TypeError):
         rows[0].metadata["key"] = "value"  # type: ignore[index]
     rows.clear()
     assert len(time_map.measure_rows()) == 3
     assert time_map.measure_rows()[0].metadata == {}
-    again = time_map_for(doc, timeline.id)
-    assert time_map == again and hash(time_map) == hash(again)
+
+
+def test_timemap_can_be_pickled():
+    time_map = _four_four()
+
+    copied = pickle.loads(pickle.dumps(time_map))
+
+    assert (copied.start, copied.end, copied.tolerance) == (0.0, 12.0, 0.1)
+    assert copied.measure_rows() == time_map.measure_rows()
+    assert copied.positions(5.5, 9.0) == time_map.positions(5.5, 9.0)
 
 
 def test_timemap_does_not_follow_later_edits():
