@@ -117,17 +117,56 @@ class TestMeasureMeters:
         assert meter.denominator == 8
 
 
-class TestDefaultAndAssumed:
-    def test_without_any_unit_a_measure_of_n_taps_is_n_over_4(self):
-        timeline = tapped(7, units={0: None})
+class TestBeforeTheFirstUnit:
+    # TiLiA's loader keeps a unit in the first measure: a copy of the first
+    # unit, assumed, or the default. No unit sits on those beats in the file.
+
+    @pytest.mark.parametrize("first", [None, unit(8, "x")])
+    def test_the_measures_take_the_first_units_values_assumed(self, first):
+        timeline = tapped(8, (2,), {0: first, 6: unit(8, "3")})
 
         result = meters(timeline)
-        assert time_signatures(timeline) == [(4, 4), (3, 4)]
+        assert [m.time_signature for m in result] == [(6, 8)] * 4
+        assert [m.units for m in result] == [[3]] * 4
+        assert [m.is_assumed for m in result] == [True, True, True, False]
+        assert [m.starts_here for m in result] == [True, False, False, True]
+        assert [m.beat_unit_id for m in result] == [
+            None,
+            None,
+            None,
+            beat_ids(timeline)[6],
+        ]
+        assert not any(m.is_conflicting for m in result)
+
+    def test_a_pattern_is_read_from_its_start_in_those_measures(self):
+        timeline = tapped(5, (1, 2, 2), {0: None, 3: unit(8, "2+3")})
+
+        result = meters(timeline)
+        assert [m.beat_values for m in result] == [[2], [2, 3], [2, 3]]
+        assert [m.is_ambiguous for m in result] == [True, False, False]
+
+    @pytest.mark.parametrize("first", [None, unit(8, "x")])
+    def test_with_no_readable_unit_a_measure_of_n_taps_is_n_over_4(self, first):
+        timeline = tapped(7, units={0: first})
+
+        result = meters(timeline)
+        assert [m.time_signature for m in result] == [(4, 4), (3, 4)]
         assert [m.units for m in result] == [[1], [1]]
         assert [m.beat_unit_id for m in result] == [None, None]
-        assert [m.starts_here for m in result] == [False, False]
+        assert [m.starts_here for m in result] == [True, False]
         assert all(m.is_assumed for m in result)
 
+    def test_a_unit_in_the_first_measure_is_its_own(self):
+        timeline = tapped(8, units={0: None, 2: unit(8, "1")})
+
+        first = meters(timeline)[0]
+        assert first.beat_unit_id == beat_ids(timeline)[2]
+        assert first.starts_here
+        assert not first.is_assumed
+        assert first.time_signature == (4, 8)
+
+
+class TestAssumed:
     def test_assumed_follows_the_governing_unit(self):
         timeline = tapped(12, units={4: unit(8, "1"), 8: unit(8, "2", assumed=True)})
 

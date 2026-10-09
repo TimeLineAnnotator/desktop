@@ -40,22 +40,33 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
     The meter of every measure, from the beat units in effect: the loop of
     desktop#621's `BeatTimeline._compute_measure_meters`. The first unit set
     in a measure governs it and is carried forward; any other in that measure
-    makes it conflicting. Until a unit is set, a measure of N taps is N/4,
-    assumed. `rows_of` has already left out the units that can't be read, so
-    the unit before such a unit carries on.
+    makes it conflicting. `rows_of` has already left out the units that can't
+    be read, so the unit before such a unit carries on.
+
+    Before the first unit, the measures take its denominator and units,
+    assumed; with no unit at all, a measure of N taps is N/4, assumed. Either
+    way measure 1 starts a unit, but none has a `beat_unit_id`, since no unit
+    sits on their beats. Only here does this differ from #621's loop, which
+    never meets such a timeline: #621's loader keeps a unit in the first
+    measure (`_ensure_first_beat_unit`), copied from the first unit or the
+    default.
     """
-    default_units = parse_units(DEFAULT_UNITS).units
+    first = next((_parsed(*unit) for row in rows for unit in row.units), None)
+    if first is None:
+        opening = DEFAULT_DENOMINATOR, tuple(parse_units(DEFAULT_UNITS).units)
+    else:
+        opening = first.denominator, first.unit_values
 
     meters = []
     governing: _BeatUnit | None = None
-    for row in rows:
+    for index, row in enumerate(rows):
         beat_count = len(row.beat_ids)
         in_measure = [_parsed(beat_id, unit) for beat_id, unit in row.units]
         if in_measure:
             governing = in_measure[0]
 
         if governing is None:
-            denominator, units = DEFAULT_DENOMINATOR, list(default_units)
+            denominator, units = opening[0], list(opening[1])
         else:
             denominator, units = governing.denominator, list(governing.unit_values)
 
@@ -65,7 +76,7 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
                 units=units,
                 beat_values=fit_units(units, beat_count),
                 beat_unit_id=governing.id if governing else None,
-                starts_here=bool(in_measure),
+                starts_here=bool(in_measure) or index == 0,
                 is_ambiguous=is_fit_ambiguous(units, beat_count),
                 is_conflicting=len(in_measure) > 1,
                 is_assumed=governing is None or governing.assumed,
