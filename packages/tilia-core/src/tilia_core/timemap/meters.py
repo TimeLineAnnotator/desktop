@@ -6,7 +6,6 @@ The rules are those of desktop#621 (beat units and time signatures): its
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
@@ -20,17 +19,14 @@ from tilia_core.timemap.units import (
     fit_units,
     is_fit_ambiguous,
     parse_units,
-    validate_denominator,
 )
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class _BeatUnit:
     """A beat unit as desktop#621's component holds it, with its beat's id as its id.
 
-    Its units are parsed once, when they are checked.
+    Its units are parsed once for each call of `meters_of`.
     """
 
     id: str
@@ -45,7 +41,8 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
     desktop#621's `BeatTimeline._compute_measure_meters`. The first unit set
     in a measure governs it and is carried forward; any other in that measure
     makes it conflicting. Until a unit is set, a measure of N taps is N/4,
-    assumed. A unit that can't be read is ignored, as if absent.
+    assumed. `rows_of` has already left out the units that can't be read, so
+    the unit before such a unit carries on.
     """
     default_units = parse_units(DEFAULT_UNITS).units
 
@@ -53,11 +50,7 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
     governing: _BeatUnit | None = None
     for row in rows:
         beat_count = len(row.beat_ids)
-        in_measure = [
-            beat_unit
-            for beat_id, unit in row.units
-            if (beat_unit := _readable(beat_id, unit)) is not None
-        ]
+        in_measure = [_parsed(beat_id, unit) for beat_id, unit in row.units]
         if in_measure:
             governing = in_measure[0]
 
@@ -81,25 +74,10 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
     return meters
 
 
-def _readable(beat_id: str, unit: tla.BeatUnit) -> _BeatUnit | None:
-    # desktop#621 refuses to create such a unit, and so drops it from a file
-    # it loads: the unit before carries on.
-    parsed = parse_units(unit.units) if isinstance(unit.units, str) else None
-    if (
-        parsed is None
-        or not parsed.is_valid
-        or not validate_denominator(unit.denominator)
-    ):
-        logger.warning(
-            "Beat %s: the beat unit %r over %r can't be read; ignored.",
-            beat_id,
-            unit.units,
-            unit.denominator,
-        )
-        return None
+def _parsed(beat_id: str, unit: tla.BeatUnit) -> _BeatUnit:
     return _BeatUnit(
         id=beat_id,
         denominator=unit.denominator,
-        unit_values=tuple(parsed.units),
+        unit_values=tuple(parse_units(unit.units).units),
         assumed=unit.assumed,
     )

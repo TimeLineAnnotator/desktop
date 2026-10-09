@@ -163,9 +163,9 @@ class TestUnreadableUnits:
         assert [m.time_signature for m in result] == [(2, 4), (6, 8), (6, 8), (6, 8)]
         assert [m.starts_here for m in result] == [True, True, False, False]
         assert [m.beat_unit_id for m in result][1:] == [before] * 3
-        (warning,) = [
-            r for r in caplog.records if r.name == "tilia_core.timemap.meters"
-        ]
+        (warning,) = caplog.records
+        assert warning.name == "tilia_core.timemap._rows"
+        assert timeline.id in warning.getMessage()
         assert ignored in warning.getMessage()
 
     def test_before_a_readable_one_does_not_govern_its_measure(self):

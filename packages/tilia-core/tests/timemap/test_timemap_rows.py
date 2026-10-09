@@ -1,3 +1,5 @@
+import pytest
+
 from docs import beat_timeline
 from tilia_core import tla
 from tilia_core.timemap._rows import rows_of
@@ -146,6 +148,42 @@ def test_a_beat_unit_that_cannot_be_read_is_ignored(caplog):
 
     assert row.units == ()
     assert "beat unit" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "beat_unit",
+    [
+        {"denominator": 8, "units": "a"},
+        {"denominator": 8, "units": "0"},
+        {"denominator": 8, "units": "2+"},
+        {"denominator": 8, "units": 3},
+        {"denominator": 0, "units": "1"},
+        {"denominator": 129, "units": "1"},
+        {"denominator": "8", "units": "1"},
+    ],
+)
+def test_a_beat_unit_desktop_621_refuses_is_left_out(beat_unit, caplog):
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0, "beat_unit": beat_unit},
+        ]
+    )
+    (row,) = rows_of(timeline)
+
+    assert row.units == ()
+    (warning,) = caplog.records
+    assert timeline.id in warning.getMessage()
+    assert row.beat_ids[1] in warning.getMessage()
+
+
+def test_the_warning_shortens_a_long_unit(caplog):
+    unit = {"denominator": 8, "units": "x" * 5000}
+    timeline = beat_timeline([{"time": 0.0, "measure": {}, "beat_unit": unit}])
+    (row,) = rows_of(timeline)
+
+    assert row.units == ()
+    assert len(caplog.records[0].getMessage()) < 300
 
 
 def test_a_measure_whose_downbeat_has_no_time_is_skipped(caplog):
