@@ -234,6 +234,10 @@ class TestMigratedId:
         assert migrated_id(DOC, "component", "3", "12") == (
             "00dc6acf-ac0c-7675-8593-1b87a585215c"
         )
+        # A score, an old id that isn't an integer, its position, a lone surrogate.
+        assert migrated_id(DOC, "score", "x" + chr(0xD83D), "y", position=7) == (
+            "011c6acf-ac07-7f14-b82a-e67001c09083"
+        )
 
 
 def old_file() -> dict:
@@ -459,6 +463,16 @@ class TestDerivedDocumentId:
     def test_never_changes(self):
         # Files read before and after an update must get the same id.
         assert derived_document_id(old_file()) == "03209ea7-1448-859f-900b-712a89d6f7c2"
+        # Floats of several sizes and whole-number floats; a letter with two
+        # marks (long s with dot above, and a dot below), which NFD takes apart
+        # and NFC puts back together; an emoji and a lone surrogate. chr()
+        # keeps an editor from normalising them.
+        letter = chr(0x1E9B) + chr(0x0323)
+        label = chr(0x1F600) + " " + letter + " " + chr(0xD83D)
+        numbers = {"f": 0.1, "g": 1e-7, "h": 123456789012345678.0, "i": 1e16}
+        component = {"l": label, **numbers}
+        data = {"timelines": {"1": {"components": {"1": component}}}}
+        assert derived_document_id(data) == "085ae8ed-bc9f-8aa4-9af9-1f947c8de8cc"
 
     @pytest.mark.parametrize(
         "change",
