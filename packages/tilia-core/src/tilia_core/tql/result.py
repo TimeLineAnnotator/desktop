@@ -100,8 +100,10 @@ class Result:
     def sql(self) -> str:
         """The blocks of ``sql_blocks`` as text: each a ``--`` comment line,
         then its statement unless Python takes over there, with a blank line
-        between two blocks. A value may hold a blank line too, so split
-        ``sql_blocks`` rather than this text."""
+        between two blocks. The string is for reading only: a value may hold
+        a blank line too, so to take it apart split ``sql_blocks`` rather than
+        this text. The shown SQL may change, and nothing in it is promised
+        yet."""
         return render(self.sql_blocks)
 
     def to_csv(self, path: str | Path) -> None:

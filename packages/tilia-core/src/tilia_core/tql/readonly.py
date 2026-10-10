@@ -123,7 +123,10 @@ def sql(
     approximate. ``cancel`` cannot interrupt a regular expression that is
     running; it takes effect once the expression ends. Without the ``regex``
     package, neither limit covers a regular expression, and a pattern that
-    backtracks badly can hold the whole process."""
+    backtracks badly can hold the whole process.
+
+    The table and column names and the ``tql_*`` functions a statement can use
+    may change, and nothing in them is promised yet."""
     con = index.connection()
     sqlfuncs.register(con, index)
     limits = _Limits(time_limit, cancel)

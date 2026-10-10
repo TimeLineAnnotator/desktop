@@ -6,6 +6,14 @@ answers, and a comment at each point where Python takes over.
 part of the query, as :class:`SqlBlock` s; the reads that only look up names,
 titles and positions are run but not shown. :func:`describe_units` names the
 parts of a query.
+
+The shown text is for reading. To take it apart, use the list of
+:class:`SqlBlock` s, ``Result.sql_blocks``: a blank line inside a quoted TQL
+string puts a blank line inside an SQL literal, so splitting the text on blank
+lines breaks. The statement of each block runs on its own through
+:func:`tilia_core.tql.sql`, which supplies the ``tql_*`` functions, not in a
+plain SQLite client. The shown SQL, its table and column names and the
+``tql_*`` functions may change, and nothing in them is promised yet.
 """
 
 from __future__ import annotations

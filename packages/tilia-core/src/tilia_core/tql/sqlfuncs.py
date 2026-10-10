@@ -1,8 +1,9 @@
 """The SQL functions TQL's statements call, registered on a connection.
 
-Their names are public, like the index's tables: ``Result.sql`` shows them and
-``tql.sql`` lets users call them, so renaming one changes what users have
-written (``test_tql_show_sql.py`` pins them). They are:
+``Result.sql`` shows these functions and ``tql.sql`` lets users call them. The
+functions, their names and what they do may change, and nothing in them is
+promised yet. A test pins the registered names and argument counts
+(``test_tql_show_sql.py``), so that a rename touches a test. They are:
 
 - ``regexp(pattern, text)``, which SQLite calls for ``text REGEXP pattern``:
   1 when the regular expression is found in the text read in NFC. With the
