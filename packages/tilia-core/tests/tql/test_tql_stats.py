@@ -1,12 +1,14 @@
 """Result.stats: counts, durations, positions and transitions of the targets."""
 
 import csv
+import threading
 
 import examples
 import fixture_index
 import pytest
 
 from tilia_core import tql
+from tilia_core.tql import stats
 
 FIXTURES = examples.load()["fixtures"]
 
@@ -45,6 +47,25 @@ def subtypes():
     ).fetchall():
         con.execute("INSERT INTO categories VALUES (?, ?)", (cid, label))
     return tql.run(index, "bridge* IN form")
+
+
+# (name, by, the column that counts targets)
+TABLES = [
+    pytest.param("counts", None, "matches", id="counts-one-key"),
+    pytest.param("counts", ["label", "level"], "matches", id="counts-two-keys"),
+    pytest.param("durations", None, "n", id="durations"),
+    pytest.param("positions", None, "n", id="positions"),
+    pytest.param("transitions", None, "n", id="transitions"),
+]
+CUT_AT = 3
+
+
+def exposition(**limits):
+    return tql.run(index_of("exposition"), "* IN form", **limits)
+
+
+def counted(table, column):
+    return sum(row[table.columns.index(column)] for row in table.rows)
 
 
 class TestCounts:
@@ -259,8 +280,137 @@ class TestTableCsv:
             ["Form (B)", "2", "1"],
         ]
 
+    def test_a_statistics_table_of_a_cut_result_returns_its_reason(self, tmp_path):
+        table = exposition(max_matches=CUT_AT).stats("counts")
+        assert table.to_csv(tmp_path / "t.csv") == "max_matches"
+
+    def test_a_statistics_table_of_a_complete_result_returns_none(self, tmp_path):
+        table = exposition().stats("counts")
+        assert table.to_csv(tmp_path / "t.csv") is None
+
+    def test_a_cut_table_is_written_as_it_is(self, tmp_path):
+        table = exposition(max_matches=CUT_AT).stats("counts")
+        path = tmp_path / "t.csv"
+        table.to_csv(path)
+        data = path.read_bytes()
+        assert not data.startswith(b"\xef\xbb\xbf") and b"\r" not in data
+        with open(path, encoding="utf-8", newline="") as f:
+            lines = list(csv.reader(f))
+        assert lines == [list(table.columns)] + [
+            [str(v) for v in row] for row in table.rows
+        ]
+        assert "max_matches" not in path.read_text(encoding="utf-8")
+
+    def test_a_sql_table_cut_by_max_rows_returns_its_reason(self, tmp_path):
+        table = tql.sql(index_of("pop"), "SELECT id FROM components", max_rows=2)
+        assert table.stopped == "max_rows" and len(table.rows) == 2
+        path = tmp_path / "t.csv"
+        assert table.to_csv(path) == "max_rows"
+        assert len(path.read_text(encoding="utf-8").splitlines()) == 3
+
+    def test_a_sql_table_that_is_whole_returns_none(self, tmp_path):
+        table = tql.sql(index_of("pop"), "SELECT id FROM components LIMIT 2")
+        assert table.stopped is None
+        assert table.to_csv(tmp_path / "t.csv") is None
+
+    def test_a_table_built_by_hand_returns_its_reason(self, tmp_path):
+        table = tql.Table(["a"], [(1,)], stopped="time_limit")
+        assert table.to_csv(tmp_path / "t.csv") == "time_limit"
+        assert tql.Table(["a"], [(1,)]).to_csv(tmp_path / "u.csv") is None
+
     def test_none_is_empty_and_text_is_nfc(self, tmp_path):
         table = tql.Table(["a", "b"], [(None, "Straśe")])
         path = tmp_path / "t.csv"
         table.to_csv(path)
         assert path.read_text(encoding="utf-8") == "a,b\n,Straśe\n"
+
+
+@pytest.mark.parametrize("name, by, column", TABLES)
+class TestStopped:
+    """A table carries the reason its result stopped, if it did."""
+
+    def test_a_result_cut_by_max_matches(self, name, by, column):
+        result = exposition(max_matches=CUT_AT)
+        assert result.stopped == "max_matches"
+        assert result.stats(name, by).stopped == "max_matches"
+
+    def test_a_complete_result(self, name, by, column):
+        result = exposition()
+        assert result.stopped is None
+        assert result.stats(name, by).stopped is None
+
+    def test_a_result_that_is_not_reached_by_its_limit(self, name, by, column):
+        result = exposition(max_matches=100)
+        assert result.stopped is None
+        assert result.stats(name, by).stopped is None
+
+    def test_a_run_cancelled_before_it_started(self, name, by, column):
+        cancel = threading.Event()
+        cancel.set()
+        result = exposition(cancel=cancel)
+        assert result.stopped == "cancelled" and result.matches == []
+        table = result.stats(name, by)
+        assert table.stopped == "cancelled"
+        assert table.rows == []
+
+    def test_a_run_stopped_by_its_time_limit(self, name, by, column):
+        result = exposition(time_limit=0)
+        assert result.stopped == "time_limit"
+        assert result.stats(name, by).stopped == "time_limit"
+
+    def test_the_table_counts_only_the_matches_found(self, name, by, column):
+        result = exposition(max_matches=CUT_AT)
+        complete = exposition()
+        assert len(result.matches) == CUT_AT < len(complete.matches)
+        table = result.stats(name, by)
+        full = complete.stats(name, by)
+        assert table.columns == full.columns
+        assert counted(table, column) < counted(full, column)
+        if name != "transitions":  # the targets are the 3 units found
+            assert counted(table, column) == CUT_AT
+
+
+def test_the_labels_counted_are_those_of_the_matches_found():
+    result = exposition(max_matches=CUT_AT)
+    found = sorted(m.slots[0][0].label for m in result.matches)
+    table = result.stats("counts")
+    assert [r[0] for r in table.rows] == sorted(set(found))
+    assert table.stopped == "max_matches"
+
+
+def test_transitions_pair_the_units_found_in_a_lane():
+    fixture = {
+        "length": 5,
+        "timelines": [
+            {
+                "name": "Form (X)",
+                "kind": "hierarchy",
+                "units": [[label, 1, i, i + 1] for i, label in enumerate("abcde")],
+            }
+        ],
+    }
+    index = fixture_index.build_index(fixture)
+    result = tql.run(index, "* IN form", max_matches=CUT_AT)
+    found = sorted(
+        (m.slots[0][0] for m in result.matches), key=lambda c: (c.start, c.id)
+    )
+    assert len(found) == CUT_AT
+    table = result.stats("transitions")
+    assert table.stopped == "max_matches"
+    assert table.rows == sorted(
+        (a.label, b.label, 1) for a, b in zip(found, found[1:], strict=False)
+    )
+    assert len(table.rows) == CUT_AT - 1
+    assert len(tql.run(index, "* IN form").stats("transitions").rows) == 4
+
+
+def test_table_docstring_names_every_reason_stopped_can_hold():
+    for reason in ("max_rows", "max_matches", "time_limit", "cancelled"):
+        assert f'"{reason}"' in stats.Table.__doc__
+
+
+def test_table_docstring_says_what_a_table_of_stats_carries():
+    doc = " ".join(stats.Table.__doc__.split())
+    assert "Result.stats" in doc
+    assert "carries the reason its result stopped for" in doc
+    assert "counts only the matches that were found" in doc

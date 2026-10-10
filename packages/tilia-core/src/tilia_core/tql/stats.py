@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import itertools
+import logging
 import statistics
 import unicodedata
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from .result import Component, Result
 
 NAMES = ("counts", "durations", "positions", "transitions")
+LOG = logging.getLogger(__name__)
 COMPONENT_COLUMNS = ("id", "kind", "label", "start", "end", "color", "comments")
 TENTHS = 10
 
@@ -46,17 +48,30 @@ def write_csv(path: str | Path, columns: Sequence[str], rows: Iterable[Any]) -> 
 
 @dataclass
 class Table:
-    """A statistics table: its ``columns`` and ``rows`` (tuples, in order).
-    ``stopped`` says why a read of rows ended early (``"max_rows"``,
-    ``"time_limit"`` or ``"cancelled"``), else None."""
+    """A table: its ``columns`` and ``rows`` (tuples, in order).
+
+    ``stopped`` says why the table holds only some of its rows, else None:
+    ``"max_rows"`` (:func:`tilia_core.tql.sql` read as many rows as it was
+    allowed), ``"max_matches"``, ``"time_limit"`` or ``"cancelled"``. A table
+    from :meth:`Result.stats` carries the reason its result stopped for, and
+    counts only the matches that were found. ``to_csv`` returns the reason."""
 
     columns: list[str]
     rows: list[tuple[Any, ...]] = field(default_factory=list)
     stopped: str | None = None
 
-    def to_csv(self, path: str | Path) -> None:
-        """Write the table as CSV (UTF-8 in NFC, LF, no byte-order mark)."""
+    def to_csv(self, path: str | Path) -> str | None:
+        """Write the table as CSV (UTF-8 in NFC, LF, no byte-order mark) and
+        return ``stopped``. The file holds the table and nothing else; when
+        ``stopped`` is not None a WARNING is logged that names the reason."""
         write_csv(path, self.columns, self.rows)
+        if self.stopped is not None:
+            LOG.warning(
+                "writing the CSV of a table that stopped (%s): it holds only "
+                "the rows found",
+                self.stopped,
+            )
+        return self.stopped
 
 
 def _sort_key(value: Any) -> tuple[int, int, Any]:
@@ -315,14 +330,17 @@ def compute(
     *,
     fold_subtypes: bool = False,
 ) -> Table:
-    """The statistics table ``name`` of ``result`` (see :meth:`Result.stats`).
+    """The statistics table ``name`` of ``result`` (see :meth:`Result.stats`),
+    with the ``stopped`` of ``result``.
 
     Raises ``ValueError`` for an unknown ``name`` or key."""
     if name not in NAMES:
         raise ValueError(f"unknown statistics {name!r}; allowed: {', '.join(NAMES)}")
     reader = _Reader(result)
     with in_use(reader.con):
-        return _compute_on(reader, name, by, fold_subtypes)
+        table = _compute_on(reader, name, by, fold_subtypes)
+    table.stopped = result.stopped
+    return table
 
 
 def _compute_on(
