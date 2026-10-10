@@ -9,8 +9,9 @@ import examples
 import fixture_index
 import pytest
 
-from tilia_core import tql
-from tilia_core.tql import sqlfuncs
+from tilia_core import index_schema, tql
+from tilia_core.tql import readonly, showsql, sqlfuncs
+from tilia_core.tql.result import Result
 from tilia_core.tql.syntax import TQLError
 
 DATA = examples.load()
@@ -237,8 +238,9 @@ def functions(con):
     return {(r[0], r[4]) for r in con.execute("PRAGMA function_list")}
 
 
-# The SQL functions shown SQL calls, and how many arguments each takes. Their
-# names are public, like the tables test_tql_index_schema.py pins.
+# The SQL functions shown SQL calls, and how many arguments each takes. Like
+# the tables test_tql_index_schema.py pins, they may change and nothing in them
+# is promised yet: a rename touches this table, so that it is deliberate.
 FUNCTIONS = {
     ("regexp", 2),
     ("tql_fold", 1),
@@ -264,3 +266,39 @@ def test_a_shown_statement_refuses_to_write_when_edited():
     index = index_of("exposition")
     with pytest.raises(TQLError):
         tql.sql(index, "DELETE FROM components;")
+
+
+def words(obj):
+    """The docstring of ``obj``, lower case, its white space made single spaces."""
+    return " ".join(obj.__doc__.lower().split())
+
+
+class TestNothingIsPromisedYet:
+    """The docstrings that face the library say the shown SQL, its names and
+    the ``tql_*`` functions may change and nothing in them is promised yet."""
+
+    DOCUMENTED = {
+        "index_schema": index_schema,
+        "sqlfuncs": sqlfuncs,
+        "showsql": showsql,
+        "Result.sql": Result.sql,
+        "readonly.sql": readonly.sql,
+    }
+
+    @pytest.mark.parametrize("name", DOCUMENTED)
+    def test_each_says_it_may_change_and_nothing_is_promised(self, name):
+        doc = words(self.DOCUMENTED[name])
+        assert "may change" in doc, name
+        assert "promised" in doc, name
+
+    def test_the_names_are_not_called_public(self):
+        assert "makes public" not in words(index_schema)
+        assert "are public" not in words(sqlfuncs)
+
+    def test_the_text_is_for_reading_and_the_blocks_take_it_apart(self):
+        for obj in (Result.sql, showsql):
+            doc = words(obj)
+            assert "for reading" in doc
+            assert "sql_blocks" in doc
+        # the first line of Result.sql names sql_blocks already: check the advice
+        assert "split ``sql_blocks``" in words(Result.sql)

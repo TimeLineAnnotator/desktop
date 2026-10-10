@@ -25,7 +25,7 @@ import threading
 import time
 from typing import Any
 
-from . import sqlfuncs
+from . import regexes, sqlfuncs
 from .inuse import in_use
 from .stats import Table
 from .syntax import TQLError
@@ -72,7 +72,9 @@ class Stopped(Exception):
 
 class Limits:
     """The time limit and the cancel event of one call, and what stopped it,
-    once something has. Its call is a progress handler for SQLite."""
+    once something has. Its call is a progress handler for SQLite. It is also
+    the call's budget for regular expressions (see
+    :mod:`~tilia_core.tql.regexes`)."""
 
     def __init__(
         self, time_limit: float | None, cancel: threading.Event | None
@@ -117,6 +119,18 @@ class Limits:
     def __call__(self) -> int:
         return 1 if self.check() else 0
 
+    def seconds_left(self) -> float | None:
+        """The time a regular expression may take, None if there is no limit."""
+        if self.deadline is None:
+            return None
+        # not negative: regex reads a negative timeout as none at all
+        return max(0.0, self.deadline - time.monotonic())
+
+    def ran_out(self) -> None:
+        """A regular expression reached the time limit."""
+        if self.stopped is None:
+            self.stopped = "time_limit"
+
 
 def sql(
     index: Any,
@@ -136,7 +150,19 @@ def sql(
     or that fails raises
     :class:`~tilia_core.tql.syntax.TQLError` with SQLite's message; nothing is
     ever written to the index. Raises ``RuntimeError`` when another thread is
-    running on the connection the index gives."""
+    running on the connection the index gives.
+
+    Both limits are checked between the steps of the statement, and one
+    regular expression (``REGEXP``) is one step. With the ``regex`` package
+    installed (``pip install "tilia-core[regex]"``) a regular expression is
+    bounded by ``time_limit``, though not to the instant: the bound is
+    approximate. ``cancel`` cannot interrupt a regular expression that is
+    running; it takes effect once the expression ends. Without the ``regex``
+    package, neither limit covers a regular expression, and a pattern that
+    backtracks badly can hold the whole process.
+
+    The table and column names and the ``tql_*`` functions a statement can use
+    may change, and nothing in them is promised yet."""
     con = index.connection()
     with in_use(con):
         return _sql_on(index, con, text, max_rows, time_limit, cancel)
@@ -164,24 +190,25 @@ def _sql_on(
     con.set_authorizer(_authorize)
     con.set_progress_handler(limits, CHECK_EVERY)
     try:
-        cursor = con.execute(text)
-        try:
-            if cursor.description is None:
-                raise TQLError("not a statement that reads")
-            columns = [d[0] for d in cursor.description]
-            while True:
-                if max_rows is not None and len(rows) >= max_rows:
-                    if cursor.fetchone() is not None:
-                        stopped = "max_rows"
-                    break
-                row = cursor.fetchone()
-                if row is None:
-                    break
-                rows.append(tuple(row))
-                if limits.check():
-                    break
-        finally:
-            cursor.close()
+        with regexes.within(limits):
+            cursor = con.execute(text)
+            try:
+                if cursor.description is None:
+                    raise TQLError("not a statement that reads")
+                columns = [d[0] for d in cursor.description]
+                while True:
+                    if max_rows is not None and len(rows) >= max_rows:
+                        if cursor.fetchone() is not None:
+                            stopped = "max_rows"
+                        break
+                    row = cursor.fetchone()
+                    if row is None:
+                        break
+                    rows.append(tuple(row))
+                    if limits.check():
+                        break
+            finally:
+                cursor.close()
     except TQLError:
         raise
     except (sqlite3.Error, sqlite3.Warning, ValueError) as err:

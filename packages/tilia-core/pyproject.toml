@@ -20,8 +20,15 @@ authors = [
 Homepage = "https://tilia-app.com"
 Repository = "https://github.com/TimeLineAnnotator/desktop"
 
+[project.optional-dependencies]
+regex = ["regex>=2024.9.11"]
+
 [dependency-groups]
-dev = ["pytest>=8.0.0", "tomli>=2.0; python_version < '3.11'"]
+dev = [
+    "pytest>=8.0.0",
+    "tomli>=2.0; python_version < '3.11'",
+    "regex>=2024.9.11",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
