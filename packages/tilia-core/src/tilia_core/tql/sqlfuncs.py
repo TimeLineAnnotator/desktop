@@ -5,7 +5,9 @@ Their names are public, like the index's tables: ``Result.sql`` shows them and
 written (``test_tql_show_sql.py`` pins them). They are:
 
 - ``regexp(pattern, text)``, which SQLite calls for ``text REGEXP pattern``:
-  1 when the regular expression is found in the text read in NFC.
+  1 when the regular expression is found in the text read in NFC. With the
+  optional ``regex`` package a pattern is bounded by the call's time limit
+  (see ``tilia_core.tql.regexes``); without it no limit covers a pattern.
 - ``tql_fold(text)``: the text folded the way TQL compares words and labels.
 - ``tql_color(text)``: a colour, from a CSS name or a hex code, as ``#rrggbb``.
 - ``tql_chord(literal, step, accidental, quality, inversion, applied_to,
@@ -26,7 +28,6 @@ without one and for a time off it.
 
 from __future__ import annotations
 
-import re
 import sqlite3
 import weakref
 from functools import lru_cache
@@ -35,13 +36,17 @@ from typing import Any, Callable
 from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
 
+from . import regexes
+
 
 def regexp(pattern: str | None, text: str | None) -> int:
     """Whether ``pattern`` is found in ``text`` read in NFC; case-sensitive
-    unless the pattern starts with ``(?i)``. No text is no match."""
+    unless the pattern starts with ``(?i)``. No text is no match. A pattern
+    that runs out of time raises :class:`~tilia_core.tql.regexes.RegexTimeout`,
+    which SQLite turns into the end of the statement."""
     if pattern is None or text is None:
         return 0
-    return 1 if re.search(pattern, nfc(str(text))) else 0
+    return 1 if regexes.search(pattern, nfc(str(text))) else 0
 
 
 def tql_fold(text: str | None) -> str | None:

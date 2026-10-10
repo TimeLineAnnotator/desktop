@@ -25,7 +25,7 @@ import threading
 import time
 from typing import Any
 
-from . import sqlfuncs
+from . import regexes, sqlfuncs
 from .stats import Table
 from .syntax import TQLError
 
@@ -61,7 +61,9 @@ def _remove_authorizer(con: sqlite3.Connection) -> None:
 
 
 class _Limits:
-    """The progress handler of one call: what stopped it, once something has."""
+    """The progress handler of one call: what stopped it, once something has.
+    It is also the call's budget for regular expressions (see
+    :mod:`~tilia_core.tql.regexes`)."""
 
     def __init__(
         self, time_limit: float | None, cancel: threading.Event | None
@@ -82,6 +84,18 @@ class _Limits:
     def __call__(self) -> int:
         return 1 if self.check() else 0
 
+    def seconds_left(self) -> float | None:
+        """The time a regular expression may take, None if there is no limit."""
+        if self.deadline is None:
+            return None
+        # not negative: regex reads a negative timeout as none at all
+        return max(0.0, self.deadline - time.monotonic())
+
+    def ran_out(self) -> None:
+        """A regular expression reached the time limit."""
+        if self.stopped is None:
+            self.stopped = "time_limit"
+
 
 def sql(
     index: Any,
@@ -100,7 +114,16 @@ def sql(
     column names either (``columns == []``). A statement that SQLite refuses
     or that fails raises
     :class:`~tilia_core.tql.syntax.TQLError` with SQLite's message; nothing is
-    ever written to the index."""
+    ever written to the index.
+
+    Both limits are checked between the steps of the statement, and one
+    regular expression (``REGEXP``) is one step. With the ``regex`` package
+    installed (``pip install "tilia-core[regex]"``) a regular expression is
+    bounded by ``time_limit``, though not to the instant: the bound is
+    approximate. ``cancel`` cannot interrupt a regular expression that is
+    running; it takes effect once the expression ends. Without the ``regex``
+    package, neither limit covers a regular expression, and a pattern that
+    backtracks badly can hold the whole process."""
     con = index.connection()
     sqlfuncs.register(con, index)
     limits = _Limits(time_limit, cancel)
@@ -115,24 +138,25 @@ def sql(
     con.set_authorizer(_authorize)
     con.set_progress_handler(limits, CHECK_EVERY)
     try:
-        cursor = con.execute(text)
-        try:
-            if cursor.description is None:
-                raise TQLError("not a statement that reads")
-            columns = [d[0] for d in cursor.description]
-            while True:
-                if max_rows is not None and len(rows) >= max_rows:
-                    if cursor.fetchone() is not None:
-                        stopped = "max_rows"
-                    break
-                row = cursor.fetchone()
-                if row is None:
-                    break
-                rows.append(tuple(row))
-                if limits.check():
-                    break
-        finally:
-            cursor.close()
+        with regexes.within(limits):
+            cursor = con.execute(text)
+            try:
+                if cursor.description is None:
+                    raise TQLError("not a statement that reads")
+                columns = [d[0] for d in cursor.description]
+                while True:
+                    if max_rows is not None and len(rows) >= max_rows:
+                        if cursor.fetchone() is not None:
+                            stopped = "max_rows"
+                        break
+                    row = cursor.fetchone()
+                    if row is None:
+                        break
+                    rows.append(tuple(row))
+                    if limits.check():
+                        break
+            finally:
+                cursor.close()
     except TQLError:
         raise
     except (sqlite3.Error, sqlite3.Warning, ValueError) as err:
