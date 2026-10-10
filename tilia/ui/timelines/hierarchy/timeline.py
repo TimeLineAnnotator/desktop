@@ -348,8 +348,9 @@ class HierarchyTimelineUI(TimelineUI):
 
         if fail_reasons:
             _display_paste_complete_error("\n".join(fail_reasons))
-            return False
 
+        # Even a partial paste has changed the timeline, so report success to
+        # have it recorded: one undo then restores the state before the paste.
         return True
 
     def _adjust_timeline_height(self):
