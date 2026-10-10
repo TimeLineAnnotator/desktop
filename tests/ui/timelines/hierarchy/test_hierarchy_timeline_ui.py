@@ -562,6 +562,58 @@ class TestCopyPaste:
         display.assert_not_called()
         assert len(target.children) == 2
 
+    def test_paste_complete_reports_failures_from_every_level(self, tlui):
+        # A child that fails is skipped along with its own subtree, while its
+        # siblings and their subtrees are still pasted. The reasons from every
+        # level are reported together, in one dialog.
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=2, level=2, label="fails: A"
+        )
+        commands.execute("timeline.hierarchy.add", start=2, end=3, level=1)
+        commands.execute(
+            "timeline.hierarchy.add", start=3, end=4, level=1, label="fails: B"
+        )
+        commands.execute("timeline.hierarchy.add", start=2, end=4, level=2)
+        commands.execute("timeline.hierarchy.add", start=0, end=4, level=3)
+        commands.execute("timeline.hierarchy.add", start=10, end=14, level=3)
+        root = get_hierarchy(tlui, 0, 3)
+        target = get_hierarchy(tlui, 10, 3)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+
+        create_component = tlui.timeline.create_component
+        fail_reasons = {"fails: A": "reason A", "fails: B": "reason B"}
+
+        def fail_labelled_children(*args, **kwargs):
+            if kwargs["label"] in fail_reasons:
+                return None, fail_reasons[kwargs["label"]]
+            return create_component(*args, **kwargs)
+
+        with (
+            patch.object(
+                tlui.timeline, "create_component", side_effect=fail_labelled_children
+            ),
+            patch("tilia.errors.display") as display,
+        ):
+            commands.execute("timeline.component.paste_complete")
+
+        displayed = [call.args[0] for call in display.call_args_list]
+        assert tilia.errors.COMMAND_FAILED not in displayed
+        assert displayed == [tilia.errors.COMPONENTS_PASTE_ERROR]
+        assert "reason A" in display.call_args.args[1]
+        assert "reason B" in display.call_args.args[1]
+
+        # [0, 4] maps onto [10, 14] by a shift of 10
+        (second_child,) = target.children
+        assert (second_child.start, second_child.end) == (12, 14)
+        (other_grandchild,) = second_child.children
+        assert (other_grandchild.start, other_grandchild.end) == (12, 13)
+
     def test_paste_complete_keeps_shared_boundaries_exact(self, tlui):
         # Siblings sharing a boundary in the source must still share it exactly
         # after being rescaled into the target. Scaling each component
@@ -585,6 +637,27 @@ class TestCopyPaste:
         assert left.end == right.start
         # the subtree must also line up exactly with the target it was pasted into
         assert left.start == target.start
+        assert right.end == target.end
+
+    def test_paste_complete_anchors_subtree_end_to_target_end(self, tlui):
+        # Scaling the subtree's end arithmetically gives 30 * (7.8 / 30), which
+        # is 7.800000000000001 in floats, so the end must be mapped onto the
+        # target's end directly.
+        commands.execute("timeline.hierarchy.add", start=40, end=45, level=1)
+        commands.execute("timeline.hierarchy.add", start=45, end=70, level=1)
+        commands.execute("timeline.hierarchy.add", start=40, end=70, level=2)
+        commands.execute("timeline.hierarchy.add", start=0, end=7.8, level=2)
+        root = get_hierarchy(tlui, 40, 2)
+        target = get_hierarchy(tlui, 0, 2)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+        commands.execute("timeline.component.paste_complete")
+
+        _, right = sorted(target.children)
+
         assert right.end == target.end
 
     def test_paste_complete_keeps_grandchild_boundaries_exact(self, tlui):
