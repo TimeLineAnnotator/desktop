@@ -43,6 +43,8 @@ except ImportError:
     pass
 
 pytest_plugins = [
+    "pytester",
+    "tests.garbage_collection",
     "tests.timelines.hierarchy.fixtures",
     "tests.timelines.marker.fixtures",
     "tests.timelines.beat.fixtures",
