@@ -453,3 +453,65 @@ class TestDominantSeventhFlatNinth:
         assert harmony.get_data("quality") == "dominant-seventh-flat-ninth"
         assert harmony.get_data("inversion") == 3
         assert harmony.label == "C7((b9))/B`b"
+
+
+class TestAddedToneQualities:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    @pytest.mark.parametrize(
+        "quality, listed_after, inversions",
+        [
+            (
+                "dominant-seventh-added-thirteenth",
+                "dominant-seventh-flat-thirteenth",
+                3,
+            ),
+            ("dominant-ninth-sharp-eleventh", "dominant-ninth", 4),
+            ("major-added-ninth", "major", 2),
+        ],
+    )
+    def test_inspector_offers_it_after_its_base(
+        self, quality, listed_after, inversions, qtui, harmony_tlui
+    ):
+        add_harmony(quality=quality)
+        click_harmony_ui(harmony_tlui.harmonies()[0])
+        commands.execute("timeline.element.inspect")
+        inspector = qtui._windows[WindowKind.INSPECT]
+
+        quality_combo = inspector.field_name_to_widgets["Quality"][1]
+        index = quality_combo.findData(quality)
+        assert quality_combo.itemData(index - 1) == listed_after
+        inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
+        assert inversion_combo.count() == inversions + 1
+
+    @pytest.mark.parametrize(
+        "quality",
+        [
+            "dominant-seventh-sharp-ninth",
+            "dominant-seventh-sharp-eleventh",
+            "dominant-seventh-flat-thirteenth",
+            "dominant-seventh-added-thirteenth",
+            "dominant-ninth-sharp-eleventh",
+            "major-seventh-sharp-eleventh",
+            "major-seventh-added-sixth",
+            "major-sixth-added-ninth",
+            "minor-sixth-added-ninth",
+            "major-added-ninth",
+            "minor-added-ninth",
+            "minor-seventh-added-eleventh",
+        ],
+    )
+    def test_survives_save_and_reopen(self, quality, harmony_tlui, tluis, tmp_path):
+        add_harmony(quality=quality, inversion=1, display_mode="letter")
+        label = harmony_tlui.harmonies()[0].label
+
+        save_and_reopen(tmp_path)
+
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        harmony = reloaded_tlui.harmonies()[0]
+        assert harmony.get_data("quality") == quality
+        assert harmony.get_data("inversion") == 1
+        assert harmony.label == label

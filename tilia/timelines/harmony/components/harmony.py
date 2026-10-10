@@ -217,8 +217,14 @@ def _get_music21_object_from_text(
 
 
 def _spell_added_tone(text: str) -> str:
-    """Spell an added tone as music21 reads it: "C7(b9)" as "C7b9"."""
-    return re.sub(r"\(([b#])(\d+)\)", r"\1\2", text)
+    """
+    Spell an added tone as music21 reads it: "C7(b9)" as "C7b9", and "C(9)",
+    "C(add9)" and "C6/9" with "add", as "Cadd9" and "C6add9".
+    """
+    text = text.replace("6/9", "6add9")
+    return re.sub(
+        r"\((?:add)?([b#]?)(\d+)\)", lambda match: (match[1] or "add") + match[2], text
+    )
 
 
 def _get_added_tone(symbol: music21.harmony.ChordSymbol) -> str:

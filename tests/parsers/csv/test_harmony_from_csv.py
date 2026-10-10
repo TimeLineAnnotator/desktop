@@ -39,6 +39,7 @@ TEST_HARMONY_PARAMETERS = [
     ("Dm", 1, 0, "minor"),
     ("Ebo7", 2, -1, "diminished-seventh"),
     ("Bb7b9", 6, -1, "dominant-seventh-flat-ninth"),
+    ("F#7#9", 3, 1, "dominant-seventh-sharp-ninth"),
 ]
 
 TEST_MODE_PARAMETERS = [
@@ -55,6 +56,9 @@ class TestByTime:
             ("C#", 0, 1, "major"),
             ("C7b9", 0, 0, "dominant-seventh-flat-ninth"),
             ("V7b9", 4, 0, "dominant-seventh-flat-ninth"),
+            ("C6/9", 0, 0, "major-sixth-added-ninth"),
+            ("Dm7(11)", 1, 0, "minor-seventh-added-eleventh"),
+            ("Iadd9", 0, 0, "major-added-ninth"),
         ],
     )
     def test_harmony_by_time(self, symbol, step, accidental, quality, harmony_tl):

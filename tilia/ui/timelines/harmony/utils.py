@@ -132,7 +132,11 @@ def format_added_tone(tone: str) -> str:
     Write a quality's added tone in raised parentheses, as a seventh-flat-five
     writes its flat fifth: "((b9))". Return "" for no tone.
     """
-    return f"(({tone}))" if tone else ""
+    if not tone:
+        return ""
+    # In raised parentheses, MusAnalysis draws "11" over the closing
+    # parenthesis. A zero-width non-joiner between the two 1s keeps them apart.
+    return "((" + tone.replace("11", "1\u200c1") + "))"
 
 
 def _fmt_mod(mod: str | None, none_str: str = "") -> str:
