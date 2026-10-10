@@ -11,6 +11,9 @@ from tilia.ui.commands import get_qaction
 FLAT_SIGN = "`b"
 SHARP_SIGN = "`#"
 
+MAJOR = {"step": 0, "accidental": 0, "type": "major"}  # C major
+MINOR = {"step": 5, "accidental": 0, "type": "minor"}  # A minor
+
 
 def add_harmony(time: float | None = None, **kwargs):
     default_params = {
@@ -209,6 +212,81 @@ class TestRomanNumeralDisplay:
         )
         label = harmony_tlui.harmonies()[0].label
         assert label  # no crash, non-empty
+
+    @pytest.mark.parametrize(
+        "mode,step,accidental,quality,expected",
+        [
+            (MAJOR, 0, 0, "major-seventh", "I7"),  # Cmaj7
+            (MAJOR, 3, 0, "major-seventh", "IV7"),  # Fmaj7
+            (MAJOR, 0, 0, "major-13th", "I13"),  # Cmaj13
+            (MINOR, 3, 0, "major-seventh", "VI7"),  # Fmaj7
+            (MINOR, 0, 0, "major-seventh", "III7"),  # Cmaj7
+            (MINOR, 5, 0, "minor-major-seventh", "i#7"),  # Am(maj7): G# not in key
+            (MAJOR, 4, 0, "dominant-seventh", "V7"),  # G7
+            (MAJOR, 0, 0, "dominant-seventh", "Ib7"),  # C7: Bb not in key
+            (MAJOR, 6, 0, "diminished-seventh", "viiob7"),  # Bo7: Ab not in key
+            (MINOR, 4, 1, "diminished-seventh", "`#viio7"),  # G#o7: F in key
+            (MAJOR, 0, 0, "half-diminished-minor-ninth", "io\\b9"),  # Db not in key
+            (MAJOR, 6, 0, "half-diminished-minor-ninth", "viio\\9"),  # C in key
+        ],
+    )
+    def test_root_position_figure_is_the_extension_as_the_key_gives_it(
+        self, mode, step, accidental, quality, expected, harmony_tlui
+    ):
+        # As in the inversions' figures, the number stands for the interval
+        # above the bass that the key gives, so a seventh that is in the key
+        # needs no mark and one that isn't takes an accidental.
+        add_mode(**mode)
+        add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "quality",
+        [
+            "major-seventh",
+            "minor-major-seventh",
+            "augmented-major-seventh",
+            "minor-major-ninth",
+            "augmented-major-ninth",
+            "augmented-dominant-ninth",
+            "major-11th",
+            "major-13th",
+            "minor-major-13th",
+        ],
+    )
+    def test_root_position_has_no_major_seventh_triangle(self, quality, harmony_tlui):
+        # The triangle ("^^") is chord-symbol notation (C△7); a Roman numeral
+        # shows the same seventh with its figure.
+        add_harmony(quality=quality)
+
+        assert "^^" not in harmony_tlui.harmonies()[0].label
+
+    @pytest.mark.parametrize("inversion,expected", [(1, "I65"), (2, "I43"), (3, "I42")])
+    def test_major_seventh_inversions_show_plain_figures(
+        self, inversion, expected, harmony_tlui
+    ):
+        add_harmony(quality="major-seventh", inversion=inversion)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "step,accidental,quality,applied_to,expected",
+        [
+            (0, 0, "dominant-seventh", 3, "V7/IV"),  # C7: Bb is in F major
+            (3, 1, "diminished-seventh", 4, "viio7/V"),  # F#o7
+        ],
+    )
+    def test_applied_chord_root_position_figure_has_no_accidental(
+        self, step, accidental, quality, applied_to, expected, harmony_tlui
+    ):
+        # Like the numeral, the figure would need the key the chord is applied
+        # to; measured against the main key, V7/IV would read Vb7/IV.
+        add_harmony(
+            step=step, accidental=accidental, quality=quality, applied_to=applied_to
+        )
+
+        assert harmony_tlui.harmonies()[0].label == expected
 
 
 class TestLetterSymbolLabel:
