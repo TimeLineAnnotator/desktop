@@ -1003,6 +1003,38 @@ class TestUndoRedo:
             display.assert_called_once()
             assert len(target.children) == 1
 
+    @pytest.mark.parametrize(
+        "refusal", ["nothing selected", "more than one copied", "different level"]
+    )
+    def test_refused_paste_complete_keeps_redo_history(self, tlui, refusal):
+        # A paste-complete refused before it has changed anything must not be
+        # recorded, or the empty undo step would discard the redo history.
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("timeline.hierarchy.add", start=0, end=2, level=2)
+        commands.execute("timeline.hierarchy.add", start=2, end=3, level=2)
+        commands.execute("edit.undo")
+
+        tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 1).id))
+        if refusal == "more than one copied":
+            tlui.select_element(tlui.get_element(get_hierarchy(tlui, 1, 1).id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        if refusal != "nothing selected":
+            tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 2).id))
+
+        with patch("tilia.errors.display") as display:
+            commands.execute("timeline.component.paste_complete")
+
+        assert all(
+            call.args[0] == tilia.errors.COMPONENTS_PASTE_ERROR
+            for call in display.call_args_list
+        )
+        assert len(tlui) == 3
+
+        commands.execute("edit.redo")
+        assert len(tlui) == 4
+
 
 class TestCreateChild:
     def test_create_child(self, tlui, tluis):
