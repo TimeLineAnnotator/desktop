@@ -2,6 +2,7 @@ import pytest
 
 from tilia.requests import Post, post
 from tilia.settings import settings
+from tilia.ui.enums import ScrollType
 from tilia.ui.windows import WindowKind
 
 
@@ -25,3 +26,11 @@ def test_changing_and_applying_a_setting_takes_effect(settings_window, range_tlu
     assert settings.get("range_timeline", "default_row_height") == new_height
     # ...and applying it took effect on an already-open timeline.
     assert range_tlui.default_row_height == new_height
+
+
+def test_auto_scroll_is_chosen_from_its_options(settings_window):
+    widget = settings_window.settings["general"]["auto-scroll"]
+    widget.setCurrentText("Continuous")
+    settings_window.apply_fields()
+
+    assert settings.get("general", "auto-scroll") is ScrollType.CONTINUOUS
