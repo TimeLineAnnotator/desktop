@@ -4,14 +4,12 @@ from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import Get, Post, get, post
+from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
-from tilia.ui.timelines.harmony.constants import (
-    INT_TO_NOTE_NAME,
-    Accidental,
-)
+from tilia.ui.timelines.harmony.constants import Accidental
 from tilia.ui.timelines.harmony.context_menu import ModeContextMenu
 from tilia.ui.timelines.harmony.elements import mode_attrs
 
