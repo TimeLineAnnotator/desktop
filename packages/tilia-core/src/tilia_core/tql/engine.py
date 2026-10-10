@@ -132,7 +132,10 @@ def run(
 
     ``max_matches`` and ``time_limit`` (seconds) are no limit when None; setting
     the ``cancel`` event, from any thread, stops the run too, and interrupts a
-    statement that is running. The time limit
+    statement that is running. ``max_matches`` means some N matches: the search
+    stops once N are found, and which N depends on the order the lanes are
+    searched in, so they are not necessarily the first N of the full result;
+    the rows of the matches kept are ordered by file and time. The time limit
     bounds the search and the warnings about the query's chord and key
     literals; building the rows of the matches found takes time in proportion
     to their number, and only a ``cancel`` that comes while they are built ends
@@ -383,8 +386,9 @@ def _pattern_matches(
     limits: Limits,
 ) -> tuple[list[Match], str | None]:
     """The matches of a sequence or relation pattern in every file, those that
-    meet ``WHERE`` only, in file and time order, and why the search stopped
-    early, if it did."""
+    meet ``WHERE`` only, sorted by file and time, and why the search stopped
+    early, if it did. When ``max_matches`` stopped it, these are some
+    ``max_matches`` matches, not the first ones of the full result."""
     marked = query.has_target
     single = names.is_single(query)
     needs = names.time_needs(query)

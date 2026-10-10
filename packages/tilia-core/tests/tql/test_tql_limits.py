@@ -296,6 +296,32 @@ class TestRowsAfterAStop:
         assert [r["label"] for r in got.rows] == ["a"] * 4
 
 
+class TestMaxMatchesIsSomeMatches:
+    def test_the_kept_matches_are_not_the_first_of_the_full_result(self):
+        """``max_matches`` means some N matches, not the first N: the search
+        stops after N are found, and which N depends on the order the lanes are
+        searched in (here the level 1 lane first), not on file and time order.
+        The library must word it so."""
+        index = fixture_index.build_index(FIXTURES["exposition"])
+        full = tql.run(index, "* IN form")
+        assert [r["label"] for r in full.rows[:3]] == [
+            "presentation",
+            "MT",
+            "exposition",
+        ]
+        got = tql.run(index, "* IN form", max_matches=3)
+        assert got.stopped == "max_matches"
+        assert len(got.matches) == len(got.rows) == 3
+        assert set(keys(got)) <= set(keys(full))
+        assert {m.lane_level for m in got.matches} == {1}
+        assert keys(got) != keys(full)[:3]
+
+    def test_the_rows_of_the_kept_matches_are_in_file_and_time_order(self):
+        index = fixture_index.build_index(FIXTURES["exposition"])
+        got = tql.run(index, "* IN form", max_matches=3)
+        assert [r["start"] for r in got.rows] == sorted(r["start"] for r in got.rows)
+
+
 class TestWarningsPass:
     def test_a_cancel_set_before_the_run_resolves_no_lane(
         self, harmony_index, monkeypatch
