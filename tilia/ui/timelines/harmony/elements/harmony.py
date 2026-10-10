@@ -8,14 +8,18 @@ from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import Get, Post, get, post
-from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME, INT_TO_ROMAN
+from tilia.timelines.harmony.constants import (
+    INT_TO_NOTE_NAME,
+    INT_TO_ROMAN,
+    split_added_tone,
+)
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
 from tilia.ui.timelines.harmony.context_menu import HarmonyContextMenu
-from tilia.ui.timelines.harmony.utils import to_roman_numeral
+from tilia.ui.timelines.harmony.utils import format_added_tone, to_roman_numeral
 
 from . import harmony_attrs
 
@@ -68,10 +72,13 @@ class HarmonyUI(TimelineUIElement):
 
     @property
     def letter_symbol(self):
+        # A quality with an added tone is built as its base quality, which
+        # music21 can invert. The label adds the tone.
+        quality, _ = split_added_tone(self.get_data("quality"))
         note = (
             INT_TO_NOTE_NAME[self.get_data("step")]
             + Accidental.get_from_int("music21", self.get_data("accidental"))
-            + QUALITY_TO_ABBREVIATION[self.get_data("quality")]
+            + QUALITY_TO_ABBREVIATION[quality]
         )
         try:
             symbol = music21.harmony.ChordSymbol(
@@ -127,7 +134,8 @@ class HarmonyUI(TimelineUIElement):
     def letter_symbol_label(self):
         symbol = self.letter_symbol
         figure = symbol.figure
-        match self.get_data("quality"):
+        quality, added_tone = split_added_tone(self.get_data("quality"))
+        match quality:
             case "Italian":
                 return "It6+"
             case "French":
@@ -151,6 +159,10 @@ class HarmonyUI(TimelineUIElement):
                 Accidental.get_from_int("musanalysis", accidental),
             )
 
+        # Added after the root's accidental is converted, as the tone's
+        # accidental may be the same sign.
+        figure += format_added_tone(added_tone)
+
         if self.get_data("inversion"):
             bass = symbol.bass()
             bass_accidental = Accidental.get_from_int("musanalysis", int(bass.alter))
@@ -161,7 +173,7 @@ class HarmonyUI(TimelineUIElement):
         figure = figure.replace("M11", "^^11")
         figure = figure.replace("M13", "^^13")
 
-        if "11th" in self.get_data("quality"):
+        if "11th" in quality:
             figure += "   "
 
         return figure

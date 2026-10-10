@@ -454,3 +454,61 @@ class TestKeysRowVisibility:
         show_keys_action.trigger()
 
         assert marker_tlui.view.y() > y_after_hide
+
+
+class TestDominantSeventhFlatNinthLabel:
+    # The dominant seventh's label, then the flat ninth in raised parentheses.
+    @pytest.mark.parametrize(
+        "inversion, figure", [(0, "7"), (1, "65"), (2, "43"), (3, "42")]
+    )
+    def test_roman(self, inversion, figure, harmony_tlui):
+        add_harmony(step=4, quality="dominant-seventh-flat-ninth", inversion=inversion)
+
+        assert harmony_tlui.harmonies()[0].label == f"V{figure}((b9))"
+
+    @pytest.mark.parametrize("inversion", [0, 1, 2, 3])
+    def test_roman_in_minor_has_the_dominant_sevenths_figures(
+        self, inversion, harmony_tlui
+    ):
+        # In A minor, E7's figures show its raised third, G sharp.
+        add_mode(**MINOR)
+        add_harmony(1, step=2, quality="dominant-seventh", inversion=inversion)
+        add_harmony(
+            2, step=2, quality="dominant-seventh-flat-ninth", inversion=inversion
+        )
+
+        labels = {h.get_data("time"): h.label for h in harmony_tlui.harmonies()}
+        assert labels[2] == labels[1] + "((b9))"
+
+    def test_roman_applied(self, harmony_tlui):
+        add_harmony(step=0, quality="dominant-seventh-flat-ninth", applied_to=3)
+
+        assert harmony_tlui.harmonies()[0].label == "V7((b9))/IV"
+
+    @pytest.mark.parametrize(
+        "inversion, expected",
+        [
+            (0, "C7((b9))"),
+            (1, "C7((b9))/E"),
+            (2, "C7((b9))/G"),
+            (3, "C7((b9))/B`b"),
+        ],
+    )
+    def test_letter(self, inversion, expected, harmony_tlui):
+        add_harmony(
+            display_mode="letter",
+            quality="dominant-seventh-flat-ninth",
+            inversion=inversion,
+        )
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    def test_letter_on_flat_root(self, harmony_tlui):
+        add_harmony(
+            display_mode="letter",
+            step=6,
+            accidental=-1,
+            quality="dominant-seventh-flat-ninth",
+        )
+
+        assert harmony_tlui.harmonies()[0].label == "B`b7((b9))"
