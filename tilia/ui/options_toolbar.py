@@ -16,7 +16,7 @@ class OptionsToolbar(QToolBar):
         for option in ScrollType.get_option_list():
             self.combobox.addItem(option.title())
         self.combobox.setCurrentText(
-            ScrollType.get_str_from_enum(settings.get("general", "auto-scroll"))
+            ScrollType.get_str_from_enum(ScrollType(settings.get("general", "auto-scroll")))
         )
         self.combobox.currentTextChanged.connect(self.on_state_changed)
         self.addWidget(self.combobox)
@@ -28,12 +28,12 @@ class OptionsToolbar(QToolBar):
 
     def on_state_changed(self, option):
         scroll_type = ScrollType.get_enum_from_str(option)
-        settings.set("general", "auto-scroll", scroll_type)
+        settings.set("general", "auto-scroll", scroll_type.value)
         post(Post.TIMELINES_AUTO_SCROLL_UPDATE, scroll_type)
 
     def on_settings_updated(self, updated_settings: list[str]):
         if "general" in updated_settings:
-            scroll_type = settings.get("general", "auto-scroll")
+            scroll_type = ScrollType(settings.get("general", "auto-scroll"))
             self.combobox.blockSignals(True)
             self.combobox.setCurrentText(ScrollType.get_str_from_enum(scroll_type))
             post(Post.TIMELINES_AUTO_SCROLL_UPDATE, scroll_type)
