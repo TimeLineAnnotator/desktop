@@ -4,6 +4,7 @@ from tilia.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
     INT_TO_ROMAN,
     NOTE_NAME_TO_INT,
+    split_added_tone,
 )
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
 
@@ -124,6 +125,14 @@ def _root_position_suffix(
     modifier = figures[idx][1] if idx is not None else None
     accidental = _LONE_FIGURE_ACCIDENTAL.get(modifier, _fmt_mod(modifier))
     return prefix + accidental + str(number)
+
+
+def format_added_tone(tone: str) -> str:
+    """
+    Write a quality's added tone in raised parentheses, as a seventh-flat-five
+    writes its flat fifth: "((b9))". Return "" for no tone.
+    """
+    return f"(({tone}))" if tone else ""
 
 
 def _fmt_mod(mod: str | None, none_str: str = "") -> str:
@@ -321,6 +330,8 @@ def to_roman_numeral(
     applied_to: int,
     inversion: int,
 ) -> str:
+    # A quality with an added tone is written as its base quality, then the tone.
+    quality, added_tone = split_added_tone(quality)
     if result := _handle_special_qualities(quality):
         return result
 
@@ -362,6 +373,7 @@ def to_roman_numeral(
         if quality_suffix is None:
             quality_suffix = (suffix_table[0] if suffix_table else "") or ""
 
+    quality_suffix += format_added_tone(added_tone)
     applied_to_suffix = INT_TO_APPLIED_TO_SUFFIX[applied_to]
 
     if "11th" in quality:

@@ -5,7 +5,29 @@ HARMONY_DISPLAY_MODES = ["letter", "roman", "custom"]
 HARMONY_ACCIDENTALS = [2, 1, 0, -1, -2]
 MODE_TYPES = [m for m in _m21k.modeSharpsAlter.keys() if m not in ("ionian", "aeolian")]
 FONT_TYPES = ["analytic", "normal"]
-HARMONY_QUALITIES = list(_m21h.CHORD_TYPES.keys())
+
+# Qualities that music21 has no chord type for, each a chord type it has plus
+# one added tone. The tone is spelled as in a chord symbol, from the root: the
+# flat ninth of E7 is F, whatever the key.
+ADDED_TONE_QUALITIES = {
+    "dominant-seventh-flat-ninth": ("dominant-seventh", "b9"),
+}
+
+
+def split_added_tone(quality: str) -> tuple[str, str]:
+    """Return the quality's base quality and added tone, or the quality and ""."""
+    return ADDED_TONE_QUALITIES.get(quality, (quality, ""))
+
+
+def _list_harmony_qualities() -> list[str]:
+    # Each added-tone quality comes right after its base quality.
+    qualities = list(_m21h.CHORD_TYPES)
+    for quality, (base, _) in reversed(ADDED_TONE_QUALITIES.items()):
+        qualities.insert(qualities.index(base) + 1, quality)
+    return qualities
+
+
+HARMONY_QUALITIES = _list_harmony_qualities()
 
 NOTE_NAME_TO_INT = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
 INT_TO_NOTE_NAME = {v: k for k, v in NOTE_NAME_TO_INT.items()}
@@ -72,6 +94,8 @@ _NO_INVERSION_QUALITIES = frozenset(
 def get_inversion_amount(quality: str) -> int:
     if quality not in HARMONY_QUALITIES:
         raise ValueError(f'Invalid harmony quality "{quality}"')
+    # An added tone is not one the chord can be inverted to.
+    quality, _ = split_added_tone(quality)
     if quality in _NO_INVERSION_QUALITIES:
         return 0
     intervals_str = str(_m21h.CHORD_TYPES[quality][0])  # type: ignore[index]

@@ -1,6 +1,8 @@
 import music21.harmony
 import music21.pitch
 
+from tilia.timelines.harmony.constants import ADDED_TONE_QUALITIES
+
 ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
 
 
@@ -51,4 +53,11 @@ STEP_TO_PITCH_CLASS = {
 
 QUALITY_TO_ABBREVIATION = {
     qlt: data[1][0] for qlt, data in music21.harmony.CHORD_TYPES.items()
+}
+# An altered tone follows its base's abbreviation, as in "C7b9", and any
+# other follows "add", as in "Cadd9".
+QUALITY_TO_ABBREVIATION |= {
+    quality: QUALITY_TO_ABBREVIATION[base]
+    + (tone if tone.startswith(("b", "#")) else "add" + tone)
+    for quality, (base, tone) in ADDED_TONE_QUALITIES.items()
 }

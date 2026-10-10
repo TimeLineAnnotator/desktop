@@ -9,6 +9,7 @@ from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_string, validate_time
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.constants import (
+    ADDED_TONE_QUALITIES,
     CHORD_COMMON_NAME_TO_TYPE,
     NOTE_NAME_TO_INT,
     ROMAN_TO_INT,
@@ -104,7 +105,7 @@ class Harmony(PointLikeTimelineComponent):
     def from_string(
         cls, time: float, string: str, key: music21.key.Key | str = "C major"
     ):
-        music21_object, object_type = _get_music21_object_from_text(
+        music21_object, object_type, added_tone = _get_music21_object_from_text(
             string, key.__str__()
         )
 
@@ -116,7 +117,9 @@ class Harmony(PointLikeTimelineComponent):
                 "Can't create harmony: can't create music21 object from '{string}'"
             )
 
-        params = _get_params_from_music21_object(music21_object, object_type)
+        params = _get_params_from_music21_object(
+            music21_object, object_type, added_tone
+        )
         return Harmony(*params)
 
     def validate_set_data(self, attr: str, value: Any) -> bool:
@@ -135,11 +138,15 @@ class Harmony(PointLikeTimelineComponent):
 
 
 def get_params_from_text(text: str, key: str):
-    music21_object, object_type = _get_music21_object_from_text(text, key)
+    music21_object, object_type, added_tone = _get_music21_object_from_text(text, key)
     if not object_type:
         return False, None
 
-    params = _get_params_from_music21_object(music21_object, object_type)
+    params = _get_params_from_music21_object(music21_object, object_type, added_tone)
+    if added_tone and params["inversion"] > get_inversion_amount(params["quality"]):
+        # The added tone is in the bass, as in "C7b9/Db". No inversion puts it
+        # there.
+        return False, None
     return True, params
 
 
@@ -159,36 +166,107 @@ def _replace_special_abbreviations(text):
     return text
 
 
+_BASE_AND_TONE_TO_QUALITY = {
+    base_and_tone: quality for quality, base_and_tone in ADDED_TONE_QUALITIES.items()
+}
+
+_ALTERATION_TO_ACCIDENTAL = {-1: "b", 0: "", 1: "#"}
+
+
 def _get_music21_object_from_text(
     text: str, key: str
 ) -> (
-    tuple[music21.harmony.ChordSymbol | music21.roman.RomanNumeral, str]
-    | tuple[None, None]
+    tuple[music21.harmony.ChordSymbol | music21.roman.RomanNumeral, str, str]
+    | tuple[None, None, str]
 ):
+    """
+    Return the music21 object for the text, its kind, and the tone the text
+    adds to the object's quality, or "" if they are no added-tone quality.
+    """
     text, prefixed_accidental = _extract_prefixed_accidental(text)
     text = _format_postfix_accidental(text)
     text = _replace_special_abbreviations(text)
     if text.startswith(tuple(NOTE_NAME_TO_INT)) and not prefixed_accidental:
+        spelled = _spell_added_tone(text)
         try:
-            return music21.harmony.ChordSymbol(text), "letter"
+            symbol = music21.harmony.ChordSymbol(spelled)
+            added_tone = _get_added_tone(symbol)
+            # music21 reads no parentheses, so a text that needed respelling
+            # is read only as an added-tone quality: "C7(b9)" is read, while
+            # "Cm7(b9)" is refused, as before.
+            if added_tone or spelled == text:
+                return symbol, "letter", added_tone
         # This is a bare expect because I don't know
         # exactly what exceptions music21 can throw.
         except:  # noqa
             pass
     elif text.startswith(("I", "i", "V", "v")):
+        # music21 reads a tone after a Roman numeral's figures as another
+        # figure, so the numeral is read without it.
+        text, added_tone = _split_roman_added_tone(text)
         try:
             roman_numeral = music21.roman.RomanNumeral(prefixed_accidental + text, key)
-            if roman_numeral.commonName not in CHORD_COMMON_NAME_TO_TYPE:
-                raise KeyError(roman_numeral.commonName)
-            return roman_numeral, "roman"
+            quality = CHORD_COMMON_NAME_TO_TYPE[roman_numeral.commonName]
+            if added_tone and (quality, added_tone) not in _BASE_AND_TONE_TO_QUALITY:
+                raise KeyError(added_tone)
+            return roman_numeral, "roman", added_tone
         except (ValueError, KeyError):
             pass
 
-    return None, None
+    return None, None, ""
+
+
+def _spell_added_tone(text: str) -> str:
+    """Spell an added tone as music21 reads it: "C7(b9)" as "C7b9"."""
+    return re.sub(r"\(([b#])(\d+)\)", r"\1\2", text)
+
+
+def _get_added_tone(symbol: music21.harmony.ChordSymbol) -> str:
+    """
+    Return the tone the chord symbol adds to its chord type, as "b9", if
+    together they are an added-tone quality. Otherwise return "", and the
+    chord symbol is read as its chord type, as before.
+    """
+    modifications = symbol.chordStepModifications
+    if len(modifications) != 1 or modifications[0].modType != "add":
+        return ""
+    modification = modifications[0]
+    alteration = modification.interval.semitones if modification.interval else 0
+    accidental = _ALTERATION_TO_ACCIDENTAL.get(alteration)
+    if accidental is None:
+        return ""
+    tone = accidental + str(modification.degree)
+    return tone if (symbol.chordKind, tone) in _BASE_AND_TONE_TO_QUALITY else ""
+
+
+# A tone added after a Roman numeral's figures: "V7b9", "V65(b9)". A tone
+# without an accidental needs "add" or parentheses, since "V9" is a ninth
+# chord and "I6" an inversion.
+_ROMAN_ADDED_TONE_PATTERNS = (
+    re.compile(r"\((?:add)?([b#]?)(\d+)\)$"),
+    re.compile(r"add([b#]?)(\d+)$"),
+    re.compile(r"([b#])(9|11|13)$"),
+)
+
+
+def _split_roman_added_tone(text: str) -> tuple[str, str]:
+    """Split "V7b9/IV" into "V7/IV" and "b9". The tone is "" if there is none."""
+    numeral, slash, applied_to = text.partition("/")
+    for pattern in _ROMAN_ADDED_TONE_PATTERNS:
+        if match := pattern.search(numeral):
+            accidental, degree = match.groups()
+            numeral = numeral[: match.start()]
+            if accidental and not numeral[-1:].isdigit():
+                # An altered tone is added to a seventh chord: "Vb9" is "V7b9".
+                numeral += "7"
+            return numeral + slash + applied_to, accidental + degree
+    return text, ""
 
 
 def _get_params_from_music21_object(
-    obj: music21.harmony.ChordSymbol | music21.roman.RomanNumeral, kind: str
+    obj: music21.harmony.ChordSymbol | music21.roman.RomanNumeral,
+    kind: str,
+    added_tone: str = "",
 ) -> dict:
     step = NOTE_NAME_TO_INT[obj.root().step]
     accidental = int(obj.root().alter)
@@ -203,6 +281,8 @@ def _get_params_from_music21_object(
     else:
         quality = obj.chordKind
         applied_to = 0
+    if added_tone:
+        quality = _BASE_AND_TONE_TO_QUALITY[quality, added_tone]
 
     return {
         "step": step,

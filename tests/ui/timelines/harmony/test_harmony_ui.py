@@ -421,3 +421,35 @@ class TestInvalidInversionInspectorEdit:
 
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("chord quality")
+
+
+class TestDominantSeventhFlatNinth:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def test_inspector_offers_it_after_dominant_seventh(self, qtui, harmony_tlui):
+        add_harmony(quality="dominant-seventh-flat-ninth")
+        click_harmony_ui(harmony_tlui.harmonies()[0])
+        commands.execute("timeline.element.inspect")
+        inspector = qtui._windows[WindowKind.INSPECT]
+
+        quality_combo = inspector.field_name_to_widgets["Quality"][1]
+        index = quality_combo.findData("dominant-seventh-flat-ninth")
+        assert quality_combo.itemData(index - 1) == "dominant-seventh"
+        inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
+        assert inversion_combo.count() == 4  # inversions 0, 1, 2, 3
+
+    def test_survives_save_and_reopen(self, harmony_tlui, tluis, tmp_path):
+        add_harmony(
+            quality="dominant-seventh-flat-ninth", inversion=3, display_mode="letter"
+        )
+
+        save_and_reopen(tmp_path)
+
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        harmony = reloaded_tlui.harmonies()[0]
+        assert harmony.get_data("quality") == "dominant-seventh-flat-ninth"
+        assert harmony.get_data("inversion") == 3
+        assert harmony.label == "C7((b9))/B`b"
