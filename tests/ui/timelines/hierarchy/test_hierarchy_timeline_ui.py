@@ -6,7 +6,7 @@ from PySide6.QtGui import QColor
 
 import tilia.errors
 from tests.mock import patch_yes_or_no_dialog
-from tests.utils import get_command_names
+from tests.utils import get_command_names, undoable
 from tilia.requests import Post, post
 from tilia.settings import settings
 from tilia.timelines.hierarchy.components import Hierarchy
@@ -892,6 +892,43 @@ class TestUndoRedo:
 
         commands.execute("edit.redo")
         assert len(tlui) == 6
+
+    def test_paste_with_children_when_a_child_fails(self, tlui):
+        # A paste-complete that skips a child it couldn't create has still
+        # changed the timeline, so one undo must restore the state before the
+        # paste and redo must bring the partial paste back.
+        commands.execute("timeline.hierarchy.add", start=40, end=45, level=1)
+        commands.execute(
+            "timeline.hierarchy.add", start=45, end=70, level=1, label="fails"
+        )
+        commands.execute("timeline.hierarchy.add", start=40, end=70, level=2)
+        commands.execute("timeline.hierarchy.add", start=0, end=23.4, level=2)
+        root = get_hierarchy(tlui, 40, 2)
+        target = get_hierarchy(tlui, 0, 2)
+
+        tlui.select_element(tlui.get_element(root.id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        tlui.select_element(tlui.get_element(target.id))
+
+        create_component = tlui.timeline.create_component
+
+        def fail_labelled_child(*args, **kwargs):
+            if kwargs["label"] == "fails":
+                return None, "no room"
+            return create_component(*args, **kwargs)
+
+        with undoable():
+            with (
+                patch.object(
+                    tlui.timeline, "create_component", side_effect=fail_labelled_child
+                ),
+                patch("tilia.errors.display") as display,
+            ):
+                commands.execute("timeline.component.paste_complete")
+
+            display.assert_called_once()
+            assert len(target.children) == 1
 
 
 class TestCreateChild:
