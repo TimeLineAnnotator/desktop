@@ -130,7 +130,7 @@ class TimelineUIs:
         self.hscrollbar_is_being_dragged = False
 
     def _setup_auto_scroll(self):
-        self.auto_scroll_option = settings.get("general", "auto-scroll")
+        self.auto_scroll_option = ScrollType(settings.get("general", "auto-scroll"))
 
     def _setup_widgets(self, main_window: QMainWindow):
         self.scene = TimelineUIsScene()

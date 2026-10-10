@@ -26,7 +26,7 @@ class SettingsManager(QObject):
 
     DEFAULT_SETTINGS = {
         "general": {
-            "auto-scroll": ScrollType.OFF,
+            "auto-scroll": ScrollType.OFF.value,
             "window_width": 800,
             "window_height": 400,
             "window_x": 20,
@@ -181,15 +181,16 @@ class SettingsManager(QObject):
 
         # Only a missing value is missing. Zero, empty text and empty lists
         # are values the user chose.
-        if not self._settings.contains(key):
-            self._settings.setValue(key, default)
-            return self._as_setting(default, default)
-
+        # Both probes can raise EOFError on a pickled value (an enum) that
+        # can't be loaded after the interpreter that wrote it is gone:
+        # nothing can read it, so replace it with the default.
         try:
+            if not self._settings.contains(key):
+                self._settings.setValue(key, default)
+                return self._as_setting(default, default)
+
             stored = self._settings.value(key, None)
         except EOFError:
-            # A pickled value (an enum) that can't be loaded: nothing can read
-            # it, so replace it.
             self._settings.setValue(key, default)
             return self._as_setting(default, default)
 
