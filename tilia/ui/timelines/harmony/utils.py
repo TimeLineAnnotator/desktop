@@ -235,6 +235,14 @@ def _chord_fb(
     bass = sym.bass()
     size = _get_chord_size(quality)
 
+    if quality == "diminished-seventh":
+        # As in root position, the ° already says the seventh is diminished, so
+        # its figure takes no accidental: in C major, Bo7's first inversion is
+        # viio65.
+        seventh_idx = _figure_index_for_pitch(figures, sym.seventh, bass)
+        if seventh_idx is not None:
+            figures[seventh_idx] = (figures[seventh_idx][0], None)
+
     # Drop intermediate extensions unconditionally (always implied by chord type).
     intermediates: list[music21.pitch.Pitch | None] = []
     if size in ("ninth", "eleventh", "thirteenth"):
