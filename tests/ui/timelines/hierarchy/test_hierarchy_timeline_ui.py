@@ -1035,6 +1035,33 @@ class TestUndoRedo:
         commands.execute("edit.redo")
         assert len(tlui) == 4
 
+    @pytest.mark.parametrize("other_level", [1, 3])
+    def test_paste_complete_refused_by_one_target_changes_no_target(
+        self, tlui, other_level
+    ):
+        # A refused paste is not recorded, so it must not have changed the
+        # targets selected with the one on another level. The selection is
+        # sorted by level, so a target on level 3 is pasted into last.
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=0, end=2, level=2)
+        commands.execute("timeline.hierarchy.add", start=2, end=4, level=2)
+        commands.execute("timeline.hierarchy.add", start=5, end=6, level=other_level)
+
+        tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 2).id))
+        commands.execute("timeline.component.copy")
+        tlui.deselect_all_elements()
+        same_level = tlui.get_element(get_hierarchy(tlui, 2, 2).id)
+        tlui.select_element(same_level)
+        tlui.select_element(tlui.get_element(get_hierarchy(tlui, 5, other_level).id))
+
+        with patch("tilia.errors.display") as display:
+            commands.execute("timeline.component.paste_complete")
+
+        display.assert_called_once()
+        assert "different level" in display.call_args.args[1]
+        assert not same_level.get_data("children")
+        assert len(tlui) == 4
+
 
 class TestCreateChild:
     def test_create_child(self, tlui, tluis):

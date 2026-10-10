@@ -334,13 +334,16 @@ class HierarchyTimelineUI(TimelineUI):
             return False
 
         data = copied_components[0]
-        fail_reasons = []
+        # Every target is checked before any is changed, so that a refused
+        # paste has changed nothing, and needs no undo.
         for element in self.selected_elements:
             success, reason = _validate_paste_complete_level(element, data)
             if not success:
                 _display_paste_complete_error(reason)
                 return False
 
+        fail_reasons = []
+        for element in self.selected_elements:
             while children := element.get_data("children"):
                 self.timeline.delete_components(children)
 
