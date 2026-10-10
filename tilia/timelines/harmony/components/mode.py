@@ -7,6 +7,7 @@ import music21
 from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_string, validate_time
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME, NOTE_NAME_TO_INT
 from tilia.timelines.harmony.validators import (
     validate_accidental,
     validate_level,
@@ -63,13 +64,9 @@ class Mode(PointLikeTimelineComponent):
 
     @property
     def key(self):
-        # TODO: these are local imports only because the constants live in the
-        # UI folder and importing them at module level would cause a circular.
-        # Move the constants out of `tilia/ui/` so this can become a top-level import.
-        from tilia.ui.timelines.harmony.constants import INT_TO_NOTE_NAME, Accidental
-
-        tonic = INT_TO_NOTE_NAME[self.step] + Accidental.get_from_int(
-            "music21", self.get_data("accidental")
+        tonic = (
+            INT_TO_NOTE_NAME[self.step]
+            + music21.pitch.Accidental(self.get_data("accidental")).modifier
         )
         return music21.key.Key(tonic, mode=self.get_data("type"))
 
@@ -91,11 +88,6 @@ def get_params_from_text(text):
 
 
 def _get_music21_object_from_text(text):
-    # TODO: these are local imports only because the constants live in the
-    # UI folder and importing them at module level would cause a circular.
-    # Move the constants out of `tilia/ui/` so this can become a top-level import.
-    from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
-
     text = _format_postfix_accidental(text)
 
     valid_initial_chars = list(NOTE_NAME_TO_INT) + list(
@@ -111,11 +103,6 @@ def _get_music21_object_from_text(text):
 
 
 def _get_params_from_music21_object(obj: music21.key.Key):
-    # TODO: these are local imports only because the constants live in the
-    # UI folder and importing them at module level would cause a circular.
-    # Move the constants out of `tilia/ui/` so this can become a top-level import.
-    from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
-
     return {
         "step": NOTE_NAME_TO_INT[obj.tonic.step],
         "accidental": int(obj.tonic.alter),

@@ -2,11 +2,12 @@ from tilia.timelines.harmony.constants import (
     FONT_TYPES,
     HARMONY_DISPLAY_MODES,
     HARMONY_QUALITIES,
+    NOTE_NAME_TO_INT,
     get_inversion_amount,
 )
 from tilia.ui.format import format_media_time
 from tilia.ui.timelines.copy_paste import CopyAttributes
-from tilia.ui.timelines.harmony.constants import ACCIDENTAL_TO_INT, NOTE_NAME_TO_INT
+from tilia.ui.timelines.harmony.constants import ACCIDENTAL_TO_INT
 from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX
 from tilia.ui.windows.inspect import InspectRowKind
 

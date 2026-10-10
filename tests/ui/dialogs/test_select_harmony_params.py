@@ -2,8 +2,8 @@ import music21.harmony
 import pytest
 
 from tilia.timelines.harmony.components.harmony import SPECIAL_ABBREVIATIONS_TO_QUALITY
+from tilia.timelines.harmony.constants import NOTE_NAME_TO_INT
 from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
-from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
 from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX
 
 
