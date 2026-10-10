@@ -1,4 +1,3 @@
-import music21
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -15,6 +14,7 @@ from tilia.timelines.harmony.components.harmony import (
 )
 from tilia.timelines.harmony.constants import (
     HARMONY_DISPLAY_MODES,
+    HARMONY_QUALITIES,
     INT_TO_NOTE_NAME,
     NOTE_NAME_TO_INT,
     get_inversion_amount,
@@ -53,7 +53,7 @@ class SelectHarmonyParams(QDialog):
 
         quality_combobox = self.quality_combobox = QComboBox()
         quality_combobox.setStyleSheet("combobox-popup: 0;")
-        for kind in reversed(music21.harmony.CHORD_TYPES):
+        for kind in reversed(HARMONY_QUALITIES):
             quality_combobox.insertItem(0, kind.replace("-", " ").capitalize(), kind)
         quality_combobox.setCurrentIndex(0)
         quality_combobox.currentIndexChanged.connect(self.on_quality_combobox_changed)
