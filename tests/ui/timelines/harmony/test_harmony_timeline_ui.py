@@ -150,7 +150,7 @@ class TestRomanNumeralDisplay:
             (0, "half-diminished-13th", 4, "io\\bb7542"),
             # Three figures, but a double accidental needs two characters and
             # overflows its single slot — same fallback.
-            (0, "diminished-seventh", 1, "iobbb653"),
+            (6, "augmented-seventh", 1, "VII##653"),
         ],
     )
     def test_roman_label_has_no_blank_accidental_placeholder(
@@ -172,7 +172,7 @@ class TestRomanNumeralDisplay:
             (1, -1, "major", 2),  # figures (6, None), (4, "-")
             (0, 0, "dominant-seventh", 1),  # figures (6, None), (5, "-")
             (0, 0, "half-diminished-13th", 4),  # four figures
-            (0, 0, "diminished-seventh", 1),  # double accidental
+            (6, 0, "augmented-seventh", 1),  # double accidental
         ],
     )
     def test_roman_label_has_no_literal_s_when_figures_carry_accidentals(
@@ -258,20 +258,30 @@ class TestRomanNumeralDisplay:
         assert harmony_tlui.harmonies()[0].label == expected
 
     @pytest.mark.parametrize(
-        "mode,step,accidental,expected",
+        "mode,step,accidental,inversion,expected",
         [
-            (MAJOR, 6, 0, "viio7"),  # Bo7: Ab not in key
-            (MAJOR, 3, 1, "`#ivo7"),  # F#o7: Eb not in key
-            (MINOR, 4, 1, "`#viio7"),  # G#o7: F in key
+            (MAJOR, 6, 0, 0, "viio7"),  # Bo7: Ab not in key
+            (MAJOR, 6, 0, 1, "viio65"),
+            (MAJOR, 6, 0, 2, "viio43"),
+            (MAJOR, 6, 0, 3, "viio42"),  # Ab in the bass
+            (MAJOR, 0, 0, 1, "io%ssb653"),  # Co7: its fifth, Gb, keeps the flat
+            (MAJOR, 3, 1, 0, "`#ivo7"),  # F#o7: Eb not in key
+            (MINOR, 4, 1, 0, "`#viio7"),  # G#o7: F in key
         ],
     )
     def test_fully_diminished_seventh_figure_has_no_accidental(
-        self, mode, step, accidental, expected, harmony_tlui
+        self, mode, step, accidental, inversion, expected, harmony_tlui
     ):
         # The ° already says the seventh is diminished, so vii°7 in a major key
-        # reads viio7, as textbooks write it, not viiob7.
+        # reads viio7 and viio65, as textbooks write them, not viiob7 and
+        # viiob65.
         add_mode(**mode)
-        add_harmony(step=step, accidental=accidental, quality="diminished-seventh")
+        add_harmony(
+            step=step,
+            accidental=accidental,
+            quality="diminished-seventh",
+            inversion=inversion,
+        )
 
         assert harmony_tlui.harmonies()[0].label == expected
 
