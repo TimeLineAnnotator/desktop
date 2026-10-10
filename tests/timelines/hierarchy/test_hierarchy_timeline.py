@@ -8,6 +8,11 @@ from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
 )
 
+# Gaps between boundaries that are real rather than float drift. The smallest
+# is far above the few ulps the boundary tolerance absorbs, so a tolerance
+# coarse enough to swallow it fails the guard tests that use these.
+REAL_GAPS = [1e-6, 0.1]
+
 
 class DummyTimelines:
     ID_ITER = itertools.count()
@@ -423,12 +428,13 @@ class TestHierarchyTimelineComponentManager:
         assert child.parent == parent
         assert parent.children == [child]
 
+    @pytest.mark.parametrize("gap", REAL_GAPS)
     def test_genealogy_ignores_candidate_that_is_genuinely_too_narrow(
-        self, hierarchy_tl
+        self, hierarchy_tl, gap
     ):
         # Guard against the tolerance being too coarse: a candidate that falls
-        # well short of the child is not its parent.
-        hierarchy_tl.create_hierarchy(0.5, 0.9, 2)
+        # short of the child by a real gap is not its parent.
+        hierarchy_tl.create_hierarchy(0.5, 1 - gap, 2)
         child, _ = hierarchy_tl.create_hierarchy(0.5, 1, 1)
 
         assert child.parent is None
@@ -534,11 +540,12 @@ class TestHierarchyTimelineComponentManager:
 
         assert not hierarchy_tl.get_boundary_conflicts()
 
+    @pytest.mark.parametrize("gap", REAL_GAPS)
     def test_get_boundary_conflicts_overlap_well_past_boundary_still_conflicts(
-        self, hierarchy_tl
+        self, hierarchy_tl, gap
     ):
         # Guard against the tolerance being too coarse.
-        h1, _ = hierarchy_tl.create_hierarchy(0, 0.6, 2)
+        h1, _ = hierarchy_tl.create_hierarchy(0, 0.5 + gap, 2)
         h2, _ = hierarchy_tl.create_hierarchy(0.5, 1, 2)
 
         assert set(hierarchy_tl.get_boundary_conflicts()[0]) == {h1, h2}
@@ -794,10 +801,11 @@ class TestGroup:
         assert hrc1.parent == hrc2.parent
         assert hrc1.parent.level == 2
 
-    def test_neighbor_end_well_inside_group_still_fails(self, hierarchy_tl):
-        # Guard against the tolerance being too coarse: a neighbor ending well
-        # inside the group is a genuine overlap and must still be rejected.
-        hierarchy_tl.create_hierarchy(start=0.0, end=0.6, level=2)
+    @pytest.mark.parametrize("gap", REAL_GAPS)
+    def test_neighbor_end_well_inside_group_still_fails(self, hierarchy_tl, gap):
+        # Guard against the tolerance being too coarse: a neighbor ending a real
+        # gap inside the group is a genuine overlap and must still be rejected.
+        hierarchy_tl.create_hierarchy(start=0.0, end=0.5 + gap, level=2)
         hrc1, _ = hierarchy_tl.create_hierarchy(start=0.5, end=0.75, level=1)
         hrc2, _ = hierarchy_tl.create_hierarchy(start=0.75, end=1.0, level=1)
 
