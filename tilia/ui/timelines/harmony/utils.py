@@ -91,7 +91,9 @@ def _root_position_suffix(
     number. As in the inversions' figures, the number stands for the interval
     the key gives, so it takes an accidental when the extension is not in the
     key: in C major, Cmaj7 is I7 and C7 is Ib7. Applied chords get no
-    accidental, as their numeral gets no accidental prefix.
+    accidental, as their numeral gets no accidental prefix. Nor does a fully
+    diminished seventh, whose ° already says its seventh is diminished: in
+    C major, Bo7 is viio7.
     """
     if quality.startswith("half-diminished"):
         prefix = "o\\"
@@ -107,7 +109,7 @@ def _root_position_suffix(
         return prefix
 
     number = _EXTENSION_NUMBERS[size]
-    if applied_to:
+    if applied_to or quality == "diminished-seventh":
         return prefix + str(number)
 
     sym = music21.harmony.ChordSymbol(note_name + QUALITY_TO_ABBREVIATION[quality])

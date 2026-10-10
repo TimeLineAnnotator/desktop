@@ -224,8 +224,6 @@ class TestRomanNumeralDisplay:
             (MINOR, 5, 0, "minor-major-seventh", "i#7"),  # Am(maj7): G# not in key
             (MAJOR, 4, 0, "dominant-seventh", "V7"),  # G7
             (MAJOR, 0, 0, "dominant-seventh", "Ib7"),  # C7: Bb not in key
-            (MAJOR, 6, 0, "diminished-seventh", "viiob7"),  # Bo7: Ab not in key
-            (MINOR, 4, 1, "diminished-seventh", "`#viio7"),  # G#o7: F in key
             (MAJOR, 0, 0, "half-diminished-minor-ninth", "io\\b9"),  # Db not in key
             (MAJOR, 6, 0, "half-diminished-minor-ninth", "viio\\9"),  # C in key
         ],
@@ -238,6 +236,24 @@ class TestRomanNumeralDisplay:
         # needs no mark and one that isn't takes an accidental.
         add_mode(**mode)
         add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "mode,step,accidental,expected",
+        [
+            (MAJOR, 6, 0, "viio7"),  # Bo7: Ab not in key
+            (MAJOR, 3, 1, "`#ivo7"),  # F#o7: Eb not in key
+            (MINOR, 4, 1, "`#viio7"),  # G#o7: F in key
+        ],
+    )
+    def test_fully_diminished_seventh_figure_has_no_accidental(
+        self, mode, step, accidental, expected, harmony_tlui
+    ):
+        # The ° already says the seventh is diminished, so vii°7 in a major key
+        # reads viio7, as textbooks write it, not viiob7.
+        add_mode(**mode)
+        add_harmony(step=step, accidental=accidental, quality="diminished-seventh")
 
         assert harmony_tlui.harmonies()[0].label == expected
 
