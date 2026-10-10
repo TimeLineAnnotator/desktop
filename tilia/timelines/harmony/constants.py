@@ -7,6 +7,34 @@ MODE_TYPES = [m for m in _m21k.modeSharpsAlter.keys() if m not in ("ionian", "ae
 FONT_TYPES = ["analytic", "normal"]
 HARMONY_QUALITIES = list(_m21h.CHORD_TYPES.keys())
 
+NOTE_NAME_TO_INT = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
+INT_TO_NOTE_NAME = {v: k for k, v in NOTE_NAME_TO_INT.items()}
+
+ROMAN_TO_INT = {
+    "I": 0,
+    "II": 1,
+    "III": 2,
+    "IV": 3,
+    "V": 4,
+    "VI": 5,
+    "VII": 6,
+}
+INT_TO_ROMAN = {v: k for k, v in ROMAN_TO_INT.items()}
+
+CHORD_COMMON_NAME_TO_TYPE = {
+    "augmented seventh chord": "augmented-seventh",
+    "half-diminished seventh chord": "half-diminished-seventh",
+    "major seventh chord": "major-seventh",
+    "augmented triad": "augmented",
+    "diminished seventh chord": "diminished-seventh",
+    "dominant seventh chord": "dominant-seventh",
+    "diminished triad": "diminished",
+    "minor seventh chord": "minor-seventh",
+    "augmented major tetrachord": "augmented-major-13th",
+    "major triad": "major",
+    "minor triad": "minor",
+}
+
 # These qualities are locked to root position: the Inspector/Add Harmony
 # dialog offer no inversion choices for them, and to_roman_numeral /
 # letter_symbol_label render a fixed string regardless of bass note.

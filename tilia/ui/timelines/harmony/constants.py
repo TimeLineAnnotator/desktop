@@ -1,17 +1,6 @@
 import music21.harmony
 import music21.pitch
 
-ROMAN_TO_INT = {
-    "I": 0,
-    "II": 1,
-    "III": 2,
-    "IV": 3,
-    "V": 4,
-    "VI": 5,
-    "VII": 6,
-}
-INT_TO_ROMAN = {v: k for k, v in ROMAN_TO_INT.items()}
-
 ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
 
 
@@ -55,9 +44,6 @@ class Accidental:
         return number_to_symbol.get(value, get_substitute())
 
 
-NOTE_NAME_TO_INT = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
-INT_TO_NOTE_NAME = {v: k for k, v in NOTE_NAME_TO_INT.items()}
-
 STEP_TO_PITCH_CLASS = {
     i: music21.pitch.Pitch(s).pitchClass
     for i, s in enumerate(["C", "D", "E", "F", "G", "A", "B"])
@@ -65,19 +51,4 @@ STEP_TO_PITCH_CLASS = {
 
 QUALITY_TO_ABBREVIATION = {
     qlt: data[1][0] for qlt, data in music21.harmony.CHORD_TYPES.items()
-}
-
-
-CHORD_COMMON_NAME_TO_TYPE = {
-    "augmented seventh chord": "augmented-seventh",
-    "half-diminished seventh chord": "half-diminished-seventh",
-    "major seventh chord": "major-seventh",
-    "augmented triad": "augmented",
-    "diminished seventh chord": "diminished-seventh",
-    "dominant seventh chord": "dominant-seventh",
-    "diminished triad": "diminished",
-    "minor seventh chord": "minor-seventh",
-    "augmented major tetrachord": "augmented-major-13th",
-    "major triad": "major",
-    "minor triad": "minor",
 }

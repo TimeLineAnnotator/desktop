@@ -15,13 +15,13 @@ from tilia.timelines.harmony.components.harmony import (
 )
 from tilia.timelines.harmony.constants import (
     HARMONY_DISPLAY_MODES,
+    INT_TO_NOTE_NAME,
+    NOTE_NAME_TO_INT,
     get_inversion_amount,
 )
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui.timelines.harmony.constants import (
     ACCIDENTAL_TO_INT,
-    INT_TO_NOTE_NAME,
-    NOTE_NAME_TO_INT,
     QUALITY_TO_ABBREVIATION,
     Accidental,
 )

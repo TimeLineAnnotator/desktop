@@ -1,12 +1,11 @@
 import music21
 
-from tilia.ui.timelines.harmony.constants import (
+from tilia.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
     INT_TO_ROMAN,
     NOTE_NAME_TO_INT,
-    QUALITY_TO_ABBREVIATION,
-    Accidental,
 )
+from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
 
 
 def _handle_special_qualities(quality: str) -> str | None:
