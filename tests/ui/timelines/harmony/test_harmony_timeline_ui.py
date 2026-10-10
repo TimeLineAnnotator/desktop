@@ -240,6 +240,24 @@ class TestRomanNumeralDisplay:
         assert harmony_tlui.harmonies()[0].label == expected
 
     @pytest.mark.parametrize(
+        "mode,step,accidental,quality,expected",
+        [
+            (MINOR, 4, 1, "major-seventh", "`#VII^x7"),  # G#maj7: F## for F
+            (MAJOR, 0, -1, "dominant-seventh", "`bIb\u200cb7"),  # Cb7: Bbb for B
+        ],
+    )
+    def test_root_position_figure_double_accidental_is_drawn_raised(
+        self, mode, step, accidental, quality, expected, harmony_tlui
+    ):
+        # MusAnalysis raises a lone "#" or "b" beside the figure, but reads "##"
+        # or "bb" as the accidentals of a two-figure stack and drops the second
+        # one below the first.
+        add_mode(**mode)
+        add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
         "mode,step,accidental,expected",
         [
             (MAJOR, 6, 0, "viio7"),  # Bo7: Ab not in key

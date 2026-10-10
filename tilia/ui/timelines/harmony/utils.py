@@ -82,6 +82,13 @@ def _get_chord_size(quality: str) -> str | None:
 
 _EXTENSION_NUMBERS = {"seventh": 7, "ninth": 9, "eleventh": 11, "thirteenth": 13}
 
+# MusAnalysis raises a lone "#" or "b" beside a figure, but reads two in a row
+# as the accidentals of a two-figure stack and drops the second below the
+# first. So a lone figure's double sharp is a raised x ("^x", as a numeral's is
+# "`x"), and its double flat's two flats are kept apart by a zero-width
+# non-joiner.
+_LONE_FIGURE_ACCIDENTAL = {"#": "#", "##": "^x", "-": "b", "--": "b\u200cb"}
+
 
 def _root_position_suffix(
     quality: str, note_name: str, key: music21.key.Key, applied_to: int
@@ -116,7 +123,8 @@ def _root_position_suffix(
     figures = _get_figures(sym, key)
     idx = _figure_index_for_pitch(figures, sym.getChordStep(number), sym.bass())
     modifier = figures[idx][1] if idx is not None else None
-    return prefix + _fmt_mod(modifier) + str(number)
+    accidental = _LONE_FIGURE_ACCIDENTAL.get(modifier, _fmt_mod(modifier))
+    return prefix + accidental + str(number)
 
 
 def _fmt_mod(mod: str | None, none_str: str = "") -> str:
