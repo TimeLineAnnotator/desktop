@@ -22,6 +22,10 @@ class TestGetInversionAmount:
     def test_thirteenth_chord_has_six_inversions(self):
         assert get_inversion_amount("dominant-13th") == 6
 
+    def test_added_tone_adds_no_inversion(self):
+        # A dominant seventh with a flat ninth has the dominant seventh's three.
+        assert get_inversion_amount("dominant-seventh-flat-ninth") == 3
+
     def test_invalid_quality_raises_value_error(self):
         with pytest.raises(ValueError):
             get_inversion_amount("not-a-quality")

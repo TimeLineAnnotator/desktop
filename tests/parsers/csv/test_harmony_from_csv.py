@@ -38,6 +38,8 @@ TEST_HARMONY_PARAMETERS = [
     ("C#", 0, 1, "major"),
     ("Dm", 1, 0, "minor"),
     ("Ebo7", 2, -1, "diminished-seventh"),
+    ("Bb7b9", 6, -1, "dominant-seventh-flat-ninth"),
+    ("F#7#9", 3, 1, "dominant-seventh-sharp-ninth"),
 ]
 
 TEST_MODE_PARAMETERS = [
@@ -48,7 +50,17 @@ TEST_MODE_PARAMETERS = [
 
 
 class TestByTime:
-    @pytest.mark.parametrize("symbol,step,accidental,quality", [("C#", 0, 1, "major")])
+    @pytest.mark.parametrize(
+        "symbol,step,accidental,quality",
+        [
+            ("C#", 0, 1, "major"),
+            ("C7b9", 0, 0, "dominant-seventh-flat-ninth"),
+            ("V7b9", 4, 0, "dominant-seventh-flat-ninth"),
+            ("C6/9", 0, 0, "major-sixth-added-ninth"),
+            ("Dm7(11)", 1, 0, "minor-seventh-added-eleventh"),
+            ("Iadd9", 0, 0, "major-added-ninth"),
+        ],
+    )
     def test_harmony_by_time(self, symbol, step, accidental, quality, harmony_tl):
         data = "\n".join(["time,harmony_or_key,symbol", f"0,harmony,{symbol}"])
 
@@ -147,6 +159,14 @@ class TestByTime:
         )
         success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors("Must be", errors)
+
+    def test_added_tone_in_the_bass_is_reported(self, harmony_tl):
+        data = "\n".join(["time,harmony_or_key,symbol", "0,harmony,C7b9/Db"])
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert_in_errors("C7b9/Db", errors)
+        assert len(harmony_tl) == 0
 
     def test_harmony_considers_existing_key(self, harmony_tl):
         harmony_tl.create_mode(step=2)
