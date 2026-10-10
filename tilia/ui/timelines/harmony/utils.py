@@ -80,34 +80,28 @@ def _get_chord_size(quality: str) -> str | None:
     return None
 
 
-# Qualities that carry the MusAnalysis major-7th triangle ("^^") at root position.
-# The set is irregular (e.g. major-ninth omits it while major-11th includes it),
-# so it must be listed explicitly.
-_MAJOR_MARKER_QUALITIES = frozenset(
-    {
-        "major-seventh",
-        "minor-major-seventh",
-        "augmented-major-seventh",
-        "minor-major-ninth",
-        "augmented-major-ninth",
-        "augmented-dominant-ninth",
-        "major-11th",
-        "major-13th",
-        "minor-major-13th",
-    }
-)
+_EXTENSION_NUMBERS = {"seventh": 7, "ninth": 9, "eleventh": 11, "thirteenth": 13}
 
-# Qualities with a flat (minor) 9th at root position.
-_FLAT_NINTH_QUALITIES = frozenset(
-    {
-        "half-diminished-minor-ninth",
-        "diminished-minor-ninth",
-    }
-)
+# MusAnalysis raises a lone "#" or "b" beside a figure, but reads two in a row
+# as the accidentals of a two-figure stack and drops the second below the
+# first. So a lone figure's double sharp is a raised x ("^x", as a numeral's is
+# "`x"), and its double flat's two flats are kept apart by a zero-width
+# non-joiner.
+_LONE_FIGURE_ACCIDENTAL = {"#": "#", "##": "^x", "-": "b", "--": "b\u200cb"}
 
 
-def _root_position_suffix(quality: str) -> str:
-    """Compute the root-position suffix from the quality name."""
+def _root_position_suffix(
+    quality: str, note_name: str, key: music21.key.Key, applied_to: int
+) -> str:
+    """
+    Compute the root-position suffix: the quality prefix, then the extension's
+    number. As in the inversions' figures, the number stands for the interval
+    the key gives, so it takes an accidental when the extension is not in the
+    key: in C major, Cmaj7 is I7 and C7 is Ib7. Applied chords get no
+    accidental, as their numeral gets no accidental prefix. Nor does a fully
+    diminished seventh, whose ° already says its seventh is diminished: in
+    C major, Bo7 is viio7.
+    """
     if quality.startswith("half-diminished"):
         prefix = "o\\"
     elif quality.startswith("diminished"):
@@ -118,15 +112,19 @@ def _root_position_suffix(quality: str) -> str:
         prefix = ""
 
     size = _get_chord_size(quality)
-    if size == "triad":
+    if size not in _EXTENSION_NUMBERS:
         return prefix
 
-    number = {"seventh": "7", "ninth": "9", "eleventh": "11", "thirteenth": "13"}.get(
-        size or "", ""
-    )
-    major_marker = "^^" if quality in _MAJOR_MARKER_QUALITIES else ""
-    flat = "b" if quality in _FLAT_NINTH_QUALITIES else ""
-    return prefix + major_marker + flat + number
+    number = _EXTENSION_NUMBERS[size]
+    if applied_to or quality == "diminished-seventh":
+        return prefix + str(number)
+
+    sym = music21.harmony.ChordSymbol(note_name + QUALITY_TO_ABBREVIATION[quality])
+    figures = _get_figures(sym, key)
+    idx = _figure_index_for_pitch(figures, sym.getChordStep(number), sym.bass())
+    modifier = figures[idx][1] if idx is not None else None
+    accidental = _LONE_FIGURE_ACCIDENTAL.get(modifier, _fmt_mod(modifier))
+    return prefix + accidental + str(number)
 
 
 def _fmt_mod(mod: str | None, none_str: str = "") -> str:
@@ -237,6 +235,14 @@ def _chord_fb(
     bass = sym.bass()
     size = _get_chord_size(quality)
 
+    if quality == "diminished-seventh":
+        # As in root position, the ° already says the seventh is diminished, so
+        # its figure takes no accidental: in C major, Bo7's first inversion is
+        # viio65.
+        seventh_idx = _figure_index_for_pitch(figures, sym.seventh, bass)
+        if seventh_idx is not None:
+            figures[seventh_idx] = (figures[seventh_idx][0], None)
+
     # Drop intermediate extensions unconditionally (always implied by chord type).
     intermediates: list[music21.pitch.Pitch | None] = []
     if size in ("ninth", "eleventh", "thirteenth"):
@@ -336,15 +342,17 @@ def to_roman_numeral(
 
     size = _get_chord_size(quality)
     if size is not None:
+        note_name = INT_TO_NOTE_NAME[step] + Accidental.get_from_int(
+            "music21", accidental
+        )
         if inversion > 0:
-            note_name = INT_TO_NOTE_NAME[step] + Accidental.get_from_int(
-                "music21", accidental
-            )
             quality_suffix = _compute_quality_suffix(quality, note_name, inversion, key)
             if quality_suffix is None:
-                quality_suffix = _root_position_suffix(quality)
+                quality_suffix = _root_position_suffix(
+                    quality, note_name, key, applied_to
+                )
         else:
-            quality_suffix = _root_position_suffix(quality)
+            quality_suffix = _root_position_suffix(quality, note_name, key, applied_to)
     else:
         suffix_table = QUALITY_TO_ROMAN_NUMERAL_SUFFIX.get(quality)
         quality_suffix = (
