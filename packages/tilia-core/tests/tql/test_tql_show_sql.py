@@ -94,7 +94,7 @@ class TestShownStatementsRun:
         got = tql.run(index, "PAC IN cadences")
         (comments, statement), *_ = blocks(got.sql)
         assert comments == ["-- $1: PAC IN cadences"]
-        assert "'PAC'" in statement and "c.file_id = 'f1'" in statement
+        assert "'pac'" in statement and "c.file_id = 'f1'" in statement
         assert statement.endswith(";")
         rows = tql.sql(index, statement).rows
         assert [c.id for m in got.matches for s in m.slots for c in s] == [

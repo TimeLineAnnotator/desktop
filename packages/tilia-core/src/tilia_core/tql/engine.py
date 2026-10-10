@@ -11,14 +11,18 @@ never creates a table.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Iterator
+import sqlite3
+import threading
+from typing import Any, Iterator
 
 from tilia_core import derived
 
 from . import compile as tql_compile
-from . import names, relations, showsql, sqlfuncs, syntax, values
+from . import names, regexes, relations, showsql, sqlfuncs, syntax, values
 from .explain import explain
+from .inuse import in_use
 from .lanes import BAR_KIND
+from .readonly import CHECK_EVERY, Limits, Stopped
 from .result import Component, Match, Result
 from .sequences import find_runs, slots_of
 from .showsql import Recorder
@@ -31,14 +35,15 @@ def _sequence_matches(
     pattern: syntax.SeqPattern,
     specs: list[tql_compile.LaneSpec],
     marked: bool,
+    limits: Limits,
 ) -> Iterator[Match]:
     """The matches of a sequence pattern in the lanes ``specs`` of one file."""
     mode = MODES[pattern.order]
     n_steps = len(pattern.seq.steps)
-    tql_compile.check_labels(specs, relations.units_of(pattern.seq))
     for node in relations.units_of(pattern.seq):
         scope.fit(node)
     for spec in specs:
+        limits.ensure()
         items = scope.lane_items(spec)
         if not items:
             continue
@@ -50,6 +55,7 @@ def _sequence_matches(
             scope.fits,
             joins=scope.joiner(pattern.within),
             marks=marked,
+            check=limits.ensure,
         ):
             if flags is not None and not any(flags):
                 continue  # @ took nothing here: no result
@@ -119,35 +125,87 @@ def run(
     *,
     max_matches: int | None = None,
     time_limit: float | None = None,
-    cancel: Callable[[], bool] | None = None,
+    cancel: threading.Event | None = None,
 ) -> Result:
     """Run ``query`` (a :class:`~tilia_core.tql.syntax.Query` or its text) on
-    ``index``. ``time_limit`` and ``cancel`` are accepted for a later part."""
+    ``index``, on the connection the index gives the calling thread.
+
+    ``max_matches`` and ``time_limit`` (seconds) are no limit when None; setting
+    the ``cancel`` event, from any thread, stops the run too, and interrupts a
+    statement that is running. ``max_matches`` means some N matches: the search
+    stops once N are found, and which N depends on the order the lanes are
+    searched in, so they are not necessarily the first N of the full result;
+    the rows of the matches kept are ordered by file and time. The time limit
+    bounds the search and the warnings about the query's chord and key
+    literals; building the rows of the matches found takes time in proportion
+    to their number, and only a ``cancel`` that comes while they are built ends
+    it. A stopped run does not
+    raise: it returns the matches found so far, with their rows, and
+    ``Result.stopped`` says why (``"max_matches"``, ``"time_limit"`` or
+    ``"cancelled"``). Nothing is kept between calls. Raises ``RuntimeError``
+    when another thread is running on the connection the index gives.
+
+    With the ``regex`` package installed (``pip install "tilia-core[regex]"``)
+    a regular expression is bounded by ``time_limit``, though not to the
+    instant: the bound is approximate. ``cancel`` cannot interrupt a regular
+    expression that is running; it takes effect once the expression ends.
+    Without the ``regex`` package, neither limit covers a regular expression,
+    and a pattern that backtracks badly can hold the whole process."""
     if isinstance(query, str):
         query = syntax.parse(query)
-    pattern = query.pattern
     con = index.connection()
+    with in_use(con):
+        return _run_on(index, con, query, max_matches, time_limit, cancel)
+
+
+def _run_on(
+    index: Any,
+    con: sqlite3.Connection,
+    query: syntax.Query,
+    max_matches: int | None,
+    time_limit: float | None,
+    cancel: threading.Event | None,
+) -> Result:
+    """:func:`run` on the connection ``con``, which the caller has marked."""
+    pattern = query.pattern
     sqlfuncs.register(con, index)
     log = Recorder(con)
     catalogue = names.read(log)
     names.check(catalogue, query)
     warn = _Warnings()
     extra: list[str] = []
+    limits = Limits(time_limit, cancel)
     stopped: str | None = None
-    if pattern is None:
-        grain, matches, extra = _where_only(index, log, catalogue, query, warn)
-        if max_matches is not None and len(matches) > max_matches:
-            matches, stopped = matches[:max_matches], "max_matches"
-    else:
-        grain = "match"
-        matches, stopped = _pattern_matches(
-            index, log, query, pattern, max_matches, warn
-        )
-        warn.words.update(dict.fromkeys(_harmony_warnings(log, query)))
+    matches: list[Match] = []
+    grain = "match"
+    con.set_progress_handler(limits, CHECK_EVERY)
+    try:
+        with regexes.within(limits):
+            if pattern is None:
+                grain, matches, extra, stopped = _where_only(
+                    index, log, catalogue, query, warn, max_matches, limits
+                )
+            else:
+                matches, stopped = _pattern_matches(
+                    index, log, query, pattern, max_matches, warn, limits
+                )
+    finally:
+        con.set_progress_handler(None, 0)
+    if pattern is not None:
+        warn.words.update(dict.fromkeys(_harmony_warnings(log, query, limits)))
+    # A limit or a cancel that already stopped the search or the warnings pass
+    # still gives a row for every match found; only a cancel that comes later
+    # cuts the rows. The time limit never does.
+    spent = limits.stopped is not None
+    stopped = stopped or limits.stopped
     titles: dict[str, str | None] = {}
-    rows = []
+    rows: list[dict[str, Any]] = []
     node_names = {r[0]: r[1] for r in log.execute("SELECT id, name FROM timelines")}
     for m in matches:
+        if not spent and limits.cancelled():
+            matches = matches[: len(rows)]
+            stopped = "cancelled"
+            break
         fid = m.file_id or _file_of(m)
         if fid not in titles:
             titles[fid] = _file_title(log, fid)
@@ -242,12 +300,16 @@ def _unit_units(
             yield from _seq_units(rel.target, rel.lane or lane)
 
 
-def _harmony_warnings(log: Recorder, query: syntax.Query) -> list[str]:
+def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> list[str]:
     """What the literals of ``query`` that are read as chords or keys and are
-    neither, in the chords and keys lanes they are looked for in, warn."""
+    neither, in the chords and keys lanes they are looked for in, warn. It ends
+    at the first file it reaches after a limit or the cancel has stopped the
+    call, and then gives the warnings found so far."""
     pairs = list(_lane_units(query))
     out: list[str] = []
     for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+        if limits.check():
+            break
         for unit, lane in pairs:
             kinds = {s.kind for s in tql_compile.resolve_lanes(log.con, file_id, lane)}
             for kind in ("chord", "key"):
@@ -272,6 +334,56 @@ def _lanes_with_labels_and_more(
     return specs
 
 
+def _lanes_of_seq(seq: syntax.Seq) -> Iterator[syntax.Lane]:
+    for unit in relations.units_of(seq):
+        for cond in unit.conds:
+            yield from _lanes_of_cond(cond)
+
+
+def _lanes_of_cond(cond: syntax.Cond) -> Iterator[syntax.Lane]:
+    if isinstance(cond, syntax.RelCond):
+        yield from _lanes_of_relation(cond.relation)
+    elif isinstance(cond, syntax.Children):
+        yield from _lanes_of_seq(cond.seq)
+
+
+def _lanes_of_relation(rel: syntax.Relation) -> Iterator[syntax.Lane]:
+    if rel.lane is not None:
+        yield rel.lane
+    yield from _lanes_of_seq(rel.target)
+
+
+def _named_lanes(query: syntax.Query) -> Iterator[syntax.Lane]:
+    """Every ``IN`` lane of ``query``, in the pattern and in ``WHERE``."""
+    pattern = query.pattern
+    if pattern is not None and pattern.lane is not None:
+        yield pattern.lane
+    if isinstance(pattern, syntax.SeqPattern):
+        yield from _lanes_of_seq(pattern.seq)
+    elif isinstance(pattern, syntax.RelPattern):
+        for cond in pattern.left.conds:
+            yield from _lanes_of_cond(cond)
+        yield from _lanes_of_relation(pattern.relation)
+    for cond in query.where:
+        yield from _lanes_of_cond(cond)
+
+
+def _lanes_in_play(
+    scope: relations.Scope, query: syntax.Query, specs: list[tql_compile.LaneSpec]
+) -> list[tql_compile.LaneSpec]:
+    """Every lane of the file the query can read a unit in: ``specs``, the
+    other lanes of their timelines, and the lanes the query names. A statement
+    that tests a unit reads chords, keys and labels only where they can be."""
+    out = list(specs)
+    for tid in dict.fromkeys(spec.timeline_id for spec in specs):
+        out.extend(scope.own_lanes(tid))
+    for lane in _named_lanes(query):
+        out.extend(scope.lanes(lane))
+    if query.pattern is not None and query.pattern.lane is None:
+        out.extend(_lanes_with_labels_and_more(scope, True))  # no IN: harmony too
+    return list(dict.fromkeys(out))
+
+
 def _pattern_matches(
     index: Any,
     log: Recorder,
@@ -279,9 +391,12 @@ def _pattern_matches(
     pattern: syntax.SeqPattern | syntax.RelPattern,
     max_matches: int | None,
     warn: _Warnings,
+    limits: Limits,
 ) -> tuple[list[Match], str | None]:
     """The matches of a sequence or relation pattern in every file, those that
-    meet ``WHERE`` only, in file and time order."""
+    meet ``WHERE`` only, sorted by file and time, and why the search stopped
+    early, if it did. When ``max_matches`` stopped it, these are some
+    ``max_matches`` matches, not the first ones of the full result."""
     marked = query.has_target
     single = names.is_single(query)
     needs = names.time_needs(query)
@@ -289,41 +404,52 @@ def _pattern_matches(
     order: list[tuple[Any, ...]] = []
     stopped: str | None = None
     labels = showsql.describe_units(query)
-    for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
-        scope = relations.Scope(log, file_id, index.time_map(file_id), labels)
-        specs = scope.lanes(pattern.lane)
-        if not specs:
-            continue
-        if isinstance(pattern, syntax.RelPattern):
-            part = showsql.relation_part(query)
-            found_here = relations.matches(scope, pattern, specs, part)
-        else:
-            found_here = _sequence_matches(scope, pattern, specs, marked)
-        for match in found_here:
+    try:
+        limits.ensure()
+        for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+            limits.ensure()
+            scope = relations.Scope(
+                log, file_id, index.time_map(file_id), labels, limits.ensure
+            )
+            specs = scope.lanes(pattern.lane)
+            if not specs:
+                continue
+            scope.play = _lanes_in_play(scope, query, specs)
+            if isinstance(pattern, syntax.RelPattern):
+                part = showsql.relation_part(query)
+                found_here = relations.matches(scope, pattern, specs, part)
+            else:
+                found_here = _sequence_matches(scope, pattern, specs, marked, limits)
+            for match in found_here:
+                limits.ensure()
+                if query.where:
+                    first = next(c for slot in match.slots for c in slot)
+                    subject = values.Subject(match.slots, first.timeline_id, single)
+                    ok, caps = scope.where_ok(query.where, subject)
+                    if not ok:
+                        continue
+                    match.captures = caps
+                key = (file_id, tuple(tuple(c.id for c in s) for s in match.slots))
+                cur = found.get(key)
+                if cur is None:
+                    if max_matches is not None and len(order) >= max_matches:
+                        stopped = "max_matches"
+                        break
+                    found[key] = match
+                    order.append(key)
+                elif (match.lane_level or 0) > (cur.lane_level or 0):
+                    found[key] = match  # the highest reading of the same run
+            if not _is_join(pattern):
+                log.note(showsql.python_stage(query))
             if query.where:
-                first = next(c for slot in match.slots for c in slot)
-                subject = values.Subject(match.slots, first.timeline_id, single)
-                ok, caps = scope.where_ok(query.where, subject)
-                if not ok:
-                    continue
-                match.captures = caps
-            key = (file_id, tuple(tuple(c.id for c in s) for s in match.slots))
-            cur = found.get(key)
-            if cur is None:
-                found[key] = match
-                order.append(key)
-                if max_matches is not None and len(order) >= max_matches:
-                    stopped = "max_matches"
-                    break
-            elif (match.lane_level or 0) > (cur.lane_level or 0):
-                found[key] = match  # the highest reading of the same run
-        if not _is_join(pattern):
-            log.note(showsql.python_stage(query))
-        if query.where:
-            log.note(f"{showsql.where_text(query)}: tested in Python on each match.")
-        warn.scope_lacks(scope, needs, file_id)
-        if stopped:
-            break
+                log.note(
+                    f"{showsql.where_text(query)}: tested in Python on each match."
+                )
+            warn.scope_lacks(scope, needs, file_id)
+            if stopped:
+                break
+    except (Stopped, sqlite3.OperationalError, regexes.RegexTimeout) as err:
+        stopped = limits.reason_of(err)
 
     matches = [found[k] for k in order]
     matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
@@ -347,10 +473,12 @@ def _where_only(
     cat: names.Catalogue,
     query: syntax.Query,
     warn: _Warnings,
-) -> tuple[str, list[Match], list[str]]:
+    max_matches: int | None,
+    limits: Limits,
+) -> tuple[str, list[Match], list[str], str | None]:
     """``WHERE`` alone: timelines when it names timeline fields, files when it
     names only file fields, and units otherwise. Also the file fields it names,
-    for the columns of a file row."""
+    for the columns of a file row, and why the search stopped early, if it did."""
     grain = names.where_grain(cat, query)
     harmony = names.asks_about_harmony(query)
     needs = names.time_needs(query)
@@ -358,46 +486,76 @@ def _where_only(
         f"{showsql.where_text(query)}: tested in Python on each {'unit' if grain == 'match' else grain}."
     )
     matches: list[Match] = []
+    stopped: str | None = None
     where = showsql.where_text(query)
     files_part = f"{where}: the files" if grain == "file" else None
-    for (file_id,) in log.execute("SELECT id FROM files ORDER BY id", part=files_part):
-        scope = relations.Scope(log, file_id, index.time_map(file_id))
-        timelines = log.execute(
-            "SELECT id, name FROM timelines WHERE file_id = ? ORDER BY ordinal",
-            (file_id,),
-            part=f"{where}: the timelines of {file_id}"
-            if grain == "timeline"
-            else None,
-        )
-        if grain == "file":
-            ok, caps = scope.where_ok(query.where, values.Subject([], None))
-            if ok:
-                matches.append(Match([], "", captures=caps, file_id=file_id))
-        elif grain == "timeline":
-            for tid, name in timelines:
-                subject = values.Subject([], tid)
-                ok, caps = scope.where_ok(query.where, subject)
-                if ok:
-                    matches.append(
-                        Match([], name, captures=caps, file_id=file_id, timeline_id=tid)
-                    )
-        else:
-            seen: set[str] = set()
-            for spec in _lanes_with_labels_and_more(scope, harmony):
-                for comp, _, _ in scope.lane_items(spec):
-                    if comp.id in seen:
-                        continue
-                    seen.add(comp.id)
-                    subject = values.Subject([[comp]], comp.timeline_id)
+
+    def add(match: Match) -> bool:
+        """Keep ``match``; False when the limit is reached instead."""
+        nonlocal stopped
+        if max_matches is not None and len(matches) >= max_matches:
+            stopped = "max_matches"
+            return False
+        matches.append(match)
+        return True
+
+    try:
+        limits.ensure()
+        for (file_id,) in log.execute(
+            "SELECT id FROM files ORDER BY id", part=files_part
+        ):
+            limits.ensure()
+            scope = relations.Scope(
+                log, file_id, index.time_map(file_id), check=limits.ensure
+            )
+            timelines = log.execute(
+                "SELECT id, name FROM timelines WHERE file_id = ? ORDER BY ordinal",
+                (file_id,),
+                part=f"{where}: the timelines of {file_id}"
+                if grain == "timeline"
+                else None,
+            )
+            if grain == "file":
+                ok, caps = scope.where_ok(query.where, values.Subject([], None))
+                if ok and not add(Match([], "", captures=caps, file_id=file_id)):
+                    break
+            elif grain == "timeline":
+                for tid, name in timelines:
+                    limits.ensure()
+                    subject = values.Subject([], tid)
                     ok, caps = scope.where_ok(query.where, subject)
-                    if ok:
-                        match = scope.match(comp, [])
-                        match.captures = caps
-                        matches.append(match)
-        warn.scope_lacks(scope, needs, file_id)
+                    if ok and not add(
+                        Match([], name, captures=caps, file_id=file_id, timeline_id=tid)
+                    ):
+                        break
+            else:
+                specs = _lanes_with_labels_and_more(scope, harmony)
+                scope.play = _lanes_in_play(scope, query, specs)
+                seen: set[str] = set()
+                for spec in specs:
+                    limits.ensure()
+                    for comp, _, _ in scope.lane_items(spec):
+                        if comp.id in seen:
+                            continue
+                        seen.add(comp.id)
+                        limits.ensure()
+                        subject = values.Subject([[comp]], comp.timeline_id)
+                        ok, caps = scope.where_ok(query.where, subject)
+                        if ok:
+                            match = scope.match(comp, [])
+                            match.captures = caps
+                            if not add(match):
+                                break
+                    if stopped:
+                        break
+            warn.scope_lacks(scope, needs, file_id)
+            if stopped:
+                break
+    except (Stopped, sqlite3.OperationalError, regexes.RegexTimeout) as err:
+        stopped = limits.reason_of(err)
     if grain == "match":
         matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
-    return grain, matches, names.named_file_fields(cat, query)
+    return grain, matches, names.named_file_fields(cat, query), stopped
 
 
 # --------------------------------------------------------------------------- #

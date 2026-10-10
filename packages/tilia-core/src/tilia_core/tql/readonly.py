@@ -26,6 +26,7 @@ import time
 from typing import Any
 
 from . import regexes, sqlfuncs
+from .inuse import in_use
 from .stats import Table
 from .syntax import TQLError
 
@@ -36,7 +37,7 @@ ALLOWED = (
     sqlite3.SQLITE_RECURSIVE,
 )
 DENIED_FUNCTIONS = ("load_extension", "fts3_tokenizer")
-CHECK_EVERY = 100  # SQLite virtual machine instructions between two checks
+CHECK_EVERY = 1000  # SQLite virtual machine instructions between two checks
 
 
 def _authorize(
@@ -60,9 +61,19 @@ def _remove_authorizer(con: sqlite3.Connection) -> None:
     con.set_authorizer(None if sys.version_info >= (3, 11) else _allow_all)
 
 
-class _Limits:
-    """The progress handler of one call: what stopped it, once something has.
-    It is also the call's budget for regular expressions (see
+class Stopped(Exception):
+    """Raised by :meth:`Limits.ensure` once a limit is reached or the run is
+    cancelled; ``reason`` is ``"time_limit"`` or ``"cancelled"``."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class Limits:
+    """The time limit and the cancel event of one call, and what stopped it,
+    once something has. Its call is a progress handler for SQLite. It is also
+    the call's budget for regular expressions (see
     :mod:`~tilia_core.tql.regexes`)."""
 
     def __init__(
@@ -73,13 +84,40 @@ class _Limits:
         self.stopped: str | None = None
 
     def check(self) -> bool:
-        """Whether the statement should stop; remember why."""
+        """Whether the call should stop; remember why."""
         if self.stopped is None:
             if self.cancel is not None and self.cancel.is_set():
                 self.stopped = "cancelled"
             elif self.deadline is not None and time.monotonic() >= self.deadline:
                 self.stopped = "time_limit"
         return self.stopped is not None
+
+    def cancelled(self) -> bool:
+        """Whether the cancel event is set; remember it. Unlike :meth:`check`
+        it reads no clock, so the time limit never stops what asks this."""
+        if self.cancel is not None and self.cancel.is_set():
+            self.stopped = "cancelled"
+            return True
+        return False
+
+    def ensure(self) -> None:
+        """Raise :class:`Stopped` when the call should stop."""
+        if self.check():
+            assert self.stopped is not None
+            raise Stopped(self.stopped)
+
+    def reason_of(self, err: Exception) -> str:
+        """Why ``err`` ended the call: a :class:`Stopped`, an SQLite error
+        raised because the progress handler interrupted a statement, or a
+        regular expression that ran out of time (which has told :meth:`ran_out`
+        already). Any other error is raised again."""
+        if isinstance(err, Stopped):
+            return err.reason
+        if isinstance(err, sqlite3.OperationalError) and self.stopped is not None:
+            return self.stopped
+        if isinstance(err, regexes.RegexTimeout):
+            return self.stopped or "time_limit"
+        raise err
 
     def __call__(self) -> int:
         return 1 if self.check() else 0
@@ -114,7 +152,8 @@ def sql(
     column names either (``columns == []``). A statement that SQLite refuses
     or that fails raises
     :class:`~tilia_core.tql.syntax.TQLError` with SQLite's message; nothing is
-    ever written to the index.
+    ever written to the index. Raises ``RuntimeError`` when another thread is
+    running on the connection the index gives.
 
     Both limits are checked between the steps of the statement, and one
     regular expression (``REGEXP``) is one step. With the ``regex`` package
@@ -128,8 +167,21 @@ def sql(
     The table and column names and the ``tql_*`` functions a statement can use
     may change, and nothing in them is promised yet."""
     con = index.connection()
+    with in_use(con):
+        return _sql_on(index, con, text, max_rows, time_limit, cancel)
+
+
+def _sql_on(
+    index: Any,
+    con: sqlite3.Connection,
+    text: str,
+    max_rows: int | None,
+    time_limit: float | None,
+    cancel: threading.Event | None,
+) -> Table:
+    """:func:`sql` on the connection ``con``, which the caller has marked."""
     sqlfuncs.register(con, index)
-    limits = _Limits(time_limit, cancel)
+    limits = Limits(time_limit, cancel)
     columns: list[str] = []
     rows: list[tuple[Any, ...]] = []
     stopped: str | None = None

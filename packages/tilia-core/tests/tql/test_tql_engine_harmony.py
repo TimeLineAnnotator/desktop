@@ -312,3 +312,36 @@ class TestFieldsAsMusic:
     def test_two_units_compare_as_music(self):
         got = run(HARMONY, "* THEN * IN keys WHERE $1.key != $2.key")
         assert len(got.matches) == 2
+
+
+class TestShownSqlKeepsToWhatItDoes:
+    """A statement reads chords and keys only where the lanes can hold them,
+    and labels only where they can hold labelled units."""
+
+    def test_a_join_between_cadences_and_form_does_not_read_chords(self):
+        got = tql.run(
+            fixture_index.build_index(FIXTURES["exposition"]),
+            "PAC IN cadences SAME END ST IN form",
+        )
+        assert "tql_chord" not in got.sql
+        assert "tql_key" not in got.sql and "categories" in got.sql
+
+    def test_chords_and_keys_do_not_read_categories(self):
+        got = run(HARMONY, "V7 THEN I IN harmony")
+        assert "tql_chord" in got.sql and "categories" not in got.sql
+
+    def test_a_query_without_in_on_a_harmony_file_reads_both(self):
+        got = run(HARMONY, "V7")
+        assert "tql_chord" in got.sql and "categories" in got.sql
+
+    def test_the_shown_statements_still_return_what_the_run_used(self):
+        index = fixture_index.build_index(HARMONY)
+        got = tql.run(index, "V7 THEN I IN harmony")
+        statements = [
+            part.split("\n", 1)[1]
+            for part in got.sql.split("\n\n")
+            if part.startswith("-- $")
+        ]
+        used = {c.id for m in got.matches for s in m.slots for c in s}
+        shown = {r[0] for text in statements for r in tql.sql(index, text).rows}
+        assert used <= shown
