@@ -107,6 +107,30 @@ def test_component_kinds_are_read_exactly(in_file):
     assert component_kind_to_file(kind) == in_file
 
 
+@pytest.mark.parametrize(
+    "spelling, known",
+    [
+        ("Marker", "marker"),
+        ("marker", "marker"),
+        ("AUDIOWAVE", "audiowave"),
+        ("Hierarchy_TIMELINE", "hierarchy"),
+        ("MARKER_TIMELINE", "marker"),
+    ],
+)
+def test_an_unknown_timeline_kind_spelled_like_a_known_one_is_refused(spelling, known):
+    # The reader would read it back as the known kind, in any letter case.
+    assert timeline_kind_from_file(spelling) == known
+    with pytest.raises(ValueError, match=repr(known)):
+        timeline_kind_to_file(UnknownKind(spelling))
+
+
+@pytest.mark.parametrize("spelling, known", [("MARKER", "marker"), ("BEAT", "beat")])
+def test_an_unknown_component_kind_spelled_like_a_known_one_is_refused(spelling, known):
+    assert component_kind_from_file(spelling) == known
+    with pytest.raises(ValueError, match=repr(known)):
+        component_kind_to_file(UnknownKind(spelling))
+
+
 def test_an_unknown_kind_is_not_text():
     assert UnknownKind("marker") != "marker"
     assert isinstance(UnknownKind("marker"), UnknownKind)
