@@ -107,13 +107,16 @@ class Limits:
             raise Stopped(self.stopped)
 
     def reason_of(self, err: Exception) -> str:
-        """Why ``err`` ended the call: a :class:`Stopped`, or an SQLite error
-        raised because the progress handler interrupted a statement. Any other
-        error is raised again."""
+        """Why ``err`` ended the call: a :class:`Stopped`, an SQLite error
+        raised because the progress handler interrupted a statement, or a
+        regular expression that ran out of time (which has told :meth:`ran_out`
+        already). Any other error is raised again."""
         if isinstance(err, Stopped):
             return err.reason
         if isinstance(err, sqlite3.OperationalError) and self.stopped is not None:
             return self.stopped
+        if isinstance(err, regexes.RegexTimeout):
+            return self.stopped or "time_limit"
         raise err
 
     def __call__(self) -> int:

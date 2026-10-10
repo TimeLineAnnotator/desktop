@@ -18,7 +18,7 @@ from typing import Any, Iterator
 from tilia_core import derived
 
 from . import compile as tql_compile
-from . import names, relations, showsql, sqlfuncs, syntax, values
+from . import names, regexes, relations, showsql, sqlfuncs, syntax, values
 from .explain import explain
 from .inuse import in_use
 from .lanes import BAR_KIND
@@ -143,7 +143,14 @@ def run(
     raise: it returns the matches found so far, with their rows, and
     ``Result.stopped`` says why (``"max_matches"``, ``"time_limit"`` or
     ``"cancelled"``). Nothing is kept between calls. Raises ``RuntimeError``
-    when another thread is running on the connection the index gives."""
+    when another thread is running on the connection the index gives.
+
+    With the ``regex`` package installed (``pip install "tilia-core[regex]"``)
+    a regular expression is bounded by ``time_limit``, though not to the
+    instant: the bound is approximate. ``cancel`` cannot interrupt a regular
+    expression that is running; it takes effect once the expression ends.
+    Without the ``regex`` package, neither limit covers a regular expression,
+    and a pattern that backtracks badly can hold the whole process."""
     if isinstance(query, str):
         query = syntax.parse(query)
     con = index.connection()
@@ -173,14 +180,15 @@ def _run_on(
     grain = "match"
     con.set_progress_handler(limits, CHECK_EVERY)
     try:
-        if pattern is None:
-            grain, matches, extra, stopped = _where_only(
-                index, log, catalogue, query, warn, max_matches, limits
-            )
-        else:
-            matches, stopped = _pattern_matches(
-                index, log, query, pattern, max_matches, warn, limits
-            )
+        with regexes.within(limits):
+            if pattern is None:
+                grain, matches, extra, stopped = _where_only(
+                    index, log, catalogue, query, warn, max_matches, limits
+                )
+            else:
+                matches, stopped = _pattern_matches(
+                    index, log, query, pattern, max_matches, warn, limits
+                )
     finally:
         con.set_progress_handler(None, 0)
     if pattern is not None:
@@ -440,7 +448,7 @@ def _pattern_matches(
             warn.scope_lacks(scope, needs, file_id)
             if stopped:
                 break
-    except (Stopped, sqlite3.OperationalError) as err:
+    except (Stopped, sqlite3.OperationalError, regexes.RegexTimeout) as err:
         stopped = limits.reason_of(err)
 
     matches = [found[k] for k in order]
@@ -543,7 +551,7 @@ def _where_only(
             warn.scope_lacks(scope, needs, file_id)
             if stopped:
                 break
-    except (Stopped, sqlite3.OperationalError) as err:
+    except (Stopped, sqlite3.OperationalError, regexes.RegexTimeout) as err:
         stopped = limits.reason_of(err)
     if grain == "match":
         matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
