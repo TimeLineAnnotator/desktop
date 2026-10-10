@@ -1,3 +1,8 @@
+# The files .gitattributes keeps byte for byte (.tla files, the format's schema,
+# and the data in tilia-core's tests/tla folders) are left alone: no hook may fix
+# their whitespace, and a score in them may be large. Python code there is checked.
+exclude: '^packages/tilia-core/tests/tla/[^/]+/(?!.*\.py$)|\.tla$|\.schema\.json$'
+
 repos:
   - repo: https://github.com/psf/black
     rev: 22.12.0
