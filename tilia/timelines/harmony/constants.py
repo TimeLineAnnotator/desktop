@@ -11,6 +11,18 @@ FONT_TYPES = ["analytic", "normal"]
 # flat ninth of E7 is F, whatever the key.
 ADDED_TONE_QUALITIES = {
     "dominant-seventh-flat-ninth": ("dominant-seventh", "b9"),
+    "dominant-seventh-sharp-ninth": ("dominant-seventh", "#9"),
+    "dominant-seventh-sharp-eleventh": ("dominant-seventh", "#11"),
+    "dominant-seventh-flat-thirteenth": ("dominant-seventh", "b13"),
+    "dominant-seventh-added-thirteenth": ("dominant-seventh", "13"),
+    "dominant-ninth-sharp-eleventh": ("dominant-ninth", "#11"),
+    "major-seventh-sharp-eleventh": ("major-seventh", "#11"),
+    "major-seventh-added-sixth": ("major-seventh", "6"),
+    "major-sixth-added-ninth": ("major-sixth", "9"),
+    "minor-sixth-added-ninth": ("minor-sixth", "9"),
+    "major-added-ninth": ("major", "9"),
+    "minor-added-ninth": ("minor", "9"),
+    "minor-seventh-added-eleventh": ("minor-seventh", "11"),
 }
 
 

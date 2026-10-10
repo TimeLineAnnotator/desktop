@@ -512,3 +512,67 @@ class TestDominantSeventhFlatNinthLabel:
         )
 
         assert harmony_tlui.harmonies()[0].label == "B`b7((b9))"
+
+
+class TestAddedToneLabel:
+    # The base quality's label, then the added tone in raised parentheses. An
+    # 11 is written "1\u200c1", as MusAnalysis draws "11" over the parenthesis.
+    @pytest.mark.parametrize(
+        "step, quality, inversion, expected",
+        [
+            (4, "dominant-seventh-sharp-ninth", 0, "V7((#9))"),
+            (4, "dominant-seventh-sharp-eleventh", 0, "V7((#1\u200c1))"),
+            (4, "dominant-seventh-flat-thirteenth", 0, "V7((b13))"),
+            (4, "dominant-seventh-added-thirteenth", 0, "V7((13))"),
+            (4, "dominant-seventh-added-thirteenth", 2, "V43((13))"),
+            (4, "dominant-ninth-sharp-eleventh", 0, "V9((#1\u200c1))"),
+            (0, "major-seventh-sharp-eleventh", 0, "I7((#1\u200c1))"),
+            (0, "major-seventh-sharp-eleventh", 1, "I65((#1\u200c1))"),
+            (0, "major-seventh-added-sixth", 0, "I7((6))"),
+            (0, "major-sixth-added-ninth", 0, "I((6))((9))"),
+            (1, "minor-sixth-added-ninth", 0, "ii((6))((9))"),
+            (0, "major-added-ninth", 0, "I((9))"),
+            (0, "major-added-ninth", 1, "I6((9))"),
+            (1, "minor-added-ninth", 0, "ii((9))"),
+            (1, "minor-seventh-added-eleventh", 0, "ii7((1\u200c1))"),
+            (1, "minor-seventh-added-eleventh", 3, "ii42((1\u200c1))"),
+        ],
+    )
+    def test_roman(self, step, quality, inversion, expected, harmony_tlui):
+        add_harmony(step=step, quality=quality, inversion=inversion)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "quality, inversion, expected",
+        [
+            ("dominant-seventh-sharp-ninth", 0, "C7((#9))"),
+            ("dominant-seventh-sharp-ninth", 1, "C7((#9))/E"),
+            ("dominant-seventh-sharp-eleventh", 0, "C7((#1\u200c1))"),
+            ("dominant-seventh-flat-thirteenth", 0, "C7((b13))"),
+            ("dominant-seventh-added-thirteenth", 0, "C7((13))"),
+            ("dominant-ninth-sharp-eleventh", 0, "C9((#1\u200c1))"),
+            ("dominant-ninth-sharp-eleventh", 4, "C9((#1\u200c1))/D"),
+            ("major-seventh-sharp-eleventh", 0, "Cmaj7((#1\u200c1))"),
+            ("major-seventh-added-sixth", 0, "Cmaj7((6))"),
+            ("major-sixth-added-ninth", 0, "C6((9))"),
+            ("minor-sixth-added-ninth", 0, "Cm6((9))"),
+            ("major-added-ninth", 0, "C((9))"),
+            ("major-added-ninth", 2, "C((9))/G"),
+            ("minor-added-ninth", 0, "Cm((9))"),
+            ("minor-seventh-added-eleventh", 0, "Cm7((1\u200c1))"),
+            ("minor-seventh-added-eleventh", 1, "Cm7((1\u200c1))/E`b"),
+        ],
+    )
+    def test_letter(self, quality, inversion, expected, harmony_tlui):
+        add_harmony(display_mode="letter", quality=quality, inversion=inversion)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    def test_letter_on_sharp_root(self, harmony_tlui):
+        # The root's sharp is written for MusAnalysis, and the tone's is not.
+        add_harmony(
+            display_mode="letter", accidental=1, quality="dominant-seventh-sharp-ninth"
+        )
+
+        assert harmony_tlui.harmonies()[0].label == "C`#7((#9))"
