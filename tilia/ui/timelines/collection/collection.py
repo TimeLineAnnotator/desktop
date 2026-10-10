@@ -191,6 +191,8 @@ class TimelineUIs:
 
         commands.register("timeline.clear", self.on_timeline_clear, "Clear")
 
+        commands.register("timeline.duplicate", self.on_timeline_duplicate, "Duplicate")
+
         commands.register(
             "timeline.set_name",
             self.on_timeline_set_name,
@@ -1275,6 +1277,18 @@ class TimelineUIs:
         if not confirmed:
             return False
         get(Get.TIMELINE_COLLECTION).clear_timeline(timeline_ui.timeline)
+        return True
+
+    @staticmethod
+    @command_callback
+    def on_timeline_duplicate(timeline_ui: TimelineUI) -> bool:
+        timeline = timeline_ui.timeline
+        if TimelineFlag.NOT_DUPLICATABLE in timeline.FLAGS:
+            return False
+
+        get(Get.TIMELINE_COLLECTION).duplicate_timeline(
+            timeline, timeline.get_data("name") + "_copy"
+        )
         return True
 
     @staticmethod

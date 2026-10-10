@@ -174,6 +174,37 @@ class Timelines:
         if type(timeline) not in self.timeline_types:
             post(Post.TIMELINE_TYPE_NOT_INSTANCED, type(timeline))
 
+    def duplicate_timeline(self, timeline: Timeline, name: str) -> Timeline:
+        """
+        Creates a copy of `timeline` with the given name and places it
+        right below the original. Components get fresh ids, as ids must be
+        unique across the whole app.
+        """
+        state = copy.deepcopy(timeline.get_state())
+        kind = state.pop("kind")
+        components = state.pop("components")
+        for attr in ("hash", "components_hash", "ordinal"):
+            state.pop(attr, None)
+        state["name"] = name
+
+        # Serialized components are sorted by id, which reflects creation
+        # order. Keep it, as some kinds depend on it (e.g. score notes need
+        # their staff to exist).
+        components = {get(Get.ID): data for data in components.values()}
+
+        duplicate = self.create_timeline(kind, components=components, **state)
+        if not components and len(duplicate):
+            # Creating a timeline without components may populate it
+            # (e.g. the initial hierarchy), but the original was empty.
+            duplicate.clear()
+
+        for tl in self:
+            if tl is not duplicate and tl.ordinal > timeline.ordinal:
+                self.set_timeline_data(tl.id, "ordinal", tl.ordinal + 1)
+        self.set_timeline_data(duplicate.id, "ordinal", timeline.ordinal + 1)
+
+        return duplicate
+
     @staticmethod
     def clear_timeline(timeline: Timeline):
         timeline.clear()
