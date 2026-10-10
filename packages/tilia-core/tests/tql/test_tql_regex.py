@@ -38,6 +38,10 @@ LONG_TEXT = "a" * 40 + "!"
 SHORT_TEXT = "a" * 12 + "!"
 CHILD_TIMEOUT = 45
 NO_TIMEOUT = "no timeout given"
+# A clock that ticks coarsely (Windows': every 15 ms) can give the same instant twice, and then
+# (t + 60) - t is not 60 to the last digit: the time left may exceed the limit by rounding.
+CLOCK_SLACK = 1e-6
+FROZEN_AT = 65483.490711330895  # (FROZEN_AT + 60) - FROZEN_AT is 60.000000000007276
 
 
 @pytest.fixture
@@ -96,6 +100,18 @@ def spy(monkeypatch):
     monkeypatch.setattr(regexes, "_engine", engine)
     monkeypatch.setattr(regexes, "HAS_TIMEOUT", True)
     return engine
+
+
+class FrozenClock:
+    """Stands in for the ``time`` module the limits read, on a clock that does not move."""
+
+    def monotonic(self):
+        return FROZEN_AT
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch):
+    monkeypatch.setattr("tilia_core.tql.readonly.time", FrozenClock())
 
 
 def timeout_given(spy):
@@ -214,7 +230,15 @@ def test_without_a_time_limit_the_engine_is_given_no_timeout(index, spy):
 def test_the_engine_is_given_the_time_left_of_the_call(index, spy):
     tql.sql(index, "SELECT label REGEXP 'a' FROM components", time_limit=60)
     assert spy.calls
-    assert all(0 < c["timeout"] <= 60 for c in spy.calls)
+    assert all(0 < c["timeout"] <= 60 + CLOCK_SLACK for c in spy.calls)
+
+
+def test_a_clock_that_does_not_move_gives_the_limit_up_to_rounding(
+    index, spy, frozen_clock
+):
+    tql.sql(index, "SELECT label REGEXP 'a' FROM components", time_limit=60)
+    assert spy.calls
+    assert all(60 <= c["timeout"] <= 60 + CLOCK_SLACK for c in spy.calls)
 
 
 def test_a_time_limit_already_passed_gives_the_engine_a_timeout_of_zero(index, spy):
@@ -259,7 +283,7 @@ def test_the_budget_of_a_call_is_taken_off_when_it_fails(index, spy):
 
 def test_limits_report_the_seconds_left():
     assert _Limits(None, None).seconds_left() is None
-    assert 0 < _Limits(60, None).seconds_left() <= 60
+    assert 0 < _Limits(60, None).seconds_left() <= 60 + CLOCK_SLACK
     passed = _Limits(0, None)
     time.sleep(0.02)
     assert passed.seconds_left() == 0.0
