@@ -45,10 +45,13 @@ def write_csv(path: str | Path, columns: Sequence[str], rows: Iterable[Any]) -> 
 
 @dataclass
 class Table:
-    """A statistics table: its ``columns`` and ``rows`` (tuples, in order)."""
+    """A statistics table: its ``columns`` and ``rows`` (tuples, in order).
+    ``stopped`` says why a read of rows ended early (``"max_rows"``,
+    ``"time_limit"`` or ``"cancelled"``), else None."""
 
     columns: list[str]
     rows: list[tuple[Any, ...]] = field(default_factory=list)
+    stopped: str | None = None
 
     def to_csv(self, path: str | Path) -> None:
         """Write the table as CSV (UTF-8 in NFC, LF, no byte-order mark)."""

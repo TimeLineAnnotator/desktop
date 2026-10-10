@@ -1,19 +1,34 @@
 """The SQL functions TQL's statements call, registered on a connection.
 
-``text REGEXP pattern`` is ``regexp(pattern, text)``; ``tql_fold`` and
-``tql_color`` compare labels and colours the way the language does.
-``tql_chord`` and ``tql_key`` read a literal as a chord or a key and ask whether
-the columns of a ``chords`` or ``keys`` row match it (a literal that is none
-matches nothing).
-``tql_position``, ``tql_length`` and ``tql_unit_seconds`` ask the time map of a
-file (``index.time_map(file_id)``) where a time lies, how long a span lasts and
-how long a beat or a bar lasts; they are null for a file without a time map and
-for a time off it.
+``Result.sql`` shows these functions and ``tql.sql`` lets users call them. The
+functions, their names and what they do may change, and nothing in them is
+promised yet. A test pins the registered names and argument counts
+(``test_tql_show_sql.py``), so that a rename touches a test. They are:
+
+- ``regexp(pattern, text)``, which SQLite calls for ``text REGEXP pattern``:
+  1 when the regular expression is found in the text read in NFC. With the
+  optional ``regex`` package a pattern is bounded by the call's time limit
+  (see ``tilia_core.tql.regexes``); without it no limit covers a pattern.
+- ``tql_fold(text)``: the text folded the way TQL compares words and labels.
+- ``tql_color(text)``: a colour, from a CSS name or a hex code, as ``#rrggbb``.
+- ``tql_chord(literal, step, accidental, quality, inversion, applied_to,
+  key_step, key_accidental, key_mode)``: 1 when the chord of those ``chords``
+  and ``keys`` columns matches the literal read as a chord.
+- ``tql_key(literal, step, accidental, mode)``: 1 when the key of those
+  ``keys`` columns matches the literal read as a key.
+- ``tql_position(file_id, time, unit)``: where a time lies in the file's score,
+  in bars or beats.
+- ``tql_length(file_id, start, end, unit)``: how many bars or beats a span lasts.
+- ``tql_unit_seconds(file_id, time, unit)``: how many seconds the bar or beat
+  holding a time lasts.
+
+A literal that is no chord or no key matches nothing. The last three ask the
+time map of the file (``index.time_map(file_id)``) and are null for a file
+without one and for a time off it.
 """
 
 from __future__ import annotations
 
-import re
 import sqlite3
 import weakref
 from functools import lru_cache
@@ -22,13 +37,17 @@ from typing import Any, Callable
 from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
 
+from . import regexes
+
 
 def regexp(pattern: str | None, text: str | None) -> int:
     """Whether ``pattern`` is found in ``text`` read in NFC; case-sensitive
-    unless the pattern starts with ``(?i)``. No text is no match."""
+    unless the pattern starts with ``(?i)``. No text is no match. A pattern
+    that runs out of time raises :class:`~tilia_core.tql.regexes.RegexTimeout`,
+    which SQLite turns into the end of the statement."""
     if pattern is None or text is None:
         return 0
-    return 1 if re.search(pattern, nfc(str(text))) else 0
+    return 1 if regexes.search(pattern, nfc(str(text))) else 0
 
 
 def tql_fold(text: str | None) -> str | None:
