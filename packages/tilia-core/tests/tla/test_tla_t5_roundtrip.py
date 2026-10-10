@@ -84,6 +84,15 @@ def test_entries_are_written_in_id_order_whatever_the_documents_order():
     assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
 
 
+def test_entries_are_written_in_the_order_of_their_ids_in_nfc():
+    # Decomposed, "é" sorts before "f"; composed, after it.
+    doc = tla.read(EMPTY)
+    for ordinal, timeline_id in enumerate(["f", unicodedata.normalize("NFD", "é")]):
+        timeline = tla.Timeline(id=timeline_id, kind="marker", ordinal=ordinal + 1)
+        doc.timelines[timeline_id] = timeline
+    assert list(json.loads(tla.canonical_bytes(doc))["timelines"]) == ["f", "é"]
+
+
 def test_scores_are_written_in_id_order():
     doc = tla.read(EVERY_KIND)
     (score,) = doc.scores.values()
@@ -103,6 +112,14 @@ def test_text_in_another_normal_form_is_read_as_nfc_and_written_so():
     assert decomposed != golden
     doc = tla.loads(decomposed.encode())
     assert nth(named(doc, "Form"), 1).attrs["label"] == "Hauptsatz – Überleitung"
+    assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
+
+
+def test_text_given_in_another_normal_form_is_written_in_nfc():
+    # Given through the API, so the reader hasn't composed it.
+    doc = tla.read(EVERY_KIND)
+    label = unicodedata.normalize("NFD", "Hauptsatz – Überleitung")
+    nth(named(doc, "Form"), 1).attrs["label"] = label
     assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
 
 
@@ -132,6 +149,34 @@ def test_integers_stay_integers():
     doc = tla.read(UNKNOWN)
     beats = next(iter(doc.timelines.values()))
     assert [type(c.attrs["time"]) for c in beats.components.values()] == [int, int]
+
+
+@pytest.mark.parametrize("value", [0.0, False], ids=["0.0", "False"])
+def test_a_value_equal_to_its_default_in_another_type_is_written(value):
+    # A step's default is 0: left out, either would read back as 0.
+    doc = tla.read(EVERY_KIND)
+    harmony = named(doc, "Harmony")
+    chord = nth(harmony, 0)
+    chord.attrs["step"] = value
+    content = json.loads(tla.canonical_bytes(doc))
+    step = content["timelines"][harmony.id]["components"][chord.id]["step"]
+    assert (type(step), step) == (type(value), value)
+
+
+@pytest.mark.parametrize(
+    "key, derived_from", [("pre_start", "start"), ("post_end", "end")]
+)
+def test_a_value_equal_to_the_one_it_derives_from_in_another_type_is_written(
+    key, derived_from
+):
+    # Left out, a pre_start of 1 under a start of 1.0 would read back as 1.0.
+    doc = tla.read(EVERY_KIND)
+    form = named(doc, "Form")
+    unit = nth(form, 0)
+    unit.attrs[derived_from], unit.attrs[key] = 1.0, 1
+    content = json.loads(tla.canonical_bytes(doc))
+    value = content["timelines"][form.id]["components"][unit.id][key]
+    assert (type(value), value) == (int, 1)
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
@@ -527,6 +572,44 @@ def test_a_key_set_twice_on_a_timeline_of_an_unknown_kind_is_refused(
         tla.canonical_bytes(doc)
 
 
+@pytest.mark.parametrize(
+    "attrs, extra, key, message",
+    [
+        ({"name": "a"}, {}, "name", f"{FIELDS} and in attrs"),
+        ({}, {"ordinal": 2}, "ordinal", f"{FIELDS} and in extra"),
+        ({"components": {}}, {}, "components", f"{FIELDS} and in attrs"),
+        ({"font": "a"}, {"font": "e"}, "font", "set both in attrs and in extra"),
+    ],
+)
+def test_a_key_set_twice_on_a_timeline_of_a_known_kind_is_refused(
+    attrs, extra, key, message
+):
+    doc = tla.read(EVERY_KIND)
+    cadences = named(doc, "Cadences")
+    cadences.attrs.update(attrs)
+    cadences.extra.update(extra)
+    place = f"/timelines/{cadences.id}/{key}"
+    with pytest.raises(ValueError, match=re.escape(f"{place}: {message}")):
+        tla.canonical_bytes(doc)
+
+
+def test_a_key_set_twice_on_a_score_is_refused():
+    doc = tla.read(EVERY_KIND)
+    (score,) = doc.scores.values()
+    score.extra["format"] = "musicxml"
+    message = "/scores/0/format: set both in the score's fields and in extra"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        tla.canonical_bytes(doc)
+
+
+def test_a_key_set_twice_on_the_document_is_refused():
+    doc = tla.read(EVERY_KIND)
+    doc.extra["app_name"] = "elsewhere"
+    message = "/app_name: set both in the document's fields and in extra"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        tla.canonical_bytes(doc)
+
+
 def test_a_key_that_isnt_text_is_refused():
     doc = tla.read(EVERY_KIND)
     doc.metadata[1787] = "year"
@@ -538,7 +621,10 @@ def test_keys_are_written_in_nfc_unless_nfc_would_merge_two():
     doc = tla.read(EMPTY)
     composed, decomposed = "Stück", unicodedata.normalize("NFD", "Stück")
     doc.metadata = {decomposed: "1"}
-    assert list(tla.loads(tla.canonical_bytes(doc)).metadata) == [composed]
+    data = tla.canonical_bytes(doc)
+    # In the file itself: the reader composes keys too.
+    assert list(json.loads(data)["metadata"]) == [composed]
+    assert list(tla.loads(data).metadata) == [composed]
     doc.metadata = {composed: "1", decomposed: "2"}
     again = tla.loads(tla.canonical_bytes(doc))
     assert again.metadata == {composed: "1", decomposed: "2"}
