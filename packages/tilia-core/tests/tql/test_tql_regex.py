@@ -848,7 +848,16 @@ def test_a_run_whose_patterns_all_finish_has_no_stop_reason(spy, way):
 def test_the_engine_is_given_the_time_left_of_a_run(spy, way):
     run_scenario(FINE[way], time_limit=60)
     assert spy.calls
-    assert all(0 < c["timeout"] <= 60 for c in spy.calls)
+    assert all(0 < c["timeout"] <= 60 + CLOCK_SLACK for c in spy.calls)
+
+
+@pytest.mark.parametrize("way", WAYS)
+def test_a_clock_that_does_not_move_gives_a_run_its_limit_up_to_rounding(
+    spy, frozen_clock, way
+):
+    run_scenario(FINE[way], time_limit=60)
+    assert spy.calls
+    assert all(60 <= c["timeout"] <= 60 + CLOCK_SLACK for c in spy.calls)
 
 
 @pytest.mark.parametrize("way", WAYS)
@@ -882,7 +891,7 @@ def test_the_budget_of_a_run_is_taken_off_when_it_fails(spy, monkeypatch, functi
     index = fixture_index.build_index(FIXTURES["exposition"])
     with pytest.raises(Boom):
         tql.run(index, query, time_limit=60)
-    assert len(seen) == 1 and 0 < seen[0] <= 60
+    assert len(seen) == 1 and 0 < seen[0] <= 60 + CLOCK_SLACK
     assert timeout_given(spy) == NO_TIMEOUT
 
 
@@ -911,8 +920,8 @@ def test_runs_on_two_threads_have_budgets_of_their_own(spy):
         for name in limits
     }
     assert given["short"] and given["long"]
-    assert all(0 < t <= 30 for t in given["short"])
-    assert all(30 < t <= 3000 for t in given["long"])
+    assert all(0 < t <= 30 + CLOCK_SLACK for t in given["short"])
+    assert all(30 < t <= 3000 + CLOCK_SLACK for t in given["long"])
     assert timeout_given(spy) == NO_TIMEOUT
 
 
@@ -1040,7 +1049,7 @@ def test_a_pattern_that_is_data_falls_back_to_its_text_with_a_time_limit(
     got = tql.run(index, PAIR_QUERY, time_limit=60)
     assert [m.slots[0][0].file_id for m in got.matches] == ["f1"]
     assert strict_spy.compiled == [r"\("]
-    assert all(0 < c["timeout"] <= 60 for c in strict_spy.calls)
+    assert all(0 < c["timeout"] <= 60 + CLOCK_SLACK for c in strict_spy.calls)
 
 
 def test_the_text_a_pattern_falls_back_to_is_bounded_by_the_time_limit(strict_spy):
