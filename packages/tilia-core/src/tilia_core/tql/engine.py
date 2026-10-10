@@ -132,11 +132,15 @@ def run(
 
     ``max_matches`` and ``time_limit`` (seconds) are no limit when None; setting
     the ``cancel`` event, from any thread, stops the run too, and interrupts a
-    statement that is running. A stopped run does not raise: it returns the
-    matches found so far, with their rows, and ``Result.stopped`` says why
-    (``"max_matches"``, ``"time_limit"`` or ``"cancelled"``). Nothing is kept
-    between calls. Raises ``RuntimeError`` when another thread is running on the
-    connection the index gives."""
+    statement that is running. The time limit
+    bounds the search and the warnings about the query's chord and key
+    literals; building the rows of the matches found takes time in proportion
+    to their number, and only a ``cancel`` that comes while they are built ends
+    it. A stopped run does not
+    raise: it returns the matches found so far, with their rows, and
+    ``Result.stopped`` says why (``"max_matches"``, ``"time_limit"`` or
+    ``"cancelled"``). Nothing is kept between calls. Raises ``RuntimeError``
+    when another thread is running on the connection the index gives."""
     if isinstance(query, str):
         query = syntax.parse(query)
     con = index.connection()
@@ -177,11 +181,20 @@ def _run_on(
     finally:
         con.set_progress_handler(None, 0)
     if pattern is not None:
-        warn.words.update(dict.fromkeys(_harmony_warnings(log, query)))
+        warn.words.update(dict.fromkeys(_harmony_warnings(log, query, limits)))
+    # A limit or a cancel that already stopped the search or the warnings pass
+    # still gives a row for every match found; only a cancel that comes later
+    # cuts the rows. The time limit never does.
+    spent = limits.stopped is not None
+    stopped = stopped or limits.stopped
     titles: dict[str, str | None] = {}
-    rows = []
+    rows: list[dict[str, Any]] = []
     node_names = {r[0]: r[1] for r in log.execute("SELECT id, name FROM timelines")}
     for m in matches:
+        if not spent and limits.cancelled():
+            matches = matches[: len(rows)]
+            stopped = "cancelled"
+            break
         fid = m.file_id or _file_of(m)
         if fid not in titles:
             titles[fid] = _file_title(log, fid)
@@ -276,12 +289,16 @@ def _unit_units(
             yield from _seq_units(rel.target, rel.lane or lane)
 
 
-def _harmony_warnings(log: Recorder, query: syntax.Query) -> list[str]:
+def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> list[str]:
     """What the literals of ``query`` that are read as chords or keys and are
-    neither, in the chords and keys lanes they are looked for in, warn."""
+    neither, in the chords and keys lanes they are looked for in, warn. It ends
+    at the first file it reaches after a limit or the cancel has stopped the
+    call, and then gives the warnings found so far."""
     pairs = list(_lane_units(query))
     out: list[str] = []
     for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+        if limits.check():
+            break
         for unit, lane in pairs:
             kinds = {s.kind for s in tql_compile.resolve_lanes(log.con, file_id, lane)}
             for kind in ("chord", "key"):

@@ -2,14 +2,19 @@
 
 import threading
 import time
+import types
 
+import examples
 import fixture_index
 import pytest
 
 from tilia_core import tql
-from tilia_core.tql import readonly
+from tilia_core.tql import engine, readonly
 
+FIXTURES = examples.load()["fixtures"]
 QUERY = "a THEN b IN form"
+HARMONY_QUERY = "V7 IN harmony"
+PATIENCE = 60  # seconds a thread waits for another on a loaded machine
 
 
 def big_fixture(k, units=300):
@@ -42,6 +47,42 @@ def full(big_index):
     return tql.run(big_index, QUERY)
 
 
+@pytest.fixture(scope="module")
+def harmony_index():
+    """Eight files of chords and keys, each with a name of its own."""
+    return fixture_index.build_index(
+        *[dict(FIXTURES["harmony"], name=f"h{k:02d}") for k in range(8)]
+    )
+
+
+@pytest.fixture(scope="module")
+def harmony_full(harmony_index):
+    return tql.run(harmony_index, HARMONY_QUERY)
+
+
+@pytest.fixture(scope="module")
+def listing_index():
+    """Forty files with a composer and a hierarchy timeline each, for the
+    queries of only ``WHERE`` that list timelines and files."""
+    return fixture_index.build_index(
+        *[
+            {
+                "name": f"l{k:02d}",
+                "length": 4,
+                "fields": {"composer": "Mozart"},
+                "timelines": [
+                    {
+                        "name": "Form (X)",
+                        "kind": "hierarchy",
+                        "units": [["a", 1, 0, 4]],
+                    }
+                ],
+            }
+            for k in range(40)
+        ]
+    )
+
+
 def keys(result):
     return [m.key for m in result.matches]
 
@@ -60,6 +101,62 @@ class SteppingClock:
         return self.now
 
 
+class ManualClock:
+    """Stands in for the ``time`` module that the limits read: it only moves
+    when a test sets ``now``."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+def watch_calls(monkeypatch, name, on_call=None):
+    """Count the calls of ``engine.<name>``; ``on_call(n)`` runs after the
+    ``n``-th one has returned."""
+    calls = types.SimpleNamespace(n=0)
+    original = getattr(engine, name)
+
+    def counting(*args, **kwargs):
+        calls.n += 1
+        out = original(*args, **kwargs)
+        if on_call is not None:
+            on_call(calls.n)
+        return out
+
+    monkeypatch.setattr(engine, name, counting)
+    return calls
+
+
+def watch_the_warnings_pass(monkeypatch, on_resolve=None):
+    """Record the files whose lanes are resolved inside the warnings pass
+    (``engine._harmony_warnings``); ``on_resolve(n)`` runs after the ``n``-th
+    resolution inside it."""
+    seen = types.SimpleNamespace(resolved=[], inside=False)
+    resolve = engine.tql_compile.resolve_lanes
+    warnings_pass = engine._harmony_warnings
+
+    def counting_resolve(con, file_id, lane):
+        out = resolve(con, file_id, lane)
+        if seen.inside:
+            seen.resolved.append(file_id)
+            if on_resolve is not None:
+                on_resolve(len(seen.resolved))
+        return out
+
+    def counting_pass(*args, **kwargs):
+        seen.inside = True
+        try:
+            return warnings_pass(*args, **kwargs)
+        finally:
+            seen.inside = False
+
+    monkeypatch.setattr(engine.tql_compile, "resolve_lanes", counting_resolve)
+    monkeypatch.setattr(engine, "_harmony_warnings", counting_pass)
+    return seen
+
+
 class PausingEvent(threading.Event):
     """A cancel event that holds the run at its ``n``-th check until another
     thread has set it, so the cancel lands mid-run on any machine."""
@@ -74,8 +171,20 @@ class PausingEvent(threading.Event):
         self.checks += 1
         if self.checks == self.n:
             self.paused.set()
-            self.wait(10)
+            self.wait(PATIENCE)
         return super().is_set()
+
+
+def cancel_from_another_thread(cancel: PausingEvent) -> threading.Thread:
+    """Start the thread that sets ``cancel`` once the run is held at its check."""
+
+    def set_once_paused() -> None:
+        if cancel.paused.wait(PATIENCE):
+            cancel.set()
+
+    other = threading.Thread(target=set_once_paused)
+    other.start()
+    return other
 
 
 class TestNoLimitByDefault:
@@ -165,14 +274,9 @@ class TestCancel:
     def test_set_from_another_thread_during_a_long_run(self, big_index, full):
         cancel = PausingEvent(1000)
 
-        def cancel_once_paused() -> None:
-            if cancel.paused.wait(10):
-                cancel.set()
-
-        other = threading.Thread(target=cancel_once_paused)
-        other.start()
+        other = cancel_from_another_thread(cancel)
         got = tql.run(big_index, QUERY, cancel=cancel)
-        other.join(10)
+        other.join(PATIENCE)
         assert cancel.paused.is_set()
         assert got.stopped == "cancelled"
         assert 0 < len(got.matches) == len(got.rows) < len(full.matches)
@@ -190,6 +294,152 @@ class TestRowsAfterAStop:
         got = tql.run(big_index, "* IN form WHERE label = a", max_matches=4)
         assert got.stopped == "max_matches"
         assert [r["label"] for r in got.rows] == ["a"] * 4
+
+
+class TestWarningsPass:
+    def test_a_cancel_set_before_the_run_resolves_no_lane(
+        self, harmony_index, monkeypatch
+    ):
+        cancel = threading.Event()
+        cancel.set()
+        seen = watch_the_warnings_pass(monkeypatch)
+        got = tql.run(harmony_index, HARMONY_QUERY, cancel=cancel)
+        assert got.stopped == "cancelled"
+        assert seen.resolved == []
+
+    def test_a_cancel_in_the_middle_ends_the_pass_and_keeps_the_rows(
+        self, harmony_index, harmony_full, monkeypatch
+    ):
+        assert harmony_full.stopped is None and len(harmony_full.matches) == 32
+        cancel = threading.Event()
+        seen = watch_the_warnings_pass(
+            monkeypatch, lambda n: cancel.set() if n == 3 else None
+        )
+        got = tql.run(harmony_index, HARMONY_QUERY, cancel=cancel)
+        assert len(seen.resolved) == 3
+        assert got.stopped == "cancelled"
+        assert len(got.matches) == len(got.rows) == len(harmony_full.matches)
+        assert keys(got) == keys(harmony_full)
+
+    def test_a_time_limit_of_zero_resolves_no_lane(self, harmony_index, monkeypatch):
+        seen = watch_the_warnings_pass(monkeypatch)
+        got = tql.run(harmony_index, HARMONY_QUERY, time_limit=0)
+        assert got.stopped == "time_limit"
+        assert seen.resolved == []
+
+    def test_a_time_limit_in_the_middle_ends_the_pass_and_keeps_the_rows(
+        self, harmony_index, harmony_full, monkeypatch
+    ):
+        clock = ManualClock()
+        monkeypatch.setattr(readonly, "time", clock)
+        seen = watch_the_warnings_pass(
+            monkeypatch, lambda n: setattr(clock, "now", 100.0) if n == 3 else None
+        )
+        got = tql.run(harmony_index, HARMONY_QUERY, time_limit=10)
+        assert len(seen.resolved) == 3
+        assert got.stopped == "time_limit"
+        assert len(got.matches) == len(got.rows) == len(harmony_full.matches)
+        assert keys(got) == keys(harmony_full)
+
+    def test_the_pass_is_not_cut_by_max_matches(self, harmony_index, monkeypatch):
+        seen = watch_the_warnings_pass(monkeypatch)
+        got = tql.run(harmony_index, HARMONY_QUERY, max_matches=2)
+        assert got.stopped == "max_matches"
+        assert len(got.matches) == len(got.rows) == 2
+        assert seen.resolved == [f"h{k:02d}" for k in range(8)]
+
+    def test_a_complete_run_resolves_every_file_once(self, harmony_index, monkeypatch):
+        seen = watch_the_warnings_pass(monkeypatch)
+        got = tql.run(harmony_index, HARMONY_QUERY)
+        assert got.stopped is None
+        assert seen.resolved == [f"h{k:02d}" for k in range(8)]
+
+
+class TestRowsUnderLimits:
+    def test_a_cancel_in_the_middle_of_the_rows_stops_them(
+        self, big_index, full, monkeypatch
+    ):
+        cancel = threading.Event()
+        built = watch_calls(
+            monkeypatch, "_row", lambda n: cancel.set() if n == 10 else None
+        )
+        got = tql.run(big_index, QUERY, cancel=cancel)
+        assert got.stopped == "cancelled"
+        assert 10 <= len(got.rows) < len(full.rows) // 2
+        assert len(got.matches) == len(got.rows)
+        assert keys(got) == keys(full)[: len(got.rows)]
+        assert built.n == len(got.rows)
+
+    def test_a_cancel_in_the_middle_of_the_rows_wins_over_max_matches(
+        self, big_index, full, monkeypatch
+    ):
+        cancel = threading.Event()
+        built = watch_calls(
+            monkeypatch, "_row", lambda n: cancel.set() if n == 10 else None
+        )
+        got = tql.run(big_index, QUERY, max_matches=150, cancel=cancel)
+        assert got.stopped == "cancelled"
+        assert len(got.matches) == len(got.rows) == built.n == 10
+
+    @pytest.mark.parametrize(
+        "query, grain, builder",
+        [
+            ("WHERE tl.kind = hierarchy", "timeline", "_timeline_row"),
+            ("WHERE file.composer = Mozart", "file", "_file_row"),
+        ],
+    )
+    def test_a_cancel_in_the_middle_of_the_rows_of_a_listing(
+        self, listing_index, monkeypatch, query, grain, builder
+    ):
+        full = tql.run(listing_index, query)
+        assert full.grain == grain and len(full.rows) == 40
+        cancel = threading.Event()
+        built = watch_calls(
+            monkeypatch, builder, lambda n: cancel.set() if n == 5 else None
+        )
+        got = tql.run(listing_index, query, cancel=cancel)
+        assert got.stopped == "cancelled"
+        assert 5 <= len(got.rows) < 20
+        assert len(got.matches) == len(got.rows)
+        assert keys(got) == keys(full)[: len(got.rows)]
+        assert built.n == len(got.rows)
+
+    def test_a_cancel_that_stopped_the_search_keeps_the_rows_it_found(
+        self, big_index, monkeypatch
+    ):
+        cancel = PausingEvent(1000)
+        built = watch_calls(monkeypatch, "_row")
+
+        other = cancel_from_another_thread(cancel)
+        got = tql.run(big_index, QUERY, cancel=cancel)
+        other.join(PATIENCE)
+        assert got.stopped == "cancelled"
+        assert 0 < len(got.matches) == len(got.rows)
+        assert built.n == len(got.rows)
+
+    def test_a_time_limit_that_stopped_the_search_keeps_the_rows_it_found(
+        self, big_index, monkeypatch
+    ):
+        monkeypatch.setattr(readonly, "time", SteppingClock())
+        built = watch_calls(monkeypatch, "_row")
+        got = tql.run(big_index, QUERY, time_limit=1.0)
+        assert got.stopped == "time_limit"
+        assert 0 < len(got.matches) == len(got.rows)
+        assert built.n == len(got.rows)
+
+    def test_a_time_limit_that_falls_while_the_rows_are_built_does_not_cut_them(
+        self, big_index, monkeypatch
+    ):
+        clock = ManualClock()
+        monkeypatch.setattr(readonly, "time", clock)
+        built = watch_calls(
+            monkeypatch,
+            "_row",
+            lambda n: setattr(clock, "now", 100.0) if n == 5 else None,
+        )
+        got = tql.run(big_index, QUERY, max_matches=60, time_limit=10)
+        assert got.stopped == "max_matches"
+        assert len(got.matches) == len(got.rows) == built.n == 60
 
 
 class TestSql:

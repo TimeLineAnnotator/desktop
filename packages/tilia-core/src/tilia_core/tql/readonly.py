@@ -90,6 +90,14 @@ class Limits:
                 self.stopped = "time_limit"
         return self.stopped is not None
 
+    def cancelled(self) -> bool:
+        """Whether the cancel event is set; remember it. Unlike :meth:`check`
+        it reads no clock, so the time limit never stops what asks this."""
+        if self.cancel is not None and self.cancel.is_set():
+            self.stopped = "cancelled"
+            return True
+        return False
+
     def ensure(self) -> None:
         """Raise :class:`Stopped` when the call should stop."""
         if self.check():
