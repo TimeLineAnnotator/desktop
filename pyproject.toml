@@ -48,7 +48,7 @@ Repository = "https://github.com/TimeLineAnnotator/desktop"
 [dependency-groups]
 build = [
     "ImageIO; sys_platform == 'darwin'",
-    "Nuitka >= 4.0",
+    "Nuitka==4.2.2",  # with 4.3, the v0.7.2 builds segfaulted on start
     "ordered-set==4.1.0",
     "pyyaml",
     "setuptools<82.0.0; python_version >= '3.12'", #  setuptools>82.0.0 no longer provides pkg_resources
