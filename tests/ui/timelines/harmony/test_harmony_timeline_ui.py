@@ -19,6 +19,7 @@ SHARP_SIGN = "`#"
 
 MAJOR = {"step": 0, "accidental": 0, "type": "major"}  # C major
 MINOR = {"step": 5, "accidental": 0, "type": "minor"}  # A minor
+D_MINOR = {"step": 1, "accidental": 0, "type": "minor"}
 EB_MINOR = {"step": 2, "accidental": -1, "type": "minor"}
 FS_MINOR = {"step": 3, "accidental": 1, "type": "minor"}
 
@@ -416,14 +417,13 @@ class TestRomanNumeralInMinorKeys:
     )
     @pytest.mark.parametrize(
         "inversion,expected",
-        [(0, "viio7"), (1, "viio#65"), (2, "viio#43"), (3, "viio#42")],
+        [(0, "viio7"), (1, "viio65"), (2, "viio43"), (3, "viio42")],
     )
-    def test_leading_tone_seventh_keeps_the_figures_of_the_key_signature(
+    def test_leading_tone_seventh_figures_have_no_accidental(
         self, mode, step, accidental, inversion, expected, harmony_tlui
     ):
-        # Figures are figured bass, relative to the key signature: the key has
-        # no sharp on the sixth above the bass, so viio#65 keeps the root's. The
-        # numeral's case chooses the root, so music21 reads the same chord.
+        # The numeral's case and the ° already say that the root is the raised
+        # seventh, so the figures do not mark it again.
         add_mode(**mode)
         add_harmony(
             step=step,
@@ -445,6 +445,103 @@ class TestRomanNumeralInMinorKeys:
             result["quality"],
             result["inversion"],
         ) == (step, accidental, "diminished-seventh", inversion)
+
+    # A root, third or fifth that is the raised sixth or seventh of a minor key
+    # gets no accidental on its figure: the numeral's case, the quality symbol
+    # (° or +) or the major V already says so.
+    @pytest.mark.parametrize(
+        "mode,step,accidental,quality,inversion,expected",
+        [
+            # E is V in A minor, and G# is its third
+            (MINOR, 2, 0, "major", 1, "V6"),
+            (MINOR, 2, 0, "major", 2, "V64"),
+            (MINOR, 2, 0, "dominant-seventh", 1, "V65"),
+            (MINOR, 2, 0, "dominant-seventh", 2, "V43"),
+            (MINOR, 2, 0, "dominant-seventh", 3, "V42"),
+            # G#o and F#o: the root is the raised seventh or sixth
+            (MINOR, 4, 1, "diminished", 1, "viio6"),
+            (MINOR, 4, 1, "diminished", 2, "viio64"),
+            (MINOR, 3, 1, "diminished", 1, "vio6"),
+            (MINOR, 3, 1, "diminished", 2, "vio64"),
+            (MINOR, 3, 1, "diminished-seventh", 1, "vio65"),
+            (MINOR, 3, 1, "diminished-seventh", 2, "vio43"),
+            (MINOR, 3, 1, "diminished-seventh", 3, "vio42"),
+            # C+: G# is its fifth
+            (MINOR, 0, 0, "augmented", 1, "III+6"),
+            (MINOR, 0, 0, "augmented", 2, "III+64"),
+            # Bm7: F# is its fifth. With it no longer marked, the third
+            # inversion is the usual 4/2, not 6/2.
+            (MINOR, 6, 0, "minor-seventh", 3, "ii42"),
+            # The same in other minor keys
+            (D_MINOR, 5, 0, "major", 1, "V6"),  # A: C# is its third
+            (D_MINOR, 5, 0, "major", 2, "V64"),
+            (EB_MINOR, 6, -1, "dominant-seventh", 1, "V65"),  # Bb7: D
+            (EB_MINOR, 6, -1, "dominant-seventh", 2, "V43"),
+            (EB_MINOR, 6, -1, "dominant-seventh", 3, "V42"),
+            (FS_MINOR, 0, 1, "dominant-seventh", 1, "V65"),  # C#7: E#
+            (FS_MINOR, 0, 1, "dominant-seventh", 2, "V43"),
+            (FS_MINOR, 0, 1, "dominant-seventh", 3, "V42"),
+        ],
+    )
+    def test_raised_sixth_or_seventh_in_a_triad_tone_has_no_figure_accidental(
+        self, mode, step, accidental, quality, inversion, expected, harmony_tlui
+    ):
+        add_mode(**mode)
+        add_harmony(
+            step=step, accidental=accidental, quality=quality, inversion=inversion
+        )
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "step,accidental,quality,expected",
+        [
+            # The accidental tells a major seventh from a minor one.
+            (5, 0, "minor-major-seventh", "i#7"),
+            # And the major ninth, F#, from the flat ninth, F.
+            (2, 0, "dominant-ninth", "V#9"),
+        ],
+    )
+    def test_seventh_and_ninth_keep_their_figure_accidental(
+        self, step, accidental, quality, expected, harmony_tlui
+    ):
+        add_mode(**MINOR)
+        add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    def test_raised_tone_on_another_degree_keeps_its_figure_accidental(
+        self, harmony_tlui
+    ):
+        # A major in A minor: its third, C#, is raised too, but it is the third
+        # degree, which the numeral's case does not account for.
+        add_mode(**MINOR)
+        add_harmony(step=5, inversion=2)
+
+        assert harmony_tlui.harmonies()[0].label == "I#64"
+
+    @pytest.mark.parametrize(
+        "mode,quality,inversion,expected",
+        [
+            # G# is not in C major or A dorian, and the key says nothing of it.
+            (MAJOR, "major", 2, "III#64"),
+            (MAJOR, "dominant-seventh", 2, "III%#ss643"),
+            ({"step": 5, "accidental": 0, "type": "dorian"}, "major", 2, "V#64"),
+            (
+                {"step": 5, "accidental": 0, "type": "dorian"},
+                "dominant-seventh",
+                2,
+                "V%#ss643",
+            ),
+        ],
+    )
+    def test_figure_accidental_stays_outside_a_minor_key(
+        self, mode, quality, inversion, expected, harmony_tlui
+    ):
+        add_mode(**mode)
+        add_harmony(step=2, quality=quality, inversion=inversion)  # E
+
+        assert harmony_tlui.harmonies()[0].label == expected
 
     # The case a quality gets is the one it got before: lower-case for the
     # qualities whose name starts with minor, diminished or half-diminished,
