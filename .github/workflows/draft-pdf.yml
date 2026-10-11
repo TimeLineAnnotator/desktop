@@ -1,6 +1,11 @@
 name: Draft PDF
 on:
   push:
+    # Branches only. GitHub doesn't apply the paths filter to a tag push, so every
+    # tag (v0.7.1, packages-v0.0.2, ...) started this job, and a tag is checked out
+    # on a detached HEAD, which "Add and commit" can't push from.
+    branches:
+      - '**'
     paths:
       - 'paper/**'
 
