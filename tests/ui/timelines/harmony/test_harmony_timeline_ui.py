@@ -7,6 +7,7 @@ from tests.utils import get_command_action
 from tilia.requests import Get
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
+from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION
 
 FLAT_SIGN = "`b"
 SHARP_SIGN = "`#"
@@ -354,6 +355,27 @@ class TestLetterSymbolLabel:
         add_harmony(display_mode="letter", quality="dominant-ninth", inversion=4)
         assert harmony_tlui.harmonies()[0].letter_symbol_label.endswith("/D")
 
+    def test_major_seventh_shows_triangle(self, harmony_tlui):
+        add_harmony(display_mode="letter", quality="major-seventh")
+        assert harmony_tlui.harmonies()[0].letter_symbol_label == "C^^7"
+
+    def test_major_seventh_inversion_shows_triangle(self, harmony_tlui):
+        add_harmony(display_mode="letter", quality="major-seventh", inversion=1)
+        assert harmony_tlui.harmonies()[0].letter_symbol_label == "C^^7/E"
+
+    def test_major_seventh_with_flat_root_shows_triangle(self, harmony_tlui):
+        add_harmony(
+            display_mode="letter", step=6, accidental=-1, quality="major-seventh"
+        )
+        assert harmony_tlui.harmonies()[0].letter_symbol_label == "B`b^^7"
+
+    @pytest.mark.parametrize("quality", sorted(QUALITY_TO_ABBREVIATION))
+    def test_no_quality_spells_out_its_major_seventh(self, harmony_tlui, quality):
+        add_harmony(display_mode="letter", quality=quality)
+        label = harmony_tlui.harmonies()[0].letter_symbol_label
+        assert "maj" not in label
+        assert "M" not in label
+
 
 class TestModeLabel:
     def test_dorian_label(self, harmony_tlui):
@@ -553,8 +575,8 @@ class TestAddedToneLabel:
             ("dominant-seventh-added-thirteenth", 0, "C7((13))"),
             ("dominant-ninth-sharp-eleventh", 0, "C9((#1\u200c1))"),
             ("dominant-ninth-sharp-eleventh", 4, "C9((#1\u200c1))/D"),
-            ("major-seventh-sharp-eleventh", 0, "Cmaj7((#1\u200c1))"),
-            ("major-seventh-added-sixth", 0, "Cmaj7((6))"),
+            ("major-seventh-sharp-eleventh", 0, "C^^7((#1\u200c1))"),
+            ("major-seventh-added-sixth", 0, "C^^7((6))"),
             ("major-sixth-added-ninth", 0, "C6((9))"),
             ("minor-sixth-added-ninth", 0, "Cm6((9))"),
             ("major-added-ninth", 0, "C((9))"),

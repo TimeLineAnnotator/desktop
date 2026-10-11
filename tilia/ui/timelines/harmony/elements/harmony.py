@@ -168,6 +168,9 @@ class HarmonyUI(TimelineUIElement):
             bass_accidental = Accidental.get_from_int("musanalysis", int(bass.alter))
             figure += "/" + bass.step + bass_accidental
 
+        # music21 writes the major seventh as "maj7", and its other major
+        # sevenths as "M7".
+        figure = figure.replace("maj7", "^^7")
         figure = figure.replace("M7", "^^7")
         figure = figure.replace("M9", "^^9")
         figure = figure.replace("M11", "^^11")
