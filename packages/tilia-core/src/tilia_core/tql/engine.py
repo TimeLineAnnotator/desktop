@@ -482,12 +482,16 @@ def _where_only(
     grain = names.where_grain(cat, query)
     harmony = names.asks_about_harmony(query)
     needs = names.time_needs(query)
-    log.note(
-        f"{showsql.where_text(query)}: tested in Python on each {'unit' if grain == 'match' else grain}."
-    )
+    where = showsql.where_text(query)
+    what = "unit" if grain == "match" else grain
+    stage = f"{where}: tested in Python on each {what}."
+    if grain != "match":
+        log.note(stage)
     matches: list[Match] = []
     stopped: str | None = None
-    where = showsql.where_text(query)
+    # the units are read with one statement, like the unit `*`; Python tests WHERE
+    star = syntax.Unit(None, [], 0)
+    labels = {id(star): f"{where}: the units"}
     files_part = f"{where}: the files" if grain == "file" else None
 
     def add(match: Match) -> bool:
@@ -506,7 +510,7 @@ def _where_only(
         ):
             limits.ensure()
             scope = relations.Scope(
-                log, file_id, index.time_map(file_id), check=limits.ensure
+                log, file_id, index.time_map(file_id), labels, limits.ensure
             )
             timelines = log.execute(
                 "SELECT id, name FROM timelines WHERE file_id = ? ORDER BY ordinal",
@@ -535,7 +539,7 @@ def _where_only(
                 for spec in specs:
                     limits.ensure()
                     for comp, _, _ in scope.lane_items(spec):
-                        if comp.id in seen:
+                        if comp.id in seen or not scope.fits(star, comp):
                             continue
                         seen.add(comp.id)
                         limits.ensure()
@@ -554,6 +558,7 @@ def _where_only(
     except (Stopped, sqlite3.OperationalError, regexes.RegexTimeout) as err:
         stopped = limits.reason_of(err)
     if grain == "match":
+        log.note(stage)
         matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
     return grain, matches, names.named_file_fields(cat, query), stopped
 

@@ -186,6 +186,13 @@ class TestHoles:
         items = spans("verse", "chorus", gap=0.05)
         assert spans_of("verse THEN chorus", items) == [(0, 2)]
 
+    def test_a_gap_of_exactly_the_tolerance_does_not_break(self):
+        # 2.1 - 2.0 is 0.10000000000000009 in floats
+        items = spans("verse", "chorus", gap=0.1)
+        assert items[1][1] - items[0][2] > lanes.GAP_EPS
+        assert spans_of("verse THEN chorus", items) == [(0, 2)]
+        assert spans_of("verse THEN chorus", spans("verse", "chorus", gap=0.2)) == []
+
     def test_gap_breaks_quantifier_run(self):
         items = spans("verse", "verse", gap=0.5)
         assert spans_of("verse+", items) == [(0, 1), (1, 2)]

@@ -28,7 +28,7 @@ from tilia_core.labels import fold, nfc
 from . import compile as tql_compile
 from . import names, sqlfuncs, syntax, values
 from .compile import LaneSpec, SqlBuilder
-from .lanes import BAR_KIND, GAP_EPS, bar_id, project
+from .lanes import BAR_KIND, GAP_EPS, SLACK, bar_id, project
 from .result import Component, Match
 from .sequences import Item, find_runs, slots_of
 
@@ -55,7 +55,6 @@ SEQUENCE_MODES = {
 }
 POINT_KINDS = ("marker", "beat")
 CHECK_EVERY = 256  # tests of a unit between two looks at the limits
-SLACK = 1e-9  # s: float noise in a limit on a gap
 
 
 # --------------------------------------------------------------------------- #
@@ -89,14 +88,21 @@ class Metric:
     tmap: Any = None
     void: bool = False
 
+    @property
+    def reach(self) -> float:
+        """``tol`` with a margin of float noise, so that a difference of exactly
+        ``tol`` is within it whatever the rounding of the two times gives. SQL
+        writes the same sum (:func:`timing_sql`)."""
+        return self.tol + SLACK
+
     def eq(self, a: float, b: float) -> bool:
-        return abs(a - b) <= self.tol
+        return abs(a - b) <= self.reach
 
     def le(self, a: float, b: float) -> bool:
-        return a <= b + self.tol
+        return a <= b + self.reach
 
     def lt(self, a: float, b: float) -> bool:
-        return a < b - self.tol
+        return a < b - self.reach
 
     def within_gap(self, a: float, b: float) -> bool:
         if self.gap is None:
@@ -110,14 +116,13 @@ class Metric:
         return pa is not None and pb is not None and pb - pa <= self.gap + SLACK
 
     def inside(self, a: Component, b: Component) -> bool:
-        """``a`` lies in ``b``. Points count on the edges; chords and keys belong
-        where they begin (half-open), so the next unit's first chord is not this
-        unit's last."""
+        """``a`` lies in ``b``, the edges included. A chord or key counts where it
+        begins, like a point, and may ring on past ``b``'s end."""
         if a.id == b.id or self.void:
             return False
         if a.kind in ("chord", "key"):
-            return b.start - self.tol <= a.start < b.end - self.tol
-        return b.start - self.tol <= a.start and a.end <= b.end + self.tol
+            return b.start - self.reach <= a.start <= b.end + self.reach
+        return b.start - self.reach <= a.start and a.end <= b.end + self.reach
 
 
 def metric_of(
@@ -223,7 +228,7 @@ def in_sql(rel: syntax.Relation) -> bool:
 def _inside_sql(a: str, b: str, t: str) -> str:
     return (
         f"({b}.start - {t} <= {a}.start AND CASE WHEN {a}.kind IN ('chord', 'key') "
-        f'THEN {a}.start < {b}."end" - {t} ELSE {a}."end" <= {b}."end" + {t} END)'
+        f'THEN {a}.start ELSE {a}."end" END <= {b}."end" + {t})'
     )
 
 
@@ -233,13 +238,13 @@ def timing_sql(rel: syntax.Relation, a: str, b: str) -> str:
     twin of :func:`timing`."""
     within = rel.within
     m = metric_of(rel)
-    t = repr(m.tol)
+    t = f"({m.tol!r} + {SLACK!r})"  # :attr:`Metric.reach`
     if uses_map(within) and rel.rel not in ORDER_IN_TIME:
         assert within is not None
         # as long as the beat or the bar where the left unit starts lasts
         t = (
             f"(tql_unit_seconds({a}.file_id, {a}.start, '{within.unit}') "
-            f"* {within.amount!r})"
+            f"* {within.amount!r} + {SLACK!r})"
         )
     pa = f"{a}.kind IN ('marker', 'beat')"
     pb = f"{b}.kind IN ('marker', 'beat')"
@@ -334,7 +339,10 @@ def join_statement(
         "SELECT a.id, a.timeline_id, b.id, b.timeline_id "
         "FROM components a JOIN components b ON "
         f"a.file_id = b.file_id AND a.id <> b.id AND {timing_sql(rel, 'a', 'b')} "
-        f'WHERE {where} ORDER BY a.start, a."end", a.id, b.start, b."end", b.id'
+        f'WHERE {where} ORDER BY a.start, a."end", '
+        "COALESCE(a.label_folded, ''), a.id, "
+        'b.start, b."end", '
+        "COALESCE(b.label_folded, ''), b.id"
     )
     return sql, bld.params
 
@@ -444,7 +452,8 @@ class Scope:
 
     # -- components ---------------------------------------------------------- #
     def timeline(self, timeline_id: str) -> list[Component]:
-        """Every component of one timeline, in time order."""
+        """Every component of one timeline in the order of its lanes: by start,
+        then end, then label ignoring case, then id."""
         comps = self._timelines.get(timeline_id)
         if comps is not None:
             return comps
@@ -454,7 +463,8 @@ class Scope:
             "LEFT JOIN hierarchies h ON h.component_id = c.id "
             "LEFT JOIN ranges r ON r.component_id = c.id "
             "WHERE c.file_id = ? AND c.timeline_id = ? "
-            'ORDER BY c.start, c."end", c.id',
+            'ORDER BY c.start, c."end", '
+            "COALESCE(c.label_folded, ''), c.id",
             (self.file_id, timeline_id),
         )
         comps = []
@@ -904,7 +914,7 @@ class Scope:
         if within is None:
             return None
         metric = gap_metric(within, self.time_map)
-        return lambda end, start: start - end <= GAP_EPS or metric.within_gap(
+        return lambda end, start: start - end <= GAP_EPS + SLACK or metric.within_gap(
             end, start
         )
 
@@ -1001,9 +1011,7 @@ class Scope:
             for b in self.candidates(target, specs):
                 if b.id == a.id:
                     continue
-                inner = self.inside_items(
-                    items, b, metric, home.timeline_id == b.timeline_id
-                )
+                inner = self.inside_items(items, b, metric, own)
                 if not inner:
                     continue
                 edge = inner[0] if r == "STARTS" else inner[-1]

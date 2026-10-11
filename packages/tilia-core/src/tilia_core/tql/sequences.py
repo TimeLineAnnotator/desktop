@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from .lanes import GAP_EPS
+from .lanes import GAP_EPS, SLACK
 from .syntax import Group, Seq, Step, Unit, _marked
 
 Fits = Callable[[Unit, Any], bool]
@@ -209,7 +209,7 @@ def blocks(
         if joins is not None:
             brk = not joins(items[k - 1][2], items[k][1])
         else:
-            brk = not point and items[k][1] - items[k - 1][2] > GAP_EPS
+            brk = not point and items[k][1] - items[k - 1][2] > GAP_EPS + SLACK
         if brk:
             out.append((b0, k))
             b0 = k

@@ -7,6 +7,7 @@ import weakref
 
 import examples
 import fixture_index
+import pytest
 
 from tilia_core import tql
 
@@ -237,12 +238,154 @@ class TestRelationsAndBrackets:
         assert sorted({c.start for m in got.matches for c in m.slots[0]}) == [0, 8]
 
     def test_a_chord_in_the_brackets_of_a_phrase(self):
+        # a chord on a phrase's last boundary is that phrase's last chord too: the
+        # i at 8 ends the first phrase, the Eb at 16 (an I in E-flat) the second
         got = run(HARMONY, "phrase[ENDS WITH I IN harmony] IN form")
-        assert [c.start for m in got.matches for c in m.slots[0]] == [0, 16]
+        assert [c.start for m in got.matches for c in m.slots[0]] == [8, 16]
 
     def test_a_key_condition_on_chords_in_brackets(self):
         assert starts(HARMONY, '*[key = "Eb"] IN harmony') == [16, 17, 18]
         assert starts(HARMONY, '*[key = "Eb"] IN keys') == [16]
+
+
+def phrases(chords, keys=((0, "C", "major"),), markers=()):
+    """Form (X) with ``phrase`` over 0-8 s and ``next`` over 8-16 s, Harmony and
+    the markers Cadences."""
+    return {
+        "length": 16,
+        "timelines": [
+            {
+                "name": "Form (X)",
+                "kind": "hierarchy",
+                "units": [["phrase", 1, 0, 8], ["next", 1, 8, 16]],
+            },
+            {
+                "name": "Harmony",
+                "kind": "harmony",
+                "keys": [list(k) for k in keys],
+                "chords": [list(c) for c in chords],
+            },
+            {"name": "Cadences", "kind": "marker", "units": [list(m) for m in markers]},
+        ],
+    }
+
+
+I_V_I = [(0, "C", "major"), (4, "G", "major"), (8, "C", "major")]
+
+
+def where(fix, text):
+    """The matches of ``text`` as ``"phrase@0 | I@8"`` strings, sorted."""
+    got = run(fix, text)
+    return sorted(
+        " | ".join(", ".join(f"{c.label}@{c.start:g}" for c in s) for s in m.slots)
+        for m in got.matches
+    )
+
+
+class TestChordsOnBoundaries:
+    """A chord or key counts where it begins, like a marker: one on a unit's end,
+    within the tolerance, is in that unit too, and still in the next."""
+
+    def test_a_chord_on_the_end_of_a_phrase_ends_it(self):
+        fix = phrases(I_V_I)
+        assert where(fix, "phrase[ENDS WITH I IN harmony] IN form") == ["phrase@0"]
+        assert where(fix, "phrase[ENDS WITH V IN harmony] IN form") == []
+
+    def test_and_starts_the_next(self):
+        fix = phrases(I_V_I)
+        assert where(fix, "next[STARTS WITH I IN harmony] IN form") == ["next@8"]
+        assert where(fix, "phrase[STARTS WITH I IN harmony] IN form") == ["phrase@0"]
+
+    def test_in_the_sentence_form_and_in_brackets(self):
+        fix = phrases(I_V_I)
+        assert where(fix, "I IN harmony DURING phrase IN form") == [
+            "I@0 | phrase@0",
+            "I@8 | phrase@0",
+        ]
+        assert where(fix, "phrase IN form CONTAINS I IN harmony") == [
+            "phrase@0 | I@0",
+            "phrase@0 | I@8",
+        ]
+        assert where(fix, "phrase[CONTAINS I IN harmony] IN form") == ["phrase@0"]
+        assert where(fix, "next IN form CONTAINS I IN harmony") == ["next@8 | I@8"]
+        assert where(fix, "next[CONSISTS OF I IN harmony] IN form") == ["next@8"]
+
+    @pytest.mark.parametrize("time, inside", [(8.05, True), (8.1, True), (8.2, False)])
+    def test_up_to_the_tolerance_after_the_end(self, time, inside):
+        fix = phrases([(0, "C", "major"), (time, "G", "major")])
+        found = ["phrase@0"] if inside else []
+        assert where(fix, "phrase[CONTAINS V IN harmony] IN form") == found
+        assert where(fix, "phrase[ENDS WITH V IN harmony] IN form") == found
+        assert bool(where(fix, "V IN harmony DURING phrase IN form")) == inside
+
+    def test_a_key_on_the_end_of_a_phrase_is_in_it_too(self):
+        fix = phrases([(0, "C", "major")], keys=[(0, "C", "major"), (8, "G", "major")])
+        assert where(fix, "phrase[CONTAINS G IN keys] IN form") == ["phrase@0"]
+        assert where(fix, "phrase[ENDS WITH G IN keys] IN form") == ["phrase@0"]
+        assert where(fix, "next[STARTS WITH G IN keys] IN form") == ["next@8"]
+        assert where(fix, "G IN keys DURING phrase IN form") == ["G@8 | phrase@0"]
+
+    def test_a_chord_rings_on_past_the_end_of_its_unit(self):
+        # V starts at 4, in the phrase, and lasts until 12
+        fix = phrases([(0, "C", "major"), (4, "G", "major"), (12, "C", "major")])
+        assert where(fix, "phrase[ENDS WITH V IN harmony] IN form") == ["phrase@0"]
+        assert where(fix, "V IN harmony DURING phrase IN form") == ["V@4 | phrase@0"]
+
+    def test_a_chord_at_the_time_of_a_marker_is_during_it(self):
+        fix = phrases(I_V_I, markers=[("PAC", 8), ("HC", 4.05), ("EC", 6)])
+        assert where(fix, "I IN harmony DURING PAC IN cadences") == ["I@8 | PAC@8"]
+        assert where(fix, "PAC IN cadences CONTAINS I IN harmony") == ["PAC@8 | I@8"]
+        assert where(fix, "V IN harmony DURING HC IN cadences") == ["V@4 | HC@4.05"]
+        assert where(fix, "HC IN cadences CONTAINS V IN harmony") == ["HC@4.05 | V@4"]
+        assert where(fix, "V IN harmony DURING EC IN cadences") == []
+        assert where(fix, "*[DURING PAC IN cadences] IN harmony") == ["I@8"]
+        assert where(fix, "PAC[STARTS WITH I IN harmony] IN cadences") == ["PAC@8"]
+        assert where(fix, "PAC[CONTAINS V IN harmony] IN cadences") == []
+
+
+class TestEqualTimes:
+    """Of several chords or keys at one time, the first by label (ignoring case)
+    ends where it starts, whatever order the file stores them in."""
+
+    CHORDS = [(0, "C", "major"), (0, "G", "major"), (4, "A", "minor")]
+
+    @pytest.mark.parametrize("order", [(0, 1, 2), (1, 0, 2)])
+    def test_the_chord_that_lasts_does_not_follow_the_file(self, order):
+        chords = [list(self.CHORDS[i]) for i in order]
+        got = run(harmony_fixture([[0, "C", "major"]], chords, 16), "* IN harmony")
+        assert [(c.label, c.start, c.end) for m in got.matches for c in m.slots[0]] == [
+            ("I", 0, 0),
+            ("V", 0, 4),
+            ("vi", 4, 16),
+        ]
+
+    @pytest.mark.parametrize("first", ["D", "G"])
+    def test_the_label_is_compared_ignoring_case(self, first):
+        # ii (D minor) before V (G major) ignoring case, V before ii by code point
+        chords = {"D": (0, "D", "minor"), "G": (0, "G", "major")}
+        stored = [list(chords[first]), list(chords["G" if first == "D" else "D"])]
+        fix = harmony_fixture([[0, "C", "major"]], stored, 10)
+        got = run(fix, "* IN harmony")
+        assert [(c.label, c.start, c.end) for m in got.matches for c in m.slots[0]] == [
+            ("ii", 0, 0),
+            ("V", 0, 10),
+        ]
+
+    @pytest.mark.parametrize(
+        "keys",
+        [
+            [(0, "C", "major"), (0, "G", "major")],
+            [(0, "G", "major"), (0, "C", "major")],
+        ],
+    )
+    def test_the_key_that_lasts_is_the_one_in_force(self, keys):
+        fix = harmony_fixture([list(k) for k in keys], [[0, "G", "major"]], 10)
+        got = run(fix, "* IN keys")
+        assert [(c.label, c.start, c.end) for m in got.matches for c in m.slots[0]] == [
+            ("C", 0, 0),
+            ("G", 0, 10),
+        ]
+        assert labels(fix, "* IN harmony") == [("I",)]
 
 
 class TestFieldsAsMusic:

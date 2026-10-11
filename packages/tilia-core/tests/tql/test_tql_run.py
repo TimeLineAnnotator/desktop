@@ -106,6 +106,32 @@ class TestLanes:
         ]
         assert lane_names("pop", quoted("*(B)")) == ["Form (B) · level 1"]
 
+    @pytest.mark.parametrize(
+        "bare_star, quoted_star",
+        [
+            ("* IN *", '* IN "*"'),
+            ("verse IN form CONTAINS * IN *", 'verse IN form CONTAINS * IN "*"'),
+            ("* IN * CONTAINS * IN *", '* IN "*" CONTAINS * IN "*"'),
+            ("*[CONTAINS * IN *] IN form", '*[CONTAINS * IN "*"] IN form'),
+            ("verse THEN * IN *", 'verse THEN * IN "*"'),
+        ],
+    )
+    def test_a_bare_star_is_every_timeline_like_a_quoted_one(
+        self, bare_star, quoted_star
+    ):
+        index = index_of("pop")
+        got = tql.run(index, bare_star)
+        assert got.matches
+        assert [m.key for m in got.matches] == [
+            m.key for m in tql.run(index, quoted_star).matches
+        ]
+
+    def test_a_bare_star_takes_every_lane_of_every_timeline_but_the_bars(self):
+        index = index_of("pop")
+        lanes = {m.lane for m in tql.run(index, "* IN *").matches}
+        assert lanes >= {"Form (A) · level 1", "Form (B) · level 1", "Beats"}
+        assert not any(lane.endswith("bars") for lane in lanes)
+
     def test_range_rows(self):
         assert lane_names("pop", bare("solo")) == ["Instruments · solo"]
         assert lane_names("pop", bare("SOLO")) == ["Instruments · solo"]

@@ -404,6 +404,26 @@ def test_transitions_pair_the_units_found_in_a_lane():
     assert len(tql.run(index, "* IN form").stats("transitions").rows) == 4
 
 
+@pytest.mark.parametrize("stored", [("PAC", "hc", "EC"), ("hc", "PAC", "EC")])
+def test_transitions_between_units_at_one_time_do_not_follow_the_file(stored):
+    # hc and PAC are both at 4 s, EC at 8 s
+    times = {"PAC": 4, "hc": 4, "EC": 8}
+    fixture = {
+        "length": 10,
+        "timelines": [
+            {
+                "name": "Cadences",
+                "kind": "marker",
+                "units": [[label, times[label]] for label in stored],
+            }
+        ],
+    }
+    table = tql.run(fixture_index.build_index(fixture), "* IN cadences").stats(
+        "transitions"
+    )
+    assert sorted(table.rows) == [("PAC", "EC", 1), ("hc", "PAC", 1)]
+
+
 def test_table_docstring_names_every_reason_stopped_can_hold():
     for reason in ("max_rows", "max_matches", "time_limit", "cancelled"):
         assert f'"{reason}"' in stats.Table.__doc__

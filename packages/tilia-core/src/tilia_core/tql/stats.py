@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
+from tilia_core.labels import fold
+
 from . import names
 from .inuse import in_use
 
@@ -315,7 +317,7 @@ def _transitions(reader: _Reader) -> Table:
         lanes.setdefault((c.file_id, c.timeline_id, lane), []).append(c)
     pairs: dict[tuple[str, str], int] = {}
     for comps in lanes.values():
-        comps.sort(key=lambda c: (c.start, c.end, c.id))
+        comps.sort(key=lambda c: (c.start, c.end, fold(c.label), c.id))
         for a, b in zip(comps, comps[1:], strict=False):
             pairs[(a.label, b.label)] = pairs.get((a.label, b.label), 0) + 1
     rows = [(a, b, n) for (a, b), n in pairs.items()]
