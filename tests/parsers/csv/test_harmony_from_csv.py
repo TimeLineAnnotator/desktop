@@ -6,6 +6,7 @@ import pytest
 import tilia.parsers.csv.harmony
 from tests.mock import patch_file_dialog
 from tests.parsers.csv.common import assert_in_errors
+from tests.ui.timelines.harmony.interact import label_as_typed
 from tests.utils import undoable
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.harmony.components import Harmony, Mode
@@ -189,6 +190,56 @@ class TestByTime:
         )
         call_patched_import_by_time_func(harmony_tl, data)
         assert harmony_tl.harmonies()[0].get_data("step") == 5
+
+
+class TestRomanNumeralsInAMinorKey:
+    # In a minor key, the case of a numeral chooses the sixth and seventh
+    # degrees, as in music21's RomanNumeral, which the CSV import reads.
+    A_MINOR_NUMERALS = [
+        ("vi", 3, 1, "minor"),  # F#m
+        ("vio", 3, 1, "diminished"),  # F#o
+        ("vii", 4, 1, "minor"),  # G#m
+        ("viio", 4, 1, "diminished"),  # G#o
+        ("viio7", 4, 1, "diminished-seventh"),  # G#o7
+        ("VI", 3, 0, "major"),  # F
+        ("VII", 4, 0, "major"),  # G
+        ("#VII", 4, 1, "major"),  # G#
+        ("bvi", 3, 0, "minor"),  # Fm
+        ("bvii", 4, 0, "minor"),  # Gm
+    ]
+
+    @pytest.mark.parametrize("symbol,step,accidental,quality", A_MINOR_NUMERALS)
+    def test_numeral_is_read_in_the_key(
+        self, symbol, step, accidental, quality, harmony_tl
+    ):
+        data = "\n".join(
+            ["time,harmony_or_key,symbol", "0,key,a", f"1,harmony,{symbol}"]
+        )
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert not errors
+        harmony = harmony_tl.harmonies()[0]
+        assert harmony.get_data("step") == step
+        assert harmony.get_data("accidental") == accidental
+        assert harmony.get_data("quality") == quality
+
+    @pytest.mark.parametrize("symbol,_step,_accidental,_quality", A_MINOR_NUMERALS)
+    def test_imported_numeral_is_labelled_as_it_was_written(
+        self, symbol, _step, _accidental, _quality, harmony_tlui
+    ):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol,display_mode",
+                "0,key,a,roman",
+                f"1,harmony,{symbol},roman",
+            ]
+        )
+
+        success, errors = call_patched_import_by_time_func(harmony_tlui.timeline, data)
+
+        assert not errors
+        assert label_as_typed(harmony_tlui.harmonies()[0].label) == symbol
 
 
 class TestByMeasure:

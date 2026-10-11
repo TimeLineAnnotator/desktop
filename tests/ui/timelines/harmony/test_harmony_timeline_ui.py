@@ -2,11 +2,16 @@ import pytest
 
 import tilia.ui.commands
 from tests.mock import Serve
-from tests.ui.timelines.harmony.interact import click_harmony_ui
+from tests.ui.timelines.harmony.interact import (
+    click_harmony_ui,
+    label_as_typed,
+    numeral_part,
+)
 from tests.utils import get_command_action
 from tilia.requests import Get
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
+from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION
 
 FLAT_SIGN = "`b"
@@ -14,6 +19,8 @@ SHARP_SIGN = "`#"
 
 MAJOR = {"step": 0, "accidental": 0, "type": "major"}  # C major
 MINOR = {"step": 5, "accidental": 0, "type": "minor"}  # A minor
+EB_MINOR = {"step": 2, "accidental": -1, "type": "minor"}
+FS_MINOR = {"step": 3, "accidental": 1, "type": "minor"}
 
 
 def add_harmony(time: float | None = None, **kwargs):
@@ -267,7 +274,7 @@ class TestRomanNumeralDisplay:
             (MAJOR, 6, 0, 3, "viio42"),  # Ab in the bass
             (MAJOR, 0, 0, 1, "io%ssb653"),  # Co7: its fifth, Gb, keeps the flat
             (MAJOR, 3, 1, 0, "`#ivo7"),  # F#o7: Eb not in key
-            (MINOR, 4, 1, 0, "`#viio7"),  # G#o7: F in key
+            (MINOR, 4, 1, 0, "viio7"),  # G#o7: F in key
         ],
     )
     def test_fully_diminished_seventh_figure_has_no_accidental(
@@ -330,6 +337,281 @@ class TestRomanNumeralDisplay:
         add_harmony(
             step=step, accidental=accidental, quality=quality, applied_to=applied_to
         )
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+
+# In a minor key, the case of a numeral on the sixth or seventh degree chooses
+# the degree, as in music21's RomanNumeral: vi and vii (minor, diminished,
+# half-diminished) are the raised degrees, VI and VII (major, augmented) the
+# natural ones, and an accidental moves the degree from there.
+MINOR_KEY_SIXTH_AND_SEVENTH_LABELS = [
+    # A minor
+    (MINOR, 4, 1, "diminished-seventh", "viio7"),  # G#o7
+    (MINOR, 4, 1, "diminished", "viio"),  # G#o
+    (MINOR, 3, 1, "minor", "vi"),  # F#m
+    (MINOR, 3, 1, "diminished", "vio"),  # F#o
+    (MINOR, 4, 1, "major", "`#VII"),  # G#
+    (MINOR, 3, 0, "major", "VI"),  # F
+    (MINOR, 4, 0, "major", "VII"),  # G
+    (MINOR, 4, 0, "minor", "`bvii"),  # Gm
+    (MINOR, 3, 0, "minor", "`bvi"),  # Fm
+    # Eb minor, whose natural sixth is Cb and natural seventh Db
+    (EB_MINOR, 0, 0, "major", "`#VI"),  # C
+    (EB_MINOR, 0, -1, "major", "VI"),  # Cb
+    (EB_MINOR, 0, 0, "minor", "vi"),  # Cm
+    (EB_MINOR, 0, -1, "minor", "`bvi"),  # Cbm
+    (EB_MINOR, 1, 0, "major", "`#VII"),  # D
+    (EB_MINOR, 1, -1, "major", "VII"),  # Db
+    (EB_MINOR, 1, 0, "diminished-seventh", "viio7"),  # Do7
+    (EB_MINOR, 1, -1, "minor", "`bvii"),  # Dbm
+    # F# minor, whose natural sixth is D and natural seventh E
+    (FS_MINOR, 1, 1, "minor", "vi"),  # D#m
+    (FS_MINOR, 1, 0, "major", "VI"),  # D
+    (FS_MINOR, 1, 1, "major", "`#VI"),  # D#
+    (FS_MINOR, 1, 0, "minor", "`bvi"),  # Dm
+    (FS_MINOR, 2, 1, "diminished-seventh", "viio7"),  # E#o7
+    (FS_MINOR, 2, 0, "major", "VII"),  # E
+    (FS_MINOR, 2, 1, "major", "`#VII"),  # E#
+    (FS_MINOR, 2, 0, "minor", "`bvii"),  # Em
+]
+
+
+class TestRomanNumeralInMinorKeys:
+    @pytest.mark.parametrize(
+        "mode,step,accidental,quality,expected", MINOR_KEY_SIXTH_AND_SEVENTH_LABELS
+    )
+    def test_sixth_and_seventh_degrees(
+        self, mode, step, accidental, quality, expected, harmony_tlui
+    ):
+        add_mode(**mode)
+        add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "mode,step,accidental,quality,_label", MINOR_KEY_SIXTH_AND_SEVENTH_LABELS
+    )
+    def test_label_typed_in_its_key_gives_the_same_chord(
+        self, mode, step, accidental, quality, _label, harmony_tlui
+    ):
+        add_mode(**mode)
+        add_harmony(step=step, accidental=accidental, quality=quality)
+        drawn = harmony_tlui.harmonies()[0].label
+
+        dialog = SelectHarmonyParams(harmony_tlui.get_key_by_time(0))
+        dialog.line_edit.setText(label_as_typed(drawn))
+        assert dialog.populate_from_text()
+
+        result = dialog.get_result()
+        assert (result["step"], result["accidental"], result["quality"]) == (
+            step,
+            accidental,
+            quality,
+        )
+
+    @pytest.mark.parametrize(
+        "mode,step,accidental",
+        [(MINOR, 4, 1), (FS_MINOR, 2, 1), (EB_MINOR, 1, 0)],  # G#o7, E#o7, Do7
+    )
+    @pytest.mark.parametrize(
+        "inversion,expected",
+        [(0, "viio7"), (1, "viio#65"), (2, "viio#43"), (3, "viio#42")],
+    )
+    def test_leading_tone_seventh_keeps_the_figures_of_the_key_signature(
+        self, mode, step, accidental, inversion, expected, harmony_tlui
+    ):
+        # Figures are figured bass, relative to the key signature: the key has
+        # no sharp on the sixth above the bass, so viio#65 keeps the root's. The
+        # numeral's case chooses the root, so music21 reads the same chord.
+        add_mode(**mode)
+        add_harmony(
+            step=step,
+            accidental=accidental,
+            quality="diminished-seventh",
+            inversion=inversion,
+        )
+        label = harmony_tlui.harmonies()[0].label
+
+        dialog = SelectHarmonyParams(harmony_tlui.get_key_by_time(0))
+        dialog.line_edit.setText(label_as_typed(label))
+        assert dialog.populate_from_text()
+        result = dialog.get_result()
+
+        assert label == expected
+        assert (
+            result["step"],
+            result["accidental"],
+            result["quality"],
+            result["inversion"],
+        ) == (step, accidental, "diminished-seventh", inversion)
+
+    # The case a quality gets is the one it got before: lower-case for the
+    # qualities whose name starts with minor, diminished or half-diminished,
+    # upper-case for the others, including the suspended chords, the power
+    # chord, the pedal and the Tristan chord.
+    @pytest.mark.parametrize(
+        "quality",
+        [
+            "minor",
+            "minor-seventh",
+            "minor-major-seventh",
+            "minor-sixth",
+            "diminished",
+            "diminished-seventh",
+            "half-diminished-seventh",
+        ],
+    )
+    @pytest.mark.parametrize(
+        "step,accidental,expected",
+        [
+            (4, 1, "vii"),
+            (4, 0, "`bvii"),
+            (3, 1, "vi"),
+            (3, 0, "`bvi"),
+        ],
+    )
+    def test_lower_case_qualities_start_from_the_raised_degree(
+        self, quality, step, accidental, expected, harmony_tlui
+    ):
+        add_mode(**MINOR)
+        add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert numeral_part(harmony_tlui.harmonies()[0].label) == expected
+
+    @pytest.mark.parametrize(
+        "quality",
+        [
+            "major",
+            "dominant-seventh",
+            "major-seventh",
+            "major-sixth",
+            "augmented",
+            "augmented-seventh",
+            "seventh-flat-five",
+            "suspended-second",
+            "suspended-fourth",
+            "suspended-fourth-seventh",
+            "power",
+            "pedal",
+            "Tristan",
+        ],
+    )
+    @pytest.mark.parametrize(
+        "step,accidental,expected",
+        [
+            (4, 1, "`#VII"),
+            (4, 0, "VII"),
+            (3, 1, "`#VI"),
+            (3, 0, "VI"),
+        ],
+    )
+    def test_upper_case_qualities_start_from_the_natural_degree(
+        self, quality, step, accidental, expected, harmony_tlui
+    ):
+        add_mode(**MINOR)
+        add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert numeral_part(harmony_tlui.harmonies()[0].label) == expected
+
+    @pytest.mark.parametrize(
+        "quality,expected",
+        [
+            ("Italian", "It6+"),
+            ("French", "Fr6+"),
+            ("German", "Gr6+"),
+            ("Neapolitan", "N6"),
+        ],
+    )
+    def test_chords_with_a_fixed_label_have_no_numeral_to_change(
+        self, quality, expected, harmony_tlui
+    ):
+        add_mode(**MINOR)
+        add_harmony(step=4, accidental=1, quality=quality)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "step,accidental,quality,expected",
+        [
+            (5, 0, "minor", "i"),
+            (5, 0, "major", "I"),
+            (5, 1, "major", "`#I"),
+            (6, 0, "diminished", "iio"),
+            (0, 0, "major", "III"),
+            (0, -1, "major", "`bIII"),
+            (0, 0, "minor", "iii"),
+            (1, 0, "minor", "iv"),
+            (1, 1, "minor", "`#iv"),
+            (2, 0, "major", "V"),
+            (2, 1, "major", "`#V"),
+            (2, 0, "minor", "v"),
+        ],
+    )
+    def test_other_degrees_are_measured_against_the_key(
+        self, step, accidental, quality, expected, harmony_tlui
+    ):
+        add_mode(**MINOR)
+        add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize("applied_to", [1, 3, 4, 6])
+    @pytest.mark.parametrize(
+        "step,accidental,quality",
+        [
+            (3, 0, "major"),
+            (3, 1, "minor"),
+            (4, 0, "minor"),
+            (4, 1, "major"),
+            (4, 1, "diminished-seventh"),
+        ],
+    )
+    def test_applied_chord_has_no_accidental_prefix(
+        self, step, accidental, quality, applied_to, harmony_tlui
+    ):
+        add_mode(**MINOR)
+        add_harmony(
+            step=step, accidental=accidental, quality=quality, applied_to=applied_to
+        )
+
+        assert not harmony_tlui.harmonies()[0].label.startswith("`")
+
+    @pytest.mark.parametrize(
+        "step,accidental,quality,expected",
+        [
+            (4, 0, "minor", "vii"),  # Gm: the seventh of A dorian is G
+            (3, 1, "minor", "vi"),  # F#m: its sixth is F#
+            (3, 1, "diminished", "vio"),
+            (4, 0, "major", "VII"),
+            (4, 1, "major", "`#VII"),
+        ],
+    )
+    def test_dorian_key_is_measured_against_the_key(
+        self, step, accidental, quality, expected, harmony_tlui
+    ):
+        # Only a minor key has a raised sixth and seventh.
+        add_mode(step=5, accidental=0, type="dorian")
+        add_harmony(step=step, accidental=accidental, quality=quality)
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
+        "step,accidental,quality,expected",
+        [
+            (3, 1, "minor", "vi"),  # F#m
+            (4, 1, "diminished", "viio"),  # G#o
+            (4, 1, "minor", "vii"),  # G#m
+            (4, 0, "major", "`bVII"),  # G
+            (4, 0, "minor", "`bvii"),  # Gm
+            (3, 0, "major", "`bVI"),  # F
+        ],
+    )
+    def test_major_key_is_measured_against_the_key(
+        self, step, accidental, quality, expected, harmony_tlui
+    ):
+        add_mode(step=5, accidental=0, type="major")  # A major
+        add_harmony(step=step, accidental=accidental, quality=quality)
 
         assert harmony_tlui.harmonies()[0].label == expected
 
