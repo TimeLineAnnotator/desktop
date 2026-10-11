@@ -17,6 +17,16 @@ EDITED_VALUES = {
     ("hierarchy_timeline", "merge_separator"): "",
 }
 
+AUTO_SCROLL_KEY = "editable/general/auto-scroll"
+
+# What a run leaves in an INI file when Qt flushes a pickled enum after the
+# interpreter has shut down (#711). Older PySide versions name the type
+# PyObject.
+EMPTY_PICKLES = {
+    "PyObject": r"@Variant(\0\0\0\x7f\0\0\0\tPyObject\0)",
+    "PyObjectWrapper": r"@Variant(\0\0\0\x7f\0\0\0\x18PySide::PyObjectWrapper\0)",
+}
+
 
 class Store:
     """A settings store that can be "restarted".
@@ -143,6 +153,47 @@ class TestVersion:
 
         assert int(qsettings.value(SettingsManager.VERSION_KEY)) == newer
         assert qsettings.value("editable/general/from_a_newer_version") == "kept"
+
+
+class TestEnums:
+    def test_the_default_is_stored_by_name(self, store):
+        qsettings = store.qsettings()
+        SettingsManager(qsettings)
+        assert store.restart(qsettings).value(AUTO_SCROLL_KEY) == "OFF"
+
+    def test_a_choice_is_stored_by_name(self, store):
+        qsettings = store.qsettings()
+        SettingsManager(qsettings).set("general", "auto-scroll", ScrollType.BY_PAGE)
+        assert store.restart(qsettings).value(AUTO_SCROLL_KEY) == "BY_PAGE"
+
+    def test_a_pickled_choice_is_kept_and_stored_by_name(self, store):
+        # TiLiA 0.7.1 pickled enums and didn't version its settings.
+        qsettings = store.qsettings()
+        qsettings.setValue(AUTO_SCROLL_KEY, ScrollType.BY_PAGE)
+        restarted = store.restart(qsettings)
+
+        manager = SettingsManager(restarted)
+
+        assert manager.get("general", "auto-scroll") is ScrollType.BY_PAGE
+        assert restarted.value(AUTO_SCROLL_KEY) == "BY_PAGE"
+
+    @pytest.mark.parametrize("version", [0, 1, SettingsManager.VERSION])
+    @pytest.mark.parametrize("pickle", EMPTY_PICKLES.values(), ids=EMPTY_PICKLES)
+    def test_an_empty_pickle_is_replaced_by_the_default(
+        self, tmp_path, pickle, version
+    ):
+        path = tmp_path / "settings.ini"
+        path.write_text(
+            f"[editable]\ngeneral\\auto-scroll={pickle}\n\n"
+            f"[meta]\nsettings_version={version}\n"
+        )
+
+        qsettings = QSettings(str(path), QSettings.Format.IniFormat)
+
+        manager = SettingsManager(qsettings)
+
+        assert manager.get("general", "auto-scroll") is ScrollType.OFF
+        assert qsettings.value(AUTO_SCROLL_KEY) == "OFF"
 
 
 class TestResetToDefault:

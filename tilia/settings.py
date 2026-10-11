@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
 
@@ -14,15 +15,34 @@ class _Unreadable:
 UNREADABLE = _Unreadable()
 
 
+def _store_auto_scroll_by_name(qsettings: QSettings) -> None:
+    """Version 1 to 2: auto-scroll was stored as a pickled enum; store its name.
+
+    A pickle that Qt flushed after the interpreter had shut down is empty and
+    can't be read (#711). There is nothing to keep, so it is removed and the
+    default replaces it.
+    """
+    key = "editable/general/auto-scroll"
+    try:
+        value = qsettings.value(key, None)
+    except EOFError:
+        qsettings.remove(key)
+        return
+    if isinstance(value, ScrollType):
+        qsettings.setValue(key, value.name)
+
+
 class SettingsManager(QObject):
     # Bump VERSION when a setting's name, group or type changes, and add a
     # function to MIGRATIONS that moves version VERSION - 1 to VERSION.
     # Settings are migrated, never reset. Version 0 is both a store saved
     # before settings were versioned and a new, empty one, so a migration
     # must allow for the settings it moves being missing.
-    VERSION = 1
+    VERSION = 2
     VERSION_KEY = "meta/settings_version"
-    MIGRATIONS: dict[int, Callable[[QSettings], None]] = {}
+    MIGRATIONS: dict[int, Callable[[QSettings], None]] = {
+        1: _store_auto_scroll_by_name,
+    }
 
     DEFAULT_SETTINGS = {
         "general": {
@@ -181,16 +201,17 @@ class SettingsManager(QObject):
 
         # Only a missing value is missing. Zero, empty text and empty lists
         # are values the user chose.
-        if not self._settings.contains(key):
-            self._settings.setValue(key, default)
-            return self._as_setting(default, default)
-
+        # Both probes raise EOFError on an empty pickle, which an older TiLiA
+        # can still leave behind (#711): nothing can read it, so replace it
+        # with the default.
         try:
+            if not self._settings.contains(key):
+                self._settings.setValue(key, self._to_stored(default))
+                return self._as_setting(default, default)
+
             stored = self._settings.value(key, None)
         except EOFError:
-            # A pickled value (an enum) that can't be loaded: nothing can read
-            # it, so replace it.
-            self._settings.setValue(key, default)
+            self._settings.setValue(key, self._to_stored(default))
             return self._as_setting(default, default)
 
         value = self._as_setting(stored, default)
@@ -207,7 +228,16 @@ class SettingsManager(QObject):
         INI files (Linux) store every value as text, and a list of one item
         as that item; an empty list reads back as None. The Windows registry
         stores booleans as text. Booleans have "true" or "false" as defaults.
+        Enums are stored by name.
         """
+        if isinstance(default, Enum):
+            if isinstance(value, type(default)):
+                return value
+            try:
+                return type(default)[value]
+            except (KeyError, TypeError):
+                return UNREADABLE
+
         if isinstance(default, str) and default.lower() in ("true", "false"):
             if isinstance(value, bool):
                 return value
@@ -239,9 +269,15 @@ class SettingsManager(QObject):
 
         return value if isinstance(value, type(default)) else UNREADABLE
 
+    @staticmethod
+    def _to_stored(value: Any) -> Any:
+        # QSettings would pickle an enum, and a pickle that Qt flushes after
+        # the interpreter has shut down is empty (#711).
+        return value.name if isinstance(value, Enum) else value
+
     def _set(self, group_name: str, setting: str, value, in_default=True):
         key = self._get_key(group_name, setting, in_default)
-        self._settings.setValue(key, value)
+        self._settings.setValue(key, self._to_stored(value))
 
     def get(self, group_name: str, setting: str):
         return self._cache[group_name][setting]
