@@ -494,10 +494,41 @@ class TestRomanNumeralInMinorKeys:
         assert harmony_tlui.harmonies()[0].label == expected
 
     @pytest.mark.parametrize(
+        "mode,step,accidental",
+        [
+            (MINOR, 4, 1),  # G#o/7: F# is its seventh
+            (D_MINOR, 0, 1),  # C#o/7: B
+            (EB_MINOR, 1, 0),  # Do/7: C
+            (FS_MINOR, 2, 1),  # E#o/7: D#
+        ],
+    )
+    @pytest.mark.parametrize(
+        "inversion,expected",
+        [(0, "viio\\7"), (1, "viio\\65"), (2, "viio\\43"), (3, "viio\\42")],
+    )
+    def test_half_diminished_seventh_has_no_figure_accidental_for_a_raised_sixth(
+        self, mode, step, accidental, inversion, expected, harmony_tlui
+    ):
+        # The ø already says that the seventh is minor, as the ° says that a
+        # fully diminished seventh is diminished. In a minor key, that seventh
+        # is the raised sixth.
+        add_mode(**mode)
+        add_harmony(
+            step=step,
+            accidental=accidental,
+            quality="half-diminished-seventh",
+            inversion=inversion,
+        )
+
+        assert harmony_tlui.harmonies()[0].label == expected
+
+    @pytest.mark.parametrize(
         "step,accidental,quality,expected",
         [
             # The accidental tells a major seventh from a minor one.
             (5, 0, "minor-major-seventh", "i#7"),
+            # No symbol says that G#m7's seventh, F#, is not F.
+            (4, 1, "minor-seventh", "vii#7"),
             # And the major ninth, F#, from the flat ninth, F.
             (2, 0, "dominant-ninth", "V#9"),
         ],

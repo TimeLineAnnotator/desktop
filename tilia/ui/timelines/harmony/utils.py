@@ -120,7 +120,7 @@ def _root_position_suffix(
         return prefix + str(number)
 
     sym = music21.harmony.ChordSymbol(note_name + QUALITY_TO_ABBREVIATION[quality])
-    figures = _get_figures(sym, key)
+    figures = _get_figures(sym, key, quality)
     idx = _figure_index_for_pitch(figures, sym.getChordStep(number), sym.bass())
     modifier = figures[idx][1] if idx is not None else None
     accidental = _LONE_FIGURE_ACCIDENTAL.get(modifier, _fmt_mod(modifier))
@@ -192,17 +192,22 @@ def _to_ascending_generic(generic: int) -> int:
 
 
 def _raised_minor_tones(
-    sym: music21.harmony.ChordSymbol, key: music21.key.Key
+    sym: music21.harmony.ChordSymbol, key: music21.key.Key, quality: str
 ) -> set[str]:
     """
     The names of the root, third and fifth that are the raised sixth or seventh
     of a minor key. The numeral's case and the chord's quality already say so.
+    So does the ø of a half-diminished seventh, which says that its seventh is
+    minor, as the ° of a fully diminished seventh says that its seventh is
+    diminished: the seventh is included for that chord.
     """
     if key.mode != "minor":
         return set()
     natural = {p.step: p.alter for p in key.pitches[:7]}
     sixth_and_seventh = {key.pitches[5].step, key.pitches[6].step}
-    tones = (sym.root(), sym.third, sym.fifth)
+    tones = [sym.root(), sym.third, sym.fifth]
+    if quality == "half-diminished-seventh":
+        tones.append(sym.seventh)
     return {
         t.name
         for t in tones
@@ -215,12 +220,14 @@ def _raised_minor_tones(
 def _get_figures(
     sym: music21.harmony.ChordSymbol,
     key: music21.key.Key,
+    quality: str,
 ) -> list[tuple[int, str | None]]:
     """
     Compute figured bass (interval, modifier) pairs for each non-bass chord
     tone, where the modifier reflects the deviation from the diatonic pitch at
     that scale degree above the bass in the given key. A root, third or fifth
-    that is the raised sixth or seventh of a minor key has none.
+    that is the raised sixth or seventh of a minor key has none, nor has a
+    half-diminished seventh's seventh.
     """
     bass = sym.bass()
     key_pitches = key.pitches
@@ -230,7 +237,7 @@ def _get_figures(
     except ValueError:
         bass_idx = None
 
-    raised_tones = _raised_minor_tones(sym, key)
+    raised_tones = _raised_minor_tones(sym, key, quality)
     figures: list[tuple[int, str | None]] = []
     seen: set[int] = set()
     for pitch in sym.pitches:
@@ -268,7 +275,7 @@ def _chord_fb(
     the 5th is non-diatonic, drops the diatonic 3rd instead (only when the chord
     has an extension, so triads in 2nd inversion keep both 3rd and 5th).
     """
-    figures = _get_figures(sym, key)
+    figures = _get_figures(sym, key, quality)
     bass = sym.bass()
     size = _get_chord_size(quality)
 
