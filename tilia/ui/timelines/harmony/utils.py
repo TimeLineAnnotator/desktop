@@ -307,18 +307,30 @@ def _get_note_degree(key: music21.key.Key, note):
 
 
 def _get_roman_numeral_accidental(
-    key: music21.key.Key, note_step: int, note_accidental: int
-):
+    key: music21.key.Key,
+    note_step: int,
+    note_accidental: int,
+    is_lower_case: bool,
+) -> float:
     tonic = INT_TO_NOTE_NAME[note_step]
     accidental_symbol = Accidental.get_from_int("music21", note_accidental)
     note = music21.note.Note(tonic + accidental_symbol)
+    degree = _get_note_degree(key, note)
+
+    if key.mode == "minor" and degree in (6, 7):
+        # As in music21's RomanNumeral, the numeral's case chooses the degree
+        # the accidental is measured from: vi and vii are the raised sixth and
+        # seventh, VI and VII the natural ones. So a typed label gives back the
+        # chord it labels.
+        natural_alter = key.pitchFromDegree(degree).alter
+        return note.pitch.alter - (natural_alter + (1 if is_lower_case else 0))
+
     is_diatonic = (note.step, note.pitch.pitchClass) in (
         (p.step, p.pitchClass) for p in key.pitches
     )
     if is_diatonic:
         return 0
 
-    degree = _get_note_degree(key, note)
     key_degree_pitch = key.pitchFromDegree(degree)
     if key_degree_pitch is None:
         return 0
@@ -341,10 +353,13 @@ def to_roman_numeral(
 
     key_step = NOTE_NAME_TO_INT[key.tonic.step]
     numeral = INT_TO_ROMAN[(step - key_step - applied_to) % 7]
-    if quality.startswith(("minor", "diminished", "half-diminished")):
+    is_lower_case = quality.startswith(("minor", "diminished", "half-diminished"))
+    if is_lower_case:
         numeral = numeral.lower()
 
-    result_accidental = _get_roman_numeral_accidental(key, step, accidental)
+    result_accidental = _get_roman_numeral_accidental(
+        key, step, accidental, is_lower_case
+    )
     # Applied chords require a different calculation of their prefixes.
     # For now, let's leave them without a prefix, as that will be,
     # by far, the most common correct prefix.
