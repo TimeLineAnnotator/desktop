@@ -90,12 +90,14 @@ pip install -e .
 
 - To run TiLiA from source, run:
 ```
-tilia
+tilia-ui
 ```
+
+With tilia-core installed as well (`pip install -e packages/tilia-core`), `tilia ui` does the same.
 
 - TiLiA also offers a CLI mode, which can be run with:
 ```
-tilia --user-interface cli
+tilia-ui --user-interface cli
 ```
 > Note: The CLI is currently only available when run from source, and not in the compiled executable.
 
