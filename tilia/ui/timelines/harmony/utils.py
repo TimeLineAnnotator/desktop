@@ -191,6 +191,27 @@ def _to_ascending_generic(generic: int) -> int:
     return (generic - 1) % 7 + 1
 
 
+def _raised_minor_tones(
+    sym: music21.harmony.ChordSymbol, key: music21.key.Key
+) -> set[str]:
+    """
+    The names of the root, third and fifth that are the raised sixth or seventh
+    of a minor key. The numeral's case and the chord's quality already say so.
+    """
+    if key.mode != "minor":
+        return set()
+    natural = {p.step: p.alter for p in key.pitches[:7]}
+    sixth_and_seventh = {key.pitches[5].step, key.pitches[6].step}
+    tones = (sym.root(), sym.third, sym.fifth)
+    return {
+        t.name
+        for t in tones
+        if t is not None
+        and t.step in sixth_and_seventh
+        and round(t.alter - natural[t.step]) == 1
+    }
+
+
 def _get_figures(
     sym: music21.harmony.ChordSymbol,
     key: music21.key.Key,
@@ -198,7 +219,8 @@ def _get_figures(
     """
     Compute figured bass (interval, modifier) pairs for each non-bass chord
     tone, where the modifier reflects the deviation from the diatonic pitch at
-    that scale degree above the bass in the given key.
+    that scale degree above the bass in the given key. A root, third or fifth
+    that is the raised sixth or seventh of a minor key has none.
     """
     bass = sym.bass()
     key_pitches = key.pitches
@@ -208,6 +230,7 @@ def _get_figures(
     except ValueError:
         bass_idx = None
 
+    raised_tones = _raised_minor_tones(sym, key)
     figures: list[tuple[int, str | None]] = []
     seen: set[int] = set()
     for pitch in sym.pitches:
@@ -224,6 +247,8 @@ def _get_figures(
         else:
             diatonic_idx = (bass_idx + generic - 1) % 7
             diff = round(pitch.alter - key_pitches[diatonic_idx].alter)
+            if pitch.name in raised_tones:
+                diff = 0  # the numeral's case or the quality symbol says so
             figures.append((generic, Accidental.get_from_int("music21", diff) or None))
 
     figures.sort(key=lambda x: -x[0])
