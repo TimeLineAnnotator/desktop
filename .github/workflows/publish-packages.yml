@@ -1,0 +1,156 @@
+name: Publish packages
+
+on:
+  push:
+    tags:
+      - 'packages-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Check the tag against the versions
+      if: github.event_name == 'push'
+      run: |
+        version="${GITHUB_REF_NAME#packages-v}"
+        VERSION="$version" python - <<'PY'
+        import os
+        import sys
+        import tomllib
+
+        version = os.environ["VERSION"]
+
+
+        def load(path):
+            with open(path, "rb") as f:
+                return tomllib.load(f)["project"]
+
+
+        core = load("packages/tilia-core/pyproject.toml")
+        library = load("packages/tilia-library/pyproject.toml")
+        found = {
+            "tilia-core version": core["version"],
+            "tilia-library version": library["version"],
+            "tilia-library requirement": None,
+        }
+        for requirement in library.get("dependencies", []):
+            if requirement.replace(" ", "").startswith("tilia-core=="):
+                found["tilia-library requirement"] = requirement.replace(" ", "")[len("tilia-core=="):]
+
+        bad = {name: value for name, value in found.items() if value != version}
+        for name, value in bad.items():
+            print(f"{name} is {value!r}, but the tag says {version!r}", file=sys.stderr)
+        sys.exit(1 if bad else 0)
+        PY
+
+    - name: Build the packages
+      run: |
+        python -m pip install build twine
+        python -m build --outdir dist packages/tilia-core
+        python -m build --outdir dist packages/tilia-library
+        python -m twine check --strict dist/*
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: packages
+        path: dist/
+        if-no-files-found: error
+
+  test:
+    name: test (${{ matrix.python-version }}, ${{ matrix.os }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.13']
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Check packages
+      run: python scripts/check_packages.py
+
+  publish:
+    needs: [build, test]
+    # A manual run on a tag must never upload.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/packages-v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/tilia-core/
+    permissions:
+      id-token: write
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: packages
+        path: dist/
+
+    # PyPI creates at most one new project per run from pending publishers, so
+    # a release that adds a new package can stop half-way; skipping the files
+    # PyPI already has lets the next run finish it.
+    - uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        skip-existing: true
+
+  verify:
+    name: verify (${{ matrix.os }})
+    needs: publish
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    timeout-minutes: 20
+
+    steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install the release from PyPI
+      shell: bash
+      run: |
+        version="${GITHUB_REF_NAME#packages-v}"
+        python -m venv clean
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          py=clean/Scripts/python
+        else
+          py=clean/bin/python
+        fi
+        # PyPI's index can lag behind an upload.
+        for attempt in 1 2 3 4 5 6 7 8 9 10; do
+          if "$py" -m pip install --no-cache-dir "tilia-core==$version" "tilia-library==$version"; then
+            break
+          fi
+          if [ "$attempt" = 10 ]; then
+            echo "Could not install $version from PyPI" >&2
+            exit 1
+          fi
+          sleep 30
+        done
+        "$py" -c "
+        import importlib.util
+        import tilia_core
+        import tilia_library
+        assert importlib.util.find_spec('PySide6') is None, 'PySide6 was installed'
+        "
