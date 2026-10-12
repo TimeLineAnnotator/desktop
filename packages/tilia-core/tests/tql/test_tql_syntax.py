@@ -273,6 +273,20 @@ def test_a_string_holding_on_is_not_an_on_clause():
     assert q.action.label == "turn on" and q.action.on == []
 
 
+def test_edit_strings_keep_their_whitespace():
+    # the verbs read their strings from the lexer, as SET and labels do: two
+    # spaces, a tab or a newline inside the quotes reach the planned write as typed
+    assert parse('verse -> GROUP AS "Chorus  2"').action.label == "Chorus  2"
+    a = parse('verse -> GROUP AS " x " COLOR "#ff  00"').action
+    assert (a.label, a.color) == (" x ", "#ff  00")
+    assert parse('verse -> TAG "a\tb"').action.tag == "a\tb"
+    assert parse('verse -> UNTAG "x   y"').action.tag == "x   y"
+    assert parse('a THEN b -> TAG $1 "p\nq"').action.tag == "p\nq"
+    q = parse('verse -> GROUP AS "x" ON free -> SKIP TAG "p  q" crossing -> INSERT')
+    assert [r.tag for r in q.action.on] == ["p  q", None]
+    assert parse('verse -> SET label = "Chorus  2"').action.assigns[0].value.value == "Chorus  2"
+
+
 @pytest.mark.parametrize(
     "text, want",
     [
