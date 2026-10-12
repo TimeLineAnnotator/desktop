@@ -220,7 +220,7 @@ def test_the_rows_are_read_only_when_the_generation_moves(
         liveness.tick()
     assert len(backend.scans) == 3
     assert backend.files_calls == 1
-    assert liveness.state(corpus.id)["files"] == 3
+    assert liveness.state(corpus.id)["files"] == FIXTURE_COUNTS[0]
     backend.rows = [{"state": "ok"}]
     backend.finds_change = True
     clock.now = 12.0
@@ -259,7 +259,7 @@ def test_a_vanished_folder_whose_scan_raises_is_unavailable(
         liveness.tick()
     state = liveness.state(corpus.id)
     assert state["available"] is False
-    assert state["files"] == 3
+    assert state["files"] == FIXTURE_COUNTS[0]
     assert state["last_scan"] is None
     assert state["scanning"] is False
     folder.mkdir()
