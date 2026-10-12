@@ -157,6 +157,26 @@ def test_color():
     assert derived.color(None) is None
 
 
+def test_color_knows_every_svg_name():
+    assert len(derived._CSS) == 148
+    assert derived.color("darkslategray") == "#2f4f4f"
+    assert derived.color("DarkSlateGrey") == "#2f4f4f"
+    assert derived.color("rebeccapurple") == "#663399"
+    assert derived.color("lightgoldenrodyellow") == "#fafad2"
+    assert derived.color("not a colour") == "not a colour"
+
+
+def test_color_of_no_colour_is_none():
+    # "" is the app's "no colour" (tilia/timelines/base/validators.py).
+    assert derived.color("") is None
+    assert derived.color("  ") is None
+
+
+def test_color_drops_the_alpha_of_a_qt_colour():
+    assert derived.color("#80ffc0cb") == "#ffc0cb"
+    assert derived.color("80FFC0CB") == "#ffc0cb"
+
+
 def test_field_name():
     assert derived.field_name("Song Title") == "song_title"
     assert derived.field_name("a  \t b") == "a_b"
