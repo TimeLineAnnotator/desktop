@@ -175,11 +175,22 @@ class TestLabelAndParentAsStep:
         got = run("continuation[parent = ST] IN form", FIXTURES["exposition"])
         assert [c.start for m in got.matches for c in m.slots[0]] == [14, 18]
 
-    def test_a_label_in_a_chords_lane_is_for_the_harmony_part(self):
-        with pytest.raises(NotImplementedError, match="harmony"):
-            run("*[label = V7] IN harmony")
-        with pytest.raises(NotImplementedError, match="harmony"):
-            run("* IN harmony WHERE label = V7")
+    @pytest.mark.parametrize(
+        "query, starts",
+        [
+            ("V7[label = V7] IN harmony", [1, 3, 9, 17]),
+            ("*[label = V65] IN harmony", [3]),
+            ("* IN harmony WHERE label = V7", [1, 3, 9, 17]),
+            ("* IN keys WHERE $1.label = c", [8]),
+            ("*[label = c] IN keys", [8]),
+            ("*[label != V7] IN harmony", [0, 2, 4, 6, 7, 8, 10, 14, 16, 18]),
+        ],
+    )
+    def test_a_label_in_a_chords_or_keys_lane_matches_as_the_step_would(
+        self, query, starts
+    ):
+        got = run(query, FIXTURES["harmony"])
+        assert [c.start for m in got.matches for c in m.slots[0]] == starts
 
 
 # --------------------------------------------------------------------------- #

@@ -12,6 +12,7 @@ conditions SQL does not take (:mod:`.relations`).
 from __future__ import annotations
 
 import fnmatch
+import logging
 import sqlite3
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
@@ -38,6 +39,7 @@ KIND_WORDS = {
     "key": "key",
     "keys": "key",
 }
+LOG = logging.getLogger(__name__)
 BAR_WORDS = ("bar", "bars", "measure", "measures")
 DEFAULT_KINDS = ("hierarchy", "range", "marker")  # a query without IN: no bars
 POINT_KINDS = ("marker", "beat")
@@ -209,27 +211,6 @@ def timeline_lanes(con: sqlite3.Connection, timeline_id: str) -> list[LaneSpec]:
     return [] if tl is None else _lanes_of(con, tl, None)
 
 
-def check_labels(specs: Iterable[LaneSpec], units: Iterable[syntax.Unit]) -> None:
-    """Raise NotImplementedError when ``units`` would be matched against the
-    chords or keys of ``specs`` by a label condition (``[label = V7]``) rather
-    than as a step: that is not available yet."""
-    if any(s.kind in ("chord", "key") for s in specs) and any(
-        has_label_step(u) for u in units
-    ):
-        raise NotImplementedError(
-            "a label condition on chords and keys is not available yet "
-            "(write the chord as a step: V7 IN harmony)"
-        )
-
-
-def has_label_step(unit: syntax.Unit) -> bool:
-    """Whether a bracket of ``unit`` matches a label as a step, other than ``*``."""
-    return any(
-        is_label_step(c) and c.value.kind != "any"  # type: ignore[union-attr]
-        for c in unit.conds
-    )
-
-
 # --------------------------------------------------------------------------- #
 # Candidate statements
 # --------------------------------------------------------------------------- #
@@ -252,7 +233,8 @@ class SqlBuilder:
 
     def lanes(self, lane: syntax.Lane) -> list[LaneSpec]:
         if self.resolve is None:
-            raise NotImplementedError("a relation needs the lanes of its file")
+            LOG.error("a relation in a statement needs the lanes of its file")
+            return []
         return self.resolve(lane)
 
 
@@ -276,14 +258,36 @@ def _category_test(lit: syntax.Literal, alias: str, params: list[Any]) -> str:
     return f"({alias}.category = ? OR substr({alias}.category, 1, ?) = ?)"
 
 
-def _alt_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
+def holds(specs: Iterable[LaneSpec] | None) -> tuple[bool, bool]:
+    """What the lanes ``specs`` can hold: ``(chords or keys, labelled units)``.
+    Without lanes (None) either may be there. A bar is no component."""
+    if specs is None:
+        return True, True
+    kinds = {s.kind for s in specs} - {BAR_KIND}
+    harmony = bool(kinds & {"chord", "key"})
+    return harmony, bool(kinds - {"chord", "key"}) or not kinds
+
+
+def _alt_sql(
+    alt: syntax.Alt,
+    comp: str,
+    n: int,
+    params: list[Any],
+    can: tuple[bool, bool] = (True, True),
+) -> str:
     """One ``a/b/…`` on the component ``comp``. A chord is read as a chord and a
     key as a key (:func:`_harmony_sql`); any other component has its label
-    tested (:func:`_label_sql`)."""
+    tested (:func:`_label_sql`). ``can`` says which of the two the lanes of the
+    component can hold (:func:`holds`); the other is left out."""
     lits = alt.lits
     if len(lits) == 1 and lits[0].kind == "any":
         return "(1)"
+    can_harmony, can_label = can
+    if not can_harmony:
+        return _label_sql(alt, comp, n, params)
     harmony = _harmony_sql(alt, comp, params)
+    if not can_label:
+        return harmony
     label = _label_sql(alt, comp, n, params)
     return (
         f"(({comp}.kind IN ('chord', 'key') AND {harmony}) OR "
@@ -544,9 +548,16 @@ def lane_test(specs: list[LaneSpec], comp: str, bld: SqlBuilder) -> str:
     return "(" + " OR ".join(tests) + ")" if tests else "0"
 
 
-def unit_test(unit: syntax.Unit, comp: str, bld: SqlBuilder) -> str:
+def unit_test(
+    unit: syntax.Unit,
+    comp: str,
+    bld: SqlBuilder,
+    specs: list[LaneSpec] | None = None,
+) -> str:
     """The test that component ``comp`` fits ``unit``: its label, and the timing
-    relations among its brackets as ``EXISTS``."""
+    relations among its brackets as ``EXISTS``. ``specs`` are the lanes the
+    component is in, when known: the test reads a chord or key, or a label, only
+    if they can hold one."""
     from . import relations  # relations imports this module
 
     in_sql, _ = split_conds(unit)
@@ -554,7 +565,10 @@ def unit_test(unit: syntax.Unit, comp: str, bld: SqlBuilder) -> str:
     if term is None:
         test = "1"
     else:
-        alts = [_alt_sql(alt, comp, n, bld.params) for n, alt in enumerate(term.alts)]
+        can = holds(specs)
+        alts = [
+            _alt_sql(alt, comp, n, bld.params, can) for n, alt in enumerate(term.alts)
+        ]
         test = " OR ".join(alts)
         if len(alts) > 1:
             # callers AND this with the file and lane tests
@@ -577,19 +591,17 @@ def candidate_statement(
     file_id: str,
     resolve: Resolve | None = None,
     has_map: bool = True,
+    specs: list[LaneSpec] | None = None,
 ) -> tuple[str, list[Any]]:
     """``(sql, parameters)`` selecting the ids of the components of ``file_id``
     that fit ``unit`` (tql.md §5), bound with ``?``: its label and the timing
     relations in its brackets, and the stored numbers and colours it compares.
     ``resolve`` names the lanes of an ``IN`` clause; ``has_map`` says whether the
     file has a time map, without which a relation limited in bars or beats holds
-    of nothing."""
-    if unit.term is None and not unit.conds:
-        raise NotImplementedError(
-            "a unit without a label is not available yet (conditions)"
-        )
+    of nothing. ``specs`` are the lanes the units are looked for in, if known
+    (see :func:`unit_test`)."""
     bld = SqlBuilder(resolve, has_map)
     bld.params.append(file_id)
-    test = unit_test(unit, "c", bld)
+    test = unit_test(unit, "c", bld, specs)
     sql = f"SELECT c.id FROM components c WHERE c.file_id = ? AND ({test})"
     return sql, bld.params

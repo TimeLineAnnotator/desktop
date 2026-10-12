@@ -23,7 +23,7 @@ from typing import Any, Protocol
 from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
 
-from . import syntax
+from . import regexes, syntax
 from .lanes import bar_id, pass_numbers
 from .result import Component
 
@@ -99,11 +99,11 @@ def _search(
     to get right, as text when it is no regular expression."""
     subject = nfc(subject)
     try:
-        found = re.search(pattern, subject)
-    except re.error:
+        found = regexes.search(pattern, subject)
+    except regexes.PatternError:
         if not literal:
             raise
-        found = re.search(re.escape(pattern), subject)
+        found = regexes.search(re.escape(pattern), subject)
     if found and caps is not None:
         caps[:] = [g if g is not None else "" for g in found.groups()]
     return bool(found)
