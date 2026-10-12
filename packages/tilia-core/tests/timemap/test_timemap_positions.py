@@ -520,3 +520,16 @@ def test_timemap_folded_table_is_refused_before_its_rows_are_built(caplog):
 
     assert time_map is None and reason.startswith("the table lists the measures")
     assert not caplog.records
+
+
+def test_timemap_derives_its_arrays_from_its_rows_and_beats():
+    time_map = _four_four()
+
+    for name in ("_slots", "_measure_of", "_first", "_downbeats"):
+        with pytest.raises(ValueError):
+            dataclasses.replace(time_map, **{name: ()})
+    with pytest.raises(ValueError):
+        dataclasses.replace(time_map, _times=time_map._times[:-1])
+    same = dataclasses.replace(time_map)
+    assert same.positions(5.5, 9.0) == time_map.positions(5.5, 9.0)
+    assert (same.start, same.end) == (time_map.start, time_map.end)

@@ -53,10 +53,31 @@ class TimeMap:
     timeline_id: str
     guessed: bool  # taken as the first beat timeline, as none had the role time_map
     _rows: tuple[MeasureRow, ...] = field(repr=False)
-    _slots: tuple[float, ...] = field(repr=False)  # the beats, then the closing barline
-    _measure_of: tuple[int, ...] = field(repr=False)  # each beat's measure
-    _first: tuple[int, ...] = field(repr=False)  # each measure's first beat
-    _downbeats: tuple[float, ...] = field(repr=False)
+    _times: tuple[float, ...] = field(repr=False)  # the beats
+    # Computed from the rows and the beats, so nothing can make them disagree:
+    # the beat slots (the beats, then the closing barline), each beat's measure,
+    # each measure's first beat, and the downbeats.
+    _slots: tuple[float, ...] = field(init=False, repr=False)
+    _measure_of: tuple[int, ...] = field(init=False, repr=False)
+    _first: tuple[int, ...] = field(init=False, repr=False)
+    _downbeats: tuple[float, ...] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        rows = self._rows
+        if sum(row.beats for row in rows) != len(self._times):
+            raise ValueError("the rows' beats and the beat times don't match")
+        computed = {
+            "_slots": (*self._times, rows[-1].end),
+            "_measure_of": tuple(
+                j for j, row in enumerate(rows) for _ in range(row.beats)
+            ),
+            "_first": tuple(
+                itertools.accumulate((row.beats for row in rows[:-1]), initial=0)
+            ),
+            "_downbeats": tuple(row.start for row in rows),
+        }
+        for name, value in computed.items():
+            object.__setattr__(self, name, value)
 
     @property
     def start(self) -> float:
@@ -186,10 +207,7 @@ def build_time_map(
         timeline_id=timeline.id,
         guessed=guessed,
         _rows=tuple(rows),
-        _slots=(*times, rows[-1].end),
-        _measure_of=tuple(j for j, row in enumerate(rows) for _ in range(row.beats)),
-        _first=tuple(itertools.accumulate((row.beats for row in rows[:-1]), initial=0)),
-        _downbeats=tuple(row.start for row in rows),
+        _times=tuple(times),
     )
     return time_map, None
 
