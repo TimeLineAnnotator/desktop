@@ -157,9 +157,9 @@ class TimeMap:
         return i, (snapped - slots[i]) / (slots[i + 1] - slots[i])
 
     def _end_bar(self, snapped_end: float | None) -> int | None:
-        # Only for an end after the start, so after the first downbeat. The end
-        # point is excluded: an end on a downbeat belongs to the bar before.
-        if snapped_end is None or snapped_end > self.end:
+        # The end point is excluded: an end on a downbeat belongs to the bar
+        # before, and an end on or before the first downbeat to none.
+        if snapped_end is None or snapped_end <= self.start or snapped_end > self.end:
             return None
         return self._rows[bisect.bisect_left(self._downbeats, snapped_end) - 1].number
 

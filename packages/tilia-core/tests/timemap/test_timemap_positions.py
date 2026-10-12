@@ -533,3 +533,12 @@ def test_timemap_derives_its_arrays_from_its_rows_and_beats():
     same = dataclasses.replace(time_map)
     assert same.positions(5.5, 9.0) == time_map.positions(5.5, 9.0)
     assert (same.start, same.end) == (time_map.start, time_map.end)
+
+
+def test_timemap_end_bar_of_an_end_at_or_before_the_first_downbeat():
+    # positions() never asks this, but the last bar must never be the answer.
+    time_map = _four_four()
+
+    assert time_map._end_bar(0.0) is None
+    assert time_map._end_bar(-1.0) is None
+    assert time_map._end_bar(4.0) == 1
