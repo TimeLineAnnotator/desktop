@@ -15,10 +15,13 @@ A harmony timeline holds two kinds of point component:
     ``step`` 0-6 (C D E F G A B) plus ``accidental`` (-2..2) is the root, so
     F# is step 3, accidental 1. ``quality`` is one of the 51 names in
     :data:`QUALITIES` (music21's chord kinds: "major", "dominant-seventh",
-    "half-diminished-seventh", ...). ``inversion`` 0-3 says which chord tone is
-    in the bass, counting in stacking order: root, third, fifth, seventh (a sus
-    chord's 2nd/4th stands in for the third, a sixth chord's 6th for the
-    seventh). ``applied_to`` 0-6 is the scale degree, counted in letter steps
+    "half-diminished-seventh", ...). ``inversion`` says which chord tone is in
+    the bass, counting in stacking order: root, third, fifth, seventh, ninth,
+    eleventh, thirteenth (a sus chord's 2nd/4th stands in for the third, a
+    sixth chord's 6th for the seventh); it runs from 0 to the chord's size
+    minus one, so a triad takes 0-2, a seventh 0-3 and a thirteenth 0-6
+    (``get_inversion_amount`` in ``tilia/timelines/harmony/constants.py``).
+    ``applied_to`` 0-6 is the scale degree, counted in letter steps
     above the tonic of the key in force, whose key the chord belongs to: 0 =
     not applied, 4 = V. So D major with applied_to=4 under C major is V/V.
     TiLiA keeps the target as a bare step; it stores neither its accidental
@@ -694,12 +697,7 @@ def _parse_symbol(text: str, t: str) -> ChordSpec:
                 f"{_pitch_name(root)}{q.symbol} ({', '.join(map(_pitch_name, members))}); "
                 "TiLiA can only put a chord tone in the bass"
             )
-        inversion = members.index(bass)
-        if inversion > 3:
-            raise HarmonyError(
-                f"{text!r}: TiLiA stores inversions up to the seventh in "
-                "the bass (inversion 0-3)"
-            )
+        inversion = members.index(bass)  # any chord tone: C9/D is inversion 4
     canonical = _pitch_name(root) + q.symbol
     if inversion is not None:
         canonical += "/" + _pitch_name(_transpose(root, *q.tones[inversion]))

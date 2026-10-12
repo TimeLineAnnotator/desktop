@@ -96,7 +96,7 @@ def test_empty_and_lower_case_are_not_chord_symbols():
         "X",
         "C/D",
         "Cm/E",
-        "C9/D",
+        "C9/E#",
         "G7/C",
         "C/",
         "V/V/V",
@@ -143,11 +143,29 @@ def test_unreadable_chord_literals(text):
         ("Bbmaj7/A", "major-seventh", 3),
         ("Csus4/F", "suspended-fourth", 1),
         ("C6/A", "major-sixth", 3),
+        ("C9/D", "dominant-ninth", 4),
+        ("Cm11/F", "minor-11th", 5),
+        ("C13/A", "dominant-13th", 6),
     ],
 )
 def test_quality_and_inversion(lit, quality, inversion):
     s = parse_chord(lit)
     assert (s.quality, s.inversion) == (quality, inversion), (lit, s)
+
+
+# TiLiA's inversion limit is the chord's size: a ninth takes 0-4, an eleventh
+# 0-5, a thirteenth 0-6, and the symbol label of each reads back
+@pytest.mark.parametrize(
+    "name", [q for q in QUALITIES if q in _QUAL and len(_QUAL[q].tones) > 4]
+)
+def test_upper_inversions_read_back(name):
+    for inversion in range(len(_QUAL[name].tones)):
+        ch = chord("C", name, inversion)
+        p = chord_props(ch, C)
+        for label in (p["symbol"], p["roman"]):
+            spec = parse_chord(label)
+            assert chord_matches(spec, ch, C), (label, ch)
+        assert parse_chord(p["symbol"]).inversion == (inversion or None), p
 
 
 @pytest.mark.parametrize(
