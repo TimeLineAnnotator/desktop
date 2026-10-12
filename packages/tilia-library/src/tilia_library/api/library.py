@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tilia_library.corpora import Corpora, Corpus
+from tilia_library.corpora import Corpora, Corpus, CorpusHandles
 from tilia_library.liveness import Liveness
 from tilia_library.server import (
     ApiError,
@@ -31,9 +31,15 @@ def _listing(corpus: Corpus, liveness: Liveness | None) -> dict[str, object]:
 
 
 def register(
-    server: LibraryServer, corpora: Corpora, liveness: Liveness | None = None
+    server: LibraryServer,
+    corpora: Corpora,
+    liveness: Liveness | None = None,
+    handles: CorpusHandles | None = None,
 ) -> None:
-    """Add the library routes to the server, working on ``corpora``."""
+    """Add the library routes to the server, working on ``corpora``.
+
+    A removed corpus is also unwatched and its handle dropped, when given.
+    """
 
     def get_library(request: Request) -> Response:
         listed = corpora.all()
@@ -67,8 +73,13 @@ def register(
         return json_response({"id": corpus.id})
 
     def delete_corpus(request: Request) -> Response:
-        if not corpora.remove(request.params["cid"]):
+        cid = request.params["cid"]
+        if not corpora.remove(cid):
             raise ApiError(404, "unknown corpus")
+        if liveness is not None:
+            liveness.unwatch(cid)
+        if handles is not None:
+            handles.drop(cid)
         return Response(204)
 
     server.router.add("GET", "/api/library", get_library)
