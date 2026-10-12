@@ -199,6 +199,20 @@ class TestHoles:
         got = spans_of("verse THEN chorus", items, joins=lambda end, start: True)
         assert got == [(0, 2)]
 
+    def test_gap_of_exactly_eps_is_no_hole(self):
+        # §6.1: "a gap of 0.1 s or less is no hole"; 1.1 - 1.0 is 0.1 plus
+        # float noise, so the comparison needs slack
+        def lane(a_end, b_start):
+            a = FakeUnit("verse", 0.0, a_end)
+            b = FakeUnit("chorus", b_start, b_start + 1)
+            return [(a, 0.0, a_end), (b, b_start, b_start + 1)]
+
+        assert 1.1 - 1.0 > 0.1  # the noise is real
+        for a_end, b_start in ((1.0, 1.1), (2.0, 2.1), (10.0, 10.1), (12.3, 12.4)):
+            got = spans_of("verse THEN chorus", lane(a_end, b_start))
+            assert got == [(0, 2)], (a_end, b_start)
+        assert spans_of("verse THEN chorus", lane(1.0, 1.101)) == []
+
     def test_joins_replaces_hole_rule(self):
         items = spans("verse", "chorus", gap=0.0)
         got = spans_of("verse THEN chorus", items, joins=lambda end, start: False)
