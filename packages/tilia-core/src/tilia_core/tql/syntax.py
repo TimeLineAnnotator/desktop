@@ -1667,7 +1667,11 @@ def _strip_comments(text: str) -> str:
     out, i, n, quoted = [], 0, len(text), False
     while i < n:
         ch = text[i]
-        if ch == '"' and (i == 0 or text[i - 1] != "\\"):
+        if quoted and ch == "\\" and i + 1 < n and text[i + 1] in '"\\':
+            out.append(text[i : i + 2])
+            i += 2
+            continue
+        if ch == '"':
             quoted = not quoted
         elif (
             not quoted

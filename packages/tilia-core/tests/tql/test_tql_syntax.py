@@ -287,6 +287,15 @@ def test_edit_strings_keep_their_whitespace():
     assert parse('verse -> SET label = "Chorus  2"').action.assigns[0].value.value == "Chorus  2"
 
 
+def test_a_string_ending_in_a_backslash_may_be_followed_by_a_comment():
+    # `"x\\"` is a string holding one backslash; the `--` after it is a comment
+    q = parse('verse -> TAG "x\\\\" -- note')
+    assert q.action.tag == "x\\" and q.action.text == 'TAG "x\\\\"'
+    q = parse('verse -> GROUP AS "x\\\\" -- note')
+    assert q.action.label == "x\\" and q.action.text == 'GROUP AS "x\\\\"'
+    assert parse('verse -> UNTAG "\\\\" --').action.tag == "\\"
+
+
 @pytest.mark.parametrize(
     "text, want",
     [
