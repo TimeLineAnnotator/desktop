@@ -183,40 +183,30 @@ def test_the_writers_key_orders_are_the_schemas():
     )
 
 
-def derived_names(value):
+def object_schemas(value):
+    """Every schema in `value` that lists properties."""
     if isinstance(value, dict):
-        if isinstance(value.get("x-default-from"), str):
-            yield value["x-default-from"]
+        if isinstance(value.get("properties"), dict):
+            yield value
         for item in value.values():
-            yield from derived_names(item)
+            yield from object_schemas(item)
     elif isinstance(value, list):
         for item in value:
-            yield from derived_names(item)
+            yield from object_schemas(item)
 
 
-def test_every_default_the_schema_derives_is_implemented():
-    shapes = [
-        *layout.TIMELINE_SHAPES.values(),
-        *layout.COMPONENT_SHAPES.values(),
-        layout.MEASURE_SHAPE,
-        layout.BEAT_UNIT_SHAPE,
-        layout.RANGE_ROW_SHAPE,
-        *layout.SCORE_SHAPES.values(),
-    ]
-    by_name = {
-        layout.PREVIOUS_NUMBER_PLUS_ONE,
-        layout.NUMBER_AS_TEXT,
-        layout.TIMELINE_MEASURE_SOURCE,
-    }
+def test_a_default_derived_from_another_value_is_neither_given_nor_required():
+    # So such a key is written when it is set, and left out only when it
+    # isn't: the writer never works out the value it would derive.
     found = set()
-    for shape in shapes:
-        for name in shape.derived.values():
-            # From a key of the same object, or by name, for a measure's mark.
-            assert name in shape.keys or (
-                shape is layout.MEASURE_SHAPE and name in by_name
-            )
-            found.add(name)
-    assert found == set(derived_names(SCHEMA))
+    for schema in object_schemas(SCHEMA):
+        required = set(schema.get("required", ()))
+        for key, property in schema["properties"].items():
+            if "x-default-from" in property:
+                assert "default" not in property, key
+                assert key not in required, key
+                found.add(key)
+    assert found == {"pre_start", "post_end", "number", "label", "source"}
 
 
 def test_the_defaults_are_the_schemas():

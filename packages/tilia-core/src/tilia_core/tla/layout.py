@@ -150,13 +150,6 @@ SCORES = {
 }
 SCORE_SOURCE = ("file", "origin", "converter")
 
-# The defaults the schema derives (`x-default-from`) from something other than
-# a key of the same object: a measure's, from the measures before it and from
-# its timeline. The writer implements each by name.
-PREVIOUS_NUMBER_PLUS_ONE = "the previous measure's number + 1"
-NUMBER_AS_TEXT = "number, as text"
-TIMELINE_MEASURE_SOURCE = "the timeline's measure_source"
-
 
 @dataclass(frozen=True)
 class Shape:
@@ -375,13 +368,9 @@ def nfc_value(value: Any) -> Any:
     return value
 
 
-# Places and values
+# Places
 
 
 def pointer_to(parent: str, key: str | int) -> str:
     """The JSON Pointer to `key` in the value `parent` points to."""
     return parent + pointer([str(key)])
-
-
-def is_integer(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)

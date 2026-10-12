@@ -23,13 +23,10 @@ from tilia_core.tla.layout import (
     FORMAT_VERSION,
     MEASURE_SHAPE,
     MEDIA_SHAPE,
-    NUMBER_AS_TEXT,
-    PREVIOUS_NUMBER_PLUS_ONE,
     RANGE_ROW_SHAPE,
     SCORE_SHAPES,
     SCORE_SOURCE_SHAPE,
     TIME_UNITS,
-    TIMELINE_MEASURE_SOURCE,
     TIMELINE_SHAPES,
     TOP_SHAPE,
     UNKNOWN_COMPONENT,
@@ -37,7 +34,6 @@ from tilia_core.tla.layout import (
     UNKNOWN_SCORE,
     UNKNOWN_TIMELINE,
     Shape,
-    is_integer,
     nfc_object,
     nfc_text,
     pointer_to,
@@ -115,18 +111,15 @@ def _object(
     value: dict[str, Any],
     shape: Shape,
     place: str,
-    defaults: Mapping[str, Any] | None = None,
     writers: Mapping[str, Writer] | None = None,
 ) -> dict[str, Any]:
     """An object as written: its known keys in order, then the others, in
     code-point order. A known key that isn't always written is left out when
     it equals its default, by type and value (0 isn't 0.0), or, without one,
-    when it is None. `defaults` replaces the shape's own, for a measure's
-    mark, whose defaults depend on the marks before it."""
+    when it is None."""
     values = nfc_object(value, place)
-    if defaults is None:
-        defaults = shape.defaults
-    always, derived, empty = shape.always, shape.derived, shape.left_out_empty
+    always, defaults, empty = shape.always, shape.defaults, shape.left_out_empty
+    derived = shape.derived
     written: dict[str, Any] = {}
     found = 0
     for key in shape.keys:
@@ -199,55 +192,6 @@ def _spelling(to_file: Callable[[Kind], str], kind: Kind, place: str) -> str:
         raise ValueError(f"{place}/kind: {error}") from None
 
 
-def _time_order(beat: Component) -> tuple[Any, ...]:
-    time = beat.attrs.get("time")
-    if isinstance(time, (int, float)) and not isinstance(time, bool) and time == time:
-        return (0, time, beat.id)
-    return (1, 0, beat.id)  # no time, or NaN, which can't be written anyway
-
-
-def _mark_defaults(timeline: Timeline) -> dict[str, Mapping[str, Any]]:
-    """The defaults of the measure marks on a beat timeline's downbeats, by the
-    downbeat's id. They depend on the marks before them, in time order, and on
-    ids where times are equal: a mark's number is the previous one's plus one,
-    its label its number as text, and its source the timeline's
-    `measure_source`."""
-    source = timeline.attrs.get(
-        "measure_source", TIMELINE_SHAPES["beat"].defaults["measure_source"]
-    )
-    downbeats = sorted(
-        (
-            c
-            for c in timeline.components.values()
-            if c.kind == "beat" and isinstance(c.attrs.get("measure"), dict)
-        ),
-        key=_time_order,
-    )
-    defaults: dict[str, Mapping[str, Any]] = {}
-    previous = None
-    for downbeat in downbeats:
-        derived: dict[str, Any] = {TIMELINE_MEASURE_SOURCE: source}
-        if previous is not None:
-            derived[PREVIOUS_NUMBER_PLUS_ONE] = previous + 1
-        number = downbeat.attrs["measure"].get("number")
-        if number is None:
-            number = derived.get(PREVIOUS_NUMBER_PLUS_ONE)
-        if not is_integer(number) or not _readable(number):
-            number = None  # nothing follows from it
-        if number is not None:
-            derived[NUMBER_AS_TEXT] = str(number)
-        previous = number
-        defaults[downbeat.id] = {
-            **MEASURE_SHAPE.defaults,
-            **{
-                key: derived[name]
-                for key, name in MEASURE_SHAPE.derived.items()
-                if name in derived
-            },
-        }
-    return defaults
-
-
 def _shaped(shape: Shape) -> Writer:
     """A writer for an object of this shape, whose defaults depend on nothing else."""
 
@@ -263,6 +207,13 @@ _beat_unit = _shaped(BEAT_UNIT_SHAPE)
 _media = _shaped(MEDIA_SHAPE)
 _score_source = _shaped(SCORE_SOURCE_SHAPE)
 _range_row = _shaped(RANGE_ROW_SHAPE)
+# A beat's measure mark is always written, even empty: it is what makes a
+# downbeat. Its number, label and source are written whenever they are set,
+# like any key without a default, whatever the marks before it would give.
+_BEAT_WRITERS: dict[str, Writer] = {
+    "measure": _shaped(MEASURE_SHAPE),
+    "beat_unit": _beat_unit,
+}
 
 
 def _rows(value: Any, parent: str, key: str | int) -> Any:
@@ -284,23 +235,7 @@ def _lines(value: Any, parent: str, key: str | int) -> Any:
     ]
 
 
-def _beat_writers(marks: Mapping[str, Mapping[str, Any]]) -> dict[str, Writer]:
-    """The writers of a timeline's beats, made once per timeline. `marks` are
-    the defaults of its downbeats' marks, by the downbeat's place."""
-
-    def mark(item: Any, parent: str, key: str | int) -> Any:
-        # Always written, even empty: a mark is what makes a downbeat.
-        if not isinstance(item, dict):
-            return _value(item, parent, key)
-        defaults = marks.get(parent, MEASURE_SHAPE.defaults)
-        return _object(item, MEASURE_SHAPE, pointer_to(parent, key), defaults)
-
-    return {"measure": mark, "beat_unit": _beat_unit}
-
-
-def _component(
-    component: Component, place: str, beat_writers: Mapping[str, Writer]
-) -> dict[str, Any]:
+def _component(component: Component, place: str) -> dict[str, Any]:
     kind = _spelling(component_kind_to_file, component.kind, place)
     value = _merged(
         place,
@@ -317,26 +252,16 @@ def _component(
         shape = UNKNOWN_COMPONENT_WITH_METADATA  # kept as it is, even empty
     else:
         shape = UNKNOWN_COMPONENT
-    writers = beat_writers if component.kind == "beat" else None
+    writers = _BEAT_WRITERS if component.kind == "beat" else None
     return _object(value, shape, place, writers=writers)
 
 
-def _components(
-    components: dict[str, Component],
-    place: str,
-    marks: Mapping[str, Mapping[str, Any]],
-) -> dict[str, Any]:
-    """A timeline's components, in id order. `marks` are the defaults of its
-    downbeats' marks, by the downbeat's id."""
-    by_place: dict[str, Mapping[str, Any]] = {}
-    beat_writers = _beat_writers(by_place)
-    written: dict[str, Any] = {}
-    for key, component in _entries(components, place):
-        at = pointer_to(place, key)
-        if component.id in marks:
-            by_place[at] = marks[component.id]  # before its mark is written
-        written[key] = _component(component, at, beat_writers)
-    return written
+def _components(components: dict[str, Component], place: str) -> dict[str, Any]:
+    """A timeline's components, in id order."""
+    return {
+        key: _component(component, pointer_to(place, key))
+        for key, component in _entries(components, place)
+    }
 
 
 # The fields a timeline of an unknown kind leaves out at their default, unless
@@ -377,6 +302,12 @@ def _raw_timeline(
     return _object(value, UNKNOWN_TIMELINE, place)
 
 
+def _components_writer(item: Any, parent: str, key: str | int) -> Any:
+    if not isinstance(item, dict):
+        return _value(item, parent, key)
+    return _components(item, pointer_to(parent, key))
+
+
 def _timeline(timeline: Timeline, place: str) -> dict[str, Any]:
     if isinstance(timeline.kind, UnknownKind) and timeline.raw is not None:
         return _raw_timeline(timeline, timeline.raw, place)
@@ -395,14 +326,7 @@ def _timeline(timeline: Timeline, place: str) -> dict[str, Any]:
         ("extra", timeline.extra),
     )
     shape = TIMELINE_SHAPES.get(timeline.kind, UNKNOWN_TIMELINE)
-    marks = _mark_defaults(timeline) if timeline.kind == "beat" else {}
-
-    def components(item: Any, parent: str, key: str | int) -> Any:
-        if not isinstance(item, dict):
-            return _value(item, parent, key)
-        return _components(item, pointer_to(parent, key), marks)
-
-    writers: dict[str, Writer] = {"components": components}
+    writers: dict[str, Writer] = {"components": _components_writer}
     if timeline.kind == "range":
         writers["rows"] = _rows
     return _object(value, shape, place, writers=writers)

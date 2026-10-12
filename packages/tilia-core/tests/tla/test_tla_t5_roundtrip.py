@@ -218,12 +218,10 @@ def test_a_downbeat_whose_mark_holds_only_defaults_is_written_as_an_empty_mark()
     beats = named(doc, "Beats")
     downbeat = nth(beats, 1)  # bar 1, after the pickup: its mark is {}
     downbeat.attrs["measure"] = {
-        "number": 1,
-        "label": "1",
+        "number": None,
         "force_display": False,
         "cadenza": False,
         "restart": False,
-        "source": "tapped",
         "metadata": {},
     }
     data = tla.canonical_bytes(doc)
@@ -270,41 +268,86 @@ def written_marks(doc, timeline):
     return [component["measure"] for component in components.values()]
 
 
-def test_the_first_measures_number_is_always_written():
+def test_a_marks_number_label_and_source_are_written_when_set():
+    # Whatever the marks before it would give: the previous number plus one,
+    # the number as text, the timeline's measure_source.
     doc, timeline = beat_timeline(
-        ("b1", 0.0, {"number": 1}), ("b2", 1.0, {"number": 2})
-    )
-    assert written_marks(doc, timeline) == [{"number": 1}, {}]
-
-
-def test_marks_follow_each_other_in_time_order_whatever_their_ids():
-    doc, timeline = beat_timeline(
-        ("b1", 1.0, {"number": 2}), ("b2", 0.0, {"number": 1})
-    )
-    assert written_marks(doc, timeline) == [{}, {"number": 1}]
-
-
-def test_marks_at_one_time_follow_each_other_in_id_order():
-    # Given in the other order: the document's order doesn't count.
-    doc, timeline = beat_timeline(
-        ("b2", 0.0, {"number": 6}), ("b1", 0.0, {"number": 5})
-    )
-    assert written_marks(doc, timeline) == [{"number": 5}, {}]
-
-
-def test_a_mark_after_one_without_a_number_keeps_its_number():
-    # With no number to follow, a later number has no default.
-    doc, timeline = beat_timeline(("b1", 0.0, {}), ("b2", 1.0, {"number": 1}))
-    assert written_marks(doc, timeline) == [{}, {"number": 1}]
-
-
-def test_a_marks_label_and_source_are_left_out_at_their_default():
-    doc, timeline = beat_timeline(
-        ("b1", 0.0, {"number": 3, "label": "3", "source": "score"}),
-        ("b2", 1.0, {"label": "4", "source": "tapped"}),
+        ("b1", 0.0, {"number": 1, "label": "1", "source": "score"}),
+        ("b2", 1.0, {"number": 2, "label": "2", "source": "score"}),
+        ("b3", 2.0, {}),
     )
     timeline.attrs["measure_source"] = "score"
-    assert written_marks(doc, timeline) == [{"number": 3}, {"source": "tapped"}]
+    assert written_marks(doc, timeline) == [
+        {"number": 1, "label": "1", "source": "score"},
+        {"number": 2, "label": "2", "source": "score"},
+        {},
+    ]
+
+
+def edit_beats(doc, index, **mark):
+    """Set keys of the mark on the `index`th beat of every-kind.tla's Beats."""
+    beat = nth(named(doc, "Beats"), index)
+    beat.attrs.setdefault("measure", {}).update(mark)
+
+
+def delete_2b_then_make_11_a_downbeat():
+    def first(doc):
+        del named(doc, "Beats").components[nth(named(doc, "Beats"), 10).id]
+
+    def second(doc):
+        edit_beats(doc, 10)  # the beat at 11.0, tenth once 2b has gone
+
+    return first, second, 12, {"number": 2, "label": "2c", "cadenza": True}
+
+
+def edit_the_source_then_set_it_back():
+    def first(doc):
+        named(doc, "Beats").attrs["measure_source"] = "edited"
+
+    def second(doc):
+        named(doc, "Beats").attrs["measure_source"] = "tapped"
+
+    expected = {"number": 1, "source": "edited", "metadata": {"tags": ["repeat"]}}
+    return first, second, 7, expected
+
+
+def label_4_and_renumber_2c_then_back():
+    def first(doc):
+        edit_beats(doc, 14, label="4")
+        edit_beats(doc, 13, number=3)
+
+    def second(doc):
+        edit_beats(doc, 13, number=2)
+
+    return first, second, 14, {"label": "4"}
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        delete_2b_then_make_11_a_downbeat,
+        edit_the_source_then_set_it_back,
+        label_4_and_renumber_2c_then_back,
+    ],
+)
+def test_a_save_and_reopen_between_two_edits_changes_no_mark(case):
+    # A number, label or source that was set stays set: saved and reopened in
+    # between, the marks are written as when both edits are saved at once.
+    first, second, index, expected = case()
+    once = tla.read(EVERY_KIND)
+    first(once)
+    second(once)
+    reopened = tla.read(EVERY_KIND)
+    first(reopened)
+    reopened = tla.loads(tla.canonical_bytes(reopened))
+    second(reopened)
+    assert tla.canonical_bytes(reopened) == tla.canonical_bytes(once)
+    beats = named(once, "Beats")
+    beat = nth(beats, index)
+    content = json.loads(tla.canonical_bytes(once))
+    assert content["timelines"][beats.id]["components"][beat.id]["measure"] == (
+        expected
+    )
 
 
 def test_none_for_a_derived_default_means_unset():

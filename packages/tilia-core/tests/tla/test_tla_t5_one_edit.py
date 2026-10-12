@@ -285,6 +285,25 @@ def removing_an_ordinary_beat(doc):
     return at(beats, gone)
 
 
+@edit
+def removing_a_downbeat(doc):
+    # 2b: 2c after it keeps its number 2, which no longer repeats the one
+    # before it.
+    beats = named(doc, "Beats")
+    gone = beats.components.pop(nth(beats, 10).id)
+    assert gone.attrs["measure"]["label"] == "2b"
+    return at(beats, gone)
+
+
+@edit
+def removing_the_pickup(doc):
+    # Bar 1 after it has no number, and is still bar 1.
+    beats = named(doc, "Beats")
+    gone = beats.components.pop(nth(beats, 0).id)
+    assert gone.attrs["measure"]["number"] == 0
+    return at(beats, gone)
+
+
 @pytest.mark.parametrize("name", EDITS)
 def test_one_edit_changes_only_its_entrys_lines(name):
     before = EVERY_KIND.read_text("utf-8")
