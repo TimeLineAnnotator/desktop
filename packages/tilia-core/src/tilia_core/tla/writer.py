@@ -52,6 +52,7 @@ from tilia_core.tla.model import (
     component_kind_to_file,
     timeline_kind_to_file,
 )
+from tilia_core.tla.parse import MAX_DEPTH
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
@@ -80,7 +81,8 @@ def _readable(value: int) -> bool:
 
 def _value(value: Any, parent: str, key: str | int) -> Any:
     """`value` as written: text in NFC, objects in their own order. Raises
-    ValueError, naming the place, for a value JSON can't hold."""
+    ValueError, naming the place, for a value JSON can't hold, or one nested
+    deeper than the reader reads."""
     if isinstance(value, str):
         return nfc_text(value)
     if isinstance(value, float):
@@ -97,6 +99,11 @@ def _value(value: Any, parent: str, key: str | int) -> Any:
             return value
         raise ValueError(f"{pointer_to(parent, key)}: an integer too long to read back")
     place = pointer_to(parent, key)
+    if isinstance(value, (dict, list, tuple)) and place.count("/") >= MAX_DEPTH:
+        # As the reader counts: the top level is the first level, and an
+        # object or a list n keys below it the (n + 1)th. This also stops a
+        # value that holds itself.
+        raise ValueError(f"{place}: nested more than {MAX_DEPTH} levels deep")
     if isinstance(value, dict):
         return {k: _value(v, place, k) for k, v in nfc_object(value, place).items()}
     if isinstance(value, (list, tuple)):
@@ -483,7 +490,8 @@ def canonical_bytes(doc: Document) -> bytes:
 
     Raises ValueError, naming the place as a JSON Pointer, for a value JSON
     can't hold: NaN, an infinity, an integer too long to read back, or a
-    value of another type than JSON's.
+    value of another type than JSON's; and for one nested deeper than the
+    reader reads, as a value that holds itself is (FR-034).
     """
     content = _document(doc)
     text = json.dumps(content, indent=2, ensure_ascii=False, allow_nan=False)
