@@ -32,6 +32,20 @@ class TestFollowingThePlayback:
         wait_for_smooth_movement(tluis.smooth_time)
         assert tluis.selected_time == 7.0
 
+    def test_new_time_during_a_movement_starts_a_new_one_from_where_it_is(self, tluis):
+        settings.set("general", "prioritise_performance", False)
+        commands.execute("timelines.add.marker", name="")
+        time = get(Get.MEDIA_CURRENT_TIME) + 10.0
+        commands.execute("media.seek", time)
+        QTest.qWait(SmoothSetter.DURATION // 2)
+        reached = tluis.selected_time
+
+        commands.execute("media.seek", time + 10.0)
+
+        assert tluis.selected_time == reached
+        wait_for_smooth_movement(tluis.smooth_time)
+        assert tluis.selected_time == pytest.approx(time + 10.0)
+
     def test_moves_at_once_when_prioritising_performance(self, tluis):
         settings.set("general", "prioritise_performance", True)
         commands.execute("timelines.add.marker", name="")

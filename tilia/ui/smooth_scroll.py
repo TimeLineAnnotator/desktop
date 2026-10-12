@@ -39,10 +39,15 @@ class SmoothSetter(Generic[T]):
             self.set_now(setpoint)
             return
 
-        if self.animation.state() is QVariantAnimation.State.Running:
-            self.animation.pause()
+        # A whole movement from where the value is now. Resumed, a movement
+        # retargeted partway would leap ahead by the share of it that had
+        # passed. Changing the values of a stopped animation still sends values
+        # for the time it stopped at, so they are set with signals blocked.
+        self.animation.stop()
+        self.animation.blockSignals(True)
         self.animation.setStartValue(self._getter())
         self.animation.setEndValue(setpoint)
+        self.animation.blockSignals(False)
         self.animation.start()
 
     def set_now(self, value: T) -> None:
