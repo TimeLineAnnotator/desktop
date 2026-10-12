@@ -159,8 +159,10 @@ def build_time_map(
     if table is None or (not table.rows and timeline.components):
         return None, "no measure table"
     rows_in = rows_of(timeline)
-    if len(rows_in) < len(table.rows):
-        return None, "a downbeat without a time"
+    kept = {row.id for row in rows_in}
+    skipped = next((row for row in table.rows if row.id not in kept), None)
+    if skipped is not None:
+        return None, f"a downbeat without a time (measure {skipped.label})"
     times = [t for row in rows_in for t in row.beat_times]
     if len(times) < 2:
         return None, "fewer than two beats"

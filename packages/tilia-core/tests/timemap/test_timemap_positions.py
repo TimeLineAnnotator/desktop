@@ -411,6 +411,11 @@ def test_timemap_no_time_map():
     timeless_downbeat = _timeline({0: {"number": 1}, 2: {}, 4: {}}, last=5)
     second_downbeat = timeless_downbeat.measures.rows[1].id
     del timeless_downbeat.components[second_downbeat].attrs["time"]
+    timeless_labelled = _timeline(
+        {0: {"number": 1}, 2: {"label": "2b"}, 4: {}, 6: {}}, last=7
+    )
+    for row in timeless_labelled.measures.rows[1:3]:
+        del timeless_labelled.components[row.id].attrs["time"]
     folded = _timeline({0: {"number": 1}, 2: {}}, last=3)
     folded.measures.rows[1].next = [folded.measures.rows[0].id]
 
@@ -424,6 +429,7 @@ def test_timemap_no_time_map():
         ("no table", no_table),
         ("empty table", empty_table),
         ("timeless downbeat", timeless_downbeat),
+        ("timeless labelled downbeat", timeless_labelled),
         ("folded", folded),
     ]:
         doc = document(timeline)
@@ -439,7 +445,8 @@ def test_timemap_no_time_map():
         "out of order": "beats out of time order (at 2.0)",
         "no table": "no measure table",
         "empty table": "no measure table",
-        "timeless downbeat": "a downbeat without a time",
+        "timeless downbeat": "a downbeat without a time (measure 2)",
+        "timeless labelled downbeat": "a downbeat without a time (measure 2b)",
         "folded": "the table lists the measures played next (`next`), "
         "which positions don't handle yet",
     }
