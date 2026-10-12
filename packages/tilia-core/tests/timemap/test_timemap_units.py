@@ -1,9 +1,11 @@
+import sys
 from fractions import Fraction as F
 
 import pytest
 
 from tilia_core.timemap.units import (
     MAX_DENOMINATOR,
+    MAX_UNIT_LENGTH,
     fit_units,
     format_units,
     is_fit_ambiguous,
@@ -38,6 +40,41 @@ class TestParseUnits:
         assert not result.is_valid
         assert result.error
         assert result.units == []
+
+    def test_longest_unit_is_read(self):
+        assert parse_units("1" * MAX_UNIT_LENGTH).is_valid
+
+    def test_longer_unit_is_refused_and_cut_short_in_the_message(self):
+        result = parse_units("1" * (MAX_UNIT_LENGTH + 1))
+
+        assert not result.is_valid
+        assert result.units == []
+        assert result.error == (
+            f"'{'1' * MAX_UNIT_LENGTH}…' is not a whole number or fraction "
+            "such as 1/2."
+        )
+
+    @pytest.mark.skipif(
+        not hasattr(sys, "set_int_max_str_digits"),
+        reason="this Python has no limit on the digits int() reads",
+    )
+    @pytest.mark.parametrize("digit_limit", [0, 4300])
+    def test_very_long_unit_is_refused_whatever_the_digit_limit(self, digit_limit):
+        # Python 3.10.7 and later refuse to read an integer of more than 4300
+        # digits by default; earlier versions read any length, as 0 does.
+        before = sys.get_int_max_str_digits()
+        sys.set_int_max_str_digits(digit_limit)
+        try:
+            result = parse_units("1" * 5000)
+        finally:
+            sys.set_int_max_str_digits(before)
+
+        assert not result.is_valid
+        assert result.units == []
+        assert result.error == (
+            f"'{'1' * MAX_UNIT_LENGTH}…' is not a whole number or fraction "
+            "such as 1/2."
+        )
 
     def test_format(self):
         assert format_units([F(2), F(3)]) == "2+3"
