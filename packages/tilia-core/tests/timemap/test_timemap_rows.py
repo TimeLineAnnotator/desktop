@@ -1,6 +1,7 @@
 from docs import beat_timeline
 from tilia_core import tla
 from tilia_core.timemap._rows import rows_of
+from tilia_core.tla.model import COMPONENT_KINDS
 
 
 def _tapped_example() -> tla.Timeline:
@@ -176,3 +177,10 @@ def test_another_beat_without_a_time_is_left_out_of_its_measure():
 
     assert row.beat_times == (0.0, 2.0)
     assert len(row.beat_ids) == 2
+
+
+def test_the_helper_gives_beats_the_core_s_kind():
+    timeline = _tapped_example()
+
+    assert {c.kind for c in timeline.components.values()} == {"beat"}
+    assert all(c.kind in COMPONENT_KINDS for c in timeline.components.values())
