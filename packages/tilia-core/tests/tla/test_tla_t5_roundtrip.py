@@ -617,6 +617,62 @@ def test_a_key_that_isnt_text_is_refused():
         tla.canonical_bytes(doc)
 
 
+TOO_DEEP = "nested more than 100 levels deep"
+
+
+def nested(container, levels):
+    """`levels` objects or lists, each inside the one before."""
+    value = container()
+    for _ in range(levels - 1):
+        value = {"a": value} if container is dict else [value]
+    return value
+
+
+def test_metadata_nested_deeper_than_the_reader_reads_is_refused():
+    # Written, the reader would refuse the file.
+    doc = tla.read(EMPTY)
+    doc.metadata["deep"] = nested(dict, 149)
+    place = "/metadata/deep" + "/a" * 98
+    with pytest.raises(ValueError, match=re.escape(f"{place}: {TOO_DEEP}")):
+        tla.canonical_bytes(doc)
+
+
+@pytest.mark.parametrize("container", [dict, list])
+def test_the_writer_refuses_the_depth_the_reader_refuses(container):
+    # The top level is the first level, as the reader counts: "/deep" is the
+    # second, and 99 levels from it reach the 100th, the deepest it reads.
+    doc = tla.read(EMPTY)
+    doc.extra["deep"] = nested(container, 99)
+    data = tla.canonical_bytes(doc)
+    assert tla.loads(data).extra["deep"] == doc.extra["deep"]
+    doc.extra["deep"] = nested(container, 100)
+    step = "/a" if container is dict else "/0"
+    place = "/deep" + step * 99
+    with pytest.raises(ValueError, match=re.escape(f"{place}: {TOO_DEEP}")):
+        tla.canonical_bytes(doc)
+    content = json.loads(data)
+    deeper = content["deep"]
+    content["deep"] = {"a": deeper} if container is dict else [deeper]
+    with pytest.raises(tla.UnreadableFile, match=TOO_DEEP):
+        tla.loads(json.dumps(content).encode())
+
+
+@pytest.mark.parametrize("container", [dict, list])
+def test_a_value_that_holds_itself_is_refused_naming_its_place(container):
+    # A ValueError naming the place, not a RecursionError.
+    doc = tla.read(EMPTY)
+    loop = container()
+    if container is dict:
+        loop["self"] = loop
+    else:
+        loop.append(loop)
+    doc.metadata["loop"] = loop
+    step = "/self" if container is dict else "/0"
+    place = "/metadata/loop" + step * 98
+    with pytest.raises(ValueError, match=re.escape(f"{place}: {TOO_DEEP}")):
+        tla.canonical_bytes(doc)
+
+
 def test_keys_are_written_in_nfc_unless_nfc_would_merge_two():
     doc = tla.read(EMPTY)
     composed, decomposed = "Stück", unicodedata.normalize("NFD", "Stück")
