@@ -3,10 +3,13 @@ import { q, qa } from './lib/dom.js';
 import { setStatus } from './util.js';
 
 const POLL_MS = 2000;
+export const RESCANNING = "Rescanning…";  // the status while a requested rescan runs
 
 const noted = new Map();     // panel -> the generation of the data it shows
 const reruns = new Map();    // panel -> what "Re-run" does for it
 let latest = null;           // the generation of the last successful poll
+let lastScan = null;         // the last_scan of the last successful poll
+let scanning = false;        // whether the last successful poll saw a scan running
 let polling = false;
 
 /** The generation of the data a panel now shows (null when it shows none). */
@@ -39,6 +42,11 @@ async function poll() {
     if (!r.ok) return;
     const data = await r.json();
     latest = data.generation;
+    // A scan ended: one was running and is not, or last_scan moved on.
+    const ended = (scanning && !data.scanning) || (lastScan != null && data.last_scan !== lastScan);
+    scanning = Boolean(data.scanning);
+    lastScan = data.last_scan;
+    if (ended && q(document, "#status").textContent === RESCANNING) setStatus("", "");
     refresh();
   } catch (e) {
     // a failed poll changes nothing
@@ -53,7 +61,9 @@ async function rerun() {
     try {
       await fn();
     } catch (e) {
+      // The panel still shows the old data, so the notice stays with the error.
       setStatus(String(e), "error");
+      return;
     }
   }
   q(document, "#changed").hidden = true;

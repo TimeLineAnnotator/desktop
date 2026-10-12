@@ -41,10 +41,12 @@ def register_all(
 ) -> CorpusHandles:
     """Add every panel's routes to the server and return the corpus handles.
 
-    Without a ``liveness``, one is made and started; a given one is used as it is. The edit previews are kept in one
-    ``Previews`` for the server (a given one, or a new one), shared by the edit and categories routes. The TiLiA
-    windows are tracked in one ``Windows`` (a given one, or a new one); unless ``skip_files`` is given, the files they
-    report as unsaved are the ones edits leave alone.
+    Without a ``liveness``, one is made and started, and ``server.stop()`` stops
+    it; a given one is used as it is and stays the caller's to stop. The edit
+    previews are kept in one ``Previews`` for the server (a given one, or a new
+    one), shared by the edit and categories routes. The TiLiA windows are
+    tracked in one ``Windows`` (a given one, or a new one); unless ``skip_files``
+    is given, the files they report as unsaved are the ones edits leave alone.
     """
     if windows is None:
         windows = Windows()
@@ -55,8 +57,9 @@ def register_all(
     if liveness is None:
         liveness = Liveness(server.backend)
         liveness.start()
+        server.liveness = liveness
     handles = CorpusHandles(server.backend, corpora, on_open=liveness.watch)
-    library.register(server, corpora, liveness=liveness)
+    library.register(server, corpora, liveness=liveness, handles=handles)
     files.register(server, corpora, handles)
     liveness_api.register(server, corpora, handles, liveness)
     query.register(server, corpora, handles)

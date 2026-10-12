@@ -23,11 +23,11 @@ def register(
 
     def get_state(request: Request) -> Response:
         cid = request.params["cid"]
+        corpus = corpora.get(cid)
+        if corpus is None:
+            raise ApiError(404, "unknown corpus")
         state = liveness.state(cid)
         if state is None:
-            corpus = corpora.get(cid)
-            if corpus is None:
-                raise ApiError(404, "unknown corpus")
             state = {
                 "generation": None,
                 "scanning": False,
