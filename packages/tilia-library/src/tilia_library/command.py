@@ -72,7 +72,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="print the address instead of opening a browser",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if not 1 <= args.port <= _MAX_PORT:
+        parser.error(f"--port must be from 1 to {_MAX_PORT}")
+    return args
 
 
 def bind_server(
@@ -293,21 +296,6 @@ def _serve(
     args: argparse.Namespace, folder: Path | None, release_lock: Callable[[], None]
 ) -> int:
     corpora = Corpora()
-    corpora.all()
-    if corpora.set_aside_to is not None:
-        _error(
-            "library.toml couldn't be read; kept as "
-            f"{corpora.set_aside_to.name}, starting with no corpora"
-        )
-    if folder is not None:
-        corpora.add(folder)
-    else:
-        last = corpora.last()
-        if last is not None and not last.available:
-            _error(
-                f"tilia library: {last.path} is missing; it is listed as unavailable"
-            )
-
     try:
         server = bind_server(
             lambda port: LibraryServer(CoreBackend(), port=port), args.port
@@ -317,6 +305,29 @@ def _serve(
         return 1
     started = False
     try:
+        # The folder is added only once the server is known to start.
+        try:
+            corpora.all()
+            if corpora.set_aside_to is not None:
+                _error(
+                    "library.toml couldn't be read; kept as "
+                    f"{corpora.set_aside_to.name}, starting with no corpora"
+                )
+            if folder is not None:
+                corpora.add(folder)
+            else:
+                last = corpora.last()
+                if last is not None and not last.available:
+                    _error(
+                        f"tilia library: {last.path} is missing; "
+                        "it is listed as unavailable"
+                    )
+        except OSError as error:
+            _error(
+                f"tilia library: can't read {corpora.path.name}: "
+                f"{error.strerror or error}"
+            )
+            return 1
         library_api.register(server, corpora)
         record = ServerRecord(
             protocol=PROTOCOL,
