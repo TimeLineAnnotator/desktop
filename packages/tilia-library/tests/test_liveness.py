@@ -296,6 +296,23 @@ def test_unwatch_stops_the_rescans(liveness, backend, clock, corpus):
     assert liveness.state(corpus.id) is not None
 
 
+def test_unwatch_during_a_tick_skips_the_corpus(
+    liveness, backend, clock, corpora, corpus, folder
+):
+    other_folder = folder.parent / "other"
+    other_folder.mkdir()
+    other = corpora.add(other_folder)
+    liveness.watch(corpus.id, corpus, "h")
+    liveness.watch(other.id, other, "h2")
+    # The first corpus's scan removes the second, which the tick found due too.
+    backend.on_scan = lambda: liveness.unwatch(other.id)
+    clock.now = 3.0
+    liveness.tick()
+    assert backend.scans == [3.0]
+    assert liveness.state(other.id) is None
+    assert liveness.state(corpus.id)["scanning"] is False
+
+
 def test_a_failing_scan_keeps_the_state(liveness, backend, clock, corpus, caplog):
     liveness.watch(corpus.id, corpus, "h")
     before = liveness.state(corpus.id)
