@@ -445,6 +445,21 @@ def test_a_removed_corpus_is_neither_rescanned_nor_reported(
     assert backend.files_calls == opened + 2  # the listing and the watch
 
 
+def test_state_is_404_once_the_library_no_longer_lists_the_corpus(
+    served, liveness, corpora, corpus
+):
+    # The corpus is opened and watched, then dropped from library.toml behind
+    # the server's back (a hand edit); the state route must say it is gone.
+    cid = corpus.id
+    _call(served, "GET", f"/api/{cid}/files")
+    assert liveness.state(cid) is not None
+    assert corpora.remove(cid)
+    assert _call(served, "GET", f"/api/{cid}/state") == (
+        404,
+        {"error": "unknown corpus"},
+    )
+
+
 def test_the_liveness_register_all_makes_stops_with_the_server(backend, corpora):
     server = LibraryServer(backend)
     register_all(server, corpora)
