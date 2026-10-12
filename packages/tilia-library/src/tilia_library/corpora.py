@@ -259,3 +259,8 @@ class CorpusHandles:
         if opened and self._on_open is not None:
             self._on_open(cid, corpus, handle)
         return corpus, handle
+
+    def drop(self, cid: str) -> None:
+        """Forget the corpus's handle; the next ``get`` opens it again."""
+        with self._lock:
+            self._handles.pop(cid, None)

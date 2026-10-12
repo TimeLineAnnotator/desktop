@@ -89,6 +89,11 @@ class Liveness:
                 due = self._clock() + self._interval
                 self._watched[cid] = _Watched(corpus, handle, due, state)
 
+    def unwatch(self, cid: str) -> None:
+        """Stop rescanning this corpus and forget its state; unknown ids are ignored."""
+        with self._lock:
+            self._watched.pop(cid, None)
+
     def poke(self, cid: str) -> None:
         """Make the corpus's next rescan due now; unknown ids are ignored."""
         with self._lock:
@@ -108,7 +113,9 @@ class Liveness:
 
     def _rescan(self, cid: str) -> None:
         with self._lock:
-            watched = self._watched[cid]
+            watched = self._watched.get(cid)
+            if watched is None:  # unwatched since the tick found it due
+                return
             watched.poked = False
             watched.state["scanning"] = True
             known = watched.state["generation"]

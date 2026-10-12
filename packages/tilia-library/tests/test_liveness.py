@@ -281,6 +281,21 @@ def test_a_failure_streak_logs_one_traceback(liveness, backend, clock, corpus, c
         assert len(errors) == 2
 
 
+def test_unwatch_stops_the_rescans(liveness, backend, clock, corpus):
+    liveness.watch(corpus.id, corpus, "h")
+    liveness.unwatch("nope-0000")
+    liveness.unwatch(corpus.id)
+    assert liveness.state(corpus.id) is None
+    clock.now = 3.0
+    liveness.tick()
+    assert backend.scans == []
+    liveness.poke(corpus.id)
+    liveness.tick()
+    assert backend.scans == []
+    liveness.watch(corpus.id, corpus, "h")
+    assert liveness.state(corpus.id) is not None
+
+
 def test_a_failing_scan_keeps_the_state(liveness, backend, clock, corpus, caplog):
     liveness.watch(corpus.id, corpus, "h")
     before = liveness.state(corpus.id)
@@ -388,6 +403,29 @@ def test_state_route(served, backend, liveness, clock, corpus):
         {"error": "unknown corpus"},
     )
     assert _call(served, "POST", "/api/nope-0000/rescan", {})[0] == 404
+
+
+def test_a_removed_corpus_is_neither_rescanned_nor_reported(
+    served, backend, liveness, clock, corpora, corpus, folder
+):
+    cid = corpus.id
+    _call(served, "GET", f"/api/{cid}/files")
+    assert liveness.state(cid) is not None
+    opened = backend.files_calls
+    assert _call(served, "DELETE", f"/api/corpora/{cid}", {}) == (204, None)
+    assert _call(served, "GET", f"/api/{cid}/state") == (
+        404,
+        {"error": "unknown corpus"},
+    )
+    assert liveness.state(cid) is None
+    clock.now = 3.0
+    liveness.tick()
+    assert backend.scans == []
+    # Added back, the folder is opened and watched afresh.
+    assert corpora.add(folder).id == cid
+    _call(served, "GET", f"/api/{cid}/files")
+    assert liveness.state(cid) is not None
+    assert backend.files_calls == opened + 2  # the listing and the watch
 
 
 def test_rescan_opens_the_corpus(served, backend, liveness, corpus):
