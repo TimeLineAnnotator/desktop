@@ -603,7 +603,8 @@ class _Parser:
 
     @staticmethod
     def err(msg: str, t: Tok) -> TQLError:
-        return TQLError(msg, t.pos, max(t.end, t.pos + 1))
+        # the end of the query has no character to underline: end == pos there
+        return TQLError(msg, t.pos, t.end if t.type == "EOF" else max(t.end, t.pos + 1))
 
     def at_relation(self, k: int = 0) -> bool:
         """A relation (optionally negated) starts here."""
@@ -1513,7 +1514,31 @@ class _Parser:
         op = self.expect("OP", "'='")
         if op.text != "=":
             raise self.err("SET assigns with '='", op)
-        return Assign(f, self.value())
+        v = self.value()
+        u = self.peek()
+        if v.unit in ("bar", "beat") or (
+            v.kind in ("number", "range")
+            and u.type == "WORD"
+            and u.text.lower() in _UNITS
+        ):
+            end = u.end if u.type == "WORD" and u.text.lower() in _UNITS else v.pos + len(v.raw)
+            raise TQLError(
+                f"SET takes no length - {self.text[v.pos:end]} measures a "
+                "duration, which is not writable; SET writes text, a number "
+                "or another unit's field",
+                v.pos,
+                end,
+            )
+        if v.kind == "ref" and (
+            (u.type == "QUANT" and u.text == "+")
+            or (u.type == "WORD" and u.text[:1] in "+-")
+        ):
+            raise self.err(
+                "SET takes no distance - a time plus a distance, as in "
+                "$2.start + 2 bars, only compares in WHERE",
+                u,
+            )
+        return Assign(f, v)
 
     # -- checks ------------------------------------------------------------ #
     def check_targets(self, q: Query) -> None:
