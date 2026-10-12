@@ -75,6 +75,15 @@ def same_path(a: Path, b: Path) -> bool:
     return os.path.normcase(str(a)) == os.path.normcase(str(b))
 
 
+def _resolved(stored: str) -> Path:
+    """Resolve a path as written in the file, which may be a hand edit."""
+    path = Path(stored).expanduser()
+    try:
+        return path.resolve()
+    except OSError:
+        return path
+
+
 def _now() -> datetime:
     return datetime.now().astimezone().replace(microsecond=0)
 
@@ -166,7 +175,7 @@ class Corpora:
                 (
                     e
                     for e in self._entries(doc)
-                    if _is_corpus_table(e) and same_path(Path(e["path"]), path)
+                    if _is_corpus_table(e) and same_path(_resolved(e["path"]), path)
                 ),
                 None,
             )
@@ -186,8 +195,14 @@ class Corpora:
     def _append(doc: tomlkit.TOMLDocument, table: Any) -> Any:
         if "corpora" not in doc:
             doc["corpora"] = tomlkit.aot()
-        doc["corpora"].append(table)
-        return doc["corpora"][-1]
+        entries = doc["corpora"]
+        if not isinstance(entries, tomlkit.items.AoT):
+            # A hand-written ``corpora = [{...}]`` takes inline tables only.
+            inline = tomlkit.inline_table()
+            inline.update(table)
+            table = inline
+        entries.append(table)
+        return entries[-1]
 
     def remove(self, cid: str) -> bool:
         """Delete a corpus from the list; its folder is not touched."""
