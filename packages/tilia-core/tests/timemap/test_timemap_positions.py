@@ -526,7 +526,8 @@ def test_timemap_derives_its_arrays_from_its_rows_and_beats():
     time_map = _four_four()
 
     for name in ("_slots", "_measure_of", "_first", "_downbeats"):
-        with pytest.raises(ValueError):
+        # init=False fields: ValueError before Python 3.13, TypeError from it on
+        with pytest.raises((ValueError, TypeError)):
             dataclasses.replace(time_map, **{name: ()})
     with pytest.raises(ValueError):
         dataclasses.replace(time_map, _times=time_map._times[:-1])
