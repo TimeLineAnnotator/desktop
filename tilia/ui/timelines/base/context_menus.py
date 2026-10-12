@@ -6,7 +6,6 @@ from tilia.requests import Get, get
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction, get_qaction
 from tilia.ui.menus import MenuItemKind, TiliaMenu
-from tilia.timelines.base.timeline import TimelineFlag
 
 if TYPE_CHECKING:
     from tilia.ui.timelines.base.timeline import TimelineUI
@@ -98,11 +97,10 @@ class TimelineUIContextMenu(TiliaMenu):
         clear_timeline.triggered.connect(on_clear_timeline)
         self.addAction(clear_timeline)
 
-        if TimelineFlag.NOT_DUPLICATABLE not in self.timeline_ui.timeline.FLAGS:
-            duplicate_timeline = CommandQAction("timeline.duplicate", self)
-            duplicate_timeline.setText("Duplicate")
-            duplicate_timeline.triggered.connect(on_duplicate_timeline)
-            self.addAction(duplicate_timeline)
+        duplicate_timeline = CommandQAction("timeline.duplicate", self)
+        duplicate_timeline.setText("Duplicate")
+        duplicate_timeline.triggered.connect(on_duplicate_timeline)
+        self.addAction(duplicate_timeline)
 
 
 class TimelineUIElementContextMenu(TiliaMenu):
