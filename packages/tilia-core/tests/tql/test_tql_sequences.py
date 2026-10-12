@@ -358,3 +358,18 @@ class TestPerformance:
         assert spans_of("verse+", items) == [(0, 400)]
         items = spans(*(["verse", "chorus"] * 200))
         assert spans_of("(verse THEN chorus)+", items) == [(0, 400)]
+    def test_called_during_one_lane_and_stops_it(self):
+        # the walk of one long block is where a query is slow, so check
+        # runs inside it, not only before it
+        items = spans(*(["a", "b"] * 50))
+        calls = []
+
+        def check():
+            calls.append(1)
+            if len(calls) == 2:
+                raise TimeoutError("too slow")
+
+        with pytest.raises(TimeoutError):
+            run("(*+ THEN *+)+", items, check=check)
+        assert len(calls) == 2
+

@@ -36,10 +36,20 @@ class Runs:
         self.check = check
         self.items = items
         self.n = len(items)
+        self.ticks = 0  # steps of the walk; ``check`` runs every 256th
         self.m_steps: dict[tuple[int, int, int], frozenset[int]] = {}
         self.m_step: dict[tuple[int, int], frozenset[int]] = {}
 
+    def tick(self) -> None:
+        """One step of the walk: every 256th calls ``check``, so a time limit
+        can stop a lane whose walk is long (``(*+ THEN *+)+`` on 2,000 items
+        runs for half a minute)."""
+        self.ticks += 1
+        if self.check is not None and not self.ticks & 255:
+            self.check()
+
     def ends_steps(self, steps: list[Step], si: int, pos: int) -> frozenset[int]:
+        self.tick()
         key = (id(steps), si, pos)
         hit = self.m_steps.get(key)
         if hit is not None:
@@ -231,8 +241,9 @@ def find_runs(
     any (unanchored), start, end, full. ``joins``: see :func:`blocks`.
     ``flags``, with ``marks`` (a query with ``@``): per item of the run,
     whether a marked step took it; None otherwise, when the whole run is the
-    target. ``check``, if given, is called first and may raise to stop a query
-    that runs too long."""
+    target. ``check``, if given, is called first and then every few hundred
+    steps of each block's walk, and may raise to stop a query that runs too
+    long."""
     if check is not None:
         check()
     bl = blocks(items, point, joins)
