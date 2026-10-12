@@ -214,7 +214,7 @@
       "type": "object",
       "properties": {
         "number": {
-          "description": "The printed bar number. Written on the first measure always; on a later one only when it isn't the previous measure's number plus one. A pickup is numbered 0.",
+          "description": "The printed bar number, written whenever it is set: a pickup's 0, a repeat going back, an ending or a cadenza sharing a number, a restart. Without one, a measure is the previous measure's number plus one, and the first measure is 1 (desktop#700).",
           "type": "integer",
           "x-default-from": "the previous measure's number + 1"
         },
