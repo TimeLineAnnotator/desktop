@@ -1170,6 +1170,12 @@ class _Parser:
             return Value("regex", t.value, t.text, t.pos)
         if t.type == "REF":
             return Value("ref", self.field_ref(), t.text, t.pos)
+        if t.type == "WORD" and t.upper in KEYWORDS:
+            raise self.err(
+                f"expected a value, found keyword {t.upper} - quote it "
+                f'("{t.text}") to match a label spelled so',
+                t,
+            )
         if t.type == "WORD" or t.type == "QUANT":
             # glue adjacent pieces back together: `verse?` is a value here, not
             # a step with a quantifier
