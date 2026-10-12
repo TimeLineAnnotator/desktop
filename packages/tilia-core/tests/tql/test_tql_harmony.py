@@ -117,6 +117,17 @@ def test_unreadable_chord_literals(text):
     bad(text)
 
 
+def test_non_text_chord_literal_is_a_harmony_error():
+    for value in (5, None, ["V7"]):
+        with pytest.raises(HarmonyError, match="must be text"):
+            parse_chord(value)
+
+
+def test_major_seventh_mark_hint():
+    with pytest.raises(HarmonyError, match=r"'M' marks a major seventh: write IM7"):
+        parse_chord("IM")
+
+
 # figures and slash basses fix the inversion; bare numerals and symbols don't
 @pytest.mark.parametrize(
     "lit, quality, inversion",
@@ -571,6 +582,12 @@ def test_trailing_dash_key_hints_at_minor():
     with pytest.raises(HarmonyError, match="for C minor write c or Cm"):
         parse_key("C-")
     assert parse_key("C-minor").mode == "minor"
+
+
+def test_non_text_key_is_a_harmony_error():
+    for value in (None, 5, ["c"]):
+        with pytest.raises(HarmonyError, match="must be text"):
+            parse_key(value)
 
 
 def test_key_matches():
