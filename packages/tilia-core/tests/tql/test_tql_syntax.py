@@ -528,6 +528,16 @@ def test_error_offsets_count_characters_as_typed():
     with pytest.raises(TQLError) as exc:
         parse("Sätze THEN")
     assert exc.value.pos == len("Sätze THEN")
+    # the culprit is the decomposed word itself: 7 characters as typed, 6 in NFC
+    text = "Sa\u0308tze."
+    assert len(text) == 7
+    with pytest.raises(TQLError) as exc:
+        parse(text)
+    assert "missing subtype" in exc.value.msg
+    assert (exc.value.pos, exc.value.end) == (0, 7)
+    with pytest.raises(TQLError) as exc:
+        parse("Sa\u0308tze THEN THEN x")
+    assert (exc.value.pos, exc.value.end) == (12, 16)
 
 
 def test_deep_nesting_is_an_error():
