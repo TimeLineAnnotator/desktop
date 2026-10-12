@@ -23,14 +23,17 @@ def register_all(
 ) -> CorpusHandles:
     """Add every panel's routes to the server and return the corpus handles.
 
-    Without a ``liveness``, one is made and started; a given one is used as it is. The edit previews are kept in one
-    ``Previews`` for the server (a given one, or a new one).
+    Without a ``liveness``, one is made and started, and ``server.stop()`` stops
+    it; a given one is used as it is and stays the caller's to stop. The edit
+    previews are kept in one ``Previews`` for the server (a given one, or a new
+    one).
     """
     if liveness is None:
         liveness = Liveness(server.backend)
         liveness.start()
+        server.liveness = liveness
     handles = CorpusHandles(server.backend, corpora, on_open=liveness.watch)
-    library.register(server, corpora, liveness=liveness)
+    library.register(server, corpora, liveness=liveness, handles=handles)
     files.register(server, corpora, handles)
     liveness_api.register(server, corpora, handles, liveness)
     query.register(server, corpora, handles)
