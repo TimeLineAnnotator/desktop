@@ -223,6 +223,22 @@ def test_the_rows_are_read_only_when_the_generation_moves(
     assert backend.files_calls == 2
 
 
+def test_a_poke_during_a_scan_makes_the_next_scan_immediate(
+    liveness, backend, clock, corpus
+):
+    backend.cost = 1.0
+    backend.on_scan = lambda: liveness.poke(corpus.id)
+    liveness.watch(corpus.id, corpus, "h")
+    clock.now = 3.0
+    liveness.tick()
+    assert backend.scans == [3.0]
+    backend.on_scan = None
+    liveness.tick()  # the clock is at 4.0; without the poke the wait would be 10 s
+    assert backend.scans == [3.0, 4.0]
+    liveness.tick()
+    assert len(backend.scans) == 2
+
+
 def test_a_vanished_folder_whose_scan_raises_is_unavailable(
     liveness, backend, clock, corpus, folder, caplog
 ):
