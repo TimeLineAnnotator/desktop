@@ -2,6 +2,7 @@
 edit, keeps its bytes. Also what the reader makes of a file in the current
 format, and which versions it reads."""
 
+import dataclasses
 import json
 import math
 import re
@@ -444,9 +445,9 @@ def test_a_timeline_of_an_unknown_kind_gains_no_key_it_didnt_have():
     assert tla.canonical_bytes(doc) == data
 
 
-def test_a_component_of_an_unknown_kind_keeps_its_empty_metadata():
-    # Kept as it is, as a timeline of an unknown kind is: an empty metadata is
-    # written where the file had it, and only there.
+def with_empty_metadata_on_an_unknown_component():
+    """unknown.tla with "metadata": {} on its component of the unknown kind
+    "marker"; and the ids of that component and of its timeline."""
     content = json.loads(UNKNOWN.read_bytes())
     markers_id, markers = list(content["timelines"].items())[1]
     other_id, other = list(markers["components"].items())[1]
@@ -454,12 +455,28 @@ def test_a_component_of_an_unknown_kind_keeps_its_empty_metadata():
     other = {"kind": other.pop("kind"), "metadata": {}, **other}
     markers["components"][other_id] = other
     data = (json.dumps(content, indent=2, ensure_ascii=False) + "\n").encode()
+    return data, markers_id, other_id
+
+
+def test_a_component_of_an_unknown_kind_keeps_its_empty_metadata():
+    # Kept as it is, as a timeline of an unknown kind is: an empty metadata is
+    # written where the file had it, and only there.
+    data, markers_id, other_id = with_empty_metadata_on_an_unknown_component()
     doc = tla.loads(data)
     assert tla.canonical_bytes(doc) == data
     component = doc.timelines[markers_id].components[other_id]
     component.metadata["tags"] = ["x"]
     again = tla.loads(tla.canonical_bytes(doc))
     assert again.timelines[markers_id].components[other_id].metadata == {"tags": ["x"]}
+
+
+def test_a_copy_made_with_replace_keeps_the_empty_metadata_too():
+    # dataclasses.replace copies the fields: whether the file had it is one.
+    data, markers_id, other_id = with_empty_metadata_on_an_unknown_component()
+    doc = tla.loads(data)
+    components = doc.timelines[markers_id].components
+    components[other_id] = dataclasses.replace(components[other_id])
+    assert tla.canonical_bytes(doc) == data
 
 
 def test_a_timeline_of_an_unknown_kind_keeps_its_components_in_raw():
