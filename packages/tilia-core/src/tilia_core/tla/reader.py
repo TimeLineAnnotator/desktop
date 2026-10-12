@@ -158,8 +158,9 @@ def _filled(value: Any, shape: Shape) -> Any:
 def _attrs(
     value: dict[str, Any], shape: Shape, fields: frozenset[str]
 ) -> dict[str, Any]:
-    """An entry's attributes, with those at their default filled in, derived
-    ones (`pre_start` = `start`) included."""
+    """An entry's attributes, with those at their default filled in. One whose
+    default is derived from another value (`pre_start` from `start`) stays
+    unset when the file doesn't have it, and follows that value."""
     attrs: dict[str, Any] = {}
     for key in shape.keys:
         if key in fields:
@@ -173,8 +174,6 @@ def _attrs(
                 attrs[key] = nfc_value(item)
         elif key in shape.defaults:
             attrs[key] = shape.defaults[key]
-        elif shape.derived.get(key) in value:
-            attrs[key] = nfc_value(value[shape.derived[key]])
     for key, nested in _NESTED.items():
         if key in attrs:
             attrs[key] = _filled(attrs[key], nested)

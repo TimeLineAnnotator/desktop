@@ -214,10 +214,10 @@ def test_the_defaults_are_the_schemas():
     assert marker.defaults == {"comments": "", "label": "", "color": None}
     assert marker.always == {"kind", "time"}
     assert marker.left_out_empty == {"metadata"}
-    assert layout.COMPONENT_SHAPES["hierarchy"].derived == {
-        "pre_start": "start",
-        "post_end": "end",
-    }
+    # Derived from start and end, pre_start and post_end have no default.
+    hierarchy = layout.COMPONENT_SHAPES["hierarchy"]
+    assert hierarchy.defaults == {"label": "", "color": "", "comments": ""}
+    assert {"pre_start", "post_end"} <= hierarchy.known - hierarchy.always
     assert layout.TIMELINE_SHAPES["beat"].defaults == {
         "name": "",
         "is_visible": True,
@@ -249,7 +249,6 @@ def test_no_key_is_both_required_and_given_a_default():
     ]
     for shape in shapes:
         assert shape.always.isdisjoint(shape.defaults), shape.keys
-        assert shape.always.isdisjoint(shape.derived), shape.keys
 
 
 @pytest.mark.skipif(

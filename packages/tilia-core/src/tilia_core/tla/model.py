@@ -165,6 +165,12 @@ class MeasureTable:
 
 @dataclass(kw_only=True)
 class Component:
+    """A timeline's component. `attrs` are its kind's attributes, with the
+    schema's defaults filled in when it is read, except those derived from
+    another value: a `pre_start` or `post_end` the file doesn't have stays
+    unset and follows `start` or `end`, so code that reads it falls back to
+    `start` or `end`. Once set, it is written whatever its value."""
+
     id: str
     kind: Kind
     attrs: dict[str, Any] = field(default_factory=dict)
