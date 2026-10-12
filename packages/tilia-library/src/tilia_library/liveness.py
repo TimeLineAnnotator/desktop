@@ -34,6 +34,7 @@ class _Watched:
     due: float
     state: dict[str, Any]
     poked: bool = False
+    failed: bool = False  # the last rescan raised; repeats are logged briefly
 
 
 def _counts(rows: list[dict]) -> dict[str, int]:
@@ -88,6 +89,11 @@ class Liveness:
                 due = self._clock() + self._interval
                 self._watched[cid] = _Watched(corpus, handle, due, state)
 
+    def unwatch(self, cid: str) -> None:
+        """Stop rescanning this corpus and forget its state; unknown ids are ignored."""
+        with self._lock:
+            self._watched.pop(cid, None)
+
     def poke(self, cid: str) -> None:
         """Make the corpus's next rescan due now; unknown ids are ignored."""
         with self._lock:
@@ -107,24 +113,40 @@ class Liveness:
 
     def _rescan(self, cid: str) -> None:
         with self._lock:
-            watched = self._watched[cid]
+            watched = self._watched.get(cid)
+            if watched is None:  # unwatched since the tick found it due
+                return
             watched.poked = False
             watched.state["scanning"] = True
+            known = watched.state["generation"]
+            counted = watched.state["files"] is not None
         start = self._clock()
-        update: dict[str, Any] = {}
+        # Whether the folder is there is known without the backend, so a scan
+        # that raises because the folder vanished still updates it.
+        update: dict[str, Any] = {"available": watched.corpus.path.is_dir()}
+        failed = False
         try:
             self._backend.scan(watched.handle)
             update["generation"] = self._backend.generation(watched.handle)
-            update.update(_counts(self._backend.files(watched.handle)))
-            update["available"] = watched.corpus.path.is_dir()
+            # The counts come from the whole file list; only read it again when
+            # the index moved on (or was never counted).
+            if update["generation"] != known or not counted:
+                update.update(_counts(self._backend.files(watched.handle)))
             update["last_scan"] = (
                 datetime.now().astimezone().isoformat(timespec="seconds")
             )
-        except Exception:
-            logger.exception("Rescanning %s failed", watched.corpus.path)
-            update = {}
+        except Exception as error:
+            failed = True
+            if watched.failed:
+                logger.debug(
+                    "Rescanning %s still fails: %s", watched.corpus.path, error
+                )
+            else:
+                logger.exception("Rescanning %s failed", watched.corpus.path)
+            update = {"available": update["available"]}
         end = self._clock()
         with self._lock:
+            watched.failed = failed
             watched.state.update(update)
             watched.state["scanning"] = False
             if watched.poked:

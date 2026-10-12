@@ -1,5 +1,5 @@
 import { closest, q, qInput } from './lib/dom.js';
-import { noteGeneration, onRerun } from './liveness.js';
+import { RESCANNING, noteGeneration, onRerun } from './liveness.js';
 import { notAvailable, panelSection } from './panels.js';
 import { openInTilia } from './playback.js';
 import { files } from './state.js';
@@ -122,7 +122,7 @@ function buildShell() {
 async function rescan() {
   const r = await fetch("/api/rescan", { method: "POST", body: "{}" });
   if (!r.ok) { setStatus(errMsg(r.status, await r.json().catch(() => null)), "error"); return; }
-  setStatus("Rescanning…", "");
+  setStatus(RESCANNING, "");
 }
 
 async function toggle(fileId) {

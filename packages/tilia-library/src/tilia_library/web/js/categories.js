@@ -261,4 +261,4 @@ async function reload() {
 /** Build the panel the first time it is shown; load the chips each time. */
 export const loadCategories = reload;
 
-onRerun("categories", () => reload().catch(e => setStatus(String(e), "error")));
+onRerun("categories", reload);
