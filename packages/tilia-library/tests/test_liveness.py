@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 
 import pytest
 from conftest import send
@@ -36,11 +37,15 @@ class ScanBackend(FixtureBackend):
         self.rows: list[dict] | None = None
         self.fail = False
         self.gate: threading.Event | None = None
+        self.on_scan: Callable[[], None] | None = None
+        self.files_calls = 0
 
     def scan(self, corpus):
         self.scans.append(self.clock.now if self.clock else 0.0)
         if self.gate is not None:
             self.gate.wait(5)
+        if self.on_scan is not None:
+            self.on_scan()
         if self.clock:
             self.clock.now += self.cost
         if self.fail:
@@ -54,6 +59,7 @@ class ScanBackend(FixtureBackend):
         return self.gen
 
     def files(self, corpus):
+        self.files_calls += 1
         return self.rows if self.rows is not None else super().files(corpus)
 
 
@@ -183,6 +189,7 @@ def test_generation_is_the_backends(liveness, backend, clock, corpus):
 def test_counts_follow_the_rows(liveness, backend, clock, corpus, folder):
     liveness.watch(corpus.id, corpus, "h")
     backend.rows = [{"state": "ok"}, {"state": "ok"}, {"state": "unavailable"}]
+    backend.finds_change = True
     clock.now = 3.0
     liveness.tick()
     state = liveness.state(corpus.id)
@@ -192,6 +199,48 @@ def test_counts_follow_the_rows(liveness, backend, clock, corpus, folder):
     clock.now = 6.0
     liveness.tick()
     assert liveness.state(corpus.id)["available"] is False
+
+
+def test_a_vanished_folder_whose_scan_raises_is_unavailable(
+    liveness, backend, clock, corpus, folder, caplog
+):
+    liveness.watch(corpus.id, corpus, "h")
+    folder.rmdir()
+    backend.fail = True
+    clock.now = 3.0
+    with caplog.at_level(logging.DEBUG):
+        liveness.tick()
+    state = liveness.state(corpus.id)
+    assert state["available"] is False
+    assert state["files"] == 3
+    assert state["last_scan"] is None
+    assert state["scanning"] is False
+    folder.mkdir()
+    clock.now = 6.0
+    liveness.tick()
+    assert liveness.state(corpus.id)["available"] is True
+
+
+def test_a_failure_streak_logs_one_traceback(liveness, backend, clock, corpus, caplog):
+    liveness.watch(corpus.id, corpus, "h")
+    backend.fail = True
+    with caplog.at_level(logging.DEBUG):
+        for step in (3.0, 6.0, 9.0):
+            clock.now = step
+            liveness.tick()
+        assert len(backend.scans) == 3
+        errors = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(errors) == 1
+        assert errors[0].exc_info is not None
+        assert "boom" in caplog.text
+        backend.fail = False
+        clock.now = 12.0
+        liveness.tick()
+        backend.fail = True
+        clock.now = 15.0
+        liveness.tick()
+        errors = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(errors) == 2
 
 
 def test_a_failing_scan_keeps_the_state(liveness, backend, clock, corpus, caplog):
