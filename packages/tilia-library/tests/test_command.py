@@ -76,6 +76,13 @@ class TestArguments:
         code, _, _ = command_runner.run(env.state, env.log, "--nope")
         assert code == 2
 
+    @pytest.mark.parametrize("port", ["-1", "0", "65536"])
+    def test_port_out_of_range_exits_2(self, env, port):
+        code, _, err = command_runner.run(env.state, env.log, "--port", port)
+        assert code == 2
+        assert "--port must be from 1 to 65535" in err
+        assert "Traceback" not in err
+
     def test_folder_that_is_not_a_folder(self, env, tmp_path):
         code, out, err = command_runner.run(env.state, env.log, str(tmp_path / "nope"))
         assert code == 1
@@ -157,6 +164,43 @@ class TestStarting:
         assert body["corpora"][0]["available"] is False
         second.stop()
         assert f"tilia library: {folder.resolve()} is missing" in second.stderr_text()
+
+    def test_no_free_port_adds_nothing(self, env, folder):
+        with socket.socket() as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("127.0.0.1", 65535))
+            except OSError:
+                pass  # someone else holds it, which is just as good
+            sock.listen()
+            code, _, err = command_runner.run(
+                env.state, env.log, "--no-browser", "--port", "65535", str(folder)
+            )
+        assert code == 1
+        assert "tilia library: no free port from 65535 to 65535" in err
+        assert not (env.state / "library.toml").exists()
+
+    def test_library_file_that_cannot_be_read(self, env, folder):
+        (env.state / "library.toml").mkdir()
+        code, _, err = command_runner.run(
+            env.state, env.log, "--no-browser", str(folder)
+        )
+        assert code == 1
+        assert "tilia library: can't read library.toml: " in err
+        assert "Traceback" not in err
+        assert (env.state / "library.toml").is_dir()
+        assert not list(env.state.glob("library.unreadable-*"))
+        assert not (env.state / "server.toml").exists()
+        assert not (env.state / "start.lock").exists()
+
+    def test_stopping_leaves_another_runs_page_alone(self, env, launch):
+        running = launch("--no-browser")
+        running.read_until(RUNNING)
+        page = env.state / "open.html"
+        assert env.record().token in page.read_text()
+        page.write_text("another run's page")
+        assert running.stop() == 0
+        assert page.read_text() == "another run's page"
 
     def test_unreadable_library_file(self, env, launch):
         (env.state / "library.toml").write_bytes(b"= broken")
@@ -253,6 +297,64 @@ class TestHandOver:
         assert last["path"] == str(other.resolve())
         assert browser_lines(env) == [(env.state / "open.html").as_uri()]
         assert env.record().instance == record.instance
+
+    def test_rewrites_a_stale_page(self, env, launch, folder):
+        start_library(launch, env)
+        record = env.record()
+        page = env.state / "open.html"
+        page.write_text("stale, from an earlier run")
+        code, out, err = command_runner.run(env.state, env.log, str(folder))
+        assert code == 0, err
+        assert f"{record.address}?token={record.token}" in page.read_text()
+        assert browser_lines(env) == [page.as_uri()]
+
+    def test_reports_the_librarys_refusal(self, env, folder):
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def reply(self, status, data):
+                body = json.dumps(data).encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):
+                self.reply(
+                    200,
+                    {"instance": "theirs", "protocol": PROTOCOL, "library_version": "9"},
+                )
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                self.reply(400, {"error": "no room for it"})
+
+            def log_message(self, *args):
+                pass
+
+        fake = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=fake.serve_forever, daemon=True).start()
+        try:
+            address = f"http://127.0.0.1:{fake.server_port}/"
+            ServerRecord(
+                protocol=PROTOCOL,
+                library_version="9",
+                instance="theirs",
+                pid=1,
+                address=address,
+                token="x",
+                started=ServerRecord.new(address, "t", "0").started,
+            ).write(env.state / "server.toml")
+            code, out, err = command_runner.run(env.state, env.log, str(folder))
+        finally:
+            fake.shutdown()
+            fake.server_close()
+        assert code == 1
+        assert (
+            f"tilia library: the running library couldn't add {folder}: no room for it"
+            in err
+        )
+        assert ALREADY not in out
+        assert not browser_lines(env)
 
     def test_two_started_together(self, env, launch):
         first = launch("--no-browser")
