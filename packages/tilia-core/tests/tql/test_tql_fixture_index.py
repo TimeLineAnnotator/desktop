@@ -112,6 +112,39 @@ def test_harmony_components():
     assert rows(index, "SELECT name, value FROM fields") == [("composer", "Mozart")]
 
 
+def test_chords_are_labelled_as_roman_numerals():
+    # The fixture format has no display_mode; the builder sets "roman", so the
+    # examples print "V7@1 | I@2" as TiLiA would with that mode.
+    index = fixture_index.build_index(FIXTURES["harmony"])
+    labels = rows(
+        index,
+        "SELECT c.label, ch.roman, ch.symbol FROM components c "
+        "JOIN chords ch ON ch.component_id = c.id",
+    )
+    assert labels
+    assert all(label == roman != symbol for label, roman, symbol in labels)
+
+
+def test_a_list_field_gives_one_row_per_item():
+    fixture = {**FIXTURES["recipe"], "fields": {"Tags": ["draft", "cooking"]}}
+    index = fixture_index.build_index(fixture)
+    assert rows(index, "SELECT name, value FROM fields ORDER BY value") == [
+        ("tags", "cooking"),
+        ("tags", "draft"),
+    ]
+
+
+def test_label_folded_is_the_folded_label():
+    index = fixture_index.build_index(FIXTURES["scripts"])
+    assert rows(
+        index, "SELECT label, label_folded FROM components WHERE label <> ''"
+    ) == [("主歌", "主歌"), ("副歌", "副歌"), ("主歌", "主歌"), ("Straße", "strasse")]
+    index = fixture_index.build_index(FIXTURES["exposition"])
+    assert one(index, "SELECT label_folded FROM components WHERE label = 'MT'") == (
+        "mt",
+    )
+
+
 def test_chord_before_the_first_key_has_no_key():
     fixture = {
         "length": 8,
@@ -220,6 +253,72 @@ def test_fake_timemap_of_repeat():
     assert tm.end_bar(96.0) == 16
     assert tm.end_bar(0.0) is None
     assert tm.measures()[16] == (64.0, 68.0, 9, "9")
+
+
+def point_and_span_fixture(*units):
+    return {
+        "length": 8,
+        "timelines": [
+            {"name": "Form", "kind": "hierarchy", "units": list(units)},
+            {
+                "name": "Beats",
+                "kind": "beats",
+                "start": 0,
+                "every": 1,
+                "beats_per_bar": 4,
+                "bars": 2,
+            },
+        ],
+    }
+
+
+def test_a_unit_off_the_map_has_no_positions_row():
+    index = fixture_index.build_index(
+        point_and_span_fixture(
+            ["in", 1, 0, 4], ["late", 1, 9, 10], ["early", 1, -2, -1]
+        )
+    )
+    assert rows(
+        index,
+        "SELECT c.label FROM components c JOIN positions p ON p.component_id = c.id "
+        "WHERE c.kind = 'hierarchy'",
+    ) == [("in",)]
+
+
+def test_a_point_ends_in_its_own_bar():
+    # A marker at 4.0 is in bar 2; a span ending at 4.0 ends in bar 1.
+    fixture = point_and_span_fixture(["span", 1, 0, 4])
+    fixture["timelines"].append(
+        {"name": "Marks", "kind": "marker", "units": [["point", 4]]}
+    )
+    index = fixture_index.build_index(fixture)
+    sql = (
+        "SELECT p.bar, p.end_bar FROM components c "
+        "JOIN positions p ON p.component_id = c.id WHERE c.label = ?"
+    )
+    assert one(index, sql, "point") == (2, 2)
+    assert one(index, sql, "span") == (1, 1)
+
+
+def test_a_start_just_before_the_end_of_the_map_is_in_the_last_bar():
+    # 7.95 snaps to the map's end (8.0) but lies in the last bar, as it would
+    # in a real time map; the end itself is off the map.
+    fixture = point_and_span_fixture(["span", 1, 4, 7.95])
+    fixture["timelines"].append(
+        {"name": "Cadences", "kind": "marker", "units": [["PAC", 7.95], ["X", 8.0]]}
+    )
+    index = fixture_index.build_index(fixture)
+    sql = (
+        "SELECT p.bar, p.end_bar, p.beat, p.bar_count FROM components c "
+        "JOIN positions p ON p.component_id = c.id WHERE c.label = ?"
+    )
+    assert one(index, sql, "PAC") == (2, 2, 5.0, 2)
+    assert one(index, sql, "span") == (2, 2, 1.0, 2)
+    assert rows(index, sql, "X") == []
+    tm = index.time_map("f1")
+    assert tm.bar(7.95) == 2 and tm.bar(8.0) is None and tm.bar(8.05) is None
+    assert tm.position(7.95, "bar") == 2.0 == tm.position(8.0, "bar")
+    assert tm.length(4.0, 7.95, "bar") == 1.0
 
 
 def test_no_time_map_in_exposition():
