@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from tilia_core import tla
 from tilia_core.timemap._rows import rows_of
-from tilia_core.timemap.table import MeasureRow, build_rows_from
+from tilia_core.timemap.table import MeasureRow, build_rows_from, is_folded
 
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
 EPS = 1e-6  # added to the tolerance, so float noise never decides whether a time is on a beat
@@ -179,9 +179,9 @@ def build_time_map(
             return None, f"two beats at the same time ({a})"
         if b < a:
             return None, f"beats out of time order (at {b})"
-    rows = build_rows_from(document, timeline, rows_in)
-    if rows[0].folded:
+    if is_folded(rows_in):
         return None, FOLDED
+    rows = build_rows_from(document, timeline, rows_in)
     time_map = TimeMap(
         timeline_id=timeline.id,
         guessed=guessed,

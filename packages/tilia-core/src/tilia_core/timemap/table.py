@@ -92,7 +92,7 @@ def build_rows_from(
     if not rows or timeline.measures is None:
         return []
     counts = {row.id: index + 1 for index, row in enumerate(timeline.measures.rows)}
-    folded = any(row.next is not None for row in rows)
+    folded = is_folded(rows)
     ends = [row.beat_times[0] for row in rows[1:]]
     ends.append(_closing_barline(document, timeline.id, rows))
     passes: dict[int, int] = {}
@@ -128,6 +128,11 @@ def build_rows_from(
             )
         )
     return out
+
+
+def is_folded(rows: Sequence[RowIn]) -> bool:
+    """Whether the table lists the measures played next: a score in written order."""
+    return any(row.next is not None for row in rows)
 
 
 def _closing_barline(

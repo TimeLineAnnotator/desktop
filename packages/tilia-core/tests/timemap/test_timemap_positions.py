@@ -509,3 +509,14 @@ def test_timemap_guessed_is_kept():
     time_map, reason = build_time_map(document(timeline), timeline, guessed=True)
 
     assert time_map.guessed and reason is None
+
+
+def test_timemap_folded_table_is_refused_before_its_rows_are_built(caplog):
+    # The media ends before the last beat, which building the rows would log.
+    folded = _timeline({0: {"number": 1}, 2: {}}, last=3)
+    folded.measures.rows[1].next = [folded.measures.rows[0].id]
+
+    time_map, reason = build_time_map(document(folded, media_length=2.5), folded)
+
+    assert time_map is None and reason.startswith("the table lists the measures")
+    assert not caplog.records
