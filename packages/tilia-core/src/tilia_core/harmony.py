@@ -805,7 +805,9 @@ def _roman_quality(
     raise HarmonyError(f"{text!r}: cannot read {rest!r} after {numeral} ({hint})")
 
 
-_KEY_RE = re.compile(r"([A-Ga-g])([#bx]*)-?((?i:major|minor|maj|min)|M|m)?")
+# A '-' only joins a mode word (C-minor); a bare trailing '-' is refused, since
+# as a chord suffix it means minor (C- = Cm) while the letter's case says major.
+_KEY_RE = re.compile(r"([A-Ga-g])([#bx]*)(?:-?((?i:major|minor|maj|min)|M|m))?")
 
 
 def parse_key(text: str) -> KeySpec:
@@ -821,7 +823,12 @@ def _parse_key(text: str) -> KeySpec:
     t = "".join(text.split()).replace("♯", "#").replace("♭", "b")
     m = _KEY_RE.fullmatch(t)
     if not m:
-        raise HarmonyError(f"{text!r} is not a key: write C (major), c (minor), Eb, f#")
+        hint = ""
+        if t.endswith("-"):
+            hint = f"; for {t[:-1]} minor write {t[:-1].lower()} or {t[:-1]}m"
+        raise HarmonyError(
+            f"{text!r} is not a key: write C (major), c (minor), Eb, f#{hint}"
+        )
     word = m.group(3)
     if word is None:
         mode = "minor" if m.group(1).islower() else "major"

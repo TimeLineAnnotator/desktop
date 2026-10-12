@@ -558,10 +558,19 @@ def test_parse_key(text, tonic, mode, canonical):
     assert (k.tonic, k.mode, k.canonical) == (tonic, mode, canonical), (text, k)
 
 
-@pytest.mark.parametrize("text", ["", "H", "C#b", "c moll", "Cx#", "7", "major"])
+@pytest.mark.parametrize(
+    "text", ["", "H", "C#b", "c moll", "Cx#", "7", "major", "C-", "c-", "Eb-"]
+)
 def test_unreadable_keys(text):
     with pytest.raises(HarmonyError):
         parse_key(text)
+
+
+def test_trailing_dash_key_hints_at_minor():
+    # C- is Cm as a chord; as a key it is refused rather than read as major
+    with pytest.raises(HarmonyError, match="for C minor write c or Cm"):
+        parse_key("C-")
+    assert parse_key("C-minor").mode == "minor"
 
 
 def test_key_matches():
