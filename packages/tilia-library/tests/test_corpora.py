@@ -71,6 +71,17 @@ class TestSamePath:
             assert corpora.add(Path(str(folder).swapcase())).id == first.id
         assert len(corpora.all()) == 1
 
+    def test_hand_written_spellings_are_one_corpus(self, corpora, folder, monkeypatch):
+        corpora.path.parent.mkdir(parents=True)
+        monkeypatch.chdir(folder.parent)
+        for spelling in (f"{folder}/", folder.name, f"{folder.parent}/./{folder.name}"):
+            corpora.path.write_text(
+                f'version = 1\n[[corpora]]\nid = "mozart-0000"\npath = "{spelling}"\n',
+                encoding="utf-8",
+            )
+            assert corpora.add(folder).id == "mozart-0000", spelling
+            assert len(corpora.all()) == 1, spelling
+
     def test_same_path_compares_case_on_windows_only(self):
         expected = sys.platform == "win32"
         assert same_path(Path("/A/b"), Path("/a/B")) is expected
@@ -161,6 +172,25 @@ class TestFile:
         check()
         corpora.remove(second.id)
         check()
+
+    def test_hand_written_inline_array_survives_add(self, corpora, folder, tmp_path):
+        corpora.path.parent.mkdir(parents=True)
+        corpora.path.write_text(
+            f'version = 1\ncorpora = [{{id = "haydn-1234", path = "{tmp_path}"}}]\n',
+            encoding="utf-8",
+        )
+        assert [c.id for c in corpora.all()] == ["haydn-1234"]
+        corpus = corpora.add(folder)
+        doc = read(corpora)  # the file must still parse
+        assert [e["id"] for e in doc["corpora"]] == ["haydn-1234", corpus.id]
+        assert doc["corpora"][1]["path"] == str(folder.resolve())
+        again = Corpora(corpora.path)
+        assert [c.id for c in again.all()] == ["haydn-1234", corpus.id]
+        assert again.set_aside_to is None
+        assert again.last().id == corpus.id
+        again.opened("haydn-1234")
+        assert again.remove(corpus.id) is True
+        assert [c.id for c in Corpora(corpora.path).all()] == ["haydn-1234"]
 
     def test_entries_that_are_not_corpora_are_kept(self, corpora, folder):
         corpora.path.parent.mkdir(parents=True)
@@ -263,6 +293,13 @@ class TestApi:
             served, "POST", "/api/corpora", {"path": str(folder / "a.tla")}
         )
         assert answer["error"] == f"{folder / 'a.tla'} is not a folder"
+
+    def test_relative_path_that_exists_is_refused(self, served, folder, monkeypatch):
+        monkeypatch.chdir(folder.parent)
+        status, answer = self.call(served, "POST", "/api/corpora", {"path": folder.name})
+        assert status == 400
+        assert answer["error"] == f"{folder.name} is not an absolute path"
+        assert self.call(served, "GET", "/api/library")[1]["corpora"] == []
 
     def test_unknown_corpus(self, served):
         assert self.call(served, "DELETE", "/api/corpora/nope") == (

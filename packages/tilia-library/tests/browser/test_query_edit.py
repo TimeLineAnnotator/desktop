@@ -111,6 +111,8 @@ def page(browser, entry_url):
 def run(page, text=STATEMENT):
     page.fill("#ql-box", text)
     page.press("#ql-box", "Control+Enter")
+    # the cards of the last run stay until the answer comes: wait for the run to end
+    page.wait_for_selector("#ql-stop", state="hidden")
     page.wait_for_selector(".ql-card")
 
 
