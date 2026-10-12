@@ -59,27 +59,61 @@ def test_chord_spans_and_keys_of_harmony():
     assert by_time[17] == 2
 
 
+G7 = {
+    "step": 4,
+    "accidental": 0,
+    "quality": "dominant-seventh",
+    "inversion": 0,
+    "display_mode": "roman",
+}
+
+
 def test_chord_fields():
-    g7 = {"step": 4, "accidental": 0, "quality": "dominant-seventh", "inversion": 0}
     c_minor = {"step": 0, "accidental": 0, "type": "minor"}
-    props = derived.chord_fields(g7, c_minor)
+    props = derived.chord_fields(G7, c_minor)
     assert props["label"] == "V7"
     assert props["key"] == "c"
-    props = derived.chord_fields({**g7, "inversion": 1}, derived.C_MAJOR)
+    props = derived.chord_fields({**G7, "inversion": 1}, derived.C_MAJOR)
     assert props["label"] == "V65"
     assert props["key"] == "C"
 
 
 def test_chord_fields_without_a_key_reads_in_c_major():
-    g7 = {"step": 4, "accidental": 0, "quality": "dominant-seventh", "inversion": 0}
-    props = derived.chord_fields(g7, None)
+    props = derived.chord_fields(G7, None)
     assert props["key"] is None
     assert props["roman"] == "V7"
+    assert props["label"] == "V7"
 
 
-def test_chord_label_prefers_custom_text():
-    chord = {"step": 4, "accidental": 0, "quality": "major", "custom_text": "dom"}
-    assert derived.chord_fields(chord, derived.C_MAJOR)["label"] == "dom"
+def test_chord_label_follows_the_display_mode():
+    # TiLiA shows a chord by its display_mode; "letter", its default, is the symbol.
+    letter = {**G7, "display_mode": "letter"}
+    assert derived.chord_fields(letter, derived.C_MAJOR)["label"] == "G7"
+    assert (
+        derived.chord_fields({**letter, "custom_text": "old"}, derived.C_MAJOR)["label"]
+        == "G7"
+    )
+    no_mode = {k: v for k, v in G7.items() if k != "display_mode"}
+    assert derived.chord_fields(no_mode, derived.C_MAJOR)["label"] == "G7"
+    assert (
+        derived.chord_fields({**G7, "inversion": 1, "display_mode": "letter"}, None)[
+            "label"
+        ]
+        == "G7/B"
+    )
+
+
+def test_chord_label_in_custom_mode_is_the_custom_text():
+    custom = {**G7, "display_mode": "custom", "custom_text": "dom"}
+    assert derived.chord_fields(custom, derived.C_MAJOR)["label"] == "dom"
+    assert (
+        derived.chord_fields({**custom, "custom_text": ""}, derived.C_MAJOR)["label"]
+        == ""
+    )
+    assert (
+        derived.chord_fields({**G7, "custom_text": "dom"}, derived.C_MAJOR)["label"]
+        == "V7"
+    )
 
 
 def test_key_fields_labels():
