@@ -493,6 +493,18 @@ class TestTimelineUIContextMenu:
 
         assert clear_action.isEnabled()
 
+    def test_duplicate_via_context_menu(self, marker_tlui, tluis):
+        commands.execute("timeline.marker.add", time=1)
+
+        context_menu = self.get_context_menu(tluis)
+        duplicate_action = get_command_action(context_menu, "timeline.duplicate")
+        with undoable():
+            duplicate_action.trigger()
+
+        assert len(tluis) == 2
+        assert tluis[1].get_data("name") == marker_tlui.get_data("name") + "_copy"
+        assert len(tluis[1].timeline) == 1
+
 
 class TestInspect:
     def test_open_inspect_menu(self, marker_tlui, tluis, qtui):
