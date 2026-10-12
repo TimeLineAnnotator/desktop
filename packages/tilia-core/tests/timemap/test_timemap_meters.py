@@ -91,22 +91,22 @@ class TestMeasureMeters:
         timeline = tapped(5, (2, 3), {0: unit(4, "2+3")})
 
         result = meters(timeline)
-        assert [m.beat_values for m in result] == [[2, 3], [2, 3, 2]]
+        assert [m.beat_values for m in result] == [(2, 3), (2, 3, 2)]
         assert [m.is_ambiguous for m in result] == [False, True]
 
     def test_short_measures_take_the_start_of_the_pattern(self):
         timeline = tapped(6, (2,), {0: unit(4, "1+2+3")})
 
         result = meters(timeline)
-        assert [m.beat_values for m in result] == [[1, 2]] * 3
+        assert [m.beat_values for m in result] == [(1, 2)] * 3
         assert all(m.is_ambiguous for m in result)
 
     def test_pickup_also_takes_the_start_of_the_pattern(self):
         timeline = tapped(3, (1, 2), {0: unit(4, "3+2")})
 
         result = meters(timeline)
-        assert result[0].beat_values == [3]
-        assert result[1].beat_values == [3, 2]
+        assert result[0].beat_values == (3,)
+        assert result[1].beat_values == (3, 2)
 
     def test_two_beat_units_in_a_measure_first_wins(self):
         timeline = tapped(8, units={4: unit(8, "1"), 6: unit(2, "1")})
@@ -115,6 +115,22 @@ class TestMeasureMeters:
         assert meter.is_conflicting
         assert meter.beat_unit_id == beat_ids(timeline)[4]
         assert meter.denominator == 8
+
+    def test_meters_can_be_hashed(self):
+        first, second, third = meters(tapped(6, (2,)))
+
+        # The last two are both 2/4 under the first measure's beat unit.
+        assert hash(second) == hash(third)
+        assert {first, second, third} == {first, second}
+
+    @pytest.mark.parametrize("beat_value", [1, F(1)])
+    def test_quarter_length_is_exact(self, beat_value):
+        (meter,) = meters(tapped(3, (3,), {0: unit(6, "1")}))
+
+        length = meter.quarter_length(beat_value)
+
+        assert isinstance(length, F)
+        assert length == F(2, 3)
 
 
 class TestBeforeTheFirstUnit:
@@ -127,7 +143,7 @@ class TestBeforeTheFirstUnit:
 
         result = meters(timeline)
         assert [m.time_signature for m in result] == [(6, 8)] * 4
-        assert [m.units for m in result] == [[3]] * 4
+        assert [m.units for m in result] == [(3,)] * 4
         assert [m.is_assumed for m in result] == [True, True, True, False]
         assert [m.starts_here for m in result] == [True, False, False, True]
         assert [m.beat_unit_id for m in result] == [
@@ -142,7 +158,7 @@ class TestBeforeTheFirstUnit:
         timeline = tapped(5, (1, 2, 2), {0: None, 3: unit(8, "2+3")})
 
         result = meters(timeline)
-        assert [m.beat_values for m in result] == [[2], [2, 3], [2, 3]]
+        assert [m.beat_values for m in result] == [(2,), (2, 3), (2, 3)]
         assert [m.is_ambiguous for m in result] == [True, False, False]
 
     @pytest.mark.parametrize("first", [None, unit(8, "x")])
@@ -151,7 +167,7 @@ class TestBeforeTheFirstUnit:
 
         result = meters(timeline)
         assert [m.time_signature for m in result] == [(4, 4), (3, 4)]
-        assert [m.units for m in result] == [[1], [1]]
+        assert [m.units for m in result] == [(1,), (1,)]
         assert [m.beat_unit_id for m in result] == [None, None]
         assert [m.starts_here for m in result] == [True, False]
         assert all(m.is_assumed for m in result)
@@ -251,7 +267,7 @@ class TestUserStory2:
         (meter,) = meters(tapped(taps, (taps,), {0: beat_unit}))
 
         assert meter.time_signature == time_signature
-        assert meter.beat_values == beat_values
+        assert meter.beat_values == tuple(beat_values)
         assert [meter.quarter_length(value) for value in meter.beat_values] == quarters
         assert meter.is_assumed == assumed
         assert meter.is_ambiguous == ambiguous
