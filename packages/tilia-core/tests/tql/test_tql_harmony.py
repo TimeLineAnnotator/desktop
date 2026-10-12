@@ -583,6 +583,58 @@ def test_key_props():
     assert key_props(Bb) == {"tonic": "Bb", "mode": "major", "key": "Bb"}
 
 
+# modal keys: TiLiA stores dorian, phrygian, lydian, mixolydian and locrian
+# too; they keep their type, match no major or minor literal, and their Roman
+# numerals go through the mode's scale as TiLiA's display does
+def mode(name, typ):
+    return {**key(name), "type": typ}
+
+
+d_dorian, g_mixo, e_phryg = mode("D", "dorian"), mode("G", "mixolydian"), mode("E", "phrygian")
+
+
+def test_modal_key_props():
+    assert key_props(d_dorian) == {"tonic": "D", "mode": "dorian", "key": "D Dorian"}
+    assert key_props(g_mixo) == {"tonic": "G", "mode": "mixolydian", "key": "G Mixolydian"}
+    assert key_props(mode("Bb", "lydian"))["key"] == "Bb Lydian"
+    assert key_props({**d_dorian, "type": "ionian"})["mode"] == "major"
+
+
+def test_modal_key_matches_no_literal():
+    for lit in ("D", "d", "D major", "Dm"):
+        assert not key_matches(parse_key(lit), d_dorian), lit
+    assert not key_matches(parse_key("G"), g_mixo)
+
+
+@pytest.mark.parametrize(
+    "ch, k, roman",
+    [
+        (chord("F"), d_dorian, "III"),
+        (chord("D", "minor"), d_dorian, "i"),
+        (chord("B", "diminished"), d_dorian, "vi°"),
+        (chord("C"), d_dorian, "VII"),
+        (chord("F#"), d_dorian, "#III"),
+        (chord("F"), g_mixo, "VII"),
+        (chord("F#", "diminished"), g_mixo, "#vii°"),
+        (chord("F"), e_phryg, "II"),
+        (chord("B", "diminished"), e_phryg, "v°"),
+        (chord("E", "major", 0, 4), d_dorian, "V/v"),  # dorian's v is minor
+    ],
+)
+def test_modal_roman_labels(ch, k, roman):
+    p = chord_props(ch, k)
+    assert (p["roman"], p["key"]) == (roman, key_props(k)["key"]), p
+    yes(roman, ch, k)
+
+
+def test_modal_roman_matches_through_the_mode():
+    yes("III", chord("F"), d_dorian)
+    no("bIII", chord("F"), d_dorian)
+    no("III", chord("F#"), d_dorian)
+    yes("VII", chord("F"), g_mixo)
+    no("bVII", chord("F"), g_mixo)
+
+
 # derived labels
 def test_chord_props():
     assert chord_props(g7b, C) == {
@@ -626,7 +678,14 @@ def test_derived_labels(ch, k, symbol, roman):
 
 
 # every derived label reads back to a literal that matches its chord
-@pytest.mark.parametrize("k", [key(t) for t in ("C", "c", "f#", "Eb", "bb", "A")])
+@pytest.mark.parametrize(
+    "k",
+    [key(t) for t in ("C", "c", "f#", "Eb", "bb", "A")]
+    + [mode("D", "dorian"), mode("E", "phrygian"), mode("Bb", "lydian"),
+       mode("G", "mixolydian"), mode("F#", "locrian")],
+    ids=["C", "c", "f#", "Eb", "bb", "A", "D-dorian", "E-phrygian",
+         "Bb-lydian", "G-mixolydian", "F#-locrian"],
+)
 @pytest.mark.parametrize(
     "name",
     [
