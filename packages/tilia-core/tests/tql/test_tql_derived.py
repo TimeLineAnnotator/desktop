@@ -24,11 +24,24 @@ def test_hierarchy_structure_of_exposition():
 
 
 def test_hierarchy_structure_prefers_the_smallest_parent():
-    units = [("a", 3, 0, 10), ("b", 2, 0, 10), ("c", 1, 0, 5), ("d", 2, 0, 20)]
+    # The longer holder on level 2 comes first, so "first seen" would pick it.
+    units = [("a", 3, 0, 10), ("d", 2, 0, 20), ("b", 2, 0, 10), ("c", 1, 0, 5)]
     structure = derived.hierarchy_structure(units)
     assert structure["c"] == ("b", 3)
     assert structure["b"] == ("a", 2)
     assert structure["d"] == (None, 1)
+
+
+def test_hierarchy_structure_prefers_the_lowest_level_over_the_shortest():
+    units = [("a", 3, 0, 20), ("b", 2, 0, 20), ("c", 1, 0, 5)]
+    assert derived.hierarchy_structure(units)["c"] == ("b", 3)
+
+
+def test_hierarchy_structure_allows_a_microsecond_of_slack():
+    units = [("a", 2, 0, 10), ("b", 1, -5e-7, 10.0000005)]
+    assert derived.hierarchy_structure(units)["b"] == ("a", 2)
+    units = [("a", 2, 0, 10), ("b", 1, -2e-6, 10)]
+    assert derived.hierarchy_structure(units)["b"] == (None, 1)
 
 
 def test_implied_spans():
@@ -137,6 +150,8 @@ def test_key_fields_labels():
         ("Verse 1", ("verse",)),
         ("verse/Verse 2", ("verse",)),
         ("chorus??", ("chorus",)),
+        ("chorus? 2", ("chorus",)),
+        ("Verse 2?", ("verse",)),
         ("Straße", ("strasse",)),
         ("", ()),
     ],
