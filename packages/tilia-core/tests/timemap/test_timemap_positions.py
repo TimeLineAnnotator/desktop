@@ -416,6 +416,23 @@ def test_timemap_no_time_map():
     )
     for row in timeless_labelled.measures.rows[1:3]:
         del timeless_labelled.components[row.id].attrs["time"]
+
+    def four_four_with(change):
+        timeline = _timeline({0: {"number": 1}, 4: {}, 8: {}}, last=11)
+        change(timeline)
+        return timeline
+
+    def beat(timeline, measure, index):
+        return timeline.components[timeline.measures.rows[measure].beats[index]]
+
+    timeless_beat = four_four_with(lambda t: beat(t, 0, 2).attrs.pop("time"))
+    nan_beat = four_four_with(lambda t: beat(t, 0, 2).attrs.update(time=float("nan")))
+    text_time = four_four_with(lambda t: beat(t, 0, 1).attrs.update(time="1.0"))
+    nan_downbeat = four_four_with(
+        lambda t: beat(t, 1, 0).attrs.update(time=float("nan"))
+    )
+    missing_downbeat = four_four_with(lambda t: t.components.pop(t.measures.rows[1].id))
+    downbeat_not_first = four_four_with(lambda t: t.measures.rows[1].beats.reverse())
     folded = _timeline({0: {"number": 1}, 2: {}}, last=3)
     folded.measures.rows[1].next = [folded.measures.rows[0].id]
 
@@ -430,6 +447,12 @@ def test_timemap_no_time_map():
         ("empty table", empty_table),
         ("timeless downbeat", timeless_downbeat),
         ("timeless labelled downbeat", timeless_labelled),
+        ("timeless beat", timeless_beat),
+        ("NaN beat", nan_beat),
+        ("text time", text_time),
+        ("NaN downbeat", nan_downbeat),
+        ("missing downbeat", missing_downbeat),
+        ("downbeat not first", downbeat_not_first),
         ("folded", folded),
     ]:
         doc = document(timeline)
@@ -447,6 +470,12 @@ def test_timemap_no_time_map():
         "empty table": "no measure table",
         "timeless downbeat": "a downbeat without a time (measure 2)",
         "timeless labelled downbeat": "a downbeat without a time (measure 2b)",
+        "timeless beat": "a beat without a time (measure 1)",
+        "NaN beat": "a beat without a time (measure 1)",
+        "text time": "a beat without a time (measure 1)",
+        "NaN downbeat": "a downbeat without a time (measure 2)",
+        "missing downbeat": "a downbeat without a time (measure 2)",
+        "downbeat not first": "the measure table doesn't match its beats (measure 2)",
         "folded": "the table lists the measures played next (`next`), "
         "which positions don't handle yet",
     }

@@ -158,11 +158,19 @@ def build_time_map(
     table = timeline.measures
     if table is None or (not table.rows and timeline.components):
         return None, "no measure table"
+    for measure in table.rows:
+        for beat_id in (measure.id, *measure.beats):
+            if not _has_time(timeline.components.get(beat_id)):
+                what = "a downbeat" if beat_id == measure.id else "a beat"
+                return None, f"{what} without a time (measure {measure.label})"
     rows_in = rows_of(timeline)
     kept = {row.id for row in rows_in}
     skipped = next((row for row in table.rows if row.id not in kept), None)
-    if skipped is not None:
-        return None, f"a downbeat without a time (measure {skipped.label})"
+    if skipped is not None:  # a row whose beats don't start at its downbeat
+        return (
+            None,
+            f"the measure table doesn't match its beats (measure {skipped.label})",
+        )
     times = [t for row in rows_in for t in row.beat_times]
     if len(times) < 2:
         return None, "fewer than two beats"
@@ -184,3 +192,13 @@ def build_time_map(
         _downbeats=tuple(row.start for row in rows),
     )
     return time_map, None
+
+
+def _has_time(component: tla.Component | None) -> bool:
+    # A time is a finite number: a missing, NaN or text time counts as none.
+    time = component.attrs.get("time") if component is not None else None
+    return (
+        isinstance(time, (int, float))
+        and not isinstance(time, bool)
+        and math.isfinite(time)
+    )
