@@ -177,10 +177,11 @@ class Component:
     metadata: Metadata = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
 
-    # Not a field. A component of a kind the core doesn't know is kept as it
-    # is: this says whether its file had "metadata", so that the writer writes
-    # an empty one back where it was, and only there. The reader sets it.
-    _metadata_in_file = False
+    # A component of a kind the core doesn't know is kept as it is: this says
+    # whether its file had "metadata", so that the writer writes an empty one
+    # back where it was, and only there. The reader sets it. A field, so that
+    # dataclasses.replace keeps it, but not shown or compared.
+    _metadata_in_file: bool = field(default=False, repr=False, compare=False)
 
 
 @dataclass(kw_only=True)
