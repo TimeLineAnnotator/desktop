@@ -73,8 +73,8 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
         meters.append(
             MeasureMeter(
                 denominator=denominator,
-                units=units,
-                beat_values=fit_units(units, beat_count),
+                units=tuple(units),
+                beat_values=tuple(fit_units(units, beat_count)),
                 beat_unit_id=governing.id if governing else None,
                 starts_here=bool(in_measure) or index == 0,
                 is_ambiguous=is_fit_ambiguous(units, beat_count),
