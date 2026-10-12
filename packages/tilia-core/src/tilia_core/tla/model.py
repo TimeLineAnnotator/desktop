@@ -169,7 +169,11 @@ class Component:
     schema's defaults filled in when it is read, except those derived from
     another value: a `pre_start` or `post_end` the file doesn't have stays
     unset and follows `start` or `end`, so code that reads it falls back to
-    `start` or `end`. Once set, it is written whatever its value."""
+    `start` or `end`. Once set, it is written whatever its value.
+
+    None for a key the schema gives no default is left out when written, as
+    is a null for it in the file: a beat's `"measure": null` is read as None
+    and written back without `measure`."""
 
     id: str
     kind: Kind
@@ -195,7 +199,9 @@ class Timeline:
     measures: MeasureTable | None = None  # beat timelines only
     components: dict[str, Component] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
-    # The whole object, for a kind the core doesn't know: kept and written back as it is.
+    # The whole object, for a kind the core doesn't know: kept and written back as it is,
+    # except its name, ordinal and metadata, which are written from the fields above,
+    # not from `raw`: change those, since a change to raw's copies isn't saved.
     raw: dict[str, Any] | None = None
 
 
