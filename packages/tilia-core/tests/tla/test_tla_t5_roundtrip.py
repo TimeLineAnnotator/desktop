@@ -179,6 +179,38 @@ def test_a_value_equal_to_the_one_it_derives_from_in_another_type_is_written(
     assert (type(value), value) == (int, 1)
 
 
+def written_unit(doc, timeline, unit):
+    content = json.loads(tla.canonical_bytes(doc))
+    return content["timelines"][timeline.id]["components"][unit.id]
+
+
+def test_a_start_moved_alone_takes_its_pre_start_with_it():
+    # The file has no pre_start: unset, it follows start, and none is written.
+    doc = tla.read(EVERY_KIND)
+    form = named(doc, "Form")
+    exposition = nth(form, 0)
+    exposition.attrs["start"] = 0.5
+    written = written_unit(doc, form, exposition)
+    assert written["start"] == 0.5
+    assert "pre_start" not in written
+    again = tla.loads(tla.canonical_bytes(doc)).timelines[form.id]
+    assert "pre_start" not in again.components[exposition.id].attrs
+
+
+@pytest.mark.parametrize(
+    "key, derived_from", [("pre_start", "start"), ("post_end", "end")]
+)
+def test_a_value_set_equal_to_the_one_it_derives_from_is_written(key, derived_from):
+    # Set, it stays set: a later move of start or end doesn't move it.
+    doc = tla.read(EVERY_KIND)
+    form = named(doc, "Form")
+    unit = nth(form, 0)
+    unit.attrs[key] = unit.attrs[derived_from]
+    assert written_unit(doc, form, unit)[key] == unit.attrs[derived_from]
+    again = tla.loads(tla.canonical_bytes(doc)).timelines[form.id]
+    assert again.components[unit.id].attrs[key] == unit.attrs[derived_from]
+
+
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
 def test_a_number_json_cannot_hold_raises_naming_its_place(value):
     doc = tla.read(EVERY_KIND)
@@ -791,11 +823,10 @@ def test_attributes_at_their_default_are_filled_in():
     doc = tla.read(EVERY_KIND)
     form = named(doc, "Form")
     assert form.attrs == {"height": 60, "is_visible": True, "measure_table": None}
+    # pre_start and post_end aren't: unset, they follow start and end.
     assert nth(form, 0).attrs == {
         "start": 1.0,
-        "pre_start": 1.0,
         "end": 17.5,
-        "post_end": 17.5,
         "level": 3,
         "label": "Exposição",
         "color": "#5c6bc0",

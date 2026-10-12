@@ -116,10 +116,11 @@ def _object(
     """An object as written: its known keys in order, then the others, in
     code-point order. A known key that isn't always written is left out when
     it equals its default, by type and value (0 isn't 0.0), or, without one,
-    when it is None."""
+    when it is None. A default derived from another value, such as
+    `pre_start`'s from `start`, isn't one: such a key is written whenever it
+    is set, whatever value it would derive."""
     values = nfc_object(value, place)
     always, defaults, empty = shape.always, shape.defaults, shape.left_out_empty
-    derived = shape.derived
     written: dict[str, Any] = {}
     found = 0
     for key in shape.keys:
@@ -129,19 +130,12 @@ def _object(
         item = values[key]
         kind = type(item)
         if key not in always:
-            if item is None and key in derived:
-                continue  # a derived default is never null: None means unset
             if key in defaults:
                 default = defaults[key]
                 if kind is type(default) and item == default:
                     continue
             elif key in empty:
                 if kind is dict and not item:
-                    continue
-            elif key in derived and derived[key] in values:
-                # Derived from another key of the object: pre_start from start.
-                default = values[derived[key]]
-                if kind is type(default) and item == default:
                     continue
             elif item is None:
                 continue

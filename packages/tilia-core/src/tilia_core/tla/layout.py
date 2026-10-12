@@ -157,15 +157,15 @@ class Shape:
 
     `keys` are its known keys, in order, and `known` the same as a set. Those
     in `always` are always written. The others are left out at their
-    default: a value in `defaults`, the `x-default-from` in `derived` that
-    names where it comes from, or, for those in `left_out_empty`, an empty
-    object.
+    default: a value in `defaults`, or, for those in `left_out_empty`, an
+    empty object; and without a default, when they are None. A key whose
+    default is derived from another value (the schema's `x-default-from`)
+    has none here: it is written whenever it is set.
     """
 
     keys: tuple[str, ...]
     always: frozenset[str]
     defaults: Mapping[str, Any]
-    derived: Mapping[str, str]
     left_out_empty: frozenset[str]
 
     @cached_property
@@ -220,20 +220,16 @@ def _shape(
         required |= node_required
     always = frozenset(always)
     defaults: dict[str, Any] = {}
-    derived: dict[str, str] = {}
     for key in keys:
         schema = properties.get(key, {})
         if key in always:
             continue  # written whatever its value
         if "default" in schema:
             defaults[key] = schema["default"]
-        elif "x-default-from" in schema:
-            derived[key] = schema["x-default-from"]
     return Shape(
         keys=keys,
         always=(always | required) & frozenset(keys),
         defaults=defaults,
-        derived=derived,
         left_out_empty=frozenset(left_out_empty),
     )
 
