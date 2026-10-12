@@ -296,6 +296,19 @@ def test_a_string_ending_in_a_backslash_may_be_followed_by_a_comment():
     assert parse('verse -> UNTAG "\\\\" --').action.tag == "\\"
 
 
+def test_two_regular_expressions_on_one_unit():
+    # alt := literal ('/' literal)*: after a joining '/' the next literal starts,
+    # so a '/' there opens a regular expression
+    for text in ("/a/ / /b/", "/a///b/"):
+        lits = parse(text).pattern.seq.steps[0].item.term.alts[0].lits
+        assert [(lit.kind, lit.text) for lit in lits] == [("regex", "a"), ("regex", "b")]
+    for text in ("verse//^c/", "verse / /^c/"):
+        lits = parse(text).pattern.seq.steps[0].item.term.alts[0].lits
+        assert [(lit.kind, lit.text) for lit in lits] == [("word", "verse"), ("regex", "^c")]
+    lits = parse("/^v/ / chorus").pattern.seq.steps[0].item.term.alts[0].lits
+    assert [(lit.kind, lit.text) for lit in lits] == [("regex", "^v"), ("word", "chorus")]
+
+
 @pytest.mark.parametrize(
     "text, want",
     [

@@ -183,8 +183,8 @@ def _opens_operand(toks: list[Tok]) -> bool:
     prev = toks[-1] if toks else None
     if prev is None:
         return True
-    if prev.type in ("[", "(", ",", "OP", "ARROW", "AT"):
-        return True
+    if prev.type in ("[", "(", ",", "OP", "ARROW", "AT", "SLASH"):
+        return True  # after a joining `/` the next literal starts: verse//^c/
     if prev.type != "WORD":
         return False
     if prev.upper in (KEYWORDS | {"WITH", "OF"}):
