@@ -428,6 +428,17 @@ def test_a_removed_corpus_is_neither_rescanned_nor_reported(
     assert backend.files_calls == opened + 2  # the listing and the watch
 
 
+def test_the_liveness_register_all_makes_stops_with_the_server(backend, corpora):
+    server = LibraryServer(backend)
+    register_all(server, corpora)
+    live = server.liveness
+    assert live is not None and live._thread is not None and live._thread.is_alive()
+    thread = live._thread
+    server.start()
+    server.stop()
+    assert not thread.is_alive()
+
+
 def test_rescan_opens_the_corpus(served, backend, liveness, corpus):
     assert _call(served, "POST", f"/api/{corpus.id}/rescan", {}) == (202, {})
     assert liveness.state(corpus.id) is not None
