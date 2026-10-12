@@ -64,7 +64,7 @@ class musicxml_to_svg(QWebEngineView):
 
     def engine_loaded(self, ok: bool) -> None:
         if not ok:
-            self.display_error("The page that draws the score couldn't be loaded.")
+            self.display_error("Score drawing engine couldn't be loaded.")
             return
         self.is_engine_loaded = True
 
