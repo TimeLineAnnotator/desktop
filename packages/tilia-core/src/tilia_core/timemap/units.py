@@ -10,6 +10,7 @@ unit and number of tapped beats, and is never stored.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -18,6 +19,10 @@ DEFAULT_UNITS = "1"
 # Far above any denominator used in notation. Enforced wherever a beat unit
 # is set, so the dialog and inspector, which can't show more, never meet one.
 MAX_DENOMINATOR = 128
+# Far above any unit written in notation, and far below the 4300 digits
+# Python 3.10.7 and later refuse to read as an int (earlier versions have no
+# limit), so a unit reads the same on every Python.
+MAX_UNIT_LENGTH = 32
 
 _UNIT_CHARACTERS = set("0123456789/")
 
@@ -50,12 +55,15 @@ def parse_units(text: str) -> UnitsParseResult:
         item = item.strip()
         if not item:
             return UnitsParseResult([], "Missing unit around '+'.")
+        too_long = len(item) > MAX_UNIT_LENGTH
+        shown = item[:MAX_UNIT_LENGTH] + "…" if too_long else item
         not_a_fraction = UnitsParseResult(
-            [], f"'{item}' is not a whole number or fraction such as 1/2."
+            [], f"'{shown}' is not a whole number or fraction such as 1/2."
         )
         # Fraction() also accepts decimals, signs and exponents; units are
-        # written the way they are in notation.
-        if not set(item) <= _UNIT_CHARACTERS:
+        # written the way they are in notation. A longer unit is refused
+        # before Fraction() sees it, which may or may not read it.
+        if too_long or not set(item) <= _UNIT_CHARACTERS:
             return not_a_fraction
         try:
             unit = Fraction(item)
@@ -68,7 +76,7 @@ def parse_units(text: str) -> UnitsParseResult:
     return UnitsParseResult(units)
 
 
-def format_units(units: list[Fraction]) -> str:
+def format_units(units: Sequence[Fraction]) -> str:
     """Writes units in canonical form, e.g. [2, 3] as "2+3"."""
     return "+".join(str(unit) for unit in units)
 
@@ -95,15 +103,19 @@ def is_fit_ambiguous(units: list[Fraction], beat_count: int) -> bool:
 @dataclass(frozen=True)
 class MeasureMeter:
     """
-    The meter a measure ends up with. `beat_unit_id` is the beat unit that
-    governs the measure, or None where the default applies. `is_assumed` is
-    True when its values weren't set by the user (see BeatUnit.assumed).
+    The meter a measure ends up with. `beat_unit_id` names the beat unit
+    that governs the measure, or is None where the default applies. In the
+    app it is that BeatUnit component's own id. In tilia_core's copy of this
+    module it is the id of the beat that carries the governing unit, since
+    tilia_core reads a .tla beat unit as part of its beat, without an id of
+    its own. `is_assumed` is True when its values weren't set by the user
+    (see BeatUnit.assumed).
     """
 
     denominator: int
-    units: list[Fraction]
-    beat_values: list[Fraction]
-    beat_unit_id: int | None
+    units: tuple[Fraction, ...]
+    beat_values: tuple[Fraction, ...]
+    beat_unit_id: str | None
     starts_here: bool
     is_ambiguous: bool
     is_conflicting: bool
@@ -117,5 +129,6 @@ class MeasureMeter:
     def time_signature(self) -> tuple[Fraction, int]:
         return self.numerator, self.denominator
 
-    def quarter_length(self, beat_value: Fraction) -> Fraction:
-        return beat_value * 4 / self.denominator
+    def quarter_length(self, beat_value: Fraction | int) -> Fraction:
+        # An int divided by the denominator would give a float.
+        return Fraction(beat_value) * 4 / self.denominator
