@@ -15,16 +15,22 @@ A harmony timeline holds two kinds of point component:
     ``step`` 0-6 (C D E F G A B) plus ``accidental`` (-2..2) is the root, so
     F# is step 3, accidental 1. ``quality`` is one of the 51 names in
     :data:`QUALITIES` (music21's chord kinds: "major", "dominant-seventh",
-    "half-diminished-seventh", ...). ``inversion`` 0-3 says which chord tone is
-    in the bass, counting in stacking order: root, third, fifth, seventh (a sus
-    chord's 2nd/4th stands in for the third, a sixth chord's 6th for the
-    seventh). ``applied_to`` 0-6 is the scale degree, counted in letter steps
+    "half-diminished-seventh", ...). ``inversion`` says which chord tone is in
+    the bass, counting in stacking order: root, third, fifth, seventh, ninth,
+    eleventh, thirteenth (a sus chord's 2nd/4th stands in for the third, a
+    sixth chord's 6th for the seventh); it runs from 0 to the chord's size
+    minus one, so a triad takes 0-2, a seventh 0-3 and a thirteenth 0-6
+    (``get_inversion_amount`` in ``tilia/timelines/harmony/constants.py``).
+    ``applied_to`` 0-6 is the scale degree, counted in letter steps
     above the tonic of the key in force, whose key the chord belongs to: 0 =
     not applied, 4 = V. So D major with applied_to=4 under C major is V/V.
     TiLiA keeps the target as a bare step; it stores neither its accidental
     nor its mode.
 ``MODE``, one key
-    ``step`` + ``accidental`` is the tonic, ``type`` is "major" or "minor".
+    ``step`` + ``accidental`` is the tonic, ``type`` is one of "major",
+    "minor", "dorian", "phrygian", "lydian", "mixolydian" and "locrian"
+    (``MODE_TYPES`` in ``tilia/timelines/harmony/constants.py``). A key of
+    any other type is read as major, TiLiA's default.
 
 No Roman numeral is stored. TiLiA works one out for display from the chord and
 the key in force (``tilia/ui/timelines/harmony/utils.py``), and so does this
@@ -68,8 +74,9 @@ Matching rules
   ``°7`` diminished, ``+7`` augmented, ``+M7`` augmented-major. So ``IV7`` under
   C is F7 and Fmaj7 is ``IVM7``. 9ths, 11ths and 13ths follow the same pattern.
 * **Roman numerals go through the key in force.** The numeral picks a degree
-  of that key (major scale or natural minor) and the accidentals move it.
-  In minor, ^6 and ^7 follow music21's "cautionary" reading: numerals of minor,
+  of that key (major scale, natural minor or, for a modal key, that mode's
+  scale, as TiLiA's display does: F major under D dorian is ``III``) and the
+  accidentals move it. In minor, ^6 and ^7 follow music21's "cautionary" reading: numerals of minor,
   diminished and half-diminished quality (``vi``, ``vii°``, ``viiø7``) stand
   on the raised degree, all others (``VI``, ``VII``, ``VII7``) on the natural
   one; a ``#`` on such a raised numeral or a ``b`` on a natural one is a
@@ -89,9 +96,13 @@ Matching rules
   ``Ger+6`` and ``N6`` are the exception: they match TiLiA's Italian, French,
   German and Neapolitan qualities whatever the stored root, applied target or
   key, because TiLiA labels them that way in both display modes.
-* **A slash bass must be a chord tone, up to the seventh.** That is all TiLiA
-  can store. ``C/D`` or ``C9/D`` raises :class:`HarmonyError` instead of
-  silently matching nothing.
+* **A slash bass must be a chord tone.** That is all TiLiA can store. ``C/D``
+  raises :class:`HarmonyError` instead of silently matching nothing; ``C9/D``
+  is a ninth chord in TiLiA's fourth inversion.
+* **A key literal names a major or a minor key.** No literal matches a modal
+  key (D dorian, G mixolydian, ...): ``D`` and ``d`` are D major and D minor
+  and :func:`key_matches` compares the mode, so a modal key is listed by
+  ``*`` and by its ``mode`` field only.
 
 Display (:func:`chord_props`)
 -----------------------------
@@ -140,6 +151,16 @@ LETTERS = "CDEFGAB"  # TiLiA's step 0..6
 _NATURAL_PC = (0, 2, 4, 5, 7, 9, 11)
 _MAJOR = (0, 2, 4, 5, 7, 9, 11)  # semitones of each degree above the tonic
 _MINOR = (0, 2, 3, 5, 7, 8, 10)  # natural minor (^6/^7: _numeral_root)
+# TiLiA's MODE types (constants.MODE_TYPES) and their scales.
+_SCALES = {
+    "major": _MAJOR,
+    "minor": _MINOR,
+    "dorian": (0, 2, 3, 5, 7, 9, 10),
+    "phrygian": (0, 1, 3, 5, 7, 8, 10),
+    "lydian": (0, 2, 4, 6, 7, 9, 11),
+    "mixolydian": (0, 2, 4, 5, 7, 9, 10),
+    "locrian": (0, 1, 3, 5, 6, 8, 10),
+}
 _ROMANS = ("I", "II", "III", "IV", "V", "VI", "VII")
 
 Pitch = tuple[int, int]
@@ -161,7 +182,7 @@ def _transpose(p: Pitch, steps: int, semis: int) -> Pitch:
 
 
 def _degree(tonic: Pitch, mode: str, degree: int) -> Pitch:
-    return _transpose(tonic, degree, (_MINOR if mode == "minor" else _MAJOR)[degree])
+    return _transpose(tonic, degree, _SCALES[mode][degree])
 
 
 def _numeral_root(
@@ -490,11 +511,18 @@ _TRIAD_FIGURES = ("", "6", "64")
 _SEVENTH_FIGURES = ("7", "65", "43", "2")
 
 # Default mode of an applied chord's target, per degree of the key in force:
-# the diatonic triad's (I ii iii IV V vi vii / i ii III iv V VI VII).
+# the diatonic triad's (I ii iii IV V vi vii / i ii III iv V VI VII; in a
+# modal key the mode's own triads, a diminished one counting as minor).
 _TARGET_MODE = {
     "major": ("major", "minor", "minor", "major", "major", "minor", "minor"),
     "minor": ("minor", "minor", "major", "minor", "major", "major", "major"),
+    "dorian": ("minor", "minor", "major", "major", "minor", "minor", "major"),
+    "phrygian": ("minor", "major", "major", "minor", "minor", "major", "minor"),
+    "lydian": ("major", "major", "minor", "minor", "major", "minor", "minor"),
+    "mixolydian": ("major", "minor", "minor", "major", "minor", "minor", "major"),
+    "locrian": ("minor", "major", "minor", "minor", "major", "major", "minor"),
 }
+assert set(_TARGET_MODE) == set(_SCALES)
 
 
 def _roman_suffix(
@@ -694,12 +722,7 @@ def _parse_symbol(text: str, t: str) -> ChordSpec:
                 f"{_pitch_name(root)}{q.symbol} ({', '.join(map(_pitch_name, members))}); "
                 "TiLiA can only put a chord tone in the bass"
             )
-        inversion = members.index(bass)
-        if inversion > 3:
-            raise HarmonyError(
-                f"{text!r}: TiLiA stores inversions up to the seventh in "
-                "the bass (inversion 0-3)"
-            )
+        inversion = members.index(bass)  # any chord tone: C9/D is inversion 4
     canonical = _pitch_name(root) + q.symbol
     if inversion is not None:
         canonical += "/" + _pitch_name(_transpose(root, *q.tones[inversion]))
@@ -807,7 +830,9 @@ def _roman_quality(
     raise HarmonyError(f"{text!r}: cannot read {rest!r} after {numeral} ({hint})")
 
 
-_KEY_RE = re.compile(r"([A-Ga-g])([#bx]*)-?((?i:major|minor|maj|min)|M|m)?")
+# A '-' only joins a mode word (C-minor); a bare trailing '-' is refused, since
+# as a chord suffix it means minor (C- = Cm) while the letter's case says major.
+_KEY_RE = re.compile(r"([A-Ga-g])([#bx]*)(?:-?((?i:major|minor|maj|min)|M|m))?")
 
 
 def parse_key(text: str) -> KeySpec:
@@ -823,7 +848,12 @@ def _parse_key(text: str) -> KeySpec:
     t = "".join(text.split()).replace("♯", "#").replace("♭", "b")
     m = _KEY_RE.fullmatch(t)
     if not m:
-        raise HarmonyError(f"{text!r} is not a key: write C (major), c (minor), Eb, f#")
+        hint = ""
+        if t.endswith("-"):
+            hint = f"; for {t[:-1]} minor write {t[:-1].lower()} or {t[:-1]}m"
+        raise HarmonyError(
+            f"{text!r} is not a key: write C (major), c (minor), Eb, f#{hint}"
+        )
     word = m.group(3)
     if word is None:
         mode = "minor" if m.group(1).islower() else "major"
@@ -858,10 +888,13 @@ def _chord_fields(chord: dict[str, Any]) -> tuple[int, int, str, int, int]:
 
 
 def _key_fields(mode: dict[str, Any]) -> tuple[int, int, str]:
+    """(step, accidental, type) with TiLiA's defaults; the stored type is kept
+    (dorian stays dorian), an unknown one reads as major."""
+    typ = mode.get("type")
     return (
         _int(mode.get("step")) % 7,
         _int(mode.get("accidental")),
-        "minor" if mode.get("type") == "minor" else "major",
+        typ if typ in _SCALES else "major",
     )
 
 
@@ -1003,11 +1036,14 @@ def chord_props(chord: dict[str, Any], key: dict[str, Any] | None) -> dict[str, 
 
 def key_props(mode: dict[str, Any]) -> dict[str, Any]:
     """``{"tonic": "Eb", "mode": "major", "key": "Eb"}`` for a MODE component;
-    ``key`` is lower case for minor (``"eb"``)."""
+    ``key`` is lower case for minor (``"eb"``) and, for a modal key, the label
+    TiLiA shows (``"D Dorian"``, ``mode`` ``"dorian"``)."""
     step, alter, typ = _key_fields(mode)
     tonic = _pitch_name((step, alter))
-    return {
-        "tonic": tonic,
-        "mode": typ,
-        "key": tonic if typ == "major" else tonic.lower(),
-    }
+    if typ == "major":
+        label = tonic
+    elif typ == "minor":
+        label = tonic.lower()
+    else:
+        label = f"{tonic} {typ.capitalize()}"
+    return {"tonic": tonic, "mode": typ, "key": label}
