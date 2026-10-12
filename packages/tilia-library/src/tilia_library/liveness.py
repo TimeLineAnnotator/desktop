@@ -111,6 +111,8 @@ class Liveness:
             watched = self._watched[cid]
             watched.poked = False
             watched.state["scanning"] = True
+            known = watched.state["generation"]
+            counted = watched.state["files"] is not None
         start = self._clock()
         # Whether the folder is there is known without the backend, so a scan
         # that raises because the folder vanished still updates it.
@@ -119,7 +121,10 @@ class Liveness:
         try:
             self._backend.scan(watched.handle)
             update["generation"] = self._backend.generation(watched.handle)
-            update.update(_counts(self._backend.files(watched.handle)))
+            # The counts come from the whole file list; only read it again when
+            # the index moved on (or was never counted).
+            if update["generation"] != known or not counted:
+                update.update(_counts(self._backend.files(watched.handle)))
             update["last_scan"] = (
                 datetime.now().astimezone().isoformat(timespec="seconds")
             )

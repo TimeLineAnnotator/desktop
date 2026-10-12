@@ -201,6 +201,28 @@ def test_counts_follow_the_rows(liveness, backend, clock, corpus, folder):
     assert liveness.state(corpus.id)["available"] is False
 
 
+def test_the_rows_are_read_only_when_the_generation_moves(
+    liveness, backend, clock, corpus
+):
+    liveness.watch(corpus.id, corpus, "h")
+    assert backend.files_calls == 1
+    for step in (3.0, 6.0, 9.0):
+        clock.now = step
+        liveness.tick()
+    assert len(backend.scans) == 3
+    assert backend.files_calls == 1
+    assert liveness.state(corpus.id)["files"] == 3
+    backend.rows = [{"state": "ok"}]
+    backend.finds_change = True
+    clock.now = 12.0
+    liveness.tick()
+    assert backend.files_calls == 2
+    assert liveness.state(corpus.id)["files"] == 1
+    clock.now = 15.0
+    liveness.tick()
+    assert backend.files_calls == 2
+
+
 def test_a_vanished_folder_whose_scan_raises_is_unavailable(
     liveness, backend, clock, corpus, folder, caplog
 ):
