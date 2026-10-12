@@ -6,10 +6,12 @@ import pytest
 import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent
 
-from tests.mock import patch_file_dialog
+from tests.mock import Serve, patch_file_dialog
+from tests.utils import save_tilia_to_tmp_path
 from tilia.errors import SCORE_SVG_CREATE_ERROR
 from tilia.parsers.score import musicxml_to_svg as musicxml_to_svg_module
 from tilia.parsers.score.musicxml_to_svg import SVG_MAKER_PATH, musicxml_to_svg
+from tilia.requests import Get, get
 from tilia.ui import commands
 
 # Stands in for svg_maker.html: keeps the text loadSVG gets, says so in its
@@ -255,6 +257,17 @@ def test_file_that_is_not_musicxml_creates_no_converter(
     assert not converters
 
 
+def _wait_until_osmd_is_loading(converter) -> bool:
+    """For FAKE_OSMD["draws when released"]."""
+    loading = []
+
+    def is_loading():
+        converter.page().runJavaScript("typeof window.release", 0, loading.append)
+        return "function" in loading
+
+    return wait_until(is_loading)
+
+
 def test_score_drawn_after_its_timeline_is_deleted_is_dropped(
     converters, score_tlui, beat_tlui, tilia_errors, tmp_path
 ):
@@ -262,16 +275,34 @@ def test_score_drawn_after_its_timeline_is_deleted_is_dropped(
     with _use_svg_maker(tmp_path, FAKE_OSMD["draws when released"]):
         _import_score(tmp_path)
     (converter,) = converters
-    loading = []
-
-    def osmd_is_loading():
-        converter.page().runJavaScript("typeof window.release", 0, loading.append)
-        return "function" in loading
-
-    assert wait_until(osmd_is_loading)
+    assert _wait_until_osmd_is_loading(converter)
 
     commands.execute("timeline.delete", score_tlui, confirm=False)
     converter.page().runJavaScript("window.release()")
 
     assert wait_until(lambda: _is_deleted(converter))
+    tilia_errors.assert_no_error()
+
+
+def test_score_drawn_after_another_file_is_opened_is_dropped(
+    converters, score_tlui, beat_tlui, tilia_errors, tmp_path
+):
+    # Opening a file starts ids again from 0, so the score timeline of this
+    # file, saved before the import, has the same id as the one OSMD draws for.
+    _add_beats(beat_tlui)
+    timeline_id = score_tlui.id
+    file_before_import = save_tilia_to_tmp_path(tmp_path, "before import")
+    with _use_svg_maker(tmp_path, FAKE_OSMD["draws when released"]):
+        _import_score(tmp_path)
+    (converter,) = converters
+    assert _wait_until_osmd_is_loading(converter)
+
+    with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+        commands.execute("file.open", file_before_import)
+    reopened = get(Get.TIMELINE_COLLECTION).get_timeline(timeline_id)
+    assert reopened is not None
+    converter.page().runJavaScript("window.release()")
+
+    assert wait_until(lambda: _is_deleted(converter))
+    assert reopened.get_data("svg_data") == ""
     tilia_errors.assert_no_error()

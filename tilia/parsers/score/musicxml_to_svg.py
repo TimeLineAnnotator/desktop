@@ -42,6 +42,9 @@ class SvgWebEngineTracker(QObject):
 class musicxml_to_svg(QWebEngineView):
     def __init__(self, timeline_id):
         self.timeline_id = timeline_id
+        # The timeline itself, as a file opened meanwhile can have another
+        # timeline with this id.
+        self.timeline = get(Get.TIMELINE_COLLECTION).get_timeline(timeline_id)
         self.is_engine_loaded = False
         super().__init__()
         self.load(QUrl.fromLocalFile(str(SVG_MAKER_PATH.resolve())))
@@ -68,8 +71,9 @@ class musicxml_to_svg(QWebEngineView):
     def preprocess_svg(self, svg: str) -> None:
         try:
             timelines = get(Get.TIMELINE_COLLECTION)
-            if timelines.get_timeline(self.timeline_id) is None:
-                # Deleted while OSMD was drawing, as by File > New.
+            if timelines.get_timeline(self.timeline_id) is not self.timeline:
+                # Deleted while OSMD was drawing, as by File > New or opening
+                # another file.
                 return
             svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
             timelines.set_timeline_data(self.timeline_id, "svg_data", svg)
