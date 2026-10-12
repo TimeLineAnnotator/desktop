@@ -15,7 +15,12 @@ from dataclasses import dataclass, field
 
 from tilia_core import tla
 from tilia_core.timemap._rows import rows_of
-from tilia_core.timemap.table import MeasureRow, build_rows_from, is_folded
+from tilia_core.timemap.table import (
+    MeasureRow,
+    build_rows_from,
+    is_folded,
+    missing_time,
+)
 
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
 EPS = 1e-6  # added to the tolerance, so float noise never decides whether a time is on a beat
@@ -179,11 +184,9 @@ def build_time_map(
     table = timeline.measures
     if table is None or (not table.rows and timeline.components):
         return None, "no measure table"
-    for measure in table.rows:
-        for beat_id in (measure.id, *measure.beats):
-            if not _has_time(timeline.components.get(beat_id)):
-                what = "a downbeat" if beat_id == measure.id else "a beat"
-                return None, f"{what} without a time (measure {measure.label})"
+    reason = missing_time(timeline)
+    if reason is not None:
+        return None, reason
     rows_in = rows_of(timeline)
     kept = {row.id for row in rows_in}
     skipped = next((row for row in table.rows if row.id not in kept), None)
@@ -210,13 +213,3 @@ def build_time_map(
         _times=tuple(times),
     )
     return time_map, None
-
-
-def _has_time(component: tla.Component | None) -> bool:
-    # A time is a finite number: a missing, NaN or text time counts as none.
-    time = component.attrs.get("time") if component is not None else None
-    return (
-        isinstance(time, (int, float))
-        and not isinstance(time, bool)
-        and math.isfinite(time)
-    )

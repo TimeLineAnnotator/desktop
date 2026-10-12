@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, NoReturn
@@ -79,10 +80,37 @@ class MeasureRow:
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
     """The timeline's measure table, in its order; also for a folded table.
 
-    A measure whose downbeat has no time is left out, and the others keep their
-    `count`.
+    None while a beat has no usable time (`missing_time` says which): rows built
+    without it would be wrong. A row whose beats don't start at its downbeat,
+    which only a broken table has, is left out, and the others keep their `count`.
     """
+    if missing_time(timeline) is not None:
+        return []
     return build_rows_from(document, timeline, rows_of(timeline))
+
+
+def missing_time(timeline: tla.Timeline) -> str | None:
+    """The first beat without a usable time, as a reason naming its measure; else None.
+
+    A time is usable when it is a finite number: a missing, NaN or text time isn't.
+    """
+    if timeline.measures is None:
+        return None
+    for measure in timeline.measures.rows:
+        for beat_id in (measure.id, *measure.beats):
+            if not _has_time(timeline.components.get(beat_id)):
+                what = "a downbeat" if beat_id == measure.id else "a beat"
+                return f"{what} without a time (measure {measure.label})"
+    return None
+
+
+def _has_time(component: tla.Component | None) -> bool:
+    time = component.attrs.get("time") if component is not None else None
+    return (
+        isinstance(time, (int, float))
+        and not isinstance(time, bool)
+        and math.isfinite(time)
+    )
 
 
 def build_rows_from(

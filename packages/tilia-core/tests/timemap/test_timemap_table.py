@@ -39,14 +39,31 @@ def test_count_is_the_position_in_the_timeline():
 
 
 def test_count_is_the_row_s_index_in_the_table():
-    # The downbeat at 2 s has no time: its measure is skipped, and the others
-    # keep their place in the table.
+    # A broken table: the second row's beats don't start at its downbeat, so
+    # that measure is skipped, and the others keep their place in the table.
     timeline = _timeline([{"number": 1}, {}, {}])
-    del timeline.components[timeline.measures.rows[1].id].attrs["time"]
+    timeline.measures.rows[1].beats.reverse()
 
     rows = build_rows(document(timeline), timeline)
 
     assert [(r.number, r.count) for r in rows] == [(1, 1), (3, 3)]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda beat: beat.attrs.pop("time"),
+        lambda beat: beat.attrs.update(time=float("nan")),
+        lambda beat: beat.attrs.update(time="1.0"),
+    ],
+    ids=["missing", "NaN", "text"],
+)
+@pytest.mark.parametrize("which", [0, 1], ids=["downbeat", "other beat"])
+def test_no_rows_while_a_beat_has_no_usable_time(change, which):
+    timeline = _timeline([{"number": 1}, {}, {}])
+    change(timeline.components[timeline.measures.rows[1].beats[which]])
+
+    assert build_rows(document(timeline), timeline) == []
 
 
 def test_rows_keep_what_the_table_gives():
