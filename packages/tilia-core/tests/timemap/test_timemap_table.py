@@ -38,15 +38,16 @@ def test_count_is_the_position_in_the_timeline():
     assert [r.number for r in rows] == [41, 42, 44, 45]
 
 
-def test_count_is_the_row_s_index_in_the_table():
-    # A broken table: the second row's beats don't start at its downbeat, so
-    # that measure is skipped, and the others keep their place in the table.
+@pytest.mark.parametrize(
+    "break_row",
+    [lambda row: row.beats.reverse(), lambda row: row.beats.clear()],
+    ids=["beats not starting at the downbeat", "no beats"],
+)
+def test_no_rows_for_a_broken_table(break_row):
     timeline = _timeline([{"number": 1}, {}, {}])
-    timeline.measures.rows[1].beats.reverse()
+    break_row(timeline.measures.rows[1])
 
-    rows = build_rows(document(timeline), timeline)
-
-    assert [(r.number, r.count) for r in rows] == [(1, 1), (3, 3)]
+    assert build_rows(document(timeline), timeline) == []
 
 
 @pytest.mark.parametrize(

@@ -17,6 +17,7 @@ from tilia_core import tla
 from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.table import (
     MeasureRow,
+    broken_row,
     build_rows_from,
     is_folded,
     missing_time,
@@ -184,17 +185,10 @@ def build_time_map(
     table = timeline.measures
     if table is None or (not table.rows and timeline.components):
         return None, "no measure table"
-    reason = missing_time(timeline)
+    reason = missing_time(timeline) or broken_row(timeline)
     if reason is not None:
         return None, reason
     rows_in = rows_of(timeline)
-    kept = {row.id for row in rows_in}
-    skipped = next((row for row in table.rows if row.id not in kept), None)
-    if skipped is not None:  # a row whose beats don't start at its downbeat
-        return (
-            None,
-            f"the measure table doesn't match its beats (measure {skipped.label})",
-        )
     times = [t for row in rows_in for t in row.beat_times]
     if len(times) < 2:
         return None, "fewer than two beats"

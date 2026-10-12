@@ -433,6 +433,7 @@ def test_timemap_no_time_map():
     )
     missing_downbeat = four_four_with(lambda t: t.components.pop(t.measures.rows[1].id))
     downbeat_not_first = four_four_with(lambda t: t.measures.rows[1].beats.reverse())
+    row_without_beats = four_four_with(lambda t: t.measures.rows[1].beats.clear())
     folded = _timeline({0: {"number": 1}, 2: {}}, last=3)
     folded.measures.rows[1].next = [folded.measures.rows[0].id]
 
@@ -453,6 +454,7 @@ def test_timemap_no_time_map():
         ("NaN downbeat", nan_downbeat),
         ("missing downbeat", missing_downbeat),
         ("downbeat not first", downbeat_not_first),
+        ("row without beats", row_without_beats),
         ("folded", folded),
     ]:
         doc = document(timeline)
@@ -476,6 +478,7 @@ def test_timemap_no_time_map():
         "NaN downbeat": "a downbeat without a time (measure 2)",
         "missing downbeat": "a downbeat without a time (measure 2)",
         "downbeat not first": "the measure table doesn't match its beats (measure 2)",
+        "row without beats": "the measure table doesn't match its beats (measure 2)",
         "folded": "the table lists the measures played next (`next`), "
         "which positions don't handle yet",
     }

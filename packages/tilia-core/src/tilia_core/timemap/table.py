@@ -80,11 +80,11 @@ class MeasureRow:
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
     """The timeline's measure table, in its order; also for a folded table.
 
-    None while a beat has no usable time (`missing_time` says which): rows built
-    without it would be wrong. A row whose beats don't start at its downbeat,
-    which only a broken table has, is left out, and the others keep their `count`.
+    None while a beat has no usable time (`missing_time` says which), or while a
+    row's beats don't start at its downbeat (`broken_row`): rows built without
+    them would be wrong.
     """
-    if missing_time(timeline) is not None:
+    if missing_time(timeline) is not None or broken_row(timeline) is not None:
         return []
     return build_rows_from(document, timeline, rows_of(timeline))
 
@@ -104,6 +104,21 @@ def missing_time(timeline: tla.Timeline) -> str | None:
     return None
 
 
+def broken_row(timeline: tla.Timeline) -> str | None:
+    """The first row whose beats don't start at its downbeat, as a reason; else None.
+
+    Only a broken table has one: WP3 builds each row from its downbeat on.
+    """
+    if timeline.measures is None:
+        return None
+    for measure in timeline.measures.rows:
+        if not measure.beats or measure.beats[0] != measure.id:
+            return (
+                f"the measure table doesn't match its beats (measure {measure.label})"
+            )
+    return None
+
+
 def _has_time(component: tla.Component | None) -> bool:
     time = component.attrs.get("time") if component is not None else None
     return (
@@ -116,18 +131,22 @@ def _has_time(component: tla.Component | None) -> bool:
 def build_rows_from(
     document: tla.Document, timeline: tla.Timeline, rows: Sequence[RowIn]
 ) -> list[MeasureRow]:
-    """`build_rows` for rows already read from the timeline."""
-    if not rows or timeline.measures is None:
+    """`build_rows` for rows already read from the timeline.
+
+    `rows_of` has kept every row of the table: `build_rows` and `build_time_map`
+    give nothing for a table where it wouldn't. So a row's index + 1 is its
+    position in WP3's table.
+    """
+    if not rows:
         return []
-    counts = {row.id: index + 1 for index, row in enumerate(timeline.measures.rows)}
     folded = is_folded(rows)
     ends = [row.beat_times[0] for row in rows[1:]]
     ends.append(_closing_barline(document, timeline.id, rows))
     passes: dict[int, int] = {}
     movement = 1
     out: list[MeasureRow] = []
-    for row, end in zip(rows, ends, strict=True):
-        count = counts[row.id]
+    for index, (row, end) in enumerate(zip(rows, ends, strict=True)):
+        count = index + 1
         if row.restart and count > 1:  # the first row is in movement 1 anyway
             passes.clear()
             movement += 1
