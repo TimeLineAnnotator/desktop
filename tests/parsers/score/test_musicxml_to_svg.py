@@ -211,7 +211,7 @@ def test_drawn_score_is_kept(converters, score_tlui, beat_tlui, tilia_errors, tm
 @pytest.mark.parametrize(
     "osmd, message",
     [
-        (None, "OpenSheetMusicDisplay, which draws the score, couldn't be loaded"),
+        (None, "OpenSheetMusicDisplay couldn't be loaded."),
         (FAKE_OSMD["rejects the score"], "Not a score OSMD can read."),
         (FAKE_OSMD["draws nothing"], "OpenSheetMusicDisplay drew no score."),
     ],
@@ -242,7 +242,7 @@ def test_page_that_does_not_load_is_reported(
 
     (converter,) = converters
     assert wait_until(lambda: tilia_errors.errors), "No error was shown."
-    tilia_errors.assert_in_error_message("The page that draws the score")
+    tilia_errors.assert_in_error_message("Score drawing engine couldn't be loaded.")
     assert wait_until(lambda: _is_deleted(converter))
 
 

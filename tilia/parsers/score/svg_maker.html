@@ -37,8 +37,8 @@
             const backend = await backendReady;
             if (!osmd) {
                 backend.on_error(
-                    "OpenSheetMusicDisplay, which draws the score, couldn't be "
-                    + "loaded. It needs an internet connection."
+                    "OpenSheetMusicDisplay couldn't be "
+                    + "loaded. Do you have an Internet connection?"
                 );
                 return;
             }
