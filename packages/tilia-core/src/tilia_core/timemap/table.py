@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any, NoReturn
 
 from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
@@ -12,35 +13,44 @@ from tilia_core.timemap._rows import RowIn, rows_of
 logger = logging.getLogger(__name__)
 
 
-class FrozenMetadata(Mapping[str, "str | tuple[str, ...]"]):
+class FrozenMetadata(dict[str, "str | tuple[str, ...]"]):
     """A measure's metadata, read-only, with its lists as tuples.
 
     A copy, so a row doesn't follow later edits to the document, and nobody can
-    change a time map that others share through it. It hashes, pickles and copies.
+    change a time map that others share through it. A dict, so it turns into
+    JSON; it hashes, pickles with any protocol, and copies.
     """
 
-    __slots__ = ("_items",)
+    __slots__ = ()
 
-    def __init__(self, items: Mapping[str, str | list[str]] | None = None) -> None:
-        self._items: dict[str, str | tuple[str, ...]] = {
-            key: tuple(value) if isinstance(value, list) else value
-            for key, value in (items or {}).items()
-        }
+    def __init__(
+        self, items: Mapping[str, Any] | Iterable[tuple[str, Any]] = ()
+    ) -> None:
+        super().__init__(
+            (key, tuple(value) if isinstance(value, list) else value)
+            for key, value in dict(items).items()
+        )
 
-    def __getitem__(self, key: str) -> str | tuple[str, ...]:
-        return self._items[key]
+    def _read_only(self, *args: object, **kwargs: object) -> NoReturn:
+        raise TypeError("a measure's metadata is read-only")
 
-    def __iter__(self) -> Iterator[str]:
-        return iter(self._items)
+    __setitem__ = __delitem__ = __ior__ = _read_only  # type: ignore[assignment]
+    clear = pop = popitem = setdefault = update = _read_only  # type: ignore[assignment]
 
-    def __len__(self) -> int:
-        return len(self._items)
+    def __hash__(self) -> int:  # type: ignore[override]
+        return hash(frozenset(self.items()))
 
-    def __hash__(self) -> int:
-        return hash(frozenset(self._items.items()))
+    def __reduce__(self) -> tuple[type[FrozenMetadata], tuple[dict[str, Any]]]:
+        return type(self), (dict(self),)
+
+    def __copy__(self) -> FrozenMetadata:
+        return self
+
+    def __deepcopy__(self, memo: dict[int, object]) -> FrozenMetadata:
+        return self
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self._items!r})"
+        return f"{type(self).__name__}({dict(self)!r})"
 
 
 @dataclass(frozen=True)

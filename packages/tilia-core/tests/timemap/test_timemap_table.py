@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import json
 import logging
 import pickle
 
@@ -226,8 +227,21 @@ def test_metadata_is_a_frozen_copy():
     (again,) = build_rows(doc, timeline)
 
     assert row.metadata == {"tags": ("a",), "key": "x"}
-    with pytest.raises(TypeError):
-        row.metadata["key"] = "y"  # type: ignore[index]
+    assert isinstance(row.metadata, dict)
+    metadata = row.metadata
+    for change in (
+        lambda m: m.__setitem__("key", "y"),
+        lambda m: m.__delitem__("key"),
+        lambda m: m.update(key="y"),
+        lambda m: m.pop("key"),
+        lambda m: m.popitem(),
+        lambda m: m.setdefault("new", "y"),
+        lambda m: m.clear(),
+        lambda m: m.__ior__({"key": "y"}),
+    ):
+        with pytest.raises(TypeError):
+            change(metadata)
+    assert row.metadata == {"tags": ("a",), "key": "x"}
     timeline.measures.rows[0].metadata["tags"].append("b")
     assert row.metadata["tags"] == ("a",)
     assert row == again and hash(row) == hash(again)
@@ -237,9 +251,12 @@ def test_rows_can_be_pickled_copied_and_turned_into_dicts():
     timeline = _timeline([{"number": 1, "metadata": {"tags": ["a"], "key": "x"}}])
     (row,) = build_rows(document(timeline), timeline)
 
-    assert pickle.loads(pickle.dumps(row)) == row
+    for protocol in range(pickle.HIGHEST_PROTOCOL + 1):
+        assert pickle.loads(pickle.dumps(row, protocol)) == row, protocol
     assert copy.deepcopy(row) == row
-    assert dataclasses.asdict(row)["metadata"] == {"tags": ("a",), "key": "x"}
+    as_dict = dataclasses.asdict(row)
+    assert as_dict["metadata"] == {"tags": ("a",), "key": "x"}
+    assert json.loads(json.dumps(as_dict))["metadata"] == {"tags": ["a"], "key": "x"}
 
 
 def test_a_timeline_without_measures_gives_no_rows():
