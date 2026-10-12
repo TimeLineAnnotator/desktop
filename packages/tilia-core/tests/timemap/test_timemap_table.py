@@ -139,6 +139,17 @@ def test_a_restart_on_the_first_bar_leaves_it_in_movement_1():
     assert [r.restart for r in rows] == [True, False, True, False]
 
 
+def test_a_restart_goes_on_a_song_s_first_measure_its_pickup():
+    # Each song starts with a pickup numbered 0, which carries the restart.
+    rows = _rows(
+        [{"number": 0, "restart": True}, {}, {}, {"number": 0, "restart": True}, {}, {}]
+    )
+
+    assert [r.number for r in rows] == [0, 1, 2, 0, 1, 2]
+    assert [r.movement for r in rows] == [1, 1, 1, 2, 2, 2]
+    assert [r.pass_ for r in rows] == [1] * 6
+
+
 def test_each_restart_starts_another_movement():
     rows = _rows(
         [{"number": 1}, {"number": 1, "restart": True}, {"number": 1, "restart": True}]
