@@ -208,6 +208,7 @@ class TestUnreadableUnits:
             unit(8, 3),
             unit(0, "1"),
             unit(129, "1"),
+            unit(8, "1" * 33),
         ],
     )
     def test_is_ignored_and_the_unit_before_carries_on(self, bad, caplog):
