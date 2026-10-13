@@ -126,3 +126,23 @@ def test_zooming_during_a_movement_leaves_the_lines_where_they_are(marker_tlui, 
         commands.execute("view.zoom.set", 1.0)
 
     assert after_zoom == pytest.approx(reached)
+
+
+def test_zooming_during_a_movement_centres_the_view_on_the_lines(marker_tlui, tluis):
+    settings.set("general", "prioritise_performance", False)
+    start = get(Get.MEDIA_CURRENT_TIME)
+    commands.execute("media.seek", start + 10.0)
+    tluis.smooth_playback_lines.animation.setCurrentTime(SmoothSetter.DURATION // 2)
+    reached = playback_line_time(marker_tlui)
+
+    with patch.object(
+        tluis.view.smooth_x, "set_now", wraps=tluis.view.smooth_x.set_now
+    ) as set_view_x:
+        try:
+            commands.execute("view.zoom.in")
+            expected_x = time_x_converter.get_x_by_time(reached)
+            wait_for_smooth_movement(tluis.smooth_playback_lines)
+        finally:
+            commands.execute("view.zoom.set", 1.0)
+
+    assert set_view_x.call_args_list[0].args[0] == pytest.approx(expected_x)

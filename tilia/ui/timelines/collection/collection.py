@@ -656,7 +656,10 @@ class TimelineUIs:
     def update_height(self):
         self.update_timeline_uis_position()
         self.scene.setSceneRect(0, 0, get(Get.TIMELINE_WIDTH), self.get_scene_height())
-        self.set_playback_lines_position(self.playback_lines_time)
+        # The media time, which can change without a time change being posted,
+        # as when media is unloaded. At once, so a movement can't carry on from
+        # where it was.
+        self.smooth_playback_lines.set_now(get(Get.MEDIA_CURRENT_TIME))
         self.change_loop_box_position()
 
     def update_level_count(self):
@@ -1439,9 +1442,12 @@ class TimelineUIs:
             return False
         self.view.setUpdatesEnabled(False)
         post(Post.PLAYBACK_AREA_SET_WIDTH, new_width)
-        # At once: a smooth movement would start from where the old width put
-        # the view.
-        self.view.smooth_x.set_now(time_x_converter.get_x_by_time(self.selected_time))
+        # At once, as a smooth movement would start from where the old width put
+        # the view. On the playback lines, which may still be moving towards
+        # the selected time.
+        self.view.smooth_x.set_now(
+            time_x_converter.get_x_by_time(self.playback_lines_time)
+        )
         self.view.setUpdatesEnabled(True)
         return True
 
