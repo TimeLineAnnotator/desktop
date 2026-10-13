@@ -11,6 +11,8 @@ from typing import Any
 
 from tilia_core import tla
 
+# A stand-in until tla.FORMAT_VERSION exists (desktop#700); then use that
+# instead (TimeLineAnnotator/project-management#275).
 FORMAT_VERSION = "1.0.0-draft.1"
 
 
