@@ -38,7 +38,11 @@ def test_zooming_during_a_smooth_movement_keeps_the_trough_at_the_time(
     commands.execute("media.seek", time)
 
     commands.execute("view.zoom.in")
+    try:
+        wait_for_smooth_movement(slider_tlui.smooth_x, tluis.smooth_playback_lines)
+        x, expected_x = slider_tlui.x, time_x_converter.get_x_by_time(time)
+    finally:
+        # The zoom outlasts the test otherwise.
+        commands.execute("view.zoom.set", 1.0)
 
-    wait_for_smooth_movement(slider_tlui.smooth_x, tluis.smooth_playback_lines)
-    assert slider_tlui.x == pytest.approx(time_x_converter.get_x_by_time(time))
-    commands.execute("view.zoom.set", 1.0)
+    assert x == pytest.approx(expected_x)
