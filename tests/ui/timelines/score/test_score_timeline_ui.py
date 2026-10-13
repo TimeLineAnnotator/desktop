@@ -1,6 +1,8 @@
 import json
 
 import pytest
+import shiboken6
+from PySide6.QtCore import QCoreApplication, QEvent, QVariantAnimation
 from PySide6.QtGui import QColor
 
 from tests.constants import (
@@ -12,11 +14,12 @@ from tests.mock import (
     patch_file_dialog,
     patch_yes_or_no_dialog,
 )
-from tests.utils import get_blank_file_data, reloadable
+from tests.utils import get_blank_file_data, reloadable, wait_for_smooth_movement
 from tilia.errors import SCORE_STAFF_ID_ERROR
 from tilia.exceptions import NoReplyToRequest
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
+from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -318,6 +321,53 @@ class TestResetSvg:
         score_tlui.reset_svg()
 
         assert tluis.get_timeline_ui(other.id).svg_view is not None
+
+
+class TestSmoothMovementAfterDelete:
+    # The tests start the tracker's movement as the viewer does when the
+    # measures it shows change: in tests, the viewer is only painted with
+    # measure times when a whole score and beat timeline are set up.
+
+    def test_measure_tracker_stops_when_the_timeline_is_deleted(self, score_tlui, tls):
+        settings.set("general", "prioritise_performance", False)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        animation = score_tlui.smooth_tracker.animation
+        score_tlui.svg_view.update_measure_tracker(0.0, 2.0)
+        assert animation.state() is QVariantAnimation.State.Running
+
+        commands.execute("timeline.delete", score_tlui, confirm=False)
+
+        assert animation.state() is QVariantAnimation.State.Stopped
+
+    def test_measure_tracker_stops_when_the_timeline_is_cleared(
+        self, score_tlui, note, tls
+    ):
+        settings.set("general", "prioritise_performance", False)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        animation = score_tlui.smooth_tracker.animation
+        score_tlui.svg_view.update_measure_tracker(0.0, 2.0)
+        assert animation.state() is QVariantAnimation.State.Running
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+
+        assert animation.state() is QVariantAnimation.State.Stopped
+
+    def test_viewer_scroll_is_deleted_with_the_viewer(
+        self, score_tlui, note, tls, tluis
+    ):
+        settings.set("general", "prioritise_performance", False)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        animation = score_tlui.svg_view.view.smooth_x.animation
+        commands.execute("media.seek", 50.0)
+        assert animation.state() is QVariantAnimation.State.Running
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert not shiboken6.isValid(animation)
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
 
 
 class TestAudioTimeChange:

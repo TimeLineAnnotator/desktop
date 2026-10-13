@@ -641,6 +641,7 @@ class SvgGraphicsView(QGraphicsView):
         self.smooth_x = SmoothSetter(
             lambda: self.mapToScene(self.viewport().rect().center()).x(),
             self._center_on_x,
+            parent=self,
         )
 
     def _viewport_updated(self) -> bool:

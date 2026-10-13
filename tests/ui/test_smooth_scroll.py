@@ -1,7 +1,13 @@
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import SIGNAL, QVariantAnimation
+from PySide6.QtCore import (
+    SIGNAL,
+    QCoreApplication,
+    QEvent,
+    QObject,
+    QVariantAnimation,
+)
 from PySide6.QtTest import QTest
 
 from tests.utils import wait_for_smooth_movement
@@ -146,3 +152,17 @@ def test_zooming_during_a_movement_centres_the_view_on_the_lines(marker_tlui, tl
             commands.execute("view.zoom.set", 1.0)
 
     assert set_view_x.call_args_list[0].args[0] == pytest.approx(expected_x)
+
+
+def test_a_movement_deleted_with_its_qt_owner_ignores_later_calls(qtui):
+    owner = QObject()
+    values = []
+    smooth_setter = SmoothSetter(lambda: 0.0, values.append, parent=owner)
+    owner.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    smooth_setter(5.0)
+    smooth_setter.set_now(5.0)
+    smooth_setter.stop()
+
+    assert values == []
