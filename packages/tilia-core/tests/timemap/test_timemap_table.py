@@ -3,12 +3,16 @@ import dataclasses
 import json
 import logging
 import pickle
+from fractions import Fraction as F
 
 import pytest
 
 from docs import beat_timeline, document, pickup_piece
 from tilia_core import tla
-from tilia_core.timemap.table import build_rows, find_rows
+from tilia_core.timemap import time_map_for
+from tilia_core.timemap._rows import rows_of
+from tilia_core.timemap.meters import meters_of
+from tilia_core.timemap.table import build_rows, find_rows, format_time_signature
 
 
 def _timeline(marks: list[dict], beats: int = 2) -> tla.Timeline:
@@ -283,9 +287,14 @@ def test_rows_can_be_pickled_copied_and_turned_into_dicts():
     for protocol in range(pickle.HIGHEST_PROTOCOL + 1):
         assert pickle.loads(pickle.dumps(row, protocol)) == row, protocol
     assert copy.deepcopy(row) == row
+    assert hash(copy.deepcopy(row)) == hash(row)
     as_dict = dataclasses.asdict(row)
     assert as_dict["metadata"] == {"tags": ("a",), "key": "x"}
-    assert json.loads(json.dumps(as_dict))["metadata"] == {"tags": ["a"], "key": "x"}
+    # Fractions, exact, aren't JSON numbers: they go as text, "3/2".
+    as_json = json.loads(json.dumps(as_dict, default=str))
+    assert as_json["metadata"] == {"tags": ["a"], "key": "x"}
+    assert as_json["ts_numerator"] == "2"
+    assert as_json["meter"]["beat_values"] == ["1", "1"]
 
 
 def test_a_timeline_without_measures_gives_no_rows():
@@ -335,3 +344,208 @@ class TestFindRows:
     def test_no_number_and_no_label_finds_nothing(self):
         assert find_rows(_rows(ENDINGS)) == []
         assert find_rows(_rows(ENDINGS), pass_=1) == []
+
+
+# Time signatures: each row's meter, by desktop#621's rules.
+
+# What TiLiA puts on the first beat, and WP3's migration on an old file's.
+DEFAULT = {"denominator": 4, "units": "1", "assumed": True}
+
+
+def unit(denominator, units, assumed=False):
+    return {"denominator": denominator, "units": units, "assumed": assumed}
+
+
+def taps(count, beat_unit=None, *, on_beat=1):
+    """The units set on a measure's `count` taps: `beat_unit` on beat `on_beat`."""
+    units = [None] * count
+    units[on_beat - 1] = beat_unit
+    return units
+
+
+def _metered_timeline(measures, first_number=1):
+    """One measure per list of the units set on its beats, a beat every second from 0."""
+    beats = []
+    for j, units in enumerate(measures):
+        for b, beat_unit in enumerate(units):
+            mark = None if b else ({"number": first_number} if j == 0 else {})
+            beats.append(
+                {"time": float(len(beats)), "measure": mark, "beat_unit": beat_unit}
+            )
+    return beat_timeline(beats)
+
+
+def _metered(measures, first_number=1):
+    timeline = _metered_timeline(measures, first_number)
+    return build_rows(document(timeline), timeline)
+
+
+def _quarters(row):
+    return [row.meter.quarter_length(value) for value in row.meter.beat_values]
+
+
+@pytest.mark.parametrize(
+    "beat_unit, count, time_signature, ts_numerator, ts_denominator, ambiguous",
+    [
+        (unit(8, "3"), 2, "6/8", 6, 8, False),
+        (unit(8, "1"), 7, "7/8", 7, 8, False),
+        (unit(8, "2+2+3"), 3, "2+2+3/8", 7, 8, False),
+        (unit(8, "2+3"), 3, "2+3+2/8", 7, 8, True),
+        (unit(4, "1/3"), 4, "(4/3)/4", F(4, 3), 4, False),
+        (unit(8, "1/2+1"), 2, "(1/2+1)/8", F(3, 2), 8, False),
+    ],
+)
+def test_a_time_signature_as_text_and_as_numbers(
+    beat_unit, count, time_signature, ts_numerator, ts_denominator, ambiguous
+):
+    # The table of TimeLineAnnotator/project-management#193.
+    (row,) = _metered([taps(count, beat_unit)])
+
+    assert row.time_signature == time_signature
+    assert (row.ts_numerator, row.ts_denominator) == (ts_numerator, ts_denominator)
+    assert type(row.ts_numerator) is F
+    assert type(row.ts_denominator) is int
+    assert row.ambiguous == ambiguous
+
+
+@pytest.mark.parametrize(
+    "beat_values, denominator, text",
+    [
+        # All equal: their sum, when it is whole.
+        ([3, 3], 8, "6/8"),
+        ([1] * 7, 8, "7/8"),
+        ([3], 8, "3/8"),
+        ([F(1, 2)] * 4, 4, "2/4"),
+        # They differ: joined by "+", as they fall in the bar.
+        ([2, 2, 3], 8, "2+2+3/8"),
+        ([2, 3, 2], 8, "2+3+2/8"),
+        ([3, 2], 8, "3+2/8"),
+        # A numerator that isn't whole, or holds a fraction: in brackets.
+        ([F(1, 3)] * 4, 4, "(4/3)/4"),
+        ([F(1, 2)] * 3, 4, "(3/2)/4"),
+        ([F(1, 2)], 2, "(1/2)/2"),
+        ([F(1, 2), 1], 8, "(1/2+1)/8"),
+        ([1, F(3, 2)], 4, "(1+3/2)/4"),
+    ],
+)
+def test_format_time_signature(beat_values, denominator, text):
+    assert format_time_signature([F(v) for v in beat_values], denominator) == text
+
+
+def test_timemap_six_eight_in_two():
+    # Spec, US2 scenarios 1 and 2: two taps with only the default beat unit
+    # read 2/4, assumed; with {8, "3"} on the downbeat they read 6/8, counted
+    # in two beats of a dotted quarter.
+    (tapped,) = _metered([taps(2, DEFAULT)])
+
+    assert tapped.time_signature == "2/4"
+    assert tapped.assumed
+
+    timeline = _metered_timeline([taps(2, unit(8, "3"))])
+    doc = document(timeline)
+    (row,) = build_rows(doc, timeline)
+
+    assert row.time_signature == "6/8"
+    assert (row.ts_numerator, row.ts_denominator) == (6, 8)
+    assert not row.assumed
+    time_map = time_map_for(doc, timeline.id)
+    assert [time_map.positions(t, t).beat for t in (0.0, 1.0)] == [1, 2]
+    assert _quarters(row) == [F(3, 2), F(3, 2)]
+
+
+def test_two_plus_three_on_two_taps_is_five_eighths():
+    # Spec, US2 scenario 3.
+    (row,) = _metered([taps(2, unit(8, "2+3"))])
+
+    assert row.time_signature == "2+3/8"
+    assert (row.ts_numerator, row.ts_denominator) == (5, 8)
+    assert _quarters(row) == [1, F(3, 2)]
+    assert not row.ambiguous
+
+
+def test_a_unit_on_a_later_beat_applies_from_its_measure_until_the_next():
+    # Spec, US2 scenario 4: set on the third beat of measure 10.
+    measures = [
+        taps(3, unit(4, "1")),
+        *[taps(3)] * 8,
+        taps(3, unit(8, "2"), on_beat=3),
+        taps(3),
+        taps(3, unit(4, "1")),
+    ]
+    rows = _metered(measures)
+
+    assert [r.number for r in rows] == list(range(1, 13))
+    assert [r.time_signature for r in rows] == ["3/4"] * 9 + ["6/8", "6/8", "3/4"]
+    assert rows[9].meter.beat_unit_id == rows[9].beat_ids[2]
+    assert rows[10].meter.beat_unit_id == rows[9].beat_ids[2]
+
+
+def test_of_two_units_in_a_measure_the_first_governs_it_and_those_after():
+    # Spec, US2 scenario 5.
+    second = taps(4, unit(8, "1"), on_beat=2)
+    second[3] = unit(2, "1")
+    rows = _metered([taps(4, unit(4, "1")), second, taps(4)])
+
+    assert [r.time_signature for r in rows] == ["4/4", "4/8", "4/8"]
+    assert [r.conflicting for r in rows] == [False, True, False]
+    assert rows[2].meter.beat_unit_id == rows[1].beat_ids[1]
+
+
+def test_three_taps_under_two_plus_three_are_ambiguous():
+    # Spec, US2 scenario 6.
+    (row,) = _metered([taps(3, unit(8, "2+3"))])
+
+    assert row.meter.beat_values == (2, 3, 2)
+    assert row.time_signature == "2+3+2/8"
+    assert (row.ts_numerator, row.ts_denominator) == (7, 8)
+    assert row.ambiguous
+
+
+def test_a_pickup_of_one_tap_under_three_eighths():
+    # Spec, US2 scenario 7.
+    rows = _metered([taps(1, unit(8, "3")), taps(2)], first_number=0)
+
+    assert [(r.number, r.time_signature) for r in rows] == [(0, "3/8"), (1, "6/8")]
+
+
+def test_a_numerator_that_isnt_whole():
+    # Spec, US2 scenario 8: TiLiA shows "1 1/3" over 4.
+    (row,) = _metered([taps(4, unit(4, "1/3"))])
+
+    assert row.ts_numerator == F(4, 3)
+    assert row.time_signature == "(4/3)/4"
+
+
+def test_each_row_has_its_meter_and_the_meter_s_flags():
+    # The meter is meters_of's; the row's flags and numbers are its.
+    timeline = _metered_timeline(
+        [
+            taps(2, unit(8, "2+3")),
+            taps(3),
+            [unit(4, "1"), None, unit(2, "1")],
+            taps(2, unit(8, "3", assumed=True)),
+        ]
+    )
+    rows = build_rows(document(timeline), timeline)
+
+    assert [r.meter for r in rows] == meters_of(rows_of(timeline))
+    assert [(r.assumed, r.ambiguous, r.conflicting) for r in rows] == [
+        (False, False, False),
+        (False, True, False),
+        (False, False, True),
+        (True, False, False),
+    ]
+    assert [(r.ts_numerator, r.ts_denominator) for r in rows] == [
+        r.meter.time_signature for r in rows
+    ]
+    assert [r.time_signature for r in rows] == ["2+3/8", "2+3+2/8", "3/4", "6/8"]
+
+
+def test_a_folded_table_has_its_time_signatures():
+    # A folded table has no positions yet, but its rows' other values are computed.
+    timeline = _metered_timeline([taps(2, unit(8, "3")), taps(3)])
+    timeline.measures.rows[1].next = [timeline.measures.rows[0].id]
+    rows = build_rows(document(timeline), timeline)
+
+    assert [r.folded for r in rows] == [True, True]
+    assert [r.time_signature for r in rows] == ["6/8", "9/8"]
