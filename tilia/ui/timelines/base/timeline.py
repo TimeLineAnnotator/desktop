@@ -242,8 +242,10 @@ class TimelineUI(ABC):  # noqa: B024
         self.scene.set_width(int(width))
         self.view.setFixedWidth(int(width))
         self.element_manager.update_time_on_elements()
+        # Where the lines are now, not the selected time: during a smooth
+        # movement that is already its target.
         self.scene.set_playback_line_pos(
-            time_x_converter.get_x_by_time(get(Get.SELECTED_TIME))
+            time_x_converter.get_x_by_time(self.collection.playback_lines_time)
         )
         (loop_start, loop_end) = get(Get.LOOP_TIME)
         self.scene.set_loop_box_position(
