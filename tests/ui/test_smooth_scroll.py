@@ -107,3 +107,22 @@ def test_zooming_centres_at_once_and_leaves_the_performance_setting(tluis):
         c for c in set_setting.call_args_list if "prioritise_performance" in c.args
     ]
     assert tluis.view.smooth_x.animation.state() is QVariantAnimation.State.Stopped
+
+
+def test_zooming_during_a_movement_leaves_the_lines_where_they_are(marker_tlui, tluis):
+    settings.set("general", "prioritise_performance", False)
+    start = get(Get.MEDIA_CURRENT_TIME)
+    commands.execute("media.seek", start + 10.0)
+    # Halfway through the movement, without depending on the timer.
+    tluis.smooth_playback_lines.animation.setCurrentTime(SmoothSetter.DURATION // 2)
+    reached = playback_line_time(marker_tlui)
+    assert start < reached < start + 10.0
+
+    try:
+        commands.execute("view.zoom.in")
+        after_zoom = playback_line_time(marker_tlui)
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
+    finally:
+        commands.execute("view.zoom.set", 1.0)
+
+    assert after_zoom == pytest.approx(reached)
