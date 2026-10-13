@@ -26,7 +26,7 @@ def test_follows_the_playback_smoothly(slider_tlui, tluis):
     commands.execute("media.seek", get(Get.MEDIA_CURRENT_TIME) + 5.0)
 
     assert slider_tlui.x < x
-    wait_for_smooth_movement(slider_tlui.smooth_x, tluis.smooth_time)
+    wait_for_smooth_movement(slider_tlui.smooth_x, tluis.smooth_playback_lines)
     assert slider_tlui.x == pytest.approx(x)
 
 
@@ -39,6 +39,6 @@ def test_zooming_during_a_smooth_movement_keeps_the_trough_at_the_time(
 
     commands.execute("view.zoom.in")
 
-    wait_for_smooth_movement(slider_tlui.smooth_x, tluis.smooth_time)
+    wait_for_smooth_movement(slider_tlui.smooth_x, tluis.smooth_playback_lines)
     assert slider_tlui.x == pytest.approx(time_x_converter.get_x_by_time(time))
     commands.execute("view.zoom.set", 1.0)

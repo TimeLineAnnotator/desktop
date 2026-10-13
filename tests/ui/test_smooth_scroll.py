@@ -6,58 +6,69 @@ from tests.utils import wait_for_smooth_movement
 from tilia.requests import Get, get
 from tilia.settings import settings
 from tilia.ui import commands
+from tilia.ui.coords import time_x_converter
 from tilia.ui.smooth_scroll import SmoothSetter
 
 
+def playback_line_time(tlui) -> float:
+    return time_x_converter.get_time_by_x(tlui.scene.playback_line.line().x1())
+
+
 class TestFollowingThePlayback:
-    def test_moves_smoothly_to_the_new_time(self, tluis):
+    def test_lines_move_smoothly_to_the_new_time(self, marker_tlui, tluis):
         settings.set("general", "prioritise_performance", False)
-        commands.execute("timelines.add.marker", name="")
         time = get(Get.MEDIA_CURRENT_TIME) + 5.0
 
         commands.execute("media.seek", time)
 
-        assert tluis.selected_time < time
-        wait_for_smooth_movement(tluis.smooth_time)
-        assert tluis.selected_time == pytest.approx(time)
+        assert playback_line_time(marker_tlui) < time
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
+        assert playback_line_time(marker_tlui) == pytest.approx(time)
 
-    def test_moves_smoothly_to_a_whole_number_time(self, tluis):
+    def test_selected_time_is_the_new_time_at_once(self, marker_tlui, tluis):
         settings.set("general", "prioritise_performance", False)
-        commands.execute("timelines.add.marker", name="")
+        time = get(Get.MEDIA_CURRENT_TIME) + 5.0
+
+        commands.execute("media.seek", time)
+
+        assert get(Get.SELECTED_TIME) == time
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
+
+    def test_lines_move_smoothly_to_a_whole_number_time(self, marker_tlui, tluis):
+        settings.set("general", "prioritise_performance", False)
         commands.execute("media.seek", 2.5)
-        wait_for_smooth_movement(tluis.smooth_time)
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
 
         commands.execute("media.seek", 7)
 
-        wait_for_smooth_movement(tluis.smooth_time)
-        assert tluis.selected_time == 7.0
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
+        assert playback_line_time(marker_tlui) == pytest.approx(7.0)
 
-    def test_new_time_during_a_movement_starts_a_new_one_from_where_it_is(self, tluis):
+    def test_new_time_during_a_movement_starts_a_new_one_from_where_it_is(
+        self, marker_tlui, tluis
+    ):
         settings.set("general", "prioritise_performance", False)
-        commands.execute("timelines.add.marker", name="")
         time = get(Get.MEDIA_CURRENT_TIME) + 10.0
         commands.execute("media.seek", time)
         QTest.qWait(SmoothSetter.DURATION // 2)
-        reached = tluis.selected_time
+        reached = playback_line_time(marker_tlui)
 
         commands.execute("media.seek", time + 10.0)
 
-        assert tluis.selected_time == reached
-        wait_for_smooth_movement(tluis.smooth_time)
-        assert tluis.selected_time == pytest.approx(time + 10.0)
+        assert playback_line_time(marker_tlui) == pytest.approx(reached)
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
+        assert playback_line_time(marker_tlui) == pytest.approx(time + 10.0)
 
-    def test_moves_at_once_when_prioritising_performance(self, tluis):
+    def test_lines_move_at_once_when_prioritising_performance(self, marker_tlui):
         settings.set("general", "prioritise_performance", True)
-        commands.execute("timelines.add.marker", name="")
         time = get(Get.MEDIA_CURRENT_TIME) + 5.0
 
         commands.execute("media.seek", time)
 
-        assert tluis.selected_time == time
+        assert playback_line_time(marker_tlui) == pytest.approx(time)
 
-    def test_prioritising_performance_stops_a_movement(self, tluis):
+    def test_prioritising_performance_stops_a_movement(self, marker_tlui):
         settings.set("general", "prioritise_performance", False)
-        commands.execute("timelines.add.marker", name="")
         time = get(Get.MEDIA_CURRENT_TIME) + 5.0
         commands.execute("media.seek", time)
 
@@ -65,16 +76,17 @@ class TestFollowingThePlayback:
         commands.execute("media.seek", time + 2.0)
         QTest.qWait(SmoothSetter.DURATION + 50)
 
-        assert tluis.selected_time == time + 2.0
+        assert playback_line_time(marker_tlui) == pytest.approx(time + 2.0)
 
-    def test_movement_has_one_slot_however_often_it_is_retargeted(self, tluis):
+    def test_movement_has_one_slot_however_often_it_is_retargeted(
+        self, marker_tlui, tluis
+    ):
         settings.set("general", "prioritise_performance", False)
-        commands.execute("timelines.add.marker", name="")
         start = get(Get.MEDIA_CURRENT_TIME)
 
         for step in range(1, 6):
             commands.execute("media.seek", start + step)
 
-        animation = tluis.smooth_time.animation
+        animation = tluis.smooth_playback_lines.animation
         assert animation.receivers(SIGNAL("valueChanged(QVariant)")) == 1
-        wait_for_smooth_movement(tluis.smooth_time)
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
