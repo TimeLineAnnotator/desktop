@@ -11,6 +11,12 @@ from tilia.settings import settings
 T = TypeVar("T")
 
 
+def _float_if_int(value: T) -> T:
+    # The animation can't step between an int and a float: it sends None
+    # instead. Times and positions are floats, so an int is made one.
+    return float(value) if isinstance(value, int) else value
+
+
 class SmoothSetter(Generic[T]):
     """
     Sets a value in small steps over a short time, so that it moves smoothly,
@@ -30,10 +36,7 @@ class SmoothSetter(Generic[T]):
         self.animation.valueChanged.connect(self._setter)
 
     def __call__(self, setpoint: T) -> None:
-        if isinstance(setpoint, int):
-            # The animation can't step between an int and a float: it sends
-            # None instead. Times and positions are floats.
-            setpoint = float(setpoint)
+        setpoint = _float_if_int(setpoint)
 
         if settings.get("general", "prioritise_performance") is True:
             self.set_now(setpoint)
@@ -45,7 +48,7 @@ class SmoothSetter(Generic[T]):
         # for the time it stopped at, so they are set with signals blocked.
         self.animation.stop()
         self.animation.blockSignals(True)
-        self.animation.setStartValue(self._getter())
+        self.animation.setStartValue(_float_if_int(self._getter()))
         self.animation.setEndValue(setpoint)
         self.animation.blockSignals(False)
         self.animation.start()
@@ -56,4 +59,4 @@ class SmoothSetter(Generic[T]):
         movement still running would overwrite it.
         """
         self.animation.stop()
-        self._setter(value)
+        self._setter(_float_if_int(value))

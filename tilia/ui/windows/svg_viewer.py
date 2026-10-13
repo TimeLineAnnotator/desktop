@@ -636,8 +636,11 @@ class SvgGraphicsView(QGraphicsView):
         self._viewport_updated()
         self.update_measure_tracker = update_measure_tracker
         self.update_scroll_margins = update_scroll_margins
+        # Where the view is centred now: current_viewport_x_center is only
+        # updated when the view is painted.
         self.smooth_x = SmoothSetter(
-            lambda: self.current_viewport_x_center, self._center_on_x
+            lambda: self.mapToScene(self.viewport().rect().center()).x(),
+            self._center_on_x,
         )
 
     def _viewport_updated(self) -> bool:

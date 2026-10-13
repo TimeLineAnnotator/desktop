@@ -64,9 +64,7 @@ class SliderTimelineUI(TimelineUI):
         self._setup_line()
         self._setup_trough()
         self._setup_playback_line()
-        self.smooth_x = SmoothSetter(
-            lambda: self.trough.x() + self.trough_radius, self._set_x
-        )
+        self.smooth_x = SmoothSetter(lambda: self.x, self._set_x)
 
         self.dragging = False
 
