@@ -4,6 +4,7 @@ import pickle
 
 import pytest
 
+import tilia_core.timemap.timemap as timemap_module
 from docs import beat_timeline, document, pickup_piece
 from tilia_core import tla
 from tilia_core.timemap import TimeMap, time_map_for
@@ -514,15 +515,17 @@ def test_timemap_guessed_is_kept():
     assert time_map.guessed and reason is None
 
 
-def test_timemap_folded_table_is_refused_before_its_rows_are_built(caplog):
-    # The media ends before the last beat, which building the rows would log.
+def test_timemap_folded_table_is_refused_before_its_rows_are_built(monkeypatch):
     folded = _timeline({0: {"number": 1}, 2: {}}, last=3)
     folded.measures.rows[1].next = [folded.measures.rows[0].id]
 
-    time_map, reason = build_time_map(document(folded, media_length=2.5), folded)
+    def build_rows_from(*args):
+        raise AssertionError("the rows of a folded table were built")
+
+    monkeypatch.setattr(timemap_module, "build_rows_from", build_rows_from)
+    time_map, reason = build_time_map(document(folded), folded)
 
     assert time_map is None and reason.startswith("the table lists the measures")
-    assert not caplog.records
 
 
 def test_timemap_derives_its_arrays_from_its_rows_and_beats():
