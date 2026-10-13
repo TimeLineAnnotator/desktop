@@ -1437,15 +1437,12 @@ class TimelineUIs:
     def _apply_zoom(self, new_width: float) -> bool:
         if new_width < 1 or new_width > MAX_PLAYBACK_WIDTH:
             return False
-        prev_smooth_scroll = settings.get("general", "prioritise_performance")
-        if not prev_smooth_scroll:
-            settings.set("general", "prioritise_performance", True)
         self.view.setUpdatesEnabled(False)
         post(Post.PLAYBACK_AREA_SET_WIDTH, new_width)
-        self.center_on_time(self.selected_time)
+        # At once: a smooth movement would start from where the old width put
+        # the view.
+        self.view.smooth_x.set_now(time_x_converter.get_x_by_time(self.selected_time))
         self.view.setUpdatesEnabled(True)
-        if not prev_smooth_scroll:
-            settings.set("general", "prioritise_performance", False)
         return True
 
     def _on_file_loaded(self, file: TiliaFile) -> None:
