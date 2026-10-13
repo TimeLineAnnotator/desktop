@@ -157,22 +157,22 @@ class TestEveryKind:
     @pytest.mark.parametrize(
         "kind, attribute, reason",
         [
-            ("marker", "time", "nan is not a valid time"),
+            ("marker", "time", "nan is not a valid time."),
             ("harmony", "time", "nan is not a valid time."),
             ("mode", "time", "nan is not a valid time."),
             ("pdf_marker", "time", "nan is not a valid time."),
-            ("beat", "time", "'nan' is not a valid time"),
-            ("hierarchy", "start", "'nan' is not a valid start"),
-            ("hierarchy", "end", "'nan' is not a valid end"),
-            ("hierarchy", "pre_start", "'nan' is not a valid pre start"),
-            ("hierarchy", "post_end", "'nan' is not a valid post end"),
-            ("range", "start", "nan is not a valid time"),
-            ("range", "end", "nan is not a valid time"),
-            ("range", "pre_start", "nan is not a valid time"),
-            ("range", "post_end", "nan is not a valid time"),
+            ("beat", "time", "nan is not a valid time."),
+            ("hierarchy", "start", "nan is not a valid start."),
+            ("hierarchy", "end", "nan is not a valid end."),
+            ("hierarchy", "pre_start", "nan is not a valid pre start."),
+            ("hierarchy", "post_end", "nan is not a valid post end."),
+            ("range", "start", "nan is not a valid start."),
+            ("range", "end", "nan is not a valid end."),
+            ("range", "pre_start", "nan is not a valid pre start."),
+            ("range", "post_end", "nan is not a valid post end."),
         ],
     )
-    def test_a_time_of_nan_gets_the_importers_text(self, kind, attribute, reason):
+    def test_a_time_of_nan(self, kind, attribute, reason):
         assert check(kind, **{attribute: float("nan")}) == (False, reason)
 
     def test_tilia_creates_components_at_nan(self):
@@ -188,11 +188,11 @@ class TestEveryKind:
     def test_a_time_that_isnt_a_finite_number(self, value):
         assert check("marker", time=value) == (
             False,
-            f"{value} is not a valid time",
+            f"{value} is not a valid time.",
         )
 
     def test_a_missing_time(self):
-        assert rules.marker(MEDIA, [], {}) == (False, "None is not a valid time")
+        assert rules.marker(MEDIA, [], {}) == (False, "None is not a valid time.")
 
     @pytest.mark.parametrize("time", [0, 60])
     def test_times_given_as_integers(self, time):
@@ -201,10 +201,10 @@ class TestEveryKind:
     @pytest.mark.parametrize(
         "kind, attribute, reason",
         [
-            ("marker", "label", "3 is not a valid label"),
-            ("marker", "comments", "3 is not a valid comments"),
-            ("hierarchy", "label", "'3' is not a valid label"),
-            ("range", "comments", "3 is not a valid comments"),
+            ("marker", "label", "3 is not a valid label."),
+            ("marker", "comments", "3 is not a valid comments."),
+            ("hierarchy", "label", "3 is not a valid label."),
+            ("range", "comments", "3 is not a valid comments."),
             ("harmony", "custom_text", "3 is not a valid custom text."),
             ("mode", "comments", "3 is not a valid comments."),
         ],
@@ -619,7 +619,7 @@ class TestHierarchy:
     def test_a_level_that_isnt_an_integer(self, level):
         assert check("hierarchy", level=level) == (
             False,
-            f"'{level}' is not a valid level",
+            f"{level} is not a valid level.",
         )
 
     @pytest.mark.parametrize("pre_start", [None, 0.0, 0.5, 1.0])
@@ -905,19 +905,22 @@ class TestRows:
     def test_an_id_that_isnt_six_letters_and_digits(self, row_id):
         assert rules.range_rows([{"id": row_id, "name": "Strings"}]) == (
             False,
-            f"{row_id} is not a valid row id",
+            f"{row_id} is not a valid row id.",
         )
 
     def test_an_id_two_rows_have(self):
         rows = [{"id": ROW, "name": "Strings"}, {"id": ROW, "name": "Winds"}]
 
-        assert rules.range_rows(rows) == (False, f"{ROW} is the id of two rows")
+        assert rules.range_rows(rows) == (
+            False,
+            f"There is already a row with the id {ROW}.",
+        )
 
     @pytest.mark.parametrize("name", [3, None])
     def test_a_name_that_isnt_text(self, name):
         assert rules.range_rows([{"id": ROW, "name": name}]) == (
             False,
-            f"{name} is not a valid row name",
+            f"{name} is not a valid row name.",
         )
 
     @pytest.mark.parametrize("color", [None, "", "steelblue"])
@@ -925,31 +928,28 @@ class TestRows:
         assert rules.range_rows([{"id": ROW, "name": "Strings", "color": color}]) == OK
 
     def test_a_color_that_isnt_one(self):
-        # TiLiA's own text, for a row's color.
         assert rules.range_rows(
             [{"id": ROW, "name": "Strings", "color": "notacolor"}]
         ) == (
             False,
-            "'notacolor' is not a valid color.",
+            "notacolor is not a valid color.",
         )
 
 
 class TestNotValid:
     @pytest.mark.parametrize(
-        "kind, attribute, value, text",
+        "attribute, value, text",
         [
-            ("marker", "time", "abc", "abc is not a valid time"),
-            ("hierarchy", "start", "abc", "'abc' is not a valid start"),
-            ("hierarchy", "post_end", "abc", "'abc' is not a valid post end"),
-            ("range", "end", "abc", "abc is not a valid time"),
-            ("range", "label", 3, "3 is not a valid label"),
-            ("harmony", "display_mode", "abc", "abc is not a valid display mode."),
-            ("mode", "type", "abc", "abc is not a valid type."),
-            ("pdf_marker", "page_number", "abc", "abc is not a valid page number."),
-            ("beat", "time", "abc", "'abc' is not a valid time"),
+            ("time", "abc", "abc is not a valid time."),
+            ("post_end", "abc", "abc is not a valid post end."),
+            ("label", 3, "3 is not a valid label."),
+            ("page_number", 1.5, "1.5 is not a valid page number."),
+            (
+                "custom_text_font_type",
+                "bold",
+                "bold is not a valid custom text font type.",
+            ),
         ],
     )
-    def test_as_each_kinds_importer_words_a_value_it_cant_read(
-        self, kind, attribute, value, text
-    ):
-        assert rules.not_valid(kind, attribute, value) == text
+    def test_one_text_for_a_value_that_isnt_one(self, attribute, value, text):
+        assert rules.not_valid(attribute, value) == text

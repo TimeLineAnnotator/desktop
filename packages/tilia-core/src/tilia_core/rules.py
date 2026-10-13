@@ -11,7 +11,8 @@ There is one function per kind the importers create. Each takes the media
 length, the timeline's other components (not the one checked) and the
 attributes of the component to check, and gives the first rule they break:
 `(False, reason)`, or `(True, "")` when they break none. The reasons are
-TiLiA's, word for word, where TiLiA has one.
+TiLiA's, word for word, where TiLiA has one. A value that isn't one always
+reads `<value> is not a valid <attribute>.`, whatever the kind.
 
 A harmony's quality and inversion and a mode's type are checked against the
 installed music21, as TiLiA checks them, so checking a harmony or a mode needs
@@ -59,18 +60,6 @@ _POINT_NAMES = {
 _TEXTS = ("label", "comments", "custom_text")
 _SEGMENT_TIMES = ("start", "end", "pre_start", "post_end")
 _UNSET_TIMES = ("pre_start", "post_end")  # None: they follow the start and the end
-
-# How each kind's importer words a value it can't read (tilia/parsers/csv/),
-# leaving out what names the row.
-_NOT_VALID = {
-    "marker": "{value} is not a valid {attribute}",
-    "hierarchy": "'{value}' is not a valid {attribute}",
-    "range": "{value} is not a valid {attribute}",
-    "harmony": "{value} is not a valid {attribute}.",
-    "mode": "{value} is not a valid {attribute}.",
-    "pdf_marker": "{value} is not a valid {attribute}.",
-    "beat": "'{value}' is not a valid {attribute}",
-}
 
 _ROW_ID_LENGTH = 6
 _ROW_ID_CHARACTERS = frozenset(string.ascii_letters + string.digits)
@@ -191,13 +180,13 @@ def harmony(
     music21 = _music21()
     broken = (
         _point("harmony", media_length, others, attrs)
-        or _one_of("harmony", attrs, "step", _STEPS)
-        or _one_of("harmony", attrs, "applied_to", _STEPS)
-        or _one_of("harmony", attrs, "accidental", HARMONY_ACCIDENTALS)
+        or _one_of(attrs, "step", _STEPS)
+        or _one_of(attrs, "applied_to", _STEPS)
+        or _one_of(attrs, "accidental", HARMONY_ACCIDENTALS)
         or (_quality_and_inversion(music21, attrs) if music21 else None)
-        or _one_of("harmony", attrs, "level", _LEVELS)
-        or _one_of("harmony", attrs, "display_mode", HARMONY_DISPLAY_MODES)
-        or _one_of("harmony", attrs, "custom_text_font_type", FONT_TYPES)
+        or _one_of(attrs, "level", _LEVELS)
+        or _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES)
+        or _one_of(attrs, "custom_text_font_type", FONT_TYPES)
     )
     return _checked("harmony", broken, music21)
 
@@ -209,10 +198,10 @@ def mode(
     music21 = _music21()
     broken = (
         _point("mode", media_length, others, attrs)
-        or _one_of("mode", attrs, "step", _STEPS)
-        or _one_of("mode", attrs, "accidental", HARMONY_ACCIDENTALS)
+        or _one_of(attrs, "step", _STEPS)
+        or _one_of(attrs, "accidental", HARMONY_ACCIDENTALS)
         or (_mode_type(music21, attrs) if music21 else None)
-        or _one_of("mode", attrs, "level", _LEVELS)
+        or _one_of(attrs, "level", _LEVELS)
     )
     return _checked("mode", broken, music21)
 
@@ -222,7 +211,7 @@ def hierarchy(
 ) -> Outcome:
     """A hierarchy. Hierarchies nest: one that overlaps another lies inside it,
     at a lower level."""
-    broken = _every_kind("hierarchy", attrs, _SEGMENT_TIMES)
+    broken = _every_kind(attrs, _SEGMENT_TIMES)
     if broken:
         return broken
     start, end, level = attrs["start"], attrs["end"], attrs.get("level")
@@ -249,7 +238,7 @@ def range_(
 
     Ranges in a row may overlap.
     """
-    broken = _every_kind("range", attrs, _SEGMENT_TIMES)
+    broken = _every_kind(attrs, _SEGMENT_TIMES)
     if broken:
         return broken
     start, end = attrs["start"], attrs["end"]
@@ -270,16 +259,16 @@ def range_rows(rows: Sequence[Mapping[str, Any]]) -> Outcome:
     for row in rows:
         row_id = row.get("id")
         if not _is_row_id(row_id):
-            return _broken(f"{row_id} is not a valid row id")
+            return _broken(not_valid("row_id", row_id))
         if row_id in ids:
-            return _broken(f"{row_id} is the id of two rows")
+            return _broken(f"There is already a row with the id {row_id}.")
         ids.add(row_id)
         name = row.get("name")
         if not isinstance(name, str):
-            return _broken(f"{name} is not a valid row name")
-        if not color(row.get("color")).ok:
-            # TiLiA's text for a row's color, which isn't the components' one.
-            return _broken(f"'{row.get('color')}' is not a valid color.")
+            return _broken(not_valid("row_name", name))
+        outcome = color(row.get("color"))
+        if not outcome.ok:
+            return outcome
     return OK
 
 
@@ -293,18 +282,16 @@ def color(value: Any) -> Outcome:
         return OK
     if isinstance(value, str) and _qt_reads(value):
         return OK
-    return _broken(f"{value} is not a valid color.")
+    return _broken(not_valid("color", value))
 
 
-def not_valid(kind: str, attribute: str, value: Any) -> str:
-    """How the importer of `kind` words a value of `attribute` it can't read.
+def not_valid(attribute: str, value: Any) -> str:
+    """The reason for a value of `attribute` that isn't one, for every kind.
 
-    The rules give the same text for a value that isn't one, such as a time of
-    nan. An importer gives it for a value it can't parse, so the two read alike.
+    The rules give it for a value they refuse as not being one, such as a time of
+    nan, and the importers for a value they can't read, so the two read alike.
     """
-    if kind == "range" and attribute in _SEGMENT_TIMES:
-        attribute = "time"  # as the range importer calls them
-    return _NOT_VALID[kind].format(value=value, attribute=attribute.replace("_", " "))
+    return f"{value} is not a valid {attribute.replace('_', ' ')}."
 
 
 def _point(
@@ -314,7 +301,7 @@ def _point(
     attrs: Mapping[str, Any],
 ) -> Outcome | None:
     """The rules for every kind, the time's bounds, and no other at the same time."""
-    broken = _every_kind(kind, attrs, ("time",))
+    broken = _every_kind(attrs, ("time",))
     if broken:
         return broken
     time = attrs["time"]
@@ -339,19 +326,17 @@ def _point(
     return None
 
 
-def _every_kind(
-    kind: str, attrs: Mapping[str, Any], times: Iterable[str]
-) -> Outcome | None:
+def _every_kind(attrs: Mapping[str, Any], times: Iterable[str]) -> Outcome | None:
     """Times are finite numbers, texts are text, and a color is one."""
     for name in times:
         value = attrs.get(name)
         if value is None and name in _UNSET_TIMES:
             continue
         if not _is_number(value):
-            return _broken(not_valid(kind, name, value))
+            return _broken(not_valid(name, value))
     for name in _TEXTS:
         if name in attrs and not isinstance(attrs[name], str):
-            return _broken(not_valid(kind, name, attrs[name]))
+            return _broken(not_valid(name, attrs[name]))
     if "color" in attrs:
         outcome = color(attrs["color"])
         if not outcome.ok:
@@ -361,14 +346,14 @@ def _every_kind(
 
 def _page(page_number: Any, page_count: int) -> Outcome | None:
     if not _is_integer(page_number):
-        return _broken(not_valid("pdf_marker", "page_number", page_number))
+        return _broken(not_valid("page_number", page_number))
     if not 1 <= page_number <= page_count:
         return _broken("The PDF has no page with that number.")
     return None
 
 
 def _one_of(
-    kind: str, attrs: Mapping[str, Any], name: str, allowed: Collection[int | str]
+    attrs: Mapping[str, Any], name: str, allowed: Collection[int | str]
 ) -> Outcome | None:
     """`name`, when the component has it, is one of `allowed`, as it is: 1.0 isn't 1."""
     if name not in attrs:
@@ -376,7 +361,7 @@ def _one_of(
     value = attrs[name]
     if (_is_integer(value) or isinstance(value, str)) and value in allowed:
         return None
-    return _broken(not_valid(kind, name, value))
+    return _broken(not_valid(name, value))
 
 
 def _music21() -> ModuleType | None:
@@ -403,10 +388,10 @@ def _quality_and_inversion(
     """The quality is one of music21's `CHORD_TYPES`, and the inversion one it has."""
     quality = attrs.get("quality", "major")
     if not (isinstance(quality, str) and quality in music21.harmony.CHORD_TYPES):
-        return _broken(not_valid("harmony", "quality", quality))
+        return _broken(not_valid("quality", quality))
     inversion = attrs.get("inversion", 0)
     if not (_is_integer(inversion) and 0 <= inversion <= _inversions(music21, quality)):
-        return _broken(not_valid("harmony", "inversion", inversion))
+        return _broken(not_valid("inversion", inversion))
     return None
 
 
@@ -423,7 +408,7 @@ def _mode_type(music21: ModuleType, attrs: Mapping[str, Any]) -> Outcome | None:
     types = [
         name for name in music21.key.modeSharpsAlter if name not in _NOT_MODE_TYPES
     ]
-    return _one_of("mode", attrs, "type", types)
+    return _one_of(attrs, "type", types)
 
 
 def _hierarchy_times(start: float, end: float, media_length: float) -> Outcome | None:
@@ -444,7 +429,7 @@ def _hierarchy_times(start: float, end: float, media_length: float) -> Outcome |
 
 def _hierarchy_level(level: Any) -> Outcome | None:
     if not _is_integer(level):
-        return _broken(not_valid("hierarchy", "level", level))
+        return _broken(not_valid("level", level))
     if level < 1:
         return _broken(f"Level can't be below 1. Got '{level}'")
     return None
