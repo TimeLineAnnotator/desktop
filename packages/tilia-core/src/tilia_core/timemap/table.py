@@ -1,4 +1,5 @@
-"""A beat timeline's measure table: each measure's position, pass, movement, start and end."""
+"""A beat timeline's measure table: each measure's position, pass, movement,
+start and end, meter and time signature."""
 
 from __future__ import annotations
 
@@ -6,10 +7,13 @@ import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any, NoReturn
 
 from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
+from tilia_core.timemap.meters import meters_of
+from tilia_core.timemap.units import MeasureMeter, format_units
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +75,13 @@ class MeasureRow:
     end: float  # the next downbeat, or the closing barline
     beat_ids: tuple[str, ...]
     beats: int  # the beats tapped
+    meter: MeasureMeter  # desktop#621's, from the beat units in effect
+    time_signature: str  # as a musician reads it: "6/8", "2+2+3/8", "(4/3)/4"
+    ts_numerator: Fraction  # the beat values' sum: 7/8 is 7 over 8 however grouped
+    ts_denominator: int
+    assumed: bool  # nobody set the unit that governs it
+    ambiguous: bool  # its taps don't hold a whole number of the unit's patterns
+    conflicting: bool  # more than one unit is set on its beats
     source: str
     force_display: bool
     next: tuple[str, ...] | None
@@ -145,7 +156,8 @@ def build_rows_from(
     passes: dict[int, int] = {}
     movement = 1
     out: list[MeasureRow] = []
-    for index, (row, end) in enumerate(zip(rows, ends, strict=True)):
+    meters = meters_of(rows)
+    for index, (row, end, meter) in enumerate(zip(rows, ends, meters, strict=True)):
         count = index + 1
         if row.restart and count > 1:  # the first row is in movement 1 anyway
             passes.clear()
@@ -168,6 +180,15 @@ def build_rows_from(
                 end=end,
                 beat_ids=row.beat_ids,
                 beats=len(row.beat_ids),
+                meter=meter,
+                time_signature=format_time_signature(
+                    meter.beat_values, meter.denominator
+                ),
+                ts_numerator=meter.numerator,
+                ts_denominator=meter.denominator,
+                assumed=meter.is_assumed,
+                ambiguous=meter.is_ambiguous,
+                conflicting=meter.is_conflicting,
                 source=row.source,
                 force_display=row.force_display,
                 next=row.next,
@@ -175,6 +196,24 @@ def build_rows_from(
             )
         )
     return out
+
+
+def format_time_signature(beat_values: Sequence[Fraction], denominator: int) -> str:
+    """A measure's time signature as a musician reads it.
+
+    The numerator is the sum of the beat values when they are all equal ("6/8"),
+    and the values joined by "+" when they differ, as they fall in the measure
+    ("2+2+3/8"; three taps under 2+3 give "2+3+2/8"). A numerator that isn't
+    whole, or holds a fraction, is in brackets: "(4/3)/4", "(1/2+1)/8".
+    """
+    if len(set(beat_values)) > 1:
+        parts = list(beat_values)
+    else:
+        parts = [sum(beat_values, Fraction(0))]
+    numerator = format_units(parts)
+    if any(part.denominator != 1 for part in parts):
+        numerator = f"({numerator})"
+    return f"{numerator}/{denominator}"
 
 
 def is_folded(rows: Sequence[RowIn]) -> bool:
