@@ -164,6 +164,13 @@ def test_import_failed_names_the_file():
     )
 
 
+def test_import_failed_names_its_file_once():
+    path = Path("data") / "chords.csv"
+    message = f"'{path}' is not a valid UTF-8 encoded CSV file."
+
+    assert str(ImportFailed(path, message)) == message
+
+
 def test_import_failed_without_a_file():
     error = ImportFailed(
         None, "Reference beat timeline is required for importing by measure"

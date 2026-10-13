@@ -41,6 +41,8 @@ class ImportFailed(Exception):
         self.message = message
 
     def __str__(self) -> str:
-        if self.path is None:
+        # A message that names the file already, as TiLiA's UTF-8 text does
+        # with its full path, is given as it is, so the file is named once.
+        if self.path is None or str(self.path) in self.message:
             return self.message
         return f"{self.path.name}: {self.message}"

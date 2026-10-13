@@ -177,6 +177,8 @@ def test_a_cp1252_file_fails_with_tilias_text(tmp_path):
 
     assert info.value.path == path
     assert info.value.message == f"'{path}' is not a valid UTF-8 encoded CSV file."
+    # TiLiA's text names the full path, so the file isn't named twice.
+    assert str(info.value) == f"'{path}' is not a valid UTF-8 encoded CSV file."
 
 
 def test_a_byte_that_isnt_utf8_at_the_end_fails_the_whole_file(tmp_path):
