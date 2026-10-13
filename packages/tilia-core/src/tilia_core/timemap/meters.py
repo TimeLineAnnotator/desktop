@@ -26,7 +26,7 @@ from tilia_core.timemap.units import (
 class _BeatUnit:
     """A beat unit as desktop#621's component holds it, with its beat's id as its id.
 
-    Its units are parsed once for each call of `meters_of`.
+    Its units are parsed when it is read, not again for each measure it governs.
     """
 
     id: str

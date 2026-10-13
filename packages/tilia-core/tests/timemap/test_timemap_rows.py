@@ -161,6 +161,7 @@ def test_a_beat_unit_that_cannot_be_read_is_ignored(caplog):
         {"denominator": 0, "units": "1"},
         {"denominator": 129, "units": "1"},
         {"denominator": "8", "units": "1"},
+        {"denominator": 8, "units": "1" * 33},
     ],
 )
 def test_a_beat_unit_desktop_621_refuses_is_left_out(beat_unit, caplog):
