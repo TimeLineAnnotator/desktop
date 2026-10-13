@@ -1,20 +1,53 @@
-"""TiLiA's rules for creating a component of each kind the importers create.
+"""The one set of rules for a valid component.
 
-Each rule gives `(True, "")`, or `(False, reason)` with TiLiA's reason, word for
-word, so that the core and TiLiA refuse the same rows in the same words. The
-rules are those of `validate_creation` in TiLiA's point-like and segment-like
-components, and of `_validate_component_creation` in its timelines.
+Everything that creates or changes a component goes through these rules and
+keeps none of its own: the importers, the `tilia` command, bulk edits, and the
+reader and the writer of `.tla` files. TiLiA checks a component in several
+places (when it creates one, when it sets a value, in its editing operations),
+which don't always agree; the rules are the strictest of them and of the
+format's schema.
+
+There is one function per kind the importers create. Each takes the media
+length, the timeline's other components (not the one checked) and the
+attributes of the component to check, and gives the first rule they break:
+`(False, reason)`, or `(True, "")` when they break none. The reasons are
+TiLiA's, word for word, where TiLiA has one.
+
+A harmony's quality and inversion and a mode's type are checked against the
+installed music21, as TiLiA checks them, so checking a harmony or a mode needs
+the `harmony` extra. Without it, the other rules are checked, and when none is
+broken, `CantCheck` is raised. music21 is imported only when a harmony or a mode
+is checked.
 """
 
 from __future__ import annotations
 
-from collections.abc import Collection, Hashable
+import importlib.util
+import math
+import string
+from collections.abc import Collection, Iterable, Mapping, Sequence
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
 
-Rule = tuple[bool, str]
+if TYPE_CHECKING:
+    from tilia_core import tla
 
-_OK: Rule = (True, "")
+INSTALL_HARMONY = 'pip install "tilia-core[harmony]"'
 
-# The names TiLiA's reasons give each point kind (its components' `frontend_name`).
+# TiLiA's values (tilia/timelines/harmony/constants.py). Qualities and mode types
+# are music21's.
+HARMONY_ACCIDENTALS = (2, 1, 0, -1, -2)
+HARMONY_DISPLAY_MODES = ("letter", "roman", "custom")
+FONT_TYPES = ("analytic", "normal")
+_STEPS = range(7)
+_LEVELS = (1, 2)
+_NOT_MODE_TYPES = ("ionian", "aeolian")
+# Qualities TiLiA keeps in root position, whatever their intervals.
+_NO_INVERSION_QUALITIES = frozenset(
+    {"Italian", "French", "German", "Neapolitan", "Tristan", "power"}
+)
+
+# The names TiLiA's reasons give the point kinds (their `frontend_name`).
 _POINT_NAMES = {
     "marker": "marker",
     "harmony": "harmony",
@@ -23,94 +56,580 @@ _POINT_NAMES = {
     "pdf_marker": "PDF page marker",
 }
 
+_TEXTS = ("label", "comments", "custom_text")
+_SEGMENT_TIMES = ("start", "end", "pre_start", "post_end")
+_UNSET_TIMES = ("pre_start", "post_end")  # None: they follow the start and the end
 
-def point(
-    time: float, media_length: float, existing_times: Collection[float], *, kind: str
-) -> Rule:
-    """A marker, harmony, mode, beat or PDF marker (`kind`) at `time`.
+# How each kind's importer words a value it can't read (tilia/parsers/csv/),
+# leaving out what names the row.
+_NOT_VALID = {
+    "marker": "{value} is not a valid {attribute}",
+    "hierarchy": "'{value}' is not a valid {attribute}",
+    "range": "{value} is not a valid {attribute}",
+    "harmony": "{value} is not a valid {attribute}.",
+    "mode": "{value} is not a valid {attribute}.",
+    "pdf_marker": "{value} is not a valid {attribute}.",
+    "beat": "'{value}' is not a valid {attribute}",
+}
 
-    The time must be from 0 to the media length, and no other component of the
-    same kind may have it: `existing_times` are theirs.
+_ROW_ID_LENGTH = 6
+_ROW_ID_CHARACTERS = frozenset(string.ascii_letters + string.digits)
+
+# The colors Qt reads: #RGB, #RRGGBB, #AARRGGBB, #RRRGGGBBB and #RRRRGGGGBBBB,
+# and the SVG color names with "transparent" (`QColor.colorNames()`).
+_HEX_LENGTHS = (3, 6, 8, 9, 12)
+_HEX_DIGITS = frozenset(string.hexdigits)
+_COLOR_NAMES = frozenset(
+    {
+        "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque",
+        "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood",
+        "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk",
+        "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod", "darkgray",
+        "darkgreen", "darkgrey", "darkkhaki", "darkmagenta", "darkolivegreen",
+        "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen",
+        "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise",
+        "darkviolet", "deeppink", "deepskyblue", "dimgray", "dimgrey", "dodgerblue",
+        "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite",
+        "gold", "goldenrod", "gray", "green", "greenyellow", "grey", "honeydew",
+        "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender", "lavenderblush",
+        "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan",
+        "lightgoldenrodyellow", "lightgray", "lightgreen", "lightgrey", "lightpink",
+        "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray",
+        "lightslategrey", "lightsteelblue", "lightyellow", "lime", "limegreen", "linen",
+        "magenta", "maroon", "mediumaquamarine", "mediumblue", "mediumorchid",
+        "mediumpurple", "mediumseagreen", "mediumslateblue", "mediumspringgreen",
+        "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream", "mistyrose",
+        "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange",
+        "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise",
+        "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum",
+        "powderblue", "purple", "red", "rosybrown", "royalblue", "saddlebrown",
+        "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver", "skyblue",
+        "slateblue", "slategray", "slategrey", "snow", "springgreen", "steelblue",
+        "tan", "teal", "thistle", "tomato", "transparent", "turquoise", "violet",
+        "wheat", "white", "whitesmoke", "yellow", "yellowgreen",
+    }
+)  # fmt: skip
+
+
+class Outcome(tuple[bool, str]):
+    """What checking the rules gives: `(True, "")`, or `(False, reason)`.
+
+    `others` are the ids of the other components a broken rule is about: those
+    at the same time or place, the hierarchies it crosses, the ranges it should
+    join.
     """
-    if time > media_length:
-        return (
-            False,
-            f"Time '{_media_time(time)}' is bigger than media time"
-            f" '{_media_time(media_length)}'",
-        )
-    if time < 0:
-        return False, f"Time can't be negative. Got '{_media_time(time)}'"
-    if time in existing_times:
-        return (
-            False,
-            f"There is already a {_POINT_NAMES[kind]} component at the selected position.",
-        )
-    return _OK
+
+    others: tuple[str, ...]
+
+    def __new__(cls, ok: bool, reason: str = "", others: Iterable[str] = ()) -> Outcome:
+        outcome = super().__new__(cls, (ok, reason))
+        outcome.others = tuple(others)
+        return outcome
+
+    @property
+    def ok(self) -> bool:
+        return self[0]
+
+    @property
+    def reason(self) -> str:
+        return self[1]
 
 
-def segment(
-    start: float,
-    end: float,
-    position: Hashable,
-    existing_positions: Collection[Hashable],
+OK = Outcome(True)
+
+
+class CantCheck(Exception):
+    """The rules that need music21 can't be checked: the `harmony` extra is missing.
+
+    This isn't a broken rule: the component may well keep to them.
+    """
+
+    command = INSTALL_HARMONY
+
+    def __init__(self, kind: str) -> None:
+        super().__init__(f"checking a {kind} needs: {INSTALL_HARMONY}")
+        self.kind = kind
+
+
+# The private functions give the first rule they find broken, or None, so that
+# `or` checks them in order.
+
+
+def marker(
+    media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
+) -> Outcome:
+    """A marker."""
+    return _point("marker", media_length, others, attrs) or OK
+
+
+def beat(
+    media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
+) -> Outcome:
+    """A beat. Its measure mark and beat unit follow the measure table's rules."""
+    return _point("beat", media_length, others, attrs) or OK
+
+
+def pdf_marker(
     media_length: float,
-) -> Rule:
-    """A hierarchy from `start` to `end`, at `position`: its `(start, end, level)`.
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    *,
+    page_count: int,
+) -> Outcome:
+    """A PDF marker, in a PDF of `page_count` pages: 0 for a PDF that can't be read."""
+    return (
+        _point("pdf_marker", media_length, others, attrs)
+        or _page(attrs.get("page_number"), page_count)
+        or OK
+    )
 
-    The start and the end must not be beyond the media length, the end must be
-    after the start, and no other hierarchy may have the same position.
-    """
-    start, end, media_length = float(start), float(end), float(media_length)
-    if start > media_length:
-        return False, f"Start time '{start}' is bigger than media time '{media_length}'"
-    if end > media_length:
-        return False, f"End time '{end}' is bigger than media time '{media_length}'"
-    if end <= start:
-        return False, f"End time '{end}' should be bigger than start time '{start}'"
-    if position in existing_positions:
-        return (
-            False,
-            "There is already a hierarchy component at the selected position.",
-        )
-    return _OK
+
+def harmony(
+    media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
+) -> Outcome:
+    """A harmony. Without music21, raises `CantCheck` when no other rule is broken."""
+    music21 = _music21()
+    broken = (
+        _point("harmony", media_length, others, attrs)
+        or _one_of("harmony", attrs, "step", _STEPS)
+        or _one_of("harmony", attrs, "applied_to", _STEPS)
+        or _one_of("harmony", attrs, "accidental", HARMONY_ACCIDENTALS)
+        or (_quality_and_inversion(music21, attrs) if music21 else None)
+        or _one_of("harmony", attrs, "level", _LEVELS)
+        or _one_of("harmony", attrs, "display_mode", HARMONY_DISPLAY_MODES)
+        or _one_of("harmony", attrs, "custom_text_font_type", FONT_TYPES)
+    )
+    return _checked("harmony", broken, music21)
+
+
+def mode(
+    media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
+) -> Outcome:
+    """A key. Without music21, raises `CantCheck` when no other rule is broken."""
+    music21 = _music21()
+    broken = (
+        _point("mode", media_length, others, attrs)
+        or _one_of("mode", attrs, "step", _STEPS)
+        or _one_of("mode", attrs, "accidental", HARMONY_ACCIDENTALS)
+        or (_mode_type(music21, attrs) if music21 else None)
+        or _one_of("mode", attrs, "level", _LEVELS)
+    )
+    return _checked("mode", broken, music21)
+
+
+def hierarchy(
+    media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
+) -> Outcome:
+    """A hierarchy. Hierarchies nest: one that overlaps another lies inside it,
+    at a lower level."""
+    broken = _every_kind("hierarchy", attrs, _SEGMENT_TIMES)
+    if broken:
+        return broken
+    start, end, level = attrs["start"], attrs["end"], attrs.get("level")
+    hierarchies = [other for other in others if other.kind == "hierarchy"]
+    return (
+        _hierarchy_times(start, end, media_length)
+        or _hierarchy_level(level)
+        or _pre_start(attrs.get("pre_start"), start)
+        or _post_end(attrs.get("post_end"), end, media_length)
+        or _same_place(start, end, level, hierarchies)
+        or _crossed(start, end, level, hierarchies)
+        or OK
+    )
 
 
 def range_(
-    start: float,
-    end: float,
-    row_id: str | None,
-    row_ids: Collection[str],
-    pre_start: float | None,
-    post_end: float | None,
     media_length: float,
-) -> Rule:
-    """A range from `start` to `end` in the row `row_id`, one of `row_ids`.
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    *,
+    rows: Sequence[Mapping[str, Any]],
+) -> Outcome:
+    """A range, in a timeline whose attribute `rows` is `rows`.
 
-    `pre_start` and `post_end` are checked when given.
+    Ranges in a row may overlap.
     """
+    broken = _every_kind("range", attrs, _SEGMENT_TIMES)
+    if broken:
+        return broken
+    start, end = attrs["start"], attrs["end"]
+    row_ids = [row.get("id") for row in rows]
+    return (
+        _range_place(attrs.get("row_id"), row_ids, start, end, media_length)
+        or _pre_start(attrs.get("pre_start"), start)
+        or _post_end(attrs.get("post_end"), end, media_length)
+        or _joined(attrs, others, rows)
+        or OK
+    )
+
+
+def range_rows(rows: Sequence[Mapping[str, Any]]) -> Outcome:
+    """A range timeline's rows: each with its own id of six letters and digits,
+    a name, and a color or none."""
+    ids: set[str] = set()
+    for row in rows:
+        row_id = row.get("id")
+        if not _is_row_id(row_id):
+            return _broken(f"{row_id} is not a valid row id")
+        if row_id in ids:
+            return _broken(f"{row_id} is the id of two rows")
+        ids.add(row_id)
+        name = row.get("name")
+        if not isinstance(name, str):
+            return _broken(f"{name} is not a valid row name")
+        if not color(row.get("color")).ok:
+            # TiLiA's text for a row's color, which isn't the components' one.
+            return _broken(f"'{row.get('color')}' is not a valid color.")
+    return OK
+
+
+def color(value: Any) -> Outcome:
+    """A color: the default (None or ""), or one Qt reads, checked without Qt.
+
+    An importer keeps a row whose color isn't one, with the kind's default color
+    instead, and a note.
+    """
+    if value is None or value == "":
+        return OK
+    if isinstance(value, str) and _qt_reads(value):
+        return OK
+    return _broken(f"{value} is not a valid color.")
+
+
+def not_valid(kind: str, attribute: str, value: Any) -> str:
+    """How the importer of `kind` words a value of `attribute` it can't read.
+
+    The rules give the same text for a value that isn't one, such as a time of
+    nan. An importer gives it for a value it can't parse, so the two read alike.
+    """
+    if kind == "range" and attribute in _SEGMENT_TIMES:
+        attribute = "time"  # as the range importer calls them
+    return _NOT_VALID[kind].format(value=value, attribute=attribute.replace("_", " "))
+
+
+def _point(
+    kind: str,
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+) -> Outcome | None:
+    """The rules for every kind, the time's bounds, and no other at the same time."""
+    broken = _every_kind(kind, attrs, ("time",))
+    if broken:
+        return broken
+    time = attrs["time"]
+    if time < 0:
+        return _broken(f"Time can't be negative. Got '{_media_time(time)}'")
+    if time > media_length:
+        return _broken(
+            f"Time '{_media_time(time)}' is bigger than media time"
+            f" '{_media_time(media_length)}'"
+        )
+    same = [
+        other.id
+        for other in others
+        if other.kind == kind and other.attrs.get("time") == time
+    ]
+    if same:
+        return Outcome(
+            False,
+            f"There is already a {_POINT_NAMES[kind]} component at the selected position.",
+            same,
+        )
+    return None
+
+
+def _every_kind(
+    kind: str, attrs: Mapping[str, Any], times: Iterable[str]
+) -> Outcome | None:
+    """Times are finite numbers, texts are text, and a color is one."""
+    for name in times:
+        value = attrs.get(name)
+        if value is None and name in _UNSET_TIMES:
+            continue
+        if not _is_number(value):
+            return _broken(not_valid(kind, name, value))
+    for name in _TEXTS:
+        if name in attrs and not isinstance(attrs[name], str):
+            return _broken(not_valid(kind, name, attrs[name]))
+    if "color" in attrs:
+        outcome = color(attrs["color"])
+        if not outcome.ok:
+            return outcome
+    return None
+
+
+def _page(page_number: Any, page_count: int) -> Outcome | None:
+    if not _is_integer(page_number):
+        return _broken(not_valid("pdf_marker", "page_number", page_number))
+    if not 1 <= page_number <= page_count:
+        return _broken("The PDF has no page with that number.")
+    return None
+
+
+def _one_of(
+    kind: str, attrs: Mapping[str, Any], name: str, allowed: Collection[int | str]
+) -> Outcome | None:
+    """`name`, when the component has it, is one of `allowed`, as it is: 1.0 isn't 1."""
+    if name not in attrs:
+        return None
+    value = attrs[name]
+    if (_is_integer(value) or isinstance(value, str)) and value in allowed:
+        return None
+    return _broken(not_valid(kind, name, value))
+
+
+def _music21() -> ModuleType | None:
+    """music21, with what the rules read of it; None without the `harmony` extra."""
+    if importlib.util.find_spec("music21") is None:
+        return None
+    import music21.harmony
+    import music21.key
+
+    return music21
+
+
+def _checked(kind: str, broken: Outcome | None, music21: ModuleType | None) -> Outcome:
+    if broken:
+        return broken
+    if music21 is None:
+        raise CantCheck(kind)
+    return OK
+
+
+def _quality_and_inversion(
+    music21: ModuleType, attrs: Mapping[str, Any]
+) -> Outcome | None:
+    """The quality is one of music21's `CHORD_TYPES`, and the inversion one it has."""
+    quality = attrs.get("quality", "major")
+    if not (isinstance(quality, str) and quality in music21.harmony.CHORD_TYPES):
+        return _broken(not_valid("harmony", "quality", quality))
+    inversion = attrs.get("inversion", 0)
+    if not (_is_integer(inversion) and 0 <= inversion <= _inversions(music21, quality)):
+        return _broken(not_valid("harmony", "inversion", inversion))
+    return None
+
+
+def _inversions(music21: ModuleType, quality: str) -> int:
+    """A quality's inversions, as TiLiA's `get_inversion_amount` counts them."""
+    if quality in _NO_INVERSION_QUALITIES:
+        return 0
+    intervals = str(music21.harmony.CHORD_TYPES[quality][0])
+    return len(intervals.split(",")) - 1
+
+
+def _mode_type(music21: ModuleType, attrs: Mapping[str, Any]) -> Outcome | None:
+    """The type is one of music21's `modeSharpsAlter`, but ionian and aeolian."""
+    types = [
+        name for name in music21.key.modeSharpsAlter if name not in _NOT_MODE_TYPES
+    ]
+    return _one_of("mode", attrs, "type", types)
+
+
+def _hierarchy_times(start: float, end: float, media_length: float) -> Outcome | None:
+    # TiLiA shows these as floats, whatever they were given as.
+    start, end, media_length = float(start), float(end), float(media_length)
+    if start > media_length:
+        return _broken(
+            f"Start time '{start}' is bigger than media time '{media_length}'"
+        )
+    if end > media_length:
+        return _broken(f"End time '{end}' is bigger than media time '{media_length}'")
+    if start < 0:
+        return _broken(f"Start time can't be negative. Got '{start}'")
+    if end <= start:
+        return _broken(f"End time '{end}' should be bigger than start time '{start}'")
+    return None
+
+
+def _hierarchy_level(level: Any) -> Outcome | None:
+    if not _is_integer(level):
+        return _broken(not_valid("hierarchy", "level", level))
+    if level < 1:
+        return _broken(f"Level can't be below 1. Got '{level}'")
+    return None
+
+
+def _pre_start(pre_start: float | None, start: float) -> Outcome | None:
+    """`pre_start`, when set, is from 0 to the start."""
+    if pre_start is None:
+        return None
+    if pre_start < 0:
+        return _broken("pre_start is outside media bounds.")
+    if pre_start > start:
+        return _broken("pre_start can't be after start time.")
+    return None
+
+
+def _post_end(
+    post_end: float | None, end: float, media_length: float
+) -> Outcome | None:
+    """`post_end`, when set, is from the end to the media length."""
+    if post_end is None:
+        return None
+    if post_end > media_length:
+        return _broken("post_end is outside media bounds.")
+    if post_end < end:
+        return _broken("post_end can't be before end time.")
+    return None
+
+
+def _same_place(
+    start: float, end: float, level: int, hierarchies: Iterable[tla.Component]
+) -> Outcome | None:
+    same = [
+        other.id
+        for other in hierarchies
+        if (other.attrs.get("start"), other.attrs.get("end"), other.attrs.get("level"))
+        == (start, end, level)
+    ]
+    if same:
+        return Outcome(
+            False,
+            "There is already a hierarchy component at the selected position.",
+            same,
+        )
+    return None
+
+
+def _crossed(
+    start: float, end: float, level: int, hierarchies: Iterable[tla.Component]
+) -> Outcome | None:
+    crossed = [
+        other.id for other in hierarchies if _cross(start, end, level, other.attrs)
+    ]
+    if crossed:
+        return Outcome(
+            False, "Component would overlap with existing component.", crossed
+        )
+    return None
+
+
+def _cross(start: float, end: float, level: int, other: Mapping[str, Any]) -> bool:
+    """Whether two hierarchies overlap, and neither lies inside the other, lower.
+
+    This is when TiLiA's `get_boundary_conflicts` finds a conflict between them.
+    """
+    other_start, other_end = other.get("start"), other.get("end")
+    other_level = other.get("level")
+    if not (
+        _is_number(other_start) and _is_number(other_end) and _is_integer(other_level)
+    ):
+        return False
+    if not (start < other_end and other_start < end):
+        return False
+    inside = other_start <= start and end <= other_end and level < other_level
+    around = start <= other_start and other_end <= end and other_level < level
+    return not (inside or around)
+
+
+def _range_place(
+    row_id: Any, row_ids: Sequence[Any], start: float, end: float, media_length: float
+) -> Outcome | None:
     if not row_id or row_id not in row_ids:
-        return False, "Invalid row ID."
+        return _broken("Invalid row ID.")
     if start >= end:
-        return False, "Start time must be before end time."
+        return _broken("Start time must be before end time.")
     if start < 0 or end > media_length:
-        return False, "Range is outside media bounds."
-    if pre_start is not None and pre_start < 0:
-        return False, "pre_start is outside media bounds."
-    if post_end is not None and post_end > media_length:
-        return False, "post_end is outside media bounds."
-    return _OK
+        return _broken("Range is outside media bounds.")
+    return None
 
 
-def page(page_number: int, page_total: int) -> Rule:
-    """A PDF marker's page: one the PDF has, from 1 to `page_total`."""
-    if not 1 <= page_number <= page_total:
-        return False, "The PDF has no page with that number."
-    return _OK
+def _joined(
+    attrs: Mapping[str, Any],
+    others: Iterable[tla.Component],
+    rows: Sequence[Mapping[str, Any]],
+) -> Outcome | None:
+    """`joined_right`, when set, is a next range in the row, starting at this one's end.
+
+    The next ranges are those of the row that start first after this one starts.
+    The reasons are the range importer's (`_apply_pending_joins`).
+    """
+    joined = attrs.get("joined_right")
+    if joined is None:
+        return None
+    row_id, start, end = attrs["row_id"], attrs["start"], attrs["end"]
+    row = next((row.get("name") for row in rows if row.get("id") == row_id), row_id)
+    later = [
+        other
+        for other in others
+        if other.kind == "range"
+        and other.attrs.get("row_id") == row_id
+        and _is_number(other.attrs.get("start"))
+        and other.attrs["start"] > start
+    ]
+    if not later:
+        return _broken(
+            f"joined_with_next=true on last range of row {row!r};"
+            " no next neighbor to join with"
+        )
+    next_start = min(other.attrs["start"] for other in later)
+    following = [other.id for other in later if other.attrs["start"] == next_start]
+    if next_start != end:
+        return Outcome(
+            False,
+            f"joined_with_next=true but next range on row {row!r} starts at"
+            f" {float(next_start)} (must equal {float(end)} for ranges to join)",
+            following,
+        )
+    if joined not in following:
+        return Outcome(
+            False,
+            "joined_with_next=true but the range it joins isn't the next range"
+            f" on row {row!r}",
+            following,
+        )
+    return None
+
+
+def _qt_reads(text: str) -> bool:
+    """Whether Qt reads `text` as a color, as `QColor(text).isValid()` says."""
+    if text.startswith("#"):
+        digits = text[1:]
+        return len(digits) in _HEX_LENGTHS and all(c in _HEX_DIGITS for c in digits)
+    # Qt reads a name of up to 255 UTF-16 units, in any case, leaving out spaces
+    # and tabs. A NUL, or a character beyond Latin-1, ends it.
+    if len(text.encode("utf-16-le")) // 2 > 255:
+        return False
+    name = []
+    for character in text:
+        if character in " \t":
+            continue
+        if character == "\0" or ord(character) > 0xFF:
+            break
+        name.append(character.lower())
+    return "".join(name) in _COLOR_NAMES
 
 
 def _media_time(seconds: float) -> str:
-    """A time as TiLiA's `format_media_time` writes it: "01:05.0", "1:02:05.0"."""
+    """A time as TiLiA's `format_media_time` shows it ("01:05.0", "1:02:05.0"),
+    with a minus sign before a negative one ("-00:01.0")."""
+    if seconds < 0:
+        return "-" + _media_time(-seconds)
     seconds_and_fraction = f"{seconds % 60:.1f}".zfill(4)
     minutes = int(float(seconds) // 60)
     hours = f"{minutes // 60}:" if minutes >= 60 else ""
     return f"{hours}{str(minutes % 60).zfill(2)}:{seconds_and_fraction}"
+
+
+def _is_number(value: Any) -> bool:
+    """A finite number, as JSON stores one: not a bool, nan or an infinity."""
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, int) or (isinstance(value, float) and math.isfinite(value))
+
+
+def _is_integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_row_id(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == _ROW_ID_LENGTH
+        and all(c in _ROW_ID_CHARACTERS for c in value)
+    )
+
+
+def _broken(reason: str) -> Outcome:
+    return Outcome(False, reason)
