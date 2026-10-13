@@ -94,8 +94,8 @@ class TiliaState:
         # Reset the current time at once: a smooth movement started here would
         # take its steps whenever a later test runs the event loop. Setting the
         # time at once also stops a movement of the playback lines that the
-        # test left running, but not one of a timeline's own items, such as
-        # the slider's trough: tests that start those wait for them to end.
+        # test left running. A timeline's own movements, such as the slider's
+        # trough, stopped when on_clear() deleted the timeline.
         self.player.current_time = 0
         settings = settings_module.settings
         prioritise_performance = settings.get("general", "prioritise_performance")

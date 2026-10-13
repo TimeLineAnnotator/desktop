@@ -17,7 +17,7 @@ class TimelineUIsView(QGraphicsView):
         # drop filter.
         self.setAcceptDrops(False)
         self._update_scroll_margins()
-        self.smooth_x = SmoothSetter(self._get_center_x, self._center_on_x)
+        self.smooth_x = SmoothSetter(self._get_center_x, self._center_on_x, parent=self)
 
     def is_hscrollbar_pressed(self):
         return self.horizontalScrollBar().isSliderDown()

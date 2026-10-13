@@ -1,4 +1,5 @@
 import pytest
+from PySide6.QtCore import QVariantAnimation
 
 from tests.utils import wait_for_smooth_movement
 from tilia.requests import Get, get
@@ -46,3 +47,15 @@ def test_zooming_during_a_smooth_movement_keeps_the_trough_at_the_time(
         commands.execute("view.zoom.set", 1.0)
 
     assert x == pytest.approx(expected_x)
+
+
+def test_smooth_movement_stops_when_the_timeline_is_deleted(slider_tlui, tluis):
+    settings.set("general", "prioritise_performance", False)
+    commands.execute("media.seek", get(Get.MEDIA_CURRENT_TIME) + 5.0)
+    animation = slider_tlui.smooth_x.animation
+    assert animation.state() is QVariantAnimation.State.Running
+
+    commands.execute("timeline.delete", slider_tlui, confirm=False)
+
+    assert animation.state() is QVariantAnimation.State.Stopped
+    wait_for_smooth_movement(tluis.smooth_playback_lines)
