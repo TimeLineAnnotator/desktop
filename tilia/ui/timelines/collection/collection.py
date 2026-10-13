@@ -102,7 +102,10 @@ class TimelineUIs:
         self.loop_time = (self.selected_time, self.selected_time)
         self.loop_elements = set()
         self.loop_delete_ignore = set()
-        self.smooth_time = SmoothSetter(lambda: self.selected_time, self._set_time)
+        self.playback_lines_time = self.selected_time
+        self.smooth_playback_lines = SmoothSetter(
+            lambda: self.playback_lines_time, self._set_playback_lines_time
+        )
 
     def __str__(self) -> str:
         return self.__class__.__name__ + "-" + str(id(self))
@@ -1495,11 +1498,14 @@ class TimelineUIs:
         self._auto_scroll(reason, time)
 
         if not self.is_dragging:
-            self.smooth_time(time)
+            # Only the lines move smoothly: what is added at the selected time
+            # goes at the media's time.
+            self.selected_time = time
+            self.smooth_playback_lines(time)
 
-    def _set_time(self, time: float) -> None:
+    def _set_playback_lines_time(self, time: float) -> None:
+        self.playback_lines_time = time
         self.set_playback_lines_position(time)
-        self.selected_time = time
 
     def set_is_dragging(self, is_dragging: bool) -> None:
         # noinspection PyAttributeOutsideInit
@@ -1508,7 +1514,8 @@ class TimelineUIs:
             self.clear_selection_boxes()
 
     def on_slider_drag(self, x: float):
-        self.smooth_time.set_now(time_x_converter.get_time_by_x(x))
+        self.selected_time = time_x_converter.get_time_by_x(x)
+        self.smooth_playback_lines.set_now(self.selected_time)
 
     def set_auto_scroll(self, value: ScrollType):
         # noinspection PyAttributeOutsideInit
