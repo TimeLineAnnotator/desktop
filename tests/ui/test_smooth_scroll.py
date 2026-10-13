@@ -1,5 +1,7 @@
+from unittest.mock import patch
+
 import pytest
-from PySide6.QtCore import SIGNAL
+from PySide6.QtCore import SIGNAL, QVariantAnimation
 from PySide6.QtTest import QTest
 
 from tests.utils import wait_for_smooth_movement
@@ -90,3 +92,18 @@ class TestFollowingThePlayback:
         animation = tluis.smooth_playback_lines.animation
         assert animation.receivers(SIGNAL("valueChanged(QVariant)")) == 1
         wait_for_smooth_movement(tluis.smooth_playback_lines)
+
+
+def test_zooming_centres_at_once_and_leaves_the_performance_setting(tluis):
+    settings.set("general", "prioritise_performance", False)
+
+    with patch.object(settings, "set", wraps=settings.set) as set_setting:
+        try:
+            commands.execute("view.zoom.in")
+        finally:
+            commands.execute("view.zoom.set", 1.0)
+
+    assert not [
+        c for c in set_setting.call_args_list if "prioritise_performance" in c.args
+    ]
+    assert tluis.view.smooth_x.animation.state() is QVariantAnimation.State.Stopped
