@@ -17,8 +17,11 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
+from tilia_core.tla import reader as reader_module
 from tilia_core.tla.ids import MIGRATED_BASE_MS, derived_document_id, migrated_id
 from tilia_core.tla.migrate import old as old_migrations
+from tilia_core.tla.migrate import to_1
+from tilia_core.tla.model import TIMELINE_KINDS
 
 OLD = Path(__file__).parent / "old"
 OLD_FILES = sorted(OLD.glob("*.tla"))
@@ -367,30 +370,20 @@ def test_the_s4_file_keeps_its_youtube_link_and_fields():
 # Saved again by TiLiA 0.7 without an edit
 
 
-def made_as_tilia_0_7_opens_it(content):
-    """The changes TiLiA 0.7 makes to an old file when it opens it, which the
-    migration doesn't make yet (TimeLineAnnotator/project-management#312):
-    hierarchies' `parent` and `children` dropped, clef icons without `.svg`;
-    and the lists of a beat timeline filled, as the fitting of
-    TimeLineAnnotator/project-management#181 will."""
-    content = copy.deepcopy(content)
-    for timeline in content["timelines"].values():
-        if timeline["kind"] == "BEAT_TIMELINE" and not timeline["beats_in_measure"]:
-            count = len(timeline["components"]) // timeline["beat_pattern"][0]
-            timeline["beats_in_measure"] = timeline["beat_pattern"] * count
-            timeline["measure_numbers"] = list(range(1, count + 1))
-        for component in timeline["components"].values():
-            component.pop("parent", None)
-            component.pop("children", None)
-            if component["kind"] == "CLEF":
-                component["icon"] = component["icon"].removesuffix(".svg")
-    return content
-
-
-@pytest.mark.parametrize("pair", PAIRS, ids=lambda pair: pair[0])
-@pytest.mark.xfail(
-    strict=True,
-    reason="waits for TimeLineAnnotator/project-management#312, and #181 for 0.0.96",
+@pytest.mark.parametrize(
+    "pair",
+    [
+        pytest.param(
+            PAIRS[0],
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="TiLiA 0.7 fills the beat timeline's empty lists, as the"
+                " fitting of TimeLineAnnotator/project-management#181 will",
+            ),
+        ),
+        PAIRS[1],
+    ],
+    ids=lambda pair: pair[0],
 )
 def test_a_save_by_tilia_0_7_without_an_edit_keeps_the_ids(pair):
     first, saved = (tla.read(OLD / name) for name in pair)
@@ -398,15 +391,50 @@ def test_a_save_by_tilia_0_7_without_an_edit_keeps_the_ids(pair):
     assert tla.canonical_bytes(first) == tla.canonical_bytes(saved)
 
 
-@pytest.mark.parametrize("pair", PAIRS, ids=lambda pair: pair[0])
-def test_a_save_by_tilia_0_7_keeps_the_ids_once_its_changes_on_opening_are_made(pair):
-    first, saved = pair
-    content = made_as_tilia_0_7_opens_it(content_of(OLD / first))
+def with_beat_lists_filled(content):
+    """The old file with its beat timeline's empty lists filled, as TiLiA 0.7
+    fills them when it opens the file, and as the migration will fit them
+    (TimeLineAnnotator/project-management#181)."""
+    content = copy.deepcopy(content)
+    for timeline in content["timelines"].values():
+        if timeline["kind"] == "BEAT_TIMELINE" and not timeline["beats_in_measure"]:
+            count = len(timeline["components"]) // timeline["beat_pattern"][0]
+            timeline["beats_in_measure"] = timeline["beat_pattern"] * count
+            timeline["measure_numbers"] = list(range(1, count + 1))
+    return content
+
+
+def test_a_save_by_tilia_0_7_keeps_the_ids_of_0_0_96s_file_but_for_its_beat_lists():
+    # What else TiLiA 0.7 changes in the 0.0.96 file, the migration makes alike:
+    # ordinals, kinds, hierarchies' parent and children, pre_start and post_end.
+    first, saved = PAIRS[0]
+    content = with_beat_lists_filled(content_of(OLD / first))
     assert content != content_of(OLD / first)
     first_doc = loads(content)
     saved_doc = tla.read(OLD / saved)
     assert first_doc.document_id == saved_doc.document_id
     assert tla.canonical_bytes(first_doc) == tla.canonical_bytes(saved_doc)
+
+
+def test_hierarchies_written_by_tilia_0_0_96_lose_parent_and_children():
+    doc = tla.read(OLD / "0.0.96.tla")
+    content = content_of(OLD / "0.0.96.tla")
+    _, old = old_timeline(content, "hierarchy")
+    assert all("parent" in unit for unit in old["components"].values())
+    written = json.loads(tla.canonical_bytes(doc))
+    assert not {"parent", "children"} & set(keys_in(written))
+    # Dropped without a warning: TiLiA computes them.
+    assert all("formal_" in warning.message for warning in doc.warnings)
+
+
+def test_clef_icons_written_by_tilia_0_5_lose_their_svg():
+    doc = tla.read(OLD / "0.5.15.tla")
+    _, old = old_timeline(content_of(OLD / "0.5.15.tla"), "score")
+    assert [c["icon"] for c in old["components"].values() if c["kind"] == "CLEF"] == [
+        "clef-treble.svg"
+    ]
+    clefs = [c for c in by_kind(doc, "score").components.values() if c.kind == "clef"]
+    assert [clef.attrs["icon"] for clef in clefs] == ["clef-treble"]
 
 
 # The migration, on small files
@@ -792,6 +820,198 @@ def test_kind_names_change_below_0_7_as_tilia_changes_them():
     ]
 
 
+@pytest.mark.parametrize(
+    "version, spelling",
+    [
+        ("0.7.0", "Marker"),
+        ("0.7.0", "marker"),
+        ("0.7.0", "MARKER"),
+        ("0.7.0", "MARKER_TIMELINE"),
+        ("0.7.2", "Marker_TIMELINE"),
+        ("0.5.15", "MARKER_TIMELINE"),
+        ("0.5.15", "marker"),
+    ],
+)
+def test_the_migration_spells_known_kinds_exactly(version, spelling):
+    # In any letter case, and with the suffix TiLiA before 0.7 wrote, only in
+    # old files: the current format's kinds are read exactly.
+    content = old_file_content()
+    content["version"] = version
+    content["timelines"]["3"]["kind"] = spelling
+    migrated = to_1.migrate(content)
+    kinds = [tl["kind"] for tl in migrated.content["timelines"].values()]
+    assert kinds == ["Hierarchy", "Marker"]
+
+
+@pytest.mark.parametrize(
+    "version, spelling",
+    [
+        ("0.5.15", "AUDIOWAVE_TIMELINE"),  # "Audiowave" after TiLiA's migration
+        ("0.7.0", "Audiowave"),
+        ("0.7.0", "AUDIOWAVE"),
+        ("0.7.0", "AudioWave"),
+    ],
+)
+def test_the_migration_spells_audiowave_exactly(version, spelling):
+    content = edited(with_wave())
+    content["version"] = version
+    content["timelines"]["9"]["kind"] = spelling
+    migrated = to_1.migrate(content)
+    assert [tl["kind"] for tl in migrated.content["timelines"].values()] == [
+        "Hierarchy",
+        "Marker",
+        "AudioWave",
+    ]
+
+
+def exactly(spelling):
+    """A timeline kind read as the current format reads it: exactly."""
+    known = {written: kind for kind, written in TIMELINE_KINDS.items()}
+    return known.get(spelling) or tla.UnknownKind(spelling)
+
+
+def test_old_files_read_where_kinds_are_read_exactly(old_file, monkeypatch):
+    # The reader of the current format may read kinds exactly: an old file's
+    # kinds come out of the migration in the format's spelling.
+    expected = [tl.kind for tl in tla.read(old_file).timelines.values()]
+    monkeypatch.setattr(reader_module, "timeline_kind_from_file", exactly)
+    assert [tl.kind for tl in tla.read(old_file).timelines.values()] == expected
+
+
+# What TiLiA 0.7 changes when it opens an old file
+
+
+def with_unit_keys(**keys):
+    def change(content):
+        content["timelines"]["1"]["components"]["2"].update(keys)
+
+    return change
+
+
+@pytest.mark.parametrize("version", ["0.0.96", "0.5.5", "0.6.0", "0.7.0"])
+def test_hierarchies_lose_parent_and_children_without_a_warning(version):
+    # Written before 0.5.6; TiLiA computes them from levels and times.
+    content = edited(with_unit_keys(parent=None, children=["5"], analyst_note="x"))
+    content["version"] = version
+    doc = loads(content)
+    unit = next(iter(by_kind(doc, "hierarchy").components.values()))
+    assert unit.extra == {"analyst_note": "x"}
+    assert "parent" not in unit.attrs and "children" not in unit.attrs
+    assert doc.warnings == []
+    without = loads(
+        edited(with_unit_keys(analyst_note="x"), set_key("version", version))
+    )
+    assert doc.document_id == without.document_id
+
+
+def test_parent_and_children_stay_where_they_arent_a_hierarchys():
+    content = old_file_content()
+    content["timelines"]["3"]["components"]["4"]["parent"] = "2"
+    content["timelines"]["7"] = {
+        "kind": "Lyrics",
+        "ordinal": 3,
+        "components": {"8": {"kind": "HIERARCHY", "parent": None, "children": []}},
+    }
+    doc = loads(content)
+    marker = next(iter(by_kind(doc, "marker").components.values()))
+    assert marker.extra == {"parent": "2"}
+    lyrics = by_kind(doc, tla.UnknownKind("Lyrics"))
+    assert lyrics.raw["components"]["8"] == {
+        "kind": "HIERARCHY",
+        "parent": None,
+        "children": [],
+    }
+
+
+def with_score(*components):
+    def change(content):
+        content["timelines"]["7"] = {
+            "kind": "Score",
+            "name": "Score",
+            "ordinal": 3,
+            "height": 160,
+            "components": {str(10 + index): c for index, c in enumerate(components)},
+        }
+
+    return change
+
+
+def clef(icon):
+    return {
+        "kind": "CLEF",
+        "staff_index": 0,
+        "time": 0,
+        "line_number": 2,
+        "step": 4,
+        "octave": 4,
+        "icon": icon,
+    }
+
+
+@pytest.mark.parametrize(
+    "icon, read",
+    [
+        ("clef-treble.svg", "clef-treble"),
+        ("clef-bass.svg", "clef-bass"),
+        ("clef-alto.svg", "clef-alto"),
+        ("clef-treble-8vb.svg", "clef-treble-8vb"),
+        ("clef-treble", "clef-treble"),
+        (None, None),
+    ],
+)
+def test_clef_icons_lose_their_svg(icon, read):
+    doc = loads(edited(with_score(clef(icon))))
+    (component,) = by_kind(doc, "score").components.values()
+    assert component.attrs["icon"] == read
+    as_tilia_0_7_saves_it = loads(edited(with_score(clef(read))))
+    assert doc.document_id == as_tilia_0_7_saves_it.document_id
+
+
+def test_icons_of_what_isnt_a_clef_stay():
+    staff = {"kind": "STAFF", "line_count": 5, "index": 0, "icon": "staff.svg"}
+    doc = loads(edited(with_score(staff)))
+    (component,) = by_kind(doc, "score").components.values()
+    assert component.extra == {"icon": "staff.svg"}
+
+
+def with_slider(content):
+    content["timelines"]["0"] = {
+        "kind": "Slider",
+        "ordinal": 3,
+        "height": 40,
+        "is_visible": True,
+        "components": {},
+    }
+
+
+def with_lyrics_at(ordinal):
+    def change(content):
+        content["timelines"]["7"] = {"kind": "Lyrics", "ordinal": ordinal}
+        if ordinal == 1:
+            content["timelines"]["1"]["ordinal"] = 2
+            content["timelines"]["3"]["ordinal"] = 3
+
+    return change
+
+
+@pytest.mark.parametrize(
+    "before, after",
+    [
+        ([], [with_slider]),
+        ([with_lyrics_at(1)], [with_lyrics_at(3)]),
+        ([], [set_key("media_path", "")]),
+    ],
+    ids=["slider added", "unknown kind moved last", "media path cleared"],
+)
+def test_what_else_tilia_0_7_changes_on_saving_changes_the_id(before, after):
+    # Saved again by TiLiA 0.7 without an edit, a file without a slider
+    # timeline gains one, timelines of kinds TiLiA doesn't know move after the
+    # others, and a media path TiLiA can't find (and isn't shown) is cleared.
+    # These change the document id, as accepted in
+    # TimeLineAnnotator/project-management#312.
+    assert loads(edited(*before)).document_id != loads(edited(*after)).document_id
+
+
 # Keys and kinds the core doesn't know
 
 
@@ -818,14 +1038,13 @@ def test_keys_the_core_doesnt_know_are_kept():
     content = old_file_content()
     content["corpus"] = {"name": "s4"}
     content["timelines"]["1"]["colour_scheme"] = "dark"
-    content["timelines"]["1"]["components"]["2"]["parent"] = None
-    content["timelines"]["1"]["components"]["2"]["children"] = ["5"]
+    content["timelines"]["1"]["components"]["2"]["analyst_note"] = ["5"]
     doc = loads(content)
     assert doc.extra == {"corpus": {"name": "s4"}}
     hierarchy = by_kind(doc, "hierarchy")
     assert hierarchy.extra == {"colour_scheme": "dark"}
     unit = next(iter(hierarchy.components.values()))
-    assert unit.extra == {"parent": None, "children": ["5"]}
+    assert unit.extra == {"analyst_note": ["5"]}
 
 
 def test_a_component_of_an_unknown_kind_gets_a_new_id_and_stays_as_it_was():

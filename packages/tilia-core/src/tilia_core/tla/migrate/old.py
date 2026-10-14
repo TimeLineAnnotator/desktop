@@ -2,8 +2,13 @@
 
 The app's `tilia/file/migration.py`, as TiLiA 0.7 runs it when it opens a
 file: each function makes one change, and applies to the files below its
-target version. After them, every old file has TiLiA 0.7.0's shape. The
-core doesn't import the app, so they are copied here.
+target version. Then the changes TiLiA 0.7 makes to any old file when it
+opens it, and so writes when it saves the file again without an edit:
+hierarchies lose `parent` and `children`, which TiLiA before 0.5.6 wrote and
+TiLiA now computes from levels and times, and clef icons lose `.svg`. After
+them, every old file has TiLiA 0.7.0's shape, so that a file saved again by
+TiLiA 0.7 without an edit is migrated to the same content. The core doesn't
+import the app, so all of this is copied here.
 
 One difference: TiLiA 0.1.1, as released, still wrote `display_position`,
 and TiLiA's migration, which applies below 0.1.1, leaves its files without
@@ -15,6 +20,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+
+from tilia_core.tla.model import TIMELINE_KINDS, Kind, UnknownKind
 
 Migration = Callable[[dict[str, Any]], dict[str, Any]]
 # A version as TiLiA compares versions; see version_key.
@@ -65,6 +72,42 @@ def _timeline_kind(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+_KINDS_IN_ANY_CASE = {
+    spelling.lower(): kind for kind, spelling in TIMELINE_KINDS.items()
+}
+
+
+def timeline_kind(spelling: str) -> Kind:
+    """The kind of an old file's timeline, read as TiLiA 0.7 reads it: in any
+    letter case, and without the `_TIMELINE` suffix TiLiA before 0.7 wrote.
+    Only old files are read so; the migration writes the format's spelling."""
+    return _KINDS_IN_ANY_CASE.get(normalize_kind_string(spelling).lower()) or (
+        UnknownKind(spelling)
+    )
+
+
+def _as_tilia_0_7_opens_it(data: dict[str, Any]) -> dict[str, Any]:
+    """Make the changes TiLiA 0.7 makes to an old file when it opens it:
+    hierarchies' `parent` and `children` dropped, clef icons without `.svg`.
+    Components that aren't objects are left for the migration to refuse."""
+    for timeline in data.get("timelines", {}).values():
+        kind = timeline_kind(timeline.get("kind", ""))
+        components = timeline.get("components")
+        if kind not in ("hierarchy", "score") or not isinstance(components, dict):
+            continue
+        for component in components.values():
+            if not isinstance(component, dict):
+                continue
+            if component.get("kind") == "HIERARCHY":
+                component.pop("parent", None)
+                component.pop("children", None)
+            elif component.get("kind") == "CLEF":
+                icon = component.get("icon")
+                if isinstance(icon, str):
+                    component["icon"] = icon.removesuffix(".svg")
+    return data
+
+
 # Each migration with the version from which files no longer need it, in
 # ascending order.
 MIGRATIONS: list[tuple[str, Migration]] = [
@@ -96,4 +139,4 @@ def migrate(data: dict[str, Any]) -> dict[str, Any]:
     for target, function in MIGRATIONS:
         if applies(target, function, version):
             data = function(data)
-    return data
+    return _as_tilia_0_7_opens_it(data)
