@@ -124,6 +124,11 @@ class MeasureMeter:
     is_conflicting: bool
     is_assumed: bool
 
+    def __post_init__(self) -> None:
+        # Tuples, whatever the caller passes, so that a meter can be hashed.
+        object.__setattr__(self, "units", tuple(self.units))
+        object.__setattr__(self, "beat_values", tuple(self.beat_values))
+
     @property
     def numerator(self) -> Fraction:
         return sum(self.beat_values, Fraction(0))
