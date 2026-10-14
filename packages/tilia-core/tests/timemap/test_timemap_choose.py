@@ -116,6 +116,39 @@ def test_only_a_beat_timeline_can_have_the_role():
         assert found.timeline_id == beats.id and found.guessed
 
 
+@pytest.mark.parametrize(
+    "role, claims",
+    [(["time_map"], True), (["analysis", "time_map"], True), (["analysis"], False)],
+)
+def test_a_role_list_that_holds_time_map_claims_it(role, claims):
+    # Anne, 2026-10-14: metadata values may be lists.
+    first, listed = _beats(1), _beats(2)
+    listed.metadata["role"] = role
+
+    found = find_time_map(document(first, listed))
+
+    assert found.timeline_id == (listed.id if claims else first.id)
+    assert found.guessed is not claims
+
+
+@pytest.mark.parametrize("ordinal", [None, "1", 1.5, float("nan"), True, [1]])
+def test_an_ordinal_that_isnt_a_whole_number_sorts_after_the_others(ordinal):
+    # Anne, 2026-10-14: nothing raises while the reader lets one through (#7).
+    odd, other = _beats(1), _beats(3)
+    odd.ordinal = ordinal
+
+    found = find_time_map(document(odd, other))
+
+    assert found.timeline_id == other.id and found.guessed
+
+
+def test_a_whole_ordinal_written_as_a_float_sorts_by_its_value():
+    two, three = _beats(1), _beats(3)
+    two.ordinal = 2.0
+
+    assert find_time_map(document(three, two)).timeline_id == two.id
+
+
 def test_a_timeline_that_names_a_beat_timeline_gets_its_table_and_time_map():
     # Spec, US4 scenario 5: a score timeline names its table (WP3's FR-133).
     default, named = _beats(1, role="time_map"), _beats(2, last=7)
@@ -200,8 +233,8 @@ def test_the_last_beat_at_or_after_the_end_of_the_media_is_returned_and_logged(
     assert found.time_map.end == 21.0
     (warning,) = found.warnings
     assert warning == (
-        f"the last beat (20.0) is at or after the end of the media ({media_length}); "
-        "the last measure ends one gap after it"
+        f"Timeline {timeline.id}: the last beat (20.0) is at or after the end of "
+        f"the media ({media_length}); the last measure ends one gap after it"
     )
     (record,) = caplog.records
     assert record.name == "tilia_core.timemap"
@@ -211,13 +244,33 @@ def test_the_last_beat_at_or_after_the_end_of_the_media_is_returned_and_logged(
 
 
 def test_the_warnings_come_in_the_order_they_were_found():
-    claiming = [_beats(j, role="time_map") for j in (1, 2)]
+    # The claim first, then each timeline past the media, by ordinal.
+    later, earlier = _beats(2, role="time_map"), _beats(1, role="time_map")
 
-    found = find_time_map(document(*claiming, media_length=2.0))
+    found = find_time_map(document(later, earlier, media_length=2.0))
 
-    assert len(found.warnings) == 2
+    assert len(found.warnings) == 3
     assert found.warnings[0] == TWO_CLAIM
-    assert found.warnings[1].startswith("the last beat (3.0)")
+    assert found.warnings[1].startswith(f"Timeline {earlier.id}: the last beat (3.0)")
+    assert found.warnings[2].startswith(f"Timeline {later.id}: the last beat (3.0)")
+
+
+def test_every_beat_timeline_past_the_media_is_warned_about(caplog):
+    # Anne, 2026-10-14: the tables a score or an import names too, once for
+    # each call of find_time_map. A table without rows has no closing barline.
+    default, named = _beats(1, role="time_map"), _beats(2, last=7)
+    timeless = _beats(3, last=7)
+    timeless.components[timeless.measures.rows[0].beats[1]].attrs["time"] = None
+    doc = document(default, named, timeless, media_length=5.0)
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
+    assert found.timeline_id == default.id
+    (warning,) = found.warnings
+    assert warning.startswith(f"Timeline {named.id}: the last beat (7.0)")
+    (record,) = caplog.records
+    assert record.getMessage() == f"{warning}."
 
 
 @pytest.mark.parametrize(
@@ -248,15 +301,18 @@ def test_no_media_warning_for_a_media_length_that_isnt_a_number(caplog):
     assert not caplog.records
 
 
-def test_no_media_warning_without_a_time_map(caplog):
-    # The table is folded, so it has no closing barline to warn about.
-    doc = document(_folded(), media_length=2.0)
+def test_a_folded_table_past_the_media_is_warned_about(caplog):
+    # It has no time map, but its rows have a closing barline (FR-013).
+    folded = _folded()
+    doc = document(folded, media_length=2.0)
 
     with caplog.at_level(logging.WARNING):
         found = find_time_map(doc)
 
-    assert found.time_map is None and found.warnings == ()
-    assert not caplog.records
+    assert found.time_map is None and found.reason == FOLDED
+    (warning,) = found.warnings
+    assert warning.startswith(f"Timeline {folded.id}: the last beat (3.0)")
+    assert len(caplog.records) == 1
 
 
 def test_tables_and_named_time_maps_log_nothing_about_the_media(caplog):
@@ -290,6 +346,21 @@ def test_measure_rows_give_none_while_a_beat_has_no_usable_time():
     timeline = _beats(1)
     beat = timeline.components[timeline.measures.rows[1].beats[1]]
     beat.attrs["time"] = float("nan")
+
+    assert measure_rows(document(timeline), timeline.id) == []
+
+
+def _out_of_order(**kwargs) -> tla.Timeline:
+    return beat_timeline(
+        [{"time": 0.0, "measure": {}}, {"time": 2.0, "measure": {}}, {"time": 1.0}],
+        **kwargs,
+    )
+
+
+@pytest.mark.parametrize("make", [_same_time, _out_of_order])
+def test_measure_rows_give_none_while_beats_are_out_of_order_or_share_a_time(make):
+    # Anne, 2026-10-14: no measure that ends before it starts.
+    timeline = make()
 
     assert measure_rows(document(timeline), timeline.id) == []
 

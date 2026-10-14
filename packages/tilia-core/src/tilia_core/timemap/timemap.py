@@ -19,9 +19,9 @@ from tilia_core.timemap.table import (
     MeasureRow,
     broken_row,
     build_rows_from,
+    disorder,
     is_folded,
     missing_time,
-    past_media,
 )
 
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
@@ -193,11 +193,9 @@ def build_time_map(
     times = [t for row in rows_in for t in row.beat_times]
     if len(times) < 2:
         return None, "fewer than two beats"
-    for a, b in itertools.pairwise(times):
-        if abs(b - a) < EPS:
-            return None, f"two beats at the same time ({a})"
-        if b < a:
-            return None, f"beats out of time order (at {b})"
+    reason = disorder(times)
+    if reason is not None:
+        return None, reason
     if is_folded(rows_in):
         return None, FOLDED
     rows = build_rows_from(document, timeline, rows_in)
@@ -208,9 +206,3 @@ def build_time_map(
         _times=tuple(times),
     )
     return time_map, None
-
-
-def media_warning(document: tla.Document, time_map: TimeMap) -> str | None:
-    """The warning that the map's last beat is at or after the end of the
-    media, which leaves the closing barline one gap after it; else None."""
-    return past_media(document, time_map._times[-1])
