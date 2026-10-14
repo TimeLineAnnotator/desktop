@@ -241,7 +241,7 @@ jobs:
 
   shortcuts-sheet:
     # Made from the released code and attached to the release under fixed
-    # names, so that releases/latest/download/shortcuts.svg (.png, .md) shows
+    # names, so that releases/latest/download/shortcuts.svg (and .md) shows
     # the latest. Like the builds, a failure here doesn't hold back the
     # release: "Check output" reports the missing files once it is up.
     name: Make the keyboard shortcuts sheet
@@ -347,7 +347,6 @@ jobs:
           files: |
             build/velopack/**
             build/shortcuts/shortcuts.svg
-            build/shortcuts/shortcuts.png
             build/shortcuts/shortcuts.md
 
       - name: Check output
@@ -367,7 +366,7 @@ jobs:
             echo "$FULL_PACKAGES" | grep -q "${channel}-full\.nupkg$" || MISSING_CHANNELS+=("$channel")
             echo "$ASSETS" | jq -e --arg c "$channel" 'any(.[]; . == "releases." + $c + ".json")' > /dev/null || MISSING_MANIFESTS+=("$channel")
           done
-          for file in shortcuts.svg shortcuts.png shortcuts.md; do
+          for file in shortcuts.svg shortcuts.md; do
             echo "$ASSETS" | jq -e --arg f "$file" 'any(.[]; . == $f)' > /dev/null || MISSING_SHEET+=("$file")
           done
           if [ "${#MISSING_CHANNELS[@]}" -gt 0 ] || [ "${#MISSING_MANIFESTS[@]}" -gt 0 ] || [ "$DOWNLOAD_COUNT" -ne 4 ] || [ "${#MISSING_SHEET[@]}" -gt 0 ]; then
