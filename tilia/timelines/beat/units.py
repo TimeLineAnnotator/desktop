@@ -103,13 +103,12 @@ def is_fit_ambiguous(units: list[Fraction], beat_count: int) -> bool:
 @dataclass(frozen=True)
 class MeasureMeter:
     """
-    The meter a measure ends up with. `beat_unit_id` names the beat unit
-    that governs the measure, or is None where the default applies. In the
-    app it is that BeatUnit component's own id. In tilia_core's copy of this
-    module it is the id of the beat that carries the governing unit, since
-    tilia_core reads a .tla beat unit as part of its beat, without an id of
-    its own. `is_assumed` is True when its values weren't set by the user
-    (see BeatUnit.assumed).
+    The meter a measure ends up with. `beat_unit_id` is the id of the beat
+    that carries the beat unit governing the measure (a beat holds at most
+    one), or None where no unit set on a beat governs it: in tilia_core, the
+    measures before the first unit, which take its values, assumed, and every
+    measure when there is none. `is_assumed` is True when its values weren't
+    set by the user (see BeatUnit.assumed).
     """
 
     denominator: int
