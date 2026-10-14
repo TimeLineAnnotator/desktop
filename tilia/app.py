@@ -118,6 +118,7 @@ class App:
             "file.export.json",
             functools.partial(self.on_export, export_type="json"),
             text="&JSON",
+            shortcut="Ctrl+J",
         )
 
     def set_file_media_duration(
