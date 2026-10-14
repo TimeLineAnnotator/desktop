@@ -29,6 +29,7 @@ from tilia_core.tla.layout import (
     nfc_value,
     pointer_to,
 )
+from tilia_core.tla.migrate.to_1 import migrate
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
     Component,
@@ -57,11 +58,13 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
     """Read a `.tla` file's bytes. `path`, when given, is where the file is."""
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
-    version = content.get("version", "0.0.0")
-    if _is_old(version):
-        raise NotImplementedError(
-            f"reading files from TiLiA {printable(version)} needs the migration"
-        )
+    if _is_old(content.get("version", "0.0.0")):
+        # A file from TiLiA 0.x, migrated in memory; its document's
+        # format_version is the version it was read from.
+        migrated = migrate(content, path=path)
+        doc = _Reader(path).document(migrated.content)
+        doc.warnings[:0] = migrated.warnings
+        return doc
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
     document.warnings = warnings

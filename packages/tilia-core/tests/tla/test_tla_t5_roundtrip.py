@@ -1113,9 +1113,13 @@ def test_a_newer_format_is_refused_naming_its_version(version):
 
 
 @pytest.mark.parametrize("version", ["0.7.0", "0.5.15", "0.7.0rc1", "", None])
-def test_older_files_wait_for_the_migration(version):
-    with pytest.raises(NotImplementedError):
-        tla.loads(with_version(version))
+def test_older_files_are_read_through_the_migration(version):
+    content = {"timelines": {}}
+    if version is not None:
+        content["version"] = version
+    doc = tla.loads(json.dumps(content).encode())
+    assert doc.format_version == ("0.0.0" if version is None else version)
+    assert uuid.UUID(doc.document_id).version == 8  # derived from the content
 
 
 def test_a_version_must_be_text():
