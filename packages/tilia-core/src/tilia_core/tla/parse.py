@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from json.decoder import WHITESPACE, scanstring
 from typing import Any
 
@@ -78,7 +78,12 @@ def parse(
     if not isinstance(content, dict):
         raise UnreadableFile("not a TiLiA file", path=path)
     if check is not None:
-        check(content)
+        try:
+            check(content)
+        except UnreadableFile as error:
+            if error.place is not None and error.line is None:
+                error.line = lines_of(text, [error.place])[error.place]
+            raise
     if "timelines" not in content:
         raise UnreadableFile("not a TiLiA file", path=path)
     problem = _first_problem(content, MAX_DEPTH)
@@ -156,6 +161,80 @@ def _json_message(text: str, error: json.JSONDecodeError) -> str:
         if error.msg.endswith(end):
             return error.msg[: -len(end)]
     return error.msg
+
+
+def lines_of(text: str, places: Iterable[str]) -> dict[str, int]:
+    """The line of each place in `text`, a JSON document, given as a JSON
+    Pointer: the line of its key, or of its first character for an item of
+    a list or the whole. A place the text doesn't have, such as a missing
+    key, gets the line of the nearest value that holds it.
+
+    Walks the text, going into only the values that hold a place, and is
+    called only when there is something to report: lines aren't counted
+    while a file is read (research R3).
+    """
+    wanted = set(places)
+    # Every value that holds a place wanted, so that the walk goes into it.
+    holders = {""}
+    for place in wanted:
+        steps = place.split("/")
+        holders.update("/".join(steps[:end]) for end in range(1, len(steps)))
+    found: dict[str, int] = {}
+    counted = [0, 1]  # a position, and the line it is on
+
+    def line_at(position: int) -> int:
+        start, line = counted
+        line += text.count("\n", start, position)
+        counted[:] = [position, line]
+        return line
+
+    skip = json.JSONDecoder().raw_decode
+
+    def walk(position: int, place: str, line: int) -> int:
+        """Record the line of `place`, whose value starts at `position` and
+        whose key, if any, is on `line`; return where the value ends."""
+        if place in wanted or place in holders:
+            found[place] = line
+        position = WHITESPACE.match(text, position).end()
+        if place not in holders:
+            return skip(text, position)[1]
+        if text[position] == "{":
+            position = WHITESPACE.match(text, position + 1).end()
+            if text[position] == "}":
+                return position + 1
+            while True:
+                key_line = line_at(position)
+                key, position = scanstring(text, position + 1)
+                position = WHITESPACE.match(text, position).end() + 1  # the colon
+                position = walk(position, place + pointer([key]), key_line)
+                position = WHITESPACE.match(text, position).end()
+                if text[position] == "}":
+                    return position + 1
+                position = WHITESPACE.match(text, position + 1).end()  # the comma
+        if text[position] == "[":
+            index = 0
+            position = WHITESPACE.match(text, position + 1).end()
+            if text[position] == "]":
+                return position + 1
+            while True:
+                item_line = line_at(position)
+                position = walk(position, f"{place}/{index}", item_line)
+                index += 1
+                position = WHITESPACE.match(text, position).end()
+                if text[position] == "]":
+                    return position + 1
+                position = WHITESPACE.match(text, position + 1).end()  # the comma
+        return skip(text, position)[1]
+
+    start = WHITESPACE.match(text, 0).end()
+    walk(start, "", line_at(start))
+    result = {}
+    for place in wanted:
+        held = place
+        while held not in found:
+            held = held.rpartition("/")[0]
+        result[place] = found[held]
+    return result
 
 
 def pointer(path: list[str]) -> str:

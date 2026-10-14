@@ -488,15 +488,25 @@ def test_a_timeline_of_an_unknown_kind_keeps_its_components_in_raw():
         tla.canonical_bytes(doc)
 
 
-@pytest.mark.parametrize("format", ["mei", "musicxml"])
-def test_a_null_source_or_licence_is_kept(format):
+def test_a_null_source_or_licence_is_kept_on_a_score_of_an_unknown_format():
+    # Keys the core doesn't know for that format.
     content = json.loads(UNKNOWN.read_bytes())
-    content["scores"][0].update(format=format, source=None, license=None)
+    content["scores"][0].update(format="musicxml", source=None, license=None)
     doc = tla.loads(json.dumps(content).encode())
     (score,) = doc.scores.values()
     assert (score.source, score.license) == (None, None)
     (written,) = json.loads(tla.canonical_bytes(doc))["scores"]
     assert (written["source"], written["license"]) == (None, None)
+
+
+@pytest.mark.parametrize("key", ["source", "license"])
+def test_a_null_source_or_licence_on_an_mei_score_is_refused(key):
+    # The schema's types: an object and text.
+    content = json.loads(UNKNOWN.read_bytes())
+    content["scores"][0][key] = None
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(json.dumps(content).encode())
+    assert error.value.place == f"/scores/0/{key}"
 
 
 @pytest.mark.parametrize("license", ["NOASSERTION", None])

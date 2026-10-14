@@ -9,6 +9,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from tilia_core.tla.check import check
 from tilia_core.tla.errors import UnreadableFile, printable
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -59,7 +60,10 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
         raise NotImplementedError(
             f"reading files from TiLiA {printable(version)} needs the migration"
         )
-    return _Reader(path).document(content)
+    warnings = check(content, data, path=path)
+    document = _Reader(path).document(content)
+    document.warnings = warnings
+    return document
 
 
 # Semantic Versioning's form, which the format's versions take from 1.0.0 on.

@@ -103,6 +103,8 @@ def _to_file(
     what: str,
 ) -> str:
     if isinstance(kind, UnknownKind):
+        if not isinstance(kind.spelling, str):
+            return kind.spelling  # never a known kind; the reader refuses it
         # One the reader would read back as a known kind wouldn't stay unknown.
         known = from_file(kind.spelling)
         if not isinstance(known, UnknownKind):
@@ -126,6 +128,12 @@ class ReadWarning:
     place: str
     line: int | None
     message: str
+
+    def __str__(self) -> str:
+        """As an `UnreadableFile` reads: the line when known, then the message."""
+        if self.line is None:
+            return self.message
+        return f"line {self.line}: {self.message}"
 
 
 @dataclass(kw_only=True)
@@ -171,9 +179,9 @@ class Component:
     unset and follows `start` or `end`, so code that reads it falls back to
     `start` or `end`. Once set, it is written whatever its value.
 
-    None for a key the schema gives no default is left out when written, as
-    is a null for it in the file: a beat's `"measure": null` is read as None
-    and written back without `measure`."""
+    None for a key the schema gives no default is left out when written: a
+    beat's `measure` set to None is written without one. A null in a file is
+    read only where the schema allows one, as for a range's `joined_right`."""
 
     id: str
     kind: Kind
