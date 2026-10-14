@@ -27,7 +27,7 @@ from typing import Any
 
 from tilia_core.state import atomic_write
 from tilia_core.tla.check import check
-from tilia_core.tla.errors import FileChanged
+from tilia_core.tla.errors import FileChanged, FileInUse
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -537,10 +537,11 @@ def write(
 
     A link stays a link, and the file it names is written; the file keeps its
     permission bits. A read-only file is refused with `PermissionError`, as
-    the system refuses to open one for writing. A document `canonical_bytes`
-    refuses raises its `ValueError`. Any other failure raises the system's
-    `OSError` and leaves the file as it was; on Windows, a file another
-    program holds open is retried for about a second first.
+    the system refuses to open one for writing. On Windows, a file another
+    program holds open is retried for about a second, then refused with
+    `FileInUse`. A document `canonical_bytes` refuses raises its
+    `ValueError`. Any other failure raises the system's `OSError`. Whenever
+    a write fails, the file is as it was.
     """
     target = os.path.realpath(path)
     data = canonical_bytes(doc)
@@ -554,5 +555,22 @@ def write(
     if os.path.exists(target) and not os.access(target, os.W_OK):
         # The rename would replace it on macOS and Linux.
         raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), os.fspath(path))
-    atomic_write(Path(target), data)
+    try:
+        atomic_write(Path(target), data)
+    except PermissionError as error:
+        if _held_open(error):
+            raise FileInUse(path) from error
+        raise
     return hashlib.sha256(data).hexdigest()
+
+
+# Windows' ERROR_ACCESS_DENIED.
+_ACCESS_DENIED = 5
+
+
+def _held_open(error: PermissionError) -> bool:
+    """Whether `atomic_write`'s rename failed with Windows' access-denied
+    error, after its retry. A read-only file is refused before the rename,
+    so this means another program holds the file open."""
+    renamed = error.filename2 is not None  # os.replace names both files
+    return renamed and getattr(error, "winerror", None) == _ACCESS_DENIED
