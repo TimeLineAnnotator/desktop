@@ -6,6 +6,7 @@ import pytest
 from tilia_core.timemap.units import (
     MAX_DENOMINATOR,
     MAX_UNIT_LENGTH,
+    MeasureMeter,
     fit_units,
     format_units,
     is_fit_ambiguous,
@@ -50,8 +51,7 @@ class TestParseUnits:
         assert not result.is_valid
         assert result.units == []
         assert result.error == (
-            f"'{'1' * MAX_UNIT_LENGTH}…' is not a whole number or fraction "
-            "such as 1/2."
+            f"'{'1' * MAX_UNIT_LENGTH}…' is longer than {MAX_UNIT_LENGTH} characters."
         )
 
     @pytest.mark.skipif(
@@ -72,8 +72,7 @@ class TestParseUnits:
         assert not result.is_valid
         assert result.units == []
         assert result.error == (
-            f"'{'1' * MAX_UNIT_LENGTH}…' is not a whole number or fraction "
-            "such as 1/2."
+            f"'{'1' * MAX_UNIT_LENGTH}…' is longer than {MAX_UNIT_LENGTH} characters."
         )
 
     def test_format(self):
@@ -114,6 +113,34 @@ class TestFitUnits:
     )
     def test_ambiguous(self, units, beat_count, ambiguous):
         assert is_fit_ambiguous(units, beat_count) == ambiguous
+
+
+def make_meter(**fields):
+    values = dict(
+        denominator=4,
+        units=(F(1),),
+        beat_values=(F(1), F(1)),
+        beat_unit_id=None,
+        starts_here=True,
+        is_ambiguous=False,
+        is_conflicting=False,
+        is_assumed=True,
+    )
+    return MeasureMeter(**(values | fields))
+
+
+class TestMeasureMeter:
+    def test_built_from_lists_it_holds_tuples(self):
+        from_lists = make_meter(units=[F(1)], beat_values=[F(1), F(1)])
+
+        assert from_lists.units == (F(1),)
+        assert from_lists.beat_values == (F(1), F(1))
+        assert hash(from_lists) == hash(make_meter())
+        assert from_lists == make_meter()
+
+    def test_quarter_length_reads_no_text(self):
+        with pytest.raises(TypeError):
+            make_meter().quarter_length("1/2")
 
 
 @pytest.mark.parametrize(
