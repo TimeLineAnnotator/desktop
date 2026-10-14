@@ -140,6 +140,15 @@ class TestOutcome:
         assert rules.OK == (True, "")
         assert rules.OK.others == ()
 
+    def test_an_outcome_is_true_only_when_no_rule_is_broken(self):
+        assert rules.OK
+        assert not rules.Outcome(False, "Invalid row ID.")
+
+    def test_if_reads_as_keeping_to_the_rules(self):
+        assert rules.marker(60.0, [], {"time": 1.0})
+        assert not rules.marker(60.0, [], {"time": -1.0})
+        assert not rules.hierarchy(60.0, [], {"start": 0.0, "end": 1.0, "level": 0})
+
     def test_a_broken_rule_unpacks_as_its_reason(self):
         ok, reason = rules.Outcome(False, "Invalid row ID.")
 
@@ -732,11 +741,11 @@ class TestHierarchy:
         assert outcome.others == tuple(h.id for h in crossed)
 
     def test_nesting_is_tilias_boundary_conflicts(self):
-        # Every pair of hierarchies with times from 0 to 4 and levels from 1 to 3.
+        # Every pair of hierarchies with times from 0 to 4 and levels from 1 to 8.
         spans = [
             (start, end, level)
             for start, end in itertools.combinations(range(5), 2)
-            for level in (1, 2, 3)
+            for level in range(1, 9)
         ]
         for existing, candidate in itertools.product(spans, repeat=2):
             start, end, level = candidate
