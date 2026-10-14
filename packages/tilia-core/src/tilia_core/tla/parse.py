@@ -128,7 +128,7 @@ def _refusal(
         return UnreadableFile(found.message, path=path, line=line, place=place)
     # The walk found nothing before the text stops being JSON.
     if isinstance(error, json.JSONDecodeError):
-        message = f"not valid JSON ({error.msg})"
+        message = f"not valid JSON ({_json_message(text, error)})"
         return UnreadableFile(message, path=path, line=error.lineno)
     if isinstance(error, _RepeatedKey):
         return UnreadableFile("a key appears twice in one object", path=path)
@@ -140,6 +140,22 @@ def _refusal(
         # An integer longer than Python reads (4300 digits since Python 3.10.7).
         return UnreadableFile(_TOO_LARGE, path=path)
     return UnreadableFile(str(error), path=path)
+
+
+_BYTE_ORDER_MARK = "\ufeff"
+# The end of json's messages that go on with a position, which the line gives.
+_AT = (" starting at", " at")
+
+
+def _json_message(text: str, error: json.JSONDecodeError) -> str:
+    """json's reason, in words for users where its own are for programmers."""
+    if text.startswith(_BYTE_ORDER_MARK, error.pos):
+        # A second one, or one after a space: json's message advises a codec.
+        return "a byte-order mark out of place"
+    for end in _AT:
+        if error.msg.endswith(end):
+            return error.msg[: -len(end)]
+    return error.msg
 
 
 def pointer(path: list[str]) -> str:
