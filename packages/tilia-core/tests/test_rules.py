@@ -2,6 +2,7 @@ import copy
 import importlib.util
 import itertools
 import pickle
+import sys
 
 import pytest
 import webcolors
@@ -74,6 +75,21 @@ def without_music21(monkeypatch):
         return find_spec(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib.util, "find_spec", find_spec_without_music21)
+
+
+@pytest.fixture
+def broken_music21(monkeypatch):
+    # Installed, so found, but importing it fails, as with a numpy it can't use.
+    find_spec = importlib.util.find_spec
+
+    def find_spec_with_music21(name, *args, **kwargs):
+        if name.partition(".")[0] == "music21":
+            return object()
+        return find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", find_spec_with_music21)
+    for name in ("music21", "music21.harmony", "music21.key"):
+        monkeypatch.setitem(sys.modules, name, None)
 
 
 # TiLiA's creation rules, which its importers apply: `validate_creation` of its
@@ -633,6 +649,14 @@ class TestWithoutMusic21:
 
         assert INSTALL in str(raised.value)
         assert raised.value.command == INSTALL
+
+    @pytest.mark.parametrize("kind", ["harmony", "mode"])
+    def test_a_music21_that_wont_import(self, kind, broken_music21):
+        with pytest.raises(rules.CantCheck) as raised:
+            getattr(rules, kind)(MEDIA, [], {"time": 1.0})
+
+        assert raised.value.command == INSTALL
+        assert isinstance(raised.value.__cause__, ImportError)
 
     @pytest.mark.parametrize("kind", ["harmony", "mode"])
     def test_the_other_rules_are_checked(self, kind, without_music21):
