@@ -1,9 +1,12 @@
 """The one migration from TiLiA 0.x's format to the current format.
 
 It runs in memory on every read of an old file; nothing is written. First
-TiLiA's own migrations bring the file to TiLiA 0.7.0's shape (`old`), then
-this module takes it to the current format:
+TiLiA's own migrations, and the changes TiLiA 0.7 makes to an old file when
+it opens it, bring the file to TiLiA 0.7.0's shape (`old`), then this module
+takes it to the current format:
 
+- timeline kinds, which an old file may write in any letter case, are
+  written in the format's spelling;
 - `file_path` and the stored hashes are dropped;
 - `media_path` and the media length (from `media_metadata`) become `media`,
   and the rest of `media_metadata` becomes the file's `metadata`;
@@ -44,7 +47,6 @@ from tilia_core.tla.model import (
     ReadWarning,
     UnknownKind,
     component_kind_from_file,
-    timeline_kind_from_file,
     timeline_kind_to_file,
 )
 
@@ -97,6 +99,13 @@ def migrate(
     # (TimeLineAnnotator/project-management#181), the legacy scores (#182)
     # and the comments' marks (#180) are converted here, so that the
     # document id is derived from the content they give.
+    #
+    # A file saved again by TiLiA 0.7 without an edit gets the same id, but
+    # for three changes TiLiA 0.7 makes itself, which change it (accepted in
+    # TimeLineAnnotator/project-management#312): it adds a slider timeline to
+    # a file without one, moves timelines of kinds it doesn't know after the
+    # others and renumbers them, and clears a media path it can't find when
+    # the user doesn't show it where the media is.
     document_id = derived_document_id(content)
     content = _with_new_ids(content, document_id)
     # The media's and PDF timelines' paths are made relative here, from the
@@ -244,7 +253,7 @@ class _Migration:
 
     def _timeline(self, key: str, timeline: dict[str, Any]) -> dict[str, Any]:
         place = pointer_to("/timelines", key)
-        kind = timeline_kind_from_file(timeline["kind"])
+        kind = old_migrations.timeline_kind(timeline["kind"])
         if isinstance(kind, UnknownKind):
             # Kept as it is, without TiLiA's stored hashes.
             return {k: v for k, v in timeline.items() if k not in _STORED_HASHES}
@@ -258,8 +267,9 @@ class _Migration:
             for name, value in timeline.items()
             if name not in _STORED_HASHES and name != "components"
         }
-        # In the format's spelling, which TiLiA 0.7 writes: TiLiA's own
-        # migration spells an old "AUDIOWAVE_TIMELINE" "Audiowave".
+        # In the format's spelling, which the current format reads exactly:
+        # an old file may have any letter case, and TiLiA's own migration
+        # spells an old "AUDIOWAVE_TIMELINE" "Audiowave".
         converted["kind"] = timeline_kind_to_file(kind)
         if isinstance(converted.get("rows"), list):
             converted["rows"] = [
@@ -329,7 +339,7 @@ def _with_new_ids(content: dict[str, Any], document_id: str) -> dict[str, Any]:
     timelines: dict[str, Any] = {}
     for position, (old_id, timeline) in enumerate(content["timelines"].items()):
         new_id = migrated_id(document_id, "timeline", old_id, position=position)
-        kind = timeline_kind_from_file(timeline["kind"])
+        kind = old_migrations.timeline_kind(timeline["kind"])
         if not isinstance(kind, UnknownKind):
             components = timeline["components"]
             new_ids = {
