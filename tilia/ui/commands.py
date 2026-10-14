@@ -113,6 +113,15 @@ def get_qaction(name):
         raise ValueError(f"Unknown command: {name}") from e
 
 
+def get_shortcuts() -> dict[str, list[str]]:
+    """
+    Returns every registered shortcut, as PortableText ("Ctrl+Shift+S"), with the
+    commands bound to it. A shared shortcut (see setup_shortcuts) lists all its
+    commands; its QActions no longer hold it once setup_shortcuts has run.
+    """
+    return {key: list(names) for key, names in _shortcut_to_commands.items() if names}
+
+
 def execute(command_name: str, *args, **kwargs):
     """
     Executes commands previously registered with commands.register(name) by calling the registered callback.
