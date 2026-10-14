@@ -758,6 +758,19 @@ def test_the_writer_writes_what_the_reader_reads():
     assert writer.checked_bytes(doc) == tla.canonical_bytes(doc) == base_bytes()
 
 
+def test_the_writer_takes_values_of_a_kind_of_jsons_types():
+    # As json.dumps writes them: a str subclass as text, an int's as a number.
+    class Label(str):
+        pass
+
+    class Level(int):
+        pass
+
+    doc = base_document()
+    _section(doc).attrs.update(label=Label("A"), level=Level(1))
+    assert writer.checked_bytes(doc) == base_bytes()
+
+
 def test_canonical_bytes_doesnt_check(broken_document):
     # It is what a file would hold: write checks before writing it.
     doc, _ = broken_document
