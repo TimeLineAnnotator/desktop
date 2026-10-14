@@ -26,7 +26,7 @@ from __future__ import annotations
 import importlib.util
 import math
 import string
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
@@ -103,9 +103,10 @@ _COLOR_NAMES = frozenset(
 class Outcome(tuple[bool, str]):
     """What checking the rules gives: `(True, "")`, or `(False, reason)`.
 
-    `others` are the ids of the other components a broken rule is about: those
-    at the same time or place, the hierarchies it crosses, the ranges it should
-    join.
+    It is true when no rule is broken, so `if rules.marker(...):` reads as "the
+    marker keeps to the rules"; it also unpacks as `ok, reason`. `others` are
+    the ids of the other components a broken rule is about: those at the same
+    time or place, the hierarchies it crosses, the ranges it should join.
     """
 
     others: tuple[str, ...]
@@ -114,6 +115,9 @@ class Outcome(tuple[bool, str]):
         outcome = super().__new__(cls, (ok, reason))
         outcome.others = tuple(others)
         return outcome
+
+    def __bool__(self) -> bool:
+        return self[0]
 
     @property
     def ok(self) -> bool:
@@ -140,22 +144,38 @@ class CantCheck(Exception):
         self.kind = kind
 
 
-# The private functions give the first rule they find broken, or None, so that
-# `or` checks them in order.
+# The private functions give the first rule they find broken, or None. `_first`
+# checks them in order, each only once the ones before it are kept: an outcome's
+# truth is whether it is kept, so `or` can't chain them.
+
+Check = Callable[[], "Outcome | None"]
+
+
+def _first_broken(*checks: Check) -> Outcome | None:
+    for check in checks:
+        broken = check()
+        if broken is not None:
+            return broken
+    return None
+
+
+def _first(*checks: Check) -> Outcome:
+    broken = _first_broken(*checks)
+    return OK if broken is None else broken
 
 
 def marker(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A marker."""
-    return _point("marker", media_length, others, attrs) or OK
+    return _first(lambda: _point("marker", media_length, others, attrs))
 
 
 def beat(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A beat. Its measure mark and beat unit follow the measure table's rules."""
-    return _point("beat", media_length, others, attrs) or OK
+    return _first(lambda: _point("beat", media_length, others, attrs))
 
 
 def pdf_marker(
@@ -166,10 +186,9 @@ def pdf_marker(
     page_count: int,
 ) -> Outcome:
     """A PDF marker, in a PDF of `page_count` pages: 0 for a PDF that can't be read."""
-    return (
-        _point("pdf_marker", media_length, others, attrs)
-        or _page(attrs.get("page_number"), page_count)
-        or OK
+    return _first(
+        lambda: _point("pdf_marker", media_length, others, attrs),
+        lambda: _page(attrs.get("page_number"), page_count),
     )
 
 
@@ -178,15 +197,15 @@ def harmony(
 ) -> Outcome:
     """A harmony. Without music21, raises `CantCheck` when no other rule is broken."""
     music21 = _music21()
-    broken = (
-        _point("harmony", media_length, others, attrs)
-        or _one_of(attrs, "step", _STEPS)
-        or _one_of(attrs, "applied_to", _STEPS)
-        or _one_of(attrs, "accidental", HARMONY_ACCIDENTALS)
-        or (_quality_and_inversion(music21, attrs) if music21 else None)
-        or _one_of(attrs, "level", _LEVELS)
-        or _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES)
-        or _one_of(attrs, "custom_text_font_type", FONT_TYPES)
+    broken = _first_broken(
+        lambda: _point("harmony", media_length, others, attrs),
+        lambda: _one_of(attrs, "step", _STEPS),
+        lambda: _one_of(attrs, "applied_to", _STEPS),
+        lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
+        lambda: _quality_and_inversion(music21, attrs) if music21 else None,
+        lambda: _one_of(attrs, "level", _LEVELS),
+        lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
+        lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
     )
     return _checked("harmony", broken, music21)
 
@@ -196,12 +215,12 @@ def mode(
 ) -> Outcome:
     """A key. Without music21, raises `CantCheck` when no other rule is broken."""
     music21 = _music21()
-    broken = (
-        _point("mode", media_length, others, attrs)
-        or _one_of(attrs, "step", _STEPS)
-        or _one_of(attrs, "accidental", HARMONY_ACCIDENTALS)
-        or (_mode_type(music21, attrs) if music21 else None)
-        or _one_of(attrs, "level", _LEVELS)
+    broken = _first_broken(
+        lambda: _point("mode", media_length, others, attrs),
+        lambda: _one_of(attrs, "step", _STEPS),
+        lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
+        lambda: _mode_type(music21, attrs) if music21 else None,
+        lambda: _one_of(attrs, "level", _LEVELS),
     )
     return _checked("mode", broken, music21)
 
@@ -212,18 +231,17 @@ def hierarchy(
     """A hierarchy. Hierarchies nest: one that overlaps another lies inside it,
     at a lower level."""
     broken = _every_kind(attrs, _SEGMENT_TIMES)
-    if broken:
+    if broken is not None:
         return broken
     start, end, level = attrs["start"], attrs["end"], attrs.get("level")
     hierarchies = [other for other in others if other.kind == "hierarchy"]
-    return (
-        _hierarchy_times(start, end, media_length)
-        or _hierarchy_level(level)
-        or _pre_start(attrs.get("pre_start"), start)
-        or _post_end(attrs.get("post_end"), end, media_length)
-        or _same_place(start, end, level, hierarchies)
-        or _crossed(start, end, level, hierarchies)
-        or OK
+    return _first(
+        lambda: _hierarchy_times(start, end, media_length),
+        lambda: _hierarchy_level(level),
+        lambda: _pre_start(attrs.get("pre_start"), start),
+        lambda: _post_end(attrs.get("post_end"), end, media_length),
+        lambda: _same_place(start, end, level, hierarchies),
+        lambda: _crossed(start, end, level, hierarchies),
     )
 
 
@@ -239,16 +257,15 @@ def range_(
     Ranges in a row may overlap.
     """
     broken = _every_kind(attrs, _SEGMENT_TIMES)
-    if broken:
+    if broken is not None:
         return broken
     start, end = attrs["start"], attrs["end"]
     row_ids = [row.get("id") for row in rows]
-    return (
-        _range_place(attrs.get("row_id"), row_ids, start, end, media_length)
-        or _pre_start(attrs.get("pre_start"), start)
-        or _post_end(attrs.get("post_end"), end, media_length)
-        or _joined(attrs, others, rows)
-        or OK
+    return _first(
+        lambda: _range_place(attrs.get("row_id"), row_ids, start, end, media_length),
+        lambda: _pre_start(attrs.get("pre_start"), start),
+        lambda: _post_end(attrs.get("post_end"), end, media_length),
+        lambda: _joined(attrs, others, rows),
     )
 
 
@@ -302,7 +319,7 @@ def _point(
 ) -> Outcome | None:
     """The rules for every kind, the time's bounds, and no other at the same time."""
     broken = _every_kind(attrs, ("time",))
-    if broken:
+    if broken is not None:
         return broken
     time = attrs["time"]
     if time < 0:
@@ -375,7 +392,7 @@ def _music21() -> ModuleType | None:
 
 
 def _checked(kind: str, broken: Outcome | None, music21: ModuleType | None) -> Outcome:
-    if broken:
+    if broken is not None:
         return broken
     if music21 is None:
         raise CantCheck(kind)
