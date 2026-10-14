@@ -239,9 +239,50 @@ jobs:
             build/*/velopack/RELEASES-*
           retention-days: 1
 
+  shortcuts-sheet:
+    # Made from the released code and attached to the release under fixed
+    # names, so that releases/latest/download/shortcuts.svg (.png, .md) shows
+    # the latest. Like the builds, a failure here doesn't hold back the
+    # release: "Check output" reports the missing files once it is up.
+    name: Make the keyboard shortcuts sheet
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.11
+          cache: "pip"
+
+      - name: Setup additional Linux dependencies
+        run: |
+          chmod +x ./scripts/linux-setup.sh
+          ./scripts/linux-setup.sh
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Make the sheet
+        run: python -m tilia.ui.shortcuts_sheet --out build/shortcuts
+
+      - name: Upload the sheet
+        uses: actions/upload-artifact@v7
+        with:
+          name: shortcuts-sheet
+          path: build/shortcuts/
+          retention-days: 1
+
   deploy:
     name: Create release
-    needs: build
+    needs: [build, shortcuts-sheet]
     runs-on: "ubuntu-latest"
     permissions:
       contents: write
@@ -288,31 +329,13 @@ jobs:
             timeout 10 "$BINARY" --user-interface=cli || true
           fi
 
-      # The keyboard shortcuts sheet is made from the released code and
-      # attached under fixed names, so that
-      # releases/latest/download/shortcuts.svg (.png, .md) shows the latest.
-      # A failure here doesn't hold back the release: "Check output" reports
-      # the missing files once the release is up. These steps come after the
-      # clean-environment test, as linux-setup.sh installs libraries.
-      - name: Check out the code for the shortcuts sheet
-        uses: actions/checkout@v6
-        with:
-          path: source
-
-      - name: Set up Python 3.11 for the shortcuts sheet
-        uses: actions/setup-python@v6
-        with:
-          python-version: 3.11
-
-      - name: Make the keyboard shortcuts sheet
+      - name: Download the keyboard shortcuts sheet
+        # Missing if its job failed; "Check output" then reports it.
         continue-on-error: true
-        working-directory: source
-        run: |
-          chmod +x ./scripts/linux-setup.sh
-          ./scripts/linux-setup.sh
-          python -m pip install --upgrade pip
-          pip install -e .
-          python -m tilia.ui.shortcuts_sheet --out "$GITHUB_WORKSPACE/build/shortcuts"
+        uses: actions/download-artifact@v8
+        with:
+          name: shortcuts-sheet
+          path: build/shortcuts/
 
       - name: Upload
         uses: "softprops/action-gh-release@v3"
