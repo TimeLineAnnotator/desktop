@@ -111,7 +111,8 @@ OK = Outcome(True)
 
 
 class CantCheck(Exception):
-    """The rules that need music21 can't be checked: the `harmony` extra is missing.
+    """The rules that need music21 can't be checked: the `harmony` extra is missing,
+    or music21 won't import (the error is the exception's cause).
 
     This isn't a broken rule: the component may well keep to them.
     """
@@ -187,7 +188,7 @@ def harmony(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A harmony. Without music21, raises `CantCheck` when no other rule is broken."""
-    music21 = _music21()
+    music21, error = _music21()
     broken = _first_broken(
         lambda: _point("harmony", media_length, others, attrs),
         lambda: _one_of(attrs, "step", _STEPS),
@@ -199,14 +200,14 @@ def harmony(
         lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
         lambda: _color_of(attrs),
     )
-    return _checked("harmony", broken, music21)
+    return _checked("harmony", broken, music21, error)
 
 
 def mode(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A key. Without music21, raises `CantCheck` when no other rule is broken."""
-    music21 = _music21()
+    music21, error = _music21()
     broken = _first_broken(
         lambda: _point("mode", media_length, others, attrs),
         lambda: _one_of(attrs, "step", _STEPS),
@@ -215,7 +216,7 @@ def mode(
         lambda: _one_of(attrs, "level", _LEVELS),
         lambda: _color_of(attrs),
     )
-    return _checked("mode", broken, music21)
+    return _checked("mode", broken, music21, error)
 
 
 def hierarchy(
@@ -381,21 +382,29 @@ def _one_of(
     return _broken(not_valid(name, value))
 
 
-def _music21() -> ModuleType | None:
-    """music21, with what the rules read of it; None without the `harmony` extra."""
-    if importlib.util.find_spec("music21") is None:
-        return None
-    import music21.harmony
-    import music21.key
+def _music21() -> tuple[ModuleType | None, ImportError | None]:
+    """music21, with what the rules read of it; or None, without the `harmony`
+    extra, and with the error when music21 is installed but won't import."""
+    try:
+        if importlib.util.find_spec("music21") is None:
+            return None, None
+        import music21.harmony
+        import music21.key
+    except ImportError as error:
+        return None, error
+    return music21, None
 
-    return music21
 
-
-def _checked(kind: str, broken: Outcome | None, music21: ModuleType | None) -> Outcome:
+def _checked(
+    kind: str,
+    broken: Outcome | None,
+    music21: ModuleType | None,
+    error: ImportError | None,
+) -> Outcome:
     if broken is not None:
         return broken
     if music21 is None:
-        raise CantCheck(kind)
+        raise CantCheck(kind) from error
     return OK
 
 
