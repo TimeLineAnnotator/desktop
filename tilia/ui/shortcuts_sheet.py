@@ -4,12 +4,12 @@ A cheat sheet of TiLiA's keyboard shortcuts, made from the command registry.
     python -m tilia.ui.shortcuts_sheet --out <folder>
 
 builds the Qt interface without showing it, lists every command that has a
-shortcut, and writes shortcuts.svg, shortcuts.png and shortcuts.md to <folder>.
-The release workflow (.github/workflows/build.yml) attaches the three files to
-every release, so the sheet is never written by hand. Where there is no display,
-as on the release workflow's runner, set QT_QPA_PLATFORM=offscreen. Don't on
-Windows: Qt's offscreen platform finds no system fonts there, and the PNG comes
-out in TiLiA's music font.
+shortcut, and writes shortcuts.svg and shortcuts.md to <folder>. The release
+workflow (.github/workflows/build.yml) attaches both files to every release, so
+the sheet is never written by hand. Where there is no display, as on the
+release workflow's runner, set QT_QPA_PLATFORM=offscreen. Don't on Windows:
+Qt's offscreen platform finds no system fonts there, so text is measured with
+TiLiA's music font and the columns come out too wide.
 
 Each shortcut is listed with what it does (its command's text) and where to
 find it: its menu path, its timeline kind's toolbar, or "anywhere" when no
@@ -30,9 +30,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QFont, QFontMetricsF, QImage, QPainter
-from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtGui import QFont, QFontMetricsF
 from PySide6.QtWidgets import QApplication, QMenu, QMenuBar, QToolBar, QToolButton
 
 import tilia.constants
@@ -48,7 +46,7 @@ GLOBAL = "Global"
 ANYWHERE = "anywhere"
 ARROW = " → "
 MAC_NOTE = "On macOS, Ctrl is ⌘ (Command) and Alt is ⌥ (Option)."
-FILE_NAMES = ("shortcuts.svg", "shortcuts.png", "shortcuts.md")
+FILE_NAMES = ("shortcuts.svg", "shortcuts.md")
 
 
 @dataclass(frozen=True)
@@ -136,24 +134,21 @@ def write_sheet(
     version: str = tilia.constants.VERSION,
     date: datetime.date | None = None,
 ) -> list[Path]:
-    """Writes shortcuts.svg, shortcuts.png and shortcuts.md to folder, or nothing
-    if shortcuts clash."""
+    """Writes shortcuts.svg and shortcuts.md to folder, or nothing if shortcuts
+    clash."""
     groups = collect(qtui)
     check_clashes(groups)
     date = date or datetime.date.today()
     title = f"TiLiA {version} keyboard shortcuts"
 
     svg = to_svg(groups, title, date)
-    image = to_png(svg)
     markdown = to_markdown(groups, title, date)
 
     folder.mkdir(parents=True, exist_ok=True)
-    svg_path, png_path, md_path = (folder / name for name in FILE_NAMES)
+    svg_path, md_path = (folder / name for name in FILE_NAMES)
     svg_path.write_text(svg, encoding="utf-8")
-    if not image.save(str(png_path)):
-        raise OSError(f"Could not write {png_path}.")
     md_path.write_text(markdown, encoding="utf-8")
-    return [svg_path, png_path, md_path]
+    return [svg_path, md_path]
 
 
 def _menu_paths(menu_bar: QMenuBar) -> dict[str, str]:
@@ -241,14 +236,15 @@ def _clean(text: str) -> str:
     return text.strip().removesuffix("...").removesuffix("…").strip()
 
 
-# --- SVG and PNG ---
+# --- SVG ---
 
 WIDTH = 1000
 MARGIN = 32
 GUTTER = 28
-# TiLiA uses the platform's UI font. QtSvg, which renders the PNG, reads this
-# whole value as one family name, finds no such font and uses the platform's
-# default font instead; text is measured with the font QtSvg ends up using.
+# TiLiA uses the platform's UI font. Text is measured with the font Qt picks
+# for this value. The release workflow's Linux runner has none of these fonts
+# and falls back to its default sans-serif font, usually DejaVu Sans, which is
+# wider than all of them: text that fits there fits in a browser too.
 FONT_FAMILY = "system-ui, Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 TEXT_COLOR = "#1f1f1f"
@@ -302,23 +298,6 @@ def to_svg(groups: list[ShortcutGroup], title: str, date: datetime.date) -> str:
             y += _group_height(group) + GROUP_GAP
     parts += ["</g>", "</svg>", ""]
     return "\n".join(parts)
-
-
-def to_png(svg: str, scale: int = 2) -> QImage:
-    """Renders the sheet at `scale` times its size, so it stays sharp when shown
-    at its own width on a high-density screen."""
-    renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
-    if not renderer.isValid():
-        raise ValueError("The shortcuts sheet isn't valid SVG.")
-    size = renderer.defaultSize()
-    image = QImage(
-        size.width() * scale, size.height() * scale, QImage.Format.Format_ARGB32
-    )
-    image.fill(Qt.GlobalColor.white)
-    painter = QPainter(image)
-    renderer.render(painter)
-    painter.end()
-    return image
 
 
 def _group_svg(
@@ -461,8 +440,8 @@ def _cell(text: str) -> str:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="python -m tilia.ui.shortcuts_sheet",
-        description="Write TiLiA's keyboard shortcuts as shortcuts.svg, "
-        "shortcuts.png and shortcuts.md.",
+        description="Write TiLiA's keyboard shortcuts as shortcuts.svg and "
+        "shortcuts.md.",
     )
     parser.add_argument(
         "--out", type=Path, required=True, help="folder to write the files to"
