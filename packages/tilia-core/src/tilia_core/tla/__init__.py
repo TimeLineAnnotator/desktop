@@ -3,7 +3,7 @@
 The names here are provisional until they are documented.
 """
 
-from tilia_core.tla.errors import FileChanged, UnreadableFile
+from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.model import (
     BeatUnit,
@@ -40,6 +40,7 @@ __all__ = [
     "Component",
     "Document",
     "FileChanged",
+    "FileInUse",
     "FileResult",
     "Measure",
     "MeasureTable",
