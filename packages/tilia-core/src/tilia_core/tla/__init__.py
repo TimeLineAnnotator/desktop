@@ -3,7 +3,7 @@
 The names here are provisional until they are documented.
 """
 
-from tilia_core.tla.errors import FileChanged, UnreadableFile
+from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.model import (
     BeatUnit,
@@ -21,14 +21,26 @@ from tilia_core.tla.model import (
 )
 from tilia_core.tla.layout import FORMAT_VERSION
 from tilia_core.tla.reader import loads, read
-from tilia_core.tla.writer import canonical_bytes, new_document
+from tilia_core.tla.writer import (
+    ABSENT,
+    TEMPORARY_PATTERN,
+    canonical_bytes,
+    fingerprint,
+    fingerprint_of,
+    is_temporary,
+    new_document,
+    write,
+)
 
 __all__ = [
+    "ABSENT",
     "FORMAT_VERSION",
+    "TEMPORARY_PATTERN",
     "BeatUnit",
     "Component",
     "Document",
     "FileChanged",
+    "FileInUse",
     "FileResult",
     "Measure",
     "MeasureTable",
@@ -40,8 +52,12 @@ __all__ = [
     "UnknownKind",
     "UnreadableFile",
     "canonical_bytes",
+    "fingerprint",
+    "fingerprint_of",
+    "is_temporary",
     "loads",
     "new_document",
     "new_id",
     "read",
+    "write",
 ]
