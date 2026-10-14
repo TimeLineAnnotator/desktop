@@ -76,10 +76,12 @@ class TestSetUnit:
 class TestRemoveUnit:
     def test_remove(self, cli, beat_tl):
         cli.parse_and_run("timelines beat unit set -o 1 -m 2 -d 8 -u 3")
+        beat_count = len(beat_tl)
 
         cli.parse_and_run("timelines beat unit remove -o 1 -m 2")
 
         assert_only_the_default_beat_unit(beat_tl)
+        assert len(beat_tl) == beat_count
 
     def test_no_unit_at_measure(self, cli, beat_tl):
         cli.parse_and_run("timelines beat unit set -o 1 -m 2 -d 8 -u 3")

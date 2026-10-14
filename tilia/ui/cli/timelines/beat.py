@@ -276,7 +276,7 @@ def remove_unit(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
     if not meter.starts_here:
         io.error("No beat unit starts at that measure.")
         return
-    timeline.delete_components([timeline.get_component(meter.beat_unit_id)])
+    timeline.delete_components([timeline.get_beat_unit_on_beat(meter.beat_unit_id)])
 
 
 @with_timeline

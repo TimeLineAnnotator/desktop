@@ -154,7 +154,7 @@ class TestMeasureMeters:
         assert time_signatures(beat_tl) == [(4, 4), (3, 4)]
         assert beat_unit_values(beat_tl) == [(0, 4, "1")]
         first = first_beat_unit(beat_tl)
-        assert [m.beat_unit_id for m in beat_tl.measure_meters] == [first.id] * 2
+        assert [m.beat_unit_id for m in beat_tl.measure_meters] == [first.beat_id] * 2
         assert [m.starts_here for m in beat_tl.measure_meters] == [True, False]
 
     def test_empty_timeline(self, beat_tl):
@@ -169,7 +169,9 @@ class TestMeasureMeters:
         meters = beat_tl.measure_meters
         assert [m.starts_here for m in meters] == [True, True, False, False]
         first = first_beat_unit(beat_tl)
-        assert [m.beat_unit_id for m in meters] == [first.id] + [beat_unit.id] * 3
+        assert [m.beat_unit_id for m in meters] == [first.beat_id] + [
+            beat_unit.beat_id
+        ] * 3
 
     def test_beat_unit_on_a_later_beat_applies_from_its_measure(self, beat_tl):
         add_beats(beat_tl, 8)
@@ -224,7 +226,7 @@ class TestMeasureMeters:
 
         meter = beat_tl.get_measure_meter(1)
         assert meter.is_conflicting
-        assert meter.beat_unit_id == first.id
+        assert meter.beat_unit_id == first.beat_id
         assert meter.denominator == 8
 
     def test_beat_unit_follows_its_beat_when_barlines_move(self, beat_tl):

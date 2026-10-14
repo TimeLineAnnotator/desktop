@@ -256,8 +256,8 @@ class BeatTimelineUI(TimelineUI):
         self,
     ) -> dict[int | str | None, list[TimeSignatureLabelSpec]]:
         """
-        Labels to show, by the id of the beat unit that governs them (None
-        for the default). A label is shown where the time signature changes,
+        Labels to show, by the id of the beat that carries the beat unit
+        governing them (None where no unit set on a beat does). A label is shown where the time signature changes,
         where a beat unit starts, and where a measure needs attention.
         """
         specs = defaultdict(list)
@@ -296,7 +296,7 @@ class BeatTimelineUI(TimelineUI):
     def update_time_signatures(self) -> None:
         specs = self.get_time_signature_label_specs()
         for beat_unit_ui in self.beat_unit_uis:
-            beat_unit_ui.set_labels(specs.get(beat_unit_ui.id, []))
+            beat_unit_ui.set_labels(specs.get(beat_unit_ui.get_data("beat_id"), []))
 
         for label in self._default_time_signature_labels:
             self.scene.removeItem(label.body)
