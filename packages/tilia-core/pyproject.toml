@@ -16,6 +16,7 @@ authors = [
     {name = "Felipe Defensor"},
     {name = "Anne Foo"}
 ]
+dependencies = ["platformdirs>=4.0.0", "tomlkit>=0.13.0"]
 
 [project.scripts]
 tilia = "tilia_core.commands:main"
