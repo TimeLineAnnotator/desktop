@@ -28,11 +28,33 @@ def test_strips_one_byte_order_mark():
     assert parse(BOM + MINIMAL) == {"timelines": {}}
 
 
-def test_refuses_a_second_byte_order_mark():
-    # Only one is skipped: a second is text before the JSON.
-    error = refusal(BOM + BOM + MINIMAL)
-    assert error.message.startswith("not valid JSON")
-    assert error.line == 1
+@pytest.mark.parametrize(
+    "data, line",
+    [
+        (BOM + BOM + MINIMAL, 1),  # only one is skipped
+        (BOM + b" " + BOM + MINIMAL, 1),
+        (b'{\n  "timelines": {},' + BOM + b'\n  "a": 1\n}', 2),
+    ],
+)
+def test_refuses_a_byte_order_mark_out_of_place(data, line):
+    # In words for users: json's own message advises a Python codec.
+    error = refusal(data)
+    assert error.message == "not valid JSON (a byte-order mark out of place)"
+    assert error.line == line
+
+
+@pytest.mark.parametrize(
+    "data, message",
+    [
+        (b'{\n  "timelines": {},\n  "a": "b', "Unterminated string"),
+        (b'{\n  "timelines": {},\n  "a": "b\n"}', "Invalid control character"),
+    ],
+)
+def test_jsons_messages_dont_end_at_a_position_they_leave_out(data, message):
+    # json's own continue with a position, which the line gives.
+    error = refusal(data)
+    assert error.message == f"not valid JSON ({message})"
+    assert error.line == 3
 
 
 def test_reads_crlf_like_lf():
