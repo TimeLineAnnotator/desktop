@@ -29,7 +29,9 @@ Homepage = "https://tilia-app.com"
 Repository = "https://github.com/TimeLineAnnotator/desktop"
 
 [dependency-groups]
-dev = ["pytest>=8.0.0"]
+# jsonschema checks files against the format's schema in the tests only: it
+# pulls in a compiled package, which the core itself never imports.
+dev = ["pytest>=8.0.0", "jsonschema>=4.23"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
