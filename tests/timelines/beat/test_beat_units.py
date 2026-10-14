@@ -6,6 +6,7 @@ import pytest
 from tilia.timelines.beat.units import (
     MAX_DENOMINATOR,
     MAX_UNIT_LENGTH,
+    MeasureMeter,
     fit_units,
     format_units,
     is_fit_ambiguous,
@@ -112,6 +113,30 @@ class TestFitUnits:
     )
     def test_ambiguous(self, units, beat_count, ambiguous):
         assert is_fit_ambiguous(units, beat_count) == ambiguous
+
+
+def make_meter(**fields):
+    values = dict(
+        denominator=4,
+        units=(F(1),),
+        beat_values=(F(1), F(1)),
+        beat_unit_id=None,
+        starts_here=True,
+        is_ambiguous=False,
+        is_conflicting=False,
+        is_assumed=True,
+    )
+    return MeasureMeter(**(values | fields))
+
+
+class TestMeasureMeter:
+    def test_built_from_lists_it_holds_tuples(self):
+        from_lists = make_meter(units=[F(1)], beat_values=[F(1), F(1)])
+
+        assert from_lists.units == (F(1),)
+        assert from_lists.beat_values == (F(1), F(1))
+        assert hash(from_lists) == hash(make_meter())
+        assert from_lists == make_meter()
 
 
 def add_beats(beat_tl, count, start=0):
