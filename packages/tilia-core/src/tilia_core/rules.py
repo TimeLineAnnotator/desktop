@@ -30,6 +30,8 @@ from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
+import webcolors
+
 if TYPE_CHECKING:
     from tilia_core import tla
 
@@ -65,39 +67,11 @@ _ROW_ID_LENGTH = 6
 _ROW_ID_CHARACTERS = frozenset(string.ascii_letters + string.digits)
 
 # The colors Qt reads: #RGB, #RRGGBB, #AARRGGBB, #RRRGGGBBB and #RRRRGGGGBBBB,
-# and the SVG color names with "transparent" (`QColor.colorNames()`).
+# and the names in `QColor.colorNames()`, which are CSS 3's (SVG 1.0's) and
+# "transparent". CSS 3's come from webcolors, so the core keeps no copy of them.
 _HEX_LENGTHS = (3, 6, 8, 9, 12)
 _HEX_DIGITS = frozenset(string.hexdigits)
-_COLOR_NAMES = frozenset(
-    {
-        "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque",
-        "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood",
-        "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk",
-        "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod", "darkgray",
-        "darkgreen", "darkgrey", "darkkhaki", "darkmagenta", "darkolivegreen",
-        "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen",
-        "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise",
-        "darkviolet", "deeppink", "deepskyblue", "dimgray", "dimgrey", "dodgerblue",
-        "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite",
-        "gold", "goldenrod", "gray", "green", "greenyellow", "grey", "honeydew",
-        "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender", "lavenderblush",
-        "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan",
-        "lightgoldenrodyellow", "lightgray", "lightgreen", "lightgrey", "lightpink",
-        "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray",
-        "lightslategrey", "lightsteelblue", "lightyellow", "lime", "limegreen", "linen",
-        "magenta", "maroon", "mediumaquamarine", "mediumblue", "mediumorchid",
-        "mediumpurple", "mediumseagreen", "mediumslateblue", "mediumspringgreen",
-        "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream", "mistyrose",
-        "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange",
-        "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise",
-        "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum",
-        "powderblue", "purple", "red", "rosybrown", "royalblue", "saddlebrown",
-        "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver", "skyblue",
-        "slateblue", "slategray", "slategrey", "snow", "springgreen", "steelblue",
-        "tan", "teal", "thistle", "tomato", "transparent", "turquoise", "violet",
-        "wheat", "white", "whitesmoke", "yellow", "yellowgreen",
-    }
-)  # fmt: skip
+_COLOR_NAMES = frozenset(webcolors.names("css3")) | {"transparent"}
 
 
 class Outcome(tuple[bool, str]):
