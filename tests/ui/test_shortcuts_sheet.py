@@ -9,7 +9,6 @@ import sys
 import xml.etree.ElementTree as ElementTree
 
 import pytest
-from PySide6.QtGui import QImage
 
 from tests.utils import get_main_window_menu, get_submenu
 from tilia.ui import commands, shortcuts_sheet
@@ -172,13 +171,6 @@ class TestWrite:
         assert "Ctrl+S" in texts
         assert "File → Save" in texts
 
-    def test_writes_png(self, qtui, tmp_path):
-        shortcuts_sheet.write_sheet(qtui, tmp_path, "1.2.3", self.DATE)
-
-        image = QImage(str(tmp_path / "shortcuts.png"))
-        assert not image.isNull()
-        assert image.width() > 1000
-
     def test_writes_markdown(self, qtui, tmp_path):
         shortcuts_sheet.write_sheet(qtui, tmp_path, "1.2.3", self.DATE)
 
@@ -199,12 +191,12 @@ class TestWrite:
 
 
 @pytest.mark.timeout(120)
-def test_command_line_writes_the_three_files(tmp_path):
+def test_command_line_writes_both_files(tmp_path):
     subprocess.run(
         [sys.executable, "-m", "tilia.ui.shortcuts_sheet", "--out", str(tmp_path)],
         check=True,
         timeout=110,
     )
 
-    for name in ["shortcuts.svg", "shortcuts.png", "shortcuts.md"]:
+    for name in ["shortcuts.svg", "shortcuts.md"]:
         assert (tmp_path / name).stat().st_size > 0
