@@ -63,8 +63,9 @@ _TEXTS = ("label", "comments", "custom_text")
 _SEGMENT_TIMES = ("start", "end", "pre_start", "post_end")
 _UNSET_TIMES = ("pre_start", "post_end")  # None: they follow the start and the end
 
-_ROW_ID_LENGTH = 6
-_ROW_ID_CHARACTERS = frozenset(string.ascii_letters + string.digits)
+# A range row's id, as TiLiA's `generate_row_id` makes it.
+ROW_ID_LENGTH = 6
+ROW_ID_CHARACTERS = string.ascii_letters + string.digits
 
 # The colors Qt reads: #RGB, #RRGGBB, #AARRGGBB, #RRRGGGBBB and #RRRRGGGGBBBB,
 # and the names in `QColor.colorNames()`, which are CSS 3's (SVG 1.0's) and
@@ -93,6 +94,10 @@ class Outcome(tuple[bool, str]):
     def __bool__(self) -> bool:
         return self[0]
 
+    def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...]]:  # type: ignore[override]
+        # What copy and pickle give __new__: a tuple's would be the pair alone.
+        return self[0], self[1], self.others
+
     @property
     def ok(self) -> bool:
         return self[0]
@@ -117,10 +122,15 @@ class CantCheck(Exception):
         super().__init__(f"checking a {kind} needs: {INSTALL_HARMONY}")
         self.kind = kind
 
+    def __reduce__(self) -> tuple[type[CantCheck], tuple[str]]:
+        return type(self), (self.kind,)
+
 
 # The private functions give the first rule they find broken, or None. `_first`
 # checks them in order, each only once the ones before it are kept: an outcome's
-# truth is whether it is kept, so `or` can't chain them.
+# truth is whether it is kept, so `or` can't chain them. A color is checked last:
+# an importer keeps a row whose color isn't one, with the default color, so a bad
+# color mustn't hide another broken rule.
 
 Check = Callable[[], "Outcome | None"]
 
@@ -142,14 +152,20 @@ def marker(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A marker."""
-    return _first(lambda: _point("marker", media_length, others, attrs))
+    return _first(
+        lambda: _point("marker", media_length, others, attrs),
+        lambda: _color_of(attrs),
+    )
 
 
 def beat(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A beat. Its measure mark and beat unit follow the measure table's rules."""
-    return _first(lambda: _point("beat", media_length, others, attrs))
+    return _first(
+        lambda: _point("beat", media_length, others, attrs),
+        lambda: _color_of(attrs),
+    )
 
 
 def pdf_marker(
@@ -163,6 +179,7 @@ def pdf_marker(
     return _first(
         lambda: _point("pdf_marker", media_length, others, attrs),
         lambda: _page(attrs.get("page_number"), page_count),
+        lambda: _color_of(attrs),
     )
 
 
@@ -180,6 +197,7 @@ def harmony(
         lambda: _one_of(attrs, "level", _LEVELS),
         lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
         lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
+        lambda: _color_of(attrs),
     )
     return _checked("harmony", broken, music21)
 
@@ -195,6 +213,7 @@ def mode(
         lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
         lambda: _mode_type(music21, attrs) if music21 else None,
         lambda: _one_of(attrs, "level", _LEVELS),
+        lambda: _color_of(attrs),
     )
     return _checked("mode", broken, music21)
 
@@ -216,6 +235,7 @@ def hierarchy(
         lambda: _post_end(attrs.get("post_end"), end, media_length),
         lambda: _same_place(start, end, level, hierarchies),
         lambda: _crossed(start, end, level, hierarchies),
+        lambda: _color_of(attrs),
     )
 
 
@@ -240,6 +260,7 @@ def range_(
         lambda: _pre_start(attrs.get("pre_start"), start),
         lambda: _post_end(attrs.get("post_end"), end, media_length),
         lambda: _joined(attrs, others, rows),
+        lambda: _color_of(attrs),
     )
 
 
@@ -257,9 +278,10 @@ def range_rows(rows: Sequence[Mapping[str, Any]]) -> Outcome:
         name = row.get("name")
         if not isinstance(name, str):
             return _broken(not_valid("row_name", name))
-        outcome = color(row.get("color"))
-        if not outcome.ok:
-            return outcome
+    for row in rows:
+        broken = _color_of(row)
+        if broken is not None:
+            return broken
     return OK
 
 
@@ -318,7 +340,7 @@ def _point(
 
 
 def _every_kind(attrs: Mapping[str, Any], times: Iterable[str]) -> Outcome | None:
-    """Times are finite numbers, texts are text, and a color is one."""
+    """Times are finite numbers and texts are text. The color is checked last."""
     for name in times:
         value = attrs.get(name)
         if value is None and name in _UNSET_TIMES:
@@ -328,9 +350,13 @@ def _every_kind(attrs: Mapping[str, Any], times: Iterable[str]) -> Outcome | Non
     for name in _TEXTS:
         if name in attrs and not isinstance(attrs[name], str):
             return _broken(not_valid(name, attrs[name]))
+    return None
+
+
+def _color_of(attrs: Mapping[str, Any]) -> Outcome | None:
     if "color" in attrs:
         outcome = color(attrs["color"])
-        if not outcome.ok:
+        if not outcome:
             return outcome
     return None
 
@@ -489,7 +515,7 @@ def _cross(start: float, end: float, level: int, other: Mapping[str, Any]) -> bo
     other_start, other_end = other.get("start"), other.get("end")
     other_level = other.get("level")
     if not (
-        _is_number(other_start) and _is_number(other_end) and _is_integer(other_level)
+        _is_number(other_start) and _is_number(other_end) and _is_number(other_level)
     ):
         return False
     if not (start < other_end and other_start < end):
@@ -579,20 +605,26 @@ def _qt_reads(text: str) -> bool:
 
 def _media_time(seconds: float) -> str:
     """A time as TiLiA's `format_media_time` shows it ("01:05.0", "1:02:05.0"),
-    with a minus sign before a negative one ("-00:01.0")."""
+    with a minus sign before a negative one ("-00:01.0"). It is rounded to tenths
+    before its minutes are counted, so 59.96 is "01:00.0", not "00:60.0"."""
     if seconds < 0:
         return "-" + _media_time(-seconds)
+    seconds = float(f"{seconds:.1f}")
     seconds_and_fraction = f"{seconds % 60:.1f}".zfill(4)
-    minutes = int(float(seconds) // 60)
+    minutes = int(seconds // 60)
     hours = f"{minutes // 60}:" if minutes >= 60 else ""
     return f"{hours}{str(minutes % 60).zfill(2)}:{seconds_and_fraction}"
 
 
 def _is_number(value: Any) -> bool:
-    """A finite number, as JSON stores one: not a bool, nan or an infinity."""
-    if isinstance(value, bool):
+    """A finite number, as JSON stores one: not a bool, nan, an infinity, or an
+    integer too large for a float."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return isinstance(value, int) or (isinstance(value, float) and math.isfinite(value))
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _is_integer(value: Any) -> bool:
@@ -602,8 +634,8 @@ def _is_integer(value: Any) -> bool:
 def _is_row_id(value: Any) -> bool:
     return (
         isinstance(value, str)
-        and len(value) == _ROW_ID_LENGTH
-        and all(c in _ROW_ID_CHARACTERS for c in value)
+        and len(value) == ROW_ID_LENGTH
+        and all(c in ROW_ID_CHARACTERS for c in value)
     )
 
 

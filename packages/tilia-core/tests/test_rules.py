@@ -1,10 +1,13 @@
+import copy
 import importlib.util
 import itertools
+import pickle
 
 import pytest
 import webcolors
 
 from tilia_core import rules, tla
+from tilia_core.importers import _commit
 
 OK = (True, "")
 MEDIA = 60.0
@@ -77,8 +80,9 @@ def without_music21(monkeypatch):
 # TiLiA's creation rules, which its importers apply: `validate_creation` of its
 # point-like and segment-like components, and the range timeline's
 # `_validate_component_creation`. They say whether TiLiA creates a component,
-# for the tests that show a rule the core adds; what they don't take, they
-# don't check.
+# for the tests that show a rule the core adds. They take only what TiLiA's
+# creation rules look at: not a colour, a text or a harmony's values, which only
+# `set_data` checks, so TiLiA's importers store any of them.
 
 
 def tilia_creates_point(time, existing_times=(), media_length=MEDIA, **_):
@@ -155,6 +159,27 @@ class TestOutcome:
 
         assert (ok, reason) == (False, "Invalid row ID.")
 
+    @pytest.mark.parametrize(
+        "duplicate", [copy.copy, copy.deepcopy, lambda o: pickle.loads(pickle.dumps(o))]
+    )
+    def test_an_outcome_copies_and_pickles_whole(self, duplicate):
+        outcome = rules.Outcome(False, "Invalid row ID.", ["a"])
+
+        copied = duplicate(outcome)
+
+        assert copied == (False, "Invalid row ID.")
+        assert copied.others == ("a",)
+        assert not copied
+        assert duplicate(rules.OK)
+
+    def test_cant_check_pickles_whole(self):
+        error = rules.CantCheck("harmony")
+
+        copied = pickle.loads(pickle.dumps(error))
+
+        assert str(copied) == str(error)
+        assert copied.kind == "harmony"
+
     def test_a_broken_rule_names_the_other_components(self):
         outcome = rules.Outcome(False, "Component would overlap", ["a", "b"])
 
@@ -200,6 +225,12 @@ class TestEveryKind:
             False,
             f"{value} is not a valid time.",
         )
+
+    def test_an_integer_too_large_for_a_float(self):
+        huge = 10**400
+
+        assert check("marker", time=huge) == (False, f"{huge} is not a valid time.")
+        assert check("hierarchy", end=huge) == (False, f"{huge} is not a valid end.")
 
     def test_a_missing_time(self):
         assert rules.marker(MEDIA, [], {}) == (False, "None is not a valid time.")
@@ -287,10 +318,33 @@ class TestColor:
             "notacolor is not a valid color.",
         )
 
-    def test_tilia_creates_a_component_with_any_color(self):
-        assert tilia_creates_point(1.0, color="notacolor")
-        assert tilia_creates_hierarchy(1.0, 2.0, 1, color="notacolor")
-        assert tilia_creates_range(1.0, 2.0, ROW, color="notacolor")
+    @pytest.mark.parametrize(
+        "kind, attrs, reason",
+        [
+            (
+                "marker",
+                {"time": 61.0},
+                "Time '01:01.0' is bigger than media time '01:00.0'",
+            ),
+            ("hierarchy", {"level": 0}, "Level can't be below 1. Got '0'"),
+            ("range", {"row_id": "Zz99Zz"}, "Invalid row ID."),
+            ("marker", {"label": 3}, "3 is not a valid label."),
+        ],
+    )
+    def test_a_bad_color_doesnt_hide_another_broken_rule(self, kind, attrs, reason):
+        # An importer keeps a row whose color isn't one, so the color is checked last.
+        assert check(kind, color="notacolor", **attrs) == (False, reason)
+
+    def test_a_bad_row_color_doesnt_hide_another_broken_row(self):
+        rows = [
+            {"id": ROW, "name": "Strings", "color": "notacolor"},
+            {"id": ROW, "name": "Winds"},
+        ]
+
+        assert rules.range_rows(rows) == (
+            False,
+            f"There is already a row with the id {ROW}.",
+        )
 
     def test_colors_are_those_qt_reads(self):
         qt = pytest.importorskip("PySide6.QtGui", reason="compares with Qt")
@@ -363,6 +417,18 @@ class TestPointKinds:
         assert check("marker", time=time, media_length=7200.0) == (
             False,
             f"Time can't be negative. Got '{shown}'",
+        )
+
+    @pytest.mark.parametrize(
+        "media_length, shown",
+        [(59.96, "01:00.0"), (3599.96, "1:00:00.0"), (59.94, "00:59.9")],
+    )
+    def test_a_time_is_rounded_before_its_minutes_are_counted(
+        self, media_length, shown
+    ):
+        assert check("marker", time=7200.0, media_length=media_length) == (
+            False,
+            f"Time '2:00:00.0' is bigger than media time '{shown}'",
         )
 
     @pytest.mark.parametrize("kind", POINT_KINDS)
@@ -485,7 +551,6 @@ class TestHarmony:
     )
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("harmony", **{attribute: value}) == (False, reason)
-        assert tilia_creates_point(1.0, **{attribute: value})
 
     def test_every_quality_music21_has(self, music21):
         for quality in music21.harmony.CHORD_TYPES:
@@ -554,7 +619,6 @@ class TestMode:
     )
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("mode", **{attribute: value}) == (False, reason)
-        assert tilia_creates_point(1.0, **{attribute: value})
 
     def test_types_are_read_from_the_installed_music21(self, music21, monkeypatch):
         monkeypatch.setitem(music21.key.modeSharpsAlter, "made-up", 0)
@@ -747,6 +811,13 @@ class TestHierarchy:
 
         assert outcome.others == tuple(h.id for h in crossed)
 
+    def test_crossing_one_whose_level_is_written_as_a_float(self):
+        other = hierarchy(0, 10, 1.0)
+
+        outcome = check("hierarchy", [other], start=5, end=15, level=1)
+
+        assert outcome == (False, "Component would overlap with existing component.")
+
     def test_nesting_is_tilias_boundary_conflicts(self):
         # Every pair of hierarchies with times from 0 to 4 and levels from 1 to 8.
         spans = [
@@ -923,6 +994,12 @@ class TestRows:
             False,
             f"{row_id} is not a valid row id.",
         )
+
+    def test_the_ids_imports_make(self):
+        rows = [_commit.blank_row() for _ in range(50)]
+        rows = [{**row, "id": _commit.new_row_id(())} for row in rows[:25]] + rows[25:]
+
+        assert all(rules.range_rows([row]) for row in rows)
 
     def test_an_id_two_rows_have(self):
         rows = [{"id": ROW, "name": "Strings"}, {"id": ROW, "name": "Winds"}]
