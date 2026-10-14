@@ -40,7 +40,7 @@ class TimeMapFound:
     timeline_id: str | None  # the chosen beat timeline, even when it gives no time map
     guessed: bool  # no timeline had the role time_map: the first beat timeline was taken
     reason: str | None  # why the chosen timeline gives no time map
-    warnings: list[str]  # several claim the role; the last beat past the media
+    warnings: tuple[str, ...]  # several claim the role; the last beat past the media
 
 
 def find_time_map(
@@ -66,7 +66,7 @@ def find_time_map(
     )
     if not beat_timelines:
         return TimeMapFound(
-            time_map=None, timeline_id=None, guessed=False, reason=None, warnings=[]
+            time_map=None, timeline_id=None, guessed=False, reason=None, warnings=()
         )
     claiming = [t for t in beat_timelines if _role(t, roles) == TIME_MAP_ROLE]
     warnings = [TWO_CLAIM] if len(claiming) > 1 else []
@@ -83,7 +83,7 @@ def find_time_map(
         timeline_id=timeline.id,
         guessed=guessed,
         reason=reason,
-        warnings=warnings,
+        warnings=tuple(warnings),
     )
 
 
@@ -102,8 +102,8 @@ def time_map_of(
 
 def time_map_for(document: tla.Document, timeline_id: str) -> TimeMap | None:
     """The time map of the beat timeline `timeline_id`; None when it has none."""
-    timeline = document.timelines.get(timeline_id)
-    if timeline is None or timeline.kind != "beat":
+    timeline = _beat_timeline(document, timeline_id)
+    if timeline is None:
         return None
     time_map, _ = build_time_map(document, timeline)
     return time_map
@@ -113,10 +113,15 @@ def measure_rows(document: tla.Document, timeline_id: str) -> list[MeasureRow]:
     """The measure table of the beat timeline `timeline_id`, in its order.
 
     Also for a folded table, which has no time map. No rows while a beat has no
-    usable time or the table is broken, and none for a timeline that isn't a
-    beat timeline.
+    usable time or a row's beats don't start at its downbeat (`build_rows`),
+    and none for a timeline that isn't a beat timeline.
     """
-    timeline = document.timelines.get(timeline_id)
-    if timeline is None or timeline.kind != "beat":
+    timeline = _beat_timeline(document, timeline_id)
+    if timeline is None:
         return []
     return build_rows(document, timeline)
+
+
+def _beat_timeline(document: tla.Document, timeline_id: str) -> tla.Timeline | None:
+    timeline = document.timelines.get(timeline_id)
+    return timeline if timeline is not None and timeline.kind == "beat" else None

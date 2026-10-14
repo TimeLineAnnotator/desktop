@@ -50,7 +50,7 @@ def test_the_timeline_with_the_role_is_the_time_map():
     assert found.time_map is not None
     assert found.time_map.timeline_id == second.id
     assert not found.guessed and not found.time_map.guessed
-    assert found.reason is None and found.warnings == []
+    assert found.reason is None and found.warnings == ()
 
 
 def test_without_the_role_the_first_beat_timeline_by_ordinal_is_guessed():
@@ -64,7 +64,7 @@ def test_without_the_role_the_first_beat_timeline_by_ordinal_is_guessed():
     assert found.timeline_id == earlier.id
     assert found.time_map.timeline_id == earlier.id
     assert found.guessed and found.time_map.guessed
-    assert found.reason is None and found.warnings == []
+    assert found.reason is None and found.warnings == ()
 
 
 @pytest.mark.parametrize("claimants", [2, 3])
@@ -78,7 +78,7 @@ def test_when_several_claim_the_role_the_first_by_ordinal_wins(claimants):
     assert found.timeline_id == claiming[-1].id
     assert found.time_map.timeline_id == claiming[-1].id
     assert not found.guessed
-    assert found.warnings == [TWO_CLAIM]
+    assert found.warnings == (TWO_CLAIM,)
 
 
 def test_the_callers_roles_count_not_only_the_files():
@@ -90,7 +90,7 @@ def test_the_callers_roles_count_not_only_the_files():
     found = find_time_map(doc, roles)
 
     assert found.timeline_id == in_manifest.id and not found.guessed
-    assert found.warnings == []
+    assert found.warnings == ()
     assert time_map_of(doc, roles).timeline_id == in_manifest.id
     assert time_map_of(doc).timeline_id == in_file.id
 
@@ -161,7 +161,7 @@ def test_no_other_timeline_stands_in_for_one_without_a_time_map(make, reason, ro
     assert found.timeline_id == chosen.id
     assert found.guessed is (role is None)
     assert found.reason == reason
-    assert found.warnings == []
+    assert found.warnings == ()
     assert time_map_of(doc) is None
 
 
@@ -170,24 +170,27 @@ def test_a_document_without_beat_timelines_has_no_time_map(caplog):
         found = find_time_map(doc)
 
         assert found == TimeMapFound(
-            time_map=None, timeline_id=None, guessed=False, reason=None, warnings=[]
+            time_map=None, timeline_id=None, guessed=False, reason=None, warnings=()
         )
         assert time_map_of(doc) is None
     assert not caplog.records
 
 
-def test_found_is_frozen():
-    found = find_time_map(document(_beats(1)))
+def test_found_is_frozen_and_hashes():
+    found = find_time_map(document(*(_beats(j, role="time_map") for j in (1, 2))))
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         found.guessed = False  # type: ignore[misc]
+    assert isinstance(found.warnings, tuple)
+    assert hash(found) == hash(found)
 
 
 @pytest.mark.parametrize("media_length", [19.5, 20.0])
-def test_the_last_beat_at_or_after_the_end_of_the_media_is_warned_once(
+def test_the_last_beat_at_or_after_the_end_of_the_media_is_returned_and_logged(
     media_length, caplog
 ):
-    # FR-082: returned, and logged with the timeline's id, once per file.
+    # FR-082: returned, and logged once with the timeline's id. The index calls
+    # find_time_map once when it reads a file.
     timeline = pickup_piece()  # the last beat at 20 s
     doc = document(timeline, media_length=media_length)
 
@@ -230,7 +233,18 @@ def test_no_media_warning_when_the_media_lasts_past_the_last_beat(
     with caplog.at_level(logging.WARNING):
         found = find_time_map(doc)
 
-    assert found.time_map is not None and found.warnings == []
+    assert found.time_map is not None and found.warnings == ()
+    assert not caplog.records
+
+
+def test_no_media_warning_for_a_media_length_that_isnt_a_number(caplog):
+    # Like the closing barline, which then keeps the gap: no length, no warning.
+    doc = document(pickup_piece(), media_length=float("nan"))
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
+    assert found.time_map.end == 21.0 and found.warnings == ()
     assert not caplog.records
 
 
@@ -241,7 +255,7 @@ def test_no_media_warning_without_a_time_map(caplog):
     with caplog.at_level(logging.WARNING):
         found = find_time_map(doc)
 
-    assert found.time_map is None and found.warnings == []
+    assert found.time_map is None and found.warnings == ()
     assert not caplog.records
 
 
