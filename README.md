@@ -41,6 +41,12 @@ Here are some examples of TiLiA visualizations:
 - Import timeline data from CSV files
 - Command-line interface (see the CLI [help page](docs/cli-tutorial.md) for more information)
 
+## Keyboard shortcuts
+
+[![TiLiA's keyboard shortcuts](https://github.com/TimeLineAnnotator/desktop/releases/latest/download/shortcuts.svg)](https://github.com/TimeLineAnnotator/desktop/releases/latest/download/shortcuts.svg)
+
+This sheet is made from TiLiA's code for every release and always shows the latest one. The same shortcuts are listed as [text](https://github.com/TimeLineAnnotator/desktop/releases/latest/download/shortcuts.md).
+
 ## TiLiA binaries
 TiLiA has built binaries for Windows, macOS and Linux. [Download the latest release](https://github.com/TimeLineAnnotator/desktop/releases/latest).
 
