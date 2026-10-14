@@ -292,24 +292,21 @@ class TestMigratedId:
 
 
 def old_file() -> dict:
+    """An old file's content as the migration gives it to derived_document_id:
+    in the current format, attributes at their default left out, with the old
+    ids and the media's path as the file stored it."""
     return {
-        "file_path": "C:/Users/someone/corpus/piece.tla",
-        "media_path": "C:/Users/someone/corpus/piece.mp3",
-        "media_metadata": {
-            "title": "Piece",
-            "notes": "",
-            "media length": 120.5,
-            "composer": "Dvořák",
-        },
+        "app_name": "TiLiA",
+        "version": "0.6.0",
+        "time_unit": "seconds",
+        "media": {"path": "C:/Users/someone/corpus/piece.mp3", "length": 120.5},
+        "metadata": {"title": "Piece", "notes": "", "composer": "Dvořák"},
         "timelines": {
             "1": {
                 "kind": "Hierarchy",
                 "name": "Form",
                 "ordinal": 1,
                 "height": 30,
-                "is_visible": True,
-                "hash": "0a1b",
-                "components_hash": "2c3d",
                 "components": {
                     "2": {
                         "kind": "HIERARCHY",
@@ -317,14 +314,11 @@ def old_file() -> dict:
                         "end": 10.5,
                         "level": 1,
                         "label": "Exposição",
-                        "hash": "4e5f",
                     }
                 },
             }
         },
-        "timelines_hash": "6a7b",
-        "app_name": "TiLiA",
-        "version": "0.6.0",
+        "scores": [],
     }
 
 
@@ -386,16 +380,13 @@ class TestDerivedDocumentId:
     @pytest.mark.parametrize(
         "change",
         [
-            set_key("file_path", "/home/other/elsewhere/piece.tla"),
-            remove_key("file_path"),
             set_key("version", "0.7.0"),
+            remove_key("version"),
             set_key("app_name", "TiLiA 2"),
-            set_key("timelines_hash", "ffff"),
-            set_key("timelines", "1", "hash", "ffff"),
-            set_key("timelines", "1", "components_hash", "ffff"),
-            set_key("timelines", "1", "components", "2", "hash", "ffff"),
-            set_key("media_metadata", "media length", 121.0),
-            remove_key("media_metadata", "media length"),
+            set_key("document_id", "0190a3c2-7e5f-8a1b-8c3d-4e5f6a7b8c9d"),
+            set_key("media", "length", 121.0),
+            set_key("media", "length", None),
+            remove_key("media", "length"),
         ],
     )
     def test_unchanged_by_what_changes_without_an_edit(self, change):
@@ -426,7 +417,7 @@ class TestDerivedDocumentId:
         decomposed, composed = "é", "é"
 
         def with_fields(fields):
-            return derived_document_id(edited(set_key("media_metadata", "x", fields)))
+            return derived_document_id(edited(set_key("metadata", "x", fields)))
 
         both = with_fields({decomposed: "a", composed: "b"})
         assert both != with_fields({composed: "b"})
@@ -445,9 +436,12 @@ class TestDerivedDocumentId:
         [
             set_key("timelines", "1", "components", "2", "label", "Exposition"),
             set_key("timelines", "1", "components", "2", "start", 0.5),
-            set_key("media_metadata", "composer", "Dvorak"),
-            set_key("media_metadata", "hash", "a field a user added"),
-            set_key("media_path", "C:/Users/someone/corpus/other.mp3"),
+            set_key("metadata", "composer", "Dvorak"),
+            set_key("metadata", "hash", "a field a user added"),
+            set_key("metadata", "version", "a field a user added"),
+            set_key("media", "path", "C:/Users/someone/corpus/other.mp3"),
+            set_key("timelines", "1", "components", "2", "pre_start", 0),
+            set_key("timelines", "1", "hash", "a key the core doesn't know"),
         ],
     )
     def test_changed_by_an_edit(self, change):
@@ -513,7 +507,7 @@ class TestDerivedDocumentId:
 
     def test_never_changes(self):
         # Files read before and after an update must get the same id.
-        assert derived_document_id(old_file()) == "03209ea7-1448-859f-900b-712a89d6f7c2"
+        assert derived_document_id(old_file()) == "0cf92a28-f810-8630-8696-be45d6802429"
         # Floats of several sizes and whole-number floats; a letter with two
         # marks, decomposed (long s, dot below, dot above), which NFC composes;
         # an emoji and a lone surrogate. chr() keeps an editor from normalising
@@ -528,7 +522,8 @@ class TestDerivedDocumentId:
     @pytest.mark.parametrize(
         "place, one, other",
         [
-            (["media_metadata"], "a text", "b text"),
+            (["metadata"], "a text", "b text"),
+            (["media"], "a text", "b text"),
             (["timelines"], ["a list"], ["b list"]),
             (["timelines", "1"], "a text", "b text"),
             (["timelines", "1", "components"], ["a list"], ["b list"]),

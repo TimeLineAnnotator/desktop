@@ -26,6 +26,10 @@ TIMELINE_KINDS: dict[str, str] = {
     "pdf": "Pdf",
     "audiowave": "AudioWave",
 }
+# No AUDIOWAVE: an AudioWave timeline's amplitude bars, which TiLiA 0.x
+# stored, aren't stored any more, since TiLiA computes them from the media.
+# The migration drops them by their timeline's kind; in a file of the
+# current format, one is a component of a kind the core doesn't know.
 COMPONENT_KINDS: dict[str, str] = {
     "hierarchy": "HIERARCHY",
     "marker": "MARKER",
