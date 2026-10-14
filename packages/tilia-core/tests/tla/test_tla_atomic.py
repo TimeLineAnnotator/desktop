@@ -3,8 +3,8 @@
 A write that fails at any step, or a process killed during one, leaves the
 file as it was, and no temporary file but one a crash left, which
 `is_temporary` names. On Windows, a file another program holds open is
-retried, then reported. A link stays a link, and the file keeps its
-permission bits.
+retried, then reported as `FileInUse`. A link stays a link, and the file
+keeps its permission bits.
 
 Failures are injected through `os`, which `tilia_core.state.atomic_write`,
 the core's one atomic write, calls: `os.fdopen` for the temporary file's
@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tilia_core import tla
+from tilia_core import state, tla
 
 EVERY_KIND = Path(__file__).parent / "golden" / "every-kind.tla"
 
@@ -344,14 +344,36 @@ def test_a_file_held_open_is_written_once_it_is_free(piece, monkeypatch):
 
 
 @windows_only
-def test_a_file_held_open_is_retried_then_reported_and_left_whole(piece, monkeypatch):
+def test_a_file_held_open_throughout_the_retry_is_reported_as_in_use(
+    piece, monkeypatch
+):
     before = piece.read_bytes()
     renames = count_renames(monkeypatch)
-    with HeldOpen(piece), pytest.raises(PermissionError):
+    with HeldOpen(piece), pytest.raises(tla.FileInUse) as caught:
         tla.write(piece, edited())
+    assert isinstance(caught.value, PermissionError)
+    assert caught.value.path == piece
+    assert str(caught.value) == (
+        "piece.tla: in use by another program; nothing was written"
+    )
     assert len(renames) > 1
     assert piece.read_bytes() == before
     assert listing(piece.parent) == ["piece.tla"]
+
+
+def test_a_rename_refused_for_another_reason_raises_the_systems_error(
+    piece, monkeypatch
+):
+    refused = PermissionError(errno.EACCES, os.strerror(errno.EACCES))
+
+    def replace(src, dst):
+        raise refused
+
+    monkeypatch.setattr(os, "replace", replace)
+    monkeypatch.setattr(state, "_IS_WINDOWS", False)  # no retry
+    with pytest.raises(PermissionError) as caught:
+        tla.write(piece, edited())
+    assert caught.value is refused
 
 
 # Links and permissions.
@@ -427,6 +449,22 @@ def test_a_read_only_file_is_refused_with_the_systems_reason(piece):
     assert caught.value.errno == errno.EACCES
     assert caught.value.filename == str(piece)
     assert listing(piece.parent) == ["piece.tla"]
+
+
+@not_root
+def test_a_read_only_file_is_refused_before_the_rename_not_as_in_use(
+    piece, monkeypatch
+):
+    renames = count_renames(monkeypatch)
+    piece.chmod(stat.S_IREAD)
+    try:
+        with pytest.raises(PermissionError) as caught:
+            tla.write(piece, edited())
+    finally:
+        piece.chmod(stat.S_IREAD | stat.S_IWRITE)
+    assert not isinstance(caught.value, tla.FileInUse)
+    assert caught.value.errno == errno.EACCES
+    assert renames == []
 
 
 @posix_only

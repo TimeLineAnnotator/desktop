@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 from pathlib import Path
 
@@ -69,3 +70,20 @@ class FileChanged(Exception):
         if self.found is None:
             return f"{name} was removed or became unreadable after it was read"
         return f"{name} has changed since it was read"
+
+
+class FileInUse(PermissionError):
+    """Windows still refused to replace the file after a short retry: another
+    program, such as a sync client or a virus scanner, holds it open. The
+    file is as it was; a later write may succeed.
+
+    `path` is the file that was to be written, never the temporary file.
+    """
+
+    def __init__(self, path: str | os.PathLike[str]) -> None:
+        self.path = Path(path)
+        super().__init__(errno.EACCES, "in use by another program", os.fspath(path))
+
+    def __str__(self) -> str:
+        name = printable(self.path.name)
+        return f"{name}: in use by another program; nothing was written"
