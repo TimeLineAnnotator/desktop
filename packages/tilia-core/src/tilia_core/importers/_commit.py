@@ -8,13 +8,10 @@ nothing.
 from __future__ import annotations
 
 import random
-import string
 from collections.abc import Collection, Iterable
 from typing import Any
 
-from tilia_core import tla
-
-_ROW_ID_CHARACTERS = string.ascii_letters + string.digits
+from tilia_core import rules, tla
 
 
 def commit(
@@ -42,7 +39,7 @@ def commit(
 def new_row_id(taken: Collection[str]) -> str:
     """A range row's id: six letters and digits, none of `taken`, as TiLiA makes them."""
     while True:
-        row_id = "".join(random.choices(_ROW_ID_CHARACTERS, k=6))
+        row_id = "".join(random.choices(rules.ROW_ID_CHARACTERS, k=rules.ROW_ID_LENGTH))
         if row_id not in taken:
             return row_id
 
