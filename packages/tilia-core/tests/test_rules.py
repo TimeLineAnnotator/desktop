@@ -2,6 +2,7 @@ import importlib.util
 import itertools
 
 import pytest
+import webcolors
 
 from tilia_core import rules, tla
 
@@ -233,6 +234,12 @@ class TestEveryKind:
 
 
 class TestColor:
+    def test_the_names_are_css_3s_and_transparent(self):
+        # The names Qt reads: CSS 3's, from webcolors, and Qt's "transparent".
+        for name in [*webcolors.names("css3"), "transparent"]:
+            assert rules.color(name), name
+        assert not rules.color("rebeccapurple")  # CSS 4's, which Qt doesn't read
+
     @pytest.mark.parametrize(
         "value",
         [
