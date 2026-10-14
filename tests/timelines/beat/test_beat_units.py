@@ -50,8 +50,7 @@ class TestParseUnits:
         assert not result.is_valid
         assert result.units == []
         assert result.error == (
-            f"'{'1' * MAX_UNIT_LENGTH}…' is not a whole number or fraction "
-            "such as 1/2."
+            f"'{'1' * MAX_UNIT_LENGTH}…' is longer than {MAX_UNIT_LENGTH} characters."
         )
 
     @pytest.mark.skipif(
@@ -72,8 +71,7 @@ class TestParseUnits:
         assert not result.is_valid
         assert result.units == []
         assert result.error == (
-            f"'{'1' * MAX_UNIT_LENGTH}…' is not a whole number or fraction "
-            "such as 1/2."
+            f"'{'1' * MAX_UNIT_LENGTH}…' is longer than {MAX_UNIT_LENGTH} characters."
         )
 
     def test_format(self):
