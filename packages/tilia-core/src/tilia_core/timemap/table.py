@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import Any, NoReturn
 
@@ -76,16 +76,32 @@ class MeasureRow:
     beat_ids: tuple[str, ...]
     beats: int  # the beats tapped
     meter: MeasureMeter  # desktop#621's, from the beat units in effect
-    time_signature: str  # as a musician reads it: "6/8", "2+2+3/8", "(4/3)/4"
-    ts_numerator: Fraction  # the beat values' sum: 7/8 is 7 over 8 however grouped
-    ts_denominator: int
-    assumed: bool  # nobody set the unit that governs it
-    ambiguous: bool  # its taps don't hold a whole number of the unit's patterns
-    conflicting: bool  # more than one unit is set on its beats
+    # Computed from the meter, so nothing can make them disagree with it:
+    time_signature: str = field(init=False)  # "6/8", "2+2+3/8", "(4/3)/4"
+    ts_numerator: Fraction = field(init=False)  # the beat values' sum, however grouped
+    ts_denominator: int = field(init=False)
+    assumed: bool = field(init=False)  # nobody set the unit that governs it
+    ambiguous: bool = field(init=False)  # the taps don't hold whole patterns
+    conflicting: bool = field(init=False)  # more than one unit is set on its beats
     source: str
     force_display: bool
     next: tuple[str, ...] | None
     metadata: FrozenMetadata
+
+    def __post_init__(self) -> None:
+        meter = self.meter
+        computed = {
+            "time_signature": format_time_signature(
+                meter.beat_values, meter.denominator
+            ),
+            "ts_numerator": meter.numerator,
+            "ts_denominator": meter.denominator,
+            "assumed": meter.is_assumed,
+            "ambiguous": meter.is_ambiguous,
+            "conflicting": meter.is_conflicting,
+        }
+        for name, value in computed.items():
+            object.__setattr__(self, name, value)
 
 
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
@@ -181,14 +197,6 @@ def build_rows_from(
                 beat_ids=row.beat_ids,
                 beats=len(row.beat_ids),
                 meter=meter,
-                time_signature=format_time_signature(
-                    meter.beat_values, meter.denominator
-                ),
-                ts_numerator=meter.numerator,
-                ts_denominator=meter.denominator,
-                assumed=meter.is_assumed,
-                ambiguous=meter.is_ambiguous,
-                conflicting=meter.is_conflicting,
                 source=row.source,
                 force_display=row.force_display,
                 next=row.next,
