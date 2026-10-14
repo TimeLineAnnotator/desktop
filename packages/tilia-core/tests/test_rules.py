@@ -3,6 +3,7 @@ import importlib.util
 import itertools
 import pickle
 import sys
+from importlib.metadata import metadata
 
 import pytest
 import webcolors
@@ -649,6 +650,9 @@ class TestWithoutMusic21:
 
         assert INSTALL in str(raised.value)
         assert raised.value.command == INSTALL
+
+    def test_the_command_installs_an_extra_the_core_has(self):
+        assert "harmony" in metadata("tilia-core").get_all("Provides-Extra", [])
 
     @pytest.mark.parametrize("kind", ["harmony", "mode"])
     def test_a_music21_that_wont_import(self, kind, broken_music21):
