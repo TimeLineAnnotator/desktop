@@ -55,15 +55,19 @@ def parse_units(text: str) -> UnitsParseResult:
         item = item.strip()
         if not item:
             return UnitsParseResult([], "Missing unit around '+'.")
-        too_long = len(item) > MAX_UNIT_LENGTH
-        shown = item[:MAX_UNIT_LENGTH] + "…" if too_long else item
+        if len(item) > MAX_UNIT_LENGTH:
+            # Refused before Fraction() sees it, which may or may not read it.
+            return UnitsParseResult(
+                [],
+                f"'{item[:MAX_UNIT_LENGTH]}…' is longer than {MAX_UNIT_LENGTH} "
+                "characters.",
+            )
         not_a_fraction = UnitsParseResult(
-            [], f"'{shown}' is not a whole number or fraction such as 1/2."
+            [], f"'{item}' is not a whole number or fraction such as 1/2."
         )
         # Fraction() also accepts decimals, signs and exponents; units are
-        # written the way they are in notation. A longer unit is refused
-        # before Fraction() sees it, which may or may not read it.
-        if too_long or not set(item) <= _UNIT_CHARACTERS:
+        # written the way they are in notation.
+        if not set(item) <= _UNIT_CHARACTERS:
             return not_a_fraction
         try:
             unit = Fraction(item)
