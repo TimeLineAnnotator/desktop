@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from collections.abc import Callable, Mapping
 from operator import itemgetter
 from typing import Any
 
+from tilia_core.tla.check import check
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -411,9 +413,25 @@ def canonical_bytes(doc: Document) -> bytes:
     value of another type than JSON's; and for one nested deeper than the
     reader reads, as a value that holds itself is (FR-034).
     """
+    return _utf8(_text(_document(doc)))
+
+
+def checked_bytes(
+    doc: Document, *, path: str | os.PathLike[str] | None = None
+) -> bytes:
+    """The bytes `write` writes: `canonical_bytes(doc)`, once checked as the
+    reader checks a file. Raises `UnreadableFile`, with its place and line,
+    for a document the reader would refuse; one the reader only warns about
+    gives its bytes (FR-034). `path`, where they are to be written, is for
+    messages."""
     content = _document(doc)
-    text = json.dumps(content, indent=2, ensure_ascii=False, allow_nan=False)
-    return _utf8(text + "\n")
+    text = _text(content)
+    check(content, text, path=path)
+    return _utf8(text)
+
+
+def _text(content: dict[str, Any]) -> str:
+    return json.dumps(content, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
 
 
 def new_document(*, time_unit: str = "seconds") -> Document:
