@@ -47,6 +47,12 @@ def test_imports_without_the_harmony_extra(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
+def test_imports_without_jsonschema(tmp_path):
+    # Installed for the tests only: it pulls in a compiled package.
+    result = probe(tmp_path, *QT_AND_APP, "jsonschema")
+    assert result.returncode == 0, result.stderr
+
+
 def test_probe_finds_a_module_level_import_of_a_blocked_name(tmp_path):
     # Without this, the probes above would pass whatever the modules import.
     package = tmp_path / "probed"
