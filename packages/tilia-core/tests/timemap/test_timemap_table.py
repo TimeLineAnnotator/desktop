@@ -541,6 +541,38 @@ def test_each_row_has_its_meter_and_the_meter_s_flags():
     assert [r.time_signature for r in rows] == ["2+3/8", "2+3+2/8", "3/4", "6/8"]
 
 
+DERIVED = (
+    "time_signature",
+    "ts_numerator",
+    "ts_denominator",
+    "assumed",
+    "ambiguous",
+    "conflicting",
+)
+
+
+def test_a_row_s_time_signature_and_flags_are_computed_from_its_meter():
+    # When the row is made, so nothing can make them disagree with the meter.
+    six_eight, three_four = _metered(
+        [taps(2, unit(8, "3")), [unit(4, "1", assumed=True), None, unit(2, "1")]]
+    )
+
+    moved = dataclasses.replace(six_eight, meter=three_four.meter)
+
+    assert [getattr(moved, name) for name in DERIVED] == [
+        "3/4",
+        3,
+        4,
+        True,
+        False,
+        True,
+    ]
+    for name in DERIVED:
+        # init=False fields: ValueError before Python 3.13, TypeError from it on
+        with pytest.raises((ValueError, TypeError)):
+            dataclasses.replace(six_eight, **{name: getattr(three_four, name)})
+
+
 def test_a_folded_table_has_its_time_signatures():
     # A folded table has no positions yet, but its rows' other values are computed.
     timeline = _metered_timeline([taps(2, unit(8, "3")), taps(3)])
