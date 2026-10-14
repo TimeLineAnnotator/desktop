@@ -17,6 +17,10 @@ authors = [
     {name = "Anne Foo"}
 ]
 
+[project.optional-dependencies]
+# Checking harmonies and keys, and later importing them, reads music21.
+harmony = ["music21>=9.1"]
+
 [project.scripts]
 tilia = "tilia_core.commands:main"
 
