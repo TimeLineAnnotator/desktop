@@ -55,15 +55,19 @@ def parse_units(text: str) -> UnitsParseResult:
         item = item.strip()
         if not item:
             return UnitsParseResult([], "Missing unit around '+'.")
-        too_long = len(item) > MAX_UNIT_LENGTH
-        shown = item[:MAX_UNIT_LENGTH] + "…" if too_long else item
+        if len(item) > MAX_UNIT_LENGTH:
+            # Refused before Fraction() sees it, which may or may not read it.
+            return UnitsParseResult(
+                [],
+                f"'{item[:MAX_UNIT_LENGTH]}…' is longer than {MAX_UNIT_LENGTH} "
+                "characters.",
+            )
         not_a_fraction = UnitsParseResult(
-            [], f"'{shown}' is not a whole number or fraction such as 1/2."
+            [], f"'{item}' is not a whole number or fraction such as 1/2."
         )
         # Fraction() also accepts decimals, signs and exponents; units are
-        # written the way they are in notation. A longer unit is refused
-        # before Fraction() sees it, which may or may not read it.
-        if too_long or not set(item) <= _UNIT_CHARACTERS:
+        # written the way they are in notation.
+        if not set(item) <= _UNIT_CHARACTERS:
             return not_a_fraction
         try:
             unit = Fraction(item)
@@ -103,13 +107,12 @@ def is_fit_ambiguous(units: list[Fraction], beat_count: int) -> bool:
 @dataclass(frozen=True)
 class MeasureMeter:
     """
-    The meter a measure ends up with. `beat_unit_id` names the beat unit
-    that governs the measure, or is None where the default applies. In the
-    app it is that BeatUnit component's own id. In tilia_core's copy of this
-    module it is the id of the beat that carries the governing unit, since
-    tilia_core reads a .tla beat unit as part of its beat, without an id of
-    its own. `is_assumed` is True when its values weren't set by the user
-    (see BeatUnit.assumed).
+    The meter a measure ends up with. `beat_unit_id` is the id of the beat
+    that carries the beat unit governing the measure (a beat holds at most
+    one), or None where no unit set on a beat governs it: in tilia_core, the
+    measures before the first unit, which take its values, assumed, and every
+    measure when there is none. `is_assumed` is True when its values weren't
+    set by the user (see BeatUnit.assumed).
     """
 
     denominator: int
@@ -121,6 +124,11 @@ class MeasureMeter:
     is_conflicting: bool
     is_assumed: bool
 
+    def __post_init__(self) -> None:
+        # Tuples, whatever the caller passes, so that a meter can be hashed.
+        object.__setattr__(self, "units", tuple(self.units))
+        object.__setattr__(self, "beat_values", tuple(self.beat_values))
+
     @property
     def numerator(self) -> Fraction:
         return sum(self.beat_values, Fraction(0))
@@ -130,5 +138,8 @@ class MeasureMeter:
         return self.numerator, self.denominator
 
     def quarter_length(self, beat_value: Fraction | int) -> Fraction:
-        # An int divided by the denominator would give a float.
-        return Fraction(beat_value) * 4 / self.denominator
+        # An int divided by the denominator would give a float. Only an int
+        # is made a Fraction: Fraction() would also read text and floats.
+        if isinstance(beat_value, int):
+            beat_value = Fraction(beat_value)
+        return beat_value * 4 / self.denominator
