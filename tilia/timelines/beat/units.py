@@ -138,5 +138,8 @@ class MeasureMeter:
         return self.numerator, self.denominator
 
     def quarter_length(self, beat_value: Fraction | int) -> Fraction:
-        # An int divided by the denominator would give a float.
-        return Fraction(beat_value) * 4 / self.denominator
+        # An int divided by the denominator would give a float. Only an int
+        # is made a Fraction: Fraction() would also read text and floats.
+        if isinstance(beat_value, int):
+            beat_value = Fraction(beat_value)
+        return beat_value * 4 / self.denominator
