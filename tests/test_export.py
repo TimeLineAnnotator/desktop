@@ -180,3 +180,28 @@ class TestExportImage:
         commands.execute("file.export.img", image_path)
 
         assert not image_path.exists()
+
+
+class TestExportBeatUnits:
+    def test_beat_units_are_exported(self, tilia, beat_tlui, tmp_path):
+        for time in range(4):
+            commands.execute("media.seek", time)
+            commands.execute("timeline.beat.add")
+        beat_tlui.select_element(beat_tlui[2])
+        commands.execute("timeline.beat.set_beat_unit", denominator=8, units="2+1")
+
+        commands.execute("file.export.json", path=tmp_path / "test.json")
+        with open(tmp_path / "test.json", encoding="utf-8") as f:
+            components = json.load(f)["timelines"][0]["components"]
+
+        assert [c["kind"] for c in components] == ["BEAT"] * 4 + ["BEAT_UNIT"]
+        beat_unit = components[-1]
+        assert beat_unit == {
+            "beat_id": beat_tlui.timeline[0].id,
+            "denominator": 8,
+            "units": "2+1",
+            "assumed": False,
+            "time": 0,
+            "measure": 1,
+            "kind": "BEAT_UNIT",
+        }

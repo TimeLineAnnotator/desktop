@@ -6,7 +6,16 @@ from tilia.parsers.csv.base import (
     get_column_not_found_error_message,
     get_params_indices,
 )
+from tilia.timelines.beat.pattern import format_bars
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.beat.units import (
+    DEFAULT_DENOMINATOR,
+    DEFAULT_UNITS,
+    MAX_DENOMINATOR,
+    format_units,
+    parse_units,
+    validate_denominator,
+)
 from tilia.timelines.component_kinds import ComponentKind
 
 
@@ -21,6 +30,9 @@ def beats_from_csv(
     Assumes the first row of the file will contain headers.
     At least 'time' should be present.
     'measure' and 'is_first_in_measure' are optional.
+    'denominator' and 'units' are optional and only need filling on rows
+    where the beat unit changes; a filled row puts a beat unit on its beat,
+    with any value left empty carried over from the previous one.
     Returns a boolean indicating if the process was successful and
     an array with descriptions of any errors during the process.
 
@@ -41,10 +53,9 @@ def beats_from_csv(
         if any(param in params_to_indices for param in optional_params):
             if "is_first_in_measure" in params_to_indices:
                 is_reading_beats = True
-                timeline.beat_pattern = []
             else:
                 is_reading_beats = False
-                beats_per_measure = timeline.beat_pattern
+                beats_per_measure = timeline.beat_pattern_bars
                 current_bpm_index = 0
 
             current_beat = 0
@@ -122,12 +133,13 @@ def beats_from_csv(
 
             beats_in_measure.append(current_beat)
             measure_numbers.append(current_measure)
-            timeline.set_data("beat_pattern", beats_in_measure)
+            timeline.set_data("beat_pattern", format_bars(beats_in_measure))
             timeline.set_data("measure_numbers", measure_numbers)
             timeline.set_data("measures_to_force_display", measures_to_force_display)
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
-        next(reader)
+        beat_unit_indices = get_params_indices(["denominator", "units"], next(reader))
+        denominator, units = DEFAULT_DENOMINATOR, DEFAULT_UNITS
         for row in reader:
             if not row:
                 continue
@@ -143,4 +155,43 @@ def beats_from_csv(
                 errors.append(fail_reason)
 
             timeline.recalculate_measures()
+
+            row_values = {
+                param: row[index].strip()
+                for param, index in beat_unit_indices.items()
+                if index < len(row) and row[index].strip()
+            }
+            if component and row_values:
+                beat_unit_values, error = _parse_beat_unit_values(
+                    row_values, denominator, units
+                )
+                if error:
+                    errors.append(f"{row}: {error}")
+                    continue
+                denominator, units = beat_unit_values
+                # The first beat already has a beat unit of its own.
+                timeline.put_beat_unit_on_beat(component.id, denominator, units)
         return True, errors
+
+
+def _parse_beat_unit_values(
+    row_values: dict[str, str], denominator: int, units: str
+) -> tuple[tuple[int, str], str]:
+    if "denominator" in row_values:
+        try:
+            denominator = int(row_values["denominator"])
+        except ValueError:
+            denominator = 0
+        if not validate_denominator(denominator):
+            return (denominator, units), (
+                f"'{row_values['denominator']}' is not a valid denominator "
+                f"(1 to {MAX_DENOMINATOR})"
+            )
+    if "units" in row_values:
+        result = parse_units(row_values["units"])
+        if not result.is_valid:
+            return (denominator, units), (
+                f"'{row_values['units']}' is not valid units: {result.error}"
+            )
+        units = format_units(result.units)
+    return (denominator, units), ""
