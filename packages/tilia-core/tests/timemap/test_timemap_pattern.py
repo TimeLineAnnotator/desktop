@@ -6,6 +6,7 @@ from tilia_core.timemap.pattern import (
     MAX_DIGITS,
     BarRun,
     ParseStatus,
+    format_bars,
     group_runs,
     parse,
 )
@@ -144,3 +145,27 @@ class TestGroupRuns:
             BarRun(1, 1, 3),
             BarRun(2, 1, 4),
         ]
+
+
+class TestFormatBars:
+    @pytest.mark.parametrize(
+        "bars, text",
+        [
+            ([4], "4"),
+            ([4, 4, 4, 3], "3[4] 3"),
+            ([4] * 10 + [3] + [4] * 15, "10[4] 3 15[4]"),
+            ([4, 3, 4], "4 3 4"),
+        ],
+    )
+    def test_collapses_runs_of_equal_bars(self, bars, text):
+        assert format_bars(bars) == text
+
+    def test_does_not_recover_nested_groups(self):
+        assert format_bars(parse("2[4 3]").bars) == "4 3 4 3"
+
+    @pytest.mark.parametrize(
+        "text", ["4 4 3", "10[4] 3 15[4]", "2[4 3[3]]", f"{MAX_BARS}[1]"]
+    )
+    def test_parses_back_to_the_same_bars(self, text):
+        bars = parse(text).bars
+        assert parse(format_bars(bars)).bars == bars
