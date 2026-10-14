@@ -138,6 +138,10 @@ class TestMeasureMeter:
         assert hash(from_lists) == hash(make_meter())
         assert from_lists == make_meter()
 
+    def test_quarter_length_reads_no_text(self):
+        with pytest.raises(TypeError):
+            make_meter().quarter_length("1/2")
+
 
 def add_beats(beat_tl, count, start=0):
     for i in range(count):
