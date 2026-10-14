@@ -788,7 +788,7 @@ class BeatTimeline(Timeline):
                     denominator=denominator,
                     units=tuple(units),
                     beat_values=tuple(fit_units(units, beat_count)),
-                    beat_unit_id=governing.id if governing else None,
+                    beat_unit_id=governing.beat_id if governing else None,
                     starts_here=bool(in_measure),
                     is_ambiguous=is_fit_ambiguous(units, beat_count),
                     is_conflicting=len(in_measure) > 1,
@@ -861,7 +861,7 @@ class BeatTimeline(Timeline):
     ) -> None:
         meter = self.get_measure_meter(measure_index)
         if meter.starts_here:
-            beat_id = self.get_component(meter.beat_unit_id).beat_id
+            beat_id = meter.beat_unit_id
         else:
             beat_id = self[self.beats_that_start_measures[measure_index]].id
         self.put_beat_unit_on_beat(beat_id, denominator, units, assumed)
