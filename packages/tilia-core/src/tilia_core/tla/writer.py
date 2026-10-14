@@ -5,19 +5,29 @@ attributes at their default left out, timelines, components and scores in id
 order, text in NFC except a score's lines, then `json.dumps` with two-space
 indentation and a final newline, in UTF-8 without a byte-order mark. The
 order and the defaults are the layout's (`tla.layout`).
+
+A file is written atomically, through the core's one atomic write
+(`state.atomic_write`), and a write may state the fingerprint of the version
+it expects to replace, or that it expects no file.
 """
 
 from __future__ import annotations
 
+import enum
+import errno
+import hashlib
 import json
 import math
 import os
 import re
 from collections.abc import Callable, Mapping
 from operator import itemgetter
+from pathlib import Path
 from typing import Any
 
+from tilia_core.state import atomic_write
 from tilia_core.tla.check import check
+from tilia_core.tla.errors import FileChanged
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -53,6 +63,7 @@ from tilia_core.tla.model import (
     timeline_kind_to_file,
 )
 from tilia_core.tla.parse import MAX_DEPTH
+from tilia_core.tla.reader import read
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
@@ -462,3 +473,86 @@ def new_document(*, time_unit: str = "seconds") -> Document:
     return Document(
         document_id=new_id(), format_version=FORMAT_VERSION, time_unit=time_unit
     )
+
+
+# The temporary files of `state.atomic_write`, `.<name>.<8 hex digits>.tmp`
+# beside the file they replace: hidden on macOS and Linux, and never ending in
+# `.tla`, so that they are never taken for a TiLiA file (FR-017, FR-041). A
+# crash during a write may leave one behind.
+TEMPORARY_PATTERN = r"^\..+\.[0-9a-f]{8}\.tmp$"
+_TEMPORARY = re.compile(TEMPORARY_PATTERN)
+
+
+def is_temporary(name: str) -> bool:
+    """Whether a file name is one of the writer's temporary files."""
+    return _TEMPORARY.fullmatch(name) is not None
+
+
+class _Absent(enum.Enum):
+    ABSENT = "ABSENT"
+
+    def __repr__(self) -> str:
+        return "ABSENT"
+
+
+ABSENT = _Absent.ABSENT
+"""`write`'s `expect` for a write that expects no file at its path."""
+
+
+def fingerprint_of(doc: Document) -> str:
+    """The SHA-256 of `doc`'s canonical bytes, in lower-case hexadecimal (FR-043)."""
+    return hashlib.sha256(canonical_bytes(doc)).hexdigest()
+
+
+def fingerprint(path: str | os.PathLike[str]) -> str:
+    """The fingerprint of the file at `path`: that of its canonical bytes, so
+    that its line endings, a byte-order mark or its key order don't change
+    it (FR-043). Raises as `read` does."""
+    return fingerprint_of(read(path))
+
+
+def _found(path: str) -> str | None:
+    """The fingerprint of the file at `path`, or None when it is missing or
+    can't be read."""
+    try:
+        return fingerprint(path)
+    except (OSError, ValueError):  # UnreadableFile is a ValueError
+        return None
+
+
+def write(
+    path: str | os.PathLike[str],
+    doc: Document,
+    *,
+    expect: str | _Absent | None = None,
+) -> str:
+    """Write `doc` to `path` atomically, and return the fingerprint of the
+    bytes written (FR-040–FR-044).
+
+    `expect` is the fingerprint of the version the caller read, `ABSENT` when
+    no file may be at `path`, or None for no check. When the file on disk is
+    something else, or is missing, or can't be read, `FileChanged` is raised
+    and nothing is written (FR-042). The check and the rename are two steps:
+    a change between them isn't caught.
+
+    A link stays a link, and the file it names is written; the file keeps its
+    permission bits. A read-only file is refused with `PermissionError`, as
+    the system refuses to open one for writing. A document `canonical_bytes`
+    refuses raises its `ValueError`. Any other failure raises the system's
+    `OSError` and leaves the file as it was; on Windows, a file another
+    program holds open is retried for about a second first.
+    """
+    target = os.path.realpath(path)
+    data = canonical_bytes(doc)
+    if expect is ABSENT:
+        if os.path.lexists(target):
+            raise FileChanged(path, None, _found(target))
+    elif expect is not None:
+        found = _found(target)
+        if found != expect:
+            raise FileChanged(path, expect, found)
+    if os.path.exists(target) and not os.access(target, os.W_OK):
+        # The rename would replace it on macOS and Linux.
+        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), os.fspath(path))
+    atomic_write(Path(target), data)
+    return hashlib.sha256(data).hexdigest()
