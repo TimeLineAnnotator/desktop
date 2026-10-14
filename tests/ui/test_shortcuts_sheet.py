@@ -1,0 +1,210 @@
+"""The keyboard shortcuts sheet is made for every release from the command
+registry (see .github/workflows/build.yml), so these tests build it from the
+real registry: a change that breaks the sheet fails here, not at release time.
+"""
+
+import datetime
+import subprocess
+import sys
+import xml.etree.ElementTree as ElementTree
+
+import pytest
+from PySide6.QtGui import QImage
+
+from tests.utils import get_main_window_menu, get_submenu
+from tilia.ui import commands, shortcuts_sheet
+from tilia.ui.shortcuts_sheet import Shortcut, ShortcutClash
+
+SVG = "{http://www.w3.org/2000/svg}"
+
+
+def get_group(groups, title):
+    return next(group for group in groups if group.title == title)
+
+
+def keys_and_commands(group):
+    return {(shortcut.key, shortcut.command) for shortcut in group.shortcuts}
+
+
+@pytest.fixture
+def register_with_shortcut():
+    """Registers a command the way TiLiA's code does, as a developer adding a
+    shortcut would."""
+    registered = []
+
+    def _register(name, shortcut):
+        commands.register(name, lambda: None, text="New command", shortcut=shortcut)
+        registered.append(name)
+
+    yield _register
+    for name in registered:
+        # Registering again without a shortcut takes the command off its key.
+        commands.register(name, lambda: None)
+
+
+class TestCollect:
+    def test_menu_shortcut_has_its_menu_path(self, qtui):
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert (
+            Shortcut("Ctrl+S", "Save", "File → Save", "file.save")
+            in get_group(groups, "Global").shortcuts
+        )
+
+    def test_submenu_shortcut_has_its_full_path(self, qtui):
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert (
+            Shortcut(
+                "Ctrl+Shift+L", "Local", "File → Load media → Local", "media.load.local"
+            )
+            in get_group(groups, "Global").shortcuts
+        )
+
+    @pytest.mark.parametrize(
+        "key,command,group,location",
+        [
+            ("B", "timeline.beat.add", "Beat timeline", "Beat toolbar"),
+            (
+                "H",
+                "timeline.harmony.add_harmony",
+                "Harmony timeline",
+                "Harmony toolbar",
+            ),
+            (
+                "G",
+                "timeline.hierarchy.group",
+                "Hierarchy timeline",
+                "Hierarchy toolbar",
+            ),
+            ("M", "timeline.marker.add", "Marker timeline", "Marker toolbar"),
+            ("P", "timeline.pdf.add", "PDF timeline", "PDF toolbar"),
+            ("R", "timeline.range.add_range", "Range timeline", "Range toolbar"),
+        ],
+    )
+    def test_timeline_kind_shortcut_is_in_its_group(
+        self, qtui, key, command, group, location
+    ):
+        groups = shortcuts_sheet.collect(qtui)
+
+        [shortcut] = [
+            s for s in get_group(groups, group).shortcuts if s.command == command
+        ]
+        assert (shortcut.key, shortcut.location) == (key, location)
+
+    def test_every_registered_shortcut_is_on_the_sheet(self, qtui):
+        groups = shortcuts_sheet.collect(qtui)
+
+        on_sheet = set().union(*(keys_and_commands(group) for group in groups))
+        registered = {
+            (key, name)
+            for key, names in commands.get_shortcuts().items()
+            for name in names
+        }
+        assert on_sheet == registered
+
+    def test_global_comes_first_then_kinds_in_add_timeline_menu_order(self, qtui):
+        add_menu = get_submenu(get_main_window_menu(qtui, "Timelines"), "Add")
+        kinds = [action.text().replace("&", "") for action in add_menu.actions()]
+
+        titles = [group.title for group in shortcuts_sheet.collect(qtui)]
+
+        assert titles[0] == "Global"
+        assert titles[1:] == [
+            f"{kind} timeline" for kind in kinds if f"{kind} timeline" in titles
+        ]
+
+    def test_key_shared_by_two_kinds_is_in_both_groups(self, qtui):
+        groups = shortcuts_sheet.collect(qtui)
+
+        hierarchy_merge = Shortcut(
+            "E", "Merge", "Hierarchy toolbar", "timeline.hierarchy.merge"
+        )
+        range_merge = Shortcut(
+            "E", "Merge ranges", "Range toolbar", "timeline.range.merge_ranges"
+        )
+        assert hierarchy_merge in get_group(groups, "Hierarchy timeline").shortcuts
+        assert range_merge in get_group(groups, "Range timeline").shortcuts
+
+
+class TestCheckClashes:
+    def test_todays_shortcuts_pass(self, qtui):
+        shortcuts_sheet.check_clashes(shortcuts_sheet.collect(qtui))
+
+    @pytest.mark.parametrize(
+        "name,shortcut,clashes_with",
+        [
+            ("timeline.marker.new_command", "m", "timeline.marker.add"),
+            ("view.new_command", "m", "timeline.marker.add"),
+            ("view.new_command", "Ctrl+S", "file.save"),
+        ],
+        ids=["same timeline kind", "global and timeline kind", "both global"],
+    )
+    def test_two_commands_with_one_key_in_one_context_fail(
+        self, qtui, register_with_shortcut, name, shortcut, clashes_with
+    ):
+        register_with_shortcut(name, shortcut)
+
+        with pytest.raises(ShortcutClash) as error:
+            shortcuts_sheet.check_clashes(shortcuts_sheet.collect(qtui))
+
+        assert name in str(error.value)
+        assert clashes_with in str(error.value)
+
+    def test_one_key_in_two_timeline_kinds_passes(self, qtui, register_with_shortcut):
+        register_with_shortcut("timeline.hierarchy.new_command", "m")
+
+        shortcuts_sheet.check_clashes(shortcuts_sheet.collect(qtui))
+
+
+class TestWrite:
+    DATE = datetime.date(2026, 10, 14)
+
+    def test_writes_svg(self, qtui, tmp_path):
+        shortcuts_sheet.write_sheet(qtui, tmp_path, "1.2.3", self.DATE)
+
+        svg = ElementTree.parse(tmp_path / "shortcuts.svg").getroot()
+        texts = ["".join(element.itertext()) for element in svg.iter(f"{SVG}text")]
+        assert svg.find(f"{SVG}title").text == (
+            "TiLiA 1.2.3 keyboard shortcuts (2026-10-14)"
+        )
+        assert "TiLiA 1.2.3 keyboard shortcuts 2026-10-14" in texts
+        assert "Ctrl+S" in texts
+        assert "File → Save" in texts
+
+    def test_writes_png(self, qtui, tmp_path):
+        shortcuts_sheet.write_sheet(qtui, tmp_path, "1.2.3", self.DATE)
+
+        image = QImage(str(tmp_path / "shortcuts.png"))
+        assert not image.isNull()
+        assert image.width() > 1000
+
+    def test_writes_markdown(self, qtui, tmp_path):
+        shortcuts_sheet.write_sheet(qtui, tmp_path, "1.2.3", self.DATE)
+
+        markdown = (tmp_path / "shortcuts.md").read_text(encoding="utf-8")
+        assert markdown.startswith("# TiLiA 1.2.3 keyboard shortcuts (2026-10-14)\n")
+        assert "## Hierarchy timeline" in markdown
+        assert "| <kbd>Ctrl+S</kbd> | Save | File → Save |" in markdown
+
+    def test_writes_nothing_when_shortcuts_clash(
+        self, qtui, tmp_path, register_with_shortcut
+    ):
+        register_with_shortcut("timeline.marker.new_command", "m")
+
+        with pytest.raises(ShortcutClash):
+            shortcuts_sheet.write_sheet(qtui, tmp_path, "1.2.3", self.DATE)
+
+        assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.timeout(120)
+def test_command_line_writes_the_three_files(tmp_path):
+    subprocess.run(
+        [sys.executable, "-m", "tilia.ui.shortcuts_sheet", "--out", str(tmp_path)],
+        check=True,
+        timeout=110,
+    )
+
+    for name in ["shortcuts.svg", "shortcuts.png", "shortcuts.md"]:
+        assert (tmp_path / name).stat().st_size > 0
