@@ -25,13 +25,15 @@ from tilia_core.tla.parse import pointer
 FORMAT_VERSION = "1.0.0-draft.1"
 
 
-def _load_schema() -> dict[str, Any]:
-    schema = files("tilia_core.tla").joinpath("schema")
+def schema() -> dict[str, Any]:
+    """The JSON Schema of the current format, as this package ships it: a
+    copy of its own at each call, which the caller may change (FR-090)."""
+    folder = files("tilia_core.tla").joinpath("schema")
     name = f"tla-{FORMAT_VERSION}.schema.json"
-    return json.loads(schema.joinpath(name).read_bytes())
+    return json.loads(folder.joinpath(name).read_bytes())
 
 
-_SCHEMA = _load_schema()
+_SCHEMA = schema()
 
 # Each object's keys, in the order they are written. Keys that aren't listed
 # come after these, in code-point order.

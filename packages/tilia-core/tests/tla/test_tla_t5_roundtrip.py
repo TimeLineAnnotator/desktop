@@ -85,6 +85,7 @@ def test_entries_are_written_in_id_order_whatever_the_documents_order():
     assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
 
 
+@pytest.mark.writes_outside_the_schema("ids that aren't UUIDs: NFC changes none")
 def test_entries_are_written_in_the_order_of_their_ids_in_nfc():
     # Decomposed, "é" sorts before "f"; composed, after it.
     doc = tla.read(EMPTY)
@@ -152,7 +153,17 @@ def test_integers_stay_integers():
     assert [type(c.attrs["time"]) for c in beats.components.values()] == [int, int]
 
 
-@pytest.mark.parametrize("value", [0.0, False], ids=["0.0", "False"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        0.0,
+        pytest.param(
+            False,
+            marks=pytest.mark.writes_outside_the_schema("a step that isn't a number"),
+        ),
+    ],
+    ids=["0.0", "False"],
+)
 def test_a_value_equal_to_its_default_in_another_type_is_written(value):
     # A step's default is 0: left out, either would read back as 0.
     doc = tla.read(EVERY_KIND)
@@ -280,6 +291,9 @@ def test_an_empty_mark_is_never_left_out():
     assert marks.count(True) == 8
 
 
+B1, B2, B3 = (f"019a0000-0000-7000-8000-0000000000b{n}" for n in (1, 2, 3))
+
+
 def beat_timeline(*beats):
     """A document with one beat timeline, its beats given as (id, time, mark)."""
     doc = tla.new_document()
@@ -305,9 +319,9 @@ def test_a_marks_number_label_and_source_are_written_when_set():
     # Whatever the marks before it would give: the previous number plus one,
     # the number as text, the timeline's measure_source.
     doc, timeline = beat_timeline(
-        ("b1", 0.0, {"number": 1, "label": "1", "source": "score"}),
-        ("b2", 1.0, {"number": 2, "label": "2", "source": "score"}),
-        ("b3", 2.0, {}),
+        (B1, 0.0, {"number": 1, "label": "1", "source": "score"}),
+        (B2, 1.0, {"number": 2, "label": "2", "source": "score"}),
+        (B3, 2.0, {}),
     )
     timeline.attrs["measure_source"] = "score"
     assert written_marks(doc, timeline) == [
@@ -386,7 +400,7 @@ def test_a_save_and_reopen_between_two_edits_changes_no_mark(case):
 def test_none_for_a_derived_default_means_unset():
     # A mark's number is never null: None is the default, and is left out.
     doc, timeline = beat_timeline(
-        ("b1", 0.0, {"number": 1}), ("b2", 1.0, {"number": None, "label": None})
+        (B1, 0.0, {"number": 1}), (B2, 1.0, {"number": None, "label": None})
     )
     assert written_marks(doc, timeline) == [{"number": 1}, {}]
     doc = tla.read(EVERY_KIND)
@@ -646,8 +660,8 @@ def test_an_integer_too_long_to_read_back_is_refused(any_limit_on_integers):
 def test_a_measure_number_too_long_to_read_back_is_refused_naming_its_place(
     any_limit_on_integers,
 ):
-    doc, timeline = beat_timeline(("b1", 0.0, {"number": 10**5000}))
-    place = f"/timelines/{timeline.id}/components/b1/measure/number"
+    doc, timeline = beat_timeline((B1, 0.0, {"number": 10**5000}))
+    place = f"/timelines/{timeline.id}/components/{B1}/measure/number"
     with pytest.raises(ValueError, match=re.escape(place)):
         tla.canonical_bytes(doc)
 
