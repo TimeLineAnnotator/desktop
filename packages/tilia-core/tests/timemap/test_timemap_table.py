@@ -398,7 +398,8 @@ def _quarters(row):
 def test_a_time_signature_as_text_and_as_numbers(
     beat_unit, count, time_signature, ts_numerator, ts_denominator, ambiguous
 ):
-    # The table of TimeLineAnnotator/project-management#193.
+    # The table of TimeLineAnnotator/project-management#193 (how the index shows
+    # time signatures).
     (row,) = _metered([taps(count, beat_unit)])
 
     assert row.time_signature == time_signature

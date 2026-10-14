@@ -1,6 +1,9 @@
 """The shared examples: beat timelines with the meters and quarter stamps that
-desktop#621's code gives them, for the core's tests and the app's. The
-expected values are computed by running #621's code, never written by hand.
+desktop#621's code gives them, for the core's tests and the app's. The beat
+values, flags and quarter stamps are computed by running #621's code, never
+written by hand. #621 has no text form of a time signature: `time_signature`
+is its values written by format_time_signature, which this file can't check
+against itself; test_timemap_table.py checks it against texts written by hand.
 
 A case that passes on one side only means the two copies of the rules differ:
 fix one side, never the expected values alone.
@@ -84,7 +87,8 @@ def _meter(row):
 
 @pytest.mark.skip(
     reason="the time map's qstamps come with "
-    "TimeLineAnnotator/project-management#215, which removes this skip"
+    "TimeLineAnnotator/project-management#215 (quarter stamps and distances), "
+    "which removes this skip"
 )
 @pytest.mark.parametrize("case", METERS)
 def test_qstamps(case):
