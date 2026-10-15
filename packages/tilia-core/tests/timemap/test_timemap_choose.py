@@ -308,6 +308,19 @@ def test_a_media_length_the_format_doesnt_allow_is_no_length(media_length, caplo
     assert not caplog.records
 
 
+def test_one_beat_past_the_media_is_warned_about_without_a_gap():
+    # Its only measure ends on the beat: there is no gap after it.
+    one = beat_timeline([{"time": 5.0, "measure": {}}])
+
+    found = find_time_map(document(one, media_length=4.0))
+
+    assert found.reason == "fewer than two beats"
+    assert found.warnings == (
+        f"Timeline {one.id}: the last beat (5.0) is at or after the end of the "
+        "media (4.0)",
+    )
+
+
 @pytest.mark.parametrize("make", ["_same_time", "_out_of_order"])
 def test_a_table_out_of_time_order_gets_no_media_warning(make, caplog):
     # It has no rows, so no closing barline.
