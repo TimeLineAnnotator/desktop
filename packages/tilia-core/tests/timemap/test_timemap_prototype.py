@@ -38,16 +38,6 @@ from tilia_core import tla
 from tilia_core.timemap import TimeMap, find_time_map, time_map_for
 from tilia_core.timemap import timemap as timemap_module
 
-# The prototype's TimeMap.position, length, beat_seconds and bar_seconds are the
-# core's position, length and unit_seconds, which aren't written yet. The mark is
-# strict: once the names exist, these tests fail until it is removed.
-needs_distances = pytest.mark.xfail(
-    raises=AttributeError,
-    strict=True,
-    reason="TimeMap.position, length and unit_seconds come with "
-    "TimeLineAnnotator/project-management#215",
-)
-
 T44 = [1.0 + 0.5 * i for i in range(12)]  # 4/4, bars 1-3: downbeats 1.0, 3.0, 5.0
 
 
@@ -113,8 +103,10 @@ def measures(time_map: TimeMap) -> list[tuple[float, float, int, int]]:
     return [(r.start, r.end, r.number, r.beats) for r in time_map.measure_rows()]
 
 
-# Distances. The prototype's beat_pos and measure_pos are position(t, unit)
-# everywhere but on the closing barline, where no assertion here looks.
+# Distances. The prototype's position, length, beat_seconds and bar_seconds
+# are the core's position, length and unit_seconds. Its beat_pos and
+# measure_pos are position(t, unit) everywhere but on the closing barline,
+# where no assertion here looks.
 
 
 def beat_pos(time_map: TimeMap, t: float) -> float | None:
@@ -180,7 +172,6 @@ def test_four_four():
     assert end_bar(tm, 7.2) is None
 
 
-@needs_distances
 def test_four_four_distances():
     tm = _map(T44, [4, 4, 4], [1, 2, 3])
 
@@ -251,7 +242,6 @@ def test_three_four_bar_inside_four_four():
     assert measure_beats(tm, -1.0) is None and measure_beats(tm, 11.0) is None
 
 
-@needs_distances
 def test_three_four_bar_inside_four_four_distances():
     tm = _map(*THREE_FOUR_INSIDE)
 
@@ -279,7 +269,6 @@ def test_pickup():
     assert is_downbeat(tm, 0.0)  # TiLiA's view: the pickup starts measure 0
 
 
-@needs_distances
 def test_pickup_distances():
     tm = _map(*PICKUP)
 
@@ -301,7 +290,6 @@ def test_repeated_number():
     assert end_bar(tm, 4.0) == 2 and bar(tm, 9.5) == 3 and tm.end == 10.0
 
 
-@needs_distances
 def test_repeated_number_distances():
     tm = _map(*REPEAT)
 
@@ -320,7 +308,6 @@ def test_jump_in_the_numbering():
     assert end_bar(tm, 4.0) == 42
 
 
-@needs_distances
 def test_jump_in_the_numbering_distances():
     tm = _map(*JUMP)
 
@@ -352,7 +339,6 @@ def test_after_the_last_beat():
     assert end_bar(tm, 6.0) == 2 and end_bar(tm, 8.5) is None
 
 
-@needs_distances
 def test_after_the_last_beat_distances():
     tm = _map(*SHORT_LAST)
 
@@ -393,7 +379,6 @@ def test_snapping():
     assert beat(tm, 0.07) == 2.0 and beat(tm, 0.05) == 1.0
 
 
-@needs_distances
 def test_snapping_distances():
     tm = _map(T44, [4, 4, 4], [1, 2, 3])
 

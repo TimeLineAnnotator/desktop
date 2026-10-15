@@ -12,6 +12,7 @@ from __future__ import annotations
 import bisect
 import functools
 import itertools
+import logging
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -33,12 +34,16 @@ from tilia_core.timemap.table import (
     table_problem,
 )
 
+logger = logging.getLogger(__name__)
+
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
 
 FOLDED = (
     "the table lists the measures played next (`next`), "
     "which positions don't handle yet"
 )
+
+UNITS = ("bar", "beat")  # what distances and lengths are measured in
 
 
 @dataclass(frozen=True)
@@ -158,6 +163,64 @@ class TimeMap:
             movement=row.movement,
         )
 
+    # Distances and lengths in bars and beats: the prototype's position,
+    # length, beat_seconds and bar_seconds.
+
+    def position(self, t: float, unit: str) -> float | None:
+        """Where `t` lies along the map in bars or beats (`unit` "bar" or
+        "beat"), from 0 at the first beat, in the timeline's order.
+
+        A bar counts 1 whatever its metre, and inside a bar the fraction counts
+        beats. The closing barline is the end of the last bar. None elsewhere
+        off the map.
+        """
+        if not _is_unit(unit):
+            return None
+        return self._position(self._snapped(t), unit, closing=True)
+
+    def length(self, start: float, end: float, unit: str) -> float | None:
+        """How long a span lasts in bars or beats (`unit` "bar" or "beat"): the
+        distance between its two positions, rounded to a millionth, so that 8
+        bars compares equal to 8. None when either end is off the map; an end
+        on the closing barline is on it, a start isn't."""
+        if not _is_unit(unit):
+            return None
+        a = self._position(self._snapped(start), unit, closing=False)
+        b = self._position(self._snapped(end), unit, closing=True)
+        if a is None or b is None:
+            return None
+        return round(b - a, 6)
+
+    def unit_seconds(self, t: float, unit: str) -> float | None:
+        """How long the beat or the bar holding `t` lasts (`unit` "beat" or
+        "bar"), in the file's unit despite the name. None off the map."""
+        if not _is_unit(unit):
+            return None
+        located = self._locate(self._snapped(t))
+        if located is None:
+            return None
+        slot = located[0]
+        if unit == "beat":
+            return self._slots[slot + 1] - self._slots[slot]
+        row = self._rows[self._measure_of[slot]]
+        return row.end - row.start
+
+    def _position(
+        self, snapped: float | None, unit: str, *, closing: bool
+    ) -> float | None:
+        # The prototype's measure_pos or beat_pos; with `closing`, its position.
+        located = self._locate(snapped)
+        if located is None:
+            if closing and snapped is not None and abs(snapped - self.end) <= EPS:
+                return float(len(self._rows) if unit == "bar" else len(self._times))
+            return None
+        slot, fraction = located
+        if unit == "beat":
+            return slot + fraction
+        measure = self._measure_of[slot]
+        beats = self._rows[measure].beats
+        return measure + (slot - self._first[measure] + fraction) / beats
+
     # Quarter notes: desktop#621's quarter stamps. Unlike positions, they
     # aren't snapped, and they go on beyond the beats.
 
@@ -243,6 +306,14 @@ class TimeMap:
             abs(downbeats[x] - t) for x in (k - 1, k) if 0 <= x < len(downbeats)
         )
         return nearest <= self.tolerance + EPS
+
+
+def _is_unit(unit: str) -> bool:
+    if unit in UNITS:
+        return True
+    # Not something a file can give: a caller's mistake, logged, not raised.
+    logger.error("A time map measures in 'bar' or 'beat', not %r.", unit)
+    return False
 
 
 def build_time_map(
