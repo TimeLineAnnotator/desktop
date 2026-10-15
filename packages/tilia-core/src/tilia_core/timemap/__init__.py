@@ -24,7 +24,6 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 TIME_MAP_ROLE = "time_map"
-TWO_CLAIM = "two timelines claim the role time_map; the first by ordinal is used"
 
 
 @dataclass(frozen=True)
@@ -48,14 +47,14 @@ def find_time_map(
     (the index: from the file and the corpus's manifest), and a timeline it
     leaves out has none; without it, the roles are the file's. A role that is a
     list claims time_map when it holds it. When several beat timelines have the
-    role, the first by ordinal wins, with a warning. When the chosen timeline
-    gives no time map, no other stands in: the file has no bars, and `reason`
-    says why. A document without a beat timeline has no time map, and nothing
-    is wrong with it: no reason, no warning.
+    role, the first by ordinal wins, with a warning that names them. When the
+    chosen timeline gives no time map, no other stands in: the file has no
+    bars, and `reason` says why. A document without a beat timeline has no
+    time map, and nothing is wrong with it: no reason, no warning.
 
     Every beat timeline whose last beat is at or after the end of the media
-    gets a warning, with its id, the time map's or not: it is logged here, once
-    for each call, and not when a table is built.
+    gets a warning too, with its id, the time map's or not. The warnings are
+    logged here, once for each call, and not when a table is built.
     """
     beat_timelines = sorted(
         (t for t in document.timelines.values() if t.kind == "beat"),
@@ -66,21 +65,30 @@ def find_time_map(
             time_map=None, timeline_id=None, guessed=False, reason=None, warnings=()
         )
     claiming = [t for t in beat_timelines if _claims_the_role(t, roles)]
-    warnings = [TWO_CLAIM] if len(claiming) > 1 else []
+    warnings = [_several_claim(claiming)] if len(claiming) > 1 else []
     timeline = (claiming or beat_timelines)[0]
     guessed = not claiming
     time_map, reason = build_time_map(document, timeline, guessed=guessed)
     for beats in beat_timelines:
         warning = media_warning(document, beats)
         if warning is not None:
-            logger.warning("%s.", warning)
             warnings.append(warning)
+    for warning in warnings:
+        logger.warning("%s.", warning)
     return TimeMapFound(
         time_map=time_map,
         timeline_id=timeline.id,
         guessed=guessed,
         reason=reason,
         warnings=tuple(warnings),
+    )
+
+
+def _several_claim(claiming: list[tla.Timeline]) -> str:
+    ids = [timeline.id for timeline in claiming]
+    return (
+        f"timelines {', '.join(ids[:-1])} and {ids[-1]} claim the role time_map; "
+        f"{ids[0]}, the first by ordinal, is used"
     )
 
 
