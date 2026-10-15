@@ -15,6 +15,7 @@ class SliderTimeline(Timeline):
         TimelineFlag.COMPONENTS_NOT_EDITABLE,
         TimelineFlag.NOT_CLEARABLE,
         TimelineFlag.NOT_DELETABLE,
+        TimelineFlag.NOT_DUPLICATABLE,
         TimelineFlag.NOT_EXPORTABLE,
     ]
 

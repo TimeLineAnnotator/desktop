@@ -43,6 +43,7 @@ class TimelineFlag(Enum):
     COMPONENTS_NOT_EDITABLE = auto()
     NOT_CLEARABLE = auto()
     NOT_DELETABLE = auto()
+    NOT_DUPLICATABLE = auto()
     NOT_EXPORTABLE = auto()
 
 
