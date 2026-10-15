@@ -80,6 +80,9 @@ Prefer UI-layer access over backend access in tests: `range_tlui[0].get_data("jo
 ## How to test code that depends on settings?
 The autouse `isolate_settings` fixture points settings at a throwaway store for the whole session, one per xdist worker, so production settings are never touched. The autouse `restore_settings_after_test` fixture then undoes every setting a test changes, so no test inherits values from the one before. Tests that depend on a specific value should still set it explicitly with `settings.set("group", "name", value)`, so the test states what it relies on.
 
+## Garbage is only collected between tests
+The suite turns off Python's automatic garbage collection and collects after each test's teardown instead, on the main thread (`tests/garbage_collection.py`). Left on, the collector can start at any allocation on any thread: an xdist worker's communication thread, or the main thread in the middle of a Qt call. Freeing Qt objects left over from earlier tests at such a point crashes the worker. If a test needs an object freed before it ends, e.g. to check that it is released, call `gc.collect()` in the test. Don't turn automatic collection back on.
+
 ## How to test the right actions are available in the UI?
 The `get_submenu`, `get_action` and `get_qaction` in the `tests.ui.utils` module should help.
 
