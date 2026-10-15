@@ -11,10 +11,6 @@ from typing import Any
 
 from tilia_core import tla
 
-# A stand-in until tla.FORMAT_VERSION exists (desktop#700); then use that
-# instead (TimeLineAnnotator/project-management#275).
-FORMAT_VERSION = "1.0.0-draft.1"
-
 
 def document(
     *,
@@ -24,7 +20,7 @@ def document(
 ) -> tla.Document:
     return tla.Document(
         document_id=tla.new_id(),
-        format_version=FORMAT_VERSION,
+        format_version=tla.FORMAT_VERSION,
         time_unit=time_unit,
         media_length=media_length,
         timelines={timeline.id: timeline for timeline in timelines},
