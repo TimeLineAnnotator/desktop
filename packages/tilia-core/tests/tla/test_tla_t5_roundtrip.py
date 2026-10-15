@@ -435,13 +435,14 @@ def test_edits_to_a_timeline_of_an_unknown_kind_are_written():
 
 def test_a_timeline_of_an_unknown_kind_gains_no_key_it_didnt_have():
     content = json.loads(UNKNOWN.read_bytes())
+    # Its ordinal it has, as every timeline does.
     lyrics = list(content["timelines"])[3]
-    for key in ("name", "ordinal", "metadata"):
+    for key in ("name", "metadata"):
         del content["timelines"][lyrics][key]
     data = (json.dumps(content, indent=2, ensure_ascii=False) + "\n").encode()
     doc = tla.loads(data)
     timeline = doc.timelines[lyrics]
-    assert (timeline.name, timeline.ordinal, timeline.metadata) == ("", 0, {})
+    assert (timeline.name, timeline.ordinal, timeline.metadata) == ("", 4, {})
     assert tla.canonical_bytes(doc) == data
 
 
