@@ -120,14 +120,24 @@ def disorder(times: Sequence[float]) -> str | None:
 
 def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
     """The warning, with the timeline's id, that its last beat is at or after
-    the end of the media; None when it isn't, or when the table has no rows."""
+    the end of the media; None when it isn't, or when the table has no rows.
+
+    With more than one beat, the last measure ends one gap after the last
+    beat, and the warning says so; with one, it ends on the beat.
+    """
     if table_problem(timeline) is not None:
         return None
     times = _times(timeline)
-    if not times:
+    media_length = _media_length(document)
+    if not times or media_length is None or not _ends_by(media_length, times[-1]):
         return None
-    warning = past_media(document, times[-1])
-    return None if warning is None else f"Timeline {timeline.id}: {warning}"
+    warning = (
+        f"Timeline {timeline.id}: the last beat ({times[-1]}) is at or after "
+        f"the end of the media ({media_length})"
+    )
+    if len(times) > 1:
+        warning += "; the last measure ends one gap after it"
+    return warning
 
 
 def missing_time(timeline: tla.Timeline) -> str | None:
@@ -230,20 +240,8 @@ def _closing_barline(document: tla.Document, rows: Sequence[RowIn]) -> float:
     end = last + (last - before[0] if before else 0.0)
     media_length = _media_length(document)
     if media_length is None or _ends_by(media_length, last):
-        return end  # past the media, the gap alone; find_time_map warns (past_media)
+        return end  # past the media, the gap alone; find_time_map warns
     return min(end, media_length)
-
-
-def past_media(document: tla.Document, last_beat: float) -> str | None:
-    """The warning that the last beat is at or after the end of the media, so
-    that the last measure ends one gap after it; None when it isn't."""
-    media_length = _media_length(document)
-    if media_length is None or not _ends_by(media_length, last_beat):
-        return None
-    return (
-        f"the last beat ({last_beat}) is at or after the end of the media "
-        f"({media_length}); the last measure ends one gap after it"
-    )
 
 
 def _media_length(document: tla.Document) -> float | None:
