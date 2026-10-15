@@ -499,14 +499,21 @@ def test_a_null_source_or_licence_is_kept_on_a_score_of_an_unknown_format():
     assert (written["source"], written["license"]) == (None, None)
 
 
-@pytest.mark.parametrize("key", ["source", "license"])
-def test_a_null_source_or_licence_on_an_mei_score_is_refused(key):
-    # The schema's types: an object and text.
+def test_a_null_licence_on_an_mei_score_is_read():
+    # A null is a missing key, and an MEI score's licence isn't required.
     content = json.loads(UNKNOWN.read_bytes())
-    content["scores"][0][key] = None
+    content["scores"][0]["license"] = None
+    doc = tla.loads(json.dumps(content).encode())
+    assert tla.loads(tla.canonical_bytes(doc)).scores == doc.scores
+
+
+def test_a_null_source_on_an_mei_score_is_refused():
+    # A null is a missing key, and the schema requires an MEI score's source.
+    content = json.loads(UNKNOWN.read_bytes())
+    content["scores"][0]["source"] = None
     with pytest.raises(tla.UnreadableFile) as error:
         tla.loads(json.dumps(content).encode())
-    assert error.value.place == f"/scores/0/{key}"
+    assert error.value.place == "/scores/0/source"
 
 
 @pytest.mark.parametrize("license", ["NOASSERTION", None])
@@ -565,11 +572,11 @@ def test_an_unknown_kind_spelled_like_a_known_one_is_refused():
     # The reader would read it back as the known kind, with its defaults.
     doc = tla.read(UNKNOWN)
     beats, markers, _, lyrics = doc.timelines.values()
-    lyrics.kind = tla.UnknownKind("MARKER_TIMELINE")
+    lyrics.kind = tla.UnknownKind("Marker")
     with pytest.raises(ValueError, match=re.escape(f"/timelines/{lyrics.id}/kind")):
         tla.canonical_bytes(doc)
     lyrics.kind = tla.UnknownKind("Lyrics")
-    beats.kind = tla.UnknownKind("beat")
+    beats.kind = tla.UnknownKind("Beat")
     with pytest.raises(ValueError, match=re.escape(f"/timelines/{beats.id}/kind")):
         tla.canonical_bytes(doc)
     beats.kind = "beat"
@@ -579,6 +586,25 @@ def test_an_unknown_kind_spelled_like_a_known_one_is_refused():
     place = f"/timelines/{markers.id}/components/{other.id}/kind"
     with pytest.raises(ValueError, match=re.escape(place)):
         tla.canonical_bytes(doc)
+
+
+@pytest.mark.parametrize("spelling", ["marker", "MARKER_TIMELINE", "HIERARCHY"])
+def test_a_timeline_kind_spelled_otherwise_is_a_kind_the_core_doesnt_know(spelling):
+    # In a file of the current format, kinds are read as the writer writes
+    # them; only an old file's are read in any letter case.
+    content = json.loads(UNKNOWN.read_bytes())
+    lyrics_id = list(content["timelines"])[3]
+    content["timelines"][lyrics_id]["kind"] = spelling
+    data = json.dumps(content, indent=2, ensure_ascii=False).encode() + b"\n"
+    lyrics = tla.loads(data).timelines[lyrics_id]
+    assert lyrics.kind == tla.UnknownKind(spelling)
+    assert lyrics.raw == content["timelines"][lyrics_id]
+    assert tla.canonical_bytes(tla.loads(data)) == data
+    doc = tla.read(UNKNOWN)
+    doc.timelines[lyrics_id].kind = tla.UnknownKind(spelling)
+    assert tla.loads(tla.canonical_bytes(doc)).timelines[lyrics_id].kind == (
+        tla.UnknownKind(spelling)
+    )
 
 
 @pytest.fixture(params=[None, 0, 100_000], ids=["as it is", "none", "a higher one"])

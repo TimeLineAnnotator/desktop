@@ -35,7 +35,7 @@ from tilia_core.tla.model import (
     Timeline,
     UnknownKind,
     component_kind_from_file,
-    timeline_kind_from_file,
+    timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import parse
 
@@ -221,7 +221,7 @@ class _Reader:
         return value[key]
 
     def _metadata(self, value: dict[str, Any], place: str) -> dict[str, Any]:
-        if "metadata" not in value:
+        if value.get("metadata") is None:  # a null is a missing key
             return {}
         return nfc_value(self._object(value["metadata"], pointer_to(place, "metadata")))
 
@@ -258,7 +258,7 @@ class _Reader:
     def _timeline(self, timeline_id: str, value: Any, place: str) -> Timeline:
         timeline = self._object(value, place)
         spelling = self._text(self._require(timeline, "kind", place), place, "kind")
-        kind = timeline_kind_from_file(spelling)
+        kind = timeline_kind_from_current_file(spelling)
         if isinstance(kind, UnknownKind):
             # Kept whole in `raw`. Its name, ordinal and metadata are fields
             # too, copies the writer writes in place of raw's.
@@ -267,7 +267,7 @@ class _Reader:
                 kind=kind,
                 ordinal=nfc_value(timeline.get("ordinal", 0)),
                 name=nfc_value(timeline.get("name", "")),
-                metadata=nfc_value(timeline.get("metadata", {})),
+                metadata=nfc_value(timeline.get("metadata") or {}),
                 raw=nfc_value(timeline),
             )
         shape = TIMELINE_SHAPES[kind]
