@@ -9,9 +9,11 @@ import sys
 import xml.etree.ElementTree as ElementTree
 
 import pytest
+from PySide6.QtGui import QKeySequence
 
 from tests.utils import get_main_window_menu, get_submenu
 from tilia.ui import commands, shortcuts_sheet
+from tilia.ui.qtui import TiliaMainWindow
 from tilia.ui.shortcuts_sheet import Shortcut, ShortcutClash
 
 SVG = "{http://www.w3.org/2000/svg}"
@@ -100,7 +102,7 @@ class TestCollect:
             for key, names in commands.get_shortcuts().items()
             for name in names
         }
-        assert on_sheet == registered
+        assert registered <= on_sheet
 
     def test_global_comes_first_then_kinds_in_add_timeline_menu_order(self, qtui):
         add_menu = get_submenu(get_main_window_menu(qtui, "Timelines"), "Add")
@@ -124,6 +126,135 @@ class TestCollect:
         )
         assert hierarchy_merge in get_group(groups, "Hierarchy timeline").shortcuts
         assert range_merge in get_group(groups, "Range timeline").shortcuts
+
+
+class TestCaughtKeys:
+    """Keys TiliaMainWindow and TimelineView catch themselves, instead of
+    registering them as shortcuts."""
+
+    @pytest.mark.parametrize(
+        "shortcut",
+        [
+            Shortcut("Del", "Delete", "anywhere", "timeline.component.delete"),
+            Shortcut("Return", "Inspect", "anywhere", "timeline.element.inspect"),
+            Shortcut("Enter", "Inspect", "anywhere", "timeline.element.inspect"),
+        ],
+    )
+    def test_main_window_key_is_global(self, qtui, shortcut):
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert shortcut in get_group(groups, "Global").shortcuts
+
+    def test_every_key_the_main_window_catches_is_on_the_sheet(self, qtui):
+        groups = shortcuts_sheet.collect(qtui)
+
+        on_sheet = set().union(*(keys_and_commands(group) for group in groups))
+        caught = {
+            (QKeySequence(combination).toString(), name)
+            for combination, name in TiliaMainWindow.KEY_COMMANDS
+        }
+        assert caught <= on_sheet
+
+    def test_key_both_registered_and_caught_is_listed_once(self, qtui):
+        groups = shortcuts_sheet.collect(qtui)
+
+        copies = [
+            s
+            for s in get_group(groups, "Global").shortcuts
+            if s.command == "timeline.component.copy"
+        ]
+        assert [s.key for s in copies] == ["Ctrl+C"]
+
+    @pytest.mark.parametrize(
+        "shortcut",
+        [
+            Shortcut(
+                "Left", "Select the previous element", "in a timeline", "left arrow"
+            ),
+            Shortcut(
+                "Right", "Select the next element", "in a timeline", "right arrow"
+            ),
+        ],
+    )
+    def test_arrow_every_kind_takes_alike_is_listed_once_under_global(
+        self, qtui, shortcut
+    ):
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert shortcut in get_group(groups, "Global").shortcuts
+        assert [
+            group.title
+            for group in groups
+            if shortcut.key in {s.key for s in group.shortcuts}
+        ] == ["Global"]
+
+    @pytest.mark.parametrize(
+        "group,up,down",
+        [
+            ("Hierarchy timeline", "Select the parent", "Select the first child"),
+            (
+                "Range timeline",
+                "Select a range in the row above",
+                "Select a range in the row below",
+            ),
+        ],
+    )
+    def test_up_and_down_are_in_the_kinds_that_take_them(self, qtui, group, up, down):
+        groups = shortcuts_sheet.collect(qtui)
+
+        shortcuts = get_group(groups, group).shortcuts
+        assert Shortcut("Up", up, "in a timeline", "up arrow") in shortcuts
+        assert Shortcut("Down", down, "in a timeline", "down arrow") in shortcuts
+        assert {g.title for g in groups if "Up" in {s.key for s in g.shortcuts}} == {
+            "Hierarchy timeline",
+            "Range timeline",
+        }
+
+    @pytest.mark.parametrize(
+        "group,shortcut",
+        [
+            (
+                "Hierarchy timeline",
+                Shortcut(
+                    "Ctrl+Up",
+                    "Move up a level",
+                    "Hierarchy toolbar",
+                    "timeline.hierarchy.increase_level",
+                ),
+            ),
+            (
+                "Hierarchy timeline",
+                Shortcut(
+                    "Ctrl+Down",
+                    "Move down a level",
+                    "Hierarchy toolbar",
+                    "timeline.hierarchy.decrease_level",
+                ),
+            ),
+            (
+                "Range timeline",
+                Shortcut(
+                    "Ctrl+Up",
+                    "Move to row above",
+                    "in a timeline",
+                    "timeline.range.move_to_row_above",
+                ),
+            ),
+            (
+                "Range timeline",
+                Shortcut(
+                    "Ctrl+Down",
+                    "Move to row below",
+                    "in a timeline",
+                    "timeline.range.move_to_row_below",
+                ),
+            ),
+        ],
+    )
+    def test_ctrl_arrow_runs_its_kinds_command(self, qtui, group, shortcut):
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert shortcut in get_group(groups, group).shortcuts
 
 
 class TestCheckClashes:
