@@ -455,9 +455,7 @@ class _Checker:
             sub = spec.prefix[index] if index < len(spec.prefix) else spec.items
             if sub is None or type(item) in sub.quick:
                 continue
-            checked = self.value(item, sub, (place, index), name)
-            if checked is not item:
-                value[index] = checked
+            self.value(item, sub, (place, index), name)
 
     def key(self, key: str, spec: _Spec, place: Place) -> None:
         """An object's key, which must be an id."""
