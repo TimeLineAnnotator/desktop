@@ -107,7 +107,7 @@ EXPECTED = {
     "level-missing.tla": ('"level" is missing', SECTION + "/level", 44),
     "time-null.tla": ('"time" should be a number, not null', COMPONENT + "/time", 62),
     "unknown-kind-ordinal-as-text.tla": (
-        '"ordinal" should be an integer or null, not text',
+        '"ordinal" should be an integer, not text',
         "/timelines/{form}/ordinal",
         38,
     ),
@@ -428,12 +428,23 @@ def component(content, name, of):
         (
             lambda c: timeline(c, "form").update(kind="Lyrics", ordinal="x"),
             "/timelines/{form}/ordinal",
-            '"ordinal" should be an integer or null, not text',
+            '"ordinal" should be an integer, not text',
         ),
         (
             lambda c: timeline(c, "form").update(kind="Lyrics", ordinal=1.5),
             "/timelines/{form}/ordinal",
-            '"ordinal" should be an integer or null, not a number',
+            '"ordinal" should be an integer, not a number',
+        ),
+        (
+            lambda c: timeline(c, "form").update(kind="Lyrics")
+            or timeline(c, "form").pop("ordinal"),
+            "/timelines/{form}/ordinal",
+            '"ordinal" is missing',
+        ),
+        (
+            lambda c: timeline(c, "form").update(kind="Lyrics", ordinal=None),
+            "/timelines/{form}/ordinal",
+            '"ordinal" should be an integer, not null',
         ),
         (
             lambda c: timeline(c, "form").update(kind="Lyrics", name=5),
@@ -502,9 +513,9 @@ def test_a_broken_structure_is_refused_with_its_place(change, where, message):
     assert error.line is not None
 
 
-def _unknown_without_name_or_ordinal(timeline):
+def _unknown_without_name_or_metadata(timeline):
     timeline.update(kind="Lyrics")
-    del timeline["name"], timeline["ordinal"], timeline["metadata"]
+    del timeline["name"], timeline["metadata"]
 
 
 @pytest.mark.parametrize(
@@ -530,8 +541,8 @@ def _unknown_without_name_or_ordinal(timeline):
         lambda c: component(c, "section", of="form").update(kind="SECTION", level="1"),
         lambda c: timeline(c, "form").update(kind="Lyrics", height="tall"),
         lambda c: timeline(c, "form").update(kind="HIERARCHY", height="tall"),
-        # A timeline of an unknown kind needs no name, ordinal or metadata.
-        lambda c: _unknown_without_name_or_ordinal(timeline(c, "form")),
+        # A timeline of an unknown kind needs no name or metadata.
+        lambda c: _unknown_without_name_or_metadata(timeline(c, "form")),
         # A null where the schema allows one.
         lambda c: component(c, "melody_1", of="texture").update(joined_right=None),
         lambda c: timeline(c, "cadences").update(measure_table=None),
@@ -722,6 +733,15 @@ def test_a_null_is_refused_only_where_the_key_is_required():
         again = tla.loads(writer.checked_bytes(doc))
         assert tla.canonical_bytes(again) == tla.canonical_bytes(doc)
     assert found == refused
+
+
+@pytest.mark.parametrize("kind", ["Hierarchy", "Lyrics"])
+def test_a_null_metadata_is_none(kind):
+    # A null is a missing key, whatever the timeline's kind.
+    doc = tla.loads(
+        edited(lambda c: timeline(c, "form").update(kind=kind, metadata=None))
+    )
+    assert named(doc, "Form").metadata == {}
 
 
 def test_a_beats_null_measure_is_no_mark():
