@@ -1,7 +1,36 @@
-from tests.constants import EXAMPLE_MEDIA_PATH
+from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_PDF_PATH
+from tilia.timelines.audiowave.timeline import AudioWaveTimeline
+from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.pdf.timeline import PdfTimeline
+from tilia.timelines.slider.timeline import SliderTimeline
+from tilia.ui.cli.timelines.add import (
+    KIND_STR_TO_TIMELINE_CLASS,
+    TIMELINE_CLASS_TO_KWARGS_NAMES,
+)
+
+
+class TestTimelineAddCoverage:
+    """#476 was a kind reachable everywhere else in the app but missing from
+    the CLI's tables. These fail when the next kind is added and not wired up
+    here, rather than letting it go unnoticed again."""
+
+    def test_every_creatable_kind_can_be_added(self):
+        creatable = set(Timeline.subclasses()) - {SliderTimeline}
+
+        assert set(KIND_STR_TO_TIMELINE_CLASS.values()) == creatable
+
+    def test_every_creatable_kind_declares_its_kwargs(self):
+        creatable = set(Timeline.subclasses()) - {SliderTimeline}
+
+        assert set(TIMELINE_CLASS_TO_KWARGS_NAMES) == creatable
+
+    def test_slider_cannot_be_added(self):
+        # It is created with the file and can't be deleted.
+        assert SliderTimeline not in KIND_STR_TO_TIMELINE_CLASS.values()
 
 
 class TestTimelineAdd:
@@ -66,6 +95,84 @@ class TestTimelineAdd:
 
         tl = tls.get_timelines()[0]
         assert tl.beat_pattern == [4]
+
+    def test_add_harmony_timeline(self, cli, tls):
+        cli.parse_and_run("timeline add har --name test")
+
+        tl = tls.get_timelines()[0]
+        assert isinstance(tl, HarmonyTimeline)
+        assert tl.name == "test"
+
+    def test_add_harmony_timeline_full_name(self, cli, tls):
+        cli.parse_and_run("timeline add harmony")
+
+        assert isinstance(tls.get_timelines()[0], HarmonyTimeline)
+
+    def test_add_audiowave_timeline(self, cli, tls, tilia_errors):
+        cli.parse_and_run("load-media " + EXAMPLE_MEDIA_PATH)
+        cli.parse_and_run("timeline add aud --name test")
+
+        tl = tls.get_timelines()[0]
+        assert isinstance(tl, AudioWaveTimeline)
+        assert tl.name == "test"
+        # An audiowave timeline is only useful once refresh() has read the
+        # media and filled it in. Without media, or without a server for
+        # Get.PLAYBACK_AREA_WIDTH, it comes out empty and hidden instead.
+        assert tl.get_data("is_visible")
+        assert len(tl) > 0
+        tilia_errors.assert_no_error()
+
+    def test_add_audiowave_timeline_full_name(self, cli, tls, tilia_errors):
+        cli.parse_and_run("load-media " + EXAMPLE_MEDIA_PATH)
+        cli.parse_and_run("timeline add audiowave")
+
+        assert isinstance(tls.get_timelines()[0], AudioWaveTimeline)
+        tilia_errors.assert_no_error()
+
+    def test_add_audiowave_timeline_without_media_fails(self, cli, tls, tilia_errors):
+        cli.parse_and_run("timeline add audiowave")
+
+        tilia_errors.assert_error()
+        assert not tls.get_timelines()[0].get_data("is_visible")
+
+    def test_add_pdf_timeline(self, cli, tls, tilia_errors):
+        cli.parse_and_run(f"timeline add pdf --name test --path {EXAMPLE_PDF_PATH}")
+
+        tl = tls.get_timelines()[0]
+        assert isinstance(tl, PdfTimeline)
+        assert tl.name == "test"
+        assert tl.get_data("is_pdf_valid")
+        tilia_errors.assert_no_error()
+
+    def test_add_pdf_timeline_without_path_fails(self, cli, tls, tilia_errors):
+        cli.parse_and_run("timeline add pdf --name test")
+
+        assert len(tls) == 0
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("--path")
+        tilia_errors.assert_in_error_message("pdf")
+
+    def test_height_rejected_for_harmony_kind(self, cli, tls, tilia_errors):
+        cli.parse_and_run("timelines add harmony --name H --height 50")
+
+        assert len(tls) == 0
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("--height")
+        tilia_errors.assert_in_error_message("harmony")
+
+    def test_height_applied_to_audiowave_kind(self, cli, tls):
+        cli.parse_and_run("load-media " + EXAMPLE_MEDIA_PATH)
+        cli.parse_and_run("timelines add audiowave --name A --height 123")
+
+        assert tls.get_timelines()[0].height == 123
+
+    def test_path_rejected_for_non_pdf_kind(self, cli, tls, tilia_errors):
+        cli.parse_and_run(f"timelines add marker --name M --path {EXAMPLE_PDF_PATH}")
+
+        assert len(tls) == 0
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("--path")
+        tilia_errors.assert_in_error_message("marker")
 
     def test_row_height_rejected_for_non_range_kind(self, cli, tls, tilia_errors):
         cli.parse_and_run("timelines add marker --name M --row-height 50")
