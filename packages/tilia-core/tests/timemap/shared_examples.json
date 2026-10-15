@@ -372,5 +372,342 @@
       }
     }
   ],
-  "times_of": []
+  "times_of": [
+    {
+      "name": "one bar: bar 1",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0}
+      ],
+      "query": {"number": 1, "fraction": 0.0, "segment_end": false},
+      "expected": [1.0]
+    },
+    {
+      "name": "three beats, then one: bar 1",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0},
+        {"time": 4.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.0, "segment_end": false},
+      "expected": [1.0]
+    },
+    {
+      "name": "three beats, then one: bar 1 at 0.333, its second beat",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0},
+        {"time": 4.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.333, "segment_end": false},
+      "expected": [2.0]
+    },
+    {
+      "name": "three beats, then one: bar 1 at 0.667, its third beat",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0},
+        {"time": 4.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.667, "segment_end": false},
+      "expected": [3.0]
+    },
+    {
+      "name": "three bars: bar 1",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0}
+      ],
+      "query": {"number": 1, "fraction": 0.0, "segment_end": false},
+      "expected": [1.0]
+    },
+    {
+      "name": "three bars: bar 2",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0}
+      ],
+      "query": {"number": 2, "fraction": 0.0, "segment_end": false},
+      "expected": [3.0]
+    },
+    {
+      "name": "three bars: bar 3",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0}
+      ],
+      "query": {"number": 3, "fraction": 0.0, "segment_end": false},
+      "expected": [5.0]
+    },
+    {
+      "name": "uneven beats: bar 1 at 0",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 3.0},
+        {"time": 7.0},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.0, "segment_end": false},
+      "expected": [1.0]
+    },
+    {
+      "name": "uneven beats: bar 1 at 0.25, its second beat",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 3.0},
+        {"time": 7.0},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.25, "segment_end": false},
+      "expected": [3.0]
+    },
+    {
+      "name": "uneven beats: bar 1 at 0.5, its third beat",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 3.0},
+        {"time": 7.0},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.5, "segment_end": false},
+      "expected": [7.0]
+    },
+    {
+      "name": "uneven beats: bar 1 at 0.75, its fourth beat",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 3.0},
+        {"time": 7.0},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.75, "segment_end": false},
+      "expected": [8.0]
+    },
+    {
+      "name": "the fraction 1: the next bar's downbeat",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 1.0, "segment_end": false},
+      "expected": [3.0]
+    },
+    {
+      "name": "uneven beats: bar 1 at 0.125, between its first two beats",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 3.0},
+        {"time": 4.0},
+        {"time": 5.0},
+        {"time": 6.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.125, "segment_end": false},
+      "expected": [2.0]
+    },
+    {
+      "name": "uneven beats: bar 1 at 0.375, between its second and third",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 3.0},
+        {"time": 4.0},
+        {"time": 5.0},
+        {"time": 6.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.375, "segment_end": false},
+      "expected": [3.5]
+    },
+    {
+      "name": "uneven beats: bar 1 at 0.625, between its third and fourth",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 3.0},
+        {"time": 4.0},
+        {"time": 5.0},
+        {"time": 6.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.625, "segment_end": false},
+      "expected": [4.5]
+    },
+    {
+      "name": "between a bar's last beat and the next downbeat",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}}
+      ],
+      "query": {"number": 1, "fraction": 0.75, "segment_end": false},
+      "expected": [2.5]
+    },
+    {
+      "name": "a bar after the last: none",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0}
+      ],
+      "query": {"number": 2, "fraction": 0.0, "segment_end": false},
+      "expected": []
+    },
+    {
+      "name": "a bar far after the last: none",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0}
+      ],
+      "query": {"number": 999, "fraction": 0.0, "segment_end": false},
+      "expected": []
+    },
+    {
+      "name": "bar 1 played three times",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0},
+        {"time": 7.0, "measure": {"number": 1}},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}},
+        {"time": 10.0},
+        {"time": 11.0, "measure": {"number": 1}},
+        {"time": 12.0}
+      ],
+      "query": {"number": 1, "fraction": 0.0, "segment_end": false},
+      "expected": [1.0, 7.0, 11.0]
+    },
+    {
+      "name": "bar 2 played twice, at 0.5",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0},
+        {"time": 7.0, "measure": {"number": 1}},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}},
+        {"time": 10.0},
+        {"time": 11.0, "measure": {"number": 1}},
+        {"time": 12.0}
+      ],
+      "query": {"number": 2, "fraction": 0.5, "segment_end": false},
+      "expected": [4.0, 10.0]
+    },
+    {
+      "name": "bar 2 played twice, at 0.75",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0},
+        {"time": 7.0, "measure": {"number": 1}},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}},
+        {"time": 10.0},
+        {"time": 11.0, "measure": {"number": 1}},
+        {"time": 12.0}
+      ],
+      "query": {"number": 2, "fraction": 0.75, "segment_end": false},
+      "expected": [4.5, 10.5]
+    },
+    {
+      "name": "bar 3 played once, at 0.5",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0},
+        {"time": 7.0, "measure": {"number": 1}},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}},
+        {"time": 10.0},
+        {"time": 11.0, "measure": {"number": 1}},
+        {"time": 12.0}
+      ],
+      "query": {"number": 3, "fraction": 0.5, "segment_end": false},
+      "expected": [6.0]
+    },
+    {
+      "name": "bar 3 played once, at 0.75",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0},
+        {"time": 7.0, "measure": {"number": 1}},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}},
+        {"time": 10.0},
+        {"time": 11.0, "measure": {"number": 1}},
+        {"time": 12.0}
+      ],
+      "query": {"number": 3, "fraction": 0.75, "segment_end": false},
+      "expected": [6.5]
+    },
+    {
+      "name": "the end of bar 3, no bar 4: none",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0},
+        {"time": 7.0, "measure": {"number": 1}},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}},
+        {"time": 10.0},
+        {"time": 11.0, "measure": {"number": 1}},
+        {"time": 12.0}
+      ],
+      "query": {"number": 3, "fraction": 1.0, "segment_end": false},
+      "expected": []
+    },
+    {
+      "name": "the end of bar 3, no bar 4, as a segment's end",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "measure": {}},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 6.0},
+        {"time": 7.0, "measure": {"number": 1}},
+        {"time": 8.0},
+        {"time": 9.0, "measure": {}},
+        {"time": 10.0},
+        {"time": 11.0, "measure": {"number": 1}},
+        {"time": 12.0}
+      ],
+      "query": {"number": 3, "fraction": 1.0, "segment_end": true},
+      "expected": [7.0]
+    }
+  ]
 }
