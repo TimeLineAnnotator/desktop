@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
-from tilia_core.tla import writer
-from tilia_core.tla.parse import lines_of
+from tilia_core.tla import layout, writer
+from tilia_core.tla.parse import lines_of, pointer
 
 BROKEN = Path(__file__).parent / "broken"
 BROKEN_FILES = sorted(BROKEN.glob("*.tla"))
@@ -105,8 +105,14 @@ EXPECTED = {
         62,
     ),
     "level-missing.tla": ('"level" is missing', SECTION + "/level", 44),
+    "time-null.tla": ('"time" should be a number, not null', COMPONENT + "/time", 62),
+    "unknown-kind-ordinal-as-text.tla": (
+        '"ordinal" should be an integer or null, not text',
+        "/timelines/{form}/ordinal",
+        38,
+    ),
     "metadata-not-an-object.tla": (
-        '"metadata" should be an object, not a list',
+        '"metadata" should be an object or null, not a list',
         "/timelines/{form}/metadata",
         40,
     ),
@@ -315,14 +321,14 @@ def component(content, name, of):
             '"ordinal" should be an integer, not text',
         ),
         (
-            lambda c: timeline(c, "form").update(ordinal=2.0),
+            lambda c: timeline(c, "form").update(ordinal=2.5),
             "/timelines/{form}/ordinal",
             '"ordinal" should be an integer, not a number',
         ),
         (
             lambda c: timeline(c, "form").update(is_visible=1),
             "/timelines/{form}/is_visible",
-            '"is_visible" should be true or false, not a number',
+            '"is_visible" should be true or false or null, not a number',
         ),
         (
             lambda c: timeline(c, "form").pop("height"),
@@ -355,9 +361,14 @@ def component(content, name, of):
             '"level" should be an integer, not true or false',
         ),
         (
-            lambda c: component(c, "section", of="form").update(label=None),
-            SECTION + "/label",
-            '"label" should be text, not null',
+            lambda c: component(c, "section", of="form").update(level=None),
+            SECTION + "/level",
+            '"level" should be an integer, not null',
+        ),
+        (
+            lambda c: component(c, "cadence", of="cadences").update(time=None),
+            COMPONENT + "/time",
+            '"time" should be a number, not null',
         ),
         (
             lambda c: component(c, "section", of="form").update(color=5),
@@ -388,17 +399,10 @@ def component(content, name, of):
         ),
         (
             lambda c: timeline(c, "beats")["components"][IDS["beat_1"]].update(
-                measure=None
-            ),
-            "/timelines/{beats}/components/{beat_1}/measure",
-            '"measure" should be an object, not null',
-        ),
-        (
-            lambda c: timeline(c, "beats")["components"][IDS["beat_1"]].update(
                 measure={"number": "1"}
             ),
             "/timelines/{beats}/components/{beat_1}/measure/number",
-            '"number" should be an integer, not text',
+            '"number" should be an integer or null, not text',
         ),
         (
             lambda c: timeline(c, "beats")["components"][IDS["beat_1"]].update(
@@ -420,6 +424,31 @@ def component(content, name, of):
             ),
             MELODY + "/joined_right",
             '"joined_right" isn\'t a UUID: "melody_2"',
+        ),
+        (
+            lambda c: timeline(c, "form").update(kind="Lyrics", ordinal="x"),
+            "/timelines/{form}/ordinal",
+            '"ordinal" should be an integer or null, not text',
+        ),
+        (
+            lambda c: timeline(c, "form").update(kind="Lyrics", ordinal=1.5),
+            "/timelines/{form}/ordinal",
+            '"ordinal" should be an integer or null, not a number',
+        ),
+        (
+            lambda c: timeline(c, "form").update(kind="Lyrics", name=5),
+            "/timelines/{form}/name",
+            '"name" should be text or null, not a number',
+        ),
+        (
+            lambda c: timeline(c, "form").update(kind="Lyrics", metadata=[]),
+            "/timelines/{form}/metadata",
+            '"metadata" should be an object or null, not a list',
+        ),
+        (
+            lambda c: timeline(c, "form").update(kind="Lyrics", metadata={"a": 1}),
+            "/timelines/{form}/metadata/a",
+            '"a" should be text or a list, not a number',
         ),
         (
             lambda c: c["media"].update(length="12.5"),
@@ -447,14 +476,9 @@ def component(content, name, of):
             '"source" should be an object, not null',
         ),
         (
-            lambda c: c["scores"][0].update(license=None),
-            "/scores/0/license",
-            '"license" should be text, not null',
-        ),
-        (
             lambda c: c["scores"][0]["source"].update(file=["a.mei"]),
             "/scores/0/source/file",
-            '"file" should be text, not a list',
+            '"file" should be text or null, not a list',
         ),
         (
             lambda c: c["scores"][0].update(
@@ -478,20 +502,36 @@ def test_a_broken_structure_is_refused_with_its_place(change, where, message):
     assert error.line is not None
 
 
+def _unknown_without_name_or_ordinal(timeline):
+    timeline.update(kind="Lyrics")
+    del timeline["name"], timeline["ordinal"], timeline["metadata"]
+
+
 @pytest.mark.parametrize(
     "change",
     [
         # What the core reads, though the schema says more: rules for a valid
         # component, not structure.
         lambda c: component(c, "section", of="form").update(level=0),
-        lambda c: timeline(c, "form").update(ordinal=0),
+        lambda c: timeline(c, "form").update(ordinal=0, height=-1),
         lambda c: c.update(time_unit="minutes", app_name="Other"),
         lambda c: c["media"].update(length=0),
+        lambda c: c["media"].update(length=-1.5),
         lambda c: c["scores"][0].update(license=""),
+        lambda c: timeline(c, "beats").update(measure_source="sung"),
+        lambda c: timeline(c, "beats")["components"][IDS["beat_1"]].update(
+            measure={"source": "sung"}, beat_unit={"denominator": 0, "units": "1"}
+        ),
+        lambda c: c["scores"][0].update(
+            format="svg-osmd-legacy", content=["<svg/>"], beat_x=[[0, 1, 2], [1]]
+        ),
         # Kinds and formats the core doesn't know are kept as they are.
         lambda c: c["scores"][0].update(format="musicxml", source=None),
         lambda c: component(c, "section", of="form").update(kind="SECTION", level="1"),
         lambda c: timeline(c, "form").update(kind="Lyrics", height="tall"),
+        lambda c: timeline(c, "form").update(kind="HIERARCHY", height="tall"),
+        # A timeline of an unknown kind needs no name, ordinal or metadata.
+        lambda c: _unknown_without_name_or_ordinal(timeline(c, "form")),
         # A null where the schema allows one.
         lambda c: component(c, "melody_1", of="texture").update(joined_right=None),
         lambda c: timeline(c, "cadences").update(measure_table=None),
@@ -502,13 +542,80 @@ def test_what_isnt_structure_is_read(change):
     tla.loads(edited(change))
 
 
-def test_a_timeline_kind_is_checked_as_the_reader_reads_it():
-    # In any letter case, as TiLiA 0.7 reads it, so that writing it back as
-    # "Hierarchy" doesn't make a file the reader refuses.
-    error = refusal(
-        edited(lambda c: timeline(c, "form").update(kind="HIERARCHY", height="60"))
-    )
-    assert error.place == place("/timelines/{form}/height")
+def test_a_timeline_kind_in_another_letter_case_is_a_kind_the_core_doesnt_know():
+    # In a file of the current format, kinds are read as the writer writes
+    # them. Only an old file's are read in any letter case: the migration
+    # writes them back in the format's spelling.
+    data = edited(lambda c: timeline(c, "form").update(kind="HIERARCHY", height="60"))
+    form = named(tla.loads(data), "Form")
+    assert form.kind == tla.UnknownKind("HIERARCHY")
+    assert form.raw["height"] == "60"
+    assert tla.canonical_bytes(tla.loads(data)) == data
+
+
+# An integer written with a fraction of zero
+
+
+def _beat_1(content):
+    return timeline(content, "beats")["components"][IDS["beat_1"]]
+
+
+def _beat_1_attrs(doc):
+    return named(doc, "Beats").components[IDS["beat_1"]].attrs
+
+
+@pytest.mark.parametrize(
+    "change, get",
+    [
+        (
+            lambda c, n: timeline(c, "form").update(ordinal=n(2)),
+            lambda doc: [named(doc, "Form").ordinal],
+        ),
+        (
+            lambda c, n: timeline(c, "form").update(kind="Lyrics", ordinal=n(2)),
+            lambda doc: [named(doc, "Form").ordinal],
+        ),
+        (
+            lambda c, n: component(c, "section", of="form").update(level=n(1)),
+            lambda doc: [_section(doc).attrs["level"]],
+        ),
+        (
+            lambda c, n: _beat_1(c).update(
+                measure={"number": n(4)}, beat_unit={"denominator": n(8), "units": "1"}
+            ),
+            lambda doc: [
+                _beat_1_attrs(doc)["measure"]["number"],
+                _beat_1_attrs(doc)["beat_unit"]["denominator"],
+            ],
+        ),
+        (
+            lambda c, n: (
+                timeline(c, "texture").update(default_row_height=n(30)),
+                timeline(c, "texture")["rows"][0].update(height=n(-0.0)),
+            ),
+            lambda doc: [
+                named(doc, "Texture").attrs["default_row_height"],
+                named(doc, "Texture").attrs["rows"][0]["height"],
+            ],
+        ),
+    ],
+)
+def test_an_integer_written_as_1_0_is_read_as_the_integer_1(change, get):
+    # As JSON Schema counts it; the writer then writes 1.
+    data = edited(lambda content: change(content, float))
+    doc = tla.loads(data)
+    assert all(type(value) is int for value in get(doc)), get(doc)
+    with_integers = tla.loads(edited(lambda content: change(content, int)))
+    assert tla.canonical_bytes(doc) == tla.canonical_bytes(with_integers)
+
+
+def test_the_writer_writes_an_integer_given_as_1_0_as_it_is():
+    # It is the document's: the reader reads it back as 1.
+    doc = base_document()
+    _section(doc).attrs["level"] = 2.0
+    data = writer.checked_bytes(doc)
+    assert b'"level": 2.0' in data
+    assert _section(tla.loads(data)).attrs["level"] == 2
 
 
 def test_the_first_problem_in_the_file_is_reported():
@@ -541,6 +648,181 @@ def test_a_component_of_a_timeline_of_an_unknown_kind_isnt_checked():
 
     doc = tla.loads(edited(change))
     assert named(doc, "Form").raw["components"]["1"] == {"text": 5}
+
+
+# A null is a missing key: refused only where the key is required
+
+
+def _refused_nulls():
+    """The keys of make_broken.base() a null is refused on: those the schema
+    requires, and a metadata field's value, which is text or a list."""
+    timelines = ("beats", "form", "cadences", "texture", "score_timeline")
+    keys = {"/app_name", "/document_id", "/time_unit", "/media", "/media/path"}
+    keys |= {"/metadata", "/metadata/title", "/timelines", "/scores"}
+    keys |= {"/timelines/{form}/metadata/vocabulary"}
+    for name in timelines:
+        keys |= {f"/timelines/{{{name}}}/{key}" for key in ("kind", "ordinal")}
+        keys |= {f"/timelines/{{{name}}}/{key}" for key in ("height", "components")}
+    keys |= {"/timelines/{texture}/rows"}
+    keys |= {f"/timelines/{{texture}}/rows/0/{key}" for key in ("id", "name")}
+    components = {
+        ("beats", "beat_1"): (
+            "kind",
+            "time",
+            "beat_unit/denominator",
+            "beat_unit/units",
+        ),
+        ("beats", "beat_2"): ("kind", "time"),
+        ("form", "section"): ("kind", "start", "end", "level"),
+        ("cadences", "cadence"): ("kind", "time"),
+        ("texture", "melody_1"): ("kind", "start", "end", "row_id"),
+        ("texture", "melody_2"): ("kind", "start", "end", "row_id"),
+    }
+    for (of, name), required in components.items():
+        at = f"/timelines/{{{of}}}/components/{{{name}}}"
+        keys |= {f"{at}/{key}" for key in required}
+    keys |= {f"/scores/0/{key}" for key in ("id", "format", "content", "source")}
+    return {place(key) for key in keys}
+
+
+def _members(value, path=()):
+    """The path to every key of every object in `value`, but the ids that key
+    timelines and components: entries, not keys."""
+    if isinstance(value, dict):
+        entries = path and path[-1] in ("timelines", "components")
+        for key, item in value.items():
+            if not entries:
+                yield (*path, key)
+            yield from _members(item, (*path, key))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _members(item, (*path, index))
+
+
+def test_a_null_is_refused_only_where_the_key_is_required():
+    refused = _refused_nulls()
+    base = make_broken.base()
+    found = set()
+    for path in _members(base):
+        if path == ("version",):
+            continue  # another version is read otherwise: by the migration
+        content = copy.deepcopy(base)
+        parent = content
+        for step in path[:-1]:
+            parent = parent[step]
+        parent[path[-1]] = None
+        where = pointer([str(step) for step in path])
+        try:
+            doc = tla.loads(make_broken.text_of(content).encode("utf-8"))
+        except tla.UnreadableFile as error:
+            assert error.place == where, (where, error.message)
+            found.add(where)
+            continue
+        assert where not in refused, where
+        again = tla.loads(writer.checked_bytes(doc))
+        assert tla.canonical_bytes(again) == tla.canonical_bytes(doc)
+    assert found == refused
+
+
+def test_a_beats_null_measure_is_no_mark():
+    doc = tla.loads(edited(lambda c: _beat_1(c).update(measure=None)))
+    assert _beat_1_attrs(doc).get("measure") is None
+    assert b'"measure"' not in tla.canonical_bytes(doc)
+
+
+# The schema states only structure
+
+
+SCHEMA = layout._SCHEMA
+# The keywords of structure: types, required keys, ids, and what holds what.
+STRUCTURE = {
+    "$schema",
+    "$defs",
+    "$ref",
+    "title",
+    "description",
+    "default",
+    "x-default-from",
+    "type",
+    "required",
+    "properties",
+    "additionalProperties",
+    "propertyNames",
+    "items",
+    "prefixItems",
+    "oneOf",
+    "pattern",
+    "allOf",
+    "if",
+    "then",
+}
+# Beyond them, two limits the reader refuses too: another version, and a
+# score without lines.
+ALSO = {
+    ("const", "/properties/version"),
+    ("minItems", "/$defs/score/properties/content"),
+}
+
+
+def _schemas(node, path=""):
+    """Each schema in `node`, with its path, and whether it is an `if`'s,
+    which names the kinds and formats its branch is for."""
+    yield node, path
+    for keyword, value in node.items():
+        at = f"{path}/{keyword}"
+        if keyword in ("properties", "$defs"):
+            for name, schema in value.items():
+                yield from _schemas(schema, f"{at}/{name}")
+        elif keyword in ("oneOf", "allOf", "prefixItems"):
+            for index, schema in enumerate(value):
+                yield from _schemas(schema, f"{at}/{index}")
+        elif keyword in ("items", "additionalProperties", "propertyNames", "then"):
+            if isinstance(value, dict):
+                yield from _schemas(value, at)
+
+
+def test_the_schema_checks_only_types_required_keys_and_ids():
+    # Every other limit is described, not checked: a value that breaks one
+    # is read, and the core's rules warn about those they cover.
+    limits = {
+        (keyword, path)
+        for schema, path in _schemas(SCHEMA)
+        for keyword in schema
+        if keyword not in STRUCTURE
+    }
+    assert limits == ALSO
+
+
+def _definition(reference):
+    return SCHEMA["$defs"][reference.rpartition("/")[2]]
+
+
+def _null_allowed(schema):
+    if "$ref" in schema and _null_allowed(_definition(schema["$ref"])):
+        return True
+    types = schema.get("type", [])
+    if "null" in (types if isinstance(types, list) else [types]):
+        return True
+    return any(_null_allowed(choice) for choice in schema.get("oneOf", ()))
+
+
+def test_every_key_the_schema_names_may_be_null_unless_required():
+    # A null is a missing key. The media's length is required, and null when
+    # the length is unknown.
+    nullable_and_required = {"/properties/media/properties/length"}
+    for schema, path in _schemas(SCHEMA):
+        required = set(schema.get("required", ()))
+        if "$ref" in schema:
+            required |= set(_definition(schema["$ref"]).get("required", ()))
+        for name, property_schema in schema.get("properties", {}).items():
+            at = f"{path}/properties/{name}"
+            if "/if/" in f"{at}/" or at.endswith("/if"):
+                continue
+            allowed = _null_allowed(property_schema)
+            if name in required and at not in nullable_and_required:
+                assert not allowed, at
+            elif name not in required:
+                assert allowed, at
 
 
 JSON_VALUES = [None, True, 0, -1.5, "", "x", [], ["x"], {}, {"x": 1}]
@@ -650,10 +932,6 @@ IN_MEMORY = {
     "a time as text": (
         _set_attr(lambda doc: _cadences(doc).components[IDS["cadence"]], "time", "1"),
         COMPONENT + "/time",
-    ),
-    "a label that is None": (
-        _set_attr(_section, "label", None),
-        SECTION + "/label",
     ),
     "a level missing": (_without_level, SECTION + "/level"),
     "a row named nowhere": (

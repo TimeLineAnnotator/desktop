@@ -30,3 +30,5 @@ The last column says whether the format's JSON Schema refuses the file too. Thre
 | `score-without-lines.tla` | a score whose content is an empty list | refuses |
 | `second-byte-order-mark.tla` | two byte-order marks: the reader skips one | can't parse |
 | `time-as-text.tla` | a marker's time given as text | refuses |
+| `time-null.tla` | a marker's time given as null: a null is a missing key, and a marker requires its time | refuses |
+| `unknown-kind-ordinal-as-text.tla` | a timeline of a kind the core doesn't know, whose ordinal is text | refuses |
