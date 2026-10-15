@@ -442,6 +442,9 @@ class TimelineUI(ABC):  # noqa: B024
     def select_element(self, element):
         success = self.element_manager.select_element(element)
 
+        if success:
+            post(Post.TIMELINE_ELEMENT_SELECTED, self.id, element.id)
+
         if hasattr(element, "INSPECTOR_FIELDS") and success:
             self.post_inspectable_selected_event(element)
 
