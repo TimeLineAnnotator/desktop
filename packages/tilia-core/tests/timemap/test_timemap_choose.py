@@ -215,7 +215,7 @@ def test_found_is_frozen_and_hashes():
     with pytest.raises(dataclasses.FrozenInstanceError):
         found.guessed = False  # type: ignore[misc]
     assert isinstance(found.warnings, tuple)
-    assert hash(found) == hash(found)
+    hash(found)
 
 
 @pytest.mark.parametrize("media_length", [19.5, 20.0])
@@ -298,6 +298,19 @@ def test_no_media_warning_for_a_media_length_that_isnt_a_number(caplog):
         found = find_time_map(doc)
 
     assert found.time_map.end == 21.0 and found.warnings == ()
+    assert not caplog.records
+
+
+@pytest.mark.parametrize("make", ["_same_time", "_out_of_order"])
+def test_a_table_out_of_time_order_gets_no_media_warning(make, caplog):
+    # It has no rows, so no closing barline.
+    timeline = globals()[make]()
+    doc = document(timeline, media_length=0.5)
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
+    assert found.time_map is None and found.warnings == ()
     assert not caplog.records
 
 

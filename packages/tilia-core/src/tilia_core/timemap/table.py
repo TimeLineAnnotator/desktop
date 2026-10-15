@@ -11,7 +11,9 @@ from typing import Any, NoReturn
 from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
 
-SAME_TIME = 1e-6  # two beats closer than this are at the same time
+# Float noise: two beats closer than this are at the same time, and a time this
+# much beyond the tolerance is still on a beat.
+EPS = 1e-6
 
 
 class FrozenMetadata(dict[str, "str | tuple[str, ...]"]):
@@ -80,30 +82,36 @@ class MeasureRow:
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
     """The timeline's measure table, in its order; also for a folded table.
 
-    None while a beat has no usable time (`missing_time` says which), while a
-    row's beats don't start at its downbeat (`broken_row`), or while two beats
-    are at the same time or out of time order (`disorder`): rows built then
-    would be wrong, with measures that end before they start.
+    No rows while the table has a problem (`table_problem` says which): rows
+    built then would be wrong, with measures that end before they start.
     """
-    if _usable_times(timeline) is None:
+    if table_problem(timeline) is not None:
         return []
     return build_rows_from(document, timeline, rows_of(timeline))
 
 
-def _usable_times(timeline: tla.Timeline) -> list[float] | None:
-    """The times of the table's beats, in its order; None when it can have no rows."""
-    if missing_time(timeline) is not None or broken_row(timeline) is not None:
-        return None
+def table_problem(timeline: tla.Timeline) -> str | None:
+    """Why the timeline's table can have no rows, as a reason; else None.
+
+    A beat without a usable time (`missing_time`), a row whose beats don't
+    start at its downbeat (`broken_row`), or two beats at the same time or out
+    of time order (`disorder`).
+    """
+    return missing_time(timeline) or broken_row(timeline) or disorder(_times(timeline))
+
+
+def _times(timeline: tla.Timeline) -> list[float]:
+    # The times of the table's beats, in its order, once missing_time has
+    # found each of them usable.
     rows = timeline.measures.rows if timeline.measures is not None else []
-    times = [timeline.components[b].attrs["time"] for row in rows for b in row.beats]
-    return None if disorder(times) is not None else times
+    return [timeline.components[b].attrs["time"] for row in rows for b in row.beats]
 
 
 def disorder(times: Sequence[float]) -> str | None:
     """The first two beats at the same time, or the first out of time order, as
     a reason; else None."""
     for a, b in itertools.pairwise(times):
-        if abs(b - a) < SAME_TIME:
+        if abs(b - a) < EPS:
             return f"two beats at the same time ({a})"
         if b < a:
             return f"beats out of time order (at {b})"
@@ -113,7 +121,9 @@ def disorder(times: Sequence[float]) -> str | None:
 def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
     """The warning, with the timeline's id, that its last beat is at or after
     the end of the media; None when it isn't, or when the table has no rows."""
-    times = _usable_times(timeline)
+    if table_problem(timeline) is not None:
+        return None
+    times = _times(timeline)
     if not times:
         return None
     warning = past_media(document, times[-1])
