@@ -15,6 +15,7 @@ from tilia_core.tla import (
 from tilia_core.tla.model import (
     component_kind_from_file,
     component_kind_to_file,
+    timeline_kind_from_current_file,
     timeline_kind_from_file,
     timeline_kind_to_file,
 )
@@ -51,8 +52,21 @@ COMPONENT_KINDS = [
 
 @pytest.mark.parametrize("in_file, in_api", TIMELINE_KINDS)
 def test_timeline_kinds_both_ways(in_file, in_api):
+    assert timeline_kind_from_current_file(in_file) == in_api
     assert timeline_kind_from_file(in_file) == in_api
     assert timeline_kind_to_file(in_api) == in_file
+
+
+@pytest.mark.parametrize(
+    "in_file",
+    ["marker", "HIERARCHY", "Audiowave", "HIERARCHY_TIMELINE", "Marker_TIMELINE"],
+)
+def test_a_file_of_the_current_format_spells_timeline_kinds_exactly(in_file):
+    # As the writer writes them: in another letter case, or with the suffix
+    # of TiLiA before 0.7, a timeline is of a kind the core doesn't know.
+    kind = timeline_kind_from_current_file(in_file)
+    assert kind == UnknownKind(in_file)
+    assert timeline_kind_to_file(kind) == in_file
 
 
 @pytest.mark.parametrize("in_file, in_api", COMPONENT_KINDS)
@@ -61,8 +75,9 @@ def test_component_kinds_both_ways(in_file, in_api):
     assert component_kind_to_file(in_api) == in_file
 
 
-def test_timeline_kinds_are_read_in_any_letter_case():
-    # TiLiA 0.7 reads them so, and its own migration writes "Audiowave".
+def test_old_files_timeline_kinds_are_read_in_any_letter_case():
+    # TiLiA 0.7 reads them so, and its own migration writes "Audiowave". The
+    # migration reads an old file's kinds so too.
     assert timeline_kind_from_file("Audiowave") == "audiowave"
     assert timeline_kind_from_file("HIERARCHY") == "hierarchy"
 
@@ -109,17 +124,11 @@ def test_component_kinds_are_read_exactly(in_file):
 
 @pytest.mark.parametrize(
     "spelling, known",
-    [
-        ("Marker", "marker"),
-        ("marker", "marker"),
-        ("AUDIOWAVE", "audiowave"),
-        ("Hierarchy_TIMELINE", "hierarchy"),
-        ("MARKER_TIMELINE", "marker"),
-    ],
+    [("Marker", "marker"), ("AudioWave", "audiowave"), ("Hierarchy", "hierarchy")],
 )
 def test_an_unknown_timeline_kind_spelled_like_a_known_one_is_refused(spelling, known):
-    # The reader would read it back as the known kind, in any letter case.
-    assert timeline_kind_from_file(spelling) == known
+    # The reader would read it back as the known kind.
+    assert timeline_kind_from_current_file(spelling) == known
     with pytest.raises(ValueError, match=repr(known)):
         timeline_kind_to_file(UnknownKind(spelling))
 

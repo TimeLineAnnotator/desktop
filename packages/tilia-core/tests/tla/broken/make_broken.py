@@ -212,6 +212,12 @@ def _without_level(content: dict[str, Any]) -> None:
     del component(content, "section", of="form")["level"]
 
 
+def _unknown_ordinal_as_text(content: dict[str, Any]) -> None:
+    form = timeline(content, "form")
+    form["kind"] = "Lyrics"
+    form["ordinal"] = "2"
+
+
 def _not_json() -> bytes:
     # The comma after the time unit is missing.
     text = text_of(base()).replace('"seconds",\n', '"seconds"\n', 1)
@@ -260,6 +266,13 @@ FILES: dict[str, Callable[[], bytes]] = {
         _set(lambda c: component(c, "cadence", of="cadences"), "time", "1.0")
     ),
     "level-missing.tla": _changed(_without_level),
+    # A null is a missing key: on a required key, refused.
+    "time-null.tla": _changed(
+        _set(lambda c: component(c, "cadence", of="cadences"), "time", None)
+    ),
+    # A timeline of a kind the core doesn't know still has its name, ordinal
+    # and metadata checked.
+    "unknown-kind-ordinal-as-text.tla": _changed(_unknown_ordinal_as_text),
     "metadata-not-an-object.tla": _changed(
         _set(lambda c: timeline(c, "form"), "metadata", ["lcma-form@0.3.0"])
     ),

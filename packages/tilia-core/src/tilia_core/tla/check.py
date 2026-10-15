@@ -7,12 +7,11 @@ the same way, so that it never writes a file the reader refuses (FR-034).
 Refused, with the place as a JSON Pointer and, when the text is at hand, the
 line:
 
-- what the format's JSON Schema says about structure: the keys each object
-  requires, the type of each value, and ids that are UUIDs. They are read
-  from the schema shipped in this package, so that the core and the schema
-  agree (FR-090). Its other constraints, such as a minimum or a value from a
-  list, aren't structure: they are rules for a valid component, and the
-  reader reads a value that breaks one;
+- what the format's JSON Schema checks: the keys each object requires, the
+  type of each value, and ids that are UUIDs. They are read from the schema
+  shipped in this package, so that the core and the schema agree (FR-090).
+  The schema describes its other limits, such as a minimum, without checking
+  them: the reader reads a value that breaks one;
 - a score whose content has no lines;
 - what JSON Schema can't check: an id used twice in the file, and a
   reference that names nothing.
@@ -20,10 +19,15 @@ line:
 Kept, with a warning: a timeline's `vocabulary` that isn't a reference to a
 vocabulary (FR-072).
 
-A timeline is checked as the kind the reader reads it as, in any letter case;
-a timeline of a kind the core doesn't know is kept as it is, and only its kind
-and its vocabulary are looked at. A component is checked as the kind its file
-spells exactly. Lines are found only when there is something to report.
+A null is a missing key: the schema allows one on every key it doesn't
+require. A number written with a fraction of zero, such as 1.0, is an integer,
+as JSON Schema counts it; the check turns it into one in the content, where
+the schema says integer, so that the reader hands it out as one.
+
+A timeline is checked as the kind its file spells exactly, as the writer
+writes it; one of a kind the core doesn't know is kept as it is, and only its
+kind, name, ordinal, metadata and vocabulary are looked at. So is a
+component. Lines are found only when there is something to report.
 """
 
 from __future__ import annotations
@@ -36,14 +40,14 @@ from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
 from tilia_core.tla.errors import UnreadableFile, printable
-from tilia_core.tla.layout import _SCHEMA, _branch, nfc_text
+from tilia_core.tla.layout import _SCHEMA, SCORES, _branch, nfc_text
 from tilia_core.tla.model import (
     COMPONENT_KINDS,
     TIMELINE_KINDS,
     Kind,
     ReadWarning,
     UnknownKind,
-    timeline_kind_from_file,
+    timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import lines_of, pointer
 
@@ -60,9 +64,10 @@ def check(
 
     Raises `UnreadableFile` for a broken structure, naming the first problem,
     its place and, when `source` is given, its line. Returns a warning for
-    each rule broken that the reader keeps. `source` is the text the content
-    was read from, or the file's bytes, and is read only to find lines.
-    `path` is the file's, for messages.
+    each rule broken that the reader keeps. Turns each integer written as
+    1.0 into 1, in `content` itself. `source` is the text the content was
+    read from, or the file's bytes, and is read only to find lines. `path` is
+    the file's, for messages.
     """
     checker = _Checker()
     try:
@@ -102,8 +107,8 @@ def _quoted(value: Any) -> str:
 
 
 _NONE = type(None)
-# JSON's types, as Python reads them. A number is an integer only if it is
-# written as one: JSON's 1.0 is read as a float.
+# JSON's types, as Python reads them. JSON's 1.0 is read as a float: where an
+# integer is expected, the check turns it into one.
 _TYPES: dict[str, frozenset[type]] = {
     "null": frozenset({_NONE}),
     "boolean": frozenset({bool}),
@@ -142,10 +147,23 @@ _ENTRIES = frozenset({"timeline", "component", "score"})
 def _admits(types: frozenset[type], value: Any) -> bool:
     if type(value) in types:
         return True
+    if _whole(value, types):
+        return True
     for base, _ in _ACTUAL:  # a subclass, as the writer may be given
         if isinstance(value, base):
             return base in types
     return False
+
+
+def _whole(value: Any, types: frozenset[type]) -> bool:
+    """Whether `value` is a float that JSON Schema counts as an integer, where
+    only an integer will do."""
+    return (
+        type(value) is float
+        and int in types
+        and float not in types
+        and value.is_integer()
+    )
 
 
 def _actual(value: Any) -> str:
@@ -156,10 +174,10 @@ def _actual(value: Any) -> str:
 
 
 def _describe(types: frozenset[type]) -> str:
-    for each, name in _EXPECTED:
-        if each == types:
-            return name
-    return " or ".join(name for each, name in _EXPECTED if each <= types)
+    names = [name for each, name in _EXPECTED if each <= types]
+    if "a number" in names:
+        names.remove("an integer")
+    return " or ".join(names)
 
 
 @dataclass(frozen=True, eq=False)
@@ -262,7 +280,8 @@ def _compile(node: Mapping[str, Any]) -> _Spec:
     are by kind or format, is left to the entries' checks."""
     types = None
     if "type" in node:
-        types = _TYPES[node["type"]]
+        names = node["type"] if isinstance(node["type"], list) else [node["type"]]
+        types = frozenset().union(*(_TYPES[name] for name in names))
     elif "const" in node or "enum" in node:
         # The value isn't structure; its type is.
         values = node["enum"] if "enum" in node else [node["const"]]
@@ -320,9 +339,7 @@ _COMPONENT = _without_branches("component")
 # By the kind as the file spells it: component kinds are read exactly.
 _COMPONENTS = _branches("component", "kind", list(COMPONENT_KINDS.values()))
 _SCORE = _without_branches("score")
-_SCORES = _branches(
-    "score", "format", _SCHEMA["$defs"]["score"]["properties"]["format"]["enum"]
-)
+_SCORES = _branches("score", "format", list(SCORES))
 # What an object's entries are, for a message about an id.
 _ENTRY_NAMES = {"timelines": "timeline", "components": "component"}
 
@@ -388,9 +405,10 @@ class _Checker:
 
     # Structure
 
-    def value(self, value: Any, spec: _Spec, place: Place, name: str | None) -> None:
-        """Check `value`, at `place`. `name` is the nearest key, for a message
-        about an item of a list."""
+    def value(self, value: Any, spec: _Spec, place: Place, name: str | None) -> Any:
+        """Check `value`, at `place`, and give it back, an integer written as
+        1.0 as an integer. `name` is the nearest key, for a message about an
+        item of a list."""
         if spec.choices:
             for choice in spec.choices:
                 if choice.types is None or _admits(choice.types, value):
@@ -400,6 +418,8 @@ class _Checker:
                 raise _wrong(value, spec.expected, place, name)
         if spec.types is not None and not _admits(spec.types, value):
             raise _wrong(value, spec.expected, place, name)
+        if spec.types is not None and _whole(value, spec.types):
+            return int(value)
         if spec.pattern is not None and not spec.pattern.fullmatch(value):
             message = f"{_subject(place, name)} isn't {spec.expected}: {_quoted(value)}"
             raise _Broken(message, place)
@@ -409,8 +429,9 @@ class _Checker:
             self.object(value, spec, place)
         elif isinstance(value, list) and (spec.items is not None or spec.prefix):
             self.list(value, spec, place, name)
+        return value
 
-    def object(self, value: Mapping[str, Any], spec: _Spec, place: Place) -> None:
+    def object(self, value: dict[str, Any], spec: _Spec, place: Place) -> None:
         for key in spec.required:
             if key not in value:
                 raise _Broken(f"{_quoted(key)} is missing", (place, key))
@@ -423,7 +444,9 @@ class _Checker:
             sub = properties.get(key, additional)
             if sub is None or type(item) in sub.quick:
                 continue  # most values: nothing more to check
-            self.value(item, sub, (place, key), key)
+            checked = self.value(item, sub, (place, key), key)
+            if checked is not item:
+                value[key] = checked
 
     def list(
         self, value: list[Any], spec: _Spec, place: Place, name: str | None
@@ -432,7 +455,9 @@ class _Checker:
             sub = spec.prefix[index] if index < len(spec.prefix) else spec.items
             if sub is None or type(item) in sub.quick:
                 continue
-            self.value(item, sub, (place, index), name)
+            checked = self.value(item, sub, (place, index), name)
+            if checked is not item:
+                value[index] = checked
 
     def key(self, key: str, spec: _Spec, place: Place) -> None:
         """An object's key, which must be an id."""
@@ -453,14 +478,15 @@ class _Checker:
     def timeline(self, value: Any, place: Place, name: str | None) -> None:
         kind: Kind | None = None
         if type(value) is dict and type(value.get("kind")) is str:
-            kind = timeline_kind_from_file(value["kind"])
+            kind = timeline_kind_from_current_file(value["kind"])
         if kind is None or isinstance(kind, UnknownKind):
             self.value(value, _TIMELINE, place, name)
-            kind = timeline_kind_from_file(value["kind"])
+            kind = timeline_kind_from_current_file(value["kind"])
         else:
             self.object(value, _TIMELINES[kind], place)
         # A timeline of a kind the core doesn't know is kept as it is: what
-        # it holds isn't looked at, its components included.
+        # it holds isn't looked at, its components included, but for its
+        # name, ordinal and metadata, which the core uses.
         self.timelines.append((place, str(_key(place)), kind, value))
         self.vocabulary(value, place)
 

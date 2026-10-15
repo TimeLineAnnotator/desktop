@@ -287,7 +287,8 @@ UNKNOWN_SCORE = _shape(SCORE, _SCORE)
 SCORE_SOURCE_SHAPE = _shape(
     SCORE_SOURCE, _branch(_SCORE, "format", "mei")["properties"]["source"]
 )
-TIME_UNITS: tuple[str, ...] = tuple(_SCHEMA["properties"]["time_unit"]["enum"])
+# As the schema describes them; it doesn't check them.
+TIME_UNITS: tuple[str, ...] = ("seconds", "quarters")
 # Every key the layout names: an object whose keys are all among them has its
 # keys in ASCII, and so in NFC, without looking at each.
 _LAYOUT_KEYS = frozenset(
