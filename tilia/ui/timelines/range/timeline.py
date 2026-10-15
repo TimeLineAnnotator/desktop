@@ -82,6 +82,11 @@ class RangeTimelineUI(TimelineUI):
     ELEMENT_CLASS = RangeUI
     ACCEPTS_HORIZONTAL_ARROWS = True
     ACCEPTS_VERTICAL_ARROWS = True
+    ARROW_TEXTS = {
+        **TimelineUI.ARROW_TEXTS,
+        "up": "Select a range in the row above",
+        "down": "Select a range in the row below",
+    }
     CTRL_ARROW_COMMANDS = {
         "up": "timeline.range.move_to_row_above",
         "down": "timeline.range.move_to_row_below",
