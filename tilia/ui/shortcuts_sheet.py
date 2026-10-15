@@ -15,8 +15,12 @@ Each shortcut is listed with what it does (its command's text) and where to
 find it: its menu path, its timeline kind's toolbar, or "anywhere" when no
 menu or toolbar has it. Shortcuts are grouped by where they apply: Global,
 then one group per timeline kind, in the order of the Timelines → Add menu.
-Keys handled outside the command registry (Delete, Enter, the arrows) aren't
-listed.
+
+Besides the registered shortcuts, the sheet lists the keys that
+TiliaMainWindow.KEY_COMMANDS and TimelineView.ARROWS catch themselves. What an
+arrow does comes from each timeline kind's ARROW_TEXTS and
+CTRL_ARROW_COMMANDS; an arrow that every kind taking arrows describes the same
+way is listed once, under Global.
 """
 
 from __future__ import annotations
@@ -30,7 +34,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtGui import QFont, QFontMetricsF
+from PySide6.QtCore import QKeyCombination, Qt
+from PySide6.QtGui import QFont, QFontMetricsF, QKeySequence
 from PySide6.QtWidgets import QApplication, QMenu, QMenuBar, QToolBar, QToolButton
 
 import tilia.constants
@@ -41,9 +46,11 @@ from tilia.ui.commands import CommandQAction
 from tilia.ui.menus import AddTimelinesMenu, TimelinesMenu
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.ui.timelines.base.timeline import TimelineUI
+from tilia.ui.timelines.view import TimelineView
 
 GLOBAL = "Global"
 ANYWHERE = "anywhere"
+IN_A_TIMELINE = "in a timeline"
 ARROW = " → "
 MAC_NOTE = "On macOS, Ctrl is ⌘ (Command) and Alt is ⌥ (Option)."
 FILE_NAMES = ("shortcuts.svg", "shortcuts.md")
@@ -69,29 +76,75 @@ class ShortcutClash(Exception):
 
 
 def collect(qtui: QtUI) -> list[ShortcutGroup]:
-    """Lists every command that has a shortcut, grouped by where it applies.
+    """Lists every key TiLiA handles, grouped by where it applies.
 
     Groups without shortcuts are left out.
     """
     menu_paths = _menu_paths(qtui.main_window.menuBar())
     kind_titles = _timeline_kind_titles(qtui)
-    toolbars = _toolbar_locations(kind_titles)
+    ui_classes = _timeline_ui_classes()
+    toolbars = _toolbar_locations(kind_titles, ui_classes)
     # Menus first, in menu-bar order, then toolbars, in kind order.
     places = list(menu_paths) + list(toolbars)
 
     global_group = ShortcutGroup(GLOBAL, applies_everywhere=True)
     groups = {kind: ShortcutGroup(f"{title} timeline") for kind, title in kind_titles}
+
+    def add(group: ShortcutGroup, shortcut: Shortcut) -> None:
+        # A key can be both registered and caught (Ctrl+C): list it once.
+        listed = {(s.key, s.command) for s in group.shortcuts}
+        if (shortcut.key, shortcut.command) not in listed:
+            group.shortcuts.append(shortcut)
+
+    def add_command(key: str, name: str, fallback: str = ANYWHERE) -> None:
+        group = groups.get(_timeline_kind(name), global_group)
+        location = menu_paths.get(name) or toolbars.get(name) or fallback
+        text = _clean(commands.get_qaction(name).text())
+        add(group, Shortcut(key, text, location, name))
+
     for key, names in commands.get_shortcuts().items():
         for name in names:
-            group = groups.get(_timeline_kind(name), global_group)
-            location = menu_paths.get(name) or toolbars.get(name) or ANYWHERE
-            text = _clean(commands.get_qaction(name).text())
-            group.shortcuts.append(Shortcut(key, text, location, name))
+            add_command(key, name)
+    for combination, name in TiliaMainWindow.KEY_COMMANDS:
+        add_command(_portable(combination), name)
 
-    def place(shortcut: Shortcut) -> tuple[int, str]:
+    # Which kinds an arrow reaches follows TimelineUIs.on_arrow_press and
+    # on_ctrl_arrow_press.
+    arrow_kinds = [
+        kind
+        for kind, _ in kind_titles
+        if ui_classes[kind].ACCEPTS_HORIZONTAL_ARROWS
+        or ui_classes[kind].ACCEPTS_VERTICAL_ARROWS
+    ]
+    vertical_kinds = [k for k in arrow_kinds if ui_classes[k].ACCEPTS_VERTICAL_ARROWS]
+    for qt_key, direction in TimelineView.ARROWS.items():
+        key = _portable(QKeyCombination(qt_key))
+        flag = (
+            "ACCEPTS_HORIZONTAL_ARROWS"
+            if direction in ("left", "right")
+            else "ACCEPTS_VERTICAL_ARROWS"
+        )
+        kinds = [k for k in arrow_kinds if getattr(ui_classes[k], flag)]
+        texts = {ui_classes[k].ARROW_TEXTS[direction] for k in kinds}
+        command = f"{direction} arrow"
+        if kinds == arrow_kinds and len(texts) == 1:
+            add(global_group, Shortcut(key, texts.pop(), IN_A_TIMELINE, command))
+            continue
+        for kind in kinds:
+            text = ui_classes[kind].ARROW_TEXTS[direction]
+            add(groups[kind], Shortcut(key, text, IN_A_TIMELINE, command))
+    for qt_key, direction in TimelineView.ARROWS.items():
+        if direction not in TimelineView.CTRL_ARROW_POSTS:
+            continue
+        key = _portable(QKeyCombination(Qt.KeyboardModifier.ControlModifier, qt_key))
+        for kind in vertical_kinds:
+            name = ui_classes[kind].CTRL_ARROW_COMMANDS[direction]
+            add_command(key, name, fallback=IN_A_TIMELINE)
+
+    def place(shortcut: Shortcut) -> int:
         if shortcut.command in places:
-            return places.index(shortcut.command), shortcut.key
-        return len(places), shortcut.key
+            return places.index(shortcut.command)
+        return len(places)  # after the others, in the order they were added
 
     result = [global_group, *groups.values()]
     for group in result:
@@ -184,6 +237,13 @@ def _timeline_kind_titles(qtui: QtUI) -> list[tuple[str, str]]:
     return list(titles.items())
 
 
+def _timeline_ui_classes() -> dict[str, type[TimelineUI]]:
+    return {
+        ui_class.timeline_class.type_name().lower(): ui_class
+        for ui_class in TimelineUI.subclasses()
+    }
+
+
 def _timeline_kind(command: str) -> str | None:
     """Returns the kind of a command registered by
     TimelineUI.register_timeline_command ("timeline.<kind>.<name>")."""
@@ -191,19 +251,16 @@ def _timeline_kind(command: str) -> str | None:
     return parts[1] if len(parts) > 2 and parts[0] == "timeline" else None
 
 
-def _toolbar_locations(kind_titles: list[tuple[str, str]]) -> dict[str, str]:
+def _toolbar_locations(
+    kind_titles: list[tuple[str, str]], ui_classes: dict[str, type[TimelineUI]]
+) -> dict[str, str]:
     """Maps each command on a timeline kind's toolbar to "<Kind> toolbar".
 
     The app only builds a kind's toolbar once a timeline of that kind exists,
     so each toolbar is built here and discarded.
     """
-    titles = dict(kind_titles)
-    ui_classes = {
-        ui_class.timeline_class.type_name().lower(): ui_class
-        for ui_class in TimelineUI.subclasses()
-    }
     locations: dict[str, str] = {}
-    for kind, title in titles.items():
+    for kind, title in kind_titles:
         toolbar_class = ui_classes[kind].TOOLBAR_CLASS if kind in ui_classes else None
         if not toolbar_class:
             continue
@@ -226,6 +283,10 @@ def _toolbar_commands(toolbar: QToolBar) -> list[str]:
             actions = [action]
         names += [a.command_name for a in actions if isinstance(a, CommandQAction)]
     return names
+
+
+def _portable(combination: QKeyCombination) -> str:
+    return QKeySequence(combination).toString(QKeySequence.SequenceFormat.PortableText)
 
 
 def _clean(text: str) -> str:
