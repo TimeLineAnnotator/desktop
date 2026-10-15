@@ -35,23 +35,17 @@ import pytest
 
 from docs import beat_timeline, document
 from tilia_core import tla
-from tilia_core.timemap import TimeMap, time_map_for
+from tilia_core.timemap import TimeMap, find_time_map, time_map_for
 from tilia_core.timemap import timemap as timemap_module
 
 # The prototype's TimeMap.position, length, beat_seconds and bar_seconds are the
-# core's position, length and unit_seconds, which aren't written yet. Both marks
-# are strict: once the names exist, these tests fail until the mark is removed.
+# core's position, length and unit_seconds, which aren't written yet. The mark is
+# strict: once the names exist, these tests fail until it is removed.
 needs_distances = pytest.mark.xfail(
     raises=AttributeError,
     strict=True,
     reason="TimeMap.position, length and unit_seconds come with "
     "TimeLineAnnotator/project-management#215",
-)
-# The prototype's pick_time_map is the core's find_time_map, not written yet.
-needs_find_time_map = pytest.mark.xfail(
-    raises=ImportError,
-    strict=True,
-    reason="find_time_map comes with TimeLineAnnotator/project-management#216",
 )
 
 T44 = [1.0 + 0.5 * i for i in range(12)]  # 4/4, bars 1-3: downbeats 1.0, 3.0, 5.0
@@ -430,10 +424,8 @@ def test_no_time_map():
     assert time_map_for(doc, tla.new_id()) is None
 
 
-@needs_find_time_map
 def test_choosing_the_time_map():
-    from tilia_core.timemap import find_time_map
-
+    """The prototype's pick_time_map, which is the core's find_time_map."""
     # the first beat timeline by ordinal
     hierarchy = tla.Timeline(id=tla.new_id(), kind="hierarchy", ordinal=1)
     late = beat_timeline([], ordinal=5)

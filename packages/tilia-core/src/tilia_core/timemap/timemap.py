@@ -16,15 +16,14 @@ from dataclasses import dataclass, field
 from tilia_core import tla
 from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.table import (
+    EPS,
     MeasureRow,
-    broken_row,
     build_rows_from,
     is_folded,
-    missing_time,
+    table_problem,
 )
 
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
-EPS = 1e-6  # added to the tolerance, so float noise never decides whether a time is on a beat
 
 FOLDED = (
     "the table lists the measures played next (`next`), "
@@ -185,18 +184,13 @@ def build_time_map(
     table = timeline.measures
     if table is None or (not table.rows and timeline.components):
         return None, "no measure table"
-    reason = missing_time(timeline) or broken_row(timeline)
+    reason = table_problem(timeline)
     if reason is not None:
         return None, reason
     rows_in = rows_of(timeline)
     times = [t for row in rows_in for t in row.beat_times]
     if len(times) < 2:
         return None, "fewer than two beats"
-    for a, b in itertools.pairwise(times):
-        if abs(b - a) < EPS:
-            return None, f"two beats at the same time ({a})"
-        if b < a:
-            return None, f"beats out of time order (at {b})"
     if is_folded(rows_in):
         return None, FOLDED
     rows = build_rows_from(document, timeline, rows_in)

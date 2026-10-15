@@ -3,7 +3,7 @@ start and end, meter and time signature."""
 
 from __future__ import annotations
 
-import logging
+import itertools
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -15,7 +15,9 @@ from tilia_core.timemap._rows import RowIn, rows_of
 from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.units import MeasureMeter, format_units
 
-logger = logging.getLogger(__name__)
+# Float noise: two beats closer than this are at the same time, and a time this
+# much beyond the tolerance is still on a beat.
+EPS = 1e-6
 
 
 class FrozenMetadata(dict[str, "str | tuple[str, ...]"]):
@@ -107,13 +109,62 @@ class MeasureRow:
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
     """The timeline's measure table, in its order; also for a folded table.
 
-    None while a beat has no usable time (`missing_time` says which), or while a
-    row's beats don't start at its downbeat (`broken_row`): rows built without
-    them would be wrong.
+    No rows while the table has a problem (`table_problem` says which): rows
+    built then would be wrong, with measures that end before they start.
     """
-    if missing_time(timeline) is not None or broken_row(timeline) is not None:
+    if table_problem(timeline) is not None:
         return []
     return build_rows_from(document, timeline, rows_of(timeline))
+
+
+def table_problem(timeline: tla.Timeline) -> str | None:
+    """Why the timeline's table can have no rows, as a reason; else None.
+
+    A beat without a usable time (`missing_time`), a row whose beats don't
+    start at its downbeat (`broken_row`), or two beats at the same time or out
+    of time order (`disorder`).
+    """
+    return missing_time(timeline) or broken_row(timeline) or disorder(_times(timeline))
+
+
+def _times(timeline: tla.Timeline) -> list[float]:
+    # The times of the table's beats, in its order, once missing_time has
+    # found each of them usable.
+    rows = timeline.measures.rows if timeline.measures is not None else []
+    return [timeline.components[b].attrs["time"] for row in rows for b in row.beats]
+
+
+def disorder(times: Sequence[float]) -> str | None:
+    """The first two beats at the same time, or the first out of time order, as
+    a reason; else None."""
+    for a, b in itertools.pairwise(times):
+        if abs(b - a) < EPS:
+            return f"two beats at the same time ({a})"
+        if b < a:
+            return f"beats out of time order (at {b})"
+    return None
+
+
+def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
+    """The warning, with the timeline's id, that its last beat is at or after
+    the end of the media; None when it isn't, or when the table has no rows.
+
+    With more than one beat, the last measure ends one gap after the last
+    beat, and the warning says so; with one, it ends on the beat.
+    """
+    if table_problem(timeline) is not None:
+        return None
+    times = _times(timeline)
+    media_length = _media_length(document)
+    if not times or media_length is None or not _ends_by(media_length, times[-1]):
+        return None
+    warning = (
+        f"Timeline {timeline.id}: the last beat ({times[-1]}) is at or after "
+        f"the end of the media ({media_length})"
+    )
+    if len(times) > 1:
+        warning += "; the last measure ends one gap after it"
+    return warning
 
 
 def missing_time(timeline: tla.Timeline) -> str | None:
@@ -168,7 +219,7 @@ def build_rows_from(
         return []
     folded = is_folded(rows)
     ends = [row.beat_times[0] for row in rows[1:]]
-    ends.append(_closing_barline(document, timeline.id, rows))
+    ends.append(_closing_barline(document, rows))
     passes: dict[int, int] = {}
     movement = 1
     out: list[MeasureRow] = []
@@ -229,26 +280,36 @@ def is_folded(rows: Sequence[RowIn]) -> bool:
     return any(row.next is not None for row in rows)
 
 
-def _closing_barline(
-    document: tla.Document, timeline_id: str, rows: Sequence[RowIn]
-) -> float:
+def _closing_barline(document: tla.Document, rows: Sequence[RowIn]) -> float:
     # The last beat lasts as long as the gap before it, or until the end of the
     # media if that comes sooner. No beats are added to the last measure.
     *before, last = [t for row in rows[-2:] for t in row.beat_times][-2:]
     end = last + (last - before[0] if before else 0.0)
-    media_length = document.media_length
-    if media_length is None or document.time_unit != "seconds":
-        return end  # the media's length is in seconds
-    if media_length <= last:
-        logger.warning(
-            "Timeline %s: the last beat (%s) is at or after the end of the media (%s); "
-            "the last measure ends one gap after it.",
-            timeline_id,
-            last,
-            media_length,
-        )
-        return end
+    media_length = _media_length(document)
+    if media_length is None or _ends_by(media_length, last):
+        return end  # past the media, the gap alone; find_time_map warns
     return min(end, media_length)
+
+
+def _media_length(document: tla.Document) -> float | None:
+    """The media's length, when it caps the closing barline; else None.
+
+    It is in seconds, so it doesn't cap a quarters file. The format allows a
+    number above zero, or none; the reader doesn't check, so anything else
+    (text, a bool, NaN, infinity, zero or less) counts as none.
+    """
+    length: object = document.media_length
+    if document.time_unit != "seconds" or isinstance(length, bool):
+        return None
+    if not isinstance(length, (int, float)) or not math.isfinite(length):
+        return None
+    return length if length > 0 else None
+
+
+def _ends_by(media_length: float, last_beat: float) -> bool:
+    # Whether the media ends at or before the last beat: one test for the
+    # closing barline and its warning, so they can't disagree.
+    return media_length <= last_beat
 
 
 def find_rows(
