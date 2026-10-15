@@ -15,7 +15,15 @@ from tilia_core.timemap import (
 )
 from tilia_core.timemap.timemap import FOLDED
 
-TWO_CLAIM = "two timelines claim the role time_map; the first by ordinal is used"
+
+def _claim(*claiming: tla.Timeline) -> str:
+    """The warning when several timelines claim the role, in ordinal order."""
+    ids = [timeline.id for timeline in claiming]
+    named = f"{', '.join(ids[:-1])} and {ids[-1]}"
+    return (
+        f"timelines {named} claim the role time_map; "
+        f"{ids[0]}, the first by ordinal, is used"
+    )
 
 
 def _beats(ordinal: int, role: str | None = None, *, last: int = 3) -> tla.Timeline:
@@ -68,17 +76,23 @@ def test_without_the_role_the_first_beat_timeline_by_ordinal_is_guessed():
 
 
 @pytest.mark.parametrize("claimants", [2, 3])
-def test_when_several_claim_the_role_the_first_by_ordinal_wins(claimants):
-    # Spec, US4 scenario 3: one warning, however many claim it.
+def test_when_several_claim_the_role_the_first_by_ordinal_wins(claimants, caplog):
+    # Spec, US4 scenario 3: one warning, however many claim it, naming them in
+    # ordinal order; returned and logged (TimeLineAnnotator/project-management#13
+    # (the measure table)).
     unclaimed = _beats(1)
     claiming = [_beats(10 - j, role="time_map") for j in range(claimants)]
 
-    found = find_time_map(document(unclaimed, *claiming))
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(document(unclaimed, *claiming))
 
     assert found.timeline_id == claiming[-1].id
     assert found.time_map.timeline_id == claiming[-1].id
     assert not found.guessed
-    assert found.warnings == (TWO_CLAIM,)
+    assert found.warnings == (_claim(*reversed(claiming)),)
+    (record,) = caplog.records
+    assert record.name == "tilia_core.timemap"
+    assert record.getMessage() == f"{found.warnings[0]}."
 
 
 def test_the_callers_roles_count_not_only_the_files():
@@ -250,7 +264,7 @@ def test_the_warnings_come_in_the_order_they_were_found():
     found = find_time_map(document(later, earlier, media_length=2.0))
 
     assert len(found.warnings) == 3
-    assert found.warnings[0] == TWO_CLAIM
+    assert found.warnings[0] == _claim(earlier, later)
     assert found.warnings[1].startswith(f"Timeline {earlier.id}: the last beat (3.0)")
     assert found.warnings[2].startswith(f"Timeline {later.id}: the last beat (3.0)")
 
