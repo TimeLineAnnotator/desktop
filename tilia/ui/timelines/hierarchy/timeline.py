@@ -34,6 +34,15 @@ class HierarchyTimelineUI(TimelineUI):
     ELEMENT_CLASS = HierarchyUI
     ACCEPTS_HORIZONTAL_ARROWS = True
     ACCEPTS_VERTICAL_ARROWS = True
+    ARROW_TEXTS = {
+        **TimelineUI.ARROW_TEXTS,
+        "up": "Select the parent",
+        "down": "Select the first child",
+    }
+    CTRL_ARROW_COMMANDS = {
+        "up": "timeline.hierarchy.increase_level",
+        "down": "timeline.hierarchy.decrease_level",
+    }
     MIN_MARGIN = 10
     timeline_class = HierarchyTimeline
     menu_class = HierarchyMenu
@@ -288,12 +297,7 @@ class HierarchyTimelineUI(TimelineUI):
         HierarchyTimelineUIKeyPressManager(self).on_vertical_arrow_press(arrow)
 
     def on_ctrl_vertical_arrow_press(self, direction: str) -> None:
-        cmd = (
-            "timeline.hierarchy.increase_level"
-            if direction == "up"
-            else "timeline.hierarchy.decrease_level"
-        )
-        commands.execute(cmd)
+        commands.execute(self.CTRL_ARROW_COMMANDS[direction])
 
     def get_max_hierarchy_height(self):
         max_level = max(
