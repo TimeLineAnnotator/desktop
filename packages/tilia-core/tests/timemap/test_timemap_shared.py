@@ -85,16 +85,20 @@ def _meter(row):
     }
 
 
-@pytest.mark.skip(
-    reason="the time map's qstamps come with "
-    "TimeLineAnnotator/project-management#215 (quarter stamps and distances), "
-    "which removes this skip"
-)
 @pytest.mark.parametrize("case", METERS)
 def test_qstamps(case):
+    # At a beat, the time map's qstamp is the exact stamp as a float, as #621's
+    # get_quarter_stamp_by_time gives it; the rows hold the downbeats' exactly.
     timeline = beat_timeline(case["beats"])
     time_map = time_map_for(document(timeline), timeline.id)
+    expected = [Fraction(qstamp) for qstamp in case["expected"]["qstamps"]]
 
     assert [time_map.qstamp(beat["time"]) for beat in case["beats"]] == [
-        float(Fraction(qstamp)) for qstamp in case["expected"]["qstamps"]
+        float(qstamp) for qstamp in expected
+    ]
+    downbeats = [
+        k for k, beat in enumerate(case["beats"]) if beat.get("measure") is not None
+    ]
+    assert [row.qstamp for row in time_map.measure_rows()] == [
+        expected[k] for k in downbeats
     ]
