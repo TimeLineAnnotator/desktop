@@ -96,13 +96,13 @@
       }
     },
     "timeline": {
-      "description": "A timeline of a known kind is checked against that kind, spelled as the writer writes it; one of a kind the core doesn't know is kept as it is (FR-015), with only its kind, name, ordinal and metadata checked, since the core uses them (TimeLineAnnotator/project-management#313).",
+      "description": "A timeline of a known kind is checked against that kind, spelled as the writer writes it; one of a kind the core doesn't know is kept as it is (FR-015), with only its kind, name, ordinal and metadata checked, as every timeline's are, since the core uses them (TimeLineAnnotator/project-management#313).",
       "type": "object",
-      "required": ["kind"],
+      "required": ["kind", "ordinal"],
       "properties": {
         "kind": { "type": "string" },
         "name": { "type": ["string", "null"] },
-        "ordinal": { "description": "From 1.", "type": ["integer", "null"] },
+        "ordinal": { "description": "From 1.", "type": "integer" },
         "metadata": { "oneOf": [{ "$ref": "#/$defs/metadata" }, { "type": "null" }] }
       },
       "allOf": [
