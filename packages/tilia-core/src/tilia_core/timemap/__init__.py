@@ -38,7 +38,7 @@ class TimeMapFound:
 
 
 def find_time_map(
-    document: tla.Document, roles: Mapping[str, str | None] | None = None
+    document: tla.Document, roles: Mapping[str, str | list[str] | None] | None = None
 ) -> TimeMapFound:
     """The document's time map: its beat timeline whose role is time_map, else
     its first beat timeline by ordinal, guessed.
@@ -104,7 +104,7 @@ def _by_ordinal(timeline: tla.Timeline) -> tuple[int, float]:
 
 
 def _claims_the_role(
-    timeline: tla.Timeline, roles: Mapping[str, str | None] | None
+    timeline: tla.Timeline, roles: Mapping[str, str | list[str] | None] | None
 ) -> bool:
     role = timeline.metadata.get("role") if roles is None else roles.get(timeline.id)
     if isinstance(role, (list, tuple)):
@@ -113,7 +113,7 @@ def _claims_the_role(
 
 
 def time_map_of(
-    document: tla.Document, roles: Mapping[str, str | None] | None = None
+    document: tla.Document, roles: Mapping[str, str | list[str] | None] | None = None
 ) -> TimeMap | None:
     """The document's time map, chosen as `find_time_map` chooses it; None when it has none."""
     return find_time_map(document, roles).time_map
