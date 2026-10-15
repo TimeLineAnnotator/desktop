@@ -113,8 +113,6 @@ def _to_file(
     what: str,
 ) -> str:
     if isinstance(kind, UnknownKind):
-        if not isinstance(kind.spelling, str):
-            return kind.spelling  # never a known kind; the reader refuses it
         # One the reader would read back as a known kind wouldn't stay unknown.
         known = from_file(kind.spelling)
         if not isinstance(known, UnknownKind):
