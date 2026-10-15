@@ -2,7 +2,9 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.mock import patch_yes_or_no_dialog
 from tests.utils import undoable
+from tilia.requests import Post, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
 
@@ -549,6 +551,105 @@ class TestBeatTimeline:
                 timeline.delete_components(list(timeline.components))
 
         assert component_manager.compute_is_first_in_measure is True
+
+    def test_shrinking_media_drops_measures_for_cropped_beats(
+        self, beat_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        self._add_beats(range(12))
+
+        assert beat_tlui.timeline.beats_in_measure == [4, 4, 4]
+
+        tilia_state.set_duration(7.5, scale_timelines="no")
+
+        # The measure structure has to shrink with the beats. Leaving a third
+        # measure behind makes measure_count over-report, makes
+        # get_time_by_measure interpolate against a partition that no longer
+        # exists, and makes "Distribute beats" on the last measure raise.
+        assert len(beat_tlui) == 8
+        assert beat_tlui.timeline.beats_in_measure == [4, 4]
+
+    def test_clearing_the_timeline_drops_the_measure_structure(self, beat_tlui):
+        self._add_beats(range(12))
+
+        assert beat_tlui.timeline.beats_in_measure == [4, 4, 4]
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", beat_tlui)
+
+        assert len(beat_tlui) == 0
+        assert beat_tlui.timeline.beats_in_measure == []
+        assert beat_tlui.timeline.measure_numbers == []
+
+    def _add_beats_with_custom_structure(self, beat_tlui, tilia_state):
+        # 8 beats as [2, 4, 2] with measures 1 and 2 numbered 10 and 20.
+        tilia_state.duration = 100
+        self._add_beats(range(8))
+        timeline = beat_tlui.timeline
+        timeline.set_beat_amount_in_measure(0, 2)
+        timeline.set_measure_number(1, 10)
+        timeline.set_measure_number(2, 20)
+        post(Post.APP_STATE_RECORD, "custom measure structure")
+
+        assert timeline.beats_in_measure == [2, 4, 2]
+        assert timeline.measure_numbers == [1, 10, 20]
+
+    # Undo restores a timeline's attributes and its beats separately. The
+    # measure structure is derived from the beats, so restoring it before the
+    # beats are back re-derives it from the wrong beat count and drops the
+    # custom numbers. The three tests below fail if the order is reversed.
+
+    def test_undo_clear_restores_a_custom_measure_structure(
+        self, beat_tlui, tilia_state
+    ):
+        self._add_beats_with_custom_structure(beat_tlui, tilia_state)
+
+        with undoable():
+            with patch_yes_or_no_dialog(True):
+                commands.execute("timeline.clear", beat_tlui)
+
+        # undoable() undoes and redoes; undo again to look at the values.
+        commands.execute("edit.undo")
+
+        assert len(beat_tlui) == 8
+        assert beat_tlui.timeline.beats_in_measure == [2, 4, 2]
+        assert beat_tlui.timeline.measure_numbers == [1, 10, 20]
+        assert beat_tlui.timeline.measures_to_force_display == [1, 2]
+
+    def test_undo_deleting_every_beat_restores_a_custom_measure_structure(
+        self, beat_tlui, tilia_state
+    ):
+        self._add_beats_with_custom_structure(beat_tlui, tilia_state)
+
+        with undoable():
+            beat_tlui.select_all_elements()
+            commands.execute("timeline.component.delete")
+
+        commands.execute("edit.undo")
+
+        assert len(beat_tlui) == 8
+        assert beat_tlui.timeline.beats_in_measure == [2, 4, 2]
+        assert beat_tlui.timeline.measure_numbers == [1, 10, 20]
+
+    def test_undo_media_crop_restores_a_custom_measure_structure(
+        self, beat_tlui, tilia_state
+    ):
+        self._add_beats_with_custom_structure(beat_tlui, tilia_state)
+
+        tilia_state.set_duration(3.5, scale_timelines="no")
+        post(Post.APP_STATE_RECORD, "media duration")
+
+        assert len(beat_tlui) == 4
+        assert beat_tlui.timeline.beats_in_measure == [2, 2]
+
+        commands.execute("edit.undo")
+
+        # The test media cannot get its old duration back, so the beats and
+        # the structure are checked directly instead of through undoable().
+        assert len(beat_tlui) == 8
+        assert beat_tlui.timeline.beats_in_measure == [2, 4, 2]
+        assert beat_tlui.timeline.measure_numbers == [1, 10, 20]
+        assert beat_tlui.timeline.measures_to_force_display == [1, 2]
 
 
 class TestGetExtensionFromBeatPattern:
