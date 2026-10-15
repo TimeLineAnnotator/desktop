@@ -34,6 +34,11 @@ class HierarchyTimelineUI(TimelineUI):
     ELEMENT_CLASS = HierarchyUI
     ACCEPTS_HORIZONTAL_ARROWS = True
     ACCEPTS_VERTICAL_ARROWS = True
+    ARROW_TEXTS = {
+        **TimelineUI.ARROW_TEXTS,
+        "up": "Select the parent",
+        "down": "Select the first child",
+    }
     CTRL_ARROW_COMMANDS = {
         "up": "timeline.hierarchy.increase_level",
         "down": "timeline.hierarchy.decrease_level",
