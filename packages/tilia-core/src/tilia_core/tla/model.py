@@ -42,10 +42,12 @@ COMPONENT_KINDS: dict[str, str] = {
     "bar_line": "BAR_LINE",
     "score_annotation": "SCORE_ANNOTATION",
 }
-# TiLiA reads timeline kinds in any letter case, and component kinds exactly.
-_TIMELINE_KINDS_IN_FILE = {
+# TiLiA 0.7 reads timeline kinds in any letter case, and component kinds
+# exactly. A file of the current format spells both as the writer writes them.
+_TIMELINE_KINDS_IN_OLD_FILE = {
     spelling.lower(): kind for kind, spelling in TIMELINE_KINDS.items()
 }
+_TIMELINE_KINDS_IN_FILE = {spelling: kind for kind, spelling in TIMELINE_KINDS.items()}
 _COMPONENT_KINDS_IN_FILE = {
     spelling: kind for kind, spelling in COMPONENT_KINDS.items()
 }
@@ -59,7 +61,7 @@ class UnknownKind:
     "marker" (TiLiA reads component kinds exactly, and knows "MARKER") isn't
     taken for a marker, and is written back as it was spelled. The writer
     refuses one spelled as the reader reads a known kind: a timeline's
-    "Marker", "MARKER_TIMELINE", or a component's "MARKER".
+    "Marker", or a component's "MARKER".
     """
 
     spelling: str
@@ -68,14 +70,22 @@ class UnknownKind:
 Kind = str | UnknownKind
 
 
+def timeline_kind_from_current_file(spelling: str) -> Kind:
+    """The API's name for a timeline kind a file of the current format spells
+    exactly so, as the writer writes it. In another letter case, or with the
+    suffix of TiLiA before 0.7, the kind is one the core doesn't know."""
+    return _TIMELINE_KINDS_IN_FILE.get(spelling) or UnknownKind(spelling)
+
+
 def timeline_kind_from_file(spelling: str) -> Kind:
-    """The API's name for a timeline kind the file spells so, in any letter case."""
+    """The API's name for a timeline kind an old file spells so, in any letter
+    case, as TiLiA 0.7 reads it: what the migration reads."""
     name = spelling
     if name.endswith(_OLD_SUFFIX):
         # As TiLiA 0.7 drops it whenever it opens a file: TiLiA before 0.7
         # wrote "HIERARCHY_TIMELINE".
         name = name.replace(_OLD_SUFFIX, "")
-    return _TIMELINE_KINDS_IN_FILE.get(name.lower()) or UnknownKind(spelling)
+    return _TIMELINE_KINDS_IN_OLD_FILE.get(name.lower()) or UnknownKind(spelling)
 
 
 _OLD_SUFFIX = "_TIMELINE"
@@ -83,7 +93,7 @@ _OLD_SUFFIX = "_TIMELINE"
 
 def timeline_kind_to_file(kind: Kind) -> str:
     """The file's spelling of a timeline kind."""
-    return _to_file(kind, TIMELINE_KINDS, timeline_kind_from_file, "timeline")
+    return _to_file(kind, TIMELINE_KINDS, timeline_kind_from_current_file, "timeline")
 
 
 def component_kind_from_file(spelling: str) -> Kind:
@@ -126,6 +136,12 @@ class ReadWarning:
     place: str
     line: int | None
     message: str
+
+    def __str__(self) -> str:
+        """As an `UnreadableFile` reads: the line when known, then the message."""
+        if self.line is None:
+            return self.message
+        return f"line {self.line}: {self.message}"
 
 
 @dataclass(kw_only=True)
