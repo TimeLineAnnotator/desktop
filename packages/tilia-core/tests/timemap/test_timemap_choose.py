@@ -135,7 +135,7 @@ def test_only_a_beat_timeline_can_have_the_role():
     [(["time_map"], True), (["analysis", "time_map"], True), (["analysis"], False)],
 )
 def test_a_role_list_that_holds_time_map_claims_it(role, claims):
-    # Anne, 2026-10-14: metadata values may be lists.
+    # Metadata values may be lists (TimeLineAnnotator/project-management#13 (the measure table)).
     first, listed = _beats(1), _beats(2)
     listed.metadata["role"] = role
 
@@ -147,7 +147,8 @@ def test_a_role_list_that_holds_time_map_claims_it(role, claims):
 
 @pytest.mark.parametrize("ordinal", [None, "1", 1.5, float("nan"), True, [1]])
 def test_an_ordinal_that_isnt_a_whole_number_sorts_after_the_others(ordinal):
-    # Anne, 2026-10-14: nothing raises while the reader lets one through (#7).
+    # Nothing raises while the reader lets one through
+    # (TimeLineAnnotator/project-management#7 (format in the core)).
     odd, other = _beats(1), _beats(3)
     odd.ordinal = ordinal
 
@@ -270,8 +271,8 @@ def test_the_warnings_come_in_the_order_they_were_found():
 
 
 def test_every_beat_timeline_past_the_media_is_warned_about(caplog):
-    # Anne, 2026-10-14: the tables a score or an import names too, once for
-    # each call of find_time_map. A table without rows has no closing barline.
+    # The tables a score or an import names too, once for each call of
+    # find_time_map (TimeLineAnnotator/project-management#13 (the measure table)). A table without rows has no closing barline.
     default, named = _beats(1, role="time_map"), _beats(2, last=7)
     timeless = _beats(3, last=7)
     timeless.components[timeless.measures.rows[0].beats[1]].attrs["time"] = None
@@ -406,7 +407,7 @@ def _out_of_order(**kwargs) -> tla.Timeline:
 
 @pytest.mark.parametrize("make", [_same_time, _out_of_order])
 def test_measure_rows_give_none_while_beats_are_out_of_order_or_share_a_time(make):
-    # Anne, 2026-10-14: no measure that ends before it starts.
+    # No measure that ends before it starts (TimeLineAnnotator/project-management#13 (the measure table)).
     timeline = make()
 
     assert measure_rows(document(timeline), timeline.id) == []
