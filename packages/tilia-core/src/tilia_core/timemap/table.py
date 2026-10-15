@@ -247,8 +247,18 @@ def past_media(document: tla.Document, last_beat: float) -> str | None:
 
 
 def _media_length(document: tla.Document) -> float | None:
-    # The media's length is in seconds: it doesn't cap a quarters file.
-    return document.media_length if document.time_unit == "seconds" else None
+    """The media's length, when it caps the closing barline; else None.
+
+    It is in seconds, so it doesn't cap a quarters file. The format allows a
+    number above zero, or none; the reader doesn't check, so anything else
+    (text, a bool, NaN, infinity, zero or less) counts as none.
+    """
+    length: object = document.media_length
+    if document.time_unit != "seconds" or isinstance(length, bool):
+        return None
+    if not isinstance(length, (int, float)) or not math.isfinite(length):
+        return None
+    return length if length > 0 else None
 
 
 def _ends_by(media_length: float, last_beat: float) -> bool:

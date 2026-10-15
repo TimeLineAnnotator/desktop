@@ -290,14 +290,21 @@ def test_no_media_warning_when_the_media_lasts_past_the_last_beat(
     assert not caplog.records
 
 
-def test_no_media_warning_for_a_media_length_that_isnt_a_number(caplog):
-    # Like the closing barline, which then keeps the gap: no length, no warning.
-    doc = document(pickup_piece(), media_length=float("nan"))
+@pytest.mark.parametrize(
+    "media_length", ["20", True, float("nan"), float("inf"), 0, 0.0, -5.0, [19.5]]
+)
+def test_a_media_length_the_format_doesnt_allow_is_no_length(media_length, caplog):
+    # The schema allows a number above zero, or null; the reader doesn't check.
+    # No cap on the closing barline, no warning, and nothing raises.
+    timeline = pickup_piece()
+    doc = document(timeline, media_length=media_length)
 
     with caplog.at_level(logging.WARNING):
         found = find_time_map(doc)
+        rows = measure_rows(doc, timeline.id)
 
-    assert found.time_map.end == 21.0 and found.warnings == ()
+    assert found.time_map.end == 21.0 and rows[-1].end == 21.0
+    assert found.warnings == ()
     assert not caplog.records
 
 
