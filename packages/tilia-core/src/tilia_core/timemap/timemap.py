@@ -2,19 +2,29 @@
 
 The map runs from the first beat to the closing barline, which it excludes.
 Every lookup is a bisection over arrays built once: the beat slots (the beats,
-then the closing barline), each beat's measure, each measure's first beat, and
-the downbeats.
+then the closing barline), each beat's measure, each measure's first beat and
+the downbeats, with the map; each beat's quarter stamp, the first time one is
+asked for.
 """
 
 from __future__ import annotations
 
 import bisect
+import functools
 import itertools
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from tilia_core import tla
 from tilia_core.timemap._rows import rows_of
+from tilia_core.timemap.qstamps import (
+    TimeStampTable,
+    beat_lengths,
+    build_time_stamp_table,
+    quarter_stamp_by_time,
+    time_by_quarter_stamp,
+)
 from tilia_core.timemap.table import (
     EPS,
     MeasureRow,
@@ -61,7 +71,8 @@ class TimeMap:
     _times: tuple[float, ...] = field(repr=False)  # the beats
     # Computed from the rows and the beats, so nothing can make them disagree:
     # the beat slots (the beats, then the closing barline), each beat's measure,
-    # each measure's first beat, and the downbeats.
+    # each measure's first beat, and the downbeats. Each beat's quarter stamp
+    # is computed from them too, when first asked for (`_stamps`).
     _slots: tuple[float, ...] = field(init=False, repr=False)
     _measure_of: tuple[int, ...] = field(init=False, repr=False)
     _first: tuple[int, ...] = field(init=False, repr=False)
@@ -83,6 +94,15 @@ class TimeMap:
         }
         for name, value in computed.items():
             object.__setattr__(self, name, value)
+
+    @functools.cached_property
+    def _stamps(self) -> TimeStampTable | None:
+        """Each beat's quarter stamp, built the first time one is asked for:
+        the index, which reads every file's positions, never asks, and a long
+        piece's exact stamps take a while. Two threads asking at once build the
+        same table, and either is kept."""
+        lengths = [length for row in self._rows for length in beat_lengths(row.meter)]
+        return build_time_stamp_table(self._times, lengths)
 
     @property
     def start(self) -> float:
@@ -137,6 +157,54 @@ class TimeMap:
             cadenza=row.cadenza,
             movement=row.movement,
         )
+
+    # Quarter notes: desktop#621's quarter stamps. Unlike positions, they
+    # aren't snapped, and they go on beyond the beats.
+
+    def qstamp(self, t: float) -> float | None:
+        """`t`'s position in quarter notes, from 0 at the first beat:
+        interpolated between beats, and extrapolated beyond them with the tempo
+        of the nearest gap. At a beat, its exact stamp as a float. None for a
+        missing time."""
+        if t is None or not math.isfinite(t):
+            return None
+        return quarter_stamp_by_time(self._stamps, t)
+
+    def time_at_qstamp(self, q: float) -> float | None:
+        """The time at the quarter stamp `q`, read as `qstamp` reads them."""
+        if q is None or not math.isfinite(q):
+            return None
+        return time_by_quarter_stamp(self._stamps, q)
+
+    def quarters(self, start: float, end: float) -> float | None:
+        """How long a span lasts in quarter notes: the difference of its
+        qstamps. `assumed_between` says whether an assumed meter went into it."""
+        a, b = self.qstamp(start), self.qstamp(end)
+        if a is None or b is None:
+            return None
+        return b - a
+
+    def assumed_between(self, start: float, end: float) -> bool:
+        """Whether any measure the span from `start` to `end` touches is
+        assumed, so that a length in quarter notes can say "assumed meter"."""
+        return any(row.assumed for row in self._touched(start, end))
+
+    def _touched(self, start: float, end: float) -> Sequence[MeasureRow]:
+        """The measures a span touches, read as positions read it: snapped, the
+        end point excluded, and an end not after the start in the start's
+        measure. A part off the map touches the measure at that end of the
+        map, as its qstamps are extrapolated with the tempo there."""
+        snapped_start, snapped_end = self._snapped(start), self._snapped(end)
+        if snapped_start is None or snapped_end is None:
+            return ()
+        downbeats, last = self._downbeats, len(self._rows) - 1
+        first = bisect.bisect_right(downbeats, snapped_start) - 1
+        first = min(max(first, 0), last)
+        # The end point excluded: an end on a downbeat ends in the bar before,
+        # but never before the start's.
+        end_measure = bisect.bisect_left(downbeats, snapped_end) - 1
+        end_measure = min(max(end_measure, first), last)
+        return self._rows[first : end_measure + 1]
 
     def _snapped(self, t: float | None) -> float | None:
         """`t` moved onto the nearer beat slot, or the closing barline, when it

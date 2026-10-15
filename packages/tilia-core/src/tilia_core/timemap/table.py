@@ -1,5 +1,6 @@
 """A beat timeline's measure table: each measure's position, pass, movement,
-start and end, meter and time signature."""
+start and end, meter and time signature, and its start and length in quarter
+notes."""
 
 from __future__ import annotations
 
@@ -78,6 +79,7 @@ class MeasureRow:
     beat_ids: tuple[str, ...]
     beats: int  # the beats tapped
     meter: MeasureMeter  # desktop#621's, from the beat units in effect
+    qstamp: Fraction  # its downbeat's position in quarter notes, from the first beat
     # Computed from the meter, so nothing can make them disagree with it:
     time_signature: str = field(init=False)  # "6/8", "2+2+3/8", "(4/3)/4"
     ts_numerator: Fraction = field(init=False)  # the beat values' sum, however grouped
@@ -85,6 +87,7 @@ class MeasureRow:
     assumed: bool = field(init=False)  # nobody set the unit that governs it
     ambiguous: bool = field(init=False)  # the taps don't hold whole patterns
     conflicting: bool = field(init=False)  # more than one unit is set on its beats
+    quarters: Fraction = field(init=False)  # how long it lasts in quarter notes
     source: str
     force_display: bool
     next: tuple[str, ...] | None
@@ -92,15 +95,19 @@ class MeasureRow:
 
     def __post_init__(self) -> None:
         meter = self.meter
+        numerator = meter.numerator
         computed = {
             "time_signature": format_time_signature(
                 meter.beat_values, meter.denominator
             ),
-            "ts_numerator": meter.numerator,
+            "ts_numerator": numerator,
             "ts_denominator": meter.denominator,
             "assumed": meter.is_assumed,
             "ambiguous": meter.is_ambiguous,
             "conflicting": meter.is_conflicting,
+            # The sum of its beats' lengths, as its time signature's numerator
+            # is the sum of their values.
+            "quarters": meter.quarter_length(numerator),
         }
         for name, value in computed.items():
             object.__setattr__(self, name, value)
@@ -242,6 +249,7 @@ def build_rows_from(
     ends.append(_closing_barline(document, rows))
     passes: dict[int, int] = {}
     movement = 1
+    qstamp = Fraction(0)
     out: list[MeasureRow] = []
     meters = meters_of(rows)
     for index, (row, end, meter) in enumerate(zip(rows, ends, meters, strict=True)):
@@ -268,12 +276,14 @@ def build_rows_from(
                 beat_ids=row.beat_ids,
                 beats=len(row.beat_ids),
                 meter=meter,
+                qstamp=qstamp,
                 source=row.source,
                 force_display=row.force_display,
                 next=row.next,
                 metadata=FrozenMetadata(row.metadata),
             )
         )
+        qstamp += out[-1].quarters
     return out
 
 
