@@ -77,6 +77,9 @@ class TimelineUI(ABC):  # noqa: B024
     CONTEXT_MENU_CLASS: type[TimelineUIContextMenu] = TimelineUIContextMenu
     ACCEPTS_VERTICAL_ARROWS = False
     ACCEPTS_HORIZONTAL_ARROWS = False
+    # The commands Ctrl+Up and Ctrl+Down run in a kind that accepts vertical
+    # arrows.
+    CTRL_ARROW_COMMANDS: dict[str, str] = {}
     timeline_class = None
     menu_class = None
 

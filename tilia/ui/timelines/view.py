@@ -19,6 +19,29 @@ from tilia.settings import settings
 
 
 class TimelineView(QGraphicsView):
+    # The arrows are caught by keyPressEvent instead of registered as
+    # shortcuts, which would take them from every widget in the window. What an
+    # arrow does is up to each timeline kind: see TimelineUIs.on_arrow_press
+    # and on_ctrl_arrow_press. The shortcuts sheet
+    # (tilia/ui/shortcuts_sheet.py) lists these keys.
+    ARROWS: dict[Qt.Key, str] = {
+        Qt.Key.Key_Left: "left",
+        Qt.Key.Key_Right: "right",
+        Qt.Key.Key_Up: "up",
+        Qt.Key.Key_Down: "down",
+    }
+    ARROW_POSTS: dict[str, Post] = {
+        "left": Post.TIMELINE_KEY_PRESS_LEFT,
+        "right": Post.TIMELINE_KEY_PRESS_RIGHT,
+        "up": Post.TIMELINE_KEY_PRESS_UP,
+        "down": Post.TIMELINE_KEY_PRESS_DOWN,
+    }
+    # With Ctrl held, whatever other modifiers are.
+    CTRL_ARROW_POSTS: dict[str, Post] = {
+        "up": Post.TIMELINE_KEY_PRESS_CTRL_UP,
+        "down": Post.TIMELINE_KEY_PRESS_CTRL_DOWN,
+    }
+
     def __init__(self, scene: QGraphicsScene):
         super().__init__()
         self.setScene(scene)
@@ -119,19 +142,10 @@ class TimelineView(QGraphicsView):
 
     def keyPressEvent(self, event) -> None:
         ctrl = Qt.KeyboardModifier.ControlModifier in event.modifiers()
-        key = event.key()
-        if ctrl and key == Qt.Key.Key_Up:
-            post(Post.TIMELINE_KEY_PRESS_CTRL_UP)
-        elif ctrl and key == Qt.Key.Key_Down:
-            post(Post.TIMELINE_KEY_PRESS_CTRL_DOWN)
-        else:
-            request = {
-                Qt.Key.Key_Right: Post.TIMELINE_KEY_PRESS_RIGHT,
-                Qt.Key.Key_Left: Post.TIMELINE_KEY_PRESS_LEFT,
-                Qt.Key.Key_Up: Post.TIMELINE_KEY_PRESS_UP,
-                Qt.Key.Key_Down: Post.TIMELINE_KEY_PRESS_DOWN,
-            }.get(key, None)
-            if request:
-                post(request)
+        direction = self.ARROWS.get(event.key())
+        if ctrl and direction in self.CTRL_ARROW_POSTS:
+            post(self.CTRL_ARROW_POSTS[direction])
+        elif direction:
+            post(self.ARROW_POSTS[direction])
 
         super().keyPressEvent(event)
