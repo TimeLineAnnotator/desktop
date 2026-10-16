@@ -206,12 +206,15 @@ class Timelines:
 
     def _remove_from_timelines(self, timeline: Timeline) -> None:
         try:
-            self._timelines.remove(timeline)
+            # Look up by identity: list.remove() would use Timeline.__eq__,
+            # which compares attributes and may match another timeline.
+            index = next(i for i, tl in enumerate(self._timelines) if tl is timeline)
+            del self._timelines[index]
             # update ordinal of all timelines that came after the removed timeline
             for tl in self:
                 if tl.ordinal > timeline.ordinal:
                     tl.ordinal -= 1
-        except ValueError as e:
+        except StopIteration as e:
             raise ValueError(
                 f"Can't remove timeline '{timeline}' from {self}: not in"
                 " self._timelines."
@@ -225,7 +228,9 @@ class Timelines:
         ]
 
     def serialize_timelines(self):
-        state = {tl.id: tl.get_state() for tl in self}
+        # Sorted, so the hash doesn't depend on the order timelines were
+        # created in (e.g. undoing a deletion re-adds the timeline at the end).
+        state = {tl.id: tl.get_state() for tl in sorted(self)}
         hash = hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
         return state, hash
 
@@ -241,13 +246,15 @@ class Timelines:
         id_to_timelines = {tl.id: tl for tl in self}
         shared_tl_ids = list(set(timeline_states) & set(id_to_timelines))
 
+        # delete timelines not in restored state. This must come before
+        # restoring the shared timelines, as deleting shifts the ordinals
+        # of the timelines below and would offset the restored ones.
+        for id in list(set(id_to_timelines) - set(shared_tl_ids)):
+            self.delete_timeline(id_to_timelines[id])
+
         # restore state of timelines that already exist
         for id in shared_tl_ids:
             self._restore_timeline_state(id_to_timelines[id], timeline_states[id])
-
-        # delete timelines not in restored state
-        for id in list(set(id_to_timelines) - set(shared_tl_ids)):
-            self.delete_timeline(id_to_timelines[id])
 
         # create timelines that are only in restored state
         for id in list(set(timeline_states) - set(shared_tl_ids)):
