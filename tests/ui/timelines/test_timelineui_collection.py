@@ -160,6 +160,19 @@ class TestTimelineUICreation:
         with undoable():
             commands.execute("timeline.delete", tluis[0], confirm=False)
 
+    def test_delete_middle_timeline_undo_redo(self, tls, tluis):
+        for name in ("a", "b", "c", "d"):
+            commands.execute("timelines.add.marker", name=name)
+        b = tls.get_timeline_by_attr("name", "b")
+
+        with undoable():
+            commands.execute(
+                "timeline.delete", tluis.get_timeline_ui(b.id), confirm=False
+            )
+
+        ordinals = [(tl.get_data("name"), tl.get_data("ordinal")) for tl in sorted(tls)]
+        assert ordinals == [("a", 1), ("c", 2), ("d", 3)]
+
     def test_update_select_order(self, tls, tluis):
         tl1 = tls.create_timeline(HierarchyTimeline, name="test1")
 
