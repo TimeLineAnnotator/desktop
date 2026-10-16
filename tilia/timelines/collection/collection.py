@@ -206,12 +206,15 @@ class Timelines:
 
     def _remove_from_timelines(self, timeline: Timeline) -> None:
         try:
-            self._timelines.remove(timeline)
+            # Look up by identity: list.remove() would use Timeline.__eq__,
+            # which compares attributes and may match another timeline.
+            index = next(i for i, tl in enumerate(self._timelines) if tl is timeline)
+            del self._timelines[index]
             # update ordinal of all timelines that came after the removed timeline
             for tl in self:
                 if tl.ordinal > timeline.ordinal:
                     tl.ordinal -= 1
-        except ValueError as e:
+        except StopIteration as e:
             raise ValueError(
                 f"Can't remove timeline '{timeline}' from {self}: not in"
                 " self._timelines."
