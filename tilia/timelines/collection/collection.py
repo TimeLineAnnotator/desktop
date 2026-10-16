@@ -225,7 +225,9 @@ class Timelines:
         ]
 
     def serialize_timelines(self):
-        state = {tl.id: tl.get_state() for tl in self}
+        # Sorted, so the hash doesn't depend on the order timelines were
+        # created in (e.g. undoing a deletion re-adds the timeline at the end).
+        state = {tl.id: tl.get_state() for tl in sorted(self)}
         hash = hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
         return state, hash
 
