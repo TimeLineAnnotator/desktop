@@ -243,13 +243,15 @@ class Timelines:
         id_to_timelines = {tl.id: tl for tl in self}
         shared_tl_ids = list(set(timeline_states) & set(id_to_timelines))
 
+        # delete timelines not in restored state. This must come before
+        # restoring the shared timelines, as deleting shifts the ordinals
+        # of the timelines below and would offset the restored ones.
+        for id in list(set(id_to_timelines) - set(shared_tl_ids)):
+            self.delete_timeline(id_to_timelines[id])
+
         # restore state of timelines that already exist
         for id in shared_tl_ids:
             self._restore_timeline_state(id_to_timelines[id], timeline_states[id])
-
-        # delete timelines not in restored state
-        for id in list(set(id_to_timelines) - set(shared_tl_ids)):
-            self.delete_timeline(id_to_timelines[id])
 
         # create timelines that are only in restored state
         for id in list(set(timeline_states) - set(shared_tl_ids)):
