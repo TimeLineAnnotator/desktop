@@ -294,6 +294,21 @@ def test_measure_rows_give_none_while_a_beat_has_no_usable_time():
     assert measure_rows(document(timeline), timeline.id) == []
 
 
+def _out_of_order(**kwargs) -> tla.Timeline:
+    return beat_timeline(
+        [{"time": 0.0, "measure": {}}, {"time": 2.0, "measure": {}}, {"time": 1.0}],
+        **kwargs,
+    )
+
+
+@pytest.mark.parametrize("make", [_same_time, _out_of_order])
+def test_measure_rows_give_none_while_beats_are_out_of_order_or_share_a_time(make):
+    # Anne, 2026-10-14: no measure that ends before it starts.
+    timeline = make()
+
+    assert measure_rows(document(timeline), timeline.id) == []
+
+
 def test_measure_rows_of_a_timeline_that_is_not_a_beat_timeline():
     # Even one that carries a table, as only a beat timeline should.
     beats, markers = _beats(1), _other("marker", 2)
