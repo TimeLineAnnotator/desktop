@@ -123,9 +123,10 @@ def time_map_for(document: tla.Document, timeline_id: str) -> TimeMap | None:
 def measure_rows(document: tla.Document, timeline_id: str) -> list[MeasureRow]:
     """The measure table of the beat timeline `timeline_id`, in its order.
 
-    Also for a folded table, which has no time map. No rows while a beat has no
-    usable time or a row's beats don't start at its downbeat (`build_rows`),
-    and none for a timeline that isn't a beat timeline.
+    Also for a folded table, which has no time map. No rows while the table
+    has a problem (`table.table_problem`: a beat without a usable time, a row
+    whose beats don't start at its downbeat, or two beats at the same time or
+    out of time order), and none for a timeline that isn't a beat timeline.
     """
     timeline = _beat_timeline(document, timeline_id)
     if timeline is None:
