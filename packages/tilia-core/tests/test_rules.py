@@ -700,6 +700,11 @@ class TestWithoutMusic21:
             getattr(rules, kind)(MEDIA, [], {"time": 1.0})
 
         assert isinstance(raised.value.__cause__, AttributeError)
+        assert str(raised.value) == (
+            f"checking a {kind} needs music21, which is installed but can't be"
+            " imported: AttributeError: np.float_ was removed in the NumPy 2.0"
+            " release."
+        )
 
     @pytest.mark.parametrize("kind", ["harmony", "mode"])
     def test_the_other_rules_are_checked(self, kind, without_music21):

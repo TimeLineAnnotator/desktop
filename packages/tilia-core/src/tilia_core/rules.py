@@ -119,12 +119,20 @@ class CantCheck(Exception):
 
     command = INSTALL_HARMONY
 
-    def __init__(self, kind: str) -> None:
-        super().__init__(f"checking a {kind} needs: {INSTALL_HARMONY}")
+    def __init__(self, kind: str, error: Exception | None = None) -> None:
+        if error is None:
+            message = f"checking a {kind} needs: {INSTALL_HARMONY}"
+        else:
+            message = (
+                f"checking a {kind} needs music21, which is installed but can't"
+                f" be imported: {type(error).__name__}: {error}"
+            )
+        super().__init__(message)
         self.kind = kind
+        self.error = error
 
-    def __reduce__(self) -> tuple[type[CantCheck], tuple[str]]:
-        return type(self), (self.kind,)
+    def __reduce__(self) -> tuple[type[CantCheck], tuple[str, Exception | None]]:
+        return type(self), (self.kind, self.error)
 
 
 # The private functions give the first rule they find broken, or None. `_kept`
@@ -153,7 +161,7 @@ def _kept(
             return broken
     if missing is not None:
         kind, error = missing
-        raise CantCheck(kind) from error
+        raise CantCheck(kind, error) from error
     broken = _color_of(attrs)
     return OK if broken is None else broken
 
