@@ -913,7 +913,10 @@ class RangeTimelineUI(TimelineUI):
         self._handle_arrow_navigation(arrow)
 
     def on_ctrl_vertical_arrow_press(self, direction: str) -> None:
-        commands.execute(self.CTRL_ARROW_COMMANDS[direction])
+        if (command := self.CTRL_ARROW_COMMANDS.get(direction)) is None:
+            logger.error("RangeTimelineUI: invalid vertical arrow %r.", direction)
+            return
+        commands.execute(command)
 
     def _handle_arrow_navigation(self, arrow: str) -> None:
         selection = self.selected_components
