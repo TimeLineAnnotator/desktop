@@ -102,8 +102,8 @@ def time_map_of(
 
 def time_map_for(document: tla.Document, timeline_id: str) -> TimeMap | None:
     """The time map of the beat timeline `timeline_id`; None when it has none."""
-    timeline = document.timelines.get(timeline_id)
-    if timeline is None or timeline.kind != "beat":
+    timeline = _beat_timeline(document, timeline_id)
+    if timeline is None:
         return None
     time_map, _ = build_time_map(document, timeline)
     return time_map
@@ -113,10 +113,15 @@ def measure_rows(document: tla.Document, timeline_id: str) -> list[MeasureRow]:
     """The measure table of the beat timeline `timeline_id`, in its order.
 
     Also for a folded table, which has no time map. No rows while a beat has no
-    usable time or the table is broken, and none for a timeline that isn't a
-    beat timeline.
+    usable time or a row's beats don't start at its downbeat (`build_rows`),
+    and none for a timeline that isn't a beat timeline.
     """
-    timeline = document.timelines.get(timeline_id)
-    if timeline is None or timeline.kind != "beat":
+    timeline = _beat_timeline(document, timeline_id)
+    if timeline is None:
         return []
     return build_rows(document, timeline)
+
+
+def _beat_timeline(document: tla.Document, timeline_id: str) -> tla.Timeline | None:
+    timeline = document.timelines.get(timeline_id)
+    return timeline if timeline is not None and timeline.kind == "beat" else None
