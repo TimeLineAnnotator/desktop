@@ -165,6 +165,10 @@ class TestOutcome:
         assert rules.OK
         assert not rules.Outcome(False, "Invalid row ID.")
 
+    def test_its_truth_is_a_bool_whatever_ok_was_given_as(self):
+        assert bool(rules.Outcome(1)) is True
+        assert bool(rules.Outcome(0, "Invalid row ID.")) is False
+
     def test_if_reads_as_keeping_to_the_rules(self):
         assert rules.marker(60.0, [], {"time": 1.0})
         assert not rules.marker(60.0, [], {"time": -1.0})
