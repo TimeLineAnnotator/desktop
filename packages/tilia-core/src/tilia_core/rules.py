@@ -87,12 +87,12 @@ class Outcome(tuple[bool, str]):
     others: tuple[str, ...]
 
     def __new__(cls, ok: bool, reason: str = "", others: Iterable[str] = ()) -> Outcome:
-        outcome = super().__new__(cls, (ok, reason))
+        outcome = super().__new__(cls, (bool(ok), reason))
         outcome.others = tuple(others)
         return outcome
 
     def __bool__(self) -> bool:
-        return bool(self[0])
+        return self[0]
 
     def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...]]:  # type: ignore[override]
         # What copy and pickle give __new__: a tuple's would be the pair alone.
