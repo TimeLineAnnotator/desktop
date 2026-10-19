@@ -131,6 +131,24 @@ def test_a_role_list_that_holds_time_map_claims_it(role, claims):
     assert found.guessed is not claims
 
 
+@pytest.mark.parametrize("ordinal", [None, "1", 1.5, float("nan"), True, [1]])
+def test_an_ordinal_that_isnt_a_whole_number_sorts_after_the_others(ordinal):
+    # Anne, 2026-10-14: nothing raises while the reader lets one through (#7).
+    odd, other = _beats(1), _beats(3)
+    odd.ordinal = ordinal
+
+    found = find_time_map(document(odd, other))
+
+    assert found.timeline_id == other.id and found.guessed
+
+
+def test_a_whole_ordinal_written_as_a_float_sorts_by_its_value():
+    two, three = _beats(1), _beats(3)
+    two.ordinal = 2.0
+
+    assert find_time_map(document(three, two)).timeline_id == two.id
+
+
 def test_a_timeline_that_names_a_beat_timeline_gets_its_table_and_time_map():
     # Spec, US4 scenario 5: a score timeline names its table (WP3's FR-133).
     default, named = _beats(1, role="time_map"), _beats(2, last=7)
