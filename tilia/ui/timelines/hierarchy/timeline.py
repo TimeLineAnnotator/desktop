@@ -2,6 +2,7 @@ from typing import Callable
 
 import tilia.ui.strings
 import tilia.ui.timelines.copy_paste
+from tilia.log import logger
 from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
@@ -297,7 +298,10 @@ class HierarchyTimelineUI(TimelineUI):
         HierarchyTimelineUIKeyPressManager(self).on_vertical_arrow_press(arrow)
 
     def on_ctrl_vertical_arrow_press(self, direction: str) -> None:
-        commands.execute(self.CTRL_ARROW_COMMANDS[direction])
+        if (command := self.CTRL_ARROW_COMMANDS.get(direction)) is None:
+            logger.error("HierarchyTimelineUI: invalid vertical arrow %r.", direction)
+            return
+        commands.execute(command)
 
     def get_max_hierarchy_height(self):
         # An empty timeline still needs room for level-1 units.
