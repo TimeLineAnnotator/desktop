@@ -91,6 +91,7 @@ def broken_music21(monkeypatch):
     monkeypatch.setattr(importlib.util, "find_spec", find_spec_with_music21)
     for name in ("music21", "music21.harmony", "music21.key"):
         monkeypatch.setitem(sys.modules, name, None)
+    monkeypatch.setattr(rules, "_music21_failure", None, raising=False)
 
 
 @pytest.fixture
@@ -106,6 +107,7 @@ def music21_raising(tmp_path, monkeypatch):
         monkeypatch.delitem(sys.modules, name)
     monkeypatch.syspath_prepend(str(tmp_path))
     importlib.invalidate_caches()
+    monkeypatch.setattr(rules, "_music21_failure", None, raising=False)
 
 
 # TiLiA's creation rules, which its importers apply: `validate_creation` of its
@@ -705,6 +707,23 @@ class TestWithoutMusic21:
             " imported: AttributeError: np.float_ was removed in the NumPy 2.0"
             " release."
         )
+
+    def test_a_failed_import_isnt_tried_again(self, music21_raising, monkeypatch):
+        find_spec = importlib.util.find_spec
+        looked_up = []
+
+        def counting(name, *args, **kwargs):
+            if name == "music21":
+                looked_up.append(name)
+            return find_spec(name, *args, **kwargs)
+
+        monkeypatch.setattr(importlib.util, "find_spec", counting)
+
+        for kind in ("harmony", "mode", "harmony"):
+            with pytest.raises(rules.CantCheck):
+                getattr(rules, kind)(MEDIA, [], {"time": 1.0})
+
+        assert len(looked_up) == 1
 
     @pytest.mark.parametrize("kind", ["harmony", "mode"])
     def test_the_other_rules_are_checked(self, kind, without_music21):
