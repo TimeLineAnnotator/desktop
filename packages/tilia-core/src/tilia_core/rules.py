@@ -124,8 +124,8 @@ class CantCheck(Exception):
             message = f"checking a {kind} needs: {INSTALL_HARMONY}"
         else:
             message = (
-                f"checking a {kind} needs music21, which is installed but can't"
-                f" be imported: {type(error).__name__}: {error}"
+                f"checking a {kind} needs music21, which can't be imported"
+                f" ({type(error).__name__}: {error}): {INSTALL_HARMONY}"
             )
         super().__init__(message)
         self.kind = kind
