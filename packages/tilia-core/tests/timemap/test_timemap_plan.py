@@ -66,6 +66,13 @@ def beat(timeline, m, b):
     return timeline.measures.rows[m].beats[b]
 
 
+def add_beat(timeline, m, time):
+    """Adds a beat to the end of measure m, as the table would have it."""
+    component = tla.Component(id=tla.new_id(), kind="beat", attrs={"time": time})
+    timeline.components[component.id] = component
+    timeline.measures.rows[m].beats.append(component.id)
+
+
 def ts(text):
     return TimeSignature.parse(text)
 
@@ -142,7 +149,17 @@ class TestTimeSignature:
         assert isinstance(TimeSignature((6,), 8).parts[0], F)
 
     @pytest.mark.parametrize(
-        "parts, denominator", [((), 8), ((0,), 8), ((6,), 0), ((6,), 129)]
+        "parts, denominator",
+        [
+            ((), 8),
+            ((0,), 8),
+            ((6,), 0),
+            ((6,), 129),
+            ((0.5,), 8),
+            ((True,), 8),
+            ("12", 8),
+            ((F(10**32),), 8),  # 33 digits: longer than a unit can be
+        ],
     )
     def test_a_time_signature_that_cant_be_written_is_refused(self, parts, denominator):
         with pytest.raises(ValueError):
@@ -253,6 +270,14 @@ class TestTheUnit:
         apply_plan(doc, p)
         assert read(doc, tl)[:120] == [("3/4", False, "import")] * 120
 
+    def test_a_unit_too_long_to_read_back_is_refused(self):
+        doc, tl = piece([2, 3, 2])
+        # 32 digits, the longest a part can be, over three taps: 34 characters.
+        too_long = TimeSignature((F(10**31 + 1),), 8)
+
+        with pytest.raises(ValueError):
+            plan(doc, tl, [(BarRef(2), too_long)])
+
     def test_of_two_settings_for_a_bar_the_later_wins(self):
         doc, tl = piece([3, 3, 3])
 
@@ -315,7 +340,7 @@ class TestSources:
             ],
         ]
 
-    def test_when_every_measure_ends_with_it_the_marks_lose_their_own(self):
+    def test_when_every_measure_is_set_from_it_the_marks_lose_their_own(self):
         doc, tl = piece([2, 2, 2], marks={1: {"source": "score"}})
 
         p = plan(doc, tl, bars(1, 2, 3, text="2/4"), source="import")
@@ -329,18 +354,39 @@ class TestSources:
         assert read(doc, tl) == [("2/4", False, "import")] * 3
         assert "source" not in tl.components[downbeat(tl, 1)].attrs["measure"]
 
-    def test_a_measure_not_set_keeps_its_mark_when_the_timeline_s_source_changes(
-        self,
-    ):
+    def test_with_a_measure_not_set_the_timeline_s_source_stays(self):
         # Bar 3 came from an earlier import; bars 1 and 2 come from this one.
         doc, tl = piece([2, 2, 2], marks={2: {"source": "import"}})
 
         p = plan(doc, tl, bars(1, 2, text="2/4"), source="import")
         apply_plan(doc, p)
 
-        assert p.changes[0] == Change(tl.id, None, "measure_source", "tapped", "import")
-        assert downbeat(tl, 2) not in written(p)
+        assert p.changes == [
+            Change(tl.id, beat(tl, 0, 0), "beat_unit", DEFAULT, unit(4, "1")),
+            Change(tl.id, downbeat(tl, 0), "measure.source", None, "import"),
+            Change(tl.id, downbeat(tl, 1), "measure.source", None, "import"),
+        ]
         assert read(doc, tl) == [("2/4", False, "import")] * 3
+
+    def test_a_timeline_without_its_source_stored_has_its_table_s(self):
+        doc, tl = piece([2, 2])
+        del tl.attrs["measure_source"]
+
+        p = plan(doc, tl, bars(1, 2, text="2/4"), source="import")
+        apply_plan(doc, p)
+        apply_plan(
+            doc,
+            Plan(
+                [
+                    Change(c.timeline_id, c.component_id, c.key, c.new, c.old)
+                    for c in reversed(p.changes)
+                ]
+            ),
+        )
+
+        assert p.changes[0] == Change(tl.id, None, "measure_source", "tapped", "import")
+        assert tl.attrs["measure_source"] == tl.measures.source == "tapped"
+        assert [row.source for row in tl.measures.rows] == ["tapped"] * 2
 
     def test_an_edit_records_edited_unless_the_measure_is_tapped(self):
         doc, tl = piece(
@@ -690,15 +736,56 @@ class TestApply:
         assert raised.value.change == p.changes[refused]
         assert doc == before
 
-    def test_a_unit_edited_in_place_after_planning_is_stale(self):
-        doc, tl = piece([2, 2])
-        p = plan(doc, tl, bars(1, text="6/8"))
-        tl.components[beat(tl, 0, 0)].attrs["beat_unit"]["units"] = "2"
+    # Edits after planning that change no value the plan writes, but what it
+    # was made from.
+    UNDER_IT = [
+        pytest.param(
+            {},
+            lambda tl: add_beat(tl, 1, 3.5),
+            bars(2, text="6/8"),
+            id="a beat added to the measure",
+        ),
+        pytest.param(
+            {"units": {(0, 0): unit(8, "3")}},
+            lambda tl: tl.components[beat(tl, 0, 0)].attrs.update(
+                beat_unit=unit(4, "1")
+            ),
+            bars(3, text="6/8"),
+            id="the unit carried into it changed",
+        ),
+        pytest.param(
+            {"marks": {1: {"source": "score"}}, "measure_source": "import"},
+            lambda tl: tl.attrs.update(measure_source="tapped"),
+            bars(2, text="2/4"),
+            id="the timeline's source changed",
+        ),
+    ]
+
+    @pytest.mark.parametrize("setup, edit, settings", UNDER_IT)
+    def test_a_plan_whose_measures_changed_is_refused(self, setup, edit, settings):
+        doc, tl = piece([2, 2, 2], **setup)
+        p = plan(doc, tl, settings, source="import")
+        edit(tl)
         before = copy.deepcopy(doc)
 
-        with pytest.raises(PlanOutOfDate):
+        with pytest.raises(PlanOutOfDate) as raised:
             apply_plan(doc, p)
 
+        assert raised.value.change is None
+        assert doc == before
+
+    def test_a_unit_edited_in_place_after_planning_is_stale(self):
+        # A unit the table can't read, which it ignores: only the old value
+        # the plan kept shows the edit.
+        doc, tl = piece([2, 2], units={(1, 0): {"denominator": 200, "units": "x"}})
+        p = plan(doc, tl, bars(2, text="6/8"))
+        tl.components[downbeat(tl, 1)].attrs["beat_unit"]["denominator"] = 300
+        before = copy.deepcopy(doc)
+
+        with pytest.raises(PlanOutOfDate) as raised:
+            apply_plan(doc, p)
+
+        assert raised.value.change == p.changes[0]
         assert doc == before
 
     def test_a_stale_timeline_source_is_refused(self):
@@ -743,6 +830,33 @@ class TestApply:
 
         assert raised.value.change == second
         assert doc == before
+
+    def test_changes_to_the_timeline_s_source_are_checked_against_each_other(self):
+        doc, tl = piece([2, 2])
+        before = copy.deepcopy(doc)
+        # A component id means nothing for the timeline's source.
+        second = Change(tl.id, "elsewhere", "measure_source", "tapped", "score")
+
+        with pytest.raises(PlanOutOfDate) as raised:
+            apply_plan(
+                doc,
+                Plan(
+                    [Change(tl.id, None, "measure_source", "tapped", "import"), second]
+                ),
+            )
+
+        assert raised.value.change == second
+        assert doc == before
+
+    def test_the_table_lists_the_units_the_measure_table_reads(self):
+        unreadable = {"denominator": 200, "units": "x"}
+        doc, tl = piece([3, 3], units={(1, 2): unreadable})
+
+        apply_plan(doc, plan(doc, tl, bars(2, text="6/8")))
+
+        assert tl.measures.rows[1].beat_units == [
+            tla.BeatUnit(denominator=8, units="2")
+        ]
 
     def test_the_reverse_plan_restores_the_components_and_the_timeline(self):
         doc, tl = piece([2, 2, 2], marks={1: {"source": "score"}})

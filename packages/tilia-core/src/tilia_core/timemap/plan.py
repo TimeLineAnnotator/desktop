@@ -14,9 +14,11 @@ from fractions import Fraction
 from typing import Any
 
 from tilia_core import tla
+from tilia_core.timemap._rows import _beat_unit, _dict
 from tilia_core.timemap.table import MeasureRow, build_rows, find_rows
 from tilia_core.timemap.units import (
     MAX_DENOMINATOR,
+    MAX_UNIT_LENGTH,
     format_units,
     parse_units,
     validate_denominator,
@@ -38,10 +40,23 @@ class TimeSignature:
     denominator: int
 
     def __post_init__(self) -> None:
+        if any(
+            isinstance(part, bool) or not isinstance(part, (int, Fraction))
+            for part in self.parts
+        ):
+            raise ValueError(
+                "A time signature's parts must be whole numbers or fractions,"
+                f" not {self.parts!r}."
+            )
         parts = tuple(Fraction(part) for part in self.parts)
         if not parts or any(part <= 0 for part in parts):
             raise ValueError(
                 f"A time signature's parts must be greater than 0, not {self.parts!r}."
+            )
+        if any(len(str(part)) > MAX_UNIT_LENGTH for part in parts):
+            raise ValueError(
+                f"A time signature's parts can be at most {MAX_UNIT_LENGTH}"
+                " characters long, as units can."
             )
         if not validate_denominator(self.denominator):
             raise ValueError(
@@ -105,24 +120,27 @@ class Plan:
     """The writes that give some measures their time signatures, in order.
 
     `unmatched` holds the bars the table doesn't have, and `ambiguous` those
-    found in more than one movement with none given: nothing is written for either.
+    found in more than one movement with none given: nothing is written for
+    either. `basis` is what the plan was made from, by timeline, and
+    `apply_plan` refuses the plan once it has changed. A plan made by hand
+    has none, and is checked by its changes' old values alone.
     """
 
     changes: list[Change] = field(default_factory=list)
     unmatched: list[BarRef | str] = field(default_factory=list)
     ambiguous: list[BarRef] = field(default_factory=list)
+    basis: dict[str, object] = field(default_factory=dict, compare=False, repr=False)
 
 
 class PlanOutOfDate(Exception):
-    """A change's old value no longer matches the document: it changed since the plan was made."""
+    """The document changed since the plan was made.
 
-    def __init__(self, change: Change, current: Any) -> None:
-        where = change.component_id or change.timeline_id
-        found = "missing" if current is _MISSING else repr(current)
-        super().__init__(
-            f"The document changed since the plan was made: {change.key} of {where}"
-            f" is {found}, not {change.old!r}."
-        )
+    `change` is the first change whose old value differs, or None when what
+    the plan was made from did.
+    """
+
+    def __init__(self, message: str, change: Change | None = None) -> None:
+        super().__init__(message)
         self.change = change
 
 
@@ -141,20 +159,23 @@ def plan_time_signatures(
     wins. A bar the table doesn't have goes to `unmatched`, and one found in
     more than one movement, with none given, to `ambiguous`; nothing is
     written for either. A table without rows (a beat without a time, say)
-    has none of the bars. Measures the settings don't name are never written.
+    has none of the bars. In a folded table a pass counts the measures in
+    written order (`MeasureRow.folded`). Measures the settings don't name are
+    never written.
 
     Each measure's own taps share its time signature: its unit is the
     numerator divided by the taps, exactly, or the parts of a grouping with a
     part per tap. It goes on the beat of the unit that starts in the measure,
     which is edited, else on the downbeat, and is not assumed. Every measure
     set records `source` ("score", "import", or "edit": "edited", unless the
-    measure is tapped); when every measure of the table would end with the
-    same source, the timeline's `measure_source` changes instead, and the
-    marks of the measures set lose their own. A measure whose unit, "assumed"
-    flag and source are already right gets no write.
+    measure is tapped); when every measure of the table is set and records
+    the same source, the timeline's `measure_source` changes instead, and the
+    marks lose their own. A measure whose unit, "assumed" flag and source are
+    already right gets no write.
 
     `after` says what the measures after a run of set measures get: "carry",
     the new unit, so nothing more is written. Writes nothing to the document.
+    Raises ValueError for a unit too long to be read back.
     """
     if after == "restore":
         raise ValueError(
@@ -179,7 +200,8 @@ def plan_time_signatures(
         for change in (unit_changes.get(row.id), mark_changes.get(row.id)):
             if change is not None:
                 changes.append(change)
-    return Plan(changes, unmatched, ambiguous)
+    basis = {timeline.id: _basis(timeline, rows)}
+    return Plan(changes, unmatched, ambiguous, basis)
 
 
 def _match(
@@ -189,6 +211,13 @@ def _match(
     """The time signature for each measure set, by downbeat id; the bars not
     found; the bars found in more than one movement, with none given."""
     by_id = {row.id: row for row in rows}
+    # find_rows decides what a bar matches; these only narrow what it scans.
+    by_number: dict[int, list[MeasureRow]] = {}
+    by_label: dict[str, list[MeasureRow]] = {}
+    for row in rows:
+        by_number.setdefault(row.number, []).append(row)
+        by_label.setdefault(row.label, []).append(row)
+
     wanted: dict[str, TimeSignature] = {}
     unmatched: list[BarRef | str] = []
     ambiguous: list[BarRef] = []
@@ -196,7 +225,13 @@ def _match(
         if isinstance(bar, str):
             matches = [by_id[bar]] if bar in by_id else []
         else:
-            matches = find_rows(rows, bar.number, label=bar.label, pass_=bar.pass_)
+            if bar.number is not None:
+                candidates = by_number.get(bar.number, [])
+            else:
+                candidates = [] if bar.label is None else by_label.get(bar.label, [])
+            matches = find_rows(
+                candidates, bar.number, label=bar.label, pass_=bar.pass_
+            )
             if bar.movement is not None:
                 matches = [row for row in matches if row.movement == bar.movement]
             elif len({row.movement for row in matches}) > 1:
@@ -233,9 +268,16 @@ def _unit_changes(
             continue
         unit = (time_signature.denominator, _units(time_signature, row.beats), False)
         if governing != unit:
+            units = format_units(unit[1])
+            readable = parse_units(units)
+            if not readable.is_valid:
+                raise ValueError(
+                    f"Measure {row.label}: {time_signature} over {row.beats} taps"
+                    f" gives units that can't be read back: {readable.error}"
+                )
             beat_id = own or row.id
             old = timeline.components[beat_id].attrs.get("beat_unit")
-            new = {"denominator": unit[0], "units": format_units(unit[1])}
+            new = {"denominator": unit[0], "units": units}
             changes[row.id] = Change(
                 timeline.id, beat_id, "beat_unit", copy.deepcopy(old), new
             )
@@ -258,27 +300,20 @@ def _source_changes(
     source: str,
 ) -> tuple[Change | None, dict[str, Change]]:
     """The change to the timeline's `measure_source`, if any, and the change
-    to the source in each set measure's mark, by downbeat id.
-
-    A measure not set is never written: when the timeline's source changes,
-    such a measure already has it, in its own mark, which keeps it.
-    """
-    table = timeline.measures
+    to the source in each set measure's mark, by downbeat id."""
     targets = {row.id: _target(row, source) for row in rows if row.id in wanted}
-    if table is None or all(
-        row.source == targets[row.id] for row in rows if row.id in targets
-    ):
+    if all(row.source == targets[row.id] for row in rows if row.id in targets):
         return None, {}
 
-    table_source = table.source
-    finals = {targets.get(row.id, row.source) for row in rows}
-    measure_source = next(iter(finals)) if len(finals) == 1 else table_source
+    table_source = _measure_source(timeline)
+    # Every measure set, all from one source: the timeline records it (FR-071).
+    every = len(targets) == len(rows) and len(set(targets.values())) == 1
+    measure_source = next(iter(targets.values())) if every else table_source
     changed = measure_source != table_source
     timeline_change = None
     if changed:
-        old = timeline.attrs.get("measure_source")
         timeline_change = Change(
-            timeline.id, None, "measure_source", old, measure_source
+            timeline.id, None, "measure_source", table_source, measure_source
         )
 
     mark_changes: dict[str, Change] = {}
@@ -286,7 +321,7 @@ def _source_changes(
         target = targets.get(row.id)
         if target is None:
             continue
-        own = _mark(timeline.components.get(row.id)).get("source")
+        own = _dict(timeline.components.get(row.id), "measure").get("source")
         if changed:
             # Every measure now has the timeline's source: a mark's own goes.
             needed, new = own is not None, None
@@ -306,31 +341,61 @@ def _target(row: MeasureRow, source: str) -> str:
     return _SOURCES[source]
 
 
-def _mark(component: tla.Component | None) -> dict[str, Any]:
-    mark = component.attrs.get("measure") if component is not None else None
-    return mark if isinstance(mark, dict) else {}
+def _measure_source(timeline: tla.Timeline) -> str | None:
+    """The timeline's own measure source: as stored, else as its table has it."""
+    table = timeline.measures
+    return timeline.attrs.get("measure_source", None if table is None else table.source)
+
+
+def _basis(timeline: tla.Timeline, rows: Sequence[MeasureRow]) -> tuple[Any, ...]:
+    """What a plan for the timeline is made from: its measure table as
+    computed, the sources in its marks, and its own."""
+    marks = tuple(
+        _dict(timeline.components.get(row.id), "measure").get("source") for row in rows
+    )
+    return _measure_source(timeline), tuple(rows), marks
 
 
 def apply_plan(document: tla.Document, plan: Plan) -> None:
     """
     Applies a plan's changes to the document, in memory, in order: the last
-    write wins. Every change's old value is checked first, against the
-    document as the changes before it leave it; if one differs, raises
-    `PlanOutOfDate` naming it, and changes nothing.
+    write wins. First, every change's old value is checked against the
+    document as the changes before it leave it, then what the plan was made
+    from (`Plan.basis`) against the document as it is. If either differs,
+    raises `PlanOutOfDate`, naming the change if it is one, and changes nothing.
 
     A "beat_unit" change sets or removes a beat's `beat_unit`, a
     "measure.source" change the `source` in a downbeat's `measure` mark, a
     "measure_source" change the timeline's. The rows of the timeline's
-    measure table follow: their sources, and the beat units of the measures
-    whose beats changed. Opens no file: WP3's writer writes the document.
+    measure table follow: their `source`, and the `beat_units` of the
+    measures whose beats changed; their `beat_unit`, the unit in force, is
+    not updated. Opens no file: WP3's writer writes the document.
     """
     pending: dict[tuple[str, str | None, str], Any] = {}
     for change in plan.changes:
-        place = (change.timeline_id, change.component_id, change.key)
+        # The timeline's own source is one value, whatever a change's component.
+        component_id = None if change.key == "measure_source" else change.component_id
+        place = (change.timeline_id, component_id, change.key)
         current = pending[place] if place in pending else _value(document, change)
         if current is _MISSING or current != change.old:
-            raise PlanOutOfDate(change, current)
+            found = "missing" if current is _MISSING else repr(current)
+            raise PlanOutOfDate(
+                "The document changed since the plan was made:"
+                f" {change.key} of {change.component_id or change.timeline_id}"
+                f" is {found}, not {change.old!r}.",
+                change,
+            )
         pending[place] = change.new
+    for timeline_id, basis in plan.basis.items():
+        timeline = document.timelines.get(timeline_id)
+        if (
+            timeline is None
+            or _basis(timeline, build_rows(document, timeline)) != basis
+        ):
+            raise PlanOutOfDate(
+                "The document changed since the plan was made: the measures of"
+                f" timeline {timeline_id} aren't those it was made from."
+            )
 
     beats: dict[str, set[str]] = {}
     for change in plan.changes:
@@ -351,7 +416,7 @@ def _value(document: tla.Document, change: Change) -> Any:
     if timeline is None:
         return _MISSING
     if change.key == "measure_source":
-        return timeline.attrs.get("measure_source")
+        return _measure_source(timeline)
     component = timeline.components.get(change.component_id or "")
     if component is None:
         return _MISSING
@@ -383,25 +448,17 @@ def _set(values: dict[str, Any], key: str, value: Any) -> None:
 
 
 def _update_table(timeline: tla.Timeline, changed: set[str]) -> None:
-    """Brings the measure table's rows in line with the marks and the units."""
+    """Brings the table's rows in line with the marks and the units: their
+    sources, and the units of the measures whose beats changed, as the
+    measure table reads them."""
     table = timeline.measures
     if table is None:
         return
-    table.source = timeline.attrs.get("measure_source", table.source)
+    table.source = _measure_source(timeline) or table.source
     for row in table.rows:
-        own = _mark(timeline.components.get(row.id)).get("source")
+        own = _dict(timeline.components.get(row.id), "measure").get("source")
         row.source = table.source if own is None else own
         if changed.intersection(row.beats):
-            units = (_beat_unit(timeline.components.get(b)) for b in row.beats)
+            components = (timeline.components.get(b) for b in row.beats)
+            units = (_beat_unit(timeline, c) for c in components if c is not None)
             row.beat_units = [unit for unit in units if unit is not None]
-
-
-def _beat_unit(component: tla.Component | None) -> tla.BeatUnit | None:
-    value = component.attrs.get("beat_unit") if component is not None else None
-    if not isinstance(value, dict) or not {"denominator", "units"} <= value.keys():
-        return None
-    return tla.BeatUnit(
-        denominator=value["denominator"],
-        units=value["units"],
-        assumed=bool(value.get("assumed", False)),
-    )
