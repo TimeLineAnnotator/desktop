@@ -220,6 +220,22 @@ class TestOutcome:
         assert str(copied) == str(error)
         assert copied.kind == "harmony"
 
+    def test_cant_check_copies_and_pickles_whatever_its_error(self):
+        class Picky(Exception):
+            def __init__(self, a, b):
+                super().__init__(f"{a} {b}")
+
+        error = rules.CantCheck("harmony", Picky(1, 2))
+
+        for duplicate in (
+            copy.copy,
+            copy.deepcopy,
+            lambda e: pickle.loads(pickle.dumps(e)),
+        ):
+            copied = duplicate(error)
+            assert str(copied) == str(error)
+            assert copied.kind == "harmony"
+
     def test_a_broken_rule_names_the_other_components(self):
         outcome = rules.Outcome(False, "Component would overlap", ["a", "b"])
 
