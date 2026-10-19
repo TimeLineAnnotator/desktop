@@ -246,6 +246,9 @@ jobs:
     # release: "Check output" reports the missing files once it is up.
     name: Make the keyboard shortcuts sheet
     continue-on-error: true
+    # continue-on-error doesn't cover a hang: without a limit, deploy would
+    # wait for GitHub's six hours.
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     permissions:
       contents: read
