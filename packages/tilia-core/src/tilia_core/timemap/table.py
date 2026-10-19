@@ -363,9 +363,11 @@ def find_rows(
     *,
     label: str | None = None,
     pass_: int | None = None,
+    movement: int | None = None,
 ) -> list[MeasureRow]:
     """The rows a bar names: by number (every pass, cadenzas left out), by label
-    (cadenzas included), or both; `pass_` narrows them to one time through.
+    (cadenzas included), or both; `pass_` narrows them to one time through, and
+    `movement` to one movement, else every movement matches.
     Nothing, when neither a number nor a label is given."""
     if number is None and label is None:
         return []
@@ -376,4 +378,5 @@ def find_rows(
         and (label is None or row.label == label)
         and (label is not None or not row.cadenza)
         and (pass_ is None or row.pass_ == pass_)
+        and (movement is None or row.movement == movement)
     ]
