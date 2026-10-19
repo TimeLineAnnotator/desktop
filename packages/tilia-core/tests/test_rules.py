@@ -1,5 +1,7 @@
+import copy
 import importlib.util
 import itertools
+import pickle
 
 import pytest
 import webcolors
@@ -154,6 +156,27 @@ class TestOutcome:
         ok, reason = rules.Outcome(False, "Invalid row ID.")
 
         assert (ok, reason) == (False, "Invalid row ID.")
+
+    @pytest.mark.parametrize(
+        "duplicate", [copy.copy, copy.deepcopy, lambda o: pickle.loads(pickle.dumps(o))]
+    )
+    def test_an_outcome_copies_and_pickles_whole(self, duplicate):
+        outcome = rules.Outcome(False, "Invalid row ID.", ["a"])
+
+        copied = duplicate(outcome)
+
+        assert copied == (False, "Invalid row ID.")
+        assert copied.others == ("a",)
+        assert not copied
+        assert duplicate(rules.OK)
+
+    def test_cant_check_pickles_whole(self):
+        error = rules.CantCheck("harmony")
+
+        copied = pickle.loads(pickle.dumps(error))
+
+        assert str(copied) == str(error)
+        assert copied.kind == "harmony"
 
     def test_a_broken_rule_names_the_other_components(self):
         outcome = rules.Outcome(False, "Component would overlap", ["a", "b"])
