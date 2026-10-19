@@ -425,6 +425,28 @@ def test_measure_rows_give_none_while_a_beat_has_no_usable_time():
     assert measure_rows(document(timeline), timeline.id) == []
 
 
+def test_a_beat_time_too_large_for_a_float_is_no_time(caplog):
+    # TimeLineAnnotator/project-management#319 (a beat time too large for a
+    # float): JSON reads a whole number of any size as an int, which a float
+    # can't hold. In a timeline that isn't the time map, it doesn't stop the
+    # document's: that timeline alone has no rows and no time map.
+    chosen, other = _beats(1, role="time_map"), _beats(2)
+    last = other.measures.rows[-1].beats[-1]
+    other.components[last].attrs["time"] = 10**400
+    doc = document(chosen, other, media_length=2.0)
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
+    assert found.timeline_id == chosen.id and found.time_map is not None
+    (warning,) = found.warnings
+    assert warning.startswith(f"Timeline {chosen.id}: the last beat (3.0)")
+    assert len(caplog.records) == 1
+    assert measure_rows(doc, other.id) == []
+    assert time_map_for(doc, other.id) is None
+    assert find_time_map(document(other)).reason == "a beat without a time (measure 2)"
+
+
 def _out_of_order(**kwargs) -> tla.Timeline:
     return beat_timeline(
         [{"time": 0.0, "measure": {}}, {"time": 2.0, "measure": {}}, {"time": 1.0}],
