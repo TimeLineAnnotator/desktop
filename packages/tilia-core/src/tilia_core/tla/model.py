@@ -187,9 +187,11 @@ class Component:
     unset and follows `start` or `end`, so code that reads it falls back to
     `start` or `end`. Once set, it is written whatever its value.
 
-    None for a key the schema gives no default is left out when written, as
-    is a null for it in the file: a beat's `"measure": null` is read as None
-    and written back without `measure`."""
+    A null in a file is a missing key: it is read as the key's default
+    (`"label": null` as `""`), or leaves the key unset when it has none (a
+    beat's `"measure": null` is no mark), and is never written back. None
+    given for a key is likewise left out when written. A legacy score's
+    components keep their attributes as they are, nulls included."""
 
     id: str
     kind: Kind

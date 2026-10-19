@@ -58,6 +58,7 @@ def named(doc, name):
 # The broken files
 
 
+FORM = IDS["form"]
 COMPONENT = "/timelines/{cadences}/components/{cadence}"
 SECTION = "/timelines/{form}/components/{section}"
 MELODY = "/timelines/{texture}/components/{melody_1}"
@@ -732,7 +733,83 @@ def test_a_null_is_refused_only_where_the_key_is_required():
         assert where not in refused, where
         again = tla.loads(writer.checked_bytes(doc))
         assert tla.canonical_bytes(again) == tla.canonical_bytes(doc)
+        if where in NULL_IS_A_VALUE:
+            continue
+        # Read as if the key weren't there: its default, or nothing.
+        del parent[path[-1]]
+        missing = tla.loads(make_broken.text_of(content).encode("utf-8"))
+        assert doc == missing, where
+        assert tla.canonical_bytes(doc) == tla.canonical_bytes(missing), where
     assert found == refused
+
+
+# Required, and null when the length is unknown.
+NULL_IS_A_VALUE = {"/media/length"}
+
+
+def test_a_null_label_reads_as_its_default_and_is_left_out():
+    doc = tla.loads(
+        edited(lambda c: component(c, "section", of="form").update(label=None))
+    )
+    assert _section(doc).attrs["label"] == ""
+    written = json.loads(tla.canonical_bytes(doc))
+    assert "label" not in written["timelines"][FORM]["components"][IDS["section"]]
+
+
+@pytest.mark.parametrize("kind", ["Hierarchy", "Lyrics"])
+def test_a_null_name_reads_as_its_default_and_is_left_out(kind):
+    # Whatever the timeline's kind: a name is "" by default.
+    doc = tla.loads(edited(lambda c: timeline(c, "form").update(kind=kind, name=None)))
+    assert doc.timelines[FORM].name == ""
+    assert "name" not in json.loads(tla.canonical_bytes(doc))["timelines"][FORM]
+
+
+def test_a_null_inside_a_mark_a_beat_unit_or_a_source_is_a_missing_key():
+    def change(content):
+        _beat_1(content).update(
+            measure={"number": None, "force_display": None},
+            beat_unit={"denominator": 4, "units": "1", "assumed": None},
+        )
+        content["scores"][0]["source"]["origin"] = None
+
+    doc = tla.loads(edited(change))
+    assert doc == base_document()
+    assert tla.canonical_bytes(doc) == base_bytes()
+
+
+def test_a_legacy_score_components_attributes_are_kept_as_they_are():
+    # The schema doesn't name them, and every one is written: nulls included.
+    note_id = IDS["nothing"]
+
+    def change(content):
+        timeline(content, "score_timeline")["components"][note_id] = {
+            "kind": "NOTE",
+            "start": 0.0,
+            "end": 1.0,
+            "step": 0,
+            "accidental": None,
+            "octave": 4,
+            "staff_index": 0,
+            "color": None,
+            "comments": "",
+            "display_accidental": None,
+        }
+
+    data = edited(change)
+    doc = tla.loads(data)
+    note = named(doc, "Score").components[note_id]
+    assert (note.attrs["color"], note.attrs["accidental"]) == (None, None)
+    assert tla.canonical_bytes(doc) == data
+
+
+def test_none_for_a_key_with_a_default_is_left_out_when_written():
+    # As a null in a file is a missing key.
+    doc = base_document()
+    _section(doc).attrs["label"] = None
+    data = writer.checked_bytes(doc)
+    written = json.loads(data)["timelines"][FORM]["components"][IDS["section"]]
+    assert "label" not in written
+    assert _section(tla.loads(data)).attrs["label"] == ""
 
 
 @pytest.mark.parametrize("kind", ["Hierarchy", "Lyrics"])
