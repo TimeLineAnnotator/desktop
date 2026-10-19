@@ -124,7 +124,18 @@ def table_problem(timeline: tla.Timeline) -> str | None:
     start at its downbeat (`broken_row`), or two beats at the same time or out
     of time order (`disorder`).
     """
-    return missing_time(timeline) or broken_row(timeline) or disorder(_times(timeline))
+    return _checked(timeline)[0]
+
+
+def _checked(timeline: tla.Timeline) -> tuple[str | None, list[float]]:
+    # The table's problem, and the times of its beats in its order: none when it
+    # has a problem, so the times given are always usable.
+    reason = missing_time(timeline) or broken_row(timeline)
+    if reason is not None:
+        return reason, []
+    times = _times(timeline)
+    reason = disorder(times)
+    return reason, [] if reason is not None else times
 
 
 def _times(timeline: tla.Timeline) -> list[float]:
@@ -152,10 +163,8 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
     With more than one beat, the last measure ends one gap after the last
     beat, and the warning says so; with one, it ends on the beat.
     """
-    if table_problem(timeline) is not None:
-        return None
-    times = _times(timeline)
-    if not times:
+    reason, times = _checked(timeline)
+    if reason is not None or not times:
         return None
     media_length = _media_length(document)
     if media_length is None or not _ends_by(media_length, times[-1]):
