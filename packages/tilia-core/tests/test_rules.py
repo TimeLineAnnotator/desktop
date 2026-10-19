@@ -683,8 +683,12 @@ class TestWithoutMusic21:
         with pytest.raises(rules.CantCheck) as raised:
             getattr(rules, kind)(MEDIA, [], {"time": 1.0})
 
-        assert raised.value.command == INSTALL
         assert isinstance(raised.value.__cause__, ImportError)
+        assert str(raised.value) == (
+            f"checking a {kind} needs music21, which can't be imported"
+            " (ModuleNotFoundError: import of music21.harmony halted; None in"
+            f" sys.modules): {INSTALL}"
+        )
 
     @pytest.mark.parametrize("kind", ["harmony", "mode"])
     def test_a_bad_color_doesnt_hide_that_it_cant_be_checked(
@@ -701,9 +705,9 @@ class TestWithoutMusic21:
 
         assert isinstance(raised.value.__cause__, AttributeError)
         assert str(raised.value) == (
-            f"checking a {kind} needs music21, which is installed but can't be"
-            " imported: AttributeError: np.float_ was removed in the NumPy 2.0"
-            " release."
+            f"checking a {kind} needs music21, which can't be imported"
+            " (AttributeError: np.float_ was removed in the NumPy 2.0 release.):"
+            f" {INSTALL}"
         )
 
     @pytest.mark.parametrize("kind", ["harmony", "mode"])
