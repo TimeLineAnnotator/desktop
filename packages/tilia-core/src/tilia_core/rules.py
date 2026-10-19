@@ -63,8 +63,9 @@ _TEXTS = ("label", "comments", "custom_text")
 _SEGMENT_TIMES = ("start", "end", "pre_start", "post_end")
 _UNSET_TIMES = ("pre_start", "post_end")  # None: they follow the start and the end
 
-_ROW_ID_LENGTH = 6
-_ROW_ID_CHARACTERS = frozenset(string.ascii_letters + string.digits)
+# A range row's id, as TiLiA's `generate_row_id` makes it.
+ROW_ID_LENGTH = 6
+ROW_ID_CHARACTERS = string.ascii_letters + string.digits
 
 # The colors Qt reads: #RGB, #RRGGBB, #AARRGGBB, #RRRGGGBBB and #RRRRGGGGBBBB,
 # and the names in `QColor.colorNames()`, which are CSS 3's (SVG 1.0's) and
@@ -602,8 +603,8 @@ def _is_integer(value: Any) -> bool:
 def _is_row_id(value: Any) -> bool:
     return (
         isinstance(value, str)
-        and len(value) == _ROW_ID_LENGTH
-        and all(c in _ROW_ID_CHARACTERS for c in value)
+        and len(value) == ROW_ID_LENGTH
+        and all(c in ROW_ID_CHARACTERS for c in value)
     )
 
 
