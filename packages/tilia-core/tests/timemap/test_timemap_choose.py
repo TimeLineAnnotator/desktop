@@ -306,11 +306,23 @@ def test_no_media_warning_when_the_media_lasts_past_the_last_beat(
 
 
 @pytest.mark.parametrize(
-    "media_length", ["20", True, float("nan"), float("inf"), 0, 0.0, -5.0, [19.5]]
+    "media_length",
+    [
+        "20",
+        True,
+        float("nan"),
+        float("inf"),
+        pytest.param(10**400, id="10**400"),
+        0,
+        0.0,
+        -5.0,
+        [19.5],
+    ],
 )
 def test_a_media_length_the_format_doesnt_allow_is_no_length(media_length, caplog):
     # The schema allows a number above zero, or null; the reader doesn't check.
-    # No cap on the closing barline, no warning, and nothing raises.
+    # No cap on the closing barline, no warning, and nothing raises. 10**400
+    # is a whole number too large for a float.
     timeline = pickup_piece()
     doc = document(timeline, media_length=media_length)
 
@@ -319,6 +331,21 @@ def test_a_media_length_the_format_doesnt_allow_is_no_length(media_length, caplo
         rows = measure_rows(doc, timeline.id)
 
     assert found.time_map.end == 21.0 and rows[-1].end == 21.0
+    assert found.warnings == ()
+    assert not caplog.records
+
+
+def test_a_media_length_too_large_for_a_float_read_from_a_file_is_no_length(caplog):
+    # JSON reads a whole number of any size as an int, and the reader keeps
+    # it, while it refuses 1e999, which JSON reads as a float.
+    data = tla.canonical_bytes(document(pickup_piece(), media_length=20.4))
+    assert data.count(b'"length": 20.4') == 1
+    doc = tla.loads(data.replace(b'"length": 20.4', b'"length": 1' + b"0" * 400))
+    assert doc.media_length == 10**400
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
     assert found.warnings == ()
     assert not caplog.records
 
