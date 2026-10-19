@@ -1,6 +1,16 @@
+import pytest
 from lxml import etree
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QColor, QWheelEvent
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication
 
-from tilia.ui.windows.svg_viewer import SvgViewer
+from tests.mock import Serve
+from tests.utils import reloadable, undoable
+from tilia.requests import Get, Post, get, post
+from tilia.timelines.score.timeline import ScoreTimeline
+from tilia.ui import commands
+from tilia.ui.windows.svg_viewer import SvgStaveNote, SvgTlaAnnotation, SvgViewer
 
 
 def _make_svg(*texts):
@@ -108,3 +118,303 @@ class TestLoadSvgData:
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("Beat positions not found")
         assert not tluis.get_timeline_ui(score_tl.id).svg_view.is_svg_loaded
+
+
+# --- Score/"VexFlow" viewer regression tests --------------------------
+#
+# These drive the real SvgViewer end to end: toolbar commands via
+# commands.execute(...), keyboard shortcuts via QTest.keyClick, and mouse/
+# wheel input via real Qt events on the view's viewport. They sidestep only
+# the MusicXML -> SVG render step (tilia/parsers/score/musicxml_to_svg.py,
+# which drives a QWebEngineView through VexFlow) by loading a hand-built SVG
+# directly through SvgViewer.load_svg_data -- the same method the app calls
+# once that pipeline hands back its result. This mirrors how this file's own
+# _make_svg already stands in for real VexFlow output further up.
+
+NOTE_SEEK_XS = [10.0, 100.0, 200.0]
+
+
+def _make_score_svg(note_ids=("note0", "note1", "note2")):
+    """A minimal SVG with one <g class="vf-stavenote"> per note, each with
+    real geometry so QSvgRenderer.boundsOnElement resolves a rect. This is
+    enough for SvgViewer.create_stavenotes to build real SvgStaveNote items."""
+    notes = "".join(
+        f'<g class="vf-stavenote" id="{note_id}">'
+        f'<rect x="{x}" y="40" width="8" height="10"/></g>'
+        for note_id, x in zip(note_ids, NOTE_SEEK_XS, strict=True)
+    )
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" '
+        f'width="400" height="120">{notes}</svg>'
+    )
+
+
+@pytest.fixture
+def scored_beat_tl(beat_tl):
+    """Backend beat timeline with 3 beats at t=0,1,2 (measures 0-2, one beat
+    each), so the viewer's scene-x -> time math resolves to a single,
+    predictable time per note instead of an empty/ambiguous mapping."""
+    beat_tl.beat_pattern = [1]
+    for i in range(3):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.recalculate_measures()
+    return beat_tl
+
+
+@pytest.fixture
+def svg_viewer(score_tlui, score_tl, scored_beat_tl):
+    """The real SvgViewer, loaded with synthetic-but-valid SVG data (see
+    _make_score_svg) instead of a real MusicXML/VexFlow render."""
+    score_tl.set_data(
+        "viewer_beat_x", dict(zip([0.0, 1.0, 2.0], NOTE_SEEK_XS, strict=True))
+    )
+    viewer = score_tlui.get_or_create_svg_view()
+    viewer.load_svg_data(_make_score_svg())
+    # The dock widget's own isVisible() (and WindowShortcut-context actions
+    # like "Shift+Return") depend on the *main window* being shown too, not
+    # just the viewer itself -- mirrors tests.ui.timelines.interact.get_focused_widget.
+    get(Get.MAIN_WINDOW).show()
+    viewer.show()
+    QApplication.processEvents()
+    # Loading synthetic SVG data (above) mutates timeline.svg_data outside of
+    # any commands.execute(...) call, so it never reaches the undo manager's
+    # history. Without this record, undoable() in the tests below would diff
+    # its own fresh "before" snapshot against the undo manager's stale
+    # pre-fixture one (empty svg_data) and either crash re-parsing "" as SVG
+    # or fail the state comparison.
+    post(Post.APP_STATE_RECORD, "svg_viewer fixture")
+    return viewer
+
+
+def _stavenotes(viewer: SvgViewer) -> list[SvgStaveNote]:
+    return sorted(
+        (i for i in viewer.scene.items() if isinstance(i, SvgStaveNote)),
+        key=lambda i: i.x(),
+    )
+
+
+def _annotations(viewer: SvgViewer) -> list[SvgTlaAnnotation]:
+    return [i for i in viewer.scene.items() if isinstance(i, SvgTlaAnnotation)]
+
+
+def _add_annotation_via_toolbar(viewer: SvgViewer, text="Allegro") -> SvgTlaAnnotation:
+    _stavenotes(viewer)[0].setSelected(True)
+    commands.execute("timeline.score.add", text=text)
+    return _annotations(viewer)[0]
+
+
+def _looks_highlighted(viewer: SvgViewer, note: SvgStaveNote) -> bool:
+    """Whether the selection highlight is painted over `note`.
+
+    SvgStaveNote.paint fills the glyph red while it is selected, so this
+    grabs the note's patch of the view and looks for red pixels instead of
+    re-reading isSelected(): what this covers is the rectangle the user sees
+    moving, not the selection state. It has to go through the view rather
+    than QGraphicsScene.render, which doesn't reproduce the composition mode
+    paint() uses for the fill.
+    """
+    view = viewer.view
+    patch = view.mapFromScene(note.sceneBoundingRect()).boundingRect()
+    image = view.viewport().grab(patch).toImage()
+    for x in range(image.width()):
+        for y in range(image.height()):
+            color = QColor(image.pixel(x, y))
+            if color.red() > 150 and color.green() < 100 and color.blue() < 100:
+                return True
+    return False
+
+
+class TestAnnotations:
+    def test_create_annotation_shortcut(self, svg_viewer):
+        _stavenotes(svg_viewer)[0].setSelected(True)
+        with undoable(), Serve(Get.FROM_USER_STRING, (True, "Allegro")):
+            QTest.keyClick(svg_viewer, Qt.Key.Key_Return)
+            annotations = _annotations(svg_viewer)
+            assert len(annotations) == 1
+            assert annotations[0].text() == "Allegro"
+
+    def test_annotation_keeps_its_place_after_reload(self, svg_viewer, tmp_path):
+        # Loading a saved file puts each annotation back in roughly the
+        # place it was left in. Opening a file rebuilds the viewer from the
+        # saved components, so this reads the positions off the rebuilt
+        # items rather than the ones the fixture handed out.
+        _add_annotation_via_toolbar(svg_viewer, "Allegro")
+
+        def positions():
+            score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+            return {
+                a.text(): (a.pos().x(), a.pos().y())
+                for a in _annotations(score.svg_view)
+            }
+
+        before = positions()
+        assert before
+
+        @reloadable(tmp_path / "file.tla")
+        def check_positions():
+            after = positions()
+            assert after.keys() == before.keys()
+            for text, position in before.items():
+                assert after[text] == pytest.approx(position, abs=1)
+
+    def test_delete_annotation_shortcut(self, svg_viewer):
+        annotation = _add_annotation_via_toolbar(svg_viewer)
+        annotation.setSelected(True)
+        with undoable():
+            QTest.keyClick(svg_viewer, Qt.Key.Key_Delete)
+            assert _annotations(svg_viewer) == []
+
+    def test_edit_annotation_shortcut(self, svg_viewer):
+        annotation = _add_annotation_via_toolbar(svg_viewer)
+        annotation.setSelected(True)
+        with undoable(), Serve(Get.FROM_USER_STRING, (True, "Andante")):
+            QTest.keyClick(
+                svg_viewer, Qt.Key.Key_Return, Qt.KeyboardModifier.ShiftModifier
+            )
+            assert annotation.text() == "Andante"
+
+    def test_move_annotation_with_mouse(self, svg_viewer):
+        annotation = _add_annotation_via_toolbar(svg_viewer)
+        view = svg_viewer.view
+        press_pt = view.mapFromScene(annotation.sceneBoundingRect().center())
+        release_pt = press_pt + QPoint(40, 15)
+        before = (annotation.x(), annotation.y())
+        with undoable():
+            QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=press_pt)
+            QTest.mouseMove(view.viewport(), pos=release_pt)
+            QTest.mouseRelease(
+                view.viewport(), Qt.MouseButton.LeftButton, pos=release_pt
+            )
+            after = (annotation.x(), annotation.y())
+            assert after != before
+
+    def test_edit_annotation_to_empty_deletes_it_toolbar(self, svg_viewer):
+        # Reading: clearing the text hits the "no text inputted" prompt;
+        # confirming it deletes the annotation.
+        annotation = _add_annotation_via_toolbar(svg_viewer)
+        annotation.setSelected(True)
+        with (
+            undoable(),
+            Serve(Get.FROM_USER_YES_OR_NO, True),
+        ):
+            commands.execute("timeline.score.edit", text="")
+            assert _annotations(svg_viewer) == []
+
+    def test_edit_annotation_to_empty_kept_if_declined_toolbar(self, svg_viewer):
+        # Same flow, declining the confirmation: annotation must survive.
+        annotation = _add_annotation_via_toolbar(svg_viewer)
+        annotation.setSelected(True)
+        with (Serve(Get.FROM_USER_YES_OR_NO, False),):
+            commands.execute("timeline.score.edit", text="")
+        assert _annotations(svg_viewer) == [annotation]
+
+    def test_increase_annotation_font_toolbar(self, svg_viewer):
+        annotation = _add_annotation_via_toolbar(svg_viewer)
+        annotation.setSelected(True)
+        size_before = annotation.font().pointSize()
+        with undoable():
+            commands.execute("timeline.score.font_inc")
+            assert annotation.font().pointSize() == size_before * 2
+
+    def test_decrease_annotation_font_toolbar(self, svg_viewer):
+        annotation = _add_annotation_via_toolbar(svg_viewer)
+        annotation.setSelected(True)
+        size_before = annotation.font().pointSize()
+        with undoable():
+            commands.execute("timeline.score.font_dec")
+            assert annotation.font().pointSize() == size_before // 2
+
+
+class TestWindowLifecycle:
+    def test_close_viewer(self, svg_viewer):
+        assert svg_viewer.isVisible()
+        svg_viewer.close()
+        assert not svg_viewer.isVisible()
+
+    def test_reopen_viewer(self, svg_viewer):
+        # Mirrors TestViewWindow.test_video_window_reopens_on_show_request in
+        # test_windows.py: closing only hides (ViewWidget.closeEvent ignores
+        # the event), and the window menu reopens it via WINDOW_UPDATE_REQUEST.
+        svg_viewer.close()
+        assert not svg_viewer.isVisible()
+        post(Post.WINDOW_UPDATE_REQUEST, svg_viewer.id, True)
+        assert svg_viewer.isVisible()
+
+
+class TestNoteInteraction:
+    def test_click_note_seeks_playback(self, svg_viewer, tilia_state):
+        tilia_state.current_time = 0
+        note = _stavenotes(svg_viewer)[1]  # seek_x=100 -> beat 1 -> t=1.0
+        view = svg_viewer.view
+        pos = view.mapFromScene(note.sceneBoundingRect().center())
+        QTest.mouseDClick(view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+        assert tilia_state.current_time == pytest.approx(1.0)
+
+    def test_highlight_follows_the_selected_note(self, svg_viewer):
+        # Clicking a note paints the highlight over it, and clicking
+        # another moves the highlight along with the selection.
+        notes = _stavenotes(svg_viewer)
+        view = svg_viewer.view
+        assert not any(_looks_highlighted(svg_viewer, note) for note in notes)
+
+        for selected, other in ((0, 1), (1, 0)):
+            pos = view.mapFromScene(notes[selected].sceneBoundingRect().center())
+            QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+            QApplication.processEvents()
+
+            assert _looks_highlighted(svg_viewer, notes[selected])
+            assert not _looks_highlighted(svg_viewer, notes[other])
+
+    def test_select_one_note(self, svg_viewer):
+        notes = _stavenotes(svg_viewer)
+        view = svg_viewer.view
+        pos = view.mapFromScene(notes[0].sceneBoundingRect().center())
+        QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+        assert svg_viewer.scene.selectedItems() == [notes[0]]
+
+    def test_select_several_notes(self, svg_viewer):
+        # Reading: ctrl-click extends the selection, as for any other
+        # QGraphicsScene item -- there is no separate "select all" gesture
+        # for stave notes.
+        notes = _stavenotes(svg_viewer)
+        view = svg_viewer.view
+        pos0 = view.mapFromScene(notes[0].sceneBoundingRect().center())
+        pos1 = view.mapFromScene(notes[1].sceneBoundingRect().center())
+        QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, pos=pos0)
+        QTest.mouseClick(
+            view.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.ControlModifier,
+            pos1,
+        )
+        assert set(svg_viewer.scene.selectedItems()) == {notes[0], notes[1]}
+
+
+class TestZoom:
+    @staticmethod
+    def _wheel_zoom(view, angle_delta_y: int) -> None:
+        center = view.viewport().rect().center()
+        event = QWheelEvent(
+            QPointF(center),
+            QPointF(view.viewport().mapToGlobal(center)),
+            QPoint(0, 0),
+            QPoint(0, angle_delta_y),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.ControlModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        QApplication.sendEvent(view.viewport(), event)
+
+    def test_zoom_in(self, svg_viewer):
+        view = svg_viewer.view
+        scale_before = view.transform().m11()
+        self._wheel_zoom(view, 120)
+        assert view.transform().m11() > scale_before
+
+    def test_zoom_out(self, svg_viewer):
+        view = svg_viewer.view
+        scale_before = view.transform().m11()
+        self._wheel_zoom(view, -120)
+        assert view.transform().m11() < scale_before
