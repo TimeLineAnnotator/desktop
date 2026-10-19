@@ -4,12 +4,11 @@ real registry: a change that breaks the sheet fails here, not at release time.
 """
 
 import datetime
-import subprocess
-import sys
 import xml.etree.ElementTree as ElementTree
 
 import pytest
 
+import tilia.settings
 from tests.utils import get_main_window_menu, get_submenu
 from tilia.ui import commands, shortcuts_sheet
 from tilia.ui.qtui import TiliaMainWindow
@@ -339,13 +338,25 @@ class TestWrite:
         assert not list(tmp_path.iterdir())
 
 
-@pytest.mark.timeout(120)
-def test_command_line_writes_both_files(tmp_path):
-    subprocess.run(
-        [sys.executable, "-m", "tilia.ui.shortcuts_sheet", "--out", str(tmp_path)],
-        check=True,
-        timeout=110,
-    )
+class TestCommandLine:
+    """main() runs in this process, where isolate_settings keeps the settings
+    off the developer's own store; a subprocess would open that store."""
 
-    for name in ["shortcuts.svg", "shortcuts.md"]:
-        assert (tmp_path / name).stat().st_size > 0
+    @pytest.fixture(autouse=True)
+    def use_the_tests_ui(self, qtui, monkeypatch):
+        monkeypatch.setattr(shortcuts_sheet, "_build_qtui", lambda: qtui)
+
+    def test_writes_both_files(self, tmp_path, capsys):
+        shortcuts_sheet.main(["--out", str(tmp_path)])
+
+        paths = [tmp_path / "shortcuts.svg", tmp_path / "shortcuts.md"]
+        assert all(path.stat().st_size > 0 for path in paths)
+        assert capsys.readouterr().out.splitlines() == [str(path) for path in paths]
+
+    def test_opens_no_settings_store(self, tmp_path, monkeypatch):
+        def open_store(*args, **kwargs):
+            raise AssertionError(f"The sheet opened a settings store: {args}")
+
+        monkeypatch.setattr(tilia.settings, "QSettings", open_store)
+
+        shortcuts_sheet.main(["--out", str(tmp_path)])
