@@ -619,6 +619,25 @@ class TestInspect:
 
         assert not qtui.is_window_open(WindowKind.INSPECT)
 
+    def test_close_inspect_menu_with_return(self, marker_tlui, tluis, qtui):
+        commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        press_key("Return")
+        press_key("Return")
+
+        assert not qtui.is_window_open(WindowKind.INSPECT)
+
+    def test_keypad_enter_doesnt_open_inspect_menu(self, marker_tlui, tluis, qtui):
+        # A keyboard's keypad Enter comes with KeypadModifier, which the main
+        # window's Enter entry doesn't match.
+        commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        press_key("Enter", Qt.KeyboardModifier.KeypadModifier)
+
+        assert not qtui.is_window_open(WindowKind.INSPECT)
+
     def test_close_inspect_menu_with_escape(self, marker_tlui, tluis, qtui):
         commands.execute("timeline.marker.add")
 
