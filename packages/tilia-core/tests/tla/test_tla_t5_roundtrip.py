@@ -489,8 +489,30 @@ def test_a_timeline_of_an_unknown_kind_keeps_its_components_in_raw():
         tla.canonical_bytes(doc)
 
 
-def test_a_null_source_or_licence_is_kept_on_a_score_of_an_unknown_format():
-    # Keys the core doesn't know for that format.
+def test_a_null_licence_on_an_mei_score_reads_as_its_default():
+    # A null is a missing key: NOASSERTION, left out when written, and not
+    # kept in extra.
+    content = json.loads(UNKNOWN.read_bytes())
+    content["scores"][0]["license"] = None
+    doc = tla.loads(json.dumps(content).encode())
+    (score,) = doc.scores.values()
+    assert score.license == "NOASSERTION"
+    assert "license" not in score.extra
+    assert tla.canonical_bytes(doc) == UNKNOWN.read_bytes()
+
+
+def test_a_null_source_on_an_mei_score_is_refused():
+    # A null is a missing key, and an MEI score requires its source.
+    content = json.loads(UNKNOWN.read_bytes())
+    content["scores"][0]["source"] = None
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(json.dumps(content).encode())
+    assert error.value.place == "/scores/0/source"
+
+
+def test_a_null_source_or_licence_on_a_score_of_an_unknown_format_is_kept():
+    # Keys the core doesn't know for that format, kept with their values as
+    # any key the core doesn't know is.
     content = json.loads(UNKNOWN.read_bytes())
     content["scores"][0].update(format="musicxml", source=None, license=None)
     doc = tla.loads(json.dumps(content).encode())
@@ -498,23 +520,6 @@ def test_a_null_source_or_licence_is_kept_on_a_score_of_an_unknown_format():
     assert (score.source, score.license) == (None, None)
     (written,) = json.loads(tla.canonical_bytes(doc))["scores"]
     assert (written["source"], written["license"]) == (None, None)
-
-
-def test_a_null_licence_on_an_mei_score_is_read():
-    # A null is a missing key, and an MEI score's licence isn't required.
-    content = json.loads(UNKNOWN.read_bytes())
-    content["scores"][0]["license"] = None
-    doc = tla.loads(json.dumps(content).encode())
-    assert tla.loads(tla.canonical_bytes(doc)).scores == doc.scores
-
-
-def test_a_null_source_on_an_mei_score_is_refused():
-    # A null is a missing key, and the schema requires an MEI score's source.
-    content = json.loads(UNKNOWN.read_bytes())
-    content["scores"][0]["source"] = None
-    with pytest.raises(tla.UnreadableFile) as error:
-        tla.loads(json.dumps(content).encode())
-    assert error.value.place == "/scores/0/source"
 
 
 @pytest.mark.parametrize("license", ["NOASSERTION", None])

@@ -132,6 +132,8 @@ def _object(
         item = values[key]
         kind = type(item)
         if key not in always:
+            if item is None:
+                continue  # None is a missing key, as a null in a file is
             if key in defaults:
                 default = defaults[key]
                 if kind is type(default) and item == default:
@@ -139,8 +141,6 @@ def _object(
             elif key in empty:
                 if kind is dict and not item:
                     continue
-            elif item is None:
-                continue
         writer = writers.get(key) if writers else None
         if writer is not None:
             written[key] = writer(item, place, key)
@@ -293,8 +293,10 @@ def _raw_timeline(
     value = dict(raw)
     for key, item in edits.items():
         at_default = key in _RAW_FIELD_DEFAULTS and item == _RAW_FIELD_DEFAULTS[key]
-        if key in value or not at_default:
+        if value.get(key) is not None or not at_default:
             value[key] = item
+        elif key in value:
+            del value[key]  # a null in the file was a missing key
     return _object(value, UNKNOWN_TIMELINE, place)
 
 
