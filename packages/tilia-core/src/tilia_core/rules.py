@@ -313,7 +313,7 @@ def not_valid(attribute: str, value: Any) -> str:
     The rules give it for a value they refuse as not being one, such as a time of
     nan, and the importers for a value they can't read, so the two read alike.
     """
-    return f"{value} is not a valid {attribute.replace('_', ' ')}."
+    return f"{_shown(value)} is not a valid {attribute.replace('_', ' ')}."
 
 
 def _point(
@@ -453,7 +453,7 @@ def _hierarchy_level(level: Any) -> Outcome | None:
     if not _is_integer(level):
         return _broken(not_valid("level", level))
     if level < 1:
-        return _broken(f"Level can't be below 1. Got '{level}'")
+        return _broken(f"Level can't be below 1. Got '{_shown(level)}'")
     return None
 
 
@@ -650,6 +650,15 @@ def _is_row_id(value: Any) -> bool:
         and len(value) == ROW_ID_LENGTH
         and all(c in ROW_ID_CHARACTERS for c in value)
     )
+
+
+def _shown(value: Any) -> str:
+    """`value` as a reason shows it. An integer Python won't turn into text, one
+    of more than 4,300 digits unless set otherwise, is named instead."""
+    try:
+        return f"{value}"
+    except ValueError:
+        return "an integer too long to show"
 
 
 def _broken(reason: str) -> Outcome:
