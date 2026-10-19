@@ -94,6 +94,10 @@ class Outcome(tuple[bool, str]):
     def __bool__(self) -> bool:
         return self[0]
 
+    def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...]]:  # type: ignore[override]
+        # What copy and pickle give __new__: a tuple's would be the pair alone.
+        return self[0], self[1], self.others
+
     @property
     def ok(self) -> bool:
         return self[0]
@@ -117,6 +121,9 @@ class CantCheck(Exception):
     def __init__(self, kind: str) -> None:
         super().__init__(f"checking a {kind} needs: {INSTALL_HARMONY}")
         self.kind = kind
+
+    def __reduce__(self) -> tuple[type[CantCheck], tuple[str]]:
+        return type(self), (self.kind,)
 
 
 # The private functions give the first rule they find broken, or None. `_first`
