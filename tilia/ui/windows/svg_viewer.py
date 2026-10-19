@@ -44,6 +44,55 @@ from tilia.ui.windows.view_window import ViewDockWidget
 
 
 class SvgViewer(ViewDockWidget):
+    # The commands a viewer registers when it opens, as (name, method, text,
+    # shortcut, icon), and the keys keyPressEvent catches, with the method each
+    # runs. The shortcuts sheet (tilia/ui/shortcuts_sheet.py) lists both.
+    COMMANDS: list[tuple[str, str, str, str, str]] = [
+        (
+            "timeline.score.add",
+            "annotation_add",
+            "Add Annotation (Return)",
+            "",
+            "annotation-add",
+        ),
+        (
+            "timeline.score.delete",
+            "annotation_delete",
+            "Delete Annotation (Delete)",
+            "",
+            "annotation-delete",
+        ),
+        (
+            "timeline.score.edit",
+            "annotation_edit",
+            "Edit Annotation",
+            "Shift+Return",
+            "annotation-edit",
+        ),
+        (
+            "timeline.score.font_dec",
+            "annotation_font_dec",
+            "Decrease Annotation Font",
+            "Shift+Down",
+            "annotation-font-decrease",
+        ),
+        (
+            "timeline.score.font_inc",
+            "annotation_font_inc",
+            "Increase Annotation Font",
+            "Shift+Up",
+            "annotation-font-increase",
+        ),
+    ]
+    KEY_METHODS: dict[QKeyCombination, str] = {
+        QKeyCombination(
+            Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Delete
+        ): "annotation_delete",
+        QKeyCombination(
+            Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return
+        ): "annotation_add",
+    }
+
     def __init__(self, name: str, tl_id: int, *args, **kwargs) -> None:
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
         self.setObjectName(f"TiLiA Score Viewer {tl_id}")
@@ -98,48 +147,10 @@ class SvgViewer(ViewDockWidget):
         self._update_scroll_margins()
 
     def _get_toolbar(self) -> QVBoxLayout:
-        command_data = [
-            (
-                "timeline.score.add",
-                self.annotation_add,
-                "Add Annotation (Return)",
-                "",
-                "annotation-add",
-            ),
-            (
-                "timeline.score.delete",
-                self.annotation_delete,
-                "Delete Annotation (Delete)",
-                "",
-                "annotation-delete",
-            ),
-            (
-                "timeline.score.edit",
-                self.annotation_edit,
-                "Edit Annotation",
-                "Shift+Return",
-                "annotation-edit",
-            ),
-            (
-                "timeline.score.font_dec",
-                self.annotation_font_dec,
-                "Decrease Annotation Font",
-                "Shift+Down",
-                "annotation-font-decrease",
-            ),
-            (
-                "timeline.score.font_inc",
-                self.annotation_font_inc,
-                "Increase Annotation Font",
-                "Shift+Up",
-                "annotation-font-increase",
-            ),
-        ]
-
         v_toolbar = QVBoxLayout()
 
-        for name, callback, text, shortcut, icon in command_data:
-            commands.register(name, callback, text, shortcut, icon)
+        for name, method, text, shortcut, icon in self.COMMANDS:
+            commands.register(name, getattr(self, method), text, shortcut, icon)
             button = QToolButton()
             button.setDefaultAction(get_qaction(name))
             v_toolbar.addWidget(button)
@@ -605,17 +616,9 @@ class SvgViewer(ViewDockWidget):
 
     def keyPressEvent(self, a0) -> None:
         # listen here because these shortcuts are shared with the main window
-        key_comb_to_action = {
-            QKeyCombination(
-                Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Delete
-            ): self.annotation_delete,
-            QKeyCombination(
-                Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return
-            ): self.annotation_add,
-        }
-        if action := key_comb_to_action.get(a0.keyCombination()):
+        if method := self.KEY_METHODS.get(a0.keyCombination()):
             a0.accept()
-            action()
+            getattr(self, method)()
         else:
             return super().keyPressEvent(a0)
 
