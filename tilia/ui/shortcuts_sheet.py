@@ -9,7 +9,9 @@ workflow (.github/workflows/build.yml) attaches both files to every release, so
 the sheet is never written by hand. Where there is no display, as on the
 release workflow's runner, set QT_QPA_PLATFORM=offscreen. Don't on Windows:
 Qt's offscreen platform finds no system fonts there, so text is measured with
-TiLiA's music font and the columns come out too wide.
+TiLiA's music font and the columns come out too wide. Like starting TiLiA, it
+opens your TiLiA settings, which fills in any setting they lack; the tests run
+it under a settings store of their own.
 
 Each shortcut is listed with what it does (its command's text) and where to
 find it: its menu path, its timeline kind's toolbar, or "anywhere" when no
@@ -514,11 +516,14 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
+    for path in write_sheet(_build_qtui(), args.out):
+        print(path)
+
+
+def _build_qtui() -> QtUI:
     q_application = QApplication.instance() or QApplication(sys.argv[:1])
     setup_logic(autosaver=False)
-    qtui = QtUI(q_application, TiliaMainWindow())
-    for path in write_sheet(qtui, args.out):
-        print(path)
+    return QtUI(q_application, TiliaMainWindow())
 
 
 if __name__ == "__main__":
