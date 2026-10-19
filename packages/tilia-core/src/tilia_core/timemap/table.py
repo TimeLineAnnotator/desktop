@@ -232,7 +232,7 @@ def _closing_barline(document: tla.Document, rows: Sequence[RowIn]) -> float:
     *before, last = [t for row in rows[-2:] for t in row.beat_times][-2:]
     end = last + (last - before[0] if before else 0.0)
     media_length = _media_length(document)
-    if media_length is None or media_length <= last:
+    if media_length is None or _ends_by(media_length, last):
         return end  # past the media, the gap alone; find_time_map warns (past_media)
     return min(end, media_length)
 
@@ -241,7 +241,7 @@ def past_media(document: tla.Document, last_beat: float) -> str | None:
     """The warning that the last beat is at or after the end of the media, so
     that the last measure ends one gap after it; None when it isn't."""
     media_length = _media_length(document)
-    if media_length is None or media_length > last_beat:
+    if media_length is None or not _ends_by(media_length, last_beat):
         return None
     return (
         f"the last beat ({last_beat}) is at or after the end of the media "
@@ -252,6 +252,12 @@ def past_media(document: tla.Document, last_beat: float) -> str | None:
 def _media_length(document: tla.Document) -> float | None:
     # The media's length is in seconds: it doesn't cap a quarters file.
     return document.media_length if document.time_unit == "seconds" else None
+
+
+def _ends_by(media_length: float, last_beat: float) -> bool:
+    # Whether the media ends at or before the last beat: one test for the
+    # closing barline and its warning, so they can't disagree.
+    return media_length <= last_beat
 
 
 def find_rows(

@@ -236,6 +236,17 @@ def test_no_media_warning_when_the_media_lasts_past_the_last_beat(
     assert not caplog.records
 
 
+def test_no_media_warning_for_a_media_length_that_isnt_a_number(caplog):
+    # Like the closing barline, which then keeps the gap: no length, no warning.
+    doc = document(pickup_piece(), media_length=float("nan"))
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
+    assert found.time_map.end == 21.0 and found.warnings == ()
+    assert not caplog.records
+
+
 def test_no_media_warning_without_a_time_map(caplog):
     # The table is folded, so it has no closing barline to warn about.
     doc = document(_folded(), media_length=2.0)
