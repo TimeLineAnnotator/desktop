@@ -215,7 +215,7 @@ def test_found_is_frozen_and_hashes():
     with pytest.raises(dataclasses.FrozenInstanceError):
         found.guessed = False  # type: ignore[misc]
     assert isinstance(found.warnings, tuple)
-    assert hash(found) == hash(found)
+    hash(found)
 
 
 @pytest.mark.parametrize("media_length", [19.5, 20.0])
