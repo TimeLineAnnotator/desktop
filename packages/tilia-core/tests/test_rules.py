@@ -677,6 +677,37 @@ class TestHarmony:
             f"{inversions + 1} is not a valid inversion.",
         )
 
+    @pytest.mark.parametrize(
+        "quality, base, tone, inversions",
+        [
+            ("dominant-seventh-flat-ninth", "dominant-seventh", "b9", 3),
+            ("dominant-seventh-sharp-ninth", "dominant-seventh", "#9", 3),
+            ("dominant-seventh-sharp-eleventh", "dominant-seventh", "#11", 3),
+            ("dominant-seventh-flat-thirteenth", "dominant-seventh", "b13", 3),
+            ("dominant-seventh-added-thirteenth", "dominant-seventh", "13", 3),
+            ("dominant-ninth-sharp-eleventh", "dominant-ninth", "#11", 4),
+            ("major-seventh-sharp-eleventh", "major-seventh", "#11", 3),
+            ("major-seventh-added-sixth", "major-seventh", "6", 3),
+            ("major-sixth-added-ninth", "major-sixth", "9", 3),
+            ("minor-sixth-added-ninth", "minor-sixth", "9", 3),
+            ("major-added-ninth", "major", "9", 2),
+            ("minor-added-ninth", "minor", "9", 2),
+            ("minor-seventh-added-eleventh", "minor-seventh", "11", 3),
+        ],
+    )
+    def test_the_added_tone_qualities_tilia_has(self, quality, base, tone, inversions):
+        # An added tone isn't one the chord can be inverted to: the base quality's
+        # inversions count.
+        assert rules.split_added_tone(quality) == (base, tone)
+        assert check("harmony", quality=quality, inversion=inversions) == OK
+        assert check("harmony", quality=quality, inversion=inversions + 1) == (
+            False,
+            f"{inversions + 1} is not a valid inversion.",
+        )
+
+    def test_a_quality_without_an_added_tone_is_its_own_base(self):
+        assert rules.split_added_tone("major") == ("major", "")
+
     def test_the_inversion_of_the_default_quality(self):
         assert check("harmony", inversion=2) == OK
 

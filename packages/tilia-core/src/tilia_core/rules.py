@@ -46,6 +46,25 @@ FONT_TYPES = ("analytic", "normal")
 _STEPS = range(7)
 _LEVELS = (1, 2)
 _NOT_MODE_TYPES = ("ionian", "aeolian")
+# Qualities music21 has no chord type for, each a chord type it has plus one added
+# tone, spelled as in a chord symbol, from the root: TiLiA's, as `dev` has them
+# since 43a61224 and 28539120. TiLiA takes them from here once it checks with
+# the rules.
+ADDED_TONE_QUALITIES: dict[str, tuple[str, str]] = {
+    "dominant-seventh-flat-ninth": ("dominant-seventh", "b9"),
+    "dominant-seventh-sharp-ninth": ("dominant-seventh", "#9"),
+    "dominant-seventh-sharp-eleventh": ("dominant-seventh", "#11"),
+    "dominant-seventh-flat-thirteenth": ("dominant-seventh", "b13"),
+    "dominant-seventh-added-thirteenth": ("dominant-seventh", "13"),
+    "dominant-ninth-sharp-eleventh": ("dominant-ninth", "#11"),
+    "major-seventh-sharp-eleventh": ("major-seventh", "#11"),
+    "major-seventh-added-sixth": ("major-seventh", "6"),
+    "major-sixth-added-ninth": ("major-sixth", "9"),
+    "minor-sixth-added-ninth": ("minor-sixth", "9"),
+    "major-added-ninth": ("major", "9"),
+    "minor-added-ninth": ("minor", "9"),
+    "minor-seventh-added-eleventh": ("minor-seventh", "11"),
+}
 # Qualities TiLiA keeps in root position, whatever their intervals.
 _NO_INVERSION_QUALITIES = frozenset(
     {"Italian", "French", "German", "Neapolitan", "Tristan", "power"}
@@ -312,6 +331,11 @@ def color(value: Any) -> Outcome:
     return _broken(not_valid("color", value))
 
 
+def split_added_tone(quality: str) -> tuple[str, str]:
+    """A quality's base quality and added tone, or the quality and ""."""
+    return ADDED_TONE_QUALITIES.get(quality, (quality, ""))
+
+
 def not_valid(attribute: str, value: Any) -> str:
     """The reason for a value of `attribute` that isn't one, for every kind.
 
@@ -412,9 +436,13 @@ def _music21() -> tuple[ModuleType | None, Exception | None]:
 def _quality_and_inversion(
     music21: ModuleType, attrs: Mapping[str, Any]
 ) -> Outcome | None:
-    """The quality is one of music21's `CHORD_TYPES`, and the inversion one it has."""
+    """The quality is one of music21's `CHORD_TYPES` or of TiLiA's added-tone
+    qualities, and the inversion one it has."""
     quality = attrs.get("quality", "major")
-    if not (isinstance(quality, str) and quality in music21.harmony.CHORD_TYPES):
+    if not (
+        isinstance(quality, str)
+        and split_added_tone(quality)[0] in music21.harmony.CHORD_TYPES
+    ):
         return _broken(not_valid("quality", quality))
     inversion = attrs.get("inversion", 0)
     if not (_is_integer(inversion) and 0 <= inversion <= _inversions(music21, quality)):
@@ -423,7 +451,9 @@ def _quality_and_inversion(
 
 
 def _inversions(music21: ModuleType, quality: str) -> int:
-    """A quality's inversions, as TiLiA's `get_inversion_amount` counts them."""
+    """A quality's inversions, as TiLiA's `get_inversion_amount` counts them: an
+    added tone isn't one the chord can be inverted to."""
+    quality, _ = split_added_tone(quality)
     if quality in _NO_INVERSION_QUALITIES:
         return 0
     intervals = str(music21.harmony.CHORD_TYPES[quality][0])
