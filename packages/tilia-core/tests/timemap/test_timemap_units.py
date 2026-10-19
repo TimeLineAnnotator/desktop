@@ -42,6 +42,48 @@ class TestParseUnits:
         assert result.error
         assert result.units == []
 
+    @pytest.mark.parametrize(
+        "text, units",
+        [
+            ("1/128", [F(1, 128)]),
+            ("127/128", [F(127, 128)]),
+            ("1+1/128", [F(1), F(1, 128)]),
+            # The limit is on the fraction in lowest terms, as it is stored.
+            ("2/256", [F(1, 128)]),
+        ],
+    )
+    def test_denominator_up_to_the_limit_is_read(self, text, units):
+        result = parse_units(text)
+        assert result.is_valid
+        assert result.units == units
+
+    @pytest.mark.parametrize(
+        "text, item",
+        [
+            ("1/129", "1/129"),
+            ("3/7919", "3/7919"),
+            ("1+1/129", "1/129"),
+            ("1/" + str(10**29 + 1), "1/" + str(10**29 + 1)),
+        ],
+    )
+    def test_larger_denominator_is_refused(self, text, item):
+        result = parse_units(text)
+
+        assert not result.is_valid
+        assert result.units == []
+        assert (
+            result.error == f"'{item}' is not a whole number or fraction such as 1/2."
+        )
+
+    @pytest.mark.parametrize(
+        "text, units",
+        [("129", [F(129)]), ("7919", [F(7919)]), ("258/2", [F(129)])],
+    )
+    def test_whole_numbers_have_no_denominator_to_limit(self, text, units):
+        result = parse_units(text)
+        assert result.is_valid
+        assert result.units == units
+
     def test_longest_unit_is_read(self):
         assert parse_units("1" * MAX_UNIT_LENGTH).is_valid
 
