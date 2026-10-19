@@ -46,11 +46,12 @@ def find_time_map(
 
     `roles` gives each timeline's role by its id, as the caller resolved them
     (the index: from the file and the corpus's manifest), and a timeline it
-    leaves out has none; without it, the roles are the file's. When several
-    beat timelines have the role, the first by ordinal wins, with a warning.
-    When the chosen timeline gives no time map, no other stands in: the file
-    has no bars, and `reason` says why. A document without a beat timeline has
-    no time map, and nothing is wrong with it: no reason, no warning.
+    leaves out has none; without it, the roles are the file's. A role that is a
+    list claims time_map when it holds it. When several beat timelines have the
+    role, the first by ordinal wins, with a warning. When the chosen timeline
+    gives no time map, no other stands in: the file has no bars, and `reason`
+    says why. A document without a beat timeline has no time map, and nothing
+    is wrong with it: no reason, no warning.
 
     Every beat timeline whose last beat is at or after the end of the media
     gets a warning, with its id, the time map's or not: it is logged here, once
@@ -64,7 +65,7 @@ def find_time_map(
         return TimeMapFound(
             time_map=None, timeline_id=None, guessed=False, reason=None, warnings=()
         )
-    claiming = [t for t in beat_timelines if _role(t, roles) == TIME_MAP_ROLE]
+    claiming = [t for t in beat_timelines if _claims_the_role(t, roles)]
     warnings = [TWO_CLAIM] if len(claiming) > 1 else []
     timeline = (claiming or beat_timelines)[0]
     guessed = not claiming
@@ -83,10 +84,13 @@ def find_time_map(
     )
 
 
-def _role(timeline: tla.Timeline, roles: Mapping[str, str | None] | None) -> object:
-    if roles is None:
-        return timeline.metadata.get("role")
-    return roles.get(timeline.id)
+def _claims_the_role(
+    timeline: tla.Timeline, roles: Mapping[str, str | None] | None
+) -> bool:
+    role = timeline.metadata.get("role") if roles is None else roles.get(timeline.id)
+    if isinstance(role, (list, tuple)):
+        return TIME_MAP_ROLE in role
+    return role == TIME_MAP_ROLE
 
 
 def time_map_of(
