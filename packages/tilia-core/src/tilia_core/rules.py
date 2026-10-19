@@ -140,7 +140,7 @@ Check = Callable[[], "Outcome | None"]
 def _kept(
     attrs: Mapping[str, Any],
     *checks: Check,
-    missing: tuple[str, ImportError | None] | None = None,
+    missing: tuple[str, Exception | None] | None = None,
 ) -> Outcome:
     """The first rule `checks` find broken, else the color's outcome.
 
@@ -381,15 +381,16 @@ def _one_of(
     return _broken(not_valid(name, value))
 
 
-def _music21() -> tuple[ModuleType | None, ImportError | None]:
+def _music21() -> tuple[ModuleType | None, Exception | None]:
     """music21, with what the rules read of it; or None, without the `harmony`
-    extra, and with the error when music21 is installed but won't import."""
+    extra, and with the error when music21 is installed but won't import,
+    whatever the error is."""
     try:
         if importlib.util.find_spec("music21") is None:
             return None, None
         import music21.harmony
         import music21.key
-    except ImportError as error:
+    except Exception as error:
         return None, error
     return music21, None
 
