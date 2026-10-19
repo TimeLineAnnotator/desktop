@@ -10,11 +10,9 @@ asked for.
 from __future__ import annotations
 
 import bisect
-import functools
 import itertools
 import logging
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from tilia_core import tla
@@ -22,6 +20,7 @@ from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.qstamps import (
     TimeStampTable,
     beat_lengths,
+    beats_between,
     build_time_stamp_table,
     quarter_stamp_by_time,
     time_by_quarter_stamp,
@@ -100,14 +99,25 @@ class TimeMap:
         for name, value in computed.items():
             object.__setattr__(self, name, value)
 
-    @functools.cached_property
+    @property
     def _stamps(self) -> TimeStampTable | None:
         """Each beat's quarter stamp, built the first time one is asked for:
         the index, which reads every file's positions, never asks, and a long
-        piece's exact stamps take a while. Two threads asking at once build the
-        same table, and either is kept."""
+        piece's exact stamps take a while.
+
+        Kept in the instance's __dict__, without a lock, so that maps don't
+        wait for each other (functools.cached_property holds one lock for every
+        instance on Python 3.10 and 3.11). Two threads asking a new map at once
+        may both build its table; the tables are the same, and either is kept.
+        """
+        try:
+            return self.__dict__["_stamp_table"]
+        except KeyError:
+            pass
         lengths = [length for row in self._rows for length in beat_lengths(row.meter)]
-        return build_time_stamp_table(self._times, lengths)
+        table = build_time_stamp_table(self._times, lengths)
+        object.__setattr__(self, "_stamp_table", table)
+        return table
 
     @property
     def start(self) -> float:
@@ -241,33 +251,25 @@ class TimeMap:
 
     def quarters(self, start: float, end: float) -> float | None:
         """How long a span lasts in quarter notes: the difference of its
-        qstamps. `assumed_between` says whether an assumed meter went into it."""
+        qstamps, rounded to a millionth as lengths in bars and beats are.
+        `assumed_between` says whether an assumed meter went into it."""
         a, b = self.qstamp(start), self.qstamp(end)
         if a is None or b is None:
             return None
-        return b - a
+        return round(b - a, 6)
 
     def assumed_between(self, start: float, end: float) -> bool:
-        """Whether any measure the span from `start` to `end` touches is
-        assumed, so that a length in quarter notes can say "assumed meter"."""
-        return any(row.assumed for row in self._touched(start, end))
-
-    def _touched(self, start: float, end: float) -> Sequence[MeasureRow]:
-        """The measures a span touches, read as positions read it: snapped, the
-        end point excluded, and an end not after the start in the start's
-        measure. A part off the map touches the measure at that end of the
-        map, as its qstamps are extrapolated with the tempo there."""
-        snapped_start, snapped_end = self._snapped(start), self._snapped(end)
-        if snapped_start is None or snapped_end is None:
-            return ()
-        downbeats, last = self._downbeats, len(self._rows) - 1
-        first = bisect.bisect_right(downbeats, snapped_start) - 1
-        first = min(max(first, 0), last)
-        # The end point excluded: an end on a downbeat ends in the bar before,
-        # but never before the start's.
-        end_measure = bisect.bisect_left(downbeats, snapped_end) - 1
-        end_measure = min(max(end_measure, first), last)
-        return self._rows[first : end_measure + 1]
+        """Whether an assumed meter went into `quarters(start, end)`, so that a
+        length in quarter notes can say "assumed meter": whether a measure that
+        holds a beat whose length it counts is assumed (`beats_between`).
+        False for a missing time."""
+        if any(t is None or not math.isfinite(t) for t in (start, end)):
+            return False
+        beats = beats_between(self._times, start, end)
+        if not beats:
+            return False
+        first, last = self._measure_of[beats[0]], self._measure_of[beats[-1]]
+        return any(row.assumed for row in self._rows[first : last + 1])
 
     def _snapped(self, t: float | None) -> float | None:
         """`t` moved onto the nearer beat slot, or the closing barline, when it

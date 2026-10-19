@@ -12,6 +12,7 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import json
+import threading
 from fractions import Fraction as F
 
 import pytest
@@ -346,7 +347,7 @@ def test_a_missing_time_has_no_qstamp():
 
 def test_a_span_in_quarter_notes():
     # Spec, US3 scenario 5: a span's length in quarter notes is the difference
-    # of its qstamps.
+    # of its qstamps, rounded to a millionth as lengths in bars and beats are.
     tm = _map(_tapped_example())
 
     assert tm.quarters(1.0, 4.0) == 3.0  # bar 1
@@ -354,45 +355,61 @@ def test_a_span_in_quarter_notes():
     assert tm.quarters(12.5, 13.5) == 0.5 + 0.75
     assert tm.quarters(6.6, 6.6) == 0.0
     for start, end in ((0.0, 15.0), (2.3, 14.2), (-1.0, 20.0), (14.2, 2.3)):
-        assert tm.quarters(start, end) == tm.qstamp(end) - tm.qstamp(start)
+        difference = tm.qstamp(end) - tm.qstamp(start)
+        assert tm.quarters(start, end) == round(difference, 6)
 
 
-def _assumed_map() -> TimeMap:
-    """Bars 1-4 of two taps each, a beat every second from 0 s: bars 1 and 2
-    under a unit someone set, bar 3 under an assumed one, bar 4 set again."""
-    beats = [
-        {"time": float(t), "measure": {} if t % 2 == 0 else None} for t in range(8)
-    ]
-    beats[0]["measure"] = {"number": 1}
-    beats[0]["beat_unit"] = {"denominator": 4, "units": "1"}
-    beats[4]["beat_unit"] = {"denominator": 4, "units": "1", "assumed": True}
-    beats[6]["beat_unit"] = {"denominator": 8, "units": "3"}
-    return _map(beat_timeline(beats))
+def test_quarters_are_rounded_to_a_millionth():
+    # Under 1/3 units, a beat every second, the float stamps of two beats
+    # 8 quarter notes apart differ by 7.999999999999999.
+    tm = _map(_timeline(range(30), [3], {0: (4, "1/3")}))
+
+    assert tm.qstamp(26.0) - tm.qstamp(2.0) != 8
+    assert tm.quarters(2.0, 26.0) == 8.0 and tm.quarters(4.0, 7.0) == 1.0
 
 
-def test_whether_a_span_touches_an_assumed_measure():
-    # Spec, US3 scenario 5 (FR-043): whether any measure the span touches is
-    # assumed. Touched as positions read a span: snapped, the end point
-    # excluded, and a point, or an end not after the start, in its start's bar.
-    tm = _assumed_map()
+def _assumed_timeline(assumed_unit=None, *, beats=8) -> tla.Timeline:
+    """Bars of two taps, a beat every second from 0 s: bars 1 and 2 under a
+    unit someone set, bar 3 under an assumed one, bar 4 set again, a 6/8."""
+    marks = {t: {} for t in range(0, beats, 2)} | {0: {"number": 1}}
+    units = {
+        0: {"denominator": 4, "units": "1"},
+        4: {"denominator": 4, "units": "1", **(assumed_unit or {}), "assumed": True},
+        6: {"denominator": 8, "units": "3"},
+    }
+    return beat_timeline(
+        [
+            {"time": float(t), "measure": marks.get(t), "beat_unit": units.get(t)}
+            for t in range(beats)
+        ]
+    )
+
+
+def test_whether_an_assumed_meter_went_into_a_length_in_quarters():
+    # Spec, US3 scenario 5 (FR-043): whether a measure holding a beat whose
+    # length the span's quarter notes count is assumed. Times aren't snapped,
+    # as qstamps aren't; an end exactly on a beat takes nothing from its gap.
+    tm = _map(_assumed_timeline())
     assert [row.assumed for row in tm.measure_rows()] == [False, False, True, False]
 
     assert not tm.assumed_between(0.0, 4.0)  # bars 1 and 2, ending on bar 3
-    assert not tm.assumed_between(0.5, 4.08)  # an end that snaps onto it
-    assert tm.assumed_between(0.5, 4.2)  # into bar 3
+    assert tm.assumed_between(0.5, 4.08)  # 0.08 s into bar 3
+    assert not tm.assumed_between(3.92, 3.98)  # just before it
     assert tm.assumed_between(3.5, 6.5)
     assert tm.assumed_between(5.0, 5.0)  # a point in bar 3
     assert tm.assumed_between(4.0, 4.0)  # a point on its downbeat
-    assert tm.assumed_between(3.95, 3.95)  # snapped onto it
+    assert not tm.assumed_between(3.95, 3.95)  # a point just before it
     assert not tm.assumed_between(6.0, 7.5)  # bar 4
-    assert tm.assumed_between(5.5, 2.0)  # an end before the start: bar 3's
+    # An end before the start: the bars between, as the other way round.
+    assert tm.assumed_between(5.5, 2.0) and tm.assumed_between(7.5, 3.5)
     assert not tm.assumed_between(2.5, 1.5)
 
 
-def test_parts_of_a_span_off_the_map_touch_the_measure_at_that_end():
+def test_off_the_map_the_gap_at_that_end_counts():
     # Qstamps off the map are extrapolated with the tempo of the gap at that
-    # end (#621), so a span there touches the first or the last measure.
-    tm = _assumed_map()
+    # end (#621): before the first beat the first gap's, after the last beat
+    # the last gap's.
+    tm = _map(_assumed_timeline())
 
     assert not tm.assumed_between(-5.0, -1.0)  # bar 1's
     assert not tm.assumed_between(7.5, 20.0)  # bar 4's
@@ -400,6 +417,52 @@ def test_parts_of_a_span_off_the_map_touch_the_measure_at_that_end():
     # The tapped example's last bar, without its unit, reads 2/4, assumed.
     assert _map(_tapped_example(six_eight=False)).assumed_between(16.0, 18.0)
     assert not _map(_tapped_example()).assumed_between(16.0, 18.0)
+    # A last bar of a single tap: the last gap is the assumed bar 3's.
+    one_tap = _map(_assumed_timeline(beats=7))
+    assert [row.beats for row in one_tap.measure_rows()] == [2, 2, 2, 1]
+    assert one_tap.assumed_between(6.0, 6.9)
+
+
+@pytest.mark.parametrize("beats", [8, 7], ids=["two taps", "one tap"])
+def test_a_meter_the_flag_leaves_out_never_changes_the_quarters(beats):
+    # Wherever assumed_between says no, another meter for the assumed bar 3
+    # leaves quarters() as it was: the flag misses no meter that went in.
+    quarter = _map(_assumed_timeline(beats=beats))
+    eighth = _map(_assumed_timeline({"denominator": 8}, beats=beats))
+    times = [t / 4 for t in range(-8, 44)]
+    times += [t + d for t in range(beats) for d in (-0.05, 1e-9, 0.05)]
+
+    for start, end in itertools.product(times, repeat=2):
+        if not quarter.assumed_between(start, end):
+            expected = eighth.quarters(start, end)
+            assert quarter.quarters(start, end) == pytest.approx(expected, abs=1e-6)
+
+
+def test_first_qstamps_on_two_maps_dont_wait_for_each_other(monkeypatch):
+    # Each map builds its stamp table on first use, without a lock that every
+    # map shares, as functools.cached_property's is on Python 3.10 and 3.11.
+    started, release = threading.Event(), threading.Event()
+
+    def slow_build(times, lengths):
+        if times[0] == 100.0:
+            started.set()
+            release.wait(5)
+        return qstamps.build_time_stamp_table(times, lengths)
+
+    monkeypatch.setattr(timemap_module, "build_time_stamp_table", slow_build)
+    slow, quick = _map(_timeline([100, 101, 102])), _map(_timeline(range(3)))
+    building = threading.Thread(target=slow.qstamp, args=(100.5,))
+    building.start()
+    try:
+        assert started.wait(5)
+        asking = threading.Thread(target=quick.qstamp, args=(0.5,))
+        asking.start()
+        asking.join(2)
+        assert not asking.is_alive()
+    finally:
+        release.set()
+        building.join(5)
+    assert slow.qstamp(100.5) == 0.5 and quick.qstamp(0.5) == 0.5
 
 
 @pytest.mark.parametrize(

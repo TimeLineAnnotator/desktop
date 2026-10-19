@@ -6,12 +6,14 @@ Moved from desktop#621's BeatTimeline (`beat_quarter_lengths`,
 `get_quarter_stamp_by_time` and `get_time_by_quarter_stamp`), with the same
 rules, over a beat timeline's beat times and its measures' meters instead of
 the app's components. Stamps are exact inside, and floats where they meet times.
+`beats_between`, which says which beats' lengths a span's quarter notes count,
+is the core's own.
 """
 
 from __future__ import annotations
 
 import itertools
-from bisect import bisect
+from bisect import bisect, bisect_left
 from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
@@ -61,6 +63,7 @@ def build_time_stamp_table(
     # The last beat has no next beat to measure against, so the tempo of
     # the gap before it carries on past it. Its own length doesn't enter:
     # that gap lasted the previous beat's length, not the last one's.
+    # (beats_between follows this rule too.)
     seconds_per_quarter.append(seconds_per_quarter[-1])
     return TimeStampTable(
         times=tuple(times),
@@ -81,6 +84,24 @@ def quarter_stamp_by_time(table: TimeStampTable | None, time: float) -> float | 
         table.stamps[index]
         + (time - table.times[index]) / table.seconds_per_quarter[index]
     )
+
+
+def beats_between(times: Sequence[float], start: float, end: float) -> range:
+    """
+    The beats whose lengths the quarter notes between `start` and `end` count,
+    in either order, by index: each beat whose gap the span covers. Before the
+    first beat the first gap's tempo applies, and after the last beat the last
+    gap's, as `quarter_stamp_by_time` extrapolates. An end exactly on a beat
+    takes nothing from it, and a point takes its own gap. Empty with fewer than
+    two beats.
+    """
+    if len(times) < 2:
+        return range(0)
+    start, end = sorted((start, end))
+    last = len(times) - 2  # the last beat's own length never enters
+    first = min(max(bisect(times, start) - 1, 0), last)
+    stop = min(max(bisect_left(times, end) - 1, first), last)
+    return range(first, stop + 1)
 
 
 def time_by_quarter_stamp(table: TimeStampTable | None, stamp: float) -> float | None:
