@@ -776,6 +776,13 @@ class TestHierarchy:
 
         assert outcome.others == tuple(h.id for h in crossed)
 
+    def test_crossing_one_whose_level_is_written_as_a_float(self):
+        other = hierarchy(0, 10, 1.0)
+
+        outcome = check("hierarchy", [other], start=5, end=15, level=1)
+
+        assert outcome == (False, "Component would overlap with existing component.")
+
     def test_nesting_is_tilias_boundary_conflicts(self):
         # Every pair of hierarchies with times from 0 to 4 and levels from 1 to 8.
         spans = [
