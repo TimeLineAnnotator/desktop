@@ -587,11 +587,13 @@ def _qt_reads(text: str) -> bool:
 
 def _media_time(seconds: float) -> str:
     """A time as TiLiA's `format_media_time` shows it ("01:05.0", "1:02:05.0"),
-    with a minus sign before a negative one ("-00:01.0")."""
+    with a minus sign before a negative one ("-00:01.0"). It is rounded to tenths
+    before its minutes are counted, so 59.96 is "01:00.0", not "00:60.0"."""
     if seconds < 0:
         return "-" + _media_time(-seconds)
+    seconds = float(f"{seconds:.1f}")
     seconds_and_fraction = f"{seconds % 60:.1f}".zfill(4)
-    minutes = int(float(seconds) // 60)
+    minutes = int(seconds // 60)
     hours = f"{minutes // 60}:" if minutes >= 60 else ""
     return f"{hours}{str(minutes % 60).zfill(2)}:{seconds_and_fraction}"
 

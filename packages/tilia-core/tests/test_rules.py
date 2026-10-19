@@ -413,6 +413,18 @@ class TestPointKinds:
             "Time '01:01.0' is bigger than media time '01:00.0'",
         )
 
+    @pytest.mark.parametrize(
+        "media_length, shown",
+        [(59.96, "01:00.0"), (3599.96, "1:00:00.0"), (59.94, "00:59.9")],
+    )
+    def test_a_time_is_rounded_before_its_minutes_are_counted(
+        self, media_length, shown
+    ):
+        assert check("marker", time=7200.0, media_length=media_length) == (
+            False,
+            f"Time '2:00:00.0' is bigger than media time '{shown}'",
+        )
+
     @pytest.mark.parametrize("kind", POINT_KINDS)
     @pytest.mark.parametrize("time", [0.0, 1.0, MEDIA])
     def test_a_time_another_component_of_the_kind_has(self, kind, time):
