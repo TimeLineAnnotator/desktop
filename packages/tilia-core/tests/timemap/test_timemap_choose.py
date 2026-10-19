@@ -16,23 +16,16 @@ from tilia_core.timemap import (
 from tilia_core.timemap.timemap import FOLDED
 
 
-def _claim(*claiming: tla.Timeline) -> str:
-    """The warning when several timelines claim the role, in ordinal order."""
-    ids = [timeline.id for timeline in claiming]
-    named = f"{', '.join(ids[:-1])} and {ids[-1]}"
-    return (
-        f"timelines {named} claim the role time_map; "
-        f"{ids[0]}, the first by ordinal, is used"
-    )
-
-
-def _beats(ordinal: int, role: str | None = None, *, last: int = 3) -> tla.Timeline:
+def _beats(
+    ordinal: int, role: str | None = None, *, last: int = 3, id: str | None = None
+) -> tla.Timeline:
     """2/4, a beat every second from 0 to `last`."""
     return beat_timeline(
         [
             {"time": float(t), "measure": {} if t % 2 == 0 else None}
             for t in range(last + 1)
         ],
+        id=id,
         ordinal=ordinal,
         role=role,
     )
@@ -75,13 +68,29 @@ def test_without_the_role_the_first_beat_timeline_by_ordinal_is_guessed():
     assert found.reason is None and found.warnings == ()
 
 
-@pytest.mark.parametrize("claimants", [2, 3])
-def test_when_several_claim_the_role_the_first_by_ordinal_wins(claimants, caplog):
+@pytest.mark.parametrize(
+    "claimants, warning",
+    [
+        (
+            2,
+            "timelines B and C claim the role time_map; "
+            "B, the first by ordinal, is used",
+        ),
+        (
+            3,
+            "timelines A, B and C claim the role time_map; "
+            "A, the first by ordinal, is used",
+        ),
+    ],
+)
+def test_when_several_claim_the_role_the_first_by_ordinal_wins(
+    claimants, warning, caplog
+):
     # Spec, US4 scenario 3: one warning, however many claim it, naming them in
     # ordinal order; returned and logged (TimeLineAnnotator/project-management#13
     # (the measure table)).
     unclaimed = _beats(1)
-    claiming = [_beats(10 - j, role="time_map") for j in range(claimants)]
+    claiming = [_beats(10 - j, role="time_map", id="CBA"[j]) for j in range(claimants)]
 
     with caplog.at_level(logging.WARNING):
         found = find_time_map(document(unclaimed, *claiming))
@@ -89,7 +98,7 @@ def test_when_several_claim_the_role_the_first_by_ordinal_wins(claimants, caplog
     assert found.timeline_id == claiming[-1].id
     assert found.time_map.timeline_id == claiming[-1].id
     assert not found.guessed
-    assert found.warnings == (_claim(*reversed(claiming)),)
+    assert found.warnings == (warning,)
     (record,) = caplog.records
     assert record.name == "tilia_core.timemap"
     assert record.getMessage() == f"{found.warnings[0]}."
@@ -260,12 +269,16 @@ def test_the_last_beat_at_or_after_the_end_of_the_media_is_returned_and_logged(
 
 def test_the_warnings_come_in_the_order_they_were_found():
     # The claim first, then each timeline past the media, by ordinal.
-    later, earlier = _beats(2, role="time_map"), _beats(1, role="time_map")
+    later = _beats(2, role="time_map", id="late")
+    earlier = _beats(1, role="time_map", id="early")
 
     found = find_time_map(document(later, earlier, media_length=2.0))
 
     assert len(found.warnings) == 3
-    assert found.warnings[0] == _claim(earlier, later)
+    assert found.warnings[0] == (
+        "timelines early and late claim the role time_map; "
+        "early, the first by ordinal, is used"
+    )
     assert found.warnings[1].startswith(f"Timeline {earlier.id}: the last beat (3.0)")
     assert found.warnings[2].startswith(f"Timeline {later.id}: the last beat (3.0)")
 
