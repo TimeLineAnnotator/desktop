@@ -174,6 +174,11 @@ class TestOutcome:
         assert not rules.marker(60.0, [], {"time": -1.0})
         assert not rules.hierarchy(60.0, [], {"start": 0.0, "end": 1.0, "level": 0})
 
+    def test_a_check_that_keeps_doesnt_end_the_checks(self):
+        broken = rules.Outcome(False, "Invalid row ID.")
+
+        assert rules._kept({}, lambda: rules.OK, lambda: broken) == broken
+
     def test_a_broken_rule_unpacks_as_its_reason(self):
         ok, reason = rules.Outcome(False, "Invalid row ID.")
 
@@ -665,6 +670,14 @@ class TestWithoutMusic21:
 
         assert raised.value.command == INSTALL
         assert isinstance(raised.value.__cause__, ImportError)
+
+    @pytest.mark.parametrize("kind", ["harmony", "mode"])
+    def test_a_bad_color_doesnt_hide_that_it_cant_be_checked(
+        self, kind, without_music21
+    ):
+        # An importer keeps a component whose only problem is its color.
+        with pytest.raises(rules.CantCheck):
+            getattr(rules, kind)(MEDIA, [], {"time": 1.0, "color": "notacolor"})
 
     @pytest.mark.parametrize("kind", ["harmony", "mode"])
     def test_the_other_rules_are_checked(self, kind, without_music21):

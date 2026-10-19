@@ -127,25 +127,34 @@ class CantCheck(Exception):
         return type(self), (self.kind,)
 
 
-# The private functions give the first rule they find broken, or None. `_first`
-# checks them in order, each only once the ones before it are kept: an outcome's
-# truth is whether it is kept, so `or` can't chain them. A color is checked last:
-# an importer keeps a row whose color isn't one, with the default color, so a bad
-# color mustn't hide another broken rule.
+# The private functions give the first rule they find broken, or None. `_kept`
+# checks them in order, each only once the ones before it are kept. Then it raises
+# `CantCheck` when the rules that need music21 couldn't be checked, and only then
+# checks the color: an importer keeps a row whose color isn't one, with the
+# default color, so a bad color mustn't hide another broken rule, nor that a rule
+# couldn't be checked.
 
 Check = Callable[[], "Outcome | None"]
 
 
-def _first_broken(*checks: Check) -> Outcome | None:
+def _kept(
+    attrs: Mapping[str, Any],
+    *checks: Check,
+    missing: tuple[str, ImportError | None] | None = None,
+) -> Outcome:
+    """The first rule `checks` find broken, else the color's outcome.
+
+    `missing` is a harmony's or a key's kind, and the error if music21 is installed
+    but won't import, when music21 couldn't be imported to check them.
+    """
     for check in checks:
         broken = check()
-        if broken is not None:
+        if broken is not None and not broken:
             return broken
-    return None
-
-
-def _first(*checks: Check) -> Outcome:
-    broken = _first_broken(*checks)
+    if missing is not None:
+        kind, error = missing
+        raise CantCheck(kind) from error
+    broken = _color_of(attrs)
     return OK if broken is None else broken
 
 
@@ -153,20 +162,14 @@ def marker(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A marker."""
-    return _first(
-        lambda: _point("marker", media_length, others, attrs),
-        lambda: _color_of(attrs),
-    )
+    return _kept(attrs, lambda: _point("marker", media_length, others, attrs))
 
 
 def beat(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A beat. Its measure mark and beat unit follow the measure table's rules."""
-    return _first(
-        lambda: _point("beat", media_length, others, attrs),
-        lambda: _color_of(attrs),
-    )
+    return _kept(attrs, lambda: _point("beat", media_length, others, attrs))
 
 
 def pdf_marker(
@@ -177,10 +180,10 @@ def pdf_marker(
     page_count: int,
 ) -> Outcome:
     """A PDF marker, in a PDF of `page_count` pages: 0 for a PDF that can't be read."""
-    return _first(
+    return _kept(
+        attrs,
         lambda: _point("pdf_marker", media_length, others, attrs),
         lambda: _page(attrs.get("page_number"), page_count),
-        lambda: _color_of(attrs),
     )
 
 
@@ -189,7 +192,8 @@ def harmony(
 ) -> Outcome:
     """A harmony. Without music21, raises `CantCheck` when no other rule is broken."""
     music21, error = _music21()
-    broken = _first_broken(
+    return _kept(
+        attrs,
         lambda: _point("harmony", media_length, others, attrs),
         lambda: _one_of(attrs, "step", _STEPS),
         lambda: _one_of(attrs, "applied_to", _STEPS),
@@ -198,9 +202,8 @@ def harmony(
         lambda: _one_of(attrs, "level", _LEVELS),
         lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
         lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
-        lambda: _color_of(attrs),
+        missing=None if music21 else ("harmony", error),
     )
-    return _checked("harmony", broken, music21, error)
 
 
 def mode(
@@ -208,15 +211,15 @@ def mode(
 ) -> Outcome:
     """A key. Without music21, raises `CantCheck` when no other rule is broken."""
     music21, error = _music21()
-    broken = _first_broken(
+    return _kept(
+        attrs,
         lambda: _point("mode", media_length, others, attrs),
         lambda: _one_of(attrs, "step", _STEPS),
         lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
         lambda: _mode_type(music21, attrs) if music21 else None,
         lambda: _one_of(attrs, "level", _LEVELS),
-        lambda: _color_of(attrs),
+        missing=None if music21 else ("mode", error),
     )
-    return _checked("mode", broken, music21, error)
 
 
 def hierarchy(
@@ -224,19 +227,17 @@ def hierarchy(
 ) -> Outcome:
     """A hierarchy. Hierarchies nest: one that overlaps another lies inside it,
     at a lower level."""
-    broken = _every_kind(attrs, _SEGMENT_TIMES)
-    if broken is not None:
-        return broken
-    start, end, level = attrs["start"], attrs["end"], attrs.get("level")
+    start, end, level = attrs.get("start"), attrs.get("end"), attrs.get("level")
     hierarchies = [other for other in others if other.kind == "hierarchy"]
-    return _first(
+    return _kept(
+        attrs,
+        lambda: _every_kind(attrs, _SEGMENT_TIMES),
         lambda: _hierarchy_times(start, end, media_length),
         lambda: _hierarchy_level(level),
         lambda: _pre_start(attrs.get("pre_start"), start),
         lambda: _post_end(attrs.get("post_end"), end, media_length),
         lambda: _same_place(start, end, level, hierarchies),
         lambda: _crossed(start, end, level, hierarchies),
-        lambda: _color_of(attrs),
     )
 
 
@@ -251,17 +252,15 @@ def range_(
 
     Ranges in a row may overlap.
     """
-    broken = _every_kind(attrs, _SEGMENT_TIMES)
-    if broken is not None:
-        return broken
-    start, end = attrs["start"], attrs["end"]
+    start, end = attrs.get("start"), attrs.get("end")
     row_ids = [row.get("id") for row in rows]
-    return _first(
+    return _kept(
+        attrs,
+        lambda: _every_kind(attrs, _SEGMENT_TIMES),
         lambda: _range_place(attrs.get("row_id"), row_ids, start, end, media_length),
         lambda: _pre_start(attrs.get("pre_start"), start),
         lambda: _post_end(attrs.get("post_end"), end, media_length),
         lambda: _joined(attrs, others, rows),
-        lambda: _color_of(attrs),
     )
 
 
@@ -393,19 +392,6 @@ def _music21() -> tuple[ModuleType | None, ImportError | None]:
     except ImportError as error:
         return None, error
     return music21, None
-
-
-def _checked(
-    kind: str,
-    broken: Outcome | None,
-    music21: ModuleType | None,
-    error: ImportError | None,
-) -> Outcome:
-    if broken is not None:
-        return broken
-    if music21 is None:
-        raise CantCheck(kind) from error
-    return OK
 
 
 def _quality_and_inversion(
