@@ -131,8 +131,10 @@ class CantCheck(Exception):
         self.kind = kind
         self.error = error
 
-    def __reduce__(self) -> tuple[type[CantCheck], tuple[str, Exception | None]]:
-        return type(self), (self.kind, self.error)
+    def __reduce__(self) -> tuple[Any, ...]:
+        # The error isn't carried, since it may not copy or pickle: its text is in
+        # the message, which is.
+        return type(self), (self.kind,), {"args": self.args, "error": None}
 
 
 # The private functions give the first rule they find broken, or None. `_kept`
