@@ -8,7 +8,7 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from fractions import Fraction
-from typing import Any, NoReturn
+from typing import Any, NoReturn, TypeGuard
 
 from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
@@ -155,8 +155,10 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
     if table_problem(timeline) is not None:
         return None
     times = _times(timeline)
+    if not times:
+        return None
     media_length = _media_length(document)
-    if not times or media_length is None or not _ends_by(media_length, times[-1]):
+    if media_length is None or not _ends_by(media_length, times[-1]):
         return None
     warning = (
         f"Timeline {timeline.id}: the last beat ({times[-1]}) is at or after "
@@ -204,6 +206,17 @@ def _has_time(component: tla.Component | None) -> bool:
         and not isinstance(time, bool)
         and math.isfinite(time)
     )
+
+
+def _is_number(value: object) -> TypeGuard[int | float]:
+    """A finite number, as JSON stores one: not a bool, NaN, an infinity, or a
+    whole number too large for a float, which JSON reads as an int."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def build_rows_from(
@@ -296,12 +309,11 @@ def _media_length(document: tla.Document) -> float | None:
 
     It is in seconds, so it doesn't cap a quarters file. The format allows a
     number above zero, or none; the reader doesn't check, so anything else
-    (text, a bool, NaN, infinity, zero or less) counts as none.
+    (text, a bool, NaN, infinity, a whole number too large for a float, zero
+    or less) counts as none.
     """
     length: object = document.media_length
-    if document.time_unit != "seconds" or isinstance(length, bool):
-        return None
-    if not isinstance(length, (int, float)) or not math.isfinite(length):
+    if document.time_unit != "seconds" or not _is_number(length):
         return None
     return length if length > 0 else None
 
