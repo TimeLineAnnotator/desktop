@@ -79,8 +79,9 @@ def without_music21(monkeypatch):
 # TiLiA's creation rules, which its importers apply: `validate_creation` of its
 # point-like and segment-like components, and the range timeline's
 # `_validate_component_creation`. They say whether TiLiA creates a component,
-# for the tests that show a rule the core adds; what they don't take, they
-# don't check.
+# for the tests that show a rule the core adds. They take only what TiLiA's
+# creation rules look at: not a colour, a text or a harmony's values, which only
+# `set_data` checks, so TiLiA's importers store any of them.
 
 
 def tilia_creates_point(time, existing_times=(), media_length=MEDIA, **_):
@@ -549,7 +550,6 @@ class TestHarmony:
     )
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("harmony", **{attribute: value}) == (False, reason)
-        assert tilia_creates_point(1.0, **{attribute: value})
 
     def test_every_quality_music21_has(self, music21):
         for quality in music21.harmony.CHORD_TYPES:
@@ -618,7 +618,6 @@ class TestMode:
     )
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("mode", **{attribute: value}) == (False, reason)
-        assert tilia_creates_point(1.0, **{attribute: value})
 
     def test_types_are_read_from_the_installed_music21(self, music21, monkeypatch):
         monkeypatch.setitem(music21.key.modeSharpsAlter, "made-up", 0)
