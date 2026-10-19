@@ -842,6 +842,13 @@ class TestHierarchy:
 
         assert outcome.others == tuple(h.id for h in crossed)
 
+    def test_crossing_one_whose_level_is_a_huge_integer(self):
+        other = hierarchy(0, 10, 10**400)
+
+        outcome = check("hierarchy", [other], start=5, end=15, level=1)
+
+        assert outcome == (False, "Component would overlap with existing component.")
+
     def test_crossing_one_whose_level_is_written_as_a_float(self):
         other = hierarchy(0, 10, 1.0)
 
