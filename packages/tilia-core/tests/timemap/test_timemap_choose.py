@@ -363,6 +363,24 @@ def test_a_media_length_too_large_for_a_float_read_from_a_file_is_no_length(capl
     assert not caplog.records
 
 
+def test_a_whole_number_media_length_caps_and_warns():
+    # JSON reads "length": 7 as an int, which the format allows. One measure of
+    # four beats, every 2 s: its closing barline is at 8.
+    timeline = beat_timeline(
+        [{"time": t, "measure": {} if t == 0.0 else None} for t in (0.0, 2.0, 4.0, 6.0)]
+    )
+
+    capped = find_time_map(document(timeline, media_length=7))
+    past = find_time_map(document(timeline, media_length=6))
+
+    assert capped.time_map.end == 7 and capped.warnings == ()
+    assert past.time_map.end == 8.0
+    assert past.warnings == (
+        f"Timeline {timeline.id}: the last beat (6.0) is at or after the end of the "
+        "media (6); the last measure ends one gap after it",
+    )
+
+
 def test_one_beat_past_the_media_is_warned_about_without_a_gap():
     # Its only measure ends on the beat: there is no gap after it.
     one = beat_timeline([{"time": 5.0, "measure": {}}])
