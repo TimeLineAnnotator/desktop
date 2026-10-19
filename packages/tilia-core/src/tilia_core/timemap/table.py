@@ -3,6 +3,7 @@ start and end, meter and time signature."""
 
 from __future__ import annotations
 
+import itertools
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -13,6 +14,8 @@ from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
 from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.units import MeasureMeter, format_units
+
+SAME_TIME = 1e-6  # two beats closer than this are at the same time
 
 
 class FrozenMetadata(dict[str, "str | tuple[str, ...]"]):
@@ -104,13 +107,34 @@ class MeasureRow:
 def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRow]:
     """The timeline's measure table, in its order; also for a folded table.
 
-    None while a beat has no usable time (`missing_time` says which), or while a
-    row's beats don't start at its downbeat (`broken_row`): rows built without
-    them would be wrong.
+    None while a beat has no usable time (`missing_time` says which), while a
+    row's beats don't start at its downbeat (`broken_row`), or while two beats
+    are at the same time or out of time order (`disorder`): rows built then
+    would be wrong, with measures that end before they start.
     """
-    if missing_time(timeline) is not None or broken_row(timeline) is not None:
+    if _usable_times(timeline) is None:
         return []
     return build_rows_from(document, timeline, rows_of(timeline))
+
+
+def _usable_times(timeline: tla.Timeline) -> list[float] | None:
+    """The times of the table's beats, in its order; None when it can have no rows."""
+    if missing_time(timeline) is not None or broken_row(timeline) is not None:
+        return None
+    rows = timeline.measures.rows if timeline.measures is not None else []
+    times = [timeline.components[b].attrs["time"] for row in rows for b in row.beats]
+    return None if disorder(times) is not None else times
+
+
+def disorder(times: Sequence[float]) -> str | None:
+    """The first two beats at the same time, or the first out of time order, as
+    a reason; else None."""
+    for a, b in itertools.pairwise(times):
+        if abs(b - a) < SAME_TIME:
+            return f"two beats at the same time ({a})"
+        if b < a:
+            return f"beats out of time order (at {b})"
+    return None
 
 
 def missing_time(timeline: tla.Timeline) -> str | None:

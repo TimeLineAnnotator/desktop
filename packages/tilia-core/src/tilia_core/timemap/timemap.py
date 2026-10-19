@@ -19,6 +19,7 @@ from tilia_core.timemap.table import (
     MeasureRow,
     broken_row,
     build_rows_from,
+    disorder,
     is_folded,
     missing_time,
     past_media,
@@ -193,11 +194,9 @@ def build_time_map(
     times = [t for row in rows_in for t in row.beat_times]
     if len(times) < 2:
         return None, "fewer than two beats"
-    for a, b in itertools.pairwise(times):
-        if abs(b - a) < EPS:
-            return None, f"two beats at the same time ({a})"
-        if b < a:
-            return None, f"beats out of time order (at {b})"
+    reason = disorder(times)
+    if reason is not None:
+        return None, reason
     if is_folded(rows_in):
         return None, FOLDED
     rows = build_rows_from(document, timeline, rows_in)
