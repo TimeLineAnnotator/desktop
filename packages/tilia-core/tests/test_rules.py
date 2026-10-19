@@ -93,6 +93,21 @@ def broken_music21(monkeypatch):
         monkeypatch.setitem(sys.modules, name, None)
 
 
+@pytest.fixture
+def music21_raising(tmp_path, monkeypatch):
+    # A music21 that is installed but raises something other than ImportError
+    # when imported, as with a numpy it can't use.
+    package = tmp_path / "music21"
+    package.mkdir()
+    (package / "__init__.py").write_text(
+        'raise AttributeError("np.float_ was removed in the NumPy 2.0 release.")\n'
+    )
+    for name in [name for name in sys.modules if name.partition(".")[0] == "music21"]:
+        monkeypatch.delitem(sys.modules, name)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    importlib.invalidate_caches()
+
+
 # TiLiA's creation rules, which its importers apply: `validate_creation` of its
 # point-like and segment-like components, and the range timeline's
 # `_validate_component_creation`. They say whether TiLiA creates a component,
@@ -678,6 +693,13 @@ class TestWithoutMusic21:
         # An importer keeps a component whose only problem is its color.
         with pytest.raises(rules.CantCheck):
             getattr(rules, kind)(MEDIA, [], {"time": 1.0, "color": "notacolor"})
+
+    @pytest.mark.parametrize("kind", ["harmony", "mode"])
+    def test_a_music21_that_raises_something_else(self, kind, music21_raising):
+        with pytest.raises(rules.CantCheck) as raised:
+            getattr(rules, kind)(MEDIA, [], {"time": 1.0})
+
+        assert isinstance(raised.value.__cause__, AttributeError)
 
     @pytest.mark.parametrize("kind", ["harmony", "mode"])
     def test_the_other_rules_are_checked(self, kind, without_music21):
