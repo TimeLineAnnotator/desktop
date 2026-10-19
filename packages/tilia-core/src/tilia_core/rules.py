@@ -92,7 +92,7 @@ class Outcome(tuple[bool, str]):
         return outcome
 
     def __bool__(self) -> bool:
-        return self[0]
+        return bool(self[0])
 
     def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...]]:  # type: ignore[override]
         # What copy and pickle give __new__: a tuple's would be the pair alone.
