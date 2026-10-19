@@ -15,7 +15,9 @@ from tilia_core.timemap._rows import RowIn, rows_of
 from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.units import MeasureMeter, format_units
 
-SAME_TIME = 1e-6  # two beats closer than this are at the same time
+# Float noise: two beats closer than this are at the same time, and a time this
+# much beyond the tolerance is still on a beat.
+EPS = 1e-6
 
 
 class FrozenMetadata(dict[str, "str | tuple[str, ...]"]):
@@ -136,7 +138,7 @@ def disorder(times: Sequence[float]) -> str | None:
     """The first two beats at the same time, or the first out of time order, as
     a reason; else None."""
     for a, b in itertools.pairwise(times):
-        if abs(b - a) < SAME_TIME:
+        if abs(b - a) < EPS:
             return f"two beats at the same time ({a})"
         if b < a:
             return f"beats out of time order (at {b})"
